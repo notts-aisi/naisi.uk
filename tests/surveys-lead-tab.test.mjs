@@ -1270,6 +1270,71 @@ describe("4c. the Check-ins view: whole weeks, its floors, never a group's own f
 });
 
 // ---------------------------------------------------------------------------
+// 4d. The words
+// ---------------------------------------------------------------------------
+
+describe("4d. the words of the views, one by one: counted right, no dash, no pronoun and nothing that marks anybody", () => {
+  test("the Overview's and the Check-ins view's sentences, with their slots filled", () => {
+    const words = lib.words;
+    assert.equal(words.answersOverWeeksWords(139, 3), "139 answers over 3 weeks");
+    assert.equal(words.answersOverWeeksWords(1, 1), "1 answer over 1 week");
+    assert.equal(words.sessionsReportedWords(31, 33), "31 of 33 sessions");
+    assert.equal(words.sessionsReportedWords(0, 1), "0 of 1 session");
+    assert.equal(words.weeksAnswersWords([48, 45, 46]), "48, 45 and 46 answers.");
+    assert.equal(words.weeksAnswersWords([1]), "1 answer.");
+    assert.equal(words.weeksAnswersWords([]), "");
+    assert.equal(words.namedShareWords(14, 46), "14 · 30%");
+    assert.equal(words.namedShareWords(0, 0), "0 · 0%");
+    assert.equal(words.ofReportsWords(3, 10), "3 of 10 reports");
+    assert.equal(words.ofReportsWords(0, 1), "0 of 1 report");
+    assert.equal(words.besideEachPartWords(10), "Beside each part, how many of the week’s 10 reports named it.");
+    assert.equal(words.besideEachPartWords(1), "Beside each part, whether the week’s one report named it.");
+    assert.equal(words.cardWhenWords("closed Sun 1 Nov"), "Closed Sun 1 Nov");
+    assert.equal(words.lastSessionWords("Wed 9 Dec"), "Last session Wed 9 Dec");
+    assert.equal(words.percentWords(33, 46), "72%");
+    assert.equal(words.unclearTitleWords(3), "What was unclear, week 3");
+    assert.equal(words.reportsWeekTitleWords(3), "Facilitators’ reports, week 3");
+    assert.equal(words.reportsAverageWords(4.05), "Average 4.1 of 5 for how it went.");
+    assert.equal(words.readReportsWords(10), "Read the 10 reports");
+    assert.equal(words.readReportsWords(1), "Read the report");
+    assert.equal(words.leadSurveyLineWords(29, 32, new Date("2026-11-04T23:59:00Z"), true), "29 of 32 answered · closed Wed 4 Nov");
+    const ci = lib.checkInWords;
+    assert.equal(ci.weekTooFewWords(2, 6, 3), "2 of 6 answered. Totals show from 3, so nobody can be worked out.");
+    assert.equal(ci.commentsFromWords(5), "Comments show from 5 answers, so nobody can be worked out.");
+    assert.equal(ci.readingShareWords(33, 46), "33 of 46 · 72%");
+    assert.equal(ci.outOfFive(4.25), "4.3 of 5");
+    assert.equal(ci.groupCheckInWords("Group C", new Date("2026-11-18T15:00:00Z")), "Group C · Wed 18 Nov, 3pm");
+    assert.equal(ci.groupCheckInWords("Group C", null), "Group C");
+    assert.equal(ci.checkInLinkLabel("Who answered", "Group C", 3), "Who answered: Group C, week 3");
+    assert.equal(
+      ci.checkInsTabLine(3, 5),
+      "Every group’s check-ins together, week by week, without names. A week shows once every group’s check-in that week has closed: totals from 3 answers, comments from 5.",
+    );
+    // The views' own names, in the row's order.
+    const views = readFileSync(join(REPO_ROOT, "src", "features", "applications", "surveys", "SurveysViews.tsx"), "utf8");
+    assert.deepEqual([...views.matchAll(/label: "([^"]+)"/g)].map((match) => match[1]), ["Overview", "Before", "Check-ins", "Facilitators’ reports", "End", "Follow-ups"]);
+    // Every file of words or views this tab draws: no dash of either kind, no pronoun guessed, and nothing that marks, grades or scores anybody.
+    for (const file of [
+      ["lib", "surveys", "words.ts"],
+      ["lib", "surveys", "checkIns", "words.ts"],
+      ["lib", "courses", "attendanceWords.ts"],
+      ["features", "surveys", "lead", "SurveysOverview.tsx"],
+      ["features", "surveys", "lead", "CheckInsWeeks.tsx"],
+      ["features", "applications", "surveys", "SurveysViews.tsx"],
+    ]) {
+      const source = readFileSync(join(REPO_ROOT, "src", ...file), "utf8");
+      assert.doesNotMatch(source, /[\u2013\u2014]/, `${file.join("/")} carries a dash`);
+      assert.doesNotMatch(source, /\b(?:he|she|his|her|him|hers)\b/i, `${file.join("/")} guesses a pronoun`);
+    }
+    // "Nobody’s marked yet." is the register's own word for taking attendance, as the programme's Overview says it.
+    for (const said of [...Object.values(LEAD_OVERVIEW_WORDS), ...Object.values(CHECK_INS_TAB_WORDS)]) {
+      if (said === LEAD_OVERVIEW_WORDS.nobodyMarked) continue;
+      assert.doesNotMatch(said, /\b(?:mark(?:s|ed)?|grades?|scores?)\b/i, said);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 5. Nothing is written
 // ---------------------------------------------------------------------------
 
