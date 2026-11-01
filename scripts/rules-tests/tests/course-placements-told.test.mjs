@@ -178,7 +178,11 @@ const EVERY_SHAPE = () => ({
   eve: facilitatorRow("eve"),
 });
 
-/** The payload `buildProgressWrite` emits, with a cohort-visible comment. */
+/**
+ * The payload `buildProgressWrite` emits, with a cohort-visible comment.
+ * Unticked: a tick is the tick route's (Admin SDK), and a browser create may
+ * not set `completed` or `completedAt`; a comment is what a browser writes.
+ */
 function progressDoc(uid, itemId) {
   return {
     runId: RUN,
@@ -186,8 +190,7 @@ function progressDoc(uid, itemId) {
     weekNumber: 1,
     itemKind: "material",
     itemId,
-    completed: true,
-    completedAt: new Date(),
+    completed: false,
     publicComment: "Worth reading twice.",
     hasPublicComment: true,
   };
