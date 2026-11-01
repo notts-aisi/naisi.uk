@@ -52,6 +52,29 @@ const EXPLAIN_ID = "q_c4";
 export type ScaleResult = Extract<QuestionResult, { kind: "scale" }>;
 export type CommentsResult = Extract<QuestionResult, { kind: "comments" }>;
 
+/** The tab's views that list the programme's own surveys. */
+export type LeadStage = "before" | "end" | "followUps";
+
+/**
+ * The kinds each of those views lists: every kind the lead reads
+ * (`LEAD_READS`) on exactly one, the survey about leaving on End beside the
+ * survey at the end. A survey's results page draws the view its kind is on as
+ * current (`stageOf`), so the two can never disagree.
+ */
+export const STAGE_KINDS: Readonly<Record<LeadStage, readonly SurveyKind[]>> = {
+  before: ["before"],
+  end: ["after", "leaving"],
+  followUps: ["followUp6", "followUp12"],
+};
+
+/** The view a survey of this kind is listed on, or null for a kind the lead does not read here. */
+export function stageOf(kind: SurveyKind): LeadStage | null {
+  for (const stage of ["before", "end", "followUps"] as const) {
+    if (STAGE_KINDS[stage].includes(kind)) return stage;
+  }
+  return null;
+}
+
 export type LeadSurveyRow = {
   id: string;
   /** Its stage, which says which view of the tab it is on: Before, End (with the survey about leaving) or Follow-ups. */

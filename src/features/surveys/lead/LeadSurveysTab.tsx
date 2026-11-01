@@ -1,8 +1,7 @@
 import Link from "next/link";
 import type { RatedSource } from "@/lib/courses/sourceRatings";
-import type { LeadEnd, LeadFacilitatorLine, LeadTabView, ScaleResult } from "@/lib/surveys/leadTab";
+import { STAGE_KINDS, type LeadEnd, type LeadFacilitatorLine, type LeadStage, type LeadTabView, type ScaleResult } from "@/lib/surveys/leadTab";
 import type { ScaleRow } from "@/lib/surveys/results";
-import type { SurveyKind } from "@/lib/firestore/surveys";
 import {
   LEAD_STAGE_WORDS,
   LEAD_TAB_WORDS,
@@ -215,15 +214,6 @@ function Beliefs({ view, base }: { view: LeadTabView; base: string }) {
     </section>
   );
 }
-
-/** Which view a survey is on, by its stage: the survey about leaving is on End, beside the survey at the end. */
-export type LeadStage = "before" | "end" | "followUps";
-
-export const STAGE_KINDS: Record<LeadStage, readonly SurveyKind[]> = {
-  before: ["before"],
-  end: ["after", "leaving"],
-  followUps: ["followUp6", "followUp12"],
-};
 
 function Surveys({ view, base, stage }: { view: LeadTabView; base: string; stage: LeadStage }) {
   const rows = view.surveys.filter((survey) => STAGE_KINDS[stage].includes(survey.kind));

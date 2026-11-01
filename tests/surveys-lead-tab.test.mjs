@@ -586,6 +586,15 @@ describe("1. who opens the tab", () => {
     }
     // A survey that is not the programme's is under no view.
     assert.deepEqual(current((await resultsAs("claudia", made.night)).html), []);
+    // Both directions: every kind the lead reads is listed on exactly one view, no view lists a kind the lead
+    // does not read, and a survey's results page is under the view its kind is listed on.
+    const { LEAD_READS } = await loadTs(join("lib", "surveys", "leadResults.ts"));
+    const { STAGE_KINDS, stageOf } = await loadTs(join("lib", "surveys", "leadTab.ts"));
+    const listed = Object.values(STAGE_KINDS).flat();
+    assert.equal(new Set(listed).size, listed.length, "a kind is listed on two views");
+    assert.deepEqual([...listed].sort(), [...LEAD_READS].sort());
+    for (const [stage, kinds] of Object.entries(STAGE_KINDS)) for (const kind of kinds) assert.equal(stageOf(kind), stage, kind);
+    for (const kind of ["checkIn", "event"]) assert.equal(stageOf(kind), null, kind);
   });
 
   test("the tab bar: Surveys between Messages and Settings, a link for the lead and admins, and not drawn for a reviewer", () => {

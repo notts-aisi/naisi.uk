@@ -6190,8 +6190,15 @@ describe("the course hub passage", () => {
       [
         "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]/page.tsx",
         [
-          "a reading of answers here: one of the programme's surveys' totals and comments for its lead and admins, never a name, deciding nothing",
-          ["@/features/surveys/admin/ResultsTab", "@/features/surveys/admin/surveyAdmin.module.css", "@/lib/surveys/adminView", "@/lib/surveys/leadResults", "@/lib/surveys/words"],
+          "a reading of answers here: one of the programme's surveys' totals and comments for its lead and admins, never a name, deciding nothing; the tab's view its kind is listed on, from the lists the views draw from (stageOf)",
+          [
+            "@/features/surveys/admin/ResultsTab",
+            "@/features/surveys/admin/surveyAdmin.module.css",
+            "@/lib/surveys/adminView",
+            "@/lib/surveys/leadResults",
+            "@/lib/surveys/leadTab",
+            "@/lib/surveys/words",
+          ],
         ],
       ],
       [

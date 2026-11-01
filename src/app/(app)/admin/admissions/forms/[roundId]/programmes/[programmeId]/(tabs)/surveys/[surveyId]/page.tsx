@@ -7,6 +7,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 import { resultsView } from "@/lib/surveys/adminView";
 import { leadSurveyOf } from "@/lib/surveys/leadResults";
+import { stageOf, type LeadStage } from "@/lib/surveys/leadTab";
 import { LEAD_RESULTS_WORDS } from "@/lib/surveys/words";
 
 export const dynamic = "force-dynamic";
@@ -30,16 +31,14 @@ export const dynamic = "force-dynamic";
  * Before, End (the survey at the end and the survey about leaving) or
  * Follow-ups.
  */
-/** The view a survey of this stage is listed on, or none. */
-function viewOf(kind: string): SurveysView | null {
-  switch (kind) {
+/** The view a survey's stage is listed on (`stageOf`, from the lists the views draw from), or none. */
+function viewOf(stage: LeadStage | null): SurveysView | null {
+  switch (stage) {
     case "before":
       return "before";
-    case "after":
-    case "leaving":
+    case "end":
       return "end";
-    case "followUp6":
-    case "followUp12":
+    case "followUps":
       return "follow-ups";
     default:
       return null;
@@ -74,7 +73,7 @@ export default async function ProgrammeSurveyResultsPage({
   }
   const view = await resultsView(db, survey, false, { commentsInOrder: "words" });
   return (
-    <SurveysFrame roundId={roundId} programmeId={programmeId} current={viewOf(survey.kind)}>
+    <SurveysFrame roundId={roundId} programmeId={programmeId} current={viewOf(stageOf(survey.kind))}>
       <div className={styles.section}>
         <section className={styles.card} aria-labelledby="programme-survey">
           <h2 id="programme-survey" className={styles.sectionTitle}>
