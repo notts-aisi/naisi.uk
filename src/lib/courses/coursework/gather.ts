@@ -10,7 +10,6 @@ import { courseworkCountsFrom, rowCountsFrom } from "@/lib/legal/courseworkUse";
 import { workIsReadable } from "@/lib/courses/weekWork/model";
 import { readRunForLock } from "@/lib/courses/weekWork/own";
 import { loadRunWeekStates } from "@/lib/courses/weekWork/readers";
-import { liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
 import type { CourseworkAnswer, CourseworkQuestion, CourseworkWeek } from "./input";
 
 /**
@@ -182,13 +181,17 @@ export async function loadAnswers(
   writers: ReadonlySet<string> | null,
 ): Promise<CourseworkAnswer[]> {
   const only = writers && writers.size === 1 ? [...writers][0] : null;
-  const [snap, run, liveGroups] = await Promise.all([
+  const [snap, run, groupSnap] = await Promise.all([
     only
       ? db.collection("courseExerciseResponses").where("uid", "==", only).get()
       : db.collection("courseExerciseResponses").where("runId", "==", runId).get(),
     readRunForLock(db, runId),
-    liveGroupsOf(db, runId),
+    // The run's groups, for whose sessions lock each writer's week: one equality on the run.
+    db.collection("courseGroups").where("runId", "==", runId).get(),
   ]);
+  const liveGroups = groupSnap.docs
+    .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
+    .filter((group) => !group.archived && group.runId === runId);
   // Where each writer's week stands, for whether their written answer may be read.
   const states = run ? await loadRunWeekStates(db, { run, liveGroups, now: new Date() }) : null;
   const readable = (data: Raw) => {

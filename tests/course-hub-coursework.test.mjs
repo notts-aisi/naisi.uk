@@ -560,7 +560,7 @@ describe("8. the tree", () => {
     assert.match(load, /const outcome = await loadProgrammeRun\(db, actor, roundId, programmeId\);/);
     // Never a survey, never a note on the tab, and no word leaves for the tab.
     assert.doesNotMatch(load, /survey/i);
-    assert.match(load, /readRunCoursework\(db, run\.id, null\)/);
+    assert.match(load, /readRunCoursework\(db, \{ run, liveGroups: groups, now: new Date\(\) \}, null\)/);
     assert.equal((load.match(/readPersonPrivateNotes\(/g) ?? []).length, 1, "private notes are read anywhere but a person's page");
   });
 
