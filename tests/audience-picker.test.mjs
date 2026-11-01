@@ -29,7 +29,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { makeWorld } from "./lib/handoverWorld.mjs";
 import { userDoc, session } from "./lib/applicationsSmallTerm.mjs";
-import { A, B, C, TOLD } from "./lib/surveyWorld.mjs";
+import { A, B, C, TOLD, textOf } from "./lib/surveyWorld.mjs";
 import { AFTER, AGI, EV, ROUND, RUN, TAIS, TAIS_GROUP, termSeed } from "./lib/termWorld.mjs";
 import { PERSONA_NAMES, ROLE_PERSONAS } from "./persona-route-gates.registry.mjs";
 
@@ -702,6 +702,63 @@ describe("the picker renders on the server", () => {
     assert.match(html, /Who would a message reach\?/);
     assert.match(html, /aria-expanded="false"/);
     assert.doesNotMatch(html, /Loading the tags/, "the picker is drawn, and so asks for its tags, before it is opened");
+  });
+
+  test("a moment of the picker, drawn from the routes' own answers", async (t) => {
+    mock.timers.enable({ apis: ["Date"], now: AFTER });
+    t.after(() => mock.timers.reset());
+    w.reset(seed());
+    const body = { include: [T.vrCame], exclude: [T.holding] };
+    const catalogue = (await w.call("zach", route.GET, {})).body;
+    const count = (await w.call("zach", route.POST, {}, { body })).body.count;
+    const lines = (await w.call("zach", whoRoute.POST, {}, { body })).body.people;
+    const { PickerBody } = await w.loadTs(join("features", "audience", "WhoIsThisFor.tsx"));
+    const nothing = () => {};
+    const act = Object.fromEntries(
+      ["setQuery", "choose", "flip", "remove", "pick", "setRow", "toggleBrowse", "toggleWho", "retryCount", "retryWho"].map((name) => [name, nothing]),
+    );
+    const state = {
+      catalogue,
+      chosen: [
+        { id: T.vrCame, sign: "include" },
+        { id: T.holding, sign: "exclude" },
+      ],
+      query: "amara",
+      browsing: true,
+      shown: count,
+      counting: false,
+      countFailed: null,
+      whoOpen: true,
+      whoLines: lines,
+      whoFailed: null,
+      rowShown: count.row,
+    };
+    const html = renderToStaticMarkup(createElement(PickerBody, { id: "p", state, act }));
+    const text = textOf(html);
+    for (const words of [
+      "Who is this for?",
+      "Came to: VR games night",
+      "Holding a place",
+      "3 people",
+      "1 will be emailed · 2 left out",
+      "Hide who",
+      "Will be emailed (1) Mo Rahman",
+      "Left out (2) Dan Fitzgerald Came without signing up: the address they left is only for the event’s survey Gwen Price Their address bounced or marked us as spam",
+      "By their settings",
+      "It isn’t about running a programme, so it goes by their settings: only people who said yes to event announcements are emailed.",
+      "Which of their settings it reads",
+      "Left out, and why",
+      "Hide the tags",
+      "This term: Autumn 2026",
+      "Amara Okafor",
+    ]) {
+      assert.ok(text.includes(words), `the picker does not say: ${words}`);
+    }
+    // Each sign says what it does; the row the count read is the one chosen.
+    assert.match(html, /aria-label="Came to: VR games night: included\. Leave them out instead"/);
+    assert.match(html, /aria-label="Holding a place: left out\. Include them instead"/);
+    assert.match(html, /<option value="events" selected="">Event announcements<\/option>/);
+    assert.doesNotMatch(html, /@/, "an address on the page");
   });
 
   test("the picker draws its loading state first", async () => {

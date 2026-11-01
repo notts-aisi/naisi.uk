@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type RefObject } from "react";
 import Button from "@/components/ui/Button";
 import Chip from "@/components/ui/Chip";
 import Select from "@/components/ui/Select";
@@ -34,8 +34,8 @@ import styles from "./WhoIsThisFor.module.css";
  * same code, so the number here is the number sent.
  */
 
-type Sign = "include" | "exclude";
-type Chosen = { id: string; sign: Sign };
+export type Sign = "include" | "exclude";
+export type Chosen = { id: string; sign: Sign };
 
 export type AudienceChoice = Selection & { row: GridRow | null };
 
@@ -175,28 +175,6 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
     told.current?.(choice, current);
   }, [choice, current]);
 
-  const labels = useMemo(() => {
-    const out = new Map<string, { label: string; hint: string | null; count: number | null }>();
-    for (const group of catalogue?.groups ?? []) {
-      for (const tag of group.tags) out.set(tag.id, { label: tag.label, hint: tag.hint, count: tag.count });
-    }
-    for (const person of catalogue?.names ?? []) out.set(person.id, { label: person.name, hint: null, count: null });
-    return out;
-  }, [catalogue]);
-
-  const matches = useMemo(() => {
-    const typed = query.trim().toLowerCase();
-    if (!typed) return [];
-    const out: { id: string; label: string; hint: string | null; count: number | null }[] = [];
-    for (const [tagId, tag] of labels) {
-      if (tag.label.toLowerCase().includes(typed)) out.push({ id: tagId, ...tag });
-      if (out.length >= MATCHES_SHOWN) break;
-    }
-    return out;
-  }, [labels, query]);
-
-  const signOf = (tagId: string): Sign | null => chosen.find((each) => each.id === tagId)?.sign ?? null;
-
   /** Choose a tag with a sign; choosing the sign it already has takes it off. */
   const choose = (tagId: string, sign: Sign) => {
     setChosen((was) => {
@@ -206,13 +184,28 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
       return [...was, { id: tagId, sign }];
     });
   };
-  const flip = (tagId: string) =>
-    setChosen((was) => was.map((each) => (each.id === tagId ? { id: tagId, sign: each.sign === "include" ? "exclude" : "include" } : each)));
-  const remove = (tagId: string) => setChosen((was) => was.filter((each) => each.id !== tagId));
-  const pick = (tagId: string, sign: Sign) => {
-    if (signOf(tagId) !== sign) choose(tagId, sign);
-    setQuery("");
-    inputRef.current?.focus();
+  const act: PickerActions = {
+    setQuery,
+    choose,
+    flip: (tagId) =>
+      setChosen((was) => was.map((each) => (each.id === tagId ? { id: tagId, sign: each.sign === "include" ? "exclude" : "include" } : each))),
+    remove: (tagId) => setChosen((was) => was.filter((each) => each.id !== tagId)),
+    /** From the matches: chosen with this sign, whatever it had, and the box cleared for the next. */
+    pick: (tagId, sign) => {
+      setChosen((was) => {
+        const at = was.find((each) => each.id === tagId);
+        if (at?.sign === sign) return was;
+        if (at) return was.map((each) => (each.id === tagId ? { id: tagId, sign } : each));
+        return [...was, { id: tagId, sign }];
+      });
+      setQuery("");
+      inputRef.current?.focus();
+    },
+    setRow,
+    toggleBrowse: () => setBrowsing((open) => !open),
+    toggleWho: () => setWhoOpen((open) => !open),
+    retryCount: () => setCountAttempt((n) => n + 1),
+    retryWho: () => setWhoAttempt((n) => n + 1),
   };
 
   if (loadFailed) {
@@ -254,6 +247,82 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
   const whoLines = who?.key === key ? who.lines : null;
 
   return (
+    <PickerBody
+      id={id}
+      inputRef={inputRef}
+      state={{ catalogue, chosen, query, browsing, shown, counting, countFailed, whoOpen, whoLines, whoFailed, rowShown }}
+      act={act}
+    />
+  );
+}
+
+/** What the picker holds at one moment: what it draws is a function of this, so a test can draw any moment of it. */
+export type PickerState = {
+  catalogue: Catalogue;
+  chosen: Chosen[];
+  query: string;
+  browsing: boolean;
+  /** The count to show: the current one, or the last while the next is worked out. */
+  shown: CountView | null;
+  counting: boolean;
+  countFailed: string | null;
+  whoOpen: boolean;
+  whoLines: WhoLine[] | null;
+  whoFailed: string | null;
+  rowShown: GridRow;
+};
+
+export type PickerActions = {
+  setQuery: (value: string) => void;
+  choose: (tagId: string, sign: Sign) => void;
+  flip: (tagId: string) => void;
+  remove: (tagId: string) => void;
+  pick: (tagId: string, sign: Sign) => void;
+  setRow: (row: GridRow) => void;
+  toggleBrowse: () => void;
+  toggleWho: () => void;
+  retryCount: () => void;
+  retryWho: () => void;
+};
+
+/** The picker as drawn: the tag box, the count, See who, how it would be sent, who is left out, and every tag. */
+export function PickerBody({
+  id,
+  inputRef,
+  state,
+  act,
+}: {
+  id: string;
+  inputRef?: RefObject<HTMLInputElement | null>;
+  state: PickerState;
+  act: PickerActions;
+}) {
+  const { catalogue, chosen, query, browsing, shown, counting, countFailed, whoOpen, whoLines, whoFailed, rowShown } = state;
+  const anything = chosen.length > 0;
+
+  const labels = useMemo(() => {
+    const out = new Map<string, { label: string; hint: string | null; count: number | null }>();
+    for (const group of catalogue.groups) {
+      for (const tag of group.tags) out.set(tag.id, { label: tag.label, hint: tag.hint, count: tag.count });
+    }
+    for (const person of catalogue.names) out.set(person.id, { label: person.name, hint: null, count: null });
+    return out;
+  }, [catalogue]);
+
+  const matches = useMemo(() => {
+    const typed = query.trim().toLowerCase();
+    if (!typed) return [];
+    const out: { id: string; label: string; hint: string | null; count: number | null }[] = [];
+    for (const [tagId, tag] of labels) {
+      if (tag.label.toLowerCase().includes(typed)) out.push({ id: tagId, ...tag });
+      if (out.length >= MATCHES_SHOWN) break;
+    }
+    return out;
+  }, [labels, query]);
+
+  const signOf = (tagId: string): Sign | null => chosen.find((each) => each.id === tagId)?.sign ?? null;
+
+  return (
     <div className={styles.picker}>
       <div className={styles.head}>
         <h3 className={styles.title} id={`${id}-title`}>
@@ -273,7 +342,7 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
               <button
                 type="button"
                 className={styles.sign}
-                onClick={() => flip(each.id)}
+                onClick={() => act.flip(each.id)}
                 aria-label={signLabel(label, leaving)}
               >
                 <span aria-hidden="true">{leaving ? LEAVE_OUT_SIGN : INCLUDE_SIGN}</span>
@@ -282,7 +351,7 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
               <button
                 type="button"
                 className={styles.remove}
-                onClick={() => remove(each.id)}
+                onClick={() => act.remove(each.id)}
                 aria-label={`${PICKER_WORDS.remove} ${label}`}
               >
                 <span aria-hidden="true">×</span>
@@ -296,7 +365,7 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
           className={styles.input}
           type="text"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => act.setQuery(event.target.value)}
           placeholder={PICKER_WORDS.inputPlaceholder}
           aria-label={PICKER_WORDS.inputLabel}
           aria-describedby={`${id}-hint`}
@@ -311,7 +380,7 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
           ) : (
             <ul className={styles.list}>
               {matches.map((match) => (
-                <TagRow key={match.id} label={match.label} hint={match.hint} count={match.count} sign={signOf(match.id)} onPick={(sign) => pick(match.id, sign)} />
+                <TagRow key={match.id} label={match.label} hint={match.hint} count={match.count} sign={signOf(match.id)} onPick={(sign) => act.pick(match.id, sign)} />
               ))}
             </ul>
           )}
@@ -324,7 +393,7 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
         ) : countFailed ? (
           <div className={styles.countLine}>
             <p className={styles.problem}>{countFailed}</p>
-            <Button variant="secondary" onClick={() => setCountAttempt((n) => n + 1)}>
+            <Button variant="secondary" onClick={act.retryCount}>
               {PICKER_WORDS.retry}
             </Button>
           </div>
@@ -333,7 +402,7 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
             <strong className={styles.headline}>{headlineWords(shown.people, shown.you)}</strong>
             <span className={styles.emailed}>{emailedWords(shown.emailed, shown.leftOut)}</span>
             {shown.people > 0 && (
-              <Button variant="ghost" aria-expanded={whoOpen} onClick={() => setWhoOpen((open) => !open)}>
+              <Button variant="ghost" aria-expanded={whoOpen} onClick={act.toggleWho}>
                 {whoOpen ? PICKER_WORDS.hideWho : PICKER_WORDS.seeWho}
               </Button>
             )}
@@ -351,7 +420,7 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
           {whoFailed ? (
             <div className={styles.countLine}>
               <p className={styles.problem}>{whoFailed}</p>
-              <Button variant="secondary" onClick={() => setWhoAttempt((n) => n + 1)}>
+              <Button variant="secondary" onClick={act.retryWho}>
                 {PICKER_WORDS.retry}
               </Button>
             </div>
@@ -379,7 +448,7 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
                 value={rowShown}
                 onChange={(event) => {
                   const value = event.target.value;
-                  if (isGridRow(value)) setRow(value);
+                  if (isGridRow(value)) act.setRow(value);
                 }}
               >
                 {catalogue.rows.map((option) => (
@@ -418,7 +487,7 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
       )}
 
       <div className={styles.browse}>
-        <Button variant="secondary" aria-expanded={browsing} onClick={() => setBrowsing((open) => !open)}>
+        <Button variant="secondary" aria-expanded={browsing} onClick={act.toggleBrowse}>
           {browsing ? PICKER_WORDS.browseHide : PICKER_WORDS.browse}
         </Button>
         {browsing && (
@@ -428,7 +497,7 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
                 <h4 className={styles.groupHeading}>{group.heading}</h4>
                 <ul className={styles.list}>
                   {group.tags.map((tag) => (
-                    <TagRow key={tag.id} label={tag.listLabel} hint={tag.hint} count={tag.count} sign={signOf(tag.id)} onPick={(sign) => choose(tag.id, sign)} />
+                    <TagRow key={tag.id} label={tag.listLabel} hint={tag.hint} count={tag.count} sign={signOf(tag.id)} onPick={(sign) => act.choose(tag.id, sign)} />
                   ))}
                 </ul>
               </section>
