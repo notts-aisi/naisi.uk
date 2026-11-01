@@ -52,7 +52,13 @@ export async function GET(_req: Request, ctx: Ctx) {
   if ("refusal" in at) return at.refusal;
   const db = getAdminDb();
   if (!db || !takesInvitations(at.event)) return NextResponse.json({ ok: true, newSince: 0, emails: 0 });
-  const plan = await planForStoredChoice(db, at.event, new Date());
+  let plan: Awaited<ReturnType<typeof planForStoredChoice>>;
+  try {
+    plan = await planForStoredChoice(db, at.event, new Date());
+  } catch (err) {
+    console.error("[event invitations] could not count", at.event.id, err);
+    return NextResponse.json({ error: "We couldn’t count who is new just now." }, { status: 500 });
+  }
   if (!plan.ok) return NextResponse.json({ error: plan.error }, { status: plan.status });
   return NextResponse.json({ ok: true, newSince: plan.plan.count.adding, emails: plan.plan.count.emails });
 }
