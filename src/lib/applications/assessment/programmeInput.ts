@@ -147,6 +147,8 @@ const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * A question with every name in it swapped for the label Claude knows that
  * person by. A full name first, then a first name only where it is one
  * person's on this list; a first name two people share becomes both labels.
+ * One person may be listed under more than one name (their full name, and the
+ * name they go by): each is swapped for their one label.
  */
 export function scrubbed(
   question: string,
@@ -163,7 +165,8 @@ export function scrubbed(
     const first = name.trim().split(/\s+/)[0];
     if (!first || first.length < 2) continue;
     const key = first.toLowerCase();
-    byFirst.set(key, [...(byFirst.get(key) ?? []), label]);
+    const labels = byFirst.get(key) ?? [];
+    if (!labels.includes(label)) byFirst.set(key, [...labels, label]);
   }
   for (const [first, labels] of byFirst) {
     const replacement = labels.length === 1 ? labels[0] : `(one of ${labels.join(" or ")})`;

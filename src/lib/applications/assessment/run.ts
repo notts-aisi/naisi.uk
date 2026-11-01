@@ -11,6 +11,7 @@ import {
 } from "@/lib/ai/pangram";
 import type { SessionUser } from "@/lib/firebase/session";
 import { admissionAssessmentId, ASSESSMENTS_COLLECTION } from "@/lib/firestore/admissionAssessments";
+import { namesInStaffWords } from "@/lib/names/staffName";
 import { canRunTerm } from "../access";
 import { own } from "../keys";
 import { loadProgrammeBoard, loadReview, loadStaffNames } from "../review/load";
@@ -373,7 +374,11 @@ export async function askAboutProgramme(
 
   if (ask.kind === "question") {
     const people = [
-      ...Object.entries(applicantNames).map(([label, name]) => ({ label, name })),
+      // A row shows "Priya Shah (Pri)": the full name and the name they go by
+      // are each taken out of the question.
+      ...Object.entries(applicantNames).flatMap(([label, name]) =>
+        namesInStaffWords(name).map((part) => ({ label, name: part })),
+      ),
       ...Object.entries(reviewerNames).map(([label, name]) => ({ label, name })),
     ];
     const answer = await askAboutTheProgramme(input.message, scrubbed(ask.question, people));

@@ -471,6 +471,7 @@ describe("the names module hands out what this file knows", () => {
       "goByNameOf",
       "guestStaffName",
       "nameForViewer",
+      "namesInStaffWords",
       "seesFullNames",
       "sharedFullNames",
       "staffNameOf",

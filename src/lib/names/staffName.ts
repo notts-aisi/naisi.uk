@@ -147,6 +147,21 @@ export function nameForViewer(viewer: NameViewer, names: AccountNames, fallback:
   return names.goBy ?? fallback;
 }
 
+/**
+ * The names a staff line holds, for code that has only the line: "Priya Shah
+ * (Pri)" holds "Priya Shah" and "Pri". What tells two people apart, and a
+ * guest's note, are not names and are left out. The line is read back in one
+ * place: the scrub of a question an admin asks about a programme's
+ * applications (`src/lib/applications/assessment/run.ts`), which takes every
+ * name a row shows out of the question before it leaves the site.
+ */
+export function namesInStaffWords(words: string): string[] {
+  const line = words.split(" · ")[0].trim();
+  const bracketed = /^(.+?) \(([^()]+)\)$/.exec(line);
+  if (!bracketed) return line ? [line] : [];
+  return [bracketed[1].trim(), bracketed[2].trim()];
+}
+
 /** How a full name is compared with another: case, and runs of spaces, do not count. */
 export function fullNameKey(name: string): string {
   return fold(name.trim().replace(/\s+/g, " "));

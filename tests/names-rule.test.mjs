@@ -157,6 +157,23 @@ describe("a staff screen's name, in its parts", () => {
     assert.equal(names.staffNameWords(names.guestStaffName("Sam", "x")), "Sam · Guest: first name only");
   });
 
+  test("a staff line read back holds its names, and nothing that tells two people apart", () => {
+    assert.deepEqual(names.namesInStaffWords("Priya Shah (Pri)"), ["Priya Shah", "Pri"]);
+    assert.deepEqual(names.namesInStaffWords("Priya Shah (Pri) · AGI Strategy, Group 2 · priya@example.com"), ["Priya Shah", "Pri"]);
+    assert.deepEqual(names.namesInStaffWords("Sam Okoro"), ["Sam Okoro"]);
+    assert.deepEqual(names.namesInStaffWords("Sam · Guest: first name only"), ["Sam"]);
+    assert.deepEqual(names.namesInStaffWords("  "), []);
+    // Every line the parts make reads back as the names that made it.
+    for (const account of [
+      { profile: { fullName: "Priya Shah", preferredName: "Pri" } },
+      { profile: { fullName: "Mary Jane Watson", preferredName: "Mary Jane" } },
+      { displayName: "Dev Patel", profile: { preferredName: "Dev P" } },
+    ]) {
+      const parts = names.staffNameOf(names.accountNamesOf(account), "NAISI member");
+      assert.deepEqual(names.namesInStaffWords(names.staffNameWords(parts)), [parts.name, ...(parts.goBy ? [parts.goBy] : [])]);
+    }
+  });
+
   test("full names are compared without case or extra spaces", () => {
     const shared = names.sharedFullNames([
       { key: "a", full: "Sam Okoro" },
