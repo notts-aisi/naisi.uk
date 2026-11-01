@@ -38,12 +38,12 @@ import styles from "./leadSurveys.module.css";
  * gate as this one. The bars are one quiet colour: what people believe or
  * say is reported, never cheered or marked as good or bad.
  *
- * What the board draws that the records do not hold is left out, not drawn
- * empty: "How useful was each week?" (no survey asks it), each facilitator's
- * own scores and the comments about each group (the survey at the end asks
- * one line about the facilitator, for every group together), "Can be quoted"
- * beside a comment (not on Results yet), and the report's download (not
- * built).
+ * What the records do not hold is left out, not drawn empty: each
+ * facilitator's own scores and the comments about each group (the survey at
+ * the end asks one line about the facilitator, for every group together),
+ * "Can be quoted" beside a comment (not on Results yet), and the report's
+ * download (not built). How useful each week's sessions were comes from the
+ * check-ins, on the Overview (`SurveysOverview`).
  */
 
 const COMMENTS_SHOWN = 5;
