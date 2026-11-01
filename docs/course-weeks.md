@@ -556,6 +556,7 @@ editor under `/admin/courses` stays an admin's.
 | `(tabs)/weeks/[weekId]/page.tsx` | One week's page: paste and check, its settings, Preview as a fellow, Mark ready, and the week for one group |
 | `(tabs)/weeks/[weekId]/preview/page.tsx` | The week as a fellow reads it, drawn by the member's own week page with nothing that can be pressed |
 | `(tabs)/weeks/copy/page.tsx` | Copy weeks from another run of the course |
+| `(tabs)/weeks/[weekId]/review/page.tsx` | The week's review, an admin's alone, from the week's first session (docs/courses-ops.md, "The week review"); each row of the tab says Review to an admin and "Review: admins only" to the lead |
 | `src/lib/courses/weeksTab/` | What the tab shows, its words and its addresses |
 | `src/lib/courses/weekPaste.ts` | The checks every paste is held to, for the run's week and a group's copy alike |
 
