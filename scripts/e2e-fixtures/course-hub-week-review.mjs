@@ -142,11 +142,14 @@ export const SPEC = {
     ],
   },
   /**
-   * Written beside the code it drives and not yet run end to end: it counts
-   * nothing on the coverage map until a run against the harness's server has
-   * passed and read zero rows afterwards.
+   * VERIFIED on 1 November 2026: in local mode, against the harness's own
+   * server (`npm run e2e:browser -- --local --spec course-hub-week-review`):
+   * all eight steps ran, the term's 47 rows and the one follow-up task existed
+   * before teardown, and the fixture manifest read zero after it. Nothing was
+   * pressed that sends anything to Claude or Pangram: the local server has no
+   * key for either.
    */
-  status: "unverified",
+  status: "verified",
   seed,
   countRows: async (state) => ({ ...(await countTerm(state)), ...(await countReview(state)) }),
   teardown,
