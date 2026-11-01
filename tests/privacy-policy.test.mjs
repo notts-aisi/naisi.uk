@@ -9681,6 +9681,20 @@ describe("v15 lets the people running a programme rate written work for each oth
     assert.ok(existsSync(join(REPO_ROOT, "tests", "course-work-ratings.test.mjs")));
   });
 
+  test("\"What comes back is seen by admins only\": Pangram's reading beside an answer on its review page is read for an admin alone, never the lead", () => {
+    v15Says(["What comes back is seen by admins only,"]);
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\breadAnswerReading\(/),
+      new Map([
+        ["src/lib/courses/coursework/pangramReadings.ts", "the reader of one kept reading, which asks nobody who is reading, so its one caller decides that first"],
+        [REVIEW_PAGE, "the review page, which asks for it for an admin alone (`facts.isAdmin`)"],
+      ]),
+      "reading Pangram's reading of one answer",
+      "The policy says what Pangram returns is seen by admins only. A new caller shows it somewhere new: decide it is an admin's alone first.",
+    );
+    assert.match(strip(read(REVIEW_PAGE)), /facts\.isAdmin && record\s*\?\s*readAnswerReading\(db, \{/, "the review page reads Pangram's reading for somebody who is not an admin");
+  });
+
   test("Kairos receives the ratings at a programme's end, and nothing of these", () => {
     v15Says(["Unless you say no, when a programme ends we send Kairos a file with, for each person on it at the end: their name, the programme, how many sessions they came to, whether they finished, and the ratings they were given at the end."]);
     const kairos = sourceFilesNaming(/workRatings|courseWorkRatings|WorkRating/).filter(
