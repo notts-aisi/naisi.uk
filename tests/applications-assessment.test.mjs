@@ -653,6 +653,24 @@ describe("asking Claude about a whole programme", () => {
     assert.match(message, /Is Applicant 2 keener than Applicant 1\?/);
   });
 
+  test("a name that starts or ends with an accented letter is taken out like any other", async () => {
+    db.poke("users/dev", { "profile.fullName": "Zoë Patel" });
+    as("zach");
+    await ASK("claude");
+    globalThis.__claudeAsked = [];
+    globalThis.__claudeAnswer = {
+      ok: true,
+      model: "claude-opus-5-5",
+      usage: { inputTokens: 1, outputTokens: 1 },
+      value: { answer: "Applicant 2 is keener." },
+    };
+    const response = await PROGRAMME({ kind: "question", question: "Is Zoë keener than Amara? Ask zoë PATEL." });
+    assert.equal(response.status, 200);
+    const { message } = globalThis.__claudeAsked[0];
+    assert.doesNotMatch(message, /zoë|patel/i, "an accented name was sent");
+    assert.match(message, /Is Applicant 2 keener than Applicant 1\? Ask Applicant 2\./);
+  });
+
   test("an empty or very long question is refused before anything is read", async () => {
     as("zach");
     assert.equal((await PROGRAMME({ kind: "question", question: "  " })).status, 400);
