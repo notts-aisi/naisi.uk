@@ -243,12 +243,19 @@ const READERS = {
       "reopening somebody's week reads their seat by its address, after the one gate on whose work a reader may act on, only to " +
       "know whose sessions lock their week (the readers' own question, asked of the told placement), and sends back no seat",
   },
-  "app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts": {
+  "lib/courses/feedback/access.ts": {
     kind: "staff",
-    proof: ['if (!runData || !owner || !role?.mayReview) return NextResponse.json({ error: "Forbidden" }, { status: 403 });'],
+    proof: ['if (!run || !owner || !role?.mayReview) return { ok: false, status: 403, error: "Forbidden" };'],
     why:
-      "feedback reads the writer's seat by its address, after the one gate, only to know whose sessions lock their week and so " +
-      "whether their answer may be read, and sends back no seat",
+      "feedback reads the person's seat by its address, after the one gate, only to know whose sessions lock their week and so " +
+      "whether their work may be read, and sends back no seat",
+  },
+  "lib/courses/feedback/send.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "the \"you have feedback\" batch: feedback is owed only to somebody taking part whose placement Publish has told (or who " +
+      "facilitates a live group), so nobody is emailed about a group they have not been told, whoever presses",
   },
   "app/api/courses/runs/[runId]/reflections/[promptId]/route.ts": {
     kind: "shown",

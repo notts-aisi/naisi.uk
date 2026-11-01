@@ -62,11 +62,13 @@ export type FacilitatorSummary = {
   toReview: number;
   /**
    * Written answers waiting for the caller's feedback, as the group page's
-   * review queue lists them. Present only on a run whose weeks are written
-   * as blocks; a run of the summer's weeks answers without it.
+   * Feedback to write lists them. Present only on a run whose weeks are
+   * written as blocks; a run of the summer's weeks answers without it.
    */
   writtenToGive?: number;
-  /** The oldest of them, for Home's Give feedback: its week and whose it is. Present only when one waits. */
+  /** The week of each of them, oldest first, for Home's "3 week 2 answers". Present with `writtenToGive`. */
+  writtenWeeks?: number[];
+  /** The oldest of them, for Home's Write feedback: its week and whose it is. Present only when one waits. */
   writtenNext?: { weekNumber: number; uid: string };
   /** Null while next week's email is not on its schedule, or no email is left to go. */
   nextEmail: HomeNextEmail | null;
@@ -146,7 +148,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ groupId: strin
     expected: model.expected,
     notYetTold: model.notYetTold,
     toReview: model.toReview.length,
-    ...(writtenQueue !== null ? { writtenToGive: writtenQueue.length } : {}),
+    ...(writtenQueue !== null ? { writtenToGive: writtenQueue.length, writtenWeeks: writtenQueue.map((row) => row.weekNumber) } : {}),
     ...(writtenQueue && writtenQueue[0] ? { writtenNext: { weekNumber: writtenQueue[0].weekNumber, uid: writtenQueue[0].uid } } : {}),
     nextEmail: line && line.state !== "missed" ? line : null,
     leftRecently: model.leftRecently.map((person) => ({

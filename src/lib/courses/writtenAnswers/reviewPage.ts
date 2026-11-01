@@ -1,6 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import type { SessionUser } from "@/lib/firebase/session";
+import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import {
   normalizeCourseEnrolment,
   placementIsShownTo,
@@ -11,7 +12,6 @@ import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourse, weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import { memberCurrentWeek, resolveCalendar, resolveWeekDoc } from "../groupResolve";
 import { firstNameOfUser, fullNameOfUser } from "../programmeLead";
-import { rubricOf, type CourseRubric } from "../rubric";
 import { resolveSessions } from "../sessions";
 import { dueMoment, isLate } from "../weekBlocks/due";
 import { isBlockWeek, partsOf, type When, type WordRange } from "../weekBlocks/model";
@@ -37,6 +37,8 @@ import {
 } from "./model";
 import { workIsReadable, type WeekWorkState } from "../weekWork/model";
 import { loadRunWeekStates } from "../weekWork/readers";
+import { byOldest, staffCardOf, staffLegacyCardOf, type StaffFeedbackCard } from "../feedback/model";
+import { legacyRoleOf, readWeekFeedback } from "../feedback/readers";
 
 /**
  * WHAT THE REVIEW PAGE SHOWS (boards wk-review, wk-review-phone), worked
@@ -47,9 +49,18 @@ import { loadRunWeekStates } from "../weekWork/readers";
  * (`reviewableIn`, `writtenReviewRole`): for a facilitator, the group's
  * fellows but its facilitators; for the lead and admins, those and the
  * group's facilitators' own answers. Grouped as the board draws: "To give
- * feedback on" (an answer they may read, with no feedback yet), "Feedback
- * sent", "Not submitted yet" (everybody else). "Late" travels here, to
- * staff, and nowhere a writer reads.
+ * feedback on" (an answer they may read, with no feedback from anyone yet),
+ * "With feedback", "Not submitted yet" (everybody else). "Late" travels
+ * here, to staff, and nowhere a writer reads.
+ *
+ * FEEDBACK IS A SIGNED COMMENT (`src/lib/courses/feedback/`): any number of
+ * pieces on a person's week, from different people, each on the written
+ * answer or on the week as a whole. The person open on the page carries
+ * every piece on their week as a card, with feedback given before pieces
+ * existed (the answer row's own `feedback`, with rubric levels) as one more,
+ * already emailed; and the reader's own piece on the answer, while its email
+ * has not gone, for "Your feedback" to change. No rubric level is given here
+ * any more.
  *
  * THE READING GATE (privacy v15): an answer's words, and its count of words,
  * leave here only when `workIsReadable` says its readers may read it: the
@@ -60,8 +71,9 @@ import { loadRunWeekStates } from "../weekWork/readers";
  *
  * Reads: the run's groups and the reader's standing (the gate's), the run's
  * enrolments by one equality, the group's own copy of the week, each
- * person's row by its id, the names, and the course's rubric. No query needs
- * a declared index.
+ * person's row by its id, the week's feedback by two equalities, the names,
+ * and the course's time for work due the day before. No query needs a
+ * declared index.
  */
 
 export type ReviewPerson = {
@@ -87,8 +99,11 @@ export type ReviewPerson = {
   openedAt: string | null;
   openedByUid: string | null;
   openedByName: string | null;
-  feedbackByUid: string | null;
-  feedbackByName: string | null;
+  /** Feedback on their written answer from anyone: a piece on it, or feedback given before pieces existed. */
+  hasFeedback: boolean;
+  /** Who left it, each once, oldest first: their uids and first names. */
+  feedbackByUids: string[];
+  feedbackByNames: string[];
   /** Their own answer as somebody who facilitates a group of the run: the lead's and admins'. */
   facilitates: boolean;
 };
@@ -100,7 +115,10 @@ export type ReviewSelected = {
   /** An answer in labelled boxes, box id to words, or null. */
   boxes: Record<string, string> | null;
   editedAt: string | null;
-  feedback: { levels: Array<{ row: string; level: string; descriptor: string }>; comment: string; sentAt: string | null } | null;
+  /** Every piece of feedback on their week, oldest first, the reader's own changeable piece on the answer left out. */
+  cards: StaffFeedbackCard[];
+  /** The reader's own piece on the answer while its email has not gone: what "Your feedback" changes. */
+  own: StaffFeedbackCard | null;
   /** What the reader may do with this answer: give feedback, and reopen the week. */
   role: ReviewRole;
 };
@@ -122,12 +140,13 @@ export type ReviewPageModel = {
     /** "your threat model". */
     answerName: string;
   } | null;
-  rubric: CourseRubric | null;
   toGive: ReviewPerson[];
   feedbackSent: ReviewPerson[];
   notSent: ReviewPerson[];
   selected: ReviewSelected | null;
-  viewer: { uid: string; firstName: string };
+  viewer: { uid: string; firstName: string; isAdmin: boolean };
+  /** The programme's short name, for "Claudia, who leads AGI Strategy"; "" when no programme names the run. */
+  programme: string;
   /** Today in London, for "at 9:58am" against "on Tue 17 Nov at 9:58am". */
   todayKey: string;
 };
@@ -185,15 +204,15 @@ export async function loadWrittenReview(
   const weekNumber = askedWeek !== null && weeks.includes(askedWeek) ? askedWeek : defaultWeek(run, group, weeks, now);
   const weekId = weekDocId(weekNumber);
 
-  const [enrolSnap, resolved, courseSnap] = await Promise.all([
+  const [enrolSnap, resolved, courseSnap, programme] = await Promise.all([
     db.collection("courseEnrolments").where("runId", "==", run.id).get(),
     resolveWeekDoc(db, run.id, group.id, weekId),
     run.courseId ? db.collection("courses").doc(run.courseId).get() : Promise.resolve(null),
+    runProgrammeOf(db, run.id).catch(() => null),
   ]);
   const enrolments = enrolSnap.docs.map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}));
   const owners = ownersOf(enrolments, liveGroups, { isAdmin: facts.isAdmin });
   const people = reviewableIn(actor, facts, group, owners, liveGroups);
-  const rubric = courseSnap?.exists ? rubricOf(normalizeCourse(courseSnap.id, courseSnap.data() ?? {})) : null;
   const dayBeforeTime = courseSnap?.exists ? normalizeCourse(courseSnap.id, courseSnap.data() ?? {}).dayBeforeDueTime : null;
 
   const week = resolved.week;
@@ -215,8 +234,19 @@ export async function loadWrittenReview(
         }
       : null;
 
-  // Where each person's week stands, for whether their answer may be read.
-  const states = await loadRunWeekStates(db, { run, liveGroups, enrolments, now });
+  // Where each person's week stands, for whether their answer may be read, and the week's feedback.
+  const [states, weekFeedback] = await Promise.all([
+    loadRunWeekStates(db, { run, liveGroups, enrolments, now }),
+    readWeekFeedback(db, run.id, weekId),
+  ]);
+  const reviewable = new Set(people.map((owner) => owner.uid));
+  const piecesOf = new Map<string, typeof weekFeedback>();
+  for (const piece of weekFeedback) {
+    if (!reviewable.has(piece.uid)) continue;
+    piecesOf.set(piece.uid, [...(piecesOf.get(piece.uid) ?? []), piece]);
+  }
+  const onTheAnswer = (uid: string) =>
+    (piecesOf.get(uid) ?? []).filter((piece) => answer !== null && piece.on.kind === "writtenAnswer" && piece.on.itemId === answer.id);
   // Each person's row, by its id: nobody's but theirs.
   const records = new Map<string, WrittenAnswerRecord>();
   if (answer && people.length > 0) {
@@ -231,11 +261,12 @@ export async function loadWrittenReview(
     });
   }
 
-  // Names: the people, and whoever opened, reopened or sent feedback.
+  // Names: the people, and whoever opened, reopened or left feedback.
   const nameUids = new Set<string>([actor.uid, ...people.map((owner) => owner.uid)]);
   for (const record of records.values()) {
     for (const uid of [record.openedByUid, record.reopenedByUid, record.feedback?.byUid ?? ""]) if (uid) nameUids.add(uid);
   }
+  for (const piece of weekFeedback) if (piece.byUid && reviewable.has(piece.uid)) nameUids.add(piece.byUid);
   for (const uid of group.facilitatorUids) nameUids.add(uid);
   const userSnaps = await db.getAll(...[...nameUids].map((uid) => db.collection("users").doc(uid)));
   const fullName = new Map<string, string>();
@@ -253,6 +284,13 @@ export async function loadWrittenReview(
     const facilitates = liveGroups.some((candidate) => candidate.facilitatorUids.includes(owner.uid));
     const standing = states.stateOf(owner.uid, weekNumber);
     const readable = record !== null && workIsReadable(standing, record);
+    // Who left feedback on the answer, each once, oldest first: feedback from before pieces, then the pieces.
+    const writers: string[] = [];
+    const given = [
+      ...(record?.feedback ? [{ byUid: record.feedback.byUid, at: record.feedback.sentAt }] : []),
+      ...onTheAnswer(owner.uid).map((piece) => ({ byUid: piece.byUid, at: piece.createdAt })),
+    ].sort((a, b) => (a.at?.getTime() ?? 0) - (b.at?.getTime() ?? 0));
+    for (const entry of given) if (entry.byUid && !writers.includes(entry.byUid)) writers.push(entry.byUid);
     return {
       uid: owner.uid,
       name: fullName.get(owner.uid) ?? "NAISI member",
@@ -270,8 +308,9 @@ export async function loadWrittenReview(
       openedAt: record?.openedAt ? record.openedAt.toISOString() : null,
       openedByUid: record?.openedAt ? record.openedByUid || null : null,
       openedByName: record?.openedAt && record.openedByUid ? (firstName.get(record.openedByUid) ?? null) : null,
-      feedbackByUid: record?.feedback?.byUid || null,
-      feedbackByName: record?.feedback?.byUid ? (firstName.get(record.feedback.byUid) ?? null) : null,
+      hasFeedback: given.length > 0,
+      feedbackByUids: writers,
+      feedbackByNames: writers.map((uid) => firstName.get(uid) ?? ""),
       facilitates,
     };
   };
@@ -281,8 +320,8 @@ export async function loadWrittenReview(
   const sentKey = (person: ReviewPerson) => person.firstSentAt ?? (person.week.state === "locked" ? person.week.at : null) ?? "";
   const bySent = (a: ReviewPerson, b: ReviewPerson) => sentKey(a).localeCompare(sentKey(b)) || a.name.localeCompare(b.name);
   // Only an answer its readers may read is given feedback on or opened here.
-  const toGive = all.filter((person) => person.readable && person.words > 0 && person.state !== "feedback").sort(bySent);
-  const feedbackSent = all.filter((person) => person.readable && person.state === "feedback").sort(bySent);
+  const toGive = all.filter((person) => person.readable && person.words > 0 && !person.hasFeedback).sort(bySent);
+  const feedbackSent = all.filter((person) => person.readable && person.hasFeedback).sort(bySent);
   const opened = new Set([...toGive, ...feedbackSent].map((person) => person.uid));
   const started = (person: ReviewPerson) => person.state !== "not-started";
   const notSent = all
@@ -300,18 +339,24 @@ export async function loadWrittenReview(
     const record = records.get(chosen.uid) ?? null;
     const owner = people.find((candidate) => candidate.uid === chosen.uid) as OwnerFacts;
     const role = writtenReviewRole(actor, facts, owner, liveGroups);
+    const names = { firstName: (uid: string) => firstName.get(uid) ?? "", goByName: (uid: string) => fullName.get(uid) ?? "" };
+    const reader = { uid: actor.uid, isAdmin: facts.isAdmin, now };
+    const cards = byOldest([
+      ...(record?.feedback
+        ? [staffLegacyCardOf(answer.id, record.feedback, legacyRoleOf(record.feedback.byUid, group.facilitatorUids), names, reader)]
+        : []),
+      ...(piecesOf.get(chosen.uid) ?? []).map((piece) => staffCardOf(piece, names, reader)),
+    ]);
+    // "Your feedback" changes the reader's newest piece on the answer while it may change.
+    const own =
+      [...cards].reverse().find((card) => card.mine && card.mayChange && card.on === "writtenAnswer" && !card.legacy) ?? null;
     selected = {
       person: chosen,
       text: record?.text ?? "",
       boxes: record?.boxes ?? null,
       editedAt: record?.editedAt ? record.editedAt.toISOString() : null,
-      feedback: record?.feedback
-        ? {
-            levels: record.feedback.levels,
-            comment: record.feedback.comment,
-            sentAt: record.feedback.sentAt ? record.feedback.sentAt.toISOString() : null,
-          }
-        : null,
+      cards: cards.filter((card) => card !== own),
+      own,
       role,
     };
   }
@@ -323,12 +368,12 @@ export async function loadWrittenReview(
     weekId,
     weeks,
     answer,
-    rubric,
     toGive,
     feedbackSent,
     notSent,
     selected,
-    viewer: { uid: actor.uid, firstName: firstName.get(actor.uid) ?? "" },
+    viewer: { uid: actor.uid, firstName: firstName.get(actor.uid) ?? "", isAdmin: facts.isAdmin },
+    programme: programme?.shortName ?? "",
     todayKey: londonDateKey(now),
   };
 }

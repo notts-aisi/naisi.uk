@@ -57,6 +57,8 @@ const STYLESHEETS = [
   // Publish's own page draws its readiness check (Get ready for week 1's) above the buttons.
   "@/features/applications/groups/PublishGroups.module.css",
   "./ProgrammeOverview.module.css",
+  // The Overview's Feedback to send draws with feedback's own stylesheet.
+  "./feedback.module.css",
   "./GroupsViews.module.css",
   "./editor.module.css",
   "@/features/applications/editor/editor.module.css",

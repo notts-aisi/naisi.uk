@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useId, useRef, useState } from "react";
-import Link from "next/link";
 import { useDebouncedWrite } from "@/hooks/useDebouncedWrite";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 import { SAVED } from "@/lib/courses/memberPageWords";
-import { rowNamesInWords } from "@/lib/courses/rubric";
+import type { OwnFeedbackCard } from "@/lib/courses/feedback/model";
+import { feedbackLinkWords } from "@/lib/courses/feedback/words";
 import type { WrittenAnswerBlock } from "@/lib/courses/weekBlocks/model";
 import { answerWords, countWords } from "@/lib/courses/writtenAnswers/model";
 import {
@@ -13,7 +13,6 @@ import {
   WRITTEN_ANSWER,
   YOUR_ANSWER,
   dueLineWords,
-  feedbackFromWords,
   lockedLineWords,
   readersFeedbackWords,
   sentLineWords,
@@ -45,8 +44,9 @@ import own from "./writtenAnswer.module.css";
  * read only: "Submitted Tue 10 Nov, 9:31pm.", or, locked before it was
  * submitted, "146 words, saved Tue 17 Nov.". An answer one of its reviewers
  * opened before weeks were submitted stays read only until the week is
- * reopened, and says who opened it and when. Once feedback is sent,
- * "Feedback from Rahul" leads to it. The person never sees "Late": that is
+ * reopened, and says who opened it and when. Once somebody has left
+ * feedback on it, "Feedback from Rahul" leads to the week's Feedback, further
+ * up the same page. The person never sees "Late": that is
  * shown to staff only.
  *
  * NEVER A WRITABLE BOX OVER WHAT WE DO NOT KNOW: until the person's own rows
@@ -64,7 +64,6 @@ type Props = {
   block: WrittenAnswerBlock;
   runId: string;
   weekId: string;
-  weekNumber: number;
   /** The person's own stored row for this answer, or null. */
   row: ExerciseResponseWire | null;
   loaded: boolean;
@@ -78,8 +77,8 @@ type Props = {
   readers: Readers;
   /** The programme's lead's first name, for who else reads it. */
   leadName: string | null;
-  /** The rows of the course's rubric, by name; empty for a course with none. */
-  feedbackOn: string[];
+  /** The first piece of feedback on it (the week's Feedback has them all), or null with none. */
+  feedback: OwnFeedbackCard | null;
   /** When it is due for the person's group (`dueMoment`), or null with no date to give. */
   due: { dateKey: string } | null;
   dayBeforeTime: string | null;
@@ -155,12 +154,11 @@ function AnswerForm({
   block,
   runId,
   weekId,
-  weekNumber,
   row,
   canWrite,
   readers,
   leadName,
-  feedbackOn,
+  feedback,
   due,
   dayBeforeTime,
   first,
@@ -222,10 +220,8 @@ function AnswerForm({
   const over = block.words !== null && words > block.words.max;
   const pending = touched && valueKey(value) !== storedKey;
   const showSaved = saver.state !== "error" && !pending && storedKey !== "" && words > 0;
-  const rubric = feedbackOn.length > 0 ? { count: feedbackOn.length, inWords: rowNamesInWords(feedbackOn) } : null;
   const opened = written?.opened ? { byName: written.opened.byName, at: new Date(written.opened.at) } : null;
   const shut = work?.state === "submitted" || work?.state === "locked";
-  const feedbackHref = `/learn/${encodeURIComponent(runId)}/weeks/${weekNumber}/feedback`;
 
   const status = (
     <p className={styles.boxStatus} aria-live="polite">
@@ -303,19 +299,19 @@ function AnswerForm({
         <p className={own.line}>{savedOnWords(written?.words ?? 0, written?.savedAt ? new Date(written.savedAt) : null)}</p>
       ) : (
         <p className={own.line}>
-          {dueLineWords(block.due, due, { todayKey, dayBeforeTime, first })} {readersFeedbackWords(readers, rubric)}
+          {dueLineWords(block.due, due, { todayKey, dayBeforeTime, first })} {readersFeedbackWords(readers)}
         </p>
       )}
 
-      {written?.feedback && (
+      {feedback && (
         <p className={own.line}>
-          <Link href={feedbackHref} className={styles.inlineLink}>
-            {feedbackFromWords(written.feedback.byName)}
-          </Link>
+          <a href="#feedback" className={styles.inlineLink}>
+            {feedbackLinkWords(feedback)}
+          </a>
         </p>
       )}
 
-      {!written?.feedback && (
+      {!feedback && (
         <div className={own.readers}>
           <p className={styles.readersLine}>{answerReadersWords(readers, leadName)}</p>
           <p className={styles.readersLine}>{othersReadWords(readers)}</p>

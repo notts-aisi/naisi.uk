@@ -467,18 +467,19 @@ describe("4. Submit, the lock and Reopen", () => {
     await w.write("chloe", 2, { text: ENOUGH });
     await w.submitWeek("chloe", 2);
     w.at("2026-11-09T11:00:00Z");
-    const levels = w.levels();
-    assert.equal((await w.review("rahul", "chloe", 2, { action: "feedback", levels, comment: "Clear." })).status, 200);
-    const given = w.world.db.read(w.rowPath("chloe", 2)).feedback;
+    const saved = await w.give("rahul", "chloe", 2, "Clear.");
+    assert.equal(saved.status, 200);
+    const path = `courseFeedback/${saved.body.piece.id}`;
+    const given = w.world.db.read(path);
     w.at("2026-11-09T12:00:00Z");
     assert.equal((await w.reopenWeek("sofia", "chloe", 2)).status, 200, "reopened after feedback");
     assert.equal((await w.write("chloe", 2, { text: `${ENOUGH} more` })).status, 200);
-    const row = w.world.db.read(w.rowPath("chloe", 2));
-    assert.deepEqual(row.feedback, given, "the feedback stays as it was given");
-    assert.equal(new Date(row.feedback.sentAt).toISOString(), "2026-11-09T11:00:00.000Z");
-    // Her own read still leads to it.
-    const own = await w.ownRowsOf("chloe", 2);
-    assert.equal(own.body.responses.find((entry) => entry.exerciseId === ONE_BOX.id).written.feedback.byName, "Rahul");
+    assert.deepEqual(w.world.db.read(path), given, "the feedback stays as it was given");
+    assert.equal(new Date(w.world.db.read(path).createdAt).toISOString(), "2026-11-09T11:00:00.000Z");
+    // Her own read still leads to it: her week's Feedback, signed by Rahul.
+    const overview = await w.call("chloe", w.routes.overview.GET, { runId: RUN.agi }, { course: true });
+    const cards = overview.body.weeks.find((week) => week.weekNumber === 2).feedback;
+    assert.deepEqual(cards.map((card) => [card.byName, card.text, card.at]), [["Rahul", "Clear.", "2026-11-09T11:00:00.000Z"]]);
   });
 
   test("a facilitator's own week is reopened by the lead and admins alone, never a co-facilitator", async () => {

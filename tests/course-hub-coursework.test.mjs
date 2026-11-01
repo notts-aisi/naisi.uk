@@ -330,7 +330,7 @@ describe("4. a cell", () => {
       // Never a word.
       const handed = JSON.stringify(view);
       for (const text of ALL_WORDS) assert.ok(!handed.includes(text) && !drawn.html.includes(text), `${who}'s tab holds "${text}"`);
-      assert.match(drawn.html, new RegExp(`<a href="${writtenInHtml("chloe")}"[^>]*class="answer answerWaiting"[^>]*>Waiting for feedback</a>`));
+      assert.match(drawn.html, new RegExp(`<a href="${writtenInHtml("chloe")}"[^>]*class="answer answerWaiting"[^>]*>No feedback yet</a>`));
     }
   });
 });
@@ -346,27 +346,36 @@ describe("5. the filters", () => {
     assert.match((await tab("zach", { group: C, waiting: "1" })).text, /Nobody here matches that\./);
     const html = (await tab("claudia", { group: B })).html;
     assert.match(html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?group=${B}" class="filter filterOn" aria-current="page">Group B</a>`));
-    assert.match(html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?group=${B}&amp;waiting=1" class="filter filterWaiting">Waiting for feedback</a>`));
+    assert.match(html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?group=${B}&amp;waiting=1" class="filter filterWaiting">No feedback yet</a>`));
     assert.match(html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework" class="filter">Everybody</a>`));
   });
 });
 
 describe("6. a person's page", () => {
-  test("newest week first: reflections under their prompts with when, the answer and its feedback, boxes and ticks", async () => {
+  test("newest week first: reflections under their prompts with when, the answer, its week's feedback, boxes and ticks", async () => {
     const drawn = await person("claudia", "farah");
     const view = personOf(drawn);
     assert.deepEqual(view.weeks.map((week) => week.weekNumber), [3, 1]);
-    assert.deepEqual(view.person, { uid: "farah", name: "Farah Hussain", facilitating: false, groupName: "Group B", notToldYet: false });
+    assert.deepEqual(view.person, { uid: "farah", name: "Farah Hussain", firstName: "Farah", facilitating: false, groupName: "Group B", notToldYet: false });
     assert.match(drawn.text, new RegExp(`How many lighthouses are still lit, do you think\\? ${SAID.farah["k3-rp1"]} Sun 15 Nov, 4:12pm`));
-    assert.match(drawn.text, /Written answer Who should keep the lamps lit, and why\? Feedback sent 4 words Sent Mon 16 Nov, 9am farah wrote a plan\. Feedback from Rahul Mon 16 Nov, 8pm Argument ?: Strong \(Names a keeper and a reason\.\) Clear and short\. Open the feedback page/);
+    assert.match(drawn.text, /Written answer Who should keep the lamps lit, and why\? Feedback given 4 words Sent Mon 16 Nov, 9am farah wrote a plan\. Write feedback on the answer/);
+    // The week's Feedback: feedback given before pieces existed is a signed card, already emailed, its comment
+    // shown; with no comment it reads as its levels, one plain line each.
+    assert.match(drawn.text, /Feedback R Feedback from Rahul Farah’s facilitator · Mon 16 Nov Clear and short\. Emailed to Farah on Mon 16 Nov/);
+    // Signed with the name Rahul goes by, as Farah reads it: his chip's initial is that name's, not his full name's.
+    assert.doesNotMatch(drawn.text, /\bRM\b|Mehta/);
+    // The lead may write a piece on the week as a whole, once its readers may read it.
+    assert.match(drawn.text, /Feedback on the week For the week as a whole, not one answer\. It’s signed with your name and shows on their week page as soon as you save it\. Comment/);
+    w.world.db.poke(`courseExerciseResponses/${RUN.agi}__farah__w03__k3-wa`, { "feedback.comment": "" });
+    assert.match((await person("claudia", "farah")).text, /Feedback from Rahul Farah’s facilitator · Mon 16 Nov Argument: Strong Emailed to Farah on Mon 16 Nov/);
     assert.match(drawn.html, new RegExp(`href="${PROGRAMME_PATH}/written\\?group=${B}&amp;week=3&amp;person=farah"`));
     assert.match(drawn.text, /Sources · Ticked 2 of 2 Ticked A keeper's diary Ticked Lamps at night/);
     const chloe = await person("claudia", "chloe");
     assert.match(chloe.text, /Boxes My next step Clean the lens on Sundays\. My next step: And after that Not filled in yet\./);
-    // Tariq, in no group: his week 1 reflections, and no feedback page to open.
+    // Tariq, in no group: his week 1 reflections, and no review page to open.
     const tariq = await person("claudia", "tariq");
     assert.match(tariq.text, new RegExp(`Tariq Mensah AGI Strategy · Not in a group yet .*Week 1 · The first lamps Reflections Part 1: Start with what you think How many lighthouses are still lit, do you think\\? ${TARIQ_SAID}`));
-    assert.doesNotMatch(tariq.html, /Open the feedback page/);
+    assert.doesNotMatch(tariq.html, /Write feedback on the answer/);
   });
 
   test("a private note: an admin reads it, the lead never; a facilitator's own note an admin's alone", async () => {
@@ -455,10 +464,10 @@ describe("7. the model", () => {
   });
 
   test("the words", () => {
-    assert.equal(words.courseworkSummaryWords(28, 4, 3), "28 holding a place · 4 facilitating · 3 waiting for feedback");
-    assert.equal(words.courseworkSummaryWords(5, 0, 0), "5 holding a place · 0 waiting for feedback");
+    assert.equal(words.courseworkSummaryWords(28, 4, 3), "28 holding a place · 4 facilitating · 3 with no feedback yet");
+    assert.equal(words.courseworkSummaryWords(5, 0, 0), "5 holding a place · 0 with no feedback yet");
     assert.equal(words.reflectionsCellWords(2, 3), "Reflections 2 of 3");
-    assert.equal(words.answerLinkLabelWords("Chloe Nguyen", 3, "waiting"), "Week 3 written answer, Waiting for feedback: Chloe Nguyen");
+    assert.equal(words.answerLinkLabelWords("Chloe Nguyen", 3, "waiting"), "Week 3 written answer, No feedback yet: Chloe Nguyen");
     assert.equal(words.courseworkWhoLine({ firstName: "Claudia", isReader: false }), "Only Claudia and admins can open Coursework. Open a name to read everything that person wrote.");
   });
 });
@@ -501,7 +510,7 @@ describe("9. Claude, Pangram and the notes the team keeps", () => {
     // A week the tab has no column for is the latest written in, and the filters carry no week.
     const unknown = await tab("zach", { week: "9" });
     assert.deepEqual(panelsOf(unknown).props.week, { weekNumber: 3, asked: false });
-    assert.match(unknown.html, new RegExp(`<a href="${COURSEWORK_PATH}\\?waiting=1" class="filter filterWaiting">Waiting for feedback</a>`));
+    assert.match(unknown.html, new RegExp(`<a href="${COURSEWORK_PATH}\\?waiting=1" class="filter filterWaiting">No feedback yet</a>`));
   });
 
   test("a person's page: beside the weeks an admin has notes from this run, Claude's draft and Pangram; the lead has the notes kept for leads alone", async () => {
@@ -728,7 +737,7 @@ describe("10. done, by the one meaning every page uses, and the Not done filter"
     assert.match(drawn.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?notdone=1" class="filter filterNotDone">Not done</a>`));
     const on = await tab("claudia", { group: B, notdone: "1" });
     assert.match(on.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?group=${B}" class="filter filterNotDone filterOn" aria-current="page">Not done</a>`));
-    assert.match(on.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?group=${B}&amp;waiting=1&amp;notdone=1" class="filter filterWaiting">Waiting for feedback</a>`));
+    assert.match(on.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?group=${B}&amp;waiting=1&amp;notdone=1" class="filter filterWaiting">No feedback yet</a>`));
     assert.match(on.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?notdone=1" class="filter">Everybody</a>`));
     // Who is behind is never a word anybody wrote.
     for (const text of ALL_WORDS) assert.ok(!JSON.stringify(view).includes(text) && !drawn.html.includes(text), `the tab holds "${text}"`);

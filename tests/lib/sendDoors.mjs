@@ -36,12 +36,13 @@ export const SEND_DOOR_NAMES = [
   "sendDecisionEmail",
   "sendRegisterReminderEmail",
   "sendNextWeekEmail",
-  "sendWrittenFeedbackEmail",
   "sendTeamEmails",
   "sendTeamEmailTest",
   "sendAskTest",
   "sendCertificates",
   "sendCertificateTest",
+  "sendFeedbackBatch",
+  "sendFeedbackTest",
   "sendFreeReminders",
 ];
 

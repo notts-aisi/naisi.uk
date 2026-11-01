@@ -3,9 +3,10 @@ import type { WrittenAnswerRecord } from "./model";
 
 /**
  * A WRITTEN ANSWER AS IT TRAVELS TO THE PERSON WHO WROTE IT (the week page,
- * through my-exercises and the writer's own route; the feedback page). It
- * rides on `ExerciseResponseWire.written`, present only on a block week's
- * written answer.
+ * through my-exercises and the writer's own route). It rides on
+ * `ExerciseResponseWire.written`, present only on a block week's written
+ * answer. Its `feedback` is feedback given before it became a signed
+ * comment; the week page draws every piece from the overview's own.
  *
  * NEVER "LATE": whether it was sent after the due time is shown to staff
  * only (Q33), and is not a field here. Names are the first names people go

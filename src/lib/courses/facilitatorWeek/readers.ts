@@ -12,6 +12,8 @@ import { answerState, instantOf, isWordCountedAnswer, readWrittenAnswer, type An
 import { workIsReadable } from "@/lib/courses/weekWork/model";
 import { loadRunWeekStates, type RunWeekStates } from "@/lib/courses/weekWork/readers";
 import { workKey, type PersonAnswerWrite, type PersonWork, type PersonWrites } from "@/lib/courses/coursework/model";
+import { readRunFeedback } from "@/lib/courses/feedback/readers";
+import type { CourseFeedbackDoc } from "@/lib/firestore/courseFeedback";
 import { isFillInResponse, isOwnBoxResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import type { SessionUser } from "@/lib/firebase/session";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -567,6 +569,9 @@ export async function loadNamedReflections(
  *    the answer was sent before weeks were submitted. Until then it is
  *    started or not, and waits for nobody's feedback. Reflections and boxes
  *    are read as they are typed, as v15 says.
+ *  - The run's feedback (`courseFeedback`): an answer with a piece on it, or
+ *    with feedback given before pieces existed, has feedback. The pieces
+ *    about `wordsOf` travel back for their page.
  *  - From the progress store, who ticked which item, through a projection
  *    with no rating, no comment and no private note.
  *  - Where each person's every week stands (`states`), which the tab's one
@@ -578,14 +583,19 @@ export async function readRunCoursework(
   db: Firestore,
   on: { run: CourseRunDoc; liveGroups: readonly CourseGroupDoc[]; now: Date },
   wordsOf: string | null,
-): Promise<{ work: Map<string, PersonWork>; writes: PersonWrites; states: RunWeekStates }> {
+): Promise<{ work: Map<string, PersonWork>; writes: PersonWrites; states: RunWeekStates; feedback: CourseFeedbackDoc[] }> {
   const runId = on.run.id;
-  const [responses, progress, states] = await Promise.all([
+  const [responses, progress, states, pieces] = await Promise.all([
     db.collection("courseExerciseResponses").where("runId", "==", runId).get(),
     // The projection is the boundary: who, which item and whether it is ticked.
     db.collection("courseProgress").where("runId", "==", runId).select("uid", "itemId", "completed").get(),
     loadRunWeekStates(db, { run: on.run, liveGroups: on.liveGroups, now: on.now }),
+    readRunFeedback(db, runId),
   ]);
+  // Every written answer somebody has left a piece of feedback on.
+  const given = new Set(
+    pieces.flatMap((piece) => (piece.on.kind === "writtenAnswer" ? [`${piece.uid} ${workKey(piece.weekNumber, piece.on.itemId)}`] : [])),
+  );
   const work = new Map<string, { reflections: Set<string>; boxes: Set<string>; answers: Map<string, AnswerState>; ticked: Set<string> }>();
   const of = (uid: string) => {
     let found = work.get(uid);
@@ -626,7 +636,7 @@ export async function readRunCoursework(
         ? record.words > 0
           ? "draft"
           : "not-started"
-        : record.feedback
+        : record.feedback || given.has(`${uid} ${key}`)
           ? "feedback"
           : record.words > 0
             ? answerState(record) === "draft"
@@ -654,7 +664,12 @@ export async function readRunCoursework(
     of(uid).ticked.add(itemId);
     if (uid === wordsOf) ticked.add(itemId);
   }
-  return { work, writes: { reflections, boxes, answers, ticked }, states };
+  return {
+    work,
+    writes: { reflections, boxes, answers, ticked },
+    states,
+    feedback: wordsOf ? pieces.filter((piece) => piece.uid === wordsOf) : [],
+  };
 }
 
 /**

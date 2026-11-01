@@ -1639,7 +1639,7 @@ Everywhere else the hub treats them as both:
   every kind of answer asks (`facilitatesOnRun` and
   `readsFacilitatorsOwnWork` in `src/lib/courses/writtenAnswers/access.ts`).
   The lead gives feedback on a written answer from the Attendance tab's
-  Written answers card. The summer's review queue and the group page's To
+  Feedback to write card. The summer's review queue and the group page's To
   review leave their exercise answers out for everybody else who
   facilitates, and the review route refuses everybody else's verdict.
 - **Leaving and Remove**: while they facilitate a live group of the run,
@@ -2045,9 +2045,10 @@ among them). Then it counts what the person did in the week they read
 (their group's copy once Publish has told them their group, the run's own
 week before that, so week 1 work written before groups go out is counted):
 reflection parts written, sources ticked, where the written answer stands
-(waiting for feedback stands out and opens the existing feedback page),
-boxes filled in. Never anybody's words in a cell. Filters are plain links: a
-group, "Not in a group yet", "Waiting for feedback", and "Not done": the
+("No feedback yet" stands out and opens the answer's review page, where
+feedback is written), boxes filled in. Never anybody's words in a cell.
+Filters are plain links: a group, "Not in a group yet", "No feedback yet",
+and "Not done": the
 people with a week that has begun for them (on the calendar of the group
 whose weeks they read) and is not done. A week still to come reads "Not
 done" quietly and puts nobody under the filter. Weeks that locked before
@@ -2060,9 +2061,12 @@ yet"); the lead sees that person under "Not in a group yet".
 
 For the same two, and only for somebody who is a row of the tab (otherwise a
 calm not-here page). Newest week first: each reflection under its prompt with
-when it was written, the written answer with its state, its feedback (levels,
-comment, who gave it) and the way to the feedback page, the fill-in boxes
-(after their own gate, `boxesReaderFor`), and which sources they ticked.
+when it was written, the written answer with its state and the way to its
+review page, the fill-in boxes (after their own gate, `boxesReaderFor`),
+which sources they ticked, and the week's Feedback: every piece, signed as
+the person reads it, with whether its email went, and, once the week may be
+read, "Feedback on the week" for the lead or an admin to write a piece on the
+week as a whole (see "Feedback").
 PRIVATE NOTES are shown to admins only, never to the lead, through the one
 reader of private notes. Survey answers never appear on the tab or the page.
 The page keeps a column beside the weeks for the notes the team keeps about a
@@ -2128,6 +2132,71 @@ incubator's team page, keep their own pages and never lock.
   says when the group's week locks ("Locks Wed 3pm").
 - **Deleting**: both new collections go with an account (by `uid`) and with a
   run's destroy (by `runId`), and the destroy dialog counts them.
+
+
+## Feedback
+
+Feedback on somebody's week is a short comment signed with its writer's name
+(`src/lib/courses/feedback/`, privacy v15's "Feedback"). Any number of pieces
+may be on one week, from different people, each on the week's written answer
+or on the week as a whole. No rubric level goes back to the person, and
+nothing in it is a mark.
+
+- **Who writes it**: the one gate on whose work a reader may act on
+  (`writtenReviewRole`): the group's facilitators, the programme's lead and
+  admins; for a facilitator's own work, the lead and admins. Never the person.
+  Each piece stores as what it was written (`byRole`): one of the person's
+  group's facilitators as their facilitator, else the lead as the lead, else an
+  admin. The person's page signs it "Feedback from Rahul, Your facilitator", or
+  "From the NAISI team, Claudia, who leads AGI Strategy".
+- **Whose name**: the name the writer goes by (`fullNameOfUser`, which puts
+  it first; the signature is its first word, as the member area names
+  people), for every reader. The person need not be on the committee, and
+  privacy v15 shows a full name to the committee alone, so a piece is signed
+  with the name anybody may see, and the people running the group read each
+  piece signed as the person does. A writer's chip takes its initials from
+  that name, so no initial comes from a full name.
+- **On what**: a week written as blocks, once its readers may read it
+  (`workIsReadable`: submitted, or locked at the session first), asked inside
+  the save's transaction; a week open or reopened takes none. A piece on the
+  written answer needs words in it. Feedback stays when a week is reopened.
+- **Where**: on the written answer's review page ("Your feedback", the
+  reader's own piece, changed in place until its email goes), and on the
+  Coursework tab's person page ("Feedback on the week", for the lead and
+  admins). `POST|PATCH|DELETE /api/courses/runs/[runId]/feedback`.
+- **Saving emails nobody.** A piece shows on the person's week page, in its
+  Feedback section under the week's status, as soon as it is saved. Its writer
+  can change or delete it until its email has gone; an admin can delete any
+  piece; nobody can while a press is sending it.
+- **The email, in a batch.** "Feedback to send" on the programme's Overview
+  lists every piece whose email has not gone, about somebody who still takes
+  part. An admin unticks any to leave for later, sends a test to themselves
+  (it counts for a day), then "Send 6 emails": one email per person, however
+  many pieces (`POST .../feedback/send` and `.../send/test`). The press carries
+  the ticked pieces and the two numbers it showed, and is refused when either
+  moved; one press at a time; each piece is claimed in a transaction, so two
+  presses send once; a send that fails lets its pieces go for the next press.
+  The lead sees the same list, and that an admin sends the emails. Each send is
+  recorded in `courseFeedbackSends`. The email is transactional
+  (`docs/notifications.md`): who left feedback, on which weeks, and a button to
+  the newest of those weeks' pages at `#feedback`, never the feedback itself.
+- **Feedback to write** (the group page, Home, the lead's Attendance tab):
+  written answers its reader may give feedback on, readable, with words and no
+  feedback from anyone, whose week's session started in the last seven days.
+  Feedback is optional, so a count of every answer without any would never
+  reach zero.
+- **Feedback given before pieces existed** (the answer row's `feedback`, with
+  rubric levels, emailed when it was given) is never migrated. It reads as one
+  more signed card, its comment or, with none, its levels as plain lines, and
+  counts as emailed, so it is never in a batch. The notes draft still reads its
+  levels.
+- **The old feedback page**, `/learn/[runId]/weeks/[n]/feedback`, sends its
+  reader to the week page's Feedback, so links in emails already sent keep
+  working.
+- **Deleting**: an account takes the feedback on its work and the feedback it
+  wrote (a piece is signed with its writer's name), and clears its name from
+  the presses it made; a run's destroy deletes both collections, and its dialog
+  counts them.
 
 
 ## Changing a session

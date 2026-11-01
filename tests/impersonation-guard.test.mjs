@@ -175,7 +175,9 @@ const MUST_GUARD = [
   ["src/app/api/courses/runs/[runId]/weeks/[weekId]/reopen/route.ts", "reopens somebody's week for them, recorded as whoever the session says reopened it"],
   ["src/app/api/courses/runs/[runId]/ticks/[itemId]/route.ts", "ticks a week's item off, or unticks it, in its caller's own name, and logs it"],
   ["src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts", "saves a written answer in its writer's own name: a member's own, or a group facilitator's own"],
-  ["src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts", "gives feedback on somebody's written answer, and emails them that it is waiting"],
+  ["src/app/api/courses/runs/[runId]/feedback/route.ts", "saves, changes or deletes feedback on somebody's week, signed with whoever the session says wrote it"],
+  ["src/app/api/courses/runs/[runId]/feedback/send/route.ts", "emails each person their \"you have feedback\" email in the caller's name, which cannot be unsent"],
+  ["src/app/api/courses/runs/[runId]/feedback/send/test/route.ts", "emails a test of the feedback emails to the address on the session, which is the member's in a view-as session"],
   ["src/app/api/courses/runs/[runId]/sync-tasks/route.ts", "creates committee tasks on the board"],
   ["src/app/api/courses/templates/[templateId]/route.ts", "deletes a curriculum template"],
   // Admissions: the round authoring console. A round is the object an intake

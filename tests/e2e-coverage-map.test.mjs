@@ -948,7 +948,7 @@ const NOT_COVERED = {
     reason:
       "Course authoring: an admin sets a course's rubric for written answers by pasting or typing its table; every answer it gives is driven as each kind of caller in tests/course-hub-written-answers.test.mjs.",
     coverWhen:
-      "When a browser spec pastes a rubric into a course's details and gives feedback by it on the review page.",
+      "When a browser spec pastes a rubric into a course's details and reads it on the course's Start here, where it stays as guidance for writing.",
   },
   "/api/courses/[courseId]/routes": {
     reason:
@@ -1285,12 +1285,23 @@ const NOT_COVERED = {
     coverWhen:
       "When a browser spec signs in a member of a group Publish has told, opens a week with a written answer, writes, submits the week, reloads and reads it back as submitted.",
   },
-  "/api/courses/runs/[runId]/written-answers/[answerId]/review": {
+  "/api/courses/runs/[runId]/feedback": {
     reason:
-      "Course hub: feedback on a written answer its readers may read, by the rubric, with the one email that it is waiting (wk-review); every caller, the reading gate, Late and the email are executed by tests/course-hub-written-answers.test.mjs.",
+      "Course hub: feedback as a signed comment on somebody's submitted or locked week, saved, changed and deleted, emailing nobody; every caller, the reading gate, the week a piece may be on and a piece's email state are executed by tests/course-feedback.test.mjs.",
     coverWhen:
-      "When a browser spec signs in as a group's facilitator, opens a sent answer, gives feedback by the rubric, " +
-        "and the member reads it on the feedback page.",
+      "When the work-loop spec (course-hub-work-loop) is written: a facilitator saves feedback on a submitted answer and the member reads it on their week page.",
+  },
+  "/api/courses/runs/[runId]/feedback/send": {
+    reason:
+      "Course hub: an admin's batch of \"you have feedback\" emails from the programme's Overview, one per person; the test first, the count on the button, the claim on each piece and two presses sending once are executed by tests/course-feedback.test.mjs.",
+    coverWhen:
+      "When the work-loop spec (course-hub-work-loop) is written: an admin tests and sends the batch, and Mailpit holds one email per person.",
+  },
+  "/api/courses/runs/[runId]/feedback/send/test": {
+    reason:
+      "Course hub: \"Send a test to me\" beside the feedback emails, to the presser's own address and nobody else; executed by tests/course-feedback.test.mjs.",
+    coverWhen:
+      "When the work-loop spec (course-hub-work-loop) is written: an admin sends the test before the batch and Mailpit holds it.",
   },
   "/api/courses/templates/[templateId]": {
     reason:
@@ -2126,17 +2137,16 @@ const NOT_COVERED = {
   },
   "/(app)/learn/[runId]/group/[groupId]/written": {
     reason:
-      "Course hub: a group's written answers one at a time (wk-review, wk-review-phone), for its facilitators and admins; drawn as each kind of caller in tests/course-hub-written-answers.test.mjs.",
+      "Course hub: a group's written answers one at a time (wk-review, wk-review-phone), for its facilitators and admins, with Your feedback beside each; drawn as each kind of caller in tests/course-hub-written-answers.test.mjs and tests/course-feedback.test.mjs.",
     coverWhen:
-      "When a browser spec signs in as a group's facilitator, opens a sent answer, gives feedback by the rubric, " +
-        "and the member reads it on the feedback page.",
+      "When the work-loop spec (course-hub-work-loop) is written: a facilitator opens a submitted answer, saves feedback, " +
+        "and the member reads it on their week page.",
   },
   "/(app)/learn/[runId]/weeks/[n]/feedback": {
     reason:
-      "Course hub: a fellow's own feedback page (wk-feedback-phone), their answer as sent with each level and the comment; drawn as its writer and refused to everybody else in tests/course-hub-written-answers.test.mjs.",
+      "Course hub: the old feedback page, where the emails sent before feedback became a signed comment link; it reads nothing and sends its reader to the week's page at its Feedback, held in tests/course-feedback.test.mjs.",
     coverWhen:
-      "When a browser spec signs in as a group's facilitator, opens a sent answer, gives feedback by the rubric, " +
-        "and the member reads it on the feedback page.",
+      "When the work-loop spec (course-hub-work-loop) is written: it opens an old feedback link and lands on the week's Feedback.",
   },
   "/(app)/learn/draw/[groupId]": {
     reason:

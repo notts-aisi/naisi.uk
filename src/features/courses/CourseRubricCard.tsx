@@ -10,11 +10,12 @@ import styles from "./adminCourses.module.css";
 import own from "./courseRubric.module.css";
 
 /**
- * THE COURSE'S RUBRIC, IN ITS DETAILS (`CourseDoc.rubric`): what every
- * written answer on the course's runs gets feedback on, rows by levels with
- * a descriptor in each cell, never a mark. An admin pastes the guide's own
- * table, or types one in the same shape, reads it back, and saves it; or
- * takes it off, so the review page offers the comment alone.
+ * THE COURSE'S RUBRIC, IN ITS DETAILS (`CourseDoc.rubric`): the rows a
+ * strong written answer is held to, by levels with a descriptor in each
+ * cell, never a mark, as guidance for writing. Feedback on an answer is a
+ * signed comment, and no level of it goes back to the person. An admin
+ * pastes the guide's own table, or types one in the same shape, reads it
+ * back, and saves it; or takes it off.
  *
  * No board draws this card: its words are listed for the boards' designers.
  * Everybody else who can open the course sees the rubric as it stands and
@@ -73,7 +74,7 @@ export default function CourseRubricCard({
       setSaved(next);
       setText(next ? rubricToMarkdown(next) : "");
       setRead(null);
-      setMessage(next ? "Saved. Every run of this course gives feedback on these rows." : "Rubric taken off. Feedback on this course’s written answers is a comment alone.");
+      setMessage(next ? "Saved." : "Rubric taken off.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "That didn’t go through. Try again.");
     } finally {
@@ -88,7 +89,7 @@ export default function CourseRubricCard({
         <div className={styles.sectionHead}>
           <h2 className={styles.sectionTitle}>Rubric for written answers</h2>
           <p className={styles.sectionHint}>
-            Feedback on a written answer is a level on each row and a short comment. Never a mark.
+            What a strong written answer does, row by row, as guidance for writing. Feedback is a signed comment: no level of it goes back to the person, and never a mark.
           </p>
         </div>
 
@@ -120,7 +121,7 @@ export default function CourseRubricCard({
             </table>
           </div>
         ) : (
-          <p className={own.line}>No rubric yet: facilitators give feedback as a comment alone.</p>
+          <p className={own.line}>No rubric yet.</p>
         )}
 
         {isAdmin ? (

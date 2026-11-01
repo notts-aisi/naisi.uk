@@ -13,7 +13,7 @@
  *    tab: everybody in their group, Dan under "Not in a group yet" with his
  *    week 1 work counted, each cell leading with "Not done" (nobody has
  *    submitted a week here) and then in counts, never in words, Ada's answer
- *    waiting for feedback and opening the feedback page, and the filters as
+ *    with no feedback yet and opening its review page, and the filters as
  *    links, "Not done" among them;
  *  - opens Dan's page and Ada's: reflections under their prompts with when
  *    they were written, the answer waiting, and, because the lead here is an
@@ -294,7 +294,7 @@ test(
           await tabLink.waitFor({ timeout: WAIT_MS });
           await Promise.all([adminPage.waitForURL((url) => url.pathname.endsWith("/coursework"), { timeout: WAIT_MS }), tabLink.click()]);
 
-          await adminPage.getByText("4 holding a place · 1 facilitating · 1 waiting for feedback", { exact: true }).waitFor({ timeout: WAIT_MS });
+          await adminPage.getByText("4 holding a place · 1 facilitating · 1 with no feedback yet", { exact: true }).waitFor({ timeout: WAIT_MS });
           // Sorted by group in the run's one order, then name; nobody's last. Fern is marked as facilitating.
           const expected = ordered.map((group) =>
             sectionOf(group.name, [
@@ -309,11 +309,11 @@ test(
           // written of two parts, one source of two, waiting for feedback.
           const adaCell = adminPage.getByRole("link", { name: `Week 3, not done: ${ada.displayName}’s coursework`, exact: true });
           assert.equal(await wordsIn(adaCell), "Not done Reflections 1 of 2 Sources 1 of 2", "Ada's week 3 cell");
-          const adaAnswer = adminPage.getByRole("link", { name: `Week 3 written answer, Waiting for feedback: ${ada.displayName}`, exact: true });
+          const adaAnswer = adminPage.getByRole("link", { name: `Week 3 written answer, No feedback yet: ${ada.displayName}`, exact: true });
           assert.equal(
             await adaAnswer.getAttribute("href"),
             `${programmePathOnSite}/written?group=${enc(facilitated.id)}&week=3&person=${enc(ada.uid)}`,
-            "the waiting answer does not open the feedback page",
+            "the waiting answer does not open its review page",
           );
           // Cleo has written one prompt of part 1, so no part is written.
           assert.match(await wordsIn(adminPage.getByRole("link", { name: `Week 3, not done: ${cleo.displayName}’s coursework`, exact: true })), /^Not done Reflections 0 of 2 /);
@@ -325,7 +325,7 @@ test(
 
           // The filters are links: the waiting ones alone, then those of them not done, then everybody in no group.
           const sections = adminPage.getByRole("region", { name: "Coursework", exact: true }).locator("tbody");
-          await adminPage.getByRole("link", { name: "Waiting for feedback", exact: true }).click();
+          await adminPage.getByRole("link", { name: "No feedback yet", exact: true }).click();
           await waitFor(
             "the waiting filter to leave one group",
             async () => new URL(adminPage.url()).searchParams.get("waiting") === "1" && (await sections.count()) === 1,
@@ -371,11 +371,11 @@ test(
           const weekThree = await wordsIn(adminPage.locator("#week-3"));
           assert.ok(weekThree.includes(`${COURSEWORK_PROMPTS.rp1} ${adaSaid}`), `Ada's reflection is not under its prompt: ${weekThree}`);
           assert.match(weekThree, WHEN);
-          assert.ok(weekThree.includes(`${COURSEWORK_ANSWER_PROMPT} Waiting for feedback`), `Ada's answer is not waiting: ${weekThree}`);
+          assert.ok(weekThree.includes(`${COURSEWORK_ANSWER_PROMPT} No feedback yet`), `Ada's answer is not waiting: ${weekThree}`);
           assert.ok(weekThree.includes(adaAnswer), "Ada's answer is not on her page");
           assert.ok(weekThree.includes(`Private note ${adaNote}`), `an admin is not shown Ada's private note: ${weekThree}`);
           assert.equal(
-            await adminPage.locator("#week-3").getByRole("link", { name: "Open the feedback page", exact: true }).getAttribute("href"),
+            await adminPage.locator("#week-3").getByRole("link", { name: "Write feedback on the answer", exact: true }).getAttribute("href"),
             `${programmePathOnSite}/written?group=${enc(facilitated.id)}&week=3&person=${enc(ada.uid)}`,
           );
         },

@@ -43,10 +43,10 @@ import {
  * curriculum; a lead's own loading comes with the Weeks tab). The gate is
  * decided before anything is read; every other caller meets the same 403.
  *
- * START HERE'S RUBRIC IS READ AGAINST THE COURSE'S. A fellow is told the
- * levels are "the rubric on Start here", and feedback is given on the course's
- * own rubric record, so a Start here paste whose rubric is not the course's
- * says so among the things to check (`startHereRubricCheck`). A check, never a
+ * START HERE'S RUBRIC IS READ AGAINST THE COURSE'S. A fellow reads the rubric
+ * on Start here, as guidance for writing, and the course keeps its own rubric
+ * record, so a Start here paste whose rubric is not the course's says so
+ * among the things to check (`startHereRubricCheck`). A check, never a
  * refusal: one more read, of the run's course, for Start here alone.
  */
 

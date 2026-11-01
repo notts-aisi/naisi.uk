@@ -26,7 +26,6 @@ import { groupsGoOutDay, weekOneOpenWords } from "@/lib/courses/groupsGoOut";
 import type { WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { dueMoment } from "@/lib/courses/weekBlocks/due";
 import { weekWrittenAnswers } from "@/lib/courses/weekBlocks/reader";
-import { rubricOf } from "@/lib/courses/rubric";
 import type { When } from "@/lib/courses/weekBlocks/model";
 import { taskNeeds, taskSubject, thisWeekOf, type TaskNeeds } from "@/lib/courses/weekBlocks/progress";
 import { taskLabelWords } from "@/lib/courses/memberPageWords";
@@ -36,7 +35,9 @@ import { NO_GROUP } from "@/lib/courses/weekWork/lock";
 import type { WeekWorkWire } from "@/lib/courses/weekWork/model";
 import { lockSourceFor, ownWeekWires } from "@/lib/courses/weekWork/readers";
 import { isFillInResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
-import { firstNameOfUser } from "@/lib/courses/programmeLead";
+import { byOldest, ownCardOf, ownLegacyCardOf, type CardNames, type OwnFeedbackCard } from "@/lib/courses/feedback/model";
+import { cardNamesOf, legacyRoleOf, readOwnFeedback } from "@/lib/courses/feedback/readers";
+import type { CourseFeedbackDoc } from "@/lib/firestore/courseFeedback";
 import { isWordCountedAnswer, readWrittenAnswer, type WrittenAnswerRecord } from "@/lib/courses/writtenAnswers/model";
 import {
   ownAttendanceSessions,
@@ -403,12 +404,6 @@ export type OverviewThisWeek = {
    */
   answers: Array<{ id: string; due: { dateKey: string; moved: boolean } | null }>;
   /**
-   * The rows of the course's rubric ("A clear position", ...), what a
-   * written answer gets feedback on; empty for a course with no rubric.
-   * Names only: the levels and descriptors are the review page's.
-   */
-  feedbackOn: string[];
-  /**
    * Who reads the caller's own written answer and gives feedback on it
    * (`writtenReviewRole`), and who reads what they write in a week's fill-in
    * boxes (`src/lib/courses/fillInBoxes/access.ts`): their group's
@@ -460,10 +455,11 @@ export type OverviewThisWeekRow =
       sent: string[];
       /**
        * The caller's own written answer this task covers, for the programme
-       * page's task row ("Draft · 241 words", "Sent Mon 16 Nov", "Feedback
-       * from Rahul"): its count of words, the London day it was first sent,
-       * and who sent the feedback on it. Null when the task covers none, or
-       * the caller has written nothing in it. Never whether it was late.
+       * page's task row ("Draft · 241 words", "Submitted Mon 16 Nov",
+       * "Feedback from Rahul"): its count of words, the London day it was
+       * first sent, and the first name of whoever first left feedback on it.
+       * Null when the task covers none, or the caller has written nothing in
+       * it. Never whether it was late.
        */
       answer: { words: number; sentOn: string | null; feedbackFrom: string | null } | null;
       /** The caller's pack in each Choose one of `needs.chooseOneIds`, by the Choose one's id. */
@@ -555,6 +551,14 @@ export type OverviewPayload = {
      * other week and for anybody not taking part.
      */
     work: WeekWorkWire | null;
+    /**
+     * A week written as blocks, for somebody taking part: the feedback on
+     * their own week (`src/lib/courses/feedback/`), each piece signed as they
+     * read it, oldest first, feedback given before pieces existed among them.
+     * Empty with none; null on any other week and for anybody not taking
+     * part. Never whether a piece was emailed, and never anybody else's.
+     */
+    feedback: OwnFeedbackCard[] | null;
   }>;
   /**
    * Who a person taking part asks to switch a pack or swap a case (Q32 A:
@@ -802,61 +806,91 @@ function writtenAnswersOf(
 
 /**
  * What the caller has done on the run, as This week reads it: the reflection
- * boxes they have written in, their written answers as stored, and the first
- * name of whoever sent feedback on each of those answers, by uid. Names only.
+ * boxes they have written in, their written answers as stored, the feedback
+ * on their weeks (`courseFeedback`, their own alone), and the names that
+ * feedback is signed with. Names only.
  */
 type OwnWork = {
   boxes: ReadonlySet<string>;
   answers: ReadonlyMap<string, WrittenAnswerRecord>;
-  feedbackNames: ReadonlyMap<string, string>;
+  feedback: readonly CourseFeedbackDoc[];
+  names: CardNames;
 };
 
 /**
  * The caller's own work, out of their own rows on the run (`docs`, already
- * read), and one read of the accounts that sent feedback on their written
- * answers. Both payloads draw This week from it, so a holder before groups
- * and somebody placed are answered by the same construction.
+ * read), the pieces of feedback on their weeks (by their uid and the run),
+ * and one read of the accounts that left feedback on any of it. Both
+ * payloads draw This week and the week page's Feedback from it, so a holder
+ * before groups and somebody placed are answered by the same construction.
  */
 async function ownWorkOf(
   db: NonNullable<ReturnType<typeof getAdminDb>>,
   docs: ReadonlyArray<{ data: () => unknown }>,
   uid: string,
+  runId: string,
+  readsFeedback: boolean,
 ): Promise<OwnWork> {
   const answers = writtenAnswersOf(docs, uid);
-  const feedbackUids = [...new Set([...answers.values()].map((record) => record.feedback?.byUid ?? "").filter(Boolean))];
-  const feedbackNames = new Map<string, string>();
-  for (const doc of feedbackUids.length ? await db.getAll(...feedbackUids.map((byUid) => db.collection("users").doc(byUid))) : []) {
-    if (doc.exists) feedbackNames.set(doc.id, firstNameOfUser(doc.data() ?? {}) || "Your facilitator");
-  }
-  return { boxes: writtenBoxesOf(docs, uid), answers, feedbackNames };
+  const feedback = readsFeedback ? await readOwnFeedback(db, runId, uid) : [];
+  const names = await cardNamesOf(db, [
+    ...[...answers.values()].map((record) => record.feedback?.byUid ?? ""),
+    ...feedback.map((piece) => piece.byUid),
+  ]);
+  return { boxes: writtenBoxesOf(docs, uid), answers, feedback, names };
+}
+
+/**
+ * The feedback on the caller's own week, as their week page's Feedback
+ * section draws it: each piece on the week, and feedback given before pieces
+ * existed on any of its written answers, signed as their facilitator when it
+ * was one of `groupFacilitatorUids` and as the team otherwise. Oldest first.
+ */
+function ownFeedbackCards(work: OwnWork, weekId: string, blocks: WeekBlock[], groupFacilitatorUids: readonly string[]): OwnFeedbackCard[] {
+  const legacy = weekWrittenAnswers({ summary: "", materials: [], exercises: [], checklist: [], blocks }).flatMap((answer) => {
+    const given = work.answers.get(`${weekId}::${answer.id}`)?.feedback ?? null;
+    return given ? [ownLegacyCardOf(answer.id, given, legacyRoleOf(given.byUid, groupFacilitatorUids), work.names)] : [];
+  });
+  const pieces = work.feedback.filter((piece) => piece.weekId === weekId).map((piece) => ownCardOf(piece, work.names));
+  return byOldest([...legacy, ...pieces]);
 }
 
 /**
  * What This week reads of the run's course: its time for work due the day
- * before a session (`dayBeforeDueTime`), and the names of its rubric's rows,
- * what a written answer gets feedback on (none for a course with no rubric).
- * Nothing else of the course travels.
+ * before a session (`dayBeforeDueTime`). Nothing else of the course travels.
  */
-type ThisWeekCourse = { dayBeforeTime: string | null; feedbackOn: string[] };
+type ThisWeekCourse = { dayBeforeTime: string | null };
 
 function thisWeekCourseOf(course: CourseDoc | null): ThisWeekCourse {
-  return {
-    dayBeforeTime: course?.dayBeforeDueTime ?? null,
-    feedbackOn: (rubricOf(course)?.rows ?? []).map((row) => row.name),
-  };
+  return { dayBeforeTime: course?.dayBeforeDueTime ?? null };
 }
 
 /** The caller's own written answer, as a task row carries it. Null for nothing written. */
 function ownAnswerOf(
   record: WrittenAnswerRecord | null,
-  feedbackNames: ReadonlyMap<string, string>,
+  feedbackFrom: string | null,
 ): { words: number; sentOn: string | null; feedbackFrom: string | null } | null {
   if (!record || (record.words === 0 && !record.firstSentAt)) return null;
   return {
     words: record.words,
     sentOn: record.firstSentAt ? londonDateKey(record.firstSentAt) : null,
-    feedbackFrom: record.feedback ? (feedbackNames.get(record.feedback.byUid) ?? "Your facilitator") : null,
+    feedbackFrom,
   };
+}
+
+/**
+ * The first name of whoever first left feedback on one of the caller's
+ * written answers (feedback from before pieces, or the oldest piece on it),
+ * or null with none; "Your facilitator" when their name is not on record.
+ */
+function firstFeedbackOn(work: OwnWork, weekId: string, answerId: string): string | null {
+  const given = work.answers.get(`${weekId}::${answerId}`)?.feedback ?? null;
+  const pieces = work.feedback
+    .filter((piece) => piece.weekId === weekId && piece.on.kind === "writtenAnswer" && piece.on.itemId === answerId)
+    .sort((a, b) => (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0));
+  const byUid = given?.byUid ?? pieces[0]?.byUid ?? null;
+  if (byUid === null) return given || pieces.length > 0 ? "Your facilitator" : null;
+  return work.names.firstName(byUid) || "Your facilitator";
 }
 
 /**
@@ -885,7 +919,6 @@ function thisWeekPayload(
   return {
     total: block.total,
     dayBeforeTime: course.dayBeforeTime,
-    feedbackOn: course.feedbackOn,
     answersReadBy,
     // Through the one reader of a week's written answers, which reads a week
     // written as blocks by its blocks alone.
@@ -908,7 +941,9 @@ function thisWeekPayload(
         needs,
         written: [...needs.promptIds, ...needs.fillInIds].filter((id) => work.boxes.has(`${weekId}::${id}`)),
         sent: needs.answerIds.filter((id) => answerOf(id)?.firstSentAt != null),
-        answer: ownAnswerOf(needs.answerIds.map((id) => answerOf(id))[0] ?? null, work.feedbackNames),
+        answer: needs.answerIds[0]
+          ? ownAnswerOf(answerOf(needs.answerIds[0]), firstFeedbackOn(work, weekId, needs.answerIds[0]))
+          : null,
         packs: Object.fromEntries(
           needs.chooseOneIds.flatMap((id) => (picks.packs[id] ? [[id, picks.packs[id]] as const] : [])),
         ),
@@ -955,7 +990,7 @@ async function beforeGroupsPayload(
   ]);
   const course = thisWeekCourseOf(courseSnap?.exists ? normalizeCourse(courseSnap.id, courseSnap.data() ?? {}) : null);
   const week = weekSnap.exists ? normalizeCourseWeek(weekSnap.id, weekSnap.data() ?? {}) : null;
-  const work = await ownWorkOf(db, ownAnswerSnap.docs, actor.uid);
+  const work = await ownWorkOf(db, ownAnswerSnap.docs, actor.uid, run.id, true);
   // Where their week 1 stands: with no group there is no session to lock at, so only Submit locks it.
   const weekWork =
     week && Array.isArray(week.blocks)
@@ -999,6 +1034,8 @@ async function beforeGroupsPayload(
             // and nobody through week 1's door has a group or a session yet.
             picks: null,
             work: weekWork,
+            // With no group yet, nobody signs as their facilitator.
+            feedback: Array.isArray(week.blocks) ? ownFeedbackCards(work, week.id, week.blocks, []) : null,
           },
         ]
       : [],
@@ -1301,8 +1338,14 @@ export async function GET(
   ]);
   const course = thisWeekCourseOf(courseSnap?.exists ? normalizeCourse(courseSnap.id, courseSnap.data() ?? {}) : null);
   // The reflection boxes the caller has written in, their written answers,
-  // and who sent feedback on those.
-  const work = await ownWorkOf(db, ownAnswerSnap?.docs ?? [], actor.uid);
+  // and the feedback on their weeks, for somebody taking part.
+  const work = await ownWorkOf(
+    db,
+    ownAnswerSnap?.docs ?? [],
+    actor.uid,
+    runId,
+    liveEnrolment?.role === "learner" || facilitates.length > 0,
+  );
   const nameByUid = new Map<string, string>();
   for (const doc of userDocs) {
     if (doc.exists) nameByUid.set(doc.id, displayNameOf(doc.data() ?? {}));
@@ -1327,6 +1370,7 @@ export async function GET(
         thisWeek: null as OverviewThisWeek | null,
         picks: null as OverviewPicks | null,
         work: null as WeekWorkWire | null,
+        feedback: null as OwnFeedbackCard[] | null,
       };
     })
     .sort((a, b) => a.weekNumber - b.weekNumber || a.id.localeCompare(b.id));
@@ -1490,6 +1534,11 @@ export async function GET(
     const blocks = blocksByWeekId.get(entry.id);
     entry.work = ownWork.get(entry.id) ?? null;
     if (blocks && readsOwnPicks) {
+      // The feedback on their own week: signed as their facilitator by one of their own group's.
+      const ownLearnerGroupFacilitators =
+        (liveEnrolment?.role === "learner" && liveEnrolment.groupId ? groups.find((g) => g.id === liveEnrolment.groupId) : null)
+          ?.facilitatorUids ?? [];
+      entry.feedback = ownFeedbackCards(work, entry.id, blocks, ownLearnerGroupFacilitators);
       // A pick stays open until the caller's group's session for the week
       // starts (the week's own, or the next one when it is cancelled).
       const startsAt = ownGroup ? dueMoment(ownSessionsAll, entry.weekNumber, "before") : null;

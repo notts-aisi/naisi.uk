@@ -4,6 +4,7 @@ import ProgrammeOverview from "@/features/applications/overview/ProgrammeOvervie
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { loadForm } from "@/lib/applications/repo";
 import { loadCertificatesSection } from "@/lib/courses/certificates/send";
+import { loadFeedbackBatch } from "@/lib/courses/feedback/send";
 import { loadWhoFinished } from "@/lib/courses/finishing/whoFinished";
 import { buildGetReady } from "@/lib/courses/getReady/model";
 import { readGetReady } from "@/lib/courses/getReady/read";
@@ -38,6 +39,11 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * survey at the end, the Surveys tab's own count for it
  * (`leadAfterSurveyCard`), with the way to the tab. "Certificates go out
  * [date]" is not drawn: no record holds that day.
+ *
+ * FEEDBACK TO SEND (`loadFeedbackBatch`), once anybody has saved feedback on
+ * the run: every piece whose "you have feedback" email has not gone, the
+ * email each person gets, and, for an admin, the test and the send, through
+ * their own two routes. The lead reads the list and is told an admin sends it.
  *
  * BEFORE ANY OF THE RUN'S GROUPS HAS MET (`anyGroupHasMet`) the page is "Get
  * ready for week 1" instead (boards st-overview and st-overview-phone): the
@@ -76,7 +82,7 @@ export default async function ProgrammeOverviewPage({
   const viewer = { isAdmin: view.viewer === "admin", uid: user.uid };
   // Before any group has met: "Get ready for week 1".
   const beforeTheStart = !anyGroupHasMet(records, now);
-  const [model, loaded, finishing, ready] = await Promise.all([
+  const [model, loaded, finishing, ready, feedbackToSend] = await Promise.all([
     buildProgrammeOverview(
       db,
       records,
@@ -89,6 +95,7 @@ export default async function ProgrammeOverviewPage({
     ),
     loadWhoFinished(db, records, viewer, now),
     beforeTheStart ? readGetReady(db, user, view.roundId, view.programmeId, records, now) : Promise.resolve(null),
+    beforeTheStart ? Promise.resolve(null) : loadFeedbackBatch(db, user, records.run.id, viewer.isAdmin ? "admin" : "lead", now),
   ]);
   const [certificates, afterSurvey] =
     finishing.state === "open"
@@ -107,6 +114,7 @@ export default async function ProgrammeOverviewPage({
       finishing={finishing}
       certificates={certificates}
       afterSurvey={afterSurvey}
+      feedbackToSend={feedbackToSend?.show ? { model: feedbackToSend, runId: records.run.id } : null}
       getReady={ready ? { model: buildGetReady(ready.facts), courseId: ready.courseId, runId: records.run.id } : null}
     />
   );

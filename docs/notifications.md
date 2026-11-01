@@ -234,6 +234,20 @@ which drops anybody whose row is a stored `false` before a message is rendered.
 The two admissions jobs read the row per recipient, off the user document they
 fetch for the name, and carry on with the opt-out unset when that read fails.
 
+**The "you have feedback" email is transactional, and goes in a batch.**
+Feedback on somebody's week is a signed comment that shows on their week page
+as soon as it is saved, and saving it emails nobody. An admin sends the email
+that says it is there from the programme's Overview, one message to each person
+whose feedback the press left ticked however many pieces it announces, after a
+test to themselves in the last day (`src/lib/courses/feedback/send.ts`). It is
+about the person's own work, as the placement email is about their own place
+and the certificates about their own certificate, so it consults no row and
+carries no notice marker: it reaches only the people whose feedback the press
+names, each at their own account's address. Its rows in the log carry
+`kind: "course-feedback"`, its tests `course-test`. Until November 2026 the
+same email went once per piece, straight from the review route; the
+registry's entries moved with it, and the class did not change.
+
 **Invitation reminders (`application-invitation-reminders`).** Once a day, from
 10:00 London and never after 18:00, to everybody invited on decision day who
 has not replied, from the day after they were told up to their own reply-by

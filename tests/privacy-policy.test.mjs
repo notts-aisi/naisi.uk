@@ -3224,6 +3224,7 @@ const comingReplies = await loadTs("lib/applications/status/coming.ts");
 /** The week you submit: who reads a written answer and from when, its other words, and its one answer to whether the answer may be read. */
 const weekWorkWords = await loadTs("lib/courses/weekWork/words.ts");
 const weekWorkModel = await loadTs("lib/courses/weekWork/model.ts");
+const feedbackWords = await loadTs("lib/courses/feedback/words.ts");
 /** The anonymous form's records: what an answer holds, and the readers' order. Pure. */
 const anonymousRecords = await loadTs("lib/anonymousFeedback/model.ts");
 
@@ -5526,7 +5527,7 @@ describe("the course hub passage", () => {
     }
   });
 
-  test("a written answer is read by its writer, their group's facilitators, the lead and admins; it locks when opened; Late is its readers' alone; one email says feedback is waiting", () => {
+  test("a written answer is read by its writer, their group's facilitators, the lead and admins; it locks when its week does; Late is its readers' alone; feedback is a signed comment on the week's page, with an email to say it is waiting", () => {
     // OWNER DECISIONS, 25 and 26 October 2026: Q30 C (the writer, their
     // group's facilitators, the programme's lead and admins; never other
     // fellows), Q33 (changeable after sending until a facilitator opens it,
@@ -5539,14 +5540,16 @@ describe("the course hub passage", () => {
     // v15 says it for all of a person's work: what is recorded and when, who
     // reads it, a facilitator's own, that the week's page says until when it
     // can change and that the people running the group can reopen it, and
-    // that feedback shows on the week's page with one email to say it is
-    // waiting. v14 said it of the written answer in its own words, and also
-    // that it can change until a facilitator opens it or feedback is sent,
-    // that opening it is recorded, that its readers see whether it was late
-    // and the writer's own pages never mark it so, that feedback is rubric
-    // levels and a comment and never a mark, and, among the emails, "that
-    // feedback on your written answer is waiting". v15 leaves those out; the
-    // checks on the code below stay.
+    // that feedback is written by a person on the team running the programme,
+    // shows their name and appears on the week's page, with an email to say
+    // it is waiting. v14 said it of the written answer in its own words, and
+    // also that it can change until a facilitator opens it or feedback is
+    // sent, that opening it is recorded, that its readers see whether it was
+    // late and the writer's own pages never mark it so, that feedback is
+    // rubric levels and a comment and never a mark, and, among the emails,
+    // "that feedback on your written answer is waiting". v15 leaves those
+    // out; the checks on the code below stay, held to feedback as a signed
+    // comment (`src/lib/courses/feedback/`, tests/course-feedback.test.mjs).
     assert.ok(
       hubPassageOf("<strong>What we record.</strong>").includes(
         "<strong>What we record.</strong> What you tick, write and send on each week&apos;s pages, and when: the readings you tick, your reflections and written answers,",
@@ -5646,11 +5649,25 @@ describe("the course hub passage", () => {
       assert.match(withoutComments(read(reader)), /\bworkIsReadable\(/, `${reader} reads a written answer's words without asking whether it may`);
     }
 
-    // Feedback by a POST, never a GET, and only on an answer its readers may read.
-    const review = withoutComments(read("src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts"));
-    assert.match(review, /export async function POST\(/);
-    assert.doesNotMatch(review, /export (?:async )?function GET\b|export const GET\b/, "the review route answers a GET, which must never write");
-    assert.ok(review.includes("if (record.words === 0 || !workIsReadable(standing.state, record)) {"), "feedback is given on an answer its readers may not read");
+    // Feedback is saved, changed and deleted by a POST, a PATCH and a DELETE,
+    // never a GET; it is written only on work its readers may read, asked
+    // inside the save's transaction; and the review route that gave it with
+    // rubric levels is gone.
+    assert.ok(!existsSync(join(REPO_ROOT, "src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts")), "the review route that gave rubric levels is back");
+    const feedbackRoute = withoutComments(read("src/app/api/courses/runs/[runId]/feedback/route.ts"));
+    for (const method of ["POST", "PATCH", "DELETE"]) {
+      assert.match(feedbackRoute, new RegExp(`export async function ${method}\\(`), `the feedback route has no ${method}`);
+    }
+    assert.doesNotMatch(feedbackRoute, /export (?:async )?function GET\b|export const GET\b/, "the feedback route answers a GET, which must never write");
+    assert.ok(
+      feedbackRoute.includes("const refusal = feedbackRefusalFor(on, standing.state, standing.answer, { notReadable: NOT_READABLE_YET, answerEmpty: ANSWER_EMPTY });"),
+      "feedback is no longer asked whether its work may be read, inside the save",
+    );
+    const feedbackGate = withoutComments(read("src/lib/courses/feedback/access.ts"));
+    assert.ok(feedbackGate.includes("if (!workIsReadable(state, answer)) return words.notReadable;"), "feedback is saved on work its readers may not read");
+    // "Written by a person on the team running your programme": the one gate on whose work a reader may act on.
+    assert.ok(feedbackGate.includes("const role = owner ? writtenReviewRole(actor, facts, owner, liveGroups) : null;"), "feedback no longer asks the one gate");
+    assert.ok(feedbackGate.includes('if (!run || !owner || !role?.mayReview) return { ok: false, status: 403, error: "Forbidden" };'));
 
     // "Late" travels to its readers only (v14's words; v15 leaves them out,
     // and the code keeps it): the writer's wire has no such field.
@@ -5658,18 +5675,36 @@ describe("the course hub passage", () => {
     assert.doesNotMatch(wire, /\blate\b/i, "the wire a writer reads carries whether their answer was late");
     assert.match(withoutComments(read("src/lib/courses/writtenAnswers/reviewPage.ts")), /late: record\?\.firstSentAt \? isLate\(record\.firstSentAt, due\) : false,/);
 
-    // Feedback is levels and a comment, never a number (v14: "never a
-    // mark"; v15 says only that it shows its writer's name).
-    const rubric = withoutComments(read("src/lib/courses/rubric.ts"));
-    assert.ok(rubric.includes("out.push({ row: row.name, level: rubric.levels[index], descriptor: row.descriptors[index] ?? \"\" });"));
-    assert.doesNotMatch(review, /\b(?:score|mark|total|points)\s*:/i, "feedback stores a score, a mark or a total");
+    // Feedback is a comment, never a number or a level (v14: "never a mark";
+    // R3-7: no level goes back to the person). A piece stores its words, who
+    // wrote it and as what; nothing gives a rubric level any more.
+    assert.ok(feedbackRoute.includes("text: text.text,"), "a piece no longer stores its words");
+    assert.doesNotMatch(feedbackRoute, /\b(?:score|mark|total|points|levels?)\s*:/i, "feedback stores a score, a mark, a total or a level");
+    const feedbackStore = withoutComments(read("src/lib/firestore/courseFeedback.ts"));
+    assert.doesNotMatch(feedbackStore, /\b(?:score|mark|total|points|levels?)\s*:/i, "a piece is read with a score, a mark, a total or a level");
+    assert.doesNotMatch(withoutComments(read("src/lib/courses/rubric.ts")), /export function givenLevelsOf\b/, "the rubric gives levels as feedback again");
 
-    // "It appears on the week's page, and we may email you to say feedback
-    // is waiting": the one email, sent after the feedback is saved, never
-    // carrying it.
-    assert.ok(review.includes("await sendWrittenFeedbackEmail({"), "the review route no longer sends the email that feedback is waiting");
-    const template = withoutComments(read("src/emails/WrittenFeedbackEmail.tsx"));
+    // "Shows their name": a piece is signed with the first name its writer goes by, as their facilitator or as the team.
+    const at = new Date("2026-11-15T10:02:00Z").toISOString();
+    assert.equal(feedbackWords.cardHeadingWords({ byRole: "facilitator", byName: "Rahul" }), "Feedback from Rahul");
+    assert.equal(feedbackWords.cardByWords({ byRole: "lead", byName: "Claudia", at }, "AGI Strategy"), "Claudia, who leads AGI Strategy · Sun 15 Nov");
+    assert.equal(feedbackWords.cardByWords({ byRole: "admin", byName: "Zach", at }, "AGI Strategy"), "Zach · Sun 15 Nov");
+
+    // "It appears on the week's page": the week page draws the person's own
+    // feedback under its status, from the overview, which reads only their own.
+    assert.match(read("src/features/courses/weekBlocks/BlockWeek.tsx"), /<WeekFeedback cards=\{feedbackCards\} programme=\{payload\.programme\?\.name \?\? ""\} \/>/);
+    assert.ok(withoutComments(read("src/lib/courses/feedback/readers.ts")).includes('.where("uid", "==", uid).where("runId", "==", runId)'), "a person's page reads somebody else's feedback");
+    // "And we may email you to say feedback is waiting": the one email, in an
+    // admin's batch, one a person, never carrying the feedback.
+    const batch = withoutComments(read("src/lib/courses/feedback/send.ts"));
+    assert.ok(batch.includes('kind: "course-feedback",'), "the batch no longer sends the email that feedback is waiting");
+    const template = withoutComments(read("src/emails/CourseFeedbackEmail.tsx"));
     assert.doesNotMatch(template, /comment|levels|descriptor/i, "the email carries the feedback itself, which stays on the site");
+    assert.match(
+      template,
+      /export default function CourseFeedbackEmail\(\{ subject, greeting, lead, buttonLabel, link, pasteIt \}: Props\)/,
+      "the email is handed something besides who left feedback, on what, and where it is",
+    );
   });
 
   // v14 listed what a deletion removes item by item, and this test pinned
@@ -5718,12 +5753,17 @@ describe("the course hub passage", () => {
       "summary.coursePacksAndCasesDeleted = await deleteCoursePacksAndCases(db, uid);",
       "summary.coursePairsDeleted = await deleteCoursePairs(db, uid);",
       "summary.coursePredictionsDeleted = await deleteCoursePredictions(db, uid);",
+      "const feedback = await clearCourseFeedback(db, uid);",
     ]) {
       assert.ok(
         cascade.includes(step),
         `the account deletion no longer runs \`${step}\`. The policy says a deletion removes what it took, or does not say a deletion leaves it.`,
       );
     }
+    // "Your work and the feedback on it": every piece about them goes, found by their uid; and so does
+    // every piece they wrote, which is shown signed with a name that has gone.
+    assert.match(cascade, /pieces\.where\("uid", "==", uid\)\.get\(\),\s*pieces\.where\("byUid", "==", uid\)\.get\(\),/);
+    assert.match(cascade, /for \(const doc of \[\.\.\.about\.docs, \.\.\.wrote\.docs\]\) \{[\s\S]*?writes\.push\(\(batch\) => batch\.delete\(doc\.ref\)\);/);
     // Pairs and both predictions cards go whole, every row the uid owns.
     assert.match(cascade, /export async function deleteCoursePairs\(db: Firestore, uid: string\): Promise<number> \{\s*return deleteOwnedCourseRows\(db, COURSE_PAIRS_COLLECTION, uid\);\s*\}/);
     assert.match(cascade, /export async function deleteCoursePredictions\(db: Firestore, uid: string\): Promise<number> \{\s*return deleteOwnedCourseRows\(db, COURSE_PREDICTIONS_COLLECTION, uid\);\s*\}/);
@@ -7981,7 +8021,22 @@ describe("the last pass before version 7 goes live, held to v15", () => {
       }
     }
     const everyFile = textFilesUnder(SRC).map((file) => file.slice(REPO_ROOT.length + 1).split(sep).join("/"));
+    // v7 is frozen, so a file it names that the site has since retired stays
+    // named. Each is listed with what took over from it, and held both ways:
+    // the header still names it, it is still gone, and its successor exists.
+    const RETIRED_SINCE_V7 = {
+      "src/lib/email/writtenFeedbackEmail.ts": {
+        successor: "src/lib/courses/feedback/send.ts",
+        why: "feedback became a signed comment (November 2026); the email that says it is waiting goes in an admin's batch",
+      },
+    };
+    for (const [retired, { successor, why }] of Object.entries(RETIRED_SINCE_V7)) {
+      assert.ok(header.includes(`\`${retired}\``), `v7's list no longer names ${retired}: take it off RETIRED_SINCE_V7`);
+      assert.ok(!existsSync(join(REPO_ROOT, retired)), `${retired} is back in the tree: take it off RETIRED_SINCE_V7`);
+      assert.ok(existsSync(join(REPO_ROOT, successor)), `${retired}'s successor ${successor} is not in the tree (${why})`);
+    }
     for (const [, named] of header.matchAll(/`([^`\s]+\.(?:tsx?|mjs|md))`/g)) {
+      if (Object.hasOwn(RETIRED_SINCE_V7, named)) continue;
       const found = named.includes("/") ? existsSync(join(REPO_ROOT, named)) : everyFile.some((file) => file.endsWith(`/${named}`));
       assert.ok(found, `the list of changes from v6 names ${named}, which is not in the tree`);
     }
@@ -8085,14 +8140,15 @@ describe("the last pass before version 7 goes live, held to v15", () => {
     assert.equal(writtenModel.answerState(record({ text: "Half a thought", words: 3 })), "draft");
     assert.equal(writtenModel.answerState(null), "not-started");
     assert.equal(writtenModel.answerState(record({ text: "Sent", words: 1, firstSentAt: new Date("2026-11-03T10:00:00Z") })), "sent");
-    // The review page opens only an answer its readers may read, and the review route refuses feedback on any other.
+    // The review page opens only an answer its readers may read, and feedback is refused on any other work.
     const page = withoutComments(read("src/lib/courses/writtenAnswers/reviewPage.ts"));
     assert.match(page, /const readable = \[\.\.\.toGive, \.\.\.feedbackSent\];/);
     assert.match(page, /\(askedPerson \? readable\.find\(\(person\) => person\.uid === askedPerson\) : undefined\) \?\? toGive\[0\] \?\? feedbackSent\[0\] \?\? null;/);
     assert.match(
-      withoutComments(read("src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts")),
-      /if \(record\.words === 0 \|\| !workIsReadable\(standing\.state, record\)\) \{\s*throw new ReviewError\("That answer hasn’t been submitted yet\.", 409\);/,
+      withoutComments(read("src/lib/courses/feedback/access.ts")),
+      /if \(!workIsReadable\(state, answer\)\) return words\.notReadable;\s*if \(on === "writtenAnswer" && \(!answer \|\| answer\.words === 0\)\) return words\.answerEmpty;/,
     );
+    assert.match(withoutComments(read("src/app/api/courses/runs/[runId]/feedback/route.ts")), /if \(refusal\) throw new FeedbackError\(refusal, 409\);/);
     // This week's work says only that it is started ("Started", never its length), and links nothing to it.
     assert.match(
       withoutComments(read("src/lib/courses/facilitatorWeek/workColumns.ts")),

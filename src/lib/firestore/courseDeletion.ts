@@ -32,6 +32,7 @@ import { BEST_ANSWERS_COLLECTION, PANGRAM_CHECKS_COLLECTION } from "@/lib/course
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import { COURSE_WEEK_WORK_COLLECTION } from "./courseWeekWork";
 import { COURSE_WORK_LOG_COLLECTION } from "./courseWorkLog";
+import { COURSE_FEEDBACK_COLLECTION, COURSE_FEEDBACK_SENDS_COLLECTION } from "./courseFeedback";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { RECORD_OPENINGS_COLLECTION } from "./recordOpenings";
 import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
@@ -388,6 +389,20 @@ export type RunDestroyCounts = {
    * the run: each row names a week this cascade deletes.
    */
   workLog: number;
+  /**
+   * `courseFeedback` rows: each piece of feedback on somebody's week, signed
+   * with its writer's name, and whether its email went
+   * (`src/lib/firestore/courseFeedback.ts`). Keyed by `runId` on the row like
+   * every other leaf here, and it dies with the run: each piece names a week
+   * this cascade deletes.
+   */
+  feedback: number;
+  /**
+   * `courseFeedbackSends` rows: the "you have feedback" batch's own record,
+   * each test and each send, and a press in progress. Keyed by `runId` on the
+   * row like every other leaf here, and it dies with the run.
+   */
+  feedbackSends: number;
   /**
    * `coursePairs` rows: who was paired with whom for a session in pairs, and
    * who was bringing a laptop (`src/lib/firestore/coursePairs.ts`). Keyed by
@@ -1189,6 +1204,8 @@ export async function countRunDestroyTargets(
     packsAndCases,
     weekWork,
     workLog,
+    feedback,
+    feedbackSends,
     pairs,
     anonymousFeedbackCounts,
     predictions,
@@ -1277,6 +1294,9 @@ export async function countRunDestroyTargets(
     // The same single equality the weeks' work stages drain on.
     countAgg(db.collection(COURSE_WEEK_WORK_COLLECTION).where("runId", "==", runId)),
     countAgg(db.collection(COURSE_WORK_LOG_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the feedback stages drain on.
+    countAgg(db.collection(COURSE_FEEDBACK_COLLECTION).where("runId", "==", runId)),
+    countAgg(db.collection(COURSE_FEEDBACK_SENDS_COLLECTION).where("runId", "==", runId)),
     // The same single equality the pairs stage drains on.
     countAgg(db.collection(COURSE_PAIRS_COLLECTION).where("runId", "==", runId)),
     // The same single equality, on each of the three collections the
@@ -1327,6 +1347,8 @@ export async function countRunDestroyTargets(
     packsAndCases,
     weekWork,
     workLog,
+    feedback,
+    feedbackSends,
     pairs,
     anonymousFeedback: anonymousFeedbackCounts.reduce((a, b) => a + b, 0),
     predictions,
@@ -1967,6 +1989,20 @@ export async function destroyRunCascade(
       // `runId`, drained with the other leaves and BEFORE the weeks each row
       // names. `write: if false` to every client.
       drain: () => drainQuery(db, COURSE_WORK_LOG_COLLECTION, byRunId(COURSE_WORK_LOG_COLLECTION), budget),
+    },
+    {
+      key: "feedback",
+      // Each piece of feedback on somebody's week: a leaf keyed by `runId`,
+      // drained with the other leaves and BEFORE the weeks each piece names.
+      // `write: if false` to every client, and the feedback route reads the
+      // run first and leaves alone one being destroyed.
+      drain: () => drainQuery(db, COURSE_FEEDBACK_COLLECTION, byRunId(COURSE_FEEDBACK_COLLECTION), budget),
+    },
+    {
+      key: "feedbackSends",
+      // The batch email's own record: a leaf keyed by `runId`. `write: if
+      // false` to every client, and the batch's routes read the run first.
+      drain: () => drainQuery(db, COURSE_FEEDBACK_SENDS_COLLECTION, byRunId(COURSE_FEEDBACK_SENDS_COLLECTION), budget),
     },
     {
       key: "pairs",

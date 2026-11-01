@@ -227,13 +227,13 @@ export default function ThisWeekCard({
   );
 }
 
-/** " Feedback from Rahul →", after the written answer's line, once feedback is given on it. */
+/** " Feedback from Rahul →", after the written answer's line, once feedback is given on it: to the week's Feedback. */
 function FeedbackLink({ runId, weekNumber, from }: { runId: string; weekNumber: number; from: string | null }) {
   if (!from) return null;
   return (
     <>
       {" "}
-      <Link href={`${weekHref(runId, weekNumber)}/feedback`} className={styles.cardLink}>
+      <Link href={`${weekHref(runId, weekNumber)}#feedback`} className={styles.cardLink}>
         {feedbackFromWords(from)}
         <span aria-hidden="true">→</span>
       </Link>

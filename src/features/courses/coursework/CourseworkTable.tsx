@@ -37,7 +37,7 @@ import styles from "./coursework.module.css";
  * week that has begun for them; then it says, in counts, what the person did
  * in the week they read, never a word they wrote: reflections written,
  * sources ticked, where the written answer stands (waiting for feedback
- * stands out, and opens the feedback page) and boxes filled in. The rest of
+ * stands out, and opens the answer's review page) and boxes filled in. The rest of
  * a cell, and the name, open the person's page. "Not done", a filter, keeps
  * the people with a week that has begun and is not done.
  *

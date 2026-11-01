@@ -1,9 +1,11 @@
 /**
- * A COURSE'S RUBRIC FOR WRITTEN ANSWERS (boards wk-review, wk-feedback-phone):
- * rows, each a name ("A clear position"), by levels ("Not yet", "Solid",
- * "Strong"), with one descriptor in each cell ("States a view"). A
- * facilitator gives each row of an answer one level and writes a short
- * comment; the fellow reads the level of each row with its descriptor.
+ * A COURSE'S RUBRIC FOR WRITTEN ANSWERS: rows, each a name ("A clear
+ * position"), by levels ("Not yet", "Solid", "Strong"), with one descriptor
+ * in each cell ("States a view"). It is guidance for writing, shown on the
+ * course's Start here. Feedback is a signed comment (`feedback/`): no level
+ * of it goes back to the person any more. Feedback given before that carried
+ * a level for each row, which is still read, as it was given, by
+ * `normalizeGivenLevels`.
  *
  * COURSEWORK NEVER GETS A MARK, A SCORE OR A TOTAL (board j-access). A level
  * is a word and nothing else: nothing here or anywhere numbers the levels,
@@ -12,9 +14,7 @@
  *
  * ONE RECORD, ON THE COURSE (`CourseDoc.rubric`), set by an admin in the
  * course's details, by pasting the guide's own table (`rubricMarkdown.ts`
- * reads it) or by typing one. Every run of the course gives feedback on the
- * same rows. A course with no rubric is allowed: its review page offers the
- * comment alone and says why.
+ * reads it) or by typing one. A course with no rubric is allowed.
  *
  * ONE READER: `rubricOf(course)`, for every page and route that needs it.
  *
@@ -146,35 +146,11 @@ export function rubricOf(course: { rubric?: unknown } | null | undefined): Cours
 }
 
 /**
- * The levels a reviewer chose, read against the rubric as it stands: one
- * level for every row, each a level the rubric has, matched by name. Returns
- * the levels as feedback stores them (each with its cell's descriptor, so the
- * fellow reads what was given even if the rubric is changed later), or the
- * sentence that says what to change.
+ * Levels as feedback given before it became a signed comment stored them,
+ * read: each a row, a level and its descriptor, or nothing for a malformed
+ * one. Nothing gives a level any more; these are read to show that old
+ * feedback as it was given, and for the notes draft.
  */
-export function givenLevelsOf(
-  rubric: CourseRubric,
-  chosen: ReadonlyArray<{ row: unknown; level: unknown }>,
-): { ok: true; levels: GivenLevel[] } | { ok: false; error: string } {
-  const out: GivenLevel[] = [];
-  for (const row of rubric.rows) {
-    const pick = chosen.find((entry) => typeof entry.row === "string" && entry.row === row.name);
-    if (!pick || typeof pick.level !== "string" || !pick.level) {
-      return { ok: false, error: `Choose a level for “${row.name}”.` };
-    }
-    const index = rubric.levels.indexOf(pick.level);
-    if (index < 0) {
-      return { ok: false, error: "The rubric changed while you were giving feedback. Reload the page and choose again." };
-    }
-    out.push({ row: row.name, level: rubric.levels[index], descriptor: row.descriptors[index] ?? "" });
-  }
-  if (chosen.length > rubric.rows.length) {
-    return { ok: false, error: "The rubric changed while you were giving feedback. Reload the page and choose again." };
-  }
-  return { ok: true, levels: out };
-}
-
-/** Levels as stored on feedback, read: each a row, a level and its descriptor, or nothing for a malformed one. */
 export function normalizeGivenLevels(raw: unknown): GivenLevel[] {
   if (!Array.isArray(raw)) return [];
   const out: GivenLevel[] = [];
