@@ -329,6 +329,18 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/lib/surveys/checkIns/open.ts#group.facilitatorUids",
+    {
+      reads: 1,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "The group's facilitators, whom the check-in never reaches: taken out of the people its register " +
+        "marks there (`hereOf`) before any row is made or email sent. Who it emails is the register's rows " +
+        "Publish has told, each at their own account's address.",
+    },
+  ],
+  [
     "src/app/api/courses/groups/[groupId]/email/route.ts#group.facilitatorUids",
     {
       reads: 1,

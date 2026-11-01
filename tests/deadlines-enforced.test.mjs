@@ -163,6 +163,11 @@ const DEADLINE_NAMES = new Map([
         // A facilitator's session report: `model.ts` works out when a
         // session's report closes, which the report route refuses past.
         "src/lib/courses/sessionReports/model.ts",
+        // A check-in at the end of a session: `checkIns/open.ts` writes its close
+        // (11pm on the session's day, or an hour after a late session ends) when
+        // it is opened, and `checkIns/words.ts` names it in its email.
+        "src/lib/surveys/checkIns/open.ts",
+        "src/lib/surveys/checkIns/words.ts",
       ],
       promises: [
         {
@@ -225,6 +230,9 @@ const DEADLINE_NAMES = new Map([
             "src/lib/surveys/events/words.ts",
             "src/lib/surveys/blanksView.ts",
             "src/lib/surveys/blanksStore.ts",
+            // A check-in's page and its email.
+            "src/lib/surveys/checkIns/answerView.ts",
+            "src/lib/surveys/checkIns/words.ts",
           ],
           enforced: ["src/lib/surveys/answer.ts", "src/lib/surveys/events/store.ts", "src/lib/surveys/blanksStore.ts"],
           predicate: "isOpen(",
@@ -454,6 +462,8 @@ const DEADLINE_NAMES = new Map([
         "src/lib/surveys/create.ts",
         // A survey after an event's, written as null when it is made.
         "src/lib/surveys/events/create.ts",
+        // A check-in's, written as null when it is opened.
+        "src/lib/surveys/checkIns/open.ts",
         // The anonymous form's: `model.ts` declares it and `forms.ts` writes it
         // as null when the survey at the end opens the form.
         "src/lib/anonymousFeedback/forms.ts",
@@ -475,8 +485,9 @@ const DEADLINE_NAMES = new Map([
           of: "a survey an admin has closed by hand",
           binds: "a person a survey was sent to",
           why:
-            "Unlike a circulation's, a survey's is the limit itself: once an admin presses Close it takes no " +
-            "answer, whatever its closing day says, and the answer page says on which day it closed.",
+            "Unlike a circulation's, a survey's is the limit itself: once an admin presses Close (or, on a " +
+            "check-in, the group's facilitator presses Close it now) it takes no answer, whatever its closing " +
+            "day says, and the answer page says on which day it closed.",
           told: ["src/lib/surveys/answerView.ts", "src/lib/surveys/events/answerView.ts"],
           enforced: ["src/lib/surveys/answer.ts", "src/lib/surveys/events/store.ts"],
           predicate: "isOpen(",
