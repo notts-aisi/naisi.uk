@@ -223,6 +223,12 @@ export function reminderVerdict(
   let why: Exclude<Verdict, { send: true }>["why"] | null = null;
   for (const week of weeks) {
     const state = weekStates.stateOf(uid, week.weekNumber);
+    const own = week.facts.get(uid);
+    if (!own) continue;
+    const submitted = state.kind === "submitted";
+    if (weekDone({ tasks: week.tasks, state: own.state, writes: week.writes, submitted })) continue;
+    // Not done, and no more work can be done in it: submitted with something
+    // its tasks count still unticked, or locked. Nothing listed could be done.
     if (state.kind === "submitted" || state.kind === "locked") {
       why ??= state.kind;
       continue;
@@ -231,9 +237,6 @@ export function reminderVerdict(
       why ??= "joined-late";
       continue;
     }
-    const own = week.facts.get(uid);
-    if (!own) continue;
-    if (weekDone({ tasks: week.tasks, state: own.state, writes: week.writes, submitted: false })) continue;
     remind.push({
       weekNumber: week.weekNumber,
       left: weekLeft({ blocks: week.blocks, tasks: week.tasks, state: own.state, writes: week.writes, submitted: false }),
