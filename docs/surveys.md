@@ -1012,9 +1012,10 @@ admin's alone). The session reports, which name people, are on their own view
 behind the same gate; the Overview only counts them and leads there.
 
 **Not drawn**, because no record holds it (the questionnaire replaced the
-board's questions): "How useful was each week?", each facilitator's own
-scores, the comments by group and "Comments about facilitators are never
-quoted or put in reports". Also not drawn: "Can be quoted" beside a comment
+questions first drawn for it): each facilitator's own scores, the comments by
+group and "Comments about facilitators are never quoted or put in reports".
+How useful the sessions were, week by week, is drawn from the check-ins
+instead (the Overview, above). Also not drawn: "Can be quoted" beside a comment
 (not on Results either) and the report's download (sv-report is not built).
 The board's "Results show once each survey closes" (Q49 B, which Zach did not
 choose) reads "Results show as answers come in, never with a name.", and its
