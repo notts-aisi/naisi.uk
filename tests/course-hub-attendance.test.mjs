@@ -71,6 +71,9 @@ const STYLESHEETS = [
   "@/features/courses/weekly/weekly.module.css",
   "./facilitator.module.css",
   "@/features/courses/facilitator/facilitator.module.css",
+  // This week's work's Reopen (the week you submit): its button's sheet and the confirm's.
+  "./written.module.css",
+  "./Button.module.css",
   "./editor.module.css",
   "@/features/applications/editor/editor.module.css",
   "./ProgrammeFrame.module.css",
