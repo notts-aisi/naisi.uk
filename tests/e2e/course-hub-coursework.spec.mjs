@@ -11,9 +11,10 @@
  *
  *  - the lead (the admin, as at every course hub spec) opens the Coursework
  *    tab: everybody in their group, Dan under "Not in a group yet" with his
- *    week 1 work counted, each cell in counts and never in words, Ada's
- *    answer waiting for feedback and opening the feedback page, and the
- *    filters as links;
+ *    week 1 work counted, each cell leading with "Not done" (nobody has
+ *    submitted a week here) and then in counts, never in words, Ada's answer
+ *    waiting for feedback and opening the feedback page, and the filters as
+ *    links, "Not done" among them;
  *  - opens Dan's page and Ada's: reflections under their prompts with when
  *    they were written, the answer waiting, and, because the lead here is an
  *    admin, Ada's private note;
@@ -300,9 +301,10 @@ test(
           expected.push(sectionOf("Not in a group yet", [{ name: dan.displayName }]));
           assert.deepEqual(await sectionsOn(adminPage), expected, "the tab's sections and rows");
 
-          // Ada's week 3: part 1's reflection written of two parts, one source of two, waiting for feedback.
-          const adaCell = adminPage.getByRole("link", { name: `Week 3: ${ada.displayName}’s coursework`, exact: true });
-          assert.equal(await wordsIn(adaCell), "Reflections 1 of 2 Sources 1 of 2", "Ada's week 3 cell");
+          // Ada's week 3: not done, since nobody has submitted a week here; part 1's reflection
+          // written of two parts, one source of two, waiting for feedback.
+          const adaCell = adminPage.getByRole("link", { name: `Week 3, not done: ${ada.displayName}’s coursework`, exact: true });
+          assert.equal(await wordsIn(adaCell), "Not done Reflections 1 of 2 Sources 1 of 2", "Ada's week 3 cell");
           const adaAnswer = adminPage.getByRole("link", { name: `Week 3 written answer, Waiting for feedback: ${ada.displayName}`, exact: true });
           assert.equal(
             await adaAnswer.getAttribute("href"),
@@ -310,14 +312,14 @@ test(
             "the waiting answer does not open the feedback page",
           );
           // Cleo has written one prompt of part 1, so no part is written.
-          assert.match(await wordsIn(adminPage.getByRole("link", { name: `Week 3: ${cleo.displayName}’s coursework`, exact: true })), /^Reflections 0 of 2 /);
+          assert.match(await wordsIn(adminPage.getByRole("link", { name: `Week 3, not done: ${cleo.displayName}’s coursework`, exact: true })), /^Not done Reflections 0 of 2 /);
           // Dan, in no group, is counted on the run's own week 1, where his week 1 work was written.
-          assert.equal(await wordsIn(adminPage.getByRole("link", { name: `Week 1: ${dan.displayName}’s coursework`, exact: true })), "Reflections 1 of 2 Sources 1 of 2");
+          assert.equal(await wordsIn(adminPage.getByRole("link", { name: `Week 1, not done: ${dan.displayName}’s coursework`, exact: true })), "Not done Reflections 1 of 2 Sources 1 of 2");
           // Never a word anybody wrote, anywhere on the tab.
           const said = await mainOf(adminPage);
           for (const words of everyWord) assert.ok(!said.includes(words), `the tab shows ${JSON.stringify(words)}`);
 
-          // The filters are links: the waiting ones alone, then everybody in no group.
+          // The filters are links: the waiting ones alone, then those of them not done, then everybody in no group.
           const sections = adminPage.getByRole("region", { name: "Coursework", exact: true }).locator("tbody");
           await adminPage.getByRole("link", { name: "Waiting for feedback", exact: true }).click();
           await waitFor(
@@ -325,6 +327,13 @@ test(
             async () => new URL(adminPage.url()).searchParams.get("waiting") === "1" && (await sections.count()) === 1,
           );
           assert.deepEqual(await sectionsOn(adminPage), [sectionOf(facilitated.name, [{ name: ada.displayName }])], "the waiting filter");
+          // Not done keeps the waiting filter: Ada has a week that has begun and is not done.
+          await adminPage.getByRole("link", { name: "Not done", exact: true }).click();
+          await waitFor("the not done filter to keep the waiting one", async () => {
+            const query = new URL(adminPage.url()).searchParams;
+            return query.get("waiting") === "1" && query.get("notdone") === "1" && (await sections.count()) === 1;
+          });
+          assert.deepEqual(await sectionsOn(adminPage), [sectionOf(facilitated.name, [{ name: ada.displayName }])], "the waiting and not done filters");
           await adminPage.goto(`${courseworkUrl}?group=none`, { waitUntil: "domcontentloaded" });
           assert.deepEqual(await sectionsOn(adminPage), [sectionOf("Not in a group yet", [{ name: dan.displayName }])], "the filter of people in no group");
           assert.ok(otherGroup, "the term has one group");
