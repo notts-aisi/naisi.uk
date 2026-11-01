@@ -108,6 +108,8 @@ const routes = {
   // Every tick, a holder's before groups go out among them, goes through the one tick route.
   holderTick: await courseRoute("runs", "[runId]", "ticks", "[itemId]"),
   written: await courseRoute("runs", "[runId]", "written-answers", "[answerId]"),
+  // A written answer is sent by submitting its week.
+  submitWeek: await courseRoute("runs", "[runId]", "weeks", "[weekId]", "submit"),
   review: await courseRoute("runs", "[runId]", "written-answers", "[answerId]", "review"),
   packs: await courseRoute("runs", "[runId]", "packs-and-cases", "[blockId]"),
   draw: await courseRoute("groups", "[groupId]", "draw"),
@@ -597,7 +599,10 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
 
   test("everybody the reflection route lets write in week 1 is answered their own boxes back, after Publish", async () => {
     const rows = await writersAndReaders();
-    assert.deepEqual(rows.filter((row) => row.wrote === 200).map((row) => row.who), ["amara", "bea", "dev", "tariq", "rahul", "sofia", "tom"]);
+    // Admitted, as before Publish; but week 1 locked for Group A when it met on Thu 29 Oct, Sofia's
+    // earlier group, so Dev, Tariq and Sofia are refused as locked (409), never as somebody not taking part.
+    assert.deepEqual(rows.filter((row) => row.wrote !== 403).map((row) => row.who), ["amara", "bea", "dev", "tariq", "rahul", "sofia", "tom"]);
+    assert.deepEqual(rows.filter((row) => row.wrote === 409).map((row) => row.who), ["dev", "tariq", "sofia"]);
     assert.deepEqual(rows.filter((row) => row.wrote === 200 && row.read !== 200), []);
   });
 
@@ -776,21 +781,20 @@ describe("4. week 2 (Group B meets on Tue 10 Nov): a written answer, sent and gi
     assert.equal(w2.answers.length, 1);
     const answer = w2.answers[0];
     for (const who of ["amara", "bea"]) {
-      const sent = await asCourse(who, routes.written.PUT, { runId: RUN.agi, answerId: answer.id }, { weekId: "w02", text: words(220), send: true });
-      ok(sent, `${who} sends`);
+      ok(await asCourse(who, routes.written.PUT, { runId: RUN.agi, answerId: answer.id }, { weekId: "w02", text: words(220) }), `${who} writes`);
+      ok(await asCourse(who, routes.submitWeek.POST, { runId: RUN.agi, weekId: "w02" }, { submit: true }), `${who} submits`);
     }
     const counts = await threeCounts("amara", 2);
     // The answer sent is one task of three done: the parts wait for a pack, the talk for a case.
     assert.deepEqual([counts.week, counts.programme, counts.home], ["1 of 3 done", "1 of 3 done", "1 of 3 done"]);
-    assert.match(counts.pages.week.text, /Done: Part 4: your forecast, the week’s written answer \(200 to 300 words\) About 30 minutes By the end of Mon 9 Nov Sent Sun 8 Nov/);
-    assert.match(counts.pages.programme.text, /Done: Your written answer Sent Sun 8 Nov/);
+    assert.match(counts.pages.week.text, /Done: Part 4: your forecast, the week’s written answer \(200 to 300 words\) About 30 minutes By the end of Mon 9 Nov Submitted Sun 8 Nov/);
+    assert.match(counts.pages.programme.text, /Done: Your written answer Submitted Sun 8 Nov/);
   });
 
-  test("Rahul opens Amara's answer, which locks it, and sends feedback by the rubric: one email, with no level and no comment in it", async () => {
+  test("Amara's submitted week is locked, and Rahul sends feedback by the rubric: one email, with no level and no comment in it", async () => {
     at("2026-11-09T10:00:00Z");
     const answer = stored(2).answers[0];
     world.mail.length = 0;
-    ok(await asCourse("rahul", routes.review.POST, { runId: RUN.agi, answerId: answer.id }, { weekId: "w02", uid: "amara", action: "open" }), "open");
     const locked = await asCourse("amara", routes.written.PUT, { runId: RUN.agi, answerId: answer.id }, { weekId: "w02", text: words(230) });
     assert.equal(locked.status, 409);
     const comment = "A lighthouse view anyone could argue with.";
@@ -803,7 +807,7 @@ describe("4. week 2 (Group B meets on Tue 10 Nov): a written answer, sent and gi
   test("Bea's answer is the lead's and admins' to give feedback on: her co-facilitators are refused, Claudia sends it", async () => {
     const answer = stored(2).answers[0];
     for (const who of ["rahul", "sofia"]) {
-      const refused = await asCourse(who, routes.review.POST, { runId: RUN.agi, answerId: answer.id }, { weekId: "w02", uid: "bea", action: "open" });
+      const refused = await asCourse(who, routes.review.POST, { runId: RUN.agi, answerId: answer.id }, { weekId: "w02", uid: "bea", action: "feedback", levels: LEVELS, comment: "Not ours." });
       assert.equal(refused.status, 403, who);
     }
     ok(await asCourse("claudia", routes.review.POST, { runId: RUN.agi, answerId: answer.id }, { weekId: "w02", uid: "bea", action: "feedback", levels: LEVELS, comment: "Clear and weighed." }), "Claudia's feedback");
@@ -834,12 +838,14 @@ describe("4. week 2 (Group B meets on Tue 10 Nov): a written answer, sent and gi
     // W-work: wk-fac-group's table has its pathway, written answer and case columns, through the packs' and
     // the written answers' own readers. The Choose one's own title heads the first ("Pack" in this made-up week,
     // "Pathway" in the guide's); Amara's answer reads as the review page reads it; nobody has a pack or a case
-    // before the draw. On a phone each person's lines say the same.
+    // before the draw. On a phone each person's lines say the same. The week's own column leads with where
+    // each person's week stands (the week you submit): Amara submitted it, one task of three done, and Rahul
+    // may reopen it for her; the head says when the group's week locks.
     assert.match(
       page.text,
-      /This week’s work Week 2 · Thu 5 to Wed 11 Nov Name Part 1 reflection Part 2 reflection Pack Written answer Case AO Amara Okafor Not yet Not yet Not given yet Feedback sent · Rahul Not given yet /,
+      /This week’s work Week 2 · Thu 5 to Wed 11 Nov · Locks Tue 6pm Name Part 1 reflection Part 2 reflection Week 2 Pack Written answer Case AO Amara Okafor Not yet Not yet Submitted Sun 8 Nov, 8pm 1 of 3 done Reopen week 2 for Amara Not given yet Feedback sent · Rahul Not given yet /,
     );
-    assert.match(page.text, /AO Amara Okafor Reflections Not yet Pack Not given yet Written answer Feedback sent · Rahul Case Not given yet /);
+    assert.match(page.text, /AO Amara Okafor Reflections Not yet Week 2 Submitted Sun 8 Nov, 8pm 1 of 3 done Reopen week 2 for Amara Pack Not given yet Written answer Feedback sent · Rahul Case Not given yet /);
     // Three facilitators: the notes are for Rahul and the other two, in one list with the reader
     // first. Putting "you and" before a list already joined with "and" said "and" twice.
     assert.match(page.text, /Notes for you, Sofia and Bea Only Group B’s facilitators, Claudia and admins see these\./);
@@ -941,16 +947,18 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     assert.doesNotMatch(after.text, /Tell us why/);
   });
 
-  test("Amara does her week: her pack ticked, her boxes written, her answer sent, ready for her talk; three pages agree", async () => {
+  test("Amara does her week: her pack ticked, her boxes written, ready for her talk, then submits it; three pages agree", async () => {
     at("2026-11-14T11:00:00Z");
     const w3 = stored(3);
     const given = w3.chooseOnes.find((block) => block.givenBy === "facilitator");
     for (const itemId of [...w3.sources, given.packs[0].id]) tick("amara", 3, itemId);
     await reflect("amara", 3, w3.prompts);
     at("2026-11-16T21:00:00Z");
-    ok(await asCourse("amara", routes.written.PUT, { runId: RUN.agi, answerId: w3.answers[0].id }, { weekId: "w03", text: "Elections first, then the rest. ".repeat(40).trim(), send: true }), "sent");
+    ok(await asCourse("amara", routes.written.PUT, { runId: RUN.agi, answerId: w3.answers[0].id }, { weekId: "w03", text: "Elections first, then the rest. ".repeat(40).trim() }), "written");
     const talk = w3.talks.find((block) => block.groups.some((group) => group.cases.length > 0));
     ok(await asCourse("amara", routes.packs.PUT, { runId: RUN.agi, blockId: talk.id }, { weekId: "w03", ready: true }), "ready");
+    // Submitting last: it locks everything in the week, the ready mark among it.
+    ok(await asCourse("amara", routes.submitWeek.POST, { runId: RUN.agi, weekId: "w03" }, { submit: true }), "submitted");
     const counts = await threeCounts("amara", 3);
     assert.deepEqual([counts.week, counts.programme, counts.home], ["3 of 3 done", "3 of 3 done", "3 of 3 done"]);
     assert.match(counts.pages.programme.text, /Done: Your case talk The surprise result, 2016 Done/);
@@ -959,7 +967,8 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
   test("Bea sends hers on the morning of the session, after it was due: nothing on her own page says late", async () => {
     at("2026-11-17T09:00:00Z");
     const w3 = stored(3);
-    ok(await asCourse("bea", routes.written.PUT, { runId: RUN.agi, answerId: w3.answers[0].id }, { weekId: "w03", text: "Markets first, then the rest. ".repeat(40).trim(), send: true }), "Bea sends");
+    ok(await asCourse("bea", routes.written.PUT, { runId: RUN.agi, answerId: w3.answers[0].id }, { weekId: "w03", text: "Markets first, then the rest. ".repeat(40).trim() }), "Bea writes");
+    ok(await asCourse("bea", routes.submitWeek.POST, { runId: RUN.agi, weekId: "w03" }, { submit: true }), "Bea submits");
     const page = await w.weekPage("bea", 3, ticksOf("bea"));
     assert.doesNotMatch(page.text, /\bLate\b/);
   });
@@ -967,13 +976,14 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
   test("Late is staff's: an admin's review page marks Bea's answer Late and Amara's not; Rahul's never lists Bea's", async () => {
     const review = (who, person) => serverPage(["[runId]", "group", "[groupId]", "written", "page.tsx"], { runId: RUN.agi, groupId: B }, who, { week: "3", person });
     const admin = await review("zach", "bea");
-    assert.match(admin.text, /To give feedback on 2 AO Amara Okafor Sent Mon 16 Nov, 9pm BL Bea Lindqvist Sent Tue 17 Nov, 9am Late /);
-    assert.match(admin.text, /Bea’s answer 200 words · 200 to 300 Sent Tue 17 Nov, 9am Late /);
+    assert.match(admin.text, /To give feedback on 2 AO Amara Okafor Submitted Mon 16 Nov, 9pm BL Bea Lindqvist Submitted Tue 17 Nov, 9am Late /);
+    assert.match(admin.text, /Bea’s answer 200 words · 200 to 300 Submitted Tue 17 Nov, 9am Late /);
     // Asked for Bea, Rahul's page opens on the one answer it may show him, Amara's.
     const rahul = await review("rahul", "bea");
-    assert.match(rahul.text, /To give feedback on 1 AO Amara Okafor Sent Mon 16 Nov, 9pm Feedback sent/);
+    assert.match(rahul.text, /To give feedback on 1 AO Amara Okafor Submitted Mon 16 Nov, 9pm Feedback sent/);
     assert.doesNotMatch(rahul.text, /Bea Lindqvist|Bea’s answer|\bLate\b/);
-    assert.match(rahul.text, /Amara can still change it until Rahul, Sofia or Bea opens it\./);
+    // Submitted, the week is locked: the page says so, and Rahul may reopen it for Amara.
+    assert.match(rahul.text, /Submitted Mon 16 Nov, 9pm, so Amara can’t change it now\. Reopen week 3 for Amara/);
   });
 
   test("W-work: in week 3, This week's work says each person's pack, written answer and case, to exactly the readers of each", async () => {
@@ -992,7 +1002,10 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
       const page = await groupPage(who);
       assert.match(
         page.text,
-        new RegExp(`Name Part 1 reflection Part 2 reflection ${given.title} Written answer Case AO Amara Okafor Written Written ${given.packs[0].name} To give feedback ${caseTitle("amara")} `),
+        new RegExp(
+          `Name Part 1 reflection Part 2 reflection Week 3 ${given.title} Written answer Case AO Amara Okafor Written Written ` +
+            `Submitted Mon 16 Nov, 9pm 3 of 3 done Reopen week 3 for Amara ${given.packs[0].name} To give feedback ${caseTitle("amara")} `,
+        ),
         who,
       );
       assert.ok(page.html.includes(review("amara")), `${who}: no way to Amara's answer`);
@@ -1004,8 +1017,14 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     }
     // An admin: the fellows, then the facilitators' own rows, marked as theirs, Bea's pack and answer among them.
     const admin = await groupPage("zach");
-    assert.match(admin.text, new RegExp(`BL Bea Lindqvist Facilitator Not yet Not yet ${given.packs[1].name} To give feedback ${caseTitle("bea")} `));
-    assert.match(admin.text, /RM Rahul Mehta Facilitator Not yet Not yet Not given yet Not started Not given yet /);
+    assert.match(
+      admin.text,
+      new RegExp(`BL Bea Lindqvist Facilitator Not yet Not yet Submitted Tue 17 Nov, 9am 1 of 3 done Reopen week 3 for Bea ${given.packs[1].name} To give feedback ${caseTitle("bea")} `),
+    );
+    // Rahul wrote nothing in week 3, and facilitates Group B alone, whose week 3 has not met: not started, nothing to reopen.
+    assert.match(admin.text, /RM Rahul Mehta Facilitator Not yet Not yet Not started Not given yet Not started Not given yet /);
+    // Sofia also facilitates Group A, which met on Thursday: her own week 3 locked then, and an admin may reopen it.
+    assert.match(admin.text, /SR Sofia Rossi Facilitator Not yet Not yet Not submitted 0 of 3 done Reopen week 3 for Sofia /);
     assert.ok(admin.html.includes(review("bea")), "an admin has no way to Bea's answer");
     // A fellow never reaches the group page.
     assert.equal((await groupPage("amara")).to, `/learn/${encodeURIComponent(RUN.agi)}`);
@@ -1025,8 +1044,17 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
       now: new Date(),
     });
     const cellsOf = (uid) => Object.fromEntries(columns.map((column) => [column.key, column.cells[uid] ?? null]));
-    assert.deepEqual(columns.map((column) => [column.key, column.label]), [["pathway", given.title], ["written", "Written answer"], ["case", "Case"]]);
+    assert.deepEqual(columns.map((column) => [column.key, column.label]), [["week", "Week 3"], ["pathway", given.title], ["written", "Written answer"], ["case", "Case"]]);
+    assert.equal(columns[0].note, "Locks Tue 6pm", "the group's week 3 meets tonight at 6pm");
     assert.deepEqual(cellsOf("bea"), {
+      week: {
+        text: "Submitted Tue 17 Nov, 9am",
+        href: null,
+        detail: "1 of 3 done",
+        tone: "done",
+        // The lead reopens a facilitator's own week.
+        reopen: { runId: RUN.agi, weekNumber: 3, uid: "bea", firstName: "Bea" },
+      },
       pathway: { text: given.packs[1].name, href: null },
       written: { text: "To give feedback", href: "lead-review?week=3&person=bea" },
       case: { text: caseTitle("bea"), href: null },
