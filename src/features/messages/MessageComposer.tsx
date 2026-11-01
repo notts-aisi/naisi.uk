@@ -8,7 +8,7 @@ import WhoIsThisFor, { type AudienceChoice } from "@/features/audience/WhoIsThis
 import { useHydrated } from "@/hooks/useHydrated";
 import type { CountView } from "@/lib/audience/resolve";
 import { MESSAGE_LIMITS, type MessageTally } from "@/lib/firestore/messageSends";
-import { groupPushOf } from "@/lib/messages/groupPush";
+import { pushTargetOf } from "@/lib/messages/pushTarget";
 import {
   COMPOSER_WORDS,
   countWords,
@@ -31,8 +31,9 @@ import styles from "./messages.module.css";
  * reached the writer, as Publish holds; the server is the authority (it
  * refuses an untested send), and this only says so before the press.
  *
- * A NOTICE TO ONE GROUP also goes to phones, as the group email it took over
- * did (`groupPushOf`), and the composer says so above the buttons.
+ * A NOTICE TO ONE GROUP OR ONE PROGRAMME'S PEOPLE also goes to phones, as
+ * the group email and the cohort email's important notice it took over did
+ * (`pushTargetOf`), and the composer says so above the buttons.
  *
  * "ALSO POST IT ON THE PROGRAMME'S PAGE" is offered when the choice is one of
  * the tags the page names (`postTargets`): one programme's people or one
@@ -99,8 +100,8 @@ export default function MessageComposer({ initial, postTargets }: Props) {
       ? (postTargets.find((each) => each.tagId === choice.include[0]) ?? null)
       : null;
   const post = target !== null && postOn;
-  // The one message that also goes to phones: a notice to one group (the server decides it by the same rule).
-  const pushes = count !== null && groupPushOf(choice.include, count.mode) !== null;
+  // The messages that also go to phones: a notice to one group or one programme's people (the server decides it by the same rule).
+  const pushTarget = count !== null ? pushTargetOf(choice.include, count.mode) : null;
   const testFresh = tested !== null && tested.subject === words.subject && tested.message === words.message;
 
   /** Why Send waits, in the order the writer meets them; null when it is ready. */
@@ -248,7 +249,11 @@ export default function MessageComposer({ initial, postTargets }: Props) {
           </div>
         )}
 
-        {pushes && <p className={styles.pushes}>{COMPOSER_WORDS.pushes}</p>}
+        {pushTarget && (
+          <p className={styles.pushes}>
+            {pushTarget.kind === "group" ? COMPOSER_WORDS.pushesGroup : COMPOSER_WORDS.pushesProgramme}
+          </p>
+        )}
 
         <div className={styles.actions}>
           <Button type="button" variant="secondary" disabled={!hydrated || busy !== null} onClick={() => void press("test")}>

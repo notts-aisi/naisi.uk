@@ -174,9 +174,9 @@ people from the picker without going through `resolveAudience`.
 Two halves, Write and Sent, as two pills under the title. Write is one
 composer for writing to people: who it is for (the picker), a subject and a
 message, "Send a test to me", and "Send to N people". It sends email, and a
-notice to one group goes to phones as well, as the group email it took over
-did ([The push](#the-push)). Sent is what was sent, and who it reached
-([Sent](#sent)).
+notice to one group or one programme's people goes to phones as well, as the
+run composers it took over did ([The push](#the-push)). Sent is what was
+sent, and who it reached ([Sent](#sent)).
 
 ### Who writes
 
@@ -236,20 +236,26 @@ as typed, escaped, then "Sent by" and the writer's name
 
 ### The push
 
-One message in Messages also goes to phones: a programme notice whose one
-included tag is a group's (people left out of it or not), which is the group
-email Messages took over from a run's pages
-(`POST /api/courses/groups/[groupId]/email`). That email pushed to every
-member of the group with a device, through the notice lane's push door
-(`sendNoticePush`, which reads no preference), and the send keeps that push:
-the group's name as its title, the subject as its words and the group's page
-as where it opens, to each person it reached with an account and to each
-whose every address bounced (a bounce is a fact about an inbox, not a phone),
-never to the writer. `groupPushOf` in `src/lib/messages/groupPush.ts` is the
-rule, asked by the route and by the composer, which says so above its
-buttons. The send answers `pushed`, the notifications a device took, and its
+Two messages in Messages also go to phones, because each is a send that
+pushed on a run's pages before Messages took it over, through the notice
+lane's push door (`sendNoticePush`, which reads no preference):
+
+| A programme notice whose one included tag is | It was | Its notification |
+| --- | --- | --- |
+| a group's | the group email (`POST /api/courses/groups/[groupId]/email`) | the group's name, opening the group's page |
+| a programme's people: its everyone, or its people holding a place | "Email the whole cohort" sent as an important notice (`POST /api/courses/runs/[runId]/email` with `asNotice`) | the course's title, else the run's label, opening the run's home; for a programme that names no run, the programme's name, opening the person's programmes |
+
+People left out of the tag or not, the subject is its words, and it goes to
+each person the message reached with an account and to each whose every
+address bounced (a bounce is a fact about an inbox, not a phone), never to
+the writer. `pushTargetOf` in `src/lib/messages/pushTarget.ts` is the rule,
+asked by the route and by the composer, which says so above its buttons;
+`pushNoteFor` in `src/lib/messages/pushing.ts` works out what the
+notification says, from the term the writer's gate read and one read of the
+run. The send answers `pushed`, the notifications a device took, and its
 record keeps it (`counts.pushed`). Nothing else in Messages pushes: a message
-by their settings, or a notice to anybody but one group, is email alone.
+by their settings, a notice to two tags, to the term's people or to a
+programme's facilitators alone, is email alone.
 
 ### The send, whole or not at all
 
@@ -380,7 +386,7 @@ their old page anywhere else (`src/lib/messages/handover.ts`):
 | Way in | Opens |
 | --- | --- |
 | "Email the group" on a facilitator's group card on a run's home | Messages set to the group (`group:<id>`), whose notice pushes as the group email did |
-| "Email the whole cohort" on a run's home and on the first group card | Messages set to the programme's people holding a place |
+| "Email the whole cohort" on a run's home and on the first group card | Messages set to the programme's people holding a place, whose notice pushes as the cohort email's important notice did |
 
 Anywhere else: a run of an earlier term, a group whose run has not been
 published, a run its programme no longer names, and somebody who staffs a run

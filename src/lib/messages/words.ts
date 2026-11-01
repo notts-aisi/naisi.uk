@@ -166,7 +166,9 @@ export const COMPOSER_WORDS = {
   sending: "Sending…",
   post: "Also post it on the programme’s page",
   /** A programme notice to one group, which pushes as the group email did. */
-  pushes: "A notice to one group also goes as a notification to any device its people have set up.",
+  pushesGroup: "A notice to one group also goes as a notification to any device its people have set up.",
+  /** A programme notice to one programme's people, which pushes as the cohort email's important notice did. */
+  pushesProgramme: "A notice to a programme’s people also goes as a notification to any device they have set up.",
   /** Under the buttons while there is nothing chosen. */
   chooseFirst: "Add a tag to choose who this is for.",
   /** While the count is being worked out. */
