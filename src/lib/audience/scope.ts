@@ -109,8 +109,3 @@ export function mayUse(scope: Scope, tag: Tag): boolean {
 export function seesReasonsByName(scope: Scope): boolean {
   return scope.admin;
 }
-
-/** Whether this person may use any tag at all: a scope with nothing in it is a picker with nothing to offer. */
-export function usesAnything(scope: Scope): boolean {
-  return scope.admin || scope.committee || scope.programmes.size > 0 || scope.groups.size > 0;
-}

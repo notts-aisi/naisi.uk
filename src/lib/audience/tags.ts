@@ -61,8 +61,6 @@ export type Tag =
   | { kind: "track"; track: Track }
   | { kind: "person"; uid: string };
 
-export type TagKind = Tag["kind"];
-
 /** An account id as the site mints them: letters, digits, hyphen and underscore. */
 const UID_SHAPE = /^[A-Za-z0-9_-]{1,128}$/;
 
@@ -143,8 +141,6 @@ export function parseTag(raw: unknown): Tag | null {
  */
 export type Selection = { include: string[]; exclude: string[] };
 
-export const EMPTY_SELECTION: Selection = { include: [], exclude: [] };
-
 /** How many tags one selection may hold, in each list. */
 export const SELECTION_LIMIT = 60;
 
@@ -189,12 +185,4 @@ export function parseAudienceBody(raw: unknown): { ok: true; selection: Selectio
   const row = raw && typeof raw === "object" ? (raw as { row?: unknown }).row : undefined;
   if (row !== undefined && row !== null && !isGridRow(row)) return { ok: false };
   return { ok: true, selection: parsed.selection, row: isGridRow(row) ? row : null };
-}
-
-/** The tags of a selection, parsed. Every id in a parsed selection is a tag. */
-export function tagsOf(ids: readonly string[]): Tag[] {
-  return ids.flatMap((id) => {
-    const tag = parseTag(id);
-    return tag ? [tag] : [];
-  });
 }
