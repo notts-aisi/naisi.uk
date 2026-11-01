@@ -57,10 +57,10 @@ describe("the team's page, for the people in the team (in-team)", () => {
       "Tonight · week 5",
       "Thu 26 Nov, 6pm",
       "Room A13",
-      "This week’s check-in",
+      "This week’s update",
       "What we did",
       "What’s in the way",
-      "Save check-in",
+      "Save update",
       "Tess, your team and admins see this.",
       "Team links",
       "No links yet.",
@@ -115,19 +115,19 @@ describe("the team's page, for the people in the team (in-team)", () => {
     assert.equal((html.match(/aria-current="step"/g) ?? []).length, 1);
   });
 
-  test("in February the term is the February one, and the check-in is that week's", async () => {
+  test("in February the term is the February one, and the update is that week's", async () => {
     at(WHEN.february);
     const text = words((await view.team("amara")).html);
-    for (const line of ["Tonight · week 9", "Thu 11 Feb, 6pm", "This week’s check-in", "Week 10, Thu 18 Feb, is the last.", "Oct to Dec", "This term"]) {
+    for (const line of ["Tonight · week 9", "Thu 11 Feb, 6pm", "This week’s update", "Week 10, Thu 18 Feb, is the last.", "Oct to Dec", "This term"]) {
       assert.ok(text.includes(line), `in February the page does not say ${JSON.stringify(line)}: ${text}`);
     }
     assert.ok(!text.includes("is the last this term"));
   });
 
-  test("in the break there is no check-in, and the next session is February's", async () => {
+  test("in the break there is no update, and the next session is February's", async () => {
     at(WHEN.inTheBreak);
     const text = words((await view.team("amara")).html);
-    assert.ok(!text.includes("This week’s check-in"), "a check-in is offered in the break");
+    assert.ok(!text.includes("This week’s update"), "an update is offered in the break");
     for (const line of ["Your next session · week 8", "Thu 4 Feb, 6pm", "Weeks 8 to 10: Thu 4, 11 and 18 Feb.", "Oct to Dec"]) {
       assert.ok(text.includes(line), `in the break the page does not say ${JSON.stringify(line)}: ${text}`);
     }
@@ -142,12 +142,12 @@ describe("the team's page, for the people in the team (in-team)", () => {
     const { html } = await view.team("amara");
     const text = words(html);
     assert.ok(text.includes("Week 10, Thu 18 Feb, was the last."));
-    assert.ok(!text.includes("This week’s check-in") && !text.includes("Add a link") && !text.includes("Remove"));
+    assert.ok(!text.includes("This week’s update") && !text.includes("Add a link") && !text.includes("Remove"));
     assert.ok(text.includes("See the hand-in"));
     assert.ok(text.includes("Handed in by Amara on Thu 18 Feb."));
   });
 
-  test("what the team wrote is on its page: this week's check-in and its links, for each of its people", async () => {
+  test("what the team wrote is on its page: this week's update and its links, for each of its people", async () => {
     await ask.checkIn("dev", { weekNumber: 5, did: "Probes train; results next week.", inTheWay: "GPU time." });
     await ask.addLink("lena", { label: "Write-up", url: "https://docs.example.com/write-up" });
     const text = words((await view.team("amara")).html);
@@ -400,7 +400,7 @@ describe("the lead's and admins' reading", () => {
     );
   });
 
-  test("one team's page, read only, with every week's check-in, for the lead and admins", async () => {
+  test("one team's page, read only, with every week's update, for the lead and admins", async () => {
     await ask.checkIn("dev", { weekNumber: 5, did: "Probes train.", inTheWay: "" });
     at(WHEN.weekSix);
     await ask.checkIn("lena", { weekNumber: 6, did: "Results are in.", inTheWay: "Writing up." });
@@ -410,7 +410,7 @@ describe("the lead's and admins' reading", () => {
       const text = words(html);
       for (const line of [
         "Probe transfer",
-        "Check-ins",
+        "Updates",
         "Week 6 · Saved Thu 3 Dec by Lena",
         "Results are in.",
         "Writing up.",
@@ -420,8 +420,8 @@ describe("the lead's and admins' reading", () => {
       ]) {
         assert.ok(text.includes(line), `${who}: ${line}: ${text}`);
       }
-      assert.ok(text.indexOf("Week 6") < text.indexOf("Week 5 ·"), "check-ins are not newest first");
-      assert.ok(!text.includes("Save check-in") && !text.includes("Add a link") && !text.includes("Tonight"));
+      assert.ok(text.indexOf("Week 6") < text.indexOf("Week 5 ·"), "updates are not newest first");
+      assert.ok(!text.includes("Save update") && !text.includes("Add a link") && !text.includes("Tonight"));
       assert.ok(html.includes(`/admin/admissions/forms/${ROUND}/programmes/${INCUBATOR}/teams`));
     }
   });
@@ -442,9 +442,9 @@ describe("what the policy says, held to the page", () => {
     const who = lib.words.teamWhoLine("Tess");
     assert.equal(who, "Tess, your team and admins see this.");
     assert.equal(lib.words.teamWhoLine(null), "Your team and admins see this.");
-    // Beside the check-in's button, and beside the link form.
+    // Beside the update's button, and beside the link form.
     const week = await view.team("amara");
-    assert.match(week.html, /Save check-in<\/button><p class="who">Tess, your team and admins see this\.<\/p>/);
+    assert.match(week.html, /Save update<\/button><p class="who">Tess, your team and admins see this\.<\/p>/);
     const adding = await view.team("amara", { link: "add" });
     assert.match(adding.html, /Cancel<\/a><\/div><p class="who">Tess, your team and admins see this\.<\/p>/);
     // On the hand-in page, in its first lines.

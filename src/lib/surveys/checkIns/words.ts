@@ -3,11 +3,9 @@ import { clockWords, dateKeyWords, dayWords, minutesWords, questionsWords } from
 
 /**
  * EVERY SENTENCE A CHECK-IN SAYS: the register's card, the member's page, its
- * box, its email, its card on Home and the admins' pages. In the boards' words
- * where they draw one (the facilitator's register and the member's page),
- * and in their voice where they do not. Every value comes from a record and
- * arrives here as an argument; times print in the house's clock ("3pm",
- * "11pm", "12:30am"), read in London.
+ * box, its email, its card on Home and the admins' pages, in one place. Every
+ * value comes from a record and arrives here as an argument; times print in
+ * the house's clock ("3pm", "11pm", "12:30am"), read in London.
  *
  * "The check-in" is this survey, and only this survey: the words of checking
  * people in at an event's door ("the door list", "check people in") are never
@@ -234,7 +232,7 @@ export type TotalsFacts = {
 };
 
 /**
- * The totals in one line, the board's order: "Useful: 4.2 of 5 · 5 of 6
+ * The totals in one line: "Useful: 4.2 of 5 · 5 of 6
  * answered · 4 did most or all of the reading · Unclear: Compute as a lever
  * (3)". Confidence sits after usefulness.
  */

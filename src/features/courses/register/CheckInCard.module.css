@@ -67,7 +67,7 @@
   gap: var(--space-2) var(--space-4);
 }
 
-/* A ghost button whose words are the accent, as the board draws "Close it now". */
+/* "Close it now": a ghost button whose words are the accent. */
 .closeNow {
   color: var(--color-accent-text);
 }

@@ -2,9 +2,9 @@ import Link from "next/link";
 import InitialsChip from "@/components/ui/InitialsChip";
 import type { TeamPageView } from "@/lib/courses/teamPage/views";
 import {
-  CHECK_INS,
+  UPDATES,
   HAND_IN,
-  NO_CHECK_INS,
+  NO_UPDATES,
   PAPER,
   THE_PROJECT,
   THE_TWIST,
@@ -23,7 +23,7 @@ import styles from "./team.module.css";
 /**
  * A TEAM'S PAGE (boards in-team at 1440 and in-team-phone at 390): the
  * team's name and people with its group's slot and room, "The project" from
- * its pitch, the group's next session, "This week’s check-in", "Team links",
+ * its pitch, the group's next session, "This week’s update", "Team links",
  * "Hand-in", and "The weeks" across both terms.
  *
  * Drawn on the server from `TeamPageView`, every field built there from
@@ -159,12 +159,12 @@ export default function TeamPage({ view, addingLink = false }: { view: TeamPageV
           ) : null}
 
           {staff ? (
-            <section className={styles.card} aria-labelledby="team-check-ins">
-              <h2 id="team-check-ins" className={styles.h2}>
-                {CHECK_INS}
+            <section className={styles.card} aria-labelledby="team-updates">
+              <h2 id="team-updates" className={styles.h2}>
+                {UPDATES}
               </h2>
               {view.checkIns.length === 0 ? (
-                <p className={styles.quiet}>{NO_CHECK_INS}</p>
+                <p className={styles.quiet}>{NO_UPDATES}</p>
               ) : (
                 <ul className={styles.checkInList}>
                   {view.checkIns.map((checkIn) => (

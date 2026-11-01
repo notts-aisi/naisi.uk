@@ -13,13 +13,12 @@ import {
 } from "./words";
 
 /**
- * A CHECK-IN, AS ITS PAGE DRAWS IT for the person answering (the member's
- * board): "Check-in · 2 minutes", "How was week 3?", "Group C, today at
- * 3pm." (the day and time on any other London day), the confidential box AT
- * THE TOP (every survey says so there: the privacy policy's "each survey says
- * so at the top"), the questions on one page, and "Send check-in". No line
- * about which questions need an answer: the one that does not says
- * "(optional)" beside it.
+ * A CHECK-IN, AS ITS PAGE DRAWS IT for the person answering: "Check-in · 2
+ * minutes", "How was week 3?", "Group C, today at 3pm." (the day and time on
+ * any other London day), the confidential box AT THE TOP (every survey says
+ * so there: the privacy policy's "each survey says so at the top"), the
+ * questions on one page, and "Send check-in". No line about which questions
+ * need an answer: the one that does not says "(optional)" beside it.
  *
  * The box names the programme's lead while they still stand as its lead,
  * from records, and says what the group's facilitators see: the group's
