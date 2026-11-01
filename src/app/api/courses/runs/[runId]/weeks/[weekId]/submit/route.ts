@@ -108,6 +108,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ runId: string;
   if (!week || !isBlockWeek(week)) return NextResponse.json({ error: NOT_A_SUBMIT_WEEK }, { status: 404 });
   if (!weekAsksForWriting(week.blocks)) return NextResponse.json({ error: NOTHING_TO_SUBMIT }, { status: 409 });
   const answers = weekWrittenAnswers(week);
+  const answerIds = answers.map((answer) => answer.id);
   const answerRefs = answers.map((answer) =>
     db.collection("courseExerciseResponses").doc(exerciseResponseId(runId, actor.uid, weekId, answer.id)),
   );
@@ -159,7 +160,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ runId: string;
       }
       logWork(tx, db, { runId, uid: actor.uid, weekId, weekNumber, kind: "submit", itemKind: "week", itemId: "" });
       return {
-        sent: toSend.map((index) => ({ id: answers[index].id, at: now.toISOString() })),
+        sent: toSend.map((index) => ({ id: answerIds[index], at: now.toISOString() })),
         work: weekWorkWire({ kind: "submitted", at: now }, () => ""),
       };
     }));
