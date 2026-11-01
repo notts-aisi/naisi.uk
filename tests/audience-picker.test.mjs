@@ -25,6 +25,8 @@
 import { describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { makeWorld } from "./lib/handoverWorld.mjs";
 import { userDoc, session } from "./lib/applicationsSmallTerm.mjs";
 import { A, B, C, TOLD } from "./lib/surveyWorld.mjs";
@@ -33,7 +35,12 @@ import { PERSONA_NAMES, ROLE_PERSONAS } from "./persona-route-gates.registry.mjs
 
 const INCUBATOR = "research-incubator";
 
-const w = makeWorld("__audiencePicker");
+/** A stylesheet, as its own class names. */
+const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(name) });";
+const w = makeWorld(
+  "__audiencePicker",
+  ["./WhoIsThisFor.module.css", "./Button.module.css", "./Chip.module.css", "./Select.module.css"].map((sheet) => [sheet, CLASS_NAMES]),
+);
 const lib = (...parts) => w.loadTs(join("lib", "audience", ...parts));
 const tags = await lib("tags.ts");
 const scopeTable = await lib("scope.ts");
@@ -672,5 +679,24 @@ describe("the words", () => {
     assert.equal(kind.suggestedRow(parse(T.newsletter)), "newsletter");
     assert.equal(kind.suggestedRow(parse(T.newsletter, T.events)), "events");
     assert.equal(kind.tagsAllowNotice([]), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The picker on the page
+// ---------------------------------------------------------------------------
+
+describe("the picker renders on the server", () => {
+  test("the mailing list page's preview is closed, and reads nothing until it is opened", async () => {
+    const Preview = (await w.loadTs(join("features", "audience", "AudiencePreview.tsx"))).default;
+    const html = renderToStaticMarkup(createElement(Preview));
+    assert.match(html, /Who would a message reach\?/);
+    assert.match(html, /aria-expanded="false"/);
+    assert.doesNotMatch(html, /Loading the tags/, "the picker is drawn, and so asks for its tags, before it is opened");
+  });
+
+  test("the picker draws its loading state first", async () => {
+    const Picker = (await w.loadTs(join("features", "audience", "WhoIsThisFor.tsx"))).default;
+    assert.match(renderToStaticMarkup(createElement(Picker)), /Loading the tags/);
   });
 });
