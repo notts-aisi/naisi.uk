@@ -140,9 +140,11 @@ const REAL_IDS = [
       "items asked at the start and at the end, by the names the templates give them.",
     files: {
       "docs/surveys.md": ["Q1", "Q2", "Q3", "(C9)"],
+      "scripts/e2e-fixtures/course-hub-programme-surveys.mjs": ["Q1", "Q2", "Q3", "(C1)", "(C4)"],
       "src/lib/surveys/templates.ts": ["Q1", "Q2", "Q3"],
       "src/lib/surveys/leadTab.ts": ["Q1", "Q2", "Q3"],
       "src/features/surveys/lead/LeadSurveysTab.tsx": ["Q1", "Q2", "Q3"],
+      "tests/e2e/course-hub-programme-surveys.spec.mjs": ["Q1", "Q2", "Q3"],
       "tests/surveys-items.test.mjs": ["Q1", "Q3"],
       "tests/surveys-lead-tab.test.mjs": ["Q2", "(C1)", "(C4)"],
       "tests/surveys-required.test.mjs": ["Q2"],
