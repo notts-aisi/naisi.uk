@@ -190,6 +190,16 @@
  *    for who finished, who the lead ticks, and every certificate are the
  *    admin's on the real pages; the fixture writes none of them.
  *
+ * ## Six months on ("six-months-on")
+ *
+ * The fellowship six months past its run's last session (`SIX_MONTHS_ON`),
+ * read as the end of a programme is read, with a cast of its own: Ada, Ben
+ * and Dan in Group A, Cleo and Eve in Group B, every register of the six
+ * weeks finished and every week published. Nobody left, nobody facilitates
+ * and nobody leads the programme. The point writes no survey: what a
+ * programme's surveys would hold by then is the spec's fixture's to write on
+ * top of it.
+ *
  * ## No term facts
  *
  * Every date is worked out from the moment the seed runs, in London: the run
@@ -244,6 +254,7 @@ export const TERM_POINTS = Object.freeze([
   "last-week",
   "after-the-end",
   "programme-over",
+  "six-months-on",
   "check-in",
 ]);
 
@@ -459,6 +470,7 @@ export function laterPlanOf(point) {
   if (point === "after-the-end") return AFTER_THE_END;
   if (point === "last-week") return LAST_WEEK;
   if (point === "programme-over") return PROGRAMME_OVER;
+  if (point === "six-months-on") return SIX_MONTHS_ON;
   if (point === "coursework") return COURSEWORK;
   if (point === "check-in") return CHECK_IN_DAY;
   return null;
@@ -2894,6 +2906,59 @@ export const PROGRAMME_OVER = Object.freeze({
   left: Object.freeze({ dan: Object.freeze({ afterWeek: 2 }) }),
   unfinished: null,
   facilitated: "A",
+  published: WEEK_COUNT,
+});
+
+/** A week everybody in a group came to, at six months on. */
+const ALL_OF_A_CAME = Object.freeze({ ada: "present", ben: "present", dan: "present" });
+const ALL_OF_B_CAME = Object.freeze({ cleo: "present", eve: "present" });
+
+/**
+ * THE FELLOWSHIP SIX MONTHS PAST ITS RUN'S LAST SESSION ("six-months-on").
+ * Its run began `daysIn` days before the seed, so Group B's sixth and last
+ * session (day 37 of the plan) was 185 days before it: six months on, when
+ * the follow-up at 6 months goes out. Every register of the six weeks is
+ * finished and every week published.
+ *
+ * Group A is Ada, Ben and Dan, Group B Cleo and Eve: five people, so a week
+ * of check-ins can have every answer it needs for its comments to show
+ * (five) and another only enough for its totals (three). Everybody came to
+ * weeks 1 to 4; in week 5 Ben was late and Eve absent, and in week 6 Dan
+ * left early. Nobody left the programme, nobody facilitates it and nobody
+ * leads it.
+ */
+export const SIX_MONTHS_ON = Object.freeze({
+  daysIn: 222,
+  programme: FELLOWSHIP,
+  groups: GROUP_PLAN,
+  people: Object.freeze([
+    PEOPLE_PLAN[0],
+    PEOPLE_PLAN[1],
+    PEOPLE_PLAN[2],
+    WEEK_FOUR.people[3],
+    Object.freeze({ key: "eve", first: "Eve", canMake: Object.freeze(["B"]) }),
+  ]),
+  facilitator: null,
+  places: Object.freeze({ ada: "A", ben: "A", cleo: "B", dan: "A", eve: "B" }),
+  marks: Object.freeze({
+    A: Object.freeze({
+      1: ALL_OF_A_CAME,
+      2: ALL_OF_A_CAME,
+      3: ALL_OF_A_CAME,
+      4: ALL_OF_A_CAME,
+      5: Object.freeze({ ada: "present", ben: "late", dan: "present" }),
+      6: Object.freeze({ ada: "present", ben: "present", dan: "left-early" }),
+    }),
+    B: Object.freeze({
+      1: ALL_OF_B_CAME,
+      2: ALL_OF_B_CAME,
+      3: ALL_OF_B_CAME,
+      4: ALL_OF_B_CAME,
+      5: Object.freeze({ cleo: "present", eve: "absent" }),
+      6: ALL_OF_B_CAME,
+    }),
+  }),
+  unfinished: null,
   published: WEEK_COUNT,
 });
 

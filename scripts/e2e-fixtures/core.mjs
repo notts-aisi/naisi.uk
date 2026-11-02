@@ -363,18 +363,21 @@ export const FIXTURE_COLLECTIONS = [
   // the survey routes a spec drives (make, edit, test, send, remind, answer,
   // change a consent, close), and seeded by the survey admin spec's fixture
   // (a survey sent and answered, and check-ins answered in two groups, each
-  // with the run's id as `runId`). Found by the form or the run, then by each
-  // survey's id.
+  // with the run's id as `runId`) and the programme surveys spec's (a
+  // programme's before survey, survey at the end and follow-up at 6 months,
+  // each sent and answered, and three weeks of check-ins). Found by the form
+  // or the run, then by each survey's id.
   "surveys",
   "surveyPeople",
   "surveyAnswers",
   // Which check-ins each week of a programme showed its lead
   // (`{runId}__w03`). Written by the scheduler's `surveys-check-in-weeks`
-  // job, never by a fixture or a route a spec drives: the job looks at every
-  // run a programme names, so a spec that names a run whose weeks are whole
-  // can find one written under it on a project whose tick is armed. Counted
-  // and removed by its constructed id, so the manifest cannot read zero past
-  // one.
+  // job, never by a route a spec drives: the job looks at every run a
+  // programme names, so a spec that names a run whose weeks are whole can
+  // find one written under it on a project whose tick is armed. Seeded by
+  // the programme surveys spec's fixture as the job leaves each week of a
+  // run six months past its end. Counted and removed by its constructed id,
+  // so the manifest cannot read zero past one.
   "checkInWeeks",
   // ONLY the end of a programme's question set (`surveyQuestionSets/after`),
   // and only through `surveyQuestionSetDoc()`. It is one document for the
