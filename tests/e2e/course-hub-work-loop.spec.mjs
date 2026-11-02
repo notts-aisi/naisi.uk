@@ -420,7 +420,7 @@ test(
         await facilitatorPage.waitForURL((url) => url.pathname.endsWith(`/group/${groupA.id}/written`) && url.searchParams.get("person") === ada.uid, {
           timeout: WAIT_MS,
         });
-        await facilitatorPage.getByRole("heading", { name: WORDS.answerHead(ada.first) }).waitFor({ timeout: WAIT_MS });
+        await facilitatorPage.getByRole("heading", { level: 2, name: WORDS.answerHead(ada.first) }).waitFor({ timeout: WAIT_MS });
         assert.ok((await wordsIn(facilitatorPage.locator("main"))).includes(adaAnswer), "the review page does not show Ada's answer");
         await assertNoRatingOn(facilitatorPage, "the facilitator");
         await saveFeedbackAs(facilitatorPage, ada, FEEDBACK.ada);
@@ -432,7 +432,7 @@ test(
         const list = facilitatorPage.getByRole("region", { name: "Written answers" }).first();
         await list.locator(`a[href*="person=${enc(ben.uid)}"]`).first().click();
         await facilitatorPage.waitForURL((url) => url.searchParams.get("person") === ben.uid, { timeout: WAIT_MS });
-        await facilitatorPage.getByRole("heading", { name: WORDS.answerHead(ben.first) }).waitFor({ timeout: WAIT_MS });
+        await facilitatorPage.getByRole("heading", { level: 2, name: WORDS.answerHead(ben.first) }).waitFor({ timeout: WAIT_MS });
         assert.ok((await wordsIn(facilitatorPage.locator("main"))).includes(BEN_ANSWER), "the review page does not show Ben's answer");
         await saveFeedbackAs(facilitatorPage, ben, FEEDBACK.ben);
         // Ada's piece is still the one, and on her week alone.
@@ -442,7 +442,7 @@ test(
       await step("the lead rates the first answer for the team on its review page, and an admin reads it under What the team said", async () => {
         activePage = adminPage;
         await adminPage.goto(`${groupPage}/written?week=${LOOP_WEEK}&person=${enc(ada.uid)}`, { waitUntil: "domcontentloaded" });
-        await adminPage.getByRole("heading", { name: WORDS.answerHead(ada.first) }).waitFor({ timeout: WAIT_MS });
+        await adminPage.getByRole("heading", { level: 2, name: WORDS.answerHead(ada.first) }).waitFor({ timeout: WAIT_MS });
         // The facilitator's piece is there for the people running the group.
         assert.ok((await wordsIn(adminPage.locator("main"))).includes(FEEDBACK.ada), "the review page does not show Fern's feedback");
 

@@ -214,8 +214,23 @@ export const SPEC = {
       "/(app)/learn/[runId]/weeks/[n]/feedback",
     ],
   },
-  status: "unverified",
+  /**
+   * VERIFIED on 2 November 2026: in local mode, against the harness's own
+   * server with its mail caught by Mailpit
+   * (`npm run e2e:browser -- --local --spec course-hub-work-loop`), on dev at
+   * b457d82c45957f14f25ca642acf6fe18ba1f7efc: all ten steps ran, twice in a
+   * row; before teardown the term held 51 rows (six of them the send log's:
+   * three approvals, the test and the batch's two) and the loop five more (two
+   * pieces of feedback, the test's and the batch's records and one rating),
+   * and the fixture manifest read zero after each run.
+   */
+  status: "verified",
   seed,
-  countRows: async (state) => ({ ...(await countTerm(state)), ...(await countLoop(state)) }),
+  countRows: async (state) => {
+    const term = await countTerm(state);
+    const loop = await countLoop(state);
+    // The total counts the loop's rows too, not the term's alone.
+    return { ...term, ...loop, total: term.total + loop.courseFeedback + loop.courseFeedbackSends + loop.courseWorkRatings };
+  },
   teardown,
 };
