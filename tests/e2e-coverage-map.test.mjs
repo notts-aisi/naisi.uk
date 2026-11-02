@@ -865,18 +865,6 @@ const NOT_COVERED = {
     coverWhen:
       "When a round runs with a reviewer other than the admin who runs it, so a release lands on somebody else's screen before anybody has read it.",
   },
-  "/api/audience": {
-    reason:
-      "The picker answers the tags a person may use and how many a choice reaches, and tests/audience-picker.test.mjs drives it as every kind of caller against a real term. Messages now sends to its count: tests/messages.test.mjs holds the send's number to it, and the Messages spec (tests/e2e/messages.spec.mjs) drives it in a browser but has not passed end to end yet.",
-    coverWhen:
-      "When the Messages spec has passed end to end against the harness's server with its mail caught, and is marked verified.",
-  },
-  "/api/audience/who": {
-    reason:
-      "The picker lists names to a person looking at them, and tests/audience-picker.test.mjs drives it as every kind of caller against a real term. The Messages spec opens See who in a browser but has not passed end to end yet.",
-    coverWhen:
-      "When the Messages spec has passed end to end against the harness's server with its mail caught, and is marked verified.",
-  },
   "/api/auth/google/callback": {
     reason:
       "Google sign-in is not automatable by design: GIS refuses the interception a script would need, as src/auth/signInWithGoogle.ts documents.",
@@ -1332,15 +1320,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the events authoring spec (scripts/e2e-fixtures/events-authoring.mjs, written when the editor was reshaped on 1 November 2026) is extended to it, in the pull request that next changes it.",
   },
-  "/api/events/[id]/audience": {
-    reason:
-      "Events for chosen people: who an event is for, chosen in the editor's Who's it for step and counted as it is chosen. " +
-      "Executed as every kind of caller, with its counts held to the send, by tests/event-chosen-people.test.mjs, and asked " +
-      "about a real event of the persona world by the standing red team's second pass.",
-    coverWhen:
-      "When scripts/e2e-fixtures/events-authoring.mjs has run green against the harness and is marked verified: it chooses " +
-      "the invitee in this step.",
-  },
   "/api/events/[id]/broadcast": {
     reason:
       "Events authoring: /api/events/[id]/broadcast is a deliberate committee action whose result is visible on the manage screen. " +
@@ -1381,14 +1360,6 @@ const NOT_COVERED = {
     coverWhen:
       "When an event for chosen people that is part of a programme is published on the live site, because somebody " +
       "joining its tags afterwards is the first real use of this press.",
-  },
-  "/api/events/[id]/publish": {
-    reason:
-      "Events authoring: /api/events/[id]/publish is a deliberate committee action whose result is visible on the manage screen. " +
-      "Its GET, the count the Publish confirm names, is executed as every kind of caller by tests/event-send-counts.test.mjs, " +
-      "over the send's own audience functions, and writes nothing.",
-    coverWhen:
-      "When scripts/e2e-fixtures/events-authoring.mjs has run green against the harness and is marked verified: it drives this, making and publishing an event for chosen people in the reshaped editor.",
   },
   "/api/events/[id]/rsvp/[rsvpId]/approve": {
     reason:
@@ -1437,15 +1408,6 @@ const NOT_COVERED = {
       "With the events-authoring browser spec owed by the editor's reshaping: sign in as an event's author, open Sign-ups, " +
       "read who is asking and approve a request.",
   },
-  "/api/events/[id]/survey-after": {
-    reason:
-      "The survey after an event: its setting changed on the event's Survey after tab once the event is published, its questions until it " +
-      "opens and who and when until it goes. Executed as every kind of caller, with each lock, by tests/event-survey-after.test.mjs, " +
-      "and asked about a real event of the persona world by the standing red team's second pass.",
-    coverWhen:
-      "When scripts/e2e-fixtures/events-authoring.mjs has run green against the harness and is marked verified: it changes when the " +
-      "survey goes on the Survey after tab of the event it publishes, and saves.",
-  },
   "/api/events/[id]/survey-after/send": {
     reason:
       "The survey after an event: Send it now, by the event's author, a collaborator or an admin, from the event's start until it has gone. " +
@@ -1487,18 +1449,6 @@ const NOT_COVERED = {
       "The members roster feeds a directory that is feature-flagged off, so nothing renders from it today.",
     coverWhen:
       "When the members directory is switched back on.",
-  },
-  "/api/messages": {
-    reason:
-      "Messages: the send, and whether the menu draws it. Every caller, the count's promise, the test it waits for, the caps, notice or by their settings, the writer included, suppression and held mail are driven offline in tests/messages.test.mjs; its browser spec (tests/e2e/messages.spec.mjs) has not passed end to end yet.",
-    coverWhen:
-      "When the Messages spec has passed end to end against the harness's server with its mail caught, and is marked verified.",
-  },
-  "/api/messages/test": {
-    reason:
-      "Messages' Send a test to me. Driven as every caller in tests/messages.test.mjs, with the test the send waits for; its browser spec has not passed end to end yet.",
-    coverWhen:
-      "When the Messages spec has passed end to end against the harness's server with its mail caught, and is marked verified.",
   },
   "/api/newsletter/[id]/send": {
     reason:
@@ -2072,15 +2022,9 @@ const NOT_COVERED = {
   },
   "/(app)/events/manage": {
     reason:
-      "Events authoring: /(app)/events/manage is committee-facing, and a failure surfaces on the editor that caused it.",
+      "Events authoring: /(app)/events/manage is committee-facing, and a failure surfaces on the editor that caused it. The events authoring spec (scripts/e2e-fixtures/events-authoring.mjs) starts at New event and never opens the list.",
     coverWhen:
-      "When scripts/e2e-fixtures/events-authoring.mjs has run green against the harness and is marked verified: it drives this, making and publishing an event for chosen people in the reshaped editor.",
-  },
-  "/(app)/events/manage/[id]": {
-    reason:
-      "Events authoring: /(app)/events/manage/[id] is committee-facing, and a failure surfaces on the editor that caused it.",
-    coverWhen:
-      "When scripts/e2e-fixtures/events-authoring.mjs has run green against the harness and is marked verified: it drives this, making and publishing an event for chosen people in the reshaped editor.",
+      "When the events authoring spec is extended to find its event on the list, in the pull request that next changes it.",
   },
   "/(app)/events/manage/[id]/attendees": {
     reason:
@@ -2095,12 +2039,6 @@ const NOT_COVERED = {
       "Events authoring: /(app)/events/manage/[id]/preview is committee-facing, and a failure surfaces on the editor that caused it.",
     coverWhen:
       "When the events authoring spec (scripts/e2e-fixtures/events-authoring.mjs, written when the editor was reshaped on 1 November 2026) is extended to it, in the pull request that next changes it.",
-  },
-  "/(app)/events/manage/new": {
-    reason:
-      "Events authoring: /(app)/events/manage/new is committee-facing, and a failure surfaces on the editor that caused it.",
-    coverWhen:
-      "When scripts/e2e-fixtures/events-authoring.mjs has run green against the harness and is marked verified: it drives this, making and publishing an event for chosen people in the reshaped editor.",
   },
   "/(app)/learn/facilitate/[askId]": {
     reason:
@@ -2331,18 +2269,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the browser spec that pairs a group drives the page.",
   },
-  "/(app)/messages": {
-    reason:
-      "Messages' composer: the picker, the words, the test and the send. Its server render and its moments are drawn in tests/messages.test.mjs; its browser spec (tests/e2e/messages.spec.mjs) has not passed end to end yet.",
-    coverWhen:
-      "When the Messages spec has passed end to end against the harness's server with its mail caught, and is marked verified.",
-  },
-  "/(app)/messages/sent": {
-    reason:
-      "Messages' Sent: what was sent and who it reached, read for the person looking and sending nothing. Who reads which send, the names by the reader's rule, the reasons by name to admins alone, the email log's sends and the two weeks it shows are driven offline in tests/messages.test.mjs; the Messages spec reads the send it made on it in a browser but has not passed end to end yet.",
-    coverWhen:
-      "When the Messages spec has passed end to end against the harness's server with its mail caught, and is marked verified.",
-  },
   "/(app)/newsletter": {
     reason:
       "Newsletter: /(app)/newsletter is used by two people deliberately, and the result is read back on the page they are looking at. The protected-route-gate battery asserts only that a signed-out visitor is redirected off it.",
@@ -2408,12 +2334,6 @@ const NOT_COVERED = {
       "The research incubator's page is words, server-rendered, with the term's dates read through the one lookup tests/applications-public-term.test.mjs executes. tests/reskin-programme-pages.test.mjs holds its closing band to the words a course's own page uses, and a break is visible to anybody who opens it.",
     coverWhen:
       "When the incubator is first on an application form that is open on the live site, because its Apply button is then a way into the form that a browser spec should press.",
-  },
-  "/(public)/events": {
-    reason:
-      "Events RSVP: /(public)/events belongs to the flow frozen by docs/mobile-baseline-events.md, which is re-checked by hand on every touching change.",
-    coverWhen:
-      "When an event next runs with a capacity and a waitlist, because a wrong decision there is a real person losing their place.",
   },
   "/events/[id]/calendar": {
     reason:
@@ -2600,12 +2520,6 @@ const NOT_COVERED = {
       "Surveys after events: the page a survey's QR code lands on is a server render; tests/surveys-events.test.mjs renders every state (no survey, not open, signed out naming nobody, signed in as somebody who came, signed up, neither, answered) and finds it writes nothing.",
     coverWhen:
       "When the end-to-end fixtures seed a published event with sign-ups and check-ins, so a spec can make its survey, open it and answer it with the QR code.",
-  },
-  "/(app)/events/manage/[id]/survey": {
-    reason:
-      "Surveys after events: an event's Survey after tab; tests/surveys-events.test.mjs renders it as the organiser the SU does not recognise, a collaborator, SU-recognised committee (that it went and when, no result) and an admin (the results), before and after the email, and tests/event-survey-after.test.mjs with the survey its event set up: what is set, the organisers' setting and Send it now, and what went.",
-    coverWhen:
-      "When scripts/e2e-fixtures/events-authoring.mjs has run green against the harness and is marked verified: it opens this tab on the event it publishes and changes when its survey goes.",
   },
   "/(app)/events/manage/[id]/check-in": {
     reason:

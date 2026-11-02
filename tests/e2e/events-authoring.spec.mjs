@@ -20,12 +20,12 @@
  * under `.e2e-state/`, and tears everything down afterwards, the event the
  * admin makes included, by its title.
  *
- * ## Not yet run
+ * ## Verified
  *
- * Written beside the editor's new step and marked unverified in its SPEC: it
- * counts nothing on the coverage map until a run against the harness has
- * passed. The editor's controls it drives are named by their words, which
- * the unit suites pin.
+ * Written beside the editor's new step, and marked verified in its SPEC once
+ * a local run against the harness's own server had passed with the fixture
+ * manifest reading zero (its SPEC says when). The editor's controls it drives
+ * are named by their words, which the unit suites pin.
  *
  * ## CHROMIUM ONLY, and that is a limitation rather than a choice
  *
