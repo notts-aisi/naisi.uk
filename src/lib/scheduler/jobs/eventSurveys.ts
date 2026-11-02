@@ -35,8 +35,10 @@ import type { JobContext, JobRegistration, JobResult } from "../registry";
  *    now"), the people it reached who haven't answered, and the one
  *    question's too.
  *
- * Nothing happens for an event published before the step existed: only a
- * stored setting sets a survey up. Everything it sends is a
+ * Nothing happens for an event published before the step existed, or one
+ * switched off: only a stored setting sets a survey up here. (An organiser's
+ * "Send it now" can set one up there by hand; it then goes only by hand, and
+ * this job sends nothing of it but its reminder.) Everything it sends is a
  * notice on the `event-survey` surface, through the same door and the same
  * presses as an admin's (`sendSurveyAfter`).
  *

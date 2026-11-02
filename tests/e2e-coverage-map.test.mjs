@@ -1450,7 +1450,8 @@ const NOT_COVERED = {
     reason:
       "The survey after an event: Send it now, by the event's author, a collaborator or an admin, from the event's start until it has gone. " +
       "Executed as every kind of caller by tests/event-survey-after.test.mjs, with the number on the button, the question about not " +
-      "coming beside it, one send against the job's tick, and the job sending nothing more but the reminder.",
+      "coming beside it, one send against the job's tick, and the job sending nothing more but the reminder; and at an event with no " +
+      "survey of its own (switched off, or published before the step), the press setting it up and sending it, a double press sending once, with the job off.",
     coverWhen:
       "When the events-rsvp spec is extended past its event to the survey after it, in the pull request that next changes that spec: " +
       "it needs an event that has started and people checked in, which the events authoring spec's event (next month) is not.",

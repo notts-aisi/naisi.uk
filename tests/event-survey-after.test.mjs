@@ -49,6 +49,8 @@ const stored = await w.load("lib/events/surveyAfter.ts");
 const setUp = await w.load("lib/surveys/events/setUp.ts");
 const records = await w.load("lib/surveys/events/records.ts");
 const job = (await w.load("lib/scheduler/jobs/eventSurveys.ts")).eventSurveysJob;
+const eventWords = await w.load("lib/surveys/events/words.ts");
+const surveyWords = await w.load("lib/surveys/words.ts");
 
 /** The setting a new event starts with, changed by `over`. */
 const setting = (over = {}) => ({ ...stored.newSurveyAfter(), ...over });
@@ -667,6 +669,225 @@ describe("the Survey after tab's routes: the event's author, its collaborators a
     assert.deepEqual(w.world.mail.map((message) => [message.to, message.kind]), [["iris@example.com", "course-test"]]);
     assert.match(w.world.mail[0].subject, /^\[TEST\] /);
     assert.deepEqual(w.survey(id).tests, { survey: null, reminder: null });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4b. Send it now at an event with no survey of its own, the job off
+// ---------------------------------------------------------------------------
+
+describe("Send it now at an event with no survey of its own: set up and sent in one press, from the start, with the job off", () => {
+  const send = async () => (await route("/send")).POST;
+  const press = async (who, emails) => w.call(who, await send(), { id: EVENT_ID }, { body: { emails } });
+  const switchModule = () => w.load("lib/scheduler/eventSurveysSwitch.ts");
+  const surveyCodes = () =>
+    w.world.db.paths().filter((path) => path.startsWith("trackedLinks/") && w.world.db.read(path).destination === `/events/${EVENT_ID}/survey`);
+  const firstPresses = (id) => w.survey(id).presses.filter((press) => press.kind === "first");
+  /** The event's own survey, never the one question beside it. */
+  const mainIds = () => w.surveyIds().filter((id) => !id.endsWith("-missed"));
+  const STANDARD_LINE = "No survey is set up for this event, so this sends the standard questions to everyone who came.";
+  const STANDARD_LINE_MISSED =
+    "No survey is set up for this event, so this sends the standard questions to everyone who came, and asks people who had a place and weren’t checked in what stopped them.";
+
+  test("switched off, then pressed after the start: the standard questions to the people who came and the one question beside them, opened and its code made by the press", async (t) => {
+    clock(t, MORNING);
+    world({ on: false }, DOOR);
+    // Publishing set nothing up, and the job is off: nothing ever ticks here.
+    assert.deepEqual(await setUp.setUpEventSurvey(w.world.db, EVENT_ID, "zach", MORNING), { ok: true, surveyId: null, made: false });
+    assert.equal(await (await switchModule()).eventSurveysGoByThemselves(w.world.db), false);
+
+    // Before the start: it says when it can go, and a press is refused with nothing written.
+    const morning = await w.page(TAB, props(), "iris");
+    assert.match(morning.text, /You can send it from here once the event has started\./);
+    assert.ok(!/Send it now/.test(morning.text), "offered before the start");
+    assert.match(morning.text, /Nothing goes after this event by itself\. Once it has started, you or an admin can still send the standard questions from this tab\./);
+    const before = w.everything();
+    const early = await press("iris", 6);
+    assert.deepEqual([early.status, early.body.error], [409, setUp.SURVEY_AFTER_REFUSAL.notStarted]);
+
+    // After the start: the same Send it now, its number, and what it sends.
+    setTime(t, new Date(END.getTime() + HOUR));
+    const tab = await w.page(TAB, props(), "iris");
+    assert.match(tab.text, /Send it now \(6\)/);
+    assert.ok(tab.text.includes(STANDARD_LINE_MISSED), tab.text);
+    assert.ok(!tab.text.includes("Send a test to me"), "a test was offered of a survey that isn't there");
+    assert.ok(!(await w.page(TAB, props(), "sue")).text.includes("Send it now"), "somebody who doesn't organise it was offered to send it");
+
+    // A number that changed: nothing set up, nothing sent, the new number told.
+    const wrong = await press("iris", 3);
+    assert.deepEqual([wrong.status, wrong.body.emails], [409, 6]);
+    assert.equal(w.everything(), before, "a refused press wrote something");
+    assert.deepEqual(w.world.mail, []);
+
+    // The press: set up and sent at once, as a notice.
+    const sent = await press("cal", 6);
+    assert.deepEqual(sent, { status: 200, body: { ok: true, sent: 6, held: 0, suppressed: 0, failed: 0, noAddress: 0 } });
+    assert.ok(mail().every((message) => message.kind === "notice" && message.surface === "event-survey"));
+    assert.equal(mail().filter((message) => message.to === "chloe@example.com").length, 1, "the one question did not reach the person who didn't come");
+    assert.match(mail()[0].text, /Cal For NAISI/);
+    const [id] = mainIds();
+    const survey = w.survey(id);
+    assert.deepEqual(mainIds(), [id]);
+    assert.deepEqual(survey.items.map((item) => item.id), CODE.map((item) => item.id));
+    assert.deepEqual(survey.audience, { kind: "event-came", eventId: EVENT_ID });
+    assert.deepEqual([survey.auto.when, survey.auto.missed, survey.auto.reminder, survey.auto.showCode], ["hand", true, true, true]);
+    assert.ok(survey.firstSentAt, "its email did not open it");
+    assert.deepEqual(firstPresses(id).map((each) => [each.count, each.byUid, each.byJob ?? false]), [[5, "cal", false]]);
+    assert.ok(w.survey(`${id}-missed`), "the one question beside it was not made");
+    // The event keeps what went, so its editor and tab never say it is off.
+    assert.deepEqual(w.world.db.read(`events/${EVENT_ID}`).surveyAfter, { ...stored.newSurveyAfter(), when: "hand" });
+    // Its code, made by the press since nothing else opened it, shows at the door.
+    assert.equal(surveyCodes().length, 1);
+    assert.ok((await w.page(CHECK_IN, props(), "sue")).text.includes("naisi.invalid/q/vr-survey"));
+
+    // Once only.
+    const again = await press("iris", 0);
+    assert.deepEqual([again.status, again.body.error], [409, eventWords.EVENT_REFUSAL.emailedOnce]);
+    assert.equal(mail().length, 6);
+    const after = await w.page(TAB, props(), "iris");
+    assert.match(after.text, /Sent by Cal, Sun 1 Nov, 6pm, to the 5 who came\./);
+    assert.ok(!/Send it now/.test(after.text), "offered to send it again");
+  });
+
+  test("no setting at all, an event published before the step: the button and its line, no setting to change; pressed, the standard questions go", async (t) => {
+    clock(t, MORNING);
+    w.reset(eventSurveySeed());
+    assert.equal(w.world.db.read(`events/${EVENT_ID}`).surveyAfter, undefined);
+    const morning = await w.page(TAB, props(), "iris");
+    assert.match(morning.text, /You can send it from here once the event has started\./);
+    for (const words of ["Ask people how it went", "Who gets it", "Save"]) assert.ok(!morning.text.includes(words), `"${words}" was drawn with no setting to change`);
+    setTime(t, new Date(END.getTime() + HOUR));
+    const tab = await w.page(TAB, props(), "iris");
+    assert.match(tab.text, /Send it now \(5\)/);
+    // The door was never opened, so nobody is asked about not coming.
+    assert.ok(tab.text.includes(STANDARD_LINE) && !tab.text.includes(STANDARD_LINE_MISSED), tab.text);
+    // An admin still has the way to make one from Surveys, beside the button.
+    const admin = await w.page(TAB, props(), "zach");
+    assert.match(admin.text, /Send it now \(5\)/);
+    assert.match(admin.html, new RegExp(`href="/admin/surveys/new\\?event=${EVENT_ID}#after-a-social"`));
+
+    const sent = await press("iris", 5);
+    assert.equal(sent.status, 200, JSON.stringify(sent.body));
+    assert.equal(sent.body.sent, 5);
+    assert.ok(mail().every((message) => message.kind === "notice" && message.surface === "event-survey"));
+    assert.ok(!mail().some((message) => message.to === "chloe@example.com"), "somebody who didn't come was emailed with no door opened");
+    const [id] = mainIds();
+    assert.deepEqual(w.surveyIds(), [id]);
+    assert.deepEqual(w.survey(id).items.map((item) => item.id), CODE.map((item) => item.id));
+    assert.equal(w.world.db.read(`events/${EVENT_ID}`).surveyAfter.when, "hand");
+    // Its tab now runs it as one its event set up.
+    const tabAfter = await w.page(TAB, props(), "iris");
+    assert.match(tabAfter.text, /Sent by Iris, Sun 1 Nov, 6pm, to the 5 who came\./);
+  });
+
+  test("the standard questions are the question set an admin keeps, as publishing reads them", async (t) => {
+    clock(t, MORNING);
+    w.reset(eventSurveySeed());
+    const set = [CODE[0], CODE[1]];
+    assert.equal((await w.call("zach", (await w.route("surveys/question-sets/[kind]")).PUT, { kind: "event" }, { body: { items: set } })).status, 200);
+    setTime(t, new Date(END.getTime() + HOUR));
+    assert.equal((await press("zach", 5)).status, 200);
+    assert.deepEqual(w.survey(mainIds()[0]).items.map((item) => item.id), ["q_ev_how", "q_ev_again"]);
+  });
+
+  test("switched on but never set up (its setting up failed): the press sets it up from its own setting, with no standard line", async (t) => {
+    clock(t, MORNING);
+    world({ items: CODE.slice(0, 2), who: "signups" });
+    setTime(t, new Date(END.getTime() + HOUR));
+    const tab = await w.page(TAB, props(), "iris");
+    // Everybody who signed up: Kofi, Chloe and Gwen.
+    assert.match(tab.text, /Send it now \(3\)/);
+    assert.ok(!tab.text.includes(STANDARD_LINE), "an event with its own setting was told it sends the standard questions");
+    assert.equal((await press("cal", 3)).status, 200);
+    const survey = w.survey(mainIds()[0]);
+    assert.deepEqual(survey.items.map((item) => item.id), ["q_ev_how", "q_ev_again"]);
+    assert.equal(survey.audience.kind, "event-signups");
+    assert.equal(survey.auto.when, "standard", "its own setting was overwritten");
+    assert.equal(w.world.db.read(`events/${EVENT_ID}`).surveyAfter.who, "signups");
+  });
+
+  test("a double press makes one survey and sends it once", async (t) => {
+    clock(t, MORNING);
+    for (const [over, event, emails] of [
+      [null, {}, 5],
+      [{ on: false }, DOOR, 6],
+    ]) {
+      if (over) world(over, event);
+      else w.reset(eventSurveySeed());
+      setTime(t, new Date(END.getTime() + HOUR));
+      const answers = await Promise.all([press("iris", emails), press("cal", emails), press("zach", emails)]);
+      assert.deepEqual(
+        answers.map((answer) => answer.status).sort(),
+        [200, 409, 409],
+        JSON.stringify(answers.map((answer) => answer.body)),
+      );
+      assert.equal(mainIds().length, 1, "two presses made two surveys");
+      assert.equal(firstPresses(mainIds()[0]).length, 1);
+      assert.equal(mail().length, emails, "the survey went twice");
+      assert.equal(new Set(mail().map((message) => message.to)).size, emails, "somebody was emailed twice");
+      setTime(t, MORNING);
+    }
+  });
+
+  test("with the job off, a switched-on event's survey goes by the press alone: opened by its email and its code made, nothing waiting on a tick", async (t) => {
+    clock(t, MORNING);
+    world();
+    const id = await setItUp();
+    assert.equal(await (await switchModule()).eventSurveysGoByThemselves(w.world.db), false);
+    setTime(t, new Date(END.getTime() + HOUR));
+    assert.equal(w.survey(id).firstSentAt, null, "it opened with nothing ticking");
+    assert.deepEqual(surveyCodes(), []);
+    assert.equal((await press("iris", 5)).status, 200);
+    assert.ok(w.survey(id).firstSentAt);
+    assert.equal(surveyCodes().length, 1, "the press that opened it made no code");
+    assert.deepEqual(mainIds(), [id]);
+  });
+
+  test("every other refusal is kept: cancelled, an admin's survey, not started, emailed, closed, more than a week over, not published", async (t) => {
+    clock(t, MORNING);
+    const later = new Date(END.getTime() + HOUR);
+    const refusedWith = async (status, error) => {
+      const before = w.everything();
+      const answer = await press("iris", 5);
+      assert.deepEqual([answer.status, answer.body.error], [status, error]);
+      assert.equal(w.everything(), before, `"${error}" wrote something`);
+      assert.deepEqual(w.world.mail, []);
+    };
+    // Cancelled, switched off or not.
+    for (const over of [{ on: false }, {}]) {
+      world(over, { status: "cancelled" });
+      setTime(t, later);
+      await refusedWith(409, setUp.SURVEY_AFTER_REFUSAL.cancelled);
+      setTime(t, MORNING);
+    }
+    // An admin's survey from Surveys.
+    w.reset(eventSurveySeed());
+    assert.equal((await w.make("zach")).status, 200);
+    setTime(t, later);
+    await refusedWith(409, setUp.SURVEY_AFTER_REFUSAL.adminMade);
+    // Not started, with a survey and without.
+    setTime(t, MORNING);
+    world();
+    await setItUp();
+    await refusedWith(409, setUp.SURVEY_AFTER_REFUSAL.notStarted);
+    w.reset(eventSurveySeed());
+    await refusedWith(409, setUp.SURVEY_AFTER_REFUSAL.notStarted);
+    // Closed by hand.
+    world();
+    const closed = await setItUp();
+    w.world.db.poke(`surveys/${closed}`, { closedAt: MORNING });
+    setTime(t, later);
+    await refusedWith(409, surveyWords.REFUSAL.closesPast);
+    // More than a week over, with no survey: too late to set one up.
+    w.reset(eventSurveySeed());
+    setTime(t, new Date(END.getTime() + 8 * DAY));
+    await refusedWith(409, eventWords.EVENT_REFUSAL.tooLate);
+    // Not published.
+    setTime(t, later);
+    w.reset(eventSurveySeed());
+    w.world.db.poke(`events/${EVENT_ID}`, { status: "approved" });
+    await refusedWith(409, setUp.SURVEY_AFTER_REFUSAL.notPublished);
+    // Already emailed: in the tests above.
   });
 });
 

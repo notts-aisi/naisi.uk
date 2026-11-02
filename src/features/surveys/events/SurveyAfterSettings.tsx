@@ -160,7 +160,7 @@ export default function SurveyAfterSettings({ value, onChange, disabled, event, 
             onChange={(on) => change({ on })}
             disabled={disabled || (Boolean(locks.off) && setting.on)}
             label={STEP_WORDS.on}
-            description={setting.on ? STEP_WORDS.onHint : STEP_WORDS.offHint}
+            description={setting.on ? STEP_WORDS.onHint : where === "tab" ? STEP_WORDS.offHintHere : STEP_WORDS.offHint}
           />
         </div>
         {locks.off && setting.on && <p className={styles.lock}>{locks.off}</p>}

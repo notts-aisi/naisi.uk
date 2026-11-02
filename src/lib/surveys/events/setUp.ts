@@ -1,12 +1,13 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { addLaterUntil, openingOf } from "@/lib/events/checkIns";
-import { readSurveyAfter, type StoredSurveyAfter } from "@/lib/events/surveyAfter";
+import { newSurveyAfter, readSurveyAfter, type StoredSurveyAfter } from "@/lib/events/surveyAfter";
 import type { EventDoc } from "@/lib/firestore/events";
 import {
   SURVEYS_COLLECTION,
   isEventSurvey,
   normalizeSurvey,
+  type EventAudience,
   type EventSurveyDoc,
   type SurveyAuto,
 } from "@/lib/firestore/surveys";
@@ -14,6 +15,8 @@ import { sanitizeSurveyItems, surveyQuestionsOf, type SurveyItem } from "../item
 import { eventStandardItems } from "../questionSetsStore";
 import { REFUSAL } from "../words";
 import { asksMissed, audienceKindOf, firstPressOf, minutesFor, questionProblems, settingsOf, stillPending, whoAt } from "./after";
+import { membersOf, readEventAudience } from "./audience";
+import { ensureSurveyCode } from "./code";
 import { readEventSendPlan, sendSurveyAfter, type EventPressOutcome, type EventPressTally } from "./sending";
 import { missedTemplateItems } from "./template";
 import { alignWalkInEmails, eventNamesOffOn, eventSurveyOf, missedSurveyId, missedSurveyOf, readEventFor } from "./records";
@@ -48,11 +51,20 @@ import {
  *  - "SEND IT NOW" (`sendItNow`), for its organisers and admins until it has
  *    gone, and changing it after publishing (`changeSurveyAfter`): the
  *    questions until it opens, who gets it and when until it goes.
+ *  - "SEND IT NOW" AT AN EVENT WITH NO SURVEY OF ITS OWN (its step switched
+ *    off, one published before the step existed, or one whose setting up
+ *    failed), once it has started: the press sets one up there and then, as
+ *    publishing does (`setUpEventSurvey` with `orStandard`), and sends it.
+ *    Switched on, from its stored setting; otherwise from the step's defaults
+ *    with the standard questions, going only by hand (`STANDARD_BY_HAND`),
+ *    and the event then keeps that setting, so its editor says what went.
  *
  * The `event-surveys` job (`src/lib/scheduler/jobs/eventSurveys.ts`) opens it
  * at the event's start, emails it when it is due and reminds once, through
- * the same door (`sendSurveyAfter`). Every route that calls these has held
- * its caller to its gate first.
+ * the same door (`sendSurveyAfter`). Nothing "Send it now" does waits on the
+ * job: its first email opens the survey, and the press makes its QR code
+ * when it opened it, as the job's opening would have. Every route that calls
+ * these has held its caller to its gate first.
  */
 
 type Refusal = { ok: false; status: number; error: string };
@@ -97,14 +109,44 @@ function autoOf(setting: StoredSurveyAfter, noSignup: boolean, was: SurveyAuto |
 export type SetUpOutcome = { ok: true; surveyId: string | null; made: boolean } | Refusal;
 
 /**
+ * What "Send it now" sets up at an event whose step is switched off or which
+ * has no stored setting: the step's defaults (everyone who came, the one
+ * question about not coming, the reminder, the code), the standard questions
+ * as they stand when it is set up, and going only by hand, since it goes by
+ * the press that set it up and never by itself.
+ */
+export const STANDARD_BY_HAND: Readonly<StoredSurveyAfter> = Object.freeze({ ...newSurveyAfter(), when: "hand" as const });
+
+/**
+ * The setting "Send it now" sets an event's survey up from when it has none:
+ * its own when switched on, else `STANDARD_BY_HAND`. `standard` says it is
+ * the latter, the standard questions whatever the step once held.
+ */
+export function sendNowSetting(event: Pick<EventDoc, "surveyAfter">): { setting: StoredSurveyAfter; standard: boolean } {
+  return event.surveyAfter?.on ? { setting: event.surveyAfter, standard: false } : { setting: { ...STANDARD_BY_HAND }, standard: true };
+}
+
+/**
  * Set up an event's survey from its stored setting, once: nothing when the
  * setting is missing or off, the survey it has when it has one, else a new
  * draft. Never more than a week after the event (`addLaterUntil`).
+ *
+ * `orStandard` ("Send it now" at an event with no survey): a setting missing
+ * or off sets it up from `STANDARD_BY_HAND` instead, and the event keeps that
+ * setting, written in the same transaction as the survey, so its editor and
+ * tab never say it is off once it is there.
  */
-export async function setUpEventSurvey(db: Firestore, eventId: string, byUid: string, now: Date): Promise<SetUpOutcome> {
+export async function setUpEventSurvey(
+  db: Firestore,
+  eventId: string,
+  byUid: string,
+  now: Date,
+  options: { orStandard?: boolean } = {},
+): Promise<SetUpOutcome> {
   const event = await readEventFor(db, eventId);
   if (!event) return refuse(404, EVENT_REFUSAL.noEvent);
-  const setting = event.surveyAfter;
+  const standardByHand = !event.surveyAfter?.on && options.orStandard === true;
+  const setting = standardByHand ? sendNowSetting(event).setting : event.surveyAfter;
   if (!setting?.on) return { ok: true, surveyId: null, made: false };
   if (event.status !== "published") return refuse(409, EVENT_REFUSAL.notPublished);
   if (!event.startAt) return refuse(409, EVENT_REFUSAL.undated);
@@ -154,6 +196,12 @@ export async function setUpEventSurvey(db: Firestore, eventId: string, byUid: st
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    if (standardByHand) {
+      tx.update(db.collection("events").doc(event.id), {
+        surveyAfter: JSON.parse(JSON.stringify(setting)) as Record<string, unknown>,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
     return { id: ref.id, made: true };
   });
   // The walk-ins' emails go no later than it closes. Its QR code is made when
@@ -279,6 +327,22 @@ export async function sendNowCount(db: Firestore, survey: EventSurveyDoc, event:
   return { main, missed, emails: main + missed };
 }
 
+/**
+ * How many "Send it now" would email at an event with no survey yet, set up
+ * from `setting`: everybody its audience holds with an address (nobody has
+ * been sent it or answered it, there being no survey), and the people with a
+ * place who weren't checked in, where it asks them and the door was opened.
+ * The same count `sendNowCount` makes once the survey is there.
+ */
+export async function sendNowCountBefore(db: Firestore, event: EventDoc, setting: StoredSurveyAfter): Promise<SendNowCount> {
+  const read = await readEventAudience(db, event.id);
+  if (!read) return { main: 0, missed: 0, emails: 0 };
+  const owed = (kind: EventAudience["kind"]) => membersOf(read, kind).filter((member) => member.address !== null).length;
+  const main = owed(audienceKindOf(whoAt(setting, event.noSignup)));
+  const missed = asksMissed(setting, event.noSignup) && openingOf(event) !== null ? owed("event-missed") : 0;
+  return { main, missed, emails: main + missed };
+}
+
 /** Two presses' counts as one. */
 function addTallies(a: EventPressTally, b: EventPressTally): EventPressTally {
   return {
@@ -355,6 +419,12 @@ export async function pressFirstEmails(
  * event's organisers or an admin, until its email has gone, with no test
  * first. `emails` is the number on the button: when the people it
  * reaches have changed, nothing is sent and the page is told the new number.
+ *
+ * At a published event with no survey of its own, from its start, the same
+ * press sets one up first (`sendNowSetting`), counted before anything is
+ * written, so a press refused for its number leaves nothing behind. Two
+ * presses at once make one survey (the set up's transaction) and send it
+ * once (the survey's claim).
  */
 export async function sendItNow(
   db: Firestore,
@@ -362,8 +432,22 @@ export async function sendItNow(
 ): Promise<EventPressOutcome> {
   const { event, presserUid, emails, now } = input;
   if (event.status === "cancelled") return refuse(409, SURVEY_AFTER_REFUSAL.cancelled);
-  const found = await eventSurveyOf(db, event.id);
-  if (!found) return refuse(409, SURVEY_AFTER_REFUSAL.noSurvey);
+  let found = await eventSurveyOf(db, event.id);
+  if (!found) {
+    if (event.status !== "published") return refuse(409, SURVEY_AFTER_REFUSAL.notPublished);
+    if (!event.startAt || now.getTime() < event.startAt.getTime()) return refuse(409, SURVEY_AFTER_REFUSAL.notStarted);
+    const until = addLaterUntil(event);
+    if (!until || until.getTime() <= now.getTime()) return refuse(409, EVENT_REFUSAL.tooLate);
+    const before = await sendNowCountBefore(db, event, sendNowSetting(event).setting);
+    if (before.emails !== emails) {
+      return { ok: false, status: 409, error: countChangedWords(before.emails), emails: before.emails };
+    }
+    if (before.emails === 0) return refuse(400, REFUSAL.nobody);
+    const set = await setUpEventSurvey(db, event.id, presserUid, now, { orStandard: true });
+    if (!set.ok) return set;
+    found = set.surveyId ? await reread(db, set.surveyId) : null;
+    if (!found) return refuse(409, SURVEY_AFTER_REFUSAL.noSurvey);
+  }
   if (!found.auto) return refuse(409, SURVEY_AFTER_REFUSAL.adminMade);
   if (firstPressOf(found)) return refuse(409, EVENT_REFUSAL.emailedOnce);
   if (found.closedAt || !found.closesAt || found.closesAt.getTime() <= now.getTime()) return refuse(409, REFUSAL.closesPast);
@@ -374,7 +458,11 @@ export async function sendItNow(
     return { ok: false, status: 409, error: countChangedWords(count.emails), emails: count.emails };
   }
   if (count.emails === 0) return refuse(400, REFUSAL.nobody);
-  return pressFirstEmails(db, { survey, event, presserUid, byJob: false, count, now });
+  const pressed = await pressFirstEmails(db, { survey, event, presserUid, byJob: false, count, now });
+  // This press opened it, as the job does at the event's start when it is
+  // switched on: its QR code is made now, so the Check-in tab can show it.
+  if (pressed.ok && !survey.firstSentAt) await ensureSurveyCode(db, { id: event.id, title: survey.event.title }, presserUid);
+  return pressed;
 }
 
 /** "The number of people it reaches changed: it's 14 now." */

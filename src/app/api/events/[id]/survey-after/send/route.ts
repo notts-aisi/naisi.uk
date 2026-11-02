@@ -25,6 +25,12 @@ type Ctx = RouteContext<"/api/events/[id]/survey-after/send">;
  * events is told the event is not there, and everybody else is refused on
  * the session before anything is read.
  *
+ * At a published event with no survey of its own (its step switched off,
+ * or published before the step existed), from its start, the press sets one
+ * up first, as publishing does, with the standard questions where the step
+ * is off or missing (`sendItNow`), and sends it in the same press. It never
+ * waits on the `event-surveys` job.
+ *
  * Body `{ emails }`: the number on the button. When the people it reaches
  * have changed, nothing is sent and the answer carries the new number.
  * Answered with counts, never an address. A notice, surface `event-survey`
