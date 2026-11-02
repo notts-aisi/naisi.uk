@@ -13,6 +13,9 @@
  *    is seeded, and the moment her coursework counts from is that agreement:
  *    `courseworkCountsFrom` in src/lib/legal/courseworkUse.ts), so it is
  *    writing Claude may be sent. Every word of it is made up.
+ *  - ADA'S WEEK 3 SUBMITTED, after she wrote it, as Submit stores it: a
+ *    note's draft is built only from submitted weeks, so without it the
+ *    draft is refused before anything is sent ("no week of it is submitted").
  *  - A NOTE ABOUT ADA WRITTEN BEFORE THAT AGREEMENT (a day before the seed),
  *    by the harness's admin, from no programme: the profile shows it marked,
  *    and the application screen leaves it out and says so. Written before
@@ -23,8 +26,8 @@
  * who approves Ada, keeps and changes and deletes notes about her on her
  * profile, choosing who reads each one, keeps one for the programme's leads
  * with a suggestion for next term and then keeps it to admins, meets
- * Claude's draft (the calm sentence where Claude is not set up, one press
- * against a deployed target that has a key), and reads the notes beside her
+ * Claude's draft (one press: in local mode the fake Claude's draft, against
+ * a deployed target a draft or a reason), and reads the notes beside her
  * application. Then the Coursework tab's panels, an admin's
  * alone since privacy v15: the admin names the running run on the
  * programme's Settings tab (the fixture never does), reads Claude's best
@@ -68,7 +71,7 @@ export const COURSEWORK_NOTES_STEPS = [
   "the admin adds a note, changes its words and deletes it, and the record agrees each time",
   "the admin keeps a note for the programme's leads with a suggestion for next term, then keeps it to admins, and the record agrees each time",
   "the admin keeps a note for the application screen",
-  "Claude's draft: the calm sentence where Claude is not set up, or one press answered with a draft or a reason",
+  "Claude's draft: one press, answered in local mode with the fake Claude's draft and against a deployed target with a draft or a reason",
   "beside the application only the note written after the agreement shows, with its rule and the count of earlier notes",
   "the admin names the running course run on the programme's Settings tab",
   "under the Coursework tab, Claude's best answers to week 3, an admin's alone, and Pangram's count before any press, with nothing pressed",
@@ -150,6 +153,20 @@ async function seed({ runId, suppress, onState }) {
     firstWrittenAt: new Date(now.getTime() + 1_000),
   });
 
+  // Ada submits week 3 after writing it, as Submit stores it: a note's draft is built from submitted weeks only.
+  const submitted = new Date(now.getTime() + 2_000);
+  await fixtureDoc("courseWeekWork", `${state.runId}__${subject.uid}__${COURSEWORK.weekId}`).set({
+    e2eTermRunId: state.termRunId,
+    runId: state.runId,
+    uid: subject.uid,
+    weekId: COURSEWORK.weekId,
+    weekNumber: COURSEWORK.weekNumber,
+    submittedAt: submitted,
+    firstSubmittedAt: submitted,
+    submitCount: 1,
+    updatedAt: submitted,
+  });
+
   // The note written before she agreed.
   await fixtureDoc("memberNotes", `e2e-cw-earlier-${runId}`).set({
     uid: subject.uid,
@@ -227,6 +244,12 @@ export const SPEC = {
    * Claude's draft came back with a draft, 86 rows existed before teardown,
    * and the fixture manifest read zero after it. Its steps had passed in the
    * pull request's end-to-end job in local mode before that.
+   *
+   * Again on 2 November 2026, in local mode, once the harness's fake Claude
+   * answered there and Ada's week 3 was seeded as submitted (a note's draft
+   * is built only from submitted weeks since end-of-week notes landed): all
+   * ten steps ran, the one press came back with the fake's draft, 39 rows
+   * existed before teardown, and the manifest read zero after it.
    */
   status: "verified",
   seed,

@@ -1125,6 +1125,19 @@ const USERS = new Map([
       "through and a copy of its regular expression would prove nothing; nothing is stubbed",
   ],
   [
+    "claude-base-url.test.mjs",
+    "it executes `claudeBaseUrl` (src/lib/ai/claude.ts), the rule that keeps the site's Claude key on its way " +
+      "to Anthropic or this machine and nowhere else, as a table of addresses honoured and ignored, because " +
+      "a copy of the rule would prove nothing about the shipping one; only `server-only` is stubbed",
+  ],
+  [
+    "e2e-fake-claude.test.mjs",
+    "it executes each caller the end-to-end harness's fake Claude answers (its real ask, prompt, schema and " +
+      "checker) through the real door in src/lib/ai/claude.ts and the real SDK against the fake on loopback, " +
+      "because a canned answer the caller's checker drops would otherwise surface only in a browser run; " +
+      "only `server-only` is stubbed",
+  ],
+  [
     "clock-times-printed.test.mjs",
     "it executes `clockWords` and `slotRangeWords` (src/lib/courses/sessionChange/words.ts), the house's " +
       "clock every printed time of day goes through, as a table of stored times and what each prints, " +

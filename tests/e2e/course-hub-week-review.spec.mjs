@@ -13,16 +13,17 @@
  *    session has started, week 3 among them, and none beside week 4;
  *  - the review says what would be sent before any press (one written answer
  *    and one reflection, two not included yet), and in local mode, where the
- *    site has no key, the calm sentence that Claude is not set up and no
- *    press; Pangram says who it would check, and nothing is pressed;
+ *    server's Claude is the harness's fake (scripts/e2e/lib/fakeClaude.mjs),
+ *    offers Review with Claude without pressing it; Pangram says who it would
+ *    check, and nothing is pressed;
  *  - who might need a hand, from the site's own records: Ben has not started
  *    week 3 though his group has met, with where that came from;
  *  - the admin asks Fern to have a word with Ben, which makes one task on
  *    Fern's board with fixed words and no reason;
  *  - the week's Notes, beside its review, say who submitted and show the
- *    draft of a note about Ada the fixture seeded (the local server has no
- *    key, so nothing is drafted here), built only from her submitted week,
- *    with its boxes for next term unticked;
+ *    draft of a note about Ada the fixture seeded (nothing is drafted here),
+ *    built only from her submitted week, with its boxes for next term
+ *    unticked, and in local mode the fake Claude asked nothing all along;
  *  - the admin edits it and saves it to Ada's notes: one note, drafted by
  *    Claude and in the admin's words, and the draft gone;
  *  - Fern, signed in, finds it on My Work.
@@ -55,6 +56,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { assertTarget, hasAdminCredentials, loadSecrets } from "../../scripts/e2e/lib/env.mjs";
 import { readUserDoc } from "../../scripts/e2e/lib/firestore.mjs";
+import { fakeClaudeRequests } from "../../scripts/e2e/lib/fakeClaude.mjs";
 import {
   approvePendingApplicant,
   createStepRecorder,
@@ -227,6 +229,9 @@ test(
       return body;
     }
 
+    /** In local mode, how many requests the fake Claude had answered before this spec began. */
+    const askedBefore = deployed ? null : (await fakeClaudeRequests()).length;
+
     /** Every request the review page sends to Claude's or Pangram's press, counted. */
     const pressed = [];
     adminPage.on("request", (request) => {
@@ -292,7 +297,7 @@ test(
         assert.equal(await weeks.locator('a[href$="/weeks/w04/review"]').count(), 0, "a week not yet met offers its review");
       });
 
-      await step("the review says what would be sent before any press, and with no key that Claude is not set up, with nothing pressed", async () => {
+      await step("the review says what would be sent before any press, and offers Review with Claude, with nothing pressed", async () => {
         activePage = adminPage;
         const pangramRead = responseTo(adminPage, `/programmes/${state.programmeId}/coursework/pangram`, "GET");
         await adminPage.locator('a[href$="/weeks/w03/review"]').click();
@@ -304,8 +309,9 @@ test(
         assert.ok(said.includes(WORDS.notIncluded), "the review does not say what is not included yet");
         assert.ok(said.includes(WORDS.gradesLine), "the review does not say what grades are for");
         if (!deployed) {
-          assert.ok(said.includes(WORDS.claudeNotSetUp), "with no key, the review does not say Claude is not set up");
-          assert.equal(await main.getByRole("button", { name: WORDS.press }).count(), 0, "a press with no key behind it");
+          // Claude is the fake here: the press is offered, and nothing says it is not set up.
+          assert.equal(await main.getByRole("button", { name: WORDS.press }).count(), 1, "the review does not offer its press where Claude is set up");
+          assert.ok(!said.includes(WORDS.claudeNotSetUp), "the review says Claude is not set up where the fake is");
         }
         // Pangram says who it would check before any press.
         assert.equal((await pangramRead).status(), 200, "reading Pangram's count was refused");
@@ -356,7 +362,7 @@ test(
         const said = await wordsIn(main);
         // Ada submitted week 3, and the seeded draft is hers; Ben, in the same group, did not submit.
         assert.match(said, /\b\d+ people · 1 draft · [1-9]\d* submitted nothing this week, so there’s no note for them · 0 saved\b/, `the counts: ${said}`);
-        if (!deployed) assert.ok(said.includes(WORDS.claudeNotSetUp), "with no key, the notes do not say Claude is not set up");
+        if (!deployed) assert.ok(!said.includes(WORDS.claudeNotSetUp), "the notes say Claude is not set up where the fake is");
         const card = main.locator("article").filter({ hasText: ada.displayName }).first();
         await card.waitFor({ timeout: WAIT_MS });
         const onCard = await wordsIn(card);
@@ -369,6 +375,7 @@ test(
         const suggest = card.getByRole("group", { name: WORDS.suggestTitle });
         assert.equal(await suggest.getByRole("checkbox", { checked: true }).count(), 0, "a suggestion is ticked before anybody ticked it");
         assert.deepEqual(pressed, [], "opening the notes pressed something");
+        if (!deployed) assert.equal((await fakeClaudeRequests()).length, askedBefore, "drawing the review or the notes sent something to Claude");
       });
 
       await step("the admin saves the draft to the person's notes, in the admin's words, and the card says who saved it", async () => {

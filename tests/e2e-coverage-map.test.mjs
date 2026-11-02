@@ -2124,9 +2124,10 @@ const NOT_COVERED = {
       "When the end-to-end fixtures seed a run whose last session is over, with a group's facilitator signed in.",
   },
   // The week review (privacy v15): its page and its follow-up are driven by
-  // the course-hub-week-review spec; the press that sends to Claude is not,
-  // because the harness's own server has no key and a deployed one costs
-  // money for every run.
+  // the course-hub-week-review spec; the press that sends to Claude is not
+  // yet. In local mode it now reaches the harness's fake Claude, whose canned
+  // answers for the three asks are ready (scripts/e2e/lib/fakeClaude.mjs); a
+  // deployed target's real one costs money for every run.
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review": {
     reason:
       "Course hub: Review with Claude; every caller, a view-as session, no key, a page that saw something else, nothing to send and a part that fails are executed by tests/week-review.test.mjs with Claude stubbed, reading every message that would go. The browser spec reads the page and never presses it.",
@@ -2152,9 +2153,10 @@ const NOT_COVERED = {
   },
   // The end-of-week notes (privacy v15): the course-hub-week-review spec opens
   // a week's Notes and saves a draft its fixture seeds; drafting sends to
-  // Claude, which the harness's own server cannot (it has no key), and the
-  // harness signs in no lead who is not an admin, so the lead's side is the
-  // persona battery's and tests/week-notes.test.mjs's.
+  // Claude, which no spec presses yet (in local mode it now reaches the
+  // harness's fake Claude, whose canned note is ready), and the harness signs
+  // in no lead who is not an admin, so the lead's side is the persona
+  // battery's and tests/week-notes.test.mjs's.
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/draft": {
     reason:
       "Course hub: Claude drafts one person's end-of-week note; every caller, a view-as session, no key, not every group met, no submission, nothing that may go, a label slip, a second press and Draft again are executed by tests/week-notes.test.mjs with Claude stubbed, reading every message that would go.",
