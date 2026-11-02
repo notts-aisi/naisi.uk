@@ -1225,30 +1225,6 @@ const NOT_COVERED = {
     coverWhen:
       "When a browser spec signs in as a programme's lead on the Weeks tab, holds a week online and a member of a group opens its join link on the programme page.",
   },
-  "/api/courses/runs/[runId]/feedback": {
-    reason:
-      "Course hub: feedback as a signed comment on somebody's submitted or locked week, saved, changed and deleted, emailing nobody; every caller, the reading gate, the week a piece may be on and a piece's email state are executed by tests/course-feedback.test.mjs.",
-    coverWhen:
-      "When the work-loop spec (course-hub-work-loop) is written: a facilitator saves feedback on a submitted answer and the member reads it on their week page.",
-  },
-  "/api/courses/runs/[runId]/feedback/send": {
-    reason:
-      "Course hub: an admin's batch of \"you have feedback\" emails from the programme's Overview, one per person; the test first, the count on the button, the claim on each piece and two presses sending once are executed by tests/course-feedback.test.mjs.",
-    coverWhen:
-      "When the work-loop spec (course-hub-work-loop) is written: an admin tests and sends the batch, and Mailpit holds one email per person.",
-  },
-  "/api/courses/runs/[runId]/feedback/send/test": {
-    reason:
-      "Course hub: \"Send a test to me\" beside the feedback emails, to the presser's own address and nobody else; executed by tests/course-feedback.test.mjs.",
-    coverWhen:
-      "When the work-loop spec (course-hub-work-loop) is written: an admin sends the test before the batch and Mailpit holds it.",
-  },
-  "/api/courses/runs/[runId]/work-ratings": {
-    reason:
-      "Course hub: an admin's or the programme's lead's rating for the team of somebody's written answer, from 1 to 10 with a comment, saved, changed and cleared, emailing nobody; every caller, the reading gate, one rating per rater and both deletions are executed by tests/course-work-ratings.test.mjs.",
-    coverWhen:
-      "When the work-loop spec (course-hub-work-loop) is written: the lead rates a submitted answer on its review page, an admin reads it under What the team said, and the member's week page shows none of it.",
-  },
   "/api/courses/templates/[templateId]": {
     reason:
       "Courses: /api/courses/templates/[templateId] is staff-facing, taken deliberately, and answered on the screen that called it.",
@@ -2024,19 +2000,6 @@ const NOT_COVERED = {
       "Learn hub: /(app)/learn/[runId]/progress is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
     coverWhen:
       "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
-  },
-  "/(app)/learn/[runId]/group/[groupId]/written": {
-    reason:
-      "Course hub: a group's written answers one at a time, for its facilitators and admins, with Your feedback beside each, the lines the week's session reports have about the person (every report's for an admin or the programme's lead, a facilitator's own report's for that facilitator) and, for an admin or the lead alone, the ratings for the team; drawn as each kind of caller in tests/course-hub-written-answers.test.mjs, tests/course-feedback.test.mjs, tests/course-work-ratings.test.mjs and tests/course-report-beside-work.test.mjs.",
-    coverWhen:
-      "When the work-loop spec (course-hub-work-loop) is written: a facilitator opens a submitted answer, saves feedback, " +
-        "and the member reads it on their week page.",
-  },
-  "/(app)/learn/[runId]/weeks/[n]/feedback": {
-    reason:
-      "Course hub: the old feedback page, where the emails sent before feedback became a signed comment link; it reads nothing and sends its reader to the week's page at its Feedback, held in tests/course-feedback.test.mjs.",
-    coverWhen:
-      "When the work-loop spec (course-hub-work-loop) is written: it opens an old feedback link and lands on the week's Feedback.",
   },
   "/(app)/learn/draw/[groupId]": {
     reason:

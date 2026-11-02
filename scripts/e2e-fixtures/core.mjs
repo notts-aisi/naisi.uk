@@ -417,6 +417,16 @@ export const FIXTURE_COLLECTIONS = [
   // session (`runId` on every one). Written by the session report route a
   // spec drives, and by nothing a fixture seeds.
   "courseSessionReports",
+  // Feedback on somebody's week (privacy v15), one row a piece, and the
+  // records of the "you have feedback" emails' test and batch (and a press's
+  // hold on the run while it sends), each with `runId` on it. Written by the
+  // feedback routes a spec drives, and by nothing a fixture seeds.
+  "courseFeedback",
+  "courseFeedbackSends",
+  // A rating for the team of somebody's written answer (privacy v15), one
+  // row a rater and answer, with `runId` on it. Written by the ratings route
+  // a spec drives, and by nothing a fixture seeds.
+  "courseWorkRatings",
   // What Claude picked from a week and what Pangram read in a person's
   // answers (privacy v13), each with `runId` on it. Written by the best
   // answers and Pangram routes a spec presses, and by nothing a fixture seeds.
