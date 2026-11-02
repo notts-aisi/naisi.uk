@@ -7,7 +7,7 @@ import type { CopySource } from "@/lib/courses/weeksTab/copy";
 import styles from "./weeks.module.css";
 
 /**
- * "Copy its weeks", one button a run (board pr-weeks, "Copy weeks from the
+ * "Copy its weeks", one button a run ("Copy weeks from the
  * course"): sends the copy route (`POST .../runs/[runId]/clone-weeks`) the run
  * to copy from, never asking it to overwrite, so the weeks this run has stay
  * as they are. The route decides who may and answers with its counts, which

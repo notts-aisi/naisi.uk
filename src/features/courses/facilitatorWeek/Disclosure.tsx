@@ -4,7 +4,7 @@ import { useId, useState, type ReactNode } from "react";
 import styles from "@/features/courses/facilitator/facilitator.module.css";
 
 /**
- * A real button that shows and hides what is under it (Q31: names by a tap or
+ * A real button that shows and hides what is under it (names by a tap or
  * a click, never by hovering): keyboard reachable, 44px, its state said to a
  * screen reader (`aria-expanded`), and what it opens named by `aria-controls`.
  * Its name for a screen reader starts with the words it shows, so a person

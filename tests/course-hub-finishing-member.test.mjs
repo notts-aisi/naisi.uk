@@ -1,5 +1,5 @@
 /**
- * "Course complete" no more (C43): what a member's own pages say once a
+ * "Course complete" no more: what a member's own pages say once a
  * programme is over, for every kind of member, and that each one asks the
  * finished record.
  *
@@ -50,7 +50,7 @@ const { world, reset, ask, member, lib } = made;
 
 const COURSE_TITLE = "AGI Strategy Fellowship";
 /**
- * Boards en-after-phone and en-after-nofinish-phone name the programme, by
+ * The page after the end, whether somebody finished or not, names the programme, by
  * the name it goes by, in the head of the page somebody who took part reads
  * once it is over, and under it the term and their group: with its
  * facilitators for somebody who finished, after the thanks for everybody

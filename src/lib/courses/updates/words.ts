@@ -5,8 +5,7 @@ import type { CourseUpdateEmail, CourseUpdateTo } from "@/lib/firestore/courseUp
  * the route's. No imports beyond a type, so the composer in the browser and
  * the route on the server say the same thing in the same words.
  *
- * The words the boards draw are copied exactly (wk-messages option B,
- * wk-programme, wk-fac-group, st-fac-before-phone), with their apostrophes.
+ * The words the boards draw are copied exactly, with their apostrophes.
  * The words they do not draw (an empty list, a refusal, a held email, a
  * writer whose account is gone, the test's marking) are written in the same
  * voice and listed in the build notes for the boards' designers to confirm.
@@ -107,7 +106,7 @@ export function writeToGroupWords(group: string, people: number): string {
 }
 
 /**
- * The line under it, from st-fac-before-phone, and while somebody placed in
+ * The line under it, from the facilitator's before-the-first-session Home, and while somebody placed in
  * the group has not been told it yet, who they are to it.
  */
 export function writeToGroupLine(emails: number, notYetTold = 0): string {

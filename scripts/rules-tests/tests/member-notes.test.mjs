@@ -1,10 +1,12 @@
 /**
- * Rules tests for `memberNotes`, the notes admins keep about a person
- * (privacy v13). Shut to every browser, the person a note is about, the
- * programme's lead and admins included: the notes routes
- * (/api/admin/members/[uid]/notes) are the only readers and writers, on the
- * Admin SDK after their own gate, and the person must never read a note
- * about themselves from their own browser.
+ * Rules tests for `memberNotes`, the notes the team keeps about a person
+ * (privacy v13 and v15). Shut to every browser, the person a note is about,
+ * the programme's lead and admins included: the notes routes
+ * (/api/admin/members/[uid]/notes for admins, and the programme's own
+ * .../programmes/[programmeId]/people/[uid]/notes for its lead) are the only
+ * readers and writers, on the Admin SDK after their own gate. The person must
+ * never read a note about themselves from their own browser, and a lead must
+ * never read a note kept to admins.
  */
 import assert from "node:assert/strict";
 import { after, afterEach, before, describe, it } from "node:test";

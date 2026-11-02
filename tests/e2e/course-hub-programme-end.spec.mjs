@@ -131,7 +131,7 @@ const AT_LEAST = 4;
 const dayOfInstant = (at) => dayLabel(londonDateKey(at));
 
 /**
- * The last week on Home (board wk-lastweek-phone): the ticket's eyebrow
+ * The last week on Home: the ticket's eyebrow
  * (`sessionEyebrow` in src/lib/courses/memberPageWords.ts, "Tonight" from
  * 5pm), the card after the survey (`afterLastSessionHeading`,
  * `CERTIFICATE_LINE`), and the top card a survey would have had
@@ -325,8 +325,7 @@ function issuedWords(at, { year }) {
 
 /**
  * The programme page once it is over (src/lib/courses/finishing/words.ts and
- * src/lib/courses/memberPageWords.ts; boards en-after-phone and
- * en-after-nofinish-phone).
+ * src/lib/courses/memberPageWords.ts).
  */
 const AFTER = Object.freeze({
   finished: (name) => `You finished ${name}.`,
@@ -596,7 +595,13 @@ test(
       );
     /** Everybody taking part to the end: the people who did not leave. */
     const stayed = over.people.filter((person) => !plan.left?.[person.key]);
-    /** The section's rows, fewest sessions first, then by whole name (`buildWhoFinished`). */
+    /**
+     * The section's rows, fewest sessions first, then by the name shown
+     * (`buildWhoFinished`): the lead's tabs, read here by the admin, name
+     * people by the names rule (`nameForViewer`), so each by the full name,
+     * the fixture's display name. A certificate prints the account's display
+     * name by its own rule (`certificateNameOf`).
+     */
     const listed = [...stayed].sort(
       (a, b) => cameOf(a) - cameOf(b) || a.displayName.localeCompare(b.displayName, "en-GB") || a.uid.localeCompare(b.uid),
     );
@@ -1131,7 +1136,10 @@ test(
         );
         // "Changed by you" beside the switch the lead turned, and nowhere else.
         for (const person of listed) {
-          const row = section.locator("tbody tr").filter({ hasText: person.displayName });
+          // The row with this person's switch: its name is "Finished: " and their whole name as the admin is shown it.
+          const row = section
+            .locator("tbody tr")
+            .filter({ has: adminPage.getByRole("switch", { name: FINISHING.switchName(person.displayName), exact: true }) });
           assert.equal(
             await row.getByText(FINISHING.changedByYou, { exact: true }).count(),
             person === ticked && finished.includes(ticked) ? 1 : 0,

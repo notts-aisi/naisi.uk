@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { canApproveEvent } from "@/lib/firestore/users";
 import { sanitizeBlocks } from "@/lib/firestore/newsletterBlocks";
@@ -20,6 +21,8 @@ import {
 } from "@/lib/firestore/events";
 import { formatEventWhen, type EventChange } from "@/lib/events/changeSummary";
 import { hiddenLocationLacksLabel } from "@/lib/events/location";
+import { liveVisibilityChange } from "@/lib/events/reach";
+import { foodHealthOrAccessQuestions } from "@/lib/events/requestWords";
 
 /**
  * Server-side edit of an event. Firestore rules block client writes once an
@@ -60,6 +63,9 @@ export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  const blocked = await assertNotImpersonating();
+  if (blocked) return blocked;
+
   const { id } = await ctx.params;
 
   const actor = await getCurrentUser();
@@ -120,7 +126,15 @@ export async function POST(
       { status: 400 },
     );
   }
-  const visibility = body.visibility === "members" ? "members" : "public";
+  // Who it is for, read by the one helper. A live event stays on its side of
+  // the line between listed and for chosen people: the two were told about in
+  // different ways when it was published (src/lib/events/reach.ts). A value
+  // that is none of the three is refused, never read as one of them.
+  const audience = liveVisibilityChange(old.visibility, body.visibility);
+  if (!audience.ok) {
+    return NextResponse.json({ error: audience.error }, { status: 400 });
+  }
+  const visibility = audience.visibility;
 
   const capacityRaw = body.capacity;
   const capacity =
@@ -131,6 +145,10 @@ export async function POST(
   // Strictly `true`, so a client that predates the switch and sends nothing
   // cannot turn sign-ups off on a published event by omission.
   const noSignup = body.noSignup === true;
+  // The same for letting people check themselves in: off unless the editor
+  // says a strict true, so an older client that sends nothing turns it off,
+  // which is where every event starts.
+  const selfCheckIn = body.selfCheckIn === true;
 
   const foodText = typeof body.foodText === "string" ? body.foodText.trim() : "";
   const dietaryTags = Array.isArray(body.dietaryTags)
@@ -154,6 +172,23 @@ export async function POST(
     return NextResponse.json({ error: limitProblem.error }, { status: 400 });
   }
 
+  // WHAT THE ANSWERS WERE GIVEN TO. A question's id is what its answers are
+  // stored under, and whether an organiser the Students' Union does not
+  // recognise is shown an answer is read from the question's type and words.
+  // So both the form this save replaces and the form it saves add their
+  // dietary and accessibility questions to a list that only grows
+  // (src/lib/firestore/events.ts, foodHealthAccessQuestionIds). Nothing reads
+  // it today: the requests route sends such an organiser no answer at all.
+  // It is kept so that showing them answers again hides an answer whose
+  // question is on it, whatever the question says now (`answerLines`'
+  // `heldBackBefore`).
+  const heldBack = [
+    ...new Set([
+      ...foodHealthOrAccessQuestions(sanitizeSignupForm(old.signupForm)),
+      ...foodHealthOrAccessQuestions(signupForm),
+    ]),
+  ];
+
   const patch: Record<string, unknown> = {
     updatedAt: FieldValue.serverTimestamp(),
     title,
@@ -168,6 +203,7 @@ export async function POST(
     capacity,
     waitlistEnabled,
     noSignup,
+    selfCheckIn,
     signupForm,
     foodText: foodText ? foodText : FieldValue.delete(),
     dietaryTags,
@@ -182,6 +218,7 @@ export async function POST(
     coverLogoBackdrop: asCoverLogoBackdrop(body.coverLogoBackdrop),
     coverLogoShadow: asCoverLogoShadow(body.coverLogoShadow),
   };
+  if (heldBack.length > 0) patch.foodHealthAccessQuestionIds = FieldValue.arrayUnion(...heldBack);
 
   // Build a human-readable diff of the changes confirmed attendees would want
   // an email about. The notify-worthy set is exactly date/time, location, and

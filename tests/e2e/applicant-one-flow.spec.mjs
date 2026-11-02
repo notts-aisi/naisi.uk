@@ -110,6 +110,7 @@ const MAIL_WAIT_MS = 30_000;
 
 /** What the visitor types. Each is asserted again after the trip to the inbox. */
 const TYPED = {
+  fullName: "E2E One Flow Person",
   name: "E2E one flow",
   degree: "BSc Mathematics",
   status: "undergraduate",
@@ -249,7 +250,8 @@ test(
             })
             .waitFor({ timeout: WAIT_MS });
           for (const label of [
-            "Preferred name",
+            "Full name",
+            "What should we call you?",
             "University email",
             "What do you do at UoN?",
             "Why are you interested in AI safety?",
@@ -294,6 +296,7 @@ test(
             .getByText("A few things to finish before you continue.")
             .waitFor({ timeout: WAIT_MS });
           for (const sentence of [
+            "Tell us your full name.",
             "Tell us what to call you.",
             "Add your university email.",
             "Tell us what you do at UoN.",
@@ -312,7 +315,8 @@ test(
           // answer in it until there is a session. The gate that proves the
           // mail is caught stands before the press that makes the server
           // address the university address, four steps on.
-          await page.getByLabel("Preferred name").fill(TYPED.name);
+          await page.getByLabel("Full name").fill(TYPED.fullName);
+          await page.getByLabel("What should we call you?").fill(TYPED.name);
           await page.getByLabel("University email").fill(state.uniEmail);
           await page.getByLabel("What do you do at UoN?").selectOption(TYPED.status);
           await page.getByLabel("Degree").fill(TYPED.degree);
@@ -444,7 +448,8 @@ test(
             // so nothing is asked a second time here either. The boxes are
             // filled once the page is listening, so each is waited for.
             await inbox.getByRole("heading", { name: "About you" }).waitFor({ timeout: WAIT_MS });
-            await holds(inbox.getByLabel("Preferred name"), TYPED.name, "the name");
+            await holds(inbox.getByLabel("Full name"), TYPED.fullName, "the full name");
+            await holds(inbox.getByLabel("What should we call you?"), TYPED.name, "the name");
             await holds(inbox.getByLabel("University email"), state.uniEmail, "the university address");
             await holds(inbox.getByLabel("What do you do at UoN?"), TYPED.status, "the status");
             await holds(inbox.getByLabel("Degree"), TYPED.degree, "the degree");
@@ -487,7 +492,8 @@ test(
 
           // EVERYTHING TYPED IS STILL HERE. This is the assertion the journey
           // is for: nothing is asked a second time.
-          assert.equal(await page.getByLabel("Preferred name").inputValue(), TYPED.name);
+          assert.equal(await page.getByLabel("Full name").inputValue(), TYPED.fullName);
+          assert.equal(await page.getByLabel("What should we call you?").inputValue(), TYPED.name);
           assert.equal(await page.getByLabel("University email").inputValue(), state.uniEmail);
           assert.equal(await page.getByLabel("What do you do at UoN?").inputValue(), TYPED.status);
           assert.equal(await page.getByLabel("Degree").inputValue(), TYPED.degree);
@@ -542,6 +548,7 @@ test(
               "request behind it",
           );
           assert.equal(doc.role, "pending", "a join request came out at a role other than pending");
+          assert.equal(doc.profile?.fullName, TYPED.fullName);
           assert.equal(doc.profile?.preferredName, TYPED.name);
           assert.equal(doc.profile?.universityEmail, state.uniEmail);
           assert.equal(doc.profile?.subject, TYPED.degree);
@@ -565,6 +572,7 @@ test(
           ).get();
           assert.ok(application.exists, "the join request did not start an application");
           assert.equal(application.get("status"), "draft");
+          assert.equal(application.get("draft.aboutYou.fullName"), TYPED.fullName);
           assert.equal(application.get("draft.aboutYou.preferredName"), TYPED.name);
           assert.equal(application.get("draft.aboutYou.universityEmail"), state.uniEmail);
           assert.equal(application.get("draft.aboutYou.universityEmailVerified"), false);
@@ -683,6 +691,7 @@ test(
           ).get();
           assert.equal(application.get("status"), "submitted");
           assert.deepEqual(application.get("sent.rankedProgrammeIds"), [state.programmeId]);
+          assert.equal(application.get("sent.aboutYou.fullName"), TYPED.fullName);
           assert.equal(application.get("sent.aboutYou.preferredName"), TYPED.name);
           assert.equal(
             application.get("sent.aboutYou.universityEmailVerified"),

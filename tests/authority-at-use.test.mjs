@@ -287,9 +287,23 @@ const RAW_SITES = {
     role: "not-a-gate",
     matches: { authorUid: 1 },
     why:
-      "Not a gate. The one comparison decides whether an edit records `editedByUid` (an admin changing " +
-      "another admin's note). Who may read or write a note is `gateNotes`, the admin role on the session, " +
-      "decided before anything is read; the author's uid grants nothing.",
+      "Not a gate. The one comparison decides whether an edit records `editedByUid` (somebody changing " +
+      "another person's note). Who may read or write a note is `gateNotes` (the admin role on the session) or " +
+      "the programme's door in `programme.ts`, each decided before anything is read; the author's uid grants nothing.",
+  },
+  "src/lib/memberNotes/programme.ts": {
+    role: "not-a-gate",
+    matches: { authorUid: 1 },
+    provedBy: [
+      'if (outcome.status === "none") return refuse(404, NOTES_WORDS.noProgramme);',
+      'if (outcome.status === "not-yours") return refuse(403, NOTES_WORDS.notTheirs);',
+    ],
+    why:
+      "`memberNotes.authorUid` is a note's writer, an ownership scalar and not an appointment, caught because " +
+      "worksheets and events name their author the same way. The comparison only narrows a programme's lead to " +
+      "the notes they added (`wroteIt`): who may change a note at all is the programme's door above it, " +
+      "`loadProgrammeRun`, which asks `roleOnProgramme` and so the lead's standing on every request, so a lead " +
+      "who no longer stands changes nothing, their own notes included.",
   },
   "src/app/(app)/events/manage/page.tsx": {
     role: "client",
@@ -387,6 +401,19 @@ const RAW_SITES = {
       "on the two loops that add the `reviewer` and `lead` roles, and, for the groups that name " +
       "the caller as a facilitator (a facilitator who holds a place has a learner's row), " +
       "before any of them adds the `facilitator` role.",
+  },
+  "src/lib/messages/writers.ts": {
+    role: "not-a-gate",
+    matches: { facilitatorUids: 1 },
+    provedBy: ["return (await messageWriterOf(db, user, now)) !== null;"],
+    // The control runs after the query, as on the course hub: the query only
+    // finds whether any group names the caller, and decides nothing.
+    controlAfter: true,
+    why:
+      "One `array-contains` query scoped to the caller's own uid, asked only to spare a member who " +
+      "facilitates nothing the term's reads when the menu asks whether to draw Messages. A group " +
+      "naming the caller grants nothing here: the answer is `messageWriterOf`'s, which reads the " +
+      "term and holds every facilitator to their bar with `isNamedWithStanding`.",
   },
   "src/app/api/members/roster/route.ts": {
     role: "not-a-gate",
@@ -1039,6 +1066,31 @@ describe("named cases where being on the document is not enough", () => {
       true,
       "admins stay resource-independent",
     );
+  });
+
+  test("an event's collaborator decides its requests while their account stands; an author decides while they hold draftEvent", async () => {
+    // Approve and Turn down read `events.collaboratorUids` as well as the
+    // author now (src/lib/events/signupAccess.ts), through the helper, so the
+    // standing floor is asked at use. The collaborator bar is the widened one
+    // the broadcast route settled: a collaborator demoted to member keeps the
+    // event they help run, a rejected account keeps nothing.
+    const { decidesSignups, signupAccessFor } = await loadTs(join("lib", "events", "signupAccess.ts"));
+    const event = { authorUid: "someone-else", collaboratorUids: ["u1"] };
+    for (const persona of ["member", "committeeNonSu", "committeeSu"]) {
+      assert.equal(decidesSignups(PERSONAS[persona], event), true, `${persona} named as a collaborator`);
+      assert.equal(signupAccessFor(PERSONAS[persona], event).requests, true, `${persona} named as a collaborator`);
+    }
+    for (const persona of ["pending", "rejected"]) {
+      assert.equal(decidesSignups(PERSONAS[persona], event), false, `${persona} must not decide a request it is only named on`);
+      assert.equal(signupAccessFor(PERSONAS[persona], event).requests, false, `${persona} must not see the requests`);
+    }
+    const authored = { authorUid: "u1", collaboratorUids: [] };
+    const withDraft = session({ role: "member", permissions: { ...session().permissions, draftEvent: true } });
+    assert.equal(decidesSignups(withDraft, authored), true);
+    assert.equal(decidesSignups(PERSONAS.member, authored), false, "an author who no longer holds draftEvent decides nothing");
+    assert.equal(signupAccessFor(PERSONAS.member, authored).requests, true, "and still sees the requests of the event their name is on");
+    assert.equal(decidesSignups(session({ ...withDraft, role: "rejected" }), authored), false);
+    assert.equal(decidesSignups(PERSONAS.committeeSu, { authorUid: "x", collaboratorUids: [] }), false, "SU recognition decides nothing it does not organise");
   });
 
   test("an ex-committee worksheet author cannot delete the document", () => {

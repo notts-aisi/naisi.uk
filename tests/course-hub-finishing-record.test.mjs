@@ -1,5 +1,5 @@
 /**
- * Who finished, the record itself (board en-finish, Q8): its words, the two
+ * Who finished, the record itself: its words, the two
  * bodies its routes take, the run's end, the suggestion at the rule's edges,
  * each person's record, and the exercises beside it.
  *

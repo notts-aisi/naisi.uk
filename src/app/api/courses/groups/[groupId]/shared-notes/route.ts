@@ -13,7 +13,7 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 
 /**
- * A NOTE SHARED WITH A GROUP (C29, board wk-week-phone's "Notes shared with
+ * A NOTE SHARED WITH A GROUP (the week page's "Notes shared with
  * your group"): somebody in the group, or one of its facilitators, adds a
  * note on a week's page, and the group, its facilitators, the programme's
  * lead and admins read it.

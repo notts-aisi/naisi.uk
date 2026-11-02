@@ -1,5 +1,5 @@
 /**
- * "I can’t make it" once somebody is in a group (Q12's other half), and what
+ * "I can’t make it" once somebody is in a group (where it means leaving), and what
  * their application page says then, as every kind of caller.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).

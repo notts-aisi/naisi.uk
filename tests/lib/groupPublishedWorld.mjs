@@ -312,7 +312,6 @@ export async function makeGroupWorld(key = "__groupPublished") {
     syncTasks: await courseRoute("runs", "[runId]", "sync-tasks"),
     enrol: await courseRoute("runs", "[runId]", "enrol"),
     review: await courseRoute("exercise-responses", "[responseId]", "review"),
-    nudge: await courseRoute("runs", "[runId]", "nudge"),
   };
   const runAccess = await loadTs(join("features", "courses", "runAccess.ts"));
   const audience = await loadTs(join("lib", "email", "courseFacilitatorEmails.ts"));

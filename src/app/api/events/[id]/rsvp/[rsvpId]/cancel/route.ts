@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
+import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { normalizeEvent } from "@/lib/firestore/events";
 import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
+import { hasStarted } from "@/features/events/eventWhen";
 import { sendRsvpEmail } from "@/lib/events/sendRsvpEmail";
 import { verifyRsvpToken } from "@/lib/events/rsvpToken";
 
@@ -13,12 +16,28 @@ import { verifyRsvpToken } from "@/lib/events/rsvpToken";
  * same transaction so the denormalized counters stay consistent.
  *
  * Gated to: the RSVP's own uid (for logged-in members), event approvers,
- * and admins. Public (anonymous) cancellation via signed tokens is deferred.
+ * admins, the event's author while they hold draftEvent, and the person
+ * holding the signed link from their own confirmation email. Every refusal
+ * is one 404, decided before anything about the sign-up is said, and the
+ * answer names nobody else.
+ *
+ * From the event's start (`hasStarted`, the instant the event page stops
+ * offering "Can't make it") a sign-up is still cancelled and the counts still
+ * move, but nobody is moved up from the waiting list and no email goes to
+ * anybody: a place at an event under way or over is no use to the next
+ * person, and an email about one is noise.
+ *
+ * The event page's "Can't make it" comes here too, as the RSVP's own uid.
+ * Refused outright during a view-as session: giving a member's place back
+ * would be recorded as the member doing it.
  */
 export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string; rsvpId: string }> },
 ) {
+  const blocked = await assertNotImpersonating();
+  if (blocked) return blocked;
+
   const { id: eventId, rsvpId } = await ctx.params;
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
@@ -52,15 +71,14 @@ export async function POST(
     const outcome = await db.runTransaction(async (tx) => {
       const rsvpSnap = await tx.get(rsvpRef);
       const eventSnap = await tx.get(eventRef);
-      if (!rsvpSnap.exists) throw new CancelError("RSVP not found.", 404);
-      if (!eventSnap.exists) throw new CancelError("Event not found.", 404);
+      const rsvp = rsvpSnap.exists ? (rsvpSnap.data() ?? {}) : null;
+      const event = eventSnap.exists ? (eventSnap.data() ?? {}) : null;
 
-      const rsvp = rsvpSnap.data() ?? {};
-      const event = eventSnap.data() ?? {};
-
-      if (rsvp.eventId !== eventId) {
-        throw new CancelError("This RSVP doesn't belong to that event.", 400);
-      }
+      // THE RIGHT FIRST, AND ONE REFUSAL. A sign-up that is not there, one
+      // for another event, and one the caller may not give back all get the
+      // same answer, so nobody without the link or the account learns
+      // whether a sign-up exists.
+      if (!rsvp || !event || rsvp.eventId !== eventId) throw new CancelError(NOT_YOURS, 404);
 
       const rsvpEmail = typeof rsvp.email === "string" ? rsvp.email : "";
       const tokenValid =
@@ -76,11 +94,11 @@ export async function POST(
       const isOwn =
         !!viewer && typeof rsvp.uid === "string" && rsvp.uid === viewer.uid;
       const isSelfService = tokenValid; // token holder == the RSVP'd person
-      if (!isApprover && !isOwn && !isSelfService) {
-        throw new CancelError("You can't cancel this RSVP.", 403);
-      }
+      if (!isApprover && !isOwn && !isSelfService) throw new CancelError(NOT_YOURS, 404);
 
       const cancelledBySelf = isOwn || isSelfService;
+      // Read at the moment of the give-back, inside the transaction.
+      const started = hasStarted(normalizeEvent(eventId, event).startAt, new Date());
 
       if (rsvp.status === "cancelled" || rsvp.status === "denied") {
         return {
@@ -88,6 +106,7 @@ export async function POST(
           promoted: null,
           cancelledBySelf,
           cancelled: null,
+          started,
           event,
         };
       }
@@ -99,7 +118,8 @@ export async function POST(
       let promoted:
         | { id: string; email: string; name: string; answers: Record<string, unknown> }
         | null = null;
-      if (wasConfirmed && event.waitlistEnabled) {
+      // Nobody is moved up once the event has started.
+      if (wasConfirmed && event.waitlistEnabled && !started) {
         const waitSnap = await tx.get(waitlistQuery);
         if (!waitSnap.empty) {
           const next = waitSnap.docs[0];
@@ -156,6 +176,7 @@ export async function POST(
           priorStatus: rsvp.status as "pending" | "confirmed" | "waitlisted",
           answers: (rsvp.answers ?? {}) as Record<string, unknown>,
         },
+        started,
         event,
       };
     });
@@ -176,15 +197,19 @@ export async function POST(
       foodProvenance: outcome.event.foodProvenance,
       foodProvenanceNote: outcome.event.foodProvenanceNote,
       signupForm: outcome.event.signupForm,
+      // Only a strict true lets the promoted email carry a check-in link.
+      selfCheckIn: outcome.event.selfCheckIn === true,
     };
 
-    // Organiser cancelled someone else — notify the attendee. (Skip if the
-    // attendee cancelled themselves; they initiated it.)
+    // Organiser cancelled someone else: notify the attendee. (Skip if the
+    // attendee cancelled themselves; they initiated it.) Nothing once the
+    // event has started.
     if (
+      !outcome.started &&
       !outcome.cancelledBySelf &&
       outcome.cancelled &&
       outcome.cancelled.email &&
-      // Only inform if they were actually holding a spot — don't spam people
+      // Only inform if they were actually holding a spot; don't spam people
       // whose pending request was simply withdrawn by an organiser.
       (outcome.cancelled.priorStatus === "confirmed" ||
         outcome.cancelled.priorStatus === "waitlisted")
@@ -198,7 +223,8 @@ export async function POST(
       });
     }
 
-    // Auto-promoted waitlister → tell them.
+    // Auto-promoted waitlister → tell them. Nobody is promoted once the
+    // event has started (the transaction above), so nobody is told.
     if (outcome.promoted && outcome.promoted.email) {
       void sendRsvpEmail({
         variant: "promoted",
@@ -210,22 +236,28 @@ export async function POST(
       });
     }
 
+    // Nothing about anybody else: not whether somebody was moved up, nor who.
     return NextResponse.json({
       ok: true,
       status: outcome.status,
-      promoted: outcome.promoted ? { id: outcome.promoted.id } : null,
+      // The pages that call this say what is true once the event has started.
+      started: outcome.started,
     });
   } catch (err) {
     if (err instanceof CancelError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
+    // The detail stays in the log: an error's own words can carry a
+    // collection path, an index address or the project's id, and this route
+    // answers somebody signed out holding a link.
     console.error("[rsvp cancel] transaction failed", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Cancel failed" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: CANCEL_FAILED }, { status: 500 });
   }
 }
+
+/** Every refusal, before and after the right is checked. */
+const NOT_YOURS = "We couldn’t find a sign-up you can cancel here. If it came from an email, open the link in it again.";
+const CANCEL_FAILED = "That didn’t go through. Try again in a moment.";
 
 class CancelError extends Error {
   constructor(message: string, public status: number) {

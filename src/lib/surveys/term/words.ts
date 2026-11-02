@@ -1,5 +1,5 @@
 /**
- * EVERY SENTENCE THIS TERM IN NUMBERS SAYS (board sv-term), with the board's
+ * EVERY SENTENCE THIS TERM IN NUMBERS SAYS, with the board's
  * apostrophes and arrows. Every number in them comes from a record and
  * arrives here as an argument; nothing here names a person.
  *
@@ -11,9 +11,9 @@
 
 export const TERM_WORDS = {
   title: "This term in numbers",
-  /** The way back, and the list's own name. */
-  crumb: "Surveys",
-  /** The link on Run NAISI › Surveys (sv-list). */
+  /** The way back, to Reports, which holds it. */
+  crumb: "Reports",
+  /** Its name on Run NAISI › Reports. */
   link: "This term in numbers",
   download: "Download totals (CSV)",
   checkIns: "Check-ins",
@@ -46,7 +46,7 @@ export const TERM_WORDS = {
   consideringOf: "Considering, planning or already doing it: answered it in both surveys",
   /** Not drawn: an event after check-in was first used, with sign-ups, where nobody was checked in. */
   noCheckIn: "No check-in",
-  /** Not drawn: a survey made for the event and not opened or sent yet. sv-list's word for a draft. */
+  /** Not drawn: a survey made for the event and not opened or sent yet. The Surveys list's word for a draft. */
   notSent: "Not sent yet",
   /** Not drawn: the term has events, and nobody was checked in at any of them. */
   nobodyCheckedIn: "Nobody has been checked in at this term’s events yet, so there is nobody to count.",
@@ -95,9 +95,14 @@ export function unmatchedWords(people: number, cameTwice: number): string {
   return `Walk-ins without an account can’t be matched across events, so the ${people} may count one walk-in twice, and the ${cameTwice} may miss some.`;
 }
 
-/** "No sign-up: checked in by QR and at the door", by the ways the event's people were checked in. */
-export function noSignupWords(byQr: boolean, atTheDoor: boolean): string {
-  const ways = [byQr ? "by QR" : "", atTheDoor ? "at the door" : ""].filter(Boolean);
+/**
+ * "No sign-up: checked in by themselves and at the door", by the ways the
+ * event's people were checked in: by themselves, whichever way they did it
+ * (the door code, their email's link or the check-in page), and at the door
+ * list or added later.
+ */
+export function noSignupWords(themselves: boolean, atTheDoor: boolean): string {
+  const ways = [themselves ? "by themselves" : "", atTheDoor ? "at the door" : ""].filter(Boolean);
   return `No sign-up: checked in ${ways.join(" and ")}`;
 }
 

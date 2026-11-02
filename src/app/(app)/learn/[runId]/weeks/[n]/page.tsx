@@ -36,10 +36,10 @@ import type { PredictionsView } from "@/lib/courses/predictions/wire";
  * reader, below), so reading a week early never opens a card early.
  *
  * Somebody holding a place whom Publish has not told yet reads week 1 alone,
- * once its door is open to them (Q35 B, `beforeGroups`): see below.
+ * once its door is open to them (`beforeGroups`): see below.
  *
- * WEEK 1'S FIRST CARD IS THE BEFORE SURVEY'S while it waits for the reader
- * (Q50 B): this run's before survey, open, sent to them, still theirs and not
+ * WEEK 1'S FIRST CARD IS THE BEFORE SURVEY'S while it waits for the reader:
+ * this run's before survey, open, sent to them, still theirs and not
  * answered, by the same answer Home asks (`beforeSurveyCardFor`). Asked of
  * week 1 alone, and read for the reader alone; nothing in a view-as session.
  *
@@ -80,14 +80,14 @@ export default async function WeekPage({
     );
   }
 
-  // WEEK 1 BEFORE GROUPS GO OUT (Q35 B): somebody holding a place whom
+  // WEEK 1 BEFORE GROUPS GO OUT: somebody holding a place whom
   // Publish has not told, once week 1's door is open to them (`beforeGroups`,
   // asked of `weekOneDoorFor` by the gate). Week 1 and nothing else of the
   // run: every other week sends them to week 1, and there is no group, no
   // session and no group notes. What it draws is the overview's week 1 alone.
   if (!access.canLearn && access.beforeGroups) {
     if (n !== "1") redirect(`/learn/${encodeURIComponent(runId)}/weeks/1`);
-    // st-week1-phone draws "Start here · Glossary" for exactly this reader.
+    // Week 1's page before groups go out shows "Start here · Glossary" for exactly this reader.
     const holderDb = getAdminDb();
     const holderGuide = holderDb ? await guideLinksOf(holderDb, access.run.id).catch(() => null) : null;
     const holderSurvey = await weekOneSurvey(access, 1);
@@ -193,7 +193,7 @@ async function routesFor(access: RunAccess): Promise<CourseRoutes | null> {
 }
 
 /**
- * Week 1's first card (Q50 B): this run's before survey while it waits for
+ * Week 1's first card: this run's before survey while it waits for
  * the reader, or null; null on every other week, and when it cannot be read.
  */
 async function weekOneSurvey(access: RunAccess, weekNumber: number): Promise<SurveyCard | null> {
@@ -209,7 +209,7 @@ async function weekOneSurvey(access: RunAccess, weekNumber: number): Promise<Sur
 }
 
 /**
- * NOTES SHARED WITH THE GROUP (C29), read here on the server for this reader
+ * NOTES SHARED WITH THE GROUP, read here on the server for this reader
  * and handed to the page: a section for the group their place is in and one
  * for each group they facilitate (`sharedNotesForWeekPage`, which asks who
  * they are first). Null on a run whose groups share none, or with no live

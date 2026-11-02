@@ -14,8 +14,8 @@
  * asks the register alone whether a session happened reads a cancelled
  * session as one that did, and chases it, counts it or shows it. The walk of
  * stage three found three: the lead's tabs (fixed in the walk), the
- * facilitators' register and Home's attendance strip (gone since board
- * wk-home-phone, which draws no marks on Home: C26).
+ * facilitators' register and Home's attendance strip (gone since
+ * Home's restyle, which shows no marks on Home).
  *
  * ## How it is held
  *
@@ -142,6 +142,28 @@ const READERS = {
     proof: ["!session.cancelled &&"],
     why: "the task for the lead and admins: a cancelled session is left out before its register is read",
   },
+  "lib/courses/sessionReports/context.ts": {
+    kind: "asks",
+    proof: ["held: !session.cancelled && register.held !== false,"],
+    why:
+      "a facilitator's session report: a session called off has no report (its window is refused before its register " +
+      "is read), and one whose register says it did not happen has none either",
+  },
+  "lib/surveys/checkIns/sessionRead.ts": {
+    kind: "asks",
+    proof: ["held: !session.cancelled && register.held"],
+    why:
+      "the check-in's read of a session's register: a cancelled session reads as not held, so the check-in is " +
+      "never offered or opened for it and nobody marked on it is reached",
+  },
+  "lib/courses/cantMakeIt/seat.ts": {
+    kind: "asks",
+    proof: ["cancelled: session.cancelled, line, now", "notHeld: !register.held,"],
+    why:
+      "Can't make it, pressed on a programme page: a session called off is closed before its register's switch is " +
+      "asked (`cantMakeItState` answers cancelled first), so nobody is offered it or recorded as excused for a session " +
+      "that is not happening, and a register that says its session did not happen closes it too",
+  },
 
   // ── Readers handed an answer one of those built ──────────────────────────
   "app/api/admissions/forms/[roundId]/programmes/[programmeId]/registers/remind/route.ts": {
@@ -155,7 +177,7 @@ const READERS = {
     kind: "told",
     from: ["lib/courses/programmeAttendance.ts"],
     via: ["facts"],
-    proof: ["listGroups(records, viewer, now, weeksOf(records))"],
+    proof: ["listGroups(records, { isAdmin: viewer.isAdmin, role: viewer.actor.role }, now, weeksOf(records))"],
     why:
       "a facilitator's group page and Home: each session's facts as the lead's tabs read them, so a cancelled " +
       "session is said as cancelled and its register is asked for nothing",
@@ -166,6 +188,15 @@ const READERS = {
     via: ["facts"],
     proof: ["listGroups(records, viewer, now, weeksOf(records))"],
     why: "the Overview's sessions this week and Needs attention: each group's session facts, as the lead's tabs read them",
+  },
+  "lib/surveys/leadOverview.ts": {
+    kind: "told",
+    from: ["lib/courses/programmeAttendance.ts"],
+    via: ["facts"],
+    proof: ["groupSessions(records, group, now)"],
+    why:
+      "the Surveys tab's Overview counts the sessions held so far that a report is about from each group's session " +
+      "facts, as the lead's tabs read them, so a cancelled session is never counted as one a report is owed for",
   },
   "features/courses/AttendanceGrid.tsx": {
     kind: "told",
@@ -194,6 +225,13 @@ const READERS = {
     via: ["r"],
     proof: ["RegisterFact"],
     why: "the rollup's arithmetic, handed its facts by the mirror, which says a cancelled session was not held",
+  },
+  "lib/surveys/checkIns/lateMark.ts": {
+    kind: "told",
+    from: ["lib/surveys/checkIns/sessionRead.ts"],
+    via: ["register"],
+    proof: ["readRegisterMarks(db, runId, group.id, session)"],
+    why: "a mark kept after the check-in opened reaches its person only while the check-in's own read says the session was held",
   },
   "lib/courses/unmarkedRegisters.ts": {
     kind: "told",
@@ -311,7 +349,7 @@ describe("a register's held, and a session cancelled through Change a session", 
   });
 
   // Home's attendance strip, the other reader the walk named, is gone: Home
-  // draws no marks since board wk-home-phone (C26), and reads no register.
+  // shows no marks since Home's restyle, and reads no register.
   test("the reader the walk of stage three named, and the one it fixed, ask", () => {
     for (const file of [
       "app/api/courses/groups/[groupId]/attendance/route.ts",

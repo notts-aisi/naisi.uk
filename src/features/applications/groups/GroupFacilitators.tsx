@@ -69,7 +69,7 @@ import { normalizeUser, type UserDoc } from "@/lib/firestore/users";
 import styles from "./GroupFacilitators.module.css";
 
 /**
- * THE FACILITATORS VIEW of a programme's Groups tab (board st-facilitators),
+ * THE FACILITATORS VIEW of a programme's Groups tab,
  * for the programme's lead and admins: each group with who facilitates it and
  * who has been asked, the email the last person asked got, and the people who
  * said on the form they would like to facilitate, each with where they stand

@@ -1,53 +1,150 @@
 import Link from "next/link";
 import type { ResultRow, ResultsView } from "@/lib/surveys/adminView";
 import type { ChangeResult } from "@/lib/surveys/change";
+import { chartGroupsOf, type ChartGroup } from "@/lib/surveys/charts";
 import {
+  CHART_WORDS,
   RESULT_WORDS,
   answeredOfAnswersWords,
   answeredRateWords,
   answersRateWords,
   answersWords,
   averagesWords,
+  barShareWords,
   consentCountWords,
   countsOfWords,
   lineMovedWords,
   movedWords,
+  narrowedAnswersWords,
   numberWords,
+  oneDecimalWords,
   pairedWithWords,
   promoterScoreWords,
+  questionFileWords,
+  seeWhoLabelWords,
+  seeWhoWords,
+  showAllWords,
+  whoseLabelWords,
   type ReachWord,
 } from "@/lib/surveys/words";
+import DownloadChart from "../charts/DownloadChart";
+import SeeWho, { type WhoChoice } from "../charts/SeeWho";
+import charts from "../charts/charts.module.css";
+import bars from "../lead/analysis.module.css";
 import styles from "./surveyAdmin.module.css";
 
 /**
- * A survey's results, for admins: each question's totals, made on the
- * server, and any comments, never with a name. Beside every number, how many
- * answered and what share of the people it was sent to that is. For a survey
- * that pairs with an earlier one, how each shared question changed for the
- * people who answered both times, and the look-back beside it. Every bar is
- * the same quiet colour: what people believe is reported, never cheered or
- * marked as good or bad. Results show from the first answer.
+ * A survey's results: each question's totals as a chart, made on the server,
+ * and any comments, never with a name. Every bar is the theme's accent, one
+ * colour whatever it counts, with its words and its figures outside it (its
+ * count and its share of the people who answered the question): what people
+ * believe is reported, never cheered or marked as good or bad. Beside every
+ * question, how many answered and what share of the people it was sent to
+ * that is. For a survey that pairs with an earlier one, how each shared
+ * question changed for the people who answered both times, and the look-back
+ * beside it. Comments are listed by their words, the first few and the rest
+ * behind "Show all". Results show from the first answer.
+ *
+ * FOR AN ADMIN (`admin`), on the survey's own Results tab: "See who" behind
+ * each bar and "Whose is this?" beside each comment, each opening recorded by
+ * the route before any name is read (`SeeWho`), and each question's two
+ * downloads: its totals and comments as a file that names nobody, and the
+ * chart as a picture made in the browser. Without `admin` (a programme's
+ * lead, and the event's Survey after tab) none of it is drawn, and no key of
+ * a bar or a comment is on the page.
  *
  * An admin can leave out before-survey answers sent after the person's group
  * first met, so a "before" is only what people thought before they started.
  */
 
-function percentWords(count: number, of: number): string {
-  return of > 0 ? `${count} (${Math.round((count / of) * 100)}%)` : `${count}`;
+const COMMENTS_SHOWN = 5;
+
+/** What an admin's charts carry: the survey, the filters on the screen, and the day for a file's name. */
+export type ResultsAdmin = {
+  surveyName: string;
+  /** The London day, "2026-11-05", for the name of a file. */
+  today: string;
+  choice: WhoChoice;
+  /** The comments' answer ids, beside each comments question (`ResultsView.commentKeys`). */
+  commentKeys: Record<string, string[]>;
+};
+
+/** The filters on the screen as an address's query: "who=g1&as=guests&before-first-session=1". */
+function choiceQuery(choice: WhoChoice): string {
+  const params = new URLSearchParams();
+  if (choice.who) params.set("who", choice.who);
+  if (choice.as) params.set("as", choice.as);
+  if (choice.beforeFirstSession) params.set("before-first-session", "1");
+  return params.toString();
 }
 
-function Tally({ options, of }: { options: { label: string; count: number; percent: number }[]; of: number }) {
+function Bars({ group, surveyId, question, admin }: { group: ChartGroup; surveyId: string; question: string; admin: ResultsAdmin | null }) {
   return (
-    <div className={styles.tally}>
-      {options.map((option) => (
-        <div key={option.label} className={styles.tallyRow}>
-          <span className={styles.tallyLabel}>{option.label}</span>
-          <span className={styles.tallyBar} aria-hidden="true">
-            <span className={styles.tallyFill} style={{ width: `${option.percent}%` }} />
+    <ul className={bars.bars}>
+      {group.bars.map((bar) => (
+        <li key={bar.key} className={admin ? bars.bar : `${bars.bar} ${bars.barPlain}`}>
+          <span className={bars.barLabel}>{bar.label}</span>
+          <span className={bars.track} aria-hidden="true">
+            <span className={bars.fill} style={{ width: `${Math.min(100, Math.max(0, bar.percent))}%` }} />
           </span>
-          <span className={styles.tallyCount}>{percentWords(option.count, of)}</span>
-        </div>
+          <span className={bars.barCount}>{barShareWords(bar.count, bar.percent)}</span>
+          {admin &&
+            (bar.count > 0 ? (
+              <SeeWho
+                surveyId={surveyId}
+                question={question}
+                target={{ bar: bar.key, count: bar.count }}
+                choice={admin.choice}
+                label={seeWhoWords(bar.count)}
+                ariaLabel={seeWhoLabelWords(bar.label, group.heading, bar.count)}
+                layout="bar"
+              />
+            ) : (
+              <span className={`${bars.barReports} ${charts.nobody}`}>{CHART_WORDS.nobody}</span>
+            ))}
+        </li>
       ))}
+    </ul>
+  );
+}
+
+function CommentItem({ text, keyOf, surveyId, question, admin }: { text: string; keyOf: string | null; surveyId: string; question: string; admin: ResultsAdmin | null }) {
+  const whose = admin && keyOf;
+  return (
+    <li className={whose ? charts.comment : `${charts.comment} ${charts.commentPlain}`}>
+      <p className={charts.commentText}>{text}</p>
+      {whose && (
+        <SeeWho
+          surveyId={surveyId}
+          question={question}
+          target={{ comment: keyOf }}
+          choice={admin.choice}
+          label={CHART_WORDS.whose}
+          ariaLabel={whoseLabelWords(text)}
+          layout="comment"
+        />
+      )}
+    </li>
+  );
+}
+
+/** A comments question's comments: the first few, then the rest behind a press that needs no script. */
+function Comments({ result, surveyId, admin }: { result: Extract<ResultRow, { kind: "comments" }>; surveyId: string; admin: ResultsAdmin | null }) {
+  const keys = admin?.commentKeys[result.id] ?? [];
+  const item = (text: string, at: number) => (
+    <CommentItem key={at} text={text} keyOf={keys[at] ?? null} surveyId={surveyId} question={result.id} admin={admin} />
+  );
+  const first = result.comments.slice(0, COMMENTS_SHOWN);
+  const rest = result.comments.slice(COMMENTS_SHOWN);
+  return (
+    <div>
+      <ul className={charts.comments}>{first.map(item)}</ul>
+      {rest.length > 0 && (
+        <details className={charts.more}>
+          <summary>{showAllWords(result.comments.length)}</summary>
+          <ul className={charts.comments}>{rest.map((text, at) => item(text, at + COMMENTS_SHOWN))}</ul>
+        </details>
+      )}
     </div>
   );
 }
@@ -109,22 +206,62 @@ function Change({ heading, change }: { heading: string; change: ChangeResult }) 
   );
 }
 
-function Result({ result, sent, reach, ofAnswers = false }: { result: ResultRow; sent: number; reach: ReachWord; ofAnswers?: boolean }) {
+function Result({
+  result,
+  sent,
+  reach,
+  ofAnswers = false,
+  surveyId,
+  admin,
+}: {
+  result: ResultRow;
+  sent: number;
+  reach: ReachWord;
+  ofAnswers?: boolean;
+  surveyId: string;
+  admin: ResultsAdmin | null;
+}) {
   // Of the answers themselves, on a survey that takes answers from people it was never sent to.
   const rateWords = (n: number, of: number, verb = "answered") =>
     ofAnswers ? answeredOfAnswersWords(n, of, verb) : answeredRateWords(n, of, verb, reach);
+  const groups = chartGroupsOf(result);
+  const title = `${result.number}. ${result.title}`;
+  const answered =
+    result.kind === "scale" ? Math.max(0, ...result.rows.map((row) => row.respondents)) : result.respondents;
+  const query = admin ? choiceQuery(admin.choice) : "";
   return (
     <section className={`${styles.card} ${styles.result}`} aria-labelledby={`result-${result.id}`}>
-      <h3 id={`result-${result.id}`} className={styles.resultTitle}>
-        {result.number}. {result.title}
-      </h3>
+      <div className={charts.head}>
+        <h3 id={`result-${result.id}`} className={styles.resultTitle}>
+          {title}
+        </h3>
+        {admin && (
+          <div className={charts.actions}>
+            <a
+              href={`/api/surveys/${encodeURIComponent(surveyId)}/totals?question=${encodeURIComponent(result.id)}${query ? `&${query}` : ""}`}
+              download
+              className={charts.action}
+            >
+              {CHART_WORDS.downloadQuestion}
+            </a>
+            {groups.length > 0 && (
+              <DownloadChart
+                title={title}
+                line={`${admin.surveyName} · ${rateWords(answered, sent)}`}
+                groups={groups}
+                fileName={questionFileWords(admin.surveyName, result.number, admin.today)}
+              />
+            )}
+          </div>
+        )}
+      </div>
       {result.kind === "options" && (
         <>
           <p className={styles.muted}>
             {rateWords(result.respondents, sent)}
             {result.multiple ? ", ticking as many as applied" : ""}
           </p>
-          <Tally options={result.options} of={result.respondents} />
+          {groups[0] && <Bars group={groups[0]} surveyId={surveyId} question={result.id} admin={admin} />}
           {result.scored && result.scored.mean !== null && (
             <p className={styles.muted}>
               {result.scored.unit
@@ -132,12 +269,12 @@ function Result({ result, sent, reach, ofAnswers = false }: { result: ResultRow;
                 : `Average ${numberWords(result.scored.mean)}, from ${result.respondents} ${result.respondents === 1 ? "answer" : "answers"}.`}
             </p>
           )}
-          {result.most && (
-            <>
-              <p className={styles.tallyLabel}>{result.most.title}</p>
+          {result.most && groups[1] && (
+            <div className={charts.group}>
+              <p className={charts.groupHead}>{result.most.title}</p>
               <p className={styles.muted}>{rateWords(result.most.respondents, sent, "picked one")}</p>
-              <Tally options={result.most.options} of={result.most.respondents} />
-            </>
+              <Bars group={groups[1]} surveyId={surveyId} question={result.id} admin={admin} />
+            </div>
           )}
         </>
       )}
@@ -149,26 +286,21 @@ function Result({ result, sent, reach, ofAnswers = false }: { result: ResultRow;
               ? `. Average ${numberWords(result.mean, result.unit)}, middle value ${numberWords(result.median, result.unit)}, from ${numberWords(result.lowest, result.unit)} to ${numberWords(result.highest, result.unit)}.`
               : ""}
           </p>
-          <Tally
-            options={result.bands.map((band) => ({ label: band.label, count: band.count, percent: result.respondents > 0 ? Math.round((band.count / result.respondents) * 100) : 0 }))}
-            of={result.respondents}
-          />
+          {groups[0] && <Bars group={groups[0]} surveyId={surveyId} question={result.id} admin={admin} />}
         </>
       )}
       {result.kind === "scale" && (
-        <div className={styles.scroll}>
+        <>
           {result.rows.map((row, index) => (
-            <div key={index} className={styles.section}>
-              {row.label && <p className={styles.tallyLabel}>{row.label}</p>}
-              <div className={styles.scaleRow} style={{ ["--scale-points" as string]: row.counts.length }}>
-                <span className={styles.muted}>{rateWords(row.respondents, sent)}</span>
-                {row.counts.map((count, point) => (
-                  <span key={point} className={styles.scaleCell} title={`${point + result.min}: ${count}`}>
-                    <span className={styles.scaleHead}>{point + result.min}</span> {count}
-                  </span>
-                ))}
-                <span className={styles.tallyCount}>{row.mean === null ? "" : `Mean ${row.mean.toFixed(1)}`}</span>
-              </div>
+            <div key={index} className={charts.group}>
+              {row.label && <p className={charts.groupHead}>{row.label}</p>}
+              <p className={styles.muted}>
+                {rateWords(row.respondents, sent)}
+                {row.mean !== null
+                  ? `. Average ${oneDecimalWords(row.mean)}${row.median !== null ? `, middle value ${numberWords(row.median)}` : ""}.`
+                  : ""}
+              </p>
+              {groups[index] && <Bars group={groups[index]} surveyId={surveyId} question={result.id} admin={admin} />}
             </div>
           ))}
           <p className={styles.muted}>
@@ -177,18 +309,15 @@ function Result({ result, sent, reach, ofAnswers = false }: { result: ResultRow;
           {result.promoterScore !== null && (
             <p className={styles.muted}>{promoterScoreWords(result.promoterScore, result.rows[0]?.respondents ?? 0)}</p>
           )}
-        </div>
+        </>
       )}
       {result.kind === "comments" && (
         <>
-          <p className={styles.muted}>{rateWords(result.respondents, sent, "wrote something")}</p>
-          {result.comments.length > 0 && (
-            <ul className={styles.comments}>
-              {result.comments.map((comment, index) => (
-                <li key={index}>{comment}</li>
-              ))}
-            </ul>
-          )}
+          <p className={styles.muted}>
+            {rateWords(result.respondents, sent, "wrote something")}
+            {result.comments.length > 1 ? `, ${CHART_WORDS.byWords}` : ""}
+          </p>
+          {result.comments.length > 0 && <Comments result={result} surveyId={surveyId} admin={admin} />}
         </>
       )}
       {result.change && <Change heading={RESULT_WORDS.beforeAndAfter} change={result.change} />}
@@ -203,6 +332,8 @@ export default function ResultsTab({
   beforeFirstSession,
   ofAnswers = false,
   switches = true,
+  admin = null,
+  narrowed = "",
 }: {
   view: ResultsView;
   surveyId: string;
@@ -210,7 +341,8 @@ export default function ResultsTab({
   /**
    * Every rate is of the answers, not of the people it was sent to: a survey
    * after an event takes answers with its QR code from people it never
-   * emailed, and its own numbers sit above these.
+   * emailed, and its own numbers sit above these; and results an admin has
+   * narrowed to a group, or to members or guests, are of those answers.
    */
   ofAnswers?: boolean;
   /**
@@ -219,14 +351,23 @@ export default function ResultsTab({
    * counted, with no switch that shows a smaller set beside a larger one.
    */
   switches?: boolean;
+  /** For an admin on the survey's own Results tab: See who, Whose is this? and the downloads. */
+  admin?: ResultsAdmin | null;
+  /** Who an admin's filter narrowed the results to ("Group A", "guests"), or "" for everybody. */
+  narrowed?: string;
 }) {
   const base = `/admin/surveys/${encodeURIComponent(surveyId)}/results`;
+  // The switch keeps the filters on the screen.
+  const switchHref = (on: boolean) => {
+    const query = choiceQuery({ who: admin?.choice.who ?? "", as: admin?.choice.as ?? "", beforeFirstSession: on });
+    return query ? `${base}?${query}` : base;
+  };
   const paired = pairedWithWords(view.pairedWith);
   return (
     <div className={styles.main}>
       <div className={styles.card}>
         <p className={styles.lead}>
-          {ofAnswers ? answersWords(view.answers) : answersRateWords(view.answers, view.sent, view.reach)}
+          {narrowed ? narrowedAnswersWords(view.answers, narrowed) : ofAnswers ? answersWords(view.answers) : answersRateWords(view.answers, view.sent, view.reach)}
           {beforeFirstSession && view.leftOut > 0
             ? ` ${view.leftOut} sent after the person’s first session ${view.leftOut === 1 ? "is" : "are"} left out.`
             : ""}
@@ -234,12 +375,12 @@ export default function ResultsTab({
         {paired && <p className={styles.muted}>{paired}</p>}
         {view.namesOff && <p className={styles.muted}>{RESULT_WORDS.namesOff}</p>}
         {switches && view.offersFirstSession && (
-          <Link href={beforeFirstSession ? base : `${base}?before-first-session=1`} className={styles.toggle}>
+          <Link href={switchHref(!beforeFirstSession)} className={styles.toggle}>
             {beforeFirstSession ? RESULT_WORDS.toggleCountAll : RESULT_WORDS.toggleLeaveOut}
           </Link>
         )}
       </div>
-      {view.consents.length > 0 && (
+      {view.consents.length > 0 && !narrowed && (
         <section className={`${styles.card} ${styles.result}`} aria-labelledby="result-consents">
           <h3 id="result-consents" className={styles.resultTitle}>
             {RESULT_WORDS.consents}
@@ -253,7 +394,15 @@ export default function ResultsTab({
       )}
       {view.answers > 0 &&
         view.questions.map((result) => (
-          <Result key={result.id} result={result} sent={ofAnswers ? view.answers : view.sent} reach={view.reach} ofAnswers={ofAnswers} />
+          <Result
+            key={result.id}
+            result={result}
+            sent={ofAnswers ? view.answers : view.sent}
+            reach={view.reach}
+            ofAnswers={ofAnswers}
+            surveyId={surveyId}
+            admin={admin}
+          />
         ))}
     </div>
   );

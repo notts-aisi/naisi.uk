@@ -11,17 +11,19 @@
  * week 1 reflections and ticked a week 1 source before any group.
  *
  * The spec (`tests/e2e/course-hub-coursework.spec.mjs`) is the programme's
- * lead (the admin, as at every course hub spec: a lead must be SU-recognised
- * committee, which the harness never makes) reading the Coursework tab and
+ * lead (the admin, as at most course hub specs: a lead must be SU-recognised
+ * committee, which only an admin makes, on the real pages) reading the Coursework tab and
  * two people's pages, then Fern, appointed to Group A on the real page,
  * reading the group's reflections with names and the page to read lines out,
  * which still names nobody.
  *
  * WHAT IT CANNOT PROVE: that the programme's lead, when the lead is not an
  * admin, is never shown a private note or a placement Publish has not told.
- * The harness signs in no lead who is not an admin.
+ * This spec signs in no lead who is not an admin.
  * `tests/course-hub-coursework.test.mjs` drives both pages as a lead who is
- * not one, and holds both.
+ * not one, and holds both; `course-hub-explainers-and-lead-notes` signs one
+ * in, made a lead by the admin on the real pages, for the notes column on a
+ * person's page.
  *
  * ## Every grant is made on a real page, by the admin the harness is given
  *

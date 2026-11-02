@@ -17,10 +17,10 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 
 /**
- * THE PAGE WHERE A FACILITATOR PICKS REFLECTIONS TO READ OUT (boards
- * wk-reflections at 1440 and wk-reflections-phone at 390), reached from the
+ * THE PAGE WHERE A FACILITATOR PICKS REFLECTIONS TO READ OUT
+ * (at 1440 and at 390), reached from the
  * review queue's "Read them" on the group page: one week of the group, one
- * prompt at a time, everybody's answer with no name on it (Q37), lines picked
+ * prompt at a time, everybody's answer with no name on it, lines picked
  * into "To read out tonight" and copied for the session.
  *
  * THE GATE is the group page's, restated because a page's only protection

@@ -7,8 +7,7 @@ import GuideHead, { GuidePhoneBar } from "./GuideHead";
 import styles from "./guide.module.css";
 
 /**
- * A PROGRAMME'S GLOSSARY, AS SOMEBODY ON IT READS IT (boards wk-glossary and
- * wk-glossary-phone): the programme's label and "Glossary", the guide's
+ * A PROGRAMME'S GLOSSARY, AS SOMEBODY ON IT READS IT: the programme's label and "Glossary", the guide's
  * opening, the find box with the count of terms from the record, every term
  * and its definition in the guide's order (two columns on a wide page), any
  * text after the guide's table, and the foot. A run with no Glossary yet

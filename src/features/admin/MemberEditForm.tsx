@@ -35,6 +35,7 @@ export default function MemberEditForm({ user }: Props) {
   useUserEditLock(user.uid, dirty);
   const [savedOnce, setSavedOnce] = useState(false);
 
+  const [fullName, setFullName] = useState(user.profile?.fullName ?? "");
   const [preferredName, setPreferredName] = useState(user.profile?.preferredName ?? "");
   const [universityEmail, setUniversityEmail] = useState(user.profile?.universityEmail ?? "");
   const [status, setStatus] = useState<AffiliationStatus | "">(user.profile?.status ?? "");
@@ -52,6 +53,7 @@ export default function MemberEditForm({ user }: Props) {
 
   /** Put every field back to what the account document says, and let go of the lock. */
   function putBack() {
+    setFullName(user.profile?.fullName ?? "");
     setPreferredName(user.profile?.preferredName ?? "");
     setUniversityEmail(user.profile?.universityEmail ?? "");
     setStatus(user.profile?.status ?? "");
@@ -77,6 +79,12 @@ export default function MemberEditForm({ user }: Props) {
     try {
       await Promise.all([
         updateUserProfile(user.uid, {
+          // Written only when it changed, so a save about something else
+          // leaves a full name the person never gave as no field at all.
+          fullName:
+            fullName.trim() === (user.profile?.fullName ?? "").trim()
+              ? undefined
+              : fullName.trim().replace(/\s+/g, " "),
           preferredName: preferredName.trim(),
           universityEmail: universityEmail.trim(),
           status: status || undefined,
@@ -110,7 +118,19 @@ export default function MemberEditForm({ user }: Props) {
       }}
       className={styles.formGrid}
     >
-      <Field id={`pn-${user.uid}`} label="Preferred name">
+      <Field
+        id={`fn-${user.uid}`}
+        label="Full name"
+        hint="Only the committee sees it. Everybody else sees the name they go by."
+      >
+        <Input
+          id={`fn-${user.uid}`}
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          maxLength={FIELD_LIMITS.fullName}
+        />
+      </Field>
+      <Field id={`pn-${user.uid}`} label="Name they go by">
         <Input
           id={`pn-${user.uid}`}
           value={preferredName}

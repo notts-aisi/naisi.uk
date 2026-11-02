@@ -14,7 +14,7 @@ type Props = LastTermBlockData & {
 };
 
 /**
- * THE "LAST TERM" BLOCK on a programme's public page (pub-agi, sv-public):
+ * THE "LAST TERM" BLOCK on a programme's public page:
  * the numbers an admin published, each figure over its words, the quotes
  * with the term and nothing else beneath them, and the line that says what
  * it is all from.

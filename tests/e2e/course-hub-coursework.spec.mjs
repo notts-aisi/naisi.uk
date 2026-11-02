@@ -11,9 +11,10 @@
  *
  *  - the lead (the admin, as at every course hub spec) opens the Coursework
  *    tab: everybody in their group, Dan under "Not in a group yet" with his
- *    week 1 work counted, each cell in counts and never in words, Ada's
- *    answer waiting for feedback and opening the feedback page, and the
- *    filters as links;
+ *    week 1 work counted, each cell leading with "Not done" (nobody has
+ *    submitted a week here) and then in counts, never in words, Ada's answer
+ *    with no feedback yet and opening its review page, and the filters as
+ *    links, "Not done" among them;
  *  - opens Dan's page and Ada's: reflections under their prompts with when
  *    they were written, the answer waiting, and, because the lead here is an
  *    admin, Ada's private note;
@@ -23,8 +24,9 @@
  *    beside an answer.
  *
  * A lead who is not an admin is never signed in by the harness, so that the
- * lead never sees a private note or an untold placement is held by
- * `tests/course-hub-coursework.test.mjs` instead.
+ * lead never sees a private note, an untold placement or the panels under
+ * the tab (Claude's best answers and Pangram, an admin's alone since privacy
+ * v15) is held by `tests/course-hub-coursework.test.mjs` instead.
  *
  * Every name and word is the fixture's own (`COURSEWORK` and friends in
  * `scripts/e2e-fixtures/worlds/course-hub-term.mjs`). Nothing here reads
@@ -282,13 +284,16 @@ test(
         "the lead opens the Coursework tab: everybody in their group, the person in no group last, and each cell in counts",
         async () => {
           activePage = adminPage;
+          // Everybody is named off their account by the names rule for an admin
+          // (`nameForViewer`): the full name, here the fixture's display name,
+          // unique to this run, which begins with the name each goes by.
           await adminPage.goto(`${formBase}/attendance`, { waitUntil: "domcontentloaded" });
           // The tab sits after Attendance in the programme's row.
           const tabLink = adminPage.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Coursework", exact: true });
           await tabLink.waitFor({ timeout: WAIT_MS });
           await Promise.all([adminPage.waitForURL((url) => url.pathname.endsWith("/coursework"), { timeout: WAIT_MS }), tabLink.click()]);
 
-          await adminPage.getByText("4 holding a place · 1 facilitating · 1 waiting for feedback", { exact: true }).waitFor({ timeout: WAIT_MS });
+          await adminPage.getByText("4 holding a place · 1 facilitating · 1 with no feedback yet", { exact: true }).waitFor({ timeout: WAIT_MS });
           // Sorted by group in the run's one order, then name; nobody's last. Fern is marked as facilitating.
           const expected = ordered.map((group) =>
             sectionOf(group.name, [
@@ -299,31 +304,39 @@ test(
           expected.push(sectionOf("Not in a group yet", [{ name: dan.displayName }]));
           assert.deepEqual(await sectionsOn(adminPage), expected, "the tab's sections and rows");
 
-          // Ada's week 3: part 1's reflection written of two parts, one source of two, waiting for feedback.
-          const adaCell = adminPage.getByRole("link", { name: `Week 3: ${ada.displayName}’s coursework`, exact: true });
-          assert.equal(await wordsIn(adaCell), "Reflections 1 of 2 Sources 1 of 2", "Ada's week 3 cell");
-          const adaAnswer = adminPage.getByRole("link", { name: `Week 3 written answer, Waiting for feedback: ${ada.displayName}`, exact: true });
+          // Ada's week 3: not done, since nobody has submitted a week here; part 1's reflection
+          // written of two parts, one source of two, waiting for feedback.
+          const adaCell = adminPage.getByRole("link", { name: `Week 3, not done: ${ada.displayName}’s coursework`, exact: true });
+          assert.equal(await wordsIn(adaCell), "Not done Reflections 1 of 2 Sources 1 of 2", "Ada's week 3 cell");
+          const adaAnswer = adminPage.getByRole("link", { name: `Week 3 written answer, No feedback yet: ${ada.displayName}`, exact: true });
           assert.equal(
             await adaAnswer.getAttribute("href"),
             `${programmePathOnSite}/written?group=${enc(facilitated.id)}&week=3&person=${enc(ada.uid)}`,
-            "the waiting answer does not open the feedback page",
+            "the waiting answer does not open its review page",
           );
           // Cleo has written one prompt of part 1, so no part is written.
-          assert.match(await wordsIn(adminPage.getByRole("link", { name: `Week 3: ${cleo.displayName}’s coursework`, exact: true })), /^Reflections 0 of 2 /);
+          assert.match(await wordsIn(adminPage.getByRole("link", { name: `Week 3, not done: ${cleo.displayName}’s coursework`, exact: true })), /^Not done Reflections 0 of 2 /);
           // Dan, in no group, is counted on the run's own week 1, where his week 1 work was written.
-          assert.equal(await wordsIn(adminPage.getByRole("link", { name: `Week 1: ${dan.displayName}’s coursework`, exact: true })), "Reflections 1 of 2 Sources 1 of 2");
+          assert.equal(await wordsIn(adminPage.getByRole("link", { name: `Week 1, not done: ${dan.displayName}’s coursework`, exact: true })), "Not done Reflections 1 of 2 Sources 1 of 2");
           // Never a word anybody wrote, anywhere on the tab.
           const said = await mainOf(adminPage);
           for (const words of everyWord) assert.ok(!said.includes(words), `the tab shows ${JSON.stringify(words)}`);
 
-          // The filters are links: the waiting ones alone, then everybody in no group.
+          // The filters are links: the waiting ones alone, then those of them not done, then everybody in no group.
           const sections = adminPage.getByRole("region", { name: "Coursework", exact: true }).locator("tbody");
-          await adminPage.getByRole("link", { name: "Waiting for feedback", exact: true }).click();
+          await adminPage.getByRole("link", { name: "No feedback yet", exact: true }).click();
           await waitFor(
             "the waiting filter to leave one group",
             async () => new URL(adminPage.url()).searchParams.get("waiting") === "1" && (await sections.count()) === 1,
           );
           assert.deepEqual(await sectionsOn(adminPage), [sectionOf(facilitated.name, [{ name: ada.displayName }])], "the waiting filter");
+          // Not done keeps the waiting filter: Ada has a week that has begun and is not done.
+          await adminPage.getByRole("link", { name: "Not done", exact: true }).click();
+          await waitFor("the not done filter to keep the waiting one", async () => {
+            const query = new URL(adminPage.url()).searchParams;
+            return query.get("waiting") === "1" && query.get("notdone") === "1" && (await sections.count()) === 1;
+          });
+          assert.deepEqual(await sectionsOn(adminPage), [sectionOf(facilitated.name, [{ name: ada.displayName }])], "the waiting and not done filters");
           await adminPage.goto(`${courseworkUrl}?group=none`, { waitUntil: "domcontentloaded" });
           assert.deepEqual(await sectionsOn(adminPage), [sectionOf("Not in a group yet", [{ name: dan.displayName }])], "the filter of people in no group");
           assert.ok(otherGroup, "the term has one group");
@@ -357,11 +370,11 @@ test(
           const weekThree = await wordsIn(adminPage.locator("#week-3"));
           assert.ok(weekThree.includes(`${COURSEWORK_PROMPTS.rp1} ${adaSaid}`), `Ada's reflection is not under its prompt: ${weekThree}`);
           assert.match(weekThree, WHEN);
-          assert.ok(weekThree.includes(`${COURSEWORK_ANSWER_PROMPT} Waiting for feedback`), `Ada's answer is not waiting: ${weekThree}`);
+          assert.ok(weekThree.includes(`${COURSEWORK_ANSWER_PROMPT} No feedback yet`), `Ada's answer is not waiting: ${weekThree}`);
           assert.ok(weekThree.includes(adaAnswer), "Ada's answer is not on her page");
           assert.ok(weekThree.includes(`Private note ${adaNote}`), `an admin is not shown Ada's private note: ${weekThree}`);
           assert.equal(
-            await adminPage.locator("#week-3").getByRole("link", { name: "Open the feedback page", exact: true }).getAttribute("href"),
+            await adminPage.locator("#week-3").getByRole("link", { name: "Write feedback on the answer", exact: true }).getAttribute("href"),
             `${programmePathOnSite}/written?group=${enc(facilitated.id)}&week=3&person=${enc(ada.uid)}`,
           );
         },
@@ -373,6 +386,7 @@ test(
         await adminPage.getByRole("heading", { name: "Week 3 reflections", level: 1 }).waitFor({ timeout: WAIT_MS });
         const prompt = adminPage.locator("section").filter({ has: adminPage.getByRole("heading", { name: COURSEWORK_PROMPTS.rp1, level: 2 }) });
         const words = await wordsIn(prompt);
+        // Each by the names rule for an admin: the full name, the fixture's display name.
         assert.ok(words.includes(`1 of 2 wrote one · ${ben.displayName} hasn’t`), `the prompt does not name who has not written: ${words}`);
         assert.ok(new RegExp(`${escapeRegExp(ada.displayName)} ${WHEN.source} ${escapeRegExp(adaSaid)}`).test(words), `Ada's reflection is not under her name: ${words}`);
         // Fern's own reflections are the lead's to read, marked as hers.
@@ -393,8 +407,8 @@ test(
         ]);
         await facilitatorPage.getByRole("heading", { name: "Week 3 reflections", level: 1 }).waitFor({ timeout: WAIT_MS });
         const said = await mainOf(facilitatorPage);
-        assert.ok(new RegExp(`${escapeRegExp(ada.displayName)} ${WHEN.source} ${escapeRegExp(adaSaid)}`).test(said), `Ada's reflection is not under her name: ${said}`);
-        assert.ok(said.includes(`1 of 2 wrote one · ${ben.displayName} hasn’t`), "the prompt does not name who has not written");
+        assert.ok(new RegExp(`${escapeRegExp(ada.first)} ${WHEN.source} ${escapeRegExp(adaSaid)}`).test(said), `Ada's reflection is not under her name: ${said}`);
+        assert.ok(said.includes(`1 of 2 wrote one · ${ben.first} hasn’t`), "the prompt does not name who has not written");
         for (const words of [adaNote, adaAnswer, cleoSaid]) assert.ok(!said.includes(words), `the facilitator is shown ${JSON.stringify(words)}`);
         assert.ok(!said.includes("Facilitators’ own reflections"), "a facilitator is shown facilitators' own reflections");
         assert.ok(!said.includes("Private note"), "a facilitator's page with names shows a private note");
@@ -412,6 +426,7 @@ test(
         const said = await mainOf(facilitatorPage);
         assert.ok(said.includes(`Reflection 1 Read this out ${adaSaid}`), `the answer is not drawn as a reflection with no name: ${said}`);
         assert.ok(!said.includes(ada.displayName), "the page to read lines out names Ada");
+        assert.ok(!new RegExp(`\\b${escapeRegExp(ada.first)}\\b`).test(said), "the page to read lines out names Ada");
         assert.ok(!WHEN.test(said), "the page to read lines out says when an answer was written");
       });
     } finally {

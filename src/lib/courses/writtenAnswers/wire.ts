@@ -3,12 +3,13 @@ import type { WrittenAnswerRecord } from "./model";
 
 /**
  * A WRITTEN ANSWER AS IT TRAVELS TO THE PERSON WHO WROTE IT (the week page,
- * through my-exercises and the writer's own route; the feedback page). It
- * rides on `ExerciseResponseWire.written`, present only on a block week's
- * written answer.
+ * through my-exercises and the writer's own route). It rides on
+ * `ExerciseResponseWire.written`, present only on a block week's written
+ * answer. Its `feedback` is feedback given before it became a signed
+ * comment; the week page draws every piece from the overview's own.
  *
  * NEVER "LATE": whether it was sent after the due time is shown to staff
- * only (Q33), and is not a field here. Names are the first names people go
+ * only, and is not a field here. Names are the first names people go
  * by, never an address.
  */
 export type WrittenAnswerWire = {
@@ -19,6 +20,8 @@ export type WrittenAnswerWire = {
   firstSentAt: string | null;
   /** ISO 8601: the latest change after it was first sent, or null. */
   editedAt: string | null;
+  /** ISO 8601: when its writer last saved it, or null. */
+  savedAt: string | null;
   /** Locked by one of its reviewers opening it, or null while its writer can change it. */
   opened: { at: string; byName: string } | null;
   /** The last "Reopen for edits", which its writer is told, or null. */
@@ -46,6 +49,7 @@ export function writtenAnswerWire(record: WrittenAnswerRecord, firstNames: Reado
     words: record.words,
     firstSentAt: iso(record.firstSentAt),
     editedAt: iso(record.editedAt),
+    savedAt: iso(record.savedAt),
     opened: record.openedAt ? { at: record.openedAt.toISOString(), byName: nameOf(record.openedByUid) } : null,
     reopened: record.reopenedAt ? { at: record.reopenedAt.toISOString(), byName: nameOf(record.reopenedByUid) } : null,
     feedback: record.feedback

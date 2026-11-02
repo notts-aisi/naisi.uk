@@ -25,14 +25,25 @@
  * one the site would make. Every name, address and word is made up.
  *
  * What is held, by section:
- *  1. Notes: admins only, never about yourself, the lead refused; add, edit,
- *     delete; which notes each place shows; a view-as session refused.
- *  2. Claude's draft of a note: only counted rows, no name, nothing stored.
- *  3. Best answers: the lead and admins; labels to Claude, names back on the
+ *  1. Notes on the admins' routes: admins only, never about yourself, the
+ *     lead refused there; add, edit, delete; which notes each place shows; a
+ *     view-as session refused. The programme's leads read and write the notes
+ *     kept for them through the programme's own routes, held by
+ *     `tests/notes-for-leads.test.mjs`.
+ *  2. Claude's draft of a note: only counted rows of submitted weeks, from
+ *     the person's agreement to privacy v15, no name, nothing stored.
+ *     `tests/week-notes.test.mjs` holds the end-of-week drafts and the team's
+ *     words, through the same builder.
+ *  3. Best answers: admins only since privacy v15 (the lead refused on the
+ *     session, before anything is read); labels to Claude, names back on the
  *     way out; a facilitator's own work and uncounted rows never sent; picks
  *     dropped for somebody who no longer holds a place; out of date.
  *  4. Pangram: admins only (the lead never sees a reading), only counted
  *     answers of 50 words or more, one request, out of date on a change.
+ *     A written answer is gathered for any of it only once its readers may
+ *     read it: its week submitted or locked, or the answer sent before
+ *     weeks were submitted; never a draft in an open week, nor a week
+ *     reopened.
  *  5. The pure builders, on fixtures holding every kind of identifier.
  *  6. Deletion: an account's notes, readings and picks.
  */
@@ -153,7 +164,7 @@ function assertClean(text, what) {
 // 1. Notes
 // ---------------------------------------------------------------------------
 
-describe("notes about a person: admins only, and never about yourself", () => {
+describe("notes about a person on the admins' routes: admins only, and never about yourself", () => {
   test("everybody but an admin is refused before anything is read, the lead included", async () => {
     reset();
     for (const who of ["claudia", "lloyd", "rahul", "amara", "yusuf"]) {
@@ -185,7 +196,7 @@ describe("notes about a person: admins only, and never about yourself", () => {
 
   test("an admin adds, edits and deletes a note, and the answer is field by field", async () => {
     reset();
-    const added = await ask("zach", routes.notes.POST, { uid: "amara" }, { body: { text: "  Sharp on the reading.\r\n\r\n\r\nAsk her to facilitate.  ", runId: RUN.agi } });
+    const added = await ask("zach", routes.notes.POST, { uid: "amara" }, { body: { text: "  Sharp on the reading.\r\n\r\n\r\nAsk her to facilitate.  ", runId: RUN.agi, audience: "admins" } });
     assert.equal(added.status, 200);
     assert.deepEqual(Object.keys(added.body), ["id"]);
     const stored = w.world.db.read(`memberNotes/${added.body.id}`);
@@ -194,18 +205,28 @@ describe("notes about a person: admins only, and never about yourself", () => {
     assert.equal(stored.text, "Sharp on the reading.\n\nAsk her to facilitate.");
     assert.equal(stored.draftedByClaude, false);
     assert.equal(stored.runId, RUN.agi);
+    assert.equal(stored.audience, "admins", "a note keeps who the admin chose to read it");
+    assert.deepEqual(stored.suggest, [], "a note suggests nothing unless somebody ticks a box");
     assert.ok(stored.programmeLabel.length > 0, "a note from a run keeps the programme's name");
     assert.ok(!("authorName" in stored), "the author's name is looked up, never stored");
 
     const read = await ask("zach", routes.notes.GET, { uid: "amara" }, { query: "?place=profile" });
     assert.equal(read.status, 200);
-    assert.deepEqual(Object.keys(read.body).sort(), ["agreed", "claude", "hidden", "notes", "runs"]);
+    assert.deepEqual(Object.keys(read.body).sort(), ["agreed", "claude", "forLeads", "hidden", "notes", "runs"]);
     assert.deepEqual(Object.keys(read.body.notes[0]).sort(), [
-      "authorName", "beforeAgreement", "createdAt", "draftedByClaude", "edited", "id", "mine", "programme", "text", "updatedAt",
+      "audience", "authorName", "beforeAgreement", "createdAt", "draftedByClaude", "edited", "id", "leadsMayRead", "mine", "programme", "suggest", "text", "updatedAt",
     ]);
     assert.equal(read.body.notes[0].mine, true);
     assert.equal(read.body.notes[0].beforeAgreement, false, "written after Amara agreed");
-    assert.equal(read.body.agreed, true);
+    assert.equal(read.body.notes[0].audience, "admins");
+    // CHANGED ON PURPOSE (the end-of-week notes): Claude drafts a note only from
+    // what somebody submitted after agreeing to privacy v15, and `agreed` says
+    // whether Claude may draft. Amara agreed to v13 and not v15, so it may not
+    // yet; section 2 holds it true once she agrees to v15.
+    assert.equal(read.body.agreed, false);
+    // Amara agreed to privacy v13 and not v15, so no note about her is kept for leads yet.
+    assert.equal(read.body.forLeads, false);
+    assert.equal(read.body.notes[0].leadsMayRead, false);
 
     assert.equal((await ask("zach", routes.note.PATCH, { uid: "amara", noteId: added.body.id }, { body: { text: "Sharp on the reading." } })).status, 200);
     assert.equal(w.world.db.read(`memberNotes/${added.body.id}`).text, "Sharp on the reading.");
@@ -215,12 +236,18 @@ describe("notes about a person: admins only, and never about yourself", () => {
     assert.equal(w.world.db.read(`memberNotes/${added.body.id}`), undefined);
   });
 
-  test("a note is refused empty, too long, or from a run the person is not on", async () => {
+  test("a note is refused empty, too long, with nobody chosen to read it, or from a run the person is not on", async () => {
     reset();
-    assert.equal((await ask("zach", routes.notes.POST, { uid: "amara" }, { body: { text: "   " } })).status, 400);
-    assert.equal((await ask("zach", routes.notes.POST, { uid: "amara" }, { body: { text: "x".repeat(4001) } })).status, 400);
-    assert.equal((await ask("zach", routes.notes.POST, { uid: "amara" }, { body: { text: "Fine", runId: "another-run" } })).status, 400);
-    assert.equal((await ask("zach", routes.notes.POST, { uid: "nobody-here" }, { body: { text: "Fine" } })).status, 404);
+    const refused = async (uid, body, status, words) => {
+      const answer = await ask("zach", routes.notes.POST, { uid }, { body });
+      assert.equal(answer.status, status, JSON.stringify(body));
+      assert.match(answer.body.error, words, JSON.stringify(body));
+    };
+    await refused("amara", { text: "   ", audience: "admins" }, 400, /Write the note first/);
+    await refused("amara", { text: "x".repeat(4001), audience: "admins" }, 400, /up to 4000 characters/);
+    await refused("amara", { text: "Fine" }, 400, /Choose who reads the note/);
+    await refused("amara", { text: "Fine", audience: "admins", runId: "another-run" }, 400, /isn’t one this person is on/);
+    await refused("nobody-here", { text: "Fine", audience: "admins" }, 404, /Nobody has this account/);
   });
 
   test("beside an application only notes written after the agreement show; a programme's pages show its own earlier ones", async () => {
@@ -266,7 +293,22 @@ describe("notes about a person: admins only, and never about yourself", () => {
 // 2. Claude's draft of a note
 // ---------------------------------------------------------------------------
 
-describe("Claude drafts a note from counted coursework, with no name, and nothing is kept", () => {
+describe("Claude drafts a note from the weeks somebody submitted, with no name, and nothing is kept", () => {
+  // The end-of-week notes' rule, which the profile's draft follows (privacy
+  // v15): only weeks submitted and not reopened since, only work written after
+  // the person agreed to version 15. Amara agrees to it on Thu 5 Nov.
+  const agreeToV15 = (uid) => w.world.db.poke(`users/${uid}`, { policyVersion: "terms.1+privacy.15", policyAgreedAt: new Date("2026-11-05T09:00:00Z") });
+  const submitWeek3 = (uid) =>
+    w.world.db.seed(`courseWeekWork/${RUN.agi}__${uid}__w03`, {
+      runId: RUN.agi,
+      uid,
+      weekId: "w03",
+      weekNumber: 3,
+      submittedAt: new Date("2026-11-11T20:00:00Z"),
+      firstSubmittedAt: new Date("2026-11-11T20:00:00Z"),
+      submitCount: 1,
+    });
+
   test("with no key the site says so and sends nothing", async () => {
     reset();
     globalThis.__cwClaudeKey = false;
@@ -276,25 +318,45 @@ describe("Claude drafts a note from counted coursework, with no name, and nothin
     assert.deepEqual(globalThis.__cwClaudeAsked, []);
   });
 
-  test("nobody who has not agreed is sent, and the refusal says why", async () => {
+  test("nobody who has not agreed to version 15 is sent, and the refusal says why", async () => {
     reset();
-    const answer = await ask("zach", routes.draft.POST, { uid: "dev" }, { body: { runId: RUN.agi } });
+    // Dev agreed only to v12, and Amara only to v13.
+    for (const uid of ["dev", "amara"]) {
+      submitWeek3(uid);
+      const answer = await ask("zach", routes.draft.POST, { uid }, { body: { runId: RUN.agi } });
+      assert.equal(answer.status, 409, uid);
+      assert.match(answer.body.error, /haven’t agreed to version 15/);
+    }
+    assert.deepEqual(globalThis.__cwClaudeAsked, []);
+    agreeToV15("amara");
+    const read = await ask("zach", routes.notes.GET, { uid: "amara" }, { query: "?place=profile" });
+    assert.equal(read.body.agreed, true, "Claude may draft once the person has agreed to version 15");
+  });
+
+  test("no submission, no note: a week not submitted is never sent", async () => {
+    reset();
+    agreeToV15("amara");
+    const answer = await ask("zach", routes.draft.POST, { uid: "amara" }, { body: { runId: RUN.agi } });
     assert.equal(answer.status, 409);
-    assert.match(answer.body.error, /haven’t agreed to version 13/);
+    assert.match(answer.body.error, /No submission, no note/);
     assert.deepEqual(globalThis.__cwClaudeAsked, []);
   });
 
   test("somebody whose writing all came before their agreement is not sent either", async () => {
     reset();
+    agreeToV15("amara");
+    submitWeek3("amara");
     w.world.db.poke(rowPath("amara", "k3-rp1"), { firstWrittenAt: BEFORE });
     const answer = await ask("zach", routes.draft.POST, { uid: "amara" }, { body: { runId: RUN.agi } });
     assert.equal(answer.status, 409);
-    assert.match(answer.body.error, /nothing they wrote on it came after/);
+    assert.match(answer.body.error, /nothing they submitted on it was written after they agreed to version 15/);
     assert.deepEqual(globalThis.__cwClaudeAsked, []);
   });
 
-  test("only counted rows go, with no name, address, account or private note, and the draft is returned, never stored", async () => {
+  test("only counted rows of a submitted week go, with no name, address, account or private note, and the draft is returned, never stored", async () => {
     reset();
+    agreeToV15("amara");
+    submitWeek3("amara");
     globalThis.__cwClaudeAnswer = { ok: true, value: { note: "The fellow writes about the lamps with care." }, model: "claude-opus-5-5", usage: { inputTokens: 1, outputTokens: 1 } };
     const before = w.everything();
     const answer = await ask("zach", routes.draft.POST, { uid: "amara" }, { body: { runId: RUN.agi } });
@@ -313,7 +375,7 @@ describe("Claude drafts a note from counted coursework, with no name, and nothin
 
   test("Save keeps the draft as the admin's, marked as drafted by Claude", async () => {
     reset();
-    const saved = await ask("zach", routes.notes.POST, { uid: "amara" }, { body: { text: "Amara writes with care.", runId: RUN.agi, draftedByClaude: true } });
+    const saved = await ask("zach", routes.notes.POST, { uid: "amara" }, { body: { text: "Amara writes with care.", runId: RUN.agi, draftedByClaude: true, audience: "admins" } });
     assert.equal(saved.status, 200);
     assert.equal(w.world.db.read(`memberNotes/${saved.body.id}`).draftedByClaude, true);
     const read = await ask("zach", routes.notes.GET, { uid: "amara" });
@@ -338,16 +400,29 @@ const BEST = {
   usage: { inputTokens: 1, outputTokens: 1 },
 };
 
-describe("best answers: the lead and admins, labels to Claude and names back", () => {
-  test("the lead and an admin read it; a reviewer, a facilitator and a fellow do not", async () => {
+describe("best answers: admins only, labels to Claude and names back", () => {
+  test("an admin reads it; the lead, a reviewer, a facilitator and a fellow are refused on the session, before anything is read", async () => {
     reset();
-    const lead = await ask("claudia", routes.best.GET, params, { query: "?week=w03" });
-    assert.equal(lead.status, 200);
-    assert.deepEqual(Object.keys(lead.body).sort(), ["claude", "notIncluded", "outOfDate", "result", "sendable", "week"]);
-    assert.ok(!JSON.stringify(lead.body).toLowerCase().includes("pangram"), "the lead's view carries something of Pangram's");
-    assert.equal((await ask("zach", routes.best.GET, params, { query: "?week=w03" })).status, 200);
-    assert.equal((await ask("lloyd", routes.best.GET, params, { query: "?week=w03" })).status, 403);
-    for (const who of ["rahul", "amara"]) assert.equal((await ask(who, routes.best.GET, params, { query: "?week=w03" })).status, 404);
+    globalThis.__cwClaudeAnswer = BEST;
+    const admin = await ask("zach", routes.best.GET, params, { query: "?week=w03" });
+    assert.equal(admin.status, 200);
+    assert.deepEqual(Object.keys(admin.body).sort(), ["claude", "notIncluded", "outOfDate", "result", "sendable", "week"]);
+    assert.ok(!JSON.stringify(admin.body).toLowerCase().includes("pangram"), "the best answers carry something of Pangram's");
+    for (const who of ["claudia", "lloyd", "rahul", "amara", "yusuf"]) {
+      // Refused on the session: the same 403 with a week, with no week and with no body,
+      // so nothing about the programme, the run or the week is read for them.
+      for (const query of ["?week=w03", "", "?week=w99"]) {
+        const read = await ask(who, routes.best.GET, params, { query });
+        assert.equal(read.status, 403, `${who} read the best answers (${query || "no week"})`);
+        assert.match(read.body.error, /Only an admin can ask Claude for the best answers/);
+      }
+      for (const body of [{ weekId: "w03" }, {}]) {
+        const asked = await ask(who, routes.best.POST, params, { body });
+        assert.equal(asked.status, 403, `${who} asked Claude for the best answers`);
+      }
+    }
+    assert.deepEqual(globalThis.__cwClaudeAsked, [], "Claude was asked on a refused press");
+    assert.equal(w.world.db.read(`courseBestAnswers/${RUN.agi}__w03`), undefined, "a refused press kept something");
   });
 
   test("counts what can be sent and what is not included yet, and sends nothing on a read", async () => {
@@ -361,10 +436,10 @@ describe("best answers: the lead and admins, labels to Claude and names back", (
     assert.deepEqual(globalThis.__cwClaudeAsked, []);
   });
 
-  test("the lead's press sends labels, never names, and keeps accounts, never names", async () => {
+  test("an admin's press sends labels, never names, and keeps accounts, never names", async () => {
     reset();
     globalThis.__cwClaudeAnswer = BEST;
-    const answer = await ask("claudia", routes.best.POST, params, { body: { weekId: "w03" } });
+    const answer = await ask("zach", routes.best.POST, params, { body: { weekId: "w03" } });
     assert.equal(answer.status, 200);
     const [asked] = globalThis.__cwClaudeAsked;
     assertClean(asked.message, "the best answers message");
@@ -387,6 +462,27 @@ describe("best answers: the lead and admins, labels to Claude and names back", (
     assert.deepEqual(shown.questions[0].picks, [{ uid: "amara", name: "Amara Okafor", reason: "Amara Okafor ties the count to the reading." }]);
     assert.equal(shown.hard, "Bea Lindqvist found the oil bill hard to argue.");
     assert.equal(answer.body.outOfDate, false);
+  });
+
+  test("a full name an account holds is taken out too, though nothing on the run shows it", async () => {
+    // Dev joined with an email address: no display name, "Dev" to go by, and
+    // the full name the site asked for, which Bea's answer uses.
+    const accounts = seed();
+    reset({
+      "users/dev": {
+        ...accounts["users/dev"],
+        displayName: null,
+        profile: { ...accounts["users/dev"].profile, preferredName: "Dev", fullName: "Devendra Patel" },
+      },
+      [rowPath("bea", "k3-rp1")]: written("bea", "k3-rp1", "Devendra and I argued about the lamps.", AFTER),
+    });
+    globalThis.__cwClaudeAnswer = BEST;
+    const answer = await ask("zach", routes.best.POST, params, { body: { weekId: "w03" } });
+    assert.equal(answer.status, 200);
+    const [asked] = globalThis.__cwClaudeAsked;
+    assert.doesNotMatch(asked.message, /Devendra/, "the full name Dev gave was sent");
+    assert.ok(asked.message.includes("a fellow and I argued about the lamps."), "Bea's answer was not sent, or not as scrubbed");
+    assertClean(asked.message, "the best answers message");
   });
 
   test("a changed answer marks it out of date; somebody no longer holding a place is dropped", async () => {
@@ -501,6 +597,104 @@ describe("Pangram on coursework: admins only, counted answers of 50 words or mor
 });
 
 // ---------------------------------------------------------------------------
+// 4b. A written answer is gathered only once its readers may read it
+// ---------------------------------------------------------------------------
+
+describe("the gatherer takes a written answer only once its readers may read it (privacy v15)", () => {
+  const WEEK_THREE = `courseRuns/${RUN.agi}/weeks/w03`;
+  const ANSWER = `courseExerciseResponses/${RUN.agi}__amara__w03__k3-wa`;
+  const WEEK_WORK = `courseWeekWork/${RUN.agi}__amara__w03`;
+  /** Wed 11 Nov at 10am: Group A meets for week 3 on Thu 12 Nov at 6pm, so Amara's week 3 is open. */
+  const WEEK_OPEN = "2026-11-11T10:00:00Z";
+  const GATHERED = [["written", `${RUN.agi}__amara__w03__k3-wa`]];
+
+  /** Week 3 as the world writes it, with a written answer in a fourth part. */
+  function weekThreeWithAnswer() {
+    const week = seed()[WEEK_THREE];
+    const prompt = [{ type: "p", runs: [{ text: "Who should keep the lamps lit, and why?" }] }];
+    return {
+      ...week,
+      blocks: [
+        ...week.blocks,
+        {
+          id: "k3-p4",
+          type: "part",
+          title: "Your keeper's plan, the week’s written answer",
+          time: "About 30 minutes",
+          framing: [],
+          blocks: [{ id: "k3-wa", type: "writtenAnswer", prompt, boxes: [], guidance: [], words: null, due: "dayBefore" }],
+        },
+      ],
+    };
+  }
+  /** Amara's written answer to week 3, long enough for Pangram, first written after her agreement. */
+  const answer = (over = {}) => ({
+    runId: RUN.agi,
+    uid: "amara",
+    weekId: "w03",
+    weekNumber: 3,
+    exerciseId: "k3-wa",
+    responseType: "text",
+    text: LONG,
+    words: LONG.split(/\s+/).length,
+    submittedAt: null,
+    reviewStatus: "unreviewed",
+    firstWrittenAt: AFTER,
+    updatedAt: AFTER,
+    ...over,
+  });
+  /** Amara's week 3 as Submit stores it. */
+  const submittedWeek = (at) => ({ runId: RUN.agi, uid: "amara", weekId: "w03", weekNumber: 3, submittedAt: at, firstSubmittedAt: at, submitCount: 1, updatedAt: at });
+  /** What the gatherer handed Pangram's reading of Amara, as the admin's page asks for it. */
+  const gathered = async () => {
+    const read = await ask("zach", routes.person.GET, { ...params, uid: "amara" });
+    assert.equal(read.status, 200, JSON.stringify(read.body));
+    return { parts: read.body.parts.map((part) => [part.kind, part.rowId]), notCounted: read.body.notCounted };
+  };
+  /** Whether the week's plan for Pangram would send anything of Amara's. */
+  const planned = async () => (await ask("zach", routes.week.GET, params, { query: "?week=w03" })).body.people.some((person) => person.uid === "amara");
+
+  test("a draft in a week still open is its writer's: never gathered, and not even counted as left out", async () => {
+    reset({ [WEEK_THREE]: weekThreeWithAnswer(), [ANSWER]: answer() });
+    w.at(WEEK_OPEN);
+    // Her reflection from before her agreement is the only thing left out, and nothing is gathered.
+    assert.deepEqual(await gathered(), { parts: [], notCounted: 1 });
+    assert.equal(await planned(), false);
+  });
+
+  test("submitted, it is gathered; reopened, it is its writer's again until it is submitted or the next session locks it", async () => {
+    const at = new Date("2026-11-10T21:00:00Z");
+    reset({
+      [WEEK_THREE]: weekThreeWithAnswer(),
+      [ANSWER]: answer({ firstSentAt: at, submittedAt: at }),
+      [WEEK_WORK]: submittedWeek(at),
+    });
+    w.at(WEEK_OPEN);
+    assert.deepEqual((await gathered()).parts, GATHERED);
+    assert.equal(await planned(), true);
+    // Reopened at 10am: unsent again, so gathered no more.
+    w.world.db.poke(WEEK_WORK, { submittedAt: null, reopenedAt: new Date(WEEK_OPEN), reopenedByUid: "sofia" });
+    assert.deepEqual((await gathered()).parts, []);
+    assert.equal(await planned(), false);
+    // Group A's session locks it again, and its readers may read it.
+    w.at("2026-11-12T18:00:00Z");
+    assert.deepEqual((await gathered()).parts, GATHERED);
+  });
+
+  test("locked at the session before it was submitted, it is gathered whether it was sent or not", async () => {
+    reset({ [WEEK_THREE]: weekThreeWithAnswer(), [ANSWER]: answer() });
+    // The world's own clock: Group A met for week 3 on Thursday.
+    assert.deepEqual((await gathered()).parts, GATHERED);
+  });
+
+  test("an answer sent before weeks were submitted stays gathered while its week is open", async () => {
+    reset({ [WEEK_THREE]: weekThreeWithAnswer(), [ANSWER]: answer({ firstSentAt: AFTER, submittedAt: AFTER }) });
+    w.at(WEEK_OPEN);
+    assert.deepEqual((await gathered()).parts, GATHERED);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 5. The pure builders, on fixtures holding every kind of identifier
 // ---------------------------------------------------------------------------
 
@@ -548,16 +742,32 @@ describe("what is built for Claude and Pangram, on its own", () => {
     assert.doesNotMatch(built.message, /Clarity|Strong/);
   });
 
-  test("a note: the person is the fellow, levels and never comments, only counted answers", () => {
+  test("a note: the person is the fellow, only counted answers of a submitted week, levels, and the team's comments by their writer's role", () => {
+    const from = new Date("2026-11-01T09:00:00Z");
+    const written = new Date("2026-11-10T09:00:00Z");
     const built = model.noteDraftInput({
       programme: "AGI Strategy",
-      weeks: [week],
-      answers: answers.filter((a) => a.uid === "u-grace"),
+      weeks: [{ week, submittedAt: written }],
+      answers: answers.filter((a) => a.uid === "u-grace").map((a) => ({ ...a, firstWrittenAt: written })),
+      // CHANGED ON PURPOSE (privacy v15, "the feedback, ratings and comments
+      // people on the team gave it"): a comment goes, scrubbed like the work,
+      // its writer by what they are and never who.
+      feedback: [{ id: "f1", weekId: "w02", itemId: "a1", byUid: "u-zoe", role: "facilitator", text: "Grace Hopper should ask Zoë Ångström.", at: written }],
+      ratings: [],
       people: [{ name: "Grace Hopper", label: "the fellow" }, { name: "Zoë Ångström", label: "a facilitator" }],
+      from,
+      writerFrom: new Map([["u-zoe", from]]),
     });
     assert.equal(built.sent, 2);
     assert.ok(built.message.includes("Clarity: Strong"));
-    assert.doesNotMatch(built.message, /Grace|Hopper|Zoë|Ångström/);
+    assert.ok(built.message.includes("Feedback from their facilitator: the fellow should ask a facilitator."));
+    assert.doesNotMatch(built.message, /Grace|Hopper|Zoë|Ångström|u-zoe|u-grace/);
+    // Answers that are not counted, or come from no submitted week, never go.
+    assert.equal(model.noteDraftInput({ programme: "P", weeks: [], answers: answers.map((a) => ({ ...a, firstWrittenAt: written })), feedback: [], ratings: [], people: [], from, writerFrom: new Map() }).sent, 0);
+    assert.equal(
+      model.noteDraftInput({ programme: "P", weeks: [{ week, submittedAt: written }], answers: answers.filter((a) => a.uid === "u-old").map((a) => ({ ...a, firstWrittenAt: written })), feedback: [], ratings: [], people: [], from, writerFrom: new Map() }).sent,
+      0,
+    );
     assert.equal(model.noteWithName("The fellow is sharp; the fellow should facilitate.", "Grace"), "Grace is sharp; Grace should facilitate.");
   });
 

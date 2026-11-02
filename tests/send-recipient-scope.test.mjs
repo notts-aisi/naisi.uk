@@ -23,6 +23,10 @@
  *     literal that scopes it. Both directions, per-file per-field counts, a
  *     written reason each. A new recipient list fails here until somebody
  *     writes down why the caller cannot choose who it reaches.
+ *  4. THE PICKER ("Who is this for?", `src/lib/audience/`): the people a
+ *     caller names one by one are admitted by its scope table, executed here
+ *     as every role, and every file that can send and takes people from the
+ *     picker resolves them through its one door, `resolveAudience`.
  *
  * `tests/task-email-routes.test.mjs` is the neighbour that asks a different
  * question of the same five routes: whether the three gates that decide
@@ -182,6 +186,58 @@ const RECIPIENT_MARKERS = [
  *                halves of that are checked against the source.
  */
 const RECIPIENT_SOURCES = new Map([
+  // A week review's follow-up (privacy v15): the request names the PERSON to
+  // have a word with, and the people it reaches are their group's live
+  // facilitators, read on the server.
+  [
+    "src/lib/courses/weekReview/followUp.ts#input.uid",
+    {
+      reads: 7,
+      origin: "caller",
+      filteredBy: "if (!fellowsOf(door).has(input.uid))",
+      why:
+        "The person to have a word with, named by uid. Refused unless they hold a place on the " +
+        "programme and do not facilitate on its run, and never a recipient: the message goes to " +
+        "their group's facilitators.",
+    },
+  ],
+  [
+    "src/lib/courses/weekReview/followUp.ts#local:recipient",
+    {
+      reads: 1,
+      origin: "assembled",
+      why: "One facilitator's resolved account, looked up from the task's completers, which the server chose.",
+    },
+  ],
+  // An explainer, scheduled from a week's review: the one email goes to
+  // whoever explains, the account the admin chose, which the server reads and
+  // holds to the committee or an admin before anything is written or sent.
+  [
+    "src/lib/courses/explainers/schedule.ts#local:recipient",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "The one account the admin chose as whoever explains (`ask.explainerUid`, read from the request by " +
+        "`readScheduleAsk`), a field the scan cannot name. The server reads that account and refuses anybody not on " +
+        "the committee or an admin (`MAY_EXPLAIN`) before anything is written or sent, and the request names nobody " +
+        "else: nobody in the groups is a recipient.",
+      why:
+        "Whoever explains, resolved from the one account the admin chose, after the server held it to the committee " +
+        "or an admin. Nobody in the groups is a recipient: their tickets say it.",
+    },
+  ],
+  [
+    "src/lib/courses/weekReview/followUp.ts#task.completerUids",
+    {
+      reads: 2,
+      origin: "roster",
+      writtenBy: "src/lib/courses/weekReview/followUpTask.ts",
+      why:
+        "The task's completers: the person's group's live facilitators with a standing account, " +
+        "read off the group on the server. The request names nobody it reaches.",
+    },
+  ],
   [
     "src/app/api/admin/application-emails/send/route.ts#body.uid",
     {
@@ -238,12 +294,35 @@ const RECIPIENT_SOURCES = new Map([
       reads: 1,
       origin: "assembled",
       sourceOutsideScan:
-        "Built by `resolveCohortAudience` from the run's cohort channel intersected with the " +
-        "group's own active `courseEnrolments` rows, and each uid comes off a document rather " +
-        "than a recipient-shaped field, so there is nothing for the scan to name as its source.",
+        "Built by `resolveNoticeAudience` from the group's own active `courseEnrolments` rows, " +
+        "each person's address from their cohort row or their account, and each uid comes off a " +
+        "document rather than a recipient-shaped field, so there is nothing for the scan to name " +
+        "as its source.",
       why:
-        "The members of one group, for next week's email: the push lane and the schedule both " +
-        "send through here, and neither takes a recipient from a request.",
+        "Everybody holding a place in one group, for \"Week N is open\": the push lane and the " +
+        "schedule both send through here, and neither takes a recipient from a request.",
+    },
+  ],
+  [
+    "src/lib/scheduler/jobs/nextWeekEmail.ts#people.completerUids",
+    {
+      reads: 1,
+      origin: "record",
+      why:
+        "Who the card saying a group's \"Week N is open\" is held goes on the board of: the " +
+        "programme's lead and the admins. The card is born notified and emails nobody; the " +
+        "email it is about goes to the group, through the shared send.",
+    },
+  ],
+  [
+    "src/lib/scheduler/jobs/nextWeekEmail.ts#state.adminUids",
+    {
+      reads: 6,
+      origin: "record",
+      why:
+        "The admins, read once a tick and kept (six reads of the one cached list) to put the " +
+        "held card on their boards and to know the card as the job's own before archiving it. " +
+        "Nobody is emailed from it.",
     },
   ],
   [
@@ -293,27 +372,16 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
-    "src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts#body.uid",
-    {
-      reads: 2,
-      origin: "caller",
-      filteredBy: "if (!runData || !owner || !role?.mayReview) return NextResponse.json({ error: \"Forbidden\" }, { status: 403 });",
-      why:
-        "The PERSON whose written answer the caller opens, reopens or gives feedback on, named by uid. " +
-        "The one gate (writtenReviewRole) refuses, before anything is read, everybody whose answer the " +
-        "caller may not review, and the one email goes to that person's own account address, never " +
-        "to an address in the body.",
-    },
-  ],
-  [
-    "src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts#group.facilitatorUids",
+    "src/lib/courses/feedback/send.ts#group.facilitatorUids",
     {
       reads: 1,
       origin: "roster",
       writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
       why:
-        "Whether the answer's owner facilitates a group of the run, only to read the week as they " +
-        "read it. It names no recipient: the one message goes to the owner the gate names.",
+        "Who still takes part as a facilitator of a live group of the run, so feedback on a " +
+        "facilitator's own work stays owed while they do. It names no recipient: each \"you have " +
+        "feedback\" email goes to the person a stored piece is about, at their own account's address, " +
+        "and only for pieces the admin left ticked that the server reads back and claims itself.",
     },
   ],
   [
@@ -326,6 +394,18 @@ const RECIPIENT_SOURCES = new Map([
         "The facilitators of one group of the run a programme names, for its lead's Remind: " +
         "each held to the standing the role is appointed behind, and asked for an address and " +
         "their own email switch, by the reminder job's resolveFacilitator before the email goes.",
+    },
+  ],
+  [
+    "src/lib/surveys/checkIns/open.ts#group.facilitatorUids",
+    {
+      reads: 1,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "The group's facilitators, whom the check-in never reaches: taken out of the people its register " +
+        "marks there (`hereOf`) before any row is made or email sent. Who it emails is the register's rows " +
+        "Publish has told, each at their own account's address.",
     },
   ],
   [
@@ -445,19 +525,6 @@ const RECIPIENT_SOURCES = new Map([
       why:
         "Read off a mirrored week card to check it is the leaving member's own before the leave " +
         "deletes it, since a card's id says nothing about who made it. Not a recipient list.",
-    },
-  ],
-  [
-    "src/app/api/courses/runs/[runId]/nudge/route.ts#local:recipients",
-    {
-      reads: 1,
-      origin: "assembled",
-      sourceOutsideScan:
-        "The same shared cohort-audience helper as the run email route beside it, over the " +
-        "same enrolment rows, with the uids coming off document ids rather than off a field.",
-      why:
-        "The weekly nudge's audience, resolved the same way from the run's own enrolment " +
-        "rows.",
     },
   ],
   [
@@ -967,7 +1034,7 @@ const RECIPIENT_SOURCES = new Map([
   [
     "src/lib/email/eventAnnouncement.ts#audience.recipients",
     {
-      reads: 1,
+      reads: 2,
       origin: "derived",
       derivedFrom: [
         "src/lib/email/eventAnnouncement.ts#local:recipients",
@@ -977,7 +1044,8 @@ const RECIPIENT_SOURCES = new Map([
         "the guest subscriptions. Nothing in a request reaches it.",
       why:
         "The announcement audience, resolved from the subscriptions and members queries this " +
-        "module runs for itself.",
+        "module runs for itself: once by the inline send, and once by `announcementReach`, " +
+        "which only counts it for the Publish confirm and sends nothing.",
     },
   ],
   [
@@ -1006,12 +1074,13 @@ const RECIPIENT_SOURCES = new Map([
   [
     "src/lib/push/rowAudience.ts#owners.uids",
     {
-      reads: 1,
+      reads: 2,
       origin: "roster",
       writtenBy: "src/lib/push/rowAudience.ts",
       why:
         "The audience of a notification ROW, built here by querying who has that row's push " +
-        "cell switched on. Nothing in a request reaches it.",
+        "cell switched on. Nothing in a request reaches it. Read by the send, and by " +
+        "`countRowPushAudience`, which asks the same cell of the same owners and notifies nobody.",
     },
   ],
   [
@@ -1741,5 +1810,100 @@ describe("the scanner still matches what it is meant to", () => {
     }
     SEND_DOORS.lastIndex = 0;
     assert.equal(SEND_DOORS.test("const sendEmailLabel = 'x';"), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. The picker: people named one by one are the scope table's to admit
+// ---------------------------------------------------------------------------
+
+/**
+ * "WHO IS THIS FOR?" (`src/lib/audience/`) takes a list the caller writes:
+ * the tags of a selection, people named one by one (`person:<uid>`) among
+ * them. Each is admitted by the scope table (`mayUse` in `scope.ts`) and, for
+ * a person, by the world the loader read for that caller (an approved
+ * account, for the people who may read the roster), in `pickPeople`, before
+ * anybody is resolved. A tag that is not admitted refuses the whole
+ * selection, so a refusal says nothing about who exists. A send that takes
+ * its people from the picker takes them through `resolveAudience`, which
+ * calls `pickPeople`; the walk below holds every future one to that.
+ */
+const { loadTs: loadPicker } = createLoader({ stubs: new Map([["server-only", "export {};"]]) });
+const pickerScope = await loadPicker("lib/audience/scope.ts");
+const pickerResolve = await loadPicker("lib/audience/resolve.ts");
+
+describe("the picker's people named one by one are the scope table's to admit", () => {
+  const named = { kind: "person", uid: "someone" };
+  const VIEWERS = [
+    [{ uid: "p", role: "pending" }, null],
+    [{ uid: "r", role: "rejected" }, null],
+    [{ uid: "m", role: "member" }, false],
+    [{ uid: "c", role: "committee", suRecognised: false }, false],
+    [{ uid: "s", role: "committee", suRecognised: true }, true],
+    [{ uid: "z", role: "admin" }, true],
+  ];
+
+  test("only admins and SU-recognised committee may name anybody, whatever they lead or facilitate", () => {
+    for (const [viewer, may] of VIEWERS) {
+      const scope = pickerScope.scopeOf(viewer, { leads: ["round:programme"], groups: ["group"] });
+      if (may === null) {
+        assert.equal(scope, null, `${viewer.role} has a scope`);
+        continue;
+      }
+      assert.equal(pickerScope.mayUse(scope, named), may, `${viewer.role}${viewer.suRecognised ? " (SU)" : ""}`);
+    }
+  });
+
+  const worldFor = (viewer, nameable) => ({
+    viewerUid: viewer.uid,
+    scope: pickerScope.scopeOf(viewer),
+    term: null,
+    tags: [],
+    nameable: new Map(nameable.map((uid) => [uid, uid])),
+    accounts: new Map(),
+    guests: new Map(),
+    runs: new Map(),
+    holds: new Map(),
+    gmailOnly: false,
+  });
+
+  test("a name outside the roster the caller may read refuses the whole selection, naming only what failed", () => {
+    const committee = worldFor({ uid: "s", role: "committee", suRecognised: true }, ["amara"]);
+    const picked = pickerResolve.pickPeople(committee, { include: ["person:amara"], exclude: [] });
+    assert.equal(picked.ok, true);
+    assert.deepEqual([...picked.people.keys()], ["a:amara"]);
+    assert.deepEqual(pickerResolve.pickPeople(committee, { include: ["person:amara", "person:penny"], exclude: [] }), {
+      ok: false,
+      unknown: ["person:penny"],
+    });
+    assert.deepEqual(pickerResolve.pickPeople(committee, { include: ["person:amara"], exclude: ["person:penny"] }), {
+      ok: false,
+      unknown: ["person:penny"],
+    });
+    // A member's world can name nobody, even somebody on the roster.
+    const member = worldFor({ uid: "m", role: "member" }, ["amara"]);
+    assert.deepEqual(pickerResolve.pickPeople(member, { include: ["person:amara"], exclude: [] }), { ok: false, unknown: ["person:amara"] });
+  });
+
+  test("every file that can send and takes people from the picker resolves them through resolveAudience", () => {
+    const PICKER = /\bfrom\s*"@\/lib\/audience\/[\w/]+"/;
+    const importers = [];
+    for (const root of ["src/app/api", "src/lib"]) {
+      for (const file of walkTs(join(REPO_ROOT, root))) {
+        const source = codeOf(file);
+        if (!PICKER.test(withStrings(file))) continue;
+        importers.push({ path: relative(REPO_ROOT, file).split("\\").join("/"), source });
+      }
+    }
+    // The scan is reading: the picker's own routes import it, and send nothing.
+    assert.ok(importers.some((each) => each.path === "src/app/api/audience/route.ts"), "the picker's route was not seen importing it");
+    for (const { path, source } of importers) {
+      SEND_DOORS.lastIndex = 0;
+      if (!SEND_DOORS.test(source)) continue;
+      assert.ok(
+        source.includes("resolveAudience("),
+        `${path} sends and takes people from the picker without resolveAudience, so a name the caller wrote could reach a send unadmitted`,
+      );
+    }
   });
 });

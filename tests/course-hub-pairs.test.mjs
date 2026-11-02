@@ -386,8 +386,8 @@ describe("3. the pairs page and the group page's card", () => {
       "Bringing a laptop",
       "Farah Hussain",
       "Kofi Asante",
-      "Rahul Mehta",
-      "Sofia Rossi",
+      "Rahul",
+      "Sofia",
       "Save",
       "Each person sees who they’re paired with, and who’s bringing a laptop, on their week 3 page. No email.",
     ]);

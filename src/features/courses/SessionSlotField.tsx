@@ -3,6 +3,7 @@
 import { useId } from "react";
 import ResponsiveSelect from "@/components/ui/ResponsiveSelect";
 import TimeField from "@/components/ui/TimeField";
+import { clockWords } from "@/lib/courses/sessionChange/words";
 import { SESSION_LENGTH_PRESETS } from "@/lib/courses/sessionLength";
 import { GROUP_FIELD_LIMITS } from "@/lib/firestore/courseGroups";
 import styles from "./SessionSlotField.module.css";
@@ -93,6 +94,10 @@ export function SessionSlotField({ value, onChange, disabled }: Props) {
         .sort((a, b) => a - b);
 
   const end = endTimeLabel(value.startTimeLocal, value.durationMinutes);
+  // The summary says the slot in the house's clock, "from 6pm to 7:30pm": the
+  // field above it keeps the stored "18:00", which is what it edits.
+  const startWords = clockWords(value.startTimeLocal);
+  const endWords = end ? clockWords(end) : "";
   const dayLabel =
     WEEKDAY_OPTIONS.find((o) => o.value === String(value.weekday))?.label ?? "";
 
@@ -143,10 +148,10 @@ export function SessionSlotField({ value, onChange, disabled }: Props) {
       </div>
 
       <p className={styles.summary}>
-        {value.startTimeLocal && dayLabel ? (
+        {startWords && dayLabel ? (
           <>
-            Meets <strong>{dayLabel}s</strong> at {value.startTimeLocal}
-            {end ? `–${end}` : ""} London time.
+            Meets <strong>{dayLabel}s</strong>{" "}
+            {endWords ? `from ${startWords} to ${endWords}` : `at ${startWords}`}, London time.
           </>
         ) : (
           "Pick a day and start time to set the recurring slot."

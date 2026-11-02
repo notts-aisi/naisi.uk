@@ -543,6 +543,7 @@ export const NOT_FOR_EVERYBODY: Readonly<Record<string, string>> = {
   q_f4_accepted: "Which of those accepted you?: only for somebody who applied and was accepted.",
   q_f7: "Anything else that happened partly because of NAISI?: a catch-all.",
   q_ev_change: "Anything we should change?: a catch-all, after an event.",
+  q_ci_better: "What could have gone better?: a catch-all, at the end of a session.",
 };
 
 /** The ids `NOT_FOR_EVERYBODY` names. */
@@ -1114,7 +1115,7 @@ export function readSurveyConsents(
   return { consents, problem: null };
 }
 
-/** A new option or line id, in the shape Worksheets mints one. */
-export function newSurveyId(prefix: "o" | "l"): string {
+/** A new question, option or line id, in the shape Worksheets mints one. */
+export function newSurveyId(prefix: "q" | "o" | "l"): string {
   return newItemId(prefix);
 }

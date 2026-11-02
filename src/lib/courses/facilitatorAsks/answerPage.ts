@@ -28,7 +28,7 @@ import {
 } from "./words";
 
 /**
- * THE PAGE AN ASK'S "SAY YES OR NO" OPENS (st-fac-ask-phone), as one model
+ * THE PAGE AN ASK'S "SAY YES OR NO" OPENS, as one model
  * for the person asked and nobody else. Anybody else is shown that the page
  * is somebody else's, and nothing of the ask: not the group, not the
  * programme, not who asked.
@@ -150,7 +150,7 @@ export async function loadAnswerPage(
     training: trainingSaid ? { line: trainingLine(trainingSaid), text: trainingText(ask.leadName) } : null,
     state,
     closedText: closedText[state],
-    // No record holds the day groups go out yet (C19).
+    // No record holds the day groups go out yet.
     goOutDay: null,
     answerBy: answerByWords(replyDay, replyTime),
     groupName,

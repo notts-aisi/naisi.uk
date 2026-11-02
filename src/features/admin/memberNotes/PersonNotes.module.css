@@ -1,6 +1,7 @@
-/* Notes admins keep about a person. A record, read quietly: each note a block
-   of the admin's own words, with who wrote it and where it came from under it,
-   and a warning band on a note that may be used only within its programme. */
+/* Notes the team keeps about a person. A record, read quietly: each note a
+   block of somebody's own words, with who wrote it and who reads it above
+   it, where it came from under it, and a warning band on a note that may be
+   used only within its programme. */
 
 .notes {
   display: flex;
@@ -26,13 +27,10 @@
   color: var(--color-text);
 }
 
-.tag {
-  letter-spacing: 0.08em;
-}
-
 .line,
 .rule,
-.drafted {
+.drafted,
+.suggested {
   margin: 0;
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
@@ -46,6 +44,10 @@
 
 .drafted {
   color: var(--color-accent-text);
+}
+
+.suggested {
+  color: var(--color-text);
 }
 
 .problem {
@@ -89,6 +91,17 @@
   overflow-wrap: anywhere;
 }
 
+/* Who wrote it and when, then who reads it. */
+.byline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
 .text {
   font-size: var(--text-ui);
   line-height: var(--leading-normal);
@@ -126,6 +139,37 @@
   color: var(--color-text);
 }
 
+/* Who reads it, and what it suggests: a question and its boxes. */
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-5);
+}
+
 @media (max-width: 48rem) {
   .note {
     padding: var(--space-3);
@@ -133,5 +177,10 @@
 
   .row > * {
     min-height: 44px;
+  }
+
+  /* One box to a line, each its own 44px row. */
+  .suggestions {
+    flex-direction: column;
   }
 }

@@ -2,9 +2,9 @@ import { clockWords, dayWords, namesWords, weeksWords } from "./sessionChange/wo
 
 /**
  * THE WORDS OF THE PAGES A FACILITATOR USES EVERY WEEK, in one place: their
- * group's page (board wk-fac-group, laptop and phone), the group's register
- * page, their Home (wk-fac-home-phone), and the notes a group's facilitators
- * share (C30), where the programme's lead reads them too.
+ * group's page (laptop and phone), the group's register
+ * page, their Home, and the notes a group's facilitators
+ * share, where the programme's lead reads them too.
  *
  * The boards' own words are kept exactly, apostrophes included, and every
  * name, date, time, room and count in them is a slot filled from a record by
@@ -217,31 +217,32 @@ export function paceWords(weeksBehind: number): string {
 export const THIS_WEEK = "This week";
 
 /**
- * Next week's email on Home, while it is on its schedule (2c): when it goes,
- * or what it is waiting for. The register's own sentence without its "whatever
+ * The next "Week N is open" on Home, while it is on its schedule (2c): when it
+ * goes, or what it is waiting for. The register's own sentence without its "whatever
  * happens here", which belongs beside the register's button.
  */
 export function homeNextEmailWords(
   groupName: string,
   line:
-    | { state: "goes"; at: string }
-    | { state: "went"; at: string }
+    | { state: "goes"; at: string; weekNumber: number }
+    | { state: "went"; at: string; weekNumber: number }
     | { state: "waiting-for-week"; weekNumber: number }
-    | { state: "held"; missing: string[] }
-    | { state: "shortly" },
+    | { state: "held"; missing: string[]; weekNumber: number }
+    | { state: "shortly"; weekNumber: number },
 ): string {
   const group = groupName.trim() || "your group";
+  const email = `Week ${line.weekNumber}’s email`;
   switch (line.state) {
     case "goes":
-      return `Next week’s email goes to ${group} on ${line.at}.`;
+      return `${email} goes to ${group} on ${line.at}.`;
     case "went":
-      return `Next week’s email went to ${group} on ${line.at}.`;
+      return `${email} went to ${group} on ${line.at}.`;
     case "waiting-for-week":
-      return `Next week’s email to ${group} is waiting for week ${line.weekNumber} to be published.`;
+      return `${email} to ${group} is waiting for week ${line.weekNumber} to be published.`;
     case "held":
-      return `Next week’s email to ${group} is held: it’s missing ${namesWords(line.missing)}.`;
+      return `${email} to ${group} is held: it’s missing ${namesWords(line.missing)}.`;
     case "shortly":
-      return `Next week’s email to ${group} goes out shortly.`;
+      return `${email} to ${group} goes out shortly.`;
   }
 }
 
@@ -267,7 +268,7 @@ export function leftLine(args: {
 }
 
 // ---------------------------------------------------------------------------
-// Home before the group's first session (board st-fac-before-phone)
+// Home before the group's first session
 // ---------------------------------------------------------------------------
 
 /**
@@ -328,7 +329,7 @@ export function sayHelloLine(firstSessionDateKey: string, withinAWeek: boolean):
 }
 
 // ---------------------------------------------------------------------------
-// The notes a group's facilitators share (C30)
+// The notes a group's facilitators share
 // ---------------------------------------------------------------------------
 
 /**

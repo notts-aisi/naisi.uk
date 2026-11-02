@@ -11,7 +11,7 @@ import { PREVIEW, SECTION_TITLE, SEND_TEST, THE_EMAIL, testSaid } from "@/lib/co
 import styles from "./ProgrammeOverview.module.css";
 
 /**
- * CERTIFICATES (board en-finish), on the programme's Overview under Who
+ * CERTIFICATES, on the programme's Overview under Who
  * finished, once the run's last session is over, for its lead and admins.
  * The server worded all of it (`buildCertificatesSection`); this draws it and
  * sends the two presses.

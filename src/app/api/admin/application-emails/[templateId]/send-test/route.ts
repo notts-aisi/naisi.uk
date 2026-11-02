@@ -16,6 +16,12 @@ import {
 
 type Ctx = RouteContext<"/api/admin/application-emails/[templateId]/send-test">;
 
+/** What the admin is told when every test email failed. The errors are in the server log. */
+const NOTHING_SENT = "None of the test emails could be sent. The reason is in the server log.";
+
+/** Beside one address that failed when another was sent. */
+const SEND_FAILED = "This address could not be sent to. The reason is in the server log.";
+
 /**
  * Sends the last-saved version of a template to the admin's own Google + uni
  * addresses. Bypasses the template's recipients modifier on purpose — the
@@ -110,21 +116,17 @@ export async function POST(_req: Request, ctx: Ctx) {
       sentTo.push(address);
       await new Promise((r) => setTimeout(r, 200));
     } catch (err) {
-      failures.push({
-        address,
-        error: err instanceof Error ? err.message : "unknown",
-      });
+      // The error stays in the log: its words are the mail library's and can
+      // name a host or an address. The admin is told in words this route chose.
+      console.error("[application-email send-test]", templateId, err);
+      failures.push({ address, error: SEND_FAILED });
     }
   }
 
   // Treat "all sends failed" as a hard error — otherwise the UI shows a green
   // "Test sent to ." (empty-array join) when actually nothing landed.
   if (sentTo.length === 0) {
-    const reasons = failures.map((f) => `${f.address}: ${f.error}`).join("; ");
-    return NextResponse.json(
-      { error: `No emails delivered. ${reasons || "Unknown failure."}`, failures },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: NOTHING_SENT }, { status: 500 });
   }
 
   return NextResponse.json({ sentTo, failures });

@@ -168,6 +168,7 @@ import {
 } from "@/lib/email/eventAnnouncement";
 import { formatEventWhen } from "@/lib/events/changeSummary";
 import { publicLocationLine } from "@/lib/events/location";
+import { announces, guestsMayHear } from "@/lib/events/reach";
 import { baseUrl } from "@/lib/events/rsvpToken";
 import { getAdminDb } from "@/lib/firebase/admin";
 import {
@@ -373,7 +374,9 @@ function announcementInputFor(event: EventDoc): EventAnnouncementInput {
     locationLine,
     eventUrl: `${baseUrl()}/events/${event.id}`,
     coverImageUrl: event.posterUrl ?? null,
-    membersOnly: event.visibility === "members",
+    // Drops guest rows for an event that needs an account. The job never
+    // reaches an event for chosen people: `announces` refuses it first.
+    membersOnly: !guestsMayHear(event),
     noSignup: event.noSignup,
     // The announcement was claimed by whoever published, and the receipt says
     // so. The job is the hand that sends it, not the actor behind it.
@@ -654,6 +657,25 @@ async function announceOneEvent(
   let retryable = false;
   /** Units spent here, counted against what the TICK had left (`maxUnits`). */
   let units = 0;
+
+  // AN EVENT THAT DOES NOT ANNOUNCE, BEFORE ANY AUDIENCE IS READ. Publishing
+  // queues only an event that announces (src/lib/events/reach.ts), so this is
+  // a document somebody changed after it was queued: an event made for chosen
+  // people, or its announcement switched off. Its people are told by their
+  // invitation, or not at all, and never by the events list. Terminal, and
+  // nothing is released, for the stale rule's reason below.
+  if (!announces(event)) {
+    const refused = await settleAnnouncement(db, ctx, event.id, {
+      state: "refused",
+      refusal: "This event is not announced to the events list, so nothing was sent.",
+      release: false,
+    });
+    if (refused.written) {
+      summary.refused += 1;
+      ctx.log("a queued announcement was refused: the event does not announce", { eventId: event.id });
+    }
+    return { hasMore: false, units };
+  }
 
   // THE STALE RULE, BEFORE ANY AUDIENCE IS READ. An announcement nobody should
   // receive costs no reads at all, and the verdict is terminal, so this is

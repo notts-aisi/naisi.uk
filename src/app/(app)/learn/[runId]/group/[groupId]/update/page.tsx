@@ -14,7 +14,7 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 
 /**
  * "Write to Group B": the update composer for one group, opened from the
- * group's page (wk-fac-group, st-fac-before-phone). To is that group, said
+ * group's page. To is that group, said
  * rather than offered: a group's facilitator writes to their own group only.
  *
  * THE SAME GATE AS THE GROUP PAGE, spelled out again rather than shared: a

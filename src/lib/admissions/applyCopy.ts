@@ -21,12 +21,11 @@ import type { AdmissionRoundKind } from "@/lib/firestore/admissionRounds";
  *
  * ## What is deliberately NOT in here
  *
- * The privacy notice. `ApplicationPrivacyNotice` describes name-blind scored
- * review, which is the enrolment round's process and is mirrored word for word
- * in the "Courses and programmes" section of the privacy policy. The
- * appointment round's decide path (PR24) does no blind review and no scoring,
- * so an appointment variant of that copy would be a promise about data
- * handling that the policy does not make. Changing what an applicant is told
+ * The privacy notice. `ApplicationPrivacyNotice` says who reads an application
+ * and how it is reviewed in the terms of the "Applying to a programme" section
+ * of the privacy policy, and those words hold for both kinds of round: a
+ * reviewer scores only where a programme uses scores, and the appointment
+ * round's decide path (PR24) uses none. Changing what an applicant is told
  * about how their answers are read is the owner's call and the policy's, not a
  * string swapped in a copy table.
  */

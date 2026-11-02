@@ -3,11 +3,15 @@ import type { Firestore } from "firebase-admin/firestore";
 import { resolveWeekDocs, type ResolvedWeekEntry } from "@/lib/courses/groupResolve";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { weekFillInBoxes, weekReflectionPrompts, weekWrittenAnswers } from "@/lib/courses/weekBlocks/reader";
-import { readWrittenAnswer } from "@/lib/courses/writtenAnswers/model";
+import { instantOf, readWrittenAnswer } from "@/lib/courses/writtenAnswers/model";
 import { isFillInResponse, isOwnBoxResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { courseworkCountsFrom, rowCountsFrom } from "@/lib/legal/courseworkUse";
-import type { CourseworkAnswer, CourseworkQuestion, CourseworkWeek } from "./input";
+import { workIsReadable } from "@/lib/courses/weekWork/model";
+import { readRunForLock } from "@/lib/courses/weekWork/own";
+import { loadRunWeekStates } from "@/lib/courses/weekWork/readers";
+import { namesToScrubOf } from "@/lib/names/scrub";
+import { writtenAnswerWords, type CourseworkAnswer, type CourseworkQuestion, type CourseworkWeek } from "./input";
 
 /**
  * THE ONE READER OF COURSEWORK FOR CLAUDE AND PANGRAM (privacy v13), on the
@@ -24,6 +28,12 @@ import type { CourseworkAnswer, CourseworkQuestion, CourseworkWeek } from "./inp
  * Every row is marked `counted` or not by `rowCountsFrom`, here and only
  * here: what leaves for Claude or Pangram is built from counted rows alone
  * (`model.ts`), and the rest is only counted ("N not included yet").
+ *
+ * A WRITTEN ANSWER is read only once its readers may read it (privacy v15,
+ * `workIsReadable`): its week submitted or locked, or the answer sent before
+ * weeks were submitted. Where each week stands is read once for the run
+ * (`loadRunWeekStates`). Reflections and fill-in boxes are read as typed, as
+ * v15 says, from each writer's coursework-use moment.
  *
  * Every query is one equality on one field (`runId`, or `uid` for one
  * person), filtered in memory, so nothing needs a declared index.
@@ -133,28 +143,20 @@ export async function loadRunWeeks(db: Firestore, runId: string, groupIds: reado
 
 /** One row's words: a written answer in boxes is its boxes, each under its label. */
 function answerWords(question: CourseworkQuestion, data: Raw): string {
-  if (question.kind === "written") {
-    const record = readWrittenAnswer(data);
-    if (record.boxes) {
-      return question.boxes
-        .map((box) => ({ label: box.label, text: (record.boxes?.[box.id] ?? "").trim() }))
-        .filter((box) => box.text)
-        .map((box) => `${box.label}: ${box.text}`)
-        .join("\n\n");
-    }
-    return record.text.trim();
-  }
+  if (question.kind === "written") return writtenAnswerWords(question.boxes, readWrittenAnswer(data));
   return typeof data.text === "string" ? data.text.trim() : "";
 }
 
-/** Whether a stored row is the kind its question asks for. */
-function rowFits(question: CourseworkQuestion, data: Raw): boolean {
+/**
+ * Whether a stored row is the kind its question asks for. A written answer
+ * must also be one its readers may read (`readable`): a draft is its writer's
+ * until they submit the week, or it locks.
+ */
+function rowFits(question: CourseworkQuestion, data: Raw, readable: (data: Raw) => boolean): boolean {
   if (question.kind === "reflection") return isReflectionResponse(data);
   if (question.kind === "fillIn") return isFillInResponse(data);
-  // A written answer: an answer's row (no kind) that counts words, and SENT:
-  // a draft is its writer's until they send it.
   // Every kind of box its writer fills in is left out by the one question.
-  return !isOwnBoxResponse(data) && typeof data.words === "number" && readWrittenAnswer(data).firstSentAt !== null;
+  return !isOwnBoxResponse(data) && typeof data.words === "number" && readable(data);
 }
 
 /**
@@ -170,9 +172,26 @@ export async function loadAnswers(
   writers: ReadonlySet<string> | null,
 ): Promise<CourseworkAnswer[]> {
   const only = writers && writers.size === 1 ? [...writers][0] : null;
-  const snap = only
-    ? await db.collection("courseExerciseResponses").where("uid", "==", only).get()
-    : await db.collection("courseExerciseResponses").where("runId", "==", runId).get();
+  const [snap, run, groupSnap] = await Promise.all([
+    only
+      ? db.collection("courseExerciseResponses").where("uid", "==", only).get()
+      : db.collection("courseExerciseResponses").where("runId", "==", runId).get(),
+    readRunForLock(db, runId),
+    // The run's groups, for whose sessions lock each writer's week: one equality on the run.
+    db.collection("courseGroups").where("runId", "==", runId).get(),
+  ]);
+  const liveGroups = groupSnap.docs
+    .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
+    .filter((group) => !group.archived && group.runId === runId);
+  // Where each writer's week stands, for whether their written answer may be read.
+  const states = run ? await loadRunWeekStates(db, { run, liveGroups, now: new Date() }) : null;
+  const readable = (data: Raw) => {
+    const uid = typeof data.uid === "string" ? data.uid : "";
+    const weekNumber = typeof data.weekNumber === "number" ? data.weekNumber : 0;
+    const record = readWrittenAnswer(data);
+    if (!states) return record.firstSentAt !== null;
+    return workIsReadable(states.stateOf(uid, weekNumber), record);
+  };
   const byRow = new Map<string, CourseworkQuestion>();
   for (const week of weeks) for (const question of week.questions) byRow.set(`${week.weekId} ${question.rowId}`, question);
 
@@ -183,7 +202,7 @@ export async function loadAnswers(
     const uid = typeof data.uid === "string" ? data.uid : "";
     if (!uid || (writers && !writers.has(uid))) continue;
     const question = byRow.get(`${String(data.weekId ?? "")} ${String(data.exerciseId ?? "")}`);
-    if (!question || !rowFits(question, data)) continue;
+    if (!question || !rowFits(question, data, readable)) continue;
     rows.push({ id: doc.id, uid, question, data });
   }
 
@@ -206,6 +225,7 @@ export async function loadAnswers(
         text,
         counted: rowCountsFrom(row.data, fromOf.get(row.uid) ?? null),
         agreed: (fromOf.get(row.uid) ?? null) !== null,
+        firstWrittenAt: instantOf(row.data.firstWrittenAt),
         levels: written?.feedback ? written.feedback.levels.map((level) => ({ row: level.row, level: level.level })) : [],
       };
     })
@@ -213,23 +233,11 @@ export async function loadAnswers(
 }
 
 /**
- * The names each account goes by (its display name and its preferred name),
- * for swapping a name somebody typed into their words for a label before
- * anything leaves (`scrubNames`). Read here, used there, never sent.
+ * Every name each account holds (its display name, the name it goes by and
+ * the full name it gave), for swapping a name somebody typed into their
+ * words for a label before anything leaves (`scrubNames`). Read here, used
+ * there, never sent.
  */
 export async function loadAccountNames(db: Firestore, uids: readonly string[]): Promise<Map<string, string[]>> {
-  const out = new Map<string, string[]>();
-  const unique = [...new Set(uids.filter(Boolean))];
-  if (unique.length === 0) return out;
-  const snaps = await db.getAll(...unique.map((uid) => db.collection("users").doc(uid)));
-  for (const snap of snaps) {
-    if (!snap.exists) continue;
-    const data = (snap.data() ?? {}) as Raw;
-    const profile = (data.profile && typeof data.profile === "object" ? data.profile : {}) as Raw;
-    const names = [data.displayName, profile.preferredName]
-      .filter((name): name is string => typeof name === "string" && name.trim().length > 0)
-      .map((name) => name.trim());
-    out.set(snap.id, [...new Set(names)]);
-  }
-  return out;
+  return namesToScrubOf(db, uids);
 }

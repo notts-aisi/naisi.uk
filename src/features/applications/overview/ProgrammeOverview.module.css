@@ -1,4 +1,4 @@
-/* A programme's Overview (board wk-overview): the week card with its rail,
+/* A programme's Overview: the week card with its rail,
    the sessions this week, what needs attention, who came by week and the
    people. One column on a phone. */
 
@@ -613,7 +613,7 @@
   color: var(--color-text-body);
 }
 
-/* The Updates card (wk-overview): each update's writer, its title as a link
+/* The Updates card: each update's writer, its title as a link
    to the Messages tab, and the staff list's line under it. */
 .updateList {
   display: flex;
@@ -659,7 +659,7 @@
   overflow-wrap: anywhere;
 }
 
-/* ── Who finished (board en-finish) ─────────────────────────────────────
+/* ── Who finished ─────────────────────────────────────
    A card leading the Overview once the run's last session is over. Its
    table scrolls inside the card, never the page. */
 
@@ -1015,7 +1015,7 @@
   overflow-wrap: anywhere;
 }
 
-/* ── Certificates (board en-finish) ─────────────────────────────────────
+/* ── Certificates ─────────────────────────────────────
    The card is Who finished's own. The thumbnail is the certificate itself,
    drawn at 760 pixels and made smaller, as the board draws it. */
 
@@ -1152,7 +1152,7 @@
   opacity: 0.6;
 }
 
-/* en-finish's row once the run is over: Certificates, and The after survey beside it. */
+/* The Overview's row once the run is over: Certificates, and The after survey beside it. */
 .endRow {
   display: flex;
   flex-wrap: wrap;
@@ -1316,7 +1316,7 @@
     white-space: normal;
   }
 
-  /* Who finished, a card a row (en-finish draws no phone board): the person
+  /* Who finished, a card a row (no separate phone layout was drawn): the person
      and their Finished switch side by side, then their group, "came to" and
      exercises under the name, each with its column's word, so no switch is
      behind a sideways scroll. Every cell, word and control is the laptop
@@ -1477,8 +1477,7 @@
 }
 
 
-/* ══ Before any group has met: "Get ready for week 1" (boards st-overview and
-   st-overview-phone) ════════════════════════════════════════════════════
+/* ══ Before any group has met: "Get ready for week 1" ════════════════════════════════════════════════════
    The checklist and who has not said when they are free on the left, the
    places and the facilitators on the right, one column on a phone in the
    same order. Every class here starts "ready" and is drawn by GetReady.tsx

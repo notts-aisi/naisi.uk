@@ -41,21 +41,24 @@ import { applicationInvitationRemindersJob } from "./jobs/applicationInvitationR
 import { applicationPlaceConfirmationsJob } from "./jobs/applicationPlaceConfirmations";
 import { eventAnnouncementsJob } from "./jobs/eventAnnouncements";
 import { eventCheckInsTidyJob } from "./jobs/eventCheckInsTidy";
+import { eventSurveysJob } from "./jobs/eventSurveys";
 import { heartbeatJob } from "./jobs/heartbeat";
 import { nextWeekEmailJob } from "./jobs/nextWeekEmail";
 import { registerRemindersJob } from "./jobs/registerReminders";
+import { surveyCheckInWeeksJob } from "./jobs/surveyCheckInWeeks";
 import { surveyNamesOffJob } from "./jobs/surveyNamesOff";
 import { unmarkedRegistersJob } from "./jobs/unmarkedRegisters";
+import { weekRemindersJob } from "./jobs/weekReminders";
 import { worksheetDueRemindersJob } from "./jobs/worksheetDueReminders";
 
 /**
  * Every job id the platform will register. The union is complete ahead of the
  * handlers on purpose (see the module comment).
  *
- * `week-lock-notices` is deliberately absent: next week's email (sent by the
- * register's push, or on its schedule by `courses-next-week-email`) already
- * tells a group about its week, so a second notice would be a duplicate with
- * worse timing.
+ * `week-lock-notices` is deliberately absent: "Week N is open" (sent by the
+ * register's push, or on its schedule by `courses-next-week-email`) and the
+ * reminders before a session already tell a group about its week and when it
+ * locks, so a third notice would be a duplicate with worse timing.
  */
 export const SCHEDULER_JOB_IDS = [
   "heartbeat",
@@ -78,15 +81,20 @@ export const SCHEDULER_JOB_IDS = [
   "application-place-confirmations",
   "courses-unmarked-registers",
   "courses-break-return",
-  // Next week's email on a schedule (wk-register, option B). Its switch is
-  // load-bearing in two places: the tick runs it, and the attendance push
-  // reads it to decide whether pushing still sends the email
+  // "Week N is open" on a schedule, 6 days before each session.
+  // The id is the one it shipped with as next week's email. Its
+  // switch is load-bearing in two places: the tick runs it, and the
+  // attendance push reads it to decide whether pushing still sends the email
   // (`nextWeekEmailSchedule.ts`). It emails whole groups, so it registers with
   // `enabledByDefault: false`.
   "courses-next-week-email",
   // The one reminder to a group's facilitators when a register is still not
   // finished. It emails people, so it registers with `enabledByDefault: false`.
   "courses-register-reminders",
+  // The reminders 3 days and 1 day before a session to each person whose week
+  // is not done. It emails people, so it registers with
+  // `enabledByDefault: false`.
+  "courses-week-reminders",
   // The queued new-event announcement (docs/notifications.md). Publishing
   // consults THIS switch to decide between sending inline and queueing, so
   // the id is load-bearing in two places rather than one: rename it after it
@@ -97,7 +105,18 @@ export const SCHEDULER_JOB_IDS = [
   // emails nobody, so it registers on: the privacy policy's promise rests on
   // it running.
   "event-check-ins-tidy",
+  // The survey after an event that its event's Survey after step set up:
+  // opened at the event's start, emailed when the step said and reminded once
+  // 3 days later (`src/lib/surveys/events/setUp.ts`). It emails people, so it
+  // registers with `enabledByDefault: false`, and the editor's step reads its
+  // switch to say whether anything goes by itself.
+  "event-surveys",
   "newsletter-drain",
+  // Each week of a programme's check-ins is fixed the first time it is whole,
+  // and the programme's lead reads only fixed weeks (docs/surveys.md,
+  // "Check-ins at the end of a session"). It emails nobody, so it registers
+  // on: while it is off, no new week of check-ins shows to a lead.
+  "surveys-check-in-weeks",
   // Names come off confidential survey answers two years after the programme
   // (docs/surveys.md). It emails nobody, so it registers on: the privacy
   // policy's promise rests on it running.
@@ -259,9 +278,12 @@ export const JOBS: readonly JobRegistration[] = [
   nextWeekEmailJob,
   registerRemindersJob,
   unmarkedRegistersJob,
+  weekRemindersJob,
   eventAnnouncementsJob,
   eventCheckInsTidyJob,
+  eventSurveysJob,
   heartbeatJob,
+  surveyCheckInWeeksJob,
   surveyNamesOffJob,
   worksheetDueRemindersJob,
 ];

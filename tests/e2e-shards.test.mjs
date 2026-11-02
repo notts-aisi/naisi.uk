@@ -12,10 +12,11 @@
  *     every spec module in `scripts/e2e-fixtures/` exactly once, so a new spec
  *     is placed by adding its file and can never fall between two machines.
  *  2. A SPEC THAT BORROWS A SHARED SETTING RUNS IN PART 1. `config/membership`
- *     is one document on the whole dev project; the spec that moves it puts it
- *     back in teardown, and two runs overlapping would each restore the
- *     other's. The walk below finds every fixture that reaches it and fails
- *     one missing from BORROWS_A_SHARED_SETTING.
+ *     and the end of a programme's question set are each one document on the
+ *     whole dev project; the spec that changes one puts it back in teardown,
+ *     and two runs overlapping would each restore the other's. The walk below
+ *     finds every fixture that reaches either and fails one missing from
+ *     BORROWS_A_SHARED_SETTING.
  *  3. PART 1 IS THE PART IN THE SHARED QUEUE. In `.github/workflows/e2e.yml`
  *     only `specs-1` joins the group the nightly waits in; the other parts take
  *     a group of their own. The matrix and the runner's arithmetic agree.
@@ -85,16 +86,35 @@ describe("every spec runs, once", () => {
 });
 
 describe("a spec that borrows a shared setting runs in part 1", () => {
-  test("every fixture that reaches the shared document is on the list", () => {
-    const reaching = SPECS.filter((spec) => /\bmembershipConfigDoc\s*\(/.test(spec.text)).map((spec) => spec.name);
-    assert.ok(reaching.length > 0, "no fixture reaches config/membership: this guard has nothing to hold");
-    for (const name of reaching) {
-      assert.ok(
-        BORROWS_A_SHARED_SETTING.has(name),
-        `${name} reaches config/membership and is not in BORROWS_A_SHARED_SETTING (scripts/e2e/lib/shard.mjs), ` +
-          "so a split could run it beside another run's copy",
-      );
-    }
+  // Each door core.mjs opens onto a document the whole dev project shares, and what it reaches.
+  const SHARED_DOORS = [
+    ["membershipConfigDoc", "config/membership"],
+    ["surveyQuestionSetDoc", "surveyQuestionSets/after"],
+  ];
+
+  for (const [door, what] of SHARED_DOORS) {
+    test(`every fixture that reaches ${what} is on the list`, () => {
+      const call = new RegExp(`\\b${door}\\s*\\(`);
+      const reaching = SPECS.filter((spec) => call.test(spec.text)).map((spec) => spec.name);
+      assert.ok(reaching.length > 0, `no fixture reaches ${what}: this guard has nothing to hold`);
+      for (const name of reaching) {
+        assert.ok(
+          BORROWS_A_SHARED_SETTING.has(name),
+          `${name} reaches ${what} and is not in BORROWS_A_SHARED_SETTING (scripts/e2e/lib/shard.mjs), ` +
+            "so a split could run it beside another run's copy",
+        );
+      }
+    });
+  }
+
+  test("every door onto a shared document is one this walk knows", () => {
+    const core = readFileSync(join(FIXTURES, "core.mjs"), "utf8");
+    const doors = [...core.matchAll(/\nexport function (\w+Doc)\(\)/g)].map((match) => match[1]).sort();
+    assert.deepEqual(
+      doors,
+      SHARED_DOORS.map(([door]) => door).sort(),
+      "core.mjs exports a door onto one shared document that this test does not walk for, or lost one it does",
+    );
   });
 
   test("every entry on the list is a spec that exists, with a reason", () => {

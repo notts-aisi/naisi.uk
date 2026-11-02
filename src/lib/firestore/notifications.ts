@@ -101,8 +101,11 @@ export const CATEGORY_DESCRIPTIONS: Record<NotificationCategory, string> = {
     "Updates about our courses, reading groups, and what the committee is working on.",
   events:
     "A short email when we publish a new event: talks, socials, workshops. So you don't have to watch the site or socials.",
+  // Says what it does not stop, because "Week N is open", the reminders
+  // before a session and a group's practical emails are notices, and reach
+  // somebody holding a place whatever this row says.
   courses:
-    "Announcements sent to a whole cohort you're enrolled in. Untick to stop them. Your own group's practical emails (a moved session, a changed reading) still reach you.",
+    "Announcements sent to a whole cohort you're enrolled in. Untick to stop them. Each week's email, reminders about your own week's work, and your group's practical emails (a moved session, a changed reading) still reach you.",
   // Says what it stops, because this row is the one a member can switch off
   // and then wonder why nobody told them about a review. The owner's call on
   // 6 September 2026 was that granularity wins over safety here, so the copy

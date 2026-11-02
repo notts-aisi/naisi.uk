@@ -29,10 +29,13 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * `(tabs)` route group beside it, so it is drawn with no programme head and
  * no tabs, and carries its own way back to the tab.
  *
- * THE COLUMN BESIDE THE WEEKS (`beside`, privacy v13) is AN ADMIN'S ALONE:
- * notes about this person written from this run, "Draft a note with Claude"
- * and Pangram on their answers (`PersonBeside`). The programme's lead is
- * handed nothing there, so the column is not drawn for the lead at all.
+ * THE COLUMN BESIDE THE WEEKS (`beside`, `PersonBeside`): for an admin
+ * (privacy v13), notes about this person written from this run, "Draft a
+ * note with Claude" and Pangram on their answers; for the programme's lead
+ * (privacy v15), only the notes kept for admins and the programme's leads,
+ * and the lead's own, through the programme's route, which asks the lead's
+ * place again. Never Claude or Pangram for the lead, and no column at all on
+ * the lead's own page.
  */
 
 export const dynamic = "force-dynamic";
@@ -63,17 +66,20 @@ export default async function PersonCourseworkPage({
     );
   }
   const { view } = outcome;
+  const self = view.person.uid === user.uid;
+  // The lead's own page has nothing beside it: notes about somebody are never shown to them.
   const beside =
-    view.viewer === "admin" ? (
+    view.viewer === "lead" && self ? null : (
       <PersonBeside
         roundId={view.roundId}
         programmeId={view.programmeId}
         runId={view.runId}
         uid={view.person.uid}
         name={view.person.name}
-        self={view.person.uid === user.uid}
+        viewer={view.viewer}
+        self={self}
       />
-    ) : null;
+    );
   return (
     <ApplicationsRoot className={shared.page}>
       <PersonCoursework view={view} backHref={tabPath} beside={beside} />

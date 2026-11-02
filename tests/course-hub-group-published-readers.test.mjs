@@ -31,13 +31,16 @@
  * decides. A reader that shows placements has to ask the question as many
  * times as its entry says, and about the caller's own role.
  *
- * TWO HELPERS carry the question for the files that call them, and are held
- * here too: `loadRegisterMembers` (the register, its notes) is handed the
- * caller's role by every caller, and `resolveCohortAudience` (the register
- * push's reminder, the week nudge, the run email) asks `placementIsTold`.
+ * THREE HELPERS carry the question for the files that call them, and are
+ * held here too: `loadRegisterMembers` (the register, its notes) is handed the
+ * caller's role by every caller, and `resolveCohortAudience` (the run email's
+ * announcement) and `resolveNoticeAudience` (the run email's notice, an
+ * update's email, "Week N is open" and the reminders before a session) each
+ * ask `placementIsTold`.
  *
  * WHAT THE READERS THEN DO is executed in
- * `tests/course-hub-group-published-{member,facilitator,mail,nudge}.test.mjs`.
+ * `tests/course-hub-group-published-{member,facilitator,mail}.test.mjs` and
+ * `tests/course-notice-reach.test.mjs`.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -123,10 +126,40 @@ const READERS = {
     asks: 1,
     why: "who reads a run's updates: an untold seat reads nothing, as no seat read nothing, so no update to its group is shown to it",
   },
+  "lib/audience/load.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "who a message may be for: a group's tag holds the people Publish has told are in it, whoever is asking, an " +
+      "admin included, and a facilitator runs only those, so a seat nobody has told is in no group's tag and no " +
+      "message chosen by one reaches it; somebody who left after being told is listed as having left",
+  },
+  "lib/names/load.ts": {
+    kind: "shown",
+    asks: 1,
+    why:
+      "what tells two people with one full name apart on a staff screen: their programme and group, the group named only " +
+      "where the placement may be shown to the screen's viewer, so an untold seat is named by its programme alone",
+  },
+  "lib/events/requestCard.ts": {
+    kind: "shown",
+    asks: 1,
+    why:
+      "the card under a request for a place at an event, for the people organising it: a place names its group only " +
+      "where the placement may be shown to the person looking, so anybody but an admin reads a seat nobody has told as " +
+      "not in a group yet",
+  },
   "lib/courses/weekOne/door.ts": {
     kind: "told",
     asks: 1,
-    why: "week 1's door before groups go out (Q35 B): the caller's own seat only, never shown. A seat Publish has told them about is the run gate's, a seat that has left shuts the door, and an untold seat opens week 1 alone, by the place on the form, with nothing of its group",
+    why: "week 1's door before groups go out: the caller's own seat only, never shown. A seat Publish has told them about is the run gate's, a seat that has left shuts the door, and an untold seat opens week 1 alone, by the place on the form, with nothing of its group",
+  },
+  "lib/courses/cantMakeIt/seat.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "Can't make it on a session's ticket: the caller's own seat only, read by their uid and shown to nobody else; " +
+      "a seat Publish has not told them about takes no part, so its ticket offers nothing and its press is refused",
   },
   "lib/courses/getReady/remind.ts": {
     kind: "told",
@@ -138,7 +171,7 @@ const READERS = {
   "lib/courses/updates/audience.ts": {
     kind: "told",
     asks: 1,
-    why: "who an update is to and who its email reaches: an untold seat counts as nobody, and the email goes through the cohort audience, which leaves it out",
+    why: "who an update is to and who its email reaches: an untold seat counts as nobody, and the email goes through the notice audience, which leaves it out",
   },
   "lib/courses/sharedNotes/readers.ts": {
     kind: "told",
@@ -202,6 +235,42 @@ const READERS = {
     kind: "shown",
     asks: 1,
     why: "a member picks a pack or marks their talk ready on the run: an untold seat does not open the run (a group's facilitator acts as its facilitator, which is no seat)",
+  },
+  "app/api/courses/runs/[runId]/ticks/[itemId]/route.ts": {
+    kind: "told",
+    asks: 1,
+    why: "a person ticks their own week through the tick route: an untold seat does not open the run, as the browser's tick never did",
+  },
+  "lib/courses/weekWork/own.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "who takes part in their own week, for Submit: an untold seat does not open the run (a group's facilitator takes part as its facilitator, which is no seat)",
+  },
+  "lib/courses/weekWork/readers.ts": {
+    kind: "told",
+    asks: 1,
+    why: "whose sessions lock a person's week: their placement's group only once Publish has told them it, the lock being the person's own, whoever asks",
+  },
+  "app/api/courses/runs/[runId]/weeks/[weekId]/reopen/route.ts": {
+    kind: "staff",
+    proof: ['if (!run || !owner || !role?.mayReview) return NextResponse.json({ error: "Forbidden" }, { status: 403 });'],
+    why:
+      "reopening somebody's week reads their seat by its address, after the one gate on whose work a reader may act on, only to " +
+      "know whose sessions lock their week (the readers' own question, asked of the told placement), and sends back no seat",
+  },
+  "lib/courses/feedback/access.ts": {
+    kind: "staff",
+    proof: ['if (!run || !owner || !role?.mayReview) return { ok: false, status: 403, error: "Forbidden" };'],
+    why:
+      "feedback reads the person's seat by its address, after the one gate, only to know whose sessions lock their week and so " +
+      "whether their work may be read, and sends back no seat",
+  },
+  "lib/courses/feedback/send.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "the \"you have feedback\" batch: feedback is owed only to somebody taking part whose placement Publish has told (or who " +
+      "facilitates a live group), so nobody is emailed about a group they have not been told, whoever presses",
   },
   "app/api/courses/runs/[runId]/reflections/[promptId]/route.ts": {
     kind: "shown",
@@ -280,20 +349,17 @@ const READERS = {
       "write of their answer. A seat Publish has not told them about is no question, whoever they are, an admin's " +
       "own untold seat included, so neither the card nor the refusal says anything of a group before Publish has",
   },
-  "app/api/courses/runs/[runId]/nudge/route.ts": {
-    kind: "shown",
-    asks: 1,
-    why: "the sender's own group picks the week their preview and test show: an untold seat picks none",
-  },
   "lib/email/courseFacilitatorEmails.ts": {
     kind: "told",
-    asks: 1,
-    why: "the cohort audience behind the register push's reminder, the week nudge and the run email leaves out untold seats; the unreachable count beside it is a number for the sender",
+    asks: 2,
+    why:
+      "the cohort audience behind the run email's announcement, and the notice audience behind the run email's " +
+      "notice, an update's email, \"Week N is open\" and the reminders before a session, each leave out untold seats",
   },
   "lib/courses/pushEmail.ts": {
     kind: "told",
     asks: 1,
-    why: "what pressing a register emails, said before the press: the people its count is out of are the group's placements Publish has told, the email itself goes through the cohort audience, which leaves an untold seat out, and it names nobody",
+    why: "what pressing a register emails, said before the press: the people its count is out of are the group's placements Publish has told, the email itself goes through the notice audience, which leaves an untold seat out, and it names nobody",
   },
   "lib/courses/calendarFeed.ts": {
     kind: "told",
@@ -314,8 +380,16 @@ const READERS = {
     kind: "told",
     asks: 1,
     why:
-      "whether a leaving survey is still the caller's to answer: the caller's own seat only, and nothing of it " +
-      "is shown. A seat Publish has not told them about is no seat they left, so it keeps no card",
+      "whether a leaving survey or a check-in is still the caller's to answer: the caller's own seat only, and " +
+      "nothing of it is shown. A seat Publish has not told them about is no seat they left or are on, so it keeps no card",
+  },
+  "lib/surveys/resultsFilters.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "a programme's survey results by group, for admins: the Who filter, the people behind its bars and the Answers " +
+      "tab's Group column read each person's group as Publish told it, so a seat Publish has not told them about is " +
+      "in no group, and no answer is counted under a group its person has not been told",
   },
   "lib/applications/people/load.ts": {
     kind: "staff",
@@ -364,6 +438,14 @@ const READERS = {
       "lead) or an admin's notes: a seat's group only chooses which group's copy of a week a person's questions come " +
       "from. No group, and nothing of a seat, is shown or sent to anybody",
   },
+  "lib/courses/coursework/door.ts": {
+    kind: "staff",
+    proof: ['.map((doc) => (doc.data() ?? {}).uid)', "const outcome = await loadProgrammeRun(db, user, roundId, programmeId);"],
+    why:
+      "the coursework door's scrub list, for Claude's best answers and a week's review, each an admin's alone: the " +
+      "run's seats are read for WHO is on it, so their names can be swapped out of what is sent. No group or seat is " +
+      "shown or sent",
+  },
   "lib/memberNotes/draft.ts": {
     kind: "staff",
     proof: ['.map((doc) => (doc.data() ?? {}).uid)', "const refused = gateNotes(user, subjectUid);"],
@@ -404,6 +486,14 @@ const READERS = {
       "on the run for the group somebody sits in now and whether Publish has told them it. Every placement stays " +
       "where it is in a suggestion; one Publish has not told may be moved by the admin, or by a suggestion only when " +
       "the admin starts again, and Circles marks it not told yet. It shows the admin alone and writes nothing",
+  },
+  "lib/applications/nextTerm/load.ts": {
+    kind: "staff",
+    proof: ['if (!canRunTerm(viewer)) return { status: "admins-only" };', "courseEnrolmentId(runId, uid)"],
+    why:
+      "a term's Next term page, an admin's alone: the seat of each person a note suggests on each of the term's " +
+      "runs, read by id, for their programme and group, which an admin is shown placed or not. No member, " +
+      "facilitator or lead is shown a placement, and nobody is emailed",
   },
   "lib/applications/handover/load.ts": {
     kind: "staff",
@@ -557,7 +647,13 @@ describe("every reader of placements says what it does about a placement Publish
     for (const [file, code] of callers) {
       const calls = [...code.matchAll(/\bloadRegisterMembers\s*\(([^)]*)\)/g)];
       for (const [, args] of calls) {
-        assert.match(args, /,\s*\{\s*isAdmin\s*:\s*gated\.isAdmin\s*\}\s*$/, `${file} calls it without the caller's role`);
+        // Whether the caller is an admin, from the gate; and, where the rows
+        // are named for the caller, the session's own role (the names rule).
+        assert.match(
+          args,
+          /,\s*\{\s*isAdmin\s*:\s*gated\.isAdmin\s*(?:,\s*role\s*:\s*(?:actor|gated)\.role\s*)?\}\s*$/,
+          `${file} calls it without the caller's role`,
+        );
       }
     }
   });

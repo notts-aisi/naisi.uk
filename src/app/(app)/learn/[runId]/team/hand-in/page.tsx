@@ -9,7 +9,7 @@ import { HAND_IN } from "@/lib/courses/teamPage/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 
 /**
- * A TEAM'S ONE HAND-IN (board en-handin-phone, drawn at 390 and laid out the
+ * A TEAM'S ONE HAND-IN (drawn at 390 and laid out the
  * same way, in one column, at 1440): a link, a summary of up to 200 words
  * and who did what, which everybody in the team sees and can change until
  * 23:59 in London on the day it is due. Reached from the team's page.

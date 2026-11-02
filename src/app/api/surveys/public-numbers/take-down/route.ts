@@ -9,7 +9,7 @@ import { canRunSurveys } from "@/lib/surveys/repo";
 import { REFUSAL } from "@/lib/surveys/words";
 
 /**
- * TAKE A PROGRAMME'S PUBLIC NUMBERS DOWN (sv-public): "Take it down any time."
+ * TAKE A PROGRAMME'S PUBLIC NUMBERS DOWN: "Take it down any time."
  *
  *   POST { roundId, programmeId }  ->  { ok: true }
  *

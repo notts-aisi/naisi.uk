@@ -1,6 +1,5 @@
 /**
- * PACKS, CASES AND TALKS (plan item 8; Q32 A; boards wk-cases, wk-week,
- * wk-week-phone, wk-week6-phone, wk-fac-group and wk-programme), driven
+ * PACKS, CASES AND TALKS, driven
  * through the real routes and pages as every kind of caller:
  *
  *  1. the per-person record, its normaliser, and what takes it away;
@@ -384,8 +383,8 @@ describe("3. the draw", () => {
       "Chloe Nguyen",
       "Farah Hussain",
       "Kofi Asante",
-      "Rahul Mehta",
-      "Sofia Rossi",
+      "Rahul",
+      "Sofia",
       "Save",
       "Each person sees theirs on their week 3 page. No email.",
     ]);

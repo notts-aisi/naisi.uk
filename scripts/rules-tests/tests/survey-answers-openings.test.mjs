@@ -1,6 +1,6 @@
 /**
- * Rules tests for the openings of one person's survey answers (board
- * sv-person): a row in `recordOpenings` of kind `survey-answers`
+ * Rules tests for the openings of one person's survey answers (the page of
+ * one person's answers): a row in `recordOpenings` of kind `survey-answers`
  * (src/lib/firestore/recordOpenings.ts, `openSurveyAnswersRecorded`), written
  * by the Admin SDK before anything of the answers is read. Its block is the
  * sealed predictions' own, deny-all; these hold it for a survey-shaped row,

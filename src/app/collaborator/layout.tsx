@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentCollaborator } from "@/lib/firebase/session";
-import { CURRENT_POLICY_VERSION } from "@/lib/legal/policies";
+import { needsPolicyAcceptance } from "@/lib/legal/acceptance";
 import CollaboratorTopBar from "./CollaboratorTopBar";
 import styles from "./collaborator.module.css";
 
@@ -19,12 +19,13 @@ export default async function CollaboratorLayout({
   const collaborator = await getCurrentCollaborator();
   if (!collaborator) redirect("/login");
   // Re-consent gate: collaborators have a single home, so gating here is their
-  // natural entry point (the member equivalent lives on the dashboard layout).
-  // Deployed builds only (skipped under local `npm run dev`), matching the member
-  // gate — verify on dev.naisi.uk.
+  // natural entry point (the member equivalent lives on the shared authed
+  // layout), on the same rule (`needsPolicyAcceptance`: an agreement older
+  // than privacy v15 or the current terms). Deployed builds only (skipped
+  // under local `npm run dev`), matching the member gate. Verify on dev.naisi.uk.
   if (
     process.env.NODE_ENV === "production" &&
-    collaborator.policyVersion !== CURRENT_POLICY_VERSION
+    needsPolicyAcceptance(collaborator.policyVersion)
   ) {
     redirect("/re-consent");
   }

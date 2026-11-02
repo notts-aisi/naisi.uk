@@ -14,11 +14,11 @@ import styles from "./Leaving.module.css";
 import { ProgrammeBar } from "./Parts";
 
 /**
- * THE PROGRAMME PAGE ONCE SOMEBODY HAS LEFT (board wk-left-phone), drawn on
+ * THE PROGRAMME PAGE ONCE SOMEBODY HAS LEFT, drawn on
  * the server from `loadLeftView`.
  *
  * What it says: that they left, the day, the leaving survey's card while it
- * is theirs to answer (`survey`, Q46), and the society's address for
+ * is theirs to answer (`survey`), and the society's address for
  * somebody who has changed their mind. That is all of it. Their marks, notes
  * and reflections are not shown to them, nor the reading list, nor anything
  * of the group's: those stay with the programme's lead and admins, and the

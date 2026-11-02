@@ -987,8 +987,13 @@ const BUILT = new Map([
   [
     "src/features/applications/weeks/WeeksList.tsx",
     {
-      built: ["copyWeeksPath(roundId, programmeId)", "weeksPath(roundId, programmeId, week.weekId)"],
-      from: "the Weeks tab's own paths (src/lib/courses/weeksTab/paths.ts), made from the form's and the programme's ids and a week's document id, each encoded",
+      built: [
+        "copyWeeksPath(roundId, programmeId)",
+        "weekNotesPath(roundId, programmeId, week.weekId)",
+        "weekReviewPath(roundId, programmeId, week.weekId)",
+        "weeksPath(roundId, programmeId, week.weekId)",
+      ],
+      from: "the Weeks tab's own paths (src/lib/courses/weeksTab/paths.ts), made from the form's and the programme's ids and a week's document id, each encoded; a week's review is the week's own path and `/review`, and its notes the week's own path and `/notes`",
     },
   ],
   [
@@ -1024,10 +1029,38 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review/page.tsx",
+    {
+      built: ["weeksPath(view.roundId, view.programmeId)", "weeksPath(view.roundId, view.programmeId, page.opened.weekId)"],
+      from: "the way back to the Weeks tab, and to the week's page on it, made from the form's and the programme's ids and the week's document id, each encoded",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review/explainer/page.tsx",
+    {
+      built: ["review", "weeksPath(view.roundId, view.programmeId)", "weeksPath(view.roundId, view.programmeId, form.weekId)"],
+      from: "the way back to the week's review (`weekReviewPath`), the Weeks tab and the week's page on it, made from the form's and the programme's ids and the week's document id, each encoded",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/notes/page.tsx",
+    {
+      built: ["weeksPath(view.roundId, view.programmeId, page.opened.weekId)"],
+      from: "the way back to the week's page on the Weeks tab, before its first session, made from the form's and the programme's ids and the week's document id, each encoded",
+    },
+  ],
+  [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview/page.tsx",
     {
       built: ["weeksPath(view.roundId, view.programmeId, weekId)"],
       from: "the way back to the week's page on the Weeks tab, made from the form's and the programme's ids and the week's document id, each encoded",
+    },
+  ],
+  [
+    "src/features/applications/surveys/SurveysViews.tsx",
+    {
+      built: ["surveysViewPath(roundId, programmeId, view)"],
+      from: "the Surveys tab's own views (Overview, Before, Check-ins, Facilitators' reports, End, Follow-ups), from `surveysViewPath` and the form's and the programme's ids, encoded",
     },
   ],
   [
@@ -1059,7 +1092,10 @@ const BUILT = new Map([
   ],
   [
     "src/features/applications/lifecycle/TermHome.tsx",
-    { built: ["pooled.link.href", "row.link.href"], from: "pages of this term, as `lifecycle/termHome.ts` built them" },
+    {
+      built: ["link.href", "row.link.href"],
+      from: "pages of this term, as `lifecycle/termHome.ts` built them: Needs you's rows, and each card under Also this term (the pooled applicants, and who to ask next term)",
+    },
   ],
   [
     "src/features/applications/lifecycle/TermState.tsx",
@@ -1132,7 +1168,7 @@ const BUILT = new Map([
   [
     "src/lib/applications/lifecycle/termHome.ts",
     {
-      built: ["`${home}/pool`", "`${home}/pool`", "`${home}/send`", "href", "href", "href"],
+      built: ["`${home}/next-term`", "`${home}/pool`", "`${home}/pool`", "`${home}/send`", "href", "href", "href"],
       from: "pages of this term: the term's own path and a programme's id",
     },
   ],
@@ -1173,6 +1209,13 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/reports/page.tsx",
+    {
+      built: ["`${base}/applications`"],
+      from: "the programme's own Applications tab, for a reviewer told the session reports are not theirs: made from the form's and the programme's ids in the address, encoded. The way back to the Surveys tab is its row of views (SurveysViews). Nothing anybody typed",
+    },
+  ],
+  [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance/page.tsx",
     {
       built: ["`${writtenPath}?group=${encodeURIComponent(group.id)}`"],
@@ -1196,6 +1239,13 @@ const BUILT = new Map([
   [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/layout.tsx",
     { built: ["home"], from: "the term's own page, from the form's id" },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/messages/page.tsx",
+    {
+      built: ["messagesHrefFor(everyone)"],
+      from: "Messages, set to this programme's people: the picker's tag for them, spelled from the form's and the programme's ids in the address, encoded. Nothing anybody typed",
+    },
   ],
   [
     "src/app/(app)/admin/admissions/forms/page.tsx",

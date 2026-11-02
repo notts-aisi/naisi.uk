@@ -27,7 +27,6 @@ export const SEND_DOOR_NAMES = [
   "sendCourseDroppedOutEmail",
   "notifyWorksheetEvent",
   "sendAdmissionEmail",
-  "sendCourseWeekNudgeEmail",
   "sendWorksheetDueSoonEmail",
   "sendCourseGroupEmail",
   "sendCourseRunEmail",
@@ -36,13 +35,16 @@ export const SEND_DOOR_NAMES = [
   "sendPushToRowAudience",
   "sendDecisionEmail",
   "sendRegisterReminderEmail",
-  "sendWrittenFeedbackEmail",
+  "sendNextWeekEmail",
   "sendTeamEmails",
   "sendTeamEmailTest",
   "sendAskTest",
   "sendCertificates",
   "sendCertificateTest",
+  "sendFeedbackBatch",
+  "sendFeedbackTest",
   "sendFreeReminders",
+  "sendSurveyAfter",
 ];
 
 /** Any of the doors, as a call. */

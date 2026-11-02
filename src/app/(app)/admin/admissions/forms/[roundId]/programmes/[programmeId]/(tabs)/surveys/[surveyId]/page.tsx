@@ -1,4 +1,5 @@
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
+import { SurveysFrame, type SurveysView } from "@/features/applications/surveys/SurveysViews";
 import ResultsTab from "@/features/surveys/admin/ResultsTab";
 import styles from "@/features/surveys/admin/surveyAdmin.module.css";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
@@ -6,15 +7,16 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 import { resultsView } from "@/lib/surveys/adminView";
 import { leadSurveyOf } from "@/lib/surveys/leadResults";
+import { stageOf, type LeadStage } from "@/lib/surveys/leadTab";
 import { LEAD_RESULTS_WORDS } from "@/lib/surveys/words";
 
 export const dynamic = "force-dynamic";
 
 /**
- * ONE OF A PROGRAMME'S SURVEYS' RESULTS, for its lead and admins (Q41, Q46,
- * Q49 A): totals and comments for their own programme, made on the server,
- * never a name, from the first answer, under the programme's head. Linked
- * from the programme's Surveys tab.
+ * ONE OF A PROGRAMME'S SURVEYS' RESULTS, for its lead and admins: totals and
+ * comments for their own programme, made on the server, never a name, from
+ * the first answer, under the programme's head. Linked from the programme's
+ * Surveys tab.
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`loadProgrammeRun`), decided from the
  * form before any survey is read; a reviewer is told in a sentence that this
@@ -23,8 +25,26 @@ export const dynamic = "force-dynamic";
  * sentence too (`leadSurveyOf`). Its comments are listed by their words, not
  * in the order they came in, and the admins' switch that leaves out answers
  * sent after someone's first session is not drawn. Who answered is never
- * here: that is the admins' Who answered tab.
+ * here: that is the admins' Answers tab.
+ *
+ * Under the tab's row of views, with the view its stage is listed on current:
+ * Before, End (the survey at the end and the survey about leaving) or
+ * Follow-ups.
  */
+/** The view a survey's stage is listed on (`stageOf`, from the lists the views draw from), or none. */
+function viewOf(stage: LeadStage | null): SurveysView | null {
+  switch (stage) {
+    case "before":
+      return "before";
+    case "end":
+      return "end";
+    case "followUps":
+      return "follow-ups";
+    default:
+      return null;
+  }
+}
+
 export default async function ProgrammeSurveyResultsPage({
   params,
 }: {
@@ -44,21 +64,25 @@ export default async function ProgrammeSurveyResultsPage({
   const survey = await leadSurveyOf(db, roundId, programmeId, surveyId);
   if (!survey) {
     return (
-      <section className={styles.card}>
-        <p className={styles.lead}>{LEAD_RESULTS_WORDS.notHere}</p>
-      </section>
+      <SurveysFrame roundId={roundId} programmeId={programmeId} current={null}>
+        <section className={styles.card}>
+          <p className={styles.lead}>{LEAD_RESULTS_WORDS.notHere}</p>
+        </section>
+      </SurveysFrame>
     );
   }
   const view = await resultsView(db, survey, false, { commentsInOrder: "words" });
   return (
-    <div className={styles.section}>
-      <section className={styles.card} aria-labelledby="programme-survey">
-        <h2 id="programme-survey" className={styles.sectionTitle}>
-          {survey.name}
-        </h2>
-        <p className={styles.muted}>{LEAD_RESULTS_WORDS.line}</p>
-      </section>
-      <ResultsTab view={view} surveyId={survey.id} beforeFirstSession={false} switches={false} />
-    </div>
+    <SurveysFrame roundId={roundId} programmeId={programmeId} current={viewOf(stageOf(survey.kind))}>
+      <div className={styles.section}>
+        <section className={styles.card} aria-labelledby="programme-survey">
+          <h2 id="programme-survey" className={styles.sectionTitle}>
+            {survey.name}
+          </h2>
+          <p className={styles.muted}>{LEAD_RESULTS_WORDS.line}</p>
+        </section>
+        <ResultsTab view={view} surveyId={survey.id} beforeFirstSession={false} switches={false} />
+      </div>
+    </SurveysFrame>
   );
 }

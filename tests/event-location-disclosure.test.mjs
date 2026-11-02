@@ -173,6 +173,9 @@ const { loadTs } = createLoader({
     ["firebase-admin/firestore", FIRESTORE_STUB],
     ["@/lib/firebase/admin", "export const getAdminDb = () => globalThis.__db ?? null;"],
     ["@/lib/firebase/session", "export const getCurrentUser = async () => globalThis.__user ?? null;"],
+    // The view-as guard the cancel route asks first: nothing here is a view-as
+    // session (tests/missed-events.test.mjs runs one against the route).
+    ["@/lib/firebase/impersonation", "export async function assertNotImpersonating() { return null; }"],
     // The RSVP route's bot gate and throttle, faked: this file is about the
     // location line a recipient reads, and the throttle counts hits in module
     // state no test can reset. Both are proved by
@@ -207,7 +210,13 @@ const { loadTs } = createLoader({
     ["./rsvpToken", TOKEN_STUB],
     // The publish route's two doors, closed: this suite asks it only whether
     // it refuses a hidden location with no label before it writes anything.
-    ["@/lib/email/eventAnnouncement", "export const sendEventAnnouncement = async () => ({ sent: 0, skipped: 0, suppressed: 0, failed: 0, pushed: 0 });"],
+    // The count its GET answers with is closed beside the send; it reads no
+    // location (tests/event-send-counts.test.mjs executes it).
+    [
+      "@/lib/email/eventAnnouncement",
+      "export const sendEventAnnouncement = async () => ({ sent: 0, skipped: 0, suppressed: 0, failed: 0, pushed: 0 });\n" +
+        "export const announcementReach = async () => ({ emailed: 0, notified: 0 });",
+    ],
     ["@/lib/scheduler/announcementQueue", "export const announcementQueueEnabled = async () => false;"],
   ]),
 });
@@ -623,6 +632,10 @@ const SITES = {
     role: "renderer",
     reason: "The committee's list of events: under each event's name it prints the public text from the helper, and reads no location field of its own.",
   },
+  "src/lib/events/invitations.ts": {
+    role: "renderer",
+    reason: "An event for chosen people's invitation email: the public line, because an invitation is not a place yet and the exact room is a confirmed place's.",
+  },
   "src/app/api/events/[id]/rsvp/route.ts": {
     role: "relay",
     reason: "Hands the event to sendRsvpEmail, and snapshots the exact location onto the RSVP row, which only SU-recognised committee and admins may read.",
@@ -646,6 +659,7 @@ const SITES = {
   "src/emails/EventRsvpEmail.tsx": { role: "template", reason: "Renders the locationLine it is given." },
   "src/emails/EventUpdateEmail.tsx": { role: "template", reason: "Renders the locationLine and the changes it is given." },
   "src/emails/EventAnnouncementEmail.tsx": { role: "template", reason: "Renders the public locationLine it is given." },
+  "src/emails/EventInvitationEmail.tsx": { role: "template", reason: "Renders the public locationLine it is given." },
   "src/app/api/events/[id]/update/route.ts": {
     role: "writer",
     reason: "Stores the three fields for a live event and refuses a hidden location with no label.",

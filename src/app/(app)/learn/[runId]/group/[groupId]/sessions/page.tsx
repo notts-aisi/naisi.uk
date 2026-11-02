@@ -15,9 +15,9 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 
 /**
- * "Change a session", from a facilitator's group page (wk-fac-group): the
+ * "Change a session", from a facilitator's group page: the
  * group's sessions from today to its last, each with the change dialog
- * (wk-session) behind it.
+ * behind it.
  *
  * THE SAME GATE AS THE GROUP PAGE, spelled out again rather than shared: a
  * facilitator of THIS group while it is live, or an admin. Redirects, never

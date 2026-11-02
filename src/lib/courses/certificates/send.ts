@@ -11,7 +11,8 @@ import { isId, type ApplicationForm } from "@/lib/applications/normalise";
 import { loadForm } from "@/lib/applications/repo";
 import { readFinishing, recordOf, runEndOf, type RunEnd } from "@/lib/courses/finishing/record";
 import { listGroups, readRunRecords, weeksOf, type RunRecords } from "@/lib/courses/programmeAttendance";
-import { firstNameOfUser, fullNameOfUser, standingUserOf } from "@/lib/courses/programmeLead";
+import { firstNameOfUser, standingUserOf } from "@/lib/courses/programmeLead";
+import { certificateNameOf } from "@/lib/names/certificateName";
 import { sendEmail } from "@/lib/email/send";
 import { holdsStanding, isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -68,7 +69,7 @@ import {
 } from "./words";
 
 /**
- * SENDING CERTIFICATES (board en-finish, its Certificates section), for a
+ * SENDING CERTIFICATES (its Certificates section), for a
  * programme's lead and admins, once the run's last session is over.
  *
  * ## Who is sent one
@@ -164,7 +165,7 @@ export function programmePathOf(roundId: string, programmeId: string): string {
   return `/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}`;
 }
 
-/** The lead's preview of one certificate's page and its email (board en-finish's thumbnail and Preview). */
+/** The lead's preview of one certificate's page and its email (the Certificates section's thumbnail and Preview). */
 export function previewPathOf(roundId: string, programmeId: string): string {
   return `${programmePathOf(roundId, programmeId)}/overview/certificates`;
 }
@@ -256,7 +257,8 @@ export async function readCertificatesContext(
       const account = records.accounts.get(uid) ?? {};
       return {
         uid,
-        name: fullNameOfUser(account),
+        // What a certificate prints, by its own rule (src/lib/names/certificateName.ts).
+        name: certificateNameOf(account),
         firstName: firstNameOfUser(account),
         address: typeof account.email === "string" ? account.email.trim() : "",
         account,

@@ -63,7 +63,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const base = `${data.course.title} — Week ${data.week.weekNumber}`;
   const title = data.week.title ? `${base}: ${data.week.title}` : base;
-  // A block week's own words for itself are its Why this week, which is public (Q40).
+  // A block week's own words for itself are its Why this week, which is public.
   const summary = isBlockWeek(data.week) ? weekSummaryText(data.week) : data.week.summary;
   const description = summary || data.course.tagline || undefined;
 
@@ -128,7 +128,7 @@ export default async function PublicCourseWeekPage({ params }: Props) {
             ) : null}
           </header>
 
-          {/* A week written as blocks shows what Q40 lets it (`publicBlockWeek`);
+          {/* A week written as blocks shows only what may be public (`publicBlockWeek`);
               any other week is drawn exactly as before. */}
           {isBlockWeek(weekDoc) ? (
             <PublicBlockWeek week={publicBlockWeek(weekDoc.blocks)} />

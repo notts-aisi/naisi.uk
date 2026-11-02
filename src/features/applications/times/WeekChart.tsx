@@ -1,6 +1,7 @@
 "use client";
 
 import type { SessionSlot } from "@/lib/admissions/availability";
+import { clockWords } from "@/lib/courses/sessionChange/words";
 import styles from "./WeekChart.module.css";
 
 /**
@@ -35,7 +36,7 @@ export type ChartGroup = {
 export type WeekChartWords = {
   /** The button under a group they could be picked for, or null for no pick buttons (bars then not clickable). */
   pick: string | null;
-  /** A bar's accessible name: (group name, "Mon 18:00") => string. */
+  /** A bar's accessible name: (group name, "Mon 6pm") => string. */
   pickAria: (group: string, when: string) => string;
   /** What the list says of the `current` group. */
   current: string;
@@ -67,6 +68,9 @@ const minutesOf = (hhmm: string) => {
   const [h, m] = hhmm.split(":").map(Number);
   return (h || 0) * 60 + (m || 0);
 };
+
+/** "Mon 6pm": a group's weekly session as a bar's title and name, and the list, say it. */
+const whenOf = (session: SessionSlot) => `${DAY[session.weekday] ?? ""} ${clockWords(session.startTimeLocal)}`;
 
 const clock = (minutes: number) => {
   const h = Math.floor(minutes / 60);
@@ -158,7 +162,7 @@ export default function WeekChart({ grid, marked, fromFirstMark, groups, disable
                       left: `${(place.lane / place.of) * 100}%`,
                       width: `${100 / place.of}%`,
                     };
-                    const title = `${group.name}, ${DAY[weekday]} ${group.session.startTimeLocal}: ${group.fits ? "they can make it" : "they can’t make all of it"}`;
+                    const title = `${group.name}, ${whenOf(group.session)}: ${group.fits ? "they can make it" : "they can’t make all of it"}`;
                     // No picking on this chart: the bar is drawn, and nothing happens on a press.
                     if (words.pick === null) {
                       return (
@@ -175,7 +179,7 @@ export default function WeekChart({ grid, marked, fromFirstMark, groups, disable
                         style={style}
                         disabled={disabled || group.current}
                         title={title}
-                        aria-label={words.pickAria(group.name, `${DAY[weekday]} ${group.session.startTimeLocal}`)}
+                        aria-label={words.pickAria(group.name, whenOf(group.session))}
                         onClick={() => onPick(group.key)}
                       >
                         {group.name.replace(/^Group\s+/i, "")}
@@ -202,7 +206,7 @@ export default function WeekChart({ grid, marked, fromFirstMark, groups, disable
         {listed.map(({ group, minutes }) => (
           <li key={group.key} className={styles.fitRow}>
             <span>
-              <strong>{group.name}</strong>, {DAY[group.session.weekday]} {group.session.startTimeLocal}:{" "}
+              <strong>{group.name}</strong>, {whenOf(group.session)}:{" "}
               {group.current
                 ? words.current
                 : group.fits

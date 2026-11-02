@@ -54,8 +54,8 @@ import {
 } from "./words";
 
 /**
- * "GET READY FOR WEEK 1" (boards st-overview and st-overview-phone) AND
- * PUBLISH'S READINESS CHECK (board st-publish), WORKED OUT FROM RECORDS.
+ * "GET READY FOR WEEK 1" AND
+ * PUBLISH'S READINESS CHECK, WORKED OUT FROM RECORDS.
  *
  * The programme's Overview, before any of its groups has met, is a checklist
  * of what makes week 1 happen, each step done, in progress or to do, and four
@@ -245,7 +245,7 @@ export type GetReadyModel = {
     text: string;
     /** Somebody on the card can still add when they are free: their group is not told yet. */
     open: boolean;
-    /** "Remind 3 people", with how many it emails (C20); null while it would email nobody. */
+    /** "Remind 3 people", with how many it emails; null while it would email nobody. */
     remind: { count: number; label: string; countLine: string; confirm: string } | null;
     /** "Dev was reminded today.", or null. */
     reminded: string | null;

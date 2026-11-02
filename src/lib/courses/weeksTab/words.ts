@@ -2,7 +2,7 @@ import { READY_OPENS } from "../weekReady";
 import { dayWords } from "../sessionChange/words";
 
 /**
- * THE WORDS OF A PROGRAMME'S WEEKS TAB (board pr-weeks), in one place, for
+ * THE WORDS OF A PROGRAMME'S WEEKS TAB, in one place, for
  * the list, the week's page and the routes behind them. No server import, so
  * a page and a route say the same thing in the same words.
  *
@@ -11,10 +11,10 @@ import { dayWords } from "../sessionChange/words";
  * for the boards' designers to confirm.
  */
 
-/** How long before its first session a week should be ready: pr-weeks' "Have each ready 7 days before its first session." */
+/** How long before its first session a week should be ready: the Weeks tab's "Have each ready 7 days before its first session." */
 export const READY_BY_DAYS = 7;
 
-/** pr-weeks' line above the weeks: when each week opens, and when to have it ready. */
+/** The Weeks tab's line above the weeks: when each week opens, and when to have it ready. */
 export const WEEKS_LINE = `${READY_OPENS} Have each ready ${READY_BY_DAYS} days before its first session.`;
 
 /** The link beside the line. */
@@ -49,8 +49,15 @@ export function readyByWords(dateKey: string | null): string {
 /** Where the owner is shown and nobody stands as the programme's lead or a helper: the owner is nobody yet. */
 export const NO_OWNER = "No owner yet";
 
+/** A week whose first session has started: its review, an admin's alone. */
+export const REVIEW_LINK = "Review";
+/** What the programme's lead is shown in its place. */
+export const REVIEW_ADMINS_ONLY = "Review: admins only";
+/** The same week's notes about people: an admin's drafts, and the saved notes the lead reads. */
+export const NOTES_LINK = "Notes";
+
 /**
- * The line under the list, about where the weeks meet (pr-weeks: "AGI
+ * The line under the list, about where the weeks meet ("AGI
  * Strategy meets in person every week."). A week counts as online when every
  * group meeting that week meets online, through "Change a session" or this
  * tab; `partly` are weeks where some groups do and some do not.
@@ -97,7 +104,7 @@ export function copiedWords(created: number, skipped: number): string {
   return `${made}. ${skipped === 1 ? "1 week this programme already had was" : `${skipped} weeks this programme already had were`} left as ${skipped === 1 ? "it was" : "they were"}.`;
 }
 
-/** "This week's settings" on a week's page (pr-weeks). */
+/** "This week's settings" on a week's page. */
 export const SETTINGS_TITLE = "This week’s settings";
 export const OWNER_LABEL = "Owner";
 export const OWNER_HINT = "The lead or a helper.";
@@ -144,7 +151,7 @@ export function nothingToPreviewWords(weekNumber: number): string {
 }
 
 /**
- * A week for one group (Q39): the lead's card on the week's page and a
+ * A week for one group: the lead's card on the week's page and a
  * facilitator's on their group's own week, in the same words.
  */
 export function oneGroupTitle(weekNumber: number): string {

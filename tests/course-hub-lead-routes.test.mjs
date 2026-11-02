@@ -11,8 +11,8 @@
  *     what an admin is answered past it: the board, placing, removing and
  *     putting back, Publish and its test, the run's own queue, staffing a
  *     group, copying weeks, a note on a material, the retrospective, a
- *     group's week, the run's email and its week nudge, and the list of who
- *     can facilitate.
+ *     group's week, the run's email, and the list of who can facilitate.
+ *     Sending a group its week's email again stays an admin's.
  *  2. NOBODY ELSE GAINS ANYTHING. The lead of another programme, the
  *     programme's reviewer, a facilitator, a member placed on the run and a
  *     member on nothing are refused exactly where they were, and somebody
@@ -66,7 +66,6 @@ const more = {
   retrospective: await courseRoute("runs", "[runId]", "retrospective"),
   groupWeek: await courseRoute("groups", "[groupId]", "weeks", "[weekId]"),
   email: await courseRoute("runs", "[runId]", "email"),
-  nudge: await courseRoute("runs", "[runId]", "nudge"),
   candidates: await courseRoute("runs", "[runId]", "facilitators"),
   register: await courseRoute("groups", "[groupId]", "attendance"),
   push: await courseRoute("groups", "[groupId]", "attendance", "push"),
@@ -216,17 +215,6 @@ const ROUTES = [
     passes: ["zach", "claudia", "yusuf"],
   },
   {
-    name: "GET the run's week nudge, as it would go",
-    ask: (who, o) => call(who, more.nudge.GET, run, { course: true, ...o }),
-    expect: { zach: 200, claudia: 200, yusuf: 200 },
-  },
-  {
-    name: "POST the run's week nudge, as a test",
-    ask: (who, o) => call(who, more.nudge.POST, run, { body: { testOnly: true }, course: true, ...o }),
-    expect: "as the admin, for the admin, the lead and the track lead",
-    passes: ["zach", "claudia", "yusuf"],
-  },
-  {
     name: "GET the run's groups, their facilitators and who could facilitate",
     ask: (who, o) => call(who, more.candidates.GET, run, { course: true, ...o }),
     expect: { zach: 200, claudia: 200, yusuf: 200 },
@@ -282,15 +270,20 @@ describe("1 and 2. every route a track lead passes, as every kind of caller", ()
     assert.ok(world.db.read(`courseRuns/${RUN.agi}`).allocationPublishedAt);
   });
 
-  test("the run-wide catch-up nudge stays an admin's: the lead passes the gate and is told so", async () => {
+  test("sending a group its week's email again stays an admin's: the lead is refused, the group's facilitator is told so", async () => {
+    // The run-wide catch-up nudge is gone; a group's "Week N is open" goes
+    // again only by an admin's Resend on a finished register.
     await ready();
     const before = everything();
-    for (const who of ["claudia", "yusuf"]) {
-      const answer = await call(who, more.nudge.POST, run, { body: {}, course: true });
+    const resend = (who) => call(who, more.push.POST, { groupId: B }, { body: { weekNumber: 1, force: true }, course: true });
+    for (const who of ["claudia", "yusuf", "tess"]) {
+      const answer = await resend(who);
       assert.equal(answer.status, 403, who);
-      assert.match(answer.body.error, /Only an admin can send the run-wide catch-up\./, who);
+      assert.equal(answer.body.error, "Forbidden", who);
     }
-    assert.equal((await call("tess", more.nudge.POST, run, { body: {}, course: true })).body.error, "Forbidden");
+    const facilitator = await resend("rahul");
+    assert.equal(facilitator.status, 403);
+    assert.match(facilitator.body.error, /Only an admin can re-send an email that has already gone\./);
     assert.equal(everything(), before);
   });
 

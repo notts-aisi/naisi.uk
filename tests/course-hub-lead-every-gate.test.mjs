@@ -7,7 +7,7 @@
  * ## The class this guards
  *
  * A programme's lead does a run's track lead's work on the run their
- * programme names (Q1). Their power is worked out from the form when they
+ * programme names. Their power is worked out from the form when they
  * ask, by one module (`src/lib/courses/programmeLead.ts`), and handed to the
  * routes by one gate (`runStaffingOf` and `doesTrackLeadWork` in
  * `src/lib/courses/runStaffing.ts`). Three ways that can quietly stop being
@@ -135,6 +135,10 @@ const ASKS_THE_LEAD_BAR = {
   "lib/applications/review/load.ts":
     "the review screens' own list of the programmes the caller leads on the form being read; it says nothing about any run",
   "lib/firebase/eligibility.ts": "the registry of bars, where the lead's bar is defined",
+  "lib/audience/load.ts":
+    "who a message may be for: the programmes the caller leads on the term's form, for that programme's tags, and each programme's lead, held to the bar, for the Leading and everyone tags; it says nothing about any run",
+  "lib/events/eventProgramme.ts":
+    "which of the term's programmes the caller may make an event for chosen people part of: those they lead on the term's form, held to the bar, or any for an admin; it says nothing about any run",
 };
 
 /** The callers of `programmeNaming`, and what they find with it. Neither reads a lead. */

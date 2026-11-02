@@ -254,13 +254,23 @@ describe("the shared loader reads JSX", () => {
  * list that can only grow is a list nobody trusts, and the reason column is
  * what makes the next person's decision to adopt it legible.
  *
- * The forty-three suites that still carry their own copy are not required to
+ * The forty-two suites that still carry their own copy are not required to
  * migrate. That they pass at all is the proof their graphs stop short of a
  * `.tsx`, so a wholesale rewrite would be a large diff with no failure behind
  * it. They move when they next need to change, and until then they are held
  * still by `LEGACY_LOADERS` below.
  */
 const USERS = new Map([
+  [
+    "course-week-emails.test.mjs",
+    "runs the week's emails' timing, words and what a week asks for as plain functions, and renders their one " +
+      "template, a .tsx component, to read every combination of missing facts as an inbox would",
+  ],
+  [
+    "course-week-work.test.mjs",
+    "runs the week you submit's model, lock and words as plain functions, which are .ts modules this loader " +
+      "compiles, beside the written answers world that executes Submit, Reopen and the tick route",
+  ],
   [
     "admissions-form-fence.test.mjs",
     "executes every older round route against a stored application form and against a round " +
@@ -776,6 +786,13 @@ const USERS = new Map([
       "each function reads its map, and only running each one shows it",
   ],
   [
+    "applications-next-term.test.mjs",
+    "executes the Next term page's builder, its loader with the real readers of notes and ratings " +
+      "beneath it, and the term page's builder against an in-memory term, and draws the page (.tsx " +
+      "server and client components) as an admin, a lead on the form and somebody with no role, " +
+      "because what counts, who is a row and what each person is shown are decided by the code that runs",
+  ],
+  [
     "applications-model.test.mjs",
     "executes every pure module under src/lib/applications (reading, steps, send validation, " +
       "scoring, placement, the decision-day tallies) against a small term and against the " +
@@ -891,6 +908,25 @@ const USERS = new Map([
       "suite's subject, and the shared loader is the rule for a new suite either way",
   ],
   [
+    "event-signup-name.test.mjs",
+    "the RSVP route executed with the REAL session reader, so the name a row stores is the one " +
+      "rule's for each kind of account, and the sign-up form rendered to markup: a `.tsx` graph " +
+      "of shared components with every stylesheet stubbed, which is what the shared loader's " +
+      "JSX option exists for",
+  ],
+  [
+    "event-send-counts.test.mjs",
+    "the publish route's count, the broadcast preview and the announcement's audience executed " +
+      "together in one graph, with the event `.tsx` templates the sends would render compiled " +
+      "for real, so the counts are proved against the sends they describe rather than a copy",
+  ],
+  [
+    "event-visibility-readers.test.mjs",
+    "the one reader of who an event is for (`src/lib/events/reach.ts`) executed, and the events " +
+      "normaliser beside it: `reach.ts` imports the event permission checks from the users " +
+      "module, so the normaliser's graph reaches past a single file",
+  ],
+  [
     "scheduler-markers.test.mjs",
     "same shape: `registry.ts` is loaded for the caps and windows and drags every job's graph in " +
       "with it, and the stub comments said so in as many words",
@@ -951,6 +987,12 @@ const USERS = new Map([
       "`EventAnnouncementEmail` behind it, the marker layer and `registry.ts`, which drags every " +
       "other job in with it; the two transports and the junction read are its doors, so the " +
       "audience arithmetic under test is the shipping arithmetic",
+  ],
+  [
+    "names-rule.test.mjs",
+    "it runs the staff screens' name loader, which reads seats through the enrolment, run and " +
+      "group normalisers, and the course screens' name helper, whose module reads the application " +
+      "forms: neither graph is one module, and the rule under test has to be the shipping rule",
   ],
   [
     "newsletter-push.test.mjs",
@@ -1083,11 +1125,38 @@ const USERS = new Map([
       "through and a copy of its regular expression would prove nothing; nothing is stubbed",
   ],
   [
+    "claude-base-url.test.mjs",
+    "it executes `claudeBaseUrl` (src/lib/ai/claude.ts), the rule that keeps the site's Claude key on its way " +
+      "to Anthropic or this machine and nowhere else, as a table of addresses honoured and ignored, because " +
+      "a copy of the rule would prove nothing about the shipping one; only `server-only` is stubbed",
+  ],
+  [
+    "e2e-fake-claude.test.mjs",
+    "it executes each caller the end-to-end harness's fake Claude answers (its real ask, prompt, schema and " +
+      "checker) through the real door in src/lib/ai/claude.ts and the real SDK against the fake on loopback, " +
+      "because a canned answer the caller's checker drops would otherwise surface only in a browser run; " +
+      "only `server-only` is stubbed",
+  ],
+  [
+    "clock-times-printed.test.mjs",
+    "it executes `clockWords` and `slotRangeWords` (src/lib/courses/sessionChange/words.ts), the house's " +
+      "clock every printed time of day goes through, as a table of stored times and what each prints, " +
+      "and `sessionLabelOf` and `sessionLabelWords` (src/lib/courses/outsideTheirTimes.ts), a session's stored " +
+      "label and how it prints, because the guard beside it only says where a time is printed and not what " +
+      "it says; nothing is stubbed",
+  ],
+  [
     "course-hub-times-counting.test.mjs",
     "executes the times picture's counting (src/lib/applications/handover/times.ts), the one " +
       "reading of a painted week the allocation board shares (paintedWeek.ts) and the page's " +
       "words, because who is counted at each start time and what the page says about them are " +
       "only right if running them says so",
+  ],
+  [
+    "course-session-cant-make-it.test.mjs",
+    "renders the register's grid and the programme page's Can't make it control (.tsx) to HTML with the " +
+      "press's and the register's handlers behind them, because what the ticket offers and what the register " +
+      "says is decided by the components as they run",
   ],
   [
     "course-time-question-email.test.mjs",
@@ -1283,11 +1352,42 @@ const USERS = new Map([
       "the bar's stylesheet are stubbed",
   ],
   [
+    "policy-acceptance.test.mjs",
+    "it executes `needsPolicyAcceptance` (src/lib/legal/acceptance.ts) on a table of stored agreements, because " +
+      "who the member area and a collaborator's space send to accept the policies is decided by comparing a stored " +
+      "string with the versions the site serves, and only running it shows the answer; it runs again with " +
+      "`./policies` stubbed to a list where privacy has moved on to 17 and the terms to 2, so the promise that a " +
+      "later privacy version is told rather than asked is held before a later version exists",
+  ],
+  [
     "coursework-use-cut-off.test.mjs",
     "it executes the privacy v13 cut-off (src/lib/legal/courseworkUse.ts) and the stamps that keep it " +
       "(courseworkUseStamp.ts) at their boundaries, because whether a row of coursework may leave its programme is " +
       "decided by comparing two stored instants, and only running the comparison shows which side of the moment a " +
       "row falls. Only `server-only` is stubbed; `firebase-admin/firestore` is the real one",
+  ],
+  [
+    "course-explainers.test.mjs",
+    "it drives scheduling and cancelling an explainer, its page, the review's list, both kinds of session ticket, " +
+      "Home, the overview, \"Week N is open\" and the week's page on the facilitator week's world, and runs the " +
+      "account cascade over the record, because who may explain, which sessions it opens and who reads it are " +
+      "decided across the routes, the review's door, the sessions resolver, the tickets' readers and the week's " +
+      "email together. The push mirror is stubbed to record what it is handed",
+  ],
+  [
+    "week-review.test.mjs",
+    "it drives the week review's page and both of its routes (privacy v15) on the facilitator week's world, and runs " +
+      "the account cascade over its record, because what leaves for Claude, what comes back and who may see it are " +
+      "decided across the routes, the review's gatherer, the coursework reader, the check-ins' pool and the session " +
+      "reports' reader together. Claude's door and the push mirror are stubbed to record what they are handed",
+  ],
+  [
+    "week-notes.test.mjs",
+    "it drives a week's notes page and its draft, save and discard routes (privacy v15) on the facilitator week's " +
+      "world, the profile's draft beside them, and runs the account cascade over the drafts and the notes, because " +
+      "what leaves for Claude, what is kept and who may read it are decided across the routes, the notes' gatherer, " +
+      "the coursework, feedback and ratings readers and the notes' own store together. Claude's door is stubbed to " +
+      "record what it is handed",
   ],
   [
     "coursework-claude.test.mjs",
@@ -1297,10 +1397,17 @@ const USERS = new Map([
       "stubbed to record what it is asked; Pangram's real client runs with `fetch` faked; the cascade gets the " +
       "cascade store's Firestore stub",
   ],
+  [
+    "notes-for-leads.test.mjs",
+    "it drives the programme's notes routes and the admins' notes routes (privacy v15) on the facilitator week's " +
+      "world as every persona, and executes the version 15 moment (src/lib/legal/reviewUse.ts) on its own, because " +
+      "which notes a lead may read is decided across the programme's door, the form's place test, the one rule in " +
+      "the notes model and two stored instants together. Claude's door is stubbed and never asked",
+  ],
 ]);
 
 /**
- * The forty-three suites that still carry a hand-copied loader, frozen.
+ * The forty-two suites that still carry a hand-copied loader, frozen.
  *
  * One reason covers the list, because it is one decision: each of these works
  * today, each one's module graph stops short of a `.tsx`, and rewriting them
@@ -1332,7 +1439,6 @@ const LEGACY_LOADERS = [
   "course-deletion.test.mjs",
   "course-enrol.test.mjs",
   "course-group-resolve.test.mjs",
-  "course-nudge.test.mjs",
   "course-offer.test.mjs",
   "course-pages.test.mjs",
   "course-programme-page.test.mjs",

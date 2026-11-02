@@ -133,6 +133,7 @@ function aboutYouIssues(content: ApplicationContent): Issue[] {
   const about = content.aboutYou;
   const issues: Issue[] = [];
   const add = (message: string) => issues.push({ step: "about", questionId: null, message });
+  if (!about.fullName.trim()) add("Tell us your full name.");
   if (!about.preferredName.trim()) add("Tell us what to call you.");
   if (!about.universityEmail.trim()) add("Add your university email.");
   else {

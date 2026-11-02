@@ -39,14 +39,16 @@ export const GRID_ROWS: NotificationCategory[] = [...ALL_CATEGORIES];
  *
  * It is drawn on, in both columns, and disabled. The copy is the whole point
  * of drawing it at all: a member who has switched everything else off should
- * find out here, while they are making that choice, that an organiser can
- * still reach them about a change to something they signed up for, rather
- * than the first time one does.
+ * find out here, while they are making that choice, that the people running
+ * something they signed up for can still reach them about running it, rather
+ * than the first time one does. That includes a programme whose emails they
+ * unsubscribed from: unsubscribing stops its optional mail, never its notices
+ * (`resolveNoticeAudience` in `src/lib/email/courseFacilitatorEmails.ts`).
  */
 export const NOTICE_ROW = {
   label: "Important notices",
   description:
-    "An organiser of an event you signed up for, or the facilitator of your group, can send you a message about a change, and it reaches you by email and notification whichever switches you set.",
+    "The people running an event you signed up for, or a programme you hold a place on, can send you messages about running it, and they reach you by email and notification whichever switches you set.",
   /** Shown beside each locked cell, so the lock does not rely on colour. */
   cellText: "Always on",
 } as const;

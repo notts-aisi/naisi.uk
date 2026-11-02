@@ -22,7 +22,7 @@ import { meanOf, valueOf } from "./results";
 import type { SurveyStage } from "./templates";
 
 /**
- * WHAT AN ADMIN IS OFFERED FOR A PROGRAMME'S PUBLIC PAGE (sv-public): numbers
+ * WHAT AN ADMIN IS OFFERED FOR A PROGRAMME'S PUBLIC PAGE: numbers
  * worked out from the programme's OWN surveys, each with the base it rests
  * on, and the comments their writers ticked "You can quote this, without my
  * name". Totals only: never a name, never one person's answer but the words

@@ -13,7 +13,7 @@ import ChangeSessionDialog from "./ChangeSessionDialog";
 import styles from "./SessionsBoard.module.css";
 
 /**
- * The Sessions view of a programme's Groups tab (wk-session), and the same
+ * The Sessions view of a programme's Groups tab, and the same
  * list on a group's own page: one card per session, each with "Change a
  * session" opening the dialog beside the list (below it on a phone). On the
  * Groups tab a session whose week asks for pairs also has the way to its

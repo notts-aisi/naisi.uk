@@ -17,7 +17,7 @@ import {
 } from "@/lib/firestore/courses";
 
 /**
- * WHAT SOMEBODY WHO LEFT A PROGRAMME IS SHOWN OF IT (board wk-left-phone):
+ * WHAT SOMEBODY WHO LEFT A PROGRAMME IS SHOWN OF IT:
  * that they left, and when, and nothing else. Their marks, notes and
  * reflections stay where they are, for the programme's lead and admins, and
  * the notes they shared stay with their group; none of that is shown to them,

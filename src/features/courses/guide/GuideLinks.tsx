@@ -6,7 +6,7 @@ import styles from "./guide.module.css";
 
 /**
  * The way to a programme's Start here and Glossary under a week's title
- * (st-week1-phone, wk-week: "Start here · Glossary"). Each page is linked
+ * ("Start here · Glossary"). Each page is linked
  * only when the run has its document; with neither, nothing is drawn. The
  * programme page's card is `../AboutThisCourse.tsx`.
  */

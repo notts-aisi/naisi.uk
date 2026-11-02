@@ -52,6 +52,7 @@ import { fileURLToPath } from "node:url";
 import { SEND_DOOR_CALL } from "./lib/sendDoors.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
+import { EVENT_SURVEYS_JOB_STUBS } from "./lib/eventSurveysJobStubs.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(REPO_ROOT, "src");
@@ -106,6 +107,9 @@ const STUBS = new Map([
   [
     "@/lib/email/courseFacilitatorEmails",
     "export const resolveCohortAudience = async () => ({ members: [], skipped: 0, enrolledCount: 0, refusal: null });\n" +
+      // The week's emails' audience: "Week N is open" and the reminders before
+      // a session are notices, read off the places rather than the list.
+      "export const resolveNoticeAudience = async () => ({ members: [], skipped: 0, enrolledCount: 0, refusal: null, dropped: [] });\n" +
       "export const hasOptedOutOfCourseAnnouncements = () => false;\n" +
       "export const memberNameOf = () => '';",
   ],
@@ -157,6 +161,8 @@ const STUBS = new Map([
       "  sent: 0, pruned: 0, deferred: 0, failed: 0, retried: 0,\n" +
       "});",
   ],
+  // The event-surveys job's doors (tests/lib/eventSurveysJobStubs.mjs).
+  ...EVENT_SURVEYS_JOB_STUBS,
 ]);
 
 const { loadTs } = createLoader({ stubs: STUBS });

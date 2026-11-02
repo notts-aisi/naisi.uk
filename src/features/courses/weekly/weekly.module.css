@@ -1,8 +1,8 @@
 /* ============================================================
-   The pages a member uses every week: their programme's home
-   (boards st-programme and wk-programme), a week's page
-   (wk-week-phone) and Home's card for their programme
-   (wk-home-phone). One stylesheet for the parts they share, so
+   The pages a member uses every week: their programme's home,
+  a week's page
+   and Home's card for their programme.
+  One stylesheet for the parts they share, so
    a reading ticked on Home and on its week is the same row.
 
    Sizes are the boards'; colours are the theme's tokens for the
@@ -377,7 +377,7 @@
   min-width: 0;
 }
 
-/* Home's row under the ticket (wk-home-phone). On a phone its buttons are the
+/* Home's row under the ticket. On a phone its buttons are the
    width of the card, as drawn; wider, each keeps its own width, as the
    programme page's ticket does (no board draws Home wider than a phone). */
 .ticketFoot {
@@ -505,11 +505,48 @@
   color: var(--color-text-muted);
 }
 
+/* "Your session starts with a 10-minute explainer on ...": an explainer an
+   admin scheduled at the start of the session. */
+.ticketExplainer {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
 .ticketActions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 6px;
+}
+
+/* "Can't make it" beside Add to calendar: the button alone, and once there
+   is a line to read (they have told us, or a press was refused), the line
+   over the button, across the whole row. The line is there, empty, from the
+   first render: it is the control's live region. */
+.cantMakeIt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.cantMakeItWide {
+  flex-basis: 100%;
+}
+
+/* Empty, it takes no room, and stays in the page for a screen reader. */
+.cantMakeItLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.cantMakeItLine:not(:empty) {
+  margin-bottom: 8px;
 }
 
 .warnChip,
@@ -556,7 +593,7 @@
   border: 1px solid var(--color-border-strong);
 }
 
-/* Join online (wk-changes): the accent fill, with the dark label the accent
+/* Join online: the accent fill, with the dark label the accent
    takes, in the row under the ticket. */
 .joinButton {
   appearance: none;
@@ -608,8 +645,8 @@
   overflow-wrap: anywhere;
 }
 
-/* === The end of a programme: the last week's cards (wk-lastweek-phone) and
-   what's next (with en-after-phone), as cards on Home and as sections with no
+/* === The end of a programme: the last week's cards and
+   what's next, as cards on Home and as sections with no
    card around them on the programme page once it is over === */
 
 .endCard {
@@ -666,7 +703,7 @@
   border-top: 1px solid var(--color-border);
 }
 
-/* The next event, once the programme is over (en-after-phone): its date on
+/* The next event, once the programme is over: its date on
    a stub, what it is and when, and a chevron. The whole card is the link. */
 .eventCard {
   display: flex;
@@ -743,8 +780,7 @@
   color: var(--color-text-muted);
 }
 
-/* === The programme page once it is over (en-after-phone,
-   en-after-nofinish-phone): one column, its sections 24px apart === */
+/* === The programme page once it is over: one column, its sections 24px apart === */
 
 .after {
   display: flex;
@@ -865,7 +901,7 @@
   color: var(--color-text-muted);
 }
 
-/* === Add to calendar: the ticket's button and its dialog (st-calendar-phone) === */
+/* === Add to calendar: the ticket's button and its dialog === */
 
 .calendarButton {
   appearance: none;
@@ -1140,7 +1176,7 @@
   gap: 8px;
 }
 
-/* Home's ticket: the narrower stub and the smaller heading of wk-home-phone. */
+/* Home's ticket: the narrower stub and the smaller heading of the member's Home. */
 .ticketHome .stub {
   width: 4.75rem;
   padding: 0.875rem 0;
@@ -1260,7 +1296,7 @@
   color: var(--color-text-muted);
 }
 
-/* A block week's checklist (wk-week6-phone): steps in the body's weight, the
+/* A block week's checklist: steps in the body's weight, the
    same ticked or not, the box beside the first line. */
 .stepRow {
   align-items: flex-start;
@@ -1858,7 +1894,7 @@ a.weekItem:focus-visible {
   border-radius: var(--radius-sm);
 }
 
-/* === Questions to think about (C29): numbered 01, 02, 03 in mono === */
+/* === Questions to think about: numbered 01, 02, 03 in mono === */
 
 .questions {
   list-style: none;
@@ -1894,7 +1930,7 @@ a.weekItem:focus-visible {
   overflow-wrap: anywhere;
 }
 
-/* === Notes shared with your group (C29): each note in a dark box, "Add a
+/* === Notes shared with your group: each note in a dark box, "Add a
    note", and the sentence naming who reads them === */
 
 .sharedNotesHead {
@@ -2172,7 +2208,7 @@ a.weekItem:focus-visible {
   }
 }
 
-/* === This week's tasks, on a week written as blocks (board wk-programme) === */
+/* === This week's tasks, on a week written as blocks === */
 
 .taskRows {
   list-style: none;
@@ -2266,7 +2302,7 @@ a.weekItem:focus-visible {
 }
 
 /* === Mobile === */
-/* === Your certificate (board en-after-phone): the certificate made smaller,
+/* === Your certificate: the certificate made smaller,
    its day and who can see it, then the way to its page and to LinkedIn. === */
 
 .certRow {
@@ -2387,13 +2423,13 @@ a.weekItem:focus-visible {
     display: block;
   }
 
-  /* Home's row: the whole width of the card, as wk-home-phone draws it. */
+  /* Home's row: the whole width of the card, as the member's Home draws it. */
   .ticketFoot {
     grid-template-columns: 1fr;
   }
 
   /* Join online the width of the card, its line centred under it, as
-     wk-changes draws them. */
+     the design for a changed session draws them. */
   .joinFoot {
     grid-template-columns: 1fr;
   }

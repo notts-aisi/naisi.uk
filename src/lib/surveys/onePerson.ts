@@ -1,7 +1,8 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { firstNameOfUser, fullNameOfUser } from "@/lib/courses/programmeLead";
+import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { openSurveyAnswersRecorded, surveyAnswersOpeningsOf, type OpeningSubject } from "@/lib/firestore/recordOpenings";
+import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staffName";
 import {
   isEventSurvey,
   isProgrammeAudience,
@@ -18,20 +19,21 @@ import type { SurveyAnswer } from "./items";
 import { namesOf } from "./names";
 import { personTables, type PersonBlanks, type PersonSurvey, type PersonView } from "./onePersonLayout";
 import { hiddenLinesFor, toldGroupOf } from "./personFacts";
-import { isOpen, listSurveys, personOnSurveys } from "./repo";
+import { checkInsOfRun, isOpen, listSurveys, personOnSurveys } from "./repo";
 import {
   PERSON_WORDS,
   answeredSummaryWords,
   nameComesOffWords,
   nothingToOpenWords,
   openingLineWords,
+  openingWhereWords,
   personNoticeWords,
   programmeLine,
   surveyComesOffWords,
 } from "./words";
 
 /**
- * ONE PERSON'S ANSWERS, OPENED BY AN ADMIN (sv-person): to every survey of the
+ * ONE PERSON'S ANSWERS, OPENED BY AN ADMIN: to every survey of the
  * programme the survey belongs to, or to a survey after an event. Usually for
  * a request to see or delete them.
  *
@@ -50,8 +52,8 @@ import {
  * document.
  */
 
-/** The order a programme's surveys are shown in, start to finish. */
-const STAGE_ORDER: readonly SurveyKind[] = ["before", "after", "followUp6", "followUp12", "leaving", "event"];
+/** The order a programme's surveys are shown in, start to finish: its check-ins come between the start and the end, week by week. */
+const STAGE_ORDER: readonly SurveyKind[] = ["before", "checkIn", "after", "followUp6", "followUp12", "leaving", "event"];
 
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
 
@@ -71,16 +73,18 @@ export function subjectOf(survey: SurveyDoc, who: string): OpeningSubject | null
 
 /**
  * The surveys the page shows: a survey after an event alone; for a programme's
- * survey, every survey of the same programme that has been sent or opened
- * (the four stages and leaving), in the order of a programme, read from the
- * whole surveys collection (a handful a term). Survey records only.
+ * survey or a check-in, every survey of the same programme that has been sent
+ * or opened (the four stages and leaving, read from the whole surveys
+ * collection, a handful a term) and every check-in of its run (read by the
+ * run, one equality), in the order of a programme, its check-ins week by week
+ * between the start and the end. Survey records only.
  */
 export async function surveysShownWith(db: Firestore, survey: SurveyDoc): Promise<SurveyDoc[]> {
   if (isEventSurvey(survey)) return [survey];
   const { roundId, programmeId } = programmeOf(survey.audience);
   if (!roundId || !programmeId) return [survey];
-  const all = await listSurveys(db);
-  return all
+  const [all, checkIns] = await Promise.all([listSurveys(db), checkInsOfRun(db, survey.runId)]);
+  return [...all, ...checkIns]
     .filter((each) => !isEventSurvey(each) && isProgrammeAudience(each.audience, roundId, programmeId))
     .filter((each) => each.id === survey.id || each.firstSentAt !== null)
     .sort(
@@ -100,7 +104,8 @@ export type PersonOpening =
   | { kind: "not-recorded" }
   | { kind: "open"; view: PersonView };
 
-type Actor = { uid: string; displayName?: string | null };
+/** The admin opening the answers: who is recorded, and their role, for the name each person is shown by (`nameForViewer`). */
+type Actor = { uid: string; displayName?: string | null; role?: string | null };
 
 /** What was read, once the opening was recorded. */
 type Read = {
@@ -111,13 +116,22 @@ type Read = {
   blanks: PersonBlanks[];
 };
 
-/** The person's name: their account's, or the name a guest gave the event. Null when the account or the guest is gone. */
-async function nameOf(db: Firestore, survey: SurveyDoc, subject: OpeningSubject): Promise<{ name: string | null; firstName: string }> {
+/**
+ * The person's name: their account's, as `viewer` is shown it (the names
+ * rule), or the name a guest gave the event. Null when the account or the
+ * guest is gone. The first name is the one they go by, for a sentence.
+ */
+async function nameOf(
+  db: Firestore,
+  survey: SurveyDoc,
+  subject: OpeningSubject,
+  viewer: NameViewer,
+): Promise<{ name: string | null; firstName: string }> {
   if (subject.kind === "account") {
     const snap = await db.collection("users").doc(subject.uid).get();
     if (!snap.exists) return { name: null, firstName: "" };
     const data = (snap.data() ?? {}) as Record<string, unknown>;
-    return { name: fullNameOfUser(data), firstName: firstNameOfUser(data) };
+    return { name: nameForViewer(viewer, accountNamesOf(data), "NAISI member"), firstName: firstNameOfUser(data) };
   }
   if (!isEventSurvey(survey)) return { name: null, firstName: "" };
   const read = await readEventAudience(db, survey.audience.eventId);
@@ -148,9 +162,15 @@ function blanksLine(
   return line ? { surveyId: survey.id, name: survey.name, row: line } : null;
 }
 
-/** Everything of the person on the surveys shown: called only once the opening is recorded. */
-async function readPerson(db: Firestore, opened: SurveyDoc, shown: readonly SurveyDoc[], subject: OpeningSubject): Promise<Read> {
-  const { name, firstName } = await nameOf(db, opened, subject);
+/** Everything of the person on the surveys shown, named as `viewer` is shown people: called only once the opening is recorded. */
+async function readPerson(
+  db: Firestore,
+  opened: SurveyDoc,
+  shown: readonly SurveyDoc[],
+  subject: OpeningSubject,
+  viewer: NameViewer,
+): Promise<Read> {
+  const { name, firstName } = await nameOf(db, opened, subject, viewer);
   // Whether each survey takes answers, for the button beside what was left blank.
   const now = new Date();
   const surveys: PersonSurvey[] = [];
@@ -170,7 +190,7 @@ async function readPerson(db: Firestore, opened: SurveyDoc, shown: readonly Surv
       onIt: row !== null || answer !== null,
       later: answer ? laterAnswersOf(answer.first, answer.fills) : undefined,
     });
-    const names = await namesOf(db, row?.blanksPresses.map((press) => press.byUid) ?? []);
+    const names = await namesOf(db, row?.blanksPresses.map((press) => press.byUid) ?? [], viewer);
     const line = blanksLine(opened, row, answer?.answers ?? null, [], names, now);
     if (line) blanks.push(line);
   } else if (subject.kind === "account") {
@@ -180,7 +200,7 @@ async function readPerson(db: Firestore, opened: SurveyDoc, shown: readonly Surv
       Promise.all(shown.map((survey) => hiddenLinesFor(db, survey, subject.uid))),
     ]);
     group = told?.group.name ?? "";
-    const names = await namesOf(db, [...rows.values()].flatMap((row) => row.blanksPresses.map((press) => press.byUid)));
+    const names = await namesOf(db, [...rows.values()].flatMap((row) => row.blanksPresses.map((press) => press.byUid)), viewer);
     shown.forEach((survey, at) => {
       const row = rows.get(survey.id) ?? null;
       const answer = answers.get(survey.id) ?? null;
@@ -240,7 +260,7 @@ export async function openPersonAnswers(
       surveyId: survey.id,
       surveyIds: shown.map((each) => each.id),
     },
-    () => readPerson(db, survey, shown, subject),
+    () => readPerson(db, survey, shown, subject, actor),
   );
   if (!opened.ok) return { kind: "not-recorded" };
   const read = opened.value;
@@ -275,7 +295,7 @@ export async function openPersonAnswers(
       openings: openings.map((row) => ({
         name: row.actorName || "An admin",
         key: row.actorUid || row.id,
-        line: openingLineWords(row.actorName || "An admin", row.at),
+        line: openingLineWords(row.actorName || "An admin", row.at, openingWhereWords(row.kind)),
       })),
     },
   };

@@ -1,6 +1,6 @@
 /**
  * Rules tests for `coursePacksAndCases`, what each person has in a week's
- * packs and talks (plan item 8; Q32 A): the pack they picked or were given,
+ * packs and talks: the pack they picked or were given,
  * the case they were given, and their own "Ready for my talk". Shut to every
  * browser: the person it is about, the group's facilitators, the programme's
  * lead and admins included. Two routes on the Admin SDK are the only writers

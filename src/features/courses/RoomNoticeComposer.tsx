@@ -114,7 +114,7 @@ function people(n: number): string {
  * own: a member reading it in a notification with no context should know where
  * to be and when.
  *
- * NEVER THE MEETING LINK (Q23). This notice is an email, and an email can be
+ * NEVER THE MEETING LINK. This notice is an email, and an email can be
  * forwarded; the link lives on the group's programme page, behind sign-in. So
  * the composer is not handed the link at all, and an online week's wording
  * says where the link is instead. `tests/course-hub-meeting-link-guard.test.mjs`

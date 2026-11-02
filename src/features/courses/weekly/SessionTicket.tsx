@@ -1,16 +1,17 @@
 "use client";
 
+import type { ReactNode } from "react";
 import InitialsChip from "@/components/ui/InitialsChip";
 import { tilePartsOfDay } from "@/app/(app)/dashboard/homeWords";
 import type { TicketFacts } from "../sessionChange/cardFacts";
 import { ROOM_CHANGED, withWords } from "@/lib/courses/memberPageWords";
 import { JOIN_ONLINE, LINK_IS_HERE } from "@/lib/courses/sessionChange/words";
+import { memberLineWords } from "@/lib/courses/explainers/words";
 import AddToCalendar from "./AddToCalendar";
 import styles from "./weekly.module.css";
 
 /**
- * THE NEXT SESSION, AS A TICKET (boards wk-programme, st-programme and
- * wk-home-phone): its date on the stub, what it is over the heading, and
+ * THE NEXT SESSION, AS A TICKET: its date on the stub, what it is over the heading, and
  * where and with whom under it.
  *
  * Everything it shows is the session's own, resolved for its own week
@@ -19,13 +20,17 @@ import styles from "./weekly.module.css";
  * which the caller words) and offers the link to join, and a room that is
  * not the group's usual one says so beside it.
  *
- * "Add to calendar" (`calendar`) is the person's own calendar link
- * (st-calendar-phone): under the room on the programme page, and in a row of
+ * "Add to calendar" (`calendar`) is the person's own calendar link:
+ * under the room on the programme page, and in a row of
  * its own under the card on Home. An online week's ticket carries Join online
  * in its place, in the row under the card with the line that the link is
- * only here, as board wk-changes draws it. "Can’t make it", which the boards
- * draw beside it, is not here: it does not exist yet, and the page draws no
- * control for a feature that does not.
+ * only here. "Can’t make it" (`cantMakeIt`) sits beside Add to calendar on
+ * the programme page's ticket, for somebody taking part in the group, until
+ * the session starts; Home's ticket has none.
+ *
+ * A session an admin scheduled an explainer for says so under the room
+ * ("Your session starts with a 10-minute explainer on ..."), from the
+ * session's own facts: how long and what about, never who scheduled it.
  */
 
 export type TicketPerson = { uid: string; name: string; firstName: string };
@@ -44,9 +49,20 @@ type Props = {
   home?: boolean;
   /** Offer "Add to calendar": the reader's ticket is a group Publish has told them about, or one they facilitate. */
   calendar?: boolean;
+  /** "Can’t make it", drawn beside Add to calendar (`CantMakeIt`), or nothing. */
+  cantMakeIt?: ReactNode;
 };
 
-export default function SessionTicket({ facts, eyebrow, heading, roomChanged, facilitators, home = false, calendar = false }: Props) {
+export default function SessionTicket({
+  facts,
+  eyebrow,
+  heading,
+  roomChanged,
+  facilitators,
+  home = false,
+  calendar = false,
+  cantMakeIt = null,
+}: Props) {
   const tile = tilePartsOfDay(facts.dateKey);
   const withLine = withWords(facilitators.map((person) => person.firstName));
   const offerCalendar = calendar && !facts.joinUrl;
@@ -57,7 +73,7 @@ export default function SessionTicket({ facts, eyebrow, heading, roomChanged, fa
       ))}
     </span>
   );
-  // An online week is said in the eyebrow (wk-changes); a week set in person
+  // An online week is said in the eyebrow; a week set in person
   // keeps its chip.
   const modeChip = facts.mode === "in-person" ? <span className={styles.plainChip}>In person this week</span> : null;
 
@@ -110,16 +126,20 @@ export default function SessionTicket({ facts, eyebrow, heading, roomChanged, fa
               )
             )}
             {facts.missing && <p className={styles.ticketNote}>{facts.missing}</p>}
-            {offerCalendar && !home && (
+            {facts.explainer && (
+              <p className={styles.ticketExplainer}>{memberLineWords(facts.explainer.minutes, facts.explainer.topic)}</p>
+            )}
+            {((offerCalendar && !home) || cantMakeIt) && (
               <div className={styles.ticketActions}>
-                <AddToCalendar />
+                {offerCalendar && !home && <AddToCalendar />}
+                {cantMakeIt}
               </div>
             )}
           </div>
         </div>
       </div>
       {facts.joinUrl && (
-        /* The row under the card (wk-changes): the link to join, and under
+        /* The row under the card: the link to join, and under
            it that the link is only here. */
         <div className={`${styles.ticketFoot} ${styles.joinFoot}`}>
           <a className={styles.joinButton} href={facts.joinUrl} target="_blank" rel="noopener noreferrer">

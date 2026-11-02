@@ -15,19 +15,45 @@ records), `src/app/api/surveys/` (the routes), `src/app/survey/[token]/` and
 `src/app/(app)/admin/(admin-only)/surveys/` (the admins' pages),
 `src/lib/scheduler/jobs/surveyNamesOff.ts` (names off),
 `src/lib/surveys/onePerson.ts` (one person's answers, opened by an admin),
+`src/lib/surveys/charts.ts`, `seeWho.ts`, `answersTable.ts`, `resultsFilters.ts`,
+`questionFile.ts` and `surveyLog.ts` (the results as charts, the names behind
+them and the Answers tab, each opening recorded first, the file of one question
+and the survey's log), `chart.ts`, `chartLoad.ts` and `chartWords.ts` with
+`src/features/surveys/chart/` (Make a chart, an admin's, of a survey's question
+or across a programme's check-ins),
 `src/lib/surveys/blanks.ts`, `blanksStore.ts` and `blanksView.ts` (the
-questions somebody left blank, sent to them by an admin's press).
+questions somebody left blank, sent to them by an admin's press), and
+`src/lib/surveys/questionSets.ts` and `questionSetsStore.ts` with
+`src/features/surveys/questionSets/` (the question sets: the questions each
+kind of survey starts with, changed by an admin).
 
 ## The rules, in one place
 
 - **Only admins** make, change, send, remind, close and read a survey, and only
-  admins see a name beside an answer. Facilitators never see anything of a
-  survey, about themselves included. A programme's lead reads totals and
+  admins see a name beside an answer. A programme's lead reads totals and
   comments for their own programme's surveys, never a name, as answers come
   in, on the programme's Surveys tab and each survey's page under it (below).
-  Nothing here holds results back until a survey closes.
+  Nothing here holds results back until a survey closes. **The one exception
+  is the check-in at the end of a session** (below): the group's live
+  facilitators open it from the register and may close it, and see their own
+  group's count while it is open and its totals from three answers once it
+  has closed, never a comment or who said what; the lead reads check-ins a
+  whole week at a time, once every group's check-in that week has closed,
+  every group's together, totals from three answers and comments from five,
+  and a week's check-ins are fixed when it first shows: one opened for that
+  week later never joins it. Facilitators see nothing else of any survey,
+  about themselves included. **The other exception is the survey after an
+  event that its event sets up** (below): the event's author and
+  collaborators set it up in the event editor's Survey after step, change it
+  on the event's Survey after tab until it goes, and may send it sooner
+  there ("Send it now"), which at a started event with no survey of its own
+  sets one up with the standard questions and sends it; the `event-surveys`
+  job sends it by itself. They see
+  what is set, that it went, when and to how many, never an answer, a count
+  of answers or who answered: its results stay admins' alone.
 - **Confidential, never anonymous.** Every survey on the site knows who answered.
-  The confidential box at the top of every survey says so, in sv-privacy's words.
+  The confidential box at the top of every survey says so, in the words
+  `src/lib/surveys/words.ts` keeps for it.
   The one anonymous form on the site is not a survey and has no anonymous mode
   of one: it is the keep, change and drop form below, with its own records.
 - **Every question needs an answer unless it is marked optional** (Zach, 30
@@ -51,16 +77,37 @@ questions somebody left blank, sent to them by an admin's press).
   What they send through it is kept beside their first answers, never over
   them, and every reader merges the two through one function (see "Sending
   the questions left blank").
-- **No reminder goes on its own.** An admin presses Remind. No schedule sends
-  anything, and nothing sends the questions somebody left blank but an
-  admin's press for that one person.
-- **No floors.** Results show from the first answer (Zach, 25 Oct 2026), and
-  public numbers have no threshold either (Zach, 26 Oct 2026): an admin
-  chooses what is published, and every number says what it rests on.
+- **No reminder goes on its own**, but one. An admin presses Remind, and no
+  schedule sends anything, except the survey after an event that its event
+  set up: its Survey after step may ask for it to go by itself a number of
+  hours after the event, and for one reminder 3 days after it went, which
+  the `event-surveys` job sends (below). Nothing sends the questions
+  somebody left blank but an admin's press for that one person.
+- **No floors**, but on check-ins. Results show from the first answer (Zach,
+  25 Oct 2026), and public numbers have no threshold either (Zach, 26 Oct
+  2026): an admin chooses what is published, and every number says what it
+  rests on. A check-in's totals reach its group's facilitators only once it
+  has closed and only from three answers (Zach, 1 Nov 2026), so a small group's
+  answers are never read one by one; its programme's lead reads a week of them
+  only once every group's has closed, never a group's alone, totals from three
+  answers and comments from five, decided on the server, and only the
+  check-ins the week had when it first showed.
 - **No answer or result is ever in an email.**
 - **Names come off** two years after the programme's last session (Zach, 26
   Oct 2026), the same day for every stage, and at once when an account is
   deleted. The answers stay, so the totals stay.
+- **A facilitator's session report is not a survey.** It is a course record
+  written by staff about named people and read with those names by the
+  programme's lead and admins, kept while the account exists; none of the
+  rules here apply to it (docs/courses-ops.md, "A facilitator's session
+  report").
+- **Check-ins may go to Claude, pooled by group, never by person.** An
+  admin's week review (docs/courses-ops.md, "The week review") sends a week's
+  check-in answers to Claude for what people found hard, pooled by group with
+  no sender, id or time (`poolWeekCheckIns`), only those sent after their
+  sender agreed to privacy version 15, and never for who might need a hand, a
+  grade, a note or a place. Nothing a check-in says is ever shown on the
+  review.
 
 ## The records
 
@@ -70,20 +117,36 @@ is a server page or route. The rules blocks are deny-all.
 
 | Collection | One per | Holds |
 | --- | --- | --- |
-| `surveys/{autoId}` | survey | its stage (`before`, `after`, `followUp6`, `followUp12`), privacy (`confidential`), the admins' name, the title and intro people see, its items, about how many minutes, its audience (`{ kind: "programme", roundId, programmeId }`, or for a follow-up `{ kind: "followUps", roundId, programmeId, consentFrom }`), the programme's short name and kind as they were when it was made, the run the programme named, the survey it pairs with (`pairOf`), an incubator's strand, when it closes, when it was closed by hand, the day names come off and when they did, when it was first sent, a record of each press of a send button (kind, time, how many), the last test of each email (who, when, the wording's fingerprint), the secret of its test link |
+| `surveys/{autoId}` | survey | its stage (`before`, `after`, `followUp6`, `followUp12`, `leaving`, `event`, or `checkIn`), privacy (`confidential`), the admins' name, the title and intro people see, its items, about how many minutes, its audience (`{ kind: "programme", roundId, programmeId }`, or for a follow-up `{ kind: "followUps", roundId, programmeId, consentFrom }`, or for a check-in `{ kind: "checkIn", roundId, programmeId, groupId, sessionKey, weekNumber }`), the programme's short name and kind as they were when it was made, the run the programme named, the survey it pairs with (`pairOf`), an incubator's strand, a check-in's session as it was when it opened (`checkIn`: the group's name, when the session started and ended), when it closes, when it was closed by hand, the day names come off and when they did, when it was first sent, a record of each press of a send button (kind, time, how many), the last test of each email (who, when, the wording's fingerprint), the secret of its test link; for a survey after an event that its event set up, `auto` (when it goes by itself, its reminder, its QR code, the question for people who didn't come, and where the `event-surveys` job has got to). A check-in's id is worked out from its session (`ci-` and a hash of the run, the group and the session), and it carries no `roundId` at its top |
 | `surveyPeople/{surveyId}__{uid}` | person a survey is for | the survey and form, the person (`respondent: { kind: "account", uid }`), the secret in their personal link, the press that sent it, when it was sent and what became of it, when they were last reminded and how often, whether they have answered, what their consent boxes say (`consents`, `consentsAt`), and once an admin has sent them the questions they left blank, that link (`blanks`: its own secret, what became of its email, when it was used) and each press for it (`blanksPresses`: when, by whom, how many questions) |
 | `surveyAnswers/{autoId}` | person who answered | the survey and form, the person (`respondent`, null once names come off), the answers, when "Send my answers" was pressed (day and time), how (`link` or `signed-in`), and whether their group had met for the first time by then; and each later send of questions they had left blank (`fills`, oldest first: its answers, when, how, and whether the group had met by then), beside the first answers and never over them |
+
+Beside them, `checkInWeeks/{runId}__w03` holds which check-ins each week of a
+programme showed its lead, by their survey ids, fixed the first time the week
+was whole ("Check-ins at the end of a session", below). It names nobody, its
+one writer is the scheduler's job, and its rules block is deny-all as well.
+
+And `surveyQuestionSets/{kind}` holds the questions one kind of survey starts
+with, while an admin's set differs from the code's ("Question sets", below):
+a words-only set's changed words, or the survey after an event's questions,
+and who changed it last and when. Its one writer is the question sets route,
+an admin's, and its rules block is deny-all, admins included.
 
 **The person is a map**, `respondent: { kind: "account", uid }`, found by one
 equality on `respondent.uid`. Another kind (an event guest's sign-up,
 `{ kind: "guest", signupId }`) can sit beside it later without a rewrite, and
 names come off by setting the whole map to null.
 
-**Every query is one equality on one field** (`surveyId`, `token`, `testToken`,
-`blanks.token`, `roundId`, `respondent.uid`, `respondent.signupId`) or a read of the whole `surveys` collection, a
-handful a term, sorted in memory. Nothing needs a declared index. A person's
-own earlier answer (Q3's) is one equality on `respondent.uid`, filtered to the
-survey in memory.
+**Every query is one equality, one `in` or one range on one field**
+(`surveyId`, `token`, `testToken`, `blanks.token`, `roundId`, `runId`, `kind`,
+`respondent.uid`, `respondent.signupId`; `kind in` every kind but the
+check-in, which is the list of surveys, a handful a term, sorted in memory
+(`listSurveys`); `namesOffOn <=` today, for the job that takes names off).
+Nothing needs a declared index. A check-in is one per group per session, so
+it is never in the list of surveys: its readers ask for a run's check-ins
+(`checkInsOfRun`), every check-in (`listCheckIns`, the admins' list) or one
+by the id its session gives. A person's own earlier answer (Q3's) is one
+equality on `respondent.uid`, filtered to the survey in memory.
 
 **A link's secret** is 32 random bytes, base64url, minted the way
 `calendarLinks` mints one (`mintSurveyToken`). It is the person's own: the
@@ -136,12 +199,84 @@ you or your plans?", "What would have helped you stay?"). An admin can turn
 any switch either way until the first send. `tests/surveys-required.test.mjs`
 walks every template both ways: every question not on the list is required,
 every listed one is a text question some template asks, and no consent box
-is ever required.
+is ever required; and it walks every question set as an admin keeps it: a
+words-only set's words never move a switch, and the survey after an event's
+set writes every switch out, the listed one optional until an admin turns it
+on.
 
 **The ids are the pairing.** A question asked at more than one stage has the
 same id, type and option ids at every stage and in every programme (C1 is
 `q_c1` before, at the end and in each follow-up), so answers pair by person
 and compare across programmes. Change a question's words freely, never its id.
+An admin changes them per survey on its Questions tab, or for every survey of
+a stage made from then on in its question set (below), which holds words
+alone.
+
+## Question sets
+
+Run NAISI › Surveys › Question sets (`/admin/surveys?tab=question-sets`):
+"The questions each kind starts with. Change them here, or per survey." One
+row a kind, in this order, each with its size and Edit, which leads to the
+kind's own page (`/admin/surveys/question-sets/<kind>`), and the day it was
+last changed once it has been:
+
+| Set | Kind | What changes |
+| --- | --- | --- |
+| After an event | `event` | its questions, whole: added, removed, reworded and retyped |
+| Weekly check-in | `check-in` | words only |
+| Facilitator’s session report | `session-report` | words only |
+| Before a programme | `before` | words only |
+| End of a programme | `after` | words only |
+| Leaving | `leaving` | words only |
+
+The follow-ups at 6 and 12 months have no set: they ask in the code's words,
+and an admin rewords one per survey.
+
+- **Admins only.** The page and its tab sit in the `(admin-only)` tree and ask
+  `canRunSurveys` before anything is read; `PUT
+  /api/surveys/question-sets/[kind]` refuses a view-as session first, then
+  the session and the admin bar, before the body is read or the database
+  touched.
+- **Words only, but after an event** (`src/lib/surveys/questionSets.ts`). A
+  programme's stages pair answers by question id, and check-ins and session
+  reports are read by id for the facilitators' totals, the lead's weeks and
+  the Surveys tab, so those five sets change their words and nothing else:
+  every question keeps its id, kind, answers, scores, Required switch and
+  place. A save is `{ words }`, each word under its place in the set
+  (`q_c1:title`, `q_c1:option:o_stage0`, `how:low`); the route refuses a save
+  that names any place the code's set does not hold, so nothing can add,
+  take out or retype a question or an answer (`checkWordsChange`), and the
+  set keeps only the words that differ from the code's. The reader takes only
+  words that have a place in the code's set and would pass a save
+  (`withSetWords`, `sessionReportWordsWith`), so nothing stored can do more.
+  A few words stay the code's, each with why on the page: an incubator's
+  first skills line, worded for its research when its survey is made; the
+  week's parts in a check-in, as each group's copy names them; and the
+  session report's last question, which names the programme's lead.
+- **The survey after an event's set is edited whole** (`checkWholeChange`), as
+  the event editor's step edits one event's: Edit, Up, Down, Remove, Add a
+  question of the step's five kinds (choose one, pick any, 1 to 5, short or
+  long answer), each question's Required switch, and its kind. A question
+  whose kind changes is a new question with a new id, so its answers never sit
+  beside another kind's under one id (This term in numbers reads "How was it?"
+  by its id); changed back to its own kind it takes its own id again. A
+  question the code asks never changes its kind there, and the route holds
+  that. The set is the standard the step starts from (`items: null`, read when
+  publishing sets the survey up) and the one After a social makes a survey
+  from (`eventStandardItems`).
+- **A change reaches surveys made after it, never one already made.** Every
+  survey copies its questions when it is made, through one reader per kind in
+  `src/lib/surveys/questionSetsStore.ts`: a programme's survey
+  (`programmeTemplateItems`), a check-in as it opens (`checkInSetItems`), and
+  a survey after an event as publishing sets it up or an admin makes one
+  (`eventStandardItems`). Nothing reads a set again for a survey that exists:
+  opening one, refreshing its words from its event, and the job all keep its
+  own questions. A session report keeps its answers by question, never by
+  its words, so its form asks in the set's words as it is drawn
+  (`sessionReportWords`), and a report already sent keeps every answer.
+- **Back to the original** puts the code's words, or questions, in the form;
+  saved, a set that is the code's again is deleted, so the code's own are read
+  again, later changes to them included.
 
 ## Stages and pairs
 
@@ -218,7 +353,7 @@ and sponsors, and the person's profile has the same choice.
 - **Deleting an account** deletes its choice (step 1f).
 
 **The Kairos file** (`POST /api/kairos/export`, `src/lib/kairos/file.ts`), from
-Run NAISI › Surveys › Kairos: admins only, once a programme's last session is
+Run NAISI › Reports › Kairos: admins only, once a programme's last session is
 over, one row per person on it at its end (the register's rows, leavers left
 out) who has not said no, with their name, the programme, the sessions they
 came to and of how many, whether they finished (`recordOf`, the lead's
@@ -229,7 +364,7 @@ download the site records before it hands the file over (`dataExports`, kind
 `kairos`, scope `roundId` and `runId`), and it is refused when that record
 cannot be written.
 
-**The Kairos report** (Run NAISI › Surveys › Kairos › a programme,
+**The Kairos report** (Run NAISI › Reports › Kairos › a programme,
 `src/lib/surveys/kairosReport.ts`, read by `kairosReportLoad.ts`): the
 questionnaire's fourteen measures for one programme, in totals and never a
 name. Every figure has its n beside it, and that as a share of the people who
@@ -361,7 +496,7 @@ The day names come off is worked out from records, two years after the run's las
 session (`namesOffDayFor`, through `runEndOf`), each time the survey is saved or
 tested, and fixed by the first send.
 
-## Sending and reminding (sv-send-programme)
+## Sending and reminding
 
 Who it is for: **everybody holding a place on the programme**, through
 `placeHoldersOn`, the one test the hand-over, its panel and Publish share. It is
@@ -391,12 +526,12 @@ goes to their account's address, one message each; the row is then stamped with
 what became of it. A send that throws leaves the row unstamped, so they are still
 owed it.
 
-**The emails** are the boards' words (HANDOFF, "Emails, word for word"): the
-survey's intro, then "It’s confidential: only NAISI’s admins can see who said
-what, and your facilitators never see it.", the closing day, a button to the
-person's own link, and the name of whoever pressed, "For NAISI". Every value is
-from the survey's record. They reply to ai-safety@uonsu.com and come from the
-site's own sender (the boards draw another address; see the build notes).
+**The emails** are word for word as they were designed: the survey's intro,
+then "It’s confidential: only NAISI’s admins can see who said what, and your
+facilitators never see it.", the closing day, a button to the person's own
+link, and the name of whoever pressed, "For NAISI". Every value is from the
+survey's record. They reply to ai-safety@uonsu.com and come from the site's
+own sender.
 
 **They are notices** (`docs/notifications.md`): they reach everybody holding a
 place whatever their notification settings say, with the lane's visible line,
@@ -414,8 +549,7 @@ Every survey's confidential box says "Totals, and comments you tick to be
 quoted, may go in reports to the committee and our funder, Kairos, or on our
 site." The tick it speaks of is the box under each long answer, "You can quote
 this, without my name", with the line "We might put it in a report for the
-committee or our funder, Kairos, or on our site." (sv-privacy, sv-after-phone,
-sv-social-phone).
+committee or our funder, Kairos, or on our site."
 
 - **One decision, `asksQuotes`** (`src/lib/firestore/surveys.ts`): a
   programme's before survey, its survey at the end, its follow-ups and a
@@ -434,7 +568,7 @@ sv-social-phone).
   kept. Nothing but the person's own tick marks a comment as one that may be
   quoted.
 
-## Answering (sv-before-phone)
+## Answering
 
 One page, two doors: `/survey/<secret>` with no sign-in, and
 `/learn/<run>/survey/<survey>` signed in, the same page inside the programme.
@@ -466,8 +600,8 @@ way.
 **The box** names the programme's lead (while they still stand as its lead) and
 the person's own group's facilitators, from records. A placement Publish has not
 told them yet is no group of theirs: the box then says "Your facilitators never
-see your answers.", the nearest true line the board does not draw. A lead who
-also facilitates their group is left out of the facilitators.
+see your answers.", the nearest true line, which the design does not have. A
+lead who also facilitates their group is left out of the facilitators.
 
 Every control is a real form control left to the browser, so nothing typed
 before the page's script arrives is lost; until it arrives every page shows at
@@ -488,7 +622,7 @@ every question was required, Zach, 30 Oct 2026). An admin can send that one
 person a link to just those questions. Their first answers are never changed
 or deleted: what they send later is added beside them.
 
-- **Where**: on the survey's Who answered tab (a programme's survey and a
+- **Where**: on the survey's Answers tab (a programme's survey and a
   survey after an event), in its "Left blank" column, and on the person's own
   answers page, under "Questions left blank" for each survey shown: "Left 3
   blank" and the button "Send the questions they left blank". The button asks
@@ -558,7 +692,7 @@ or deleted: what they send later is added beside them.
 - **ONE MERGE** (`mergedAnswers`): the first answers, then each later send in
   order, each adding only to what was still blank; a grid merges line by
   line. The two answer normalisers call it, so every reader reads merged
-  answers: the results and the lead's totals and comments, Who answered, one
+  answers: the results and the lead's totals and comments, the Answers tab, one
   person's page, the spreadsheet, This term in numbers, public numbers, the
   Kairos report, before and after, and the leaving and event surveys'
   results. The admins' switch that leaves out before-survey answers sent after
@@ -573,7 +707,7 @@ or deleted: what they send later is added beside them.
   nameless with the answer; the link of blanks and its presses are on the
   person's row, which both delete. No collection is added.
 
-## The cards (Q50 B)
+## The cards
 
 One function decides whether a survey is waiting for somebody,
 `surveysWaitingFor` in `src/lib/surveys/waiting.ts`, and Home, My programmes
@@ -601,13 +735,14 @@ place, by `holdsPlaceOn`, the test the reminder asks through
 - **A survey after an event has no card.** It reaches people by its email and
   its QR code, and a card's lines are a programme's; a row of one is never
   "theirs" here (`stillTheirs`).
+- **A check-in's card** says "A check-in for you" and when it closes ("Closes
+  11pm"), while it is open and the person's seat on its run is live and told.
 
-### The survey at the end, on its programme's pages (Q48 B)
+### The survey at the end, on its programme's pages
 
 The survey at the end goes to everybody still on the programme at its end,
 finished or not, and its programme's own pages draw it as "The survey at the
-end" (boards wk-lastweek-phone, en-after-phone, en-after-nofinish-phone), by
-`EndSurveyCard` in `src/features/surveys/cards/`:
+end", by `EndSurveyCard` in `src/features/surveys/cards/`:
 
 - **On Home in the run's last week** (the reader's own calendar's last taught
   week), while it is theirs to answer: when to answer it (at the end of
@@ -625,18 +760,18 @@ What it says of the survey comes from its own record (`atTheEnd` on the
 card): its questions and minutes, how many questions it shares by id with the
 survey it pairs with ("the same 9 questions as week 1"), and its closing day.
 Nothing of anybody else's is read: never how many others have answered. There
-is no "then and now" page (Q47 A).
+is no "then and now" page.
 
-## The leaving survey (Q46)
+## The leaving survey
 
 Confidential, like every survey on the site (Zach: "to allow us to do better
 ... technically optional but we have good reason to ask"). One per programme,
 made by an admin from New survey's "Leaving a programme", from its own
 template (`templateItems("leaving", ...)`): three questions, all required, about a minute,
-written in the boards' voice for Zach to change before it is used. Its ids
-(`q_leave_why`, `q_leave_stay`, `q_leave_again`) are the same in every
-programme and are none of the stages', so leaving surveys compare with each
-other and with nothing else.
+written in the voice they were designed in, for Zach to change before it is
+used. Its ids (`q_leave_why`, `q_leave_stay`, `q_leave_again`) are the same in
+every programme and are none of the stages', so leaving surveys compare with
+each other and with nothing else.
 
 - **It pairs with nothing**, and the stages still pair with each other.
 - **It has no closing day.** It takes answers from when it is opened until an
@@ -647,12 +782,13 @@ other and with nothing else.
   names come off, as a first send does (`firstSentAt`), claimed once. Send,
   Remind and an email's test are refused for it in a sentence. Its test link
   is made with it, so an admin can see it as people will before opening it.
-- **Its box** is sv-privacy's leaving box with the words that called it
-  anonymous replaced by what confidential means here: only admins see who said
-  what, the lead sees totals and comments and never names, facilitators never
-  see the answers, nothing said changes the person's account or a future
-  application, totals may go in reports to the committee and Kairos, and the
-  name comes off two years after the programme ends, as for every survey.
+- **Its box** is the confidential box as first designed for leaving, with the
+  words that called it anonymous replaced by what confidential means here:
+  only admins see who said what, the lead sees totals and comments and never
+  names, facilitators never see the answers, nothing said changes the
+  person's account or a future application, totals may go in reports to the
+  committee and Kairos, and the name comes off two years after the programme
+  ends, as for every survey.
 
 **Reaching it.** Somebody who leaves the programme by their own hand, by
 either door ("Leave the programme" or "I can’t make it", the one `leaveRun`),
@@ -676,15 +812,214 @@ row, so each person answers once per programme. Then:
   them, and they get no leaving email. Nobody presses send, and nobody is
   reminded.
 
+## Check-ins at the end of a session
+
+A two-minute survey at the end of one session of one group (a fellowship's or
+an incubator's weekly meeting, never an event's door): in the session's last
+ten minutes the group's facilitator opens it from the register, everybody the
+register marks there gets it on their phone while the facilitator goes round
+the room, and it closes by itself that night. Confidential like every survey.
+The code: `src/lib/surveys/checkIns/` (the rules in `model.ts`, the questions in
+`template.ts`, the words in `words.ts`, opening in `open.ts`, closing in
+`close.ts`, somebody marked later in `lateMark.ts`, the register's card in
+`facilitatorView.ts`, the page in `answerView.ts`, the admins' pages in
+`adminView.ts`, the lead's weeks in `leadView.ts`, and which check-ins each
+week has, fixed the first time it is whole, in `weeks.ts`),
+`src/app/api/courses/groups/[groupId]/check-in/` (the routes),
+`src/features/courses/register/CheckInCard.tsx` (the card) and
+`src/lib/scheduler/jobs/surveyCheckInWeeks.ts` (the job that fixes the weeks).
+
+- **Its own kind on the same records.** A `surveys` document with `kind:
+  "checkIn"`, its audience `{ kind: "checkIn", roundId, programmeId, groupId,
+  sessionKey, weekNumber }` and its session as it was when it opened
+  (`checkIn`). One per group per session, at an id worked out from the session
+  (`checkInSurveyId`), so two presses make one. Its rows and answers are
+  `surveyPeople` and `surveyAnswers` as every survey's, and an answer keeps
+  exactly what every survey's does. Every reader that tells kinds apart asks
+  `isCheckIn`, so none reads it as a programme's before survey: no Kairos box,
+  no quote tick, and the lead's survey pages never read it (`LEAD_READS`): the
+  lead reads check-ins only a whole week at a time, floored (below).
+- **Who opens it**: the group's live facilitators and admins, the register's
+  own gate (`gateGroupRegister`), never the programme's lead, who reads the
+  register and runs no session. `POST /api/courses/groups/[groupId]/check-in`
+  with `{ session, people }`, view-as refused first. Refused, each in a
+  sentence, for a session the group does not hold, one that cannot be dated,
+  one cancelled through "Change a session" or marked as not held, before the
+  session starts, after its check-in has closed, with nobody marked there, for
+  a run no programme names, and when the number on the button is not the
+  register's now (nothing is opened and the answer carries the new number).
+- **Who it reaches**: the people the register marks present, late or left
+  early, among its rows Publish has told (`loadToldRegisterMembers`, whoever
+  presses: an admin's register also shows people Publish has not told their
+  group, and the check-in never counts or reaches them), never the group's
+  facilitators, a facilitator holding a place included; at most forty, a
+  register's own cap. Each gets their own row, with their own link, written
+  with the check-in in one batch, then one notice (surface `course-check-in`,
+  `docs/notifications.md`) at their account's address, whatever their settings
+  say, signed by whoever opened it. No test first: its words are fixed, and it
+  opens in the room. Two a London day per group. Nobody is reminded.
+- **Somebody marked there later**, while it is open, gets a row as they are
+  marked (`reachLateMarks`, called by the register's marking route after it
+  keeps the mark) and no email; the rows made are counted as one `joined`
+  press, so its rate is of everybody it reached.
+- **Three ways in**: the email's link; Home and My programmes' card ("A
+  check-in for you", while it is open and their seat on the run is live and
+  told, `surveysWaitingFor`); and the code the facilitator shows the room
+  ("Show the QR code"), which opens `/learn/<run>/survey/<id>` signed in. The
+  code is drawn on the screen only (`src/lib/qr/pageCode.ts`), never printed or
+  downloaded, so it encodes the page itself rather than a short link.
+- **When it closes**: at 11pm on the session's London day, or an hour after
+  the session ends when that is later (a 9:30 to 11:30pm group's closes at
+  12:30am), by `closesAt`, which `isOpen` reads like every survey's; or earlier
+  by "Close it now" on the register (`POST .../check-in/close`, asked once,
+  never undone), or an admin's Close on its Opening tab.
+- **Its questions**, from the group's own copy of the week the session is
+  about (`checkInItems`), in the words of the check-in's question set as it
+  opens (`checkInSetItems`; "Question sets", above): how useful the session was (1 to 5, "Not at all" to
+  "Very"), the most useful thing, what could have gone better (optional, on
+  `NOT_FOR_EVERYBODY`), what was unclear (the week's parts by their own ids, so
+  answers count by part across groups, "Something else", and "Nothing was
+  unclear", a `noneIds` option, so the question stays required and the totals
+  tell nothing unclear from skipped), how much of the week's reading they did
+  (None, Some, Most or All, asked only when the week has a source on its path),
+  and how confident they feel about the week's topic now (1 to 5, "Lost" to
+  "Could explain it"). Fixed ids (`q_ci_*`); fixed when it opens.
+- **Its page** (`checkInSurveyFor`): "Check-in · 2 minutes", "How was week
+  3?", "Group C, today at 3pm." (the day and time on any other London day), the
+  confidential box at the top, the questions on one page, "Send check-in", and
+  "It closes at 11pm. Once sent, your answers can’t change." The box: only
+  admins see who said what; the lead, by name, sees totals and comments
+  without names; the facilitators see the group's totals, never the person's
+  answers; and the day the name comes off.
+- **What its group's facilitators see** (`checkInRegisterView`, the one
+  floored view, `GET .../check-in?session=w03`, the register's own gate): on
+  the session's day, before it opens, "Open it for the 6 here" counted from the
+  register as it is tapped, among the rows the route says it can reach; while
+  it is open, "4 of 6 have sent it", never who,
+  the code and "Close it now"; once it has closed, its totals from three
+  answers (`TOTALS_FROM`: usefulness and confidence on average, how many of
+  how many answered, how many did most or all of the reading, the parts named
+  unclear with how many named each), below that "2 of 6 answered. Too few
+  answers to show.", never a comment; and beside it the group's latest closed check-in before this
+  session's, the same way. The short answers are never read for it.
+- **What admins see**: each programme's Weekly check-ins row on Run NAISI ›
+  Surveys, opening on its check-ins and on Make a chart across them (below),
+  each with a survey's own pages: Results, Make a chart, Answers, one
+  person's answers (a check-in among them, week by week, the opening recorded
+  first), the questions (fixed, said so) and the logged download. In place of a Send tab, an Opening tab: who opened it, when and
+  for how many, how many
+  more were marked there after, and when it closes, with Close. Send, Remind,
+  a test, the questions' editor and the questions left blank each refuse a
+  check-in in a sentence.
+- **What the programme's lead and admins read**, on the programme's Surveys
+  tab (below): its Check-ins view and the Overview's figures, by
+  `readProgrammeCheckIns` (`src/lib/surveys/checkIns/leadView.ts`). A week,
+  never a group: nothing of it until it is **whole** (`weekIsWhole`: every
+  session of the week that can have a check-in, dated and not called off, is
+  past its check-in window, and none of the week's check-ins is open, so none
+  can still be opened) and its check-ins are **fixed** (below), then every
+  group's answers together (`leadWeekOf`), totals from three answers
+  (`TOTALS_FROM`) and comments from five (`COMMENTS_FROM`), the comments in
+  the order of their words. Below three it says how many answered and that
+  totals show from three, so nobody can be worked out. A share of a smaller
+  slice than the week (the reading question, asked only where the week had
+  something to read) shows from three answers to it. Nothing of a week that
+  is not fixed is read at all, not even how many have answered so far, so no
+  group's answers can be had by reading the week before and after its
+  check-in closed. An admin also has a row for each group's check-in (when
+  its session started, how many answered of how many it reached, open or
+  closed), with the way to its Results and Answers on the admins' own
+  pages; the lead never has those rows. One count: the facilitators' totals
+  and the lead's week both count answers through `tallyOf`, and the comments
+  are each check-in's Results' own.
+- **A week's check-ins are fixed when it first shows.** On every tick the
+  scheduler's `surveys-check-in-weeks` job
+  (`src/lib/scheduler/jobs/surveyCheckInWeeks.ts`) looks at every run exactly
+  one programme names, the rule a check-in is opened by, and records, for
+  each week that is whole, has begun (a session of it has started, or it has
+  a check-in) and is not fixed yet, which check-ins the week has: a
+  `checkInWeeks/{runId}__w03` document holding their survey ids
+  (`freezeWholeWeeks` in `src/lib/surveys/checkIns/weeks.ts`, created once,
+  so two ticks at once fix it once). The lead's views read only fixed weeks,
+  and only the check-ins each was fixed with, so a week shows from the first
+  tick after it is whole (the scheduler ticks every 15 minutes; the words say
+  "shortly after"), and stays as it first showed whatever its sessions do
+  afterwards: a check-in opened for it later, because a group's session was
+  dated, moved or put back after the week was fixed, never joins it. An
+  admin's row for such a check-in says "Not counted in the week above: it
+  opened after the week had already shown."; the lead is never told. A week
+  is not fixed before it has begun, so a run whose groups have no times yet
+  has nothing fixed early, empty, for weeks still to come. No page or route
+  writes the record: the job is its one writer
+  (`tests/get-handlers-readonly.test.mjs` names both its helpers). **The job
+  registers on**, as `surveys-names-off` does: it emails nobody, and while it
+  is off no new week of check-ins shows to any lead (each shows at the first
+  tick once it is on again). A run being destroyed is left alone.
+- **Names come off** on the day the survey says, two years after the run's last
+  session, by the same job: it finds every survey due by its day
+  (`surveysNamesDueBy`), so the check-ins the list of surveys leaves out are
+  found too. An account's deletion takes its name off its check-in answers and
+  deletes its rows, as for every survey.
+- Guards: `tests/surveys-check-ins.test.mjs` (the rules, the floors, and every
+  route, page and card as every kind of caller), and the policy's
+  confidential block in `tests/privacy-policy.test.mjs`.
+
 ## The admins' pages
 
-Run NAISI › Surveys (`/admin/surveys`): open, drafts and closed, each with its
-answers, closing day and the way to its tabs; New survey. Each survey has four
-tabs: **Questions** (the editor until it is sent), **Send** (above), **Who
-answered** (names, for admins only, and the spreadsheet; each name opens that
-person's answers, below), **Results**.
+Run NAISI › Surveys (`/admin/surveys`) lists every survey by what it is for,
+on three tabs of one page, and New survey. The page asks `canRunSurveys`
+before any tab reads anything; the code is `src/lib/surveys/hub/` and
+`src/features/surveys/admin/SurveyList.tsx`.
 
-**Results** are made on the server and never carry a name. Every number has its
+- **By programme** (the page itself): a card for each of the term's programmes
+  (`chooseTerm`, the term This term in numbers counts), in the form's order,
+  with a row for every stage it will have, made or not: Before the programme,
+  Weekly check-ins (one row from its check-ins, the weeks they were at and how
+  many, opening in place on each one and, once there is one, on Make a chart
+  across them), Facilitators' reports (how many
+  questions a report asks, from the record's own list, and the way to the
+  programme's page of reports; no report is read for it), At the end of the
+  programme, and Leaving a programme, with the follow-ups once made. Each
+  survey's row says when it went, how many of the people it went to have
+  answered and when it closes, with Remind (and the number it reaches) while
+  it is open, and leads to its Results, or a draft to its Questions. A survey
+  at the end not sent yet says "Not sent yet · due at the last session, Wed 9
+  Dec", the run's last session by the finishing record's rule
+  (`readRunEndById`): programme surveys are sent by hand, so it is never said
+  to be scheduled. Below them, every other programme with a survey or a
+  check-in, the most recent first, with the rows it has, named as its form
+  names it or, once the form has gone, as its survey kept it.
+- **Events** (`?tab=events`): each survey after an event, the newest event
+  first, its answers a count (never "of" anybody), and nobody reminded from
+  here.
+- **Question sets** (`?tab=question-sets`): the questions each kind of survey
+  starts with ("Question sets", above), reading the stored sets alone and no
+  survey.
+
+Every survey is the way in of exactly one row on exactly one tab, whatever
+its programme's term and whether or not its form is still there. A survey's
+own head leads back to the tab it is on.
+
+**Reports** (Run NAISI › Reports, `/admin/reports`, its own entry in the menu)
+holds This term in numbers, Public numbers and Kairos, which were buttons on
+this page's head. Each kept its page and its address beneath
+`/admin/surveys` and leads back to Reports; the menu lights Reports on them
+(`currentEntry`: an entry that leads into one admin section is never lit on
+another section's page). Reports reads nothing itself.
+
+Each survey has five tabs: **Questions** (the editor until it is sent),
+**Send** (above), **Answers** (every answer in one table, with names, for
+admins only, and the spreadsheet; below), **Results**, and beside it **Make a
+chart** (below).
+
+**Results** are made on the server and never carry a name. Every question is a
+chart (`src/lib/surveys/charts.ts`, from the totals `results.ts` counts): its
+bars in the theme's accent, one colour whatever they count, with each bar's
+words and its count and share written outside it ("7 · 47%"), a scale from its
+top point down with its two ends in their words ("5: Loved it"), one group of
+bars per line of a grid, a percentage or a number by its bands. Comments are
+listed by their words, never in the order they came, the first five and the
+rest behind "Show all". Every number has its
 n beside it and the share of the people the survey was sent to (taken from the
 survey's own record of each send, so it outlives names coming off); for the
 leaving survey, which nobody sends, of the people it reached as they left
@@ -703,7 +1038,78 @@ survey also shows how many said yes to follow-ups. A switch leaves out
 before-survey answers sent after someone's first session, on its own Results
 and on the before side of every later stage's comparison.
 
-**A programme's survey results for its lead** (Q46, Q49 A) are at
+**For admins only, on the Results tab**:
+
+- **Filters**: Who (everybody who answered, or one group, by the group the
+  person has been told on the run, the groups in the one order of a run's
+  groups, `compareGroupsByMeeting`, or nobody's group), on a programme's
+  survey; Came as (members and guests, members, guests), on a survey after an
+  event. Held in the page's address, so the charts, See who and the file of a
+  question count the same answers (`src/lib/surveys/resultsFilters.ts`). None
+  once names have come off. Narrowed results say whose they are ("5 answers
+  from Group A.") and every rate is of those answers.
+- **"See who (7)"** behind each bar and **"Whose is this?"** beside each
+  comment (below, "Names on a survey's own pages").
+- **"Download this question"**: its totals and comments as a file
+  (`GET /api/surveys/[surveyId]/totals?question=`, `questionFile.ts`), built
+  from the very result its chart is drawn from. It names nobody, so it is not
+  a recorded download. **"Download the chart"**: the bars as a picture, drawn
+  in the admin's browser from what the page holds; nothing is asked of the
+  server.
+
+Not drawn: a choice of chart ("Chart: bars"), since bars are the one kind
+there is.
+
+**Make a chart**, for admins only (the programme's lead never has it, nor any
+figure by group): one question drawn as an admin chooses, on a survey's own
+tab (`/admin/surveys/<id>/chart`) and across a programme's check-ins
+(`/admin/surveys/check-ins/<form>/<programme>/chart`, from the programme's
+Weekly check-ins row on Run NAISI › Surveys, and from each check-in's own
+tab). The model is `src/lib/surveys/chart.ts`, pure; the reads are
+`chartLoad.ts`; the components `src/features/surveys/chart/`.
+
+- **Question**: every question that draws as bars, a survey's by its number as
+  its Results list it, a check-in's by its words (its number moves with the
+  week). Comments are not charted: Results list them.
+- **Show**: Counts, Shares, or the Average where the question has one (a
+  rating, a scale, a grid by its lines, a number, a percentage, a choice that
+  scores); for check-ins every one of them by week: an average a column a
+  week, a dot for a week with no answers, and counts or shares a run of bars a
+  week that any check-in asked the question in.
+- **Split by**: nothing, one chart; or Group, one chart each, every chart on
+  one scale (an average on its question's own, 1 to 5 for a rating; counts on
+  the largest count drawn; shares on 0 to 100%). The first four groups are
+  drawn and the rest are behind "Show all 11 groups", a press that needs no
+  script. A survey's groups are the Results' Who filter's (the group the
+  person was told on the run, then nobody's group); a check-in's group is the
+  group whose session it was, so no seat is read, and its groups are the run's
+  that still meet in their one order, then any group a check-in was opened for
+  that no longer meets.
+- **Who**: the Results' own filter, with its keys (`?who=`, `?as=`): everyone,
+  one group, or nobody's group on a programme's survey; members and guests,
+  members or guests after an event; everyone or one group across check-ins.
+  None, and no split, once names have come off.
+- **One count.** Every figure is counted by the Results' own counting
+  (`surveyResults`, `chartGroupsOf`): a chart of everybody's answers to a
+  question is its Results counting every answer (the before survey's switch
+  that leaves some out is the Results' alone), a group's chart is what Results
+  show under Who for that group, and a check-in week's average is the average the programme's
+  lead's week counts (`tallyOf`) over the same check-ins. A week's question is
+  every group's copy put together, a part once by its id, "Something else" and
+  "Nothing was unclear" last.
+- **No floor.** An admin's chart shows small counts, as an admin's Results do.
+  It counts every check-in of the programme as it stands, open ones and one
+  opened after its week was fixed included. The floors the facilitators and
+  the lead read check-ins behind are theirs, and neither reaches a chart.
+- **"Download the chart"**: every chart, those behind the press included, as
+  one picture drawn in the admin's browser. **"Download the numbers"**: the
+  chart as a spreadsheet (`GET /api/surveys/[surveyId]/chart`, `GET
+  /api/surveys/check-ins/[roundId]/[programmeId]/chart`, `chartNumbersCsv`),
+  built by the same reads and the same model as the page. Both name nobody, so
+  neither is a recorded download; drawing the page reads no name and writes
+  nothing. Guards: `tests/surveys-chart.test.mjs`.
+
+**A programme's survey results for its lead** are at
 `/admin/admissions/forms/<form>/programmes/<programme>/surveys/<survey>`, under
 the programme's head and linked from its Surveys tab (below): the same results,
 for the programme's lead and admins (`loadProgrammeRun` first, a reviewer told
@@ -711,88 +1117,157 @@ in a sentence), from the first answer, never a name, each question's comments
 listed by their words and not in the order they came, so their order says
 nothing of when, or after whom, each was written, and without the admins'
 switch that leaves out answers sent after someone's first session (a smaller
-set beside a larger one). The lead reads every kind of survey the programme
+set beside a larger one). The lead reads the same charts, and never a filter,
+"See who", "Whose is this?", a download or the key of a bar or a comment: the
+page asks `resultsView` for none, and hands the charts no admin's part. The
+lead reads every kind of survey the programme
 has of its own: before it, at its end, the follow-ups and leaving
 (`LEAD_READS` in `src/lib/surveys/leadResults.ts`). A survey after an event is
 no programme's, and another programme's is not this one's: each is answered
-in a sentence.
+in a sentence. A check-in is never one the lead reads here: its weeks are on
+the tab's Check-ins view, floored. The page sits under the tab's row of
+views, with the view its stage is listed on current (Before; End for the
+survey at the end and the survey about leaving; Follow-ups).
 
-## The lead's Surveys tab (sv-programme)
+## The lead's Surveys tab
 
 Each programme's tabs have **Surveys**, between Messages and Settings
 (`/admin/admissions/forms/<form>/programmes/<programme>/surveys`), a link for
-the programme's lead and admins and drawn like a tab not built yet for a
-reviewer. Board sv-programme, with Q41 (no floors) and Q49 A (as answers come
-in). The page asks `loadProgrammeRun` before it reads any survey; the admin
-area is closed during a view-as session, and the page writes nothing.
+the programme's lead and admins and not drawn for a reviewer, whose tabs are
+Applications alone. A survey's results there have no floor and show as answers
+come in (a week of check-ins keeps its floors, below). Every page under it asks
+`loadProgrammeRun` before it reads anything; the
+admin area is closed during a view-as session, and no page writes.
 
-**What it shows**, made on the server by `leadSurveysTab`
-(`src/lib/surveys/leadTab.ts`) and drawn by
-`src/features/surveys/lead/LeadSurveysTab.tsx`:
+**Its views**, each an address under the tab, in a row each page draws once
+its gate has answered (`SurveysViews` in `src/features/applications/surveys/`),
+the one on screen current: **Overview** (the tab's own address), **Before**
+(`/before`), **Check-ins** (`/check-ins`), **Facilitators' reports**
+(`/reports`, the session reports, on a page of their own because they name
+people: docs/courses-ops.md, "A facilitator's session report"), **End**
+(`/end`) and **Follow-ups** (`/follow-ups`). The team's ratings of written work
+have no view until they exist.
 
-- **This programme's surveys**: each of the programme's own surveys of the
-  kinds the lead reads, once it has gone out (sent, or opened for the survey
-  about leaving), in the order of the stages, with "29 of 32 answered · closed
-  Wed 4 Nov" and a way to its results. Below them, **Ratings** once the
-  programme names a run, and **What to keep, change and drop** (the anonymous
-  form's answers) once the survey at the end has gone out.
-- **What changed**, once the survey at the end pairs with the before survey:
-  how many answered both, C1 at stage 2 and up at each end ("Considering,
-  planning or already doing it", "8 → 15 of 25") with who moved a stage, and
-  C4's averages then and now with how many moved up. Beside it, **Beliefs
-  about AI**, which reports and never targets, with a way to them at the start
-  and the end. Once names come off, nothing pairs: it says so in the Results'
-  own words and compares nothing, and every survey's totals stay.
-- **How it went**, once the survey at the end has an answer: Q1, Q2 and Q3 of
-  the questionnaire, each an average with a bar per point or per line.
-- **The weeks**: the sources people rated on the week pages, up to three
-  highest and the lowest, from the retrospective's count and its floor (an
-  average shows from three ratings).
-- **Your facilitators**: the Facilitator line of "How valuable was each
-  part?", for every group together, with the board's note that facilitators
-  never see it.
-- **In their words**: every written answer's question of the survey at the
-  end, five comments shown and the rest behind "See all", in the order of
+**The Overview**, made on the server by `leadSurveysOverview`
+(`src/lib/surveys/leadOverview.ts`) and drawn by
+`src/features/surveys/lead/SurveysOverview.tsx`, the same for the lead and an
+admin but for who came (each sees the Attendance tab's count for them), and
+nameless:
+
+- **A card for each view**, each the way to it: Before, End and Follow-ups
+  with their survey's count and closing day once it has gone out ("Not sent
+  yet" before, with the run's last session for End); Check-ins with the
+  answers over the weeks that have shown ("139 answers over 3 weeks");
+  Facilitators' reports with the sessions held so far that a report is about
+  ("31 of 33 sessions", the Attendance tab's facts: held, and started).
+- **How useful the sessions were** and **how much of the reading people did**,
+  week by week, a column a week of the run in the theme's accent with its
+  figure on its cap, a dot for a week not shown yet; from the check-ins'
+  weeks once each is whole and fixed, the Check-ins view's own weeks (the
+  reading's share of everybody asked about it).
+- **What was unclear** in a chosen week (`?week=3`, among the weeks that show;
+  the latest by default): each part the check-ins named, with how many named
+  it and their share of the week's answers, and beside it how many of the
+  week's session reports named it; a part only the reports named is a row too.
+  When an admin scheduled an explainer from that week's review, one line
+  under it says so in counts ("The week 3 review has an explainer booked for
+  four groups."), never its topic, a group, a name or anything of the review
+  (docs/courses-ops.md, "Explainers").
+- **Came to the session**, week by week, the Attendance tab's own count
+  (`buildRunAttendance` for the same viewer) in its words ("50 of 54 came",
+  "so far" while a register of the week is not finished).
+- **The week's reports**: their average for how it went, and "Read the 10
+  reports", to that week on the reports page.
+- "Check-ins show without names. Admins can open who said what, and every
+  opening is recorded."
+
+Not drawn, because no record holds it yet: the share who ticked every
+reading, the team's ratings of written work and a summary of what the reports
+say.
+
+**Check-ins**: the weeks of the programme's check-ins (Check-ins, above),
+newest first, each with how many answered of how many its check-ins reached,
+usefulness and confidence on average, the share who did most or all of the
+reading, what was unclear, and from five answers what people wrote; for an
+admin, each group's check-in under its week.
+
+**Before, End and Follow-ups** draw what the tab drew before it had views, made
+on the server by `leadSurveysTab` (`src/lib/surveys/leadTab.ts`) and drawn by
+`src/features/surveys/lead/LeadSurveysTab.tsx` for its stage:
+
+- **This programme's surveys**, each view its stage's: each of the programme's
+  own surveys of the kinds the lead reads, once it has gone out (sent, or
+  opened for the survey about leaving), with "29 of 32 answered · closed Wed
+  4 Nov" and a way to its results. Before lists the before survey; End the
+  survey at the end and the survey about leaving, then **Ratings** once the
+  programme names a run and **What to keep, change and drop** (the anonymous
+  form's answers) once the survey at the end has gone out; Follow-ups the
+  follow-ups at 6 and 12 months. A view whose survey has not gone out says so.
+- On End, **what changed**, once the survey at the end pairs with the before
+  survey: how many answered both, C1 at stage 2 and up at each end
+  ("Considering, planning or already doing it", "8 → 15 of 25") with who moved
+  a stage, and C4's averages then and now with how many moved up. Beside it,
+  **Beliefs about AI**, which reports and never targets, with a way to them at
+  the start and the end. Once names come off, nothing pairs: it says so in the
+  Results' own words and compares nothing, and every survey's totals stay.
+- On End, **How it went**, once the survey at the end has an answer: Q1, Q2 and
+  Q3 of the questionnaire, each an average with a bar per point or per line.
+- On End, **The weeks**: the sources people rated on the week pages, up to
+  three highest and the lowest, from the retrospective's count and its floor
+  (an average shows from three ratings).
+- On End, **Your facilitators**: the Facilitator line of "How valuable was each
+  part?", for every group together, with the note that facilitators never see
+  it.
+- On End, **In their words**: every written answer's question of the survey at
+  the end, five comments shown and the rest behind "See all", in the order of
   their words.
 
 **One count each.** Every number on the tab is the one its own page shows,
 through that page's reader: a survey's answers, its rate, its totals and
-comments are its Results (`resultsView`, with the lead's order of comments);
+comments are its Results (`resultsView`, with the lead's order of comments),
+and the Overview's cards are the views' own rows (`leadSurveyRows`);
 "answered both" is the change view's pairing (`bothOf`); "considering,
 planning or already doing it" is public numbers' count (`consideringOf` in
 `src/lib/surveys/publicNumbers.ts`, which its own measure uses); moved up,
 stayed and moved down, and the averages then and now, are the Results' Before
 and now; the sources people rated are the retrospective's
 (`readSourceRatings` in `src/lib/courses/sourceRatings.ts`, with its
-projection of `itemId`, `rating` and `completed`, and `aggregateRetrospective`).
+projection of `itemId`, `rating` and `completed`, and `aggregateRetrospective`);
+a week of check-ins is its check-ins counted by the facilitators' own tally,
+its comments their Results' own; who came is the Attendance tab's
+(`buildRunAttendance`, through its words, `cameWords`); and the reports are
+counted from the records the reports page lists (`countRunReportsByWeek`).
 
 **Nothing about a person** reaches the tab: no name, uid, email address, row
-per person, who answered or who did not. The lead never has the download with
-names (an admin's alone).
+per person, who answered or who did not, and nothing of the check-ins by
+group but an admin's rows. The lead never has the download with names (an
+admin's alone). The session reports, which name people, are on their own view
+behind the same gate; the Overview only counts them and leads there.
 
 **Not drawn**, because no record holds it (the questionnaire replaced the
-board's questions): "How useful was each week?", each facilitator's own
-scores, the comments by group and "Comments about facilitators are never
-quoted or put in reports". Also not drawn: "Can be quoted" beside a comment
-(not on Results either) and the report's download (sv-report is not built).
-The board's "Results show once each survey closes" (Q49 B, which Zach did not
-choose) reads "Results show as answers come in, never with a name.", and its
-"Anonymous totals" for the source ratings reads "totals, never a name"
-(ratings are kept with the account), each listed for the boards' designers to
-confirm.
+questions first drawn for it): each facilitator's own scores, the comments by
+group and "Comments about facilitators are never quoted or put in reports".
+How useful the sessions were, week by week, is drawn from the check-ins
+instead (the Overview, above). Also not drawn: "Can be quoted" beside a comment
+(not on Results either) and the report's download (the report is not built).
+Where the design said "Results show once each survey closes" (Zach chose
+otherwise), the tab says "Results show as answers come in, never with a name.",
+and where it said "Anonymous totals" for the source ratings, "totals, never a
+name" (ratings are kept with the account).
 
-**The spreadsheet with names** (`POST /api/surveys/[id]/export`) is one row per
+**The spreadsheet with names** ("Download all answers", on the Answers tab;
+`POST /api/surveys/[id]/export`) is one row per
 person who answered and one column per question (and per line), choices in their
 words, never an address. It is a download the site records before it hands it
 over (`dataExports`, kind `survey-answers`, scope `surveyId` and `roundId`), and
 it is refused when that record cannot be written.
 
-## Public numbers (sv-public)
+## Public numbers
 
-Run NAISI › Surveys › Public numbers (`/admin/surveys/public-numbers`): an
+Run NAISI › Reports › Public numbers (`/admin/surveys/public-numbers`): an
 admin picks numbers and quotes from a programme's own surveys and publishes
 them as a "Last term" block on the public page of the course the programme is
-tied to (pub-agi), and can take them down at any time.
+tied to, and can take them down at any time.
 
 - **Only the programme's own surveys** (`src/lib/surveys/publicNumbersLoad.ts`):
   its before survey, its survey at the end and its follow-ups, one per stage.
@@ -839,9 +1314,9 @@ tied to (pub-agi), and can take them down at any time.
   itself out by its own width, so the admins' preview shows it as a phone (390)
   and a computer (78% of 1440) will.
 
-## One person's answers (sv-person)
+## One person's answers
 
-Each name on a survey's Who answered tab opens
+Each name on a survey's Answers tab opens
 `/admin/surveys/<survey>/answered/<who>`: that person's answers, usually for a
 request to see or delete them. `<who>` is the person's uid, or on a survey
 after an event `g_<signupId>` for a guest (`whoOf` and `subjectOf`).
@@ -880,15 +1355,75 @@ after an event `g_<signupId>` for a guest (`whoOf` and `subjectOf`).
   says "No answer": an optional one, a part of a grid of parts, or any
   question of answers sent before every question was required (30 Oct
   2026). The side column says when the name comes off (the surveys' own
-  `namesOffOn`) and who has opened these answers (the log, newest first). The
+  `namesOffOn`) and who has opened these answers (the log, newest first: each
+  opening of them alone, and each bar, comment and Answers tab that named
+  them, with where it was, "the Answers tab"). The
   head names their programme, their told group, and how many of the surveys
   they were on they answered ("Answered both").
 - **A name that has come off has nothing to open.** When names have come off
   every survey shown, the route says so (410) and records nothing. A deleted
   account's answers name nobody, so its page says the account was deleted and
   there are none.
-- **Not built**: the board's download of one person's answers and deleting
-  them (its Export and Careful cards). Neither is drawn until it exists.
+- **Not built**: a download of one person's answers, and deleting them.
+  Neither is drawn until it exists.
+
+## Names on a survey's own pages
+
+Three ways an admin reads names on a survey's own pages, each **admins only**,
+each **recorded before any name is read**, and each **refused whole** when the
+opening cannot be recorded. Names, never an address: an account by the site's
+one rule for the admin opening it (`nameForViewer` in
+`src/lib/names/staffName.ts`), as every admin survey screen names people, so
+"Priya Shah (Pri)": the full name, with the name they go by after it when it
+adds something; a guest by the name they gave the event.
+
+- **"See who (7)"** behind a bar of Results (`POST /api/surveys/[surveyId]/who`
+  with the question, the bar and the count on its button, and the filters on
+  the screen; `src/lib/surveys/seeWho.ts`). The people behind a bar are found
+  by the same counting the bar was drawn from, one person's answers at a time
+  (`behindBar` in `charts.ts`), so the count and the people can never
+  disagree; a bar whose count has moved since the page was drawn opens
+  nothing (409) until the page is reloaded. A bar nobody is behind says
+  "Nobody".
+- **"Whose is this?"** beside a comment: the same route, with the comment's
+  key, the id of the answer it came from (never its place in the list, which
+  an answer arriving between the draw and the press would move).
+- **The Answers tab** (`/admin/surveys/<survey>/answered`; `POST
+  /api/surveys/[surveyId]/answers`; `src/lib/surveys/answersTable.ts`): every
+  answer in one table, one person to a row (their name, how they came after
+  an event or their group on a programme, one column for each question as the
+  spreadsheet lays it out, and Left blank with the button that sends them
+  those questions), one person's answers beside it with the way to their
+  page, and who it was sent to and has not answered yet. "You’re seeing names
+  because you’re an admin. Opening this tab was recorded: Zach, Sat 21 Nov,
+  11:02am." with "See the log". Every opening of the tab is recorded, one
+  with no answers yet included.
+
+**The order is the point.** Before the row is written only the survey, its
+answers and who it was sent to are read, by id (and, for a group's results,
+the run's seats and groups, which hold no name). The row
+(`openSurveyNamesRecorded` in `src/lib/firestore/recordOpenings.ts`, kinds
+`survey-bar`, `survey-comment`, `survey-table`) holds who opened them and
+their name then, whose answers they were (`subjectUids`, and for a survey
+after an event's guests `subjectSignupIds`), the survey and when. **Never
+which bar or which comment**: beside the people it names, that would be what
+they answered, kept in a log that outlives their names coming off. When the
+row cannot be written the route answers 500 and names nobody.
+
+**The pages read nothing of anybody.** The Results page and the Answers tab's
+page read no name and write nothing; the names come only from the routes,
+which a page asks once it is open in the admin's browser. So a prefetch or a
+preview of either records and shows nothing.
+
+**The name shows only to the admin who opened it, in that view.** Hidden
+again, what stays beside the bar or the comment is "Opened by Zach, Sat 21
+Nov"; nothing about an opening is kept on any page for another admin to read.
+
+**The survey's log** ("See the log", `/admin/surveys/<survey>/log`,
+`src/lib/surveys/surveyLog.ts`): each time an admin opened names on the survey
+(one person's answers, a bar, a comment, the Answers tab) and each download of
+its answers with names, newest first: who, when, what and how many people,
+never whose. Reading it is no opening, so it names nobody.
 
 ## Deletion
 
@@ -925,6 +1460,13 @@ after an event `g_<signupId>` for a guest (`whoOf` and `subjectOf`).
   course run, in the run's destroy (stage `anonymousFeedback`: the form first,
   then the answers waiting and the answers kept), and a form's destroy leaves
   them, as it leaves the surveys.
+- **Which check-ins each week showed the lead** (`checkInWeeks`, "A week's
+  check-ins are fixed when it first shows" above) is survey ids, a run and a
+  week, and names nobody, so an account's deletion has nothing of it to find
+  and names coming off leave it. It goes with the run, in the run's destroy
+  (stage `checkInWeeks`, counted on its dialog as "Weeks of check-ins shown
+  to the lead"); the check-ins themselves are surveys, which the destroy
+  leaves alone.
 
 ## The anonymous form at a programme's end
 
@@ -990,16 +1532,19 @@ holds a day, a time or an id.
 
 ## Surveys after events
 
-The survey an admin sends after one of NAISI's events (boards sv-new "After a
-social", sv-send, sv-social-phone, sv-results, ev-manage's Survey after tab).
-Confidential like every survey (Q43): the answers keep the person, an account
-or a guest, and only admins see who said what. Event-only code lives in
+The survey an admin sends after one of NAISI's events, made from New survey's
+"After a social", sent from its Send tab and read on its Results, with the
+event's own Survey after tab. Confidential like every survey: the answers keep
+the person, an account or a guest, and only admins see who said what.
+Event-only code lives in
 `src/lib/surveys/events/`; the shared survey files tell an event's survey apart
 with `isEventSurvey` and hand it over.
 
 - **The record.** A `surveys` document with `kind: "event"`, `audience: { kind:
-  "event-came" | "event-signups", eventId }`, a top-level `eventId` (one
-  equality finds an event's survey; one survey per event) and `event: { title,
+  "event-came" | "event-signups" | "event-missed", eventId }`, a top-level
+  `eventId` (one equality finds an event's survey; one survey per event, and
+  beside it, at most, the one question for people who didn't come, which the
+  readers tell apart by its audience) and `event: { title,
   startAt, endAt }` as it was when made, so it stands without the event. The
   programme fields are empty. Its rows and answers are `surveyPeople` and
   `surveyAnswers` like every survey's, read and written by
@@ -1014,13 +1559,92 @@ with `isEventSurvey` and hand it over.
   the door's record's id; their row is `{surveyId}__g_{signupId}`. The
   programme code reads accounts only (`normalizeSurveyPerson`); the event code
   reads both (`normalizeEventPerson`).
-- **Made** from "After a social" (`events/template.ts`, five questions, about a
-  minute, fixed ids `q_ev_*`, every one required but "Anything we should
-  change?", which starts optional) for a published event that is coming up or no more
-  than a week over, with who it emails and a closing day no earlier than the
-  event's (`POST /api/surveys` with `template: "event"`). Names come off two
-  years after the event (`eventNamesOffOn`), by the `surveys-names-off` job as
-  for every survey.
+- **Set up by its event** (since November 2026; the rest of this list holds
+  for both ways of making one):
+  - *The editor's Survey after step* (between Sign-up and Who's it for):
+    "Ask people how it went", on for a new event (`newSurveyAfter` in
+    `src/lib/events/surveyAfter.ts`, written by `createEvent`); its questions,
+    the standard set to reword, move, remove and add to (choose one, pick any,
+    1 to 5, short or long answer), never retyping a standard one, and "Back to
+    the standard questions". The standard set is the question set an admin
+    keeps for the survey after an event, else the code's ("Question sets",
+    above), read by the page on the server and handed to the step; who gets it, everyone who came or everyone with a
+    place, and the one question instead for people with a place who weren't
+    checked in; when it goes, by itself 12 hours after the event ends, after
+    another number of whole hours from 1 to 96, or only when somebody sends
+    it; one reminder 3 days after it went; and whether its QR code shows on
+    the Check-in tab. Saved with the event, on `events/{id}.surveyAfter`. Only
+    a stored setting counts: an event made before the step has none, and
+    nothing reads a missing one as on. Publishing and the job set nothing up
+    for an event switched off or with none; only "Send it now" (below) does,
+    by a person's press once it has started.
+  - *Publishing sets it up* (`setUpEventSurvey` in `events/setUp.ts`, from the
+    publish route): the survey as an admin's is made, with the step's
+    questions and who, closing a week after the event (when a walk-in's
+    address goes) and carrying `auto` (when it goes, the reminder, the code,
+    the question about not coming, and `pending` while the job has work for
+    it). A draft until the event starts; nobody is emailed, and no code is
+    made yet. Best effort after the publish: a survey that could not be set up
+    says so in the publish's answer, and Save on the Survey after tab sets it
+    up again. Until it opens its words and days follow the event's name and
+    times (`refreshFromEvent`).
+  - *The `event-surveys` job* (ships switched off, like every job that emails;
+    while it is off the step and the tab say nothing goes by itself) reads the
+    surveys with `auto.pending` (one equality) and, from the event as it
+    stands: opens it at the event's start, making its code then; emails it
+    when it is due, signed by the event's author, "For NAISI", with the one
+    question beside it; and reminds once, 3 days after it went (by itself or
+    by hand), whoever it reached who hasn't answered. Each email and reminder
+    is claimed once per survey by a scheduler marker
+    (`evsurvey__{surveyId}__send|remind`) and keeps the survey's own claim, so
+    a tick racing "Send it now" sends once. More than a day late, nothing goes
+    by itself and the tab says so. A cancelled or deleted event sends nothing.
+  - *The one question for people who had a place and weren't checked in*
+    ("What stopped you coming?", `missedTemplateItems`): a survey of its own,
+    audience `event-missed`, id `{surveyId}-missed`, made as the survey's email
+    goes, with who = everyone who came, and only at an event whose door was
+    opened (otherwise nobody was checked in, and everybody with a place would
+    look as if they hadn't come). It closes and its names come off with the
+    survey beside it, and it is answered from its email alone.
+  - *"Send it now (21)"* on the event's Survey after tab, for the event's
+    author and collaborators while they stand and admins (`runsSurveyAfter`,
+    `POST /api/events/[id]/survey-after/send`), from the event's start until it
+    has gone, with the number it emails on the button, refused when that has
+    changed; no test first, the words being fixed and shown in the step.
+    At a published event with no survey of its own (switched off, published
+    before the step, or one whose setting up failed), from its start until a
+    week after, the same press sets one up first and sends it: from its
+    stored setting when switched on, otherwise from the step's defaults
+    (everyone who came, the one question about not coming under the usual
+    rule about the door, the reminder, the code) with the standard questions,
+    going only by hand (`STANDARD_BY_HAND` and `sendNowSetting` in
+    `events/setUp.ts`), and the event keeps that setting, written in the same
+    transaction. It is counted before anything is written
+    (`sendNowCountBefore`), so a press refused for its number leaves nothing
+    behind, and two presses at once make one survey (the set up's
+    transaction) and send it once (the survey's claim). The tab says so above
+    the button ("No survey is set up for this event, so this sends the
+    standard questions to everyone who came."), and before the start that it
+    can be sent from then; an event with no stored setting has the button and
+    no setting to change. Nothing in the press waits on the `event-surveys`
+    job: its first email opens the survey, and the press that opened it makes
+    its QR code, as the job's opening would have.
+    "Send a test to me" (`.../survey-after/test`) is offered beside it, once
+    the survey is there. The
+    setting changes there too (`PATCH /api/events/[id]/survey-after`): its
+    questions until it opens, who and when until it goes, its reminder until
+    that has gone, the code at any time; switched off before it opens, the
+    draft goes.
+- **Made by an admin** from "After a social" (the same standard set: the
+  question set an admin keeps, else `events/template.ts`'s five questions,
+  about a minute, fixed ids `q_ev_*`, every one required but "Anything we
+  should change?", which starts optional; "What
+  should we run next?" is a short answer, `q_ev_next_text`, since November
+  2026, and the pick-any `q_ev_next` stays on every survey made before it) for
+  a published event that is coming up or no more than a week over, with who it
+  emails and a closing day no earlier than the event's (`POST /api/surveys`
+  with `template: "event"`). Names come off two years after the event
+  (`eventNamesOffOn`), by the `surveys-names-off` job as for every survey.
 - **Opened, then emailed.** "Open it" on the Send tab (`POST
   /api/surveys/[surveyId]/open-at-event`, admins, emails nobody) opens it for
   its QR code at the event; the first email opens it too if nobody did. Either
@@ -1029,7 +1653,7 @@ with `isEventSurvey` and hand it over.
   press) may name its audience (`audience: "came" | "signups"` in the send's
   body), which it fixes; "Send to the 2 who came since" and Remind work as for
   a programme's. Every press records who pressed it (`byUid`). The emails are
-  notices, surface `event-survey`, with the board's words
+  notices, surface `event-survey`, in the words designed for them
   (`events/words.ts`), to an account's own address or to the address a guest
   or walk-in gave the event, each with their own link. The email skips anybody
   who has answered.
@@ -1039,35 +1663,45 @@ with `isEventSurvey` and hand it over.
   downloaded through check-in's QR routes by admins and, while the survey
   takes answers, by the people who may draw the event's door code (admins and
   SU-recognised committee, `runsCheckIn`), who show it at the end of the event
-  from the event's Survey after tab (`surveyCodeAtEvent`, below). Its page
+  from the event's Check-in tab (`surveyCodeAtEvent`, below). A survey its
+  event set up makes its code when it opens, and shows it only where its step
+  left the code on. Its page
   (`events/codePage.ts`) is outside the route groups and never `notFound()`:
   signed in, somebody who signed up or came answers it (their row is made as
   they answer, `via: "signed-in"`); somebody who did neither is told so, with
-  the way to check in while the door is open; signed out, it asks them to sign
-  in and tells a guest to use their emailed link.
+  the way to check in while they can check themselves in (the event lets
+  people, and its door is open: `selfCheckInOpen`, the check-in page's own
+  rule); signed out, it asks them to sign in and tells a guest to use their
+  emailed link.
 - **What an answer keeps**: `surveyId`, `eventId`, `respondent`, `answers`,
   `sentAt`, `via`. No group, nothing before Send, no record of opening it.
 - **The admins' pages** draw it with its own Send tab (`EventSendTab`: who
   answers, the QR code with Open it, the email with the choice of who it goes
-  to), Who answered (guests by the name they gave the event), and Results with
-  its own numbers above (answers by QR code and by email, who came, the email's
-  rate) and every rate of the answers (`ofAnswers`). Its download is the
-  programme table less the group's column, logged as `survey-answers` with
-  scope `{ surveyId }`.
+  to), Answers (guests by the name they gave the event, each a member or a
+  guest), and Results with its own numbers above (answers by QR code and by
+  email, who came, the email's rate) and every rate of the answers
+  (`ofAnswers`). Its download, on the Answers tab, is the programme table less
+  the group's column, logged as `survey-answers` with scope `{ surveyId }`.
 - **The event's Survey after tab** (`/events/manage/[id]/survey`): everybody in
-  the events area reads that it went, who sent it and when, and who to ask for
-  the summary (`events/tab.ts`, which reads no answer and no row); admins read
-  the results there too. An event's organiser does not see its results (Q42).
-  The people who may draw the event's door code (`runsCheckIn`: admins and
-  SU-recognised committee) are shown the survey's QR code there while it takes
-  answers, with "Download PNG" and "Show full screen" and nothing else of the
-  survey's: not "Open it" (opening fixes its questions, an admin's act on the
-  Send tab), not its answers, not who answered. While it is a draft they read
-  "Its QR code shows here once an admin opens the survey." One function
-  decides it for the tab and for the image route: `surveyCodeAtEvent` in
-  `src/lib/surveys/events/code.ts`.
+  the events area reads what is set, that it went, who sent it (or that it
+  went by itself), when and to how many, and who to ask for the summary
+  (`events/tab.ts`, which reads no answer and no row); admins read the results
+  there too. An event's organiser does not see its results. Its
+  organisers (`runsSurveyAfter`) have the setting, "Send it now" and the test
+  there (`events/afterView.ts`, counts only).
+- **The code on the Check-in tab.** The people who may draw the event's door
+  code (`runsCheckIn`: admins and SU-recognised committee) are shown the
+  survey's QR code on the event's Check-in tab while it takes answers, with
+  "Download PNG" and "Show full screen" and nothing else of the survey's: not
+  "Open it" (opening fixes its questions, an admin's act on the Send tab, or
+  the job's at the event's start), not its answers, not who answered. While it
+  is a draft they read when it shows: "Its QR code shows here once an admin
+  opens the survey." for an admin's, and for one its event set up, that it
+  shows when the event starts (or, while the job is off, once it opens). One
+  function decides it for the tab and for the image route:
+  `surveyCodeAtEvent` in `src/lib/surveys/events/code.ts`.
 - **A walk-in's email** goes at the earlier of the survey's close and a week
-  after the event (Q44): `walkInEmailGoesAt(event, surveyClosesAt)`, kept on
+  after the event: `walkInEmailGoesAt(event, surveyClosesAt)`, kept on
   the check-in record and moved by `setWalkInEmailDeadlines` whenever the
   survey is made, saved or closed by hand (at once when closed), so the
   `event-check-ins-tidy` job stays the one deleter. Adding somebody who came
@@ -1077,18 +1711,21 @@ with `isEventSurvey` and hand it over.
   after the event. An event deleted leaves its survey, as a form's destroy
   leaves a programme's: the survey keeps the event's name and day.
 - Guards: `tests/surveys-events.test.mjs` (every route and page as every kind of
-  caller), and the policy's "survey after an event" block in
-  `tests/privacy-policy.test.mjs`.
+  caller), `tests/event-survey-after.test.mjs` (the step's setting, publishing
+  setting it up, the job on time, late, by hand only and for an event published
+  before, the question about not coming, Send it now and the setting's locks,
+  the tabs, each as every kind of caller), and the policy's "survey after an
+  event" block in `tests/privacy-policy.test.mjs`.
 
 ## This term in numbers
 
-Run NAISI › Surveys › This term in numbers (`/admin/surveys/term`, board
-sv-term, Q51 B): the term at a glance for admins, each event's check-ins and
+Run NAISI › Reports › This term in numbers (`/admin/surveys/term`): the term
+at a glance for admins, each event's check-ins and
 survey, how many different people came and how many came back, and each
 programme's before and after. Counts only, never a name; every count with its
 base; no threshold (Zach, 26 Oct 2026). The code: `src/lib/surveys/term/`
 (`choose.ts` the term, `load.ts` the reads, `model.ts` the counting,
-`words.ts` the board's words, `totals.ts` the file), the page and
+`words.ts` its words, `totals.ts` the file), the page and
 `GET /api/surveys/term/totals`.
 
 - **Admins only, three times over**: the `(admin-only)` layout, the page's own
@@ -1119,16 +1756,16 @@ base; no threshold (Zach, 26 Oct 2026). The code: `src/lib/surveys/term/`
   a sign-up made without an account by the address it gave. A walk-in with no
   account is never matched: the address a walk-in leaves is for that event's
   survey and nothing else. When such walk-ins came to two or more of the
-  events, the board's sentence says the count may hold one twice and the
-  repeat count may miss some. A check-in whose names have come off is one
-  more person nobody can match; it is no walk-in, so it never shows that
-  sentence.
+  events, a sentence says the count may hold one twice and the repeat count
+  may miss some. A check-in whose names have come off is one more person
+  nobody can match; it is no walk-in, so it never shows that sentence.
 - **The notes**: nobody counted and the event ended before check-in was first
   used on the site (the first check-in its events hold, or any before the
   term): "Before check-in"; else "No sign-up and no check-in" for an event
   with no sign-up, else "No check-in". A no-sign-up event with people counted
-  says how they were checked in, as the Check-in tab groups them ("by QR",
-  "at the door" for the door list and those added later).
+  says how they were checked in, as the Check-in tab groups them ("by
+  themselves", whichever way they did it, never called a scan; "at the door"
+  for the door list and those added later).
 - **A programme's row**: "Considering, planning or already doing it" is C1 at
   stage 2 or more (`CONSIDERING_STAGE`), at the start and at the end, of the
   people who answered both surveys; somebody who skipped C1 at one end is not
@@ -1150,9 +1787,10 @@ base; no threshold (Zach, 26 Oct 2026). The code: `src/lib/surveys/term/`
 ## Not built yet
 
 Downloading or deleting one person's answers from their page; "Can be quoted"
-beside a ticked comment on Results (sv-results) and on the lead's tab; the
-lead's Surveys tab's per-week usefulness and per-facilitator scores, which no
-survey asks; and an option's own words ("Something else: ..."). The model is built so none
+beside a ticked comment on Results and on the lead's tab; the
+lead's Surveys tab's per-facilitator scores, which no survey asks (its
+usefulness week by week comes from the check-ins); and an option's own words
+("Something else: ..."). The model is built so none
 of them needs a rewrite: another `audience.kind`, another `respondent.kind`,
 the same records.
 
@@ -1169,6 +1807,13 @@ survey has who came to send to. What it can rely on:
 - A walk-in's email goes on `emailGoesAt`: when the event's survey closes, or
   a week after the event if that comes first (see "Surveys after events"). The
   walk-in form and the Check-in tab say whichever day it is.
+- How they came in, each way as itself (`how`): `door` on the door list,
+  `page` added from the event's page afterwards, and by themselves `code` (a
+  page the door code opened), `email` (the link in their confirmation email)
+  or `site` (the check-in page, signed in). A record from before the ways were
+  told apart says `qr`: it counts as somebody who checked themselves in, the
+  way not recorded, and is never written again. Who checked them in
+  (`byUid`) is null for every way of their own.
 - Names come off a year after the event (`event-check-ins-tidy`), and at once
   when an account is deleted. The record still counts as one person who came,
   by a sign-up or walking in and how, wherever who came is counted
@@ -1181,9 +1826,16 @@ survey has who came to send to. What it can rely on:
 
 `tests/surveys-items.test.mjs` (the template word for word, the model, the box,
 both emails, totals), `tests/surveys-required.test.mjs` (required unless
-marked optional: the rule, every template walked both ways, what answered
-means for each type), `tests/surveys-routes.test.mjs` (every route and page as
-every kind of caller), `tests/surveys-blanks.test.mjs` (the questions left
+marked optional: the rule, every template and every question set walked both
+ways, what answered means for each type), `tests/surveys-routes.test.mjs` (every route and page as
+every kind of caller), `tests/surveys-hub.test.mjs` (Run NAISI › Surveys' three
+tabs and Reports as every kind of caller, and every survey the way in of one
+row on one tab), `tests/survey-question-sets.test.mjs` (the question sets:
+words only over every shape a template takes, the survey after an event's set
+whole, the route and pages as every kind of caller, programme surveys made
+before and after a change, and a walk of every place a survey is made from a
+template; the check-in, event and session report suites prove a change never
+reaches one of theirs already made), `tests/surveys-blanks.test.mjs` (the questions left
 blank: the press, the link, the later send and every reader, as every kind of
 caller), `tests/surveys-blanks-merge.test.mjs` (the one merge, and no reader
 round it), `tests/surveys-deletion.test.mjs` (both cascades),
@@ -1199,9 +1851,29 @@ numbers' three: `tests/surveys-term-numbers.test.mjs` (the counting, and every
 number held to its own page's reader), `tests/surveys-term-numbers-page.test.mjs`
 and `tests/surveys-term-numbers-file.test.mjs` (the page and the file as every
 kind of caller, and nothing about a person in either), and
-`tests/surveys-lead-tab.test.mjs` (the lead's Surveys tab and each survey's
-results under it as every kind of caller, every number held to its own page's
-reader, and nothing about a person in either).
+`tests/surveys-see-who.test.mjs` (See who, Whose is this?, the Answers tab,
+the file of one question and the survey's log as every kind of caller; every
+opening recorded before any name is read, and refused whole when it cannot
+be; what a row keeps; every bar's people its count, for every template), and
+`tests/surveys-lead-tab.test.mjs` (the lead's Surveys tab, every view of it,
+and each survey's results under it as every kind of caller, over check-ins and
+session reports sent through their routes; every number held to its own
+page's reader; a week of check-ins only once whole and fixed, with its
+floors; nothing about a person, and no group for the lead; and a walk of
+every file that finds check-ins), and
+`tests/surveys-check-ins.test.mjs` (the check-in at the end of a session: its
+window, who it reaches, its questions and its floors, and every route, page
+and card as every kind of caller), and
+`tests/surveys-check-in-weeks.test.mjs` (the job that fixes each week's
+check-ins: once, at the first tick the week is whole and has begun, two ticks
+at once included; a week not fixed shows the lead nothing; a check-in opened
+for a fixed week later left out of the lead's week and the Overview, and
+said so on an admin's row alone; the record naming nobody, and the run's
+destroy deleting it), and `tests/surveys-chart.test.mjs` (Make a chart: every
+bar of every template's question its Results' bar, a check-in week's average
+the lead's own count of it, one scale over every chart; the tab, the page
+across check-ins and both files as every kind of caller, reading no name and
+writing nothing; and no page of the lead's reaching it).
 
 The privacy policy says what a survey keeps, who sees it, when names come off
 and what a deletion does, under "When you answer a survey", and
@@ -1216,7 +1888,9 @@ that the lead may still tell whose an answer is when few have left, and the
 page that says somebody left showing its card; and the lead's reading of the
 programme's surveys: totals and comments as answers come in, never a name, who
 answered or a download, that the lead may still tell whose an answer is when
-few answer, and the average rating of each source from three. A change that
+few answer, and the average rating of each source from three; and the lead's
+reading of the check-ins, a whole week at a time with its floors, and who may
+call it. A change that
 alters any of them changes the policy first: a template that asks a new kind
 of question fails until the policy names it.
 

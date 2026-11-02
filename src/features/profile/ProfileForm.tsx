@@ -197,6 +197,8 @@ export default function ProfileForm() {
   const [me, setMe] = useState<UserDoc | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // The full name only the committee sees, and the name everybody else does.
+  const [fullName, setFullName] = useState("");
   const [preferredName, setPreferredName] = useState("");
   const [universityEmail, setUniversityEmail] = useState("");
   // What they study and when they finish: asked when the account was made,
@@ -286,6 +288,7 @@ export default function ProfileForm() {
       const carried = readCarriedPrefs(snap.data());
       setPushPrefs(carried.push);
       if (!dirty.current) {
+        setFullName(normalized.profile?.fullName ?? "");
         setPreferredName(normalized.profile?.preferredName ?? "");
         setUniversityEmail(normalized.profile?.universityEmail ?? "");
         setSubject(normalized.profile?.subject ?? "");
@@ -534,7 +537,18 @@ export default function ProfileForm() {
         taskEmails,
         pushPrefs,
       );
+      // The full name, written only when it changed. Emptying it removes it,
+      // and marks the question as put, so Home does not ask for it again.
+      const fullNameTyped = fullName.trim().replace(/\s+/g, " ");
+      const fullNameStored = me?.profile?.fullName?.trim() ?? "";
+      const fullNamePatch: Record<string, unknown> =
+        fullNameTyped === fullNameStored
+          ? {}
+          : fullNameTyped
+            ? { "profile.fullName": fullNameTyped }
+            : { "profile.fullName": deleteField(), "profile.fullNameAskedAt": serverTimestamp() };
       const patch: Record<string, unknown> = {
+        ...fullNamePatch,
         "profile.preferredName": preferredName.trim(),
         "profile.universityEmail": uniEmailTrimmed,
         "profile.notifications": serialiseNotifications(legacy),
@@ -665,9 +679,25 @@ export default function ProfileForm() {
       >
         <div className={styles.grid}>
           <Field
+            id="full-name"
+            label="Full name"
+            hint="So the committee can tell people apart. Only the committee sees it."
+          >
+            <Input
+              id="full-name"
+              value={fullName}
+              onChange={(e) => {
+                markDirty();
+                setFullName(e.target.value);
+              }}
+              maxLength={FIELD_LIMITS.fullName}
+              autoComplete="name"
+            />
+          </Field>
+          <Field
             id="pref-name"
-            label="Name"
-            hint="What we call you on the site and in emails."
+            label="What should we call you?"
+            hint="What everyone else sees, on the site and in emails."
           >
             <Input
               id="pref-name"

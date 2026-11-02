@@ -54,6 +54,12 @@ type EventLike = {
   foodProvenanceNote?: string | null;
   /** Raw unknown-typed signup questions (sanitized internally). */
   signupForm?: unknown;
+  /**
+   * The event lets people check themselves in. Only a strict true is on: off,
+   * the email that holds a place says to give your name at the door, and no
+   * check-in link is built.
+   */
+  selfCheckIn?: boolean | null;
 };
 
 // London civil time through `siteTime`: this runs in a route, where the
@@ -198,16 +204,18 @@ export async function sendRsvpEmail({
     // Build self-service links when we have the ids + email for the token.
     let cancelUrl: string | undefined;
     let changeUrl: string | undefined;
-    // Somebody holding a place can check themselves in at the door from this
-    // email: the link carries their sign-up and its token, so it works with
-    // no account.
+    // Somebody holding a place, at an event that lets people check themselves
+    // in, can do it from this email: the link carries their sign-up and its
+    // token, so it works with no account. At any other event no link is
+    // built at all, and the email says to give your name at the door.
     let checkInUrl: string | undefined;
+    const selfCheckIn = event.selfCheckIn === true;
     if (event.id && rsvpId) {
       try {
         const token = signRsvpToken(rsvpId, to);
         cancelUrl = buildCancelUrl(event.id, rsvpId, token);
         changeUrl = buildChangeUrl(event.id, rsvpId, token);
-        if (holder) {
+        if (holder && selfCheckIn) {
           checkInUrl = `${baseUrl()}/events/${event.id}/check-in?r=${encodeURIComponent(rsvpId)}&t=${encodeURIComponent(token)}`;
         }
       } catch (err) {
@@ -215,6 +223,9 @@ export async function sendRsvpEmail({
         console.warn("[rsvp email] skipping self-service links:", err);
       }
     }
+    // Without a link (the event does not let them, or the link could not be
+    // signed) the place-holding email still says how check-in works.
+    const atTheDoor = holder && !checkInUrl;
 
     const questions = sanitizeSignupForm(event.signupForm);
     const answersLine = buildAnswersLine(questions, answers);
@@ -283,6 +294,7 @@ export async function sendRsvpEmail({
         cancelUrl,
         changeUrl,
         checkInUrl,
+        atTheDoor,
         instagramHandle:
           process.env.NAISI_INSTAGRAM_HANDLE || "notts.ai.safety",
         // Fall back to the default Reply-To address, never the From address

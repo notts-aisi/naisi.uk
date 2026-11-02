@@ -5,7 +5,7 @@ import { GROUP_FIELD_LIMITS, type GroupSessionMode } from "@/lib/firestore/cours
 import { validateSubmissionUrl, weekDocId } from "@/lib/firestore/courses";
 
 /**
- * WHAT A SESSION CARD IS HANDED ABOUT A CHANGED SESSION (Q25, wk-changes),
+ * WHAT A SESSION CARD IS HANDED ABOUT A CHANGED SESSION,
  * from the group's own entry on the overview payload. Pure, no imports beyond
  * words and types, so the run home, the week page and the group page say the
  * same thing about the same session.
@@ -50,8 +50,7 @@ export function coversTitle(group: OverviewGroup, weekNumber: number): string | 
 }
 
 /**
- * WHAT THE TICKET FOR THE GROUP'S NEXT SESSION SAYS (boards wk-programme,
- * st-programme, wk-home-phone): the session's own day, time, room and joining
+ * WHAT THE TICKET FOR THE GROUP'S NEXT SESSION SAYS: the session's own day, time, room and joining
  * link, each resolved for its own week, so a session moved or held online for
  * one week reads as it will be held, and never as the group's usual slot.
  *
@@ -59,7 +58,7 @@ export function coversTitle(group: OverviewGroup, weekNumber: number): string | 
  * one. A week with no room yet that is not online names the group's campus
  * in the room's place ("Jubilee"); a week set in person with no room still
  * says the room is to come.
- * The link is the site's only (Q23): it is checked as a web address again
+ * The link is the site's only: it is checked as a web address again
  * here, and an online week with no link to show says where it will be,
  * never that anybody will send it. Null once the group has no session left.
  */
@@ -75,6 +74,8 @@ export type TicketFacts = {
   joinUrl: string | null;
   /** A sentence for an online week whose link is not here yet, or an in-person week with no room yet. */
   missing: string | null;
+  /** The explainer the session starts with: how long and what about, or null. */
+  explainer: { minutes: number; topic: string } | null;
 };
 
 export function ticketFacts(group: OverviewGroup): TicketFacts | null {
@@ -102,6 +103,7 @@ export function ticketFacts(group: OverviewGroup): TicketFacts | null {
         : mode === "in-person" && !room
           ? "Your facilitator will confirm the room."
           : null,
+    explainer: next.explainer ?? null,
   };
 }
 

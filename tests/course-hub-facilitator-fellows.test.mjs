@@ -1,7 +1,7 @@
 /**
  * A facilitator who holds a place is one of the run's fellows, in the group
  * they facilitate, and runs its logistics too. Since 26 Oct 2026 the rule
- * that nobody facilitates a programme they take part in (Q21) is lifted, and
+ * that nobody facilitates a programme they take part in is lifted, and
  * the hub treats such a person as both, everywhere it used to assume a
  * facilitator is no fellow.
  *

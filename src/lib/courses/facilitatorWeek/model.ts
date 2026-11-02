@@ -3,8 +3,7 @@ import { weekSources, type ReadableWeek } from "@/lib/courses/weekBlocks/reader"
 
 /**
  * A GROUP'S WEEK, AS ITS FACILITATORS, ITS PROGRAMME'S LEAD AND ADMINS READ
- * IT (boards wk-fac-group, wk-fac-group-phone, wk-reflections and
- * wk-reflections-phone, with Q30, Q31, Q37 and Q38): who has written each
+ * IT: who has written each
  * part's reflection, who ticked each source, the private notes left on a
  * source, and the reflections to read out in the session.
  *
@@ -20,11 +19,11 @@ import { weekSources, type ReadableWeek } from "@/lib/courses/weekBlocks/reader"
  *    to read, and never a facilitator's, their own co-facilitators' included.
  *    So it is left out of every view a facilitator is given and shown to the
  *    lead and admins marked as theirs (`own`).
- *  - PRIVATE NOTES on a source (Q38) are read by the group's facilitators and
+ *  - PRIVATE NOTES on a source are read by the group's facilitators and
  *    admins, never by the lead. A facilitator's own private note is an
  *    admin's alone.
  *  - Nothing here is ever read out but a reflection, and a reflection only
- *    without the name of whoever wrote it (Q37): `readOutCards` takes the
+ *    without the name of whoever wrote it: `readOutCards` takes the
  *    words and nothing else, and puts them in the order of the words.
  *  - READING is not reading out (Zach, Fri 30 Oct): the group's
  *    facilitators, the programme's lead and admins read the reflections they
@@ -43,7 +42,7 @@ export function seesFacilitatorsOwnWork(viewer: WeekViewer): boolean {
   return viewer === "lead" || viewer === "admin";
 }
 
-/** Whether this viewer reads private notes: the group's facilitators and admins, never the lead (Q38). */
+/** Whether this viewer reads private notes: the group's facilitators and admins, never the lead. */
 export function readsPrivateNotes(viewer: WeekViewer): boolean {
   return viewer === "facilitator" || viewer === "admin";
 }
@@ -160,7 +159,7 @@ export function tickedSourcesOf(week: ReadableWeek & { blocks?: WeekBlock[] }): 
 }
 
 // ---------------------------------------------------------------------------
-// Reading lines out (Q37)
+// Reading lines out
 // ---------------------------------------------------------------------------
 
 /** One reflection as the page to read lines out shows it: its words and a key that names nobody. */

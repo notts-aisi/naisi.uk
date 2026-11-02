@@ -65,6 +65,7 @@ export const RSVP_STEPS = [
   "a guest fills the form and lands on the confirmation page",
   "the RSVP row carries the guest's answer and the event's pending count moved",
   "the confirmation email is accounted for",
+  "the services page the privacy policy points to says what checks the sign-up form",
   "a second submission from the same address is answered the same way and files nothing new",
   "the event page fits a 375 by 667 phone with its submit button reachable",
   "the event page fits a 414 by 896 phone with its submit button reachable",
@@ -113,9 +114,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * that leans on a normaliser stops testing the shape the editor really stores.
  *
  * `status: "published"` plus `visibility: "public"` is what makes this
- * reachable signed out: `getPublishedEvent()` refuses anything that is not
- * published or cancelled, and `RsvpForm` puts a sign-in gate in front of a
- * members-only event. `capacity` is a real number with `waitlistEnabled` on so
+ * reachable signed out: `getEventForViewer()` refuses anything that is not
+ * published or cancelled, and `RsvpForm` puts a sign-in gate in front of an
+ * event that needs an account. `capacity` is a real number with `waitlistEnabled` on so
  * the capacity fact and its waitlist note render; the counts start at zero so
  * the spec can assert the one the route moves.
  */
@@ -407,18 +408,23 @@ export const SPEC = {
    *
    * `/api/events/[id]/rsvp` is the only route the browser calls: the event
    * page and the confirmation page are both server components that read
-   * Firestore through `getPublishedEvent()` rather than fetching, and the one
+   * Firestore through `getEventForViewer()` rather than fetching, and the one
    * client subscription on the page (the maintenance notice) is a Firestore
-   * listener, not an HTTP route.
+   * listener, not an HTTP route. The services page the privacy policy
+   * points to is a static server render with no read; the guest opens it
+   * between booking and booking again.
    */
   covers: {
     routes: ["/api/events/[id]/rsvp"],
-    pages: ["/(public)/events/[id]", "/(public)/events/[id]/rsvp/submitted"],
+    pages: ["/(public)/events/[id]", "/(public)/events/[id]/rsvp/submitted", "/(public)/privacy/services"],
   },
   // Verified: run against the shared harness server on 6 September 2026, all
   // six steps completed, three rows before teardown and a zero manifest after.
   // The duplicate-submission step was added and the spec re-run against a
-  // local server on 8 September 2026.
+  // local server on 8 September 2026. The step on the services page the
+  // privacy policy points to was added on Mon 2 November 2026 and the spec
+  // re-run in local mode on dev b457d82c: all eight steps ran, 4 rows before
+  // teardown and a zero manifest after.
   status: "verified",
   seed,
   countRows,

@@ -9,7 +9,7 @@ import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
  * One person's Finished switch, on the programme's Overview once its run's
- * last session is over (board en-finish): `{ uid, finished }`. Saved at once.
+ * last session is over: `{ uid, finished }`. Saved at once.
  * Where the switch now says what the suggestion says, the lead's earlier
  * change is removed; otherwise the change is stored with who made it and
  * when. Emails nobody.

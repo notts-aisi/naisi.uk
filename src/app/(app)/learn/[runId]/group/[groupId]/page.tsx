@@ -29,6 +29,7 @@ import { facilitatorGuidePath } from "@/lib/courses/facilitatorGuide/model";
 import { readGuideIndex } from "@/lib/courses/facilitatorGuide/store";
 import { guideForWeekWords } from "@/lib/courses/facilitatorGuide/words";
 import { loadFacilitatorGroup } from "@/lib/courses/facilitatorGroup";
+import { facilitatorExplainerOn } from "@/lib/courses/explainers/readers";
 import { hasDraw } from "@/lib/courses/packsAndCases/model";
 import { drawPeople, readDrawState, readGroupWeek, spreadOf } from "@/lib/courses/packsAndCases/readers";
 import { changeDrawWords, spreadTitleWords } from "@/lib/courses/packsAndCases/words";
@@ -47,7 +48,7 @@ import {
 } from "@/lib/courses/facilitatorPageWords";
 import { readGroupNotes } from "@/lib/courses/groupNotes/readers";
 import { sessionEyebrow, weekOfWords } from "@/lib/courses/memberPageWords";
-import { CHANGE_A_SESSION, slotWords } from "@/lib/courses/sessionChange/words";
+import { CHANGE_A_SESSION, slotRangeWords, slotWords } from "@/lib/courses/sessionChange/words";
 import { updateAudienceCounts } from "@/lib/courses/updates/audience";
 import { loadRunGroups, loadUpdatesFor, narrowToGroup, updateReadingOf } from "@/lib/courses/updates/readers";
 import { staffUpdateRows } from "@/lib/courses/updates/views";
@@ -69,18 +70,17 @@ import { weekDocId } from "@/lib/firestore/courses";
 import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/route";
 
 /**
- * A FACILITATOR'S GROUP PAGE (boards wk-fac-group at 1440 and
- * wk-fac-group-phone at 390): the group, its week and how it meets; "Write to
+ * A FACILITATOR'S GROUP PAGE, at 1440 and at 390: the group, its week and how it meets; "Write to
  * Group B (7)" and "Change a session"; the next session as a ticket with how
  * many are expected and "Take the register"; the group's people with each
  * finished register's marks, and who left; the registers; the work to
- * review; the updates; the pace; and the notes the group's facilitators share
- * (C30). Drawn on the server, from the records the programme's own tabs read
+ * review; the updates; the pace; and the notes the group's facilitators share.
+ * Drawn on the server, from the records the programme's own tabs read
  * (`src/lib/courses/facilitatorGroup.ts`), so a facilitator and the lead never
  * read two stories about one group.
  *
- * THE REGISTER is a page of its own beside this one (`./register`), as board
- * wk-register draws it: "Take the register" and each register's "See it" lead
+ * THE REGISTER is a page of its own beside this one (`./register`):
+ * "Take the register" and each register's "See it" lead
  * there.
  *
  * THE WEEK (a week written as blocks): the review queue beside the ticket,
@@ -93,7 +93,7 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * theirs. The rows of cards follow the board: the ticket and the review
  * queue, then This week's work, then the group and the rest.
  *
- * THE SPREAD (Q32 A, "Pathways in Group B"): the draw of the week of the
+ * THE SPREAD ("Pathways in Group B"): the draw of the week of the
  * group's next session, each pathway with who has it, and the way to the draw
  * page (`/learn/draw/[groupId]`), where the slips are copied in.
  *
@@ -102,8 +102,8 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * pair, who is bringing a laptop and the check that every pair has one, and
  * the way to the pairs page (`/learn/pairs/[groupId]`), where they are typed.
  *
- * NOT DRAWN, though the board draws it: who can't make it tonight (that
- * feature does not exist yet).
+ * NOT DRAWN HERE: who can't make it tonight. The register says it, from the
+ * moment somebody tells us, and the ticket's Take the register leads there.
  *
  * THE FACILITATOR GUIDE FOR THE WEEK ("Facilitator guide for week 3" on the
  * ticket) is drawn when that week of the course's facilitator guide has its
@@ -156,39 +156,16 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
 export const dynamic = "force-dynamic";
 
 // ---------------------------------------------------------------------------
-// Session label (duplicated on purpose: see below)
+// Session label
 // ---------------------------------------------------------------------------
 
-/** Index = `GroupSession.weekday` (`Date.getDay()`, 0 = Sunday). */
-const WEEKDAY_NAMES = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
-
-function endTimeLabel(start: string, minutes: number): string | null {
-  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(start);
-  if (!m || minutes <= 0) return null;
-  const total = (Number(m[1]) * 60 + Number(m[2]) + minutes) % 1440;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
-
 /**
- * "Tuesdays 18:00–19:30" — byte-for-byte the label the overview route, the
- * apply page, the admissions queue and the allocation board render, so a slot
- * reads the same everywhere it appears. Deliberately duplicated (the plan's
- * integration checklist owns the eventual shared extraction). The format is
- * the contract; change all copies together.
+ * "Tuesdays 6pm to 7:30pm", the label the overview route sends for the same
+ * group, so a facilitator's own card reads as their members' cards do. Both
+ * ask `slotRangeWords`, the house's clock.
  */
 function sessionLabel(session: GroupSession): string {
-  const day = WEEKDAY_NAMES[session.weekday];
-  if (!day || !session.startTimeLocal) return "";
-  const end = endTimeLabel(session.startTimeLocal, session.durationMinutes);
-  return `${day}s ${session.startTimeLocal}${end ? `–${end}` : ""}`;
+  return slotRangeWords(session.weekday, session.startTimeLocal, session.durationMinutes);
 }
 
 // ---------------------------------------------------------------------------
@@ -267,7 +244,7 @@ export default async function GroupHomePage({
     now,
   );
   // The same facts the overview route puts on a member's card: the next
-  // session's own weeks, room and link, and any evening that is off (Q25).
+  // session's own weeks, room and link, and any evening that is off.
   // Resolved off the same calendar, by the same pure resolver.
   const changes = cardChangeFacts(
     resolveSessions(access.run, group, groupCalendar.calendar),
@@ -275,6 +252,11 @@ export default async function GroupHomePage({
     range.next,
     londonDateKey(now),
   );
+
+  // The explainer an admin scheduled at the start of the next session, if
+  // any: on the ticket, named as this reader sees people (the ticket's own
+  // words), and on the session's facts as each member reads it.
+  const explainer = await facilitatorExplainerOn(db, access.user, runId, group.id, range.next?.sessionKey);
 
   // A break week and the before/after phases have no week doc of their own, so
   // the session override falls back to the anchor (the last taught week that
@@ -311,6 +293,7 @@ export default async function GroupHomePage({
             location: changes.next?.location ?? "",
             // The gate above is the overview route's `canSeeMeetingUrl`.
             meetingUrl: changes.next?.meetingUrl ?? null,
+            explainer: explainer ? { minutes: explainer.minutes, topic: explainer.topic } : null,
           }
         : null,
     },
@@ -346,7 +329,7 @@ export default async function GroupHomePage({
   const registerHref = `${groupPath}/register`;
   const reviewHref = (week: number | null) => `${groupPath}/review${week === null ? "" : `?week=${week}`}`;
 
-  // Updates (Q18): the way to write one to this group, counted as its press
+  // Updates: the way to write one to this group, counted as its press
   // counts, and the updates this group's page shows, through the one reader.
   // An archived group has no count, so no way to write to it.
   const runGroups = await loadRunGroups(db, runId);
@@ -355,7 +338,7 @@ export default async function GroupHomePage({
     updateReadingOf(db, access.user, access.run, runGroups),
     loadFacilitatorGroup(db, access.run, group, { isAdmin: access.isAdmin, actor: access.user }, now),
     runProgrammeOf(db, runId),
-    readGroupNotes(db, group),
+    readGroupNotes(db, group, access.user),
     // The review queue's written answers half: null on a run of the summer's weeks.
     loadWrittenQueue(db, access.user, access.run, group),
   ]);
@@ -373,7 +356,7 @@ export default async function GroupHomePage({
     now,
   });
 
-  // The draw of the week the group meets next (Q32 A): the slips handed out
+  // The draw of the week the group meets next: the slips handed out
   // at the end of the last session are that week's. Everybody in the group
   // is in it, its facilitators too, who take part.
   const drawWeek = !group.archived && range.next ? await readGroupWeek(db, runId, groupId, range.next.weekNumber) : null;
@@ -384,7 +367,7 @@ export default async function GroupHomePage({
   // group's pairs, its facilitators too, who take part.
   const pairsWeek = drawWeek ? await readGroupPairs(db, runId, groupId, drawWeek, drawList) : null;
 
-  // This week's work's Pathway, Written answer and Case columns (wk-fac-group),
+  // This week's work's Pathway, Written answer and Case columns,
   // for the week it shows, through the packs' and the written answers' own
   // readers: each reader is shown what the review page and the draw page show
   // them of the same people.
@@ -406,7 +389,9 @@ export default async function GroupHomePage({
   const boxes = groupWeek ? await loadGroupWeekBoxes(db, { run: access.run, actor: access.user, week: groupWeek }) : [];
 
   // The head: the group, its week, its programme, its usual day, time and
-  // room, and the group's other facilitators by their whole names.
+  // room, and the group's other facilitators by the names rule for this
+  // reader (`loadFacilitatorGroup`: the committee and admins see the full
+  // name, a facilitator who is not on it the name people go by).
   const groupName = group.name || "Group";
   const others = model.facilitators.filter((person) => person.uid !== access.user.uid);
   const headParts = groupHeadParts({
@@ -439,7 +424,7 @@ export default async function GroupHomePage({
   // The page's cards, drawn once, and placed below by the shape of the week.
   const ticketCards = (
     <>
-      {/* An evening is off (Q25): the notice the group reads, over the
+      {/* An evening is off: the notice the group reads, over the
           session it meets at next, as on their programme page. */}
       {sessionGroup.sessionNotice && <SessionNotice notice={sessionGroup.sessionNotice} now={now} />}
       {facts && (
@@ -456,6 +441,7 @@ export default async function GroupHomePage({
           expected={model.expected > 0 ? model.expected : null}
           registerHref={registerHref}
           guide={guide}
+          explainer={explainer}
         />
       )}
       {/* Every session the group holds is over: Home's sentence where the
@@ -514,7 +500,7 @@ export default async function GroupHomePage({
       />
     </>
   );
-  // The review queue (wk-fac-group), beside the ticket: its written answers
+  // The review queue, beside the ticket: its written answers
   // half, on a run whose weeks are written as blocks (null on a run of the
   // summer's weeks), and its reflections half, on a week written as blocks
   // with something to reflect on.
@@ -583,7 +569,7 @@ export default async function GroupHomePage({
           )}
         </div>
 
-        {/* "Write to Group B (7)" and "Change a session" (wk-fac-group), the
+        {/* "Write to Group B (7)" and "Change a session", the
             write link's line under both: it says how many the update emails.
             An archived group has neither: nobody writes to it or changes it. */}
         {!group.archived && (

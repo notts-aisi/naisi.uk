@@ -1,10 +1,9 @@
 /**
- * A group's week as its facilitators, the programme's lead and admins read it
- * (plan item 6; boards wk-fac-group, wk-fac-group-phone, wk-reflections and
- * wk-reflections-phone): who ticked each source, by name (Q31); This week's
+ * A group's week as its facilitators, the programme's lead and admins read it:
+ * who ticked each source, by name; This week's
  * work; the review queue's reflections half and the page where lines are
- * picked to read out without names (Q30, Q37); the private notes' one reader
- * (Q38); and a facilitator's own coursework, read by the programme's lead and
+ * picked to read out without names; the private notes' one reader;
+ * and a facilitator's own coursework, read by the programme's lead and
  * admins and never by a co-facilitator (Zach, Mon 26 Oct).
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
@@ -235,7 +234,7 @@ describe("1. who opens a group's week", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 2. Who ticked each source (Q31)
+// 2. Who ticked each source
 // ---------------------------------------------------------------------------
 
 describe("2. who ticked each source, by name, behind a button", () => {
@@ -258,6 +257,9 @@ describe("2. who ticked each source, by name, behind a button", () => {
     // page where lines are read out count. Until 27 October 2026 the lead's and an admin's ticks counted all 5
     // people listed while their reflections counted the 3 fellows.
     const expected = [
+      // Everybody by the names rule for an admin or the lead, who is on the
+      // committee (`nameForViewer`): each account's full name, here the
+      // account's own name.
       ["A keeper's diary", ["Chloe Nguyen", "Farah Hussain", "Rahul Mehta (facilitator)"], 3],
       ["Lamps at night", ["Farah Hussain", "Sofia Rossi (facilitator)"], 3],
     ];
@@ -283,8 +285,11 @@ describe("2. who ticked each source, by name, behind a button", () => {
       const region = new RegExp(`<div id="${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}" class="wkOpened" hidden="">(.*?)</div>`);
       assert.match(html, region, "the names are not in a region the button controls and hides");
     }
-    // The count is never a percentage, and the rule every answer to Q31 keeps is said.
-    assert.match(text, /Reading ticks Ticks never count against anyone\./);
+    // The count is never a percentage. Nothing says ticks never count: privacy
+    // v15 took that back (ticks drive reminders and show how somebody is taking
+    // part), so the heading goes straight to the sources.
+    assert.match(text, /Reading ticks Part \d · Read A keeper's diary/);
+    assert.doesNotMatch(text, /never count against/i);
     assert.match(text, /A keeper's diary 2 of 3 ticked it/);
     assert.doesNotMatch(text, /%/);
     const css = readFileSync(join(SRC, "features", "courses", "facilitator", "facilitator.module.css"), "utf8");
@@ -308,7 +313,7 @@ describe("2. who ticked each source, by name, behind a button", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3. The page to read lines out (Q37)
+// 3. The page to read lines out
 // ---------------------------------------------------------------------------
 
 describe("3. the page to read lines out, without names", () => {
@@ -355,7 +360,7 @@ describe("3. the page to read lines out, without names", () => {
 
   test("the page names nobody beside an answer, and says who may hear a line", async () => {
     const { html, text } = await reflectionsPage("rahul");
-    for (const name of ["Chloe", "Farah", "Nguyen", "Hussain", "Isaac", "Amara", "Sofia Rossi"]) {
+    for (const name of ["Chloe", "Farah", "Nguyen", "Hussain", "Isaac", "Amara", "\\bSofia\\b", "Rossi"]) {
       assert.doesNotMatch(text, new RegExp(name), `the page shows ${name}`);
     }
     assert.match(text, /Group B · Week 3 · Reflections Reflections before tonight Prompt/);
@@ -432,11 +437,12 @@ describe("4. This week's work and the review queue's counts", () => {
       ]);
       assert.equal(queueOf(drawn).href, `${RUN_HOME}/group/${B}/reflections?week=3`);
       assert.match(drawn.text, /Review queue Reflections Part 1, 2 of 3 · Part 2, 1 of 3 · Part 3, 0 of 3 Read them/);
-      assert.match(drawn.text, /This week’s work Week 3 · Thu 12 to Wed 18 Nov Name Part 1 reflection Part 2 reflection Part 3 reflection CN Chloe Nguyen Written Not yet Not yet/);
-      // The phone's lines, as wk-fac-group-phone draws them.
-      assert.match(drawn.text, /FH Farah Hussain Reflections Part 1 written · part 2 written · part 3 not yet KA Kofi Asante Reflections Not yet/);
+      // The head says when the group's week locks, and the week's own column where each person's week stands (the week you submit).
+    assert.match(drawn.text, /This week’s work Week 3 · Thu 12 to Wed 18 Nov · Locks Tue 6pm Name Part 1 reflection Part 2 reflection Part 3 reflection Week 3 CN Chloe Nguyen Written Not yet Not yet Started/);
+      // The phone's lines, as the facilitator's group page draws them.
+      assert.match(drawn.text, /FH Farah Hussain Reflections Part 1 written · part 2 written · part 3 not yet Week 3 Started KA Kofi Asante Reflections Not yet/);
       assert.match(drawn.text, /Facilitators’ own work is for Claudia and admins to read, so it isn’t listed here\./);
-      assert.doesNotMatch(drawn.text, /Rahul Mehta Facilitator|Sofia Rossi Facilitator|Isaac|Amara/);
+      assert.doesNotMatch(drawn.text, /\bRahul Facilitator|\bSofia Facilitator|Mehta|Rossi|Isaac|Amara/);
     }
   });
 
@@ -473,7 +479,7 @@ describe("4. This week's work and the review queue's counts", () => {
     const asFacilitator = await groupPage("sofia");
     assert.deepEqual(weekOf(asFacilitator).rows, []);
     assert.equal(queueOf(asFacilitator), null);
-    assert.match(asFacilitator.text, /This week’s work Week 3 · Thu 12 to Wed 18 Nov You’ll see your group’s names when groups go out\./);
+    assert.match(asFacilitator.text, /This week’s work Week 3 · Thu 12 to Wed 18 Nov · Locks Tue 6pm You’ll see your group’s names when groups go out\./);
     const asAdmin = await groupPage("zach");
     assert.deepEqual(weekOf(asAdmin).rows.map(said), ["Chloe Nguyen", "Farah Hussain", "Kofi Asante", "Rahul Mehta (facilitator)", "Sofia Rossi (facilitator)"]);
     assert.ok(queueOf(asAdmin));
@@ -491,7 +497,7 @@ describe("4. This week's work and the review queue's counts", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. The private notes (Q38)
+// 5. The private notes
 // ---------------------------------------------------------------------------
 
 describe("5. the private notes: the group's facilitators and admins, never the lead, never read out", () => {
@@ -730,12 +736,13 @@ const PROGRESS_ADDRESSERS = {
   "app/api/courses/runs/[runId]/comments/route.ts": ["comments", "the comments a person chose to show the rest of a run anyone can join"],
   "app/api/courses/runs/[runId]/normalise-weeks/route.ts": ["count", "refuses to renumber a run's weeks once anybody has ticked in them"],
   "app/api/courses/runs/[runId]/retrospective/route.ts": ["aggregate", "ratings and finishes as totals, read through a projection with no uid"],
-  "app/api/courses/runs/[runId]/week-one/ticks/[itemId]/route.ts": ["own", "somebody holding a place ticks week 1 before groups go out, through week 1's door, on their own row by their own uid"],
+  "app/api/courses/runs/[runId]/ticks/[itemId]/route.ts": ["own", "every tick and untick, the one writer of a tick: a person's own row by their own uid, a holder's week 1 before groups go out among them"],
   "lib/courses/weekPaste.ts": ["count", "a paste counts the rows on items it would take out, for the run's week and a group's copy alike: a number for whoever is pasting"],
   "features/courses/progressMutations.ts": ["own", "a person writes their own tick, rating and note, on their own row"],
   "features/courses/useRunProgress.ts": ["own", "a person's own rows, in their browser, by their own uid"],
   "lib/courses/facilitatorWeek/readers.ts": ["staff", "who ticked each source by name, for a group's facilitators, the programme's lead and admins, and the private notes, for its facilitators and admins, after each page's gate"],
   "lib/courses/leftView.ts": ["own", "a person's own notes and ratings, on their own notes page"],
+  "lib/courses/weekWork/readers.ts": ["count", "how many of This week's tasks each person shown has done, by the one count, for a group's This week's work: numbers, through a projection with no rating, comment or note"],
   "lib/courses/sourceRatings.ts": ["aggregate", "the sources people rated as totals, for a programme lead's Surveys tab: the retrospective's projection, with no uid, and its count"],
   "lib/firestore/accountDeletion.ts": ["deletion", "deleting an account deletes its rows"],
   "lib/firestore/courseDeletion.ts": ["deletion", "destroying a run counts and deletes its rows"],
@@ -747,7 +754,7 @@ const PROGRESS_ADDRESSES =
 const PRIVATE_NOTE_READERS = {
   "lib/firestore/courseProgress.ts": "the record: its shape, its limit and its normaliser",
   "features/courses/progressMutations.ts": "the writer: a person's own note, on their own row",
-  "app/api/courses/runs/[runId]/week-one/ticks/[itemId]/route.ts": "a person's own note, kept as it was when they tick week 1 before groups go out, on their own row",
+  "app/api/courses/runs/[runId]/ticks/[itemId]/route.ts": "a person's own note, kept as it was when they tick or untick, on their own row",
   "features/courses/WeekView.tsx": "a person's own note, in their own box on a week written before blocks",
   "features/courses/weekBlocks/SourceCard.tsx": "a person's own note, in their own box under a source",
   "lib/courses/leftView.ts": "a person's own notes, on their own notes page",

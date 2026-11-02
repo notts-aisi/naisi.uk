@@ -6,7 +6,7 @@ import OpenButton from "./OpenButton";
 import styles from "./surveyAdmin.module.css";
 
 /**
- * A leaving survey's Open tab (Q46), where a sent survey has its Send tab.
+ * A leaving survey's Open tab, where a sent survey has its Send tab.
  * Nobody presses send: before it is open, what opening does, the way to see
  * it as people will and "Open it"; once open, since when, how many it has
  * reached and how many answered, and "Close it now". Beside it, the summary:

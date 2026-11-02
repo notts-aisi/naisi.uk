@@ -11,7 +11,7 @@ import styles from "./surveyAdmin.module.css";
 import eventStyles from "./eventSurvey.module.css";
 
 /**
- * "At the event: the QR code" (sv-send): the survey's own short link and its
+ * "At the event: the QR code": the survey's own short link and its
  * code, drawn by the server, with the PNG to download and the code to show
  * full screen at the end of the event. Until the survey is open, a button
  * opens it, which fixes its questions as a send does and emails nobody.

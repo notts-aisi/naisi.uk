@@ -1,5 +1,6 @@
 import SelfCancelForm from "@/features/events/SelfCancelForm";
 import { getEventForPreview } from "@/features/events/fetchEvents";
+import { hasStarted } from "@/features/events/eventWhen";
 import { verifyRsvpToken } from "@/lib/events/rsvpToken";
 import { getAdminDb } from "@/lib/firebase/admin";
 import styles from "@/features/events/RsvpPages.module.css";
@@ -83,6 +84,8 @@ export default async function CancelRsvpPage({
       token={token}
       name={typeof rsvp.name === "string" ? rsvp.name : ""}
       eventTitle={event.title}
+      confirmedPlace={rsvp.status === "confirmed"}
+      started={hasStarted(event.startAt, new Date())}
     />,
   );
 }

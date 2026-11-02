@@ -273,11 +273,13 @@ const PUBLIC = new Map([
     "src/app/api/events/[id]/calendar.ics/route.ts#GET",
     {
       touches: "reads one event",
-      gate: "getPublishedEvent(",
+      gate: "getEventForViewer(",
       why:
         "The public calendar feed for an event, reachable from the public event page. The read " +
         "helper is the gate: it returns a published or cancelled event, archived or not, " +
-        "members-only or not, and the route refuses the cancelled and the undated ones itself. " +
+        "for anyone or for people with an account, and an event for chosen people only to " +
+        "somebody who may open it (the people invited, and the people who run events), and " +
+        "the route refuses the cancelled and the undated ones itself. " +
         "The location line goes through the disclosure helper so a hidden location is never in it.",
     },
   ],

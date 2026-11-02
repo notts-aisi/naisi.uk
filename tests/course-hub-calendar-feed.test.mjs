@@ -1,5 +1,5 @@
 /**
- * What a person's calendar link holds (board st-calendar-phone): the feed
+ * What a person's calendar link holds: the feed
  * `GET /api/courses/calendar/[token]/sessions.ics`, fetched as a calendar app
  * fetches it, and read as strictly as RFC 5545 asks.
  *

@@ -136,7 +136,7 @@ The same shape, older:
 - `tests/notification-classification.test.mjs`: every send in `src` declares
   which of the three notification classes it belongs to. The scanner walks the
   tree for calls to `sendEmail`, the two push mirrors and every named wrapper
-  (`sendRsvpEmail`, `notifyWorksheetEvent`, the admission and nudge wrappers,
+  (`sendRsvpEmail`, `notifyWorksheetEvent`, the admission wrappers, the week's email,
   and the rest, enumerated rather than remembered); `REGISTRY` maps each
   `file#symbol` to `grid` with its row, `transactional`, or `notice`, with a
   written reason. Both directions, and the class is read out of the source
@@ -172,6 +172,32 @@ The same shape, older:
   both directions: a renderer imports the helper and reads none of the fields
   raw, a relay may pass them along but may not branch on `locationHidden`,
   a template takes a finished line, and exactly one file branches.
+- `tests/event-visibility-readers.test.mjs`: who an event is for is read in
+  one place, `src/lib/events/reach.ts`. The helper is executed (missing reads
+  as "members", any value that is none of the three as "chosen", so an event
+  nobody can tell the audience of is listed and announced nowhere), every
+  `.ts` and `.tsx` under `src` is read for a comparison of a `visibility`
+  outside it (a task's and a worksheet question's are registered with what
+  they are, and held to comparing none of an event's values), every file
+  that imports the helper is registered with what it asks, both directions,
+  and the rules' read branch is held to the same two decisions.
+  `tests/event-chosen-people.test.mjs` runs the routes and pages of an event
+  for chosen people as every kind of caller against a real term.
+- `tests/missed-events.test.mjs`, its last block: whether somebody missed
+  the last two events they had a place at is an admin's alone and reads no
+  survey. Every file under `src` that imports `src/lib/events/missedEvents.ts`
+  is listed and held to the admin check it sits behind, and the module's own
+  imports are walked, however deep, for survey code. And because the count
+  trusts that nothing writes to a confirmed sign-up after its event starts
+  unless the place itself changed, every file that names the sign-ups
+  collection is registered with what it writes and what that does to the
+  count, both directions.
+- `tests/event-check-ins.test.mjs`, its last block: every write of a
+  check-in says which way the person came in. It walks every call of
+  `recordCheckIn` under `src` and holds each one's `how` to a registered
+  expression with the reason it is that person's own way, both directions,
+  and the writer itself refuses the old catch-all `qr`, which once recorded
+  every self check-in as a scan of the door code whichever way it came.
 - `tests/event-rsvp-identity.test.mjs`: the public RSVP route executed as a
   guest, a member, a pending and a rejected account. A signed-out submission
   is answered identically whether or not the address already holds an RSVP,
@@ -395,8 +421,10 @@ The same shape, older:
   question is asked by request, of every route under `src/app/api` and every
   page under `src/app/(app)`, as every persona (`anonymous`, `pending`,
   `rejected`, `member`, non-SU `committee`, `suCommittee`, `admin`, a
-  plain member holding each `permissions` key, and three who hold a role on a
-  record: `lead`, `facilitator` and `participant`), with ids that address nothing
+  plain member holding each `permissions` key, three who hold a role on a
+  programme, `lead`, `facilitator` and `participant`, two who hold a role
+  on an event, `eventAuthor` and `eventCollaborator`, and `invitee`, on an
+  event's list of the people invited to it), with ids that address nothing
   and empty bodies so the answer is the gate's or the first validation's, and
   each cell is held to the registry: a status per persona, a redirect target
   per persona for a page, the allowed top-level fields for a 2xx, and a reason
@@ -418,8 +446,20 @@ The same shape, older:
   `REAL_ROUTES` and `REAL_PAGES` say what each gets with each, every cell with
   its reason: `theirs` names the three role personas, and everybody else's
   cell on THEIRS is their `another` cell, because the two programmes are
-  mirrors in every field a gate reads. A mutating route is sent an empty body,
-  so a gate that admits somebody stops at the first validation; a cell where
+  mirrors in every field a gate reads. The same world writes two events, and
+  every route and page whose code asks the sign-ups rule
+  (`src/lib/events/signupAccess.ts`) or who runs an event's list
+  (`src/lib/events/invitationAccess.ts`; found from the code, both ways, so a
+  new reader or decider of an event's requests or its list is asked the day it
+  lands) is asked about both: THEIRS written by `eventAuthor` (a member
+  holding draftEvent) and helped by `eventCollaborator` (committee the SU does
+  not recognise), ANOTHER by accounts that are none of the personas, each with
+  a request waiting for a decision, and each for chosen people, its list
+  naming its asker and, on THEIRS, `invitee`. Those columns say
+  `world: "event"`, and their `theirs` names the two event roles; no column
+  names the invitee, since being invited is no role on any of them. A
+  mutating route is sent an empty body, so a gate that admits somebody stops
+  at the first validation; a cell where
   nothing would stop it (a route that takes no body, or reads an empty one as
   a choice) is marked `ACTS` with what it would do, and is not sent, so no
   write lands. A route that checks its body first answers 400 to everybody
@@ -495,6 +535,48 @@ The same shape, older:
   is tracked, and that the root holds only the listed documents and dot
   folders. It walks every tracked file, and each of its lists is checked in
   both directions.
+- `tests/clock-times-printed.test.mjs`: a time of day is printed in the
+  house's clock ("6pm", "Mondays 6pm to 8pm"), never as the stored "18:00".
+  It reads every file under `src` with the compiler's parser and fails on
+  `startTimeLocal` or `endTimeLocal` put straight into a template literal,
+  JSX text, a concatenation or an attribute somebody reads, unless `ALLOWED`
+  lists the place with how often and why nobody reads it as a time (a sort
+  key, an id, a stored label compared byte for byte). Both directions, and
+  the formatter and the scanner are executed.
+- `tests/member-conduct-flag.test.mjs` holds who reads a conduct flag:
+  `FLAG_READERS` lists every file under `src` that names the collection,
+  either projection, the route or the control, each in the admin area, both
+  ways, because the control and the privacy policy both say only admins see a
+  flag and its reason.
+- `tests/full-name-readers.test.mjs` holds who reads a full name: every file
+  under `src` that names the `fullName` field, a staff name or a function
+  that returns one is listed with who reads it (the rule itself, a shape, the
+  person's own, the committee, a scrub, or another thing that is also called
+  `fullName`), both ways. A committee entry names its gate as text the file
+  must contain, or the files that import it, each itself behind the gate; an
+  `other` entry may not read an account's full name. Its last section lists
+  every file that takes names out of words before they leave the site, with
+  where its names come from, so a scrub that does not know the full name
+  fails as surely as a screen that shows it. The rule it stands beside is run
+  as every kind of viewer in `tests/names-rule.test.mjs`, because the privacy
+  policy says only the committee sees a full name.
+- `tests/claude-output-readers.test.mjs` holds who reads what Claude says
+  about a week's work: every file under `src` that addresses
+  `courseWeekReviews` (the record, the review's store, the two deletions), and
+  every file outside the review's own library that reaches it, each with why
+  it may, both ways; the review's loaders called only by its admin-only page
+  and route, and no browser file reaching its server code. It also fails when
+  the notes kept about a person reach a review, or a weekly note's drafts,
+  because the privacy policy says Claude's grades are never kept on
+  anybody's record and what Claude returns is seen by admins only. An
+  explainer reads one theme for the admin's form and nothing else: the guard
+  holds the explainers' record and every reader of it (the tickets, the
+  overview, the week's email, the week's page) off the review. Its second
+  half holds the same for Claude's end-of-week drafts (`courseNoteDrafts`):
+  the files that address them and that reach them, both ways, their loader
+  handing a draft to an admin and never the programme's lead, their presses
+  refusing everybody but an admin first, and a draft reaching a person's
+  notes only through the notes' own store when an admin saves it.
 
 ### Settings that are not files
 
@@ -694,6 +776,14 @@ around what it may touch and the hand-driven fixture CLI are in
   rule generalises: a real defect a spec finds is pinned with the fix's own
   instructions, never silently fixed or silently worked around, and the fix
   deletes the pin in the same change.
+- **Claude is a fake in local mode.** The local server's Claude features
+  reach a fake on loopback that the run starts (`scripts/e2e/lib/fakeClaude.mjs`),
+  never Anthropic: a local run costs nothing and answers the same words every
+  time, and a spec reads what would have been sent. The site honours the base
+  URL only when it is a loopback address, and `tests/e2e-fake-claude.test.mjs`
+  holds each canned answer to its caller's own checker. Against a deployed
+  target the real model answers. "A fake Claude in local mode" in
+  `scripts/e2e/README.md` says how to add a caller.
 - **A policy version shipping stops nothing.** On a production build the
   member area sends a signed-in account whose stored policy version is behind
   the current one to `/re-consent` before it renders a page, which after a

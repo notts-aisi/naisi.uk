@@ -11,6 +11,7 @@ import { deleteCalendarLink } from "@/lib/courses/calendarLink";
 import { deleteKairosChoice } from "@/lib/kairos/choice";
 import { deleteRatingsForAccount } from "@/lib/ratings/store";
 import { takeCheckInNamesOffForAccount } from "@/lib/events/checkIns";
+import { deleteInvitationsForAccount } from "@/lib/events/invitationRecords";
 import { takeNamesOffForAccount } from "@/lib/surveys/namesOff";
 import { FACILITATING_COLLECTION } from "@/lib/courses/facilitatorAsks/model";
 import { CERTIFICATES_COLLECTION } from "@/lib/courses/certificates/model";
@@ -25,15 +26,30 @@ import { TEAM_ENTRIES_COLLECTION } from "@/lib/courses/teamPage/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
 import { TEAMS_MARKERS, TEAMS_TEST_KIND } from "@/lib/courses/teams/told";
 import { ASSESSMENTS_COLLECTION } from "./admissionAssessments";
+import { EXCUSED_IN_ADVANCE } from "./courseAttendance";
 import { normalizeCourseEnrolment } from "./courseEnrolments";
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
+import { COURSE_WEEK_WORK_COLLECTION } from "./courseWeekWork";
+import { COURSE_WORK_LOG_COLLECTION } from "./courseWorkLog";
+import { COURSE_FEEDBACK_COLLECTION, COURSE_FEEDBACK_SENDS_COLLECTION } from "./courseFeedback";
+import { COURSE_WORK_RATINGS_COLLECTION } from "./courseWorkRatings";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
+import {
+  COURSE_SESSION_REPORTS_COLLECTION,
+  aboutUidsOf,
+  answersWithout,
+  normalizeReportAnswers,
+} from "./courseSessionReports";
 import { PLACEMENT_NOTES_COLLECTION } from "@/lib/courses/placementNotes/model";
-import { MEMBER_NOTES_COLLECTION } from "@/lib/memberNotes/model";
+import { MEMBER_NOTES_COLLECTION, noteSourcesOf, sourcesWithout } from "@/lib/memberNotes/model";
 import { BEST_ANSWERS_COLLECTION, PANGRAM_CHECKS_COLLECTION } from "@/lib/courses/coursework/collections";
+import { COURSE_WEEK_REVIEWS_COLLECTION, reviewWithout } from "./courseWeekReviews";
+import { COURSE_NOTE_DRAFTS_COLLECTION, noteDraftWithout } from "./courseNoteDrafts";
+import { REVIEW_FOLLOW_UP_TASK_SOURCE } from "./courseTasks";
+import { COURSE_EXPLAINERS_COLLECTION, EXPLAINER_ACCOUNT_FIELDS } from "./courseExplainers";
 import {
   MEMBER_RECORDS_COLLECTION,
   MEMBER_RECORD_APPLICATIONS,
@@ -98,6 +114,12 @@ export type AccountDeletionSummary = {
    * is left counts that one person came and names nobody, as a year on does.
    */
   eventCheckInsNamesTakenOff: number;
+  /**
+   * The events for chosen people the account was invited to
+   * (`eventInvitations`): who was chosen for what. Deleted: an invitation to
+   * an account that is gone opens nothing, and the list names them.
+   */
+  eventInvitationsDeleted: number;
   registrationDeleted: boolean;
   collaboratorDeleted: boolean;
   userDocDeleted: boolean;
@@ -154,13 +176,13 @@ export type AccountDeletionSummary = {
   courseFacilitatingCleared: number;
   /**
    * The notes this account wrote as one of a group's facilitators for the
-   * others (`courseGroupNotes`, C30). Deleted: a note is its writer's words,
+   * others (`courseGroupNotes`). Deleted: a note is its writer's words,
    * and it goes with their account.
    */
   courseGroupNotesDeleted: number;
   /**
    * The notes this account shared with a group it was in or facilitated
-   * (`courseGroupSharedNotes`, C29). Deleted: a note is its writer's words,
+   * (`courseGroupSharedNotes`). Deleted: a note is its writer's words,
    * and it goes with their account.
    */
   courseGroupSharedNotesDeleted: number;
@@ -178,6 +200,32 @@ export type AccountDeletionSummary = {
    * this account alone.
    */
   coursePacksAndCasesDeleted: number;
+  /**
+   * Where each of this account's weeks stands (`courseWeekWork`: when it
+   * submitted a week, when somebody reopened it) and the log of what it did
+   * to its weeks and when (`courseWorkLog`). Deleted: each record is about
+   * this account alone.
+   */
+  courseWeekWorkDeleted: number;
+  courseWorkLogDeleted: number;
+  /**
+   * Feedback (`courseFeedback`): every piece on this account's work, and
+   * every piece it wrote on somebody else's, deleted (a piece is shown signed
+   * with its writer's name, and the name has gone). Its press of the batch
+   * email (`emailedByUid` on a piece, `byUid` on the batch's own record,
+   * `courseFeedbackSends`) is cleared from what stays, which is about
+   * somebody else's feedback or about the run.
+   */
+  courseFeedbackDeleted: number;
+  courseFeedbackCleared: number;
+  /**
+   * Ratings for the team (`courseWorkRatings`, privacy v15): every rating of
+   * this account's written work, and every rating it gave of somebody
+   * else's. Deleted either way, as the policy says ("the notes and ratings
+   * about you, the ratings you gave"): a rating is about one named person, by
+   * one named person. Counted once per document.
+   */
+  courseWorkRatingsDeleted: number;
   /**
    * This account's place in each session's pairs (`coursePairs`): which pair
    * it was in and whether it was bringing a laptop. Deleted: each record is
@@ -205,6 +253,14 @@ export type AccountDeletionSummary = {
    * longer resolves, and nothing the card said.
    */
   coursePredictionsDeleted: number;
+  /**
+   * Session reports (`courseSessionReports`): this account is taken out of
+   * every report that picks it (who engaged well and why, who seemed not to
+   * have done the readings, who might need a hand and the word about them),
+   * and every report it wrote stays with no writer at all, as a register
+   * keeps the notes on it. Counted once per document.
+   */
+  courseSessionReportsCleared: number;
   /** Admission applications (drafts included) written by this account. */
   admissionApplicationsDeleted: number;
   /** Their access-requirements rows, deleted in the SAME batch. See below. */
@@ -284,6 +340,41 @@ export type AccountDeletionSummary = {
    * and its account id). Counted once per document.
    */
   courseBestAnswersCleared: number;
+  /**
+   * Claude's reviews of a week (`courseWeekReviews`, privacy v15) that named
+   * this account: each is a week of a run, about everybody on it, so it
+   * stays, and this account is taken out of it (its draft grades, its place
+   * in what people found hard, its hand and its label). Counted once per
+   * document.
+   */
+  courseWeekReviewsCleared: number;
+  /**
+   * A week review's follow-ups ABOUT this account (`tasks` with `source:
+   * "review-follow-up"` and `sourceRef.aboutUid`): each asks a group's
+   * facilitators to have a word with this person by name, so each goes.
+   */
+  reviewFollowUpsDeleted: number;
+  /**
+   * Explainers (`courseExplainers`) this account gave, scheduled or
+   * cancelled: each is the run's, opening its groups' sessions, so it stays,
+   * and this account's id comes off it, so its tickets say "Starts with an
+   * explainer" without a name. Counted once per document.
+   */
+  courseExplainersCleared: number;
+  /**
+   * Claude's end-of-week drafts ABOUT this account (`courseNoteDrafts`,
+   * privacy v15), on every run: each is about this account alone, and goes.
+   */
+  courseNoteDraftsDeleted: number;
+  /**
+   * End-of-week drafts and saved notes about OTHER people that were built
+   * from this account's feedback or ratings (`courseNoteDrafts` and
+   * `memberNotes`, found by `sourceUids`): each stays with its person, and
+   * this account's entries are taken out of what it was built from, because
+   * a rating copied there is still a rating it gave. Counted once per
+   * document.
+   */
+  noteSourcesCleared: number;
   authDeleted: boolean;
   /** Set when the teardown was not fully clean (a best-effort step failed, or the
    *  Auth account could not be deleted). Routes return 207 when this is present. */
@@ -736,7 +827,7 @@ export async function clearFacilitatorAsks(db: Firestore, uid: string): Promise<
 
 /**
  * Delete every note this account wrote for the other facilitators of a group
- * (`courseGroupNotes`, C30), on every run, a page at a time. A note is its
+ * (`courseGroupNotes`), on every run, a page at a time. A note is its
  * writer's own words, found by the one equality on `authorUid` and deleted;
  * nobody else's note is touched, whatever group it is on.
  */
@@ -745,8 +836,7 @@ export async function deleteCourseGroupNotes(db: Firestore, uid: string): Promis
 }
 
 /**
- * Delete every note this account shared with a group (`courseGroupSharedNotes`,
- * C29), on every run, a page at a time. A note is its writer's own words,
+ * Delete every note this account shared with a group (`courseGroupSharedNotes`), on every run, a page at a time. A note is its writer's own words,
  * found by the one equality on `authorUid` and deleted; nobody else's note is
  * touched, whatever group it is in.
  */
@@ -792,6 +882,110 @@ export async function clearBestAnswerPicks(db: Firestore, uid: string): Promise<
 }
 
 /**
+ * Take this account out of every week of Claude's reviews that named it
+ * (`courseWeekReviews`, privacy v15, described in
+ * `src/lib/firestore/courseWeekReviews.ts`): its draft grades, its place in
+ * the answers a theme cites, its hand and its label, found by the one
+ * `array-contains` on `uids`. The rest of each week stays for everybody else
+ * on the run; Claude's words that named its label then read "a fellow".
+ */
+export async function clearWeekReviewEntries(db: Firestore, uid: string): Promise<number> {
+  const snap = await db.collection(COURSE_WEEK_REVIEWS_COLLECTION).where("uids", "array-contains", uid).get();
+  let cleared = 0;
+  for (const doc of snap.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    await doc.ref.update({ ...reviewWithout(data, uid), uids: FieldValue.arrayRemove(uid) });
+    cleared += 1;
+  }
+  return cleared;
+}
+
+/**
+ * Delete every week review follow-up ABOUT this account (`tasks` carrying
+ * `source: "review-follow-up"` and `sourceRef.aboutUid`): each one asks a
+ * group's facilitators to have a word with this person, by name, and is
+ * about nobody else. Two equalities, so no declared index. A task this
+ * account was a completer or creator of is left, as every task is. The task
+ * goes with its comments and activity; a file a facilitator attached to it
+ * stays in storage under the task's own path, as this cascade holds no
+ * storage handle (the run's destroy, which does, never finds it once the
+ * task is gone).
+ */
+export async function deleteReviewFollowUpsAbout(db: Firestore, uid: string): Promise<number> {
+  const snap = await db
+    .collection("tasks")
+    .where("source", "==", REVIEW_FOLLOW_UP_TASK_SOURCE)
+    .where("sourceRef.aboutUid", "==", uid)
+    .get();
+  let deleted = 0;
+  for (const doc of snap.docs) {
+    await db.recursiveDelete(doc.ref);
+    deleted += 1;
+  }
+  return deleted;
+}
+
+/**
+ * Take this account's id off every explainer that names it
+ * (`courseExplainers`, `src/lib/firestore/courseExplainers.ts`): as the one
+ * explaining, as the admin who scheduled it, or as the admin who cancelled
+ * it, found by one equality per field. The explainer stays, for the groups
+ * whose sessions it opens; a ticket then says "Starts with an explainer"
+ * without a name. Its tasks are left, as every task this account was a
+ * completer or creator of is.
+ */
+export async function clearExplainerNames(db: Firestore, uid: string): Promise<number> {
+  const explainers = db.collection(COURSE_EXPLAINERS_COLLECTION);
+  // In the order of `EXPLAINER_ACCOUNT_FIELDS`, each one equality on one field.
+  const found = await Promise.all([
+    explainers.where("explainerUid", "==", uid).get(),
+    explainers.where("scheduledByUid", "==", uid).get(),
+    explainers.where("cancelledByUid", "==", uid).get(),
+  ]);
+  const cleared = new Set<string>();
+  for (const [index, field] of EXPLAINER_ACCOUNT_FIELDS.entries()) {
+    for (const doc of found[index].docs) {
+      await doc.ref.update({ [field]: null });
+      cleared.add(doc.id);
+    }
+  }
+  return cleared.size;
+}
+
+/**
+ * Delete every end-of-week draft Claude made ABOUT this account
+ * (`courseNoteDrafts`, privacy v15), on every run, a page at a time: found by
+ * the one equality on `uid`, the person a draft is about.
+ */
+export async function deleteNoteDraftsAbout(db: Firestore, uid: string): Promise<number> {
+  return deleteOwnedCourseRows(db, COURSE_NOTE_DRAFTS_COLLECTION, uid);
+}
+
+/**
+ * Take this account out of what every end-of-week draft and saved note about
+ * somebody else was built from (`courseNoteDrafts` and `memberNotes`, privacy
+ * v15): the feedback it wrote and the ratings it gave, found by the one
+ * `array-contains` on `sourceUids` in each. The draft or note stays with its
+ * person; a draft's "Rater N" for this account then reads "a rater".
+ */
+export async function clearNoteSourcesBy(db: Firestore, uid: string): Promise<number> {
+  let cleared = 0;
+  const drafts = await db.collection(COURSE_NOTE_DRAFTS_COLLECTION).where("sourceUids", "array-contains", uid).get();
+  for (const doc of drafts.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    await doc.ref.update({ ...noteDraftWithout(data, uid), sourceUids: FieldValue.arrayRemove(uid) });
+    cleared += 1;
+  }
+  const notes = await db.collection(MEMBER_NOTES_COLLECTION).where("sourceUids", "array-contains", uid).get();
+  for (const doc of notes.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    await doc.ref.update({ builtFrom: sourcesWithout(noteSourcesOf(data.builtFrom), uid), sourceUids: FieldValue.arrayRemove(uid) });
+    cleared += 1;
+  }
+  return cleared;
+}
+
+/**
  * Delete what was chosen for this account each time it was placed outside the
  * times it gave (`coursePlacementNotes`), on every run, a page at a time: a
  * note written to it, or "Send without a note". Found by the one equality on
@@ -809,6 +1003,82 @@ export async function deleteCoursePlacementNotes(db: Firestore, uid: string): Pr
  */
 export async function deleteCoursePacksAndCases(db: Firestore, uid: string): Promise<number> {
   return deleteOwnedCourseRows(db, COURSE_PACKS_AND_CASES_COLLECTION, uid);
+}
+
+/**
+ * Delete where each of this account's weeks stands (`courseWeekWork`) and its
+ * log of what it did to them (`courseWorkLog`), on every run, a page at a
+ * time. Found by the one equality on `uid`; nobody else's record is touched:
+ * a reopen's row names who reopened it, and is about the person whose week it is.
+ */
+export async function deleteCourseWeekWork(db: Firestore, uid: string): Promise<{ weeks: number; log: number }> {
+  return {
+    weeks: await deleteOwnedCourseRows(db, COURSE_WEEK_WORK_COLLECTION, uid),
+    log: await deleteOwnedCourseRows(db, COURSE_WORK_LOG_COLLECTION, uid),
+  };
+}
+
+/**
+ * Take one account out of feedback (`courseFeedback` and the batch's own
+ * record, `courseFeedbackSends`, described in `courseFeedback.ts`).
+ *
+ * A piece about this account's work carries its `uid`, and a piece it wrote
+ * carries it as `byUid`: each found by its one equality and deleted, the
+ * first because it is part of their work, the second because a piece is
+ * shown signed with its writer's name. A piece whose email this account's
+ * press sent carries it as `emailedByUid`, and a press or a test of the batch
+ * carries it as `byUid`: each found by its one equality and kept, with who
+ * pressed cleared, because it is about somebody else's feedback or about the
+ * run. Counted once per document.
+ */
+export async function clearCourseFeedback(db: Firestore, uid: string): Promise<{ deleted: number; cleared: number }> {
+  const pieces = db.collection(COURSE_FEEDBACK_COLLECTION);
+  const [about, wrote, emailed, pressed] = await Promise.all([
+    pieces.where("uid", "==", uid).get(),
+    pieces.where("byUid", "==", uid).get(),
+    pieces.where("emailedByUid", "==", uid).get(),
+    db.collection(COURSE_FEEDBACK_SENDS_COLLECTION).where("byUid", "==", uid).get(),
+  ]);
+  const writes: Array<(batch: ReturnType<Firestore["batch"]>) => void> = [];
+  const touched = new Set<string>();
+  let deleted = 0;
+  let cleared = 0;
+  for (const doc of [...about.docs, ...wrote.docs]) {
+    if (touched.has(doc.ref.path)) continue;
+    touched.add(doc.ref.path);
+    deleted += 1;
+    writes.push((batch) => batch.delete(doc.ref));
+  }
+  for (const [snap, field] of [
+    [emailed, "emailedByUid"],
+    [pressed, "byUid"],
+  ] as const) {
+    for (const doc of snap.docs) {
+      if (touched.has(doc.ref.path)) continue;
+      touched.add(doc.ref.path);
+      cleared += 1;
+      writes.push((batch) => batch.update(doc.ref, { [field]: "" }));
+    }
+  }
+  for (let at = 0; at < writes.length; at += 400) {
+    const batch = db.batch();
+    for (const write of writes.slice(at, at + 400)) write(batch);
+    await batch.commit();
+  }
+  return { deleted, cleared };
+}
+
+/**
+ * Delete every rating for the team about this account's written work, and
+ * every one it gave (`courseWorkRatings`, privacy v15), on every run, a page
+ * at a time: found by the one equality on `uid` (whose work), then by the one
+ * on `raterUid` (who rated). Nothing else names an account. Counted once per
+ * document: the second sweep runs after the first has deleted what it found.
+ */
+export async function deleteCourseWorkRatings(db: Firestore, uid: string): Promise<number> {
+  const about = await deleteOwnedCourseRows(db, COURSE_WORK_RATINGS_COLLECTION, uid);
+  const gave = await deleteOwnedCourseRows(db, COURSE_WORK_RATINGS_COLLECTION, uid, "raterUid");
+  return about + gave;
 }
 
 /**
@@ -883,6 +1153,48 @@ export async function deleteCoursePredictions(db: Firestore, uid: string): Promi
 }
 
 /**
+ * Take one account out of every session report (`courseSessionReports`,
+ * described in `src/lib/firestore/courseSessionReports.ts`).
+ *
+ * A report picks people by account. The reports that pick this one are found
+ * by the one `array-contains` on `aboutUids`, and its entries come out of
+ * each (its line, why it stood out, the word about it): the report stays for
+ * the rest of the group. The reports this account WROTE are found by the one
+ * equality on `writerUid` and stay for the programme's lead and admins with
+ * no writer at all, as a register keeps the notes on it, which record no
+ * writer: each moves to an automatic id, because its own id names its writer,
+ * and `writerUid` is cleared. Names typed into a report's own words cannot be
+ * found, and stay. One transaction per report; counted once per document.
+ */
+export async function clearSessionReports(db: Firestore, uid: string): Promise<number> {
+  const rows = db.collection(COURSE_SESSION_REPORTS_COLLECTION);
+  const touched = new Set<string>();
+  const about = await rows.where("aboutUids", "array-contains", uid).get();
+  for (const doc of about.docs) {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(doc.ref);
+      if (!snap.exists) return;
+      const answers = answersWithout(normalizeReportAnswers((snap.data() ?? {}).answers), uid);
+      tx.update(doc.ref, { answers, aboutUids: aboutUidsOf(answers) });
+    });
+    touched.add(doc.id);
+  }
+  const written = await rows.where("writerUid", "==", uid).get();
+  for (const doc of written.docs) {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(doc.ref);
+      if (!snap.exists) return;
+      const data = (snap.data() ?? {}) as Record<string, unknown>;
+      const answers = answersWithout(normalizeReportAnswers(data.answers), uid);
+      tx.create(rows.doc(), { ...data, writerUid: null, answers, aboutUids: aboutUidsOf(answers) });
+      tx.delete(doc.ref);
+    });
+    touched.add(doc.id);
+  }
+  return touched.size;
+}
+
+/**
  * Remove a member from every attendance register on the given runs.
  *
  * A register is SHARED — one doc per (group, week), with the uid as a MAP KEY
@@ -919,18 +1231,19 @@ export async function clearCourseAttendanceMarks(
       if (snap.empty) break;
       cursor = snap.docs[snap.docs.length - 1];
 
-      // TWO map keys per register, not one. `participantNotes` (V3 W1 PR5)
+      // THREE map keys per register, not one. `participantNotes` (V3 W1 PR5)
       // is post-session prose ABOUT this member, written by their facilitator,
       // and it is personal data of exactly the kind an account deletion has to
-      // take with it. Both keys are cleared by FieldPath on the SAME document,
-      // in the same batch, for the same reason `records` always was: the
-      // register is shared, so deleting the doc would erase the whole group's
-      // session.
+      // take with it; `excusedInAdvance` is when they told us they could not
+      // make the session ("Can't make it"). Every key is cleared by FieldPath
+      // on the SAME document, in the same batch, for the same reason
+      // `records` always was: the register is shared, so deleting the doc
+      // would erase the whole group's session.
       //
       // A register can carry a note without a mark and a mark without a note
       // (a facilitator writes notes for the people they have something to say
       // about), so each key is tested separately and a document qualifies if
-      // it holds either.
+      // it holds any of them.
       const holds = (d: QueryDocumentSnapshot, field: string): boolean => {
         const map = (d.data() as Record<string, unknown>)[field];
         // `in` throws on a non-object, and a hand-edited register could carry
@@ -938,7 +1251,7 @@ export async function clearCourseAttendanceMarks(
         return typeof map === "object" && map !== null && uid in map;
       };
       const marked = snap.docs.filter(
-        (d) => holds(d, "records") || holds(d, "participantNotes"),
+        (d) => holds(d, "records") || holds(d, "participantNotes") || holds(d, EXCUSED_IN_ADVANCE),
       );
       if (marked.length > 0) {
         const batch = db.batch();
@@ -952,6 +1265,9 @@ export async function clearCourseAttendanceMarks(
               new FieldPath("participantNotes", uid),
               FieldValue.delete(),
             );
+          }
+          if (holds(d, EXCUSED_IN_ADVANCE)) {
+            batch.update(d.ref, new FieldPath(EXCUSED_IN_ADVANCE, uid), FieldValue.delete());
           }
         }
         await batch.commit();
@@ -1411,6 +1727,7 @@ export async function deleteAccountCascade(
     kairosChoiceDeleted: false,
     programmeRatingsDeleted: 0,
     eventCheckInsNamesTakenOff: 0,
+    eventInvitationsDeleted: 0,
     registrationDeleted: false,
     collaboratorDeleted: false,
     userDocDeleted: false,
@@ -1430,10 +1747,16 @@ export async function deleteAccountCascade(
     courseGroupSharedNotesDeleted: 0,
     coursePlacementNotesDeleted: 0,
     coursePacksAndCasesDeleted: 0,
+    courseWeekWorkDeleted: 0,
+    courseWorkLogDeleted: 0,
+    courseFeedbackDeleted: 0,
+    courseFeedbackCleared: 0,
+    courseWorkRatingsDeleted: 0,
     coursePairsDeleted: 0,
     courseCertificatesDeleted: 0,
     courseCertificatesKept: 0,
     coursePredictionsDeleted: 0,
+    courseSessionReportsCleared: 0,
     admissionApplicationsDeleted: 0,
     admissionApplicationPrivateDeleted: 0,
     admissionDecisionsDeleted: 0,
@@ -1449,6 +1772,11 @@ export async function deleteAccountCascade(
     memberNotesDeleted: 0,
     coursePangramChecksDeleted: 0,
     courseBestAnswersCleared: 0,
+    courseWeekReviewsCleared: 0,
+    courseNoteDraftsDeleted: 0,
+    noteSourcesCleared: 0,
+    reviewFollowUpsDeleted: 0,
+    courseExplainersCleared: 0,
     authDeleted: false,
   };
   // Tracks whether any best-effort step (2-5) failed after attempting, so we can
@@ -1594,6 +1922,16 @@ export async function deleteAccountCascade(
     summary.eventCheckInsNamesTakenOff = await takeCheckInNamesOffForAccount(db, uid);
   } catch (err) {
     console.error("[deleteAccount] check-in names-off failed:", uid, (err as { code?: unknown } | null)?.code ?? "unknown");
+    partialFailure = true;
+  }
+
+  // 1i. INVITATIONS. Every event for chosen people the account was invited
+  //     to (`deleteInvitationsForAccount`, `src/lib/events/invitations.ts`).
+  //     One equality on `uid`. Best-effort, retried by the sweep like 1h.
+  try {
+    summary.eventInvitationsDeleted = await deleteInvitationsForAccount(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] invitations delete failed:", uid, (err as { code?: unknown } | null)?.code ?? "unknown");
     partialFailure = true;
   }
 
@@ -1880,6 +2218,42 @@ export async function deleteAccountCascade(
     partialFailure = true;
   }
 
+  // 5c. THE WEEK YOU SUBMIT. Where each of this account's weeks stands and
+  //      the log of what it did to them are about this account alone,
+  //      addressed by its uid, and go with it (see courseWeekWork.ts and
+  //      courseWorkLog.ts).
+  try {
+    const removed = await deleteCourseWeekWork(db, uid);
+    summary.courseWeekWorkDeleted = removed.weeks;
+    summary.courseWorkLogDeleted = removed.log;
+  } catch (err) {
+    console.error("[deleteAccount] courseWeekWork delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c. FEEDBACK. The feedback on this account's work, and the feedback it
+  //      wrote, go with it; its presses of the batch email stay, about
+  //      somebody else or the run, without its name (see courseFeedback.ts).
+  try {
+    const feedback = await clearCourseFeedback(db, uid);
+    summary.courseFeedbackDeleted = feedback.deleted;
+    summary.courseFeedbackCleared = feedback.cleared;
+  } catch (err) {
+    console.error("[deleteAccount] courseFeedback delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c. RATINGS FOR THE TEAM. The ratings of this account's written work,
+  //      and the ratings it gave, go with it, both found by the one equality
+  //      on each field (privacy v15: "the notes and ratings about you, the
+  //      ratings you gave"; see courseWorkRatings.ts).
+  try {
+    summary.courseWorkRatingsDeleted = await deleteCourseWorkRatings(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseWorkRatings delete failed:", uid, err);
+    partialFailure = true;
+  }
+
   // 5c. PAIRS. This account's place in each session's pairs (which pair, and
   //      whether it was bringing a laptop) is about this account alone,
   //      addressed by its uid, and goes with it; a partner's record names
@@ -1914,6 +2288,16 @@ export async function deleteAccountCascade(
     partialFailure = true;
   }
 
+  // 5c. SESSION REPORTS. This account comes out of every report that picks
+  //      it, found by `aboutUids`; a report it wrote stays with no writer, as
+  //      a register keeps the notes on it (see clearSessionReports).
+  try {
+    summary.courseSessionReportsCleared = await clearSessionReports(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseSessionReports clear failed:", uid, err);
+    partialFailure = true;
+  }
+
   // 5c. NOTES ADMINS KEEP, AND CLAUDE AND PANGRAM ON COURSEWORK (privacy
   //      v13). The notes about this account are about it alone, found by the
   //      one equality on `uid`; a note it WROTE about somebody else is that
@@ -1937,6 +2321,47 @@ export async function deleteAccountCascade(
     summary.courseBestAnswersCleared = await clearBestAnswerPicks(db, uid);
   } catch (err) {
     console.error("[deleteAccount] courseBestAnswers clear failed:", uid, err);
+    partialFailure = true;
+  }
+  //      Claude's reviews of a week are about everybody on the run, so they
+  //      stay without this account in them; a follow-up asking a group's
+  //      facilitators to have a word with this person names them, and goes.
+  try {
+    summary.courseWeekReviewsCleared = await clearWeekReviewEntries(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseWeekReviews clear failed:", uid, err);
+    partialFailure = true;
+  }
+  try {
+    summary.reviewFollowUpsDeleted = await deleteReviewFollowUpsAbout(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] review follow-ups delete failed:", uid, err);
+    partialFailure = true;
+  }
+  //      An explainer opens a group's session and is the run's: it stays, and
+  //      this account's id comes off it, as the one explaining or the admin
+  //      who scheduled or cancelled it.
+  try {
+    summary.courseExplainersCleared = await clearExplainerNames(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] explainers clear failed:", uid, err);
+    partialFailure = true;
+  }
+  //      Claude's end-of-week drafts about this account are about it alone,
+  //      and go. A draft or a saved note about somebody else that was built
+  //      from this account's feedback or ratings stays with that person,
+  //      without this account's entries in what it was built from: "the
+  //      ratings you gave" go with the account.
+  try {
+    summary.courseNoteDraftsDeleted = await deleteNoteDraftsAbout(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseNoteDrafts delete failed:", uid, err);
+    partialFailure = true;
+  }
+  try {
+    summary.noteSourcesCleared = await clearNoteSourcesBy(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] note sources clear failed:", uid, err);
     partialFailure = true;
   }
 

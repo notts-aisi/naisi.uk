@@ -125,19 +125,19 @@ const FOOTER = "Nottingham AI Safety Initiative · University of Nottingham · a
 const REPLY_TO = "ai-safety@uonsu.com";
 
 /**
- * How a member's programme page draws their marks (board wk-programme, C26):
+ * How a member's programme page draws their marks:
  * a mark's letter, the dot for a session whose register is not finished yet,
  * the card's line, and the legend's name and order. `MARK_LETTER`,
  * `NOT_YET_MARK`, `MARK_STATE_WORDS`, `MARKS_LINE` and `MARKS_LEGEND_LABEL` in
  * src/lib/courses/memberPageWords.ts and `MARK_ORDER` in
  * src/features/courses/RunHome.tsx, restated. The five marks' words are the
- * register's own (`declaredStatuses`). Not marked, Cancelled and Didn't happen
+ * register's own (`declaredStatuses`). Not filled in, Cancelled and Didn't happen
  * are in the order for completeness: nothing this journey drives draws them.
  */
 const MARK_LETTER = Object.freeze({ present: "P", late: "L", "left-early": "LE", excused: "E", absent: "A" });
 const NOT_YET = Object.freeze({ word: "Not yet", glyph: "·" });
 const MARKS_LINE = "Your facilitators fill these in after each session.";
-const MARKS_LEGEND_LABEL = "What the marks mean";
+const MARKS_LEGEND_LABEL = "What each one means";
 const MARK_ORDER = Object.freeze([
   "present",
   "late",
@@ -331,21 +331,22 @@ function endingWords(ending) {
   };
 
   const nextEmailSentence = (line) => {
+    const email = `Week ${line.weekNumber}’s email`;
     switch (line.state) {
       case "goes":
-        return `Next week’s email goes to ${group} on ${line.at}, whatever happens here.`;
+        return `${email} goes to ${group} on ${line.at}, whatever happens here.`;
       case "went":
-        return `Next week’s email went to ${group} on ${line.at}.`;
+        return `${email} went to ${group} on ${line.at}.`;
       case "waiting-for-week":
-        return `Next week’s email to ${group} is waiting for week ${line.weekNumber} to be published.`;
+        return `${email} to ${group} is waiting for week ${line.weekNumber} to be published.`;
       case "held":
-        return `Next week’s email to ${group} is held: it’s missing ${listOfNames(line.missing)}.`;
+        return `${email} to ${group} is held: it’s missing ${listOfNames(line.missing)}.`;
       case "shortly":
-        return `Next week’s email to ${group} goes out shortly.`;
+        return `${email} to ${group} goes out shortly.`;
       case "missed":
         return `Week ${line.weekNumber} has started without its email.`;
       default:
-        throw new Error(`the register's GET answered a next week's email state this spec does not know: ${line.state}`);
+        throw new Error(`the register's GET answered a state of the week's email this spec does not know: ${line.state}`);
     }
   };
 
@@ -388,7 +389,13 @@ function endingWords(ending) {
   const sends = line ? line.kind === "sends" : ending.hasNext;
   const notes = [];
   if (finished) notes.push("This register is pushed. Everyone can see their mark.");
-  if (!finished && sends) notes.push("If nobody pushes, nobody gets next week’s email.");
+  if (!finished && sends) {
+    notes.push(
+      line?.kind === "sends"
+        ? `If nobody pushes, nobody gets week ${line.weekNumber}’s email.`
+        : "If nobody pushes, nobody gets the next week’s email.",
+    );
+  }
   if (!finished && chase) notes.push(chase);
   const locks = "Locks the register and shows everyone their mark.";
   const kind = line?.kind ?? (ending.hasNext ? "sends" : "last");
@@ -397,7 +404,9 @@ function endingWords(ending) {
     columnButton: "Push",
     effect:
       kind === "sends"
-        ? `Locks the register, shows everyone their mark and emails ${group} about next week.`
+        ? line?.kind === "sends"
+          ? `Locks the register, shows everyone their mark and emails ${group} that week ${line.weekNumber} is open.`
+          : `Locks the register, shows everyone their mark and emails ${group} that the next week is open.`
         : kind === "last"
           ? `${locks} It’s the group’s last session, so nobody’s emailed.`
           : line?.kind === "held"
@@ -570,7 +579,7 @@ test(
     }
 
     /**
-     * What a person's "Your marks" card draws (board wk-programme): a mark for
+     * What a person's "Your sessions" card draws: a mark for
      * every session of their group's from week 1, the week they joined; the
      * week's own mark once its register is finished (`ownRecordOf`), and "Not
      * yet" until then and for every session still to come. Each mark is said
@@ -629,6 +638,8 @@ test(
      * Everything the Overview's "Needs attention" lists once every register is
      * finished, in its order, as [title, detail]: `buildProgrammeOverview` in
      * src/lib/courses/programmeOverview.ts, restated (T2's, with the move).
+     * Read by the admin, who is shown each person by the names rule: the full
+     * name, the fixture's display name.
      */
     function attentionItems(now = new Date()) {
       const items = [];
@@ -755,14 +766,14 @@ test(
     }
 
     /**
-     * The "Your marks" card as drawn (board wk-programme): each mark's name,
+     * The "Your sessions" card as drawn: each mark's name,
      * its letter and its item's words (the letter, then the date under it),
      * the legend's items, and everything the card says. The marks are the
      * list whose items are images; the legend is the list named for what they
      * mean, and its letters are hidden from a screen reader.
      */
     async function readMarks(pg) {
-      const card = pg.getByRole("region", { name: "Your marks", exact: true });
+      const card = pg.getByRole("region", { name: "Your sessions", exact: true });
       await card.waitFor({ timeout: WAIT_MS });
       const items = card.getByRole("list").filter({ has: pg.getByRole("img") }).getByRole("listitem");
       const marks = [];
@@ -786,7 +797,7 @@ test(
       assert.equal(body.ownAttendance.rollup.sessionsHeld, expected.held, `${person.first}'s sessions held`);
       assert.equal(body.ownAttendance.rollup.attendedInFull, expected.inFull, `${person.first}'s sessions in full`);
 
-      // Drawn as board wk-programme draws "Your marks", with no target (C26).
+      // Drawn as the programme page's design draws the card (now "Your sessions": never "marks" in a member's words), with no target.
       // The page this replaced drew a "Your progress" card whose line counted
       // the sessions attended in full ("You have been at 1 of 2 sessions in
       // full so far.") over a row for each finished register; that line is
@@ -822,7 +833,7 @@ test(
       // them. (Text content joins the card's elements with no space between.)
       assert.equal(
         drawn.said,
-        ["Your marks", ...marks.map((mark) => `${mark.glyph}${mark.date}`), ...legend, MARKS_LINE].join(""),
+        ["Your sessions", ...marks.map((mark) => `${mark.glyph}${mark.date}`), ...legend, MARKS_LINE].join(""),
         `${person.first}'s marks card says something besides its heading, marks, legend and line`,
       );
       for (const other of state.people.filter((each) => each !== person)) {
@@ -990,7 +1001,7 @@ test(
           "Change a session does not lead to the group's sessions",
         );
 
-        // Since board wk-fac-group the page is drawn on the server, in the
+        // Since the restyle of the facilitator's group page, the page is drawn on the server, in the
         // board's words. The head: the group, and the line of its programme,
         // day, time and room. Fern facilitates alone, so the line names no
         // other facilitator.
@@ -1027,20 +1038,26 @@ test(
           "Take the register does not lead to the group's register",
         );
 
-        // Your group: the group's two people by their whole names, each with
-        // the marks of the two finished registers (this week's nobody has
-        // opened), and the board's line about names.
+        // Your group: the group's two people by the names they go by
+        // (`fullNameOfUser`, the fixture's `first`; a facilitator is shown
+        // nothing more), each with the marks of the two finished registers
+        // (this week's nobody has opened), and the board's line about names.
         ending = await readEnding();
         const roster = facilitatorPage.getByTestId("group-roster");
         await roster.waitFor({ timeout: WAIT_MS });
         assert.equal(flat(await roster.getByRole("heading", { level: 2 }).innerText()), "Your group");
         const rows = roster.getByRole("list", { name: "Members of this group" }).getByRole("listitem");
         assert.equal(await rows.count(), inGroup.length, "Your group does not list the group's two people");
-        // In the order of their whole names, as the lead's tabs list people.
-        const byWholeName = [...inGroup].sort((a, b) => a.displayName.localeCompare(b.displayName, "en-GB") || a.uid.localeCompare(b.uid));
-        for (const [index, person] of byWholeName.entries()) {
+        // In the order of the names shown, as the lead's tabs list people.
+        const byName = [...inGroup].sort((a, b) => a.first.localeCompare(b.first, "en-GB") || a.uid.localeCompare(b.uid));
+        for (const [index, person] of byName.entries()) {
           const row = rows.nth(index);
-          assert.ok(flat(await row.innerText()).startsWith(`${initialsOf(person.displayName)} ${person.displayName}`), `row ${index} is not ${person.displayName}`);
+          const rowSaid = flat(await row.innerText());
+          // The disc's initials, then the whole name, never the start of a longer one.
+          assert.ok(
+            new RegExp(`^${escapeRegExp(initialsOf(person.first))} ${escapeRegExp(person.first)}(?![a-z])`).test(rowSaid),
+            `row ${index} is not ${person.first}: ${rowSaid}`,
+          );
           const marks = row.getByRole("img");
           assert.equal(await marks.count(), thisWeek - 1, `${person.first}'s row has a mark for a register that is not finished`);
           for (const weekNumber of weeks.filter((n) => n < thisWeek)) {
@@ -1070,8 +1087,8 @@ test(
           assert.equal(text, expected, `week ${weekNumber}'s register row`);
         }
 
-        // The register itself is a page of its own beside the group's (board
-        // wk-register), and "Take the register" leads there.
+        // The register itself is a page of its own beside the group's,
+        // and "Take the register" leads there.
         await card.getByRole("link", { name: "Take the register", exact: true }).click();
         await facilitatorPage
           .getByRole("heading", { name: `${facilitated.name}’s register`, level: 1 })
@@ -1132,7 +1149,7 @@ test(
         assert.equal(ending.hasNext, true, "the register says this is the group's last session");
         // What pressing this week's register emails, as the GET answers it for
         // the foot and the confirm alike, from the push's own decision: week 4
-        // is not published, so while the push sends next week's email it sends
+        // is not published, so while the push sends "Week 4 is open" it sends
         // nobody one, and on the schedule finishing never does.
         assert.deepEqual(
           ending.pushEmails,
@@ -1220,8 +1237,8 @@ test(
           await textsOf(confirm.getByRole("listitem")),
           [
             ending.scheduled
-              ? "Nobody’s emailed. Next week’s email goes on its own schedule, whatever happens here."
-              : // While next week's email is not on its schedule, the confirm
+              ? "Nobody’s emailed. Each week’s email goes on its own schedule, whatever happens here."
+              : // While the week's email is not on its schedule, the confirm
                 // says what the push will do with it, from the register's GET:
                 // the session after this one in the group's whole schedule
                 // (week 4, not the register's columns, which hold only the
@@ -1238,11 +1255,11 @@ test(
         // Everybody is marked, so nobody is about to be counted absent for want of a mark.
         assert.ok(!(await textOf(confirm)).includes("no mark yet"), "the confirm warns of somebody unmarked");
 
-        // Week 4 is not published, so while the push sends next week's email it
+        // Week 4 is not published, so while the push sends "Week 4 is open" it
         // has nothing to send yet, and while the schedule sends it, finishing
         // never does: either way, this press emails nobody.
         const reason = ending.scheduled
-          ? "Next week’s email goes on its schedule, so finishing the register emailed nobody."
+          ? "Each week’s email goes on its schedule, so finishing the register emailed nobody."
           : // The push's answer says who marks the week ready to the facilitator who pressed: the
             // programme's lead by name, or here, where the programme has no lead, an admin.
             `Week ${nextWeek} isn’t published yet, so nobody was emailed. An admin marks it ready.`;
@@ -1573,7 +1590,7 @@ test(
           // A move takes no evening off, so there is no notice of one.
           assert.equal(body.group?.sessionNotice, null, `${person.first} is told an evening is off`);
 
-          // The page's ticket is the group's NEXT session (board wk-programme),
+          // The page's ticket is the group's NEXT session,
           // so the member reads the move there too: the day and hours it moved
           // to, its room, and that the room is not the group's own this week.
           // (The page this replaced drew THIS week's session in that place,
@@ -1727,6 +1744,7 @@ test(
             for (const expected of [
               `${day} · ${londonClockLabel(session.startsAt)}`,
               group.room,
+              // The admin is shown the facilitator by the names rule: in full.
               group === facilitated ? fern.displayName : "No facilitator yet",
               `Register ${word()}`,
               `${came} of ${members.length} came`,
@@ -1796,7 +1814,7 @@ test(
               `${weekdays[group.weekday]}s ${clockWords(group.startTimeLocal)} · ${group.room}`,
               `Week ${nextWeek}`,
               `${session.dateKey === todayKey ? "Today" : dayLabel(session.dateKey)}, ${clockWords(moved ? MOVE.startTimeLocal : group.startTimeLocal)}`,
-              ...(moved ? [fern.displayName, MOVE.room, "Moved"] : []),
+              ...(moved ? [fern.first, MOVE.room, "Moved"] : []),
             ];
             for (const words of expected) {
               assert.ok(said.includes(words), `${group.name}'s card on the Sessions view does not say ${JSON.stringify(words)}: ${said}`);

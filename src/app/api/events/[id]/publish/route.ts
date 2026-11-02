@@ -1,13 +1,28 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
-import { sendEventAnnouncement } from "@/lib/email/eventAnnouncement";
+import { announcementReach, sendEventAnnouncement } from "@/lib/email/eventAnnouncement";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { canApproveEvent } from "@/lib/firestore/users";
 import { baseUrl } from "@/lib/events/rsvpToken";
 import { formatEventWhen } from "@/lib/events/changeSummary";
+import {
+  INVITATION_WORDS,
+  ceilingRefusal,
+  claimInvitationSlots,
+  invitationRecord,
+  planForStoredChoice,
+  deliverInvitations,
+  type Invitee,
+  type InvitationPlan,
+} from "@/lib/events/invitations";
 import { hiddenLocationLacksLabel, publicLocationLine } from "@/lib/events/location";
+import { announces, guestsMayHear, isForChosenPeople } from "@/lib/events/reach";
+import { EVENT_INVITATIONS_COLLECTION, eventInvitationId } from "@/lib/firestore/eventInvitations";
+import { normalizeEvent } from "@/lib/firestore/events";
 import { announcementQueueEnabled } from "@/lib/scheduler/announcementQueue";
+import { setUpEventSurvey } from "@/lib/surveys/events/setUp";
 
 /**
  * Server-only transition from "approved" to "published". Firestore rules block
@@ -70,6 +85,32 @@ import { announcementQueueEnabled } from "@/lib/scheduler/announcementQueue";
  * workers have already delivered, so a retry there would re-mail people. A
  * partial send keeps its claim for the same reason.
  *
+ * ── AN EVENT THAT DOES NOT ANNOUNCE ─────────────────────────────────────────
+ * Who an event is for decides whether it is announced at all
+ * (`announces` in src/lib/events/reach.ts): a listed event whose organiser
+ * switched the announcement off claims nothing and sends nothing, and an
+ * event for chosen people is never announced. Its people are INVITED
+ * instead, below.
+ *
+ * ── AN EVENT FOR CHOSEN PEOPLE: THE LIST AND ITS INVITATIONS ────────────────
+ * Who it invites is worked out BEFORE the transaction, from the choice its
+ * organiser made, in their world (src/lib/events/invitations.ts), and the
+ * press is refused, with nothing written, when that choice can no longer be
+ * resolved, reaches nobody, or is over a ceiling, or when the lane's caps
+ * refuse. The transaction then writes the whole list, one document a person,
+ * in the same write that publishes, so a published event always has its
+ * invitees: it shows on their Home and opens for them from that moment. The
+ * emails go after it, best effort, and how each went is written back onto
+ * that person's document. The author is on the list and never emailed.
+ *
+ * ── AND THE SURVEY AFTER IT ─────────────────────────────────────────────────
+ * Publishing sets up the event's survey from its editor's Survey after step
+ * (`setUpEventSurvey`): a draft that opens itself at the event's start and
+ * goes when the step said. An event with no stored setting, or one switched
+ * off, has none. Like the announcement it is best effort after the write: a
+ * survey that could not be set up says so in the answer (`surveyNotSetUp`),
+ * and Save on the event's Survey after tab sets it up again.
+ *
  * ── PUBLISHING NEVER FAILS BECAUSE THE ANNOUNCEMENT FAILED ──────────────────
  * The write is committed first and the send is best effort inside a try/catch,
  * exactly as the stage-release job treats its push. An event that went live
@@ -80,6 +121,9 @@ export async function POST(
   _req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  const blocked = await assertNotImpersonating();
+  if (blocked) return blocked;
+
   const actor = await getCurrentUser();
   if (!actor) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
@@ -96,6 +140,28 @@ export async function POST(
   }
 
   const ref = db.collection("events").doc(id);
+
+  // WHO AN EVENT FOR CHOSEN PEOPLE INVITES, worked out before anything is
+  // written. See the header: a press that cannot invite anybody, or would be
+  // over a ceiling, is refused here and changes nothing.
+  const before = await ref.get();
+  if (!before.exists) {
+    return NextResponse.json({ error: "Event not found" }, { status: 404 });
+  }
+  const planned = normalizeEvent(id, before.data() ?? {});
+  let invitations: InvitationPlan | null = null;
+  if (isForChosenPeople(planned) && planned.status === "approved") {
+    const plan = await planForStoredChoice(db, planned, new Date());
+    if (!plan.ok) return NextResponse.json({ error: plan.error }, { status: plan.status });
+    if (plan.plan.count.home === 0) {
+      return NextResponse.json({ error: INVITATION_WORDS.nobody }, { status: 400 });
+    }
+    const over = ceilingRefusal(plan.plan.count);
+    if (over) return NextResponse.json({ error: over }, { status: 400 });
+    const slots = await claimInvitationSlots(db, id, actor.uid, plan.plan.count);
+    if (!slots.ok) return NextResponse.json({ error: slots.refusal }, { status: 429 });
+    invitations = plan.plan;
+  }
 
   // WHICH PATH THIS PUBLISH TAKES, decided once and before the transaction.
   // Through the same helper and the same `enabledByDefault` the tick uses, so
@@ -136,7 +202,21 @@ export async function POST(
           "You've hidden the exact location. Add a fuzzy label to show publicly (e.g. 'somewhere on campus') before publishing.",
       };
     }
-    const announce = !current.announcedAt;
+    // Who it is for has to be what the plan above was made for: an event made
+    // for chosen people, or made listed, in the moment between.
+    if (isForChosenPeople(current) !== (invitations !== null)) {
+      return { ok: false as const, status: 409, error: INVITATION_WORDS.changed };
+    }
+    // Every read before every write: whether anybody planned is on the list
+    // already (nobody, unless the document was moved back by hand).
+    const listed = invitations
+      ? await Promise.all(
+          invitations.invitees.map((invitee) =>
+            tx.get(db.collection(EVENT_INVITATIONS_COLLECTION).doc(eventInvitationId(id, invitee.uid))),
+          ),
+        )
+      : [];
+    const announce = !current.announcedAt && announces(current);
     tx.update(ref, {
       status: "published",
       publishedAt: FieldValue.serverTimestamp(),
@@ -151,20 +231,62 @@ export async function POST(
           }
         : {}),
     });
-    return { ok: true as const, announce, event: current };
+    const created: Invitee[] = [];
+    invitations?.invitees.forEach((invitee, index) => {
+      if (listed[index]?.exists) return;
+      tx.set(
+        db.collection(EVENT_INVITATIONS_COLLECTION).doc(eventInvitationId(id, invitee.uid)),
+        invitationRecord(id, invitee, actor.uid, "publish"),
+      );
+      created.push(invitee);
+    });
+    return { ok: true as const, announce, event: current, created };
   });
 
   if (!claim.ok) {
     return NextResponse.json({ error: claim.error }, { status: claim.status });
   }
+  // The survey after it, from the step, before anybody is told: published
+  // either way, and every answer below says when it could not be set up.
+  let surveyNotSetUp: string | null = null;
+  try {
+    const set = await setUpEventSurvey(db, id, actor.uid, new Date());
+    if (!set.ok) surveyNotSetUp = set.error;
+  } catch (err) {
+    console.error("[event publish] the survey after it could not be set up", id, err);
+    surveyNotSetUp = "Something went wrong setting it up.";
+  }
+  const respond = (body: Record<string, unknown>) =>
+    NextResponse.json(surveyNotSetUp ? { ...body, surveyNotSetUp } : body);
+  if (invitations) {
+    // Published, with its list. The invitations go now, and never turn a
+    // published event into a failed publish: a send that throws is logged and
+    // reported, and the people on the list see it on their Home either way.
+    try {
+      const tally = await deliverInvitations(db, {
+        event: normalizeEvent(id, claim.event),
+        invitees: claim.created,
+        actorUid: actor.uid,
+      });
+      return respond({
+        ok: true,
+        announced: false,
+        invited: { home: invitations.count.home, emailed: tally.emailed, failed: tally.failed },
+      });
+    } catch (err) {
+      console.error("[event publish] invitations failed", id, err);
+      return respond({ ok: true, announced: false, invitationsFailed: true });
+    }
+  }
   if (!claim.announce) {
-    // Already announced on an earlier publish. The event is live either way.
-    return NextResponse.json({ ok: true, announced: false });
+    // Already announced on an earlier publish, or its organiser switched the
+    // announcement off. The event is live either way.
+    return respond({ ok: true, announced: false });
   }
   if (queueIt) {
     // Queued, and this request is done. `announced` is false because nobody
     // has been told yet, which is the same word it has always meant here.
-    return NextResponse.json({
+    return respond({
       ok: true,
       announced: false,
       announcementQueued: true,
@@ -172,7 +294,8 @@ export async function POST(
   }
 
   const event = claim.event;
-  const membersOnly = event.visibility === "members";
+  // An event that needs an account drops guest rows from the list.
+  const membersOnly = !guestsMayHear(event);
   // The PUBLIC location: this list is not the attendee list, so a hidden
   // location shows its placeholder here and the exact room stays behind a
   // confirmed RSVP. `@/lib/events/location` is the one place that decides.
@@ -209,7 +332,7 @@ export async function POST(
         // is a missing announcement, not a failed publish.
         console.error("[event publish] could not release the announcement claim", id, err);
       }
-      return NextResponse.json({
+      return respond({
         ok: true,
         announced: false,
         announcementRefused: true,
@@ -224,7 +347,7 @@ export async function POST(
     // `announced` is whether anybody was actually told, not whether the attempt
     // ran. A publisher reading `true` over an empty send would have no way to
     // learn that nobody heard.
-    return NextResponse.json({
+    return respond({
       ok: true,
       announced: result.sent > 0 || result.pushed > 0,
       announcement: result,
@@ -233,6 +356,104 @@ export async function POST(
     // The event is published. A failed announcement is logged and reported, and
     // is never allowed to look like a failed publish. See the header.
     console.error("[event publish] announcement failed", id, err);
-    return NextResponse.json({ ok: true, announced: false, announcementFailed: true });
+    return respond({ ok: true, announced: false, announcementFailed: true });
+  }
+}
+
+/**
+ * HOW MANY PUBLISHING WOULD REACH, asked before the press that sends.
+ *
+ * The Publish confirm says how many people the announcement emails and how
+ * many of them also get a notification. The subscriber list is closed to an
+ * approver who is not an admin, so the number comes from here, counted by the
+ * send's own audience functions (`announcementReach`) on the path this publish
+ * would take, read from the same switch as the press above.
+ *
+ * THE SAME GATE AS THE PRESS, written the same way: whoever may publish may
+ * ask, and nobody else learns even how long the list is. COUNTS ONLY, never an
+ * address or a uid. READS ONLY: it claims nothing, writes nothing and sends
+ * nothing, as every GET here must (`tests/get-handlers-readonly.test.mjs`).
+ *
+ * A count that cannot be had comes back as null, never as a guess: a list over
+ * the path's ceiling, which the send would refuse, or a leg that could not be
+ * read. The editor then says what it said before there was a number, and
+ * Publish still works. An event already announced reaches nobody, because the
+ * press would announce nothing again.
+ */
+export async function GET(
+  _req: Request,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  const actor = await getCurrentUser();
+  if (!actor) {
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
+  const allowed = canApproveEvent(actor);
+  if (!allowed) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id } = await ctx.params;
+  const db = getAdminDb();
+  if (!db) {
+    return NextResponse.json({ error: "Server not configured" }, { status: 500 });
+  }
+
+  const snap = await db.collection("events").doc(id).get();
+  if (!snap.exists) {
+    return NextResponse.json({ error: "Event not found" }, { status: 404 });
+  }
+  const event = snap.data() ?? {};
+  // AN EVENT FOR CHOSEN PEOPLE announces nothing: the confirm counts its
+  // invitations instead, with the press's own plan, so the number it shows is
+  // the number publishing sends. Counts only.
+  if (isForChosenPeople(event)) {
+    let plan: Awaited<ReturnType<typeof planForStoredChoice>>;
+    try {
+      plan = await planForStoredChoice(db, normalizeEvent(id, event), new Date());
+    } catch (err) {
+      console.error("[event publish count] invitations uncountable", id, err);
+      return NextResponse.json({ error: "We couldn’t count the invitations just now." }, { status: 500 });
+    }
+    if (!plan.ok) return NextResponse.json({ error: plan.error }, { status: plan.status });
+    const { count } = plan.plan;
+    return NextResponse.json({
+      ok: true,
+      emailed: 0,
+      notified: 0,
+      invited: { home: count.home, emails: count.emails, overCeiling: count.overCeiling },
+    });
+  }
+  if (event.announcedAt) {
+    return NextResponse.json({ ok: true, emailed: 0, notified: 0 });
+  }
+  // A listed event whose organiser switched the announcement off reaches
+  // nobody, and the confirm says it won't be announced.
+  if (!announces(event)) {
+    return NextResponse.json({ ok: true, emailed: 0, notified: 0, announces: false });
+  }
+
+  // The press's own fallback: a switch that cannot be read means the inline
+  // path, so the count is that path's.
+  let queued = false;
+  try {
+    queued = await announcementQueueEnabled(db);
+  } catch (err) {
+    console.error("[event publish count] scheduler switch unreadable, counting inline", id, err);
+  }
+
+  try {
+    const reach = await announcementReach(
+      db,
+      { eventId: id, membersOnly: !guestsMayHear(event) },
+      { queued },
+    );
+    return NextResponse.json({ ok: true, emailed: reach.emailed, notified: reach.notified });
+  } catch (err) {
+    console.error("[event publish count] audience unreadable", id, err);
+    return NextResponse.json(
+      { error: "Couldn't count the events list just now." },
+      { status: 500 },
+    );
   }
 }

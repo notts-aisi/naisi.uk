@@ -1,7 +1,7 @@
 /**
  * The end of AGI Strategy's run, and its certificates, for the suites about
- * them (`tests/course-hub-certificates-*.test.mjs`; boards en-cert,
- * en-cert-phone, en-finish's Certificates section and en-after-phone's card).
+ * them (`tests/course-hub-certificates-*.test.mjs`: the certificate page, the
+ * Overview's Certificates section and the programme page's card after the end).
  *
  * ## What it is made of
  *

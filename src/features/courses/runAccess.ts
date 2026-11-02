@@ -89,7 +89,7 @@ export type RunAccess = {
    */
   groups: CourseGroupDoc[];
   /**
-   * WEEK 1 BEFORE GROUPS GO OUT (Q35 B): the place this person holds on the
+   * WEEK 1 BEFORE GROUPS GO OUT: the place this person holds on the
    * programme that names the run, when week 1's door is open to them
    * (`weekOneDoorFor`, the one answer) and they have no other way in. Null
    * for everybody else, and never set beside `canLearn` or `hasLeft`.
@@ -169,7 +169,7 @@ export const getRunAccess = cache(
     // A placement nobody has told its owner about is not there for them: the
     // run stays shut and every page under it redirects, as it did before an
     // admin placed them. Publish's email is what opens it. The one change,
-    // on purpose (Q35 B): week 1 alone, through its door (`beforeGroups`).
+    // on purpose: week 1 alone, through its door (`beforeGroups`).
     const enrolment =
       stored && placementIsShownTo(stored, { isAdmin }) ? stored : null;
     // Withdrawn / removed enrolments lose access the moment they are written,

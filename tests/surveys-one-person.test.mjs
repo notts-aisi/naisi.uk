@@ -1,6 +1,6 @@
 /**
- * ONE PERSON'S ANSWERS, OPENED BY AN ADMIN (board sv-person; docs/surveys.md,
- * "One person's answers"), THROUGH THE REAL ROUTE, PAGE AND LIBRARIES.
+ * ONE PERSON'S ANSWERS, OPENED BY AN ADMIN (docs/surveys.md, "One person's
+ * answers"), THROUGH THE REAL ROUTE, PAGE AND LIBRARIES.
  *
  * What is held here:
  *
@@ -195,7 +195,7 @@ describe("1. only an admin opens one person's answers, and a refusal records and
     }
     assert.deepEqual([...new Set(touched)], ["surveys"], "the page read something besides the survey");
     assert.equal(w.everything(), before, "drawing the page wrote something");
-    assert.equal(page.text, "Surveys › AGI Strategy: after › Who answered Opening the answers…");
+    assert.equal(page.text, "Surveys › AGI Strategy: after › Answers Opening the answers…");
     for (const word of ["Amara", "Okafor", "To explain the risk", "Group B"]) assert.ok(!page.text.includes(word), `the page drew ${word} before any opening`);
     assert.deepEqual(openings(), [], "drawing the page recorded an opening");
     // A survey address that opens no survey says so, as every survey page does.
@@ -345,7 +345,7 @@ describe("2. every opening is recorded before anything of the person is read", (
   test("the one writer, and its one caller: recorded first, then read", () => {
     const person = stripSource(read("lib", "surveys", "onePerson.ts"), { keepStrings: true });
     const recorded = person.indexOf("const opened = await openSurveyAnswersRecorded(");
-    const readsPerson = person.indexOf("() => readPerson(db, survey, shown, subject),");
+    const readsPerson = person.indexOf("() => readPerson(db, survey, shown, subject, actor),");
     assert.ok(recorded > -1 && readsPerson > recorded, "the person is read outside the recorded read");
     assert.equal(person.split("readPerson(").length, 3, "readPerson is called somewhere else too");
     assert.match(person, /if \(!opened\.ok\) return \{ kind: "not-recorded" \};/);
@@ -364,6 +364,7 @@ describe("3. what an admin sees: the change questions side by side, each survey'
   test("Amara's answers, every word the surveys' own", async (t) => {
     const { before, after } = await bothAnswered(t);
     const { person } = (await open("zach", after, "amara")).body;
+    // By the names rule for the admin opening it: in full.
     assert.equal(person.name, "Amara Okafor");
     assert.equal(person.key, "amara");
     assert.deepEqual(person.meta, ["Fellowship: AGI Strategy", "Group B", "Answered both"]);
@@ -507,7 +508,7 @@ describe("3. what an admin sees: the change questions side by side, each survey'
     assert.equal(PERSON_WORDS.heading, "One person’s answers");
     // Before the route answers, the page says it is opening, and draws nothing of anybody.
     const first = textOf(renderToStaticMarkup(w.createElement(drawn.default, { surveyId: after, surveyName: "AGI Strategy: after", who: "amara" })));
-    assert.equal(first, "Surveys › AGI Strategy: after › Who answered Opening the answers…");
+    assert.equal(first, "Surveys › AGI Strategy: after › Answers Opening the answers…");
   });
 });
 
@@ -556,10 +557,20 @@ describe("3c. each reader keeps only what is the person's, whatever a query hand
     w.world.db.seed("recordOpenings/card", { kind: "sealed-predictions", actorUid: "zach", actorName: "Zach Levin", subjectUid: "amara", runId: RUN.agi, openedAt: OPENED });
     w.world.db.seed("recordOpenings/bea", row({ subjectUid: "bea" }));
     w.world.db.seed("recordOpenings/guest", { ...row({}), subjectUid: undefined, subjectSignupId: "amara" });
+    // Names opened on a survey's own pages: the Answers tab that showed Amara's, a bar Bea alone was behind.
+    const named = (over) => ({ kind: "survey-table", actorUid: "zach", actorName: "Zach Levin", surveyId: "s2", subjectUids: ["amara", "bea"], subjectSignupIds: [], openedAt: new Date("2026-12-01T09:00:00Z"), ...over });
+    w.world.db.seed("recordOpenings/table", named({}));
+    w.world.db.seed("recordOpenings/bar", named({ kind: "survey-bar", subjectUids: ["bea"] }));
+    w.world.db.seed("recordOpenings/guestBar", named({ kind: "survey-bar", subjectUids: [], subjectSignupIds: ["amara"] }));
     const listed = await log.surveyAnswersOpeningsOf(w.world.db, { kind: "account", uid: "amara" });
-    assert.deepEqual(listed.map((each) => each.id), ["new", "old"]);
-    assert.deepEqual(Object.keys(listed[0]).sort(), ["actorName", "actorUid", "at", "id", "surveyIds"]);
-    assert.deepEqual((await log.surveyAnswersOpeningsOf(w.world.db, { kind: "guest", signupId: "amara" })).map((each) => each.id), ["guest"]);
+    assert.deepEqual(listed.map((each) => each.id), ["new", "table", "old"]);
+    assert.deepEqual(Object.keys(listed[0]).sort(), ["actorName", "actorUid", "at", "id", "kind", "people", "surveyIds"]);
+    assert.deepEqual(listed.map((each) => [each.kind, each.people, each.surveyIds]), [
+      ["survey-answers", 1, ["s1"]],
+      ["survey-table", 2, ["s2"]],
+      ["survey-answers", 1, ["s1"]],
+    ]);
+    assert.deepEqual((await log.surveyAnswersOpeningsOf(w.world.db, { kind: "guest", signupId: "amara" })).map((each) => each.id), ["guest", "guestBar"]);
   });
 
   test("a person's rows and answers, even from a query that hands back everybody's", async (t) => {
@@ -592,17 +603,23 @@ describe("3c. each reader keeps only what is the person's, whatever a query hand
 });
 
 // ---------------------------------------------------------------------------
-// 4. Who answered opens each person
+// 4. The Answers tab opens each person
 // ---------------------------------------------------------------------------
 
-describe("4. Who answered links each name to that person's answers", () => {
+describe("4. the Answers tab links each name to that person's answers", () => {
   test("each row opens its person's page, by uid", async (t) => {
     const { after } = await bothAnswered(t);
-    const page = await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: after }) }, "zach");
-    for (const uid of ["amara", "bea", "dev", "tariq"]) {
-      assert.ok(page.html.includes(`href="/admin/surveys/${after}/answered/${uid}"`), `${uid} has no link`);
-    }
-    assert.deepEqual(openings(), [], "drawing Who answered recorded an opening");
+    await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: after }) }, "zach");
+    assert.deepEqual(openings(), [], "drawing the Answers tab's page recorded an opening");
+    // The tab's rows, once its route has recorded the opening: Amara answered, the rest were sent it.
+    const tabRoute = await w.loadTs(join("app", "api", "surveys", "[surveyId]", "answers", "route.ts"));
+    const view = (await call("zach", tabRoute.POST, { surveyId: after })).body.answers;
+    assert.deepEqual(
+      [...view.rows.map((row) => row.who), ...view.notAnswered.map((person) => person.who)].sort(),
+      ["amara", "bea", "dev", "tariq"],
+    );
+    const tab = await w.loadTs(join("features", "surveys", "admin", "AnswersTab.tsx"));
+    assert.equal(tab.personHref(after, "amara"), `/admin/surveys/${after}/answered/amara`);
     assert.equal(layout.whoOf({ kind: "account", uid: "amara" }), "amara");
     assert.equal(layout.whoOf({ kind: "guest", signupId: "rsvp-1" }), "g_rsvp-1");
   });
@@ -645,7 +662,7 @@ describe("6. a survey after an event: an account's answers, and a guest's", asyn
   const ANSWERS = {
     q_ev_how: { type: "rating", value: 5 },
     q_ev_again: { type: "choice", optionId: "o_ev_yes" },
-    q_ev_next: { type: "choices", optionIds: ["o_ev_games", "o_ev_quiz"] },
+    q_ev_next_text: { type: "text", text: "A quiz night" },
     // Required since 30 Oct 2026, as every question not marked optional.
     q_ev_heard: { type: "choice", optionId: "o_ev_friend" },
     q_ev_change: { type: "text", text: "More headsets." },
@@ -683,7 +700,7 @@ describe("6. a survey after an event: an account's answers, and a guest's", asyn
     assert.equal(person.change, null);
     assert.equal(person.rest.length, 1);
     assert.equal(person.rest[0].columns[0].label, "Answers");
-    assert.deepEqual(rowsOf(person.rest[0]).slice(0, 2), ["-. How was it? {1 Not good to 5 Great} => 4", "-. Would you come to another NAISI social? => Maybe"]);
+    assert.deepEqual(rowsOf(person.rest[0]).slice(0, 2), ["-. How was it? {1 Not good to 5 Great} => 4", "-. Would you come to another? => Maybe"]);
     assert.ok(rowsOf(person.rest[0]).includes("-. Anything we should change? => No answer"), "an optional question left blank says so");
     assert.deepEqual(person.namesOff, ["Gwen’s name comes off on Wed 1 Nov 2028. Their answers stay in the totals."]);
     const [row] = eventOpenings();
@@ -694,8 +711,8 @@ describe("6. a survey after an event: an account's answers, and a guest's", asyn
     const kofi = (await e.call("zach", eventOpening.POST, { surveyId: id, who: "kofi" })).body.person;
     assert.deepEqual(rowsOf(kofi.rest[0]).slice(0, 3), [
       "-. How was it? {1 Not good to 5 Great} => 5",
-      "-. Would you come to another NAISI social? => Yes",
-      "-. What should we run next? {Pick any} => Another games night / A quiz",
+      "-. Would you come to another? => Yes",
+      "-. What should we run next? => A quiz night",
     ]);
     // Neither page holds the other's answers, and the organiser opens nothing.
     assert.ok(!JSON.stringify(person).includes("More headsets."));
@@ -717,10 +734,10 @@ describe("6. a survey after an event: an account's answers, and a guest's", asyn
     assert.deepEqual(gwensOwn.answer.answers, withEveryRequired(eventItems, full.items, { q_ev_how: { type: "rating", value: 4 }, q_ev_again: { type: "choice", optionId: "o_ev_maybe" } }));
     const kofisOwn = await store.eventPersonOn(loose, full, { kind: "account", uid: "kofi" });
     assert.deepEqual(kofisOwn.answer.respondent, { kind: "account", uid: "kofi" });
-    // Who answered links the guest by their sign-up.
-    const tab = await e.page("app/(app)/admin/(admin-only)/surveys/[surveyId]/answered/page.tsx", { params: Promise.resolve({ surveyId: id }) }, "zach");
-    assert.ok(tab.html.includes(`href="/admin/surveys/${id}/answered/g_${RSVP.gwen}"`));
-    assert.ok(tab.html.includes(`href="/admin/surveys/${id}/answered/kofi"`));
+    // The Answers tab links the guest by their sign-up.
+    const tabRoute = await e.loadTs(join("app", "api", "surveys", "[surveyId]", "answers", "route.ts"));
+    const tab = (await e.call("zach", tabRoute.POST, { surveyId: id })).body.answers;
+    assert.deepEqual(tab.rows.map((row) => row.who).sort(), [`g_${RSVP.gwen}`, "kofi"]);
     assert.ok(EVENT_ID);
   });
 });

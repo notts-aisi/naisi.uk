@@ -14,7 +14,7 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
 /**
  * THE PROGRAMME'S LEAD GIVING FEEDBACK ON WRITTEN ANSWERS (Zach, Mon 26 Oct:
  * a facilitator's own answer is read, and given feedback, by the lead or an
- * admin): the review page (boards wk-review, wk-review-phone) for one group
+ * admin): the review page for one group
  * of the run the programme names, at
  * `.../programmes/[programmeId]/written?group=&week=&person=`, reached from
  * the Attendance tab's "Written answers" card.

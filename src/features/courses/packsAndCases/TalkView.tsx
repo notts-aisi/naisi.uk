@@ -22,8 +22,7 @@ import type { Picks } from "./usePicks";
 import styles from "./packsAndCases.module.css";
 
 /**
- * A TALK ON THE WEEK PAGE (plan item 8; Q32 A; boards wk-week,
- * wk-week-phone and wk-week6-phone).
+ * A TALK ON THE WEEK PAGE.
  *
  *  - THE CASE STUDY (a talk with cases, given out at the end of the session
  *    before): "Your case study" with the guide's words, then "Your case": its
@@ -74,7 +73,7 @@ function Check() {
 
 /**
  * "Ready for my talk": the person's own mark, in a 44px row: under a rule in
- * the case card, or in a box of its own under a pitch (wk-week6-phone).
+ * the case card, or in a box of its own under a pitch.
  */
 function ReadyBox({ props, given, boxed = false }: { props: Props; given: boolean; boxed?: boolean }) {
   const hydrated = useHydrated();

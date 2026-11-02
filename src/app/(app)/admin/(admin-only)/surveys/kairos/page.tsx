@@ -7,11 +7,12 @@ import { readRunEndById } from "@/lib/courses/finishing/record";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { listKairosProgrammes } from "@/lib/kairos/programmes";
 import { KAIROS_FILE_WORDS, KAIROS_REPORT_WORDS } from "@/lib/kairos/words";
+import { REPORTS_WORDS } from "@/lib/reports/words";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Run NAISI › Surveys › Kairos: what goes to Kairos, programme by programme.
+ * Run NAISI › Reports › Kairos: what goes to Kairos, programme by programme.
  * Each programme that names a course run has the Kairos file (a logged
  * download, once its last session is over) and the Kairos report of totals.
  *
@@ -28,7 +29,7 @@ export default async function KairosPage() {
       <PageHead
         title={KAIROS_FILE_WORDS.title}
         description={KAIROS_FILE_WORDS.lede}
-        crumb={<Link href="/admin/surveys">Surveys</Link>}
+        crumb={<Link href="/admin/reports">{REPORTS_WORDS.title}</Link>}
       />
       {programmes.length === 0 ? (
         <p className={styles.line}>{KAIROS_FILE_WORDS.none}</p>

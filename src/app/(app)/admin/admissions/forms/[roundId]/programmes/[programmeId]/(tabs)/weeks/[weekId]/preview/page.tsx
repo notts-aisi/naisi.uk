@@ -14,7 +14,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
 /**
- * "PREVIEW AS A FELLOW" (board pr-weeks): one week of the run a programme
+ * "PREVIEW AS A FELLOW": one week of the run a programme
  * names, drawn by the member's own week page as somebody taking part reads
  * it, with nothing ticked or written and nothing that can be pressed
  * (`loadWeekPreview`). `?group=<id>` previews a group's own copy of the week,

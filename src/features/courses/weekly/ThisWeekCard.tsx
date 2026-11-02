@@ -20,6 +20,7 @@ import { weekDocId } from "@/lib/firestore/courses";
 import type { OverviewThisWeek, OverviewThisWeekRow } from "@/app/api/courses/runs/[runId]/overview/route";
 import { TASK_DONE, TASK_MARK_WORDS } from "@/lib/courses/memberPageWords";
 import { draftStateWords, feedbackFromWords, sentOnWords } from "@/lib/courses/writtenAnswerWords";
+import { NOT_SUBMITTED } from "@/lib/courses/weekWork/words";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { handedTaskDone, handedTasksDone, isCounted } from "@/lib/courses/weekBlocks/progress";
 import { NOT_GIVEN_YET, NOT_READY_YET } from "@/lib/courses/packsAndCases/words";
@@ -29,7 +30,7 @@ import type { MaterialTicks } from "./useMaterialTicks";
 import styles from "./weekly.module.css";
 
 /**
- * "This week" (wk-programme) and "Before your first session" (st-programme):
+ * "This week" and "Before your first session":
  * the week the reader is in, its dates, what is done of it, and the way into
  * it. Before the first session the card lists week 1's readings to tick, as
  * the board draws it; once the programme has started it says how much is done
@@ -41,8 +42,8 @@ import styles from "./weekly.module.css";
  *
  * A WEEK WRITTEN AS BLOCKS (`thisWeek`) counts by This week's tasks, worked
  * out in `src/lib/courses/weekBlocks/progress.ts`: "0 of 1 done" for week 1.
- * Once the programme has started the card draws the tasks (board
- * wk-programme: "Parts 1 to 3 · Done") where a week written before blocks
+ * Once the programme has started the card draws the tasks
+ * ("Parts 1 to 3 · Done") where a week written before blocks
  * draws its bar, and before the first session it lists the sources on the
  * path to tick. No bar: the boards draw no percentages for these weeks. A
  * talk's task says the case given ("Shutdown resistance, 2025", or "Not
@@ -59,6 +60,8 @@ type Props = {
   countableIds: readonly string[];
   /** A week written as blocks: its tasks, as the overview hands them. Null on any other week. */
   thisWeek?: OverviewThisWeek | null;
+  /** The reader's week locked at the session before they submitted it (`src/lib/courses/weekWork/`). */
+  locked?: boolean;
   /** The week's page is open to the reader: it is published. */
   open: boolean;
   /** A break slot's own name ("Reading week"): no reading of its own. */
@@ -79,6 +82,7 @@ export default function ThisWeekCard({
   slotStartKey,
   countableIds,
   thisWeek = null,
+  locked = false,
   open,
   breakLabel = null,
   weekSource,
@@ -162,24 +166,22 @@ export default function ThisWeekCard({
                       {task.talk?.hasCases && <p className={styles.taskRowSub}>{task.talk.caseTitle ?? NOT_GIVEN_YET}</p>}
                       {task.talk && !task.talk.ready && !taskIsDone && <p className={styles.taskRowStatus}>{NOT_READY_YET}</p>}
                       {task.answer ? (
-                        // The written answer's own line (wk-programme): "Sent Mon 16 Nov",
-                        // then "Feedback from Rahul"; "Draft · 241 words" before it is sent.
+                        // The written answer's own line: "Submitted Mon 16 Nov",
+                        // then "Feedback from Rahul"; "Draft · 241 words" before it is sent, or
+                        // "Not submitted" once the week locked before it was. Feedback given on
+                        // an answer never sent (its readers read it once the week locked) is
+                        // linked all the same.
                         task.answer.sentOn ? (
                           <p className={styles.taskRowDone}>
                             {sentOnWords(new Date(`${task.answer.sentOn}T12:00:00Z`))}
-                            {task.answer.feedbackFrom && (
-                              <>
-                                {" "}
-                                <Link href={`${weekHref(runId, weekNumber)}/feedback`} className={styles.cardLink}>
-                                  {feedbackFromWords(task.answer.feedbackFrom)}
-                                  <span aria-hidden="true">→</span>
-                                </Link>
-                              </>
-                            )}
+                            <FeedbackLink runId={runId} weekNumber={weekNumber} from={task.answer.feedbackFrom} />
                           </p>
                         ) : (
-                          // A draft is not done: said plainly, not in the done colour.
-                          <p className={styles.cardMeta}>{draftStateWords(task.answer.words)}</p>
+                          // Not sent is not done: said plainly, not in the done colour.
+                          <p className={styles.cardMeta}>
+                            {locked ? NOT_SUBMITTED : draftStateWords(task.answer.words)}
+                            <FeedbackLink runId={runId} weekNumber={weekNumber} from={task.answer.feedbackFrom} />
+                          </p>
                         )
                       ) : (
                         taskIsDone && <p className={styles.taskRowDone}>{TASK_DONE}</p>
@@ -222,5 +224,19 @@ export default function ThisWeekCard({
         </>
       )}
     </section>
+  );
+}
+
+/** " Feedback from Rahul →", after the written answer's line, once feedback is given on it: to the week's Feedback. */
+function FeedbackLink({ runId, weekNumber, from }: { runId: string; weekNumber: number; from: string | null }) {
+  if (!from) return null;
+  return (
+    <>
+      {" "}
+      <Link href={`${weekHref(runId, weekNumber)}#feedback`} className={styles.cardLink}>
+        {feedbackFromWords(from)}
+        <span aria-hidden="true">→</span>
+      </Link>
+    </>
   );
 }

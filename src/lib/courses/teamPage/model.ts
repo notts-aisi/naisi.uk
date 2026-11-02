@@ -1,5 +1,5 @@
 /**
- * A TEAM'S OWN PAGE (boards in-team, in-team-phone and en-handin-phone):
+ * A TEAM'S OWN PAGE:
  * what the people in an incubator's team write there, and how a request to
  * write it is read.
  *
@@ -56,7 +56,7 @@ export const TEAM_PAGE_LIMITS = {
   url: 500,
   /** Links a team may have at once. */
   links: 12,
-  /** The hand-in's summary, in words: board en-handin-phone's 200. */
+  /** The hand-in's summary, in words: the hand-in page's limit of 200. */
   summaryWords: 200,
   /** The summary's text, in characters: a cap on what is stored, well above 200 words. */
   summary: 2000,
@@ -239,12 +239,12 @@ const isRaw = (value: unknown): value is Raw => Boolean(value) && typeof value =
 
 export type CheckInInput = { weekNumber: number; did: string; inTheWay: string };
 
-/** "Save check-in": the week it is for, and the two boxes. At least one has words. */
+/** "Save update": the week it is for, and the two boxes. At least one has words. */
 export function parseCheckIn(body: unknown): Parsed<CheckInInput> {
   if (!isRaw(body)) return { ok: false, error: "Write what you did or what’s in the way, then save." };
   const weekNumber = body.weekNumber;
   if (typeof weekNumber !== "number" || !Number.isInteger(weekNumber) || weekNumber < 1 || weekNumber > 60) {
-    return { ok: false, error: "That check-in isn’t for one of this programme’s weeks. Reload the page." };
+    return { ok: false, error: "That update isn’t for one of this programme’s weeks. Reload the page." };
   }
   if (typeof body.did !== "string" || typeof body.inTheWay !== "string") {
     return { ok: false, error: "Write what you did or what’s in the way, then save." };

@@ -188,7 +188,7 @@ function planSlots(run: CourseRunDoc, group: CourseGroupDoc, sessions: readonly 
 }
 
 /**
- * The group's next session, as the team page's ticket draws it (in-team):
+ * The group's next session, as the team page's ticket draws it:
  * its own day, time and room, a change for that week applied. The joining
  * link of an online week is not on this page: the programme's page carries
  * it, so the ticket says only that the week is online.
@@ -214,6 +214,9 @@ function ticketOf(run: CourseRunDoc, group: CourseGroupDoc, now: Date): TeamTick
     mode,
     joinUrl: null,
     missing: mode === "in-person" && !room ? "Your facilitator will confirm the room." : null,
+    // An explainer at the start of the session is said on the programme's
+    // page and on Home, from the run's overview; the team's page reads none.
+    explainer: null,
   };
   const clock = clockWords(next.session.startTimeLocal);
   return {

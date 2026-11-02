@@ -8,7 +8,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
- * "HAND IN FOR THE TEAM" (board en-handin-phone): the team's one hand-in, a
+ * "HAND IN FOR THE TEAM": the team's one hand-in, a
  * link, a summary of up to 200 words and who did what, made or changed by
  * anybody in the team until 23:59 in London on the day it is due.
  *

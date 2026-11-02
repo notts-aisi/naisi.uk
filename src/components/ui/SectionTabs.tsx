@@ -9,6 +9,12 @@ export type SectionTab = {
   /** A number in a pill after the label. Nothing is drawn when it is left out. */
   count?: number;
   /**
+   * A few words in a pill after the label, for something waiting on somebody
+   * ("4 waiting"), where a bare number would not say what it counts. Nothing
+   * is drawn when it is left out.
+   */
+  note?: string;
+  /**
    * A tab with an address is a link to another page. A tab without one is a
    * button that calls `onSelect`, for views that swap in place.
    */
@@ -27,8 +33,8 @@ type SectionTabsProps = {
 };
 
 /**
- * Underlined tabs, each with an optional count. The current one has the
- * accent line and full-strength text.
+ * Underlined tabs, each with an optional count or note. The current one has
+ * the accent line and full-strength text.
  *
  * The set is a <nav> of links or buttons with `aria-current`, not an ARIA
  * tablist: nothing here owns the panels, and a link to another page is not a
@@ -51,6 +57,7 @@ export default function SectionTabs({
           <>
             {tab.label}
             {tab.count !== undefined && <span className={styles.count}>{tab.count}</span>}
+            {tab.note !== undefined && <span className={styles.note}>{tab.note}</span>}
           </>
         );
         if (tab.href !== undefined) {

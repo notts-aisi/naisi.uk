@@ -114,6 +114,11 @@ async function seedEnrolment(runId, uid, overrides = {}) {
   });
 }
 
+/**
+ * A progress row as a browser may write one: unticked, since a tick is the
+ * tick route's (Admin SDK) and a browser create may not set `completed` or
+ * `completedAt`. The write gate below is the same for either.
+ */
 function progressDoc(overrides = {}) {
   return {
     runId: "run1",
@@ -121,8 +126,7 @@ function progressDoc(overrides = {}) {
     weekNumber: 3,
     itemKind: "material",
     itemId: "m1",
-    completed: true,
-    completedAt: new Date(),
+    completed: false,
     hasPublicComment: false,
     ...overrides,
   };

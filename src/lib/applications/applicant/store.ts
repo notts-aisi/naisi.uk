@@ -137,12 +137,23 @@ export type Account = {
    * until they have made one.
    */
   joined: boolean;
+  /**
+   * The account's own display name, trimmed, or "": Google's name for an
+   * account made with Google. An application is made under it (its
+   * `displayName`), as it was before the site asked anybody for a full name,
+   * so the many screens and rows that read that field read what they always
+   * did. The full name travels on the application's About you instead, where
+   * every reader of it names it.
+   */
+  displayName: string;
 };
 
 /** The caller's own account, read for the answers the form opens with. */
 export async function loadAccount(db: Firestore, uid: string): Promise<Account> {
   const snap = await db.collection("users").doc(uid).get();
-  return { about: aboutYouFromAccount(snap.exists ? snap.data() : null), joined: snap.exists };
+  const data = snap.exists ? snap.data() : null;
+  const displayName = typeof data?.displayName === "string" ? data.displayName.trim() : "";
+  return { about: aboutYouFromAccount(data), joined: snap.exists, displayName };
 }
 
 /**
@@ -352,7 +363,7 @@ export async function sendApplication(
 }
 
 /**
- * CHANGE THE WEEK A PLACE PAINTED, after decision day (Q7: "When you’re
+ * CHANGE THE WEEK A PLACE PAINTED, after decision day ("When you’re
  * free" on the application page, until Publish has told them their group;
  * whether it may is `../status/whenFree.ts`'s to decide before this is
  * called). The application of record and its draft take the new week, held

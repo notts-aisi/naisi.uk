@@ -505,9 +505,10 @@ export function createStepRecorder({ t, page, markerPath, artifactsDir, skipReas
  * ## The consent page, when the sign-in lands on it
  *
  * On a production build `(app)/layout.tsx` sends any account whose stored
- * `policyVersion` is behind `CURRENT_POLICY_VERSION` to `/re-consent` before
- * it renders a single authed page, so after a policy bump the handoff above
- * ends on the consent page rather than in the member area. That is the
+ * `policyVersion` needs the accept page (`needsPolicyAcceptance`: none, or an
+ * agreement older than privacy v15 or the current terms) to `/re-consent`
+ * before it renders a single authed page, so for such an account the handoff
+ * above ends on the consent page rather than in the member area. That is the
  * product working, and the helper treats it the way a person does: it presses
  * the real Accept button, through `acceptReConsentIfAsked`, and waits for the
  * page's own navigation home. The account is then current in the same way a
@@ -606,8 +607,8 @@ export async function signInWithPassword(
   const reconsented = await acceptReConsentIfAsked(page, { timeout, handoffTimeout });
   if (reconsented) {
     console.log(
-      "[e2e-browser] the sign-in landed on /re-consent (the stored policy version was " +
-        "behind the current one) and the updated policy was accepted through the page.",
+      "[e2e-browser] the sign-in landed on /re-consent (the stored agreement needed the " +
+        "accept page) and the updated policy was accepted through the page.",
     );
   }
   return { reconsented };

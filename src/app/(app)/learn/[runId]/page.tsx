@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { homeEvents } from "@/app/(app)/dashboard/homeData";
+import { cantMakeItFor } from "@/lib/courses/cantMakeIt/seat";
 import { readOwnCertificates } from "@/lib/courses/certificates/own";
 import { liveGroupsOf, runEndOf } from "@/lib/courses/finishing/runEnd";
 import { endSurveyFor } from "@/lib/surveys/waiting";
@@ -12,6 +13,7 @@ import { timeQuestionFor } from "@/lib/courses/timeAnswer/seat";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
+import { NO_ENTRIES, messagesEntriesFor } from "@/lib/messages/handover";
 import LeftProgramme from "@/features/courses/leaving/LeftProgramme";
 import { leftPageSurvey } from "@/features/courses/leaving/leftSurvey";
 import RunHome from "@/features/courses/RunHome";
@@ -29,12 +31,12 @@ import { guideLinksOf } from "@/lib/courses/guide/load";
  *
  *   canLearn                    → the cohort view, and once the programme
  *                                 is over, for somebody who took part, the
- *                                 page that says so (en-after-phone), handed
+ *                                 page that says so, handed
  *                                 the survey at the end and the next event
- *   left the run themselves     → the page that says so (wk-left-phone):
+ *   left the run themselves     → the page that says so:
  *                                 that they left and the day, and the
  *                                 leaving survey's card while it is theirs
- *                                 to answer (Q46), and nothing else: not
+ *                                 to answer, and nothing else: not
  *                                 their marks or notes, not the reading
  *                                 list, nothing of the group's
  *   reviewer / track lead only  → /admissions, their entire surface on this
@@ -72,8 +74,8 @@ export default async function RunHomePage({
   if (!access) redirect("/learn");
 
   if (!access.canLearn) {
-    // Somebody who left the run themselves reads the page that says so (board
-    // wk-left-phone), and nothing else of the run.
+    // Somebody who left the run themselves reads the page that says so,
+    // and nothing else of the run.
     if (access.hasLeft && access.enrolment) {
       const leftDb = getAdminDb();
       if (leftDb) {
@@ -115,7 +117,7 @@ export default async function RunHomePage({
   // the gate's reads only for somebody taking part.
   const team = access.isEnrolled && db ? await teamCardFor(db, access.user, runId) : null;
 
-  // "Leave the programme" at the foot (wk-programme), for somebody taking
+  // "Leave the programme" at the foot, for somebody taking
   // part whose seat they can leave themselves, until the run's last session
   // is over: the same rule the leave route asks (`leavePathFor`), so the link
   // is drawn exactly where the press works.
@@ -137,18 +139,36 @@ export default async function RunHomePage({
     ? timeQuestionFor({ user: access.user, runId: access.run.id, enrolment: access.enrolment, groups: access.groups })
     : null;
 
-  // "About this course" (wk-programme): the programme's Start here and
+  // "Can't make it" on the next session's ticket, for somebody taking part in
+  // the group, until the session starts: one read, of that session's
+  // register. A read that fails draws nothing.
+  const cantMakeIt =
+    access.isEnrolled && db
+      ? await cantMakeItFor(db, { user: access.user, run: access.run, enrolment: access.enrolment, groups: access.groups, now: new Date() }).catch(
+          () => null,
+        )
+      : null;
+  // Where "Email the group" and "Email the whole cohort" open Messages, set
+  // to that audience (`messagesEntriesFor`), for somebody who staffs the run
+  // or facilitates one of its groups; read for nobody else. A link with no
+  // entry keeps its old page on the run.
+  const messages =
+    db && (canEmailCohort || access.isFacilitator)
+      ? await messagesEntriesFor(db, access.user, runId, new Date()).catch(() => NO_ENTRIES)
+      : NO_ENTRIES;
+
+  // "About this course": the programme's Start here and
   // Glossary, each linked when the run has it; nothing for a run with neither.
   const guide = db ? await guideLinksOf(db, access.run.id).catch(() => null) : null;
 
-  // "Your certificate" (en-after-phone): the caller's own, by their two
+  // "Your certificate": the caller's own, by their two
   // addresses, and none during a view-as session, which is never the owner.
   const viewAs = markerIsLive(await getImpersonator(), access.user.uid);
   const certificates = db
     ? await readOwnCertificates(db, access.run.id, access.user.uid, viewAs, process.env.NEXT_PUBLIC_APP_URL)
     : [];
 
-  // Once the programme is over (en-after-phone, en-after-nofinish-phone), for
+  // Once the programme is over, for
   // somebody who took part: the survey at the end as it stands for them
   // (`endSurveyFor`: theirs to answer, or sent; nothing in a view-as session)
   // and Home's next event, as Home picks it. Read only once their own group's
@@ -169,11 +189,13 @@ export default async function RunHomePage({
       runId={runId}
       isAdmin={access.isAdmin}
       canEmailCohort={canEmailCohort}
+      messages={messages}
       pitching={pitching}
       team={team}
       canLeave={canLeave}
       leaveNote={leaveNote}
       timeQuestion={timeQuestion}
+      cantMakeIt={cantMakeIt}
       viewAs={viewAs}
       uid={access.user.uid}
       {...(guide ? { guide } : {})}

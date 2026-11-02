@@ -1,6 +1,6 @@
 /**
- * "Your certificate" on the programme's page after the end (board
- * en-after-phone's card), and the credit line on the programme's Settings.
+ * "Your certificate" on the programme's page after the end,
+ * and the credit line on the programme's Settings.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *

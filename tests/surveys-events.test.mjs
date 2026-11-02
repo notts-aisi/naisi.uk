@@ -43,10 +43,11 @@ describe("the audiences: the people who came, or everybody who signed up, and no
     assert.deepEqual(came, [
       ["Dan Fitzgerald", "g:ci-dan", null, false],
       ["Gwen Price", `g:${RSVP.gwen}`, "gwen@example.com", true],
-      ["Kofi Asante", "a:kofi", "kofi@example.com", true],
-      ["Mo Rahman", "a:mo", "mo@example.com", false],
+      // An account by the name it goes by (`fullNameOfUser`); a guest by what they typed.
+      ["Kofi", "a:kofi", "kofi@example.com", true],
+      ["Mo", "a:mo", "mo@example.com", false],
       ["Rosa Martinez", "g:ci-rosa", "rosa@example.com", false],
-      ["Wren Hale", "a:wren", "wren@example.com", true],
+      ["Wren", "a:wren", "wren@example.com", true],
     ]);
   });
 
@@ -58,9 +59,9 @@ describe("the audiences: the people who came, or everybody who signed up, and no
     assert.deepEqual(
       membersOf(read, "event-signups").map((member) => [member.name, member.key, member.came]),
       [
-        ["Chloe Nguyen", "a:chloe", false],
+        ["Chloe", "a:chloe", false],
         ["Gwen Price", `g:${RSVP.gwen}`, true],
-        ["Kofi Asante", "a:kofi", true],
+        ["Kofi", "a:kofi", true],
       ],
     );
     // Pat (pending), Cora (cancelled), Dina (refused) and the test sign-up are
@@ -172,15 +173,19 @@ describe("making one: After a social, an admin's alone, one per published event"
       stored.items.map((item) => [item.id, item.type, item.title, item.required]),
       [
         ["q_ev_how", "rating", "How was it?", false],
-        ["q_ev_again", "singleChoice", "Would you come to another NAISI social?", false],
-        ["q_ev_next", "multipleChoice", "What should we run next?", false],
+        ["q_ev_again", "singleChoice", "Would you come to another?", false],
+        // CHANGED ON PURPOSE (November 2026): a short answer under
+        // its own id; the pick-any `q_ev_next` stays on every survey made
+        // before, so its answers still compare.
+        ["q_ev_next_text", "shortText", "What should we run next?", false],
         ["q_ev_heard", "singleChoice", "How did you hear about it?", false],
         ["q_ev_change", "longText", "Anything we should change?", false],
       ],
     );
     assert.deepEqual(stored.items[0].rating, { max: 5, minLabel: "Not good", maxLabel: "Great" });
     assert.deepEqual(stored.items[1].options.map((o) => o.label), ["Yes", "Maybe", "No"]);
-    assert.deepEqual(stored.items[2].options.map((o) => o.label), ["Another games night", "A film night", "A quiz", "A talk with food", "Something else"]);
+    assert.deepEqual(stored.items[2].limit, { unit: "characters", max: 200 });
+    assert.equal(stored.items[2].options, undefined, "the short answer kept the pick-any's answers");
     assert.deepEqual(stored.items[3].options.map((o) => o.label), ["A friend", "Instagram", "Our emails", "The freshers’ fair", "A poster", "Something else"]);
     const { validateSurveyItems } = await w.load("lib/surveys/items.ts");
     assert.deepEqual(validateSurveyItems(stored.items), []);
@@ -228,10 +233,12 @@ describe("making one: After a social, an admin's alone, one per published event"
     const stored = w.survey(id);
     const items = structuredClone(stored.items);
     items[1].title = "Would you come to another one?";
-    items[2].options[0].label = "Another VR night";
+    // An answer reworded: "How did you hear about it?" is the standard set's choice question with the most answers.
+    items[3].options[0].label = "A friend or housemate";
     const saved = await w.call("zach", questions, { surveyId: id }, { body: { title: "How was it?", intro: "Thanks for coming.", minutes: 2, closesOn: "2026-11-07", items } });
     assert.equal(saved.status, 200, JSON.stringify(saved.body));
     assert.equal(w.survey(id).items[1].title, "Would you come to another one?");
+    assert.equal(w.survey(id).items[3].options[0].label, "A friend or housemate");
     assert.equal(w.survey(id).closesAt.toISOString(), "2026-11-07T23:59:00.000Z");
     assert.equal(w.survey(id).namesOffOn, "2028-11-01");
     // A question taken out is refused, as for every survey.
@@ -286,7 +293,7 @@ async function made(body = {}) {
 const ANSWERS = {
   q_ev_how: { type: "rating", value: 5 },
   q_ev_again: { type: "choice", optionId: "o_ev_yes" },
-  q_ev_next: { type: "choices", optionIds: ["o_ev_games", "o_ev_quiz"] },
+  q_ev_next_text: { type: "text", text: "A quiz night" },
   q_ev_heard: { type: "choice", optionId: "o_ev_friend" },
   q_ev_change: { type: "text", text: "Loved meeting people from the fellowships." },
 };
@@ -341,8 +348,8 @@ describe("the QR code takes answers once an admin opens it; the email skips anyb
     assert.deepEqual(short(await answerSignedIn("kofi", id, noChange)), [200, null]);
     assert.deepEqual(short(await answerSignedIn("mo", id, { ...ANSWERS, q_ev_change: { type: "text", text: "   " } })), [200, null]);
     assert.deepEqual(w.answers(id).map((answer) => Object.keys(answer.answers).sort()), [
-      ["q_ev_again", "q_ev_heard", "q_ev_how", "q_ev_next"],
-      ["q_ev_again", "q_ev_heard", "q_ev_how", "q_ev_next"],
+      ["q_ev_again", "q_ev_heard", "q_ev_how", "q_ev_next_text"],
+      ["q_ev_again", "q_ev_heard", "q_ev_how", "q_ev_next_text"],
     ]);
   });
 
@@ -581,8 +588,28 @@ describe("the QR survey code: a permanent short link per event's survey, and the
     assert.match(kofi.html, /<form/);
     const chloe = await w.page(path, props, "chloe");
     assert.match(chloe.text, /We keep your answers with your name, and that you signed up, so nobody is emailed it twice\./);
-    // Pat neither came nor holds a confirmed place: during the door, the way to check in.
+    // Pat neither came nor holds a confirmed place: during the door, the way
+    // to check in, but only at an event that lets people check themselves in,
+    // once its door is open: the check-in page's own rule (`selfCheckInOpen`).
     t.mock.timers.setTime(new Date("2026-11-01T16:45:00Z").getTime());
+    const NOT_YOURS = /This survey is for the people who came It goes to the people who came to this event or signed up for it\. If you came, check in at the door first\./;
+    const eventPath = `events/${EVENT_ID}`;
+    for (const [over, why] of [
+      [{}, "an event that does not let people check themselves in"],
+      [{ selfCheckIn: true }, "the door not opened yet"],
+      [{ doorOpenedAt: new Date("2026-11-01T13:05:00Z"), doorOpenedBy: "iris" }, "the door open, at an event that does not let them"],
+    ]) {
+      w.world.db.seed(eventPath, { ...eventSurveySeed()[eventPath], ...over });
+      const shut = await w.page(path, props, "pat");
+      assert.match(shut.text, NOT_YOURS, why);
+      assert.ok(!shut.text.includes("Check in") && !shut.html.includes("/check-in"), `${why}: offered a way to check in that would refuse`);
+    }
+    w.world.db.seed(eventPath, {
+      ...eventSurveySeed()[eventPath],
+      selfCheckIn: true,
+      doorOpenedAt: new Date("2026-11-01T13:05:00Z"),
+      doorOpenedBy: "iris",
+    });
     const pat = await w.page(path, props, "pat");
     assert.match(pat.text, /This survey is for the people who came It goes to the people who came to this event or signed up for it\. If you came, check in at the door first\. Check in/);
     assert.match(pat.html, /href="\/events\/vr-games-night-ev01\/check-in"/);
@@ -634,7 +661,7 @@ describe("the admins' pages for a survey after an event", () => {
     assert.doesNotMatch(closed, /Closes Sun 8 Nov/);
   });
 
-  test("the list, Who answered with guests by name, and the results with n beside every number and the numbers above", async (t) => {
+  test("the list, the Answers tab with guests by name, and the results with n beside every number and the numbers above", async (t) => {
     clock(t, NEXT_DAY);
     w.reset();
     const id = await made();
@@ -645,14 +672,21 @@ describe("the admins' pages for a survey after an event", () => {
     await press("send", "zach", id, { to: "everyone", emails: 4 });
     const links = new Map(w.world.mail.map((message) => [message.to, w.linkIn(message)]));
     await answerByLink(tokenOf(links.get("gwen@example.com")), { ...ANSWERS, q_ev_how: { type: "rating", value: 4 }, q_ev_change: { type: "text", text: "More headsets." } });
-    const list = await w.page("app/(app)/admin/(admin-only)/surveys/page.tsx", {}, "zach");
-    assert.match(list.text, /After VR games night Confidential Event: Sun 1 Nov 2 answers Closes Sun 8 Nov/);
+    // Run NAISI › Surveys lists it on its Events tab, its answers a count, and By programme does not.
+    const list = await w.page("app/(app)/admin/(admin-only)/surveys/page.tsx", { searchParams: Promise.resolve({ tab: "events" }) }, "zach");
+    assert.match(list.text, /After VR games night Sun 1 Nov · 2 answers · Closes Sun 8 Nov Open Results/);
+    const byProgramme = await w.page("app/(app)/admin/(admin-only)/surveys/page.tsx", { searchParams: Promise.resolve({}) }, "zach");
+    assert.ok(!byProgramme.text.includes("After VR games night"), "a survey after an event is listed under a programme");
+    // The Answers tab: its page draws the head and nothing of anybody; its route, once the opening is
+    // recorded, names everybody who answered and how they came, and who it was emailed to and has not.
     const answered = await w.page("app/(app)/admin/(admin-only)/surveys/[surveyId]/answered/page.tsx", { params: Promise.resolve({ surveyId: id }) }, "zach");
-    assert.match(answered.text, /2 have answered: 1 with the QR code before any email, and 1 of the 4 it was emailed to/);
-    assert.match(answered.text, /Gwen Price/);
-    assert.match(answered.text, /Kofi Asante/);
-    assert.match(answered.text, /Rosa Martinez/);
-    assert.match(answered.text, /With the QR code, signed in/);
+    assert.match(answered.text, /Answers 2/);
+    assert.doesNotMatch(answered.text, /Gwen|Kofi|Rosa/);
+    const tab = (await w.call("zach", (await w.route("surveys/[surveyId]/answers")).POST, { surveyId: id })).body.answers;
+    // An account by the names rule for the admin (`nameForViewer`: in full); a guest by the name they gave the event.
+    assert.deepEqual(tab.rows.map((row) => [row.name, row.as]), [["Gwen Price", "Guest"], ["Kofi Asante", "Member"]]);
+    assert.match(tab.rows[1].sent, /, with the QR code, signed in\.$/);
+    assert.ok(tab.notAnswered.some((person) => person.name === "Rosa Martinez"), JSON.stringify(tab.notAnswered));
     const results = await w.page("app/(app)/admin/(admin-only)/surveys/[surveyId]/results/page.tsx", { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
     assert.match(results.text, /2 Answers 1 with the QR code, 1 by email 6 Came 3 who signed up, 3 walk-ins 1 of 4 Answered the email Sent Mon 2 Nov, 10am/);
     assert.match(results.text, /2 answers\./);
@@ -679,7 +713,13 @@ describe("the admins' pages for a survey after an event", () => {
     const { readEventAudience, membersOf } = await w.load("lib/surveys/events/audience.ts");
     const read = await readEventAudience(w.world.db, EVENT_ID);
     assert.equal(membersOf(read, "event-came").length, 6, "a record with its names off reached somebody");
-    assert.deepEqual(read.namesOff, { signups: 1, signupsByQr: 1, walkIns: 1 });
+    // One sign-up who checked themselves in before the ways were told apart, and one walk-in at the door.
+    assert.deepEqual(read.namesOff, {
+      signups: 1,
+      signupsThemselves: { code: 0, email: 0, site: 0, qr: 1 },
+      walkIns: 1,
+      walkInsThemselves: { code: 0, email: 0, site: 0, qr: 0 },
+    });
     const results = await w.page("app/(app)/admin/(admin-only)/surveys/[surveyId]/results/page.tsx", { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
     assert.match(results.text, / 8 Came 4 who signed up, 4 walk-ins /);
     const tab = await w.page("app/(app)/events/manage/[id]/check-in/page.tsx", { params: Promise.resolve({ id: EVENT_ID }) }, "sue");
@@ -704,8 +744,9 @@ describe("the event's Survey after tab: admins see the results; the organiser se
     const iris = await w.page(TAB, props(), "iris");
     assert.match(iris.text, /No survey has gone out after this event\./);
     assert.ok(!/Make a survey/.test(iris.text), "the organiser was offered to make a survey");
-    // The tabs, on this page and on Check-in.
-    assert.match(iris.text, /Details Check-in Survey after/);
+    // The tabs, on this page and on Check-in. Iris wrote the event, so its
+    // Sign-ups, where one request is waiting, opens for her as well.
+    assert.match(iris.text, /Details Sign-ups 3 1 waiting Check-in Survey after/);
     const checkInTab = await w.page("app/(app)/events/manage/[id]/check-in/page.tsx", props(), "sue");
     assert.match(checkInTab.html, /href="\/events\/manage\/vr-games-night-ev01\/survey"/);
   });
@@ -725,13 +766,11 @@ describe("the event's Survey after tab: admins see the results; the organiser se
       for (const secret of ["Snacks ran out", "Answers", "Answered the email", "Kofi", "1 with the QR code", "Download the answers"]) {
         assert.ok(!page.text.includes(secret), `${who} was shown "${secret}"`);
       }
-      // Nothing to download but, for SU-recognised committee, the survey's
-      // QR code as a PNG, which they show at the event while it takes
-      // answers (Zach, Mon 26 Oct 2026; until then nothing here downloaded
-      // anything for them).
+      // Nothing to download: the survey's QR code, which SU-recognised
+      // committee show at the event while it takes answers, is on the
+      // Check-in tab since November 2026 (the section on the code, below).
       const downloads = page.text.split("Download").length - 1;
-      assert.equal(downloads, who === "sue" ? 1 : 0, `${who} was offered something to download`);
-      if (who === "sue") assert.ok(page.text.includes("Download PNG"), "sue was not offered the code's PNG");
+      assert.equal(downloads, 0, `${who} was offered something to download`);
       assert.ok(!/admin\/surveys\//.test(page.html), `${who} was linked to the survey's pages`);
     }
     // An admin reads the results, with n beside every number, and the logged download.
@@ -755,8 +794,10 @@ describe("the event's Survey after tab: admins see the results; the organiser se
     return html.slice(html.lastIndexOf("<section", at), html.indexOf("</section>", at) + "</section>".length);
   };
   const LAYOUT = "app/(app)/events/manage/layout.tsx";
+  /** The Check-in tab, where the survey's code is shown at the end of the event since November 2026. */
+  const CHECK_IN = "app/(app)/events/manage/[id]/check-in/page.tsx";
 
-  test("the code at the event: the people who may draw its door code show it from this tab while the survey takes answers, and nothing of its answers comes with it", async (t) => {
+  test("the code at the event: the people who may draw its door code show it from the Check-in tab while the survey takes answers, and nothing of its answers comes with it", async (t) => {
     clock(t, LATE);
     // Pat organises it here: a member holding draftEvent, neither committee nor an admin.
     w.reset(eventSurveySeed({ "users/pat": { ...eventSurveySeed()["users/pat"], permissions: { draftEvent: true } } }));
@@ -766,12 +807,12 @@ describe("the event's Survey after tab: admins see the results; the organiser se
     // A draft: those who show it are told it comes once an admin opens it; nobody is shown a code.
     const NOT_YET = "Its QR code shows here once an admin opens the survey.";
     for (const who of ["zach", "sue"]) {
-      const page = await w.page(TAB, props(), who);
-      assert.match(page.text, new RegExp(`No survey has gone out after this event\\. ${NOT_YET}`), who);
+      const page = await w.page(CHECK_IN, props(), who);
+      assert.ok(page.text.includes(`The survey’s QR code ${NOT_YET}`), who);
       assert.equal(codeCardOf(page.html), "", `${who} was shown a draft's code`);
     }
     for (const who of ["iris", "cal", "pat"]) {
-      const page = await w.page(TAB, props(), who);
+      const page = await w.page(CHECK_IN, props(), who);
       assert.ok(!page.text.includes(NOT_YET), `${who}, who does not run check-in, was told the code comes`);
       assert.equal(codeCardOf(page.html), "");
     }
@@ -780,23 +821,32 @@ describe("the event's Survey after tab: admins see the results; the organiser se
     await press("open-at-event", "zach", id);
     await answerSignedIn("kofi", id, { ...ANSWERS, q_ev_change: { type: "text", text: "Snacks ran out by half three." } });
     for (const who of ["sue", "zach"]) {
-      const page = await w.page(TAB, props(), who);
+      const page = await w.page(CHECK_IN, props(), who);
       const card = codeCardOf(page.html);
       assert.ok(card, `${who} was not shown the code`);
-      assert.match(textOf(card), /^At the event: the QR code naisi\.invalid\/q\/vr-survey Download PNG Show full screen$/, who);
+      assert.match(textOf(card), /^The survey’s QR code naisi\.invalid\/q\/vr-survey Download PNG Show full screen$/, who);
       assert.match(card, /<svg[^>]*role="img"[^>]*aria-label="QR code for naisi\.invalid\/q\/vr-survey"/);
       assert.match(card, /href="\/api\/links\/vr-survey\/qr\?format=png&amp;download=1"/);
       assert.ok(!page.text.includes(NOT_YET), who);
+      // The Survey after tab no longer draws it, for anybody.
+      assert.equal(codeCardOf((await w.page(TAB, props(), who)).html), "", `${who} was shown the code on the Survey after tab`);
     }
-    // SU-recognised committee: the code and nothing else of the survey's.
-    const sue = await w.page(TAB, props(), "sue");
+    // SU-recognised committee: the code and nothing else of the survey's,
+    // on the Check-in tab (which shows them who came, as it always has) and
+    // on the Survey after tab.
+    const sue = await w.page(CHECK_IN, props(), "sue");
+    const sueSurveyTab = await w.page(TAB, props(), "sue");
     for (const secret of ["Open it", "Up since", "1 answer", "Answers", "Answered", "Snacks ran out", "Kofi", "Asante", "Download the", "Make a survey", "Open the survey"]) {
-      assert.ok(!sue.text.includes(secret), `SU-recognised committee were shown "${secret}"`);
+      assert.ok(!textOf(codeCardOf(sue.html)).includes(secret), `SU-recognised committee were shown "${secret}" with the code`);
+      assert.ok(!sueSurveyTab.text.includes(secret), `SU-recognised committee were shown "${secret}" on the Survey after tab`);
     }
-    assert.ok(!/admin\/surveys\/|open-at-event/.test(sue.html), "SU-recognised committee were led to the survey's own pages");
-    // The organiser and the committee the SU does not recognise: nothing of the code.
-    for (const who of ["iris", "cal", "pat"]) {
-      const page = await w.page(TAB, props(), who);
+    for (const secret of ["Snacks ran out", "Up since", "1 answer", "Answered"]) {
+      assert.ok(!sue.text.includes(secret), `SU-recognised committee were shown "${secret}" on the Check-in tab`);
+    }
+    assert.ok(!/admin\/surveys\/|open-at-event/.test(sue.html + sueSurveyTab.html), "SU-recognised committee were led to the survey's own pages");
+    // The organiser and the committee the SU does not recognise: nothing of the code, on either tab.
+    for (const [who, tab] of ["iris", "cal", "pat"].flatMap((who) => [[who, CHECK_IN], [who, TAB]])) {
+      const page = await w.page(tab, props(), who);
       assert.equal(codeCardOf(page.html), "", `${who} was shown the code`);
       assert.ok(!/vr-survey|<svg[^>]*QR code/.test(page.html), `${who} was handed the code`);
       for (const secret of ["Snacks ran out", "Kofi", "Up since"]) assert.ok(!page.text.includes(secret), `${who} was shown "${secret}"`);
@@ -806,20 +856,21 @@ describe("the event's Survey after tab: admins see the results; the organiser se
     assert.match(admin.text, /Snacks ran out by half three\./);
     assert.match(admin.html, /href="\/admin\/surveys\/[A-Za-z0-9_-]+\/send"/);
     // A view-as session shows what the person viewed sees, no more.
-    assert.equal(codeCardOf((await w.page(TAB, props(), "sue", { viewAs: true })).html), codeCardOf(sue.html));
-    assert.equal(codeCardOf((await w.page(TAB, props(), "iris", { viewAs: true })).html), "");
+    assert.equal(codeCardOf((await w.page(CHECK_IN, props(), "sue", { viewAs: true })).html), codeCardOf(sue.html));
+    assert.equal(codeCardOf((await w.page(CHECK_IN, props(), "iris", { viewAs: true })).html), "");
     // A member who is not in the events area, and somebody signed out, are sent away first.
     assert.equal((await w.page(LAYOUT, { children: null }, "kofi")).to, "/dashboard");
     assert.equal((await w.page(TAB, props(), null)).to, "/login");
-    // Opening the tab writes nothing.
+    // Opening either tab writes nothing.
     const before = w.everything();
     await w.page(TAB, props(), "sue");
+    await w.page(CHECK_IN, props(), "sue");
     assert.equal(w.everything(), before, "opening the tab wrote something");
 
     // Closed: no code, and no line that it is coming.
     await press("close", "zach", id);
     for (const who of ["sue", "zach"]) {
-      const page = await w.page(TAB, props(), who);
+      const page = await w.page(CHECK_IN, props(), who);
       assert.equal(codeCardOf(page.html), "", `${who} was shown a closed survey's code`);
       assert.ok(!page.text.includes(NOT_YET), who);
     }
@@ -886,9 +937,10 @@ describe("the event's Survey after tab: admins see the results; the organiser se
     assert.equal(response.status, 200);
     const csv = await response.text();
     const lines = csv.trim().split(/\r?\n/);
-    assert.match(lines[0], /^Name,Sent,How,1\. How was it\?,2\. Would you come to another NAISI social\?/);
+    assert.match(lines[0], /^Name,Sent,How,1\. How was it\?,2\. Would you come to another\?,3\. What should we run next\?/);
     assert.match(csv, /Gwen Price,[^,]+,Personal link,5,Yes/);
-    assert.match(csv, /Mo Rahman,[^,]+,"?Signed in, with the QR code"?,5,Yes/);
+    // An account by the name the admin downloading is shown (the names rule: in full).
+    assert.match(csv, /(?:^|\n)Mo Rahman,[^,]+,"?Signed in, with the QR code"?,5,Yes/);
     assert.ok(!/@example\.com/.test(csv), "the download holds an address");
     const logged = w.world.db.paths().filter((path) => path.startsWith("dataExports/")).map((path) => w.world.db.read(path));
     assert.equal(logged.length, 1);

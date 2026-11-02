@@ -10,7 +10,7 @@ import { getCurrentUser } from "@/lib/firebase/session";
 import { isWeekOwnerUid } from "@/lib/firestore/courses";
 
 /**
- * A WEEK'S OWNER, ON ITS PROGRAMME'S WEEKS TAB (board pr-weeks: "Owner ...
+ * A WEEK'S OWNER, ON ITS PROGRAMME'S WEEKS TAB ("Owner ...
  * The lead or a helper."): `PUT /api/courses/runs/[runId]/weeks/[weekId]/owner`
  * with `{ ownerUid }`, a uid, or null for the programme's lead.
  *

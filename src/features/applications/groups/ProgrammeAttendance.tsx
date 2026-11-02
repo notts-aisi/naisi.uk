@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import InitialsChip from "@/components/ui/InitialsChip";
+import { cameWords } from "@/lib/courses/attendanceWords";
 import type {
   GridCell,
   GridGroup,
@@ -16,7 +17,7 @@ import styles from "./ProgrammeAttendance.module.css";
 
 /**
  * EVERY REGISTER OF THE RUN A PROGRAMME NAMES, AS ONE GRID: the Attendance
- * tab of the programme's page (board wk-attendance), for its lead and admins.
+ * tab of the programme's page, for its lead and admins.
  *
  * The model is worked out on the server (`buildRunAttendance`): which weeks,
  * each group's own dates, each person's marks, "Came", who left and who has
@@ -279,7 +280,7 @@ function weekWords(group: GridGroup, weekNumber: number, ending: RunAttendance["
   const date = week?.dateLabel ?? "";
   if (!week || !date) return { date: "", said: NOT_YET };
   if (total && total.percent !== null) {
-    return { date, said: `${total.came} of ${total.of} came${total.soFar ? " so far" : ""}` };
+    return { date, said: cameWords(total.came, total.of, total.soFar) };
   }
   return { date, said: tagWord(week.tag, ending) ?? NOT_YET };
 }

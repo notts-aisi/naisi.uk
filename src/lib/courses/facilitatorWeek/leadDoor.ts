@@ -7,7 +7,7 @@ import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } fro
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 
 /**
- * THE LEAD'S DOOR TO A GROUP'S WEEK: the programme's lead (Q30, Q31, and
+ * THE LEAD'S DOOR TO A GROUP'S WEEK: the programme's lead (and
  * Zach on Mon 26 Oct for a facilitator's own work) and admins, from the
  * programme's own pages, because a lead holds no role on the run that would
  * let them through `/learn/[runId]`.

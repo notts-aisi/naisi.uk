@@ -57,6 +57,13 @@
  * The assertion then runs against that file, and the delegation is written
  * down rather than assumed.
  *
+ * A notice entry may name `via` for the same reason: the register's push and
+ * the `courses-next-week-email` job both send "Week N is open" through
+ * `sendNextWeekEmail`, and the notice lane's door is called inside it. The
+ * door is then looked for in that file, and that file must itself be
+ * registered as a notice, so a delegation cannot point at a module that sends
+ * some other class.
+ *
  * ## One entry, two rows
  *
  * A grid entry's `row` is normally one of the four. `sendPushToRowAudience` in
@@ -273,8 +280,8 @@ const G = (row, reason, via, calls = 1) => ({ class: "grid", row, reason, via, c
 /** Every row an entry serves, as a list. One row is the normal case. */
 const rowsOf = (entry) => (Array.isArray(entry.row) ? entry.row : [entry.row]);
 const T = (reason, calls = 1) => ({ class: "transactional", reason, calls });
-/** The notice lane. Takes no row: it consults none, which is the point. */
-const N = (reason, calls = 1) => ({ class: "notice", reason, calls });
+/** The notice lane. Takes no row: it consults none, which is the point. `via`: see the header. */
+const N = (reason, calls = 1, via) => ({ class: "notice", reason, calls, via });
 
 /**
  * Every send in the tree, with the class it belongs to and why.
@@ -317,6 +324,14 @@ const REGISTRY = {
     "tasks",
     "The due-soon template's send door. It has one caller and that caller consults the row before it gets here.",
     "src/lib/scheduler/jobs/worksheetDueReminders.ts",
+  ),
+  "src/lib/courses/weekReview/followUp.ts#sendEmail": G(
+    "tasks",
+    "A week review's follow-up: the you-have-been-added mail to each of the person's group's facilitators, as the task is made. Grid: their tasks row is read first, behind the site's task-email switch.",
+  ),
+  "src/lib/courses/explainers/schedule.ts#sendEmail": G(
+    "tasks",
+    "An explainer scheduled from a week's review: ONE email to whoever explains, beside the task each session gives them, as the tasks are made (born notified, so the task system sends none of its own). Grid: their tasks row is read first, behind the site's task-email switch. Nobody in the groups is emailed: their tickets say it, and \"Week N is open\" carries a line while it has not gone.",
   ),
   "src/app/api/worksheets/circulations/route.ts#notifyWorksheetEvent": G(
     "tasks",
@@ -380,6 +395,16 @@ const REGISTRY = {
     "The due-soon reminder's push leg. It is a leg rather than a mirror here: the circulation's own push switch can be on with its email switch off.",
     "src/lib/push/taskNotifications.ts",
   ),
+  "src/lib/courses/weekReview/followUp.ts#mirrorTaskEmailToPush": G(
+    "tasks",
+    "The push mirror beside a week review follow-up's you-have-been-added email.",
+    "src/lib/push/taskNotifications.ts",
+  ),
+  "src/lib/courses/explainers/schedule.ts#mirrorTaskEmailToPush": G(
+    "tasks",
+    "The push mirror beside the one email to whoever gives an explainer, landing on My work.",
+    "src/lib/push/taskNotifications.ts",
+  ),
   "src/lib/push/taskNotifications.ts#sendPushToUid": G(
     "tasks",
     "The mirror itself, and the one place `push.tasks` is read.",
@@ -400,16 +425,6 @@ const REGISTRY = {
     "The cohort announcement composer. `resolveCohortAudience` drops everybody whose courses cell is a stored false before a single message is rendered.",
     "src/lib/email/courseFacilitatorEmails.ts",
   ),
-  "src/app/api/courses/runs/[runId]/nudge/route.ts#sendCourseWeekNudgeEmail": G(
-    "courses",
-    "The run catch-up nudge, over the same audience resolver.",
-    "src/lib/email/courseFacilitatorEmails.ts",
-  ),
-  "src/lib/courses/nextWeekEmail.ts#sendCourseWeekNudgeEmail": G(
-    "courses",
-    "Next week's email to one group, the one send both of its lanes go through: the register's push while the email is not on its schedule (and an admin's resend), and the `courses-next-week-email` job while it is. `resolveCohortAudience` drops everybody whose courses cell is a stored false before a message is rendered.",
-    "src/lib/email/courseFacilitatorEmails.ts",
-  ),
   "src/lib/scheduler/jobs/registerReminders.ts#sendRegisterReminderEmail": G(
     "tasks",
     "The one reminder to a group's facilitators about an unfinished register: work they took on, like a worksheet's due-soon reminder, so their own tasks row is its off switch. `resolveFacilitator` reads it beside the address and the suppression check. Email only: this job has no push leg.",
@@ -423,11 +438,6 @@ const REGISTRY = {
     "tasks",
     "The register reminder's send door. Its two callers, the job and a lead's Remind, both consult the row through the job's own resolveFacilitator before they get here.",
     "src/lib/scheduler/jobs/registerReminders.ts",
-  ),
-  "src/lib/email/courseNudgeEmail.ts#sendEmail": G(
-    "courses",
-    "The nudge template's send door. Both of its callers resolve their audience through the cohort resolver first.",
-    "src/lib/email/courseFacilitatorEmails.ts",
   ),
   "src/lib/scheduler/jobs/admissionsReminders.ts#sendAdmissionEmail": G(
     "courses",
@@ -530,11 +540,15 @@ const REGISTRY = {
   "src/lib/courses/leaveRun.ts#sendCourseDroppedOutEmail": T(
     "The call site of that note, in the one leave both doors take: Leave the programme on the programme page, and I can’t make it from somebody in a group on their application page. It goes to the person who left and nobody else.",
   ),
-  "src/lib/email/writtenFeedbackEmail.ts#sendEmail": T(
-    "The one short \"feedback is waiting\" email (Q34 B): feedback has been sent on somebody's own written answer, and this says it is on the site, with a link to their feedback page. Owed to the person who sent their answer for feedback, as the course hub's other messages to one person about their own place and work are (the placement email, the leaving note), so it consults no notification preference.",
+  "src/lib/courses/feedback/send.ts#sendEmail": T(
+    "The \"you have feedback\" email, sent in a batch: one message to each person whose feedback an admin's press left ticked, however many pieces it announces, saying feedback on their own week is on the site with a link to that week's page, and carrying none of it; and a rehearsal of the first such email, marked as a test, to the address on the presser's own session and nobody else. About the person's own work, as the course hub's other messages to one person about their own place and work are (the placement email, the leaving note, the certificates), so it consults no notification preference. One call each.",
+    2,
   ),
-  "src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts#sendWrittenFeedbackEmail": T(
-    "The call site of that email: once per feedback sent, after the feedback is saved, to the address on the account of the person whose answer it is and nobody else.",
+  "src/app/api/courses/runs/[runId]/feedback/send/route.ts#sendFeedbackBatch": T(
+    "The call site of those emails: an admin's press of \"Send N emails\" on the programme's Overview, to the address on the account of each person the ticked feedback is about and nobody else, consulting nobody's notification row, as the certificates do not.",
+  ),
+  "src/app/api/courses/runs/[runId]/feedback/send/test/route.ts#sendFeedbackTest": T(
+    "\"Send a test to me\" beside that button: the first person's email, marked as a test, to the address on the presser's own session and nobody else.",
   ),
   "src/lib/email/admissionEmails.ts#sendEmail": T(
     "The admissions template's send door, shared by five callers. It consults nothing itself; the two scheduled callers consult the courses row before they reach it and carry their own grid entries.",
@@ -608,7 +622,7 @@ const REGISTRY = {
     "The refusal when an organiser denies that RSVP instead of approving it.",
   ),
   "src/app/api/events/[id]/rsvp/[rsvpId]/cancel/route.ts#sendRsvpEmail": T(
-    "The two cancellation notes, one for the attendee cancelling and one for the organiser cancelling on their behalf.",
+    "The note to an attendee whose place or waiting-list place an organiser cancelled, and the note to the person moved up from the waiting list. Neither goes once the event has started.",
     2,
   ),
   "src/app/api/subscriptions/route.ts#sendEmail": T(
@@ -660,6 +674,14 @@ const REGISTRY = {
     "The queued announcement's email leg: the same per-recipient sender the publish request calls, one recipient per marker so the run survives a tick boundary. The audience it walks came from `resolveAnnouncementAudience`, which applied the events email cell.",
     "src/lib/email/eventAnnouncement.ts",
   ),
+  "src/lib/events/invitations.ts#sendEmail": G(
+    "events",
+    "An event for chosen people's invitation to somebody it is not a programme notice for (src/lib/events/invitations.ts): everybody chosen when the event is part of no programme, and everybody but the people holding a place on its programme when it is. Read off their events row, the announcement's row, by the picker's one resolver (`resolveAudience`, which asks `wantsCategory` and `addressesForSend`), with the events channel's unsubscribe link. Somebody who said no is still invited, on their Home, and not emailed. Never its author. Email only: no push leg.",
+    "src/lib/audience/resolve.ts",
+  ),
+  "src/lib/events/invitations.ts#sendNotice": N(
+    "An event for chosen people that is part of a programme: its invitation to each person holding a place on that programme, whatever their settings, as the privacy policy's Events for chosen people says, with the marker (surface event-invitation) and the lane's caps. Only that programme's lead or an admin may make an event part of it. Once a person, claimed by their document on the event's list. Never its author. Email only: no push leg.",
+  ),
   "src/lib/scheduler/jobs/eventAnnouncements.ts#sendPushToUid": G(
     "events",
     "The queued announcement's push leg. It cannot reuse `sendPushToRowAudience`, whose dispatch loop is request-shaped, so it enumerates the owners through the shared `rowPushOwners` and reads the events push cell itself, per account, with `wantsPushFor`.",
@@ -697,10 +719,10 @@ const REGISTRY = {
     "The notification beside the room notice. A room change on a lock screen an hour before the session is the whole point of that lane.",
   ),
   "src/app/api/courses/runs/[runId]/email/route.ts#sendNotice": N(
-    "The run composer's second lane, taken when the sender ticks `send as an important notice`. Same gate, same enrolment re-verification, same cap; the audience keeps the members whose courses row is a stored false.",
+    "The run composer's second lane, taken when the sender ticks `send as an important notice`. Same gate and same cap; the audience is everybody holding a place on the run whose group has gone out (`resolveNoticeAudience`), whatever they unsubscribed from and whatever their courses row says.",
   ),
   "src/app/api/courses/runs/[runId]/updates/route.ts#sendNotice": N(
-    "An update's email (Q18): a programme's lead, an admin or a group's facilitator writing to everyone on the run, one group or its facilitators about the programme they are on, the update also kept on the programme page. It goes whatever the courses row says, with the marker, through the cohort list and the suppression list. Email only: no push leg.",
+    "An update's email: a programme's lead, an admin or a group's facilitator writing to everyone on the run, one group or its facilitators about the programme they are on, the update also kept on the programme page. It goes to everybody holding a place in its audience whose group has gone out (`resolveNoticeAudience`), whatever they unsubscribed from and whatever the courses row says, with the marker, through the suppression list. Email only: no push leg.",
   ),
   "src/app/api/courses/runs/[runId]/updates/route.ts#sendEmail": T(
     "\"Send a test to me\" on the update composer: the update's own email, marked [TEST], to the address on the presser's own account and nobody else. Nobody's preference is passed over and nothing is posted, so it is no notice.",
@@ -708,17 +730,68 @@ const REGISTRY = {
   "src/app/api/courses/runs/[runId]/email/route.ts#sendNoticePush": N(
     "The notification beside that notice. The ordinary announcement lane has no push leg at all, deliberately: a scheduled cohort mail that also buzzed every phone is how people turn notifications off for good.",
   ),
+  "src/lib/courses/nextWeekEmail.ts#sendNotice": N(
+    "\"Week N is open\" to one group, the one send both of its lanes go through: the register's push while it is not on its schedule (and an admin's resend), and the `courses-next-week-email` job 6 days before each session while it is. It was next week's email, a grid send that honoured the courses row and the cohort list's unsubscribe; it is now the people running the programme telling everybody holding a place in the group (`resolveNoticeAudience`) what this week is, whatever they unsubscribed from, with the marker (surface course-week). Once per group per session, by the group's claim. Email only: no push leg. An explainer an admin scheduled at the start of the session is a line in it, read when it is built, so it rides this notice and never sends one of its own: a group whose email has gone is told on its tickets alone.",
+  ),
+  "src/app/api/courses/groups/[groupId]/attendance/push/route.ts#sendNextWeekEmail": N(
+    "Pushing a register while \"Week N is open\" is not on its schedule, and an admin's resend on a finished register: the group's email about its next session, sent as the notice it is.",
+    1,
+    "src/lib/courses/nextWeekEmail.ts",
+  ),
+  "src/lib/scheduler/jobs/nextWeekEmail.ts#sendNextWeekEmail": N(
+    "The `courses-next-week-email` job: \"Week N is open\" to each group 6 days before each session at 9am, sent as the notice it is.",
+    1,
+    "src/lib/courses/nextWeekEmail.ts",
+  ),
+  "src/lib/scheduler/jobs/weekReminders.ts#sendNotice": N(
+    "The reminders 3 days and 1 day before a session (`courses-week-reminders`): one email to each person holding a place in the group whose week is not done, listing what is left of it, whatever their courses row says or which list they left (privacy v15, \"Reminders\": part of running the programme, and they stop once the week is done), with the marker (surface course-week-reminder). One per person per reminder, by a scheduler marker; nobody whose week is done is sent one. Email only: no push leg.",
+  ),
   "src/lib/surveys/sending.ts#sendNotice": N(
     "A programme survey and its reminder (docs/surveys.md): an admin writing to everybody holding a place on the programme the survey is about, each with their own link, whatever their courses row says, with the marker and the lane's caps. Email only: no push leg.",
   ),
   "src/lib/surveys/events/sending.ts#sendNotice": N(
-    "The survey after an event, its email to people who came since and its reminder (docs/surveys.md): an admin writing to the people who came to the event or everybody whose place was confirmed, each with their own link, whatever their events row says, with the marker (surface event-survey) and the lane's caps. A guest's and a walk-in's go to the address they gave the event. Email only: no push leg.",
+    "The survey after an event, its email to people who came since and its reminder (docs/surveys.md): an admin writing to the people who came to the event or everybody whose place was confirmed, each with their own link, whatever their events row says, with the marker (surface event-survey) and the lane's caps. A guest's and a walk-in's go to the address they gave the event. Since November 2026 the same presses, with no button, for a survey its event's Survey after step set up: an organiser's Send it now and the event-surveys job (`sendSurveyAfter`, below), and the one question to the people who had a place and weren't checked in. Email only: no push leg.",
+  ),
+  "src/lib/surveys/events/setUp.ts#sendSurveyAfter": N(
+    "The first email of a survey its event set up, and the one question beside it to the people who had a place and weren't checked in (docs/surveys.md, \"Surveys after events\"): pressed by an event's author, a collaborator or an admin (Send it now, on the event's Survey after tab), or by the event-surveys job when it is due. The organisers and the job run the event, so it reaches the people who came or had a place whatever their events row says, as the admins' press does, with the marker (surface event-survey). The job's press takes no slot under the caps: its scheduler marker claims it once. Email only: no push leg.",
+    2,
+    "src/lib/surveys/events/sending.ts",
+  ),
+  "src/lib/scheduler/jobs/eventSurveys.ts#sendSurveyAfter": N(
+    "The event-surveys job's one reminder, 3 days after a survey its event set up went, to the people it reached who haven't answered, and to the people asked the question about not coming who haven't: sent as the survey was, a notice (surface event-survey), signed by the event's author, once per survey by a scheduler marker. Email only: no push leg.",
+    2,
+    "src/lib/surveys/events/sending.ts",
   ),
   "src/lib/surveys/blanksStore.ts#sendNotice": N(
     "The questions somebody left blank on a survey they sent (docs/surveys.md): an admin's press, for that one person, sending a link of their own to just those questions, whatever their grid says, as the survey's own email did, with the marker (surface survey-blanks). Never in bulk and never on its own; one person a press, at most three a day, and the lane's hourly cap per admin. Email only: no push leg.",
   ),
+  "src/lib/surveys/checkIns/open.ts#sendNotice": N(
+    "The check-in at the end of a session (docs/surveys.md, \"Check-ins\"): a group's facilitator, or an admin, opening it from the register, which emails each person the register marks at that session, never the group's facilitators, a link of their own, whatever their courses row says, with the marker (surface course-check-in). Once per session, by the check-in's own claim; two a day per group, and at most the register's forty. Nobody is reminded, and somebody marked there later is reached with no email. Email only: no push leg.",
+  ),
+  "src/app/api/events/[id]/survey-after/test/route.ts#sendEmail": T(
+    "\"Send a test to me\" beside Send it now on an event's Survey after tab: the survey's email, marked [TEST], to the address on the presser's own session and nobody else. Nobody's preference is passed over, so it is no notice.",
+  ),
   "src/app/api/surveys/[surveyId]/test/route.ts#sendEmail": T(
     "\"Send a test to me\" under a survey's email or its reminder: the email, marked [TEST], to the address on the presser's own session and nobody else. Nobody's preference is passed over, so it is no notice.",
+  ),
+
+  // -- Messages (docs/messages.md) -----------------------------------------
+  // One composer, two lanes, one per send and never a mix: the picker decides
+  // which (`wholeMode` in src/lib/audience/kind.ts), each person carries it,
+  // and the route sends each person through the door their class names.
+  "src/app/api/messages/route.ts#sendNotice": N(
+    "A message that goes as a programme notice: every tag is about running a programme and the writer (an admin, a programme's lead or a group's facilitator) runs everybody it reaches, so it reaches them whatever their settings, with the marker (surface messages), no unsubscribe link and the lane's caps. Email only, but for the pushes below.",
+  ),
+  "src/app/api/messages/route.ts#sendNoticePush": N(
+    "The notification beside a programme notice to one group or to one programme's people, and beside nothing else in Messages (`pushTargetOf`): those sends are the group email and the cohort email's important notice Messages took over from a run's pages, and keep the push each made (the group's name and its page; the course's title and the run's home), to each person reached with an account and each whose every address bounced, never the writer. Through the lane's push door, which reads no preference.",
+  ),
+  "src/app/api/messages/route.ts#sendEmail": G(
+    ["newsletter", "events", "courses"],
+    "A message that goes by their settings: the one row of the grid its writer chose (or the tags suggest), never a mix of two. An account is asked through `wantsCategory` and addressed through `addressesForSend` inside the picker's resolution, which this route sends exactly; a guest's yes is their own subscription to that row's list. Every message carries the link that unsubscribes them from the row, and the RFC 8058 headers. Email only: no push leg.",
+    "src/lib/audience/resolve.ts",
+  ),
+  "src/app/api/messages/test/route.ts#sendEmail": T(
+    "\"Send a test to me\" in Messages: the message, marked [TEST], to the address on the presser's own account and nobody else, with no marker and no unsubscribe link. Nobody's preference is passed over, so it is no notice, and it reads no row.",
   ),
 };
 
@@ -809,7 +882,10 @@ describe("every send in the tree declares its class", () => {
         assert.equal(entry.row, undefined, `${key} is ${entry.class} and must take no row`);
       }
       if (entry.via !== undefined) {
-        assert.equal(entry.class, "grid", `${key} is not grid and cannot delegate a row check`);
+        assert.ok(
+          entry.class === "grid" || entry.class === "notice",
+          `${key} is ${entry.class} and cannot delegate: only a row check or the notice door can be made elsewhere`,
+        );
         assert.ok(
           SOURCE_BY_FILE.has(entry.via),
           `${key} delegates to ${entry.via}, which is not a source file`,
@@ -861,11 +937,20 @@ describe("a class is a claim about the code, and the code is read", () => {
   for (const [key, entry] of Object.entries(REGISTRY)) {
     if (entry.class !== "notice") continue;
     const file = key.slice(0, key.lastIndexOf("#"));
-    test(`${key} goes through the notice lane`, () => {
+    const where = entry.via ?? file;
+    test(`${key} goes through the notice lane${entry.via ? ` in ${where}` : ""}`, () => {
       assert.ok(
-        referencesAny(file, NOTICE_MARKERS),
-        `${file} is registered notice but calls neither ${NOTICE_MARKERS.join(" nor ")}`,
+        referencesAny(where, NOTICE_MARKERS),
+        `${where} is registered notice but calls neither ${NOTICE_MARKERS.join(" nor ")}`,
       );
+      if (entry.via !== undefined) {
+        assert.ok(
+          Object.entries(REGISTRY).some(
+            ([other, its]) => other.startsWith(`${entry.via}#`) && its.class === "notice",
+          ),
+          `${key} delegates to ${entry.via}, which has no notice entry of its own`,
+        );
+      }
     });
   }
 
@@ -885,38 +970,54 @@ describe("a class is a claim about the code, and the code is read", () => {
 
   test("a two-row entry names exactly the rows its helper's type allows", () => {
     /*
-     * The array form exists for ONE shape: a helper parametrised on the row,
+     * The array form exists for ONE shape: a send parametrised on the row,
      * whose type says which rows it may be handed. Left to prose, an entry
      * could name any two rows and the guard would nod. So the declared rows are
-     * read back out of the type: `PushBroadcastRow` in
-     * `src/lib/push/rowAudience.ts` is an `Extract` over the four, and the
-     * entry for that helper's send must equal it exactly. Narrow the type and
-     * this fails until the registry agrees; widen the registry and it fails
-     * until the type does.
+     * read back out of the type, and each such entry must equal its type
+     * exactly. Narrow the type and this fails until the registry agrees; widen
+     * the registry and it fails until the type does. Two sends have the shape:
+     *
+     *  - `sendPushToRowAudience`'s own push, whose callers name the row:
+     *    `PushBroadcastRow` in `src/lib/push/rowAudience.ts`, an `Extract`
+     *    over the four;
+     *  - a message by their settings in Messages, whose writer chooses the
+     *    one row it reads: `GridRow` in `src/lib/audience/kind.ts`, the
+     *    picker's own `Extract` over the categories.
      */
-    const HELPER = "src/lib/push/rowAudience.ts";
-    const source = SOURCE_BY_FILE.get(HELPER);
-    assert.ok(source, `${HELPER} is gone: the array-valued entry describes nothing`);
-    const union = /export type PushBroadcastRow = Extract<\s*PushNotificationKey,\s*([^>]+)>/.exec(
-      source,
-    );
-    assert.ok(union, "PushBroadcastRow moved or changed shape: re-read that file");
-    const allowed = [...union[1].matchAll(/"([a-zA-Z]+)"/g)].map((m) => m[1]).sort();
-    assert.ok(allowed.length >= 2, "a one-row helper does not need the array form");
+    const PARAMETRISED = [
+      {
+        key: "src/lib/push/rowAudience.ts#sendPushToUid",
+        file: "src/lib/push/rowAudience.ts",
+        type: /export type PushBroadcastRow = Extract<\s*PushNotificationKey,\s*([^>]+)>/,
+      },
+      {
+        key: "src/app/api/messages/route.ts#sendEmail",
+        file: "src/lib/audience/kind.ts",
+        type: /export type GridRow = Extract<\s*NotificationCategory,\s*([^>]+)>/,
+      },
+    ];
+    for (const { key, file, type } of PARAMETRISED) {
+      const source = SOURCE_BY_FILE.get(file);
+      assert.ok(source, `${file} is gone: the array-valued entry ${key} describes nothing`);
+      const union = type.exec(source);
+      assert.ok(union, `the row type in ${file} moved or changed shape: re-read that file`);
+      const allowed = [...union[1].matchAll(/"([a-zA-Z]+)"/g)].map((m) => m[1]).sort();
+      assert.ok(allowed.length >= 2, "a one-row helper does not need the array form");
 
-    const entry = REGISTRY[`${HELPER}#sendPushToUid`];
-    assert.ok(entry, `${HELPER}#sendPushToUid is not registered`);
-    assert.deepEqual(
-      rowsOf(entry).slice().sort(),
-      allowed,
-      "the rows this entry declares and the rows its helper's type permits have " +
-        "drifted apart, so one of the two is describing a tree that does not exist",
-    );
+      const entry = REGISTRY[key];
+      assert.ok(entry, `${key} is not registered`);
+      assert.deepEqual(
+        rowsOf(entry).slice().sort(),
+        allowed,
+        "the rows this entry declares and the rows its helper's type permits have " +
+          "drifted apart, so one of the two is describing a tree that does not exist",
+      );
+    }
 
-    // Every OTHER grid entry names exactly one row: the array is for a helper
+    // Every OTHER grid entry names exactly one row: the array is for a send
     // that genuinely serves several, not a way to avoid choosing.
     for (const [key, other] of Object.entries(REGISTRY)) {
-      if (other.class !== "grid" || key === `${HELPER}#sendPushToUid`) continue;
+      if (other.class !== "grid" || PARAMETRISED.some((each) => each.key === key)) continue;
       assert.equal(
         rowsOf(other).length,
         1,

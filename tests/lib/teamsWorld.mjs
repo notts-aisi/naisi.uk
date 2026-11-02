@@ -75,7 +75,7 @@ export const CALLERS = [
   [null, "somebody signed out"],
 ];
 
-/** The agenda the incubator's applicants ranked: in-agenda's own items. */
+/** The agenda the incubator's applicants ranked: the agenda's own items, as designed. */
 export const AGENDA = [
   "Compute governance",
   "International coordination",

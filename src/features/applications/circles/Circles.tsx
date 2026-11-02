@@ -9,6 +9,7 @@ import { changesBetween, freeGroupName, placementOrder } from "@/lib/application
 import type { ArrangementOptionsView, CirclesView, RingOption, RingPerson } from "@/lib/applications/arrange/view";
 import { own } from "@/lib/applications/keys";
 import { lengthWords } from "@/lib/courses/sessionLength";
+import { clockWords } from "@/lib/courses/sessionChange/words";
 import { groupsViewPath } from "../groups/GroupsViews";
 import { notMovedWords } from "../groups/peopleInGroupsWords";
 import AskClaude, { type ScreenGroup, type Turn } from "./AskClaude";
@@ -645,7 +646,7 @@ export default function Circles({ initial }: { initial: CirclesView }) {
           <Select aria-label={`${W.STARTS_LABEL}: ${ring.name}`} value={String(timing.start)} disabled={busy} onChange={(event) => setTiming({ ...timing, start: Number(event.target.value) })}>
             {startTimes.map((start) => (
               <option key={start} value={String(start)}>
-                {hhmm(start)}
+                {clockWords(hhmm(start))}
               </option>
             ))}
           </Select>
@@ -886,7 +887,7 @@ export default function Circles({ initial }: { initial: CirclesView }) {
                 <Select aria-label={W.NEW_START} value={String(newStart)} disabled={busy} onChange={(event) => setNewStart(Number(event.target.value))}>
                   {startTimes.map((start) => (
                     <option key={start} value={String(start)}>
-                      {hhmm(start)}
+                      {clockWords(hhmm(start))}
                     </option>
                   ))}
                 </Select>

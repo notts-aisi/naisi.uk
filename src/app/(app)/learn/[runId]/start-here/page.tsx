@@ -5,7 +5,7 @@ import { loadRunGuide } from "@/lib/courses/guide/load";
 import { onThisSiteWords } from "@/lib/courses/guide/words";
 
 /**
- * A programme's Start here (boards wk-start, wk-start-phone): the run's own
+ * A programme's Start here: the run's own
  * document (`loadRunGuide`), open to exactly the people the run's week 1
  * opens to (`openGuidePage`). The box under "Reflections." names who reads
  * this reader's reflections from records: their group's facilitators and the

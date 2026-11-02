@@ -6,19 +6,21 @@ import {
   PANGRAM_MIN_WORDS,
   readingsForParts,
   worthALook,
-  type PangramReading,
 } from "@/lib/ai/pangram";
 import type { SessionUser } from "@/lib/firebase/session";
 import { PANGRAM_CHECKS_COLLECTION } from "./collections";
 import { openCourseworkDoor, type CourseworkDoor, type DoorRefusal } from "./door";
 import { loadAnswers } from "./gather";
 import { pangramPartsOf, type CourseworkKind, type PangramPart } from "./input";
+import { pangramCheckId, readingsOf, type StoredReading } from "./pangramReadings";
 import { COURSEWORK_DOOR_WORDS, PANGRAM_WORDS } from "./claudeWords";
 
 /**
  * PANGRAM ON COURSEWORK (privacy v13): ADMINS ONLY, everywhere. The lead is
  * turned away at the door (`adminOnly`) before anything is read, and no page
- * or route a lead reaches carries a reading.
+ * or route a lead reaches carries a reading: the chip beside a written answer
+ * on its review page (`readAnswerReading`, `./pangramReadings.ts`) is read
+ * for an admin alone.
  *
  * What is sent: one person's counted written answers and reflections of 50
  * words or more (`pangramPartsOf`), never a fill-in box, joined into ONE
@@ -34,11 +36,7 @@ import { COURSEWORK_DOOR_WORDS, PANGRAM_WORDS } from "./claudeWords";
  */
 
 
-export const pangramCheckId = (runId: string, uid: string) => `${runId}__${uid}`;
-
 type Raw = Record<string, unknown>;
-
-type StoredReading = PangramReading & { hash: string; worthALook: boolean; at: string };
 
 export type PangramPartView = {
   rowId: string;
@@ -57,26 +55,6 @@ export type PangramPersonView = {
   tooShort: number;
   notCounted: number;
 };
-
-function readingsOf(data: Raw | undefined): Record<string, StoredReading> {
-  const parts = data?.parts && typeof data.parts === "object" ? (data.parts as Record<string, Raw>) : {};
-  const out: Record<string, StoredReading> = {};
-  for (const [rowId, raw] of Object.entries(parts)) {
-    if (!raw || typeof raw !== "object" || typeof raw.label !== "string") continue;
-    const number = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : 0);
-    out[rowId] = {
-      label: raw.label,
-      headline: typeof raw.headline === "string" ? raw.headline : "",
-      fractionAi: number(raw.fractionAi),
-      fractionAiAssisted: number(raw.fractionAiAssisted),
-      fractionHuman: number(raw.fractionHuman),
-      hash: typeof raw.hash === "string" ? raw.hash : "",
-      worthALook: raw.worthALook === true,
-      at: typeof raw.at === "string" ? raw.at : "",
-    };
-  }
-  return out;
-}
 
 async function openAdminDoor(db: Firestore, user: SessionUser, roundId: string, programmeId: string) {
   return openCourseworkDoor(db, user, roundId, programmeId, { adminOnly: PANGRAM_WORDS.onlyAdmins });

@@ -115,7 +115,8 @@ function stylesheets() {
   return [...found];
 }
 
-export async function makeEventSurveyWorld(key = "__eventSurveys") {
+/** `extra` adds stubs a suite needs beyond these (the publish route's push leg, say). */
+export async function makeEventSurveyWorld(key = "__eventSurveys", extra = []) {
   const handle = `globalThis[${JSON.stringify(key)}]`;
   const made = makeWorld(key, [
     [
@@ -135,6 +136,8 @@ export async function makeEventSurveyWorld(key = "__eventSurveys") {
     ["@/auth/signInWithGoogle", "export async function signOut() {}"],
     ["@/lib/navigation/hardNavigate", "export function hardNavigate() {}"],
     ...stylesheets().map((specifier) => [specifier, CLASS_NAMES]),
+    // Last, so a suite's own stub wins over one of the same name.
+    ...extra,
   ]);
   const { world, loadTs, call } = made;
   world.h = createElement;

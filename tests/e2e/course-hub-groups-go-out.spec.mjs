@@ -428,7 +428,7 @@ test(
 
     /**
      * A placed person's programme page before their group first meets, as
-     * boards st-programme and st-programme-phone draw it: the head names the
+     * its design draws it: the head names the
      * group with its day, time, room and facilitator; the ticket is the
      * group's first session, with the way to join only for a group that has
      * a link; and "Your group" lists its people by the names they go by, the
@@ -521,7 +521,7 @@ test(
 
     /**
      * "Placed in a group", for one person in one group, as the seed copy
-     * writes it: the board's words (st-emails), since October 2026. Until
+     * writes it: the board's words, since October 2026. Until
      * then it read "You've been placed, Ada", "Your group is facilitated by
      * Fern.", "Your first session is ..." and "Where: Room E1", a line each,
      * under the subject "Your <course> group: first session ...". `size` is
@@ -1106,16 +1106,19 @@ test(
         await facilitatorPage.goto(`${origin}${groupPagePath(groupA)}`, { waitUntil: "domcontentloaded" });
         await facilitatorPage.getByRole("heading", { name: groupA.name, level: 1 }).waitFor({ timeout: WAIT_MS });
 
-        // Since board wk-fac-group the page names the group's other
+        // Since the restyle of the facilitator's group page, the page names the group's other
         // facilitators in its head's line ("with Sofia Rossi"); Fern
         // facilitates Group A alone, so the line names nobody else.
         const headLine = flat(await facilitatorPage.locator("main header p").first().innerText());
         assert.ok(headLine.includes(groupA.room), `the head's line does not say the group's room: ${headLine}`);
         assert.ok(!headLine.includes(" with "), `the head's line names another facilitator: ${headLine}`);
 
-        // "Your group": the people in the group now, by their whole names.
-        // Ada stayed in Group A; Ben moved to Group B. No register is
-        // finished yet, so nobody has a mark.
+        // "Your group": the people in the group now, by the names they go by
+        // (`fullNameOfUser`, the fixture's `first`): a facilitator is shown
+        // nothing more. Each is looked for as the whole name on its own row of
+        // this run's group, so no other run's Ada can answer. Ada stayed in
+        // Group A; Ben moved to Group B. No register is finished yet, so
+        // nobody has a mark.
         const roster = facilitatorPage.getByTestId("group-roster");
         await roster.waitFor({ timeout: WAIT_MS });
         const members = roster.getByRole("list", { name: "Members of this group" });
@@ -1127,10 +1130,17 @@ test(
           "the roster is not the people in the group now",
         );
         for (const person of inGroup) {
-          await members.getByRole("listitem").filter({ hasText: person.displayName }).waitFor({ timeout: WAIT_MS });
+          await members
+            .getByRole("listitem")
+            .filter({ has: facilitatorPage.getByText(person.first, { exact: true }) })
+            .waitFor({ timeout: WAIT_MS });
         }
         assert.equal(await members.getByRole("img").count(), 0, "a mark is drawn before any register is finished");
-        assert.ok(!flat(await roster.innerText()).includes(ben.displayName), "the roster still names Ben, who moved");
+        const rosterSaid = flat(await roster.innerText());
+        assert.ok(
+          !rosterSaid.includes(ben.displayName) && !new RegExp(`\\b${escapeRegExp(ben.first)}\\b`).test(rosterSaid),
+          "the roster still names Ben, who moved",
+        );
 
         // The session, with the way to join that no email carries, and the
         // way to the register.
@@ -1142,8 +1152,8 @@ test(
         await join.waitFor({ timeout: WAIT_MS });
         assert.equal(await join.getAttribute("href"), groupA.meetingUrl, "the facilitator's way to join is not the group's");
 
-        // The register is a page of its own beside the group's (board
-        // wk-register): "Take the register" leads there.
+        // The register is a page of its own beside the group's:
+        // "Take the register" leads there.
         await card.getByRole("link", { name: "Take the register", exact: true }).click();
         await facilitatorPage
           .getByRole("heading", { name: `${groupA.name}’s register`, level: 1 })

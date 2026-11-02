@@ -18,7 +18,7 @@ import {
   type RunAttendance,
   type RunRecords,
 } from "@/lib/courses/programmeAttendance";
-import { firstNameOfUser, fullNameOfUser, readRunLead, type RunLead } from "@/lib/courses/programmeLead";
+import { firstNameOfUser, readRunLead, type RunLead } from "@/lib/courses/programmeLead";
 import { emailsCountLine, readReminderState, remindLabel, type ReminderState } from "@/lib/courses/registerRemind";
 import { followUpDueAt } from "@/lib/courses/unmarkedRegisters";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
@@ -29,9 +29,10 @@ import { readCoursesConfig, type CoursesConfig } from "@/lib/firestore/config";
 import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { sessionModeForWeek } from "@/lib/firestore/courseGroups";
 import { weekDocId } from "@/lib/firestore/courses";
+import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 
 /**
- * A PROGRAMME'S OVERVIEW (board wk-overview), for its lead and admins: the
+ * A PROGRAMME'S OVERVIEW, for its lead and admins: the
  * week the run is in, each group's session this week and its register, what
  * needs attention, who came by week, and how many are taking part. Every
  * value from a record, worded here on the server so the page only draws it.
@@ -46,7 +47,7 @@ import { weekDocId } from "@/lib/firestore/courses";
  *    goes when the week is published);
  *  - before any group has met, week 1 not READY (`weekIsReady`, the one
  *    answer): week 1 opens to everybody holding a place once it is marked
- *    ready (Q35 B), so the line carries the lead's "Mark ready" when the week
+ *    ready, so the line carries the lead's "Mark ready" when the week
  *    is published (it goes when the week is marked ready, and the week card
  *    then says it is ready, with "Not ready" to take it back);
  *  - a register not finished once its session has ended, with the
@@ -55,11 +56,12 @@ import { weekDocId } from "@/lib/firestore/courses";
  *  - somebody who left, whether or not a register marked them, with what
  *    they said when they gave a reason (it goes if they are put back).
  *
- * NOT BUILT, and so not drawn: the board's "Email Freya" (a lead writing to
- * one person through the site is new, and its email is not drawn: C21), the
+ * NOT BUILT, and so not drawn: the design's "Email Freya" (a lead writing to
+ * one person through the site is new, and its email is not designed), the
  * week's readiness detail ("2 of 3 readings and the guide are missing": a
  * week has no Ready checklist yet), "Kofi can't make it" (Can't make it is
- * not built) and the Updates card (the Updates job).
+ * said on the group's register, which each session card's See it opens, and
+ * is not repeated here) and the Updates card (the Updates job).
  */
 
 export type OverviewRailWeek = {
@@ -161,7 +163,14 @@ export type OverviewModel = {
   ending: "finished" | "pushed";
 };
 
-export type OverviewViewer = { isAdmin: boolean; uid: string };
+/**
+ * Who the Overview is drawn for: whether they are an admin (who is a row),
+ * who they are (their own task's words), and their role, which decides the
+ * name each person is shown by (`nameForViewer`: the committee and admins
+ * see the full name, a lead who is not on the committee the name people go
+ * by). Left out, every name is the name people go by.
+ */
+export type OverviewViewer = { isAdmin: boolean; uid: string; role?: string | null };
 
 /** Where the programme's own tabs are, and the run, for the links. */
 export type OverviewPlace = {
@@ -320,9 +329,9 @@ function remindedLine(state: ReminderState): string | null {
 
 /**
  * WHETHER ANY GROUP OF THE RUN HAS MET: a session of one of its groups that
- * still meet has started. Until then the Overview is "Get ready for week 1"
- * (board st-overview), and week 1's readiness is said; from then on it is
- * the week the run is in (board wk-overview). The one answer for both.
+ * still meet has started. Until then the Overview is "Get ready for week 1",
+ * and week 1's readiness is said; from then on it is
+ * the week the run is in. The one answer for both.
  */
 export function anyGroupHasMet(records: RunRecords, now: Date): boolean {
   return records.groups.some((group) => [...groupSessions(records, group, now).values()].some((facts) => facts.started));
@@ -354,7 +363,7 @@ type RunLeaver = {
  * recent first. The grid, its CSV and the facilitators' register keep their
  * own rule (`isListed`): a row there is somebody a register marked.
  */
-function leaversOfRun(records: RunRecords, listed: readonly ListedGroup[]): RunLeaver[] {
+function leaversOfRun(records: RunRecords, listed: readonly ListedGroup[], viewer: OverviewViewer): RunLeaver[] {
   const out: RunLeaver[] = [];
   const named = new Set<string>();
   for (const entry of listed) {
@@ -370,7 +379,7 @@ function leaversOfRun(records: RunRecords, listed: readonly ListedGroup[]): RunL
     named.add(enrolment.uid);
     unmarked.push({
       enrolment,
-      name: fullNameOfUser(records.accounts.get(enrolment.uid) ?? {}),
+      name: nameForViewer(viewer, accountNamesOf(records.accounts.get(enrolment.uid) ?? {}), "NAISI member"),
       leftDateKey: enrolment.droppedOutAt ? londonDateKey(enrolment.droppedOutAt) : null,
       entry: enrolment.groupId ? (listed.find((each) => each.group.id === enrolment.groupId) ?? null) : null,
     });
@@ -401,7 +410,7 @@ export async function buildProgrammeOverview(
   const attendanceHref = (groupId?: string) =>
     `${place.programmePath}/attendance${groupId ? `?group=${encodeURIComponent(groupId)}` : ""}`;
 
-  // ── Week 1 before any group has met (Q35 B) ──────────────────────────────
+  // ── Week 1 before any group has met ──────────────────────────────
   // Week 1 opens to everybody holding a place once it is marked ready, so
   // until a group has met the page says whether it is, through the one answer.
   const anyGroupMet = anyGroupHasMet(records, now);
@@ -448,7 +457,7 @@ export async function buildProgrammeOverview(
         if (key && key >= card.startKey && key <= endKey) inWeek.push({ entry, facts });
       }
     }
-    // By when they start, as wk-overview draws the week's sessions: this is a
+    // By when they start, as the Overview tab draws the week's sessions: this is a
     // list of what happens when, so it reads in time. Two sessions at the
     // same moment come in the order every tab lists its groups (`listed`,
     // `compareGroupsByMeeting`).
@@ -616,7 +625,7 @@ export async function buildProgrammeOverview(
   }
 
   // Somebody who left, the most recent first.
-  const leavers = leaversOfRun(records, listed);
+  const leavers = leaversOfRun(records, listed, viewer);
   for (const { enrolment, name, leftDateKey, entry } of leavers) {
     const first = firstNameOfUser(records.accounts.get(enrolment.uid) ?? {}) || name;
     const sentences: string[] = [];

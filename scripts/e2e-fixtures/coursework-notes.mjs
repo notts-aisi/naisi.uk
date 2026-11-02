@@ -1,6 +1,6 @@
 /**
- * Notes admins keep about a person, and Claude's draft of one (privacy v13),
- * in a real browser.
+ * Notes the team keeps about a person, and Claude's draft of one (privacy v13
+ * and v15), in a real browser.
  *
  * The term T1 stands on (`./worlds/course-hub-term.mjs`), at its second
  * point, "week-three": the people hold their places, Publish told them their
@@ -13,16 +13,23 @@
  *    is seeded, and the moment her coursework counts from is that agreement:
  *    `courseworkCountsFrom` in src/lib/legal/courseworkUse.ts), so it is
  *    writing Claude may be sent. Every word of it is made up.
+ *  - ADA'S WEEK 3 SUBMITTED, after she wrote it, as Submit stores it: a
+ *    note's draft is built only from submitted weeks, so without it the
+ *    draft is refused before anything is sent ("no week of it is submitted").
  *  - A NOTE ABOUT ADA WRITTEN BEFORE THAT AGREEMENT (a day before the seed),
  *    by the harness's admin, from no programme: the profile shows it marked,
- *    and the application screen leaves it out and says so.
+ *    and the application screen leaves it out and says so. Written before
+ *    Ada agreed to privacy v15 as well (the seed's agreement is to v15), it
+ *    says admins only read it, and can never be kept for leads.
  *
  * The spec (`tests/e2e/coursework-notes.spec.mjs`) is the harness's admin,
  * who approves Ada, keeps and changes and deletes notes about her on her
- * profile, meets Claude's draft (the calm sentence where Claude is not set
- * up, one press against a deployed target that has a key), and reads the
- * notes beside her application. Then, as the programme's lead reads them,
- * the Coursework tab's panels: the admin names the running run on the
+ * profile, choosing who reads each one, keeps one for the programme's leads
+ * with a suggestion for next term and then keeps it to admins, meets
+ * Claude's draft (one press: in local mode the fake Claude's draft, against
+ * a deployed target a draft or a reason), and reads the notes beside her
+ * application. Then the Coursework tab's panels, an admin's
+ * alone since privacy v15: the admin names the running run on the
  * programme's Settings tab (the fixture never does), reads Claude's best
  * answers to week 3 under the tab and Pangram's count before any press, and
  * opens Ada's page, where the column beside her weeks holds the notes written
@@ -32,15 +39,21 @@
  *
  * ## What it cannot drive, and where that is held instead
  *
- * Nobody leads the programme at this point of the term, and the harness
- * cannot make a lead who is not an admin. So the best answers panel is read
- * by the admin, who is shown it as the lead is, and "the lead is refused the
- * notes", "the lead is handed no column beside a person's weeks" and "the
- * lead never sees Pangram" are held by the persona battery against a real
- * build (`tests/persona-route-gates.registry.mjs`, the `lead` persona on the
- * notes and Pangram routes), by `tests/course-hub-coursework.test.mjs` (both
- * pages drawn for the lead) and by `tests/coursework-claude.test.mjs`, not
- * here.
+ * Nobody leads the programme at this point of the term, and an admin named
+ * as the lead would be answered as an admin. The lead's side of the notes
+ * (reading only the notes kept for leads about the people on their
+ * programme, never how many others there are, adding their own, changing
+ * only those) is driven by `course-hub-explainers-and-lead-notes`, whose
+ * admin makes a waiting account SU-recognised committee and the programme's
+ * lead on the real pages. That side, and "the lead is
+ * refused the admins' notes routes and Claude's draft", "the lead is drawn no
+ * panel under the tab and refused Claude's best answers" and "the lead never
+ * sees Pangram" are held by the persona battery against a real build
+ * (`tests/persona-route-gates.registry.mjs`, the `lead` persona on the
+ * programme's notes routes, the admins' notes routes, best answers and
+ * Pangram), by `tests/course-hub-coursework.test.mjs` (both pages drawn for
+ * the lead), by `tests/notes-for-leads.test.mjs` and by
+ * `tests/coursework-claude.test.mjs`, not here.
  *
  * ## It sends nothing
  *
@@ -54,13 +67,14 @@ import { countTerm, seedTerm, teardownTerm } from "./worlds/course-hub-term.mjs"
 /** Every step the spec must complete, in order. */
 export const COURSEWORK_NOTES_STEPS = [
   "the admin approves the account the notes are about",
-  "the profile shows the notes admins keep, with its rule, and marks the note written before the agreement",
+  "the profile shows the notes the team keeps, with its rule, and marks the note written before the agreement as read by admins only",
   "the admin adds a note, changes its words and deletes it, and the record agrees each time",
+  "the admin keeps a note for the programme's leads with a suggestion for next term, then keeps it to admins, and the record agrees each time",
   "the admin keeps a note for the application screen",
-  "Claude's draft: the calm sentence where Claude is not set up, or one press answered with a draft or a reason",
+  "Claude's draft: one press, answered in local mode with the fake Claude's draft and against a deployed target with a draft or a reason",
   "beside the application only the note written after the agreement shows, with its rule and the count of earlier notes",
   "the admin names the running course run on the programme's Settings tab",
-  "under the Coursework tab, Claude's best answers to week 3 as the lead reads them, and Pangram's count before any press, with nothing pressed",
+  "under the Coursework tab, Claude's best answers to week 3, an admin's alone, and Pangram's count before any press, with nothing pressed",
   "beside Ada's weeks on her coursework page: the notes written from this run, Claude's draft from it, and Pangram with nothing of hers to send",
 ];
 
@@ -137,6 +151,20 @@ async function seed({ runId, suppress, onState }) {
     reviewStatus: "unreviewed",
     updatedAt: now,
     firstWrittenAt: new Date(now.getTime() + 1_000),
+  });
+
+  // Ada submits week 3 after writing it, as Submit stores it: a note's draft is built from submitted weeks only.
+  const submitted = new Date(now.getTime() + 2_000);
+  await fixtureDoc("courseWeekWork", `${state.runId}__${subject.uid}__${COURSEWORK.weekId}`).set({
+    e2eTermRunId: state.termRunId,
+    runId: state.runId,
+    uid: subject.uid,
+    weekId: COURSEWORK.weekId,
+    weekNumber: COURSEWORK.weekNumber,
+    submittedAt: submitted,
+    firstSubmittedAt: submitted,
+    submitCount: 1,
+    updatedAt: submitted,
   });
 
   // The note written before she agreed.
@@ -216,6 +244,12 @@ export const SPEC = {
    * Claude's draft came back with a draft, 86 rows existed before teardown,
    * and the fixture manifest read zero after it. Its steps had passed in the
    * pull request's end-to-end job in local mode before that.
+   *
+   * Again on 2 November 2026, in local mode, once the harness's fake Claude
+   * answered there and Ada's week 3 was seeded as submitted (a note's draft
+   * is built only from submitted weeks since end-of-week notes landed): all
+   * ten steps ran, the one press came back with the fake's draft, 39 rows
+   * existed before teardown, and the manifest read zero after it.
    */
   status: "verified",
   seed,

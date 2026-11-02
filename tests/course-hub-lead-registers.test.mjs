@@ -16,7 +16,7 @@
  *     register, an archived group's too, with the people Publish has told,
  *     as the group's facilitators do; corrections stay an admin's. The
  *     register's notes, on a person or on a session, are the group's
- *     facilitators' and admins' (C30): the lead reads the marks and no note.
+ *     facilitators' and admins': the lead reads the marks and no note.
  *  2. MARKING STAYS THE GROUP'S FACILITATORS' AND ADMINS'. The lead is
  *     refused every write to a register, and nothing is written.
  *  3. NOBODY ELSE READS MORE. The lead of another programme, the programme's
@@ -106,17 +106,38 @@ describe("1. the lead reads every register of their run", () => {
       assert.equal(asLead.status, 200, `${groupId}: ${JSON.stringify(asLead.body)}`);
       assert.deepEqual(asLead.body.members.map((member) => member.uid).sort(), people, groupId);
       const asFacilitator = await read(facilitator, groupId);
-      assert.deepEqual(asLead.body.members, asFacilitator.body.members, groupId);
+      // The same rows, each named by the names rule for its reader: the lead,
+      // on the committee, sees the account's full name; a facilitator who is
+      // not on it, the name the person goes by.
+      const rowsOf = (body) => body.members.map(({ uid, joinedWeekNumber }) => ({ uid, joinedWeekNumber }));
+      assert.deepEqual(rowsOf(asLead.body), rowsOf(asFacilitator.body), groupId);
+      const account = (uid) => world.db.read(`users/${uid}`);
+      for (const member of asLead.body.members) assert.equal(member.displayName, account(member.uid).displayName, `${groupId}: the lead's name for ${member.uid}`);
+      for (const member of asFacilitator.body.members) {
+        assert.equal(member.displayName, account(member.uid).profile.preferredName, `${groupId}: the facilitator's name for ${member.uid}`);
+      }
       assert.deepEqual(asLead.body.sessions.map((session) => session.sessionKey), asFacilitator.body.sessions.map((session) => session.sessionKey));
       assert.equal(asLead.body.canEditPushed, false, "a lead corrects nothing");
     }
   });
 
-  // Changed for C30 and the privacy draft's item 9: the lead used to be sent
+  // Changed when the facilitators' notes became theirs and admins': the lead used to be sent
   // the facilitators' notes on a person with the marks. The register's notes
   // are now the group's facilitators' and admins', so the lead reads the
   // mark and no note, a session's own note included, while the facilitators
   // and an admin read both, as strictly as before.
+  // The names rule (privacy v15: "Only the committee sees your full name;
+  // everyone else sees the name you go by"), on the register's own rows.
+  test("each reader is shown the register's people by the names rule: the committee and admins in full, a facilitator by the name each goes by", async () => {
+    world.db.poke("users/amara", { "profile.preferredName": "Mara", "profile.fullName": "Amara Okafor-Bello" });
+    const rowsAs = async (who) => (await read(who, B)).body.members.map((member) => [member.uid, member.displayName]);
+    for (const who of ["zach", "claudia"]) {
+      assert.deepEqual(await rowsAs(who), [["amara", "Amara Okafor-Bello (Mara)"], ["dev", "Dev Patel"]], who);
+    }
+    assert.deepEqual(await rowsAs("rahul"), [["dev", "Dev"], ["amara", "Mara"]], "a facilitator who is not on the committee");
+    assert.doesNotMatch(JSON.stringify((await read("rahul", B)).body), /Okafor/, "a facilitator is sent a full name");
+  });
+
   test("the marks a facilitator saved, and none of the register's notes", async () => {
     const marked = await call("rahul", register.POST, { groupId: B }, {
       body: { weekNumber: 1, marks: [{ uid: "amara", status: "present" }], notes: "Ran late because of the fire alarm." },
@@ -238,7 +259,7 @@ describe("4. a lead who stops leading the run reads nothing", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. The register's notes, as every kind of caller (C30)
+// 5. The register's notes, as every kind of caller
 // ---------------------------------------------------------------------------
 
 describe("5. the register's notes are the group's facilitators' and admins'", () => {

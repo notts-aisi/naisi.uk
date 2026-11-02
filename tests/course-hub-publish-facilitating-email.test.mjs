@@ -9,7 +9,7 @@
  *  1. THE TOKEN LIST IS THE EMAIL'S WHOLE SET, and the seed copy uses every
  *     one and nothing outside it.
  *  2. WITH EVERYTHING KNOWN, THE SEED READS AS THE BOARD DOES, in the words
- *     st-emails draws, apart from the difference written beside it. The
+ *     the group emails draws, apart from the difference written beside it. The
  *     wording before the board's, which an admin may have saved, still reads
  *     as it did (`SAVED`).
  *  3. A MISSING VALUE TAKES ITS OWN PIECE AND NOTHING ELSE: no room, one
@@ -86,7 +86,7 @@ function subsets(list) {
 }
 
 /**
- * The board's email (st-emails), word for word since October 2026, for a
+ * The board's email, word for word since October 2026, for a
  * group whose page does not show week 1's guide (`FACTS` leaves
  * `weekOneGuide` unset): "Their names are on your group page." When the page
  * shows it, the email says the board's whole sentence (`BOARD_FULL`, section

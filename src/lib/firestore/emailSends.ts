@@ -46,13 +46,15 @@ export type EmailSendKind =
   // left get their confirmation" is a question the deliverability tab has to
   // answer without reading subject lines.
   | "course-enrolment"
-  // The one short "feedback is waiting" email (Q34 B): a facilitator, the
-  // programme's lead or an admin has sent feedback on somebody's own written
-  // answer, and this tells that person it is on the site. Its own kind so
-  // "was Amara told the feedback was waiting" is answerable without reading
-  // subject lines, apart from the enrolment and admissions mail.
+  // The "you have feedback" email: an admin's batch tells each person that
+  // feedback a facilitator, the programme's lead or an admin saved on their
+  // week is on the site, one message a person however many pieces it
+  // announces. Its own kind so "was Amara told the feedback was waiting" is
+  // answerable without reading subject lines, apart from the enrolment and
+  // admissions mail. Its `referenceId` is the RUN id; its test goes as
+  // `course-test`.
   | "course-feedback"
-  // A programme's certificates (board en-finish): one email a person, with a
+  // A programme's certificates: one email a person, with a
   // button to each certificate they are sent, from the lead's or an admin's
   // press. Its own kind so "did everybody who finished get their
   // certificate" is answerable without reading subject lines; its
@@ -85,6 +87,25 @@ export type EmailSendKind =
   // next to a newsletter that went out the same afternoon. Its `referenceId`
   // is the EVENT id.
   | "event-announcement"
+  // A message written in Messages (docs/messages.md) that goes by each
+  // person's settings: the one row of the grid its writer chose, with the
+  // link that unsubscribes them from it. Its own kind, apart from the
+  // newsletter and the announcement, because the deliverability tab has to
+  // answer "what did people write to a list this week" without reading
+  // subject lines. A message that goes as a notice is a `notice` row on the
+  // `messages` surface instead. Its `referenceId` is the send's record in
+  // `messageSends`.
+  | "message"
+  // "Send a test to me" in Messages: the message, to its writer alone.
+  | "message-test"
+  // An event for chosen people's invitation, to somebody reached by their
+  // events row (src/lib/events/invitations.ts). Its own kind rather than
+  // `event-announcement`, because one goes to the people the organiser chose
+  // and the other to the whole list, and "did Lloyd get the invitation" has
+  // to be answerable without reading subject lines. The same message to the
+  // people holding a place on the event's programme goes as a `notice` with
+  // the `event-invitation` surface. Its `referenceId` is the EVENT id.
+  | "event-invitation"
   | "course-test"
   | "admin-test"
   | "subscription-confirm"
@@ -141,7 +162,23 @@ export type EmailSendSurface =
   | "event-survey"
   // The questions somebody left blank on a survey they sent (docs/surveys.md),
   // to that one person, by an admin's press.
-  | "survey-blanks";
+  | "survey-blanks"
+  // The check-in at the end of a session (docs/surveys.md, "Check-ins"), to
+  // the people the register marks at it, when the group's facilitator opens it.
+  | "course-check-in"
+  // "Week N is open", 6 days before a group's session, to everybody holding a
+  // place in the group (`src/lib/courses/nextWeekEmail.ts`).
+  | "course-week"
+  // The reminders 3 days and 1 day before a group's session, to each person
+  // in it whose week is not done (`courses-week-reminders`).
+  | "course-week-reminder"
+  // An event for chosen people that is part of a programme: its invitation, to
+  // the people holding a place on that programme (src/lib/events/invitations.ts).
+  | "event-invitation"
+  // A message written in Messages (docs/messages.md) that goes as a programme
+  // notice: an admin, a programme's lead or a group's facilitator writing to
+  // people they run a programme for, about running it.
+  | "messages";
 
 export type EmailSend = {
   messageId: string;

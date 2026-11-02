@@ -17,7 +17,7 @@ import { mintSurveyToken } from "./token";
 import { REFUSAL, leavingEmailWords } from "./words";
 
 /**
- * THE LEAVING SURVEY (Q46): confidential, like every survey on the site, one
+ * THE LEAVING SURVEY: confidential, like every survey on the site, one
  * per programme, made by an admin from its own template, and never sent.
  *
  *  - OPENED, NOT SENT. An admin opens it (`openLeavingSurvey`), which fixes

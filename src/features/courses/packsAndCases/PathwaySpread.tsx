@@ -6,7 +6,7 @@ import styles from "@/features/courses/facilitator/facilitator.module.css";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 
 /**
- * THE SPREAD ON THE GROUP PAGE (boards wk-fac-group and wk-fac-group-phone:
+ * THE SPREAD ON THE GROUP PAGE (the facilitator's group page's
  * "Pathways in Group B"): a tile per pathway of the week's draw, with how
  * many have it and who, so every pathway has somebody; who has nothing yet;
  * and "Change pathways and cases", the way to the draw page. A week that
@@ -16,9 +16,8 @@ import weekly from "@/features/courses/weekly/weekly.module.css";
  * people the group page lets in. Names only. Its classes are in the group
  * page's own stylesheets, imported by the names the page imports them by.
  * The board draws this inside This week's work; until that table exists it
- * is a card of its own, and the table can take it whole. Not drawn, though
- * the board draws it: who can't make it tonight (that feature does not exist
- * yet).
+ * is a card of its own, and the table can take it whole. Not drawn: who
+ * can't make it tonight, which the register says.
  */
 export default function PathwaySpread({
   title,

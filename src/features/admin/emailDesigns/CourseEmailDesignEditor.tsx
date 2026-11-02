@@ -28,7 +28,6 @@ import {
   courseTemplateUsesFacilitatingTokens,
   courseTemplateUsesGroupTokens,
   courseTemplateUsesIncubatorTokens,
-  courseTemplateUsesWeekTokens,
 } from "./courseEmailSamples";
 import styles from "./CourseEmailDesignEditor.module.css";
 
@@ -206,42 +205,7 @@ const INCUBATOR_TOKENS: TokenHelp[] = [
 ];
 
 /**
- * The weekly nudge's own map. It does NOT resolve {startDate} or
- * {preferredName}: a different module builds its tokens
- * (`src/lib/email/courseNudgeEmail.ts`), so the lifecycle lists above are
- * replaced rather than added to when this template is open.
- */
-const WEEK_TOKENS: TokenHelp[] = [
-  { token: "firstName", description: "First word of their name, best for greetings." },
-  { token: "courseTitle", description: "The course's title, e.g. AI Safety Fundamentals." },
-  { token: "runLabel", description: "Which run this is, e.g. Autumn 2026." },
-  { token: "weekNumber", description: "The taught week the cohort is on, e.g. 3." },
-  { token: "weekTitle", description: "That week's title, e.g. Goal misgeneralisation." },
-  { token: "weekSummary", description: "The week's one-line summary, as written in the week editor." },
-  {
-    token: "weekPrep",
-    description:
-      "A sentence counting what is in the week: readings to do, exercises to write up, roughly how long.",
-  },
-  {
-    token: "sessionWhen",
-    description: "When this recipient's group meets that week, e.g. Tue 21 Oct, 6pm to 7:30pm.",
-  },
-  {
-    token: "sessionWhere",
-    description:
-      "Where that session is, e.g. Hallward Library, B12. Online groups say Online, never the meeting link. A room with a link typed into it is left out.",
-  },
-  { token: "weekUrl", description: "Link straight to the week page in the learning space." },
-  {
-    token: "feedbackUrl",
-    description:
-      "The weekly feedback form, set on the site status page. Set nothing and the sentence around it is dropped.",
-  },
-];
-
-/**
- * The admissions map. Same story as the nudge's: a different send path
+ * The admissions map. A different send path
  * (`src/lib/email/admissionEmails.ts`) builds these, and it drops the three
  * course tokens before substituting anything, so the lifecycle list is
  * REPLACED rather than added to when one of these templates is open. A round
@@ -340,8 +304,7 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
 
   // Stable object identity so EmailPreview's effect doesn't refetch on every
   // keystroke-driven re-render. `templateId` travels with the tokens because the
-  // preview endpoint renders the weekly nudge through a different component and
-  // a different token pass than the five lifecycle templates: see
+  // preview endpoint writes three templates through their own composers: see
   // `/api/admin/course-emails/preview`.
   const previewPayload = useMemo(
     () => ({ templateId, tokens: courseSampleTokens(templateId, "Alex Taylor") }),
@@ -427,7 +390,6 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
   const subjectOver = subject.length > COURSE_SUBJECT_MAX;
   const subjectEmpty = subject.trim().length === 0;
   const showsGroupTokens = courseTemplateUsesGroupTokens(templateId);
-  const showsWeekTokens = courseTemplateUsesWeekTokens(templateId);
   const showsAdmissionsTokens = courseTemplateUsesAdmissionsTokens(templateId);
   const showsFacilitatingTokens = courseTemplateUsesFacilitatingTokens(templateId);
   const showsIncubatorTokens = courseTemplateUsesIncubatorTokens(templateId);
@@ -463,13 +425,11 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
         <dl className={styles.tokenList}>
           {(showsAdmissionsTokens
             ? admissionsTokens
-            : showsWeekTokens
-              ? WEEK_TOKENS
-              : showsFacilitatingTokens
-                ? FACILITATING_TOKENS
-                : showsIncubatorTokens
-                  ? INCUBATOR_TOKENS
-                  : ALWAYS_TOKENS
+            : showsFacilitatingTokens
+              ? FACILITATING_TOKENS
+              : showsIncubatorTokens
+                ? INCUBATOR_TOKENS
+                : ALWAYS_TOKENS
           ).map((t) => (
             <div key={t.token} className={styles.tokenRow}>
               <dt>
@@ -478,8 +438,7 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
               <dd>{t.description}</dd>
             </div>
           ))}
-          {!showsWeekTokens &&
-            !showsAdmissionsTokens &&
+          {!showsAdmissionsTokens &&
             !showsFacilitatingTokens &&
             !showsIncubatorTokens &&
             GROUP_TOKENS.map((t) => (
@@ -532,8 +491,7 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
             list: publishing says which.
           </p>
         )}
-        {!showsWeekTokens &&
-          !showsAdmissionsTokens &&
+        {!showsAdmissionsTokens &&
           !showsGroupTokens &&
           !showsFacilitatingTokens &&
           !showsIncubatorTokens && (
@@ -561,19 +519,6 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
             says which.
           </p>
         )}
-        {showsWeekTokens && (
-          <p className={styles.tokensNote}>
-            This email behaves differently from the other five, in one way worth knowing:
-            when a token has nothing to resolve to (a week with no summary written yet, a
-            member whose group has no time set), the whole sentence around it is removed
-            rather than left with a gap in it. So keep one of these tokens per paragraph,
-            in plain text rather than inside bold or a link, and the email simply gets
-            shorter instead of reading oddly. The subject line is the one thing that
-            cannot be deleted, so a stranded &ldquo;:&rdquo; or &ldquo;·&rdquo; is tidied
-            away there instead. The preview below fills everything in, so it shows the
-            longest version a recipient could get.
-          </p>
-        )}
       </section>
 
       <div className={styles.grid}>
@@ -595,11 +540,7 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               maxLength={COURSE_SUBJECT_MAX + 20}
-              placeholder={
-                showsWeekTokens
-                  ? "{weekTitle} · Week {weekNumber} of {courseTitle}"
-                  : "You're in: {courseTitle} starts {startDate}"
-              }
+              placeholder="You're in: {courseTitle} starts {startDate}"
             />
           </Field>
 
@@ -673,24 +614,17 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
           </div>
         </div>
 
-        {/* The five lifecycle templates render through the same
-            ApplicationEmail component as the membership-application mail, so
-            for those this endpoint is the application-email preview verbatim.
-            The weekly nudge is not: different chrome (it carries an unsubscribe
-            footer) and a different token pass (unresolved tokens delete their
-            sentence rather than staying literal). Previewing it through the
-            generic endpoint showed an admin a message no recipient could
-            receive, so the course preview route branches on templateId. */}
+        {/* The lifecycle templates render through the same ApplicationEmail
+            component as the membership-application mail, so for those this
+            endpoint is the application-email preview verbatim; the course
+            preview route branches on templateId for the three written by
+            their own composers. */}
         <EmailPreview
           subject={subject || "(no subject)"}
           blocks={blocks}
           endpoint="/api/admin/course-emails/preview"
           extraPayload={previewPayload}
-          hint={
-            showsWeekTokens
-              ? "This is what a recipient sees, with sample course details filled in, including the unsubscribe footer every nudge carries. Every sample below resolves, so this is the LONGEST version anyone gets: a week with no summary, or a member whose group has no time set, receives a shorter email with those sentences removed. A token this email cannot resolve (a typo, or one borrowed from another template) stays visible as {token}."
-              : "This is what a recipient sees, with sample course details filled in. Tokens that don't resolve on this email stay visible as {token}: that is what would land in the inbox."
-          }
+          hint="This is what a recipient sees, with sample course details filled in. Tokens that don't resolve on this email stay visible as {token}: that is what would land in the inbox."
         />
       </div>
     </div>

@@ -1,6 +1,5 @@
 /*
- * Packs, cases and talks (plan item 8; boards wk-week, wk-week-phone,
- * wk-week6-phone, wk-cases, wk-fac-group, wk-programme). Every colour, space
+ * Packs, cases and talks. Every colour, space
  * and radius from the theme's tokens. Phone first; wider screens only widen.
  */
 
@@ -529,7 +528,7 @@
   overflow-wrap: anywhere;
 }
 
-/* === The draw page (wk-cases, option A) === */
+/* === The draw page === */
 
 .drawPage {
   display: flex;

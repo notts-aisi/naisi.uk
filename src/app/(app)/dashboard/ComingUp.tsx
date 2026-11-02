@@ -2,6 +2,7 @@ import Link from "next/link";
 import Chip from "@/components/ui/Chip";
 import DateTile from "@/components/ui/DateTile";
 import { ChevronRight } from "./icons";
+import { REACH_WORDS } from "@/lib/events/reach";
 import type { HomeEvent } from "./homeData";
 import styles from "./home.module.css";
 
@@ -100,7 +101,7 @@ export default function ComingUp({
                 <p className={styles.eventMeta}>
                   <span>{[event.clock, event.place].filter(Boolean).join(" · ")}</span>
                   {!cards && placesChip(event)}
-                  {event.membersOnly && <Chip tone="neutral">Members only</Chip>}
+                  {event.accountNeeded && <Chip tone="neutral">{REACH_WORDS.badge["listed-account"]}</Chip>}
                 </p>
                 {cards && <p className={styles.eventChips}>{placesChip(event)}</p>}
               </div>

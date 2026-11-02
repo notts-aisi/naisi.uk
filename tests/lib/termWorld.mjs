@@ -1,6 +1,6 @@
 /**
  * The world This term in numbers is counted in: the Autumn 2026 term on Thu
- * 10 Dec 2026, the day after AGI Strategy's last session (board sv-term).
+ * 10 Dec 2026, the day after AGI Strategy's last session.
  *
  * Built on `tests/lib/ratingsWorld.mjs`'s seed: the term's form after
  * decision day ("Autumn 2026", opened Tue 6 Oct), AGI Strategy naming its run

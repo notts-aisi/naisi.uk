@@ -7,7 +7,7 @@ import {
 import { proseLinks, proseText, runsLinks, type Prose } from "./prose";
 
 /**
- * WHAT A PASTED WEEK WAS READ AS, AND WHAT TO CHECK (board pr-weeks,
+ * WHAT A PASTED WEEK WAS READ AS, AND WHAT TO CHECK (the Weeks tab's paste,
  * Option B: "What we found in week 3" and "5 things to check"), in the
  * board's words.
  *
@@ -28,7 +28,7 @@ export type FoundRow = {
 
 /**
  * Sites that refuse automatic link checkers though their pages open in a
- * browser (board pr-weeks: "7 of 45 links can’t be checked automatically
+ * browser ("7 of 45 links can’t be checked automatically
  * (openai.com, weforum.org). They work in a browser."). A link on one of
  * these, or on any address under one, is named so the lead opens it by hand.
  */

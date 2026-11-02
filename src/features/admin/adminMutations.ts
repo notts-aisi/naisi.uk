@@ -131,6 +131,7 @@ export async function updateMember(uid: string, fields: MemberFields) {
 }
 
 type FullProfileUpdate = {
+  fullName?: string;
   preferredName?: string;
   universityEmail?: string;
   status?: string;

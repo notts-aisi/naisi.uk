@@ -327,7 +327,7 @@ test("assertFixtureCollection refuses everything off the fixture's list", () => 
   }
 });
 
-test("only the membership document is reachable in the config collection", () => {
+test("only the membership document is reachable in the config collection, and one question set in its own", () => {
   // `config` holds the scheduler cursors, the courses config and the task
   // email copy as well as the membership pointer. A membership spec has to
   // move the pointer and put it back; nothing here has any business near the
@@ -347,6 +347,20 @@ test("only the membership document is reachable in the config collection", () =>
     () => fixtureQuery("config"),
     "fixtureQuery accepted the config collection. A query there would list every " +
       "runtime config document.",
+  );
+  // The same shape for the question sets: one set a spec borrows and puts
+  // back, never another kind's and never a query that lists them all.
+  for (const id of ["before", "event", "check-in", "session-report", "leaving", "after ", ""]) {
+    assert.throws(
+      () => fixtureDoc("surveyQuestionSets", id),
+      `fixtureDoc accepted surveyQuestionSets/${JSON.stringify(id)}. surveyQuestionSetDoc() is the ` +
+        "only permitted way into that collection, and it reaches the end of a programme's set alone.",
+    );
+  }
+  assert.throws(
+    () => fixtureQuery("surveyQuestionSets"),
+    "fixtureQuery accepted the surveyQuestionSets collection. A query there would list every " +
+      "question set an admin keeps.",
   );
   for (const sub of ["users", "reviews", "", "stages "]) {
     assert.throws(
@@ -483,6 +497,9 @@ test("the funnel fixture declares every collection its teardown must drain", () 
     // The RSVP smoke: a fixture event and the attendee rows a guest creates.
     "events",
     "eventRsvps",
+    // Events authoring: who an event for chosen people is for, and its list.
+    "eventAudiences",
+    "eventInvitations",
     // The membership console: the year, the rows under it, and the pointer at
     // config/membership that says which year is current.
     "membershipPeriods",
@@ -524,6 +541,26 @@ test("the funnel fixture declares every collection its teardown must drain", () 
     "surveyPeople",
     "surveyAnswers",
     "kairosChoices",
+    // A message from Messages to a term's people: the send's own record, found
+    // by the tags it was for.
+    "messageSends",
+    // A group's sessions and a week's work: the session report a facilitator
+    // sends, and where a member's week stands once they submit it or it is
+    // reopened, with the log of each.
+    "courseSessionReports",
+    "courseWeekWork",
+    "courseWorkLog",
+    // The survey admin spec: the end of a programme's question set its
+    // browser changes and puts back (through its one door), and the weeks of
+    // check-ins the scheduler fixes once the spec names a run whose weeks are
+    // whole, which teardown counts and removes by their constructed ids.
+    "surveyQuestionSets",
+    "checkInWeeks",
+    // A week's review: Claude's review the press keeps, the drafts of notes
+    // the draft press keeps, and the explainers scheduled from the review.
+    "courseWeekReviews",
+    "courseNoteDrafts",
+    "courseExplainers",
   ]) {
     assert.ok(
       FIXTURE_COLLECTIONS.includes(required),

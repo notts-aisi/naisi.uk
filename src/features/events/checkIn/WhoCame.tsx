@@ -1,18 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import StaffNameText from "@/components/StaffNameText";
 import Button from "@/components/ui/Button";
 import InitialsChip from "@/components/ui/InitialsChip";
 import { clockWords, dayWords } from "@/features/events/manageWords";
 import { useHydrated } from "@/hooks/useHydrated";
 import { isSameSiteDay } from "@/lib/datetime/siteTime";
 import {
-  HOW_WORDS,
   NO_NAMES_OFF,
+  byWords,
   cameUntickedWords,
   doorCounts,
+  howWords,
   notListedWords,
-  walkedInByCode,
+  rowName,
+  withDrawnName,
   type DoorRow,
   type NamesOff,
 } from "@/lib/events/checkInView";
@@ -43,7 +46,7 @@ type Props = {
 };
 
 /**
- * Who came (ev-manage), for the people who run check-in: everybody checked
+ * Who came, for the people who run check-in: everybody checked
  * in, how and when, with a walk-in's email noted by the day it goes; then the
  * confirmed sign-ups who did not come, behind a disclosure, each with "They
  * came" while people can still be added. Not coming is recorded nowhere and
@@ -53,10 +56,14 @@ type Props = {
  * is counted with who came and listed nowhere, and the confirmed sign-ups
  * with no tick say when some of them came that way.
  *
- * A walk-in who checked themselves in with the code (an account with no
- * sign-up) reads "QR at the door", as a sign-up who did reads, and nothing
- * under their name: the event's survey reaches the account, so there is no
- * email to keep or to say is missing.
+ * Four columns: Name, How (each way in as itself: "Door list", "Walk-in",
+ * "Added later", "Scanned the door code", "From their email", "On the
+ * check-in page", or "Checked themselves in" for a record from before the
+ * ways were told apart), Checked in by ("Themselves", or who did it) and When.
+ * A walk-in who checked themselves in (an account with no sign-up) reads the
+ * way they came, as a sign-up who did reads, and nothing under their name:
+ * the event's survey reaches the account, so there is no email to keep or to
+ * say is missing.
  */
 export default function WhoCame({
   eventId,
@@ -102,7 +109,7 @@ export default function WhoCame({
       const data = (await res.json().catch(() => ({}))) as { row?: DoorRow; error?: string };
       if (!res.ok || !data.row) throw new Error(data.error ?? "That didn’t save. Try again.");
       const saved = data.row;
-      setRows((current) => current.map((r) => (r.key === row.key ? saved : r)));
+      setRows((current) => current.map((r) => (r.key === row.key ? withDrawnName(saved, r) : r)));
     } catch (err) {
       setProblem(
         err instanceof TypeError
@@ -156,7 +163,8 @@ export default function WhoCame({
                 <tr>
                   <th scope="col">Name</th>
                   <th scope="col">How</th>
-                  <th scope="col">Checked in</th>
+                  <th scope="col">Checked in by</th>
+                  <th scope="col">When</th>
                 </tr>
               </thead>
               <tbody>
@@ -166,7 +174,9 @@ export default function WhoCame({
                       <div className={styles.personCell}>
                         <InitialsChip name={row.name} uid={row.key} size="sm" />
                         <div className={styles.personText}>
-                          <span className={styles.personName}>{row.name}</span>
+                          <span className={styles.personName}>
+                            <StaffNameText name={rowName(row)} />
+                          </span>
                           {row.standing === "walk-in" && emailsKept && row.checkIn && (row.checkIn.emailGoesAt || row.checkIn.noEmail) && (
                             <span className={styles.personSub}>
                               {row.checkIn.emailGoesAt
@@ -177,14 +187,9 @@ export default function WhoCame({
                         </div>
                       </div>
                     </td>
-                    <td data-label="How">
-                      {row.checkIn && (row.standing !== "walk-in" || walkedInByCode(row))
-                        ? HOW_WORDS[row.checkIn.how]
-                        : row.standing === "walk-in"
-                          ? "Walk-in"
-                          : ""}
-                    </td>
-                    <td data-label="Checked in">{row.checkIn ? when(row.checkIn.at) : ""}</td>
+                    <td data-label="How">{howWords(row)}</td>
+                    <td data-label="Checked in by">{row.checkIn ? byWords(row.checkIn) : ""}</td>
+                    <td data-label="When">{row.checkIn ? when(row.checkIn.at) : ""}</td>
                   </tr>
                 ))}
               </tbody>
@@ -204,7 +209,9 @@ export default function WhoCame({
             {notHere.map((row) => (
               <li key={row.key} className={styles.notHereRow}>
                 <InitialsChip name={row.name} uid={row.key} size="sm" />
-                <span className={styles.personName}>{row.name}</span>
+                <span className={styles.personName}>
+                  <StaffNameText name={rowName(row)} />
+                </span>
                 {canAdd && (
                   <Button
                     size="sm"

@@ -1,5 +1,5 @@
 /**
- * A programme's Weeks tab (board pr-weeks): the list of the run's weeks, in
+ * A programme's Weeks tab: the list of the run's weeks, in
  * order, each with its state, its first session from the groups' own
  * calendars, the day it should be ready by and its owner; the line about when
  * weeks open with "Copy weeks from the course"; where the weeks meet; and the
@@ -42,8 +42,9 @@ const everything = () => JSON.stringify(world.db.paths().sort().map((path) => [p
 
 /**
  * Each row of the list, in the words a screen reader is given: "Week 1 Ready
- * First session Thu 29 Oct Ready by Thu 22 Oct Claudia Reyes" (the owner's
- * initials are hidden from it).
+ * First session Thu 29 Oct Ready by Thu 22 Oct Claudia Reyes" (the owner, by
+ * the names rule for the reader, who is the lead or an admin and so is shown
+ * the full name; their initials are hidden from it).
  */
 function rows(html) {
   return [...html.matchAll(/<li class="row[^"]*">(.*?)<\/li>/g)].map((m) =>
@@ -170,23 +171,34 @@ describe("2. each week, as the board draws it", () => {
   });
 
   test("the owner: the lead by default, a helper once chosen, the lead again when the one chosen is no longer one", async () => {
-    let said = rows((await draw("claudia", Page, PARAMS)).html);
-    assert.ok(said.every((row) => row.endsWith("Claudia Reyes")), said.join("\n"));
+    // CHANGED ON PURPOSE (the week review, then the end-of-week notes): a
+    // week whose first session has started ends with its review, "Review:
+    // admins only" for the lead, and its notes, so the owner is read before
+    // them.
+    const owners = (html) => rows(html).map((row) => row.replace(/ Review(?:: admins only)? Notes$/, ""));
+    assert.deepEqual(
+      rows((await draw("claudia", Page, PARAMS)).html).map((row) => row.endsWith(" Review: admins only Notes")),
+      [true, true, true, false, false, false],
+    );
+    let said = owners((await draw("claudia", Page, PARAMS)).html);
+    assert.ok(said.every((row) => row.endsWith(" Claudia Reyes")), said.join("\n"));
     // Yusuf is the run's track lead: a helper.
     world.db.poke(weekPath("w04"), { ownerUid: "yusuf" });
-    said = rows((await draw("claudia", Page, PARAMS)).html);
-    assert.ok(said[3].endsWith("Yusuf Demir"), said[3]);
+    said = owners((await draw("claudia", Page, PARAMS)).html);
+    assert.ok(said[3].endsWith(" Yusuf Demir"), said[3]);
     // Rahul is no helper: a stored uid that is neither is shown as the lead.
     world.db.poke(weekPath("w04"), { ownerUid: "rahul" });
-    said = rows((await draw("claudia", Page, PARAMS)).html);
-    assert.ok(said[3].endsWith("Claudia Reyes"), said[3]);
+    said = owners((await draw("claudia", Page, PARAMS)).html);
+    assert.ok(said[3].endsWith(" Claudia Reyes"), said[3]);
   });
 
   test("with no lead standing and no helper, a week has no owner yet", async () => {
     world.db.poke(`admissionRounds/${ROUND}`, { [`programmes.${AGI}.leadUid`]: null });
     world.db.poke(`courseRuns/${RUN.agi}`, { trackLeadUids: [] });
+    // CHANGED ON PURPOSE (the week review, then the end-of-week notes): an
+    // admin is offered week 1's review and its notes after the owner.
     const said = rows((await draw("zach", Page, PARAMS)).html);
-    assert.ok(said[0].endsWith("No owner yet"), said[0]);
+    assert.ok(said[0].endsWith("No owner yet Review Notes"), said[0]);
   });
 });
 
@@ -274,23 +286,28 @@ describe("5. the tab in the programme's row", () => {
     }
   });
 
-  test("a reviewer sees it drawn and not a link, with no count", async () => {
+  test("a reviewer is drawn no Weeks tab, linked or not, and no count", async () => {
     const head = await draw("lloyd", Layout, PARAMS, { segment: "applications" });
-    assert.match(head.html, /<span class="tab tabPending" aria-disabled="true" title="Not built yet">Weeks<\/span>/);
+    assert.doesNotMatch(head.text, /\bWeeks\b/);
     assert.ok(!head.html.includes(`${PROGRAMME_PATH}/weeks"`));
+    assert.match(head.html, new RegExp(`<a href="${PROGRAMME_PATH}/applications"[^>]*aria-current="page"[^>]*>Applications<`));
   });
 
   // The Groups tab counts the run's groups that still meet once the
   // programme names a run, as the head's "in 3 groups" does; the form's
-  // planned number before a run is named, and for a reviewer, who does not
-  // open the run (walk 4b, L10).
-  test("Groups counts the run's groups that still meet for the lead and an admin; the form's planned number with no run, and for a reviewer", async () => {
+  // planned number before a run is named. A reviewer, who does not open the
+  // run, is drawn no Groups tab at all, and reads the form's planned number in
+  // the head's line (walk 4b, L10).
+  test("Groups counts the run's groups that still meet for the lead and an admin; the form's planned number with no run, and in a reviewer's head", async () => {
     world.db.poke(`admissionRounds/${ROUND}`, { [`programmes.${AGI}.groupCount`]: 6 });
     world.db.poke(`courseGroups/${D}`, { archived: true });
     for (const who of ["claudia", "zach"]) {
       assert.match((await draw(who, Layout, PARAMS, { segment: "weeks" })).text, /Groups 3 Weeks 6 /, who);
     }
-    assert.match((await draw("lloyd", Layout, PARAMS, { segment: "applications" })).text, /Groups 6 /);
+    const reviewer = await draw("lloyd", Layout, PARAMS, { segment: "applications" });
+    assert.match(reviewer.text, / in 6 groups /);
+    const nav = /<nav class="tabs" aria-label="Sections">([\s\S]*?)<\/nav>/.exec(reviewer.html)?.[1] ?? "";
+    assert.deepEqual([...nav.matchAll(/<(a|span)\b[^>]*class="tab[ "][^>]*>([A-Za-z]+)/g)].map((m) => [m[1], m[2]]), [["a", "Applications"]]);
     world.db.poke(`admissionRounds/${ROUND}`, { [`programmes.${AGI}.runId`]: null });
     assert.match((await draw("claudia", Layout, PARAMS, { segment: "weeks" })).text, /Groups 6 Weeks /);
   });

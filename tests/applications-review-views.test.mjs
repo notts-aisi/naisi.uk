@@ -164,6 +164,7 @@ describe("when they're free", () => {
 
 describe("the line under a name", () => {
   const about = (over) => ({
+    fullName: "",
     preferredName: "Amara",
     status: "undergraduate",
     statusOther: "",
@@ -201,8 +202,22 @@ describe("the line under a name", () => {
     assert.equal(people.applicantName(about({}), "Amara Okafor"), "Amara Okafor");
     assert.equal(people.applicantName(about({}), "  "), "Amara");
     assert.equal(people.applicantName(about({ preferredName: "" }), ""), "Applicant");
+    assert.equal(people.applicantName(about({ preferredName: "", fullName: "  " }), "  "), "Applicant");
     assert.equal(people.applicantFirstName(about({ preferredName: "" }), "Amara Okafor"), "Amara");
     assert.equal(people.applicantFirstName(about({ preferredName: "" }), ""), "Applicant");
+  });
+
+  test("a row names somebody the way a staff screen does: the full name, then the name they go by", () => {
+    // Everybody who reads an application is an admin or an SU-recognised
+    // committee member, so the full name the form asked for is shown, with
+    // the name they go by after it when it adds something.
+    assert.equal(people.applicantName(about({ fullName: "Amara Okafor", preferredName: "Mara" }), ""), "Amara Okafor (Mara)");
+    assert.equal(people.applicantName(about({ fullName: "Amara Okafor" }), "Someone Else"), "Amara Okafor");
+    // An application sent before the form asked: the name on the account it
+    // was made from, as these screens showed before.
+    assert.equal(people.applicantName(about({ preferredName: "Mara" }), "Amara Okafor"), "Amara Okafor (Mara)");
+    // Nothing from the full name stands in for the name they go by.
+    assert.equal(people.applicantFirstName(about({ fullName: "Amara Okafor", preferredName: "Mara" }), ""), "Mara");
   });
 
   test("the degree answer wears the label its question had", () => {

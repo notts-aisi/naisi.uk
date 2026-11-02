@@ -55,10 +55,6 @@ a.tab:hover {
   color: var(--color-text);
   font-weight: 600;
 }
-/* A tab whose page is not built yet: drawn, and not a link. */
-.tabPending {
-  cursor: default;
-}
 .tabCount {
   display: inline-flex;
   align-items: center;

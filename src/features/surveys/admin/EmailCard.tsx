@@ -3,7 +3,7 @@ import { SEND_WORDS } from "@/lib/surveys/words";
 import styles from "./surveyAdmin.module.css";
 
 /**
- * An email as the Send tab shows it (sv-send-programme): its subject and
+ * An email as the Send tab shows it: its subject and
  * envelope, then its words, its button and who signs it, written by the same
  * function the send uses. The button here goes nowhere: each person's email
  * carries their own link.

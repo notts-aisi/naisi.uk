@@ -8,7 +8,7 @@ import { calendarTargets, openCalendarLink, readCalendarLink, siteAddress } from
 import { REFUSAL, sessionsLine } from "@/lib/courses/calendarWords";
 
 /**
- * THE CALLER'S OWN CALENDAR LINK (board st-calendar-phone), for the dialog
+ * THE CALLER'S OWN CALENDAR LINK, for the dialog
  * behind "Add to calendar".
  *
  * POST `{ action: "open" }`: the link they have, made the first time they ask

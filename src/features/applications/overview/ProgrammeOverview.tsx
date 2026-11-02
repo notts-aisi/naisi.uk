@@ -1,6 +1,8 @@
 import Link from "next/link";
 import InitialsChip from "@/components/ui/InitialsChip";
 import type { CertificatesSectionModel } from "@/lib/courses/certificates/send";
+import type { FeedbackBatchModel } from "@/lib/courses/feedback/send";
+import FeedbackToSend from "@/features/courses/feedback/FeedbackToSend";
 import type { WhoFinishedModel } from "@/lib/courses/finishing/whoFinished";
 import { SET_THE_RULE } from "@/lib/courses/finishing/words";
 import type { GetReadyModel } from "@/lib/courses/getReady/model";
@@ -14,7 +16,7 @@ import WhoFinished from "./WhoFinished";
 import styles from "./ProgrammeOverview.module.css";
 
 /**
- * A PROGRAMME'S OVERVIEW (board wk-overview), drawn from the model the
+ * A PROGRAMME'S OVERVIEW, drawn from the model the
  * server worded (`buildProgrammeOverview`): the week, the sessions this week
  * and their registers, what needs attention, who came by week, and the
  * people. Only "Remind" and week 1's "Mark ready" run in the browser.
@@ -23,7 +25,7 @@ import styles from "./ProgrammeOverview.module.css";
  * Updates card shows the newest updates and leads to the Messages tab, where
  * they are written and read in full.
  *
- * WHO FINISHED (board en-finish) leads the page once the run's last session
+ * WHO FINISHED leads the page once the run's last session
  * is over, above everything else here, which stays: a register still not
  * finished, named under Needs attention, changes who came. Before then the
  * People card says when it can be done. Both from `loadWhoFinished`.
@@ -32,8 +34,12 @@ import styles from "./ProgrammeOverview.module.css";
  * how many have answered the survey at the end, worded on the server from the
  * Surveys tab's own count, with "Surveys" the way to the tab.
  *
+ * FEEDBACK TO SEND follows Needs attention once anybody has saved feedback on
+ * the run (`loadFeedbackBatch`): the pieces whose email has not gone, the
+ * email each person gets, and an admin's test and send.
+ *
  * BEFORE ANY GROUP HAS MET the page draws "Get ready for week 1" in place of
- * all of this (`GetReady`, boards st-overview and st-overview-phone), from
+ * all of this (`GetReady`), from
  * `getReady`, which the server hands over only then.
  */
 
@@ -146,6 +152,7 @@ export default function ProgrammeOverview({
   finishing = null,
   certificates = null,
   afterSurvey = null,
+  feedbackToSend = null,
   getReady = null,
 }: {
   model: OverviewModel;
@@ -164,6 +171,8 @@ export default function ProgrammeOverview({
    * wrote them from the Surveys tab's own count. Its link is the programme's own Surveys tab.
    */
   afterSurvey?: { heading: string; answered: { count: string; rest: string }; results: { before: string; link: string; after: string } } | null;
+  /** Feedback to send, once anybody has saved feedback on the run (`loadFeedbackBatch`), with the run it is on. */
+  feedbackToSend?: { model: FeedbackBatchModel; runId: string } | null;
   /** "Get ready for week 1", before any group has met (`buildGetReady`); null once one has. */
   getReady?: { model: GetReadyModel; courseId: string; runId: string } | null;
 }) {
@@ -185,7 +194,7 @@ export default function ProgrammeOverview({
         <WhoFinished model={finishing} roundId={roundId} programmeId={programmeId} />
       )}
       {finishing?.state === "open" && (certificates || afterSurvey) && (
-        /* en-finish: Certificates, and beside it The after survey, a narrower card; one under the other on a phone. */
+        /* Once the run is over: Certificates, and beside it The after survey, a narrower card; one under the other on a phone. */
         <div className={styles.endRow}>
           {certificates && (
             <div className={styles.endMain}>
@@ -322,6 +331,12 @@ export default function ProgrammeOverview({
           </ul>
         )}
       </section>
+
+      {feedbackToSend && (
+        <div className={styles.card}>
+          <FeedbackToSend model={feedbackToSend.model} runId={feedbackToSend.runId} />
+        </div>
+      )}
 
       <div className={styles.columns}>
         <section className={styles.card} aria-labelledby="overview-chart">

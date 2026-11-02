@@ -130,6 +130,9 @@ service cloud.firestore {
         // sends `subject` as text, `expectedGraduation` as text or leaves it
         // out, and never sends the older `course`.
         && newStudyAnswersAreText()
+        // The full name arrives as text of at most 120 characters, or not at
+        // all. See `newFullNameIsText` below.
+        && newFullNameIsText()
         // `email` is the address the rest of the system treats as PROVEN: the
         // subscription sync marks rows `confirmed` from it without a click, the
         // newsletter sender resolves recipients from it, and the application
@@ -144,9 +147,12 @@ service cloud.firestore {
         // `policyAgreedAt` is therefore pinned to the server's own clock
         // (`request.time` is what a client `serverTimestamp()` resolves to).
         //
-        // No version literal is compared here. The re-consent gate compares
-        // `policyVersion` for INEQUALITY against CURRENT_POLICY_VERSION, so
-        // any value other than the current one triggers the gate.
+        // No version literal is compared here. The re-consent gate
+        // (`needsPolicyAcceptance` in src/lib/legal/acceptance.ts) asks about
+        // every stored value except an agreement, with the current terms, to
+        // a privacy version from 15 up to the one the site serves: a value
+        // naming a version the site never served is asked about too, so a
+        // forged one only sends its writer to accept, which restamps it.
         && (
           !('policyAgreedAt' in request.resource.data)
           || request.resource.data.policyAgreedAt == request.time
@@ -308,6 +314,33 @@ service cloud.firestore {
           : studyChangesOf(request.resource.data) == studyChangesOf(resource.data);
       }
 
+      // THE FULL NAME IS TEXT OF AT MOST 120 CHARACTERS, OR ABSENT.
+      //
+      // `profile.fullName` is the name only the committee is shown
+      // (src/lib/names/staffName.ts), asked when an account is made, once on
+      // Home and on Profile. What an account writes to its own document is
+      // held to text of at most FIELD_LIMITS.fullName (120) characters when
+      // the key is there at all: not a number, a map or a null, and not a
+      // page of text. Removing it (no key) is always allowed.
+      //
+      // The same reading as the degree's keeps an older document saving: a
+      // value already stored and left exactly as it was is not the write's,
+      // so a document an admin wrote some other way still saves its other
+      // fields. Such a value can be replaced only by text, or removed. An
+      // admin's write takes the isAdmin() branch and is held to none of this.
+      function newFullNameIsText() {
+        return !('fullName' in request.resource.data.get('profile', {}))
+          || (request.resource.data.profile.fullName is string
+              && request.resource.data.profile.fullName.size() <= 120);
+      }
+      // Kept means stored before and left exactly as it was: a value written
+      // where there was none is held to the text rule, null included.
+      function fullNameIsTextOrKept() {
+        return newFullNameIsText()
+          || ('fullName' in resource.data.get('profile', {})
+              && request.resource.data.profile.fullName == resource.data.profile.fullName);
+      }
+
       // Self-update: role, tracks, permissions and suRecognised all unchanged.
       // (These are admin-only; a user editing their own profile must not be able
       //  to flip or clear any of them. suRecognised in particular is a trust
@@ -406,6 +439,9 @@ service cloud.firestore {
             // because that clause reads the degree, and the degree is read
             // one way only while these fields are text.
             && studyAnswersAreTextOrKept()
+            // The full name is text of at most 120 characters, or absent, or
+            // left as it was stored. See `fullNameIsTextOrKept` above.
+            && fullNameIsTextOrKept()
             // A change to the degree or the graduation carries its entry in
             // `studyChanges`, and no write here touches an earlier one. The
             // helpers and their reasons are above this rule. Inside the
@@ -1259,12 +1295,72 @@ service cloud.firestore {
           && isApprovedAccount();
       }
 
-      allow read: if canDraft() || canApprove()
+      // Any signed-in browser may read a PUBLISHED event that is listed: for
+      // anyone (`public`) or for people with an account (`members`, and an
+      // event with no `visibility` reads as that, as it always did). An event
+      // for chosen people (`chosen`), or one whose value is none of these, is
+      // left to the branches above: the people who run events. The people
+      // invited to one read it on the server, never from a browser
+      // (src/lib/events/reach.ts makes the same two decisions).
+      allow get: if canDraft() || canApprove()
         || hasRole(['committee', 'admin'])
-        || (isSignedIn() && resource.data.status == 'published');
+        || (isSignedIn() && resource.data.status == 'published'
+            && resource.data.get('visibility', 'members') in ['public', 'members']);
+      // A LIST is checked against the query, not the documents it returns,
+      // and `get` reads a field the query does not constrain as its default:
+      // the line above would pass a query for published events alone and hand
+      // back the events for chosen people with the rest. So a browser that
+      // does not run events lists published events only with `visibility`
+      // constrained to the two listed values. An event with no value is left
+      // out of such a list, and is still read one at a time above.
+      allow list: if canDraft() || canApprove()
+        || hasRole(['committee', 'admin'])
+        || (isSignedIn() && resource.data.status == 'published'
+            && resource.data.visibility in ['public', 'members']);
+      // `selfCheckIn`, whether people can check themselves in, is the
+      // editor's to write (eventMutations.ts), as a boolean and nothing else:
+      // the routes read only a strict true as on.
+      function selfCheckInIsBool() {
+        return !('selfCheckIn' in request.resource.data)
+          || request.resource.data.selfCheckIn is bool;
+      }
+      // Who it is for, as the editor writes it: one of the three values the
+      // site reads (src/lib/events/reach.ts), never another string a reader
+      // would have to guess at. Whether publishing announces it is a boolean.
+      function audienceFieldsValid() {
+        return (!('visibility' in request.resource.data)
+                || request.resource.data.visibility in ['public', 'members', 'chosen'])
+          && (!('announce' in request.resource.data)
+              || request.resource.data.announce is bool);
+      }
+      // The programme an event for chosen people is part of makes its
+      // invitation a programme notice, which only that programme's lead or an
+      // admin may choose. So it is written by /api/events/[id]/audience alone,
+      // on the Admin SDK, after that check: no browser sets it, changes it or
+      // takes it off, admins included.
+      function programmeUnchanged() {
+        return request.resource.data.get('programme', null)
+               == resource.data.get('programme', null);
+      }
+      // When the door was opened, and by whom, are written by
+      // /api/events/[id]/door alone, on the Admin SDK: the door list and self
+      // check-in work only once it is open, so no browser opens a door,
+      // closes one or says somebody else opened it. Every client, admins
+      // included.
+      function doorFieldsUnchanged() {
+        return request.resource.data.get('doorOpenedAt', null)
+               == resource.data.get('doorOpenedAt', null)
+          && request.resource.data.get('doorOpenedBy', null)
+               == resource.data.get('doorOpenedBy', null);
+      }
       allow create: if canDraft()
         && request.resource.data.authorUid == request.auth.uid
-        && request.resource.data.status == 'draft';
+        && request.resource.data.status == 'draft'
+        && selfCheckInIsBool()
+        && audienceFieldsValid()
+        && !('programme' in request.resource.data)
+        && !('doorOpenedAt' in request.resource.data)
+        && !('doorOpenedBy' in request.resource.data);
       // Per-document scoping. `draftEvent` is a GLOBAL permission a plain
       // member can hold, so a drafter edits only an event they authored. A
       // collaborator is already per-event by construction (they are named on
@@ -1307,7 +1403,8 @@ service cloud.firestore {
           && request.resource.data.get('announcementResult', {})
                == resource.data.get('announcementResult', {});
       }
-      allow update: if isAdmin()
+      allow update: if selfCheckInIsBool() && doorFieldsUnchanged()
+        && audienceFieldsValid() && programmeUnchanged() && (isAdmin()
         || (
           (canApprove() || isCollaborator() || (canDraft() && isOwnEvent()))
           && pinnedFieldsUnchanged()
@@ -1337,7 +1434,7 @@ service cloud.firestore {
             // never move an event through it, not even your own.
             || canApprove()
           )
-        );
+        ));
       // Deletion goes through /api/events/[id]/delete (Admin SDK), which
       // cascades the event's RSVPs and images before removing the doc. There
       // is no client delete: a client could only ever remove the event
@@ -1385,6 +1482,17 @@ service cloud.firestore {
     // by the SES→SNS webhook on bounce/complaint. Admin SDK only — the admin
     // deliverability dashboard reads it through a server route.
     match /emailSends/{docId} {
+      allow read, write: if false;
+    }
+
+    // === messageSends ===
+    // One record per message sent from Messages (src/lib/firestore/messageSends.ts):
+    // who wrote it, the tags it was for, how each person was reached or why
+    // they were left out, by account id, and the counts; never an address and
+    // never the message. Written only by the send route on the Admin SDK and
+    // read by nothing in the browser, so every browser is refused, admins and
+    // the message's own writer included.
+    match /messageSends/{sendId} {
       allow read, write: if false;
     }
 
@@ -2324,7 +2432,7 @@ service cloud.firestore {
         function run() {
           return get(/databases/$(database)/documents/courseRuns/$(runId)).data;
         }
-        // "Questions to think about" (C29): at most five, each a line of
+        // "Questions to think about": at most five, each a line of
         // text of 1 to 160 characters (COURSE_FIELD_LIMITS.maxWeekQuestions
         // and .weekQuestion in src/lib/firestore/courses.ts; keep the three in
         // step). A rule cannot loop, so each of the five places is checked by
@@ -2480,7 +2588,7 @@ service cloud.firestore {
         return request.resource.data.get('sessionModes', {})
           == resource.data.get('sessionModes', {});
       }
-      // `sessionChanges` (Q25) is the record of what "Change a session" did
+      // `sessionChanges` is the record of what "Change a session" did
       // and why: an evening that is off, a week moved or held online, the
       // reason its group reads. Server-owned like `sessionModes`: the change
       // route is its one writer, so a cancellation a group acts on, and the
@@ -2672,12 +2780,20 @@ service cloud.firestore {
     }
 
     // === courseProgress ===
-    // THE one client-direct member write in the courses feature: the
-    // check-off hot path (complete a material, rate it, leave a comment)
-    // commits instantly from the client, because the rules below can express
-    // the entire invariant. Everything hangs off the deterministic doc id —
-    // runId + '__' + auth.uid + '__' + itemId — which makes own-row-only
-    // writes STRUCTURAL: there is no way to address anyone else's row.
+    // THE one client-direct member write in the courses feature: a rating, a
+    // comment or a private note on a material commits from the client,
+    // because the rules below can express the entire invariant. Everything
+    // hangs off the deterministic doc id — runId + '__' + auth.uid + '__' +
+    // itemId — which makes own-row-only writes STRUCTURAL: there is no way to
+    // address anyone else's row.
+    //
+    // A TICK is not a browser write any more. `completed` and `completedAt`
+    // are written only by the tick route
+    // (/api/courses/runs/[runId]/ticks/[itemId], Admin SDK), because a week
+    // locks when it is submitted or its group's session starts, which these
+    // rules cannot know, and an untick is recorded there with its time. So a
+    // browser create carries an unticked row with no completion time, and a
+    // browser update carries both fields through exactly as stored.
     match /courseProgress/{progressId} {
       // NEVER use this in a READ rule. `allow read` also covers `list`, and
       // a list query evaluates its rule per candidate doc — so these lookups
@@ -2767,7 +2883,9 @@ service cloud.firestore {
       // clear, or launder a moderation stamp by re-saving the row.
       allow create: if progressShapeOk()
         && !('moderatedByUid' in request.resource.data)
-        && !('moderatedAt' in request.resource.data);
+        && !('moderatedAt' in request.resource.data)
+        && request.resource.data.completed == false
+        && !('completedAt' in request.resource.data);
 
       // The id pins runId/uid/itemId already (a doc id can't change), but
       // the field pins are stated anyway so a future id-scheme change can't
@@ -2781,7 +2899,10 @@ service cloud.firestore {
         && request.resource.data.get('moderatedByUid', null)
           == resource.data.get('moderatedByUid', null)
         && request.resource.data.get('moderatedAt', null)
-          == resource.data.get('moderatedAt', null);
+          == resource.data.get('moderatedAt', null)
+        && request.resource.data.completed == resource.data.get('completed', false)
+        && request.resource.data.get('completedAt', null)
+          == resource.data.get('completedAt', null);
 
       // A member may retract their own row (un-check everything, including a
       // moderated comment — deletion REMOVES content, which is the moderation
@@ -2796,11 +2917,59 @@ service cloud.firestore {
     // — checking it would mean fetching the week doc and searching an array —
     // and the URL validation (validateSubmissionUrl) is string-parsing rules
     // can't do. Own-row read lets the member see their submission state;
-    // facilitators review through the PII-free facilitator routes.
+    // facilitators, the lead and admins read through the routes, which hold
+    // a written answer's words back until its week is submitted or locked
+    // (privacy v15). No admin branch: an admin's own browser reading a draft
+    // would break that, and no page reads the store client-direct as an admin.
     match /courseExerciseResponses/{docId} {
-      allow read: if isAdmin()
-        || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
       allow write: if false;
+    }
+
+    // === courseWeekWork ===
+    // Where one person's week stands: when they submitted it, and when and by
+    // whom it was reopened. Written by the Submit and Reopen routes, read by
+    // routes and server pages (Admin SDK). Every browser is refused, admins
+    // included.
+    match /courseWeekWork/{docId} {
+      allow read, write: if false;
+    }
+
+    // === courseWorkLog ===
+    // What one person did to their own week and when: a tick, an untick, the
+    // first save of a writing spell, an emptied box, a submit, a reopen.
+    // Written by the routes that do each (Admin SDK); nothing reads it from a
+    // browser, admins included.
+    match /courseWorkLog/{docId} {
+      allow read, write: if false;
+    }
+
+    // === courseFeedback ===
+    // Feedback on one person's week: a short comment signed with its writer's
+    // name, and whether the email that says it is there went. Written by the
+    // feedback route and the batch's send (Admin SDK); read by routes and
+    // server pages after their own gates. Every browser is refused, admins
+    // included.
+    match /courseFeedback/{docId} {
+      allow read, write: if false;
+    }
+
+    // === courseFeedbackSends ===
+    // The "you have feedback" batch's own record: each test, each send, and
+    // the one press in progress on a run. Written by the batch's routes
+    // (Admin SDK); nothing reads it from a browser, admins included.
+    match /courseFeedbackSends/{docId} {
+      allow read, write: if false;
+    }
+
+    // === courseWorkRatings ===
+    // Ratings for the team: an admin's or the programme's lead's rating of
+    // one person's written answer, from 1 to 10, with a comment for the team.
+    // Written by the ratings route (Admin SDK); read by the review page on the
+    // server, for admins and the lead alone. Never the person rated, never a
+    // facilitator as such: every browser is refused, admins included.
+    match /courseWorkRatings/{docId} {
+      allow read, write: if false;
     }
 
     // === courseAttendance ===
@@ -3114,13 +3283,27 @@ service cloud.firestore {
     }
 
     // === courseGroupNotes ===
-    // The notes a group's facilitators share (C30,
-    // src/lib/firestore/courseGroupNotes.ts): written only by the notes route
+    // The notes a group's facilitators share
+    // (src/lib/firestore/courseGroupNotes.ts): written only by the notes route
     // on the Admin SDK, by a live facilitator of the group, and read only on
     // the server by the group page and the programme's Attendance tab, after
     // their own gates. So every browser is refused, admins, the programme's
     // lead and a note's own writer included.
     match /courseGroupNotes/{noteId} {
+      allow read, write: if false;
+    }
+
+    // === courseSessionReports ===
+    // Each facilitator's own report on a session of their group
+    // (src/lib/firestore/courseSessionReports.ts): how it went, and who
+    // engaged well, seemed not to have done the readings or might need a
+    // hand, by account. Written only by the report route on the Admin SDK, by
+    // a live facilitator of the group, and read only on the server: the
+    // writer's own on the report page, every report of a run on the
+    // programme's page for its lead and admins, after their own gates. So
+    // every browser is refused, the writer, a co-facilitator, the people a
+    // report picks, the programme's lead and admins included.
+    match /courseSessionReports/{reportId} {
       allow read, write: if false;
     }
 
@@ -3138,7 +3321,7 @@ service cloud.firestore {
 
     // === courseGroupSharedNotes ===
     // The notes a group's people and facilitators share with the group on
-    // its week pages (C29, src/lib/firestore/courseGroupSharedNotes.ts):
+    // its week pages (src/lib/firestore/courseGroupSharedNotes.ts):
     // written only by the shared notes routes on the Admin SDK (one adds a
     // note for the group's people and its live facilitators, one deletes a
     // note for the person who wrote it), and read only on the server through
@@ -3166,11 +3349,48 @@ service cloud.firestore {
     // Claude's pick of the strongest answers to one week of a run (privacy
     // v13; src/lib/courses/coursework/bestAnswers.ts): the accounts it
     // picked and why. Read and written only by the best-answers route on the
-    // Admin SDK, after the Coursework tab's own door (an admin or the
-    // programme's lead), which puts names back from who holds a place now.
-    // So every browser is refused, the people picked included: a fellow
-    // never reads which of their peers' answers were picked.
+    // Admin SDK, after the Coursework tab's own door turns away everybody but
+    // an admin (privacy v15: what Claude returns is seen by admins only), and
+    // names are put back from who holds a place now. So every browser is
+    // refused, the people picked included: a fellow never reads which of
+    // their peers' answers were picked.
     match /courseBestAnswers/{docId} {
+      allow read, write: if false;
+    }
+
+    // === courseWeekReviews ===
+    // Claude's review of one week of a run (privacy v15;
+    // src/lib/firestore/courseWeekReviews.ts): draft grades for the written
+    // answers, what people found hard and who might need a hand, by account.
+    // Read and written only on the Admin SDK, by the week review's page and
+    // route after their door admits an admin, and by the two deletions. What
+    // Claude returns is seen by admins only, and grades never reach anybody's
+    // record, so every browser is refused, admins included.
+    match /courseWeekReviews/{docId} {
+      allow read, write: if false;
+    }
+
+    // === courseExplainers ===
+    // An explainer an admin scheduled from a week's review
+    // (src/lib/firestore/courseExplainers.ts): the admin's topic, who
+    // explains, how long, and the sessions it opens. Read and written only on
+    // the Admin SDK: by its route after the review's door admits an admin, by
+    // the pages and routes that draw a session's ticket after their own
+    // gates, by "Week N is open", and by the two deletions. Every browser is
+    // refused, admins included.
+    match /courseExplainers/{docId} {
+      allow read, write: if false;
+    }
+
+    // === courseNoteDrafts ===
+    // Claude's draft of an end-of-week note about one person, from one week
+    // of a run (privacy v15; src/lib/firestore/courseNoteDrafts.ts), waiting
+    // for an admin to save or discard it. Read and written only on the Admin
+    // SDK, by the week's notes page and routes after their door admits an
+    // admin, and by the two deletions. What Claude returns is seen by admins
+    // only and reaches a person's notes only when an admin saves it, so every
+    // browser is refused, admins included.
+    match /courseNoteDrafts/{docId} {
       allow read, write: if false;
     }
 
@@ -3186,8 +3406,8 @@ service cloud.firestore {
     }
 
     // === coursePacksAndCases ===
-    // What each person has in a week's packs and talks (plan item 8, Q32 A,
-    // src/lib/firestore/coursePacksAndCases.ts): the pack they picked or were
+    // What each person has in a week's packs and talks
+    // (src/lib/firestore/coursePacksAndCases.ts): the pack they picked or were
     // given, the case they were given, and their own "Ready for my talk".
     // Written only by two routes on the Admin SDK (a person's own pick and
     // ready box, and the draw a group's facilitators, the programme's lead or
@@ -3290,6 +3510,34 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === surveyQuestionSets ===
+    // The questions each kind of survey starts with, as an admin changed them
+    // on Run NAISI › Surveys › Question sets
+    // (src/lib/firestore/surveyQuestionSets.ts): a words-only set's changed
+    // words, or the survey after an event's questions. Written only by the
+    // question sets route on the Admin SDK, an admin's, and read only on the
+    // server, where every survey made from a template reads its set. So every
+    // browser is refused, admins included: a client able to write one could
+    // change what every survey made afterwards asks, past the route's rule
+    // that only the words of a programme's, a check-in's or a report's
+    // questions change.
+    match /surveyQuestionSets/{kind} {
+      allow read, write: if false;
+    }
+
+    // === checkInWeeks ===
+    // Which check-ins each week of a programme's run showed its lead, fixed the
+    // first time the week was whole (src/lib/firestore/checkInWeeks.ts): survey
+    // ids, the run and the week. Written only by the scheduler's job on the
+    // Admin SDK, with create, and deleted only by the run's destroy; read only
+    // on the server, by the Surveys tab, which reads a week only once it is
+    // fixed. So every browser is refused, admins and the lead included: a
+    // client able to write one could change which check-ins a lead's week
+    // counts.
+    match /checkInWeeks/{weekId} {
+      allow read, write: if false;
+    }
+
     // === eventCheckIns ===
     // Check-in (src/lib/firestore/eventCheckIns.ts): who came to an event, how
     // and when, and a walk-in's email for that event's survey. Written only by
@@ -3298,6 +3546,23 @@ service cloud.firestore {
     // refused, admins and the person themselves included: a readable record
     // names who came to which event.
     match /eventCheckIns/{checkInId} {
+      allow read, write: if false;
+    }
+
+    // === eventAudiences, eventInvitations ===
+    // Events for chosen people (src/lib/firestore/eventAudiences.ts,
+    // src/lib/firestore/eventInvitations.ts): who an event is for, as its
+    // organiser chose it, and the list of the people invited to it with how
+    // each invitation went. Written only by the audience, publish and
+    // invitations routes on the Admin SDK, and read only on the server: Home
+    // reads a person's own invitations by their uid, and the event's pages ask
+    // whether the person looking is on the list. So every browser is refused,
+    // admins and the people invited included: a readable list names who was
+    // chosen for what.
+    match /eventAudiences/{eventId} {
+      allow read, write: if false;
+    }
+    match /eventInvitations/{invitationId} {
       allow read, write: if false;
     }
 
@@ -3460,13 +3725,16 @@ service cloud.firestore {
     }
 
     // === memberNotes ===
-    // The notes admins keep about a person (privacy v13, "Notes admins keep
+    // The notes the team keeps about a person (privacy v13, and v15's "Notes
     // about you"; src/lib/memberNotes/). Read and written only by the notes
     // routes on the Admin SDK, after their own gate: an admin, about somebody
-    // else. So every browser is refused, the person a note is about, the
-    // programme's lead and admins included: the person must never read one
-    // from their own browser, and an admin's screen reads them through the
-    // routes, which decide which notes each page may show.
+    // else, or a programme's lead, about somebody on their programme, through
+    // the programme's door, which shows a lead only the notes kept for leads
+    // and written after their person agreed to v15. So every browser is
+    // refused, the person a note is about, the programme's lead and admins
+    // included: the person must never read one from their own browser, a
+    // lead must never read a note kept to admins, and every screen reads them
+    // through the routes, which decide which notes each page may show.
     match /memberNotes/{noteId} {
       allow read, write: if false;
     }

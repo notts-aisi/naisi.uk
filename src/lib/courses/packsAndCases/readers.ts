@@ -23,7 +23,7 @@ import { weekDocId } from "@/lib/firestore/courses";
 import { chooseOnesOf, drawOf, findCase, findPack, talksOf, type WeekDraw } from "./model";
 
 /**
- * THE READERS OF `coursePacksAndCases` (plan item 8; Q32 A), on the server,
+ * THE READERS OF `coursePacksAndCases`, on the server,
  * and the gate the draw is behind. Nothing else reads the collection but the
  * two routes that write it and the two deletions that remove it
  * (`tests/course-packs-and-cases-readers.test.mjs` walks the tree for a file
@@ -153,8 +153,9 @@ export async function drawGate(db: Firestore, actor: SessionUser, group: CourseG
 /** One person in a group's draw. */
 export type DrawPerson = {
   uid: string;
-  /** Their whole name, as the group page names people. */
+  /** Their name as the group page names people for its reader. */
   name: string;
+  /** The name a sentence calls them by: the first word of the name they go by. */
   firstName: string;
   /** A facilitator of the group, who takes part in it too. */
   facilitates: boolean;
@@ -166,9 +167,14 @@ export type DrawPerson = {
  * placed and not told, as on the register) and its standing facilitators,
  * who take part too (Zach, Mon 26 Oct 2026). Somebody who left is in no
  * draw.
+ *
+ * A row that carries the first name it goes by keeps it: on a page drawn for
+ * the committee, `name` is the full name ("Priya Shah (Pri)", the names
+ * rule), whose first word is not the name they go by. A row with only a
+ * name is named by the name people go by, so its first word is.
  */
 export function drawPeople(
-  people: ReadonlyArray<{ uid: string; name: string }>,
+  people: ReadonlyArray<{ uid: string; name: string; firstName?: string }>,
   facilitators: readonly StandingFacilitator[],
 ): DrawPerson[] {
   const byUid = new Map<string, DrawPerson>();
@@ -177,7 +183,7 @@ export function drawPeople(
     byUid.set(person.uid, {
       uid: person.uid,
       name: person.name,
-      firstName: person.name.trim().split(/\s+/)[0] ?? person.name,
+      firstName: person.firstName?.trim() || (person.name.trim().split(/\s+/)[0] ?? person.name),
       facilitates: facilitating.has(person.uid),
     });
   }
@@ -264,7 +270,7 @@ export async function readDrawState(
 }
 
 /**
- * THE SPREAD (wk-fac-group: "Pathways in Group B"): each pack of the week's
+ * THE SPREAD ("Pathways in Group B"): each pack of the week's
  * first Choose one given out, with who has it, so every pathway has
  * somebody; and who has nothing yet. A week that gives out cases alone has
  * no tiles, and says who has no case yet.
@@ -303,7 +309,7 @@ export function spreadOf(week: GroupWeek, people: readonly DrawPerson[], state: 
 // This week's work: the pathway and case columns
 // ---------------------------------------------------------------------------
 
-/** One person's two columns of This week's work (wk-fac-group): the names, or null for none. */
+/** One person's two columns of This week's work: the names, or null for none. */
 export type WeekWorkCells = { pack: string | null; case: string | null };
 
 /**

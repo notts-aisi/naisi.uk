@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
 import {
@@ -11,6 +12,8 @@ import {
 } from "@/lib/firestore/events";
 import { sendRsvpEmail, type LiveRsvpStatus } from "@/lib/events/sendRsvpEmail";
 import { validateAnswers } from "@/lib/events/validateAnswers";
+import { invitedTo } from "@/lib/events/opening";
+import { REACH_WORDS, isForChosenPeople, needsAccount } from "@/lib/events/reach";
 import { formatEventWhen } from "@/lib/events/changeSummary";
 import { scheduleInstants } from "@/lib/events/signupSchedule";
 import { verifyRecaptcha } from "@/lib/recaptcha/server";
@@ -42,11 +45,12 @@ import { clientIp, rateLimit } from "@/lib/rateLimit";
  * caller asking about their own account still gets the 409, because that is
  * their own row. `tests/event-rsvp-identity.test.mjs` executes both.
  *
- * ── AN APPROVED ACCOUNT FOR A MEMBERS-ONLY EVENT ────────────────────────────
+ * ── AN APPROVED ACCOUNT FOR AN EVENT THAT NEEDS ONE ─────────────────────────
  * `getCurrentUser` hands back a session for every role, `pending` and
- * `rejected` included, so "signed in" was never "a member". A members-only
- * event admits `member`, `committee` and `admin`, the same three the
- * broadcast route treats as approved.
+ * `rejected` included, so "signed in" was never "a member". An event for
+ * people with a NAISI account admits `member`, `committee` and `admin`, the
+ * same three the broadcast route treats as approved. An event for chosen
+ * people admits those of them who were invited to it.
  *
  * ── AFTER A CANCELLATION OR A DENIAL ────────────────────────────────────────
  * A person may submit again, and that is a NEW row: the old one keeps its
@@ -131,6 +135,9 @@ export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  const blocked = await assertNotImpersonating();
+  if (blocked) return blocked;
+
   const { id: eventId } = await ctx.params;
 
   // BEFORE THE SESSION LOOKUP AND BEFORE ANY DOCUMENT IS READ. See the header:
@@ -165,6 +172,12 @@ export async function POST(
   const bodyEmail =
     typeof payload.email === "string" ? normalizeEmail(payload.email) : "";
 
+  // A signed-in caller's name is the session's, and `getCurrentUser` reads it
+  // through `accountNameOf` (lib/firestore/users.ts): the stored display name,
+  // else the preferred name. The form says "Signing up as" with the same
+  // rule's answer from `useAuth().accountName`, so the name a person was shown
+  // is the name the organiser reads on the sign-ups list. With no name on the
+  // account, the address stands in for one.
   const name =
     viewer?.displayName?.trim() || viewer?.email?.trim() || bodyName;
   const email = viewer?.email ? normalizeEmail(viewer.email) : bodyEmail;
@@ -234,11 +247,16 @@ export async function POST(
     );
   }
 
-  const visibility = event.visibility === "public" ? "public" : "members";
-  if (visibility === "members") {
+  // Who the event is for, read by the one helper (src/lib/events/reach.ts).
+  // Anything but an event for anyone needs an approved account.
+  if (needsAccount(event)) {
     if (!viewer) {
       return NextResponse.json(
-        { error: "This event is for signed-in members. Please sign in first." },
+        {
+          error: isForChosenPeople(event)
+            ? REACH_WORDS.signUpSignIn
+            : "This event is for people with a NAISI account. Please sign in first.",
+        },
         { status: 401 },
       );
     }
@@ -247,6 +265,13 @@ export async function POST(
         { error: "This event is for approved NAISI members." },
         { status: 403 },
       );
+    }
+    // AN EVENT FOR CHOSEN PEOPLE takes a request only from somebody invited
+    // to it: being able to open its page (the people who run events can) is
+    // not being invited. Before it is published, the staff's test sign-up
+    // above is the only kind there is.
+    if (isForChosenPeople(event) && event.status === "published" && !(await invitedTo(db, eventId, viewer.uid))) {
+      return NextResponse.json({ error: REACH_WORDS.signUpNotInvited }, { status: 403 });
     }
   }
 
@@ -348,6 +373,7 @@ export async function POST(
       foodProvenance: event.foodProvenance,
       foodProvenanceNote: event.foodProvenanceNote,
       signupForm: event.signupForm,
+      selfCheckIn: event.selfCheckIn === true,
     };
 
     if (outcome.kind === "existing") {

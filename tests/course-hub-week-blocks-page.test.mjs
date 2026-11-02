@@ -1,6 +1,5 @@
 /**
- * The member's side of the coursework (boards st-week1-phone, wk-week-phone,
- * wk-week, wk-programme): the week page for a week written as blocks, the
+ * The member's side of the coursework: the week page for a week written as blocks, the
  * reflection boxes and their store, and the counts by This week's tasks on
  * the week page, the programme page and Home.
  *
@@ -71,7 +70,9 @@ const rowPath = (uid, weekId, id) => `courseExerciseResponses/${RUN.agi}__${uid}
 // ---------------------------------------------------------------------------
 
 describe("1. a week written as blocks, drawn", () => {
-  test("week 1 for Chloe, word for word and in order (st-week1-phone)", async () => {
+  test("week 1 for Chloe, word for word and in order", async () => {
+    // Monday before Group B meets on Tue 3 Nov: week 1 still takes work (the week you submit).
+    at("2026-11-02T12:00:00Z");
     const { text, shell } = await w.weekPage("chloe", 1);
     assert.equal(shell.component, "WeekView");
     inOrder(text, [
@@ -161,6 +162,8 @@ describe("1. a week written as blocks, drawn", () => {
   });
 
   test("week 2 holds every kind of block: what this page draws, and nothing of what a later page will", async () => {
+    // Sunday before Group B meets on Tue 10 Nov: week 2 still takes work (the week you submit).
+    at("2026-11-08T12:00:00Z");
     const { text } = await w.weekPage("chloe", 2);
     inOrder(text, [
       "This week",
@@ -214,7 +217,7 @@ describe("1. a week written as blocks, drawn", () => {
       "Your forecast, the week’s written answer",
       "Part 5",
       "Plan and pitch",
-      // The fill-in boxes (wk-week6-phone's action plan), drawn since week 6's
+      // The fill-in boxes (the action plan on week 6's page), drawn since week 6's
       // piece: the title, the count, each numbered heading with its hint and
       // its boxes' labels, and who reads them.
       "My plan",
@@ -274,7 +277,7 @@ describe("1. a week written as blocks, drawn", () => {
       "Keep it: you will check it in the last week.",
       "Part 5",
     ]);
-    // The packs are drawn (plan item 8, packs and cases): the Choose one a
+    // The packs are drawn (packs and cases): the Choose one a
     // facilitator gives out, with the line that says so, the questions to
     // read every pack against, and each pack's name, time, sources and
     // reading; then the one Chloe picks, with its line. Nothing is given out
@@ -307,7 +310,7 @@ describe("1. a week written as blocks, drawn", () => {
       "if you like writing",
     ]);
     assert.doesNotMatch(html, /Your pack<\/span>/);
-    // The talks are drawn (plan item 8): the pitch with how to prepare and
+    // The talks are drawn: the pitch with how to prepare and
     // "Ready for my pitch", then the case study with Chloe's case not given
     // yet, every case of the week by pack, and the content note on the one
     // that has one.
@@ -375,6 +378,8 @@ describe("1. a week written as blocks, drawn", () => {
 
 describe("2. a reflection is its writer's own", () => {
   test("Chloe's box saves as she types, reads back to her, and is stored as a reflection", async () => {
+    // Monday before Group B meets on Tue 3 Nov: week 1 still takes work (the week you submit).
+    at("2026-11-02T12:00:00Z");
     const saved = await w.writeBox("chloe", "k1-rp1", "w01", "  About a third of them.  ");
     assert.equal(saved.status, 200);
     assert.deepEqual(
@@ -415,6 +420,8 @@ describe("2. a reflection is its writer's own", () => {
   });
 
   test("only the programme's lead and admins read somebody else's, through the one reader", async () => {
+    // Monday before Group B meets on Tue 3 Nov: week 1 still takes work (the week you submit).
+    at("2026-11-02T12:00:00Z");
     await w.writeBox("chloe", "k1-rp1", "w01", "For the lead.");
     for (const who of ["claudia", "zach"]) {
       const answer = await w.readReflections(who, "chloe", 1);
@@ -433,6 +440,8 @@ describe("2. a reflection is its writer's own", () => {
   });
 
   test("nobody writes it but Chloe: every other caller writes their own row or is refused", async () => {
+    // Thursday noon before Group A meets that evening: week 1 still takes work for everybody (the week you submit).
+    at("2026-10-29T12:00:00Z");
     await w.writeBox("chloe", "k1-rp1", "w01", "Chloe's.");
     // Amara, in another group, writes her OWN box of the same prompt.
     assert.equal((await w.writeBox("amara", "k1-rp1", "w01", "Amara's.")).status, 200);
@@ -467,6 +476,8 @@ describe("2. a reflection is its writer's own", () => {
   });
 
   test("an emptied box removes the row", async () => {
+    // Monday before Group B meets on Tue 3 Nov: week 1 still takes work (the week you submit).
+    at("2026-11-02T12:00:00Z");
     await w.writeBox("chloe", "k1-rp1", "w01", "Something.");
     const emptied = await w.writeBox("chloe", "k1-rp1", "w01", "   ");
     assert.equal(emptied.status, 200);
@@ -475,6 +486,8 @@ describe("2. a reflection is its writer's own", () => {
   });
 
   test("a reflection is never reviewed or queued", async () => {
+    // Monday before Group B meets on Tue 3 Nov: week 1 still takes work (the week you submit).
+    at("2026-11-02T12:00:00Z");
     await w.writeBox("chloe", "k1-rp1", "w01", "Not for review.");
     const id = `${RUN.agi}__chloe__w01__k1-rp1`;
     const verdict = (who) =>
@@ -501,6 +514,8 @@ describe("2. a reflection is its writer's own", () => {
 
 describe("3. a group's facilitator takes part, as themselves", () => {
   test("Rahul writes his own reflection; the lead and an admin read it, his co-facilitator and a member do not", async () => {
+    // Monday before Group B meets on Tue 3 Nov: week 1 still takes work (the week you submit).
+    at("2026-11-02T12:00:00Z");
     const saved = await w.writeBox("rahul", "k1-rp1", "w01", "A facilitator's own view.");
     assert.equal(saved.status, 200);
     assert.equal(w.world.db.read(rowPath("rahul", "w01", "k1-rp1")).kind, "reflection");
@@ -518,6 +533,8 @@ describe("3. a group's facilitator takes part, as themselves", () => {
   });
 
   test("Rahul's page: his boxes, his ticks, his count, and lines that name only the lead and admins", async () => {
+    // Monday before Group B meets on Tue 3 Nov: week 1 still takes work (the week you submit).
+    at("2026-11-02T12:00:00Z");
     await w.writeBox("rahul", "k1-rp1", "w01", "Rahul's first box.");
     const before = await w.weekPage("rahul", 1);
     assert.equal(before.shell.props.viewerRole, "facilitator");
@@ -537,6 +554,8 @@ describe("3. a group's facilitator takes part, as themselves", () => {
   });
 
   test("a facilitator who holds a place: their own boxes through their learner's row, and lines that name only the lead and admins", async () => {
+    // Monday before Group B meets on Tue 3 Nov: week 1 still takes work (the week you submit).
+    at("2026-11-02T12:00:00Z");
     // Chloe holds a place in Group B and becomes one of its facilitators
     // (a facilitator who holds a place sits in the group they facilitate).
     // Their own work is read by the programme's lead and admins, never by a
@@ -557,6 +576,8 @@ describe("3. a group's facilitator takes part, as themselves", () => {
   });
 
   test("a facilitator of two groups writes on the run's own week, and a member placed nowhere still cannot", async () => {
+    // Thursday noon before Group A meets that evening: week 1 still takes work for everybody (the week you submit).
+    at("2026-10-29T12:00:00Z");
     assert.equal((await w.writeBox("sofia", "k1-rp2", "w01", "Sofia's.")).status, 200);
     assert.equal((await w.writeBox("tom", "k1-rp2", "w01", "Tom's.")).status, 200);
     assert.equal((await w.writeBox("nobody", "k1-rp2", "w01", "x")).status, 403);
@@ -569,6 +590,8 @@ describe("3. a group's facilitator takes part, as themselves", () => {
 
 describe("4. counts by This week's tasks", () => {
   test("the week page: ticks alone are not the task; every source ticked and every box written is", async () => {
+    // Monday before Group B meets on Tue 3 Nov: week 1 still takes work (the week you submit).
+    at("2026-11-02T12:00:00Z");
     let page = await w.weekPage("chloe", 1, sources("k1"));
     assert.match(page.text, /0 of 1 done/);
     await writeAll("chloe", "k1", "w01");
@@ -584,6 +607,8 @@ describe("4. counts by This week's tasks", () => {
   });
 
   test("a part's Done chip follows its own sources and boxes", async () => {
+    // Monday before Group B meets on Tue 3 Nov: week 1 still takes work (the week you submit).
+    at("2026-11-02T12:00:00Z");
     await w.writeBox("chloe", "k1-rp3", "w01", "One.");
     await w.writeBox("chloe", "k1-rp4", "w01", "Two.");
     const page = await w.weekPage("chloe", 1, sources("k1"));
@@ -594,6 +619,8 @@ describe("4. counts by This week's tasks", () => {
   });
 
   test("a task holding what a later page finishes is never done, whatever else is", async () => {
+    // Monday before Group B meets on Tue 3 Nov: week 1 still takes work (the week you submit).
+    at("2026-11-02T12:00:00Z");
     // Every source and checklist item ticked and every box written: only what a later page finishes is left.
     const ticked = ["src-1", "src-7", "src-2", "src-8", "ci-1", "ci-2"];
     for (const id of ["rp-1", "rp-2", "rp-3"]) assert.equal((await w.writeBox("chloe", id, "w02", "Done.")).status, 200);
@@ -673,7 +700,10 @@ describe("4. counts by This week's tasks", () => {
     assert.match(home.text, /Week 2 How sure are you\? Tue 10 Nov · Not done 0 of 3/);
     assert.match(home.text, /Week 3 The lamp makers Tonight 0 of 1/);
     await writeAll("chloe", "k3", "w03");
+    // Week 1 was written before its session on Tue 3 Nov, which locked it (the week you submit).
+    at("2026-11-02T12:00:00Z");
     await writeAll("chloe", "k1", "w01");
+    at(NOW.toISOString());
     home = await w.programmeHome("chloe", [...sources("k3"), ...sources("k1")]);
     assert.match(home.text, /This week 1 of 1 done Week 3 · The lamp makers Thu 12 to Wed 18 Nov Done: Parts 1 to 3 Done Open week 3/);
     assert.match(home.text, /Week 1 Who keeps the lamps Tue 3 Nov · Done 1 of 1/);
@@ -727,7 +757,10 @@ describe("4. counts by This week's tasks", () => {
   });
 
   test("the overview hands each block week its tasks, the boxes written and the day each is due", async () => {
+    // Written before week 1's session locked it.
+    at("2026-11-02T12:00:00Z");
     await w.writeBox("chloe", "k1-rp1", "w01", "One.");
+    at(NOW.toISOString());
     const answer = await w.overview("chloe");
     assert.equal(answer.status, 200);
     const week1 = answer.body.weeks.find((week) => week.weekNumber === 1);
@@ -736,8 +769,8 @@ describe("4. counts by This week's tasks", () => {
     assert.equal(task.type, "task");
     assert.equal(task.label, "Parts 1 to 3");
     // `answerIds` joined the needs with the written answer (its own page),
-    // the Choose ones and talks a task covers with packs and cases (plan
-    // item 8), and the fill-in boxes with week 6's: week 1 has none of the
+    // the Choose ones and talks a task covers with packs and cases,
+    // and the fill-in boxes with week 6's: week 1 has none of the
     // four, so each is empty, held as strictly as the rest.
     assert.deepEqual(task.needs, {
       tickIds: sources("k1"),

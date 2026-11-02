@@ -70,7 +70,7 @@ import { ENROLMENT_LIMITS } from "@/lib/firestore/courseEnrolments";
  * ## "I can’t make it" from somebody in a group is leaving the programme
  *
  * Once Publish has told somebody their group, giving the place back is
- * leaving the programme (Q12), and this is the second door to the one leave
+ * leaving the programme, and this is the second door to the one leave
  * "Leave the programme" on their programme page makes. Whether they are in
  * such a group, and whether they may leave it, is `readPlaceOnRun`'s answer
  * (`src/lib/courses/placeOnRun.ts`, which asks the leave's own

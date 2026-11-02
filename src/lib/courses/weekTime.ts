@@ -5,11 +5,11 @@ import { weekSources, weekThisWeek, type ReadableWeek } from "./weekBlocks/reade
  * HOW LONG A WEEK TAKES, IN WORDS: "about 80 minutes". THE ONE FUNCTION.
  *
  * The email that tells somebody their group says "Week 1’s reading takes
- * about 80 minutes." (board st-emails), and anything else that says how long
+ * about 80 minutes.", and anything else that says how long
  * a week takes asks here, so a week is never timed two ways.
  *
- *  - A WEEK WRITTEN IN BLOCKS is timed by its This week box's "In all" (board
- *    st-week1-phone: "In all: About 80 minutes"), exactly as its lead wrote
+ *  - A WEEK WRITTEN IN BLOCKS is timed by its This week box's "In all"
+ *    ("In all: About 80 minutes"), exactly as its lead wrote
  *    it, its first letter made small so it reads inside a sentence: "about 80
  *    minutes", "2 to 3 hours". It is free text and can be a range, so it is
  *    never read as a number, and nothing is worked out from the box's rows.

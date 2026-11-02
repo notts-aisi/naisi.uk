@@ -19,6 +19,11 @@
  * clear is a delete) are asserted at the source in the `course-deletion.test.mjs`
  * idiom. If a pin fails, the route has drifted from the rule; do not fix it by
  * loosening the pin.
+ *
+ * The last test drives the real GET handler, in the stubbed world
+ * `tests/lib/handoverWorld.mjs` provides, because the rule it holds (the
+ * person a flag describes never reads it, an admin included) is about who
+ * asks, which a source pin cannot see.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -307,4 +312,129 @@ test("MODEL: neither handler answers with the reviewer projection", () => {
   // moment a route does that, "what may this viewer see" is decided at the
   // call site again, and the next route to copy the shape may be a reviewer's.
   assert.doesNotMatch(ROUTE_CODE, /\.\.\.conductFlagForQueue/);
+});
+
+// ===========================================================================
+// What the control says, and the tree that keeps it true
+// ===========================================================================
+
+const CONTROL = readFileSync(join(SRC, "features", "admin", "ConductFlagControl.tsx"), "utf8");
+
+test("WORDS: the confirm says only admins see a flag, and that its owner can ask for what is written", () => {
+  assert.ok(
+    CONTROL.includes(
+      "`Flag ${displayName}?\\n\\nOnly admins will see this flag and its reason. ${displayName} can ask us for a copy of what you write, so write what happened and when.`",
+    ),
+    "the confirm when flagging has drifted from its words",
+  );
+});
+
+test("WORDS: the line under the label says the same, in every state of the control", () => {
+  const flat = CONTROL.replace(/\s+/g, " ");
+  assert.ok(
+    flat.includes("Only admins see this flag and its reason. Reviewers and the person flagged don&apos;t see it on the site."),
+    "the line under the label has drifted from its words",
+  );
+  // The words before the privacy policy was settled said reviewers see a flag
+  // exists. No screen a reviewer opens reads one (below), and the policy says
+  // only admins see a flag and its reason.
+  assert.doesNotMatch(CONTROL, /Reviewers will see|yes or no chip|neither will the member/);
+});
+
+/**
+ * WHO READS A FLAG. The control tells an admin that reviewers and the person
+ * flagged never see a flag on the site, and that is true only while nothing a
+ * reviewer or a member is served reads one. So every file under `src` whose
+ * code names the collection, either projection, the route or the control is
+ * listed here with what it does, both ways: a review screen that starts
+ * reading a flag fails here until somebody decides, and the privacy policy
+ * with it.
+ */
+const FLAG_READERS = new Map([
+  [
+    "app/api/admin/members/[uid]/conduct-flag/route.ts",
+    "the one route that reads or writes a flag; both handlers are admin-only and answer with the admin projection",
+  ],
+  [
+    "features/admin/ConductFlagControl.tsx",
+    "the control on one person's page in the admin area, which calls that route and nothing else",
+  ],
+  [
+    "features/admin/MemberItem.tsx",
+    "draws the control on a person's page in the admin area, behind the admin-only page gate",
+  ],
+  [
+    "lib/firestore/accountDeletion.ts",
+    "deleting an account deletes its flag at the uid, and reads nothing of it back",
+  ],
+]);
+/** The collection's own module: it defines the projections and reads nothing. */
+const FLAG_HOME = "lib/firestore/memberConductFlags.ts";
+const NAMES_A_FLAG = /["'`]memberConductFlags["'`]|\bconductFlagForQueue\b|\bconductChip\b|\bConductFlagControl\b|\/conduct-flag\b/;
+
+test("TREE: every file that names a flag is listed, and every listed file still names one", async () => {
+  const { walkSource } = await import("./lib/functionScan.mjs");
+  const { stripSource } = await import("./lib/stripSource.mjs");
+  const found = [];
+  let files = 0;
+  for (const full of walkSource(SRC)) {
+    files += 1;
+    const code = stripSource(readFileSync(full, "utf8"), { keepStrings: true });
+    if (!NAMES_A_FLAG.test(code)) continue;
+    const path = full.slice(SRC.length + 1).split("\\").join("/");
+    if (path !== FLAG_HOME) found.push(path);
+  }
+  assert.ok(files > 1000, `read ${files} files: the walk reached too little of the tree`);
+  assert.deepEqual(
+    found.filter((path) => !FLAG_READERS.has(path)),
+    [],
+    "These read a conduct flag and are not listed. Only admins see a flag and its reason: a page or a route " +
+      "a reviewer or a member is served must not read one, and the control and the privacy policy both say so.",
+  );
+  assert.deepEqual([...FLAG_READERS.keys()].filter((path) => !found.includes(path)), [], "a listed file no longer names a flag");
+  for (const [path, why] of FLAG_READERS) {
+    assert.ok(why.length >= 40, `${path}: a reason is missing or too short to be one`);
+    assert.ok(
+      path.startsWith("app/api/admin/") || path.startsWith("features/admin/") || path === "lib/firestore/accountDeletion.ts",
+      `${path} is outside the admin area`,
+    );
+  }
+});
+
+// ===========================================================================
+// THE HANDLER: the person a flag describes never reads it, admins included.
+// ===========================================================================
+
+test("HANDLER: an admin reads another member's flag and never the flag on their own account", async () => {
+  const { makeWorld } = await import("./lib/handoverWorld.mjs");
+  const { session, userDoc } = await import("./lib/applicationsSmallTerm.mjs");
+  const w = makeWorld("__conductFlag");
+  const route = await w.loadTs(join("app", "api", "admin", "members", "[uid]", "conduct-flag", "route.ts"));
+  const flag = (byUid, byName) => ({ flagged: true, reason: "Talked over another member in the week two session.", byUid, byName, at: new Date("2026-10-20T10:00:00Z") });
+  w.reset({
+    "users/zach": userDoc(session("zach", "admin", false, "Zach Levin")),
+    "users/ada": userDoc(session("ada", "admin", false, "Ada Byron")),
+    "users/amara": userDoc(session("amara", "member", false, "Amara Okafor")),
+    // Ada flagged Zach, and Zach flagged Amara.
+    "memberConductFlags/zach": flag("ada", "Ada Byron"),
+    "memberConductFlags/amara": flag("zach", "Zach Levin"),
+  });
+
+  const other = await w.call("zach", route.GET, { uid: "amara" });
+  assert.equal(other.status, 200);
+  assert.equal(other.body.flagged, true);
+
+  const before = w.everything();
+  const own = await w.call("zach", route.GET, { uid: "zach" });
+  assert.equal(own.status, 400, `the subject read their own flag: ${JSON.stringify(own.body)}`);
+  assert.deepEqual(Object.keys(own.body), ["error"]);
+  assert.doesNotMatch(JSON.stringify(own.body), /Talked over|Ada|flagged/i, "the refusal says something about the flag");
+  assert.equal(w.everything(), before);
+  // The same answer whether a flag is there or not, so the refusal is no answer either.
+  w.world.db.poke("memberConductFlags/zach", { flagged: false });
+  assert.deepEqual((await w.call("zach", route.GET, { uid: "zach" })).body, own.body);
+
+  // Another admin still reads it.
+  const byAnother = await w.call("ada", route.GET, { uid: "amara" });
+  assert.equal(byAnother.status, 200);
 });

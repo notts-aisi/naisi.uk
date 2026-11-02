@@ -6,9 +6,9 @@
  *
  *  - `teamsFromFirstChoices`: the agenda people ranked on the application
  *    form, made into teams from first choices, within the run's smallest and
- *    largest team (in-agenda);
- *  - `pitchTeamPeople`: who goes into a team made from one pitch (in-teams,
- *    option C).
+ *    largest team;
+ *  - `pitchTeamPeople`: who goes into a team made from one pitch (the Teams tab's
+ *    pitches beside the teams).
  *
  * Neither ever puts a person in two teams, and neither decides anything about
  * who may make teams: the caller has asked that already.

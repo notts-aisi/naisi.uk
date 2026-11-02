@@ -1,0 +1,24 @@
+/* The parts of a name on a staff screen after the name itself. Colours
+   only: the element the name sits in sets its size and weight. */
+
+.quiet {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.note {
+  font-weight: 400;
+  color: var(--color-warning);
+}
+
+/* What tells two people apart, and a guest's note, wrap when a row is short
+   of room, even in a cell that keeps the name itself on one line (the
+   sign-ups table's). */
+.mayWrap {
+  white-space: normal;
+}
+
+/* === Mobile === */
+@media (max-width: 36rem) { /* --bp-sm */
+  /* Nothing to change: the parts wrap with the name they follow. */
+}

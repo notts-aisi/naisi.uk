@@ -1,6 +1,6 @@
 /**
  * `courseGroupSharedNotes/{id}`: a note somebody in a group writes for the
- * rest of it (C29, board wk-week-phone's "Notes shared with your group"). One
+ * rest of it (the week page's "Notes shared with your group"). One
  * document per note; the id is Firestore's own.
  *
  * A NOTE BELONGS TO ITS GROUP, and remembers the week whose page it was
@@ -12,7 +12,7 @@
  * of the programme that names the run, and admins. Nobody else: not another
  * group, not the run's track leads, not a programme's reviewers. It is not a
  * register note, and not the notes the group's facilitators keep for each
- * other (C30), which nobody in the group reads.
+ * other, which nobody in the group reads.
  *
  * Only a run that places people in groups keeps these notes
  * (`runSharesGroupNotes`). A run anyone can join keeps the run's comments on

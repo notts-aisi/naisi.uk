@@ -6,7 +6,7 @@ import { sessionInstants, type ResolvedSession } from "./sessions";
  *
  * THE WEEK PAGES NO LONGER ASK THIS. Until 27 October 2026 a published week
  * opened to the people taking part in a group only straight after the
- * group's previous session (C17). Zach decided every week is published at
+ * group's previous session. Zach decided every week is published at
  * the start and readable at once, so people can read ahead: every published
  * week is open to everybody the run is open to, and nothing here gates a
  * page. The sealed card kept the old clock for itself, so reading the week a

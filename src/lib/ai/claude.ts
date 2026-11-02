@@ -25,6 +25,13 @@ import Anthropic from "@anthropic-ai/sdk";
  * - NOTHING IS SAMPLED. The answer is constrained to the schema
  *   (`output_config.format`) and then parsed and checked here; a malformed
  *   answer is a reason, not a crash.
+ * - IT ONLY EVER TALKS TO ANTHROPIC. The SDK on its own reads
+ *   `ANTHROPIC_BASE_URL` and sends the key wherever that names. Here the
+ *   address is always given, and is Anthropic's unless the variable names
+ *   this machine (`claudeBaseUrl`): that is how the end-to-end harness points
+ *   a local server at its fake Claude, and nothing on a deployed backend's
+ *   loopback answers as Claude. `tests/claude-base-url.test.mjs` keeps the
+ *   variable out of every `apphosting*.yaml`.
  */
 
 export const CLAUDE_MODEL = "claude-opus-5-5";
@@ -32,12 +39,38 @@ export const CLAUDE_MODEL = "claude-opus-5-5";
 /** The longest any one call may take, inside the backend's 300-second request limit. */
 export const MAX_CALL_MS = 240_000;
 
+/** Anthropic's API: where every request goes unless `claudeBaseUrl` says otherwise. */
+export const ANTHROPIC_API_URL = "https://api.anthropic.com";
+
+/** The hosts that are this machine, as `URL` writes them. Never "localhost", which a hosts file can point anywhere. */
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "[::1]"]);
+
+/**
+ * Where requests go: `value` (the `ANTHROPIC_BASE_URL` this backend holds)
+ * only when it is plain http to a loopback address with no credentials in
+ * it, and Anthropic's API otherwise. Pure: exported for the tests.
+ */
+export function claudeBaseUrl(value: string | undefined): string {
+  if (!value) return ANTHROPIC_API_URL;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return ANTHROPIC_API_URL;
+  }
+  if (url.protocol !== "http:" || !LOOPBACK_HOSTS.has(url.hostname) || url.username || url.password) return ANTHROPIC_API_URL;
+  return url.origin;
+}
+
 let cached: Anthropic | null | undefined;
 
 function client(): Anthropic | null {
   if (cached !== undefined) return cached;
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  cached = apiKey ? new Anthropic({ apiKey, timeout: MAX_CALL_MS, maxRetries: 0 }) : null;
+  const named = process.env.ANTHROPIC_BASE_URL;
+  const baseURL = claudeBaseUrl(named);
+  if (named && baseURL === ANTHROPIC_API_URL && named.replace(/\/+$/, "") !== ANTHROPIC_API_URL) console.error("[claude] ANTHROPIC_BASE_URL is ignored: only a loopback address is honoured");
+  cached = apiKey ? new Anthropic({ apiKey, baseURL, timeout: MAX_CALL_MS, maxRetries: 0 }) : null;
   return cached;
 }
 

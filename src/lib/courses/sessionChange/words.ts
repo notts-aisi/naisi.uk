@@ -1,10 +1,10 @@
 /**
- * THE WORDS OF CHANGING A SESSION (Q25), in one place: the Sessions view's,
+ * THE WORDS OF CHANGING A SESSION, in one place: the Sessions view's,
  * the dialog's, the route's refusals, the update it posts and what the
  * group's people read. No imports, so the dialog in the browser and the route
  * on the server say the same thing in the same words.
  *
- * The words the boards draw (wk-session, wk-changes) are copied exactly, with
+ * The words the boards draw are copied exactly, with
  * their apostrophes. The words they do not draw are written in the same voice,
  * and are listed in the build notes for the boards' designers to settle.
  *
@@ -89,6 +89,21 @@ export function slotWords(weekday: number, hhmm: string): string {
   const day = WEEKDAYS[weekday];
   const clock = clockWords(hhmm);
   return day && clock ? `${day}s ${clock}` : "";
+}
+
+/**
+ * "Tuesdays 6pm to 7:30pm", a group's weekly slot with when it ends, in the
+ * house's clock and never with a dash. "Tuesdays 6pm" when it has no length,
+ * and "" while it has no day or time. The end is the start plus the length on
+ * the wall clock, past midnight if it runs there: a label, never an instant.
+ */
+export function slotRangeWords(weekday: number, hhmm: string, minutes: number): string {
+  const slot = slotWords(weekday, hhmm);
+  if (!slot || !Number.isInteger(minutes) || minutes <= 0) return slot;
+  const [hour, minute] = hhmm.split(":").map(Number);
+  const end = (hour * 60 + minute + minutes) % (24 * 60);
+  const endWords = clockWords(`${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`);
+  return endWords ? `${slot} to ${endWords}` : slot;
 }
 
 /** "Rahul", "Rahul and Sofia", "Rahul, Sofia and Tom". */
@@ -454,7 +469,7 @@ export function updateWords(
 }
 
 // ---------------------------------------------------------------------------
-// What the group's people read (wk-changes)
+// What the group's people read
 // ---------------------------------------------------------------------------
 
 /** The notice's heading: "No session tonight" on the evening, "No session today" before 5pm, the date before the day. */
@@ -513,6 +528,6 @@ export const LINK_WILL_BE_HERE = "The link to join will be here, not in your ema
 
 /**
  * Where an online week's link is, in a facilitator's room notice: the notice is
- * an email, so it says where the link is and never carries it (Q23).
+ * an email, so it says where the link is and never carries it.
  */
 export const ONLINE_NOTICE_LINK_LINE = "The link to join is on your programme page, not in your emails.";

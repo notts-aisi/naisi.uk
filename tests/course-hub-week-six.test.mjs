@@ -1,5 +1,5 @@
 /**
- * Week 6's own pieces on the member's week page (board wk-week6-phone):
+ * Week 6's own pieces on the member's week page:
  * fill-in boxes (part 3's plan) and the checklist in blocks (part 2), with
  * the counts by This week's tasks they move.
  *
@@ -19,7 +19,7 @@
  *  1. The fill-in card, drawn word for word and in order.
  *  2. A fill-in box is its writer's own: stored as a fill-in box, refused
  *     to everybody else, never written over another kind of row.
- *  3. Who reads somebody's boxes (Q30 C): the group's facilitators, the
+ *  3. Who reads somebody's boxes: the group's facilitators, the
  *     programme's lead and admins; for a facilitator's own, the lead and
  *     admins alone; never another fellow.
  *  4. Every reader of answers leaves a fill-in box out.
@@ -88,7 +88,7 @@ function chloeFacilitatesB() {
 // 1. The fill-in card, drawn
 // ---------------------------------------------------------------------------
 
-describe("1. the fill-in card, drawn (wk-week6-phone, part 3)", () => {
+describe("1. the fill-in card, drawn (part 3)", () => {
   test("Chloe's card, word for word and in order", async () => {
     const { text, html } = await w.weekPage("chloe", 6);
     inOrder(text, [
@@ -242,6 +242,8 @@ describe("2. a fill-in box is its writer's own", () => {
   });
 
   test("who may write: somebody taking part or facilitating, each in their own box, and nobody on anybody's behalf", async () => {
+    // Thursday noon: Group A meets at 6pm, so week 6 takes work for everybody here (the week you submit).
+    at("2026-12-03T12:00:00Z");
     for (const who of ["chloe", "farah", "kofi", "amara"]) {
       assert.equal((await w.writeFillIn(who, FB[0], "w06", `${who}'s words.`)).status, 200, who);
       assert.equal(w.world.db.read(rowPath(who, "w06", FB[0])).text, `${who}'s words.`);
@@ -358,7 +360,7 @@ describe("2. a fill-in box is its writer's own", () => {
 // 3. Who reads somebody's boxes
 // ---------------------------------------------------------------------------
 
-describe("3. who reads somebody's boxes (Q30 C)", () => {
+describe("3. who reads somebody's boxes", () => {
   test("a fellow's: the group's facilitators, the programme's lead and admins; nobody else", async () => {
     await w.writeFillIn("chloe", FB[0], "w06", "Mend the north lamp.");
     await w.writeBox("chloe", "k6-rp1", "w06", "A reflection, not a box.");
@@ -491,7 +493,8 @@ describe("4. every reader of answers leaves a fill-in box out", () => {
     // Nor on the group page's To review card.
     const run = w.lib.courses.normalizeCourseRun(RUN.agi, w.world.db.read(`courseRuns/${RUN.agi}`));
     const group = w.lib.groups.normalizeCourseGroup(B, w.world.db.read(`courseGroups/${B}`));
-    const model = await w.lib.facilitatorGroup.loadFacilitatorGroup(w.world.courseDb, run, group, { isAdmin: false }, new Date());
+    // As Rahul, a facilitator of the group, reads it: the loader names people for the session it is handed.
+    const model = await w.lib.facilitatorGroup.loadFacilitatorGroup(w.world.courseDb, run, group, { isAdmin: false, actor: w.sessionOf("rahul") }, new Date());
     assert.ok(!model.toReview.some((row) => row.uid === "chloe"), JSON.stringify(model.toReview));
   });
 });
@@ -583,7 +586,7 @@ describe("6. the checklist in blocks (part 2)", () => {
     const part2 = partHtml(html, 2);
     assert.equal((part2.match(/type="checkbox"/g) ?? []).length, 3);
     assert.match(part2, /aria-label="Done: Find two keepers doing it now\."/);
-    // Drawn as steps (wk-week6-phone): the words in the body's weight, the same ticked or not.
+    // Drawn as steps: the words in the body's weight, the same ticked or not.
     assert.equal((part2.match(/<li class="tickRow stepRow">/g) ?? []).length, 3);
     assert.match(part2, /<p class="stepTitle">Find two keepers doing it now\.<\/p>/);
     const ticked = partHtml((await w.weekPage("chloe", 6, CI)).html, 2);
@@ -615,15 +618,16 @@ describe("6. the checklist in blocks (part 2)", () => {
     const checklist = view.slice(view.indexOf("function Checklist("), view.indexOf("// Go further"));
     assert.match(checklist, /kind: "checklist"/);
     assert.match(checklist, /id: item\.id/);
-    // And the one write a tick makes, for a step as for any checklist item.
-    const mutations = await w.loadTs(join("features", "courses", "progressMutations.ts"));
-    await mutations.toggleProgressItem({ runId: RUN.agi, uid: "chloe", weekNumber: 6, itemKind: "checklist", itemId: CI[0], current: null, next: true });
-    const write = w.ui.writes.at(-1);
-    assert.equal(write.path, `courseProgress/${RUN.agi}__chloe__${CI[0]}`);
-    assert.equal(write.data.itemKind, "checklist");
-    assert.equal(write.data.itemId, CI[0]);
-    assert.equal(write.data.weekNumber, 6);
-    assert.equal(write.data.completed, true);
+    // And the one write a tick makes, for a step as for any checklist item: the tick route, which finds
+    // the step on the week and writes the person's own row as a checklist item's.
+    const tickRoute = await w.courseRoute("runs", "[runId]", "ticks", "[itemId]");
+    const ticked = await w.call("chloe", tickRoute.PUT, { runId: RUN.agi, itemId: CI[0] }, { course: true, body: { weekId: "w06", completed: true } });
+    assert.equal(ticked.status, 200, JSON.stringify(ticked.body));
+    const write = w.world.db.read(`courseProgress/${RUN.agi}__chloe__${CI[0]}`);
+    assert.equal(write.itemKind, "checklist");
+    assert.equal(write.itemId, CI[0]);
+    assert.equal(write.weekNumber, 6);
+    assert.equal(write.completed, true);
   });
 
   test("the steps keep their ids when the week is copied out and pasted back", async () => {

@@ -1,3 +1,7 @@
+// Relative, as this module's other imports are: a suite that loads it
+// without the app's path aliases (tests/course-task-mirror.test.mjs) reaches it.
+import { visibilityOf } from "../events/reach";
+import { readSurveyAfter, type StoredSurveyAfter } from "../events/surveyAfter";
 import { sanitizeBlocks, type Block } from "./newsletterBlocks";
 
 /**
@@ -23,7 +27,23 @@ export const EVENT_STATUS_LABEL: Record<EventStatus, string> = {
   cancelled: "Cancelled",
 };
 
-export type EventVisibility = "public" | "members";
+/**
+ * Who an event is for: anyone (`public`), people with a NAISI account
+ * (`members`), or only the people its organiser chose (`chosen`). Read
+ * through `src/lib/events/reach.ts` and nowhere else: a missing value is
+ * `members`, as it always was, and any other value is `chosen`, so an event
+ * nobody can tell the audience of is listed and announced nowhere.
+ */
+export type EventVisibility = "public" | "members" | "chosen";
+
+/**
+ * The programme an event for chosen people is part of: its invitation is then
+ * a programme notice to the people holding a place on it. Written only by
+ * `/api/events/[id]/audience`, for the programme's lead or an admin, and
+ * pinned against every browser in `firestore.rules`. `name` is the
+ * programme's short name as it was when it was set, for the card on Home.
+ */
+export type EventProgramme = { roundId: string; programmeId: string; name: string };
 
 /**
  * Where a QUEUED new-event announcement has got to. Absent on an event that
@@ -523,6 +543,15 @@ export type EventDoc = {
    */
   locationPublicText: string | null;
   visibility: EventVisibility;
+  /**
+   * Whether publishing announces it to the people who said yes to event
+   * announcements. Only a stored `false` is off, so every event made before
+   * this existed announces as it always did. Never true in effect for an event
+   * for chosen people: `announces` in `src/lib/events/reach.ts` decides.
+   */
+  announce: boolean;
+  /** See {@link EventProgramme}. Null for every event that is not part of one. */
+  programme: EventProgramme | null;
   capacity: number | null;
   waitlistEnabled: boolean;
   /**
@@ -533,6 +562,51 @@ export type EventDoc = {
    * simply not used, so switching back loses nothing.
    */
   noSignup: boolean;
+  /**
+   * People can check themselves in: with the link in their confirmation
+   * email, with the door code, or on the check-in page while signed in. Off,
+   * only the people who run check-in check anybody in, at the door list or
+   * from the event's page afterwards, and the confirmation email says to give
+   * your name at the door. Off for a new event, and only a stored `true` is
+   * on, so every event made before this existed is off until its author turns
+   * it on.
+   */
+  selfCheckIn: boolean;
+  /**
+   * Every question id that, in any version of the sign-up form the event has
+   * carried since it went live, may carry a dietary or accessibility answer
+   * (`foodHealthOrAccessQuestions` in `src/lib/events/requestWords.ts`). An
+   * answer is hidden from an organiser the Students' Union does not recognise
+   * when its question is one now OR was one in any of those versions, so
+   * retyping, relabelling, moving or removing and re-adding a question under
+   * the same id never shows what was given as a dietary or accessibility
+   * answer. Only grows. The site writes it from `/api/events/[id]/update`
+   * alone, the one path that changes a live event's form (firestore.rules
+   * closes a published event to every browser but an admin's), adding both
+   * the form it replaces and the form it saves; an event whose form has not
+   * changed since it went live has none, and its form as it stands says the
+   * same thing. Nothing reads it today, because the requests route sends an
+   * organiser the Students' Union does not recognise no answer at all; it is
+   * kept so that showing them answers again stays safe.
+   */
+  foodHealthAccessQuestionIds: string[];
+  /**
+   * When the door was opened, and by whom: the door list takes a tick, and
+   * people check themselves in, only once the event's author or an admin has
+   * opened it, inside the door's hours. Written once, by
+   * `/api/events/[id]/door` alone, and pinned in `firestore.rules`. Null until
+   * then.
+   */
+  doorOpenedAt: Date | null;
+  doorOpenedBy: string | null;
+  /**
+   * The survey after the event, as its editor's Survey after step chose it:
+   * on or off, its questions, who it goes to and when
+   * (`src/lib/events/surveyAfter.ts`). Publishing sets the survey up from it.
+   * Null on every event made before the step existed, which has none: only a
+   * stored setting counts.
+   */
+  surveyAfter: StoredSurveyAfter | null;
   signupForm: FormQuestion[];
   /**
    * @deprecated Legacy food classification. New and edited events use
@@ -639,8 +713,20 @@ function asStatus(v: unknown): EventStatus {
   return ok.includes(v as EventStatus) ? (v as EventStatus) : "draft";
 }
 
-function asVisibility(v: unknown): EventVisibility {
-  return v === "public" ? "public" : "members";
+/** Plain ids only: what the site mints, never a path or a name every object answers to. */
+const PLAIN_ID = /^[A-Za-z0-9_-]{1,128}$/;
+
+/** The programme an event is part of, or null for anything that is not exactly one. */
+export function asEventProgramme(v: unknown): EventProgramme | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const raw = v as Record<string, unknown>;
+  const roundId = typeof raw.roundId === "string" ? raw.roundId : "";
+  const programmeId = typeof raw.programmeId === "string" ? raw.programmeId : "";
+  if (!PLAIN_ID.test(roundId) || !PLAIN_ID.test(programmeId) || roundId === "__proto__" || programmeId === "__proto__") {
+    return null;
+  }
+  const name = typeof raw.name === "string" ? raw.name.trim().slice(0, 120) : "";
+  return { roundId, programmeId, name };
 }
 
 export function asCoverBranding(v: unknown): CoverBranding {
@@ -779,11 +865,20 @@ export function normalizeEvent(id: string, data: Raw): EventDoc {
     location: (data.location as string) ?? "",
     locationHidden: Boolean(data.locationHidden),
     locationPublicText: (data.locationPublicText as string | null | undefined) ?? null,
-    visibility: asVisibility(data.visibility),
+    visibility: visibilityOf(data.visibility),
+    announce: data.announce !== false,
+    programme: asEventProgramme(data.programme),
     capacity,
     waitlistEnabled:
       capacity === null ? false : data.waitlistEnabled !== false,
     noSignup: data.noSignup === true,
+    selfCheckIn: data.selfCheckIn === true,
+    foodHealthAccessQuestionIds: Array.isArray(data.foodHealthAccessQuestionIds)
+      ? data.foodHealthAccessQuestionIds.filter((id): id is string => typeof id === "string" && id !== "")
+      : [],
+    doorOpenedAt: tsToDate(data.doorOpenedAt),
+    doorOpenedBy: typeof data.doorOpenedBy === "string" && data.doorOpenedBy ? data.doorOpenedBy : null,
+    surveyAfter: readSurveyAfter(data.surveyAfter),
     signupForm: sanitizeSignupForm(data.signupForm),
     foodProvenance: asFoodProvenance(data.foodProvenance),
     foodProvenanceNote: (data.foodProvenanceNote as string | null | undefined) ?? null,

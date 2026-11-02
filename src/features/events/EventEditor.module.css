@@ -20,6 +20,14 @@
 
 /* A link drawn as the shared Button. The button inside is out of the tab
    order, so the link is the one stop and carries the ring. */
+/* The Survey after step's sentences: what publishing sets up, or where it is changed once published. */
+.surveyNote {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--color-text);
+}
+
 .buttonLink {
   display: inline-flex;
   border-radius: var(--radius-md);

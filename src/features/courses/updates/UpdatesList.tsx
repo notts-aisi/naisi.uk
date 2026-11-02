@@ -6,11 +6,11 @@ import styles from "./Updates.module.css";
  * AN UPDATE, AS A PAGE SHOWS IT. Two shapes, both drawn from fields a server
  * worked out, never from a stored document:
  *
- *  - `ReaderUpdateItem`, on a member's programme page (wk-programme): the
+ *  - `ReaderUpdateItem`, on a member's programme page: the
  *    writer's initials, the title, "Rahul · to Group B · Mon 16 Nov", and the
  *    message;
  *  - `StaffUpdatesSection`, on a facilitator's group page and the lead's
- *    Messages tab (wk-fac-group): the title and "Rahul → Group B · Mon 16 Nov
+ *    Messages tab: the title and "Rahul → Group B · Mon 16 Nov
  *    · Emailed to 7", opening to the message.
  *
  * THE MESSAGE IS TEXT. It is a React child, so it is escaped, and the

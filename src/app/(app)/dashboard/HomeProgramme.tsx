@@ -51,7 +51,7 @@ import { firstName } from "./homeWords";
 import styles from "./home.module.css";
 
 /**
- * HOME FOR A MEMBER ON A PROGRAMME (board wk-home-phone): their next session,
+ * HOME FOR A MEMBER ON A PROGRAMME: their next session,
  * the reading before it to tick, their group, and the events coming up.
  *
  * Everything here is read through what the programme's own pages read:
@@ -59,19 +59,19 @@ import styles from "./home.module.css";
  * session; the week's document for its reading; the member's own ticks; and
  * the group's roster route for its names.
  *
- * A READING TICKED ON HOME IS TICKED ON ITS WEEK (C33, as drawn): the boxes
+ * A READING TICKED ON HOME IS TICKED ON ITS WEEK (as drawn): the boxes
  * here write through `useMaterialTicks`, the week page's own path, so a tick
  * here and a tick on the week's page are the same record of the same item.
  * Only somebody taking part, on an active enrolment, ticks.
  *
- * "Add to calendar" fills the row under the ticket (st-calendar-phone: the
+ * "Add to calendar" fills the row under the ticket (the
  * member's own calendar link).
  *
- * A CHANGED WEEK (wk-changes) reads here as on the programme page: a
+ * A CHANGED WEEK reads here as on the programme page: a
  * cancelled evening's notice over the ticket, and the ticket's eyebrow naming
  * the weeks a session covers or that it is online (`sessionEyebrow`).
  *
- * THE LAST WEEK (wk-lastweek-phone), by the member's own calendar
+ * THE LAST WEEK, by the member's own calendar
  * (`inLastWeek`): the ticket says "Tonight · your last session" on its day;
  * under it, in the board's order, "The survey at the end" while it is theirs
  * to answer (`endSurvey`, the card Home's top would have drawn, handed here
@@ -84,9 +84,9 @@ import styles from "./home.module.css";
  * week 1, `src/lib/courses/weekBlocks/progress.ts`) and lists the sources on
  * its path to tick, with no bar: the boards draw no percentages for it.
  *
- * WHAT IS NOT HERE, though the board draws it: "Can’t make it" beside it on
- * the ticket (it does not exist yet). The member's marks are on their
- * programme's own page, with no count (C26), and not on Home, which the board
+ * WHAT IS NOT HERE: "Can’t make it" beside it on the ticket, which is the
+ * programme page's alone (`CantMakeIt`). The member's marks are on their
+ * programme's own page, with no count, and not on Home, which the board
  * draws without them.
  */
 
@@ -155,7 +155,9 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
     : null;
   // An unopened or unpublished week is not asked for: a learner may not read one.
   const week = useWeek(entry.runId, readable ? weekDocId(weekNumber) : "", false, weekSource);
-  const ticks = useMaterialTicks(entry.runId, user?.uid ?? null, weekNumber, learner?.status === "active");
+  // A week submitted or locked takes no tick until somebody running the group reopens it.
+  const weekTakesTicks = doc?.work ? doc.work.state === "open" || doc.work.state === "reopened" : true;
+  const ticks = useMaterialTicks(entry.runId, user?.uid ?? null, weekNumber, learner?.status === "active" && weekTakesTicks);
 
   const runHref = `/learn/${encodeURIComponent(entry.runId)}`;
   const todayKey = londonDateKey(new Date());
@@ -167,7 +169,7 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
     firstName: firstName(name) || name,
   }));
 
-  // The last week (wk-lastweek-phone), by the member's own calendar. The
+  // The last week, by the member's own calendar. The
   // group's last session is the last one its calendar holds, a cancelled one
   // left out; once it is over there is no ticket, and the cards say so.
   const lastWeek = inLastWeek(entry.currentWeek, entry.totalWeeks);
@@ -232,7 +234,7 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
         </section>
       )}
 
-      {/* An evening is off (Q25, wk-changes): the notice the programme page
+      {/* An evening is off: the notice the programme page
           shows, over the session the group meets at next. */}
       {data && group?.sessionNotice && <SessionNotice notice={group.sessionNotice} />}
 
@@ -275,7 +277,7 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
 
       <div className={styles.columns}>
         <div className={styles.stack}>
-          {/* The last week's cards, in wk-lastweek-phone's order, straight under the ticket. */}
+          {/* The last week's cards, in the order the last week on Home lists them, straight under the ticket. */}
           {data && lastWeek && endSurvey && (
             <EndSurveyCard survey={{ state: "open", card: endSurvey }} look="card" lastSession={lastSession} />
           )}

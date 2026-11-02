@@ -1,7 +1,7 @@
 /**
  * The words of Claude's best answers and of Pangram on coursework (privacy
- * v13), the screens' and the routes' alike. Plain, British, no dashes.
- * Pure: safe anywhere.
+ * v13; both admins only since privacy v15), the screens' and the routes'
+ * alike. Plain, British, no dashes. Pure: safe anywhere.
  */
 import { COURSEWORK_USE_FROM_VERSION } from "@/lib/legal/courseworkUse";
 
@@ -31,7 +31,7 @@ export const BEST_WORDS = {
   again: "Find them again",
   asking: "Claude is reading…",
   intro: "Claude picks up to three of the strongest answers to each question this week, with a reason, from every answer it may be sent. Names aren’t sent; the site puts them back.",
-  whoSees: "Admins and the programme’s lead only",
+  whoSees: "Admins only",
   hard: "What people found hard",
   none: "No answer to this question stood out.",
   outOfDate: "Answers have changed since Claude read them. Find them again to include them.",
@@ -45,6 +45,7 @@ export const BEST_WORDS = {
     ),
   nothingToSend: `Nobody’s answers to this week can be sent yet: only writing sent after somebody agreed to version ${V} of the privacy policy is.`,
   notSetUp: "Claude isn’t set up on this site yet.",
+  onlyAdmins: "Only an admin can ask Claude for the best answers, or see them.",
   failed: "Claude couldn’t read them just now. Try again.",
   aFellow: "a fellow",
   loadFailed: "Couldn’t load Claude’s best answers. Try again.",
@@ -90,10 +91,10 @@ export const PANGRAM_WORDS = {
 } as const;
 
 /**
- * The part of the Coursework tab under the table: a week chosen by plain
- * links, then Claude's best answers to it (admins and the programme's lead)
- * and Pangram on it (admins only). Nothing here names Pangram: the lead
- * reads it.
+ * The part of the Coursework tab under the table, for an admin alone: a week
+ * chosen by plain links, then Claude's best answers to it and Pangram on it.
+ * The programme's lead is drawn none of it (privacy v15: what Claude returns
+ * is seen by admins only).
  */
 export const WEEK_PANELS_WORDS = {
   nav: "Choose a week",

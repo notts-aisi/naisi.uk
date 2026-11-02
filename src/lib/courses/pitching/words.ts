@@ -6,7 +6,7 @@ import type { RunPitchSettings } from "@/lib/firestore/courses";
 /**
  * PITCHING WEEK'S WORDS, built from records.
  *
- * The sentences in-pitch-phone draws ("Pick up to 3 you’d join before
+ * The sentences the pitching page draws ("Pick up to 3 you’d join before
  * tonight’s session at 6pm.", "Edit until 6pm", "2 of 3 picked", "Zach makes
  * the teams on Thu 19 Nov. Teams are 2 to 4 people.") with every value in
  * them taken from a setting or from the group's own calendar. Times and days

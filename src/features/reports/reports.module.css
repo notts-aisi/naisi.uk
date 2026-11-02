@@ -1,0 +1,99 @@
+/*
+  Run NAISI › Reports: a card for each report, the whole card the way in.
+  The report's name is the link; its box is stretched over the card, so the
+  target is the card, and the focus ring is drawn round the card too.
+*/
+
+.list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.card:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
+}
+
+.card:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.link:focus-visible {
+  outline: none;
+}
+
+/* The link's box covers the card, so pressing anywhere on it goes there. */
+.link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+}
+
+/* A chevron after the name: this card goes somewhere. */
+.link::before {
+  content: "";
+  order: 2;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid var(--color-accent-text);
+  border-bottom: 2px solid var(--color-accent-text);
+  transform: rotate(-45deg);
+}
+
+.line {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+  }
+}
+
+/* === Mobile === */
+@media (max-width: 60rem) { /* --bp-lg */
+  .list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -5,7 +5,7 @@ import { loadPitching } from "@/lib/courses/pitching/load";
 import { getAdminDb } from "@/lib/firebase/admin";
 
 /**
- * Pitching week, for somebody taking part (board in-pitch-phone): their own
+ * Pitching week, for somebody taking part: their own
  * pitch, their group's pitches, "I’d join this" on each, until their group's
  * session in that week starts. Reached from their programme's page.
  *

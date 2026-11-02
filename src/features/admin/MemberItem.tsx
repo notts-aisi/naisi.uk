@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import StaffNameText from "@/components/StaffNameText";
 import Button from "@/components/ui/Button";
 import Chip from "@/components/ui/Chip";
 import InitialsChip from "@/components/ui/InitialsChip";
@@ -33,7 +34,8 @@ import ConductFlagControl from "./ConductFlagControl";
 import PersonNotes from "./memberNotes/PersonNotes";
 import MemberApplicationHistory from "./MemberApplicationHistory";
 import MemberEditForm from "./MemberEditForm";
-import { ROLE_WORDS, accountName, joinedDay, roleTone } from "./MembersTable";
+import MemberEvents from "./MemberEvents";
+import { ROLE_WORDS, accountStaffName, joinedDay, roleTone } from "./MembersTable";
 import MembershipChip from "./MembershipChip";
 import StudyChangeNotes from "./StudyChangeNotes";
 import {
@@ -104,7 +106,8 @@ function shortDay(date: Date | null | undefined): string {
  *
  * Everything here is drawn from the account document the Accounts list
  * already reads, plus the same three things the list's rows used to open: the
- * membership control, the conduct flag and the application record. Every
+ * membership control, the conduct flag and the application record, and the
+ * person's events this academic year, through their own route. Every
  * permission an admin can grant has its control in this file, which is what
  * `tests/admin-permissions-keys.test.mjs` reads.
  */
@@ -161,7 +164,10 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
   const isSelf = user.uid === currentAdminUid;
   const isRejected = shown.role === "rejected";
   const isAdminRole = shown.role === "admin";
-  const displayName = accountName(user);
+  // The page's heading is the staff name ("Priya Shah (Pri)"); a sentence and
+  // the delete box use its first part, the full name where there is one.
+  const staffName = accountStaffName(user);
+  const displayName = staffName.name;
   const firstName =
     user.profile?.preferredName?.trim() || displayName.trim().split(/\s+/)[0] || displayName;
   // Gave a university email and never clicked the link that proves it.
@@ -292,7 +298,9 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
       title={
         <span className={styles.nameWithInitials}>
           <InitialsChip name={displayName} uid={user.uid} size="lg" />
-          <span>{displayName}</span>
+          <span>
+            <StaffNameText name={staffName} />
+          </span>
         </span>
       }
       badges={
@@ -757,10 +765,19 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
         <MemberApplicationHistory uid={user.uid} />
       </section>
 
-      {/* The notes admins keep about this person (privacy v13): every note,
-          with Claude's draft from a programme they are on. Not on your own
-          page: notes about a person are never shown to them, an admin
-          included, and the route refuses the same request. */}
+      {/* The events they signed up for this academic year and whether they
+          came, with the two-in-a-row line when it is so (privacy v15,
+          "Attendance"). Admins only, which this page is; worked out by its
+          route each time and stored nowhere. */}
+      <section className={styles.card} aria-labelledby={`events-${user.uid}`}>
+        <MemberEvents uid={user.uid} />
+      </section>
+
+      {/* The notes the team keeps about this person (privacy v13, v15):
+          every note, each saying who reads it, with Claude's draft from a
+          programme they are on. Not on your own page: notes about a person
+          are never shown to them, an admin included, and the route refuses
+          the same request. */}
       {!isSelf && (
         <section className={styles.card}>
           <PersonNotes uid={user.uid} firstName={firstName} place="profile" draft="picker" />

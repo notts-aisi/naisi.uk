@@ -325,7 +325,7 @@ const ADA_WROTE = "About forty, I think, mostly in gardens.";
 /**
  * Home's and My programmes' card for a place held before groups go out:
  * src/lib/courses/weekOne/cards.ts and the sentences of
- * src/lib/courses/groupsGoOut.ts (board st-waiting, and v20's "Week 1 is open").
+ * src/lib/courses/groupsGoOut.ts (and v20's "Week 1 is open").
  */
 const CARD = Object.freeze({
   title: "Your group’s on its way",
@@ -337,7 +337,7 @@ const CARD = Object.freeze({
   free: "Check when you’re free",
 });
 
-/** Week 1's line before groups go out (board st-week1-phone): `weekOneOpenWords`, src/lib/courses/groupsGoOut.ts. */
+/** Week 1's line before groups go out: `weekOneOpenWords`, src/lib/courses/groupsGoOut.ts. */
 const weekOneLine = (day) => `Week 1 is open now. You’ll hear your group and when it meets on ${day}.`;
 
 /**
@@ -543,7 +543,7 @@ test(
     const startHerePath = `${programmePath}/start-here`;
     const glossaryPath = `${programmePath}/glossary`;
     const overviewPath = `/api/courses/runs/${enc(state.runId)}/overview`;
-    const tickPath = (itemId) => `/api/courses/runs/${enc(state.runId)}/week-one/ticks/${enc(itemId)}`;
+    const tickPath = (itemId) => `/api/courses/runs/${enc(state.runId)}/ticks/${enc(itemId)}`;
     const reflectionPath = (promptId) => `/api/courses/runs/${enc(state.runId)}/reflections/${enc(promptId)}`;
     const applicationUrl = `${origin}/applications/${enc(state.formId)}`;
     const freeHref = `/applications/${enc(state.formId)}#when-youre-free`;
@@ -691,7 +691,7 @@ test(
     const onItsWay = (pg) => pg.getByRole("region", { name: CARD.title, exact: true });
 
     /**
-     * The card for Ada's place, as st-waiting draws it: the programme, the
+     * The card for Ada's place, as its design draws it: the programme, the
      * title, when the group email comes and when the first session will be,
      * and the way to when she is free; "Week 1 is open" only once its door is.
      */
@@ -749,7 +749,7 @@ test(
       }
       const overview = await fetchAs(pg, overviewPath);
       assert.equal(overview.status, 403, `week 1's data answered ${person.first} ${overview.status}: ${JSON.stringify(overview.body)}`);
-      const tick = await fetchAs(pg, tickPath(sourceId), putJson({ completed: true }));
+      const tick = await fetchAs(pg, tickPath(sourceId), putJson({ weekId: weekDocId(1), completed: true }));
       assert.deepEqual([tick.status, tick.body?.error], [403, REFUSED.tick], `${person.first}'s tick was not refused in its words`);
       const box = await fetchAs(pg, reflectionPath(promptId), putJson({ weekId: weekDocId(1), text: "Let me in." }));
       assert.deepEqual(
@@ -770,7 +770,7 @@ test(
 
     /**
      * Week 1's page, as somebody holding a place reads it before groups go
-     * out (board st-week1-phone): the week's title, the programme over it,
+     * out: the week's title, the programme over it,
      * the line saying when they hear their group, Start here and the
      * Glossary, This week with the rule alone for when (no group, no day),
      * and nothing a group brings: no rating box on a reading, no progress
@@ -1270,9 +1270,9 @@ test(
           assert.equal(await tick.isChecked(), false, "a source is ticked before Ada ticked it");
           await adaPage.getByText(READERS.ticks, { exact: true }).waitFor({ timeout: WAIT_MS });
 
-          // The tick goes through week 1's door: her own row, written by the server.
+          // The tick goes through the tick route, which asks week 1's door: her own row, written by the server.
           const [ticked] = await Promise.all([responseTo(adaPage, tickPath(source.id), "PUT"), tick.check()]);
-          assert.deepEqual(ticked.request().postDataJSON(), { completed: true }, "the tick sent something else");
+          assert.deepEqual(ticked.request().postDataJSON(), { weekId: weekDocId(1), completed: true }, "the tick sent something else");
           assert.deepEqual(
             await okBody(ticked, "Ada's tick"),
             { ok: true, itemId: source.id, completed: true },

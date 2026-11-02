@@ -146,8 +146,11 @@ function openingContent(
   form: ApplicantForm,
 ): ApplicationContent {
   const base = application ? application.draft : emptyContent(account, form.availabilityGrid);
+  // A draft saved before the form asked for a full name opens with the
+  // account's in the box, as a new one does.
+  const aboutYou = base.aboutYou.fullName.trim() ? base.aboutYou : { ...base.aboutYou, fullName: account.fullName };
   // The university email is the account's, whatever an older draft held.
-  return { ...base, aboutYou: withAccountEmail(base.aboutYou, account) };
+  return { ...base, aboutYou: withAccountEmail(aboutYou, account) };
 }
 
 export default function ApplicationForm({

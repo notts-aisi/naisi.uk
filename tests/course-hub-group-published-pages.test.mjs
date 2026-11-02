@@ -71,7 +71,7 @@ const { loadTs } = createLoader({
     ],
     ["./useGroupRoster", `export function useGroupRoster() { return ${handle}.roster; }\nexport default useGroupRoster;`],
     ["@/features/courses/useRunOverview", `export function useRunOverview() { return ${handle}.overview; }`],
-    // Home's own answer about the group (the summary route), since board wk-fac-home-phone.
+    // Home's own answer about the group (the summary route), since the facilitator's Home was restyled.
     [
       "@/features/courses/facilitator/useFacilitatorSummary",
       `export function useFacilitatorSummary() { return ${handle}.summary; }\nexport default useFacilitatorSummary;`,
@@ -147,13 +147,13 @@ const GROUP_CARD = {
       startTimeLocal: "18:00",
       durationMinutes: 90,
       // What the overview route has put on every next session since Change a
-      // session (Q25): the weeks it covers, its own room and its own link.
+      // session: the weeks it covers, its own room and its own link.
       weekNumbers: [1],
       location: "Room B12",
       meetingUrl: null,
     },
   },
-  sessionLabel: "Mondays 18:00\u201319:30",
+  sessionLabel: "Mondays 6pm to 7:30pm",
   weekday: 1,
   startTimeLocal: "18:00",
   durationMinutes: 90,
@@ -164,7 +164,7 @@ const GROUP_CARD = {
 };
 
 /**
- * Home, drawn to board wk-fac-home-phone: the session's ticket counts who is
+ * Home, as designed: the session's ticket counts who is
  * expected ("2 expected", the summary route's count of the people Publish
  * has told), and names nobody: the board draws no names on Home, and they
  * are on the group page's "Your group". Before Publish has told anybody, the

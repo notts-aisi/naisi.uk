@@ -8,8 +8,8 @@ import { readEventAudience, respondentKey } from "./audience";
 import { eventBoxPoints, eventLine } from "./words";
 
 /**
- * WHAT A SURVEY AFTER AN EVENT'S ANSWER PAGE IS HANDED (sv-social-phone,
- * sv-privacy's "An event survey"), built on the server for one person: the
+ * WHAT A SURVEY AFTER AN EVENT'S ANSWER PAGE IS HANDED (the event survey page,
+ * and the privacy wording's "An event survey"), built on the server for one person: the
  * event and its day, the title and intro, the confidential box, and the
  * questions. Never a stored document, never a secret but the person's own,
  * and nothing about anybody else.

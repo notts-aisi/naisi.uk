@@ -9,7 +9,7 @@ import { openLink } from "@/lib/surveys/repo";
 import { REFUSAL } from "@/lib/surveys/words";
 
 /**
- * "SEND MY ANSWERS" FROM A PERSONAL LINK (sv-before-phone): no sign-in. The
+ * "SEND MY ANSWERS" FROM A PERSONAL LINK: no sign-in. The
  * secret in the person's link IS the credential: it opens their own row and
  * nobody else's, and the answers are kept against them, once.
  *

@@ -154,7 +154,10 @@ type ToDo = {
 type Facts = {
   /** The admin's first name, for the greeting. */
   given: string;
-  /** The invitation to install the site as an app, drawn under the greeting. */
+  /**
+   * Drawn under the greeting: the question about a full name while it is
+   * open, and the invitation to install the site as an app.
+   */
   invite: ReactNode;
   /** "Morning", "Afternoon" or "Evening", by the site's clock. */
   greeting: string;

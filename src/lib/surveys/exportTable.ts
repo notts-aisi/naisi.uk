@@ -45,14 +45,22 @@ function when(at: Date | null): string {
   return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
 }
 
-export function surveyExportTable(items: readonly SurveyItem[], rows: readonly ExportRow[]): { header: string[]; rows: string[][] } {
+/**
+ * One column of the answers, as the spreadsheet and the Answers tab both lay
+ * it out: its question's id, its heading, and how one person's answers fill
+ * it. One function, so the tab an admin reads is the file they download.
+ */
+export type AnswerColumn = { questionId: string; header: string; cell: (answers: Record<string, SurveyAnswer>) => string };
+
+export function answerColumns(items: readonly SurveyItem[]): AnswerColumn[] {
   const numbers = questionNumbers(items);
-  const columns: { header: string; cell: (answers: Record<string, SurveyAnswer>) => string }[] = [];
+  const columns: AnswerColumn[] = [];
   for (const question of surveyQuestionsOf(items)) {
     const number = numbers.get(question.id) ?? 0;
     if (isLinesQuestion(question)) {
       for (const line of question.lines) {
         columns.push({
+          questionId: question.id,
           header: `${number}. ${question.title}: ${line.label}`,
           cell: (answers) => {
             const answer = own(answers, question.id);
@@ -66,6 +74,7 @@ export function surveyExportTable(items: readonly SurveyItem[], rows: readonly E
     if (!isChoiceOrTextQuestion(question)) {
       // A scale, a percentage or a number: the number given.
       columns.push({
+        questionId: question.id,
         header: `${number}. ${question.title}`,
         cell: (answers) => {
           const answer = own(answers, question.id);
@@ -76,6 +85,7 @@ export function surveyExportTable(items: readonly SurveyItem[], rows: readonly E
     }
     const labelOf = (id: string) => question.options?.find((option) => option.id === id)?.label ?? "";
     columns.push({
+      questionId: question.id,
       header: `${number}. ${question.title}`,
       cell: (answers) => {
         const answer = own(answers, question.id);
@@ -96,6 +106,7 @@ export function surveyExportTable(items: readonly SurveyItem[], rows: readonly E
     });
     if (question.type === "multipleChoice" && question.most) {
       columns.push({
+        questionId: question.id,
         header: `${number}. ${question.title}: ${question.most}`,
         cell: (answers) => {
           const answer = own(answers, question.id);
@@ -104,6 +115,11 @@ export function surveyExportTable(items: readonly SurveyItem[], rows: readonly E
       });
     }
   }
+  return columns;
+}
+
+export function surveyExportTable(items: readonly SurveyItem[], rows: readonly ExportRow[]): { header: string[]; rows: string[][] } {
+  const columns = answerColumns(items);
   const header = ["Name", "Sent", "How", "After their first session", ...columns.map((column) => column.header)];
   const sorted = [...rows].sort(
     (a, b) => (a.name ?? "￿").localeCompare(b.name ?? "￿", "en") || (a.sentAt?.getTime() ?? 0) - (b.sentAt?.getTime() ?? 0),

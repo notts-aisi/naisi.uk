@@ -5,6 +5,7 @@ import NetField from "@/components/ui/NetField";
 import { isOffsite } from "@/content/links";
 import { CONTACT_EMAIL } from "@/content/socials";
 import { listPublishedEvents } from "@/features/events/fetchEvents";
+import { eventReach } from "@/lib/events/reach";
 import { fetchLinksPage } from "@/features/links/fetchLinksPage";
 import { formatSiteDate } from "@/lib/datetime/siteTime";
 import { publicLocationText } from "@/lib/events/location";
@@ -74,7 +75,7 @@ async function upcomingEvents() {
   return events
     .filter(
       (e) =>
-        e.visibility === "public" &&
+        eventReach(e) === "listed" &&
         !e.archived &&
         e.startAt &&
         e.startAt.getTime() >= now,

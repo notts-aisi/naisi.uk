@@ -11,7 +11,7 @@ import { weekOneDoorFor } from "./door";
 
 /**
  * WHAT HOME AND MY PROGRAMMES SAY TO SOMEBODY HOLDING A PLACE BEFORE GROUPS
- * GO OUT (Q13 B: board st-waiting; Q35 B: v20's "Week 1 is open"), one card
+ * GO OUT (v20's "Week 1 is open"), one card
  * for each place: "Fellowship: AGI Strategy", "Your group’s on its way",
  * when the group email comes, when the first session will be, the way to
  * their week, and once week 1's door is open to them, the way to week 1.
@@ -52,7 +52,7 @@ export type BeforeGroupsCard = {
 
 export const ON_ITS_WAY = "Your group’s on its way";
 export const CHECK_WHEN_FREE = "Check when you’re free";
-/** v20's line (Q35 B). Its exact look is not drawn: listed for the boards' designers to confirm. */
+/** v20's line. Its exact look is not drawn: listed for the boards' designers to confirm. */
 export const WEEK_ONE_IS_OPEN = "Week 1 is open";
 
 export async function beforeGroupsCardsFor(db: Firestore, person: SessionUser, now: Date): Promise<BeforeGroupsCard[]> {

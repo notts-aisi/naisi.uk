@@ -11,16 +11,18 @@ import {
   doorListSignups,
   doorWindow,
   eventTakesCheckIns,
+  openingOf,
   walkInEmailGoesAt,
 } from "@/lib/events/checkIns";
 import { findDoorCode } from "@/lib/events/doorCode";
+import { staffNamesFor } from "@/lib/names/load";
 import { shortLinkAddress } from "@/lib/qr/shortLinkCode";
 import { surveyClosesFor } from "@/lib/surveys/events/records";
 
 export const dynamic = "force-dynamic";
 
 /**
- * The door list (ev-door-phone): the event's sign-ups with a Check in each, a
+ * The door list: the event's sign-ups with a Check in each, a
  * search, and the count, for the phone of whoever is on the door.
  *
  * For the people who run check-in only (`runsCheckIn`), as the sign-ups are:
@@ -31,6 +33,17 @@ export const dynamic = "force-dynamic";
  * sign-ups, who is already here and the door code's address. After that,
  * each Check in is one small request, so a phone on the hall's signal waits
  * once and then only for its own presses.
+ *
+ * NAMES AS THE COMMITTEE SEES THEM. Everybody who reaches this page is an
+ * admin or SU-recognised committee, so an account's row says its full name,
+ * with the name they go by after it, and two people with one full name are
+ * told apart (`staffNamesFor`). A guest who gave one word is marked so.
+ *
+ * NO TICK UNTIL THE DOOR IS OPEN. Inside the door's hours the names show from
+ * the start, and Check in and Add a walk-in only once the event's author or an
+ * admin has opened the door from the Check-in tab (`openingOf`). At an event
+ * that does not let people check themselves in, a line over the names says
+ * everyone gives their name here, and the door code's address is not offered.
  */
 export default async function DoorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -46,20 +59,26 @@ export default async function DoorPage({ params }: { params: Promise<{ id: strin
   // A walk-in's email goes when the event's survey closes, if that is sooner than a week.
   const surveyClosesAt = await surveyClosesFor(db, event.id);
   const closedWords = eventTakesCheckIns(event)
-    ? doorClosedWords(checkInPhase(event, new Date(), surveyClosesAt), doorWindow(event))
+    ? doorClosedWords(checkInPhase(event, new Date(), surveyClosesAt), doorWindow(event), openingOf(event) !== null)
     : "Only a published event takes check-ins.";
-  const doorCode = await findDoorCode(db, event.id);
+  // The door code checks nobody in at an event that does not let people check themselves in.
+  const doorCode = event.selfCheckIn ? await findDoorCode(db, event.id) : null;
   const title = event.title.trim() || "Untitled event";
   const emailGoesAt = walkInEmailGoesAt(event, surveyClosesAt);
   const untilSurvey = emailGoesAt !== null && emailGoesAt.getTime() !== walkInEmailGoesAt(event)?.getTime();
+  const listed = doorListSignups(signups);
+  // Everybody the list names, so two of them with one full name are told apart.
+  const people = await staffNamesFor(db, [...listed.map((row) => row.uid), ...checkIns.map((row) => row.uid)], viewer);
 
   return (
     <DoorList
       eventId={event.id}
       eventTitle={title}
-      initialRows={doorRows(doorListSignups(signups), checkIns)}
+      initialRows={doorRows(listed, checkIns, undefined, people)}
       namesOff={namesOffOf(checkIns)}
       closedWords={closedWords}
+      selfCheckIn={event.selfCheckIn}
+      noSignup={event.noSignup}
       doorAddress={doorCode && doorCode.active ? shortLinkAddress(doorCode.slug) : null}
       eventLine={event.startAt ? `${title} · ${dayWords(event.startAt)}` : title}
       emailGoesOn={emailGoesAt ? dayWords(emailGoesAt) : "the day after"}

@@ -27,6 +27,15 @@ export function weekColumnWords(weekNumber: number): string {
   return `Week ${weekNumber}`;
 }
 
+/**
+ * The first line of a cell, by the one meaning of done every page uses: the
+ * week is submitted, where it asks for anything written, and every tick it
+ * counts is ticked. Staff words: the person's own pages say "Submitted" and
+ * "N of M done".
+ */
+export const DONE = "Done";
+export const NOT_DONE = "Not done";
+
 /** "Reflections 2 of 3": parts whose reflection is written, of the week's parts. */
 export function reflectionsCellWords(written: number, of: number): string {
   return `Reflections ${written} of ${of}`;
@@ -46,18 +55,18 @@ export function boxesCellWords(filled: number, of: number): string {
 export const ANSWER_STATE_WORDS: Record<CellAnswerState, string> = {
   "not-started": "Answer not started",
   started: "Answer started",
-  waiting: "Waiting for feedback",
-  feedback: "Feedback sent",
+  waiting: "No feedback yet",
+  feedback: "Feedback given",
 };
 
-/** The written answer part of a cell, for a screen reader: "Week 3 written answer, Waiting for feedback: Chloe Nguyen". */
+/** The written answer part of a cell, for a screen reader: "Week 3 written answer, No feedback yet: Chloe Nguyen". */
 export function answerLinkLabelWords(name: string, weekNumber: number, state: CellAnswerState): string {
   return `Week ${weekNumber} written answer, ${ANSWER_STATE_WORDS[state]}: ${name}`;
 }
 
-/** The rest of a cell, for a screen reader: "Week 3: Chloe Nguyen’s coursework". */
-export function cellLinkLabelWords(name: string, weekNumber: number): string {
-  return `Week ${weekNumber}: ${name}’s coursework`;
+/** The rest of a cell, for a screen reader: "Week 3, not done: Chloe Nguyen’s coursework". */
+export function cellLinkLabelWords(name: string, weekNumber: number, done: boolean): string {
+  return `Week ${weekNumber}, ${done ? "done" : "not done"}: ${name}’s coursework`;
 }
 
 /** A week the person reads that is not written as blocks: nothing to count. */
@@ -67,13 +76,13 @@ export const NO_COURSEWORK = "No coursework";
 
 export const SHOW = "Show";
 export const EVERYBODY = "Everybody";
-export const WAITING_FOR_FEEDBACK = "Waiting for feedback";
+export const WAITING_FOR_FEEDBACK = "No feedback yet";
 
-/** "28 holding a place · 4 facilitating · 3 waiting for feedback". */
+/** "28 holding a place · 4 facilitating · 3 with no feedback yet". */
 export function courseworkSummaryWords(holding: number, facilitating: number, waiting: number): string {
   const parts = [`${holding} holding a place`];
   if (facilitating > 0) parts.push(`${facilitating} facilitating`);
-  parts.push(`${waiting} waiting for feedback`);
+  parts.push(`${waiting} with no feedback yet`);
   return parts.join(" · ");
 }
 
@@ -138,12 +147,7 @@ export function wordsWords(n: number): string {
   return n === 1 ? "1 word" : `${n} words`;
 }
 
-/** "Feedback from Rahul Mehta", or "Feedback" when whoever gave it is not on record. */
-export function feedbackFromWords(byName: string | null): string {
-  return byName ? `Feedback from ${byName}` : "Feedback";
-}
-
-export const OPEN_FEEDBACK_PAGE = "Open the feedback page";
+export const WRITE_FEEDBACK_ON_THE_ANSWER = "Write feedback on the answer";
 
 /** The private note under a source: admins only. */
 export const PRIVATE_NOTE = "Private note";

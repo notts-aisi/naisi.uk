@@ -368,6 +368,15 @@ test(
             "and a server whose SMTP is not the local catcher would send for real.",
         );
 
+        // Joining asks for a full name above the name people go by. An account
+        // made with an email address has no Google name to start the box
+        // with, so it opens empty.
+        assert.equal(
+          await page.locator("#fullName").inputValue(),
+          "",
+          "the full name box opened with a name in it for an account that has none",
+        );
+        await page.locator("#fullName").fill("E2E Signup Person");
         await page.locator("#preferredName").fill("E2E signup");
         await page.locator("#universityEmail").fill(state.uniEmail);
         await page.getByTestId("register-uni-send").click();
@@ -467,6 +476,10 @@ test(
             "pending",
             "a brand-new account came out of registration at a role other than pending",
           );
+          // Both names, each where it belongs: the full name only the
+          // committee is shown, and the name everybody else is.
+          assert.equal(doc.profile?.fullName, "E2E Signup Person", "joining did not store the full name it asked for");
+          assert.equal(doc.profile?.preferredName, "E2E signup");
 
           // The send log is the evidence a route really sent, and both
           // addresses must carry one: the confirmation to the sign-in address,

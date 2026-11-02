@@ -1,8 +1,8 @@
 /**
- * The pages a facilitator uses every week (plan item 2.6): their group's page
- * (boards wk-fac-group and wk-fac-group-phone), the group's register page,
- * their Home (wk-fac-home-phone) and the summary route behind it, the notes
- * the group's facilitators share (C30) on the group page and on the
+ * The pages a facilitator uses every week: their group's page,
+ * the group's register page,
+ * their Home and the summary route behind it, the notes
+ * the group's facilitators share on the group page and on the
  * programme's Attendance tab, as every kind of caller, in week 1, week 3 and
  * after the end.
  *
@@ -175,9 +175,11 @@ describe("1. who opens a group's page, its register and its summary", () => {
 
   test("the summary route answers names and counts, field by field, never an address", async () => {
     const answer = await summary("rahul");
-    // Two fields since board st-fac-before-phone, both for Home before the
+    // Two fields since the facilitator's before-the-first-session Home, both for Home before the
     // group's first session's day and null after it (week 3 is long after
     // it): who's coming, and how many an update to the group reaches.
+    // CHANGED ON PURPOSE (explainers): a third, the explainer the next
+    // session starts with, null while an admin has scheduled none.
     assert.deepEqual(answer.body, {
       groupId: B,
       expected: 3,
@@ -188,6 +190,7 @@ describe("1. who opens a group's page, its register and its summary", () => {
       coFacilitators: ["Sofia"],
       whosComing: null,
       write: null,
+      explainer: null,
     });
     assert.deepEqual((await summary("sofia")).body.coFacilitators, ["Rahul"]);
     assert.deepEqual((await summary("zach")).body.coFacilitators, ["Rahul", "Sofia"]);
@@ -199,11 +202,12 @@ describe("1. who opens a group's page, its register and its summary", () => {
 // 2. The group page, as the board draws it (week 3)
 // ---------------------------------------------------------------------------
 
-describe("2. the group page in week 3, as wk-fac-group draws it", () => {
+describe("2. the group page in week 3, as the facilitator's group page draws it", () => {
   test("the head: the group, its week, its programme, its day, time and room, and the other facilitator", async () => {
     const drawn = await groupPage("rahul");
     assert.match(drawn.html, /<h1 class="title">Group B<\/h1><span class="weekChip">Week 3 of 6<\/span>/);
-    assert.match(drawn.text, /Fellowship: AGI Strategy · , Tuesdays 6pm · , Hallward B12 · , with Sofia Rossi/);
+    // The other facilitator by the name they go by (`fullNameOfUser`).
+    assert.match(drawn.text, /Fellowship: AGI Strategy · , Tuesdays 6pm · , Hallward B12 · , with Sofia Write to/);
     assert.match(
       drawn.html,
       new RegExp(
@@ -211,8 +215,9 @@ describe("2. the group page in week 3, as wk-fac-group draws it", () => {
           `<a href="${GROUP_PATH()}/sessions" class="buttonGhost">Change a session</a></div>`,
       ),
     );
-    // Sofia reads Rahul as the other; an admin, both.
-    assert.match((await groupPage("sofia")).text, /Hallward B12 · , with Rahul Mehta Write to/);
+    // Sofia reads Rahul as the other, by the name he goes by; an admin, both,
+    // by the full names the names rule shows the committee and admins.
+    assert.match((await groupPage("sofia")).text, /Hallward B12 · , with Rahul Write to/);
     assert.match((await groupPage("zach")).text, /Hallward B12 · , with Rahul Mehta and Sofia Rossi Write to/);
   });
 
@@ -450,7 +455,7 @@ describe("3. the notes a group's facilitators share", () => {
 // 4. Home
 // ---------------------------------------------------------------------------
 
-describe("4. a facilitator's Home on session day, as wk-fac-home-phone draws it", () => {
+describe("4. a facilitator's Home on session day, as the facilitator's Home draws it", () => {
   test("tonight's ticket, who is expected, the register's way and line, this week, what waits for a review", async () => {
     const drawn = await home("rahul");
     assert.match(
@@ -463,17 +468,18 @@ describe("4. a facilitator's Home on session day, as wk-fac-home-phone draws it"
     assert.doesNotMatch(drawn.text, /Chloe|Farah|Kofi/);
   });
 
-  test("next week's email: nothing while the push still sends it", async () => {
+  test("the week's email: nothing while the push still sends it", async () => {
     week3EmailSent();
-    assert.doesNotMatch((await home("rahul")).text, /Next week’s email/);
+    assert.doesNotMatch((await home("rahul")).text, /Week \d+’s email|Next week’s email/);
   });
 
-  test("next week's email on its schedule: when the next one goes, at the session's own time two days before", async () => {
+  test("“Week N is open” on its schedule: when the next one goes, at 9am six days before the session", async () => {
     world.db.seed("config/scheduler", switches({ scheduled: true }));
     week3EmailSent();
     const drawn = await home("rahul");
-    assert.match(drawn.text, /3 exercises to review Review Next week’s email goes to Group B on Sun 22 Nov at 6pm\./);
-    assert.deepEqual(drawn.summary.nextEmail, { state: "goes", at: "Sun 22 Nov at 6pm" });
+    // Week 4 meets on Tue 24 Nov at 6pm: six days before is Wed 18 Nov, at 9am.
+    assert.match(drawn.text, /3 exercises to review Review Week 4’s email goes to Group B on Wed 18 Nov at 9am\./);
+    assert.deepEqual(drawn.summary.nextEmail, { state: "goes", at: "Wed 18 Nov at 9am", weekNumber: 4 });
   });
 
   test("somebody who left recently, by name and never a pronoun, until the session after they left is over", async () => {
@@ -520,14 +526,17 @@ describe("5. the words in week 1, before the first session and after the end", (
     assert.match(drawn.text, /Your group CN Chloe Nguyen FH Farah Hussain KA Kofi Asante Names only\./);
     assert.match(drawn.text, /Registers The first register is on Tue 3 Nov\./);
     assert.match(drawn.text, /To review Nothing to review\./);
-    // Before the day of the first session, Home is board st-fac-before-phone's
+    // Before the day of the first session, Home is the facilitator's before-the-first-session Home
     // (tests/course-hub-facilitator-before.test.mjs): the ticket with "Open
     // your group", who's coming by first name (nobody here has an application
-    // to say so on), and Say hello. Take the register comes on the day.
+    // to say so on), and Say hello. Take the register comes on the day. An
+    // update to the group is a notice, so it reaches all three: they hold told
+    // places, and with no cohort row each is written to at their account's own
+    // address.
     const onHome = await home("rahul");
     assert.match(
       onHome.text,
-      /Your first session · week 1 Group B, 6pm Hallward B12 · with Sofia Open your group Who’s coming 0 of 3 said they’re coming\. Chloe, Farah and Kofi haven’t said\. .*Say hello Send your group a hello before Tuesday\. Write to Group B \(3\) Posts an update to the group\. Nobody in it can be emailed yet\./,
+      /Your first session · week 1 Group B, 6pm Hallward B12 · with Sofia Open your group Who’s coming 0 of 3 said they’re coming\. Chloe, Farah and Kofi haven’t said\. .*Say hello Send your group a hello before Tuesday\. Write to Group B \(3\) Posts an update to the group and emails 3 people\. Replies go to ai-safety@uonsu\.com\./,
     );
     assert.doesNotMatch(onHome.text, /Take the register|This week/);
   });
@@ -572,7 +581,7 @@ describe("5. the words in week 1, before the first session and after the end", (
     assert.match(drawn.text, /Week 3 Tue 17 Nov Not pushed See it/);
     const onHome = await home("rahul");
     assert.match(onHome.text, /No more sessions are planned for your group\./);
-    assert.doesNotMatch(onHome.text, /Take the register|left the programme|Next week’s email/);
+    assert.doesNotMatch(onHome.text, /Take the register|left the programme|Week \d+’s email|Next week’s email/);
   });
 
   test("a session cancelled through Change a session is said as cancelled, and nothing is asked of its register", async () => {
@@ -620,7 +629,14 @@ describe("6. the words", () => {
     assert.equal(words.finishedWeeksWords([1]), "Week 1");
     assert.equal(words.programmeWords("fellowship", "AGI Strategy"), "Fellowship: AGI Strategy");
     assert.equal(words.programmeWords(null, "AGI Strategy Fellowship"), "AGI Strategy Fellowship");
-    assert.equal(words.homeNextEmailWords("Group B", { state: "goes", at: "Sun 22 Nov at 6pm" }), "Next week’s email goes to Group B on Sun 22 Nov at 6pm.");
+    assert.equal(
+      words.homeNextEmailWords("Group B", { state: "goes", at: "Wed 18 Nov at 9am", weekNumber: 4 }),
+      "Week 4’s email goes to Group B on Wed 18 Nov at 9am.",
+    );
+    assert.equal(
+      words.homeNextEmailWords("Group B", { state: "held", missing: ["the group’s room"], weekNumber: 4 }),
+      "Week 4’s email to Group B is held: it’s missing the group’s room.",
+    );
   });
 
   test("the words module carries no dash of either kind and no gendered pronoun", () => {

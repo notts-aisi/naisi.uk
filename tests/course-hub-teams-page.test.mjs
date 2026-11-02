@@ -1,6 +1,6 @@
 /**
- * An incubator's Teams tab, rendered to HTML as every kind of caller (boards
- * in-teams, option C, and in-agenda), and the programme head it sits under.
+ * An incubator's Teams tab, rendered to HTML as every kind of caller
+ * (the pitches beside the teams, and what people ranked on the agenda), and the programme head it sits under.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -116,7 +116,7 @@ describe("who is shown the tab", () => {
   });
 });
 
-describe("in-teams, option C: the pitches beside the teams", () => {
+describe("the Teams tab: the pitches beside the teams", () => {
   test("the board's words, from the records", async () => {
     await teamsMade();
     const { text } = await draw("tess");
@@ -197,7 +197,7 @@ describe("in-teams, option C: the pitches beside the teams", () => {
   });
 });
 
-describe("in-agenda: what people ranked, and the teams", () => {
+describe("the agenda view: what people ranked, and the teams", () => {
   beforeEach(() => {
     reset(teamsSeed({ madeFrom: "agenda", sizes: { min: 2, max: 3 } }));
     admitted();
@@ -223,7 +223,7 @@ describe("in-agenda: what people ranked, and the teams", () => {
     // The choices above the one a person got are drawn apart from it.
     assert.match(html, /<span class="rankAbove">1st: Open-weight models<\/span><span class="rankAbove">2nd: Compute governance<\/span><span class="rank">3rd: Frontier lab safety policies<\/span>/);
     assert.ok(!html.includes("Make teams from first choices"));
-    // in-agenda's cards are wider than in-teams': each row carries its ranks.
+    // The agenda view's cards are wider than the pitches view's: each row carries its ranks.
     assert.match(html, /<div class="teamGrid teamGridWide">/);
   });
 
@@ -242,21 +242,24 @@ describe("the programme's head", () => {
     // The run is under way, so the head is the run's own line (Overview's), and Teams by is its last fact.
     assert.match(lead.text, /Running · week 2 of 7 T Lead: Tess · 10 taking part in 2 groups · Last sessions Wed 16 Dec · Teams by Thu 19 Nov/);
     assert.match(lead.html, new RegExp(`<a href="/admin/admissions/forms/${ROUND}/programmes/${INCUBATOR}/teams"[^>]*aria-current="page"[^>]*>Teams<span[^>]*>2</span></a>`));
-    // People sits after Applications (board st-people), with how many hold a
-    // place on the incubator: nobody on the form holds one here. Weeks (board
-    // pr-weeks) sits after Teams and before Attendance, with how many weeks
+    // People sits after Applications, with how many hold a
+    // place on the incubator: nobody on the form holds one here. Weeks
+    // sits after Teams and before Attendance, with how many weeks
     // the run's plan has: the incubator's run has seven. Groups counts the
     // run's groups that still meet, the head's "in 2 groups" (walk 4b, L10).
-    // CHANGED ON PURPOSE (board sv-programme): Surveys sits between Messages
+    // CHANGED ON PURPOSE: Surveys sits between Messages
     // and Settings. CHANGED ON PURPOSE (Zach, Fri 30 Oct): Coursework sits
     // between Attendance and Messages.
-    assert.match(lead.text, /Overview Interest Applications 0 People 0 Groups 2 Teams 2 Weeks 7 Attendance Coursework Messages Surveys Settings/);
+    // CHANGED ON PURPOSE (Zach, Sat 31 Oct): no Interest tab, which was never built.
+    assert.match(lead.text, /Overview Applications 0 People 0 Groups 2 Teams 2 Weeks 7 Attendance Coursework Messages Surveys Settings/);
   });
 
-  test("a reviewer sees the tab drawn and not a link", async () => {
+  test("a reviewer is drawn no Teams tab, linked or not", async () => {
     const reviewer = await draw("yusuf", INCUBATOR, Layout);
-    assert.match(reviewer.html, /<span class="tab tabPending" aria-disabled="true" title="Not built yet">Teams<span class="tabCount">0<\/span><\/span>/);
     assert.ok(!reviewer.html.includes(`/programmes/${INCUBATOR}/teams"`));
+    // The tab row is Applications alone, and every tab in it is a link.
+    const nav = /<nav class="tabs" aria-label="Sections">([\s\S]*?)<\/nav>/.exec(reviewer.html)?.[1] ?? "";
+    assert.deepEqual([...nav.matchAll(/<(a|span)\b[^>]*class="tab[ "][^>]*>([A-Za-z]+)/g)].map((m) => [m[1], m[2]]), [["a", "Applications"]]);
   });
 
   test("no Teams by without the setting, and no Teams tab for a fellowship", async () => {

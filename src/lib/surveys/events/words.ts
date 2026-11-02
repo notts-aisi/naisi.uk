@@ -5,9 +5,8 @@ import { dateKeyWords, dayWords, minutesWords, paragraphsOf, peopleWords, questi
  * EVERY SENTENCE A SURVEY AFTER AN EVENT SAYS, in one place: New survey's
  * card, the answer page and its confidential box, the QR code's page, the
  * two emails, the Send tab and the event's Survey after tab. The words are
- * the boards' (sv-new, sv-social-phone, sv-privacy, sv-send, sv-results,
- * ev-manage), with their apostrophes, changed only where Zach's answers of 25
- * October 2026 changed what is true (Q42, Q43, Q44, names kept two years).
+ * the boards', with their apostrophes, changed only where Zach's answers of 25
+ * October 2026 changed what is true (names kept two years).
  * Every value comes from a record and arrives here as an argument.
  *
  * No imports but words and types, so the server and the browser say a
@@ -22,7 +21,7 @@ export function weekdayWords(at: Date): string {
 }
 
 // ---------------------------------------------------------------------------
-// Making one (sv-new, "After a social")
+// Making one ("After a social")
 // ---------------------------------------------------------------------------
 
 export const TEMPLATE_WORDS = {
@@ -60,6 +59,25 @@ export function eventIntro(startAt: Date, questions: number, minutes: number): s
   return `Thanks for coming on ${weekdayWords(startAt)}. ${questions} quick ${questions === 1 ? "question" : "questions"}, ${minutesWords(minutes)}.`;
 }
 
+// ---------------------------------------------------------------------------
+// The one question for people who had a place and weren't checked in
+// ---------------------------------------------------------------------------
+
+/** "After VR games night: didn’t come": what admins call it. */
+export function missedSurveyName(title: string): string {
+  return `After ${title}: didn’t come`;
+}
+
+/** "Sorry we missed you at VR games night": what people see at the top, and the email's subject. */
+export function missedSurveyTitle(title: string): string {
+  return `Sorry we missed you at ${title}`;
+}
+
+/** "You had a place at VR games night on Sunday, and you weren’t checked in at the door. One quick question." */
+export function missedIntro(title: string, startAt: Date): string {
+  return `You had a place at ${title} on ${weekdayWords(startAt)}, and you weren’t checked in at the door. One quick question.`;
+}
+
 /** "VR games night · Sun 1 Nov". */
 export function eventLine(title: string, startAt: Date | null): string {
   return startAt ? `${title} · ${dayWords(startAt)}` : title;
@@ -75,13 +93,18 @@ export function eventListLine(startAt: Date | null): string {
   return startAt ? `Event: ${dayWords(startAt)}` : "Event";
 }
 
-/** What each of the two audiences is called. */
+/** What each of the audiences is called. */
 export const AUDIENCE_WORDS: Record<EventAudience["kind"], string> = {
   "event-came": TEMPLATE_WORDS.came,
   "event-signups": TEMPLATE_WORDS.signups,
+  "event-missed": "Everyone with a place who wasn’t checked in",
 };
 
-const JOINED_WORDS: Record<EventAudience["kind"], string> = { "event-came": "who came since", "event-signups": "who signed up since" };
+const JOINED_WORDS: Record<EventAudience["kind"], string> = {
+  "event-came": "who came since",
+  "event-signups": "who signed up since",
+  "event-missed": "with a place since",
+};
 
 /** The send button for people who came since: "Send to the 2 who came since". */
 export function joinedButtonFor(kind: EventAudience["kind"], n: number): string {
@@ -98,7 +121,7 @@ export function emailsWords(n: number): string {
   return `Emails ${peopleWords(n)}.`;
 }
 
-/** The Send tab's other words for a survey after an event (sv-send). */
+/** The Send tab's other words for a survey after an event. */
 export const SEND_TAB_WORDS = {
   whoHeading: "Who answers",
   who: "People at an event",
@@ -107,14 +130,19 @@ export const SEND_TAB_WORDS = {
   emailHeading: "The email",
   linkLine: "Each email has its own link, so nobody signs in.",
   noReminders: "No reminders go on their own. You can remind people by hand from this page.",
-  emailed: (kind: EventAudience["kind"]) => (kind === "event-came" ? "It went to everyone who came, with an email." : "It went to everyone who signed up."),
+  emailed: (kind: EventAudience["kind"]) =>
+    kind === "event-came"
+      ? "It went to everyone who came, with an email."
+      : kind === "event-signups"
+        ? "It went to everyone who signed up."
+        : "It went to everyone with a place who wasn’t checked in.",
   atEvent: "At the event",
   byEmail: "By email",
   results: "Results",
   eventGone: "The event this survey is about is no longer on the site, so nothing more can be sent.",
 } as const;
 
-/** "At the event: the QR code" on the Send tab (sv-send). */
+/** "At the event: the QR code" on the Send tab. */
 export const CODE_CARD_WORDS = {
   heading: "At the event: the QR code",
   upSince: (since: string, answers: number) => `Up since ${since} · ${answers} ${answers === 1 ? "answer" : "answers"}`,
@@ -133,14 +161,19 @@ export const CODE_CARD_WORDS = {
 } as const;
 
 /**
- * The event's Survey after tab, to the people who show the survey's code at
- * the event (admins and SU-recognised committee): the card's words are the
- * Send tab's (`CODE_CARD_WORDS`), and this line stands in its place while
- * the survey is a draft. No board draws it: listed in the build notes for
- * the boards' designers to confirm.
+ * The event's Check-in tab, to the people who show the survey's code at the
+ * event (admins and SU-recognised committee): the card's words are the Send
+ * tab's (`CODE_CARD_WORDS`), and one of these lines stands in its place while
+ * the survey is a draft: an admin's survey waits for an admin to open it; one
+ * its event set up opens itself when the event starts, while sending by
+ * itself is switched on here.
  */
 export const CODE_AT_EVENT_WORDS = {
+  heading: "The survey’s QR code",
   notYet: "Its QR code shows here once an admin opens the survey.",
+  atStart: "Its QR code shows here when the event starts.",
+  atStartJobOff:
+    "Its QR code shows here once the survey opens: sending by itself is switched off on this site for now, so it opens when it’s sent from the Survey after tab, or when an admin opens it.",
 } as const;
 
 /** The refusals a person can act on, word for word. */
@@ -164,7 +197,7 @@ export const EVENT_REFUSAL = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// The confidential box (sv-privacy, "An event survey")
+// The confidential box ("An event survey")
 // ---------------------------------------------------------------------------
 
 export type EventBoxFacts = {
@@ -178,8 +211,8 @@ export type EventBoxFacts = {
 
 /**
  * The box at the top of a survey after an event, point by point, as
- * sv-privacy words it, with two years for names (Zach, 26 October 2026) and
- * nothing anonymous (Q43): an answer keeps the person's name, and the box says
+ * the surveys' privacy wording puts it, with two years for names (Zach, 26 October 2026) and
+ * nothing anonymous: an answer keeps the person's name, and the box says
  * it is kept with the fact that they came, or signed up.
  */
 export function eventBoxPoints(facts: EventBoxFacts): { points: string[]; note: string } {
@@ -203,7 +236,7 @@ export function eventBoxPoints(facts: EventBoxFacts): { points: string[]; note: 
 }
 
 // ---------------------------------------------------------------------------
-// The two emails (sv-send, "The email")
+// The two emails ("The email")
 // ---------------------------------------------------------------------------
 
 const CONFIDENTIAL_LINE = "It’s confidential: only NAISI’s admins can see who said what.";

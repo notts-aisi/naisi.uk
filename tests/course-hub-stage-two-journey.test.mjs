@@ -31,11 +31,11 @@
  *  3. Week 1's updates, emailed: the count on each button, who each email
  *     reaches, what it says.
  *  4. The registers, marked and finished by the facilitators, read by the
- *     lead, shown to each person once finished, and next week's email.
+ *     lead, shown to each person once finished, and "Week N is open".
  *  5. The lead adds facilitators on the Facilitators view; Publish tells them.
  *  6. The lead removes somebody who has left, and what that does to the
  *     grid, the registers and her next Publish.
- *  7. Somebody stops the weekly email, and what the next update does.
+ *  7. Somebody leaves the run's list, and what the next update does.
  *  8. Pitching week on the incubator: its lead opens week 3, its people
  *     pitch and pick, each sees their own picks, the lead sees the counts,
  *     and the group's session closes it.
@@ -135,16 +135,21 @@ const STYLESHEETS = [
   "./UpdateComposer.module.css",
   "./Messages.module.css",
   "@/features/courses/updates/Messages.module.css",
-  // The facilitator's pages (boards wk-fac-group, wk-fac-home-phone): their own sheet and the
+  // The facilitator's pages: their own sheet and the
   // member's pages' shared one, since the group page and the Attendance tab draw their cards.
   "@/features/courses/weekly/weekly.module.css",
   "./facilitator.module.css",
   "@/features/courses/facilitator/facilitator.module.css",
+  // This week's work's Reopen (the week you submit): its button's sheet and the confirm's.
+  "./written.module.css",
+  "./Modal.module.css",
   "./GroupsViews.module.css",
   "./ProgrammePitches.module.css",
   "./PitchingWeek.module.css",
   "./ProgrammeAttendance.module.css",
   "./ProgrammeOverview.module.css",
+  // The Overview's Feedback to send draws with feedback's own stylesheet.
+  "./feedback.module.css",
   "./SessionCard.module.css",
   "./GroupRoster.module.css",
   "./EmptyState.module.css",
@@ -322,6 +327,7 @@ const pages = {
   group: (await loadTs(join(LEARN, "group", "[groupId]", "page.tsx"))).default,
 };
 const unsubscribe = await loadTs(join("app", "api", "unsubscribe", "route.ts"));
+const { signToken } = await loadTs(join("lib", "signedTokens.ts"));
 const { RunUpdatesView } = await loadTs(join("features", "courses", "updates", "RunUpdates.tsx"));
 const { default: PitchingWeek } = await loadTs(join("features", "courses", "pitching", "PitchingWeek.tsx"));
 /** The session card itself, as the run home draws it (the group page's copy of it is stood in, above). */
@@ -445,10 +451,22 @@ const CAST = [
   ["lena", "Lena Fischer", "member", false],
   ["tariq", "Tariq Mensah", "member", false],
 ];
+/**
+ * The name each person goes by, which a facilitator who is not on the
+ * committee is shown on every course screen (the names rule).
+ */
 const FIRST = Object.fromEntries(CAST.map(([uid, name]) => [uid, name.split(" ")[0]]));
-/** Each person's whole name, as the lead's tabs name them, and the name they go by, from it. */
+/**
+ * Each person's full name, which the names rule shows the committee and
+ * admins on course screens (the lead, an admin, and Tess, who leads the
+ * incubator and runs its group): here the account's own name, which begins
+ * with the name they go by, so nothing follows it in brackets.
+ */
 const FULL = Object.fromEntries(CAST.map(([uid, name]) => [uid, name]));
+/** The name a person goes by, from the full name the committee is shown. */
 const FIRST_OF = Object.fromEntries(CAST.map(([uid, name]) => [name, FIRST[uid]]));
+/** Who course screens show full names: the committee role and admins. */
+const SEES_FULL = new Set(CAST.filter(([, , role]) => role === "committee" || role === "admin").map(([uid]) => uid));
 const address = (uid) => `${uid}@example.com`;
 
 function userDoc([uid, name, role, suRecognised]) {
@@ -1084,7 +1102,7 @@ async function groupPageOf(who, runId, groupId) {
   const drawn = await draw(pages.group, who, { runId, groupId });
   if (drawn.to) return { sentTo: drawn.to };
   const [list] = find(drawn.element, "StaffUpdatesSection");
-  // Since board wk-fac-group the page's head draws "Write to Group B (7)" and
+  // Since the restyle of the facilitator's group page, the page's head draws "Write to Group B (7)" and
   // "Change a session" side by side, with the line under both: the button and
   // its line are read as they always were, around the second button.
   const found =
@@ -1245,7 +1263,8 @@ async function lookAround(label) {
   for (const who of ["claudia", "amara", "rahul"]) look.others[`${who} on the incubator`] = await updatesOf(who, INC_RUN);
   // The facts the screens are made from, at this moment: every update with
   // who it is to (newest first, as every list orders them), who facilitates
-  // each group, and who is on each run's cohort list.
+  // each group, who is on each run's cohort list, and who can be emailed at
+  // all (an account address that is not on the do-not-email list).
   look.stored = world.db
     .paths()
     .filter((path) => path.startsWith("courseUpdates/"))
@@ -1265,6 +1284,17 @@ async function lookAround(label) {
         .sort(),
     ]),
   );
+  // As the suppression list keys an address: trimmed, lower case, and the
+  // characters a document id cannot hold made underscores.
+  const stopped = (address) =>
+    world.db.read(`suppressedEmails/${address.trim().toLowerCase().replace(/[^a-z0-9@._+-]/g, "_")}`) !== undefined;
+  look.reachable = world.db
+    .paths()
+    .filter((path) => /^users\/[^/]+$/.test(path))
+    .map((path) => [path.slice("users/".length), world.db.read(path)])
+    .filter(([, account]) => typeof account?.email === "string" && account.email.trim() && !stopped(account.email))
+    .map(([uid]) => uid)
+    .sort();
   seen.looks[label] = look;
 }
 
@@ -1533,17 +1563,19 @@ async function weeksOneAndTwo() {
 
   at("groupAWeek2");
   r.a2 = await aSession("tom", GROUP.A, 2, { dev: "present", joel: "present", priya: "late" }, "Group A");
-  // Joel follows "you can stop it here" at the foot of the weekly email he
-  // has just been sent, and confirms on the page it opens.
+  // "Week N is open", which he has just been sent, is a notice and offers no
+  // way to stop it. Joel takes himself off the run's list through the link
+  // the run's optional mail carries at its foot (the announcement lane's own
+  // token, scoped to this run's list), and confirms on the page it opens.
   later(60);
-  const link = r.a2.finishMail.find((mail) => mail.to === address("joel"))?.links.find((href) => href.includes("/api/unsubscribe?t=")) ?? "";
-  const token = new URL(link || `${APP_URL}/api/unsubscribe?t=none`).searchParams.get("t");
+  r.joelWeekMailLinks = r.a2.finishMail.find((mail) => mail.to === address("joel"))?.links ?? null;
+  const token = signToken({ s: "unsubscribe", uid: "joel", c: `cohort:${RUN}` }, 60 * 60 * 24 * 365);
   const asked = await call(null, unsubscribe.GET, {}, { query: { t: token } });
   r.joelStops = {
     page: typeof asked.body === "string" ? pageText(asked.body.replace(/<head[\s\S]*?<\/head>/i, "")) : asked.status,
-    confirmed: await step("Joel stops the weekly email", 200, null, unsubscribe.POST, {}, { query: { t: token } }),
+    confirmed: await step("Joel leaves the run's list", 200, null, unsubscribe.POST, {}, { query: { t: token } }),
   };
-  await lookAround("Joel stopped the weekly email");
+  await lookAround("Joel left the run's list");
   at("incubatorWeek2");
   r.inc2 = await aSession("tess", INC_GROUP, 2, { omar: "present", wen: "late", lena: "present", tariq: "present" }, "the incubator");
   at("groupBWeek2");
@@ -1876,7 +1908,7 @@ const AFTER_PUBLISH = [
   "week 1's registers finished",
   "Kofi removed",
   "Sofia added to Group A and told",
-  "Joel stopped the weekly email",
+  "Joel left the run's list",
   "Group B's register not finished",
   "the end of week 3",
 ];
@@ -1903,6 +1935,21 @@ function shownIn(look, runId, groupName) {
     .sort();
 }
 const uidOf = Object.fromEntries(CAST.map(([uid]) => [FIRST[uid], uid]));
+/** A person, by the name they go by, as `viewer` is shown them on a course screen (the names rule). */
+const shownTo = (viewer) => (first) => (SEES_FULL.has(viewer) ? FULL[uidOf[first]] : first);
+/** A register with every name put back to the name the person goes by, to hold two readers' registers to one another. */
+function byFirstNames(register) {
+  if (!register || register.refused) return register;
+  const first = (name) => FIRST_OF[name] ?? name;
+  return {
+    members: register.members.map(first),
+    notYetTold: register.notYetTold,
+    marks: Object.fromEntries(
+      Object.entries(register.marks).map(([week, marks]) => [week, Object.fromEntries(Object.entries(marks).map(([name, status]) => [first(name), status]))]),
+    ),
+    leavers: register.leavers.map((leaver) => ({ ...leaver, name: first(leaver.name) })),
+  };
+}
 const people = (n) => (n === 1 ? "1 person" : `${n} people`);
 /** The line said of the people placed somewhere and not yet told, word for word, or null for nobody. */
 const waitingWords = (n, where, update = "this") =>
@@ -2016,8 +2063,8 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         assert.deepEqual(look.members[uid], { programmes: [], updates: { refused: 403 }, marks: { refused: 403 } }, uid);
       }
       // The told rule: an admin is shown everybody placed, the lead the people Publish has told.
-      // In People in groups' order and by their whole names, since the walk of
-      // stage two's fixes (G10); until then A to D, by first names.
+      // In People in groups' order since the walk of stage two's fixes (G10),
+      // and by the names rule for the reader: an admin is shown each full name.
       assert.deepEqual(
         look.lead.attendance.groups.map((group) => [group.name, group.notYetTold, group.people.length]),
         [["Group B", true, 0], ["Group A", true, 0]],
@@ -2159,7 +2206,8 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         // Group B's third register was finished the morning after: section 9.
         if (key === "b3") continue;
         for (const [uid, after] of Object.entries(session.afterFinish)) {
-          assert.deepEqual(after.filter(([n]) => n === week), [[week, session.leadReadsDraft.marks[`week ${week}`][FIRST[uid]]]], `${key}: ${uid}`);
+          // The lead reads the register by each full name (the names rule: on the committee).
+          assert.deepEqual(after.filter(([n]) => n === week), [[week, session.leadReadsDraft.marks[`week ${week}`][FULL[uid]]]], `${key}: ${uid}`);
         }
       }
     });
@@ -2171,13 +2219,11 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       }
     });
 
-    // The weekly email goes from the press that finishes a register while its
-    // job is off (how it ships), once the next week is published. Since the
-    // walk of stage two's fixes (G6) it names the session as the placement
-    // email names a first session ("Tue 3 Nov, 6pm"), with its end added, and
-    // its foot has no dash; until then it said "Tuesday 10 November" and the
-    // hours with a dash between.
-    test("finishing a register emails the group next week's email once that week is published, and says why not when it is not", () => {
+    // "Week N is open" goes from the press that finishes a register while its
+    // job is off (how it ships), once the next week is published. It names
+    // the session as the day and the time it starts ("Tue 10 Nov at 6pm"),
+    // and nothing in it has a dash.
+    test("finishing a register emails the group that the next week is open once it is published, and says why not when it is not", () => {
       // The answer says who marks the week ready to whoever pressed: AGI Strategy's facilitators are told
       // Claudia does; Tess, who leads the incubator and runs its group, is told that marking it ready publishes it.
       const reason = (n, marksReady) => `Week ${n} isn’t published yet, so nobody was emailed. ${marksReady}`;
@@ -2198,21 +2244,19 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         ],
       );
       const amara = r().b1.finishMail[0];
-      assert.deepEqual([amara.subject, amara.kind], ["Week 2 · Week 2 of AGI Strategy Fellowship", "course-nudge"]);
+      assert.deepEqual([amara.subject, amara.kind], ["Week 2 is open: Week 2", "notice"]);
+      // A notice now: the line saying why it reached her, and no way to stop it.
       assert.equal(
         readFrom(amara, "Hi "),
-        "Hi Amara, Week 2 of AGI Strategy Fellowship is open: Week 2. Your group meets Tue 10 Nov, 6pm to 8pm, Room C20. " +
-          "Open this week on the site Read what you can. The week stays open, and nobody is keeping score. You're getting this because " +
-          `you're on this course with NAISI. If the weekly email isn't useful to you, you can stop it here. You stay on the course either way. ${FOOTER}`,
+        `Hi Amara, ${NOTICE_LINE("you are in this course group")} ` +
+          "Week 2 of AGI Strategy Fellowship is open: Week 2. Your next session is Tue 10 Nov at 6pm in Room C20. " +
+          `Open week 2 ${FOOTER}`,
       );
       for (const mail of SESSIONS.flatMap((key) => r()[key].finishMail)) {
         assert.doesNotMatch(`${mail.subject} ${mail.text}`, new RegExp(`[${EN_DASH}${EM_DASH}]`), mail.to);
       }
-      // Its two links: the week's page and the way to stop it. No meeting link.
-      assert.deepEqual(
-        amara.links.map((href) => href.replace(/\?t=.*$/, "?t=")),
-        [`${APP_URL}/learn/${RUN}/weeks/2`, `${APP_URL}/api/unsubscribe?t=`],
-      );
+      // Its one link: the week's page. No way to stop it, and no meeting link.
+      assert.deepEqual(amara.links, [`${APP_URL}/learn/${RUN}/weeks/2`]);
     });
 
     // The run home's card wrote "Monday 2 November" and the hours with a dash
@@ -2225,7 +2269,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         amara: "Your first session Group B with Rahul and Sofia Tue 3 Nov, 6pm to 8pm Room C20",
         omar: "Your first session Group A with Tess Mon 2 Nov, 5pm to 7pm Room B5",
       });
-      // The page drawn to wk-fac-group says what it says of names under its
+      // The page drawn to the facilitator's group page says what it says of names under its
       // "Your group", in the board's words.
       assert.ok(u.groupPage.includes("Names only. Email addresses stay with admins."), u.groupPage);
       assert.equal(
@@ -2291,26 +2335,27 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     });
 
     // The Attendance tab keeps somebody who left in the group whose register
-    // marked them, with their marks, as wk-attendance draws "Sam Whitfield,
+    // marked them, with their marks, as the attendance grid draws "Sam Whitfield,
     // Left Fri 13 Nov"; the register on their facilitators' page, which
-    // wk-fac-group draws the same way, keeps them too, read only, beside the
+    // the facilitator's group page draws the same way, keeps them too, read only, beside the
     // people still in the group. The register used to drop him and his mark
     // (the walk of stage two, G3), and Remove recorded no day, so both tabs
     // said "Left" with none; Remove now records it.
     test("the lead's Attendance and his facilitators' register both keep Kofi, with his finished mark and the day he was removed", () => {
       const look = lookAt("Kofi removed");
       const b = look.lead.attendance.groups.find((group) => group.name === "Group B");
-      // The lead's tabs name him in full, the sentence about him by the name
-      // he goes by (the walk of stage two's fixes, G10).
+      // The lead's tabs name him in full, by the names rule (the lead is on the
+      // committee), and the sentence about him by the name he goes by (G10).
       assert.deepEqual(b.people.find((person) => person.name === "Kofi Mensah"), { name: "Kofi Mensah", left: "Left Wed 4 Nov", marks: [[1, "excused", "finished"]], came: "0 of 1", inARow: 0 });
       // The register names the people in the group by the name they go by,
-      // and somebody who left by his whole name, as wk-fac-group draws him
-      // (until the walk of stage three's fixes it said "Kofi": H8).
+      // and somebody who left the same way: facilitators are not the
+      // committee, so they are never shown a whole name (the walk of stage
+      // three's fixes had it say "Kofi Mensah": H8).
       assert.deepEqual(look.facilitators["rahul (Group B)"].register, {
         members: ["Amara", "Ella"],
         notYetTold: false,
         marks: { "week 1, finished": { Amara: "present", Ella: "present" } },
-        leavers: [{ name: "Kofi Mensah", left: "Left Wed 4 Nov", marks: { w01: "excused" } }],
+        leavers: [{ name: "Kofi", left: "Left Wed 4 Nov", marks: { w01: "excused" } }],
       });
       assert.deepEqual(look.lead.overview.attention, [["left", "Kofi Mensah left on Wed 4 Nov", "Kofi’s off Group B’s register from week 2."]]);
       assert.equal(look.lead.overview.people.line, "1 left. Freed places can be offered until Wed 4 Nov, the end of week 1.");
@@ -2354,8 +2399,10 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         ),
         board,
       );
-      assert.match(board, /Group A 2\/3 Thursdays /);
-      assert.match(board, /Priya Unpaid Withdrawn Thursdays 18:00.20:00 Move to: Group A · 2\/3 /);
+      // A column's session and a card's times are stored labels, printed in the house's clock.
+      assert.match(board, /Group A 2\/3 Thursdays 6pm to 8pm /);
+      assert.match(board, /Priya Unpaid Withdrawn Thursdays 6pm to 8pm Move to: Group A · 2\/3 /);
+      assert.doesNotMatch(board, /days \d{2}:\d{2}/, "a stored label is printed as it is stored");
       assert.doesNotMatch(board, /has no group|have no group|Group A · 3\/3/);
     });
 
@@ -2387,30 +2434,40 @@ describe("stage two of the course hub, one term from Publish to the end of week 
   });
 
   // -------------------------------------------------------------------------
-  // The weekly email's foot offers to stop the weekly email; the page it
-  // opens unsubscribes the address from the run's cohort list, which updates
-  // go through too. So the lead's room change afterwards is not emailed to
-  // him, though an update "reaches you whatever your notification settings
-  // say" (the walk of stage two, G7). The counts say so honestly.
-  describe("7. Joel stops the weekly email", () => {
-    test("the page it opens says it stops the cohort's updates, and confirming takes him off the run's list", () => {
+  // The run's optional mail offers, at its foot, to take the address off the
+  // run's cohort list, which stops that mail and nothing else. "Week N is
+  // open" is a notice and offers no such link. An update is a notice, read off the run's
+  // places rather than off that list, so the lead's room change afterwards is
+  // still emailed to him: it "reaches you whatever your notification settings
+  // say", and whatever he unsubscribed from (the walk of stage two's G7, which
+  // the owner settled this way). The page says so before he confirms.
+  describe("7. Joel leaves the run's list", () => {
+    test("the week's email he was sent offers no way to stop it: its one link is the week's page", () => {
+      assert.deepEqual(seen.registers.joelWeekMailLinks, [`${APP_URL}/learn/${RUN}/weeks/3`]);
+    });
+
+    test("the page it opens says it stops the programme's optional emails and not its notices, and confirming takes him off the run's list", () => {
       const stop = seen.registers.joelStops;
       assert.equal(
         stop.page,
         "Unsubscribe? You're about to unsubscribe j**el@example.com from the Agi Strategy Fellowship Autumn 2026 cohort updates. We won't send " +
-          "any more to that inbox. If this isn't your email or you didn't expect to be here, just close the page. Nothing happens until you " +
-          "click the button below. Confirm unsubscribe Cancel",
+          "this programme's optional emails to that inbox. You'll still get notices about running it while you hold a place on it. If this " +
+          "isn't your email or you didn't expect to be here, just close the page. Nothing happens until you click the button below. " +
+          "Confirm unsubscribe Cancel",
       );
       assert.deepEqual(stop.confirmed.body, { ok: true, category: `cohort:${RUN}` });
-      assert.deepEqual(lookAt("Joel stopped the weekly email").onTheList[RUN], ["amara", "dev", "ella", "priya"]);
+      assert.deepEqual(lookAt("Joel left the run's list").onTheList[RUN], ["amara", "dev", "ella", "priya"]);
     });
 
-    test("then an update to his group emails the other two, as the Messages tab and the group page both count it, and he reads it on his page", () => {
-      const look = lookAt("Joel stopped the weekly email");
-      assert.deepEqual(look.lead.messages.to.find(([label]) => label.startsWith("Group A")), ["Group A (3)", 2]);
-      assert.equal(look.facilitators["amelia (Group A)"].page.write, "Write to Group A (3) Posts an update to the group and emails 2 people. Replies go to ai-safety@uonsu.com.");
+    test("then an update to his group still emails all three, him included, as the Messages tab and the group page both count it, and he reads it on his page", () => {
+      const look = lookAt("Joel left the run's list");
+      assert.deepEqual(look.lead.messages.to.find(([label]) => label.startsWith("Group A")), ["Group A (3)", 3]);
+      assert.equal(look.facilitators["amelia (Group A)"].page.write, "Write to Group A (3) Posts an update to the group and emails 3 people. Replies go to ai-safety@uonsu.com.");
       const one = seen.oneGroup;
-      assert.deepEqual([one.counted, one.answer.body.email, one.mail.map((mail) => mail.to)], [2, { sent: 2, held: 0, suppressed: 0, failed: 0 }, [address("dev"), address("priya")]]);
+      assert.deepEqual(
+        [one.counted, one.answer.body.email, one.mail.map((mail) => mail.to).sort()],
+        [3, { sent: 3, held: 0, suppressed: 0, failed: 0 }, [address("dev"), address("joel"), address("priya")].sort()],
+      );
       assert.equal(
         readFrom(one.mail[0], "Group A is in A14 on Thursday Sent"),
         `Group A is in A14 on Thursday ${NOTICE_LINE("you are in this course group")} A13 is booked for an exam. Same time. ` +
@@ -2513,7 +2570,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         when: "Tue 17 Nov · 6pm",
         dateKey: "2026-11-17",
         where: "Room C20",
-        // By their whole names, as wk-overview draws them (the walk of stage two's fixes, G10).
+        // By the names rule for the lead, who is on the committee: their full names (G10).
         facilitators: ["Rahul Mehta", "Sofia Rossi"],
         pill: "Register not pushed",
         line: "Saved, not pushed. 2 of 2 so far.",
@@ -2631,7 +2688,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     // Attendance and the Times view, in meeting order on the Overview's
     // sessions and in stored order on Messages (the walk of stage two, G10).
     // Every tab now lists them in People in groups' order, but for the
-    // Overview's sessions this week, which read in time, as wk-overview draws
+    // Overview's sessions this week, which read in time, as the Overview tab draws
     // them.
     test("every tab of the programme page lists the groups in one order, the order People in groups draws them in", () => {
       for (const label of MOMENTS) {
@@ -2648,7 +2705,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
             `${where}, Messages`,
           );
           // The Overview's sessions this week are a list of what happens when,
-          // and read in time, as wk-overview draws them: by their day, and two
+          // and read in time, as the Overview tab draws them: by their day, and two
           // on one day in the tabs' order.
           const sessions = look[tabs].overview.sessions;
           const inTime = [...sessions].sort(
@@ -2672,14 +2729,17 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         const look = lookAt(label);
         for (const { runId, tabs, viewer, programme, groups } of RUNS) {
           const everyone = Object.values(groups).flatMap((name) => shownIn(look, runId, name));
-          const onTheList = (names) => names.filter((name) => look.onTheList[runId].includes(uidOf[name])).length;
+          // An update's email is a notice: it reaches everybody shown in the
+          // group who can be emailed at all, whatever they unsubscribed from,
+          // so Joel's leaving the cohort list takes him off no update.
+          const emailed = (names) => names.filter((name) => look.reachable.includes(uidOf[name])).length;
           const facilitators = [...new Set(Object.keys(groups).flatMap((key) => look.staffing[key]))];
           // Never the writer's own email, and the facilitators are not offered
           // to the one facilitator there is (the walk of stage two's fixes, G2).
           const alone = facilitators.length === 1 && facilitators[0] === viewer;
           const expected = [
-            [`Everyone on ${programme} (${everyone.length})`, onTheList(everyone)],
-            ...Object.entries(groups).map(([, name]) => [`${name} (${shownIn(look, runId, name).length})`, onTheList(shownIn(look, runId, name))]),
+            [`Everyone on ${programme} (${everyone.length})`, emailed(everyone)],
+            ...Object.entries(groups).map(([, name]) => [`${name} (${shownIn(look, runId, name).length})`, emailed(shownIn(look, runId, name))]),
             ...(alone ? [] : [[`The facilitators (${facilitators.length})`, facilitators.filter((uid) => uid !== viewer).length]]),
           ];
           assert.deepEqual(look[tabs].messages.to, expected, `${label}: ${programme}`);
@@ -2697,7 +2757,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
           );
           for (const [key, name] of Object.entries(groups)) {
             const names = shownIn(look, runId, name);
-            const emails = onTheList(names);
+            const emails = emailed(names);
             for (const uid of look.staffing[key]) {
               const theirs = look.facilitators[`${uid} (${key})`];
               assert.ok(theirs, `${label}: ${uid} facilitates ${key} and was not looked at`);
@@ -2709,7 +2769,9 @@ describe("stage two of the course hub, one term from Publish to the end of week 
                 `${label}: ${uid}`,
               );
               assert.deepEqual(theirs.roster, { members: names, notYetTold: label === BEFORE_PUBLISH }, `${label}: ${uid}'s roster`);
-              assert.deepEqual(theirs.register.members, names, `${label}: ${uid}'s register`);
+              // The register names its rows by the names rule for its reader:
+              // Tess, on the committee, is shown each full name.
+              assert.deepEqual(theirs.register.members, names.map(shownTo(uid)).sort(), `${label}: ${uid}'s register`);
             }
           }
         }
@@ -2722,15 +2784,20 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         for (const { runId, tabs, groups } of RUNS) {
           for (const [key, name] of Object.entries(groups)) {
             const lead = look[tabs].registers.find((heading) => heading.name === name).register;
-            for (const uid of look.staffing[key]) assert.deepEqual(look.facilitators[`${uid} (${key})`].register, lead, `${label}: ${uid}`);
+            // The same register, each name by the names rule for its reader:
+            // the lead's by full names, a facilitator's by the names people go by.
+            for (const uid of look.staffing[key]) {
+              assert.deepEqual(byFirstNames(look.facilitators[`${uid} (${key})`].register), byFirstNames(lead), `${label}: ${uid}`);
+            }
             const grid = look[tabs].attendance.groups.find((group) => group.name === name);
             const marks = marksByPerson(lead);
             const staying = grid.people.filter((person) => person.left === null);
-            // The grid names each person in full, the register by the name
-            // they go by (the walk of stage two's fixes, G10): the same
-            // people, with the same marks.
+            // The grid and the lead's register both name each person in full,
+            // by the names rule for the lead (the walk of stage two's fixes,
+            // G10, had the grid name them in full): the same people, with the
+            // same marks.
             assert.deepEqual(staying.map((person) => person.name), shownIn(look, runId, name).map((first) => FULL[uidOf[first]]), `${label}: ${name}'s rows`);
-            for (const person of staying) assert.deepEqual(person.marks, marks[FIRST_OF[person.name]] ?? [], `${label}: ${person.name}`);
+            for (const person of staying) assert.deepEqual(person.marks, marks[person.name] ?? [], `${label}: ${person.name}`);
             assert.deepEqual(
               grid.people.filter((person) => person.left !== null).map((person) => person.name),
               runId === RUN && name === "Group B" && AFTER_PUBLISH.indexOf(label) >= AFTER_PUBLISH.indexOf("Kofi removed") ? ["Kofi Mensah"] : [],
@@ -2749,14 +2816,15 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         const look = lookAt(label);
         for (const { runId, groups } of RUNS) {
           for (const [key, name] of Object.entries(groups)) {
-            const register = look.facilitators[`${look.staffing[key][0]} (${key})`].register;
+            const reader = look.staffing[key][0];
+            const register = look.facilitators[`${reader} (${key})`].register;
             const finished = marksByPerson(register);
             for (const first of shownIn(look, runId, name)) {
               const uid = uidOf[first];
               assert.deepEqual(look.members[uid].updates.titles, meant(look, runId, ["everyone", key]), `${label}: ${uid}`);
               assert.deepEqual(
                 look.members[uid].marks,
-                (finished[first] ?? []).filter(([, , state]) => state === "finished").map(([week, status]) => [week, status]),
+                (finished[shownTo(reader)(first)] ?? []).filter(([, , state]) => state === "finished").map(([week, status]) => [week, status]),
                 `${label}: ${uid}'s marks`,
               );
             }
@@ -2835,10 +2903,11 @@ describe("stage two of the course hub, one term from Publish to the end of week 
 
     test("a writer who is in the group they write to, and on its list, is left out of its email", () => {
       const a = seen.adminInTheGroup;
-      // Four read it, the writer among them; Joel stopped the list, and the writer is not emailed.
-      assert.deepEqual(a.offered, ["Group A (4)", 2]);
-      assert.deepEqual([a.posted.counted, a.posted.answer.body.email], [2, { sent: 2, held: 0, suppressed: 0, failed: 0 }]);
-      assert.deepEqual(a.posted.mail.map((mail) => mail.to).sort(), [address("dev"), address("priya")]);
+      // Four read it, the writer among them. The writer is not emailed; Joel,
+      // who stopped the list, is, because an update is a notice.
+      assert.deepEqual(a.offered, ["Group A (4)", 3]);
+      assert.deepEqual([a.posted.counted, a.posted.answer.body.email], [3, { sent: 3, held: 0, suppressed: 0, failed: 0 }]);
+      assert.deepEqual(a.posted.mail.map((mail) => mail.to).sort(), [address("dev"), address("joel"), address("priya")].sort());
     });
   });
 });

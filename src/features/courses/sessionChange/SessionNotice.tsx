@@ -9,7 +9,7 @@ import {
 } from "@/lib/courses/sessionChange/words";
 
 /**
- * "No session tonight" (wk-changes): a cancelled evening, why, and what to do
+ * "No session tonight": a cancelled evening, why, and what to do
  * instead, on the programme page of the people it is for and on their
  * facilitators' group page.
  *

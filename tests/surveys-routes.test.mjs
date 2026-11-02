@@ -480,7 +480,7 @@ describe("people who join since get it with one button; reminders go only to who
       releaseReason: { kind: "times", other: "" },
     });
     const list = await w.page(w.pages.list, {}, "zach");
-    assert.ok(list.text.includes("1 of 4 Closes Wed 4 Nov Remind 2 haven’t answered"), list.text);
+    assert.ok(list.text.includes("Before the programme Sent Thu 29 Oct · 1 of 4 answered · Closes Wed 4 Nov Open Remind 2 haven’t answered Results"), list.text);
     const send = await w.page(w.pages.send, { params: Promise.resolve({ surveyId: id }) }, "zach");
     for (const words of [
       "1 of 4 have answered, and 1 who hasn’t no longer holds a place. It closes on Wed 4 Nov.",
@@ -497,7 +497,7 @@ describe("people who join since get it with one button; reminders go only to who
     w.reset(seed());
     const again = await sentSurvey();
     assert.equal((await w.answerByLink(w.tokenOf(again, "amara"), CHOICES)).status, 200);
-    assert.ok((await w.page(w.pages.list, {}, "zach")).text.includes("1 of 4 Closes Wed 4 Nov Remind 3 haven’t answered"));
+    assert.ok((await w.page(w.pages.list, {}, "zach")).text.includes("Sent Thu 29 Oct · 1 of 4 answered · Closes Wed 4 Nov Open Remind 3 haven’t answered Results"));
     assert.ok((await w.page(w.pages.send, { params: Promise.resolve({ surveyId: again }) }, "zach")).text.includes("1 of 4 have answered. It closes on Wed 4 Nov."));
   });
 
@@ -865,32 +865,82 @@ describe("the admins' pages", () => {
     }
   });
 
-  test("the list, Who answered and the results", async (t) => {
+  test("the list, the Answers tab and the results", async (t) => {
     clock(t);
     w.reset(seed());
     const id = await sentSurvey();
     await w.answerByLink(w.tokenOf(id, "amara"), CHOICES);
     await w.answerByLink(w.tokenOf(id, "dev"), { q_c1: { type: "choice", optionId: "o_stage3" } });
     const list = await w.page(w.pages.list, {}, "zach");
-    for (const words of ["Surveys", "Only admins make and send surveys.", "Open 1", "AGI Strategy: before", "Fellowship: AGI Strategy", "2 of 4", "Closes Wed 4 Nov", "2 haven’t answered"]) {
+    for (const words of [
+      "Surveys",
+      "Only admins make and send surveys.",
+      "By programme",
+      "Fellowship: AGI Strategy",
+      "Before the programme Sent Thu 29 Oct · 2 of 4 answered · Closes Wed 4 Nov Open Remind 2 haven’t answered Results",
+    ]) {
       assert.ok(list.text.includes(words), `list: missing "${words}"`);
     }
-    // B6: sv-list's lede whole, in the board's words, now that the lead's Surveys tab it names exists.
+    // The row's ways in name the survey to a screen reader.
+    assert.ok(list.html.includes(`<a href="/admin/surveys/${id}/results" class="action" aria-label="Results for AGI Strategy: before">Results</a>`));
+    assert.ok(list.html.includes(`aria-label="Remind people who haven’t answered AGI Strategy: before: opens its Send tab"`));
+    // The list's lede whole, in the words designed for it, now that the lead's Surveys tab it names exists.
     assert.ok(
       list.text.startsWith("Surveys Only admins make and send surveys. Leads see results for their own programme, in its Surveys tab. "),
       list.text.slice(0, 200),
     );
+    // The Answers tab: its page draws the head and asks the route, which records the opening and hands back the table.
     const answered = await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: id }) }, "zach");
-    assert.ok(answered.text.includes("2 of 4 have answered"));
-    assert.ok(answered.text.includes("Amara Okafor"));
-    assert.ok(answered.text.includes("Personal link"));
+    assert.ok(answered.text.includes("Answers 2"), answered.text);
+    assert.doesNotMatch(answered.text, /Amara|\bDev\b/, "the Answers tab's page names somebody before the opening");
+    const tab = (await call("zach", routes.answersTab.POST, { surveyId: id })).body.answers;
+    // By the names rule for an admin (`nameForViewer`): each account's full name.
+    assert.deepEqual(tab.rows.map((row) => row.name), ["Amara Okafor", "Dev Patel"]);
+    assert.ok(tab.rows[0].sent.endsWith(", from their own link."), tab.rows[0].sent);
+    assert.deepEqual(tab.notAnswered.map((person) => person.name), ["Bea Lindqvist", "Tariq Mensah"]);
     const results = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
     // Every number has its n and the response rate beside it.
     assert.ok(results.text.includes("2 answers from the 4 people it was sent to (50%)."), "results show from the first answers: there is no floor");
     assert.ok(results.text.includes("5. Which best describes you right now?"));
     assert.ok(results.text.includes("2 answered, 50% of the 4 it was sent to"));
     assert.ok(results.text.includes("My leading plan, no concrete steps yet"));
-    assert.doesNotMatch(results.text, /Amara|Okafor|Dev Patel/, "results never name anybody");
+    assert.doesNotMatch(results.text, /Amara|Okafor|\bDev\b|Patel/, "results never name anybody");
+  });
+
+  test("the list's two tabs, By programme and Events, as every kind of caller: an admin sees each, everybody else is sent to the dashboard before anything is read", async (t) => {
+    clock(t);
+    w.reset(seed());
+    await sentSurvey();
+    const CALLERS = [
+      ["claudia", "the programme's lead"],
+      ["tess", "the lead of another programme"],
+      ["rahul", "a facilitator of one of its groups"],
+      ["amara", "a member holding a place"],
+      ["nobody", "a member who holds none"],
+      [null, "somebody signed out"],
+    ];
+    for (const [tab, name] of [[undefined, "By programme"], ["events", "Events"]]) {
+      const props = { searchParams: Promise.resolve(tab ? { tab } : {}) };
+      for (const [who, why] of CALLERS) {
+        const reads = w.world.db.stats.reads;
+        assert.equal((await w.page(w.pages.list, props, who)).to, "/dashboard", `${name}: ${why}`);
+        assert.equal(w.world.db.stats.reads, reads, `${name}: ${why}: the page read something before sending them away`);
+      }
+      w.world.viewAs = true;
+      try {
+        assert.equal((await w.page(w.pages.list, props, "amara")).to, "/dashboard", `${name}: a view-as session is the member's`);
+      } finally {
+        w.world.viewAs = false;
+      }
+      const page = await w.page(w.pages.list, props, "zach");
+      assert.equal(page.to, null, `${name}: an admin`);
+      assert.ok(page.html.includes(`aria-current="page">${name}</a>`), `${name} is not the tab drawn as current`);
+    }
+    const byProgramme = await w.page(w.pages.list, { searchParams: Promise.resolve({}) }, "zach");
+    assert.ok(byProgramme.text.includes("Fellowship: AGI Strategy Autumn 2026 Before the programme Sent Thu 29 Oct · 0 of 4 answered · Closes Wed 4 Nov Open Remind 4 haven’t answered Results"), byProgramme.text);
+    const events = await w.page(w.pages.list, { searchParams: Promise.resolve({ tab: "events" }) }, "zach");
+    assert.ok(events.text.endsWith("Surveys after events No survey after an event yet. Make one from New survey."), events.text);
+    assert.ok(!events.text.includes("AGI Strategy"), "a programme's survey is listed among the surveys after events");
   });
 
   test("the spreadsheet with names: recorded as a download before it is handed over, and refused when it cannot be", async (t) => {
@@ -905,6 +955,7 @@ describe("the admins' pages", () => {
     assert.match(header, /^Name,Sent,How,After their first session,1\. Level of study,2\. Subject of study,/);
     // Every question answered (Zach, 30 Oct 2026): those CHOICES leaves out
     // are answered plainly by the world, the first option of each menu here.
+    // The file names each person as the admin downloading is shown them (the names rule: in full).
     assert.match(row, /^Amara Okafor,2026-10-29 09:00,Personal link,No,"Undergraduate, first year",Computer science,/);
     assert.ok(row.includes("Thought about it, not a serious option"), "a choice is written in its words");
     assert.doesNotMatch(file.text, /@example\.com/, "never an address");
@@ -972,7 +1023,7 @@ describe("names come off two years after the programme, and the totals stay", ()
 });
 
 describe("a survey outlives its form", () => {
-  test("its results, who answered and its spreadsheet stay; nothing more can be sent", async (t) => {
+  test("its results, its answers and its spreadsheet stay; nothing more can be sent", async (t) => {
     clock(t);
     w.reset(seed());
     const id = await sentSurvey();
@@ -983,8 +1034,8 @@ describe("a survey outlives its form", () => {
     assert.ok(before);
     store.seed(formPath, { destroyed: true });
     assert.equal((await call("zach", routes.send.POST, { surveyId: id }, { body: { to: "joined", emails: 0 } })).body.error, REFUSAL.formGone);
-    const answered = await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: id }) }, "zach");
-    assert.ok(answered.text.includes("Amara Okafor"));
+    const answered = (await call("zach", routes.answersTab.POST, { surveyId: id })).body.answers;
+    assert.deepEqual(answered.rows.map((row) => row.name), ["Amara Okafor"]);
     const list = await w.page(w.pages.list, {}, "zach");
     assert.ok(list.text.includes("Fellowship: AGI Strategy"), "the survey names its programme without the form");
     assert.equal((await w.exportAs("zach", id)).status, 200);
@@ -1160,7 +1211,7 @@ describe("every kind of question, on the page and through the routes", () => {
     ]) {
       assert.ok(results.text.includes(words), `results: missing "${words}"`);
     }
-    assert.doesNotMatch(results.text, /Amara|Okafor|Bea /);
+    assert.doesNotMatch(results.text, /Amara|Okafor|\bBea\b/);
     const file = await w.exportAs("zach", id);
     const [header, ...rows] = file.text.trim().split(/\r?\n/);
     assert.match(header, /2\. How likely is it\?/);
@@ -1496,7 +1547,7 @@ describe("results for admins: n and the response rate beside every number, the c
     ]) {
       assert.ok(page.text.includes(words), `missing "${words}"`);
     }
-    assert.doesNotMatch(page.text, /Amara|Okafor|Bea |Dev Patel|To explain the risk clearly/, "results name nobody and quote no one's earlier answer");
+    assert.doesNotMatch(page.text, /Amara|Okafor|\bBea\b|\bDev\b|Patel|To explain the risk clearly/, "results name nobody and quote no one's earlier answer");
   });
 
   test("a reminder sends nobody new, so the response rate stays of the people it was sent to", async (t) => {

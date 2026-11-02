@@ -6,10 +6,12 @@ import NewSurveyForm, { type ProgrammeOption } from "@/features/surveys/admin/Ne
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { listProgrammeChoices } from "@/lib/surveys/create";
+import { minutesFor } from "@/lib/surveys/events/after";
 import { listEventChoices } from "@/lib/surveys/events/create";
-import { EVENT_TEMPLATE_MINUTES, eventTemplateItems } from "@/lib/surveys/events/template";
+import { eventTemplateItems } from "@/lib/surveys/events/template";
 import { eventLine } from "@/lib/surveys/events/words";
 import { surveyQuestionsOf } from "@/lib/surveys/items";
+import { eventStandardItems } from "@/lib/surveys/questionSetsStore";
 import { listSurveys } from "@/lib/surveys/repo";
 import { INCUBATOR_STRANDS, STRAND_WORDS, SURVEY_TEMPLATES, stageAsksStrand, templateItems, templateMinutes, type SurveyTemplate } from "@/lib/surveys/templates";
 import { LIST_WORDS, STAGE_WORDS, minutesWords, questionsWords, strandWords } from "@/lib/surveys/words";
@@ -25,8 +27,8 @@ function sizeOf(stage: SurveyTemplate): string {
 }
 
 /**
- * New survey (sv-new): a programme's survey at each stage, made from the
- * programme impact questionnaire's templates, its leaving survey (Q46), and
+ * New survey: a programme's survey at each stage, made from the
+ * programme impact questionnaire's templates, its leaving survey, and
  * the survey after an event ("After a social"), which `?event=<id>` starts on
  * that event. Admins only, by the `(admin-only)` group's layout. The board's
  * other templates (a blank survey, copying a past one) come with the surveys
@@ -55,7 +57,9 @@ export default async function NewSurveyPage({ searchParams }: { searchParams?: P
     })),
   );
   const today = londonDateKey(now);
-  const eventSize = `${questionsWords(surveyQuestionsOf(eventTemplateItems()).length)} · ${minutesWords(EVENT_TEMPLATE_MINUTES)}`;
+  // After a social starts from the question set an admin keeps for it, else the code's.
+  const eventQuestions = surveyQuestionsOf(db ? await eventStandardItems(db) : eventTemplateItems()).length;
+  const eventSize = `${questionsWords(eventQuestions)} · ${minutesWords(minutesFor(eventQuestions))}`;
   return (
     <AdminPage>
       <PageHead
@@ -75,7 +79,7 @@ export default async function NewSurveyPage({ searchParams }: { searchParams?: P
           today={today}
           closes={stage !== "leaving"}
         />,
-        // sv-new draws "After a social" second, after the programme's first survey.
+        // The New survey page lists "After a social" second, after the programme's first survey.
         stage === "before" ? (
           <EventSurveyForm
             key="event"

@@ -9,7 +9,7 @@ import styles from "./surveyAdmin.module.css";
 import eventStyles from "./eventSurvey.module.css";
 
 /**
- * The Send tab of a survey after an event before its email goes (sv-send):
+ * The Send tab of a survey after an event before its email goes:
  * step 1, who answers, with the choice of who the email goes to (everyone who
  * came with an email, or everyone who signed up), each with how many it holds
  * and how many already answered at the event; then the steps between, drawn
@@ -89,7 +89,7 @@ export default function EventEmailChoice({
         testFresh={testFresh}
         testLine={testLine}
         blocked={blocked}
-        extraBody={{ audience: choice.kind === "event-came" ? "came" : "signups" }}
+        extraBody={choice.kind === "event-missed" ? {} : { audience: choice.kind === "event-came" ? "came" : "signups" }}
       />
     </>
   );

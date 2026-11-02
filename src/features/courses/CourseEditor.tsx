@@ -659,7 +659,7 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
         </Card>
 
         {/* === Facilitator guide === */}
-        {/* Loading the facilitator guide is an admin's job for now (Q39); its page
+        {/* Loading the facilitator guide is an admin's job for now; its page
             and route refuse everyone else. */}
         {isAdmin && (
           <Card padding="lg">

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import StaffNameText from "@/components/StaffNameText";
 import Button from "@/components/ui/Button";
 import Chip from "@/components/ui/Chip";
 import InitialsChip from "@/components/ui/InitialsChip";
@@ -10,12 +11,16 @@ import PageHead from "@/components/ui/PageHead";
 import { useHydrated } from "@/hooks/useHydrated";
 import {
   NO_NAMES_OFF,
+  SELF_OFF_DOOR_LIST,
   STANDING_WORDS,
   cameUntickedWords,
   checkInStamp,
   doorCounts,
+  doorListSelfWords,
   hereWords,
   notListedWords,
+  rowName,
+  withDrawnName,
   type DoorRow,
   type NamesOff,
 } from "@/lib/events/checkInView";
@@ -31,7 +36,11 @@ type Props = {
   namesOff?: NamesOff;
   /** Why nobody can be checked in here right now, or null while the door is open. */
   closedWords: string | null;
-  /** The door code as people type it, when the event has one that is on. */
+  /** The event lets people check themselves in. Off, the list says everyone gives their name here. */
+  selfCheckIn: boolean;
+  /** The event takes no sign-ups: the line under the list names no place or email (`doorListSelfWords`). */
+  noSignup: boolean;
+  /** The door code as people type it, when the event lets people check themselves in and has one that is on. */
   doorAddress: string | null;
   /** "VR games night · Sun 1 Nov", under the walk-in dialog's heading. */
   eventLine: string;
@@ -47,7 +56,7 @@ const JUST_CHECKED_IN = 4;
 type Show = "to-come" | "here";
 
 /**
- * The door list on the phone of whoever is on the door (ev-door-phone).
+ * The door list on the phone of whoever is on the door.
  *
  * Everything arrived with the page. A press of Check in is one small request,
  * and the row moves once the server has the record, so a press on no signal
@@ -63,12 +72,15 @@ export default function DoorList({
   initialRows,
   namesOff = NO_NAMES_OFF,
   closedWords,
+  selfCheckIn,
+  noSignup,
   doorAddress,
   eventLine,
   emailGoesOn,
   untilSurvey = false,
 }: Props) {
   const hydrated = useHydrated();
+  const selfWords = doorListSelfWords({ noSignup });
   const [rows, setRows] = useState<DoorRow[]>(initialRows);
   const [show, setShow] = useState<Show>("to-come");
   const [query, setQuery] = useState("");
@@ -80,7 +92,9 @@ export default function DoorList({
   const counts = doorCounts(rows, namesOff);
   const words = hereWords(counts);
   const needle = query.trim().toLowerCase();
-  const matches = (row: DoorRow) => needle === "" || row.name.toLowerCase().includes(needle);
+  // A search finds somebody by any name the row says: "Pri" finds Priya Shah.
+  const matches = (row: DoorRow) =>
+    needle === "" || [row.name, row.goBy ?? ""].some((name) => name.toLowerCase().includes(needle));
 
   const toCome = rows.filter((row) => row.standing !== "walk-in" && !row.checkIn);
   const expectedToCome = toCome.filter((row) => row.standing === "signed-up" && matches(row));
@@ -112,7 +126,7 @@ export default function DoorList({
       const data = (await res.json().catch(() => ({}))) as { row?: DoorRow; error?: string };
       if (!res.ok || !data.row?.checkIn) throw new Error(data.error ?? "it didn’t save.");
       const saved = data.row;
-      setRows((current) => current.map((r) => (r.key === row.key ? saved : r)));
+      setRows((current) => current.map((r) => (r.key === row.key ? withDrawnName(saved, r) : r)));
       setLastMine({ key: row.key, checkInId: saved.checkIn!.id });
     } catch (err) {
       setProblem(
@@ -159,7 +173,9 @@ export default function DoorList({
         <InitialsChip name={row.name} uid={row.key} size="sm" />
         <div className={styles.who}>
           <span className={styles.name}>
-            {row.name}
+            <span>
+              <StaffNameText name={rowName(row)} />
+            </span>
             {action === "stamp" && row.standing === "walk-in" && <Chip tone="neutral">Walk-in</Chip>}
           </span>
           <span className={styles.sub}>
@@ -211,6 +227,11 @@ export default function DoorList({
         {words.walkIns && <span className={styles.countMore}> · {words.walkIns}</span>}
       </p>
 
+      {!selfCheckIn && (
+        <Notice tone="neutral" role="note">
+          {SELF_OFF_DOOR_LIST}
+        </Notice>
+      )}
       {closedWords && (
         <Notice tone="neutral" role="note">
           {closedWords}
@@ -302,7 +323,9 @@ export default function DoorList({
 
       {doorAddress && (
         <p className={styles.footnote}>
-          People with an account can check themselves in at <strong>{doorAddress}</strong>.
+          {selfWords.before}
+          <strong>{doorAddress}</strong>
+          {selfWords.after}
         </p>
       )}
 

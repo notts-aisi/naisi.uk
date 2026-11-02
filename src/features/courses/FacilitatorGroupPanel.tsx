@@ -5,6 +5,7 @@ import Card from "@/components/ui/Card";
 import InitialsChip from "@/components/ui/InitialsChip";
 import MemberName from "@/components/ui/MemberName";
 import Skeleton from "@/components/ui/Skeleton";
+import { clockWords } from "@/lib/courses/sessionChange/words";
 import { NAMES_WHEN_GROUPS_GO_OUT } from "./groupNamesWords";
 import { weekHref } from "./links";
 import { useGroupRoster } from "./useGroupRoster";
@@ -32,10 +33,14 @@ import styles from "./FacilitatorGroupPanel.module.css";
  * two date ranges, and a line saying so on whichever group has left the run's
  * schedule.
  *
- * The cohort-wide links (announcements, the weekly nudge) are passed in rather
- * than derived here, and only the first card is asked to draw them: they
- * address the RUN, and repeating them under every group would read as three
- * separate lanes.
+ * The cohort-wide link (announcements) is passed in rather than derived here,
+ * and only the first card is asked to draw it: it addresses the RUN, and
+ * repeating it under every group would read as separate lanes.
+ *
+ * Both email links open Messages, set to the group or the cohort, where
+ * Messages would start with that audience for the person reading; the run's
+ * own email pages stay the way in everywhere else, until they go
+ * (`src/lib/messages/handover.ts`).
  */
 
 type Props = {
@@ -50,6 +55,14 @@ type Props = {
    */
   publishedWeekNumbers: readonly number[];
   showCohortLinks: boolean;
+  /**
+   * Messages set to this group, where Messages would start with it for the
+   * person reading (`messagesEntriesFor`); null keeps "Email the group" on
+   * the group's own email page.
+   */
+  emailGroupHref?: string | null;
+  /** Messages set to the run's cohort, in the same way; null keeps the run's own page. */
+  emailCohortHref?: string | null;
 };
 
 /**
@@ -129,13 +142,14 @@ function materialsWeek(
   return published.includes(number) ? number : null;
 }
 
-/** "Next: Tuesday 3 November, 18:00". Null once the term is over. */
+/** "Next: Tuesday 3 November, 6pm". Null once the term is over. */
 function nextLine(calendar: OverviewGroup["calendar"]): string | null {
   const next = calendar.nextSession;
   if (!next) return null;
   const when = formatDateKey(next.dateKey, WEEKDAY_DAY_MONTH);
   if (!when) return null;
-  return next.startTimeLocal ? `Next: ${when}, ${next.startTimeLocal}` : `Next: ${when}`;
+  const at = clockWords(next.startTimeLocal);
+  return at ? `Next: ${when}, ${at}` : `Next: ${when}`;
 }
 
 export default function FacilitatorGroupPanel({
@@ -143,6 +157,8 @@ export default function FacilitatorGroupPanel({
   group,
   publishedWeekNumbers,
   showCohortLinks,
+  emailGroupHref = null,
+  emailCohortHref = null,
 }: Props) {
   /*
     The shared hook, the same one the facilitator group page and the email
@@ -224,7 +240,10 @@ export default function FacilitatorGroupPanel({
         </span>
       </Link>
 
-      <Link className={styles.panelLink} href={`${groupHref}/email`}>
+      {/* Messages, set to this group, does what the group's email page did,
+          its phone notification included; the old page stays the way in
+          where Messages would not start with the group (`emailGroupHref`). */}
+      <Link className={styles.panelLink} href={emailGroupHref ?? `${groupHref}/email`}>
         Email the group
         <span className={styles.arrow} aria-hidden="true">
           →
@@ -237,25 +256,9 @@ export default function FacilitatorGroupPanel({
       {showCohortLinks && (
         <Link
           className={styles.panelLink}
-          href={`/learn/${encodeURIComponent(runId)}/email`}
+          href={emailCohortHref ?? `/learn/${encodeURIComponent(runId)}/email`}
         >
           Email the whole cohort
-          <span className={styles.arrow} aria-hidden="true">
-            →
-          </span>
-        </Link>
-      )}
-
-      {/* Same gate as the cohort link above, and for the same reason: the
-          nudge addresses the whole run. Nothing sends it on a schedule, since
-          this app has no scheduler, so the link has to exist for it to go out
-          at all. */}
-      {showCohortLinks && (
-        <Link
-          className={styles.panelLink}
-          href={`/learn/${encodeURIComponent(runId)}/nudge`}
-        >
-          Send this week&apos;s nudge
           <span className={styles.arrow} aria-hidden="true">
             →
           </span>

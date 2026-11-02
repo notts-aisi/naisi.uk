@@ -22,7 +22,7 @@ import { normaliseNotifications, wantsPush } from "@/lib/firestore/notifications
 import { isPushConfigured } from "@/lib/push/config";
 
 /**
- * PUBLISH'S TWO EMAILS, AS EACH PERSON WILL GET THEM (board st-publish), for
+ * PUBLISH'S TWO EMAILS, AS EACH PERSON WILL GET THEM, for
  * Publish's own page: who a press emails, by name, and the first email of
  * each kind, drawn exactly as the mail door draws it.
  *

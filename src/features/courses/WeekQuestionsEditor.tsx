@@ -8,13 +8,13 @@ import { COURSE_FIELD_LIMITS, oneLineQuestion } from "@/lib/firestore/courses";
 import styles from "./WeekQuestionsEditor.module.css";
 
 /**
- * A WEEK'S "QUESTIONS TO THINK ABOUT" (C29), as its editors write them: the
+ * A WEEK'S "QUESTIONS TO THINK ABOUT", as its editors write them: the
  * run's week editor (`WeekEditor`, client-direct under the weeks rules) and
  * a group's own copy of a week (`GroupWeekEditor`, through the group week
  * route). Both hand this section the questions as stored and a way to save a
  * new list; nothing here writes.
  *
- * The rows are drawn as board pr-weeks draws "Questions for groups": a
+ * The rows are drawn as the Weeks tab's design draws "Questions for groups": a
  * labelled line each ("Question 1"), a button to remove it, and "Add a
  * question". Each question is one line, at most
  * `COURSE_FIELD_LIMITS.weekQuestion` characters, and a week holds at most
@@ -22,7 +22,7 @@ import styles from "./WeekQuestionsEditor.module.css";
  * anything is sent, in the route's own words.
  */
 
-/** The section's words. The drawn ones are board pr-weeks's; the rest are listed for the boards' designers. */
+/** The section's words. The drawn ones are the Weeks tab design's; the rest are listed for the designers. */
 export const QUESTIONS_EDITOR_WORDS = {
   runHeading: "Questions for groups",
   groupHeading: "Questions for your group",

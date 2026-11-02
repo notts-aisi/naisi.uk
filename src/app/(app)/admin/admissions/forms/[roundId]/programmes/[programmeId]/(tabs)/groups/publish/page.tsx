@@ -15,7 +15,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
 /**
- * One programme's Groups tab, Publish's own page (board st-publish), reached
+ * One programme's Groups tab, Publish's own page, reached
  * from the Overview's "Publish groups…" and from People in groups: whether
  * the groups are ready to publish, the two emails as each person will get
  * them, who a press reaches, "Send a test to me" and "Publish and send 37

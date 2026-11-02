@@ -46,6 +46,26 @@ export const MIRRORED_TASK_SOURCE = "fellowship-reminder";
  */
 export const REGISTER_FOLLOW_UP_TASK_SOURCE = "course-register";
 
+/**
+ * The `tasks.source` of a week review's follow-up: an admin asking a group's
+ * facilitators to have a word with somebody (`src/lib/courses/weekReview/`),
+ * and the third value a run's task sweep may filter on. Its `sourceRef` also
+ * names the person it is about (`aboutUid`), so their account's deletion
+ * finds it: the task names them.
+ */
+export const REVIEW_FOLLOW_UP_TASK_SOURCE = "review-follow-up";
+
+/**
+ * The `tasks.source` of an explainer's task: one per session an admin
+ * scheduled an explainer for, from a week's review
+ * (`src/lib/courses/explainers/`), and the fourth value a run's task sweep
+ * may filter on. Its `sourceRef` names the run, the week, the group and the
+ * session; its id names the explainer (`explainerTaskId`). Defined with the
+ * explainer's record, which a browser's form reads too, and listed here with
+ * the others.
+ */
+export { EXPLAINER_TASK_SOURCE } from "./courseExplainers";
+
 export function courseTaskId(runId: string, weekNumber: number, uid: string): string {
   return `course-${weekDocId(weekNumber)}__${runId}__${uid}`;
 }

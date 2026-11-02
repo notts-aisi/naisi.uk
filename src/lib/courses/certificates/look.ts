@@ -1,5 +1,5 @@
 /**
- * HOW A CERTIFICATE LOOKS (boards en-cert and en-cert-phone), written once
+ * HOW A CERTIFICATE LOOKS, written once
  * for both of its drawings: the one on a page (`CertificateFace.tsx`, on the
  * certificate's own page, the Overview's preview and the programme page's
  * card) and the PDF (`pdf.ts`). Neither can drift from the other.

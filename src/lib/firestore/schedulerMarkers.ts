@@ -53,6 +53,8 @@ export const MARKER_FAMILIES = [
   "wsremind",
   "evannounce",
   "regremind",
+  "weekremind",
+  "evsurvey",
 ] as const;
 
 export type SchedulerMarkerFamily = (typeof MARKER_FAMILIES)[number];
@@ -335,6 +337,68 @@ export function registerReminderMarker(
   };
 }
 
+/**
+ * `weekremind__{groupId}__{sessionKey}__{uid}__{daysBefore}`, ONE PERSON'S
+ * reminder, 3 days or 1 day before one of their group's sessions, that their
+ * week is not done (`courses-week-reminders`).
+ *
+ * Per person and per reminder, like every other reminder here: each person's
+ * email is the unit of work that can fail on its own, so each gets its own
+ * attempt budget, its own skip reason and its own stamp. `daysBefore` ("3" or
+ * "1") keeps a session's two reminders apart, so the first never silences the
+ * second. Somebody whose week is done by then is stamped `done`, and is not
+ * mailed.
+ *
+ * The group id and the uid are stored as fields, so the run's destroy sweep
+ * (by group) and an account's deletion (by uid) take these with the rest.
+ */
+export function weekReminderMarker(
+  groupId: string,
+  sessionKey: string,
+  uid: string,
+  daysBefore: number,
+): SchedulerMarkerRef {
+  const fields = {
+    groupId: assertDocIdComponent("groupId", groupId),
+    sessionKey: assertKeyComponent("sessionKey", sessionKey),
+    // A Firebase uid is 28 alphanumeric characters, so it belongs in the
+    // stricter bucket even though it is an id rather than a key.
+    uid: assertKeyComponent("uid", uid),
+    daysBefore: assertKeyComponent("daysBefore", String(daysBefore)),
+  };
+  return {
+    id: `weekremind__${fields.groupId}__${fields.sessionKey}__${fields.uid}__${fields.daysBefore}`,
+    family: "weekremind",
+    fields,
+  };
+}
+
+/** The two things the `event-surveys` job sends of a survey after an event: its first email and its one reminder. */
+export type EventSurveyStep = "send" | "remind";
+
+/**
+ * `evsurvey__{surveyId}__{send|remind}`, the `event-surveys` job's email of a
+ * survey after an event that its event set up, or its one reminder: claimed
+ * before the press and stamped after it, so two ticks at once press once.
+ *
+ * Per survey and per step, not per person: the press itself writes each
+ * person's row with their own link before their email, and the survey's own
+ * claim makes two presses (the job's and an organiser's "Send it now") send
+ * once, as it does for an admin's. The marker is what the job claims; the
+ * one question for people who didn't come goes inside the same press.
+ */
+export function eventSurveyMarker(surveyId: string, step: EventSurveyStep): SchedulerMarkerRef {
+  const fields = {
+    surveyId: assertDocIdComponent("surveyId", surveyId),
+    step: assertKeyComponent("step", step),
+  };
+  return {
+    id: `evsurvey__${fields.surveyId}__${fields.step}`,
+    family: "evsurvey",
+    fields,
+  };
+}
+
 /** `breakret__{runId}__{groupId}__{slotStartKey}`, a back-after-the-break notice. */
 export function breakReturnMarker(
   runId: string,
@@ -431,6 +495,8 @@ const COMPONENT_KEYS = [
   "eventId",
   "leg",
   "recipientKey",
+  // The reminders before a session: which of a session's two it is.
+  "daysBefore",
 ] as const;
 
 export function normalizeSchedulerMarker(

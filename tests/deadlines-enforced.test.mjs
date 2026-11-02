@@ -121,6 +121,49 @@ function scanDeadlineNames(assert) {
  */
 const DEADLINE_NAMES = new Map([
   [
+    "locksAt",
+    {
+      files: ["src/lib/courses/weekWork/model.ts"],
+      promises: [
+        {
+          of: "the week you submit: when a person's week locks, or locks again after a reopen",
+          binds: "somebody taking part in a programme's week",
+          why:
+            "Not stored: worked out from the group's own calendar (`weekLockOf`, `nextSessionAfter`) every " +
+            "time it is asked, so the line the week page prints and the moment every write to the week is " +
+            "refused past are one reading of the same sessions.",
+          told: ["src/features/courses/weekBlocks/BlockWeek.tsx", "src/lib/courses/weekWork/words.ts"],
+          enforced: [
+            "src/app/api/courses/runs/[runId]/ticks/[itemId]/route.ts",
+            "src/app/api/courses/runs/[runId]/reflections/[promptId]/route.ts",
+            "src/app/api/courses/runs/[runId]/fill-in-boxes/[boxId]/route.ts",
+            "src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts",
+            "src/app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts",
+          ],
+          predicate: "assertWeekTakesWork(",
+        },
+      ],
+    },
+  ],
+  [
+    "lockedAt",
+    {
+      files: ["src/lib/courses/weekWork/model.ts"],
+      promises: [
+        {
+          of: "the week you submit: when a person's week locked, on the wire to their page",
+          binds: null,
+          why:
+            "A record of a lock that has happened, carried to the person's own page to say when it locked; " +
+            "the lock itself is `locksAt`'s promise, refused past by every write to the week.",
+          told: ["src/features/courses/weekBlocks/BlockWeek.tsx"],
+          notEnforced:
+            "It names a moment already past: what refuses a write after it is the week's own state, asked by every write route through `assertWeekTakesWork`.",
+        },
+      ],
+    },
+  ],
+  [
     "closesAt",
     {
       files: [
@@ -147,9 +190,15 @@ const DEADLINE_NAMES = new Map([
         "src/lib/surveys/create.ts",
         "src/lib/surveys/emails.ts",
         // A survey after an event's: `events/create.ts` writes its close when it
-        // is made, and `events/words.ts` names it in its two emails.
+        // is made, and `events/words.ts` names it in its two emails. One its
+        // event set up: `events/setUp.ts` writes it (a week after the event,
+        // following the event until the survey opens) and `events/after.ts`
+        // works it out for the step's preview of the email; the survey's own
+        // `isOpen` refuses an answer past it, as for every survey.
         "src/lib/surveys/events/create.ts",
         "src/lib/surveys/events/words.ts",
+        "src/lib/surveys/events/setUp.ts",
+        "src/lib/surveys/events/after.ts",
         "src/lib/surveys/words.ts",
         // The anonymous form's (src/lib/anonymousFeedback/): `model.ts` declares
         // its close and `forms.ts` stores it, copied from the survey at the
@@ -160,6 +209,14 @@ const DEADLINE_NAMES = new Map([
         // The questions somebody left blank: `blanksStore.ts` hands the survey's
         // close to the email of blanks and refuses a send past it.
         "src/lib/surveys/blanksStore.ts",
+        // A facilitator's session report: `model.ts` works out when a
+        // session's report closes, which the report route refuses past.
+        "src/lib/courses/sessionReports/model.ts",
+        // A check-in at the end of a session: `checkIns/open.ts` writes its close
+        // (11pm on the session's day, or an hour after a late session ends) when
+        // it is opened, and `checkIns/words.ts` names it in its email.
+        "src/lib/surveys/checkIns/open.ts",
+        "src/lib/surveys/checkIns/words.ts",
       ],
       promises: [
         {
@@ -222,6 +279,9 @@ const DEADLINE_NAMES = new Map([
             "src/lib/surveys/events/words.ts",
             "src/lib/surveys/blanksView.ts",
             "src/lib/surveys/blanksStore.ts",
+            // A check-in's page and its email.
+            "src/lib/surveys/checkIns/answerView.ts",
+            "src/lib/surveys/checkIns/words.ts",
           ],
           enforced: ["src/lib/surveys/answer.ts", "src/lib/surveys/events/store.ts", "src/lib/surveys/blanksStore.ts"],
           predicate: "isOpen(",
@@ -341,6 +401,11 @@ const DEADLINE_NAMES = new Map([
         "src/app/api/worksheets/circulations/route.ts",
         "src/lib/courses/heldEmailTask.ts",
         "src/lib/courses/unmarkedRegisters.ts",
+        // An explainer's task, due when its session starts.
+        "src/lib/courses/explainers/task.ts",
+        // A week review's follow-up task, due at the group's next session.
+        "src/lib/courses/weekReview/followUp.ts",
+        "src/lib/courses/weekReview/followUpTask.ts",
         "src/lib/email/worksheetReminderEmails.ts",
         "src/lib/firestore/circulations.ts",
         "src/lib/firestore/courseTasks.ts",
@@ -425,6 +490,16 @@ const DEADLINE_NAMES = new Map([
           enforced: ["src/app/api/events/[id]/check-ins/route.ts"],
           predicate: "checkInPhase(",
         },
+        {
+          of: "a facilitator's session report",
+          binds: "a group's facilitators, each writing their own report on a session",
+          why:
+            "A report on a session can be sent and changed from the session's start until the group's next held " +
+            "session starts, or for a week after the group's last one, so it is settled before the group meets again.",
+          told: ["src/lib/courses/sessionReports/page.ts"],
+          enforced: ["src/app/api/courses/groups/[groupId]/session-report/route.ts"],
+          predicate: 'session.state === "closed"',
+        },
       ],
     },
   ],
@@ -439,8 +514,13 @@ const DEADLINE_NAMES = new Map([
         // on a new survey.
         "src/lib/firestore/surveys.ts",
         "src/lib/surveys/create.ts",
-        // A survey after an event's, written as null when it is made.
+        // A survey after an event's, written as null when it is made, by an
+        // admin or by publishing its event (`events/setUp.ts`, which also
+        // reads it to know whether the job still has work for the survey).
         "src/lib/surveys/events/create.ts",
+        "src/lib/surveys/events/setUp.ts",
+        // A check-in's, written as null when it is opened.
+        "src/lib/surveys/checkIns/open.ts",
         // The anonymous form's: `model.ts` declares it and `forms.ts` writes it
         // as null when the survey at the end opens the form.
         "src/lib/anonymousFeedback/forms.ts",
@@ -462,8 +542,9 @@ const DEADLINE_NAMES = new Map([
           of: "a survey an admin has closed by hand",
           binds: "a person a survey was sent to",
           why:
-            "Unlike a circulation's, a survey's is the limit itself: once an admin presses Close it takes no " +
-            "answer, whatever its closing day says, and the answer page says on which day it closed.",
+            "Unlike a circulation's, a survey's is the limit itself: once an admin presses Close (or, on a " +
+            "check-in, the group's facilitator presses Close it now) it takes no answer, whatever its closing " +
+            "day says, and the answer page says on which day it closed.",
           told: ["src/lib/surveys/answerView.ts", "src/lib/surveys/events/answerView.ts"],
           enforced: ["src/lib/surveys/answer.ts", "src/lib/surveys/events/store.ts"],
           predicate: "isOpen(",

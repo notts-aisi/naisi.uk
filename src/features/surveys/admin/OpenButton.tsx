@@ -8,7 +8,7 @@ import { OPEN_WORDS } from "@/lib/surveys/words";
 import styles from "./surveyAdmin.module.css";
 
 /**
- * "Open it", a leaving survey's one press (Q46): from then on it reaches each
+ * "Open it", a leaving survey's one press: from then on it reaches each
  * person who leaves the programme. Nobody is emailed by it, so the button
  * names nobody it reaches. Disabled until the page's script has arrived.
  */

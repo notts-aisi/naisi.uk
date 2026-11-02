@@ -9,13 +9,13 @@ import { SURVEYS_COLLECTION, SURVEY_LIMITS, isEventSurvey, isProgrammeAudience, 
 import { alignWalkInEmails, eventNamesOffDay } from "./events/records";
 import { sameQuestions, sanitizeSurveyItems, surveyQuestionsOf, validateSurveyItems, type SurveyItem } from "./items";
 import { namesOffDayFor } from "./namesOff";
+import { programmeTemplateItems } from "./questionSetsStore";
 import { mintSurveyToken } from "./token";
 import {
   INCUBATOR_STRANDS,
   SURVEY_STAGES,
   SURVEY_TEMPLATES,
   stageAsksStrand,
-  templateItems,
   templateMinutes,
   type IncubatorStrand,
   type SurveyTemplate,
@@ -29,7 +29,10 @@ import { REFUSAL, STAGE_WORDS, introFor, surveyNameFor } from "./words";
  * its end, 6 months on, 12 months on) and the day it closes; for an
  * incubator, which research it does, for the first line of its skills
  * question. Everything else is the stage's template (`templateItems`): the
- * questionnaire's questions, in pages, "about 5 minutes" before.
+ * questionnaire's questions, in pages, "about 5 minutes" before, in the words
+ * of the stage's question set where an admin changed them
+ * (`programmeTemplateItems`). The survey keeps the questions it was made
+ * with: a later change to the set never reaches it.
  *
  * EACH STAGE PAIRS WITH THE ONE BEFORE IT, for the same programme: the after
  * survey with the before, a follow-up with the after (or the before), the
@@ -46,7 +49,7 @@ import { REFUSAL, STAGE_WORDS, introFor, surveyNameFor } from "./words";
  * The day names come off is worked out from records when the survey is made
  * and each time it is saved, and fixed by the first send.
  *
- * THE LEAVING SURVEY (Q46) is made the same way, one per programme, from its
+ * THE LEAVING SURVEY is made the same way, one per programme, from its
  * own template, and differs in four things: it pairs with no other survey; it
  * has no closing day; nobody sends it, so it is opened (`openLeavingSurvey`
  * in `./leaving.ts`), which fixes it as a first send does; and its test link
@@ -133,11 +136,12 @@ function programmeNameOf(form: ApplicationForm, programmeId: string): string {
   return programme ? programme.shortName.trim() || programme.name.trim() : "";
 }
 
-/** The surveys already made for one programme, by stage. */
+/** The surveys already made for one programme, by stage. A check-in is no stage: it is one session's. */
 function surveysOf(surveys: readonly SurveyDoc[], roundId: string, programmeId: string): Map<SurveyTemplate, SurveyDoc> {
   const out = new Map<SurveyTemplate, SurveyDoc>();
   for (const survey of surveys) {
-    if (survey.kind !== "event" && isProgrammeAudience(survey.audience, roundId, programmeId) && !out.has(survey.kind)) out.set(survey.kind, survey);
+    if (survey.kind === "event" || survey.kind === "checkIn") continue;
+    if (isProgrammeAudience(survey.audience, roundId, programmeId) && !out.has(survey.kind)) out.set(survey.kind, survey);
   }
   return out;
 }
@@ -226,7 +230,7 @@ export async function createSurvey(
   if (!namesOffOn) return { ok: false, status: 409, error: REFUSAL.noNamesOff };
 
   const name = programmeNameOf(form, input.programmeId);
-  const items = templateItems(input.stage, programme.kind, strand);
+  const items = await programmeTemplateItems(db, input.stage, programme.kind, strand);
   const minutes = templateMinutes(input.stage);
   const leaving = input.stage === "leaving";
   const audience: SurveyAudience = leaving

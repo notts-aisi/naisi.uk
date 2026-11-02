@@ -6,7 +6,6 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import {
   COURSE_CONFIG_PATH,
   DEFAULT_COURSES_CONFIG,
-  NEXT_WEEK_EMAIL_MAX_DAYS,
   REGISTER_CHASE_MAX_HOURS,
   readCoursesConfig,
   type CoursesConfig,
@@ -14,9 +13,11 @@ import {
 
 /**
  * Admin-only read and write of the `config/courses` knobs a human ever has
- * cause to change: the two feedback forms, how long an unfinished register
- * waits before its facilitators are reminded and before the lead and admins
- * get a task, and how many days before each session next week's email goes.
+ * cause to change: the two feedback forms, and how long an unfinished
+ * register waits before its facilitators are reminded and before the lead and
+ * admins get a task. When the week's emails go is not a setting (6, 3 and 1
+ * days before each session, at 9am), and a `nextWeekEmailDaysBefore` stored
+ * while it was one is read by nothing.
  *
  * ── WHY A ROUTE AT ALL ──────────────────────────────────────────────────────
  * `config` has no client read rule and no client write rule, in either
@@ -55,7 +56,6 @@ function view(config: CoursesConfig) {
     weeklyFeedbackUrl: config.weeklyFeedbackUrl,
     unmarkedRegisterGraceHours: config.unmarkedRegisterGraceHours,
     registerTaskHours: config.registerTaskHours,
-    nextWeekEmailDaysBefore: config.nextWeekEmailDaysBefore,
   };
 }
 
@@ -180,24 +180,6 @@ export async function POST(req: Request) {
       );
     }
     update.registerTaskHours = hours;
-  }
-
-  if ("nextWeekEmailDaysBefore" in body) {
-    const days = body.nextWeekEmailDaysBefore;
-    if (
-      typeof days !== "number" ||
-      !Number.isInteger(days) ||
-      days < 1 ||
-      days > NEXT_WEEK_EMAIL_MAX_DAYS
-    ) {
-      return NextResponse.json(
-        {
-          error: `Next week's email needs a whole number of days between 1 and ${NEXT_WEEK_EMAIL_MAX_DAYS}.`,
-        },
-        { status: 400 },
-      );
-    }
-    update.nextWeekEmailDaysBefore = days;
   }
 
   if (Object.keys(update).length === 0) {

@@ -124,7 +124,7 @@ export async function renderApplicationStatus({
 
   const loaded = await loadStatus(db, roundId, user.uid, now);
   if (!loaded) return null;
-  // "When you’re free" (Q7), for a place before Publish has told them their group.
+  // "When you’re free", for a place before Publish has told them their group.
   const free = loaded.view.kind === "place" && !loaded.view.inGroup ? await loadWhenFree(db, loaded.roundId, user.uid, now) : null;
 
   return (

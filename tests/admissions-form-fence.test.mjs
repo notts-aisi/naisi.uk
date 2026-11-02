@@ -259,6 +259,20 @@ const ROUND_SURFACES = {
       "the Kairos report for one programme of an application form. It reaches the round only through " +
       "loadKairosProgramme, which starts from the form's own loader and answers null for a round that is not a form",
   },
+  "/(app)/admin/(admin-only)/surveys/check-ins/[roundId]/[programmeId]/chart": {
+    kind: "form",
+    why:
+      "Make a chart across one programme's check-ins, an admin's. It reaches the round only through the form's " +
+      "own loader (loadForm), which answers null for a round that is not a form; check-ins are opened only for a " +
+      "form's programmes, so an older round has none and the page says there are no check-ins here",
+  },
+  "/api/surveys/check-ins/[roundId]/[programmeId]/chart": {
+    kind: "form",
+    why:
+      "Make a chart's numbers across one programme's check-ins, an admin's. It reaches the round only through " +
+      "the form's own loader (loadForm), which answers null for a round that is not a form; check-ins are opened " +
+      "only for a form's programmes, so an older round has none and the route answers 404",
+  },
   "/(app)/admin/admissions/[roundId]": {
     kind: "older",
     page: {
@@ -293,6 +307,13 @@ const ROUND_SURFACES = {
       "the application form's editor, an admin's. The round comes from loadFormForStaff and " +
       "the question sets from the form's own repository, so a round of the older kind renders " +
       "the same 'no application form here' as one that does not exist",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/next-term": {
+    kind: "form",
+    why:
+      "Next term: who to ask, an admin's page. It loads the round with the form's own loader, " +
+      "which answers null for a round that is not a form, and the page then answers as it does " +
+      "for a form that is not there; its runs are the ones the form's programmes name",
   },
   "/(app)/admin/admissions/forms/[roundId]/pool": {
     kind: "form",
@@ -457,6 +478,36 @@ const ROUND_SURFACES = {
       "one of a programme's surveys' results, for its lead and admins. It reaches the round only " +
       "through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/before": {
+    kind: "form",
+    why:
+      "the Surveys tab's Before view, for its lead and admins. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/check-ins": {
+    kind: "form",
+    why:
+      "the Surveys tab's Check-ins view, for its lead and admins. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/end": {
+    kind: "form",
+    why:
+      "the Surveys tab's End view, for its lead and admins. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/follow-ups": {
+    kind: "form",
+    why:
+      "the Surveys tab's Follow-ups view, for its lead and admins. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/reports": {
+    kind: "form",
+    why:
+      "a programme's session reports, for its lead and admins. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams": {
     kind: "form",
     why:
@@ -489,6 +540,24 @@ const ROUND_SURFACES = {
     why:
       "Copy weeks from the course, a page of one programme's Weeks tab. " +
       "It reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review": {
+    kind: "form",
+    why:
+      "A week's review, an admin's alone: loadProgrammeRun first, which reads the round through the form's own " +
+      "loader and answers 'none' for a round that is not a form, then the review's own door",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review/explainer": {
+    kind: "form",
+    why:
+      "Schedule an explainer, under a week's review, an admin's alone: loadProgrammeRun first, which reads the " +
+      "round through the form's own loader and answers 'none' for a round that is not a form, then the review's own door",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/notes": {
+    kind: "form",
+    why:
+      "A week's notes about people, an admin's drafts and the lead's saved notes: loadProgrammeRun first, which reads " +
+      "the round through the form's own loader and answers 'none' for a round that is not a form, then the week's door",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]": {
     kind: "form",
@@ -682,12 +751,60 @@ const ROUND_SURFACES = {
       "loadArranging, which starts from the form's own loader and answers 404 for a round " +
       "that is not a form, before anybody's application is read",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review": {
+    kind: "form",
+    why:
+      "Review with Claude on a week of the programme's run, an admin's alone, through openWeekReview and the " +
+      "coursework door, which starts from loadProgrammeRun and the form's own loader and answers 'none' (a 404) " +
+      "for a round that is not a form, before anybody's work is read",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review/follow-up": {
+    kind: "form",
+    why:
+      "A follow-up task from a week's review, an admin's alone, through openWeekReview and the coursework door, " +
+      "which starts from loadProgrammeRun and the form's own loader and answers 'none' (a 404) for a round that " +
+      "is not a form, before anybody is read or a task is made",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/explainers": {
+    kind: "form",
+    why:
+      "Scheduling an explainer from a week's review, an admin's alone, through openWeekReview and the coursework " +
+      "door, which starts from loadProgrammeRun and the form's own loader and answers 'none' (a 404) for a round " +
+      "that is not a form, before anybody is read or anything is written",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/explainers/[explainerId]": {
+    kind: "form",
+    why:
+      "Cancelling an explainer, an admin's alone, through loadProgrammeRun, which reads the round through the form's " +
+      "own loader and answers 'none' (a 404) for a round that is not a form, before the explainer is read",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/draft": {
+    kind: "form",
+    why:
+      "Claude drafts one person's end-of-week note, an admin's alone, through openWeekNotes and the coursework door, " +
+      "which starts from loadProgrammeRun and the form's own loader and answers 'none' (a 404) for a round that is " +
+      "not a form, before anybody's work is read",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/[uid]/save": {
+    kind: "form",
+    why:
+      "Save an end-of-week note, an admin's alone, through openWeekNotes and the coursework door, which starts from " +
+      "loadProgrammeRun and the form's own loader and answers 'none' (a 404) for a round that is not a form, before " +
+      "a draft is read or a note kept",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/[uid]": {
+    kind: "form",
+    why:
+      "Discard an end-of-week draft, an admin's alone, through openWeekNotes and the coursework door, which starts " +
+      "from loadProgrammeRun and the form's own loader and answers 'none' (a 404) for a round that is not a form, " +
+      "before a draft is read or deleted",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers": {
     kind: "form",
     why:
-      "Claude's best answers to a week of the programme's run, through openCourseworkDoor, which starts from " +
-      "loadProgrammeRun and the form's own loader and answers 'none' (a 404) for a round that is not a form, " +
-      "before anybody's coursework is read",
+      "Claude's best answers to a week of the programme's run, an admin's alone, through openCourseworkDoor, " +
+      "which starts from loadProgrammeRun and the form's own loader and answers 'none' (a 404) for a round " +
+      "that is not a form, before anybody's coursework is read",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/pangram": {
     kind: "form",
@@ -700,6 +817,19 @@ const ROUND_SURFACES = {
     why:
       "Pangram's readings of one person's coursework, an admin's alone, through openCourseworkDoor, which " +
       "answers 'none' (a 404) for a round that is not a form before their coursework is read",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/notes": {
+    kind: "form",
+    why:
+      "the notes about one person on the programme, for its lead and admins, through openProgrammeNotes, which " +
+      "starts from loadProgrammeRun and the form's own loader and answers 'none' (a 404) for a round that is not " +
+      "a form, before anything about the person is read",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/notes/[noteId]": {
+    kind: "form",
+    why:
+      "changing or deleting one note about a person on the programme, through the same door as the list, which " +
+      "answers 'none' (a 404) for a round that is not a form before the note is read",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
     kind: "form",
@@ -2553,6 +2683,8 @@ const STUBS = new Map([
   [
     "@/lib/email/courseFacilitatorEmails",
     "export const resolveCohortAudience = async () => ({ members: [], skipped: 0, enrolledCount: 0, refusal: null });\n" +
+      // The week's emails' audience, which the registry's course jobs import.
+      "export const resolveNoticeAudience = async () => ({ members: [], skipped: 0, enrolledCount: 0, refusal: null, dropped: [] });\n" +
       "export const hasOptedOutOfCourseAnnouncements = () => false;\n" +
       "export const memberNameOf = () => '';",
   ],

@@ -5,7 +5,7 @@ import codeActions from "@/features/qr/codeActions.module.css";
 import { QrFullScreen } from "@/features/qr/QrFullScreen";
 import fullScreen from "@/features/surveys/admin/eventSurvey.module.css";
 import { useHydrated } from "@/hooks/useHydrated";
-import { CODE_CARD_WORDS } from "@/lib/surveys/events/words";
+import { CODE_AT_EVENT_WORDS, CODE_CARD_WORDS } from "@/lib/surveys/events/words";
 import styles from "@/features/events/checkIn/CheckInTab.module.css";
 
 type Props = {
@@ -16,12 +16,13 @@ type Props = {
 };
 
 /**
- * An event survey's QR code on the event's Survey after tab, for the people
- * who show it at the end of the event (`surveyCodeAtEvent`: admins and
+ * An event survey's QR code on the event's Check-in tab, for the people who
+ * show it at the end of the event (`surveyCodeAtEvent`: admins and
  * SU-recognised committee, while the survey takes answers): the code, its
  * address, "Download PNG" and "Show full screen", in the Send tab's words.
  * Nothing about the survey's answers or who gave them, and no way to open
- * it: opening fixes its questions, an admin's act on the survey's own page.
+ * it: a survey its event set up opens itself at the event's start, and an
+ * admin opens any other on the survey's own page.
  */
 export default function SurveyCodeAtEvent({ code, qr }: Props) {
   const hydrated = useHydrated();
@@ -29,7 +30,7 @@ export default function SurveyCodeAtEvent({ code, qr }: Props) {
   return (
     <section className={styles.card} aria-labelledby="survey-code-heading">
       <h2 id="survey-code-heading" className={styles.cardHeading}>
-        {CODE_CARD_WORDS.heading}
+        {CODE_AT_EVENT_WORDS.heading}
       </h2>
       <div className={styles.codeBox}>
         <div className={styles.codeImage}>{qr}</div>

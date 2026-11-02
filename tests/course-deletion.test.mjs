@@ -39,7 +39,7 @@
  *
  * ## The loader dance
  *
- * Lifted from `course-nudge.test.mjs` / `course-schedule-changes.test.mjs`,
+ * Lifted from `course-schedule-changes.test.mjs`,
  * which already solved importing TypeScript from `.mjs` on this repo's Node
  * (v20, no native type stripping) including `@/…` aliases and stubbing
  * `server-only`.
@@ -55,7 +55,7 @@ const SRC = join(REPO_ROOT, "src");
 
 const SPECIFIER = /(\bfrom\s*|\bimport\s*\(?\s*)(["'])([^"']+)\2/g;
 
-/** See `course-nudge.test.mjs` — nothing here is reachable from an assertion. */
+/** See `course-schedule-changes.test.mjs`: nothing here is reachable from an assertion. */
 const STUBS = new Map([
   ["server-only", "export {};"],
   [
@@ -302,18 +302,22 @@ const RUN_COUNT_KEYS = [
   // reason materialNotes was: an unlisted collection means the dialog lies
   // about what a destroy takes.
   "auditRows",
-  // `courseUpdates`, the updates written to a run's people (Q18). Staff
+  // `courseUpdates`, the updates written to a run's people. Staff
   // writing keyed by `runId`, added to the manifest in the same change that
   // gave the cascade a stage for it, as auditRows was.
   "updates",
-  // `courseGroupNotes`, the notes each group's facilitators share (C30).
+  // `courseGroupNotes`, the notes each group's facilitators share.
   // Staff writing keyed by `runId`, added to the manifest in the same change
   // that gave the cascade a stage for it, as updates was.
   "groupNotes",
   // `courseGroupSharedNotes`, the notes a group's people and facilitators
-  // share with the group (C29). Keyed by `runId`, added to the manifest in the
+  // share with the group. Keyed by `runId`, added to the manifest in the
   // same change that gave the cascade a stage for it, as groupNotes was.
   "groupSharedNotes",
+  // `courseSessionReports`, each facilitator's report on each session of the
+  // run's groups. Staff writing keyed by `runId`, added to the manifest in the
+  // same change that gave the cascade a stage for it, as groupNotes was.
+  "sessionReports",
   // `coursePlacementNotes`, what an admin or a programme's lead chose for each
   // person placed outside the times they gave: a note, or none. A leaf keyed
   // by `runId`, added to the manifest in the same change that gave the
@@ -324,11 +328,47 @@ const RUN_COUNT_KEYS = [
   // Two leaves keyed by `runId`, added to the manifest in the same change that
   // gave the cascade a stage for each, as placementNotes was.
   "bestAnswers",
+  // `courseWeekReviews`, Claude's review of each week (privacy v15), and the
+  // tasks an admin made from one, asking a group's facilitators to have a
+  // word with somebody (`source: "review-follow-up"`). A leaf keyed by
+  // `runId` and a third sweep of `tasks`, each added to the manifest in the
+  // same change that gave the cascade its stage, as bestAnswers was.
+  "weekReviews",
+  "reviewFollowUps",
+  // `courseExplainers`, the explainers an admin scheduled from a week's
+  // review, and the task each session of one gives whoever explains
+  // (`source: "explainer"`). A leaf keyed by `runId` and a fourth sweep of
+  // `tasks`, each added to the manifest in the same change that gave the
+  // cascade its stage, as weekReviews was.
+  "explainers",
+  "explainerTasks",
+  // `courseNoteDrafts`, Claude's drafts of an end-of-week note about each
+  // person (privacy v15), waiting for an admin to save or discard them. A
+  // leaf keyed by `runId`, added to the manifest in the same change that gave
+  // the cascade its stage, as weekReviews was.
+  "noteDrafts",
   "pangramChecks",
   // `coursePacksAndCases`, what each person had in the weeks' packs and
-  // talks (plan item 8). Keyed by `runId`, added to the manifest in the same
+  // talks. Keyed by `runId`, added to the manifest in the same
   // change that gave the cascade a stage for it, as groupSharedNotes was.
   "packsAndCases",
+  // `courseWeekWork` and `courseWorkLog`, where each person's week stands
+  // and what they did to it and when (the week you submit). Keyed by `runId`,
+  // added to the manifest in the same change that gave the cascade a stage
+  // for each, as packsAndCases was.
+  "weekWork",
+  "workLog",
+  // `courseFeedback` and `courseFeedbackSends`, the feedback on people's
+  // weeks and the batch email's own record. Keyed by `runId`, added to the
+  // manifest in the same change that gave the cascade a stage for each, as
+  // weekWork was.
+  "feedback",
+  "feedbackSends",
+  // `courseWorkRatings`, ratings for the team of people's written answers.
+  // COUNTED AND KEPT, never drained: a rating is about a person, as the notes
+  // kept about a person are, and keeps the programme's name and the week once
+  // the run has gone. On the manifest so the dialog says they are kept.
+  "workRatingsKept",
   // `coursePairs`, who was paired with whom for a session in pairs and who
   // was bringing a laptop. Keyed by `runId`, added to the manifest in the same
   // change that gave the cascade a stage for it, as packsAndCases was.
@@ -346,6 +386,11 @@ const RUN_COUNT_KEYS = [
   // it. Keyed by `runId`, added with its stage in the same change; it dies
   // with the run, as `auditRows` does, never retained like `dataExportRows`.
   "recordOpenings",
+  // `checkInWeeks`, which check-ins each week of the run showed the
+  // programme's lead, fixed the first time the week was whole. Keyed by
+  // `runId`, added with its stage in the same change; nothing can read a week
+  // of a run that is gone, so it dies with the run.
+  "checkInWeeks",
   // `schedulerMarkers`, the scheduler tick's claim-before-send markers.
   // Added with the tick itself, under the house rule that a PR adding a
   // collection adds it to the manifest AND the cascade in that same PR. Two
@@ -377,6 +422,8 @@ const SURVIVING_COUNT_KEYS = [
   "admissionSeatOffers",
   // A certificate whose link is on stays, without its run (privacy policy v7, Retention).
   "certificatesKept",
+  // Ratings for the team stay with the person rated (privacy v15, How long we keep it).
+  "workRatingsKept",
 ];
 
 test("MODEL — the manifest count vocabulary is the same on both sides of the wire", () => {
@@ -419,22 +466,25 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   const counts = Object.fromEntries(
     [...RUN_COUNT_KEYS, ...COURSE_COUNT_KEYS].map((k) => [k, 10]),
   );
-  // Thirty-nine counters at ten rows each: thirty-four that die,
+  // Fifty-one counters at ten rows each: forty-five that die,
   // `materialNotes`, `auditRows`, `schedulerMarkers`, the V3 `coursePages`,
   // the V3 W2 `registerTasks`, the course hub's `pitches`, `updates`,
-  // `groupNotes`, `groupSharedNotes`, `placementNotes`, v13's `bestAnswers`
-  // and `pangramChecks`, `packsAndCases`,
-  // `pairs`, `teams`,
+  // `groupNotes`, `groupSharedNotes`, `sessionReports`, `placementNotes`, v13's `bestAnswers`
+  // and `pangramChecks`, the week review's `weekReviews` and
+  // `reviewFollowUps`, the explainers' `explainers` and `explainerTasks`,
+  // the end-of-week notes' `noteDrafts`, `packsAndCases`, the week you submit's `weekWork`
+  // and `workLog`, feedback's `feedback` and `feedbackSends`, `pairs`, `teams`,
   // `teamEntries`, `finishing`, `facilitating`, `ratings`, `certificates`,
-  // `anonymousFeedback`, `predictions` and `recordOpenings`, and the course's
-  // `facilitatorGuide` among them, plus the five survivors
+  // `anonymousFeedback`, `predictions`, `recordOpenings` and `checkInWeeks`,
+  // and the course's `facilitatorGuide` among them, plus the six survivors
   // (`admissionSeatOffers` is released, `dataExportRows` is retained,
-  // `certificatesKept` stays without its run).
-  assert.equal(sumCounts(counts), 390);
+  // `certificatesKept` stays without its run, `workRatingsKept` stays with
+  // the person rated).
+  assert.equal(sumCounts(counts), 510);
   // The progress denominator counts only what actually dies, so a large
   // retained counter cannot inflate it into a bar that never fills. Adding a
   // survivor must not move this number; adding a DESTROYED counter must.
-  assert.equal(destroyedTotal(counts), 340);
+  assert.equal(destroyedTotal(counts), 450);
 });
 
 test("MODEL — every key the cascade can report has copy, including the ones the manifest never shows", () => {
@@ -626,6 +676,12 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     // the same predicate with a different source. A separate stage rather
     // than one `in` filter so each is budgeted, paged and resumed on its own.
     "registerTasks",
+    // The week review's follow-ups: the third sweep of the same collection,
+    // beside the other two for the same reason.
+    "reviewFollowUps",
+    // The explainers' tasks: the fourth sweep, beside the others for the
+    // same reason.
+    "explainerTasks",
     "nudgeMarkers",
     // The scheduler tick's own markers. It sits here rather than beside the
     // other leaves because half of it is addressed by GROUP id (`unmarked__`
@@ -646,6 +702,9 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     // The notes a group's people and facilitators share with it: a run-keyed
     // leaf, every note names its group, so it goes before the groups too.
     "groupSharedNotes",
+    // Each facilitator's report on each session: a run-keyed leaf, every
+    // report names its group, so it goes before the groups too.
+    "sessionReports",
     // What was chosen for each person placed outside the times they gave: a
     // run-keyed leaf, every choice names its group, so it goes before the groups.
     "placementNotes",
@@ -653,10 +712,27 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     // leaves that name a week and the answers in it, so they go before the
     // weeks, with the other leaves.
     "bestAnswers",
+    // Claude's review of each week: a run-keyed leaf that names a week and
+    // the answers in it, so it goes before the weeks with the other leaves.
+    "weekReviews",
+    // The explainers scheduled from those reviews: a run-keyed leaf whose
+    // every record names groups' sessions, so it goes before the groups.
+    "explainers",
+    // Claude's end-of-week drafts: a run-keyed leaf that names a week and a
+    // person, so it goes before the weeks with the other leaves.
+    "noteDrafts",
     "pangramChecks",
     // What each person had in the weeks' packs and talks: a run-keyed leaf,
     // every record names a block of a week, so it goes before the weeks.
     "packsAndCases",
+    // Where each person's week stands, and what they did to it: run-keyed
+    // leaves, every record names a week, so they go before the weeks.
+    "weekWork",
+    "workLog",
+    // The feedback on people's weeks and the batch email's own record:
+    // run-keyed leaves, every piece names a week, so they go before the weeks.
+    "feedback",
+    "feedbackSends",
     // Who was paired with whom for a session in pairs: a run-keyed leaf,
     // every record names a group and a block of a week, so it goes before both.
     "pairs",
@@ -670,6 +746,9 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     "predictions",
     // The records of admins opening a card, after the cards they are about.
     "recordOpenings",
+    // Which check-ins each week showed the programme's lead: a run-keyed leaf
+    // that names no group or week document, drained with the other leaves.
+    "checkInWeeks",
     "groups",
     "weeks",
   ]);
@@ -720,6 +799,8 @@ test("MODEL — leaf before index: every dependent stage precedes the one that n
       "groupNotes",
       // Every note shared with a group names it by `groupId`.
       "groupSharedNotes",
+      // Every session report names the group it is about by `groupId`.
+      "sessionReports",
       // Every choice names the group it was saved for by `groupId`.
       "placementNotes",
       // Each names a week by its id, and the answers in it.
@@ -846,6 +927,17 @@ test("GUARD — the cascade does NOT delete the collections the manifest calls s
     /collection\(DATA_EXPORTS_COLLECTION\)[\s\S]{0,400}?\.delete\(/,
     'the cascade deletes from "dataExports", but the manifest reports those rows as surviving',
   );
+  // Ratings for the team, reached through their constant as well: counted,
+  // and never drained or deleted by any stage. A rating is about a person and
+  // stays with them, with the programme's name and the week.
+  assert.doesNotMatch(
+    ENGINE,
+    /collection\(COURSE_WORK_RATINGS_COLLECTION\)[\s\S]{0,400}?\.delete\(/,
+    'the cascade deletes from "courseWorkRatings", but the manifest reports those rows as kept',
+  );
+  assert.doesNotMatch(ENGINE, /(?:drainQuery\(db, |byRunId\()COURSE_WORK_RATINGS_COLLECTION/, "a destroy stage drains ratings for the team");
+  assert.match(ENGINE, /countAgg\(db\.collection\(COURSE_WORK_RATINGS_COLLECTION\)\.where\("runId", "==", runId\)\)/);
+  assert.equal(countMeta("workRatingsKept").fate, "retained");
   assert.equal(countMeta("emailSendRows").fate, "retained");
   assert.equal(countMeta("dataExportRows").fate, "retained");
   assert.equal(countMeta("templates").fate, "orphaned");
@@ -1680,7 +1772,12 @@ test("GUARD — the mirrored-task sweep is filtered on `source`, not just the po
   // filters below and their order; these lines only pin that the sweep is
   // still bound to named sources rather than to a literal somebody could
   // widen in passing.
-  assert.match(ENGINE, /MIRRORED_TASK_SOURCE,\n\s*REGISTER_FOLLOW_UP_TASK_SOURCE,\n\} from "\.\/courseTasks"/);
+  // CHANGED ON PURPOSE (the week review): a third named source, its follow-ups.
+  // CHANGED ON PURPOSE (explainers): a fourth, the explainers' tasks.
+  assert.match(
+    ENGINE,
+    /MIRRORED_TASK_SOURCE,\n\s*REGISTER_FOLLOW_UP_TASK_SOURCE,\n\s*REVIEW_FOLLOW_UP_TASK_SOURCE,\n\s*EXPLAINER_TASK_SOURCE,\n\} from "\.\/courseTasks"/,
+  );
   const drain = ENGINE.slice(
     ENGINE.indexOf("async function drainSourcedTasks"),
     ENGINE.indexOf("async function drainSubscriptionRows"),
@@ -1700,6 +1797,10 @@ test("GUARD — the mirrored-task sweep is filtered on `source`, not just the po
   const stages = ENGINE.slice(ENGINE.indexOf('key: "mirroredTasks"'));
   assert.match(stages, /drainSourcedTasks\(db, storage, MIRRORED_TASK_SOURCE, runId, budget\)/);
   assert.match(stages, /REGISTER_FOLLOW_UP_TASK_SOURCE,\n\s*runId,\n\s*budget,/);
+  // The third, the week review's follow-ups, under the same two filters.
+  assert.match(stages, /drainSourcedTasks\(db, storage, REVIEW_FOLLOW_UP_TASK_SOURCE, runId, budget\)/);
+  // The fourth, the explainers' tasks, under the same two filters.
+  assert.match(stages, /drainSourcedTasks\(db, storage, EXPLAINER_TASK_SOURCE, runId, budget\)/);
 
   // The manifest counts the SAME rows: a manifest that counted rows the sweep
   // does not reach would promise to destroy rows the cascade leaves alone.
@@ -1709,6 +1810,8 @@ test("GUARD — the mirrored-task sweep is filtered on `source`, not just the po
   );
   assert.match(counts, /\.where\("source", "==", MIRRORED_TASK_SOURCE\)/);
   assert.match(counts, /\.where\("source", "==", REGISTER_FOLLOW_UP_TASK_SOURCE\)/);
+  assert.match(counts, /\.where\("source", "==", REVIEW_FOLLOW_UP_TASK_SOURCE\)/);
+  assert.match(counts, /\.where\("source", "==", EXPLAINER_TASK_SOURCE\)/);
 });
 
 test("GUARD — the cohort channel is COMPUTED, never read off the run document", () => {

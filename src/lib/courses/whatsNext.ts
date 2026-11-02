@@ -6,8 +6,7 @@ import { loadForm } from "@/lib/applications/repo";
 import { londonDateKey } from "./weekPlan";
 
 /**
- * "WHAT’S NEXT" (boards wk-lastweek-phone, en-after-phone,
- * en-after-nofinish-phone): what a member's programme pages say about
+ * "WHAT’S NEXT": what a member's programme pages say about
  * applying again, in the last week and once the programme is over.
  *
  * Every fact is the term's own form's, as a visitor may be told it

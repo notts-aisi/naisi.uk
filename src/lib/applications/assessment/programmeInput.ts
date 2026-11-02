@@ -143,10 +143,15 @@ export function programmeInputFrom(input: {
 
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** A whole name or word, in any alphabet and any case: `\b` does not see an accented letter as part of a word. */
+const wordRe = (word: string) => new RegExp(`(?<![\\p{L}\\p{N}])${escape(word)}(?![\\p{L}\\p{N}])`, "giu");
+
 /**
  * A question with every name in it swapped for the label Claude knows that
  * person by. A full name first, then a first name only where it is one
  * person's on this list; a first name two people share becomes both labels.
+ * One person may be listed under more than one name (their full name, and the
+ * name they go by): each is swapped for their one label.
  */
 export function scrubbed(
   question: string,
@@ -156,18 +161,19 @@ export function scrubbed(
   const byFull = [...people].sort((a, b) => b.name.length - a.name.length);
   for (const { label, name } of byFull) {
     if (name.trim().split(/\s+/).length < 2) continue;
-    text = text.replace(new RegExp(`\\b${escape(name.trim())}\\b`, "gi"), label);
+    text = text.replace(wordRe(name.trim()), label);
   }
   const byFirst = new Map<string, string[]>();
   for (const { label, name } of people) {
     const first = name.trim().split(/\s+/)[0];
     if (!first || first.length < 2) continue;
     const key = first.toLowerCase();
-    byFirst.set(key, [...(byFirst.get(key) ?? []), label]);
+    const labels = byFirst.get(key) ?? [];
+    if (!labels.includes(label)) byFirst.set(key, [...labels, label]);
   }
   for (const [first, labels] of byFirst) {
     const replacement = labels.length === 1 ? labels[0] : `(one of ${labels.join(" or ")})`;
-    text = text.replace(new RegExp(`\\b${escape(first)}\\b`, "gi"), replacement);
+    text = text.replace(wordRe(first), replacement);
   }
   return text;
 }

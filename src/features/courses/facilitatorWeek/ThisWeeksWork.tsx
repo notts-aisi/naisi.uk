@@ -26,7 +26,6 @@ import {
   SEE_IT,
   SEE_WHO,
   THIS_WEEKS_WORK,
-  TICKS_NEVER_COUNT,
   WRITTEN,
   eachPersonsBoxesWords,
   hidePersonsBoxesWords,
@@ -47,15 +46,16 @@ import {
   weekMetaWords,
 } from "@/lib/courses/facilitatorWeek/words";
 import Disclosure from "./Disclosure";
+import ReopenWeekButton from "@/features/courses/written/ReopenWeekButton";
 import styles from "@/features/courses/facilitator/facilitator.module.css";
 
 /**
- * THIS WEEK'S WORK (boards wk-fac-group at 1440, wk-fac-group-phone at 390):
+ * THIS WEEK'S WORK (on the facilitator's group page, at 1440 and 390):
  * each person in the group with each part's reflection written or not yet,
  * as a table on a wide page and a list on a narrow one; then who ticked each
- * source of the week (Q31: how many, of how many, and the names behind a
+ * source of the week (how many, of how many, and the names behind a
  * button, never on hover), with the private notes left on each for a viewer
- * who reads them (Q38).
+ * who reads them.
  *
  * Drawn on the server from what `loadGroupWeek` worked out for the viewer:
  * a facilitator is never handed a facilitator's own work, and the lead and
@@ -68,17 +68,34 @@ import styles from "@/features/courses/facilitator/facilitator.module.css";
  * the table.
  */
 
-/** A column a later piece adds: its head, and what it says for one person. */
-export type WorkColumn = { key: string; label: string; cell: (uid: string) => ReactNode };
+/** A column a later piece adds: its head, what it says for one person, and a note for the table's head. */
+export type WorkColumn = { key: string; label: string; cell: (uid: string) => ReactNode; note?: string | null };
 
-/** The columns `loadWorkColumns` worked out, as the table draws them: a cell with an address is a link to it. */
+/**
+ * The columns `loadWorkColumns` worked out, as the table draws them: a cell
+ * with an address is a link to it; the week's column draws the count beside
+ * its words and, for a week submitted or locked, "Reopen week 3 for Sofia"
+ * to a reader who may.
+ */
 export function workColumnsOf(columns: readonly WorkColumnData[]): WorkColumn[] {
   return columns.map((column) => ({
     key: column.key,
     label: column.label,
+    note: column.note ?? null,
     cell: (uid: string) => {
       const cell = own(column.cells, uid);
       if (!cell) return null;
+      if (column.key === "week") {
+        return (
+          <span className={styles.wkWeekCell}>
+            <span className={cell.tone === "done" ? styles.wkWeekDone : cell.tone === "partly" ? styles.wkWeekPartly : styles.wkWeekNone}>
+              {cell.text}
+            </span>
+            {cell.detail && <span className={styles.wkWeekDetail}>{cell.detail}</span>}
+            {cell.reopen && <ReopenWeekButton {...cell.reopen} quiet />}
+          </span>
+        );
+      }
       return cell.href ? (
         <Link href={cell.href} className={styles.wkCellLink}>
           <span>{cell.text}</span>
@@ -241,7 +258,10 @@ export default function ThisWeeksWork({
         <h2 id={headingId} className={weekly.cardTitle}>
           {THIS_WEEKS_WORK}
         </h2>
-        <span className={weekly.cardMeta}>{weekMetaWords(week.weekNumber, week.range)}</span>
+        <span className={weekly.cardMeta}>
+          {weekMetaWords(week.weekNumber, week.range)}
+          {columns.find((column) => column.note)?.note && <span className={styles.wkLockNote}> · {columns.find((column) => column.note)?.note}</span>}
+        </span>
       </div>
 
       {week.rows.length === 0 ? (
@@ -327,7 +347,6 @@ export default function ThisWeeksWork({
         <h3 id={`${headingId}-ticks`} className={styles.wkTicksTitle}>
           {READING_TICKS}
         </h3>
-        <p className={styles.wkTicksLine}>{TICKS_NEVER_COUNT}</p>
         {week.sources.length === 0 ? (
           <p className={styles.wkFootLine}>{NO_SOURCES}</p>
         ) : (
@@ -344,7 +363,7 @@ export default function ThisWeeksWork({
 }
 
 /**
- * THE REVIEW QUEUE'S REFLECTIONS HALF (wk-fac-group): "Reflections", how many
+ * THE REVIEW QUEUE'S REFLECTIONS HALF: "Reflections", how many
  * of the group have written each part's ("Part 1, 6 of 7 · Part 2, 5 of 7"),
  * and "Read them", to the page where lines are picked to read out. Drawn
  * under the written answers half (`separated`), or alone in its card.

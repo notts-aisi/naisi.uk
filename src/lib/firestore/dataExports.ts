@@ -285,3 +285,18 @@ export async function logExport(
   });
   return ref.id;
 }
+
+/**
+ * The downloads of one survey's answers with names, newest first, for that
+ * survey's log on its admins' pages: one equality on `scope.surveyId`, the
+ * kind checked in memory. A read, by a page behind the admins' own gate; the
+ * rows say who downloaded, how many people the file held and when, and never
+ * whose answers they were.
+ */
+export async function surveyExportsOf(db: Firestore, surveyId: string): Promise<DataExportDoc[]> {
+  const snap = await db.collection(DATA_EXPORTS_COLLECTION).where("scope.surveyId", "==", surveyId).get();
+  return snap.docs
+    .map((doc) => normalizeDataExport(doc.id, (doc.data() ?? {}) as Raw))
+    .filter((row) => row.kind === "survey-answers" && row.scope.surveyId === surveyId)
+    .sort((a, b) => (b.at?.getTime() ?? 0) - (a.at?.getTime() ?? 0) || a.id.localeCompare(b.id));
+}

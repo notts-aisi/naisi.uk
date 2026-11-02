@@ -1,13 +1,12 @@
 /**
  * What a member's programme page and Home say when a week changes, in the
- * last week, and once the programme is over (boards wk-changes,
- * wk-lastweek-phone, en-after-phone and en-after-nofinish-phone).
+ * last week, and once the programme is over.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
  * ## What this guards
  *
- *  1. A CHANGED WEEK (wk-changes), on the programme page and on Home: a
+ *  1. A CHANGED WEEK, on the programme page and on Home: a
  *     cancelled evening's notice ("No session tonight", the day and its
  *     reason, what to do instead) over the next session's ticket, which names
  *     its day and the weeks it covers ("Tue 1 Dec · weeks 4 and 5") over the
@@ -21,7 +20,7 @@
  *     it and the day their name comes off; nothing once it closed unanswered,
  *     for anybody it was not sent to, in a view-as session or for another
  *     run; never how many others answered. Its card's words in each state.
- *  3. THE LAST WEEK ON HOME (wk-lastweek-phone), by the member's own
+ *  3. THE LAST WEEK ON HOME, by the member's own
  *     calendar: "Tonight · your last session" on its day and "Your last
  *     session · week 6" before it; "The survey at the end" above "After
  *     tonight" (the certificate line, with no day: no record holds one), then
@@ -30,7 +29,7 @@
  *     opening (the month), or nothing; the survey moved from Home's top so it
  *     is drawn once; What's next handed only to somebody taking part, only in
  *     the last week and after.
- *  4. AFTER THE END (en-after-phone, en-after-nofinish-phone), the programme
+ *  4. AFTER THE END, the programme
  *     page as the real server page hands it: "You finished AGI Strategy."
  *     with the term, group and facilitators only where the finished record
  *     says so, otherwise "AGI Strategy has ended." with the thanks, the term
@@ -122,7 +121,7 @@ function ticketOf(html) {
 /** The words of a piece of markup. */
 const words = (html) => textOf(html);
 
-describe("1. a changed week (wk-changes)", () => {
+describe("1. a changed week", () => {
   test("a cancelled evening, on the day: the notice, then the ticket naming its day and both weeks over the hours alone", async () => {
     cancelWeekFour();
     at("2026-11-24T12:00:00Z");
@@ -190,11 +189,11 @@ describe("1. a changed week (wk-changes)", () => {
     assert.match(said, /^Tue 8 Dec Tonight · week 6 · online Tue 8 Dec, 6pm to 8pm/);
     assert.match(ticket, new RegExp(`<a class="joinButton" href="${LINK}" target="_blank" rel="noopener noreferrer">Join online</a>`));
     assert.match(said, /Join online The link is here, not in your emails, so it can’t be forwarded\.$/);
-    // The row under the card holds it, as wk-changes draws it.
+    // The row under the card holds it, as the design for a changed session draws it.
     assert.match(ticket, /<div class="ticketFoot joinFoot"><a class="joinButton"/);
     assert.doesNotMatch(said, /Hallward B12|Online this week|Add to calendar/);
 
-    // Home names the last session as such on its day (wk-lastweek-phone), and says it is online.
+    // Home names the last session as such on its day, and says it is online.
     const home = await w.homeCard("chloe");
     const homeTicket = ticketOf(home.html);
     assert.match(words(homeTicket), /Tonight · your last session · online Group B, 6pm to 8pm/);
@@ -459,7 +458,7 @@ describe("2b. who steps out while the group answers it", () => {
   });
 });
 
-describe("3. the last week on Home (wk-lastweek-phone)", () => {
+describe("3. the last week on Home", () => {
   test("on the last session's day: Tonight · your last session, the survey at the end above After tonight, then What’s next", async () => {
     allWeeksUp();
     springForm();
@@ -651,7 +650,7 @@ async function programmePage(who) {
   return { to: null, component, props: element.props, html, text: textOf(html) };
 }
 
-describe("4. after the end (en-after-phone, en-after-nofinish-phone)", () => {
+describe("4. after the end", () => {
   /** Thu 10 Dec: every group's calendar is past its last week. */
   const AFTER = "2026-12-10T12:00:00Z";
 

@@ -109,6 +109,9 @@ export const ARTIFACTS_DIR = join(REPO_ROOT, ".e2e-artifacts");
  *  - `password`: a fixture account's sign-in.
  *  - `adminUid`, `throttleId`: the one account in a run that the harness did
  *    not make, and a document id built from it.
+ *  - `questionSetBefore`: a site-wide question set as it stood before a spec
+ *    changed it, which names the admin who last changed it, so teardown can
+ *    put it back exactly.
  *
  * `writeState` lifts every value under one of these keys, at any depth, into
  * a second file in `privateDir()`, which is beside the state directory and
@@ -116,7 +119,7 @@ export const ARTIFACTS_DIR = join(REPO_ROOT, ".e2e-artifacts");
  * file, and a spec reads its state through `readState`, never by parsing the
  * ledger itself: `tests/e2e-ledger-credentials.test.mjs` holds all of that.
  */
-export const PRIVATE_KEYS = Object.freeze(["password", "adminUid", "throttleId"]);
+export const PRIVATE_KEYS = Object.freeze(["password", "adminUid", "throttleId", "questionSetBefore"]);
 
 /**
  * Where THIS process reads and writes its ledgers.
@@ -358,15 +361,46 @@ export const FIXTURE_COLLECTIONS = [
   // stage, the form's id on every one as `roundId`), who it was sent to with
   // each person's own link, and each person's answers, kept once. Written by
   // the survey routes a spec drives (make, edit, test, send, remind, answer,
-  // change a consent, close), and by nothing a fixture seeds. Found by the
-  // form, then by each survey's id.
+  // change a consent, close), and seeded by the survey admin spec's fixture
+  // (a survey sent and answered, and check-ins answered in two groups, each
+  // with the run's id as `runId`) and the programme surveys spec's (a
+  // programme's before survey, survey at the end and follow-up at 6 months,
+  // each sent and answered, and three weeks of check-ins). Found by the form
+  // or the run, then by each survey's id.
   "surveys",
   "surveyPeople",
   "surveyAnswers",
+  // Which check-ins each week of a programme showed its lead
+  // (`{runId}__w03`). Written by the scheduler's `surveys-check-in-weeks`
+  // job, never by a route a spec drives: the job looks at every run a
+  // programme names, so a spec that names a run whose weeks are whole can
+  // find one written under it on a project whose tick is armed. Seeded by
+  // the programme surveys spec's fixture as the job leaves each week of a
+  // run six months past its end. Counted and removed by its constructed id,
+  // so the manifest cannot read zero past one.
+  "checkInWeeks",
+  // ONLY the end of a programme's question set (`surveyQuestionSets/after`),
+  // and only through `surveyQuestionSetDoc()`. It is one document for the
+  // whole project, like `config/membership`: the survey admin spec changes its
+  // words in the browser and puts them back, and its fixture snapshots it
+  // before and restores it in teardown. `fixtureDoc` refuses every other set
+  // and `fixtureQuery` refuses the collection.
+  "surveyQuestionSets",
+  // The record of each time an admin opened people's survey answers: one
+  // person's answers, the names behind a bar or a comment, or the Answers
+  // table (`kind` survey-answers, survey-bar, survey-comment or survey-table),
+  // each with its survey's id as `surveyId`. Written by the survey routes a
+  // spec drives, before they read a name, and by nothing a fixture seeds.
+  "recordOpenings",
   // A person's Kairos choice, one document keyed by their uid. A survey's
   // answer route writes it only when the person changed the box on the form,
   // so a fixture account's is counted, and removed, by that uid.
   "kairosChoices",
+  // The record of a message sent from Messages: who wrote it, the tags it was
+  // for (their ids kept as `tagIds`, by which a fixture finds the sends to its
+  // own programme and groups), and how each person was reached. Written by
+  // the send route a spec drives, and by nothing a fixture seeds.
+  "messageSends",
   "courseEnrolments",
   "courseProgress",
   // A person's own rows on a week written as blocks: each reflection box they
@@ -374,11 +408,47 @@ export const FIXTURE_COLLECTIONS = [
   // route, by somebody holding a place on week 1 before groups go out too.
   // Written by nothing a fixture seeds.
   "courseExerciseResponses",
+  // The week you submit: where a person's week stands once they submit it or
+  // somebody reopens it (`courseWeekWork`), and the log of every tick, first
+  // save of a writing spell, emptied box, submit and reopen
+  // (`courseWorkLog`), each with `runId` on it. Written by the routes a spec
+  // drives (a tick, a box, the written answer, Submit, Reopen), and by
+  // nothing a fixture seeds.
+  "courseWeekWork",
+  "courseWorkLog",
+  // A facilitator's report on a session of their group, one a writer and
+  // session (`runId` on every one). Written by the session report route a
+  // spec drives, and by nothing a fixture seeds.
+  "courseSessionReports",
+  // Feedback on somebody's week (privacy v15), one row a piece, and the
+  // records of the "you have feedback" emails' test and batch (and a press's
+  // hold on the run while it sends), each with `runId` on it. Written by the
+  // feedback routes a spec drives, and by nothing a fixture seeds.
+  "courseFeedback",
+  "courseFeedbackSends",
+  // A rating for the team of somebody's written answer (privacy v15), one
+  // row a rater and answer, with `runId` on it. Written by the ratings route
+  // a spec drives, and by nothing a fixture seeds.
+  "courseWorkRatings",
   // What Claude picked from a week and what Pangram read in a person's
   // answers (privacy v13), each with `runId` on it. Written by the best
   // answers and Pangram routes a spec presses, and by nothing a fixture seeds.
   "courseBestAnswers",
   "coursePangramChecks",
+  // Claude's review of a week (privacy v15), with `runId` on it. Written by
+  // the week review's route a spec presses (in local mode through the
+  // harness's fake Claude), and by nothing a fixture seeds.
+  "courseWeekReviews",
+  // Claude's draft of an end-of-week note about one person (privacy v15),
+  // with `runId` on it. Seeded by the week review's fixture, as if Claude had
+  // drafted it, so its spec can save one and discard another from the week's
+  // Notes page; written by the draft route its spec presses.
+  "courseNoteDrafts",
+  // An explainer an admin schedules from a week's review, with `runId` on
+  // it. Written by the explainers' routes a spec presses (scheduled, then
+  // stamped cancelled, never deleted by them), and by nothing a fixture
+  // seeds; its fixture's teardown deletes it.
+  "courseExplainers",
   // The end of a programme: who finished (the run's rule, set on the
   // programme's Settings tab, and the lead's decisions on its Overview, each
   // with `runId` on it), and the certificates the Overview's send makes, one
@@ -410,6 +480,19 @@ export const FIXTURE_COLLECTIONS = [
   "dataExports",
   // Attendee rows the RSVP flow creates against a fixture event.
   "eventRsvps",
+  // An event for chosen people the authoring spec makes: who it is for, as the
+  // admin chose it, and the list of the people invited, each keyed on the
+  // event the admin's browser created (found by its title).
+  "eventAudiences",
+  "eventInvitations",
+  // Who came to a fixture event (`eventId` on every one): written by the
+  // door list's Check in, which the events at the door spec presses.
+  "eventCheckIns",
+  // The QR code of a fixture event's survey after it, made by the press that
+  // opened the survey and found by where it points (`/events/<id>/survey`,
+  // the event's id carrying the run's). A fixture never writes one, and
+  // deletes only those that point at its own events.
+  "trackedLinks",
   // The magic-link tokens /api/register and /api/verify-email/send mint, and
   // the signup tracker row the register route mirrors each new account into.
   // COUNT-ONLY through this chokepoint: both are removed by the auth harness's
@@ -430,6 +513,9 @@ export const FIXTURE_COLLECTIONS = [
 
 /** The one document id any fixture may address in the `config` collection. */
 export const MEMBERSHIP_CONFIG_DOC_ID = "membership";
+
+/** The one question set any fixture may address: the end of a programme's. */
+export const BORROWED_QUESTION_SET_ID = "after";
 
 /**
  * Subcollections a fixture may reach off a document the chokepoint produced.
@@ -504,6 +590,13 @@ export function fixtureDoc(collection, id) {
         "and only to snapshot it before a spec moves it and restore it afterwards.",
     );
   }
+  if (collection === "surveyQuestionSets" && id !== BORROWED_QUESTION_SET_ID) {
+    throw new Error(
+      `REFUSING to address surveyQuestionSets/${String(id)}. The only question set an e2e ` +
+        `fixture may reach is ${BORROWED_QUESTION_SET_ID}, through surveyQuestionSetDoc(), ` +
+        "and only to snapshot it before a spec changes it and restore it afterwards.",
+    );
+  }
   return db().collection(collection).doc(id);
 }
 
@@ -515,6 +608,13 @@ export function fixtureQuery(collection) {
       "REFUSING to query the config collection. A query would list every runtime " +
         `config document; a fixture may only address ${MEMBERSHIP_CONFIG_DOC_ID}, ` +
         "through membershipConfigDoc().",
+    );
+  }
+  if (collection === "surveyQuestionSets") {
+    throw new Error(
+      "REFUSING to query the surveyQuestionSets collection. A query would list every " +
+        `question set an admin keeps; a fixture may only address ${BORROWED_QUESTION_SET_ID}, ` +
+        "through surveyQuestionSetDoc().",
     );
   }
   return db().collection(collection);
@@ -536,6 +636,19 @@ export function fixtureSubcollection(parentCollection, parentId, collection) {
  */
 export function membershipConfigDoc() {
   return fixtureDoc("config", MEMBERSHIP_CONFIG_DOC_ID);
+}
+
+/**
+ * The end of a programme's question set, and the only permitted way to
+ * address `surveyQuestionSets`.
+ *
+ * The survey admin spec changes the set's words on its real page and makes a
+ * survey from it. The set is real configuration on a shared project, so the
+ * fixture reads it first, keeps it in its state file, and puts it back in
+ * teardown, whatever the spec reached.
+ */
+export function surveyQuestionSetDoc() {
+  return fixtureDoc("surveyQuestionSets", BORROWED_QUESTION_SET_ID);
 }
 
 /**

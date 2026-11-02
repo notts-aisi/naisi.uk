@@ -26,11 +26,20 @@ import { COURSE_PAGES_COLLECTION } from "./coursePages";
 import { countCourseGuide, courseGuideRefs } from "@/lib/courses/facilitatorGuide/store";
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
+import { COURSE_SESSION_REPORTS_COLLECTION } from "./courseSessionReports";
 import { PLACEMENT_NOTES_COLLECTION } from "@/lib/courses/placementNotes/model";
 import { BEST_ANSWERS_COLLECTION, PANGRAM_CHECKS_COLLECTION } from "@/lib/courses/coursework/collections";
+import { COURSE_WEEK_REVIEWS_COLLECTION } from "./courseWeekReviews";
+import { COURSE_EXPLAINERS_COLLECTION } from "./courseExplainers";
+import { COURSE_NOTE_DRAFTS_COLLECTION } from "./courseNoteDrafts";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
+import { COURSE_WEEK_WORK_COLLECTION } from "./courseWeekWork";
+import { COURSE_WORK_LOG_COLLECTION } from "./courseWorkLog";
+import { COURSE_FEEDBACK_COLLECTION, COURSE_FEEDBACK_SENDS_COLLECTION } from "./courseFeedback";
+import { COURSE_WORK_RATINGS_COLLECTION } from "./courseWorkRatings";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { RECORD_OPENINGS_COLLECTION } from "./recordOpenings";
+import { CHECK_IN_WEEKS_COLLECTION } from "./checkInWeeks";
 import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
 import { COURSE_UPDATES_COLLECTION } from "./courseUpdates";
 import {
@@ -43,6 +52,8 @@ import {
 import {
   MIRRORED_TASK_SOURCE,
   REGISTER_FOLLOW_UP_TASK_SOURCE,
+  REVIEW_FOLLOW_UP_TASK_SOURCE,
+  EXPLAINER_TASK_SOURCE,
 } from "./courseTasks";
 import { COURSE_MATERIAL_NOTES_COLLECTION } from "./courseMaterialNotes";
 import { DATA_EXPORTS_COLLECTION } from "./dataExports";
@@ -312,8 +323,8 @@ export type RunDestroyCounts = {
    */
   updates: number;
   /**
-   * `courseGroupNotes` rows: the notes each group's facilitators share (C30,
-   * `src/lib/firestore/courseGroupNotes.ts`). Staff writing about the run's
+   * `courseGroupNotes` rows: the notes each group's facilitators share
+   * (`src/lib/firestore/courseGroupNotes.ts`). Staff writing about the run's
    * groups, keyed by `runId` on the row like every other leaf here, and it
    * dies with the run: a note is about a group this cascade deletes, and
    * nothing can show it once the group is gone.
@@ -321,13 +332,22 @@ export type RunDestroyCounts = {
   groupNotes: number;
   /**
    * `courseGroupSharedNotes` rows: the notes a group's people and
-   * facilitators share with the group (C29,
-   * `src/lib/firestore/courseGroupSharedNotes.ts`). Keyed by `runId` on the
+   * facilitators share with the group
+   * (`src/lib/firestore/courseGroupSharedNotes.ts`). Keyed by `runId` on the
    * row like every other leaf here, and it dies with the run: a note is
    * shared with a group this cascade deletes, and nothing can show it once
    * the group is gone.
    */
   groupSharedNotes: number;
+  /**
+   * `courseSessionReports` rows: each facilitator's report on each session
+   * of the run's groups (`src/lib/firestore/courseSessionReports.ts`), which
+   * names the people in the group. Staff writing, keyed by `runId` on the row
+   * like every other leaf here, and it dies with the run: a report is about a
+   * session of a group this cascade deletes, and nothing can show it once the
+   * group is gone.
+   */
+  sessionReports: number;
   /**
    * `coursePlacementNotes` rows: what somebody who may publish chose for a
    * person placed outside the times they gave, a note of their own words or
@@ -346,6 +366,45 @@ export type RunDestroyCounts = {
    */
   bestAnswers: number;
   /**
+   * `courseWeekReviews` rows: Claude's review of each week of this run
+   * (privacy v15, `src/lib/firestore/courseWeekReviews.ts`): draft grades,
+   * what people found hard and who might need a hand. Keyed by `runId` on the
+   * row like every other leaf here, and it dies with the run: the privacy
+   * policy says what the tools return is kept with the programme's run and
+   * deleted with it.
+   */
+  weekReviews: number;
+  /**
+   * `tasks` carrying `source: "review-follow-up"` and pointing at this run:
+   * an admin asking a group's facilitators, from a week's review, to have a
+   * word with somebody. Counted apart from the other sourced tasks, as each
+   * is a different thing to the person reading the dialog.
+   */
+  reviewFollowUps: number;
+  /**
+   * `courseExplainers` rows: the explainers an admin scheduled from this
+   * run's week reviews, scheduled or cancelled. Keyed by `runId` on the row,
+   * and they die with the run: each opens a session of one of its groups.
+   */
+  explainers: number;
+  /**
+   * `tasks` carrying `source: "explainer"` and pointing at this run: one per
+   * session an explainer opens, for whoever gives it. Counted apart from the
+   * other sourced tasks, as each is a different thing to the person reading
+   * the dialog.
+   */
+  explainerTasks: number;
+  /**
+   * `courseNoteDrafts` rows: Claude's draft of an end-of-week note about each
+   * person, from each week of this run, waiting for an admin to save or
+   * discard it (privacy v15, `src/lib/firestore/courseNoteDrafts.ts`). Keyed
+   * by `runId` on the row like every other leaf here, and it dies with the
+   * run: the privacy policy says what the tools return is kept with the
+   * programme's run and deleted with it. A note an admin saved from one is
+   * the person's, in `memberNotes`, and stays.
+   */
+  noteDrafts: number;
+  /**
    * `coursePangramChecks` rows: Pangram's readings of each person's answers
    * on this run (privacy v13, `src/lib/courses/coursework/pangram.ts`). Keyed
    * by `runId` on the row like every other leaf here, and it dies with the
@@ -361,6 +420,49 @@ export type RunDestroyCounts = {
    * run: each record names a block of a week this cascade deletes.
    */
   packsAndCases: number;
+  /**
+   * `courseWeekWork` rows: where each person's week stands, when they
+   * submitted it and when somebody reopened it
+   * (`src/lib/firestore/courseWeekWork.ts`). Keyed by `runId` on the row like
+   * every other leaf here, and it dies with the run: each record names a week
+   * this cascade deletes.
+   */
+  weekWork: number;
+  /**
+   * `courseWorkLog` rows: what each person did to their weeks and when, a
+   * tick, a save, a submit, a reopen (`src/lib/firestore/courseWorkLog.ts`).
+   * Keyed by `runId` on the row like every other leaf here, and it dies with
+   * the run: each row names a week this cascade deletes.
+   */
+  workLog: number;
+  /**
+   * `courseFeedback` rows: each piece of feedback on somebody's week, signed
+   * with its writer's name, and whether its email went
+   * (`src/lib/firestore/courseFeedback.ts`). Keyed by `runId` on the row like
+   * every other leaf here, and it dies with the run: each piece names a week
+   * this cascade deletes.
+   */
+  feedback: number;
+  /**
+   * `courseFeedbackSends` rows: the "you have feedback" batch's own record,
+   * each test and each send, and a press in progress. Keyed by `runId` on the
+   * row like every other leaf here, and it dies with the run.
+   */
+  feedbackSends: number;
+  /**
+   * `courseWorkRatings` rows on this run: ratings for the team, an admin's
+   * or the programme's lead's rating of somebody's written answer with a
+   * comment for the team (`src/lib/firestore/courseWorkRatings.ts`).
+   *
+   * COUNTED, NEVER DELETED. A rating is about a person, as the notes kept
+   * about a person are, and the privacy policy keeps ratings while that
+   * person is a member: each one keeps the programme's name and the week it
+   * was given in, so it still says where it came from once the run has gone.
+   * It goes with the account of the person rated or of whoever gave it, and
+   * an admin clears out those about people who have left, by hand. The count
+   * is on the manifest so the dialog says they are kept.
+   */
+  workRatingsKept: number;
   /**
    * `coursePairs` rows: who was paired with whom for a session in pairs, and
    * who was bringing a laptop (`src/lib/firestore/coursePairs.ts`). Keyed by
@@ -392,6 +494,16 @@ export type RunDestroyCounts = {
    * account takes none of them.
    */
   recordOpenings: number;
+  /**
+   * `checkInWeeks` rows: which check-ins each week of this run showed the
+   * programme's lead, fixed the first time the week was whole
+   * (`src/lib/firestore/checkInWeeks.ts`). Keyed by `runId` on the row like
+   * every other leaf here, and it dies with the run: nothing can read a week
+   * of a run that is gone. Survey ids and a week number, nothing anybody
+   * wrote and nothing about a person; the check-ins themselves are surveys,
+   * which a destroy leaves alone (docs/surveys.md, "Deletion").
+   */
+  checkInWeeks: number;
   /**
    * `schedulerMarkers` rows this run owns: the send-dedupe markers the
    * scheduler tick writes before it sends anything.
@@ -1155,14 +1267,26 @@ export async function countRunDestroyTargets(
     updates,
     groupNotes,
     groupSharedNotes,
+    sessionReports,
     placementNotes,
     bestAnswers,
+    weekReviews,
+    reviewFollowUps,
+    explainers,
+    explainerTasks,
+    noteDrafts,
     pangramChecks,
     packsAndCases,
+    weekWork,
+    workLog,
+    feedback,
+    feedbackSends,
+    workRatingsKept,
     pairs,
     anonymousFeedbackCounts,
     predictions,
     recordOpenings,
+    checkInWeeks,
     schedulerMarkerCounts,
     emailSendCounts,
     exportCounts,
@@ -1234,14 +1358,44 @@ export async function countRunDestroyTargets(
     countAgg(db.collection(COURSE_GROUP_NOTES_COLLECTION).where("runId", "==", runId)),
     // The same single equality the group shared notes stage drains on.
     countAgg(db.collection(COURSE_GROUP_SHARED_NOTES_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the session reports stage drains on.
+    countAgg(db.collection(COURSE_SESSION_REPORTS_COLLECTION).where("runId", "==", runId)),
     // The same single equality the placement notes stage drains on.
     countAgg(db.collection(PLACEMENT_NOTES_COLLECTION).where("runId", "==", runId)),
     // The same single equality the best answers stage drains on.
     countAgg(db.collection(BEST_ANSWERS_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the week reviews stage drains on.
+    countAgg(db.collection(COURSE_WEEK_REVIEWS_COLLECTION).where("runId", "==", runId)),
+    // The review follow-ups' sweep, counted on the predicate its stage deletes on.
+    countAgg(
+      db
+        .collection("tasks")
+        .where("source", "==", REVIEW_FOLLOW_UP_TASK_SOURCE)
+        .where("sourceRef.cohortId", "==", runId),
+    ),
+    // The same single equality the explainers stage drains on.
+    countAgg(db.collection(COURSE_EXPLAINERS_COLLECTION).where("runId", "==", runId)),
+    // The explainers' tasks' sweep, counted on the predicate its stage deletes on.
+    countAgg(
+      db
+        .collection("tasks")
+        .where("source", "==", EXPLAINER_TASK_SOURCE)
+        .where("sourceRef.cohortId", "==", runId),
+    ),
+    // The same single equality the note drafts stage drains on.
+    countAgg(db.collection(COURSE_NOTE_DRAFTS_COLLECTION).where("runId", "==", runId)),
     // The same single equality the Pangram readings stage drains on.
     countAgg(db.collection(PANGRAM_CHECKS_COLLECTION).where("runId", "==", runId)),
     // The same single equality the packs and cases stage drains on.
     countAgg(db.collection(COURSE_PACKS_AND_CASES_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the weeks' work stages drain on.
+    countAgg(db.collection(COURSE_WEEK_WORK_COLLECTION).where("runId", "==", runId)),
+    countAgg(db.collection(COURSE_WORK_LOG_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the feedback stages drain on.
+    countAgg(db.collection(COURSE_FEEDBACK_COLLECTION).where("runId", "==", runId)),
+    countAgg(db.collection(COURSE_FEEDBACK_SENDS_COLLECTION).where("runId", "==", runId)),
+    // Ratings for the team are counted and KEPT: no stage drains them.
+    countAgg(db.collection(COURSE_WORK_RATINGS_COLLECTION).where("runId", "==", runId)),
     // The same single equality the pairs stage drains on.
     countAgg(db.collection(COURSE_PAIRS_COLLECTION).where("runId", "==", runId)),
     // The same single equality, on each of the three collections the
@@ -1255,6 +1409,8 @@ export async function countRunDestroyTargets(
     countAgg(db.collection(COURSE_PREDICTIONS_COLLECTION).where("runId", "==", runId)),
     // The same single equality the openings stage drains on.
     countAgg(db.collection(RECORD_OPENINGS_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the check-in weeks stage drains on.
+    countAgg(db.collection(CHECK_IN_WEEKS_COLLECTION).where("runId", "==", runId)),
     Promise.all(markerCountPromises),
     Promise.all(emailCountPromises),
     Promise.all(exportCountPromises),
@@ -1285,14 +1441,26 @@ export async function countRunDestroyTargets(
     updates,
     groupNotes,
     groupSharedNotes,
+    sessionReports,
     placementNotes,
     bestAnswers,
+    weekReviews,
+    reviewFollowUps,
+    explainers,
+    explainerTasks,
+    noteDrafts,
     pangramChecks,
     packsAndCases,
+    weekWork,
+    workLog,
+    feedback,
+    feedbackSends,
+    workRatingsKept,
     pairs,
     anonymousFeedback: anonymousFeedbackCounts.reduce((a, b) => a + b, 0),
     predictions,
     recordOpenings,
+    checkInWeeks,
     schedulerMarkers: schedulerMarkerCounts.reduce((a, b) => a + b, 0),
     emailSendRows: emailSendCounts.reduce((a, b) => a + b, 0),
     dataExportRows: exportCounts.reduce((a, b) => a + b, 0),
@@ -1589,9 +1757,10 @@ function auditIncrements(totals: Record<string, number>): Record<string, unknown
  *  3. Applications (email PII + denormalised names — same reasoning as
  *     accountDeletion's SCOPE note: with the run gone these render as ghost
  *     rows no surface can find).
- *  4. Machine-minted tasks, in two sweeps on the same collection (see
- *     drainSourcedTasks): the members' My Work week mirrors, then the
- *     committee board's unmarked-register follow-ups. The index note is in
+ *  4. Machine-minted tasks, in sweeps on the same collection, one a source
+ *     (see drainSourcedTasks): the members' My Work week mirrors, the
+ *     committee board's unmarked-register follow-ups, a week review's
+ *     follow-ups and the explainers' tasks. The index note is in
  *     drainSourcedTasks too.
  *  5. Nudge markers (courseNudges) — send-dedupe machinery keyed by runId;
  *     hygiene, so counted in `deleted` but not in the manifest. Then the
@@ -1804,6 +1973,19 @@ export async function destroyRunCascade(
         ),
     },
     {
+      key: "reviewFollowUps",
+      // The THIRD sweep on the same collection, for the week review's
+      // follow-ups, on the same predicate and for the same reasons as the
+      // two above: its own stage, paged and resumed on its own.
+      drain: () => drainSourcedTasks(db, storage, REVIEW_FOLLOW_UP_TASK_SOURCE, runId, budget),
+    },
+    {
+      key: "explainerTasks",
+      // The FOURTH sweep on the same collection, for the explainers' tasks,
+      // on the same predicate and for the same reasons as the three above.
+      drain: () => drainSourcedTasks(db, storage, EXPLAINER_TASK_SOURCE, runId, budget),
+    },
+    {
       key: "nudgeMarkers",
       drain: () => drainQuery(db, "courseNudges", byRunId("courseNudges"), budget),
     },
@@ -1873,6 +2055,16 @@ export async function destroyRunCascade(
         ),
     },
     {
+      key: "sessionReports",
+      // Each facilitator's report on each session: staff writing, a leaf
+      // keyed by `runId`, drained with the other leaves and BEFORE the groups
+      // each report is about. `write: if false` to every client, and the
+      // report route refuses a run carrying the destroy marker, so nothing
+      // recreates one behind the cascade.
+      drain: () =>
+        drainQuery(db, COURSE_SESSION_REPORTS_COLLECTION, byRunId(COURSE_SESSION_REPORTS_COLLECTION), budget),
+    },
+    {
       key: "placementNotes",
       // What was chosen for each person placed outside the times they gave:
       // a leaf keyed by `runId`, drained with the other leaves. `write: if
@@ -1890,6 +2082,30 @@ export async function destroyRunCascade(
       drain: () => drainQuery(db, BEST_ANSWERS_COLLECTION, byRunId(BEST_ANSWERS_COLLECTION), budget),
     },
     {
+      key: "weekReviews",
+      // Claude's review of each week: a leaf keyed by `runId`, drained with
+      // the other leaves. `write: if false` to every client, and its route
+      // reads the run first and finds nothing once it is being destroyed, so
+      // nothing recreates one behind the cascade.
+      drain: () => drainQuery(db, COURSE_WEEK_REVIEWS_COLLECTION, byRunId(COURSE_WEEK_REVIEWS_COLLECTION), budget),
+    },
+    {
+      key: "explainers",
+      // The explainers scheduled from the run's week reviews: a leaf keyed by
+      // `runId`, drained with the other leaves. `write: if false` to every
+      // client, and its route reads the run first and finds nothing once it
+      // is being destroyed, so nothing recreates one behind the cascade.
+      drain: () => drainQuery(db, COURSE_EXPLAINERS_COLLECTION, byRunId(COURSE_EXPLAINERS_COLLECTION), budget),
+    },
+    {
+      key: "noteDrafts",
+      // Claude's end-of-week drafts about each person: a leaf keyed by
+      // `runId`, drained with the other leaves. `write: if false` to every
+      // client, and the draft route reads the run first and finds nothing once
+      // it is being destroyed, so nothing recreates one behind the cascade.
+      drain: () => drainQuery(db, COURSE_NOTE_DRAFTS_COLLECTION, byRunId(COURSE_NOTE_DRAFTS_COLLECTION), budget),
+    },
+    {
       key: "pangramChecks",
       // Pangram's readings of each person's answers: a leaf keyed by `runId`,
       // drained with the other leaves, for the same reasons as bestAnswers.
@@ -1904,6 +2120,35 @@ export async function destroyRunCascade(
       // so nothing recreates one behind the cascade.
       drain: () =>
         drainQuery(db, COURSE_PACKS_AND_CASES_COLLECTION, byRunId(COURSE_PACKS_AND_CASES_COLLECTION), budget),
+    },
+    {
+      key: "weekWork",
+      // Where each person's week stands: a leaf keyed by `runId`, drained
+      // with the other leaves and BEFORE the weeks each record names. `write:
+      // if false` to every client, and the routes that write it (Submit and
+      // Reopen) read the run first and leave alone one being destroyed.
+      drain: () => drainQuery(db, COURSE_WEEK_WORK_COLLECTION, byRunId(COURSE_WEEK_WORK_COLLECTION), budget),
+    },
+    {
+      key: "workLog",
+      // What each person did to their weeks and when: a leaf keyed by
+      // `runId`, drained with the other leaves and BEFORE the weeks each row
+      // names. `write: if false` to every client.
+      drain: () => drainQuery(db, COURSE_WORK_LOG_COLLECTION, byRunId(COURSE_WORK_LOG_COLLECTION), budget),
+    },
+    {
+      key: "feedback",
+      // Each piece of feedback on somebody's week: a leaf keyed by `runId`,
+      // drained with the other leaves and BEFORE the weeks each piece names.
+      // `write: if false` to every client, and the feedback route reads the
+      // run first and leaves alone one being destroyed.
+      drain: () => drainQuery(db, COURSE_FEEDBACK_COLLECTION, byRunId(COURSE_FEEDBACK_COLLECTION), budget),
+    },
+    {
+      key: "feedbackSends",
+      // The batch email's own record: a leaf keyed by `runId`. `write: if
+      // false` to every client, and the batch's routes read the run first.
+      drain: () => drainQuery(db, COURSE_FEEDBACK_SENDS_COLLECTION, byRunId(COURSE_FEEDBACK_SENDS_COLLECTION), budget),
     },
     {
       key: "pairs",
@@ -1944,6 +2189,15 @@ export async function destroyRunCascade(
       // marker, so no row is added behind the cascade.
       drain: () =>
         drainQuery(db, RECORD_OPENINGS_COLLECTION, byRunId(RECORD_OPENINGS_COLLECTION), budget),
+    },
+    {
+      key: "checkInWeeks",
+      // Which check-ins each week showed the programme's lead: a leaf keyed by
+      // `runId` that names no group or week document, drained with the other
+      // leaves. `write: if false` to every client, and its one writer, the
+      // scheduler's job, reads the run first and leaves alone one being
+      // destroyed, so nothing recreates one behind the cascade.
+      drain: () => drainQuery(db, CHECK_IN_WEEKS_COLLECTION, byRunId(CHECK_IN_WEEKS_COLLECTION), budget),
     },
     {
       key: "groups",

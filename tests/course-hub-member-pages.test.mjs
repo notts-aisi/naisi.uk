@@ -1,8 +1,8 @@
 /**
- * The pages a member uses every week: their programme's home (boards
- * st-programme before the first session, wk-programme once it has started),
- * their marks with no target (C26), and Home's card for their programme
- * (wk-home-phone), where a reading is ticked off as it is on its week (C33).
+ * The pages a member uses every week: their programme's home
+ * (before the first session and once it has started),
+ * their marks with no target, and Home's card for their programme,
+ * where a reading is ticked off as it is on its week.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -14,8 +14,8 @@
  *     cancelled as Change a session says, and "Add to calendar" under it),
  *     "This week" or week 1's readings to tick, the weeks with their dates and
  *     states and when the next one opens, the updates, the group by first
- *     names, and nothing the boards draw that does not exist yet ("Can’t make
- *     it").
+ *     names, and "Can’t make it" only from the view the server page hands
+ *     the ticket (tests/course-session-cant-make-it.test.mjs presses it).
  *  2. YOUR MARKS: one per session with its mark, a legend of the marks used,
  *     the board's line, and NO COUNT anywhere a member reads: no "of", no "in
  *     full", no "so far". Late and left early are drawn as having come.
@@ -27,7 +27,7 @@
  *     before the start and on its week's own page is the same write of the
  *     same document; a facilitator's or a finished enrolment's tick writes
  *     nothing.
- *  6. No sentence on these pages has a dash (C35).
+ *  6. No sentence on these pages has a dash.
  *
  * Real: the overview, roster and hub routes, the three pages, the libraries.
  * Faked: the session, the Admin SDK handle, the clock, the stylesheets, the
@@ -65,7 +65,7 @@ const COUNTS = /\b\d+ of \d+ (sessions|so far)|in full|so far|attendance/i;
 // ---------------------------------------------------------------------------
 
 describe("1. the programme home", () => {
-  test("before the first session (st-programme), on Sat 31 Oct", async () => {
+  test("before the first session, on Sat 31 Oct", async () => {
     at("2026-10-31T12:00:00Z");
     await w.asBrowser("chloe");
     const { text } = w.programmeHome("chloe");
@@ -73,8 +73,8 @@ describe("1. the programme home", () => {
       text,
       "My programmes AGI Strategy " +
         "Fellowship · Autumn 2026 AGI Strategy Fellowship Group B · Tuesdays 6pm · Hallward B12 · with Rahul and Sofia " +
-        // "Add to calendar" under the room, as st-programme draws it: built
-        // since st-calendar-phone (the member's own calendar link).
+        // "Add to calendar" under the room, as the programme page before the first session draws it: built
+        // since the member's own calendar link.
         "Tue 3 Nov Your first session · week 1 Tue 3 Nov, 6pm to 8pm Hallward B12 R S with Rahul and Sofia Add to calendar " +
         "Before your first session 0 of 3 done Week 1 · Week 1 readings Thu 29 Oct to Wed 4 Nov " +
         "Week 1 reading one Reading 25 min Open Week 1 reading one " +
@@ -89,12 +89,14 @@ describe("1. the programme home", () => {
         "Week 5 Week 5 readings Tue 1 Dec Week 6 Week 6 readings Tue 8 Dec " +
         "You can read ahead: each week opens as soon as it’s published. See your progress week by week →",
     );
-    // "Add to calendar" exists now, once and on the ticket; "Can’t make it" still does not.
+    // "Add to calendar" exists now, once and on the ticket. "Can’t make it" is
+    // drawn only from the view the server page hands the ticket, which is not
+    // handed here (tests/course-session-cant-make-it.test.mjs draws it).
     assert.equal(text.match(/Add to calendar/g)?.length, 1);
-    assert.doesNotMatch(text, /Week \d of 6|Your marks|Can’t make it/);
+    assert.doesNotMatch(text, /Week \d of 6|Your sessions|Can’t make it/);
   });
 
-  test("in week 3, the day of the session (wk-programme)", async () => {
+  test("in week 3, the day of the session", async () => {
     await w.asBrowser("chloe");
     // Chloe did all of week 1, none of week 2, and one of week 3's three.
     w.ui.progress = new Map(["w1r1", "w1v1", "w1r2", "w3r1"].map((id) => [id, { itemId: id, completed: true }]));
@@ -103,7 +105,7 @@ describe("1. the programme home", () => {
       text,
       "My programmes AGI Strategy " +
         "Fellowship · Autumn 2026 AGI Strategy Fellowship Week 3 of 6 Group B · Tuesdays 6pm · Hallward B12 · with Rahul and Sofia " +
-        // "Add to calendar" under the room, as wk-programme draws it (st-calendar-phone).
+        // "Add to calendar" under the room, as the programme page draws it.
         "Tue 17 Nov Tonight · week 3 Tue 17 Nov, 6pm to 8pm Hallward B12 R S with Rahul and Sofia Add to calendar " +
         "This week 1 of 3 done Week 3 · Who decides what AGI means Thu 12 to Wed 18 Nov Open week 3 → " +
         // A week that is over is Done only when it is done: week 1's three, and not week 2's none (A3).
@@ -112,7 +114,7 @@ describe("1. the programme home", () => {
         // Week 4 is published, so it is open before tonight's session: a link with what is done of it.
         "Week 4 Week 4 readings Tue 24 Nov 0 of 3 " +
         "Week 5 Week 5 readings Tue 1 Dec Week 6 Week 6 readings Tue 8 Dec See your progress week by week → " +
-        "Your marks P 3 Nov P 10 Nov · 17 Nov · 24 Nov · 1 Dec · 8 Dec P Present · Not yet " +
+        "Your sessions P 3 Nov P 10 Nov · 17 Nov · 24 Nov · 1 Dec · 8 Dec P Present · Not yet " +
         "Your facilitators fill these in after each session. [RunUpdates] " +
         "Your group Group B CN Chloe (you) FH Farah KA Kofi R S Facilitators: Rahul and Sofia",
     );
@@ -127,7 +129,9 @@ describe("1. the programme home", () => {
     );
     assert.equal(html.match(/<path d="M5 12\.5l4\.5 4\.5L19 7\.5"/g)?.length, 1);
     assert.match(html, /aria-current="step"/);
-    // "Add to calendar" exists now, once and on the ticket; "Can’t make it" still does not.
+    // "Add to calendar" exists now, once and on the ticket. "Can’t make it" is
+    // drawn only from the view the server page hands the ticket, which is not
+    // handed here (tests/course-session-cant-make-it.test.mjs draws it).
     assert.equal(text.match(/Add to calendar/g)?.length, 1);
     assert.doesNotMatch(text, /Can’t make it|Names only/);
   });
@@ -146,7 +150,7 @@ describe("1. the programme home", () => {
     changeGroupB(w, { sessionOverrides: { w03: { location: "Room C21" } } });
     await w.asBrowser("chloe");
     const { text } = w.programmeHome("chloe");
-    // "Add to calendar" closes the ticket (st-calendar-phone), before "This week".
+    // "Add to calendar" closes the ticket, before "This week".
     assert.match(text, /Group B · Tuesdays 6pm · Hallward B12 · with Rahul and Sofia Tue 17 Nov Tonight · week 3 Tue 17 Nov, 6pm to 8pm Room C21 Room changed this week Add to calendar This week/);
   });
 
@@ -157,7 +161,7 @@ describe("1. the programme home", () => {
     await w.asBrowser("chloe");
     const { text } = w.programmeHome("chloe");
     assert.match(text, /No session tonight Tue 17 Nov is cancelled\. Rahul and Sofia are both away\. Do week 3’s reading anyway\. On Tue 24 Nov you’ll talk about weeks 3 and 4 together\./);
-    // Board wk-changes: the ticket of the session covering both weeks names its
+    // A changed session: the ticket of the session covering both weeks names its
     // day and both weeks over the hours ("Tue 1 Dec · weeks 4 and 5", "6pm to
     // 8pm"), so the day is said once under the stub's.
     assert.match(text, /Tue 24 Nov Tue 24 Nov · weeks 3 and 4 6pm to 8pm Hallward B12/);
@@ -172,12 +176,12 @@ describe("1. the programme home", () => {
     // Chloe did all of week 2 and nothing else.
     w.ui.progress = new Map(["w2r1", "w2v1", "w2r2"].map((id) => [id, { itemId: id, completed: true }]));
     const { text } = w.programmeHome("chloe");
-    // Boards en-after-phone and en-after-nofinish-phone: the programme's name
+    // The page after the end, whether somebody finished or not: the programme's name
     // in a card of its own with the thanks, the term and the group (Chloe's
     // record does not say Chloe finished, so nothing says so), what Chloe
     // keeps, and then the weeks, each still open.
     assert.match(text, /^My programmes AGI Strategy AGI Strategy has ended\. Thanks for being part of it\. Autumn 2026 · Group B\. What you keep The reading list for all 6 weeks The 6 weeks /);
-    assert.doesNotMatch(text, /Tonight|This week|Your next session|You finished|Your marks/);
+    assert.doesNotMatch(text, /Tonight|This week|Your next session|You finished|Your sessions/);
     // Every week is over: week 2, all of it done, is Done; the others, with nothing done, say Not done (A3).
     assert.match(text, /Tue 10 Nov · Done 3 of 3/);
     for (const day of ["Tue 3 Nov", "Tue 17 Nov", "Tue 24 Nov", "Tue 1 Dec", "Tue 8 Dec"]) assert.match(text, new RegExp(`${day} · Not done 0 of 3`));
@@ -189,7 +193,7 @@ describe("1. the programme home", () => {
     assert.match(text, /Tonight · week 3 Tue 17 Nov, 6pm to 8pm/);
     assert.match(text, /Week 4 Week 4 readings Tue 24 Nov /);
     assert.match(html, /href="\/learn\/[^"]+\/weeks\/4"/);
-    assert.doesNotMatch(text, /Your marks|Your group|This week|See your progress|Opens tonight/);
+    assert.doesNotMatch(text, /Your sessions|Your group|This week|See your progress|Opens tonight/);
     assert.doesNotMatch(html, /type="checkbox"/);
     // What is done of a week is a member's own: a facilitator is shown none, and a week whose session is over
     // is Done for them, with nothing of theirs to count.
@@ -203,7 +207,7 @@ describe("1. the programme home", () => {
     const { text } = w.programmeHome("zach");
     assert.match(text, /Week 3 of 6/);
     assert.match(text, /The 6 weeks Week 1 Week 1 readings Done/);
-    assert.doesNotMatch(text, /Your marks|Your group|This week|Tonight/);
+    assert.doesNotMatch(text, /Your sessions|Your group|This week|Tonight/);
   });
 
   for (const [who, why] of [
@@ -235,7 +239,7 @@ describe("2. your marks: one per session, a legend, and no count", () => {
 
   test("every mark there is, each said whole, with the legend of those used and the board's line", async () => {
     // The last day of the last week: every session is over and every mark
-    // final. (Once the week is over the page is en-after-phone's, which
+    // final. (Once the week is over the page is the one after the end, which
     // draws no marks.)
     at("2026-12-09T12:00:00Z");
     kofiMarks(["present", "late", "left-early", "excused", "absent", null], { notHeld: [] });
@@ -243,7 +247,7 @@ describe("2. your marks: one per session, a legend, and no count", () => {
     const { text, html } = w.programmeHome("kofi");
     assert.match(
       text,
-      /Your marks P 3 Nov L 10 Nov LE 17 Nov E 24 Nov A 1 Dec 8 Dec P Present L Late LE Left early E Excused A Absent Not marked Your facilitators fill these in after each session\./,
+      /Your sessions P 3 Nov L 10 Nov LE 17 Nov E 24 Nov A 1 Dec 8 Dec P Present L Late LE Left early E Excused A Absent Not filled in Your facilitators fill these in after each session\./,
     );
     for (const label of [
       "Week 1, Tue 3 Nov: Present",
@@ -251,7 +255,7 @@ describe("2. your marks: one per session, a legend, and no count", () => {
       "Week 3, Tue 17 Nov: Left early",
       "Week 4, Tue 24 Nov: Excused",
       "Week 5, Tue 1 Dec: Absent",
-      "Week 6, Tue 8 Dec: Not marked",
+      "Week 6, Tue 8 Dec: Not filled in",
     ]) {
       assert.match(html, new RegExp(`aria-label="${label}"`));
     }
@@ -301,21 +305,22 @@ describe("2. your marks: one per session, a legend, and no count", () => {
 // 3. Home's card
 // ---------------------------------------------------------------------------
 
-describe("3. Home's card (wk-home-phone)", () => {
+describe("3. Home's card", () => {
   test("on the day of a session: the ticket, the reading before tonight to tick, the group", async () => {
     await w.asBrowser("chloe");
     const home = await w.homeCard("chloe");
     assert.equal(
       home.text,
       "AGI Strategy · week 3 of 6 Hi Chloe. AGI Strategy Fellowship · Group B · week 3 of 6 " +
-        // "Add to calendar" in the row under the card, as wk-home-phone draws it (st-calendar-phone).
+        // "Add to calendar" in the row under the card, as the member's Home draws it.
         "Tue 17 Nov Tonight · week 3 Group B, 6pm to 8pm Hallward B12 R S with Rahul and Sofia Add to calendar " +
         "Before tonight 0 of 3 done Week 3 · Who decides what AGI means " +
         "Week 3 reading one Reading 25 min Week 3 talk Video 20 min Week 3 reading two Reading 30 min Open week 3 → " +
         "Your group Group B CN Chloe (you) FH Farah KA Kofi R S Facilitators: Rahul and Sofia",
     );
     assert.equal((home.html.match(/type="checkbox"/g) ?? []).length, 3);
-    // "Add to calendar" exists now, once and under the ticket; "Can’t make it" still does not.
+    // "Add to calendar" exists now, once and under the ticket. "Can’t make it"
+    // is the programme page's alone, never Home's.
     assert.equal(home.text.match(/Add to calendar/g)?.length, 1);
     assert.doesNotMatch(home.text, /Your attendance|Can’t make it/);
   });
@@ -365,15 +370,14 @@ describe("4. a reading ticked on Home, the programme home or its week is the sam
     week.onTick("material", "w3r1", true);
     await new Promise((resolve) => setImmediate(resolve));
 
+    // Both go through the one tick route, which writes the person's own row on the server.
     assert.equal(t.ui.writes.length, 2);
     const [fromHome, fromWeek] = t.ui.writes;
-    assert.equal(fromHome.path, `courseProgress/${RUN.agi}__chloe__w3r1`);
+    assert.equal(fromHome.path, `/api/courses/runs/${RUN.agi}/ticks/w3r1`);
+    assert.equal(fromHome.method, "PUT");
     assert.equal(fromWeek.path, fromHome.path);
     assert.deepEqual(fromWeek.data, fromHome.data);
-    assert.deepEqual(
-      { runId: fromHome.data.runId, uid: fromHome.data.uid, weekNumber: fromHome.data.weekNumber, itemKind: fromHome.data.itemKind, itemId: fromHome.data.itemId, completed: fromHome.data.completed },
-      { runId: RUN.agi, uid: "chloe", weekNumber: 3, itemKind: "material", itemId: "w3r1", completed: true },
-    );
+    assert.deepEqual(fromHome.data, { weekId: "w03", completed: true });
   });
 
   test("the programme home before the start and week 1's page write the same document", async () => {
@@ -388,9 +392,9 @@ describe("4. a reading ticked on Home, the programme home or its week is the sam
     week.onTick("material", "w1v1", true);
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(t.ui.writes.length, 2);
-    assert.equal(t.ui.writes[0].path, `courseProgress/${RUN.agi}__chloe__w1v1`);
+    assert.equal(t.ui.writes[0].path, `/api/courses/runs/${RUN.agi}/ticks/w1v1`);
     assert.deepEqual(t.ui.writes[1], t.ui.writes[0]);
-    assert.equal(t.ui.writes[0].data.weekNumber, 1);
+    assert.equal(t.ui.writes[0].data.weekId, "w01");
   });
 
   test("an untick writes the same document as not done", async () => {
@@ -399,7 +403,7 @@ describe("4. a reading ticked on Home, the programme home or its week is the sam
     await t.homeCard("chloe");
     rowsDrawn()[0].onTick("material", "w3r1", false);
     await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(t.ui.writes[0].path, `courseProgress/${RUN.agi}__chloe__w3r1`);
+    assert.equal(t.ui.writes[0].path, `/api/courses/runs/${RUN.agi}/ticks/w3r1`);
     assert.equal(t.ui.writes[0].data.completed, false);
   });
 
@@ -439,7 +443,7 @@ describe("4. a reading ticked on Home, the programme home or its week is the sam
 // 5. No dash
 // ---------------------------------------------------------------------------
 
-describe("5. no sentence on these pages has a dash (C35)", () => {
+describe("5. no sentence on these pages has a dash", () => {
   test("the programme home and Home's card, before, during and after", async () => {
     for (const when of ["2026-10-31T12:00:00Z", NOW.toISOString(), "2026-12-10T12:00:00Z"]) {
       at(when);

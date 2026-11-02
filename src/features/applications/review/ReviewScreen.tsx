@@ -1098,10 +1098,11 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
           ) : null}
 
           {/*
-            An admin's alone: the notes admins keep about this person (privacy
-            v13). Beside an application, only notes written after they agreed
-            to v13 are sent: what was written before stays with its own
-            programme. Keyed by the applicant.
+            An admin's alone: the notes the team keeps about this person
+            (privacy v13, v15), each saying who reads it. Beside an
+            application, only notes written after they agreed to v13 are sent:
+            what was written before stays with its own programme. Keyed by
+            the applicant.
           */}
           {viewer.isAdmin ? (
             <section className={styles.admin} aria-labelledby={`notes-${applicant.uid}`}>

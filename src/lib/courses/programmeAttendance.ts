@@ -2,7 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { clockWords, namesInWords } from "@/lib/courses/facilitatingEmail";
 import { runEndOf } from "@/lib/courses/finishing/runEnd";
-import { firstNameOfUser, fullNameOfUser, standingUserOf } from "@/lib/courses/programmeLead";
+import { firstNameOfUser, standingUserOf } from "@/lib/courses/programmeLead";
 import { displayNameOf } from "@/lib/courses/registerAccess";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { addDaysToKey, currentWeekFor, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
@@ -24,12 +24,13 @@ import {
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { readSchedulerConfig } from "@/lib/firestore/schedulerConfig";
+import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staffName";
 import { registerSwitchesIn, type RegisterSwitches } from "@/lib/scheduler/registerSwitches";
 
 /**
  * A PROGRAMME'S ATTENDANCE, WORKED OUT ONCE, ON THE SERVER: every register of
- * the course run a programme names, as its lead's Attendance tab draws it
- * (board wk-attendance). The tab's grid, its CSV, the Overview tab's figures
+ * the course run a programme names, as its lead's Attendance tab draws it.
+ * The tab's grid, its CSV, the Overview tab's figures
  * and the line under the programme's name all read this, so the four can
  * never disagree about a number.
  *
@@ -46,7 +47,7 @@ import { registerSwitchesIn, type RegisterSwitches } from "@/lib/scheduler/regis
  *    the people Publish has told their group. The register reads the same way.
  *  - Somebody who LEFT: an enrolment that has left the run, withdrawn by its
  *    owner or removed by staff, listed with the marks they had before they
- *    left (C27), for every viewer alike, and only where a register of the
+ *    left, for every viewer alike, and only where a register of the
  *    group holds a mark for them: the mark is the proof they were on that
  *    register, and somebody who left before any register marked them took
  *    no part, and is nobody's row. Both kinds keep the day they went
@@ -70,12 +71,15 @@ import { registerSwitchesIn, type RegisterSwitches } from "@/lib/scheduler/regis
  * produced by the normaliser yet; see `src/lib/courses/sessions.ts`). When a
  * second slot exists, this is where its column goes.
  *
- * NAMES ONLY. A person is their whole name (`fullNameOfUser`, never an
- * address), as the boards draw the lead's tabs and the Facilitators view
- * names people, so two who go by one first name are told apart; a sentence
- * that talks about somebody uses the name they go by. A facilitator is named
- * only while their account still stands behind the role
- * (`isNamedWithStanding`).
+ * NAMES ONLY, never an address, by the names rule for whoever the tab is
+ * drawn for (`nameForViewer`, with the viewer's `role`): the committee and
+ * admins see "Priya Shah (Pri)", so two who go by one first name are told
+ * apart, and a lead or facilitator who is not on the committee sees the
+ * name people go by. A caller drawing for nobody in particular (a file, an
+ * email, a record) passes no role, and every row reads by the name people
+ * go by. A sentence that talks about somebody uses the name they go by. A
+ * facilitator is named only while their account still stands behind the
+ * role (`isNamedWithStanding`).
  *
  * ONE ORDER OF GROUPS. The groups are listed in the order People in groups
  * draws its columns (`compareGroupsByMeeting`), so the grid, its CSV and the
@@ -197,7 +201,7 @@ const CAME: ReadonlySet<AttendanceStatus> = new Set(["present", "late", "left-ea
 
 /**
  * Absent at this many sessions in a row, with no excuse, is something the
- * lead is shown (wk-attendance's "2 in a row", wk-overview's "has missed 2
+ * lead is shown (the attendance grid's "2 in a row", the Overview tab's "has missed 2
  * sessions in a row without saying"). A rule of the board, not of a term.
  */
 export const ABSENT_IN_A_ROW = 2;
@@ -226,6 +230,22 @@ export type RunRecords = {
   /** The switches the register's ending reads. */
   switches: RegisterSwitches;
 };
+
+/**
+ * WHO A TAB IS DRAWN FOR. `isAdmin` decides who is a row (the register's
+ * rule, `placementIsShownTo`: an admin sees everybody placed, anybody else
+ * the people Publish has told). `role` decides the name each row is shown
+ * by, through the names rule (`nameForViewer`): the committee role and
+ * admins see the full name, everybody else the name people go by. Left out,
+ * every row reads by the name people go by, which is what the Kairos file,
+ * who finished's record and a certificate want.
+ */
+export type GridViewer = { isAdmin: boolean; role?: string | null };
+
+/** The name one account is shown by on these tabs, for this viewer. Never an address. */
+function personName(viewer: NameViewer, data: Record<string, unknown> | undefined): string {
+  return nameForViewer(viewer, accountNamesOf(data ?? {}), "NAISI member");
+}
 
 /** Accounts per addressed read. Well inside `getAll`'s own limits. */
 const ACCOUNT_BATCH = 300;
@@ -357,8 +377,12 @@ export function markWord(mark: AttendanceStatus): string {
 /** A facilitator of a group, while their account stands behind the role. */
 export type StandingFacilitator = { uid: string; firstName: string; name: string };
 
-/** A group's facilitators who still stand behind the role, in the group's own order. */
-export function facilitatorsOf(records: RunRecords, group: CourseGroupDoc): StandingFacilitator[] {
+/**
+ * A group's facilitators who still stand behind the role, in the group's own
+ * order: `name` by the names rule for `viewer` (none: the name they go by),
+ * `firstName` the name a sentence calls them by.
+ */
+export function facilitatorsOf(records: RunRecords, group: CourseGroupDoc, viewer: NameViewer = null): StandingFacilitator[] {
   const out: StandingFacilitator[] = [];
   for (const uid of [...new Set(group.facilitatorUids)]) {
     const data = records.accounts.get(uid);
@@ -366,7 +390,7 @@ export function facilitatorsOf(records: RunRecords, group: CourseGroupDoc): Stan
     if (!isNamedWithStanding(standingUserOf(uid, data), "courseGroups.facilitatorUids", group.facilitatorUids)) {
       continue;
     }
-    out.push({ uid, firstName: firstNameOfUser(data) || displayNameOf(data), name: fullNameOfUser(data) });
+    out.push({ uid, firstName: firstNameOfUser(data) || displayNameOf(data), name: personName(viewer, data) });
   }
   return out;
 }
@@ -580,7 +604,7 @@ export type ListedGroup = {
  */
 export function listGroups(
   records: RunRecords,
-  viewer: { isAdmin: boolean },
+  viewer: GridViewer,
   now: Date,
   weeks: readonly number[],
 ): ListedGroup[] {
@@ -618,16 +642,21 @@ export function listGroups(
         continue;
       }
       seen.add(enrolment.uid);
-      const name = fullNameOfUser(records.accounts.get(enrolment.uid) ?? {});
+      const name = personName(viewer, records.accounts.get(enrolment.uid));
       people.push({ enrolment, row: personRow(enrolment, name, weeks, sessions, over) });
     }
     people.sort((a, b) => a.row.name.localeCompare(b.row.name, "en-GB") || a.row.uid.localeCompare(b.row.uid));
-    return { group, sessions, facilitators: facilitatorsOf(records, group), people, notYetTold };
+    return { group, sessions, facilitators: facilitatorsOf(records, group, viewer), people, notYetTold };
   });
 }
 
-/** Every week number the run's plan or a group's own calendar teaches, in order. */
-export function weeksOf(records: RunRecords): number[] {
+/**
+ * Every week number the run's plan or a group's own calendar teaches, in
+ * order. It reads the run and its groups alone, so a reader that has only
+ * those (the scheduler's job that fixes each week's check-ins) asks the same
+ * question the tabs do.
+ */
+export function weeksOf(records: Pick<RunRecords, "run" | "groups">): number[] {
   const weeks = new Set<number>();
   for (const session of resolveSessions(records.run, null)) weeks.add(session.weekNumber);
   for (const group of records.groups) {
@@ -646,8 +675,7 @@ export type GroupLeaver = {
 };
 
 /**
- * WHO LEFT ONE GROUP, for the group's own register (the facilitators' page,
- * wk-fac-group): exactly the people the lead's grid lists in that group as
+ * WHO LEFT ONE GROUP, for the group's own register (the facilitators' page): exactly the people the lead's grid lists in that group as
  * having left, with the same words for when, so the register and the grid
  * can never disagree about who left a group or when. Listed for every
  * viewer alike, where a register of the group marked them (see "Who is a
@@ -705,7 +733,7 @@ function weekTotal(entries: readonly ListedGroup[], weekNumber: number): GridWee
  * THE GRID, as the Attendance tab draws it, for one viewer at one instant.
  * Pure: the records are read already.
  */
-export function buildRunAttendance(records: RunRecords, viewer: { isAdmin: boolean }, now: Date): RunAttendance {
+export function buildRunAttendance(records: RunRecords, viewer: GridViewer, now: Date): RunAttendance {
   const weeks = weeksOf(records);
   const thisWeek = runThisWeek(records.run, now);
   const listed = listGroups(records, viewer, now, weeks);

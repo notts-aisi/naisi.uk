@@ -1,6 +1,6 @@
 /**
  * The term after decision day, for the suites about asking people to
- * facilitate (boards st-facilitators and st-fac-ask-phone).
+ * facilitate.
  *
  * Built on `tests/lib/leadWorld.mjs` (the real handlers, the term's form, the
  * AGI Strategy run Claudia's programme names, its three groups). On top of it:
@@ -12,7 +12,7 @@
  *      omar   told "No offer this time", would facilitate AGI Strategy;
  *      wen    holds a Technical AI Safety place, said Either;
  *      nina   gave an AGI Strategy place back, would facilitate AGI Strategy;
- *      amara  holds an AGI Strategy place, said Either (Q21: never asked);
+ *      amara  holds an AGI Strategy place, said Either (never asked);
  *      ines   invited to AGI Strategy, not answered, would facilitate it;
  *      tariq  holds an AGI Strategy place, would facilitate Technical AI
  *             Safety only, so is not on AGI Strategy's list;

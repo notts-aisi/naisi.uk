@@ -13,7 +13,7 @@ import styles from "./surveyAdmin.module.css";
 import eventStyles from "./eventSurvey.module.css";
 
 /**
- * The Send tab of a survey after an event (sv-send), in three steps: who
+ * The Send tab of a survey after an event, in three steps: who
  * answers (the event, and who its email goes to), the QR code at the event,
  * and the email. Before the email goes, the choice of who it reaches and,
  * after the email, "Email 14 people"; after it, what went and when, the
@@ -125,7 +125,7 @@ export default function EventSendTab({ surveyId, view }: { surveyId: string; vie
         {view.joined && (
           <section className={`${styles.card} ${styles.section}`} aria-labelledby="send-joined">
             <h2 id="send-joined" className={styles.sectionTitle}>
-              {view.audience === "event-came" ? "Came since" : "Signed up since"}
+              {view.audience === "event-came" ? "Came since" : view.audience === "event-signups" ? "Signed up since" : "With a place since"}
             </h2>
             {view.joined.emails === 0 ? (
               <p className={`${styles.muted} ${styles.dashed}`}>{view.joined.nobody}</p>

@@ -220,9 +220,21 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/audience/load.ts",
+    {
+      why: "who a message may be for: it reads the term's form's programmes by the ids on that form's own programmeIds, for each programme's name, its run and its lead",
+    },
+  ],
+  [
     "src/lib/courses/programmeLead.ts",
     {
       why: "the one answer to who leads the programme that names a course run: it reads each form's programmes by the ids on that form's own programmeIds, to find the programme whose runId names the run and take its lead",
+    },
+  ],
+  [
+    "src/lib/scheduler/jobs/surveyCheckInWeeks.ts",
+    {
+      why: "the job that fixes each week of a programme's check-ins: it reads each form's programmes by the ids on that form's own programmeIds, to take the run each names, and then fixes a run's weeks only for the one programme namingProgrammeIn finds naming it",
     },
   ],
   [

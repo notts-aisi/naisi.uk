@@ -194,7 +194,7 @@ async function performUnsubscribe(signed: string | null): Promise<{
     //
     // `courses` is deliberately NOT flipped on the push column, and the two
     // cells of that row are the reason: its EMAIL cell gates cohort
-    // announcements and session nudges, while its PUSH cell gates an
+    // announcements, while its PUSH cell gates an
     // admissions decision, a stage release and a course placement. Those are
     // messages about somebody's own application and their own place on a run,
     // and a click at the foot of a cohort email must not be read as a refusal
@@ -255,6 +255,46 @@ async function performUnsubscribe(signed: string | null): Promise<{
   return { ok: false, error: "Token is missing a subject", status: 400 };
 }
 
+/**
+ * WHAT A CLICK STOPS, as the two pages say it.
+ *
+ * For every list but a programme's, everything that list sends. A programme's
+ * cohort list (`cohort:<runId>`) is different: unsubscribing from it stops the
+ * programme's OPTIONAL mail (its announcements), and its notices (among them
+ * "Week N is open" and the reminders before a session) keep coming while the
+ * person holds a place on it,
+ * because a notice is not read off the list at all (`resolveNoticeAudience` in
+ * `src/lib/email/courseFacilitatorEmails.ts`). "We won't send any more" would
+ * be untrue there, so the page says what does stop and what does not.
+ */
+function isCohortChannel(category: string): boolean {
+  return category.startsWith("cohort:");
+}
+
+/**
+ * The sentence after "You're about to unsubscribe ... from ...", on the
+ * confirm page. A constant either way, so it goes into the page unescaped.
+ */
+function stopsLine(category: string): string {
+  return isCohortChannel(category)
+    ? "We won't send this programme's optional emails to that inbox. You'll still get notices about running it while you hold a place on it."
+    : "We won't send any more to that inbox.";
+}
+
+/**
+ * The paragraph under "You're unsubscribed from ...", once it is done. A
+ * cohort list has no switch on /profile and no form on the homepage to put
+ * somebody back on it, so its page offers neither: the line below it, "Made a
+ * mistake ... Email us", is how somebody changes their mind about a programme.
+ * Markup of our own, and no value from the request.
+ */
+function doneLine(category: string): string {
+  return isCohortChannel(category)
+    ? "We won't send this programme's optional emails to this inbox. You'll still get notices about running it while you hold a place on it."
+    : "We won't send any more to this inbox. If you change your mind, you can re-enable delivery from your " +
+        '<a href="/profile">profile page</a> (members) or by re-subscribing on the homepage (guests).';
+}
+
 function htmlResponse(body: string, status = 200) {
   return new Response(body, {
     status,
@@ -311,7 +351,7 @@ export async function GET(req: Request) {
   </style>
 </head><body>
   <h1>Unsubscribe?</h1>
-  <p>You're about to unsubscribe <span class="email">${escapeHtml(obfuscated)}</span> from ${escapeHtml(scopeLabel)}. We won't send any more to that inbox.</p>
+  <p>You're about to unsubscribe <span class="email">${escapeHtml(obfuscated)}</span> from ${escapeHtml(scopeLabel)}. ${stopsLine(target.category)}</p>
   <p>If this isn't your email or you didn't expect to be here, just close the page. Nothing happens until you click the button below.</p>
   <form method="POST" action="${escapeHtml(formAction)}">
     <button type="submit">Confirm unsubscribe</button>
@@ -361,7 +401,7 @@ export async function POST(req: Request) {
   </style>
 </head><body>
   <h1>You're unsubscribed from ${escapeHtml(scopeLabel)}.</h1>
-  <p>We won't send any more to this inbox. If you change your mind, you can re-enable delivery from your <a href="/profile">profile page</a> (members) or by re-subscribing on the homepage (guests).</p>
+  <p>${doneLine(result.category ?? "")}</p>
   <p>Made a mistake, or want to stop other NAISI emails too? <a href="mailto:ai-safety@uonsu.com">Email us</a>.</p>
 </body></html>`);
 }

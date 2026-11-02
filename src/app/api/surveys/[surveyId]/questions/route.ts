@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { isCheckIn } from "@/lib/firestore/surveys";
 import { parseSave, saveSurvey } from "@/lib/surveys/create";
 import { canRunSurveys, isSurveyId, readSurvey } from "@/lib/surveys/repo";
 import { REFUSAL } from "@/lib/surveys/words";
@@ -9,7 +10,7 @@ import { REFUSAL } from "@/lib/surveys/words";
 type Ctx = { params: Promise<{ surveyId: string }> };
 
 /**
- * SAVE A SURVEY'S WORDS AND QUESTIONS from its editor (sv-edit): the title
+ * SAVE A SURVEY'S WORDS AND QUESTIONS from its editor: the title
  * and intro people see, how many minutes it takes, the day it closes, and the
  * questions' words, options, lines and order. Refused once the survey has
  * been sent: from then on the email people got names the day it closes, and
@@ -43,6 +44,8 @@ export async function POST(req: Request, ctx: Ctx) {
 
   const survey = await readSurvey(db, surveyId);
   if (!survey) return NextResponse.json({ error: REFUSAL.noSurvey }, { status: 404 });
+  // A check-in's questions are made from the group's week when it opens, and never change.
+  if (isCheckIn(survey)) return NextResponse.json({ error: REFUSAL.checkInNotSent }, { status: 409 });
   if (survey.firstSentAt) return NextResponse.json({ error: REFUSAL.sent }, { status: 409 });
 
   const now = new Date();

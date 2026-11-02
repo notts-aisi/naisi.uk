@@ -4,7 +4,7 @@ import type { SurveyCard } from "@/lib/surveys/waiting";
 import styles from "./SurveyCards.module.css";
 
 /**
- * "A SURVEY FOR YOU" (HANDOFF, "Home and My programmes"; Q50 B for week 1's
+ * "A SURVEY FOR YOU" (HANDOFF, "Home and My programmes"; also week 1's
  * first card): a card for each survey waiting for the person, worded on the
  * server by `surveysWaitingFor`, which is the one answer to whether one is
  * waiting. This only draws it: what it is, its programme, how long, when it

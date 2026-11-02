@@ -33,8 +33,8 @@ import styles from "./check.module.css";
  * nowhere on this step.
  */
 
-/** The full "Courses and programmes" section of the privacy notice. */
-const PRIVACY_HREF = "/privacy#courses";
+/** The privacy policy's "Applying to a programme" section. */
+const PRIVACY_HREF = "/privacy#applying";
 
 const SU_YES = "Yes";
 const SU_NOT_YET = "Not yet";

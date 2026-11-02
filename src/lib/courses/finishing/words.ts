@@ -1,8 +1,8 @@
 /**
  * THE WORDS OF WHO FINISHED, in one place: the lead's section on the
- * programme's Overview (board en-finish), the rule's card on Settings, the
+ * programme's Overview, the rule's card on Settings, the
  * routes' refusals, and what a member's own pages say once a programme is
- * over (C43).
+ * over.
  *
  * Every number and date comes in from a record; nothing here knows a term.
  * The board's own words are kept exactly, apostrophes included. Words the
@@ -163,7 +163,7 @@ export const RULE_HINT =
   "Of the sessions their group held: a cancelled session doesn’t count against anyone. After the last session, we tick everyone who came to this many, and you can change any. Only you and admins see this.";
 
 // ---------------------------------------------------------------------------
-// A member's own pages, once the programme is over (C43)
+// A member's own pages, once the programme is over
 // ---------------------------------------------------------------------------
 
 /** The run home's heading for somebody whose record says they finished. */
@@ -191,7 +191,7 @@ export function hasEnded(name: string): string {
 /** Under the heading for somebody who finished. */
 export const FINISHED_SUB = "Every week stays open, so you can go back to any of them.";
 
-/** The board's thanks under "has ended" (en-after-nofinish-phone). Never a word about finishing. */
+/** The board's thanks under "has ended". Never a word about finishing. */
 export const ENDED_THANKS = "Thanks for being part of it.";
 
 /** Under the heading for everybody else. The board's words, then the weeks. */

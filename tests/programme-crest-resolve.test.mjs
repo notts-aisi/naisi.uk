@@ -118,6 +118,7 @@ const SAME_WORD_NOT_A_CREST = new Map([
   ["src/lib/surveys/templates.ts", ["alignment", "an incubator's research strand, which words the impact questionnaire's question about research skills for that strand"]],
   ["src/lib/surveys/words.ts", ["alignment", "the same strand, choosing its label in a survey's words"]],
   ["src/app/(app)/admin/(admin-only)/surveys/new/page.tsx", ["alignment", "the same strand, counting an incubator template's questions"]],
+  ["src/lib/surveys/questionSets.ts", ["alignment", "the same strand: an incubator's template, the whole of a question set whose words an admin changes, and counting its questions"]],
 ]);
 
 test("no crest is spelled out in code but in the keys and the drawings", () => {

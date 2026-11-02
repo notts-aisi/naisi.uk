@@ -2,7 +2,7 @@
  * The format a week is written in (`docs/course-weeks.md`): the reader
  * (Markdown to blocks), the writer (blocks to Markdown, "Copy as Markdown"),
  * the ids a paste keeps (K16), and what the loader says it found and what to
- * check (board pr-weeks, Option B), in the board's words.
+ * check, in the board's words.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -301,7 +301,7 @@ describe("2. the guide's own Markdown, read", () => {
     const choose = three.blocks[0];
     assert.equal(choose.type, "chooseOne");
     assert.equal(choose.form, "table");
-    assert.equal(choose.givenBy, "facilitator", "the one you chose or were given: a facilitator's draw (Q32)");
+    assert.equal(choose.givenBy, "facilitator", "the one you chose or were given: a facilitator's draw");
     assert.equal(choose.title, "Pack");
     assert.equal(prosePlain(choose.questions), "Base rate: what has happened before?\nChange: what is different now?");
     assert.match(prosePlain(three.framing), /Read it against these:$/, "the line before the questions stays the part's");

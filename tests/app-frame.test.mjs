@@ -262,6 +262,17 @@ describe("every admin page somebody can open is lit in their own menu", () => {
     assert.equal(currentEntry(admin, "/admin/membership").href, "/admin/members");
     assert.equal(currentEntry(admin, "/admin/deliverability").label, "Settings");
     assert.equal(currentEntry(admin, "/admin/sources/some-slug").label, "Publicity");
+    // The three reports kept their addresses beneath Surveys' and belong to
+    // Reports: an entry that leads into one section is never lit on another's
+    // page, whatever its address holds.
+    for (const report of ["/admin/surveys/term", "/admin/surveys/public-numbers", "/admin/surveys/kairos", "/admin/surveys/kairos/r1/p1"]) {
+      assert.equal(currentEntry(admin, report).label, "Reports", report);
+    }
+    assert.equal(currentEntry(admin, "/admin/reports").label, "Reports");
+    assert.equal(currentEntry(admin, "/admin/surveys").label, "Surveys");
+    for (const survey of ["/admin/surveys/new", "/admin/surveys/s1/results", "/admin/surveys/termly/send"]) {
+      assert.equal(currentEntry(admin, survey).label, "Surveys", survey);
+    }
     // A page the menu does not hold marks nothing.
     assert.equal(currentEntry(all, "/credentials"), null);
     assert.equal(currentEntry(ENTRIES.filter((e) => e.rule === "memberAndUp"), "/admin/members"), null);
@@ -330,11 +341,16 @@ const ENTRY_RULES = {
   "/admin/members": ["adminOnly", "The (admin-only) group admits admins."],
   "/admin/membership": ["membershipAdmin", "The membership tree admits the grant; an admin reaches it through People."],
   "/events/manage": ["events", "The events area is open to the committee and to a draft or approve grant."],
+  "/messages": [
+    "messages",
+    "Messages writes for admins, a programme's lead and a group's facilitator, as the records say; anybody else reaching it by its address reads who it is for.",
+  ],
   "/newsletter": ["newsletter", "The newsletter tools need a draft or approve grant."],
   "/admin/links": ["adminOnly", "The (admin-only) group admits admins."],
   "/committee/tasks": ["suCommitteeAndUp", "The committee layout admits admins and SU-recognised committee."],
   "/worksheets": ["committeeAndUp", "Every committee member drafts worksheets."],
   "/admin/surveys": ["adminOnly", "The (admin-only) group admits admins, and only admins make, send and read surveys."],
+  "/admin/reports": ["adminOnly", "The (admin-only) group admits admins, and the term's numbers, public numbers and Kairos are admins' alone."],
   "/admin/site-status": ["adminOnly", "The (admin-only) group admits admins."],
 };
 
@@ -364,6 +380,9 @@ const RULE_BODIES = {
     '(v: Viewer) => v.role !== "admin" && (Boolean(v.permissions.draftCourse) || Boolean(v.permissions.approveCourse))',
   ],
   membershipAdmin: ["MEMBERSHIP_ADMIN_ACCESS", '(v: Viewer) => v.role !== "admin" && Boolean(v.permissions.manageMembership)'],
+  // Added with Messages (November 2026): who leads and who facilitates is in
+  // the records, not on the session, so the shell asks once (`useWritesMessages`).
+  messages: ["MESSAGES_ACCESS", '(v: Viewer) => v.role === "admin" || v.writesMessages'],
 };
 
 describe("regrouping the menu did not change who is shown what", () => {

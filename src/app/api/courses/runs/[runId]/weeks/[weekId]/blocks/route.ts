@@ -18,7 +18,7 @@ import { getCurrentUser } from "@/lib/firebase/session";
 import { emptyWeekFields, normalizeCourse, normalizeCourseRun, normalizeCourseWeek, type CourseWeekDoc } from "@/lib/firestore/courses";
 
 /**
- * LOADING A WEEK AS BLOCKS (board pr-weeks, Option B; Q39): the run's week
+ * LOADING A WEEK AS BLOCKS: the run's week
  * editor sends the week's Markdown here.
  *
  *   GET  ...  "Copy as Markdown": the stored block week, ids written in.
@@ -38,7 +38,7 @@ import { emptyWeekFields, normalizeCourse, normalizeCourseRun, normalizeCourseWe
  * WHO. Admins, and the lead of the programme that names the run, while they
  * stand as one (`programmeLedBy`, the lead's half of the gate every run route
  * a lead passes asks): the run's week editor sends here for an admin, the
- * programme's Weeks tab for its lead and admins (board pr-weeks, Q39). The
+ * programme's Weeks tab for its lead and admins. The
  * gate is decided before anything of the run is read (only the forms, for
  * whether the caller leads the programme that names it); every other caller
  * meets the same 403. Everything below is asked of the lead exactly as of an

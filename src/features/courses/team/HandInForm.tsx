@@ -23,7 +23,7 @@ import {
 import styles from "./team.module.css";
 
 /**
- * THE HAND-IN'S FORM (board en-handin-phone): the link, the summary with
+ * THE HAND-IN'S FORM: the link, the summary with
  * its word count, who did what, the showcase's date card, and at the foot,
  * resting on the screen's bottom bar, "I’ve shared this with George and
  * Lily", "Hand in for the team" and until when it can change.

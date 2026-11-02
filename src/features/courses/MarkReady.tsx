@@ -4,7 +4,7 @@ import { useState } from "react";
 import { MARK_READY, NOT_READY } from "@/lib/courses/weekReady";
 
 /**
- * "Mark ready" and "Not ready" for one week of a run (board pr-weeks, Q35):
+ * "Mark ready" and "Not ready" for one week of a run:
  * the one control for the one route that stores Ready
  * (`PUT /api/courses/runs/[runId]/weeks/[weekId]/ready`).
  *

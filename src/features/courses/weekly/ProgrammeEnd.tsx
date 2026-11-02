@@ -12,8 +12,7 @@ import styles from "./weekly.module.css";
 
 /**
  * THE END OF A PROGRAMME, ON A MEMBER'S PAGES: what happens after the last
- * session (wk-lastweek-phone) and what's next (wk-lastweek-phone,
- * en-after-phone, en-after-nofinish-phone). Each draws what it is handed and
+ * session and what's next. Each draws what it is handed and
  * reads nothing: the words are `memberPageWords`', the facts the overview
  * route's (`whatsNext`).
  *
@@ -101,7 +100,7 @@ export function WhatsNextCard({
         </div>
       )}
       {facilitate && (
-        /* Home's card rules between its rows; the programme page's section is a plain list (en-after-phone). */
+        /* Home's card rules between its rows; the programme page's section is a plain list. */
         <div className={line && look === "card" ? `${styles.nextRow} ${styles.nextRowRule}` : styles.nextRow}>
           <p className={styles.endLine}>{FACILITATE_NEXT_TERM}</p>
         </div>

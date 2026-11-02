@@ -46,6 +46,17 @@ const NOTICE_REASON: Record<EmailSendSurface, string> = {
   "event-survey": "you came to this event or signed up for it",
   // Whichever survey it was, the person sent it, and these are its questions they left blank.
   "survey-blanks": "you sent this survey with some of its questions left blank",
+  // The register marks the person at the session the check-in is about.
+  "course-check-in": "you were at this session of your course group",
+  // "Week N is open": everybody holding a place in the group.
+  "course-week": "you are in this course group",
+  // A reminder goes only to somebody whose week is not done, and says so.
+  "course-week-reminder": "our records show this week’s work isn’t finished",
+  // Messages goes as a notice only to people its writer runs a programme for:
+  // somebody holding a place on it, in one of its groups, or helping to run it.
+  messages: "you hold a place on a programme or help run one",
+  // Only the people holding a place on the programme get it as a notice.
+  "event-invitation": "you are on the programme this event is part of",
 };
 
 type Props = {

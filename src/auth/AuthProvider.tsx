@@ -13,11 +13,21 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { bypass } from "@/lib/devBypass";
 import { getClientAuth, getClientDb } from "@/lib/firebase/client";
 import type { Role } from "@/lib/firebase/session";
-import type { UserPermissions } from "@/lib/firestore/users";
+import { accountNameOf, type UserPermissions } from "@/lib/firestore/users";
 import { instance, watchdog } from "@/lib/devMonitor";
 
 type AuthState = {
   user: User | null;
+  /**
+   * The name this person goes by, read off their own `users` document by
+   * `accountNameOf`: the stored display name, else the preferred name, else
+   * null. NOT `user.displayName`, which is the Firebase Auth name and is empty
+   * for an account made with an email address and a password. The server
+   * gives `getCurrentUser().displayName` by the same rule, so a page that
+   * shows this shows what a route will store. Null until that document has
+   * been read, and while it holds no name.
+   */
+  accountName: string | null;
   role: Role | null;
   permissions: UserPermissions;
   /** True only for committee members the SU formally recognises (admin-set). */
@@ -43,6 +53,7 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState>({
   user: null,
+  accountName: null,
   role: null,
   permissions: {},
   suRecognised: false,
@@ -53,6 +64,7 @@ const AuthContext = createContext<AuthState>({
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [accountName, setAccountName] = useState<string | null>(null);
   const [role, setRole] = useState<Role | null>(null);
   const [permissions, setPermissions] = useState<UserPermissions>({});
   const [suRecognised, setSuRecognised] = useState(false);
@@ -75,6 +87,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const snapshot = bypass.getAuthSnapshot();
       if (bypassUser && snapshot) {
         setUser(bypassUser);
+        // The bypass admin has no document to read, so its fake Auth user's
+        // name stands in, through the same rule.
+        setAccountName(accountNameOf({ displayName: bypassUser.displayName }));
         setRole(snapshot.role);
         setPermissions(snapshot.permissions);
         setSuRecognised(snapshot.suRecognised);
@@ -84,6 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAdmissionsReviewer(false);
       } else {
         setUser(null);
+        setAccountName(null);
         setRole(null);
         setPermissions({});
         setSuRecognised(false);
@@ -172,6 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Leave role as null so pages can distinguish "needs to register"
         // from "registered and pending approval".
         const data = snap.exists() ? snap.data() : null;
+        setAccountName(accountNameOf(data));
         setRole(data ? ((data.role as Role) ?? "pending") : null);
         const raw = (data?.permissions as Record<string, unknown> | undefined) ?? {};
         setPermissions({
@@ -192,6 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Snapshot errored (permission-denied, offline, etc). Clear role so
         // gated UI bails out to the sign-in path rather than trusting stale
         // state, and let AuthProvider's server-session-aware callers re-auth.
+        setAccountName(null);
         setRole(null);
         setPermissions({});
         setSuRecognised(false);
@@ -208,6 +226,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       user,
+      accountName,
       role,
       permissions,
       suRecognised,
@@ -215,7 +234,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       authResolved,
     }),
-    [user, role, permissions, suRecognised, admissionsReviewer, loading, authResolved],
+    [user, accountName, role, permissions, suRecognised, admissionsReviewer, loading, authResolved],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

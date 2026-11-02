@@ -11,7 +11,7 @@ import { canRunSurveys } from "@/lib/surveys/repo";
 import { REFUSAL } from "@/lib/surveys/words";
 
 /**
- * PUBLISH A PROGRAMME'S NUMBERS AND QUOTES ON ITS PUBLIC PAGE (sv-public).
+ * PUBLISH A PROGRAMME'S NUMBERS AND QUOTES ON ITS PUBLIC PAGE.
  *
  *   POST { roundId, programmeId, numbers: [measure ids], quotes: [offered ids] }  ->  { ok: true }
  *

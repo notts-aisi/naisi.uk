@@ -1,6 +1,6 @@
 /**
- * A survey waiting for somebody, and week 1's first card (Q50 B;
- * docs/surveys.md, "The cards").
+ * A survey waiting for somebody, and week 1's first card
+ * (docs/surveys.md, "The cards").
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *

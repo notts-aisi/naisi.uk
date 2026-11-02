@@ -9,11 +9,12 @@ import PangramWeek from "./PangramWeek";
 import styles from "./CourseworkClaude.module.css";
 
 /**
- * UNDER THE COURSEWORK TAB'S TABLE (privacy v13): one week at a time, chosen
- * by plain links (`?week=3`, which keep the table's filters, as the filters
- * keep the week), then Claude's best answers to that week for an admin and
- * the programme's lead, and Pangram on that week FOR AN ADMIN ALONE: the
- * lead's page never draws it, and its routes turn the lead away too.
+ * UNDER THE COURSEWORK TAB'S TABLE (privacy v13), FOR AN ADMIN ALONE: one
+ * week at a time, chosen by plain links (`?week=3`, which keep the table's
+ * filters, as the filters keep the week), then Claude's best answers to that
+ * week and Pangram on it. The programme's lead may open the tab but is drawn
+ * none of this (privacy v15: what Claude returns is seen by admins only), and
+ * both panels' routes turn the lead away too.
  *
  * A server component handing its panels data only: the programme's ids, the
  * week's id, the address each person's page sits under and, for Pangram, the
@@ -35,6 +36,7 @@ type Props = {
 };
 
 export default function CourseworkWeekPanels({ roundId, programmeId, base, filter, columns, week, viewer, names }: Props) {
+  if (viewer !== "admin") return null;
   const column = columns.find((candidate) => candidate.weekNumber === week.weekNumber);
   if (!column) return null;
   const weekId = weekDocId(column.weekNumber);
@@ -68,11 +70,9 @@ export default function CourseworkWeekPanels({ roundId, programmeId, base, filte
         <div className={styles.card}>
           <BestAnswersPanel key={weekId} roundId={roundId} programmeId={programmeId} weekId={weekId} personBase={base} />
         </div>
-        {viewer === "admin" && (
-          <div className={styles.card}>
-            <PangramWeek key={weekId} roundId={roundId} programmeId={programmeId} weekId={weekId} names={names} personBase={base} />
-          </div>
-        )}
+        <div className={styles.card}>
+          <PangramWeek key={weekId} roundId={roundId} programmeId={programmeId} weekId={weekId} names={names} personBase={base} />
+        </div>
       </div>
     </section>
   );

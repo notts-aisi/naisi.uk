@@ -1,6 +1,6 @@
 /**
- * One week's page on a programme's Weeks tab (board pr-weeks, option B as
- * Q39 chose), the routes its controls send, and "Preview as a fellow".
+ * One week's page on a programme's Weeks tab (a week
+ * copied out as Markdown and pasted back), the routes its controls send, and "Preview as a fellow".
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -93,6 +93,7 @@ describe("1. one week's page", () => {
     const select = /<select[^>]*id="week-owner-w03"[^>]*>(.*?)<\/select>/.exec(page.html);
     assert.ok(select, "no owner menu");
     assert.match(select[0], /disabled=""/);
+    // Each by the names rule for the reader, who is the lead or an admin: the full name.
     assert.deepEqual([...select[1].matchAll(/<option[^>]*value="([^"]*)"[^>]*>([^<]*)<\/option>/g)].map((m) => [m[1], m[2]]), [
       ["claudia", "Claudia Reyes"],
       ["yusuf", "Yusuf Demir"],

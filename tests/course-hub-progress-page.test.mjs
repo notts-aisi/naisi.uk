@@ -141,10 +141,14 @@ describe("1. a week written as blocks counts This week's tasks", () => {
     assert.deepEqual(rowOf(await rowsFor("chloe"), 1), [0, 1, true]);
     // Ticked and not written: the task is not done.
     assert.deepEqual(rowOf(await rowsFor("chloe", needs.tickIds), 1), [0, 1, true]);
-    // Written and not ticked: not done either.
+    // Written and not ticked: not done either. Written on the Monday before
+    // Group B met for week 1 (Tue 3 Nov), while the week still took work: a
+    // week locks when its session starts (the week you submit).
+    mock.timers.setTime(Date.parse("2026-11-02T12:00:00Z"));
     for (const promptId of needs.promptIds) {
       assert.equal((await w.writeBox("chloe", promptId, "w01", "What I think, in a sentence.")).status, 200);
     }
+    mock.timers.setTime(NOW.getTime());
     assert.deepEqual(rowOf(await rowsFor("chloe"), 1), [0, 1, true]);
     // Both: done.
     assert.deepEqual(rowOf(await rowsFor("chloe", needs.tickIds), 1), [1, 1, true]);

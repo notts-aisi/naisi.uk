@@ -51,6 +51,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createLoader } from "./lib/tsLoader.mjs";
+import { EVENT_SURVEYS_JOB_STUBS } from "./lib/eventSurveysJobStubs.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const src = (...parts) => readFileSync(join(REPO_ROOT, "src", ...parts), "utf8");
@@ -150,9 +151,13 @@ const STUBS = new Map([
   [
     "@/lib/email/courseFacilitatorEmails",
     "export const resolveCohortAudience = async () => ({ members: [], skipped: 0, enrolledCount: 0, refusal: null });\n" +
+      // The week's emails' audience, which the registry's course jobs import.
+      "export const resolveNoticeAudience = async () => ({ members: [], skipped: 0, enrolledCount: 0, refusal: null, dropped: [] });\n" +
       "export const hasOptedOutOfCourseAnnouncements = () => false;\n" +
       "export const memberNameOf = () => '';",
   ],
+  // The event-surveys job's doors (tests/lib/eventSurveysJobStubs.mjs).
+  ...EVENT_SURVEYS_JOB_STUBS,
 ]);
 
 const { loadTs } = createLoader({ stubs: STUBS });

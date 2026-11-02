@@ -97,7 +97,7 @@ export const SPEC = {
       "/api/courses/runs/[runId]/weeks/[weekId]/blocks",
       "/api/courses/runs/[runId]/weeks/[weekId]/ready",
       "/api/courses/runs/[runId]/overview",
-      "/api/courses/runs/[runId]/week-one/ticks/[itemId]",
+      "/api/courses/runs/[runId]/ticks/[itemId]",
       "/api/courses/runs/[runId]/reflections/[promptId]",
       "/api/courses/runs/[runId]/my-exercises",
       "/api/courses/me",

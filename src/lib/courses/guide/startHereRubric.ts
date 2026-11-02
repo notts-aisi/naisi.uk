@@ -3,11 +3,11 @@ import { runsText, type Prose } from "../weekBlocks/prose";
 import type { StartHereDoc } from "./model";
 
 /**
- * START HERE'S RUBRIC, HELD TO THE COURSE'S. The written answer's card and
- * the feedback page tell a fellow the levels are "the rubric on Start here",
- * while feedback is given on the course's own rubric record
- * (`CourseDoc.rubric`, set in the course's details). An admin pastes the
- * table twice, once in each place, so nothing else holds the two together.
+ * START HERE'S RUBRIC, HELD TO THE COURSE'S. A fellow reads the rubric on
+ * Start here, as guidance for writing, and the course keeps its own rubric
+ * record (`CourseDoc.rubric`, set in the course's details). An admin pastes
+ * the table twice, once in each place, so nothing else holds the two
+ * together.
  *
  * The guide loader reads a Start here paste against the course's rubric and
  * names, among the things to check, a rubric on Start here that is not the
@@ -73,7 +73,7 @@ export function startHereRubricCheck(doc: StartHereDoc, course: CourseRubric | n
   const here = startHereRubricOf(doc);
   if (!here) return null;
   if (!course) {
-    return "Start here has a rubric, and the course has none, so feedback is a comment alone. Set the course’s rubric in its details if feedback should use these levels.";
+    return "Start here has a rubric, and the course has none. Set the course’s rubric in its details if it should keep these rows too.";
   }
   let detail: string;
   if (!same(here.levels, course.levels)) {
@@ -88,5 +88,5 @@ export function startHereRubricCheck(doc: StartHereDoc, course: CourseRubric | n
     if (cells === 0) return null;
     detail = cells === 1 ? "1 of its cells says something else" : `${cells} of its cells say something else`;
   }
-  return `Start here’s rubric isn’t the course’s, which feedback is given on: ${detail}. Make them the same, here or in the course’s details.`;
+  return `Start here’s rubric isn’t the course’s: ${detail}. Make them the same, here or in the course’s details.`;
 }

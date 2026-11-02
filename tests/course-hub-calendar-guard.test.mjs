@@ -7,7 +7,7 @@
  * ## The class this guards
  *
  * A calendar file is fetched by a calendar app, kept on a phone, synced to
- * another account, shared with a partner's calendar. Q23 keeps a group's
+ * another account, shared with a partner's calendar. The site keeps a group's
  * meeting link on the site, behind sign-in, and never in an email or a
  * calendar feed; a person's calendar link is a secret, which never goes into
  * a log line or an error. `tests/course-hub-meeting-link-guard.test.mjs`

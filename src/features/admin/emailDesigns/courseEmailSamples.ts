@@ -65,8 +65,8 @@ export const COURSE_PLACEMENT_PREVIEW_SAMPLE = {
  * sentence, and `where` is a room, never a meeting link. The names are made
  * up, as every sample here is.
  *
- * Hard-coded rather than imported from the composer's module for the same
- * reason the nudge's are: the token NAMES are the contract, and
+ * Hard-coded rather than imported from the composer's module: the token
+ * NAMES are the contract, and
  * `FACILITATING_TOKENS` in `src/lib/courses/facilitatingEmail.ts` is their
  * source of truth. `tests/email-unfilled-tokens.test.mjs` fails if the two
  * drift apart.
@@ -112,41 +112,6 @@ export const COURSE_INCUBATOR_PREVIEW_SAMPLE = {
   where: "Hallward Library, B12",
   leadName: "Jordan",
   programmeUrl: "https://naisi.uk/learn/research-incubator-autumn-2026",
-} as const;
-
-/**
- * Sample values for the weekly nudge's own tokens, which no other course
- * template resolves. Hard-coded rather than imported from
- * `src/lib/email/courseNudgeEmail.ts` because that module is `server-only` and
- * this one is pulled into a client component — the token NAMES are the shared
- * contract, and `COURSE_NUDGE_TOKEN_KEYS` there is the source of truth for them.
- * `tests/course-nudge.test.mjs` fails if this map and that list drift apart,
- * which is the only thing standing in for an import across that boundary.
- *
- * Shaped to look like a real send: `weekPrep` is a whole derived sentence (the
- * server counts the week's non-optional materials and required exercises),
- * `sessionWhen` is date-anchored rather than recurring because a weekly email
- * names the day it means, and `sessionWhere` is a room rather than a video link
- * — the nudge never puts a meeting URL in an inbox.
- *
- * WHAT THE PREVIEW CANNOT SHOW: every sample below resolves, so the preview
- * renders the template at full length. On a real send an unresolved token
- * deletes its whole paragraph instead of staying literal (see
- * `courseNudgeEmail.ts`), which is the opposite of what the other five
- * templates do — so a week with no summary sends a SHORTER email than this,
- * never a broken one.
- */
-export const COURSE_NUDGE_PREVIEW_SAMPLE = {
-  weekNumber: "3",
-  weekTitle: "Goal misgeneralisation",
-  weekSummary:
-    "Why a system that learned the right thing in training can still pursue the wrong one when the world shifts.",
-  sessionWhen: "Tue 21 Oct, 6pm to 7:30pm",
-  sessionWhere: "Hallward Library, B12",
-  weekPrep:
-    "There are four things to read or watch and one exercise to write up this week, about 2 hours in total.",
-  weekUrl: "https://naisi.uk/learn/asf-autumn-2026/weeks/3",
-  feedbackUrl: "https://forms.gle/naisi-weekly-feedback",
 } as const;
 
 /**
@@ -318,11 +283,7 @@ export function courseTemplateUsesAdmissionsTokens(
  * — it is exactly what the recipient would receive, so an admin who drops a
  * group token into the acceptance email sees the mistake here rather than in
  * someone's inbox. Same convention as applicationEmails' `{customReason}`.
- *
- * The weekly nudge is NOT on this list. It knows a recipient's group session
- * (`{sessionWhen}` / `{sessionWhere}`, below) but not the allocation trio: it
- * addresses people who were placed weeks ago, so naming their facilitator and
- * their FIRST session would be stale copy. It has its own token set instead.
+
  */
 export const COURSE_GROUP_TOKEN_TEMPLATES: readonly CourseTemplateId[] = [
   "course-allocated",
@@ -358,28 +319,9 @@ export function courseTemplateUsesIncubatorTokens(templateId: CourseTemplateId):
 }
 
 /**
- * Templates whose send path resolves the week-scoped tokens. One today; the
- * predicate exists so the editor and the preview ask the same question the
- * group-token pair does, rather than string-matching an id in two places.
- */
-export const COURSE_WEEK_TOKEN_TEMPLATES: readonly CourseTemplateId[] = [
-  "course-week-nudge",
-];
-
-export function courseTemplateUsesWeekTokens(templateId: CourseTemplateId): boolean {
-  return COURSE_WEEK_TOKEN_TEMPLATES.includes(templateId);
-}
-
-/**
  * LIFECYCLE templates whose send path resolves `{feedbackUrl}`. One today: the
  * drop-out confirmation, which reads it from
  * `config/courses.dropOutFeedbackUrl`.
- *
- * The weekly nudge resolves a `{feedbackUrl}` of its own (the WEEKLY form,
- * `config/courses.weeklyFeedbackUrl`) and is deliberately absent from this
- * list: it takes the week-token branch below, where its whole map comes from
- * `COURSE_NUDGE_PREVIEW_SAMPLE`. Two lanes, one token name, one meaning each,
- * and each lane's sample map is the one its own send path can resolve.
  *
  * A caution the preview cannot show: on a REAL send with no form configured
  * the token stays literal, because `personaliseBlocks` never blanks an
@@ -403,12 +345,8 @@ export function courseTemplateUsesFeedbackToken(
  * `buildCourseTokens` rather than hand-written so the preview cannot drift from
  * the real send-time shape (`preferredName` / `firstName` derivation included).
  *
- * THE NUDGE TAKES THE OTHER BRANCH, and the branch is the point: its send path
- * is `buildCourseNudgeTokens`, a DIFFERENT map, so feeding it the lifecycle
- * samples would resolve `{startDate}` and `{preferredName}` in the preview and
- * leave them literal in the real inbox — the exact drift this module exists to
- * prevent. Whatever this function hands back for a template is what that
- * template's send path can resolve, and nothing else.
+ * Whatever this function hands back for a template is what that template's
+ * send path can resolve, and nothing else.
  */
 export function courseSampleTokens(
   templateId: CourseTemplateId,
@@ -457,17 +395,6 @@ export function courseSampleTokens(
       firstName: firstWord(name),
       preferredName: name,
       ...COURSE_INCUBATOR_PREVIEW_SAMPLE,
-    };
-  }
-
-  if (courseTemplateUsesWeekTokens(templateId)) {
-    return {
-      courseTitle: COURSE_PREVIEW_SAMPLE.courseTitle,
-      runLabel: COURSE_PREVIEW_SAMPLE.runLabel,
-      // Same derivation the nudge does: first word of the display name, and no
-      // `preferredName` — the nudge greets with `{firstName}` alone.
-      firstName: firstWord(name),
-      ...COURSE_NUDGE_PREVIEW_SAMPLE,
     };
   }
 

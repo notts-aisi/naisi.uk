@@ -22,10 +22,12 @@ so it stops being hand-verified. Two modes:
   headless Chromium); `-- --local` drives them. See "The browser suite" below.
 
 Plain Node — `node --test`, no new npm dependencies, **zero files under `src/`**
-(one exception: the optional `FIREBASE_ADMIN_SERVICE_ACCOUNT_ID` hook in
+(two exceptions: the optional `FIREBASE_ADMIN_SERVICE_ACCOUNT_ID` hook in
 `src/lib/firebase/admin.ts`, inert unless that env var is set, which only
-run.mjs does). Nothing here ships to production, so there is no production
-guard that can be forgotten. It runs by hand from a laptop, and in CI on every
+run.mjs does; and `claudeBaseUrl` in `src/lib/ai/claude.ts`, which honours
+`ANTHROPIC_BASE_URL` only when it names a loopback address, see "A fake
+Claude in local mode"). Nothing here ships to production, so there is no
+production guard that can be forgotten. It runs by hand from a laptop, and in CI on every
 pull request and nightly (see "In CI" at the end).
 
 ```sh
@@ -78,9 +80,17 @@ rather than the record.
 | `course-hub-incubator-pitching-and-teams` | An incubator's pitching week and its teams on the same term, at a point of its own: the form's one programme is an incubator three weeks into its run, its one weekly group of five told by Publish, and week 3 its pitching week. The admin approves the five and names the run on the programme's Settings tab; three of them pitch (alone on one of the week's readings, as a pair on a paper typed in, alone again), read each other's pitches and pick the ones they would join up to the limit, and a pick past it is refused in the page's words; the pitching read answers what each page drew and refuses the lead; the lead's Pitches view counts who would join each and names nobody who picked; on the Teams tab the lead makes teams from two pitches, moves the one person left over with the Move to… menu, sends the team email's test to themselves and tells everyone with the count on its button. Each person's email names their own team, word for word, and nobody else's, and no email carries the meeting link. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the team email's test goes to the admin's own address |
 | `course-hub-leaving` | Leaving the programme by both doors, on the same term in week 4 (every register so far finished) and on a second run past its last session. One person leaves from their programme page: a title typed wrong is refused by the page and by the route, and they read the page that says they left and when, and nothing else, at the notes and reading list addresses too, with their group and its link gone from their programme page and Home, and a card on My programmes that says only that they left. A second gives the place back with "I can’t make it" on an application page opened before their place became a group, which a fresh look no longer offers. The leave's email is read word for word, with no reason and no link; the facilitator sees both last with the day on Home, the group page and a read only register; the lead reads each reason on the Overview and nowhere else, and the grid, its CSV, the board and Remove treat both as left. On the run past its end neither door offers leaving, and a press is refused in leaving's words. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because each leave's email is read out of the leaver's mailbox |
 | `course-hub-week-one-before-groups` | Week 1 before groups go out, on the same term just after decision day with its weeks 2 to 6 published and week 1 not written. The admin names the run and moves it on from draft, sets the day groups go out and loads Start here and the Glossary; as the programme's lead, writes week 1 on the Weeks tab (a synthetic week in the guide's shape, read, saved as a draft, which makes its page, previewed as a fellow) and marks it ready, which publishes it. A person holding a place reads only that their group is on its way until then, and then opens week 1 from Home and My programmes before anybody is handed over, reads Start here and the Glossary from it (its find box filters by a term's definition too), ticks a source and writes a reflection that are there after a reload, and finds week 2 and the groups shut. Somebody who gives their place back and somebody who never held one are refused in the pages' and the routes' words. After the hand-over, placing and Publish with its test, week 1 gives the group's due day with the tick and the reflection kept, and no email carries the meeting link. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because Publish's test goes to the admin's own address |
-| `course-hub-before-survey` | A programme's before survey on the term's first day, Publish having told everybody their group and no group met yet. The admin names the run, appoints a facilitator, makes the survey from its template on New survey (which then offers no second), changes its words, sends a test to themselves (read word for word, its link keeping nothing) and emails everybody holding a place their own link, after which the questions are fixed. One person answers every kind of question through their link signed out, the percentage by keyboard, and stops the follow-ups on the page that says they answered; one answers from the card on Home; one answers signed in inside the programme. The lead's results give totals with n and the response rate and the comments with no name; the facilitator is refused them and the download; Who answered and the download with names agree and the download is logged; the reminder, after its own test, reaches only the person who has not answered; Close it now ends it. No email carries an answer or the meeting link. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the tests go to the admin's own address and each person's link is read out of their mailbox |
+| `course-hub-before-survey` | A programme's before survey on the term's first day, Publish having told everybody their group and no group met yet. The admin names the run, appoints a facilitator, makes the survey from its template on New survey (which then offers no second), changes its words, sends a test to themselves (read word for word, its link keeping nothing) and emails everybody holding a place their own link, after which the questions are fixed. One person answers every kind of question through their link signed out, the percentage by keyboard, and stops the follow-ups on the page that says they answered; one answers from the card on Home; one answers signed in inside the programme. The lead's results give totals with n and the response rate and the comments with no name; the facilitator is refused them and the download; the Answers tab, its opening recorded first, and the download with names agree and the download is logged; See who opens one bar's people, recorded first, one question's file names nobody, and the survey's log says who opened what and never whose; the reminder, after its own test, reaches only the person who has not answered; Close it now ends it. No email carries an answer or the meeting link. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the tests go to the admin's own address and each person's link is read out of their mailbox |
 | `course-hub-programme-end` | A programme's end, on the same term at two points of its own: its last week, with its one group's last session tonight, and past its run's last session, with every register finished and somebody who left in week 3. In the last week the admin names the run, appoints the group's facilitator, makes the survey at the end from its template, sends a test to themselves and emails the person holding a place, whose Home then says tonight is the last session with the survey at the end under it, after tonight and what's next. After the last session the admin, as the programme's lead, sets the rule for who finished on Settings, appoints a facilitator, and on the Overview reads who finished by the rule with the person who left apart, ticks one more with the counts and the list agreeing, previews the first certificate and its email, sends a test to themselves and then the certificates, one email a person as the button says. The person who finished reads that they did, their certificate and what they keep, turns its link on and downloads its PDF; a stranger reads only what the certificate says and is refused the PDF, and a certificate whose link is off shows the same calm page as a code nobody has; the person who did not finish reads that the programme has ended and nothing about finishing; the person who left reads only that they left. No email carries the meeting link. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the survey's and the certificates' tests go to the admin's own address and each certificate email is read out of its owner's mailbox |
-| `events-rsvp` | A guest RSVP against a real event, through the public event page to the submitted confirmation. | Yes | Both |
+| `course-hub-check-in` | The check-in at the end of a session, on the same term three weeks in with one group of five whose session is under way: the admin names the run and appoints the group's facilitator, whose register offers the check-in on the session's day and counts the five once they are marked; opening it emails each a notice with a link of their own and none to the facilitator; two answer by their links, on its own page with the box at the top, and one signed in from the code the facilitator shows; a member who has not answered sees it on Home; the facilitator's card counts who has sent it and never who, and once closed shows the totals from three answers and no comment; once closed it is off Home and its link says so. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because each person's link is read out of their mailbox |
+| `messages` | Messages, on the same term three weeks in with everybody told their group, its form made the current term by the seed (a decision day later than any other form's on the server): the picker reads that term and offers the admin the programme's people; the admin names the running run, which gives its groups their tags, opens Messages from the programme's Messages tab set to its people (three people, all to be emailed, as a programme notice, with "Also post it on the programme's page" on) and reads See who; Send waits for a test, which reaches the admin's own address alone, marked as one, with no notice line; the send emails each of the three one notice saying why it reached them and nobody else, posts the message on the programme's page with what its email did, and leaves a record of the send with no address in it; Sent lists the send with who it reached by name and no address; and the run's home opens Messages set to the programme's people holding a place from "Email the whole cohort". | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the test goes to the admin's own address and each notice is read out of its person's mailbox |
+| `course-hub-week-review` | A week's review, an admin's page, on the same term three weeks in with its weeks written as blocks: the admin names the run and appoints Group A's facilitator; the Weeks tab offers Review beside each week whose first session has started and none beside week 4; the review says what would be sent before any press (one written answer, two reflections, one not included yet); who might need a hand is read from the site's own records with where each line came from; asking the facilitator to have a word with somebody makes one task with fixed words and no reason, which the facilitator finds on My Work; Review with Claude, pressed once, brings back draft grades, a theme and a hand (in local mode the fake's, asked its three asks once each with nobody's name in them); on the week's Notes one waiting draft is saved to a person's notes, another discarded, and Draft this week's notes, pressed once, drafts the one person left; next term's page suggests the saved note's person for facilitating. | Yes | Both |
+| `course-hub-work-loop` | The work loop on the same term three weeks in, two people in Group A with week 3 submitted and a written answer each: the admin names the run and appoints Group A's facilitator, who opens each answer from Feedback to write on the group's page (its review page drawing no rating for a facilitator) and saves feedback on it, emailing nobody; the admin, as the programme's lead, rates one answer for the team and reads the rating under What the team said; the programme's Overview lists both pieces under Feedback to send with the press locked until a test, the test reaches the admin alone, and the batch sends one email a person, each saying who left feedback and on what, with a link to the week's Feedback and none of its words, and nobody else in the term is emailed; the person follows the email to their week page and reads the feedback signed as their facilitator's and none of the rating, and the old feedback page lands on the same Feedback. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the batch's test goes to the admin's own address and each email is read out of its person's mailbox |
+| `course-hub-sessions-and-work` | A group's sessions and a week's work, on the same term three weeks in with Group A's week 3 register never opened and weeks 1 to 4 written as blocks: the admin names the run and appoints Group A's facilitator. A member presses Can't make it on their next session's ticket and the register says so to the facilitator; the facilitator finishes week 3's register, follows its link to the session report and sends one. The member writes week 4's written answer, goes through the check and presses Submit anyway, and the week reads submitted and locked; the facilitator presses Reopen on This week's work, the member's week page says who reopened it and until when, and the member changes the answer and submits again. The programme's lead opens the Surveys tab from the programme's head and follows its Overview's "Read the report" to the session reports, and reads the report there, with names. | Yes | Both |
+| `course-hub-programme-surveys` | A programme's Surveys tab as its lead reads it, on the same term six months past its run's last session, with the records its surveys would hold by then: the before survey and the survey at the end (paired) each answered by four of five, the follow-up at 6 months answered by two of the three who ticked its box, and three weeks of check-ins each fixed as the scheduler fixes a week. The admin names the run and opens the tab from the programme's head: the Overview's five cards count each view, the usefulness chart shows the weeks with enough answers and a dot for the rest, what was unclear moves between the weeks that show, and who came is the registers' count. Before, End and Follow-ups each list their survey with its count and closing day and lead to its results under the tab; Check-ins draws every week newest first as its floors allow (comments from five answers, totals from three, too few, none) with each group's check-in for an admin; End says what changed between the paired surveys, how it went, the facilitator line and what people wrote, with its links to Ratings and the anonymous form's answers. No page names anybody. | Yes | Both |
+| `course-hub-explainers-and-lead-notes` | An explainer and a lead's notes, on the same term three weeks in: the admin makes a waiting account SU-recognised committee on its member page and the programme's lead on the Settings tab (every grant on the real pages, none by the fixture), schedules an explainer with a typed topic from week 3's review for Group A's next session, given by that lead; the group's facilitator reads it on Home's ticket; the admin cancels it, its task closes and the ticket is clear; the lead, signed in, reads the note about a person kept for leads beside their weeks and never the one kept to admins, and adds, changes and deletes a note of their own. | Yes | Both |
+| `events-rsvp` | A guest RSVP against a real event, through the public event page to the submitted confirmation, with the services page the privacy policy points to read on the way. | Yes | Both |
+| `events-at-the-door` | An evening at the door, driven by the event's organiser, a member the admin lets draft events on their page: two events of theirs, one under way with two people holding a place (one a guest) and its survey switched off, one for chosen people (one person by name, and whoever came to the first) with a request waiting. The organiser finds both on Manage events, reads who is asking on Sign-ups with no address and approves them, opens the door and is shown numbers and no names; the admin checks the two in on the door list at a phone's size; the organiser presses Send it now, which sets the standard questions up and emails each person who came their own link, saves the other event's survey (which sets it up) and sends a test to their own address, and invites the one person new since, who finds it on Home; the admin reads that person's Events card. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the approval, the survey's emails and the test are read out of Mailpit |
 
 ## Safety properties
 
@@ -268,6 +278,104 @@ cannot be drained without corrupting a real number. It does sweep its
 `registrations` row, its subscription rows and the account itself, so the
 counters are the only thing a run of it leaves behind.
 
+### A fake Claude in local mode
+
+The site's own Claude features (a note's draft, a week's review, the
+end-of-week notes and the rest) all leave through one door,
+`src/lib/ai/claude.ts`. In local mode they never reach Anthropic: `run.mjs`
+starts a fake Claude in its own process on `127.0.0.1:3102`
+(`scripts/e2e/lib/fakeClaude.mjs`), the way it owns Mailpit, and forces two
+variables on the servers it starts (`:3100` and the persona server on
+`:3101`), shadowing anything in the shell or `.env.local`:
+
+- `ANTHROPIC_API_KEY` is `FAKE_CLAUDE_KEY`, which is not a key: Anthropic
+  would refuse it, and the fake refuses any other.
+- `ANTHROPIC_BASE_URL` is the fake's address. The door honours that variable
+  only when it is plain http to `127.0.0.1` or `[::1]` (`claudeBaseUrl`), and
+  gives the client Anthropic's address otherwise, so nothing a deployed
+  backend holds can point its key anywhere else, and nothing on a deployed
+  backend's loopback answers as Claude. `tests/claude-base-url.test.mjs` pins
+  that rule by execution, keeps the variable out of every `apphosting*.yaml`
+  and keeps every Claude variable out of the workflows.
+
+So a local run costs nothing and says the same thing every time. Against a
+deployed target (dev.naisi.uk) nothing here applies: the backend keeps its
+real key and the real model, and a spec there accepts a draft or any of the
+site's calm reasons and never asserts Claude's words.
+
+**What it answers.** `CANNED` in `fakeClaude.mjs` holds one entry per caller,
+recognised by the schema's top-level `required` keys and a phrase of the
+system prompt, with an answer built to pass that caller's own checker:
+
+| Caller | Stands in for | Routes that reach it |
+| --- | --- | --- |
+| `coursework-note-draft` | `askForNoteDraft` in `src/lib/courses/coursework/claude.ts` | a profile's note draft, a programme person's note draft, a week's end-of-week note draft (`.../weeks/[weekId]/notes/draft`) |
+| `week-review-grades`, `week-review-themes`, `week-review-hands` | `askForGrades`, `askForThemes`, `askForHands` in `src/lib/courses/weekReview/claude.ts` | Review with Claude (`.../weeks/[weekId]/review`) |
+
+The explainers (`.../weeks/[weekId]/explainers`, `.../explainers/[explainerId]`)
+send nothing to Claude, so they need no answer. Every other caller (the
+applications' reads, intake, arrangements, invitation notes, placement notes,
+a facilitator's case, a week's best answers) has none yet: the fake answers it
+400, which the site says as "Claude couldn't answer just now. Try again.", and
+prints a loud block in the run's output naming the schema and the start of the
+system prompt. A spec that presses one of those fails on purpose until it is
+added.
+
+The words are `FAKE_CLAUDE_WORDS`: a note's draft (with "the fellow", which the
+site puts back as the person's first name), a grade of 7 for every written
+answer, one theme on the first part citing every answer and report sent and no
+check-in, and one hand for the first fellow sent, resting on their own
+answers. Where a checker holds an answer to what was sent, the answer is
+built from the request's own message, so it never cites an id that was not
+sent.
+
+**How a spec uses it.** Local mode is the fake, so the usual
+`const deployed = origin !== HARNESS_LOCAL_ORIGIN` decides it:
+
+```js
+import { FAKE_CLAUDE_WORDS, fakeClaudeRequests } from "../../scripts/e2e/lib/fakeClaude.mjs";
+
+const asked = deployed ? 0 : (await fakeClaudeRequests()).length;
+// ... press the button, wait for its answer ...
+if (!deployed) {
+  // the page shows FAKE_CLAUDE_WORDS (with the person's name where the site puts it back)
+  const sent = (await fakeClaudeRequests()).slice(asked);
+  assert.deepEqual(sent.map((r) => r.caller), ["coursework-note-draft"]);
+  assert.ok(!sent[0].message.includes(person.displayName)); // what would have gone to Anthropic
+}
+```
+
+`fakeClaudeRequests()` reads the fake's log (`GET /fake/requests` on the
+address run.mjs hands the specs as `E2E_FAKE_CLAUDE_URL`): every request the
+servers sent since the run began, in order, each `{ at, caller, model,
+required, system, message }`, with `caller` null for one it did not
+recognise. The log spans the whole run, so take its length before the press
+and read what came after. `coursework-notes` is the worked example: it
+presses Claude's draft, holds the box to the fake's words with Ada's name put
+back and reads that no name or address of hers was sent; `course-hub-week-review`
+holds that drawing the review and the notes sends nothing, then presses Review
+with Claude and Draft this week's notes once each and reads the fake's answers
+on the page.
+
+**Adding a canned answer for a new caller.**
+
+1. Add an entry to `CANNED`: `caller` (a name for the log), `source` (the
+   file and function it stands in for), `required` (the schema's top-level
+   `required` keys), `system` (a phrase of the system prompt no other caller
+   has), `routes`, and `answer(message)`, returning the object Claude would
+   send. Read the caller's checker first: if it holds the answer to ids or
+   labels that were sent, build them from `message`, as the week review's
+   entries do. Put any words a spec will assert in `FAKE_CLAUDE_WORDS`.
+2. Add a case to `tests/e2e-fake-claude.test.mjs` that drives the caller's
+   REAL ask (its exported function, built from real input where the input is
+   built by a pure function) through the real door against the fake, adds the
+   caller to `DRIVEN`, and holds what the checker kept. The suite fails while
+   a `CANNED` entry has no case, so the two land together, and a later change
+   to the caller's prompt, schema or checker fails `npm test` rather than a
+   browser run.
+3. Run `node --test tests/e2e-fake-claude.test.mjs`, then the spec in local
+   mode.
+
 ## The browser suite (`npm run e2e:browser`)
 
 Browser-driven runs over whole journeys, so a dress rehearsal is one command
@@ -338,6 +446,7 @@ runner does not walk: it exports no `SPEC`, a spec module imports it, and
 a point: the course hub's term exists just after decision day
 (`decisions-sent`), three weeks into its run (`week-three`), three weeks in with
 one group's register for the week never opened (`week-three-unmarked`),
+the same with its weeks written as blocks and week 4 published (`week-three-work`),
 with an incubator as the form's one programme, three weeks in and in its
 pitching week (`pitching-week`), in week 4 with every register so far
 finished and a fourth person in Group A (`week-four`), past its run's last
@@ -347,7 +456,9 @@ first day, Publish having told everybody their group and no group met yet
 (`first-day`). The end of a programme is read at two more points: in its
 last week, with its one group's last session late on the seed's own day
 (`last-week`), and past its run's last session with every register finished
-and somebody who left in week 3 (`programme-over`). A spec that needs two
+and somebody who left in week 3 (`programme-over`), and a programme's surveys
+six months past its run's last session, with five people in two groups and
+every register finished (`six-months-on`). A spec that needs two
 points at once asks for both (`seedTerms`): each is a term of its own, keyed on the run id and a
 letter. A spec module looks like this:
 
@@ -418,9 +529,11 @@ shell. The runner checks for them BEFORE it seeds anything and names the file
 and the missing variables if they are not there.
 
 **A policy version shipping needs no console edit.** On a production build the
-member area sends any signed-in account whose stored `policyVersion` is behind
-`CURRENT_POLICY_VERSION` to `/re-consent` before it renders a page, and that
-includes the supplied admin account the first time it signs in after a bump.
+member area sends any signed-in account whose stored `policyVersion` needs the
+accept page (`needsPolicyAcceptance` in `src/lib/legal/acceptance.ts`: none,
+or an agreement older than privacy v15 or the current terms) to `/re-consent`
+before it renders a page, and that includes the supplied admin account the
+first time it signs in after version 15 or a new terms version ships.
 `signInWithPassword` handles it the way a person does: when the handoff lands
 on the consent page it presses the real Accept button (`acceptReConsentIfAsked`
 in `scripts/e2e/lib/browser.mjs`) and waits for the page's own navigation home,
@@ -620,6 +733,12 @@ files, and asserts the walk found the four that must always be in it:
   `config/membership` is addressable, only through `membershipConfigDoc()`, so
   a membership spec can move the current-period pointer and put it back
   without any fixture going near the scheduler cursors or the task email copy.
+  `surveyQuestionSets` has the same shape: only the end of a programme's set
+  (`surveyQuestionSets/after`) is addressable, only through
+  `surveyQuestionSetDoc()`, and the collection cannot be queried, so the survey
+  admin spec can change that set's words in the browser and its fixture can
+  put the set back exactly. The sweep skips both collections: a shared
+  document is restored from a ledger, never deleted by a run id.
   The scheduler's markers are narrower still. `schedulerMarkers` is on no list
   and every chokepoint refuses it; `registerReminderMarkerDoc()` addresses one
   register reminder marker of a fixture's own group, by an id it builds from a
@@ -706,8 +825,10 @@ keys off the origin rather than off the flag.
 The standing red team. Every route under `src/app/api` and every page under
 `src/app/(app)` is requested as every persona (`anonymous`, `pending`,
 `rejected`, `member`, non-SU `committee`, `suCommittee`, `admin`, a plain
-member holding each `permissions` key, and three who hold a role on a record:
-`lead`, `facilitator` and `participant`), and the answer is held to
+member holding each `permissions` key, three who hold a role on a programme,
+`lead`, `facilitator` and `participant`, two who hold a role on an event,
+`eventAuthor` and `eventCollaborator`, and `invitee`, on an event's list of
+the people invited to it), and the answer is held to
 `tests/persona-route-gates.registry.mjs`, the answer key a person wrote, cell
 by cell, with a reason per entry. Ids address nothing and bodies are empty, so
 what is asserted is each gate's answer to each persona and never a handler's
@@ -737,6 +858,20 @@ words, because the refusal and the page are both a 200; that reading is
 holds it to its rules. `dispose()` deletes every document the world wrote,
 before the personas are removed, reads every path again and returns what is
 left, and the battery fails unless that is nothing.
+
+**The same pass on two events.** The world also writes two published events,
+each with a request for a place waiting for a decision from an account that
+is none of the personas: THEIRS, written by the `eventAuthor` persona (a
+member holding draftEvent) and helped by the `eventCollaborator` persona
+(committee the SU does not recognise), and ANOTHER, written and helped by
+accounts that are none of the personas. Each set's ids carry the event (`id`)
+and the request (`rsvpId`). Each is for chosen people, its list naming its
+asker and, on THEIRS, the `invitee` persona. Every route and page whose code
+asks the sign-ups rule (`src/lib/events/signupAccess.ts`), or who runs an
+event's list (`src/lib/events/invitationAccess.ts`), has columns saying
+`world: "event"`, found from the code by the offline guard in both directions,
+and is asked about both events the same way. Being invited is no role on any
+of them, so no column names the invitee: it is held to the member's answers.
 
 **Where the elevated roles live.** The battery needs the personas the fence
 forbids, so `run.mjs` starts a Firestore emulator (a Java process, through the
@@ -924,11 +1059,13 @@ one, and a third of the browser specs on each of three
 (`node scripts/run-e2e.mjs --local --shard N/3`, split by
 `scripts/e2e/lib/shard.mjs`). Each machine builds and boots its own loopback
 server and Mailpit, so they share nothing but the dev project, where every row
-carries its run id. The one exception is the spec that borrows
-`config/membership`: it always runs in part 1 (`BORROWS_A_SHARED_SETTING`),
-and part 1 is the only part that waits in the shared queue described next.
-`tests/e2e-shards.test.mjs` holds that every spec lands in exactly one part
-and that a fixture reaching the shared document is on the list.
+carries its run id. The exceptions are the specs that borrow a document the
+whole project shares, `config/membership` (the membership console) and the end
+of a programme's question set (the survey admin spec): each always runs in
+part 1 (`BORROWS_A_SHARED_SETTING`), and part 1 is the only part that waits in
+the shared queue described next. `tests/e2e-shards.test.mjs` holds that every
+spec lands in exactly one part and that a fixture reaching either shared
+document is on the list.
 
 **Every run that borrows the shared setting waits behind the last one.** The
 nightly `dev` job and part 1 of the local job share one concurrency group, not
@@ -941,8 +1078,10 @@ but `config/membership` is a singleton: the membership spec snapshots that
 pointer, borrows it, and restores it in teardown. Two overlapping runs would
 restore a pointer to a period the other has already deleted, and both manifests
 would still read zero, so the corruption would be invisible to the thing meant
-to catch it. That is also why a pull request run and the 03:00 nightly cannot
-overlap.
+to catch it. The question set is the same: the survey admin spec snapshots it,
+changes its words and restores it, and an overlapping run would snapshot the
+other's change and put that back. That is also why a pull request run and the
+03:00 nightly cannot overlap.
 
 **The nightly checks out `dev`, not the default branch.** A scheduled run
 starts on `main`, and `dev.naisi.uk` deploys from `dev`, so a nightly that took

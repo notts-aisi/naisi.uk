@@ -4,8 +4,8 @@ import type { TickItem } from "../weekly/TickRows";
 
 /**
  * THE SOURCES OF A WEEK WRITTEN AS BLOCKS, AS ROWS TO TICK where a page lists
- * a week's reading without drawing the week (Home's card, wk-home-phone, and
- * the programme home before the first session, st-programme): the sources on
+ * a week's reading without drawing the week (Home's card, the member's Home on a phone, and
+ * the programme home before the first session): the sources on
  * the path, in page order. Never Go further, which is never counted. Of a
  * Choose one's packs, only the one the person has (`packs`, by the Choose
  * one's id, as the overview hands it): the others are not on their path. A

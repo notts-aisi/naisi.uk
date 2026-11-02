@@ -88,6 +88,7 @@ export const JOURNEY_STEPS = [
   "another sign-up takes the last place in the one-place session",
   "the new member signs in and lands past the pending gate",
   "a legacy account accepts the updated policy once and is not asked again",
+  "Home asks the member their full name once, and the answer is on their profile",
   "the profile grid shows the member their own subscriptions",
   "unticking a channel writes it through and survives a reload",
   "the column masters move every cell, and the locked row moves for nobody",
@@ -643,6 +644,10 @@ async function countRows(state) {
   counts.courseProgress = (
     await fixtureQuery("courseProgress").where("runId", "==", runIdValue).get()
   ).size;
+  // A tick goes through the tick route, which logs it.
+  counts.courseWorkLog = (
+    await fixtureQuery("courseWorkLog").where("runId", "==", runIdValue).get()
+  ).size;
   counts.courseAudit = (
     await fixtureQuery("courseAudit").where("runId", "==", runIdValue).get()
   ).size;
@@ -777,6 +782,7 @@ async function teardown(state) {
   }
   await deleteQuery(fixtureQuery("courseEnrolments").where("runId", "==", runIdValue));
   await deleteQuery(fixtureQuery("courseProgress").where("runId", "==", runIdValue));
+  await deleteQuery(fixtureQuery("courseWorkLog").where("runId", "==", runIdValue));
   await deleteQuery(fixtureQuery("courseAudit").where("runId", "==", runIdValue));
   await deleteQuery(fixtureQuery("tasks").where("sourceRef.cohortId", "==", runIdValue));
   await deleteQuery(fixtureQuery("courseGroups").where("runId", "==", runIdValue));
@@ -872,6 +878,7 @@ export const SPEC = {
       "/(auth)/login",
       "/re-consent",
       "/(app)/admin/(admin-only)",
+      "/(app)/dashboard",
       "/(app)/profile",
       "/(public)/courses/[courseId]",
     ],

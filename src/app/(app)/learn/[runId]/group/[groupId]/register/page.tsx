@@ -8,16 +8,17 @@ import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
 import { registerTitle } from "@/lib/courses/facilitatorPageWords";
 import { gateGroupRegister, loadRegisterMembers } from "@/lib/courses/registerAccess";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 
 /**
- * A GROUP'S REGISTER, on a page of its own (board wk-register: the register
+ * A GROUP'S REGISTER, on a page of its own (the register
  * under a way back to its group). "Take the register" on the group page and
  * on Home, and each register's "See it", lead here.
  *
  * The register itself is the one the group page used to hold
  * (`AttendanceGrid`): every tap saves, and the foot under it says how this
  * register ends. Whether it becomes one session per page is a question for
- * the boards' designers (C23), so the grid is kept as it is.
+ * the boards' designers, so the grid is kept as it is.
  *
  * THE GATE is the register's own (`gateGroupRegister`), restated here
  * because a page's only protection must not be a level above it: a live
@@ -61,6 +62,10 @@ export default async function GroupRegisterPage({
   // sentence. The rows are the register's own (`loadRegisterMembers`).
   const roster = await loadRegisterMembers(db, gated.runId, groupId, { isAdmin: gated.isAdmin });
   const namesToCome = roster.members.length === 0 && roster.notYetTold;
+  // Each of the group's live facilitators writes their own session report,
+  // so the finished register leads them on to it; an admin writes none.
+  const writesReports =
+    !gated.group.archived && isNamedWithStanding(access.user, "courseGroups.facilitatorUids", gated.group.facilitatorUids);
 
   return (
     <div className={`${facilitator.page} ${facilitator.registerPage}`}>
@@ -88,7 +93,7 @@ export default async function GroupRegisterPage({
       {/* The register owns its own week controls and its own horizontal
           overflow: a wide table handles its own responsiveness rather than
           widening the shell (the `.mainWide` rule). */}
-      <AttendanceGrid groupId={groupId} runId={runId} />
+      <AttendanceGrid groupId={groupId} runId={runId} reportHref={writesReports ? `${groupPath}/report` : undefined} />
     </div>
   );
 }

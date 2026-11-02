@@ -9,8 +9,8 @@ import { courseEnrolmentId, normalizeCourseEnrolment, placementIsTold } from "@/
 import { FREE_REMINDER_REPLY_TO, type FreeReminderEmail } from "./words";
 
 /**
- * "REMIND 3 PEOPLE" ON THE CARD OF WHO HAS NOT SAID WHEN THEY ARE FREE (boards
- * st-overview and st-overview-phone): who it emails, and the sending.
+ * "REMIND 3 PEOPLE" ON THE CARD OF WHO HAS NOT SAID WHEN THEY ARE FREE
+ * (the Overview tab before groups meet): who it emails, and the sending.
  *
  * ## Who
  *
@@ -26,7 +26,7 @@ import { FREE_REMINDER_REPLY_TO, type FreeReminderEmail } from "./words";
  *
  * ## The count is a promise
  *
- * The button shows how many this emails (C20). The route reads who again,
+ * The button shows how many this emails. The route reads who again,
  * and refuses a press whose number is no longer that, as every counted button
  * on the site does.
  *

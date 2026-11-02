@@ -6,12 +6,13 @@
  * that had not heard -> correct a pushed mark as an admin -> force the resend
  * -> read what actually went out.
  *
- * ## TWO ENDINGS, AND THE TARGET DECIDES WHICH (wk-register, option B)
+ * ## TWO ENDINGS, AND THE TARGET DECIDES WHICH
  *
- * The register's button is "Push attendance" while next week's email is NOT on
+ * The register's button is "Push attendance" while "Week N is open" is NOT on
  * its schedule (the `courses-next-week-email` job switched off, how it ships),
- * and pushing then emails the group about its next session. With that job
- * switched on the button is "Finish the register" and finishing emails NOBODY.
+ * and pushing then emails the group that its next week is open, as a notice.
+ * With that job switched on the button is "Finish the register" and
+ * finishing emails NOBODY.
  * The switch lives in Site status on the target, so this spec asks the
  * register's own GET which ending is live (`ending.scheduled`) and asserts
  * that one: the words under the button, the confirm, the answer, the mail and
@@ -203,7 +204,7 @@ test(
   async (t) => {
     const origin = baseUrl();
     const groupUrl = `${origin}/learn/${encodeURIComponent(state.runId)}/group/${encodeURIComponent(state.groupId)}`;
-    /** The group's register, on its own page beside the group's since board wk-fac-group. */
+    /** The group's register, on its own page beside the group's since the group page's restyle. */
     const registerUrl = `${groupUrl}/register`;
     /** True when this run's mail is caught by Mailpit rather than suppressed. */
     const mailFlows = state.suppress === false;
@@ -328,7 +329,7 @@ test(
         return body?.ending ?? null;
       }, state.groupId);
     }
-    /** True when next week's email is on its schedule on this target. */
+    /** True when "Week N is open" is on its schedule on this target. */
     let scheduled = false;
 
     /** A second tab, same identity, for the stale-tab leg. Closed at the end. */
@@ -363,8 +364,8 @@ test(
           "the roster did not list every seeded member",
         );
         // Every session of this fixture is over, so where the next session's
-        // ticket would be, the page says there are no more (board
-        // wk-fac-group's group page, since the register moved to its own page).
+        // ticket would be, the page says there are no more
+        // (on the group page, since the register moved to its own page).
         const sessionCard = page.getByTestId("session-card").first();
         await sessionCard.waitFor({ timeout: WAIT_MS });
         assert.equal(
@@ -373,8 +374,8 @@ test(
           "the group page does not say its sessions are over",
         );
 
-        // The register is a page of its own beside the group's (board
-        // wk-register). Each register's row on the group page leads there:
+        // The register is a page of its own beside the group's.
+        // Each register's row on the group page leads there:
         // four rows, one a session, each one's register not finished yet.
         const registerRows = page.getByRole("region", { name: "Registers", exact: true }).getByRole("listitem");
         assert.equal(await registerRows.count(), state.weekCount, "the group page does not list a register a session");
@@ -403,13 +404,13 @@ test(
           "the register's caption did not name this group",
         );
 
-        // THE FOOT: wk-register's ending, under the grid. Which words it says
+        // THE FOOT: the register page's ending, under the grid. Which words it says
         // is the target's switch, read here once and asserted on from now on.
         const ending = await readEnding(page);
         assert.ok(ending, "the register's GET carries no ending");
         scheduled = ending.scheduled === true;
         console.log(
-          `[register-spec] next week's email is ${scheduled ? "on its schedule: Finish the register, nobody emailed" : "sent by the push: Push attendance"}.`,
+          `[register-spec] the week's email is ${scheduled ? "on its schedule: Finish the register, nobody emailed" : "sent by the push: Push attendance"}.`,
         );
         const foot = page.getByTestId("register-ending");
         await foot.waitFor({ timeout: WAIT_MS });
@@ -429,8 +430,8 @@ test(
             footText,
             /Locks the register and shows everyone their mark\. It’s the group’s last session, so nobody’s emailed\./,
           );
-          assert.doesNotMatch(footText, /about next week/);
-          assert.doesNotMatch(footText, /If nobody pushes, nobody gets next week’s email\./);
+          assert.doesNotMatch(footText, /is open\./, "the foot promises a week's email after the last session");
+          assert.doesNotMatch(footText, /If nobody pushes, nobody gets/);
         }
       });
 
@@ -466,7 +467,7 @@ test(
             `row ${mark.row}, column ${mark.col} did not land on ${mark.status}`,
           );
         }
-        // Every tap saves, and says so with the time (wk-register's "Saved
+        // Every tap saves, and says so with the time (the register page's "Saved
         // 7:58pm"), in London's hours and minutes.
         await page
           .locator('[role="status"]')
@@ -775,10 +776,9 @@ test(
         const confirmResend = page.getByTestId("attendance-resend-confirm");
         await confirmResend.waitFor({ timeout: WAIT_MS });
         // The promise the dialog makes about blast radius: this group and
-        // nobody else. It is the whole reason the per-group force exists
-        // beside the run-wide catch-up.
+        // nobody else. It is the whole reason the resend is per group.
         const dialogCopy = (
-          await page.getByRole("dialog", { name: "Re-send this group's reminder" }).innerText()
+          await page.getByRole("dialog", { name: "Re-send this group's email" }).innerText()
         ).replace(/\s+/g, " ");
         assert.match(
           dialogCopy,
@@ -846,7 +846,15 @@ test(
               `expected the push and the resend to log one row each for a member, got ${sends.size}`,
             );
             for (const doc of sends.docs) {
-              assert.equal(doc.data().kind, "course-nudge", "a send logged the wrong kind");
+              // "Week N is open", a notice: its kind and surface on the
+              // receipt, and its own words in the subject.
+              assert.equal(doc.data().kind, "notice", "a send logged the wrong kind");
+              assert.equal(doc.data().surface, "course-week", "a send logged the wrong surface");
+              assert.match(
+                doc.data().subject,
+                new RegExp(`^Week ${NEXT_WEEK} is open`),
+                `the push sent something other than week ${NEXT_WEEK}'s email: ${doc.data().subject}`,
+              );
               assert.equal(
                 doc.data().referenceId,
                 state.runId,

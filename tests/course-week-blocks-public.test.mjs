@@ -1,5 +1,5 @@
 /**
- * A week written as blocks on the public course pages (Q40): its title, Why
+ * A week written as blocks on the public course pages: its title, Why
  * this week, After this week you can and the sources with their times, and
  * nothing that is behind sign-in. A week written before blocks is drawn by
  * `WeekCurriculum`, unchanged: its frozen render is

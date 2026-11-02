@@ -1,5 +1,5 @@
 /**
- * Updates (Q18): the pages that write and show them, as every kind of caller.
+ * Updates: the pages that write and show them, as every kind of caller.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -59,11 +59,14 @@ const STYLESHEETS = [
   "./Updates.module.css",
   "./UpdateComposer.module.css",
   "@/features/courses/updates/Messages.module.css",
-  // The facilitator's pages (boards wk-fac-group, wk-fac-home-phone): their own sheet and the
+  // The facilitator's pages: their own sheet and the
   // member's pages' shared one, since the group page and the Attendance tab draw their cards.
   "@/features/courses/weekly/weekly.module.css",
   "./facilitator.module.css",
   "@/features/courses/facilitator/facilitator.module.css",
+  // This week's work's Reopen (the week you submit): its button's sheet and the confirm's.
+  "./written.module.css",
+  "./Modal.module.css",
 ];
 /** A card of the group page that is not about updates: it draws its name. */
 const CARD = (name) => `export default function ${name}() { return globalThis.__updatesPagesUi.h("div", null, "[${name}]"); }`;
@@ -196,8 +199,11 @@ describe("1. the Messages tab is the lead's and an admin's", () => {
       assert.deepEqual(
         composer.props.audiences.map((a) => [a.key, a.label, a.emails]),
         [
-          ["everyone", "Everyone on AGI Strategy (5)", 3],
-          [`group:${B}`, "Group B (3)", 1],
+          // The email reaches everybody told whose address is not stopped,
+          // Ines among them though she unsubscribed from the cohort list: an
+          // update is a notice.
+          ["everyone", "Everyone on AGI Strategy (5)", 4],
+          [`group:${B}`, "Group B (3)", 2],
           [`group:${C}`, "Group C (1)", 1],
           [`group:${A}`, "Group A (1)", 1],
           ["facilitators", "The facilitators (3)", 3],
@@ -209,8 +215,8 @@ describe("1. the Messages tab is the lead's and an admin's", () => {
         [
           ["The week 3 guide", "Claudia → Facilitators · Mon 16 Nov · Not emailed"],
           ["Group A meets in A13", "Sofia → Group A · Mon 16 Nov · Emailed to 1"],
-          ["Room change for Group B this week", "Rahul → Group B · Mon 16 Nov · Emailed to 1"],
-          ["Week 3 readings are up", "Claudia → Everyone · Thu 12 Nov · Emailed to 3"],
+          ["Room change for Group B this week", "Rahul → Group B · Mon 16 Nov · Emailed to 2"],
+          ["Week 3 readings are up", "Claudia → Everyone · Thu 12 Nov · Emailed to 4"],
         ],
       );
       assert.match(drawn.text, /New update To Everyone on AGI Strategy \(5\) Group B \(3\)/);
@@ -229,9 +235,9 @@ describe("1. the Messages tab is the lead's and an admin's", () => {
       );
       assert.match(
         drawn.text,
-        /Or a group, or the facilitators 1 person placed in groups hasn’t been told their group yet\. They’ll read this once Publish tells them, and won’t be emailed it\. Title Message 0 \/ 4,000 Also email it Emails 3 people/,
+        /Or a group, or the facilitators 1 person placed in groups hasn’t been told their group yet\. They’ll read this once Publish tells them, and won’t be emailed it\. Title Message 0 \/ 4,000 Also email it Emails 4 people/,
       );
-      assert.match(drawn.text, /Send a test to me Post and email 3 people/);
+      assert.match(drawn.text, /Send a test to me Post and email 4 people/);
       assert.equal(drawn.wrote, false);
     });
   }
@@ -264,14 +270,16 @@ describe("1. the Messages tab is the lead's and an admin's", () => {
     assert.match((await messages("zach")).text, /AGI Strategy doesn’t name a course run yet\. Name it/);
   });
 
-  test("the tab is a link for an admin and the lead, and drawn but not a link for a reviewer", () => {
+  test("the tab is a link for an admin and the lead, and not drawn for a reviewer", () => {
     const tabs = (groupsOpen) =>
       renderToStaticMarkup(
         createElement(ProgrammeTabs, { base: PAGE_PATH, applications: 5, groups: 3, canEdit: groupsOpen, groupsOpen }),
       );
     assert.match(tabs(true), new RegExp(`<a href="${PAGE_PATH}/messages" class="tab tabCurrent" aria-current="page">Messages</a>`));
     assert.doesNotMatch(tabs(false), /\/messages/);
-    assert.match(tabs(false), /<span class="tab tabPending" aria-disabled="true" title="Not built yet">Messages<\/span>/);
+    // A reviewer's row is Applications alone, as a link: no Messages tab at all.
+    assert.doesNotMatch(tabs(false), />Messages</);
+    assert.deepEqual([...tabs(false).matchAll(/<(a|span)\b[^>]*class="tab[ "]/g)].map((m) => m[1]), ["a"]);
   });
 });
 
@@ -280,13 +288,13 @@ describe("1. the Messages tab is the lead's and an admin's", () => {
 // ---------------------------------------------------------------------------
 
 describe("2. a facilitator's group page", () => {
-  // The page drawn to wk-fac-group: "Write to Group B (7)" is one of the two
+  // The page drawn to the facilitator's group page: "Write to Group B (7)" is one of the two
   // buttons of its head (the house link-as-button, "button"), beside "Change a
   // session", and the line saying what the update emails sits under both.
   test("Write to Group B, counted as the press counts, and the line under it", async () => {
     const drawn = await groupPage("rahul");
     assert.match(drawn.html, new RegExp(`<a href="${GROUP_PATH(B)}/update" class="button">Write to Group B \\(3\\)</a>`));
-    assert.match(drawn.text, /Write to Group B \(3\) Change a session Posts an update to the group and emails 1 person\. Replies go to ai-safety@uonsu\.com\./);
+    assert.match(drawn.text, /Write to Group B \(3\) Change a session Posts an update to the group and emails 2 people\. Replies go to ai-safety@uonsu\.com\./);
     assert.equal(drawn.wrote, false);
   });
 
@@ -311,7 +319,9 @@ describe("2. a facilitator's group page", () => {
   });
 
   test("the line says so when nobody in the group can be emailed yet", async () => {
-    world.db.poke("subscriptions/cohort__tariq", { subscribed: false });
+    // Tariq, Group C's one person, has an address that is stopped. (Off the
+    // cohort list he would still be emailed: an update is a notice.)
+    world.db.seed("suppressedEmails/tariq@example.com", { email: "tariq@example.com", reason: "bounce", source: "manual" });
     const drawn = await groupPage("tom", C);
     assert.match(drawn.text, /Write to Group C \(1\) Change a session Posts an update to the group\. Nobody in it can be emailed yet\./);
   });
@@ -347,12 +357,12 @@ describe("3. the composer for one group", () => {
         to: "group",
         groupId: B,
         label: "Group B (3)",
-        emails: 1,
+        emails: 2,
         refused: false,
         notYetTold: "1 person placed in Group B hasn’t been told their group yet. They’ll read this once Publish tells them, and won’t be emailed it.",
       },
     ]);
-    assert.match(drawn.text, /Write to Group B Posts an update to the group and emails 1 person\. Replies go to ai-safety@uonsu\.com\. Back to the group/);
+    assert.match(drawn.text, /Write to Group B Posts an update to the group and emails 2 people\. Replies go to ai-safety@uonsu\.com\. Back to the group/);
     assert.match(
       drawn.text,
       /New update To Group B \(3\) 1 person placed in Group B hasn’t been told their group yet\. They’ll read this once Publish tells them, and won’t be emailed it\. Title Message/,
@@ -486,7 +496,7 @@ describe("4. the member's section, the composer, and a message as text", () => {
   test("the run home draws the section, after the marks and before the facilitator's cards", () => {
     const source = readFileSync(join(SRC, "features", "courses", "RunHome.tsx"), "utf8");
     assert.equal((source.match(/<RunUpdates runId=\{runId\} \/>/g) ?? []).length, 1);
-    // The marks are "Your marks" since the restyle (board wk-programme), and
+    // The marks are "Your marks" since the restyle, and
     // still drawn first: the board's column reads marks, then updates.
     assert.ok(source.indexOf("<YourMarks") > 0);
     assert.ok(source.indexOf("<YourMarks") < source.indexOf("<RunUpdates"));

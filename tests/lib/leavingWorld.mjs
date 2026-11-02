@@ -1,6 +1,5 @@
 /**
- * Week 3 of AGI Strategy's run, for the suite about leaving a run (Q12,
- * board wk-left-phone) and what everybody else then sees of somebody who left.
+ * Week 3 of AGI Strategy's run, for the suite about leaving a run and what everybody else then sees of somebody who left.
  *
  * Built on `tests/lib/hubAttendanceWorld.mjs`: the run in its third week as
  * the lead's tabs draw it (four groups and their registers; Sam, who left on

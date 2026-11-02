@@ -11,7 +11,7 @@ import { REFUSAL } from "@/lib/surveys/words";
 type Ctx = { params: Promise<{ surveyId: string }> };
 
 /**
- * OPEN A SURVEY AFTER AN EVENT FOR ITS QR CODE (sv-send, "At the event"):
+ * OPEN A SURVEY AFTER AN EVENT FOR ITS QR CODE ("At the event"):
  * from this moment it takes answers from anybody signed in who came or
  * signed up, through the code's page, until it closes. It fixes the
  * survey's questions, words and closing day, as a first send does, and is

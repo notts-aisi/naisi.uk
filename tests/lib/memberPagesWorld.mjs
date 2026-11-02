@@ -1,9 +1,9 @@
 /**
  * Week 3 of AGI Strategy's run, for the suites about the pages a member uses
- * every week: their programme's home (boards st-programme, wk-programme), a
- * week's page (wk-week-phone) and Home's card for their programme
- * (wk-home-phone), with each week opening straight after the group's previous
- * session (C17), marks with no count (C26) and ticks from Home (C33).
+ * every week: their programme's home, a
+ * week's page and Home's card for their programme,
+ * with each week opening straight after the group's previous
+ * session, marks with no count and ticks from Home.
  *
  * Built on `tests/lib/hubAttendanceWorld.mjs`: the run in its third week as
  * the lead's tabs draw it (four groups and their registers; Sam, who left;
@@ -135,6 +135,12 @@ export async function makeMemberPagesWorld(key = "__memberPages", { recordTickRo
     writes: [],
     toasts: [],
     tickRows: [],
+  };
+  // A tick goes through the tick route: the request is recorded where it
+  // would have gone, as the browser SDK's writes are, and answered as saved.
+  globalThis.fetch = async (url, init = {}) => {
+    ui.writes.push({ path: String(url), method: init.method ?? "GET", data: init.body ? JSON.parse(init.body) : null });
+    return { ok: true, status: 200, json: async () => ({ ok: true }) };
   };
   const handle = `globalThis[${JSON.stringify(key)}].ui`;
   const quiet = (name) => `export default function ${name}() { return ${handle}.h('span', { 'data-stub': '${name}' }, '[${name}]'); }`;

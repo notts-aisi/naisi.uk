@@ -1,7 +1,7 @@
 import type { PeopleFilter, PersonComing, PersonFree, PersonRow, PersonStatus } from "./views";
 
 /**
- * THE WORDS OF A PROGRAMME'S PEOPLE TAB (board st-people), in one place.
+ * THE WORDS OF A PROGRAMME'S PEOPLE TAB, in one place.
  *
  * The board's own words are kept exactly, apostrophes included; every name,
  * date, group and count in them is a slot the server fills from a record.

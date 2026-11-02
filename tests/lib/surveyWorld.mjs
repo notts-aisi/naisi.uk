@@ -149,6 +149,10 @@ export async function makeSurveyWorld(key = "__surveys", extraStubs = []) {
     remind: await route("[surveyId]", "remind"),
     close: await route("[surveyId]", "close"),
     exportCsv: await route("[surveyId]", "export"),
+    // The Answers tab's table and "See who", each opening recorded first; the file of one question.
+    answersTab: await route("[surveyId]", "answers"),
+    who: await route("[surveyId]", "who"),
+    totals: await route("[surveyId]", "totals"),
     answerSignedIn: await route("[surveyId]", "answer"),
     answerByLink: await route("answer"),
     consentSignedIn: await route("[surveyId]", "consent"),

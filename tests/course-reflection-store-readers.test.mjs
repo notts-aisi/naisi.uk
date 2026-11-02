@@ -69,10 +69,6 @@ const ADDRESSES =
 const TELLS = /\bisReflectionResponse\(|\bisFillInResponse\(|\bisOwnBoxResponse\(|\.kind\s*===\s*["'`](?:reflection|fillIn)["'`]/;
 
 const READERS = {
-  "app/(app)/learn/[runId]/weeks/[n]/feedback/page.tsx": {
-    treats: "tells",
-    why: "the writer's own feedback page: their own written answer, read by its id; a reflection's row reads as no answer",
-  },
   "app/api/courses/exercise-responses/[responseId]/review/route.ts": {
     treats: "tells",
     answers: true,
@@ -131,13 +127,25 @@ const READERS = {
       "items a paste would take out, reflections included, because a reflection is an answer somebody gave; the lead " +
       "or an admin, or a group's facilitator, is shown the count, never a row",
   },
+  "app/api/courses/runs/[runId]/weeks/[weekId]/submit/route.ts": {
+    treats: "tells",
+    why: "submitting a week stamps when each of its written answers was first sent: a reflection's or a fill-in box's row is never stamped",
+  },
+  "app/api/courses/runs/[runId]/weeks/[weekId]/reopen/route.ts": {
+    treats: "tells",
+    why: "reopening a week clears the lock an opened written answer kept: a reflection's row is never touched",
+  },
+  "lib/courses/weekWork/readers.ts": {
+    treats: "tells",
+    why: "how far each person has got with a week: which boxes hold something and which written answers are sent, by who and which item, never a word",
+  },
   "app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts": {
     treats: "tells",
     why: "the written answer's writer: it refuses to write over a reflection's row, or any row not counted in words",
   },
-  "app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts": {
+  "lib/courses/feedback/access.ts": {
     treats: "tells",
-    why: "opening, reopening and feedback on one written answer: a reflection's row is refused as an answer not sent",
+    why: "feedback on one person's week: their written answer read by its id, only for whether it may be read; a reflection's row reads as no answer",
   },
   "lib/courses/facilitatorGroup.ts": {
     treats: "tells",
@@ -164,6 +172,12 @@ const READERS = {
   "lib/courses/writtenAnswers/reviewPage.ts": {
     treats: "tells",
     why: "the review page's answers, each read by its id: a reflection's row reads as no answer",
+  },
+  "lib/applications/nextTerm/load.ts": {
+    treats: "tells",
+    why:
+      "a term's Next term page: each written answer a rating for the team rates, read by its id only for when it was " +
+      "first written, never a word of it; a reflection's or a fill-in box's row reads as no answer, so its rating counts for nothing",
   },
   "lib/firestore/accountDeletion.ts": {
     treats: "every-row",

@@ -13,7 +13,7 @@ import {
 import styles from "./PublishGroups.module.css";
 
 /**
- * "READY?" ON PUBLISH'S OWN PAGE (board st-publish): what Publish needs, and
+ * "READY?" ON PUBLISH'S OWN PAGE: what Publish needs, and
  * what is worth checking and does not stop it, as `buildReadiness` worked it
  * out on the server from the facts the Overview's checklist reads. It decides
  * nothing: Publish refuses on the server for what is needed, whatever this

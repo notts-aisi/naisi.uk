@@ -176,14 +176,15 @@ describe("the facilitator's page", () => {
       /Unless the person rated has said no, their ratings go to Kairos, one of our funders, with their name and never yours\./,
       "a rater is told where the ratings go, and that the rater's name never does",
     );
-    assert.deepEqual(namesOn(rahul), ["Amara Okafor"], "Rahul rates Amara alone: not Rahul, not Sofia");
+    // Each by the name they go by (`fullNameOfUser`): facilitators read this page.
+    assert.deepEqual(namesOn(rahul), ["Amara"], "Rahul rates Amara alone: not Rahul, not Sofia");
     assert.ok(rahul.text.includes("Came to 6 of 6 sessions, from the register"));
     assert.ok(!rahul.text.includes(RATINGS_WORDS.others), "a facilitator reads nobody else's ratings");
     for (const question of w.model.FACILITATOR_QUESTIONS) assert.ok(rahul.text.includes(question.title), question.title);
     assert.ok(!rahul.text.includes(w.model.MENTOR_QUESTIONS[0].title), "a fellowship's form asks no mentor rating");
     assert.match(rahul.html, /<button type="submit"[^>]*disabled=""[^>]*>Save<\/button>/, "Save waits for the page's script");
     const sofiaA = await w.groupView("sofia", A);
-    assert.deepEqual(namesOn(sofiaA), ["Bea Lindqvist", "Dev Patel"], "Sofia rates Group A's two fellows");
+    assert.deepEqual(namesOn(sofiaA), ["Bea", "Dev"], "Sofia rates Group A's two fellows");
     assert.ok(sofiaA.text.includes("Came to 2 of 6 sessions, from the register"), "Dev came to two");
   });
 
@@ -256,7 +257,8 @@ describe("the programme's Ratings page, for its lead and admins", () => {
     );
     for (const group of ["Group A", "Group B", "Group C"]) assert.ok(lead.text.includes(group), group);
     const names = namesOn(lead);
-    assert.ok(names.indexOf("Rahul Mehta") < names.indexOf("Amara Okafor"), "a facilitator is listed before the fellows");
+    // The lead is on the committee, so the names rule shows the lead each full name; a facilitator, the name each goes by.
+    assert.ok(names.includes("Rahul Mehta") && names.indexOf("Rahul Mehta") < names.indexOf("Amara Okafor"), "a facilitator is listed before the fellows");
     assert.ok(formFor(lead, "rahul") && formFor(lead, "sofia"), "the lead rates the facilitators");
     assert.ok(formFor(lead, "amara"), "the lead may rate any fellow");
     assert.ok(lead.text.includes("Rahul Mehta: engagement 4, grasp 5, drive 3, next step Strong yes"));
@@ -270,9 +272,9 @@ describe("the programme's Ratings page, for its lead and admins", () => {
     await w.rate("rahul", B, "amara", FULL);
     const lloyd = await w.programmeView("lloyd");
     assert.ok(lloyd.text.includes("Only the programme’s lead and admins can open Ratings"));
-    assert.ok(!lloyd.text.includes("Amara Okafor"));
+    assert.ok(!/\bAmara\b/.test(lloyd.text));
     const tess = await w.programmeView("tess");
-    assert.ok(!tess.text.includes("Amara Okafor"), "another programme's lead reads this programme's ratings");
+    assert.ok(!/\bAmara\b/.test(tess.text), "another programme's lead reads this programme's ratings");
   });
 
   test("before the end, one line saying when", async (t) => {
@@ -289,18 +291,19 @@ describe("nobody is shown what was said about them", () => {
     w.reset(ratingsSeed());
     await w.rate("claudia", B, "rahul", { f5: "strongYes" });
     const rahul = await w.groupView("rahul", B);
-    assert.ok(!namesOn(rahul).includes("Rahul Mehta"), "Rahul is one of the rows on Rahul's own page");
-    assert.ok(!rahul.text.includes("Claudia Reyes"), "Rahul is shown who rated Rahul");
+    assert.ok(!namesOn(rahul).includes("Rahul"), "Rahul is one of the rows on Rahul's own page");
+    assert.ok(!/\bClaudia\b/.test(rahul.text), "Rahul is shown who rated Rahul");
     assert.ok(!formFor(rahul, "rahul"));
     const sofia = await w.groupView("sofia", B);
-    assert.ok(!namesOn(sofia).includes("Rahul Mehta"), "a co-facilitator is shown Rahul's row");
-    assert.ok(!sofia.text.includes("Claudia Reyes"), "a co-facilitator is shown what the lead said about Rahul");
+    assert.ok(!namesOn(sofia).includes("Rahul"), "a co-facilitator is shown Rahul's row");
+    assert.ok(!/\bClaudia\b/.test(sofia.text), "a co-facilitator is shown what the lead said about Rahul");
     // An admin who is a fellow of a group is not one of its rows either.
     w.world.db.seed(`courseEnrolments/${RUN.agi}__zach`, { ...w.world.db.read(`courseEnrolments/${RUN.agi}__amara`), uid: "zach" });
     await w.rate("claudia", B, "zach", { f2: 1 });
     const zach = await w.programmeView("zach");
-    assert.ok(!namesOn(zach).includes("Zach Levin"), "an admin is shown their own row");
-    assert.ok(!zach.text.includes("Claudia Reyes: engagement 1"), "an admin is shown what was said about them");
+    // An admin is shown each full name (the names rule).
+    assert.ok(!namesOn(zach).some((name) => /\bZach\b/.test(name)), "an admin is shown their own row");
+    assert.ok(!/\bClaudia(?: Reyes)?: engagement 1/.test(zach.text), "an admin is shown what was said about them");
     assert.ok(zach.text.includes("Claudia Reyes: next step Strong yes"), "the admin still reads what the lead said about Rahul");
   });
 });

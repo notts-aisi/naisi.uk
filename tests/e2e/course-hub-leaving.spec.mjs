@@ -179,7 +179,7 @@ const KEPT_NOTHING = Object.freeze([
   "What stays here",
   "Your notes and reflections",
   "The reading list",
-  "Your marks",
+  "Your sessions",
   "Still around",
   "Events are open to everyone.",
 ]);
@@ -392,11 +392,30 @@ test(
     }
     assert.ok(groupA.meetingUrl, `${groupA.name} has no meeting link, so 'the link goes' would prove nothing`);
     const linkHost = new URL(groupA.meetingUrl).host;
-    /** A group's people in the order the lead's tabs list them: whole name, then uid. */
+    /**
+     * A group's people in the order the lead's tabs list them: by the name
+     * those tabs show, then uid. Course screens name people by the names rule
+     * for their reader (`nameForViewer`): the admin, who reads the lead's tabs
+     * here, is shown each full name, which for this term's fixtures is the
+     * account's display name, unique to this run; Fern, a facilitator who is
+     * not on the committee, the name each goes by, the fixture's `first`. The
+     * two sort alike: every display name is its `first` and the same words.
+     * The Applications tab and the Settings panel keep the name on the
+     * application, the account's display name.
+     */
     const membersOf = (group) =>
       term.people
         .filter((person) => person.groupKey === group.key)
         .sort((a, b) => a.displayName.localeCompare(b.displayName, "en-GB") || a.uid.localeCompare(b.uid));
+    /**
+     * A row heading's name pattern for this person, on a page drawn for Fern:
+     * their whole go-by name at its start, never the start of a longer name.
+     * Text read off the page runs the name straight into what follows it
+     * ("BenLeft Fri 13 Nov").
+     */
+    const headingOf = (person) => new RegExp(`^${escapeRegExp(person.first)}(?![a-z])`);
+    /** The same, on a page drawn for the admin: the full name the names rule shows them. */
+    const adminHeadingOf = (person) => new RegExp(`^${escapeRegExp(person.displayName)}(?![A-Za-z0-9])`);
 
     const weeks = Array.from({ length: term.weekCount }, (_, i) => i + 1);
 
@@ -614,7 +633,7 @@ test(
         "the page that says they left says more, or less, than that they left and when",
       );
       for (const words of KEPT_NOTHING) assert.ok(!said.includes(words), `the page that says they left shows ${JSON.stringify(words)}: ${said}`);
-      assert.equal(await pg.getByRole("region", { name: "Your marks" }).count(), 0, "the page that says they left lists marks");
+      assert.equal(await pg.getByRole("region", { name: "Your sessions" }).count(), 0, "the page that says they left lists their sessions");
       for (const suffix of ["/notes", "/reading"]) {
         assert.equal(await pg.locator(`main a[href$="${suffix}"]`).count(), 0, `the page that says they left links to ${suffix}`);
       }
@@ -1196,7 +1215,7 @@ test(
             await textsOf(notices),
             leavers.map(
               (person) =>
-                `${person.displayName} left the programme on ${dayLabel(leftKeyOf.get(person.key))}. ` +
+                `${person.first} left the programme on ${dayLabel(leftKeyOf.get(person.key))}. ` +
                 `${person.first}’s off the register from ${dayLabel(nextSession.dateKey)}.`,
             ),
             "Home does not say who left the group",
@@ -1229,7 +1248,7 @@ test(
           for (const [index, person] of [...staying, ...leavers].entries()) {
             const row = rows.nth(index);
             const left = leftKeyOf.has(person.key);
-            await row.getByText(person.displayName, { exact: true }).waitFor({ timeout: WAIT_MS });
+            await row.getByText(person.first, { exact: true }).waitFor({ timeout: WAIT_MS });
             assert.equal(
               await row.getByText(/^Left /).count(),
               left ? 1 : 0,
@@ -1285,11 +1304,13 @@ test(
             assert.ok(caption.includes(expected), `the register's caption does not say ${JSON.stringify(expected)}: ${caption}`);
           }
           for (const person of leavers) {
-            const row = grid.getByRole("row").filter({ has: fernPage.getByRole("rowheader", { name: new RegExp(`^${escapeRegExp(person.displayName)}`) }) });
+            const row = grid
+              .getByRole("row")
+              .filter({ has: fernPage.getByRole("rowheader", { name: headingOf(person) }) });
             await row.waitFor({ timeout: WAIT_MS });
             assert.deepEqual(
               await textsOf(row.getByRole("rowheader").locator(":scope > span")),
-              [person.displayName, leftLabelOf(person)],
+              [person.first, leftLabelOf(person)],
               `${person.first}'s row on the register does not say when they left`,
             );
             const cells = row.getByRole("img");
@@ -1298,7 +1319,7 @@ test(
             assert.deepEqual(
               labels,
               finishedWeeks.map(
-                (weekNumber) => `${person.displayName}, week ${weekNumber}: ${MARK_WORD[markOf(person, weekNumber)]}. ${leftLabelOf(person)}.`,
+                (weekNumber) => `${person.first}, week ${weekNumber}: ${MARK_WORD[markOf(person, weekNumber)]}. ${leftLabelOf(person)}.`,
               ),
               `${person.first}'s marks on the register`,
             );
@@ -1306,9 +1327,9 @@ test(
           }
           // Last, after everybody still taking part.
           const rowHeads = await textsOf(grid.locator("tbody").getByRole("rowheader"));
-          assert.ok(rowHeads[0].startsWith(ada.first), `the register does not list ${ada.first} first: ${JSON.stringify(rowHeads)}`);
+          assert.ok(headingOf(ada).test(rowHeads[0]), `the register does not list ${ada.first} first: ${JSON.stringify(rowHeads)}`);
           assert.deepEqual(
-            rowHeads.slice(1).map((said) => leavers.find((person) => said.startsWith(person.displayName))?.key ?? said),
+            rowHeads.slice(1).map((said) => leavers.find((person) => headingOf(person).test(said))?.key ?? said),
             leavers.map((person) => person.key),
             "the register does not list the two who left last",
           );
@@ -1319,7 +1340,7 @@ test(
             register.body.leavers.map((leaver) => [leaver.uid, leaver.displayName, leaver.left, leaver.records]),
             leavers.map((person) => [
               person.uid,
-              person.displayName,
+              person.first,
               leftLabelOf(person),
               Object.fromEntries(finishedWeeks.map((weekNumber) => [`w${String(weekNumber).padStart(2, "0")}`, markOf(person, weekNumber)])),
             ]),
@@ -1361,6 +1382,7 @@ test(
         const leavers = membersOf(groupA)
           .filter((person) => leftKeyOf.has(person.key))
           .sort((a, b) => leftKeyOf.get(b.key).localeCompare(leftKeyOf.get(a.key)));
+        // Each card names them by the names rule for the admin, in full; its sentences by the name they go by.
         assert.deepEqual(
           listed,
           leavers.map((person) => [
@@ -1473,7 +1495,7 @@ test(
         for (const group of ordered) {
           for (const person of membersOf(group)) {
             const row = grid.getByRole("row").filter({
-              has: adminPage.getByRole("rowheader", { name: new RegExp(`^${escapeRegExp(person.displayName)}`) }),
+              has: adminPage.getByRole("rowheader", { name: adminHeadingOf(person) }),
             });
             await row.waitFor({ timeout: WAIT_MS });
             const marks = row.getByRole("img");
@@ -1678,7 +1700,7 @@ test(
         activePage = ivyPage;
         await signIn(ivyPage, ivy);
         // Ivy's programme page says the programme has ended, and offers no way
-        // out. Board en-after-nofinish-phone: the programme's name, then the
+        // out. The page after the end for somebody who did not finish: the programme's name, then the
         // thanks with the term and Ivy's group (Ivy finished nothing: no rule
         // was set), never that Ivy did not finish.
         await ivyPage.goto(`${origin}${learnPath(ended)}`, { waitUntil: "domcontentloaded" });

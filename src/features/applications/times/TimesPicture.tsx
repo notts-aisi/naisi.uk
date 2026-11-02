@@ -35,7 +35,7 @@ import {
 } from "./timesWords";
 
 /**
- * THE TIMES PICTURE, under a programme's Groups tab (board st-times).
+ * THE TIMES PICTURE, under a programme's Groups tab.
  *
  * Drawn on the server, and it holds no state. Picking a session length is
  * a link that asks the page again. The three controls the board draws are

@@ -1,0 +1,75 @@
+/* "For you" on Home: an event for chosen people the member was invited to.
+   The card itself is Home's own (home.module.css); this file lays out what
+   is inside it. */
+
+.card {
+  gap: var(--space-4);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--color-accent-text);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.words {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.state {
+  margin: 0;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* The one thing to do, the width of the card. */
+.wide {
+  width: 100%;
+}
+
+/* === Mobile === */
+@media (max-width: 36rem) { /* --bp-sm */
+  .foot > a {
+    flex: 1 1 100%;
+  }
+}

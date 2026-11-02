@@ -177,6 +177,11 @@ const READS_THE_LISTS = {
     why: "Claude and Pangram on coursework (privacy v13) need who holds a place on the programme, by the name on record, behind the Coursework tab's door. It reads nobody until the term is marked as sent, and hands on nothing an application or a decision says",
     holds: "after-the-send",
   },
+  "lib/courses/weekNotes/store.ts#offeredToFacilitate": {
+    kind: "everybody",
+    why: "a week's notes say beside an admin's draft whether its person offered to facilitate on this term's application, a fact never sent to Claude and never in a lead's view. It reads nobody until the term is marked as sent, keeps only the people the page lists, never the person looking, and hands on only that yes",
+    holds: "after-the-send",
+  },
   "lib/applications/freedPlaces/offer.ts#offerFreedPlaces": {
     kind: "everybody",
     why: "a place offered has to be really free, so the writer counts the whole term inside its transaction, the caller's own application included. It refuses the caller's own id before it reads, reads nobody before decisions have gone out, and lists nothing",
@@ -229,6 +234,16 @@ const READS_THE_LISTS = {
     kind: "everybody",
     why: "the Kairos report's funnel, for admins: how many applications in the term ranked the programme. It reads no decision and no review, so it says nothing about where anybody's application stands",
     holds: "no-decisions",
+  },
+  "lib/audience/load.ts#readApplications": {
+    kind: "everybody",
+    why: "who a message may be for: everybody whose application on the term's form was sent and is still in the term, for an admin's Applied tag, an admin who applied included. It reads no decision and no review, so it says nothing about where anybody's application stands",
+    holds: "no-decisions",
+  },
+  "lib/audience/load.ts#readPlaces": {
+    kind: "everybody",
+    why: "who a message may be for: everybody holding a place on each of the term's programmes, and everybody invited who has not answered, for an admin's tags and a programme lead's, an admin who applied included, by the hand-over's own test. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",
+    holds: "after-the-send",
   },
   "lib/surveys/audience.ts#readAudience": {
     kind: "everybody",

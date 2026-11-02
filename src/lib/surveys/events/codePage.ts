@@ -1,6 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { checkInPhase, eventTakesCheckIns } from "@/lib/events/checkIns";
+import { selfCheckInOpen } from "@/lib/events/checkIns";
 import type { SessionUser } from "@/lib/firebase/session";
 import type { AnswerScreen } from "../answerView";
 import { closedOn, isOpen } from "../repo";
@@ -14,12 +14,13 @@ import { eventLine } from "./words";
 
 /**
  * WHERE A SURVEY'S QR CODE LANDS (`/events/<id>/survey`), decided for one
- * visitor (Q43: confidential, never anonymous):
+ * visitor (confidential, never anonymous):
  *
  *  - SIGNED IN, and they signed up or came: the survey, kept with their name;
  *    once an admin has sent them the questions they left blank, only those.
  *  - SIGNED IN, and they did neither: a sentence, and the way to check in
- *    while the door is open.
+ *    while they can check themselves in: the event lets them and its door is
+ *    open (`selfCheckInOpen`, the check-in page's own rule).
  *  - SIGNED OUT: asked to sign in. A guest who signed up without an account,
  *    or a walk-in who left an email, is told to answer from their own link.
  *
@@ -57,7 +58,7 @@ export async function codePageFor(db: Firestore, eventId: string, user: SessionU
   }
   if (!user) return { kind: "sign-in", line, title: survey.title, next: `/events/${survey.audience.eventId}/survey` };
   if (!(await mayAnswerSignedIn(db, survey.audience.eventId, user.uid))) {
-    const door = event && eventTakesCheckIns(event) && checkInPhase(event, now) === "door";
+    const door = event !== null && selfCheckInOpen(event, now);
     return { kind: "message", line, ...CODE_PAGE_WORDS.notYours, checkIn: door ? `/events/${survey.audience.eventId}/check-in` : null };
   }
   const respondent = { kind: "account" as const, uid: user.uid };

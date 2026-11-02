@@ -47,7 +47,7 @@ const SRC = join(REPO_ROOT, "src");
 
 const SPECIFIER = /(\bfrom\s*|\bimport\s*\(?\s*)(["'])([^"']+)\2/g;
 
-/** See `course-nudge.test.mjs`; nothing here is reachable from an assertion. */
+/** See `course-schedule-changes.test.mjs`; nothing here is reachable from an assertion. */
 const STUBS = new Map([["server-only", "export {};"]]);
 
 function resolveLocalTs(specifier, fromFile) {
@@ -439,7 +439,7 @@ test("MODEL §4.3 the template field list is the week's content, unabridged", ()
     "guideBlocks",
     "materials",
     "published",
-    // "Questions to think about" (C29): a week's content, so every snapshot,
+    // "Questions to think about": a week's content, so every snapshot,
     // every applied template and every group's own copy carries them.
     "questions",
     "summary",

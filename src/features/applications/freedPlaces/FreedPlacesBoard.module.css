@@ -1,5 +1,5 @@
 /*
-  "Offer freed places", drawn from the board st-offer: a heading and one
+  "Offer freed places": a heading and one
   line, then two columns that wrap, the pooled applicants on the left and
   the email with its two buttons on the right. Every colour is a theme token
   (src/theme/tokens.css); the sizes are the board's.

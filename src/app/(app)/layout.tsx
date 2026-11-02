@@ -4,7 +4,7 @@ import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import AppShell from "@/layout/AppShell";
 import { SessionSanityGuard } from "@/auth/SessionSanityGuard";
 import { LastRouteTracker } from "@/features/pwa/LastRouteTracker";
-import { CURRENT_POLICY_VERSION } from "@/lib/legal/policies";
+import { needsPolicyAcceptance } from "@/lib/legal/acceptance";
 
 export default async function AuthedLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
@@ -33,7 +33,9 @@ export default async function AuthedLayout({ children }: { children: React.React
   /*
     RE-CONSENT GATE. Lives here, on the shared authed layout, so that every
     signed-in account reaching any page of the member area is asked once when
-    the policy version moves. It used to sit on (app)/dashboard/layout.tsx,
+    its stored agreement needs the accept page (`needsPolicyAcceptance`: an
+    agreement older than privacy v15, the last version anybody is asked to
+    accept, or than the current terms). It used to sit on (app)/dashboard/layout.tsx,
     which was true to a narrower claim than the one the policy page makes: a
     member who never opens /dashboard (a straight link to /tasks, an installed
     app relaunching onto its last route, an email link into a course week) was
@@ -74,7 +76,7 @@ export default async function AuthedLayout({ children }: { children: React.React
   if (
     process.env.NODE_ENV === "production" &&
     !viewingAs &&
-    user.policyVersion !== CURRENT_POLICY_VERSION
+    needsPolicyAcceptance(user.policyVersion)
   ) {
     redirect("/re-consent");
   }

@@ -1,8 +1,7 @@
-import { FEEDBACK_SENT, dayAndClockWords } from "@/lib/courses/writtenAnswerWords";
+import { FEEDBACK, dayAndClockWords, namesAnd } from "@/lib/courses/writtenAnswerWords";
 
 /**
- * THE WORDS OF A GROUP'S WEEK (boards wk-fac-group, wk-fac-group-phone,
- * wk-reflections and wk-reflections-phone), in one place: This week's work,
+ * THE WORDS OF A GROUP'S WEEK, in one place: This week's work,
  * the reflections half of the review queue, who ticked each source, the
  * private notes, and the page where a facilitator picks reflections to read
  * out. Every name, number and date in them comes from a record.
@@ -14,7 +13,7 @@ import { FEEDBACK_SENT, dayAndClockWords } from "@/lib/courses/writtenAnswerWord
  */
 
 // ---------------------------------------------------------------------------
-// This week's work (wk-fac-group)
+// This week's work
 // ---------------------------------------------------------------------------
 
 export const THIS_WEEKS_WORK = "This week’s work";
@@ -78,15 +77,19 @@ export function ownCountedApartLine(fellows: number): string {
 /** Before anybody in the group is listed. */
 export const NOBODY_LISTED = "Nobody is in this group yet.";
 
-// The pathway, written answer and case columns (wk-fac-group) ---------------
+// The pathway, written answer and case columns ---------------
 
 /** A written answer waiting for the reader's feedback, a link to it: the board's words. */
 export const TO_GIVE_FEEDBACK = "To give feedback";
 
-/** "Feedback sent · Rahul": the board's words, the first name of who sent it, or "Feedback sent" with none. */
-export function feedbackSentByWords(byName: string | null): string {
-  const name = byName?.trim();
-  return name ? `${FEEDBACK_SENT} · ${name}` : FEEDBACK_SENT;
+/**
+ * "Feedback · Rahul and Sofia": who has left feedback on the answer, by the
+ * first names they go by, each once; "Feedback" with none on record. Saving
+ * feedback emails nobody, so this says it is given, never that it was sent.
+ */
+export function feedbackByWords(names: readonly string[]): string {
+  const known = names.map((name) => name.trim()).filter(Boolean);
+  return known.length > 0 ? `${FEEDBACK} · ${namesAnd(known)}` : FEEDBACK;
 }
 
 /** A pack the person chooses themselves, not chosen yet. No board draws it: listed for the boards' designers. */
@@ -141,13 +144,10 @@ export function queueCountsWords(counts: ReadonlyArray<{ number: number; written
 export const READ_THEM = "Read them";
 
 // ---------------------------------------------------------------------------
-// Who ticked each source (Q31) and the private notes (Q38)
+// Who ticked each source and the private notes
 // ---------------------------------------------------------------------------
 
 export const READING_TICKS = "Reading ticks";
-
-/** The rule every answer to Q31 keeps, in the board's words. */
-export const TICKS_NEVER_COUNT = "Ticks never count against anyone.";
 
 /** Over a source's title: "Part 2 · Read", or "Read" for a source outside the parts. */
 export function sourcePlaceWords(partNumber: number | null, kindLabel: string): string {
@@ -201,7 +201,7 @@ export const NOBODY_TICKED = "Nobody yet";
 export const NO_SOURCES = "This week has no sources to tick.";
 
 // ---------------------------------------------------------------------------
-// Reading lines out (wk-reflections)
+// Reading lines out
 // ---------------------------------------------------------------------------
 
 /** "Group B · Week 3 · Reflections", set in capitals by the stylesheet. */
@@ -361,4 +361,9 @@ export const NO_WEEK_TO_SHOW = "This group’s week has no reflections or source
 export function listWords(items: readonly string[]): string {
   if (items.length <= 1) return items[0] ?? "";
   return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+/** The head of This week's work's column for where each person's week stands: "Week 3". */
+export function weekColumnWords(weekNumber: number): string {
+  return `Week ${weekNumber}`;
 }

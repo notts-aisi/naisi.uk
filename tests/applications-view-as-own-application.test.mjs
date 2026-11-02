@@ -384,8 +384,15 @@ const STUBS = new Map([
     "export async function homeEvents() {\n" +
       "  return { upcoming: [], week: { range: null, events: [], startsAt: null, endsAt: null } };\n" +
       "}\n" +
-      "export async function profileSteps() { return null; }",
+      "export async function profileSteps() { return null; }\n" +
+      // Home's question about a full name reads the member's own account, so
+      // who it was asked for is kept, for the view-as case below.
+      "export async function fullNameQuestion(uid) { globalThis.__viewAsOwn.touched.push('fullNameQuestion:' + uid); return null; }\n" +
+      // So is "For you", the events for chosen people the member was invited to.
+      "export async function forYouEvents(uid) { globalThis.__viewAsOwn.touched.push('forYouEvents:' + uid); return []; }",
   ],
+  ["./FullNameCard", NOTHING("FullNameCard")],
+  ["./ForYou", NOTHING("ForYou")],
   [
     // Applications are open, which is when Home says "Nothing yet" to a member who has not applied.
     "@/features/term/fetchPublicTerm",
@@ -658,6 +665,20 @@ describe("the dashboard card names nothing in a view-as session", () => {
       "null is the card's own word for could not be read: it offers the way to the list and names nothing",
     );
     assert.deepEqual(readOfAnApplication(), []);
+    // Nor is Home's question about a full name asked: its card writes to the
+    // account the browser is signed in as, which in a view-as session is the
+    // member's.
+    assert.deepEqual(world.touched.filter((name) => name.startsWith("fullNameQuestion")), []);
+    // Nor the member's own invitations, which "For you" would draw.
+    assert.deepEqual(world.touched.filter((name) => name.startsWith("forYouEvents")), []);
+  });
+
+  test("Home's question about a full name is asked of the member's own account, and of nobody viewing as them", async () => {
+    term();
+    signedIn("amara");
+    await home();
+    assert.deepEqual(world.touched.filter((name) => name.startsWith("fullNameQuestion")), ["fullNameQuestion:amara"]);
+    assert.deepEqual(world.touched.filter((name) => name.startsWith("forYouEvents")), ["forYouEvents:amara"]);
   });
 
   test("nor does it say whether they have applied at all", async () => {
@@ -678,11 +699,11 @@ describe("whether a member holds a place is asked for the member, and for nobody
   /**
    * Everything Home's form for a member is handed, by name. Two are about a
    * place: whether it may say they are on nothing (one answer), and the cards
-   * week 1's door words for a place held before groups go out (Q13 B, held
+   * week 1's door words for a place held before groups go out (held
    * in tests/applications-place-in-the-member-area.test.mjs, MAY_SHOW). In
    * every world here no programme names a run, so the second is always empty,
    * and in a view-as session it is empty whatever is held. And the survey
-   * cards (`surveysWaitingFor`, Q50 B), empty in every world here, where
+   * cards (`surveysWaitingFor`), empty in every world here, where
    * nobody was sent a survey, and read for nobody in a view-as session.
    */
   const HANDED_TO_HOME = [

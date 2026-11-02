@@ -1,7 +1,6 @@
 /**
  * `coursePacksAndCases/{runId}__{uid}__{blockId}`: what one person has in one
- * block of a week written as blocks (plan item 8; Q32 A; boards wk-cases,
- * wk-week, wk-week-phone, wk-week6-phone, wk-fac-group and wk-programme). One
+ * block of a week written as blocks. One
  * document per person per block, and only two kinds of block keep one:
  *
  *  - A CHOOSE ONE (`kind: "pack"`): the pack the person has. Either they

@@ -290,6 +290,16 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "The committee cards raised when one of this run's groups left a register unpushed, and any comments on them. The chase history goes with the run.",
   },
+  reviewFollowUps: {
+    label: "Week review follow-ups",
+    fate: "destroyed",
+    note: "The tasks an admin made from a week’s review, asking a group’s facilitators to have a word with somebody, and any comments on them. They go with the run.",
+  },
+  explainerTasks: {
+    label: "Explainers’ tasks",
+    fate: "destroyed",
+    note: "The task for each session an explainer opens, on the board of whoever gives it, and any comments on them. They go with the run.",
+  },
   subscriptionRows: {
     label: "Cohort email subscriptions",
     fate: "destroyed",
@@ -320,6 +330,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "The notes each group's people and facilitators shared with their group on the week pages. They belong to the groups this destroy deletes, so they go with the run.",
   },
+  sessionReports: {
+    label: "Session reports",
+    fate: "destroyed",
+    note: "What each group’s facilitators reported after each session: how it went, and who engaged well, seemed not to have done the readings or might need a hand, by name. Staff writing about the groups this destroy deletes, so they go with the run.",
+  },
   placementNotes: {
     label: "Notes for people placed outside their times",
     fate: "destroyed",
@@ -330,6 +345,21 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "Claude’s pick of the strongest answers to each week, asked for by an admin or the programme’s lead. Every pick is an answer this destroy deletes, so they go with the run.",
   },
+  explainers: {
+    label: "Explainers",
+    fate: "destroyed",
+    note: "The explainers an admin scheduled from a week’s review at the start of groups’ sessions, cancelled ones included. Each opens a session of this run, so they go with it.",
+  },
+  weekReviews: {
+    label: "Claude’s week reviews",
+    fate: "destroyed",
+    note: "Claude’s review of each week, asked for by an admin: draft grades for the written answers, what people found hard, and who might need a hand. What Claude returns is kept with the run and deleted with it.",
+  },
+  noteDrafts: {
+    label: "Claude’s drafts of notes about people",
+    fate: "destroyed",
+    note: "Claude’s draft of an end-of-week note about each person, waiting for an admin to save or discard it. What Claude returns is kept with the run and deleted with it. A note an admin saved from one is on the person’s record and stays.",
+  },
   pangramChecks: {
     label: "Pangram’s readings",
     fate: "destroyed",
@@ -339,6 +369,31 @@ const COUNT_META: Record<string, CountMeta> = {
     label: "Packs, cases and ready marks",
     fate: "destroyed",
     note: "What each person had in the weeks' packs and talks: the pack they picked or were given, the case they were given, and whether they marked themselves ready. Each one names a week this destroy deletes, so they go with the run.",
+  },
+  weekWork: {
+    label: "Weeks submitted and reopened",
+    fate: "destroyed",
+    note: "When each person submitted each week, and when somebody running their group reopened it. Each one names a week this destroy deletes, so they go with the run.",
+  },
+  workLog: {
+    label: "What people did to their weeks, and when",
+    fate: "destroyed",
+    note: "Each tick and untick, the first save of each spell of writing, each emptied box, each submit and each reopen, with its time. Each one names a week this destroy deletes, so they go with the run.",
+  },
+  feedback: {
+    label: "Feedback on people’s weeks",
+    fate: "destroyed",
+    note: "Each piece of feedback the people running a group wrote on somebody’s week, signed with their name, and whether its email went. Each one names a week this destroy deletes, so they go with the run.",
+  },
+  feedbackSends: {
+    label: "The feedback emails’ own record",
+    fate: "destroyed",
+    note: "Who sent the “you have feedback” emails and their tests, when, and to how many people. It belongs to this run, so it goes with the run.",
+  },
+  workRatingsKept: {
+    label: "Ratings for the team",
+    fate: "retained",
+    note: "KEPT. Each rating an admin or the programme’s lead gave somebody’s written answer, with its comment for the team. They are about the person, as the notes kept about a person are, so they stay with the programme’s name and the week, and go with the account of the person rated or of whoever gave them.",
   },
   pairs: {
     label: "Pairs and laptops",
@@ -359,6 +414,11 @@ const COUNT_META: Record<string, CountMeta> = {
     label: "Records of admins opening a card",
     fate: "destroyed",
     note: "Each time an admin opened somebody's sealed predictions card on this run, with who opened it and when. They are about the cards this destroy deletes, so they go with the run.",
+  },
+  checkInWeeks: {
+    label: "Weeks of check-ins shown to the lead",
+    fate: "destroyed",
+    note: "Which check-ins each week of this run showed the programme's lead, fixed the first time the week showed. Ids only, nothing anybody wrote, so they go with the run. The check-ins themselves are surveys, and a destroy leaves surveys alone.",
   },
   schedulerMarkers: {
     label: "Scheduler send markers",

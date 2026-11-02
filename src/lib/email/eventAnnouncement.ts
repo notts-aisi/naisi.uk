@@ -8,7 +8,11 @@ import {
 } from "@/lib/firestore/notifications";
 import { findRecipientsForChannel } from "@/lib/firestore/subscriptions";
 import { filterSuppressed } from "@/lib/firestore/suppression";
-import { sendPushToRowAudience, type RowPushResult } from "@/lib/push/rowAudience";
+import {
+  countRowPushAudience,
+  sendPushToRowAudience,
+  type RowPushResult,
+} from "@/lib/push/rowAudience";
 import { signToken } from "@/lib/signedTokens";
 import { dispatchSends } from "./dispatch";
 import { sendEmail } from "./send";
@@ -214,11 +218,14 @@ export function announcementRecipientKey(recipient: AnnouncementRecipient): stri
  * as a refusal with an empty audience. A Firestore read that rejects DOES
  * propagate, because a caller that cannot tell "nobody is subscribed" from
  * "the database is down" would report a successful announcement to an empty
- * room, and both callers catch it.
+ * room, and every caller catches it.
+ *
+ * It reads two things off the event and no more, which is what lets
+ * {@link announcementReach} ask it before there is an announcement to send.
  */
 export async function resolveAnnouncementAudience(
   db: Firestore,
-  input: EventAnnouncementInput,
+  input: Pick<EventAnnouncementInput, "eventId" | "membersOnly">,
   opts: { maxRows?: number } = {},
 ): Promise<AnnouncementAudience> {
   const maxRows = opts.maxRows ?? MAX_ANNOUNCEMENT_ROWS;
@@ -409,6 +416,15 @@ export async function sendAnnouncementToRecipient(
 }
 
 /**
+ * How many emails an audience is: one per address, so a member with a
+ * verified university address beside their account's takes two. The request
+ * path's ceiling is counted in these, by the send and by the count before it.
+ */
+function messagesFor(recipients: readonly AnnouncementRecipient[]): number {
+  return recipients.reduce((n, r) => n + r.addresses.length, 0);
+}
+
+/**
  * The email half of the INLINE path. Returns counts and never throws for a
  * per-recipient failure.
  */
@@ -437,7 +453,7 @@ async function announceByEmail(
   // can be judged against the request's wall-clock budget. Refused before the
   // suppression read and before a single send, so nothing has gone out and the
   // publish route can hand the claim back.
-  const messageCount = recipients.reduce((n, r) => n + r.addresses.length, 0);
+  const messageCount = messagesFor(recipients);
   if (messageCount > MAX_ANNOUNCEMENT_SENDS) {
     console.error(
       "[event announcement] message count exceeds ceiling",
@@ -525,4 +541,78 @@ export async function sendEventAnnouncement(
     announceByPush(db, input),
   ]);
   return { ...email, pushed: push.pushed, pushRefusal: push.refusal };
+}
+
+/** What publishing would reach, counted and not sent. Counts only. */
+export type AnnouncementReach = {
+  /**
+   * People the email would go to: recipients with at least one address the
+   * send would not drop as suppressed. Null when the email leg would refuse.
+   */
+  emailed: number | null;
+  /** Accounts a phone notification would go to. Null when the push leg would refuse. */
+  notified: number | null;
+};
+
+/**
+ * HOW MANY PUBLISHING WOULD REACH, asked before the press that sends, for the
+ * Publish confirm's number. Reads only: it claims nothing, renders nothing and
+ * sends nothing.
+ *
+ * THE SEND'S OWN QUESTIONS, NOT AN ESTIMATE OF THEM. The email audience is
+ * {@link resolveAnnouncementAudience} under the same row ceiling the path
+ * applies, the request path's message ceiling is counted by the same
+ * `messagesFor`, and suppression is read the way the inline send reads it, so
+ * a person whose every address is suppressed is not counted as emailed. The
+ * phones are `countRowPushAudience`, the send's enumeration and cell without
+ * the send. Where a leg would refuse, its count is null rather than a number,
+ * because a list the send would not mail is not a number of people mailed.
+ *
+ * `queued` is the path this publish would take, which the route reads from the
+ * same switch the press reads. The queued path reads up to
+ * `MAX_QUEUED_ANNOUNCEMENT_ROWS` and has no message ceiling, and both are
+ * applied here. Its device ceiling is the job's own and is not: the phones are
+ * counted under the request path's `MAX_PUSH_ROWS`, ten times smaller, so a
+ * device list between the two reads as no count where the job would notify
+ * it. The number can leave out a queued notification; it never claims one
+ * that will not be sent.
+ *
+ * A read that fails propagates, as the audience's own does, and the caller
+ * answers it.
+ */
+export async function announcementReach(
+  db: Firestore,
+  input: Pick<EventAnnouncementInput, "eventId" | "membersOnly">,
+  opts: { queued: boolean },
+): Promise<AnnouncementReach> {
+  const [emailed, push] = await Promise.all([
+    emailReach(db, input, opts.queued),
+    countRowPushAudience(db, "events", {
+      tag: "event announcement count",
+      reference: input.eventId,
+    }),
+  ]);
+  return { emailed, notified: push.accounts };
+}
+
+/** The email half of {@link announcementReach}: people, not messages. */
+async function emailReach(
+  db: Firestore,
+  input: Pick<EventAnnouncementInput, "eventId" | "membersOnly">,
+  queued: boolean,
+): Promise<number | null> {
+  const audience = await resolveAnnouncementAudience(db, input, {
+    maxRows: queued ? MAX_QUEUED_ANNOUNCEMENT_ROWS : MAX_ANNOUNCEMENT_ROWS,
+  });
+  if (audience.refusal !== null) return null;
+  const people = audience.recipients;
+  if (!queued && messagesFor(people) > MAX_ANNOUNCEMENT_SENDS) return null;
+  const { suppressed } = await filterSuppressed(
+    db,
+    people.flatMap((person) => person.addresses),
+  );
+  const dropped = new Set(suppressed.map((address) => address.toLowerCase()));
+  return people.filter((person) =>
+    person.addresses.some((address) => !dropped.has(address.toLowerCase())),
+  ).length;
 }

@@ -117,6 +117,19 @@ const PROJECTIONS = {
     serves: "the member, about their own membership",
     why: "the current period and the member's own history, nothing about anybody else",
   },
+  projectSignupRequests: {
+    from: "@/lib/events/requestCard",
+    serves:
+      "the people who see an event's requests for a place (signupAccessFor): admins, SU-recognised committee, and the " +
+      "event's author and collaborators while their accounts stand",
+    why:
+      "the requests waiting for a decision, each with the name by the rule for the viewer, when they asked, the card " +
+      "aboutAccounts wrote for the viewer's role (the offer to facilitate and the membership's source for admins alone) " +
+      "and, for admins and SU-recognised committee, the answers. Withholds the address, every answer and the name a sign-up " +
+      "kept from anybody but admins and SU-recognised committee (v15 gives organisers the name and a few words, not " +
+      "answers), and the person's page and whether they missed the last " +
+      "two events they had a place at from anybody but admins",
+  },
   toRegistrationView: {
     from: "@/lib/firestore/registrations",
     serves: "admins",
@@ -169,6 +182,36 @@ const PROJECTIONS = {
       "that programme's settings, its lead and reviewers each as a uid and a name, the people " +
       "who could be added, a summary of its question sets (never the questions) and its " +
       "email wording",
+  },
+  projectNotesForLead: {
+    from: "@/lib/memberNotes/programme",
+    serves: "a programme's lead, about somebody on their programme",
+    why:
+      "the notes kept for leads about that person (privacy v15), each with who wrote it and when, whether Claude " +
+      "drafted it, the programme it came from and what it suggests, and whether a note may be kept for leads yet. " +
+      "Withholds everything else an admin's screen is sent: how many notes the place leaves out, whether the " +
+      "person's coursework may go to Claude, the runs Claude may draft from and whether Claude is set up, and on " +
+      "each note the privacy v13 mark and whether an admin may share it",
+  },
+  projectCatalogue: {
+    from: "@/lib/audience/resolve",
+    serves: "any approved account, each with the tags its own records give it (src/lib/audience/scope.ts)",
+    why:
+      "each tag's words and how many people are in it, and, for admins and SU-recognised committee " +
+      "only, the names of the approved accounts they may pick one by one; never an address, and an " +
+      "account's id only inside the tag that names it",
+  },
+  projectAudienceCount: {
+    from: "@/lib/audience/resolve",
+    serves: "any approved account, about a choice of the tags it may use",
+    why: "counts only: how many are reached, emailed and left out and why, and how it would be sent; never a name, an id or an address",
+  },
+  projectWhoLines: {
+    from: "@/lib/audience/resolve",
+    serves: "any approved account, about a choice of the tags it may use, which are the people whose names it may already read",
+    why:
+      "a name per person, whether it is the caller and whether they would be emailed; why one is left out " +
+      "only for an admin; never an address or an account id",
   },
 };
 

@@ -1123,7 +1123,7 @@ async function aPlaceGivenBack() {
   g.reply = await step("Ella gives her place back", 200, "ella", routes.reply.POST, params(), {
     body: { reply: "cant-make-it", reason: { kind: "times", other: "" } },
   });
-  // Q12: in a group Publish told her about, her reply is leaving the
+  // In a group Publish told her about, her reply is leaving the
   // programme, and the leave's email goes after the answer without being
   // waited for.
   await new Promise((resolve) => setImmediate(resolve));
@@ -1157,7 +1157,7 @@ async function aPlaceGivenBack() {
   g.summaryBeforeTidying = await publishSummary();
 
   // What is left of the runbook: her row on the run's own list changed from
-  // Accepted. (Q12: Remove on the board, the runbook's other step, is not
+  // Accepted. (Remove on the board, the runbook's other step, is not
   // one for somebody Publish had told: her reply took her out of her group.)
   at("tidying");
   g.summaryBetween = await publishSummary();
@@ -1268,7 +1268,7 @@ const programmePage = (runId) => `${APP_URL}/learn/${runId}`;
 
 /**
  * The placement email Publish writes, word for word, from its greeting to its
- * footer: the board's words (st-emails), since October 2026. Until then it
+ * footer: the board's words, since October 2026. Until then it
  * read "You've been placed, Amara You're in Group B for AGI Strategy
  * Fellowship (Autumn 2026). Your group is facilitated by ..." with each fact
  * on a line of its own. This term's week 1 is published with no reading in
@@ -1299,7 +1299,7 @@ const KOFI_PAGE =
   "place for someone else. Questions? ai-safety@uonsu.com";
 
 /**
- * A fellowship place's page once Publish has told its owner their group (Q12):
+ * A fellowship place's page once Publish has told its owner their group:
  * no "I’m coming" and no "I can’t make it", but the way to their programme's
  * page and what giving the place back now means there. In the words written
  * for the boards' designers to confirm (`src/lib/applications/status/runWords.ts`).
@@ -1558,7 +1558,7 @@ describe("stage one of the course hub, one term from decision day to the first s
       assert.deepEqual(timesAt("named, nobody handed over").board.canMake, { "Group B": 0, "Group A": 0 });
       assert.deepEqual(timesAt("named, nobody handed over").picture.canMake, { "Group A": 2, "Group B": 3 });
       // Ella has given her place back and is still on the board, her card saying so.
-      // (Q12: in a group Publish told her about, her reply was leaving it, so
+      // (in a group Publish told her about, her reply was leaving it, so
       // her seat reads as left, the group and Publish's stamp kept as leaving
       // keeps them; until then a reply left the seat active.)
       const gaveBack = timesAt("Ella gave her place back");
@@ -1815,7 +1815,7 @@ describe("stage one of the course hub, one term from decision day to the first s
       );
     });
 
-    // CHANGED ON PURPOSE (Q12, the walk of stage three's H4). Until then a
+    // CHANGED ON PURPOSE (the walk of stage three's H4). Until then a
     // placed person's own application page read nothing of the course run, so
     // after Publish had emailed them their group it still said the email was
     // to come and still offered "I can’t make it" as if nothing had happened.
@@ -1909,7 +1909,7 @@ describe("stage one of the course hub, one term from decision day to the first s
       );
     });
 
-    // CHANGED ON PURPOSE (Q12): once Publish has told them, their application
+    // CHANGED ON PURPOSE: once Publish has told them, their application
     // page points to their programme's page as a fellowship's does, and names
     // no group, which an incubator's people are never told of.
     test("then the incubator's people read their run; their application page points to their programme's page, naming no group", () => {
@@ -1924,7 +1924,7 @@ describe("stage one of the course hub, one term from decision day to the first s
   });
 
   // -------------------------------------------------------------------------
-  // CHANGED ON PURPOSE (Q12, the walk of stage three's H4 and 4a's question 3).
+  // CHANGED ON PURPOSE (the walk of stage three's H4 and 4a's question 3).
   // Until then "I can’t make it" after Publish gave the place back on the form
   // and left Ella in Group B until an admin took her out with the runbook's
   // two steps. Once Publish has told somebody their group, the reply is
@@ -2010,7 +2010,7 @@ describe("stage one of the course hub, one term from decision day to the first s
       );
     });
 
-    // Until Q12 her seat was not free until an admin removed her, so neither
+    // Until leaving freed a seat at once, her seat was not free until an admin removed her, so neither
     // a group Hannah could make nor the offer had one. It is free the moment
     // she has left: the page offers Hannah Group B at once (the lead offers it
     // in 8, so nothing is pressed here).
@@ -2254,7 +2254,7 @@ describe("stage one of the course hub, one term from decision day to the first s
 
   // -------------------------------------------------------------------------
   describe("9. the incubator's people read “It helps us plan.”", () => {
-    // CHANGED ON PURPOSE (Q12): "I’m coming" and its line are offered only
+    // CHANGED ON PURPOSE: "I’m coming" and its line are offered only
     // until Publish has told somebody their group. The fellowship's run is
     // published by the "published" moment and the incubator's only after it,
     // so each kind is held to its line while its people can press it, and to

@@ -91,7 +91,7 @@ export type CourseDoc = {
   rubric: CourseRubric | null;
   /**
    * The credit line every certificate of this course carries after its weeks
-   * (boards en-cert and en-cert-phone: "6 weeks · based on the BlueDot Impact
+   * ("6 weeks · based on the BlueDot Impact
    * curriculum", on a finished certificate and a facilitator's alike), or ""
    * for none. Stored as it prints after the dot, so it starts as typed; the
    * programme's Settings shows it as a line of its own, first letter in
@@ -433,8 +433,7 @@ export type CourseRunDoc = {
 };
 
 /**
- * AN INCUBATOR'S HAND-IN, AS ITS RUN HOLDS IT (boards in-team and
- * en-handin-phone): each team hands in once, by a day, and shows its work
+ * AN INCUBATOR'S HAND-IN, AS ITS RUN HOLDS IT: each team hands in once, by a day, and shows its work
  * at a showcase.
  *
  *  - `dueOn`: the London civil date hand-ins are due. A team can change its
@@ -650,7 +649,7 @@ export type CourseWeekDoc = {
   exercises: Exercise[];
   checklist: ChecklistItem[];
   /**
-   * "Questions to think about" (board wk-week-phone, C29): each one line of
+   * "Questions to think about": each one line of
    * plain text, in the order the week page numbers them (01, 02, 03). Empty
    * on a week nobody has given any, which draws no heading. Carried wherever
    * a week is copied, as the materials are. See `sanitizeWeekQuestions`.
@@ -661,7 +660,7 @@ export type CourseWeekDoc = {
   /** Unpublished weeks are hidden from learners and the public curriculum. */
   published: boolean;
   /**
-   * THE LEAD'S "MARK READY" (board pr-weeks, Q35). Ready and Published
+   * THE LEAD'S "MARK READY". Ready and Published
    * answer two different questions, and this is how they relate:
    *
    *  - PUBLISHED, unchanged, is whether the week can be read at all: by its
@@ -678,8 +677,8 @@ export type CourseWeekDoc = {
    *    the mark alone: a week already open to its groups stays open.
    *    Whether a week is ready is asked of `weekIsReady`
    *    (`src/lib/courses/weekReady.ts`) and nothing else.
-   *  - Week 1 opening BEFORE groups go out, to everybody holding a place
-   *    (Q35 B), asks READY, not Published: that is the lead deciding the
+   *  - Week 1 opening BEFORE groups go out, to everybody holding a place,
+   * asks READY, not Published: that is the lead deciding the
    *    week is fit to open early. After groups go out every published week
    *    is open to every group at once (Zach, 27 October 2026).
    *  - A published week that is not ready is a week shown by the switch in
@@ -707,7 +706,7 @@ export type CourseWeekDoc = {
    */
   pitching: boolean;
   /**
-   * WHO OWNS THE WEEK on its programme's Weeks tab (board pr-weeks, "Owner:
+   * WHO OWNS THE WEEK on its programme's Weeks tab ("Owner:
    * the lead or a helper"): the uid the lead or an admin chose there, or null
    * for the programme's lead, which is what every week starts as. Read only
    * off the RUN's week, as `ready` is: no copy carries it. Written only by the
@@ -1094,7 +1093,7 @@ export function oneLineQuestion(raw: unknown): string {
 }
 
 /**
- * A week's "Questions to think about" (board wk-week-phone, C29), as stored:
+ * A week's "Questions to think about", as stored:
  * each one line of text, blanks dropped, at most
  * `COURSE_FIELD_LIMITS.maxWeekQuestions`, each at most
  * `COURSE_FIELD_LIMITS.weekQuestion` characters. Every writer keeps to those
@@ -1138,7 +1137,7 @@ export const COURSE_FIELD_LIMITS = {
   checklistTitle: 160,
   checklistDetail: 500,
   /**
-   * "Questions to think about" on a week (C29). Each question is one line,
+   * "Questions to think about" on a week. Each question is one line,
    * as long as a checklist item's title. At most five on a week: the board
    * draws three, a handful is what a group can think about before one
    * session, and the rules check each question's length by its place in the

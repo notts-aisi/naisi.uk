@@ -27,9 +27,15 @@ function fillIndex(uid: string): number {
 /**
  * First letter of the first and last word. Array.from, not [0], so a name
  * starting with an astral-plane character doesn't render half a code point.
+ *
+ * A name a staff screen draws in one line ("Priya Shah (Pri) · AGI Strategy,
+ * Group 2", the names rule in `src/lib/names/staffName.ts`) gives its initials
+ * from the full name alone: never from the name in brackets after it, nor
+ * from what tells two people apart.
  */
 function initialsOf(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
+  const own = name.split(" · ")[0].replace(/\s*\([^()]*\)\s*$/, "");
+  const words = own.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return "?";
   const first = Array.from(words[0])[0] ?? "";
   const last = words.length > 1 ? (Array.from(words[words.length - 1])[0] ?? "") : "";

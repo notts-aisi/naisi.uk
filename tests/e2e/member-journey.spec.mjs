@@ -3,7 +3,8 @@
  *
  * The admin approves a waiting applicant on the real Approvals page -> a
  * second account takes the last place in the one-place session -> the new
- * member signs in -> reads their own subscription grid on /profile -> unticks
+ * member signs in -> answers Home's question about their full name, once ->
+ * reads their own subscription grid on /profile -> unticks
  * a channel and watches it stick -> drives the notification grid's column
  * master and its locked notices row -> measures that grid in the narrow band
  * where the sidebar comes back -> switches task email off and reads the
@@ -70,7 +71,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { assertTarget, hasAdminCredentials, loadSecrets } from "../../scripts/e2e/lib/env.mjs";
-import { readUserDoc } from "../../scripts/e2e/lib/firestore.mjs";
+import { ACCEPTED_POLICY_VERSION, readUserDoc } from "../../scripts/e2e/lib/firestore.mjs";
 import {
   DEFAULT_VIEWPORT,
   approvePendingApplicant,
@@ -108,6 +109,9 @@ import {
 const RUN_STATE_DIR = stateDir();
 const STATE_PATH = statePath(SPEC.name, RUN_STATE_DIR);
 const MARKER = markerPath(SPEC.name, RUN_STATE_DIR);
+
+/** The full name the member gives when Home asks for it. */
+const MEMBER_FULL_NAME = "E2E Journey Member";
 
 /** Every locator waits at most this long. Generous: dev is a cold Cloud Run. */
 const WAIT_MS = 30_000;
@@ -441,17 +445,36 @@ test(
           // not asked, the step opens the consent page itself. The page decides
           // on the stored version, not on NODE_ENV, so a legacy account is
           // offered the Accept button either way, and the press it makes is the
-          // same one, through the same helper, reaching the same route.
+          // same one, through the same helper, reaching the same route. Opened
+          // here, the page is read before the press: it says what version 15
+          // changed, in the words tests/privacy-policy.test.mjs holds to the
+          // policy, and nothing of the paragraphs it replaced.
           if (!askedOnSignIn) {
             await memberPage.goto(`${origin}/re-consent`, { waitUntil: "domcontentloaded" });
+            if (new URL(memberPage.url()).pathname === "/re-consent") {
+              await memberPage
+                .getByText("What changed in version 15.", { exact: true })
+                .waitFor({ timeout: WAIT_MS })
+                .catch((err) => {
+                  throw new Error(
+                    "the consent page no longer says what version 15 changed before " +
+                      `the Accept button. ${err.message}`,
+                  );
+                });
+              assert.equal(
+                await memberPage.getByText("Since version 14:", { exact: false }).count(),
+                0,
+                "the consent page still carries version 14's paragraph, which version 15 replaced",
+              );
+            }
             const accepted = await acceptReConsentIfAsked(memberPage, { timeout: WAIT_MS });
             assert.ok(
               accepted,
               "a legacy account opened /re-consent and was sent away without being asked: " +
                 `it landed on ${new URL(memberPage.url()).pathname}. The page bounces an ` +
-                "account whose stored version is already current, so either the seed " +
-                "stamped a version it should have left off or the gate accepted on the " +
-                "member's behalf.",
+                "account whose stored agreement needs nothing (needsPolicyAcceptance), so " +
+                "either the seed stamped a version it should have left off or the gate " +
+                "accepted on the member's behalf.",
             );
           }
           // Asked ONCE. The account is current now, by its own press, so the page
@@ -478,8 +501,53 @@ test(
             "string",
             "the Accept press did not leave a policyVersion on the member's document",
           );
+          // What accepting stamps is the current version, which the harness
+          // restates (tests/funnel-harness-guards.test.mjs pins the two
+          // together): the one value the gate never asks about again.
+          assert.equal(
+            doc.policyVersion,
+            ACCEPTED_POLICY_VERSION,
+            "the Accept press stamped a version other than the current one",
+          );
         },
       );
+
+      await step("Home asks the member their full name once, and the answer is on their profile", async () => {
+        activePage = memberPage;
+        // An account made before joining asked for a full name has none, so
+        // Home asks, once, starting the box with the name on the account: for
+        // an account made with Google, Google's name for them. Offered, never
+        // saved for them.
+        await memberPage.goto(`${origin}/dashboard`, { waitUntil: "domcontentloaded" });
+        const card = memberPage.getByRole("region", { name: "What’s your full name?", exact: true });
+        await card.waitFor({ timeout: WAIT_MS });
+        const box = card.getByLabel("Full name", { exact: true });
+        assert.equal(await box.inputValue(), "E2E Harness", "the question did not start with the name on the account");
+        assert.equal((await readUserDoc(member.uid))?.profile?.fullName, undefined, "the name on the account was saved as a full name before anybody answered");
+        await box.fill(MEMBER_FULL_NAME);
+        await card.getByRole("button", { name: "Save", exact: true }).click();
+        await card.getByText("Saved. You can change it on your profile.", { exact: true }).waitFor({ timeout: WAIT_MS });
+        // Written to the member's own document, as the member: the users rule
+        // holds that write to text of at most 120 characters.
+        const doc = await waitFor("the member's full name to be saved", async () => {
+          const read = await readUserDoc(member.uid);
+          return read?.profile?.fullName === MEMBER_FULL_NAME ? read : null;
+        });
+        assert.ok(doc.profile.fullNameAskedAt, "the answer left no mark that the question was put");
+        // Asked once: Home does not ask again.
+        await memberPage.goto(`${origin}/dashboard`, { waitUntil: "domcontentloaded" });
+        await memberPage.getByRole("heading", { level: 1 }).first().waitFor({ timeout: WAIT_MS });
+        assert.equal(
+          await memberPage.getByRole("region", { name: "What’s your full name?", exact: true }).count(),
+          0,
+          "Home asked for the full name again after it was answered",
+        );
+        // Profile always has the field, and it holds the answer.
+        await memberPage.goto(`${origin}/profile`, { waitUntil: "domcontentloaded" });
+        await waitFor("Profile to show the full name", async () =>
+          (await memberPage.locator("#full-name").inputValue().catch(() => "")) === MEMBER_FULL_NAME ? true : null,
+        );
+      });
 
       await step("the profile grid shows the member their own subscriptions", async () => {
         activePage = memberPage;

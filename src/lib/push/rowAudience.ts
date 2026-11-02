@@ -193,6 +193,40 @@ export async function rowPushOwners(
   };
 }
 
+/** What {@link countRowPushAudience} finds: the same answer as the send, without the sending. */
+export type RowPushReach = {
+  /** Accounts the send would notify, or null when it would refuse. */
+  accounts: number | null;
+  /** The refusal the send would give, word for word. */
+  refusal: string | null;
+};
+
+/**
+ * HOW MANY ACCOUNTS {@link sendPushToRowAudience} WOULD NOTIFY, asked without
+ * notifying anybody: the same enumeration and the same cell, for a sentence
+ * that has to say how many a press reaches before the press that sends.
+ *
+ * It counts accounts with a device whose `row` cell is on. The send counts the
+ * accounts a device actually took, so a subscription pruned in between makes
+ * the send's number smaller than this one and never larger. Where the send
+ * would refuse, this refuses too and gives no number: an audience nobody is
+ * notified from is not a count of people notified.
+ *
+ * Reads only, and NEVER THROWS, for the reasons the send does not: the
+ * enumeration answers a failed read as a refusal and `wantsPushFor` answers
+ * one as a no.
+ */
+export async function countRowPushAudience(
+  db: Firestore,
+  row: PushBroadcastRow,
+  log: { tag: string; reference: string },
+): Promise<RowPushReach> {
+  const owners = await rowPushOwners(db, log);
+  if (owners.refusal !== null) return { accounts: null, refusal: owners.refusal };
+  const answers = await Promise.all(owners.uids.map((uid) => wantsPushFor(uid, row)));
+  return { accounts: answers.filter(Boolean).length, refusal: null };
+}
+
 /**
  * Push `notification` to every account with a device whose `row` cell is on.
  *

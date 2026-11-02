@@ -1,6 +1,6 @@
 /**
- * CERTIFICATES (boards en-cert and en-cert-phone, the Certificates section of
- * en-finish, the card on en-after-phone; Q8 with Q26).
+ * CERTIFICATES (the Certificates section of the Overview once the run is
+ * over, and the card on the programme page after the end).
  *
  * When a programme ends, its lead or an admin sends a certificate to everybody
  * the programme's record says finished it, and to each person who facilitated

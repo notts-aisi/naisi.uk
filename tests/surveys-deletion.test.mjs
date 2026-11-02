@@ -5,7 +5,9 @@
  *  - DELETING AN ACCOUNT takes the person's name off their survey answers at
  *    once (the answers stay, so the totals stay) and deletes their rows on
  *    surveys (who a survey was sent to, the secret in their link), each
- *    counted in the summary. Nobody else's answers or rows are touched.
+ *    counted in the summary. Nobody else's answers or rows are touched, and
+ *    the record of which check-ins each week of a programme showed its lead
+ *    (`checkInWeeks`) names nobody, so the deletion leaves it as it was.
  *  - DESTROYING A FORM leaves its surveys alone. A survey is the programme's,
  *    with its own retention (names off two years after the programme), as the
  *    course run the form fed outlives it; a survey stands without its form
@@ -73,8 +75,8 @@ const person = (uid, letter) => ({
   answered: true,
 });
 
-/** The small term, with a survey of its AGI Strategy that Amara and Dev answered. */
-function withSurvey() {
+/** The small term, with a survey of its AGI Strategy that Amara and Dev answered, and any other documents given. */
+function withSurvey(extra = {}) {
   return makeCascadeDb(
     seedTerm({
       over: {
@@ -83,6 +85,7 @@ function withSurvey() {
         [`surveyPeople/${SURVEY}__dev`]: person("dev", "d"),
         "surveyAnswers/answer-amara": answer("amara"),
         "surveyAnswers/answer-dev": answer("dev"),
+        ...extra,
       },
     }),
   );
@@ -122,6 +125,26 @@ describe("deleting an account takes the name off its survey answers at once", ()
     assert.deepEqual(db.read(`surveyPeople/${SURVEY}__dev`).respondent, { kind: "account", uid: "dev" });
     assert.deepEqual(db.read("surveyAnswers/answer-dev").respondent, { kind: "account", uid: "dev" });
     assert.ok(db.read(`surveys/${SURVEY}`), "the survey itself is the programme's, not the person's");
+  });
+
+  test("the record of which check-ins a week of a programme showed its lead names nobody, so the deletion leaves it as it was", async () => {
+    // Amara answered both of the week's check-ins: the record holds their ids,
+    // the run and the week, and nothing of her or anybody (src/lib/firestore/checkInWeeks.ts).
+    const WEEK = "checkInWeeks/agi-strategy-autumn-2026__run00001__w03";
+    const week = {
+      runId: "agi-strategy-autumn-2026__run00001",
+      weekNumber: 3,
+      surveyIds: [`ci-${"a".repeat(40)}`, `ci-${"b".repeat(40)}`],
+      frozenAt: new Date("2026-11-17T23:00:00Z"),
+    };
+    const db = withSurvey({ [WEEK]: week });
+    const summary = await deleteAccountCascade(auth, db, "amara");
+    assert.deepEqual(db.read(WEEK), week);
+    assert.equal(Object.keys(summary).some((key) => /checkInWeek/i.test(key)), false, "the summary counts a record that names nobody");
+    const cascade = readFileSync(join(REPO_ROOT, "src", "lib", "firestore", "accountDeletion.ts"), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    assert.doesNotMatch(cascade, /checkInWeeks|CHECK_IN_WEEKS/, "an account's deletion reaches a record that names nobody: say why in docs/surveys.md first");
   });
 
   test("an account on no survey counts nothing", async () => {

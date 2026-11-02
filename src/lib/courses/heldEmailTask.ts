@@ -7,11 +7,11 @@ import {
 import type { SourceRef, TaskDoc } from "@/lib/firestore/tasks";
 
 /**
- * THE CARD THAT SAYS A GROUP'S NEXT-WEEK EMAIL IS HELD.
+ * THE CARD THAT SAYS A GROUP'S "WEEK N IS OPEN" IS HELD.
  *
- * Next week's email on its schedule goes out whole or not at all: when a value
- * the template uses is empty (the group's room, the week's reading), the email
- * is held rather than sent without the sentence. Held silently, nobody would
+ * "Week N is open" on its schedule goes out whole or not at all: when a fact
+ * it carries is empty (the group's room, the week's title, what the week asks
+ * for), the email is held rather than sent without it. Held silently, nobody would
  * know a group was about to go without its email, so the job tells the
  * programme's lead and the admins with a card on their boards, the same way
  * an unfinished register is chased. Born notified: like every register card it
@@ -23,7 +23,7 @@ import type { SourceRef, TaskDoc } from "@/lib/firestore/tasks";
  * ITS POINTER CARRIES NO SESSION KEY, on purpose. Pushing a register archives
  * the register cards that point at that session (`archiveRegisterFollowUp` in
  * the push route asks for `sourceRef.sessionKey`), and finishing a register
- * says nothing about whether next week's email can go. Without the key that
+ * says nothing about whether the week's email can go. Without the key that
  * query cannot reach this card, while the run's destroy sweep, which asks only
  * for the source and the run, still takes it with the run.
  *
@@ -44,7 +44,7 @@ export type HeldEmailCopyArgs = {
   groupName: string;
   weekNumber: number;
   dateKey: string;
-  /** What is empty, as phrases ("the group’s room", "week 4’s reading"). */
+  /** What is empty, as phrases ("the group’s room", "what week 4 asks for"). */
   missing: readonly string[];
 };
 
@@ -54,7 +54,7 @@ function listOf(items: readonly string[]): string {
 }
 
 export function heldEmailTitle(args: HeldEmailCopyArgs): string {
-  return `Next week’s email held: ${args.groupName || "a group"}, week ${args.weekNumber}`;
+  return `Week ${args.weekNumber}’s email held: ${args.groupName || "a group"}`;
 }
 
 export function heldEmailDescription(args: HeldEmailCopyArgs): string {
@@ -63,11 +63,11 @@ export function heldEmailDescription(args: HeldEmailCopyArgs): string {
   const group = args.groupName || "This group";
   const course = args.courseTitle || "a course";
   return [
-    `${group} on ${course} has not been sent next week’s email, about ${session}. It is held because it is missing ${listOf(args.missing)}.`,
+    `${group} on ${course} has not been sent “Week ${args.weekNumber} is open”, about ${session}. It is held because it is missing ${listOf(args.missing)}.`,
     "",
     "It goes out by itself as soon as that is filled in, as long as the session is still ahead. If the session starts first, the group gets no email for that week.",
     "",
-    "What to do: fill in what is missing. A group’s day, time and room are on the group; a week’s title, summary and reading are in the week editor.",
+    "What to do: fill in what is missing. A group’s day, time and room are on the group; a week’s title and what it asks for are in the week editor.",
   ].join("\n");
 }
 

@@ -362,15 +362,16 @@ test("events RSVP: a signed-out guest books a place and the page fits a phone", 
       await page.getByText(state.location, { exact: false }).first().waitFor({ timeout: WAIT_MS });
 
       // The form itself, and the custom question inside it. A public event
-      // must render the form to a signed-out visitor: the members-only branch
-      // would put a sign-in gate here instead, and that is the difference
-      // between a guest RSVP working and nobody being able to book at all.
+      // must render the form to a signed-out visitor: an event that needs an
+      // account puts a sign-in gate here instead, headed "Account needed",
+      // and that is the difference between a guest RSVP working and nobody
+      // being able to book at all.
       const form = page.getByTestId("rsvp-form");
       await form.waitFor({ timeout: WAIT_MS });
       await page.getByText(state.questionLabel, { exact: false }).first().waitFor({ timeout: WAIT_MS });
       await page.locator(`#${state.questionId}-input`).waitFor({ timeout: WAIT_MS });
       assert.equal(
-        await page.getByRole("heading", { name: "Members-only event" }).count(),
+        await page.getByRole("heading", { name: "Account needed" }).count(),
         0,
         "the public event page put the members-only sign-in gate in front of a signed-out " +
           "visitor, so nobody without an account could book a place",
@@ -384,6 +385,13 @@ test("events RSVP: a signed-out guest books a place and the page fits a phone", 
       // and losing that race is what this step is here to notice.
       const nameBox = page.locator("#rsvp-name");
       const emailBox = page.locator("#rsvp-email");
+      // One box asks for both names, so the people at the door can tell two
+      // guests with one first name apart. Its id is unchanged.
+      assert.equal(
+        await page.getByLabel("Your first and last name", { exact: true }).getAttribute("id"),
+        "rsvp-name",
+        "the guest's name box no longer asks for a first and last name",
+      );
       await nameBox.fill(state.guestName);
       await emailBox.fill(state.guestEmail);
       await waitForHydration(page, "rsvp-form");
@@ -526,6 +534,23 @@ test("events RSVP: a signed-out guest books a place and the page fits a phone", 
         String(row.subject ?? "").includes(state.eventTitle),
         `the confirmation subject does not name the event: ${JSON.stringify(row.subject)}`,
       );
+    });
+
+    await step("the services page the privacy policy points to says what checks the sign-up form", async () => {
+      // A static page, the same for everybody and read by nobody's account:
+      // the outside services the policy names, from src/content/legal/services.ts.
+      // Its heading, and the one sentence that is about the form this guest
+      // just filled in. The list's words are pinned by
+      // tests/privacy-policy.test.mjs; this proves the page draws them.
+      await page.goto(`${origin}/privacy/services`, { waitUntil: "domcontentloaded" });
+      await page.getByRole("heading", { level: 1, name: "Services we use", exact: true }).waitFor({ timeout: WAIT_MS });
+      const recaptcha = page.locator("li#recaptcha");
+      await recaptcha.getByRole("heading", { level: 2, name: "Google reCAPTCHA", exact: true }).waitFor({ timeout: WAIT_MS });
+      await recaptcha
+        .getByText("Checks that the person filling in our registration, event sign-up and application forms is not a bot.", {
+          exact: false,
+        })
+        .waitFor({ timeout: WAIT_MS });
     });
 
     await step("a second submission from the same address is answered the same way and files nothing new", async () => {

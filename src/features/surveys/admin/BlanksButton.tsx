@@ -8,7 +8,7 @@ import { BLANKS_WORDS, blanksConfirmButtonWords, blanksConfirmWords, leftBlankWo
 import styles from "./blanks.module.css";
 
 /**
- * "SEND THE QUESTIONS THEY LEFT BLANK" for one person, on Who answered and on
+ * "SEND THE QUESTIONS THEY LEFT BLANK" for one person, on the Answers tab and on
  * their own answers page (docs/surveys.md): how many required questions they
  * left blank, the last press and what became of it, and the button, which
  * asks once more, naming the person and the count, before anything is sent.

@@ -8,7 +8,7 @@ import { canRunSurveys } from "@/lib/surveys/repo";
 import { REFUSAL } from "@/lib/surveys/words";
 
 /**
- * MAKE ONE OF A PROGRAMME'S SURVEYS from its stage's template (sv-new): the
+ * MAKE ONE OF A PROGRAMME'S SURVEYS from its stage's template: the
  * programme, the stage (before it, at its end, 6 or 12 months on), the day
  * it closes and, for an incubator, its research strand. Or, with
  * `template: "event"`, the survey after an event ("After a social"): the

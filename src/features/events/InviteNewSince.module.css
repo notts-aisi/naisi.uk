@@ -1,0 +1,45 @@
+/* "Invite the N new since" on an event for chosen people's sign-ups. */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.text {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-danger-text, var(--color-danger));
+}
+
+/* === Mobile === */
+@media (max-width: 36rem) { /* --bp-sm */
+  .card {
+    padding: var(--space-4);
+  }
+
+  .card button {
+    width: 100%;
+  }
+}

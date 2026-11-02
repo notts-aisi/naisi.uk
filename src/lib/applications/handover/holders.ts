@@ -2,7 +2,7 @@ import type { CourseApplicationDoc } from "@/lib/firestore/courseApplications";
 import { hasBeenTold, holdingOf, isInTerm } from "../decisions";
 import type { ApplicationDoc, DecisionDoc } from "../model";
 import type { ApplicationForm } from "../normalise";
-import { applicantName } from "../review/people";
+import { UNNAMED_APPLICANT } from "../review/people";
 import { rankedProgrammes } from "../sections";
 
 /**
@@ -43,11 +43,18 @@ export type PlaceHolder = {
 const byName = (a: PlaceHolder, b: PlaceHolder) =>
   a.name.localeCompare(b.name, "en") || a.uid.localeCompare(b.uid);
 
-/** The name the review list shows for this person, by the same function. */
+/**
+ * The name the application was made under, else the name they go by: the
+ * name the hand-over writes onto the run's own rows and the term's lists
+ * read. Never the full name the form asks for. The run's rows are read on
+ * course screens, facilitators' included, and only the committee sees a full
+ * name, so the review screens' rule (`applicantName`) is not this one.
+ */
 export function nameOnRecord(application: Pick<ApplicationDoc, "displayName" | "sent">): string {
-  return applicantName(
-    { preferredName: application.sent?.aboutYou.preferredName ?? "" },
-    application.displayName,
+  return (
+    application.displayName.trim() ||
+    application.sent?.aboutYou.preferredName.trim() ||
+    UNNAMED_APPLICANT
   );
 }
 

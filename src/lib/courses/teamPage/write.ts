@@ -13,7 +13,7 @@ import {
   type LinkInput,
 } from "./model";
 import {
-  CHECK_IN_NOT_THIS_WEEK,
+  UPDATE_NOT_THIS_WEEK,
   HAND_IN_CLOSED_RUN,
   NO_SUCH_LINK,
   RUN_NOT_RUNNING,
@@ -47,7 +47,7 @@ function placeOf(person: TeamPagePerson) {
   };
 }
 
-/** "Save check-in": this week's, for the team, by whoever saves. */
+/** "Save update": this week's, for the team, by whoever saves. */
 export async function saveCheckIn(
   db: Firestore,
   person: TeamPagePerson,
@@ -57,7 +57,7 @@ export async function saveCheckIn(
   if (!runTakesTeamWriting(person.run)) return refused(409, RUN_NOT_RUNNING);
   const current = resolveGroupCalendar(person.run, person.group, now).currentWeek;
   if (current?.phase !== "running" || current.weekNumber === null || current.weekNumber !== input.weekNumber) {
-    return refused(409, CHECK_IN_NOT_THIS_WEEK);
+    return refused(409, UPDATE_NOT_THIS_WEEK);
   }
   const ref = db.collection(TEAM_ENTRIES_COLLECTION).doc(checkInEntryId(person.team.id, input.weekNumber));
   await db.runTransaction(async (tx) => {

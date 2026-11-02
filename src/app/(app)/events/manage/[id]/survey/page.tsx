@@ -7,21 +7,20 @@ import { dayWords, isOver, timeRangeWords } from "@/features/events/manageWords"
 import EventResultsHead, { EventResultsLayout } from "@/features/surveys/admin/EventResultsHead";
 import ExportButton from "@/features/surveys/admin/ExportButton";
 import codeActions from "@/features/qr/codeActions.module.css";
-import { QrCode } from "@/features/qr/QrCode";
 import ResultsTab from "@/features/surveys/admin/ResultsTab";
-import SurveyCodeAtEvent from "@/features/surveys/events/SurveyCodeAtEvent";
+import SurveyAfterPanel from "@/features/surveys/events/SurveyAfterPanel";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { normalizeEvent } from "@/lib/firestore/events";
 import { publicLocationText } from "@/lib/events/location";
-import { runsCheckIn } from "@/lib/events/checkInAccess";
-import { shortLinkAddress, shortLinkUrl } from "@/lib/qr/shortLinkCode";
+import { signupAccessFor } from "@/lib/events/signupAccess";
+import { runsSurveyAfter } from "@/lib/events/surveyAfterAccess";
+import { eventSurveysGoByThemselves } from "@/lib/scheduler/eventSurveysSwitch";
 import { resultsView } from "@/lib/surveys/adminView";
 import { eventResultsHead, resultsWhoFor } from "@/lib/surveys/events/adminView";
-import { findSurveyCode, surveyCodeAtEvent } from "@/lib/surveys/events/code";
-import { eventSurveyOf } from "@/lib/surveys/events/records";
+import { surveyAfterPanel } from "@/lib/surveys/events/afterView";
+import { eventSurveyOf, missedSurveyOf } from "@/lib/surveys/events/records";
 import { surveyAfterLines } from "@/lib/surveys/events/tab";
-import { CODE_AT_EVENT_WORDS } from "@/lib/surveys/events/words";
 import { canRunSurveys } from "@/lib/surveys/repo";
 import styles from "@/features/events/checkIn/CheckInTab.module.css";
 import eventStyles from "../../events.module.css";
@@ -31,24 +30,27 @@ export const dynamic = "force-dynamic";
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /**
- * An event's Survey after tab (ev-manage).
+ * An event's Survey after tab, on the event's own management pages.
  *
- * FOR EVERYBODY IN THE EVENTS AREA, that the survey went and when, and who to
- * ask for its results: an event's organiser does not see its survey's
- * results (Q42), so nothing here is a result, a count of answers or a name.
+ * FOR EVERYBODY IN THE EVENTS AREA, what is set to happen, that the survey
+ * went, when and to how many, and who to ask for its results: an event's
+ * organiser does not see its survey's results, so nothing here is a
+ * result, a count of answers or a name.
+ *
+ * FOR ITS ORGANISERS (the event's author and collaborators, and admins:
+ * `runsSurveyAfter`), when its event set the survey up: "Send it now" with
+ * the number it emails, "Send a test to me", and its setting, changeable
+ * until it opens (its questions) or goes (who gets it and when)
+ * (`surveyAfterPanel`). At an event with no survey yet (switched off, or
+ * published before the step), "Send it now" from its start sets it up as it
+ * sends.
  *
  * FOR ADMINS (`canRunSurveys`), the results themselves, as the survey's own
  * Results tab draws them, with n beside every number, the logged download,
  * and the way to its pages; or, before it has one, the way to make it.
  *
- * FOR THE PEOPLE WHO RUN CHECK-IN (admins and SU-recognised committee, the
- * people who may draw the event's door code), the survey's QR code to show
- * at the end of the event, with its PNG and full screen, while the survey
- * takes answers; while it is a draft, a line saying it shows here once an
- * admin opens it (`surveyCodeAtEvent`). Here, beside Check-in, because this
- * is the event's own page, where they already work at the event: the
- * survey's own pages are an admin's. Nothing about its answers or who gave
- * them comes with the code.
+ * Its QR code is on the Check-in tab, for whoever runs the door at the end
+ * of the event.
  */
 export default async function SurveyAfterTabPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -62,15 +64,23 @@ export default async function SurveyAfterTabPage({ params }: { params: Promise<{
   const now = new Date();
   const admin = canRunSurveys(viewer);
   const survey = await eventSurveyOf(db, event.id);
-  const lines = await surveyAfterLines(db, survey, now);
-  const atEvent = surveyCodeAtEvent(viewer, survey, now);
-  const code = atEvent === "show" ? await findSurveyCode(db, event.id) : null;
+  const missed = survey ? await missedSurveyOf(db, survey) : null;
+  // Whether anything goes by itself here: read on the server, because the
+  // switch is closed to every browser. A read that fails says it doesn't.
+  let jobOn = false;
+  try {
+    jobOn = await eventSurveysGoByThemselves(db);
+  } catch (err) {
+    console.error("[survey after tab] could not read the event-surveys switch", err);
+  }
+  const lines = await surveyAfterLines(db, survey, now, { event, missed, jobOn });
+  const panel = runsSurveyAfter(event, viewer) ? await surveyAfterPanel(db, { event, survey, now }) : null;
   const title = event.title.trim() || "Untitled event";
   const where = publicLocationText(event);
 
   const results =
     admin && survey && survey.firstSentAt
-      ? await Promise.all([eventResultsHead(db, survey), resultsView(db, survey, false), resultsWhoFor(db, survey)])
+      ? await Promise.all([eventResultsHead(db, survey), resultsView(db, survey, false, { commentsInOrder: "words" }), resultsWhoFor(db, survey)])
       : null;
 
   return (
@@ -95,8 +105,9 @@ export default async function SurveyAfterTabPage({ params }: { params: Promise<{
       <EventTabs
         eventId={event.id}
         current="survey"
-        showSignups={runsCheckIn(viewer)}
+        showSignups={signupAccessFor(viewer, event).requests}
         signups={event.rsvpCountConfirmed ?? undefined}
+        waiting={event.rsvpCountPending ?? undefined}
         showCheckIn={event.status === "published"}
       />
 
@@ -105,15 +116,32 @@ export default async function SurveyAfterTabPage({ params }: { params: Promise<{
           The survey after
         </h2>
         <p className={styles.cardText}>{lines.went}</p>
-        {atEvent === "not-yet" && <p className={styles.cardText}>{CODE_AT_EVENT_WORDS.notYet}</p>}
+        {lines.more.map((line) => (
+          <p key={line} className={styles.cardText}>
+            {line}
+          </p>
+        ))}
         <p className={styles.cardText}>{lines.results}</p>
-        {admin && (
+        {admin && (survey || !event.surveyAfter) && (
           <div className={styles.cardActions}>
             {survey ? (
-              <Link href={`/admin/surveys/${encodeURIComponent(survey.id)}/send`} className={codeActions.action}>
-                Open the survey
-              </Link>
+              <>
+                <Link href={`/admin/surveys/${encodeURIComponent(survey.id)}/send`} className={codeActions.action}>
+                  Open the survey
+                </Link>
+                {/* The one question for people who weren't checked in is a
+                    survey of its own, with its own results under Surveys. */}
+                {missed && (
+                  <Link href={`/admin/surveys/${encodeURIComponent(missed.id)}/send`} className={codeActions.action}>
+                    Open the question about not coming
+                  </Link>
+                )}
+              </>
             ) : (
+              // An event whose Survey after step set one is set up from its
+              // setting, below; one with none (made before the step) is made
+              // from Surveys, as it always was, or set up by Send it now
+              // below, with the standard questions, once it has started.
               event.status === "published" && (
                 <Link href={`/admin/surveys/new?event=${encodeURIComponent(event.id)}#after-a-social`} className={codeActions.action}>
                   Make a survey
@@ -124,10 +152,17 @@ export default async function SurveyAfterTabPage({ params }: { params: Promise<{
         )}
       </section>
 
-      {code && (
-        <SurveyCodeAtEvent
-          code={{ slug: code.slug, address: shortLinkAddress(code.slug), active: code.active }}
-          qr={<QrCode className={styles.qr} text={shortLinkUrl(code.slug)} label={`QR code for ${shortLinkAddress(code.slug)}`} />}
+      {panel && (
+        <SurveyAfterPanel
+          eventId={event.id}
+          event={{
+            title,
+            startAt: event.startAt ? event.startAt.toISOString() : null,
+            endAt: event.endAt ? event.endAt.toISOString() : null,
+            noSignup: event.noSignup,
+          }}
+          panel={panel}
+          jobOn={jobOn}
         />
       )}
 

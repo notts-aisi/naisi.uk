@@ -1,6 +1,6 @@
 /**
  * Who finished on the programme's own pages, as every kind of caller: the
- * Overview's section (board en-finish), the line before the end, the rule's
+ * Overview's section, the line before the end, the rule's
  * card on Settings, and the head over the tabs.
  *
  *   /admin/admissions/forms/[roundId]/programmes/[programmeId]/overview
@@ -31,7 +31,7 @@
  *  6. ABSENCES: Needs attention names each run of absences, and the grid
  *     marks it "in a row", until the run's last session is over; from that
  *     moment neither chases anybody, since there is no session left to miss.
- *  7. ON A PHONE (en-finish draws no phone board): a card a row, each person's
+ *  7. ON A PHONE (no separate phone layout was drawn): a card a row, each person's
  *     switch beside their name and never behind a sideways scroll, at its
  *     44px target, and the laptop table as it was. Read from the cells' own
  *     classes as drawn and from the stylesheet's phone block, since no
@@ -278,10 +278,10 @@ describe("3. the rule's card on Settings", () => {
 // ---------------------------------------------------------------------------
 
 describe("4. the line under the programme's name", () => {
-  // en-finish v21 says "stayed to the end" where v19 said "took part": the
+  // The finished run says "stayed to the end" where it once said "took part": the
   // same count, which leaves out everybody who left.
   test("once the last session is over: Finished with its day, and how many stayed to the end", async () => {
-    assert.match(await head("claudia"), /AGI Strategy Fellowship Finished · Wed 9 Dec C Lead: Claudia · 10 stayed to the end (Overview|Interest)/);
+    assert.match(await head("claudia"), /AGI Strategy Fellowship Finished · Wed 9 Dec C Lead: Claudia · 10 stayed to the end Overview/);
     assert.match(await head("zach"), /Finished · Wed 9 Dec C Lead: Claudia · 11 stayed to the end/);
   });
 
@@ -447,7 +447,7 @@ describe("7. on a phone, a card a row, each switch beside its person's name", ()
     // Each cell says its column's word, and the headings are hidden from
     // sight only, never from assistive technology.
     assert.equal(phone[".wfCellCame::before"].content, '"Came to"');
-    // The column is the written answers (en-finish v21), never "exercises" (K6).
+    // The column is the written answers (as decided), never "exercises" (K6).
     assert.equal(phone[".wfCellExercises::before"].content, '"Written answers"');
     assert.equal(phone[".wfThead"].position, "absolute");
     assert.notEqual(phone[".wfThead"].display, "none");

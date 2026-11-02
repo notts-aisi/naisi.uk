@@ -11,8 +11,8 @@ import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } fro
 import { programmeLedBy } from "../programmeLead";
 
 /**
- * WHO READS A WRITTEN ANSWER AND GIVES FEEDBACK ON IT, IN ONE PLACE (Q30 C;
- * Zach, Mon 26 Oct, on facilitators taking part). The review page, the
+ * WHO READS A WRITTEN ANSWER AND GIVES FEEDBACK ON IT, IN ONE PLACE
+ * (Zach, Mon 26 Oct, on facilitators taking part). The review page, the
  * review route and the review queue card all ask `writtenReviewRole`; none
  * of them decides it again.
  *
@@ -28,7 +28,7 @@ import { programmeLedBy } from "../programmeLead";
  * The lead is the lead of the programme that names the run, while they stand
  * (`programmeLedBy`); an admin is anybody with the admin role.
  *
- * WHOSE OPENING LOCKS IT (Q33: "until a facilitator opens it"). An answer
+ * WHOSE OPENING LOCKS IT ("until a facilitator opens it"). An answer
  * locks when one of the people who first read it opens it on the review
  * page: the group's facilitators for a fellow's answer, the lead and admins
  * for a facilitator's own. The lead or an admin looking at a fellow's answer

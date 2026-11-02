@@ -77,6 +77,18 @@
  * people and an email to the group has a link it must never carry. The admin
  * appoints Fern to Group A on the real page, as at the second point.
  *
+ * ## The week's work point ("week-three-work")
+ *
+ * The third point with its weeks written as blocks and one more of them out
+ * (`WEEK_THREE_WORK`): the same day, places and registers (Group A's week 3
+ * register never opened), and weeks 1 to 4 published as the coursework
+ * point writes a week, each with reflections, two sources and a written
+ * answer. Group A's week 3 session is over, so its week 3 has locked, and
+ * its week 4 session is days ahead, so week 4 takes work: written, submitted,
+ * reopened and submitted again on the real pages. Nobody has written
+ * anything, and no session report exists. The admin appoints Fern to Group A
+ * on the real page.
+ *
  * ## The coursework point ("coursework")
  *
  * The term three weeks in with its weeks written as blocks (`COURSEWORK`):
@@ -178,6 +190,16 @@
  *    for who finished, who the lead ticks, and every certificate are the
  *    admin's on the real pages; the fixture writes none of them.
  *
+ * ## Six months on ("six-months-on")
+ *
+ * The fellowship six months past its run's last session (`SIX_MONTHS_ON`),
+ * read as the end of a programme is read, with a cast of its own: Ada, Ben
+ * and Dan in Group A, Cleo and Eve in Group B, every register of the six
+ * weeks finished and every week published. Nobody left, nobody facilitates
+ * and nobody leads the programme. The point writes no survey: what a
+ * programme's surveys would hold by then is the spec's fixture's to write on
+ * top of it.
+ *
  * ## No term facts
  *
  * Every date is worked out from the moment the seed runs, in London: the run
@@ -193,6 +215,7 @@
  * reads its own mail declares `requiresCaughtMail` and is skipped anywhere
  * else.
  */
+import { createHash } from "node:crypto";
 import {
   assertFixtureTarget,
   cohortChannel,
@@ -224,12 +247,15 @@ export const TERM_POINTS = Object.freeze([
   "first-day",
   "week-three",
   "week-three-unmarked",
+  "week-three-work",
   "coursework",
   "pitching-week",
   "week-four",
   "last-week",
   "after-the-end",
   "programme-over",
+  "six-months-on",
+  "check-in",
 ]);
 
 /** The form's one programme at the first three points. Fixed: a programme id is unique on its own form. */
@@ -361,6 +387,20 @@ export const WEEK_THREE_UNMARKED = Object.freeze({
   published: WEEK_THREE.published,
 });
 
+/**
+ * THE TERM THREE WEEKS IN, ITS WEEKS WRITTEN AS BLOCKS AND WEEK 4 OUT: the
+ * third point (`WEEK_THREE_UNMARKED`) with weeks 1 to 4 published as blocks
+ * (`courseworkWeekDoc`), so a member of Group A can write week 4, submit it
+ * and have it reopened before the group's week 4 session, and Group A's
+ * finished week 3 register has a session report to lead on to. No
+ * coursework, no session report: those are the spec's to write.
+ */
+export const WEEK_THREE_WORK = Object.freeze({
+  ...WEEK_THREE_UNMARKED,
+  published: 4,
+  blockWeeks: true,
+});
+
 /** Weeks 1 and 2 of the incubator's group: everybody came. */
 const ALL_FIVE_PRESENT = Object.freeze({ ada: "present", ben: "present", cleo: "present", dan: "present", eve: "present" });
 
@@ -424,12 +464,15 @@ export function laterPlanOf(point) {
   if (point === "first-day") return FIRST_DAY;
   if (point === "week-three") return WEEK_THREE;
   if (point === "week-three-unmarked") return WEEK_THREE_UNMARKED;
+  if (point === "week-three-work") return WEEK_THREE_WORK;
   if (point === "pitching-week") return PITCHING_WEEK;
   if (point === "week-four") return WEEK_FOUR;
   if (point === "after-the-end") return AFTER_THE_END;
   if (point === "last-week") return LAST_WEEK;
   if (point === "programme-over") return PROGRAMME_OVER;
+  if (point === "six-months-on") return SIX_MONTHS_ON;
   if (point === "coursework") return COURSEWORK;
+  if (point === "check-in") return CHECK_IN_DAY;
   return null;
 }
 
@@ -1680,7 +1723,13 @@ async function adminUidFromSecrets() {
  * a seed that stops part way leaves a ledger naming everything it could have
  * made, and teardown removes each by the id it was given.
  */
-export async function seedTerm({ runId: termRunId, suppress = true, onState, point = TERM_POINTS[0] } = {}) {
+export async function seedTerm({
+  runId: termRunId,
+  suppress = true,
+  onState,
+  point = TERM_POINTS[0],
+  adminTests = false,
+} = {}) {
   if (!TERM_POINTS.includes(point)) {
     throw new Error(`No term point ${JSON.stringify(point)}. The points are ${TERM_POINTS.join(", ")}.`);
   }
@@ -1708,7 +1757,9 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
       id: fixtureId(`e2e-term-group-${plan.key.toLowerCase()}`, termRunId),
       name: plan.name,
       weekday: (startWeekday + plan.dayAfterStart) % 7,
-      startTimeLocal: plan.startTimeLocal,
+      // A session under way when the seed runs (`SESSION_UNDER_WAY`) starts
+      // half an hour before it, by the seed's own clock.
+      startTimeLocal: plan.startTimeLocal === SESSION_UNDER_WAY ? underWayClock(now) : plan.startTimeLocal,
       durationMinutes: SESSION_MINUTES,
       room: plan.room,
       // A reserved domain: nothing answers there.
@@ -1725,6 +1776,13 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
     createdAt: now.toISOString(),
     /** The runner's answer, recorded so a spec branches on the same fact. */
     suppress,
+    /**
+     * Whether the spec presses Send a test as the admin. The admin is the one
+     * account the harness is given, shared by every fixture on every machine
+     * of a run, so the record, counter and email of the admin's test are this
+     * fixture's to count and delete only when it says so (`testPressersOf`).
+     */
+    adminSendsTests: adminTests === true,
     formId: fixtureId("e2e-term-form", termRunId),
     formLabel: `E2E term form ${termRunId}`,
     programmeId: cast.programme.id,
@@ -1987,9 +2045,15 @@ async function seedWeekThree(state, plan, at) {
 // Counting: the manifest that must read zero
 // ---------------------------------------------------------------------------
 
-/** Every account the term made, the ones the seed never reached left out. */
+/**
+ * Every account the term made, the ones the seed never reached left out.
+ * `state.lead` is an account a spec module makes beside the term for an admin
+ * to make the programme's lead on the real pages
+ * (`course-hub-explainers-and-lead-notes.mjs`): it is the term's to count and
+ * tear down like any other, so its rows and its address are swept with them.
+ */
 export function accountsOf(state) {
-  return [...(state.people ?? []), state.facilitator].filter(Boolean);
+  return [...(state.people ?? []), state.facilitator, state.lead].filter(Boolean);
 }
 
 /** Every cohort subscription id this term's people could be given, constructed. */
@@ -2007,7 +2071,78 @@ function subscriptionIdsOf(state) {
  */
 async function surveyIdsOf(state) {
   const snap = await fixtureQuery("surveys").where("roundId", "==", state.formId).get();
-  return snap.docs.map((doc) => doc.id).sort();
+  // A check-in at the end of a session names its run and no form at its top
+  // (src/lib/surveys/checkIns/open.ts): found by the run, the rest by its id.
+  const checkIns = state.runId ? await fixtureQuery("surveys").where("runId", "==", state.runId).get() : { docs: [] };
+  return [...new Set([...snap.docs, ...checkIns.docs].map((doc) => doc.id))].sort();
+}
+
+/**
+ * The tags of "Who is this for?" this term's own records answer to, spelled as
+ * `tagId` in src/lib/audience/tags.ts spells them (restated): the programme's
+ * everyone, people holding a place and facilitators, and each of its groups.
+ * A message sent from Messages to any of them is this term's.
+ */
+function messageTagsOf(state) {
+  const programme = ["everyone", "holding", "facilitating"].map((part) => `programme:${state.formId}:${state.programmeId}:${part}`);
+  return [...programme, ...(state.groups ?? []).map((group) => `group:${group.id}`)];
+}
+
+/**
+ * The records of the messages sent from Messages to this term's people
+ * (`messageSends`), each found by a tag it was for: the record keeps its
+ * tags' ids as plain strings (`tagIds`), and nothing else on it names the
+ * term. Read first, like the surveys: the send log's rows about a message
+ * are found by its record's id.
+ */
+async function messageSendIdsOf(state) {
+  const ids = new Set();
+  for (const tag of messageTagsOf(state)) {
+    const snap = await fixtureQuery("messageSends").where("tagIds", "array-contains", tag).get();
+    for (const doc of snap.docs) ids.add(doc.id);
+  }
+  return [...ids].sort();
+}
+
+/**
+ * The counters and the test record Messages leaves in `courseNudges`, by the
+ * ids src/lib/messages/sending.ts builds (restated): for each of this term's
+ * messages (`messageIds`, read before the records go), the daily counter of
+ * the people it emailed and its writer's hourly one; and, for each presser
+ * whose tests are this fixture's (`testPressersOf`), the record of their last
+ * test and its hourly counter. An audience is the people a send emails, the
+ * people its record keeps as not left out: their accounts in one order, and
+ * how many others, hashed (`audienceKeyOf`).
+ */
+async function messageCounterIdsOf(state, messageIds) {
+  const ids = [];
+  for (const id of messageIds) {
+    const snap = await fixtureDoc("messageSends", id).get();
+    if (!snap.exists) continue;
+    const record = snap.data() ?? {};
+    const emailed = (Array.isArray(record.people) ? record.people : []).filter((person) => person && person.leftOut === null);
+    const accounts = [...new Set(emailed.filter((person) => typeof person.uid === "string").map((person) => `a:${person.uid}`))].sort();
+    const key = createHash("sha256")
+      .update(JSON.stringify(["message-audience", accounts, emailed.length - accounts.length]), "utf8")
+      .digest("hex")
+      .slice(0, 24);
+    ids.push(`emailrate__messageday__${key}`);
+    if (typeof record.writerUid === "string") ids.push(`emailrate__message__${key}__${record.writerUid}`);
+  }
+  for (const uid of testPressersOf(state)) ids.push(`messagetest__${uid}`, `emailrate__messagetest__${uid}`);
+  return [...new Set(ids)];
+}
+
+/**
+ * Whose tests from Messages this fixture counts and deletes. A test's record,
+ * its counter and its email are keyed on the presser alone. The facilitator is
+ * minted for this term, so theirs are its own. The admin is shared by every
+ * fixture on every machine of a run: counted by a fixture whose spec never
+ * presses Send a test, the Messages spec's rows on another machine read as
+ * this one's residue, and deleting them pulls them from under it.
+ */
+function testPressersOf(state) {
+  return [state.adminSendsTests ? state.adminUid : null, state.facilitator?.uid].filter(Boolean);
 }
 
 /**
@@ -2023,6 +2158,8 @@ function surveyCounterIdsOf(state, surveyIds) {
     ids.push(`emailrate__surveyday__${id}`);
     if (state.adminUid) ids.push(`emailrate__survey__${id}__${state.adminUid}`);
   }
+  // A check-in's daily counter is its group's (`checkinday__<group>`), whoever opens it.
+  for (const group of state.groups ?? []) ids.push(`emailrate__checkinday__${group.id}`);
   return ids;
 }
 
@@ -2035,7 +2172,7 @@ function surveyCounterIdsOf(state, surveyIds) {
  * about the run, the test of an update to one group is about that group, and
  * a survey's tests (of its email and of its reminder) are about the survey.
  */
-async function sendRowsOf(state, surveyIds = []) {
+async function sendRowsOf(state, surveyIds = [], messageIds = []) {
   const rows = new Map();
   for (const account of accountsOf(state)) {
     const snap = await fixtureQuery("emailSends").where("to", "==", account.email).get();
@@ -2050,6 +2187,14 @@ async function sendRowsOf(state, surveyIds = []) {
   for (const id of surveyIds) {
     const aboutSurvey = await fixtureQuery("emailSends").where("referenceId", "==", id).get();
     for (const doc of aboutSurvey.docs) rows.set(doc.id, doc.ref);
+  }
+  // A message from Messages: every email it sent names its record, and a
+  // presser's tests name their record of the last one, which is all a test
+  // to the presser's own address could be found by (whose: `testPressersOf`).
+  const tests = testPressersOf(state).map((uid) => `messagetest__${uid}`);
+  for (const id of [...messageIds, ...tests]) {
+    const aboutMessage = await fixtureQuery("emailSends").where("referenceId", "==", id).get();
+    for (const doc of aboutMessage.docs) rows.set(doc.id, doc.ref);
   }
   return rows;
 }
@@ -2111,6 +2256,10 @@ function reminderMarkersOf(state) {
  *  - placing (allocate route): `courseEnrolments`, the groups' counters;
  *  - appointing a facilitator: the group, a facilitator `courseEnrolments` row;
  *  - "Send a test to me": a `courseNudges` record of the test, `emailSends` rows;
+ *  - a message from Messages to the term's people (src/lib/messages/): its
+ *    `messageSends` record (`tagIds` names the tags it was for), the update
+ *    when it is posted on the programme's page as well, its counters and the
+ *    presser's test record in `courseNudges`, and its `emailSends` rows;
  *  - Publish: `courseNudges` (its press lock, one marker per facilitator told),
  *    cohort `subscriptions` and their `subscriptionEvents`, the enrolments'
  *    told stamps, `emailSends` rows;
@@ -2138,6 +2287,18 @@ function reminderMarkersOf(state) {
  *  - changing a session: the group document itself;
  *  - the update that tells the group: as an update above, with the
  *    facilitator as the presser.
+ *
+ * And at the week's work point, as its facilitator and a member drive it:
+ *  - marking and finishing a register: as at the third point;
+ *  - "Can't make it" on the next session's ticket: that session's
+ *    `courseAttendance` row, made or merged into (`runId` on it);
+ *  - a session report: one `courseSessionReports` row a writer and session
+ *    (`runId` on it);
+ *  - a written answer typed on a week page: its `courseExerciseResponses`
+ *    row (`runId` on it);
+ *  - Submit and Reopen: the week's `courseWeekWork` row and a
+ *    `courseWorkLog` row for each submit, reopen and writing spell (`runId`
+ *    on each).
  *
  * And at the fourth point, as its people and its lead drive it:
  *  - a pitch saved, and a pick pressed or taken back: one `coursePitches` row
@@ -2228,8 +2389,9 @@ export async function countTerm(state) {
   const counts = {};
   const { formId, runId } = state;
   // First, while they are there to be read: everything a survey's routes
-  // write is found by the survey's id.
+  // write is found by the survey's id, and a message's emails by its record's.
   const surveyIds = await surveyIdsOf(state);
+  const messageIds = await messageSendIdsOf(state);
 
   for (const [name, collection, id] of [
     ["admissionRounds", "admissionRounds", formId],
@@ -2260,6 +2422,13 @@ export async function countTerm(state) {
   counts.courseProgress = (await fixtureQuery("courseProgress").where("runId", "==", runId).get()).size;
   counts.courseExerciseResponses = (
     await fixtureQuery("courseExerciseResponses").where("runId", "==", runId).get()
+  ).size;
+  // The week you submit: a submitted or reopened week, and the log every tick, box, submit and reopen writes.
+  counts.courseWeekWork = (await fixtureQuery("courseWeekWork").where("runId", "==", runId).get()).size;
+  counts.courseWorkLog = (await fixtureQuery("courseWorkLog").where("runId", "==", runId).get()).size;
+  // A facilitator's session reports, one a writer and session.
+  counts.courseSessionReports = (
+    await fixtureQuery("courseSessionReports").where("runId", "==", runId).get()
   ).size;
   counts.weeks = (await fixtureSubcollection("courseRuns", runId, "weeks").get()).size;
   counts.tasks = (await fixtureQuery("tasks").where("sourceRef.cohortId", "==", runId).get()).size;
@@ -2298,14 +2467,19 @@ export async function countTerm(state) {
   let surveyPeople = 0;
   let surveyAnswers = 0;
   let surveyExports = 0;
+  let surveyOpenings = 0;
   for (const id of surveyIds) {
     surveyPeople += (await fixtureQuery("surveyPeople").where("surveyId", "==", id).get()).size;
     surveyAnswers += (await fixtureQuery("surveyAnswers").where("surveyId", "==", id).get()).size;
     surveyExports += (await fixtureQuery("dataExports").where("scope.surveyId", "==", id).get()).size;
+    surveyOpenings += (await fixtureQuery("recordOpenings").where("surveyId", "==", id).get()).size;
   }
   counts.surveyPeople = surveyPeople;
   counts.surveyAnswers = surveyAnswers;
   counts.surveyExports = surveyExports;
+  // Each opening of the survey's names the routes recorded (one person's
+  // answers, See who, Whose is this, the Answers table), by the survey's id.
+  counts.surveyOpenings = surveyOpenings;
   let surveyCounters = 0;
   for (const id of surveyCounterIdsOf(state, surveyIds)) {
     if ((await fixtureDoc("courseNudges", id).get()).exists) surveyCounters += 1;
@@ -2322,7 +2496,14 @@ export async function countTerm(state) {
     if ((await fixtureDoc("suppressedEmails", id).get()).exists) suppressionRows += 1;
   }
   counts.suppressedEmails = suppressionRows;
-  counts.emailSends = (await sendRowsOf(state, surveyIds)).size;
+  counts.emailSends = (await sendRowsOf(state, surveyIds, messageIds)).size;
+  // Messages: each send's record, and the counters and test records it keeps.
+  counts.messageSends = messageIds.length;
+  let messageCounters = 0;
+  for (const id of await messageCounterIdsOf(state, messageIds)) {
+    if ((await fixtureDoc("courseNudges", id).get()).exists) messageCounters += 1;
+  }
+  counts.messageCounters = messageCounters;
 
   const accounts = await countAccounts(accountsOf(state).map((account) => account.uid));
   counts.users = accounts.users;
@@ -2360,9 +2541,11 @@ export async function teardownTerm(state) {
     }
   }
   const { formId, runId } = state;
-  // Every survey made on the term's programme, read before anything is
-  // deleted: the rows its routes wrote are found by its id.
+  // Every survey made on the term's programme, and every message sent from
+  // Messages to its people, read before anything is deleted: the rows their
+  // routes wrote are found by their ids.
   const surveyIds = await surveyIdsOf(state);
+  const messageIds = await messageSendIdsOf(state);
 
   // Rows the routes wrote. Event lines before the subscription rows they describe.
   for (const id of subscriptionIdsOf(state)) {
@@ -2377,6 +2560,11 @@ export async function teardownTerm(state) {
   await deleteQuery(fixtureQuery("courseProgress").where("runId", "==", runId));
   // The seventh point's: the reflection boxes written in on a week page.
   await deleteQuery(fixtureQuery("courseExerciseResponses").where("runId", "==", runId));
+  // The week you submit's rows, written by the routes a spec drives.
+  await deleteQuery(fixtureQuery("courseWeekWork").where("runId", "==", runId));
+  await deleteQuery(fixtureQuery("courseWorkLog").where("runId", "==", runId));
+  // The session reports a facilitator sent.
+  await deleteQuery(fixtureQuery("courseSessionReports").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("tasks").where("sourceRef.cohortId", "==", runId));
   // The second point's: registers and updates (seeded and posted alike), the
   // download log's row, the updates route's counters, Remind's markers.
@@ -2392,6 +2580,7 @@ export async function teardownTerm(state) {
   await deleteQuery(fixtureQuery("courseCertificates").where("runId", "==", runId));
 
   for (const id of sendCounterIdsOf(state)) await fixtureDoc("courseNudges", id).delete();
+  for (const id of await messageCounterIdsOf(state, messageIds)) await fixtureDoc("courseNudges", id).delete();
   for (const ref of reminderMarkersOf(state)) await ref.delete();
   // The eighth point's: each survey's answers, who it was sent to (with
   // their links), the download log's rows and the send counters. The surveys
@@ -2400,6 +2589,7 @@ export async function teardownTerm(state) {
     await deleteQuery(fixtureQuery("surveyAnswers").where("surveyId", "==", id));
     await deleteQuery(fixtureQuery("surveyPeople").where("surveyId", "==", id));
     await deleteQuery(fixtureQuery("dataExports").where("scope.surveyId", "==", id));
+    await deleteQuery(fixtureQuery("recordOpenings").where("surveyId", "==", id));
   }
   for (const id of surveyCounterIdsOf(state, surveyIds)) await fixtureDoc("courseNudges", id).delete();
   // Each account's Kairos choice, by its uid: an answer keeps one only when its box was changed.
@@ -2425,9 +2615,10 @@ export async function teardownTerm(state) {
   // The send log LAST of the rows: a send is logged a moment after its
   // message leaves, so the later this runs the smaller the window for a row
   // to land behind it.
-  for (const ref of (await sendRowsOf(state, surveyIds)).values()) await ref.delete();
-  // Then the surveys, the last record anything above was found by.
+  for (const ref of (await sendRowsOf(state, surveyIds, messageIds)).values()) await ref.delete();
+  // Then the surveys and the messages' records, the last records anything above was found by.
   for (const id of surveyIds) await fixtureDoc("surveys", id).delete();
+  for (const id of messageIds) await fixtureDoc("messageSends", id).delete();
 
   for (const account of accounts) {
     // The users document first: an Auth account whose document outlives it is
@@ -2487,7 +2678,7 @@ function termsOf(state) {
  * term's own state goes into it before that term's first write, so a seed
  * that stops part way leaves a ledger naming everything any term had made.
  */
-export async function seedTerms({ runId: termRunId, suppress = true, onState, points } = {}) {
+export async function seedTerms({ runId: termRunId, suppress = true, onState, points, adminTests = false } = {}) {
   if (!Array.isArray(points) || points.length === 0 || points.length > LATER_TERM_LETTERS.length + 1) {
     throw new Error(`Ask for between 1 and ${LATER_TERM_LETTERS.length + 1} points, in order.`);
   }
@@ -2499,6 +2690,7 @@ export async function seedTerms({ runId: termRunId, suppress = true, onState, po
       runId: ownRunId,
       suppress,
       point,
+      adminTests,
       onState: (published) => {
         state.terms[index] = published;
       },
@@ -2559,6 +2751,68 @@ export async function teardownTerms(state) {
   if (failed) throw failed;
   return addCounts(list);
 }
+
+// ---------------------------------------------------------------------------
+// The check-in at the end of a session: a session under way when the seed runs
+// ---------------------------------------------------------------------------
+
+/**
+ * A group plan's `startTimeLocal` that means "half an hour before the seed",
+ * worked out when the seed runs (`underWayClock`), so the group's session that
+ * day is under way while a spec runs.
+ */
+export const SESSION_UNDER_WAY = "under-way";
+
+/**
+ * The London wall clock half an hour before `now`, on five minutes, and never
+ * before midnight: a seed at 00:10 has a session that started at 00:00 that
+ * day. A ninety-minute session started then is under way for an hour at
+ * least, and its check-in stays open until 11pm, or an hour after it ends
+ * when that is later.
+ */
+export function underWayClock(now) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .formatToParts(now)
+      .map((part) => [part.type, part.value]),
+  );
+  const minutes = Math.max(0, Number(parts.hour) * 60 + Number(parts.minute) - 30);
+  const floored = minutes - (minutes % 5);
+  return `${String(Math.floor(floored / 60)).padStart(2, "0")}:${String(floored % 60).padStart(2, "0")}`;
+}
+
+/**
+ * THE CHECK-IN AT THE END OF A SESSION ("check-in"). The fellowship three
+ * weeks in, with one group of five, every one of them in it, which meets on
+ * the run's second day each week and whose week 3 session started half an
+ * hour before the seed (`SESSION_UNDER_WAY`): the run began `daysIn` days
+ * before the seed, so the seed's day is day 15 of the plan, week 3's session
+ * day. Five, so its facilitator's totals have three answers to show without
+ * everybody answering. Weeks 1 to 3 are published and written as blocks
+ * (`courseworkWeekDoc`), so the check-in asks what was unclear by the week's
+ * parts and how much of the reading people did; weeks 1 and 2's registers are
+ * finished, everybody present, and week 3's is not opened. Fern is the account
+ * the admin appoints to the group on the real page. Nobody leads the
+ * programme, so the check-in's box names no lead.
+ */
+export const CHECK_IN_DAY = Object.freeze({
+  daysIn: 15,
+  programme: FELLOWSHIP,
+  groups: Object.freeze([
+    Object.freeze({ key: "A", name: "Group A", dayAfterStart: 1, startTimeLocal: SESSION_UNDER_WAY, room: "Room E1", online: false }),
+  ]),
+  people: Object.freeze(
+    ["ada", "ben", "cleo", "dan", "eve"].map((key) => Object.freeze({ key, first: key[0].toUpperCase() + key.slice(1), canMake: Object.freeze(["A"]) })),
+  ),
+  facilitator: FACILITATOR_PLAN,
+  places: Object.freeze({ ada: "A", ben: "A", cleo: "A", dan: "A", eve: "A" }),
+  marks: Object.freeze({ A: Object.freeze({ 1: ALL_FIVE_PRESENT, 2: ALL_FIVE_PRESENT }) }),
+  unfinished: null,
+  facilitated: "A",
+  published: 3,
+  blockWeeks: true,
+  earlierUpdate: false,
+});
 
 // ---------------------------------------------------------------------------
 // The end of a programme: its last week, and after its last session
@@ -2659,6 +2913,59 @@ export const PROGRAMME_OVER = Object.freeze({
   left: Object.freeze({ dan: Object.freeze({ afterWeek: 2 }) }),
   unfinished: null,
   facilitated: "A",
+  published: WEEK_COUNT,
+});
+
+/** A week everybody in a group came to, at six months on. */
+const ALL_OF_A_CAME = Object.freeze({ ada: "present", ben: "present", dan: "present" });
+const ALL_OF_B_CAME = Object.freeze({ cleo: "present", eve: "present" });
+
+/**
+ * THE FELLOWSHIP SIX MONTHS PAST ITS RUN'S LAST SESSION ("six-months-on").
+ * Its run began `daysIn` days before the seed, so Group B's sixth and last
+ * session (day 37 of the plan) was 185 days before it: six months on, when
+ * the follow-up at 6 months goes out. Every register of the six weeks is
+ * finished and every week published.
+ *
+ * Group A is Ada, Ben and Dan, Group B Cleo and Eve: five people, so a week
+ * of check-ins can have every answer it needs for its comments to show
+ * (five) and another only enough for its totals (three). Everybody came to
+ * weeks 1 to 4; in week 5 Ben was late and Eve absent, and in week 6 Dan
+ * left early. Nobody left the programme, nobody facilitates it and nobody
+ * leads it.
+ */
+export const SIX_MONTHS_ON = Object.freeze({
+  daysIn: 222,
+  programme: FELLOWSHIP,
+  groups: GROUP_PLAN,
+  people: Object.freeze([
+    PEOPLE_PLAN[0],
+    PEOPLE_PLAN[1],
+    PEOPLE_PLAN[2],
+    WEEK_FOUR.people[3],
+    Object.freeze({ key: "eve", first: "Eve", canMake: Object.freeze(["B"]) }),
+  ]),
+  facilitator: null,
+  places: Object.freeze({ ada: "A", ben: "A", cleo: "B", dan: "A", eve: "B" }),
+  marks: Object.freeze({
+    A: Object.freeze({
+      1: ALL_OF_A_CAME,
+      2: ALL_OF_A_CAME,
+      3: ALL_OF_A_CAME,
+      4: ALL_OF_A_CAME,
+      5: Object.freeze({ ada: "present", ben: "late", dan: "present" }),
+      6: Object.freeze({ ada: "present", ben: "present", dan: "left-early" }),
+    }),
+    B: Object.freeze({
+      1: ALL_OF_B_CAME,
+      2: ALL_OF_B_CAME,
+      3: ALL_OF_B_CAME,
+      4: ALL_OF_B_CAME,
+      5: Object.freeze({ cleo: "present", eve: "absent" }),
+      6: ALL_OF_B_CAME,
+    }),
+  }),
+  unfinished: null,
   published: WEEK_COUNT,
 });
 

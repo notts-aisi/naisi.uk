@@ -113,7 +113,7 @@ const ALLOWED_KEYS = new Set([
 ]);
 
 /**
- * A group's "Questions to think about" (C29), checked whole: a list of at
+ * A group's "Questions to think about", checked whole: a list of at
  * most `maxWeekQuestions` lines of text, none empty, none over
  * `weekQuestion` characters, each kept as one line. Plain text, so a
  * facilitator may write them, as they write the checklist. Returns the list

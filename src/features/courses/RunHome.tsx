@@ -16,16 +16,20 @@ import SessionNotice from "./sessionChange/SessionNotice";
 import RunUpdates from "./updates/RunUpdates";
 import { useRunOverview } from "./useRunOverview";
 import { useSyncTasks } from "./useSyncTasks";
+import CantMakeIt from "./weekly/CantMakeIt";
 import SessionTicket from "./weekly/SessionTicket";
 import ThisWeekCard from "./weekly/ThisWeekCard";
 import WeekList from "./weekly/WeekList";
 import YourGroup from "./weekly/YourGroup";
 import AboutThisCourse from "./AboutThisCourse";
 import CertificateCard from "./CertificateCard";
+import type { CantMakeItView } from "@/lib/courses/cantMakeIt/model";
 import type { CertificateCardView } from "@/lib/courses/certificates/card";
 import type { GuideLinks } from "@/lib/courses/guide/model";
 import type { TeamCardView } from "@/lib/courses/teamPage/views";
 import type { TimeQuestionView } from "@/lib/courses/timeAnswer/model";
+import type { MessagesEntries } from "@/lib/messages/handover";
+import { HANDOVER_WORDS } from "@/lib/messages/words";
 import { YOUR_TEAM, YOUR_TEAMS_PAGE } from "@/lib/courses/teamPage/words";
 import { useMaterialTicks } from "./weekly/useMaterialTicks";
 import AfterTheEnd, { type AfterEvent, type AfterSurvey, type KeepItem } from "./weekly/AfterTheEnd";
@@ -35,6 +39,7 @@ import { boxesFilled } from "@/lib/courses/weekBlocks/progress";
 import { LEAVE_LINK } from "@/lib/courses/leavingWords";
 import { ENDED_SUB, ENDED_THANKS, FINISHED_SUB, hasEnded, youFinished } from "@/lib/courses/finishing/words";
 import {
+  MARKS_BEFORE_GROUP,
   MARKS_LEGEND_LABEL,
   MARKS_LINE,
   MARK_LETTER,
@@ -65,8 +70,8 @@ import styles from "./RunHome.module.css";
 
 /**
  * THE PROGRAMME HOME: where am I, what do I do next, who am I doing it with
- * (boards st-programme before the first session and wk-programme once it has
- * started, at 1440 and on a phone).
+ * (before the first session and once it has started, at 1440 and on a
+ * phone).
  *
  * One data source, `/api/courses/runs/[runId]/overview`, drives the page; the
  * member's own ticks are live (`useMaterialTicks`), and their group's names
@@ -77,26 +82,27 @@ import styles from "./RunHome.module.css";
  * session's ticket (tonight, a room changed this week, a session moved or
  * cancelled as "Change a session" says), "This week" (or before the first
  * session, week 1's readings to tick), the weeks with their dates and states
- * (every published week open, to read ahead), their marks with no count
- * (C26), the updates, their group, and the way out.
+ * (every published week open, to read ahead), their marks with no count,
+ * the updates, their group, and the way out.
  *
  * "Add to calendar" is on the ticket for somebody whose group it is, taking
- * part or facilitating (st-calendar-phone: their own calendar link).
+ * part or facilitating (their own calendar link).
  *
  * "CAN YOU MAKE THIS TIME?" (Zach, 29 Oct 2026) follows the ticket for
  * somebody Publish has told their group: their group's day, time and campus,
  * "I can make it" and "I can't make this time". Either keeps their place; it
  * is not the leave at the foot.
  *
- * WHAT IS NOT HERE, though the boards draw it: "Can’t make it" on the ticket,
- * for one session. It does not exist yet, and the page draws no control for
- * a feature that does not.
+ * "CAN’T MAKE IT" on the ticket, beside Add to calendar, for somebody taking
+ * part in the group, until the next session starts (`cantMakeIt`, worked out
+ * by the server page): it records them as excused on that session's register,
+ * which their facilitators read.
  *
  * STAFF (a facilitator, an admin) read the same head, ticket and weeks, every
  * published week open, with their own panels below; no marks, no ticks.
  *
- * ONCE THE PROGRAMME IS OVER, somebody who took part reads the page boards
- * en-after-phone and en-after-nofinish-phone draw (`AfterTheEnd`): told they
+ * ONCE THE PROGRAMME IS OVER, somebody who took part reads the
+ * page after the end, whether they finished or not (`AfterTheEnd`): told they
  * finished only where their own finished record says so, their certificate,
  * the survey at the end, what they keep, what's next, and then the weeks.
  * Staff read the head's sentence over the page as before.
@@ -116,6 +122,13 @@ type Props = {
    */
   canEmailCohort: boolean;
   /**
+   * Where the run's composers hand over to Messages for this person
+   * (`messagesEntriesFor`, from the server page): Messages set to the run's
+   * cohort, and to each group, where Messages would start with it. A link
+   * with no entry keeps its old page on the run.
+   */
+  messages?: MessagesEntries;
+  /**
    * Pitching week's card, worked out by the server page for somebody taking
    * part (`pitchingCard`): its line, and whether pitching is still open. Null
    * draws nothing.
@@ -128,7 +141,7 @@ type Props = {
    */
   team?: TeamCardView | null;
   /**
-   * Whether "Leave the programme" is drawn at the foot (wk-programme): the
+   * Whether "Leave the programme" is drawn at the foot: the
    * server page asks the leave route's own rule (`leavePathFor`), so the link
    * is there exactly where the press would work.
    */
@@ -145,19 +158,25 @@ type Props = {
    * draws nothing.
    */
   timeQuestion?: TimeQuestionView | null;
+  /**
+   * "Can’t make it" on the ticket of the group's next session, worked out by
+   * the server page for somebody taking part in the group (`cantMakeItFor`),
+   * until the session starts. Null draws nothing.
+   */
+  cantMakeIt?: CantMakeItView | null;
   /** An admin is looking at this as the member: the card's answers are drawn and cannot be pressed. */
   viewAs?: boolean;
   /** The session's own uid, from the server gate: the ticks' row, and "(you)" in the group. */
   uid?: string | null;
   /**
    * The programme's Start here and Glossary, from the server page: "About
-   * this course" (wk-programme) links each the run has, and is not drawn
+   * this course" links each the run has, and is not drawn
    * when it has neither.
    */
   guide?: GuideLinks | null;
   /**
    * The caller's own certificates on this run, from the server page
-   * (`readOwnCertificates`): "Your certificate" (en-after-phone) under the
+   * (`readOwnCertificates`): "Your certificate" under the
    * head. Empty for anybody sent none, and drawn nothing.
    */
   certificates?: CertificateCardView[];
@@ -199,8 +218,8 @@ function stateCopy(overview: OverviewPayload): { heading: string; line: string }
 }
 
 /**
- * The head once the programme is over, for somebody who took part
- * (en-after-phone, en-after-nofinish-phone): "You finished AGI Strategy."
+ * The head once the programme is over, for somebody who took part:
+ * "You finished AGI Strategy."
  * only where their own finished record says so (`overview.finished`), with
  * the term, the group and its facilitators; otherwise "AGI Strategy has
  * ended." with the board's thanks and the term and group. Never that they
@@ -217,7 +236,7 @@ function afterHeadOf(
 }
 
 /**
- * What they keep (en-after-phone), each thing linked to the page that holds
+ * What they keep, each thing linked to the page that holds
  * it, and only once such a page exists, and only what the person has: the
  * action plan (the one week whose fill-in boxes hold it), once they have
  * written in at least one of its boxes, counted by the reader that counts
@@ -266,7 +285,7 @@ function RunHomeSkeleton() {
 }
 
 // ---------------------------------------------------------------------------
-// Your marks (C26): one per session, a legend, and no count
+// Your sessions: one per session, a legend, and no count
 // ---------------------------------------------------------------------------
 
 type MarkKind = AttendanceStatus | "not-yet" | "not-marked" | "cancelled" | "did-not-happen";
@@ -364,7 +383,7 @@ function YourMarks({
       {ownAttendance === null ? (
         /* No group yet: there is no session, no register and no facilitator
            to name. Allocation is what happens next, so that is what it says. */
-        <p className={weekly.cardLine}>You’ll be placed in a group soon. Your marks appear here after that.</p>
+        <p className={weekly.cardLine}>{MARKS_BEFORE_GROUP}</p>
       ) : (
         <>
           {rows.length > 0 && (
@@ -412,15 +431,20 @@ function YourMarks({
 // RunHome
 // ---------------------------------------------------------------------------
 
+/** No way into Messages from this run: every link keeps its old page. */
+const NO_MESSAGES: MessagesEntries = { cohort: null, groups: {} };
+
 export default function RunHome({
   runId,
   isAdmin,
   canEmailCohort,
+  messages = NO_MESSAGES,
   pitching = null,
   team = null,
   canLeave = false,
   leaveNote = null,
   timeQuestion = null,
+  cantMakeIt = null,
   viewAs = false,
   guide = null,
   uid = null,
@@ -444,13 +468,16 @@ export default function RunHome({
 
   // Somebody taking part, on an active enrolment, ticks; nobody else does.
   const learner = data?.enrolment?.role === "learner" ? data.enrolment : null;
-  // Before the reader's group first meets (st-programme): the run's calendar
+  // Before the reader's group first meets: the run's calendar
   // may have begun, but this group's first session is still to come.
   const firstNext = data?.group?.calendar.nextSession ?? null;
   const beforeStart =
     data?.currentWeek?.phase === "before" ||
     (firstNext !== null && firstNext.dateKey === data?.group?.calendar.firstSessionDate);
-  const ticks = useMaterialTicks(runId, uid, 1, learner?.status === "active");
+  // A week 1 submitted or locked takes no tick until somebody running the group reopens it.
+  const weekOneWork = data?.weeks.find((week) => week.weekNumber === 1)?.work ?? null;
+  const weekOneTakesTicks = weekOneWork ? weekOneWork.state === "open" || weekOneWork.state === "reopened" : true;
+  const ticks = useMaterialTicks(runId, uid, 1, learner?.status === "active" && weekOneTakesTicks);
 
   /*
     P10, the primary mirror trigger. The gate is an ACTIVE ENROLMENT, the
@@ -552,7 +579,7 @@ export default function RunHome({
     ? { ticket: weekly.order1, week: weekly.order2, group: weekly.order3, updates: weekly.order4, weeks: weekly.order5 }
     : { ticket: weekly.order1, week: weekly.order2, updates: weekly.order3, marks: weekly.order4, weeks: weekly.order5, group: weekly.order6 };
 
-  // The ticket's words (wk-changes): a session covering a cancelled week
+  // The ticket's words: a session covering a cancelled week
   // names its day in the eyebrow, "Tue 1 Dec · weeks 4 and 5", and its
   // heading then says only the hours; an online week ends "· online". The
   // group's last session is "Your last session" before its day.
@@ -588,6 +615,12 @@ export default function RunHome({
               roomChanged={factsSchedule?.roomChanged === true}
               facilitators={facilitatorPeople}
               calendar={learnerGroup !== null || access.isFacilitator}
+              cantMakeIt={
+                /* About the session this ticket shows, of the group it is the reader's place in. */
+                cantMakeIt && group?.id === cantMakeIt.groupId && group.calendar.nextSession?.sessionKey === cantMakeIt.sessionKey ? (
+                  <CantMakeIt key={cantMakeIt.sessionKey} view={cantMakeIt} locked={viewAs} />
+                ) : null
+              }
             />
           )}
         </div>
@@ -605,6 +638,7 @@ export default function RunHome({
         slotStartKey={thisSchedule?.slotStartKey || null}
         countableIds={thisDoc?.countableIds ?? []}
         thisWeek={thisDoc?.thisWeek ?? null}
+        locked={thisDoc?.work?.state === "locked"}
         open={thisSchedule?.open ?? false}
         breakLabel={calendarWeek?.breakLabel ?? null}
         weekSource={weekSource}
@@ -651,8 +685,8 @@ export default function RunHome({
     </div>
   );
 
-  // THE PROGRAMME PAGE ONCE IT IS OVER, for somebody who took part in it
-  // (en-after-phone, en-after-nofinish-phone). Somebody who left never
+  // THE PROGRAMME PAGE ONCE IT IS OVER, for somebody who took part in it.
+  // Somebody who left never
   // reaches this page: theirs says they left.
   if (currentWeek?.phase === "after" && access.isEnrolled && data.enrolment?.role === "learner") {
     const head = afterHeadOf(data, programmeName, {
@@ -677,6 +711,7 @@ export default function RunHome({
             groups={facilitatedGroups}
             publishedWeekNumbers={publishedWeekNumbers}
             canEmailCohort={canEmailCohort}
+            messages={messages}
           />
         </AfterTheEnd>
       </PageEnter>
@@ -753,7 +788,7 @@ export default function RunHome({
           )}
 
           {team && (
-            /* Their team (in-team): from the moment they are told it, while
+            /* Their team: from the moment they are told it, while
                they take part. The page is the team's own. */
             <Card as="section" padding="md" className={`${styles.panel} ${weekly.order2}`}>
               <h3 className={styles.panelTitle}>{YOUR_TEAM}</h3>
@@ -783,8 +818,8 @@ export default function RunHome({
 
           {beforeStart && yourGroup}
 
-          {/* Updates the people running the programme wrote to the reader
-              (Q18), read by their own route: what the reader is shown is the
+          {/* Updates the people running the programme wrote to the reader,
+             read by their own route: what the reader is shown is the
               route's decision, and a reader shown nothing is drawn nothing. */}
           <div className={order.updates}>
             <RunUpdates runId={runId} />
@@ -793,7 +828,7 @@ export default function RunHome({
           {!beforeStart && yourGroup}
           {beforeStart && weekList}
 
-          {/* Start here and the Glossary (wk-programme), after the group. */}
+          {/* Start here and the Glossary, after the group. */}
           <AboutThisCourse runId={runId} links={guide} className={weekly.order7} />
 
           {/* One card per group they facilitate. The cohort-wide links ride on
@@ -805,6 +840,8 @@ export default function RunHome({
                 group={facilitated}
                 publishedWeekNumbers={publishedWeekNumbers}
                 showCohortLinks={canEmailCohort && index === 0}
+                emailGroupHref={messages.groups[facilitated.id] ?? null}
+                emailCohortHref={messages.cohort}
               />
             </div>
           ))}
@@ -812,23 +849,26 @@ export default function RunHome({
           {canEmailCohort && facilitatedGroups.length === 0 && (
             /* The same link as in the facilitator panel, for the people that
                panel never renders for: a run facilitator, track lead or admin
-               who holds no group of their own. */
+               who holds no group of their own. Messages, set to the cohort,
+               where it would start with it for them; the run's own page
+               otherwise. */
             <Card as="section" padding="md" className={`${styles.panel} ${weekly.order7}`}>
-              <h3 className={styles.panelTitle}>Cohort announcements</h3>
-              <p className={styles.panelNote}>
-                One message to everyone subscribed to this run&apos;s channel. Announcements only: anything a single
-                group needs goes out from that group&apos;s own page instead.
-              </p>
-              <Link className={styles.panelLink} href={`/learn/${encodeURIComponent(runId)}/email`}>
+              {messages.cohort ? (
+                <>
+                  <h3 className={styles.panelTitle}>{HANDOVER_WORDS.cohortTitle}</h3>
+                  <p className={styles.panelNote}>{HANDOVER_WORDS.cohortNote}</p>
+                </>
+              ) : (
+                <>
+                  <h3 className={styles.panelTitle}>Cohort announcements</h3>
+                  <p className={styles.panelNote}>
+                    One message to everyone subscribed to this run&apos;s channel. Announcements only: anything a single
+                    group needs goes out from that group&apos;s own page instead.
+                  </p>
+                </>
+              )}
+              <Link className={styles.panelLink} href={messages.cohort ?? `/learn/${encodeURIComponent(runId)}/email`}>
                 Email the whole cohort
-                <span className={styles.arrow} aria-hidden="true">
-                  →
-                </span>
-              </Link>
-              {/* The weekly nudge lives in the same lane and behind the same
-                  gate: prepared for you and sent by you. */}
-              <Link className={styles.panelLink} href={`/learn/${encodeURIComponent(runId)}/nudge`}>
-                Send this week&apos;s nudge
                 <span className={styles.arrow} aria-hidden="true">
                   →
                 </span>
@@ -855,7 +895,7 @@ export default function RunHome({
         </div>
       </div>
 
-      {/* At the foot, as wk-programme draws it: the way out, behind its own
+      {/* At the foot, as the programme page draws it: the way out, behind its own
           confirmation page. Only for somebody taking part who can leave by
           themselves (see `canLeave`). */}
       {canLeave && access.isEnrolled && (
@@ -886,11 +926,13 @@ function FacilitatedPanels({
   groups,
   publishedWeekNumbers,
   canEmailCohort,
+  messages,
 }: {
   runId: string;
   groups: OverviewPayload["groups"];
   publishedWeekNumbers: number[];
   canEmailCohort: boolean;
+  messages: MessagesEntries;
 }) {
   return (
     <>
@@ -901,6 +943,8 @@ function FacilitatedPanels({
           group={facilitated}
           publishedWeekNumbers={publishedWeekNumbers}
           showCohortLinks={canEmailCohort && index === 0}
+          emailGroupHref={messages.groups[facilitated.id] ?? null}
+          emailCohortHref={messages.cohort}
         />
       ))}
     </>

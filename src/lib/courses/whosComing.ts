@@ -10,8 +10,8 @@ import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 
 /**
- * WHO'S COMING, FOR A GROUP'S FACILITATORS BEFORE ITS FIRST SESSION (board
- * st-fac-before-phone, Q14).
+ * WHO'S COMING, FOR A GROUP'S FACILITATORS BEFORE ITS FIRST SESSION
+ * (on the facilitator's Home before that session).
  *
  * The privacy policy's own words are the contract: before the first session,
  * facilitators "also see whether each person in their group has said they

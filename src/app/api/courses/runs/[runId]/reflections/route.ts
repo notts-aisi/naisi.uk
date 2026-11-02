@@ -9,7 +9,7 @@ import { isReflectionResponse } from "@/lib/firestore/courseExercises";
  * ONE PERSON'S REFLECTIONS FOR ONE WEEK, READ BY SOMEBODY ELSE:
  * `GET /api/courses/runs/[runId]/reflections?uid=<writer>&week=<n>`.
  *
- * WHO MAY READ (Q30, and Zach on Mon 26 Oct for a facilitator's own): the
+ * WHO MAY READ (and Zach on Mon 26 Oct for a facilitator's own): the
  * lead of the programme that names this run, while they stand
  * (`programmeLedBy`), and admins. Nobody else, so never another fellow, and
  * never a facilitator's co-facilitators or group. The person who wrote them
@@ -19,7 +19,7 @@ import { isReflectionResponse } from "@/lib/firestore/courseExercises";
  *
  * Every refusal is the same 403, decided before a single reflection is read,
  * so the answer never says whether somebody wrote anything. The group's own
- * facilitators read their group's reflections (Q30) on the group's pages, on
+ * facilitators read their group's reflections on the group's pages, on
  * the server, through `src/lib/courses/facilitatorWeek/readers.ts` after each
  * page's gate, and never through this route.
  *

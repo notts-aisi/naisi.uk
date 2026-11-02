@@ -4,7 +4,7 @@ import BrandMark from "@/components/BrandMark";
 import BlockView from "@/features/events/BlockView";
 import CoverImage from "@/features/events/CoverImage";
 import { clockTime } from "@/features/events/eventWhen";
-import { getPublishedEvent } from "@/features/events/fetchEvents";
+import { eventMetaFor, getEventForViewer } from "@/features/events/fetchEvents";
 import { publicFoodLine } from "@/features/events/foodLine";
 import { formatSiteDate, isSameSiteDay } from "@/lib/datetime/siteTime";
 import {
@@ -13,6 +13,7 @@ import {
   outlookOfficeUrl,
 } from "@/lib/events/ics";
 import { publicLocationLine, publicLocationText } from "@/lib/events/location";
+import { REACH_WORDS, eventReach } from "@/lib/events/reach";
 import { FOOD_TAG_LABEL, type EventDoc } from "@/lib/firestore/events";
 import { EventNotListed } from "./EventNotListed";
 import styles from "./calendar.module.css";
@@ -54,9 +55,10 @@ import styles from "./calendar.module.css";
  * ## Which events it serves
  *
  * Exactly what `/events/[id]` serves, by the same read: a published or
- * cancelled event, archived or not, members-only or not. Nothing here widens
- * disclosure by one field, and the location goes through the one module
- * allowed to decide what a location says.
+ * cancelled event, archived or not, for anyone or for people with an account,
+ * and an event for chosen people to the people invited to it. Nothing here
+ * widens disclosure by one field, and the location goes through the one
+ * module allowed to decide what a location says.
  */
 
 export const dynamic = "force-dynamic";
@@ -67,10 +69,12 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const event = await getPublishedEvent(id);
+  // With no session, as a link preview is fetched: an event for chosen people
+  // is named plainly, as on its own page.
+  const event = await eventMetaFor(id);
   if (!event) return { title: "Event not found", robots: { index: false, follow: true } };
   return {
-    title: `Add to calendar: ${titleOf(event)}`,
+    title: `Add to calendar: ${event.title.trim() || "NAISI event"}`,
     description: "Add this NAISI event to Apple Calendar, Google Calendar or Outlook.",
     // This page repeats what the event page already says, so it is kept out of
     // search results: a printed code is the only entrance it is meant to have.
@@ -84,10 +88,15 @@ export default async function AddEventToCalendarPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const event = await getPublishedEvent(id);
+  // An event for chosen people is for the people invited to it: anybody else
+  // holding its address is told it is not listed, which is true, and nothing
+  // of it is named. `getEventForViewer` decides, as it does for the event page.
+  const found = await getEventForViewer(id);
+  const event = found?.kind === "open" ? found.event : null;
   // Returned, never `notFound()`: that would answer with an empty body until
   // the scripts arrive. See EventNotListed for why that matters here.
   if (!event) return <EventNotListed />;
+  const audienceLine = REACH_WORDS.calendarLine[eventReach(event)];
 
   const title = titleOf(event);
   // A cancelled event has nothing to add, and an undated one has nothing to
@@ -130,9 +139,7 @@ export default async function AddEventToCalendarPage({
           {/* The event page says this with a badge. It matters here too:
               somebody about to put this in their calendar should know who it
               is for before they turn up. */}
-          {event.visibility === "members" && (
-            <p className={styles.audience}>This event is for NAISI members.</p>
-          )}
+          {audienceLine && <p className={styles.audience}>{audienceLine}</p>}
 
           <dl className={styles.facts}>
             <div className={styles.fact}>

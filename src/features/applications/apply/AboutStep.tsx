@@ -17,10 +17,13 @@ import { LongText, TextField } from "./fields";
 import styles from "./form.module.css";
 
 /**
- * About you: the same questions as joining the site.
+ * About you: the same questions as joining the site, starting with the full
+ * name (only the committee sees it) and the name they go by.
  *
  * For somebody with an account the step opens filled in from their profile,
- * and what they change here changes their APPLICATION, not their profile.
+ * and what they change here changes their APPLICATION, not their profile. An
+ * account made with Google that has no full name yet opens with Google's name
+ * in that box (`aboutYouFromAccount`).
  * The university email is the account's own and is shown, not edited: it is
  * only trusted because its owner followed a link we emailed to it, and a box
  * that could retype it would undo that. See
@@ -90,11 +93,21 @@ export default function AboutStep({
       ) : null}
 
       <TextField
-        label="Preferred name"
+        label="Full name"
+        first={about.fullName}
+        onChange={(fullName) => onChange({ fullName })}
+        maxLength={FIELD_LIMITS.fullName}
+        autoComplete="name"
+        helpBelow="So the committee can tell people apart. Only the committee sees it."
+      />
+
+      <TextField
+        label="What should we call you?"
         first={about.preferredName}
         onChange={(preferredName) => onChange({ preferredName })}
         maxLength={FIELD_LIMITS.preferredName}
-        autoComplete="given-name"
+        autoComplete="nickname"
+        helpBelow="What everyone else sees."
       />
 
       {email.kind === "typed" ? (

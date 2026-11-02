@@ -11,7 +11,7 @@ import { COURSE_GROUP_NOTES_COLLECTION } from "@/lib/firestore/courseGroupNotes"
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 
 /**
- * A NOTE A GROUP'S FACILITATORS SHARE (C30, board wk-fac-group's "Notes for
+ * A NOTE A GROUP'S FACILITATORS SHARE (the facilitator's group page's "Notes for
  * you and Sofia"): one facilitator writes it on the group's page, and the
  * group's other facilitators, the programme's lead and admins read it.
  *

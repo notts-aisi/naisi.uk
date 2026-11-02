@@ -451,7 +451,7 @@ describe("what an applicant reads", () => {
         "Your application is read by the lead and the reviewers of each programme you pick, and by NAISI\u2019s admins.",
       ),
     );
-    assert.match(checkStep, /const PRIVACY_HREF = "\/privacy#courses";/);
+    assert.match(checkStep, /const PRIVACY_HREF = "\/privacy#applying";/);
     assert.ok(checkStep.includes("How we use your application"));
   });
 

@@ -119,7 +119,7 @@ export type GroupSessionOverride = Partial<GroupSession> & {
 };
 
 /**
- * What "Change a session" did to one week's session (Q25), as the group's
+ * What "Change a session" did to one week's session, as the group's
  * people are told it.
  *
  *  - `online`: the week's session is held online, same day and time. The

@@ -4,7 +4,7 @@ import { standingUserOf } from "@/lib/courses/programmeLead";
 import {
   dropSuppressed,
   ownAddressFor,
-  resolveCohortAudience,
+  resolveNoticeAudience,
   type CohortAudienceLane,
 } from "@/lib/email/courseFacilitatorEmails";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
@@ -26,10 +26,12 @@ import { UNNAMED_GROUP } from "./words";
  *    whose place Publish has told them (`placementIsTold`) and is live; for
  *    the facilitators, the facilitators of the run's live groups who still
  *    meet the bar they were appointed behind.
- *  - `emails`, who the email reaches: for everyone and a group, the run's
- *    cohort list through `resolveCohortAudience`, the lane every staff email
- *    to a run uses (somebody who unsubscribed from it is not on it); for the
- *    facilitators, each one's own address. Never a suppressed address.
+ *  - `emails`, who the email reaches: for everyone and a group, the same
+ *    people through `resolveNoticeAudience`, the audience every notice to a
+ *    run has, whatever they unsubscribed from, each at the address their
+ *    cohort row holds or else their account's own; for the facilitators, each
+ *    one's own address. Never a suppressed address, and never one person
+ *    twice.
  *
  * NEVER TO ITS WRITER. Whoever writes an update is left out of its email,
  * whichever audience they are in (an incubator's lead runs its one group, so
@@ -40,12 +42,13 @@ import { UNNAMED_GROUP } from "./words";
  * THE CLASS OF THE EMAIL IS NOTICE (docs/notifications.md): the lead of a
  * programme, an admin or a group's facilitator addressing the people they run
  * it for, about the programme they are on. So it reaches them whatever their
- * course email switch says (`ignoreCategoryOptOut`), exactly as "Email the
- * group" and the run composer's notice lane do, and it carries the notice
- * marker that says so. Suppression and the cohort list still apply.
+ * course email switch says and whatever they unsubscribed from, exactly as
+ * "Email the group" and the run composer's notice lane do, and it carries the
+ * notice marker that says so. Suppression still applies: a bounce is a fact
+ * about an address, not a choice.
  */
 
-/** The cohort lane's words for this send: its log tag and its over-the-cap advice. */
+/** The notice audience's words for this send: its log tag and its over-the-cap advice. */
 const LANE: CohortAudienceLane = {
   logTag: "courses update email",
   overCapAdvice: "post it without emailing",
@@ -54,7 +57,7 @@ const LANE: CohortAudienceLane = {
 export type UpdateRecipient = { uid: string; address: string };
 
 export type UpdateEmailAudience = {
-  /** Deliverable: deduped, on the list or a facilitator, unsuppressed. */
+  /** Deliverable: deduped, holding a told place or a facilitator, unsuppressed. */
   recipients: UpdateRecipient[];
   /** True when the audience is over what one send can take: the press is refused whole. */
   refused: boolean;
@@ -117,9 +120,8 @@ export async function updateEmailAudience(
     const { recipients } = await facilitatorsOf(db, groups, writerUid);
     return { recipients, refused: false };
   }
-  const audience = await resolveCohortAudience(db, run.id, LANE, {
+  const audience = await resolveNoticeAudience(db, run.id, LANE, {
     groupId: to === "group" ? groupId : null,
-    ignoreCategoryOptOut: true,
   });
   if (audience.refusal) return { recipients: [], refused: true };
   return {

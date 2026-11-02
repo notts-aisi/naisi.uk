@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { isCheckIn } from "@/lib/firestore/surveys";
 import { pressBlanks } from "@/lib/surveys/blanksStore";
 import { subjectOf } from "@/lib/surveys/onePerson";
 import { canRunSurveys, isOpen, isSurveyId, readSurvey } from "@/lib/surveys/repo";
@@ -11,7 +12,7 @@ type Ctx = { params: Promise<{ surveyId: string; who: string }> };
 
 /**
  * "SEND THE QUESTIONS THEY LEFT BLANK", BY HAND, FOR ONE PERSON
- * (docs/surveys.md): an admin's press, from Who answered or the person's own
+ * (docs/surveys.md): an admin's press, from the Answers tab or the person's own
  * answers page, for somebody who sent the survey with required questions left
  * blank. It mints a new secret for that person's link of blanks, records the
  * press on their row (who, when, how many questions), then emails them the
@@ -49,12 +50,14 @@ export async function POST(req: Request, ctx: Ctx) {
 
   const survey = await readSurvey(db, surveyId);
   if (!survey) return NextResponse.json({ error: REFUSAL.noSurvey }, { status: 404 });
+  // A check-in is never sent again, its questions left blank included.
+  if (isCheckIn(survey)) return NextResponse.json({ error: REFUSAL.checkInNotSent }, { status: 409 });
   const subject = subjectOf(survey, who);
   if (!subject) return NextResponse.json({ error: BLANKS_REFUSAL.nobody }, { status: 404 });
   const now = new Date();
   if (!isOpen(survey, now)) return NextResponse.json({ error: BLANKS_REFUSAL.closed }, { status: 409 });
 
-  const outcome = await pressBlanks(db, { survey, subject, presserUid: actor.uid, questions, now });
+  const outcome = await pressBlanks(db, { survey, subject, presserUid: actor.uid, viewer: actor, questions, now });
   if (!outcome.ok) {
     const headers = outcome.retryAfterSeconds ? { "Retry-After": String(outcome.retryAfterSeconds) } : undefined;
     return NextResponse.json(

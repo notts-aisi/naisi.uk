@@ -1,26 +1,30 @@
 import { AdminPage } from "@/features/admin/adminList";
 import EventSendTab from "@/features/surveys/admin/EventSendTab";
 import OpenTab from "@/features/surveys/admin/OpenTab";
+import OpeningTab from "@/features/surveys/admin/OpeningTab";
 import SendTab from "@/features/surveys/admin/SendTab";
 import SurveyHead from "@/features/surveys/admin/SurveyHead";
 import SurveyMissing from "@/features/surveys/admin/SurveyMissing";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { isEventSurvey } from "@/lib/firestore/surveys";
+import { isCheckIn, isEventSurvey } from "@/lib/firestore/surveys";
 import { openView, sendView, surveyPage } from "@/lib/surveys/adminView";
+import { openingView } from "@/lib/surveys/checkIns/adminView";
 import { eventSendView } from "@/lib/surveys/events/adminView";
 
 export const dynamic = "force-dynamic";
 
 /**
- * A survey's Send tab (sv-send-programme): the email, its test and the
+ * A survey's Send tab: the email, its test and the
  * buttons that send it, to everybody holding a place, then to whoever joins
  * since, and the reminder. Each email is signed by the admin looking at it,
  * who is the one who would press. Admins only, by the `(admin-only)` group's
- * layout (`requireAdminPage()`); the session is read here for the signature.
+ * layout (`requireAdminPage()`); the session is read here for the signature,
+ * and for the names rule: each name as the admin looking is shown it.
  *
- * A LEAVING SURVEY is never sent (Q46): at this address it has its Open tab
- * instead, where it is opened and, once open, closed.
+ * A LEAVING SURVEY is never sent: at this address it has its Open tab
+ * instead, where it is opened and, once open, closed. Nor is A CHECK-IN: its
+ * Opening tab says how its group's facilitator opened it.
  */
 export default async function SurveySendPage({ params }: { params: Promise<{ surveyId: string }> }) {
   const { surveyId } = await params;
@@ -35,6 +39,15 @@ export default async function SurveySendPage({ params }: { params: Promise<{ sur
       </AdminPage>
     );
   }
+  // A check-in is opened from its group's register, never sent: how it was opened.
+  if (isCheckIn(page.survey)) {
+    return (
+      <AdminPage wide>
+        <SurveyHead head={page.head} current="send" />
+        <OpeningTab surveyId={page.survey.id} view={await openingView(db, page.survey, now, admin)} />
+      </AdminPage>
+    );
+  }
   if (page.survey.kind === "leaving") {
     return (
       <AdminPage wide>
@@ -43,9 +56,9 @@ export default async function SurveySendPage({ params }: { params: Promise<{ sur
       </AdminPage>
     );
   }
-  // A survey after an event: who it emails, its QR code at the event, and its email (sv-send).
+  // A survey after an event: who it emails, its QR code at the event, and its email.
   if (isEventSurvey(page.survey)) {
-    const eventView = await eventSendView(db, page.survey, admin.uid, now);
+    const eventView = await eventSendView(db, page.survey, admin.uid, now, admin);
     return (
       <AdminPage wide>
         <SurveyHead head={page.head} current="send" />
@@ -53,7 +66,7 @@ export default async function SurveySendPage({ params }: { params: Promise<{ sur
       </AdminPage>
     );
   }
-  const view = await sendView(db, page.survey, admin.uid, now);
+  const view = await sendView(db, page.survey, admin.uid, now, admin);
   return (
     <AdminPage wide>
       <SurveyHead head={page.head} current="send" />

@@ -25,7 +25,7 @@ export type ProgrammeOption = {
 export type StrandOption = { value: string; words: string };
 
 /**
- * New survey (sv-new), one card per template: a programme's survey before
+ * New survey, one card per template: a programme's survey before
  * it, at its end, the follow-ups 6 and 12 months on, and leaving it. An
  * admin picks the programme and the day it closes (the leaving survey has
  * none), and for an incubator which research it does; the rest is the

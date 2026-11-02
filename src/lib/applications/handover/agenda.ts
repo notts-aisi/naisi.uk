@@ -11,7 +11,7 @@ import { streamSetsFor } from "../sections";
 
 /**
  * THE AGENDA A PROGRAMME'S APPLICANTS RANKED, AND WHAT EACH PERSON TAKING
- * PART RANKED (board in-agenda).
+ * PART RANKED.
  *
  * The application form can ask a programme's applicants to put a list in the
  * order they would like it: an incubator's project agenda. Its answers are

@@ -23,8 +23,7 @@ import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 
 /**
- * WHAT A FACILITATOR'S PAGES SAY ABOUT ONE GROUP (boards wk-fac-group and
- * wk-fac-home-phone), worked out on the server from the records the
+ * WHAT A FACILITATOR'S PAGES SAY ABOUT ONE GROUP, worked out on the server from the records the
  * programme's own tabs read, so the facilitator, the lead and the register
  * can never disagree about who is in a group, who left, or what a register
  * says.
@@ -34,7 +33,10 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
  * group and admins. `viewer.isAdmin` then decides who is a row, by the
  * register's own rule: somebody Publish has not told their group is nobody's
  * row but an admin's. `viewer.actor` is who is asking, for whose answers
- * wait for them (TO REVIEW below).
+ * wait for them (TO REVIEW below), and for the name each person is shown by
+ * (`nameForViewer`, through `listGroups`: the committee and admins see the
+ * full name, a facilitator who is not on the committee the name people go
+ * by).
  *
  * What it answers:
  *  - THE PEOPLE: everybody taking part, with each FINISHED register's mark
@@ -72,7 +74,7 @@ export type GroupMark = {
 
 export type GroupPersonRow = {
   uid: string;
-  /** Their whole name, as the lead's tabs and the board name people. */
+  /** Their name as the viewer is shown it, as the lead's tabs name people. */
   name: string;
   /** The name they go by, as Home's who's coming calls them ("Amara"). */
   firstName: string;
@@ -281,7 +283,9 @@ export async function loadFacilitatorGroup(
 ): Promise<FacilitatorGroupModel> {
   const records = await recordsWith(db, run, group);
   if (!records) return EMPTY;
-  const listed = listGroups(records, viewer, now, weeksOf(records)).find((entry) => entry.group.id === group.id);
+  const listed = listGroups(records, { isAdmin: viewer.isAdmin, role: viewer.actor.role }, now, weeksOf(records)).find(
+    (entry) => entry.group.id === group.id,
+  );
   if (!listed) return EMPTY;
 
   const todayKey = londonDateKey(now);
@@ -379,10 +383,10 @@ function leftRecentlyIn(
 }
 
 /**
- * Where the next of next week's emails stands, while the email is on its
- * schedule: the first session still to come whose email has not gone. Null
- * while the email is not on its schedule (the push still sends it), and when
- * no session is left to email about.
+ * Where the next "Week N is open" stands, while the email is on its schedule:
+ * the first session still to come (the group's first among them) whose email
+ * has not gone. Null while the email is not on its schedule (the push still
+ * sends it), and when no session is left to email about.
  */
 export async function readNextEmailForHome(
   db: Firestore,
@@ -394,7 +398,7 @@ export async function readNextEmailForHome(
   if (!scheduled) return null;
   const sessions: ResolvedSession[] = resolveSessions(run, group);
   const config = await readCoursesConfig(db);
-  for (const session of sessions.slice(1)) {
+  for (const session of sessions) {
     const { startsAt } = sessionInstants(session);
     if (!startsAt || startsAt.getTime() <= now.getTime()) continue;
     const line = await nextEmailLineFor(db, { run, group, sessions, session, config, now });

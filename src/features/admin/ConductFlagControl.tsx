@@ -137,10 +137,10 @@ export default function ConductFlagControl({ uid, displayName }: Props) {
       return;
     }
     if (!editing) {
+      // Who sees it, as the privacy policy says, and what the person may ask
+      // for: the reason is their personal data, so it is facts, not judgement.
       const ok = window.confirm(
-        `Flag ${displayName}?\n\n`
-          + "Reviewers will see that a flag exists. They will not see the reason, "
-          + "and neither will the member.",
+        `Flag ${displayName}?\n\nOnly admins will see this flag and its reason. ${displayName} can ask us for a copy of what you write, so write what happened and when.`,
       );
       if (!ok) return;
     }
@@ -172,8 +172,8 @@ export default function ConductFlagControl({ uid, displayName }: Props) {
           somebody reading an existing flag is deciding whether to leave it
           standing, and needs to know who it is about to be shown to. */}
       <p className={styles.muted}>
-        The reason is visible to admins only. Reviewers see a yes or no chip, and the
-        member never sees any of it.
+        Only admins see this flag and its reason. Reviewers and the person flagged
+        don&apos;t see it on the site.
       </p>
 
       {state === null && loadError === null && <p className={styles.muted}>Checking…</p>}

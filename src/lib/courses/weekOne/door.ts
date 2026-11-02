@@ -23,7 +23,7 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseWeek, weekDocId } from "@/lib/firestore/courses";
 
 /**
- * WEEK 1'S DOOR FOR SOMEBODY HOLDING A PLACE (Q35 B): may this person open
+ * WEEK 1'S DOOR FOR SOMEBODY HOLDING A PLACE: may this person open
  * this run's week 1 before their group has been told to them, and if not,
  * why not. THE ONE ANSWER: every page and route that opens anything to
  * somebody holding a place before groups go out asks this function and
@@ -63,7 +63,7 @@ import { normalizeCourseWeek, weekDocId } from "@/lib/firestore/courses";
  * Not read in an admin's view-as session. Whether somebody holds a place is
  * worked out from their application, which is its owner's to read, so while
  * an admin is viewing the site as them the answer is `view-as`, shut, and
- * nothing is fetched: the run reads as it did before Q35, as Home does.
+ * nothing is fetched: the run reads as it did before week 1 opened early, as Home does.
  *
  * ## The answer
  *

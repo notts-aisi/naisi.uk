@@ -8,6 +8,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import MemberName from "@/components/ui/MemberName";
 import Modal from "@/components/ui/Modal";
 import Skeleton from "@/components/ui/Skeleton";
+import { TOLD_IN_ADVANCE, registerCantMakeItLine } from "@/lib/courses/cantMakeIt/words";
 import { londonClockLabel } from "@/lib/courses/londonLabels";
 import {
   ATTENDANCE_LIMITS,
@@ -16,6 +17,8 @@ import {
 } from "@/lib/firestore/courseAttendance";
 import styles from "./AttendanceGrid.module.css";
 import ParticipantNoteDrawer from "./ParticipantNoteDrawer";
+import CheckInCard from "./register/CheckInCard";
+import ReportLink from "./report/ReportLink";
 import PushConfirm from "./PushConfirm";
 import { registerEndingWords } from "./registerEndingWords";
 import useAttendance, {
@@ -69,9 +72,19 @@ import useAttendance, {
  * ── EVERY TAP SAVES, AND SAYS SO ────────────────────────────────────────────
  * The status beside the legend reads "Saved 7:58pm" after each save, the time
  * of the last one in London, so a facilitator can see their register is safe
- * without finishing it. The foot under the grid is wk-register's: the session
+ * without finishing it. The foot under the grid is the register page's: the session
  * the button finishes, the button, and the words under it, every value read
  * off a record by the route (`registerEndingWords`).
+ *
+ * ── "CAN'T MAKE IT" ─────────────────────────────────────────────────────────
+ * Somebody taking part can tell us, before a session starts, that they can't
+ * make it, from their programme page. Their mark on that session's register
+ * is then `excused`, and the register says so to whoever reads it: a line
+ * over the table for each session that has not ended ("Tue 17 Nov: Kofi
+ * Asante can't make it."), from the moment they say it, whether or not the
+ * session is a column yet; and beside the mark, to a screen reader, that
+ * the excused mark was their own word. A facilitator who taps the cell takes
+ * the mark over, and the line goes with it.
  *
  * ── MID-RUN JOINERS ─────────────────────────────────────────────────────────
  * Cells before a member's `joinedWeekNumber` are INERT: a dash, not an
@@ -100,6 +113,12 @@ export type AttendanceGridProps = {
    * under.
    */
   runId?: string;
+  /**
+   * The session report page of this group, for a caller who writes one (a
+   * live facilitator of the group): once the session the foot is about is
+   * finished, the foot leads on to its report. Absent for anybody else.
+   */
+  reportHref?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -142,6 +161,9 @@ const UNMARKED_GLYPH = "·";
 
 /** Shared empty list of people who left. Read only by contract. */
 const NO_LEAVERS: AttendanceLeaver[] = [];
+
+/** A session nobody has been marked at yet. Read only by contract. */
+const NO_MARKS: Record<string, AttendanceStatus> = {};
 
 const STATUS_CLASS: Record<AttendanceStatus, string> = {
   present: styles.isPresent,
@@ -286,7 +308,7 @@ function SessionNoteDialog({
 // AttendanceGrid
 // ---------------------------------------------------------------------------
 
-export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
+export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridProps) {
   const {
     group,
     sessions,
@@ -297,6 +319,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
     participantNotes,
     canEditPushed,
     ending,
+    cantMakeIt,
     loading,
     error,
     reload,
@@ -360,6 +383,18 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
     (sessionKey: string, uid: string): AttendanceStatus | null =>
       records[sessionKey]?.[uid] ?? null,
     [records],
+  );
+
+  /** Who told us in advance they can't make each session, by session key. */
+  const toldInAdvance = useMemo(
+    () => new Map((cantMakeIt ?? []).map((entry) => [entry.sessionKey, new Set(entry.uids)])),
+    [cantMakeIt],
+  );
+  /** Whether this cell's excused mark is the person's own word, given in advance. */
+  const toldUs = useCallback(
+    (sessionKey: string, uid: string): boolean =>
+      statusOf(sessionKey, uid) === "excused" && (toldInAdvance.get(sessionKey)?.has(uid) ?? false),
+    [statusOf, toldInAdvance],
   );
 
   // ---- The session a dialog is pointed at ----------------------------------
@@ -620,6 +655,21 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
     );
   }
 
+  // "Tue 17 Nov: Kofi Asante can't make it.", for each session that has not
+  // ended. On a column, only while the mark is still the person's excused: a
+  // facilitator's tap takes it over.
+  const columnKeys = new Set(sessions.map((session) => session.sessionKey));
+  const cantMakeItLines = (cantMakeIt ?? [])
+    .filter((entry) => !entry.ended)
+    .map((entry) => {
+      const names = members
+        .filter((member) => entry.uids.includes(member.uid))
+        .filter((member) => !columnKeys.has(entry.sessionKey) || toldUs(entry.sessionKey, member.uid))
+        .map((member) => member.displayName);
+      return { key: entry.sessionKey, words: names.length > 0 ? registerCantMakeItLine(dateLabel(entry.dateKey), names) : "" };
+    })
+    .filter((line) => line.words !== "");
+
   const pushTally = pushSession
     ? (tallies.get(pushSession.sessionKey) ?? { marked: 0, eligible: 0 })
     : { marked: 0, eligible: 0 };
@@ -686,6 +736,17 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
         <p className={styles.error} role="status">
           {cellError ?? error?.message}
         </p>
+      )}
+
+      {/* Who told us in advance they can't make a session still to come. */}
+      {cantMakeItLines.length > 0 && (
+        <div className={styles.cantMakeIt}>
+          {cantMakeItLines.map((line) => (
+            <p key={line.key} className={styles.cantMakeItLine}>
+              {line.words}
+            </p>
+          ))}
+        </div>
       )}
 
       {/* The register's OWN scroller. Never `.mainWide`: a wide data view
@@ -830,7 +891,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
                       </button>
                     )}
 
-                    {/* The recovery lane for next week's email when it failed
+                    {/* The recovery lane for the week's email when it failed
                         after it was claimed. Admin only, and it reaches THIS
                         group alone. */}
                     {pushed && canEditPushed && (
@@ -839,9 +900,9 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
                         className={styles.bulk}
                         data-testid="attendance-resend"
                         onClick={() => setResendTarget(session.sessionKey)}
-                        aria-label={`Send the week ${session.weekNumber} reminder to this group again`}
+                        aria-label={`Send this group the email after week ${session.weekNumber} again`}
                       >
-                        {scheduled ? "Resend next week’s email" : "Resend reminder"}
+                        Resend the week’s email
                       </button>
                     )}
                   </th>
@@ -901,7 +962,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
                             role="img"
                             aria-label={`${member.displayName}, week ${session.weekNumber}: ${
                               status ? ATTENDANCE_STATUS_LABEL[status] : "not marked"
-                            }. This register is finished and locked.`}
+                            }.${toldUs(session.sessionKey, member.uid) ? ` ${TOLD_IN_ADVANCE}` : ""} This register is finished and locked.`}
                           >
                             {status ? GLYPH[status] : UNMARKED_GLYPH}
                           </span>
@@ -915,7 +976,9 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
                             aria-pressed={status !== null}
                             aria-label={`${member.displayName}, week ${session.weekNumber}: ${
                               status ? ATTENDANCE_STATUS_LABEL[status] : "not marked"
-                            }. Sets ${next ? ATTENDANCE_STATUS_LABEL[next] : "not marked"}.`}
+                            }.${toldUs(session.sessionKey, member.uid) ? ` ${TOLD_IN_ADVANCE}` : ""} Sets ${
+                              next ? ATTENDANCE_STATUS_LABEL[next] : "not marked"
+                            }.`}
                             onClick={() => void onCycle(session, member)}
                           >
                             {/* Keyed by status so a change REMOUNTS the glyph:
@@ -953,7 +1016,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
                 })}
               </tr>
             ))}
-            {/* SOMEBODY WHO LEFT THE GROUP (wk-fac-group's "Sam Whitfield,
+            {/* SOMEBODY WHO LEFT THE GROUP (as the facilitator's group page shows "Sam Whitfield,
                 Left Fri 13 Nov"), as the lead's Attendance tab lists them:
                 read only, with the marks they had. Their cells are never
                 buttons, they count in no tally above, and a session after
@@ -998,7 +1061,14 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
         </table>
       </div>
 
-      {/* THE FOOT: wk-register's ending. The session the button finishes, the
+      {/* THE CHECK-IN for the session the foot finishes: its own card, with
+          its own route, which answers only the group's facilitators and
+          admins (the lead, who reads the register, is shown nothing). */}
+      {focus && (
+        <CheckInCard groupId={groupId} sessionKey={focus.sessionKey} marks={records[focus.sessionKey] ?? NO_MARKS} />
+      )}
+
+      {/* THE FOOT: the register page's ending. The session the button finishes, the
           button, and the words under it, every value read off a record by the
           route. Once there is nothing left to finish it says so instead. */}
       {ending && focus && words && (
@@ -1035,6 +1105,11 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
               ))}
             </div>
           )}
+          {focus.finished &&
+            reportHref &&
+            sessions.some((session) => session.sessionKey === focus.sessionKey && session.held) && (
+              <ReportLink href={reportHref} sessionKey={focus.sessionKey} />
+            )}
         </section>
       )}
 
@@ -1055,19 +1130,19 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
         <Modal
           open
           onClose={() => setResendTarget(null)}
-          ariaLabel="Re-send this group's reminder"
+          ariaLabel="Re-send this group's email"
           width="sm"
         >
           <div className={styles.dialog}>
             <h2 className={styles.dialogTitle}>
-              {scheduled ? "Re-send next week’s email" : "Re-send the reminder"} after week{" "}
+              Re-send the week’s email after week{" "}
               {resendSession.weekNumber}
               {resendSession.occurrence > 1 ? `, session ${resendSession.occurrence}` : ""}?
             </h2>
             <p className={styles.dialogMeta}>
               {scheduled
-                ? "Use it when next week’s email went out on its schedule and failed: "
-                : "This group has already been sent (or claimed) this reminder. Use it when the push locked the register but the email failed: "}
+                ? "Use it when the week’s email went out on its schedule and failed: "
+                : "This group has already been sent (or claimed) this email. Use it when the push locked the register but the email failed: "}
               everyone in {group?.name || "this group"} gets the message again, and nobody
               outside the group is emailed. The re-send is recorded against your name.
               {scheduled ? " An email that hasn’t gone yet isn’t sent early." : ""}
@@ -1085,7 +1160,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
                 disabled={resending}
                 data-testid="attendance-resend-confirm"
               >
-                {resending ? "Re-sending..." : "Re-send reminder"}
+                {resending ? "Re-sending..." : "Re-send the email"}
               </Button>
             </div>
           </div>

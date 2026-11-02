@@ -45,10 +45,11 @@ export async function POST(_req: Request, ctx: Ctx) {
   if (isEventSurvey(survey)) {
     // A survey after an event names its guests too, and has no group to have
     // met (src/lib/surveys/events/exportTable.ts).
-    table = await eventExportTable(db, survey);
+    table = await eventExportTable(db, survey, actor);
   } else {
     const answers = await answersOf(db, survey);
-    const names = await namesOf(db, answers.flatMap((answer) => (answer.respondent ? [answer.respondent.uid] : [])));
+    // Each name as the admin downloading is shown it (the names rule).
+    const names = await namesOf(db, answers.flatMap((answer) => (answer.respondent ? [answer.respondent.uid] : [])), actor);
     table = surveyExportTable(
       survey.items,
       answers.map((answer) => ({

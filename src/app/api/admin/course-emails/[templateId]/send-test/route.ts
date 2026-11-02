@@ -6,18 +6,12 @@ import AdmissionsDeclinedEmail from "@/emails/AdmissionsDeclinedEmail";
 import AdmissionsStageReleasedEmail from "@/emails/AdmissionsStageReleasedEmail";
 import AdmissionsSubmittedEmail from "@/emails/AdmissionsSubmittedEmail";
 import ApplicationEmail from "@/emails/ApplicationEmail";
-import CourseNudgeEmail from "@/emails/CourseNudgeEmail";
 import {
   ADMISSIONS_PREVIEW_SAMPLE,
   courseSampleTokens,
   courseTemplateUsesAdmissionsTokens,
   type AdmissionsTemplateId,
 } from "@/features/admin/emailDesigns/courseEmailSamples";
-import {
-  courseNudgeTokensFrom,
-  renderCourseNudge,
-  COURSE_NUDGE_TEMPLATE_ID,
-} from "@/lib/email/courseNudgeEmail";
 import { composeFacilitatingEmail, facilitatingFactsFromSample } from "@/lib/courses/facilitatingEmail";
 import { composeIncubatorStartEmail, incubatorStartFactsFromSample } from "@/lib/courses/incubatorStartEmail";
 import { composePlacementEmail, placementFactsFromSample } from "@/lib/courses/placementEmail";
@@ -45,17 +39,16 @@ import {
  * no seed step, so "no doc" is a normal state and the defaults are what a real
  * send would use — a test that 404'd there would be testing the wrong thing.
  *
- * Eight of the fifteen templates render through the same `ApplicationEmail`
+ * Eight of the fourteen templates render through the same `ApplicationEmail`
  * component the real course sends use, so what lands here is what an applicant
- * gets. SEVEN HAVE THEIR OWN COMPONENT AND ARE RENDERED THROUGH IT, for the
- * same reason in each case: that is the one implementation the recipient
- * receives, footer and degradation rules included, and a rehearsal that
- * rendered it any other way would be proofing an email nobody gets. The weekly
- * nudge goes through `renderCourseNudge` into `CourseNudgeEmail`; the six
- * admissions templates go through `admissionsPreview` below, which is
- * exhaustive over `AdmissionsTemplateId` so a seventh one cannot be added
- * without a branch. The count above is checked by nothing, so keep it honest
- * when a template is added.
+ * gets. SIX HAVE THEIR OWN COMPONENT AND ARE RENDERED THROUGH IT, for the same
+ * reason in each case: that is the one implementation the recipient receives,
+ * footer and degradation rules included, and a rehearsal that rendered it any
+ * other way would be proofing an email nobody gets. The six admissions
+ * templates go through `admissionsPreview` below, which is exhaustive over
+ * `AdmissionsTemplateId` so a seventh one cannot be added without a branch.
+ * The count above is checked by nothing, so keep it honest when a template is
+ * added.
  */
 /**
  * Sample paragraphs for the appointment round's two decisions, so a rehearsal
@@ -129,6 +122,12 @@ function admissionsPreview(
   }
 }
 
+/** What the admin is told when every test email failed. The errors are in the server log. */
+const NOTHING_SENT = "None of the test emails could be sent. The reason is in the server log.";
+
+/** Beside one address that failed when another was sent. */
+const SEND_FAILED = "This address could not be sent to. The reason is in the server log.";
+
 export async function POST(
   _req: Request,
   ctx: { params: Promise<{ templateId: string }> },
@@ -198,14 +197,6 @@ export async function POST(
     "Alex Taylor";
   const tokens = courseSampleTokens(templateId, name);
 
-  // The nudge's own renderer, or the shared lifecycle pass. `renderCourseNudge`
-  // does the substitution, the escaping, the drop-the-empty-sentence rule and
-  // the subject tidy in one call — the same call the send route makes.
-  const nudge =
-    templateId === COURSE_NUDGE_TEMPLATE_ID
-      ? renderCourseNudge({ subject, blocks }, courseNudgeTokensFrom(tokens))
-      : null;
-
   // The placement email, written by its own composer as a PROOF: a paragraph
   // with nothing to say is left out as it would be for a placed person, and a
   // token that email cannot fill stays as typed for whoever asked to notice.
@@ -221,28 +212,13 @@ export async function POST(
           : null;
   const proof = placement && placement.ok ? placement : null;
 
-  const personalisedSubject = nudge
-    ? nudge.subject
-    : proof
-      ? proof.subject
-      : personaliseString(subject, tokens);
-  const personalisedBlocks: Block[] = nudge
-    ? nudge.blocks
-    : proof
-      ? proof.blocks
-      : personaliseBlocks(blocks, tokens);
+  const personalisedSubject = proof ? proof.subject : personaliseString(subject, tokens);
+  const personalisedBlocks: Block[] = proof ? proof.blocks : personaliseBlocks(blocks, tokens);
   const testSubject = `[TEST] ${personalisedSubject}`;
 
   /**
-   * The nudge's unsubscribe link is a SAMPLE. A real one is a signed token
-   * scoped to one member and one run's cohort channel, and a rehearsal has
-   * neither — so the footer proofs the copy and the shape without minting
-   * anything that could flip a subscription row. Following it lands on the
-   * unsubscribe page's "Invalid or expired link" state, which changes nothing.
-   */
-  /**
-   * The admissions family renders through THEIR OWN components for the same
-   * reason the nudge does: each carries something `ApplicationEmail` has no
+   * The admissions family renders through THEIR OWN components: each carries
+   * something `ApplicationEmail` has no
    * slot for (a footer link back to the application, the appointment's note,
    * the refusal's shared reason), and a rehearsal that went through the shared
    * component would proof an email nobody receives. The url is the sample one,
@@ -261,13 +237,6 @@ export async function POST(
 
   const react = admissions
     ? admissions
-    : nudge
-    ? CourseNudgeEmail({
-        subject: personalisedSubject,
-        blocks: personalisedBlocks,
-        unsubscribeUrl: `${(process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/+$/, "")}/api/unsubscribe?t=sample-preview-token`,
-        preheader: nudge.preheader || testSubject,
-      })
     : ApplicationEmail({
         subject: personalisedSubject,
         blocks: personalisedBlocks,
@@ -294,21 +263,17 @@ export async function POST(
       sentTo.push(address);
       await new Promise((r) => setTimeout(r, 200));
     } catch (err) {
-      failures.push({
-        address,
-        error: err instanceof Error ? err.message : "unknown",
-      });
+      // The error stays in the log: its words are the mail library's and can
+      // name a host or an address. The admin is told in words this route chose.
+      console.error("[course-email send-test]", templateId, err);
+      failures.push({ address, error: SEND_FAILED });
     }
   }
 
   // "All sends failed" is a hard error — otherwise the editor shows a green
   // "Test sent to ." off an empty array join while nothing landed.
   if (sentTo.length === 0) {
-    const reasons = failures.map((f) => `${f.address}: ${f.error}`).join("; ");
-    return NextResponse.json(
-      { error: `No emails delivered. ${reasons || "Unknown failure."}`, failures },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: NOTHING_SENT }, { status: 500 });
   }
 
   return NextResponse.json({ sentTo, failures });

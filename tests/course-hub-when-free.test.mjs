@@ -1,6 +1,6 @@
 /**
- * "When you’re free" stays open until groups go out (Q7: boards
- * st-application-phone and st-late-phone).
+ * "When you’re free" stays open until groups go out
+ * (on the application page, and for a late joiner).
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -27,7 +27,7 @@
  *     form's own editor for somebody holding a place, sends anybody else
  *     (told, no place, signed out) away, and in a view-as session says so and
  *     reads nothing.
- *  5. A LATE JOINER (st-late-phone): somebody offered a freed place after
+ *  5. A LATE JOINER: somebody offered a freed place after
  *     decision day has nothing to change until they accept; once they have,
  *     they change their week as anybody holding a place does, week 1 opens
  *     and Home draws the card. Once the planned day has passed, the line
@@ -310,7 +310,7 @@ describe("4. the page", () => {
 // 5. A late joiner: a freed place, accepted after decision day
 // ---------------------------------------------------------------------------
 
-describe("5. a late joiner (st-late-phone): a freed place accepted after decision day", () => {
+describe("5. a late joiner: a freed place accepted after decision day", () => {
   /** Tue 27 Oct 2026, 12pm: inside the freed places window, the day before groups go out. */
   const TUESDAY = new Date("2026-10-27T12:00:00Z");
   const REPLY_BY = "2026-10-29";

@@ -7,9 +7,16 @@ import { loadForm } from "@/lib/applications/repo";
 import { loadApplication, loadDecision } from "@/lib/applications/staffRepo";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import type { SessionUser } from "@/lib/firebase/session";
-import { courseEnrolmentId, enrolmentHasLeft, normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
+import {
+  courseEnrolmentId,
+  enrolmentHasLeft,
+  normalizeCourseEnrolment,
+  placementIsTold,
+  type CourseEnrolmentDoc,
+} from "@/lib/firestore/courseEnrolments";
 import {
   SURVEY_PEOPLE_COLLECTION,
+  isCheckIn,
   isEventAudience,
   normalizeSurveyPerson,
   programmeOf,
@@ -17,6 +24,7 @@ import {
   type SurveyKind,
   type SurveyPersonDoc,
 } from "@/lib/firestore/surveys";
+import { CHECK_IN_CARD_WORDS, checkInCardClosesWords } from "./checkIns/words";
 import { surveyLinkPath } from "./emails";
 import { surveyQuestionsOf } from "./items";
 import { isOpen, ownAnswerOf, readSurvey } from "./repo";
@@ -25,7 +33,7 @@ import { CARD_WORDS, cardSizeWords, closesWords, dateKeyWords, dayWords } from "
 /**
  * A SURVEY WAITING FOR SOMEBODY: the one answer to "is there a survey for
  * this person to answer now?", which Home, My programmes and week 1's page
- * all ask (Q50 B), and nothing else decides. `docs/surveys.md`, "The cards".
+ * all ask, and nothing else decides. `docs/surveys.md`, "The cards".
  *
  * A survey waits for a person while all three hold:
  *
@@ -39,7 +47,9 @@ import { CARD_WORDS, cardSizeWords, closesWords, dateKeyWords, dayWords } from "
  *    theirs once it was sent to them: it went because they said yes. A
  *    leaving survey is theirs while their seat on the run still says they
  *    left: their row was made as they left, and somebody put back on the
- *    programme is not asked why they left;
+ *    programme is not asked why they left. A check-in at the end of a
+ *    session is theirs while their seat on its run is live and told: their
+ *    row was made because the register marked them there;
  *  - THEY HAVE NOT ANSWERED IT.
  *
  * What a card says is the survey's own record: its title, its programme, how
@@ -108,8 +118,7 @@ export type AtTheEnd = {
 };
 
 /**
- * THE SURVEY AT THE END, AS ITS RUN'S OWN PAGES SHOW IT TO ONE PERSON (Q48 B;
- * boards en-after-phone, en-after-nofinish-phone): either it is theirs to
+ * THE SURVEY AT THE END, AS ITS RUN'S OWN PAGES SHOW IT TO ONE PERSON: either it is theirs to
  * answer, as `surveysWaitingFor` says (its card), or they have sent it (the
  * day they sent it, and the day their name comes off it, "Sat 9 Dec 2028",
  * null while that cannot be dated). Nothing of anybody else's.
@@ -139,16 +148,28 @@ async function holdsPlaceNow(
 }
 
 /**
- * Whether the person's own seat on a run says they left it. Their own seat
- * only, and nothing of it is shown. A seat Publish has not told them about is
- * no seat they left: leaving needs a seat they were told, and keeps the stamp.
+ * The person's own seat on a run once Publish has told them of it, or null.
+ * Their own seat only, and nothing of it is shown. A seat Publish has not told
+ * them about is no seat they left and no seat they are on.
  */
-async function leftTheRun(db: Firestore, runId: string, uid: string): Promise<boolean> {
-  if (!runId || runId.includes("/")) return false;
+async function toldSeatOn(db: Firestore, runId: string, uid: string): Promise<CourseEnrolmentDoc | null> {
+  if (!runId || runId.includes("/")) return null;
   const snap = await db.collection("courseEnrolments").doc(courseEnrolmentId(runId, uid)).get();
-  if (!snap.exists) return false;
+  if (!snap.exists) return null;
   const seat = normalizeCourseEnrolment(snap.id, snap.data() ?? {});
-  return seat.uid === uid && seat.runId === runId && placementIsTold(seat) && enrolmentHasLeft(seat.status);
+  return seat.uid === uid && seat.runId === runId && placementIsTold(seat) ? seat : null;
+}
+
+/** Whether the person's own told seat on a run says they left it: leaving needs a seat they were told, and keeps the stamp. */
+async function leftTheRun(db: Firestore, runId: string, uid: string): Promise<boolean> {
+  const seat = await toldSeatOn(db, runId, uid);
+  return seat !== null && enrolmentHasLeft(seat.status);
+}
+
+/** Whether the person's own told seat on a run is live: told by Publish and not left. */
+async function onTheRun(db: Firestore, runId: string, uid: string): Promise<boolean> {
+  const seat = await toldSeatOn(db, runId, uid);
+  return seat !== null && !enrolmentHasLeft(seat.status);
 }
 
 /** Whether a survey sent to the person is still theirs to answer: see the note at the top. */
@@ -162,19 +183,22 @@ async function stillTheirs(
   if (isEventAudience(survey.audience)) return false;
   if (survey.audience.kind === "followUps") return true;
   if (survey.audience.kind === "leaving") return leftTheRun(db, survey.runId, uid);
+  // A check-in: the register marked them at its session, and their seat on the run is still live.
+  if (survey.audience.kind === "checkIn") return isCheckIn(survey) && onTheRun(db, survey.runId, uid);
   return holdsPlaceNow(db, survey, uid, forms);
 }
 
-function cardOf(survey: SurveyDoc, person: SurveyPersonDoc, atTheEnd: AtTheEnd | null): SurveyCard {
+function cardOf(survey: SurveyDoc, person: SurveyPersonDoc, atTheEnd: AtTheEnd | null, now: Date): SurveyCard {
+  const checkIn = isCheckIn(survey);
   return {
     surveyId: survey.id,
     runId: survey.runId,
     kind: survey.kind,
-    eyebrow: CARD_WORDS.eyebrow,
+    eyebrow: checkIn ? CHECK_IN_CARD_WORDS.eyebrow : CARD_WORDS.eyebrow,
     title: survey.title,
     programme: survey.programmeName,
     size: cardSizeWords(surveyQuestionsOf(survey.items).length, survey.minutes),
-    closes: survey.closesAt ? closesWords(survey.closesAt, false) : "",
+    closes: survey.closesAt ? (checkIn ? checkInCardClosesWords(survey.closesAt, now) : closesWords(survey.closesAt, false)) : "",
     href: surveyLinkPath(person.token),
     answer: CARD_WORDS.answer,
     ...(atTheEnd ? { atTheEnd } : {}),
@@ -217,11 +241,14 @@ export async function surveysWaitingFor(db: Firestore, person: Pick<SessionUser,
 
   const forms = new Map<string, ApplicationForm | null>();
   const cards: { card: SurveyCard; closesAt: number }[] = [];
-  for (const row of rows) {
-    const survey = await readSurvey(db, row.surveyId);
+  // Every survey the rows name, read at once: a person keeps a row on each
+  // check-in they were marked at, so there may be several.
+  const read = await Promise.all(rows.map((row) => readSurvey(db, row.surveyId)));
+  for (const [index, row] of rows.entries()) {
+    const survey = read[index];
     if (!survey || !isOpen(survey, now)) continue;
     if (!(await stillTheirs(db, survey, uid, forms))) continue;
-    cards.push({ card: cardOf(survey, row, await atTheEndOf(db, survey)), closesAt: survey.closesAt?.getTime() ?? Number.POSITIVE_INFINITY });
+    cards.push({ card: cardOf(survey, row, await atTheEndOf(db, survey), now), closesAt: survey.closesAt?.getTime() ?? Number.POSITIVE_INFINITY });
   }
   return cards
     .sort((a, b) => a.closesAt - b.closesAt || a.card.title.localeCompare(b.card.title, "en") || a.card.surveyId.localeCompare(b.card.surveyId))
@@ -229,7 +256,7 @@ export async function surveysWaitingFor(db: Firestore, person: Pick<SessionUser,
 }
 
 /**
- * Week 1's first card (Q50 B): the before survey of the run whose week 1 this
+ * Week 1's first card: the before survey of the run whose week 1 this
  * is, while it waits for the person, or null. The same answer as Home's.
  */
 export async function beforeSurveyCardFor(
@@ -243,7 +270,7 @@ export async function beforeSurveyCardFor(
 }
 
 /**
- * The page that says somebody left (wk-left-phone): the leaving survey of the
+ * The page that says somebody left: the leaving survey of the
  * run they left while it waits for them, or null. The same answer as Home's.
  */
 export async function leavingSurveyCardFor(

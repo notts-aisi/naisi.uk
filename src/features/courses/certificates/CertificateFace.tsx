@@ -10,7 +10,7 @@ import {
 import { LOCKUP_LINES } from "@/lib/courses/certificates/pdfLayout";
 
 /**
- * A CERTIFICATE, AS A DRAWING (boards en-cert and en-cert-phone): the lockup,
+ * A CERTIFICATE, AS A DRAWING: the lockup,
  * the short rule, the eyebrow over a finished certificate, the name, what
  * they did, the programme, the meta line, the issue sentence and, while its
  * link is on, where to check it. Every word comes in on `face`

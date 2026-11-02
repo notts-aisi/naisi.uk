@@ -1,5 +1,5 @@
 /**
- * THE WORDS OF CHOOSING GROUP TIMES (board st-times), in one place: the
+ * THE WORDS OF CHOOSING GROUP TIMES, in one place: the
  * controls beside the times picture, the dialogs they open, and the two
  * routes' refusals. No imports, so the dialogs in the browser and the routes
  * on the server say the same thing in the same words.

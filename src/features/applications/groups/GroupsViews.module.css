@@ -1,5 +1,4 @@
-/* The views of a programme's Groups tab (boards st-groups, st-times,
-   st-facilitators): a segmented row of links, the one on screen raised. */
+/* The views of a programme's Groups tab: a segmented row of links, the one on screen raised. */
 
 .frame {
   display: flex;

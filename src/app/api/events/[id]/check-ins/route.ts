@@ -11,7 +11,9 @@ import {
   checkInPhase,
   doorWindow,
   eventTakesCheckIns,
+  openingOf,
   recordCheckIn,
+  staffNames,
 } from "@/lib/events/checkIns";
 import { surveyClosesFor } from "@/lib/surveys/events/records";
 
@@ -25,15 +27,18 @@ export const dynamic = "force-dynamic";
  * deleted when that survey closes or a week after the event, whichever comes
  * first (`walkInEmailGoesAt`).
  *
- * `from` is where it was pressed. `door` is the door list, open from an hour
- * before the start to an hour after the end; `page` is the event's own page,
- * from the door opening until a week after the event, or until the event's
- * survey closes when that is sooner. A sign-up on the door
+ * `from` is where it was pressed. `door` is the door list, which takes a tick
+ * once the event's author or an admin has opened the door, inside its hours
+ * (an hour before the start to an hour after the end); `page` is the event's
+ * own page, from the door's hours until a week after the event, or until the
+ * event's survey closes when that is sooner, whether or not the door was
+ * opened. A sign-up on the door
  * list is somebody confirmed, on the waiting list or not decided yet: a
  * cancelled or refused one who comes is added as a walk-in.
  *
  * One record per person: pressing again hands back the first one. The answer
- * is the row as the door list draws it, built field by field.
+ * is the row as the door list draws it, built field by field, with the name
+ * of whoever checked them in (`staffNames`), which the event's page shows.
  */
 
 type From = "door" | "page";
@@ -114,7 +119,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const phase = checkInPhase(event, now, surveyClosesAt);
   const window = doorWindow(event);
   if (parsed.from === "door") {
-    const closed = doorClosedWords(phase, window);
+    const closed = doorClosedWords(phase, window, openingOf(event) !== null);
     if (closed) return NextResponse.json({ error: closed }, { status: 409 });
   } else if (phase !== "door" && phase !== "later") {
     const error =
@@ -137,7 +142,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       now,
       surveyClosesAt,
     });
-    const [row] = doorRows([], [checkIn]);
+    const [row] = doorRows([], [checkIn], await staffNames(db, [checkIn.byUid]));
     return NextResponse.json(
       { created, row },
       { status: created ? 201 : 200, headers: { "Cache-Control": "no-store" } },
@@ -163,7 +168,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     byUid: user.uid,
     now,
   });
-  const [row] = doorRows([rsvp], [checkIn]);
+  const [row] = doorRows([rsvp], [checkIn], await staffNames(db, [checkIn.byUid]));
   return NextResponse.json(
     { created, row },
     { status: created ? 201 : 200, headers: { "Cache-Control": "no-store" } },

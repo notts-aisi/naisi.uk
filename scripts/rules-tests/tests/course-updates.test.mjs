@@ -1,5 +1,5 @@
 /**
- * Rules tests for `courseUpdates`, a run's updates (Q18): shut to every
+ * Rules tests for `courseUpdates`, a run's updates: shut to every
  * browser, admins, an update's writer and the people it is to included. The
  * updates route (/api/courses/runs/[runId]/updates) is the only writer, and
  * the server decides who is shown which update: an update to one group must

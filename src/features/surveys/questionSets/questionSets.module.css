@@ -1,0 +1,252 @@
+/*
+  A question set's page (Run NAISI › Surveys › Question sets › a kind): what
+  the set is for, then its questions in one card, then the line that says
+  who last changed it and the two buttons. A words-only set draws each
+  question as a group of labelled boxes; the survey after an event's draws
+  the event editor's own list (surveyAfter.module.css) with a kind beside
+  each question. Every colour and space is a token (src/theme/tokens.css).
+
+  Desktop first; every target at least 44px.
+*/
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+  max-width: 48rem;
+}
+
+.lede {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.lede p {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* The page's one form, with no box of its own. */
+.plain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* --- a words-only set: each question a group of boxes ------------------- */
+
+.entries {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-border);
+}
+
+.entry {
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* A page's heading or the consent: set a little apart from the questions. */
+.block {
+  padding-top: var(--space-5);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  float: left;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.legend + * {
+  clear: both;
+}
+
+.legendName {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.type {
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.original {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Words that stay as they are: shown, never a box. */
+.fixed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated);
+}
+
+.fixedWords {
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* --- the survey after an event's: a question's kind ---------------------- */
+
+.kindRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-left: var(--space-5);
+}
+
+.kindSelect {
+  max-width: 16rem;
+  min-height: 2.75rem;
+}
+
+/* --- under the questions: who changed it, then the buttons --------------- */
+
+.status {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger-text);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+/* An address that names no set: a sentence and the way back. */
+.missing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--color-accent-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.back:hover {
+  text-decoration: underline;
+}
+
+.back:focus-visible {
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--focus-ring);
+}
+
+/* === Mobile === */
+@media (max-width: 36rem) { /* --bp-sm */
+  .card {
+    padding: var(--space-4);
+  }
+
+  .kindRow {
+    margin-left: 0;
+  }
+
+  .kindSelect {
+    max-width: none;
+  }
+
+  /* Save first under the thumb, Back to the original under it. */
+  .buttons {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+}

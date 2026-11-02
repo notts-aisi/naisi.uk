@@ -172,6 +172,7 @@ const FOR_EVERYBODY = normalise.normaliseQuestionSet("shared", {
 function content(rankedProgrammeIds, answers = { agi: { event: "The reading group." }, tais: { built: "A probe." } }) {
   return {
     aboutYou: {
+      fullName: "Ada Lovelace",
       preferredName: "Ada",
       universityEmail: "ada@nottingham.ac.uk",
       universityEmailVerified: true,

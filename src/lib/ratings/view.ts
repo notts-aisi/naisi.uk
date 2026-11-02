@@ -8,11 +8,12 @@ import {
   weeksOf,
   type RunRecords,
 } from "@/lib/courses/programmeAttendance";
-import { fullNameOfUser, leadsNamingProgramme, readNamingProgramme } from "@/lib/courses/programmeLead";
+import { leadsNamingProgramme, readNamingProgramme } from "@/lib/courses/programmeLead";
 import { standingTeams, teamOfEach, type Participant } from "@/lib/courses/teams/standing";
 import { teamsOnRun } from "@/lib/applications/handover/teamsLoad";
 import type { SessionUser } from "@/lib/firebase/session";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staffName";
 import { ratingQuestionsFor, type RatingAnswers, type RatingQuestion, type RatingsProgrammeKind } from "./model";
 import { mayRate, opensGroupRatings, readsEveryRating, type RatedGroup, type Rater } from "./rules";
 import { readRunRatings } from "./store";
@@ -37,6 +38,11 @@ import { RATINGS_WORDS, ratingLine } from "./words";
  * NOBODY IS SHOWN WHAT WAS SAID ABOUT THEM. A facilitator is a fellow, and a
  * lead or an admin could be one, so the person asking is never one of the
  * rows, on any page.
+ *
+ * NAMES BY THE NAMES RULE, for the person asking (`nameForViewer`): the
+ * committee and admins see "Priya Shah (Pri)", a facilitator or lead who is
+ * not on the committee the name people go by. The fellows and the raters
+ * alike.
  */
 
 /** One fellow, as the page draws them for this viewer. */
@@ -100,7 +106,7 @@ export async function ratingsContextFor(
   if (!records) return null;
   const isAdmin = actor.role === "admin";
   const rater: Rater = { uid: actor.uid, isAdmin, leads: leadsNamingProgramme(actor, naming) };
-  const listed = listGroups(records, { isAdmin }, now, weeksOf(records));
+  const listed = listGroups(records, { isAdmin, role: actor.role }, now, weeksOf(records));
   const groups: GroupFacts[] = listed.map((entry) => ({
     group: entry.group,
     rated: {
@@ -120,19 +126,28 @@ export async function ratingsContextFor(
   };
 }
 
-/** The whole names of the raters, from the run's accounts or, for a lead or an admin, their own. */
-async function raterNames(db: Firestore, records: RunRecords, uids: readonly string[]): Promise<Map<string, string>> {
+/**
+ * The raters' names as `viewer` is shown them (`nameForViewer`), from the
+ * run's accounts or, for a lead or an admin, their own.
+ */
+async function raterNames(
+  db: Firestore,
+  records: RunRecords,
+  uids: readonly string[],
+  viewer: NameViewer,
+): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   const missing: string[] = [];
+  const nameOf = (data: Record<string, unknown>) => nameForViewer(viewer, accountNamesOf(data), "NAISI member");
   for (const uid of new Set(uids)) {
     const data = records.accounts.get(uid);
-    if (data) out.set(uid, fullNameOfUser(data));
+    if (data) out.set(uid, nameOf(data));
     else if (uid && !uid.includes("/")) missing.push(uid);
   }
   if (missing.length > 0) {
     const snaps = await db.getAll(...missing.map((uid) => db.collection("users").doc(uid)));
     for (const snap of snaps) {
-      if (snap.exists) out.set(snap.id, fullNameOfUser((snap.data() ?? {}) as Record<string, unknown>));
+      if (snap.exists) out.set(snap.id, nameOf((snap.data() ?? {}) as Record<string, unknown>));
     }
   }
   return out;
@@ -189,7 +204,7 @@ export async function loadRatingsView(
   }
 
   const [ratings, teamNames] = await Promise.all([readRunRatings(db, runId), teamsOfFellows(db, ctx)]);
-  const names = reader ? await raterNames(db, ctx.records, ratings.map((rating) => rating.raterUid)) : new Map<string, string>();
+  const names = reader ? await raterNames(db, ctx.records, ratings.map((rating) => rating.raterUid), actor) : new Map<string, string>();
   const groups: RatingsGroup[] = shown.map((facts) => {
     const people: RatingsPerson[] = [];
     for (const fellow of facts.fellows) {

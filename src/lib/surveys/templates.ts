@@ -48,8 +48,8 @@ export const SURVEY_STAGES: readonly SurveyStage[] = ["before", "after", "follow
 
 /**
  * Every template a survey is made from: a programme's four stages, which pair
- * along the stages, and the survey for people leaving a programme (sv-new's
- * "Leaving a programme", Q46), which pairs with none and is never sent: it
+ * along the stages, and the survey for people leaving a programme (the New survey page's
+ * "Leaving a programme"), which pairs with none and is never sent: it
  * reaches each person as they leave.
  */
 export type SurveyTemplate = SurveyStage | "leaving";
@@ -514,7 +514,7 @@ const I7 = many("q_i7", "What next, for the project and for you?", [
   option("o_stop", "Stop here"),
 ]);
 
-// Leaving a programme (sv-new: "Leaving a programme · 3 questions · about a
+// Leaving a programme ("Leaving a programme · 3 questions · about a
 // minute"). Written in the boards' voice for Zach to change before it is
 // used, as the before survey's were: every word is the admin's to change in
 // the editor until the survey is opened. The ids are fixed, so each
@@ -645,7 +645,7 @@ export function stageAsksStrand(stage: SurveyTemplate): boolean {
 /** About how many minutes each stage takes, as the questionnaire says. The editor changes it. */
 export const TEMPLATE_MINUTES: Record<SurveyStage, number> = { before: 5, after: 10, followUp6: 3, followUp12: 3 };
 
-/** About how long the leaving survey takes (sv-new: "about a minute"). The editor changes it. */
+/** About how long the leaving survey takes ("about a minute"). The editor changes it. */
 export const LEAVING_MINUTES = 1;
 
 /** About how many minutes a template takes, as made. */

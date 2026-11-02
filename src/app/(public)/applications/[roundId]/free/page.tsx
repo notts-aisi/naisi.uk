@@ -13,7 +13,7 @@ import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
- * "Change when you’re free" (Q7: boards st-application-phone, st-late-phone):
+ * "Change when you’re free":
  * the form's own editor, for somebody holding a place on a fellowship until
  * Publish has told them their group.
  *

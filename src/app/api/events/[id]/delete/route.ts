@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { getAdminDb, getAdminStorage } from "@/lib/firebase/admin";
+import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { deleteEventCheckIns } from "@/lib/events/checkIns";
+import { deleteEventInvitations } from "@/lib/events/invitationRecords";
 import { canDraftEvent } from "@/lib/firestore/users";
 
 type Ctx = RouteContext<"/api/events/[id]/delete">;
@@ -24,6 +26,9 @@ type Ctx = RouteContext<"/api/events/[id]/delete">;
  * visible and retryable rather than a dangling set of orphans with no parent.
  */
 export async function POST(_req: Request, ctx: Ctx) {
+  const blocked = await assertNotImpersonating();
+  if (blocked) return blocked;
+
   const { id: eventId } = await ctx.params;
 
   const viewer = await getCurrentUser();
@@ -91,6 +96,19 @@ export async function POST(_req: Request, ctx: Ctx) {
     );
   }
 
+  // Who it was for, and who was invited to it, go with it: the list names
+  // people, and an invitation to an event that is gone opens nothing.
+  let invitationsDeleted = 0;
+  try {
+    invitationsDeleted = await deleteEventInvitations(db, eventId);
+  } catch (err) {
+    console.error("[events/delete] invitation delete failed:", eventId, err);
+    return NextResponse.json(
+      { error: "Couldn't remove who was invited to this event; its RSVPs are gone but nothing else was deleted." },
+      { status: 500 },
+    );
+  }
+
   let imagesDeleted = 0;
   let storageWarning: string | undefined;
   const storage = getAdminStorage();
@@ -120,6 +138,7 @@ export async function POST(_req: Request, ctx: Ctx) {
     ok: true,
     rsvpsDeleted,
     checkInsDeleted,
+    invitationsDeleted,
     imagesDeleted,
     ...(storageWarning ? { warning: storageWarning } : {}),
   });

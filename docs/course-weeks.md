@@ -81,7 +81,7 @@ When a week is pasted:
 
 `published` means the week's people can open it. `ready` means the
 programme's lead has marked the week ready: week 1 opens to everyone who holds
-a place once it is ready (Q35), before groups go out. Ready counts only on a
+a place once it is ready, before groups go out. Ready counts only on a
 published week (`normalizeCourseWeek` reads `ready` as false otherwise), so
 taking a week down takes its Ready with it. Marking a week ready publishes it
 in the same write (Zach, 26 October 2026), so the lead needs nobody else to
@@ -100,6 +100,12 @@ day before, such as 12:00, or none, for by the end of that day. When the
 group's session is cancelled, the work is due by the same rule before the
 group's next session. Work first sent after the moment shows as Late to the
 group's facilitators, the lead and admins, and to nobody else.
+
+A week LOCKS when its person submits it, or when the group's session that
+week starts (the "before" rule's moment), whichever comes first; the people
+running the group can reopen it for one person. The week page says until
+when under the title. See "The week you submit" in `docs/courses-ops.md` and
+`src/lib/courses/weekWork/`.
 
 The loader says when the Markdown's words ("by noon the day before") and the
 course's setting disagree. The site goes by the setting.
@@ -205,7 +211,7 @@ Most questions have happened before, in some form.
   Only a notebook has one: on any other kind such a sentence is part of the
   note, where it stays, and a copy of the week writes what a notebook needs
   for a notebook alone, so a week copied out and pasted back is the same week.
-  Every source is a link (Q36), an `https://` one; a source with no link of
+  Every source is a link, an `https://` one; a source with no link of
   its own carries its links in its note.
 - Reflect, then one or two prompts as a list, is one reflection stop.
   Another Reflect starts another stop.
@@ -230,7 +236,7 @@ Read the pack you chose or were given at the end of session 2. Read it against t
   name ("In one line") is the pack's note.
 - A list straight before the table is the questions to read every pack
   against.
-- Who settles which pack a person has (Q32): "Choose one" or "pick one" with
+- Who settles which pack a person has: "Choose one" or "pick one" with
   no word of choosing earlier or being given is each person's pick on the
   site; anything else ("the one you chose at session 2", "you'll be given")
   is a facilitator's draw, typed into the group page.
@@ -281,10 +287,17 @@ Send it to your facilitator by the end of the day before your session.
 - Copied out, it opens with its own line:
   `**Written answer** · 200 to 300 words · due by the end of the day before the session`.
 
-What each person writes in it, who reads it, the lock when it is opened, "Late"
-and the feedback on the course's rubric are `src/lib/courses/writtenAnswers/`:
-`access.ts` is the one gate, `model.ts` the stored fields, and
-`src/lib/courses/rubric.ts` the rubric. The answer keeps the block's id, so a
+What each person writes in it, who reads it and "Late" are
+`src/lib/courses/writtenAnswers/`: `access.ts` is the one gate and `model.ts`
+the stored fields. It is sent by submitting the week, which also locks it,
+and its readers read its words only once the week is submitted or locked
+(`workIsReadable`, `src/lib/courses/weekWork/model.ts`). Feedback on it is a
+signed comment (`src/lib/courses/feedback/`, "Feedback" in
+`docs/courses-ops.md`); the course's rubric (`src/lib/courses/rubric.ts`)
+is guidance for writing, and no level of it goes back to the person. Admins
+and the programme's lead may also rate it for the team, from 1 to 10 with a
+comment the person never sees (`src/lib/courses/workRatings/`, "Ratings for
+the team" in `docs/courses-ops.md`). The answer keeps the block's id, so a
 paste that keeps the id keeps everybody's answers to it.
 
 ### Fill-in boxes, a checklist and a talk
@@ -534,7 +547,7 @@ The words you'll meet most, in plain words.
 ## The lead's Weeks tab, and a week for one group
 
 A programme's lead writes its run's weeks on the programme's Weeks tab
-(board pr-weeks, option B as Q39 chose), and so do admins. The run's week
+(by copying a week out as Markdown and pasting it back), and so do admins. The run's week
 editor under `/admin/courses` stays an admin's.
 
 | Where | What it does |
@@ -543,6 +556,9 @@ editor under `/admin/courses` stays an admin's.
 | `(tabs)/weeks/[weekId]/page.tsx` | One week's page: paste and check, its settings, Preview as a fellow, Mark ready, and the week for one group |
 | `(tabs)/weeks/[weekId]/preview/page.tsx` | The week as a fellow reads it, drawn by the member's own week page with nothing that can be pressed |
 | `(tabs)/weeks/copy/page.tsx` | Copy weeks from another run of the course |
+| `(tabs)/weeks/[weekId]/review/page.tsx` | The week's review, an admin's alone, from the week's first session (docs/courses-ops.md, "The week review"); each row of the tab says Review to an admin and "Review: admins only" to the lead |
+| `(tabs)/weeks/[weekId]/review/explainer/page.tsx` | Schedule an explainer from the week's review, an admin's alone (docs/courses-ops.md, "Explainers"); the week's page lists the explainers scheduled from its review to the lead and admins |
+| `(tabs)/weeks/[weekId]/notes/page.tsx` | The week's notes about people, from the week's first session (docs/courses-ops.md, "End-of-week notes"): an admin's drafts and saved notes, and the saved notes kept for leads to the lead; each row of the tab says Notes beside Review to both |
 | `src/lib/courses/weeksTab/` | What the tab shows, its words and its addresses |
 | `src/lib/courses/weekPaste.ts` | The checks every paste is held to, for the run's week and a group's copy alike |
 
@@ -593,8 +609,9 @@ editor under `/admin/courses` stays an admin's.
 
 ### Not built, on purpose
 
-- **Option C's "Add a block" editor** (write a week block by block, no
-  Markdown). Q39 chose B; a page to build a week by hand comes later.
+- **An "Add a block" editor** (write a week block by block, no
+  Markdown). The Markdown round trip was chosen instead; a page to build a
+  week by hand comes later.
 - **The board's block-by-block fields**: a found row opening its block's
   fields to edit in place. A week is changed by copying it as Markdown,
   editing that and pasting it back; what was read is checked through What we

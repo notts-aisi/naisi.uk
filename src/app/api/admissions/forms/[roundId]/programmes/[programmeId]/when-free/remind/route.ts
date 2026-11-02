@@ -15,8 +15,8 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
- * "Remind 3 people" on a programme's Overview before its groups have met
- * (boards st-overview and st-overview-phone): an email, now, to each person
+ * "Remind 3 people" on a programme's Overview before its groups have met:
+ * an email, now, to each person
  * holding a place on the programme who has not said when they are free, while
  * that is still theirs to add. It emails them and nobody else.
  *

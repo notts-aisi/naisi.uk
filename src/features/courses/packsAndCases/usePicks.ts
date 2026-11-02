@@ -5,8 +5,8 @@ import type { OverviewPicks } from "@/app/api/courses/runs/[runId]/overview/rout
 import type { PackCaseWire } from "@/app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route";
 
 /**
- * THE PERSON'S OWN PACKS, CASES AND READY MARKS ON ONE WEEK'S PAGE (plan item
- * 8): what the overview handed in when the page loaded, with what they have
+ * THE PERSON'S OWN PACKS, CASES AND READY MARKS ON ONE WEEK'S PAGE:
+ * what the overview handed in when the page loaded, with what they have
  * changed since laid over it, and the two ways to change it, each through
  * the one route that writes a person's own record
  * (`/api/courses/runs/[runId]/packs-and-cases/[blockId]`).

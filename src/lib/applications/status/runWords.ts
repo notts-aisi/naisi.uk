@@ -12,7 +12,7 @@
  * says so and when (the left page's own sentence, `leftOnLine`).
  *
  * No board draws the application page after groups go out
- * (st-application-phone is the page before), so these are written in the
+ * (the application page comes before), so these are written in the
  * boards' voice and listed in the build notes for the boards' designers to
  * confirm. Every name and day is a slot filled from a record. An incubator's
  * people are told of no group: the view hands the page no group's name for

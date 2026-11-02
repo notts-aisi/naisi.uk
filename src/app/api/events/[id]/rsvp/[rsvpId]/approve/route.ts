@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
+import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
+import { decidesSignups } from "@/lib/events/signupAccess";
 import { sendRsvpEmail } from "@/lib/events/sendRsvpEmail";
 import { asSignupSnapshot } from "@/lib/firestore/events";
 import type { EventChange } from "@/lib/events/changeSummary";
 import { scheduleChangeSinceSignup } from "@/lib/events/signupSchedule";
+import { DECISION_WORDS } from "@/lib/events/requestWords";
 
 /**
  * Organiser action: approve a pending RSVP.
@@ -17,12 +18,16 @@ import { scheduleChangeSinceSignup } from "@/lib/events/signupSchedule";
  *   pending → waitlisted (if capacity hit and waitlist is enabled)
  *   pending → error (if capacity hit and no waitlist)
  *
- * Gated to: event author (draftEvent), approvers, admins.
+ * Gated to: admins, approvers, the event's author while they hold draftEvent,
+ * and its collaborators (`decidesSignups`).
  */
 export async function POST(
   _req: Request,
   ctx: { params: Promise<{ id: string; rsvpId: string }> },
 ) {
+  const blocked = await assertNotImpersonating();
+  if (blocked) return blocked;
+
   const { id: eventId, rsvpId } = await ctx.params;
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
@@ -47,14 +52,13 @@ export async function POST(
         throw new ApproveError("This RSVP doesn't belong to that event.", 400);
       }
 
-      const isApprover =
-        canApproveEvent(viewer) ||
-        (canDraftEvent(viewer) &&
-          isNamedWithStanding(viewer, "events.authorUid", event.authorUid));
-      if (!isApprover) throw new ApproveError("You can't approve this RSVP.", 403);
+      // The one rule for who decides (src/lib/events/signupAccess.ts), asked
+      // of the event as this transaction read it.
+      if (!decidesSignups(viewer, event)) throw new ApproveError("You can't approve this RSVP.", 403);
 
       if (rsvp.status !== "pending") {
-        throw new ApproveError(`Only pending RSVPs can be approved (was "${rsvp.status}").`, 400);
+        // Fixed words: what the request became is not every organiser's to learn.
+        throw new ApproveError(DECISION_WORDS.alreadyDecided, 400);
       }
 
       const capacity =
@@ -149,6 +153,8 @@ export async function POST(
           foodProvenance: evt.foodProvenance,
           foodProvenanceNote: evt.foodProvenanceNote,
           signupForm: evt.signupForm,
+          // Only a strict true lets the email carry a check-in link.
+          selfCheckIn: evt.selfCheckIn === true,
         },
       });
     }
@@ -158,11 +164,10 @@ export async function POST(
     if (err instanceof ApproveError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
+    // The detail stays in the log: an error's own words can carry a
+    // collection path, an index address or the project's id.
     console.error("[rsvp approve] transaction failed", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Approve failed" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: DECISION_WORDS.failed }, { status: 500 });
   }
 }
 

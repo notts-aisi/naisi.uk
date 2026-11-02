@@ -316,7 +316,7 @@ export function weekSummaryText(week: { summary?: string | null; blocks?: readon
 }
 
 /**
- * Where a week stands on a lead's list of weeks (board pr-weeks): Ready once
+ * Where a week stands on a lead's list of weeks: Ready once
  * the lead has marked it (`weekIsReady`, the one answer: marked, on a
  * published week), Empty while there is nothing in it, Draft otherwise.
  */

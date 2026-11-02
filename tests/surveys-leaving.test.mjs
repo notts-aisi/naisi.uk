@@ -1,5 +1,5 @@
 /**
- * The leaving survey (Q46; docs/surveys.md, "The leaving survey"):
+ * The leaving survey (docs/surveys.md, "The leaving survey"):
  * confidential like every survey on the site, one per programme, made by an
  * admin from its own template, never sent, with no closing day.
  *
@@ -16,10 +16,10 @@
  *     which fixes its words as a first send does; the send, the reminder and
  *     the test of an email are refused for it in a sentence; it takes answers
  *     until an admin closes it by hand.
- *  4. THE ADMINS' PAGES: New survey's card in sv-new's words, the list's "No
+ *  4. THE ADMINS' PAGES: New survey's card in its own words, the list's "No
  *     closing date", its Open tab before and after.
- *  5. THE PAGE PEOPLE ANSWER: the confidential box in its own words (the
- *     boards drew it anonymous; Zach: confidential, Q46), and no closing day.
+ *  5. THE PAGE PEOPLE ANSWER: the confidential box in its own words (first
+ *     designed as anonymous; Zach: confidential), and no closing day.
  *  6. REACHING IT: somebody who leaves by their own hand, by either door,
  *     while it is open, gets their own row once, made as they leave; their
  *     email links their own link in place of the outside form; the page that
@@ -29,7 +29,7 @@
  *     staff took off, somebody who stays, somebody on an open run, anybody
  *     while it is a draft or once it is closed.
  *  7. RESULTS: on its results page as every survey's, counted of the people
- *     it reached, for admins; and for the programme's lead (Q49 A), under the
+ *     it reached, for admins; and for the programme's lead, under the
  *     programme, from the first answer, never a name, its comments in an
  *     order that says nothing of when each came. Another programme's lead, a
  *     reviewer, a facilitator, a member and somebody signed out read none.
@@ -63,6 +63,7 @@ const routes = {
   close: await route("[surveyId]", "close"),
   questions: await route("[surveyId]", "questions"),
   answerByLink: await route("answer"),
+  answersTab: await route("[surveyId]", "answers"),
 };
 const admin = async (...parts) => (await loadTs(join("app", "(app)", "admin", "(admin-only)", "surveys", ...parts, "page.tsx"))).default;
 const pages = {
@@ -327,7 +328,7 @@ describe("3. opened by an admin, once; never sent, reminded or tested", () => {
 // ---------------------------------------------------------------------------
 
 describe("4. the admins' pages", () => {
-  test("New survey offers its card in sv-new's words, with no closing day to pick", async () => {
+  test("New survey offers its card in its own words, with no closing day to pick", async () => {
     const offered = await page(pages.newSurvey, {}, "zach");
     assert.ok(offered.text.includes("Leaving a programme Confidential 3 questions · about a minute. Linked from the leaving screen and email. Replaces today’s outside form."), offered.text);
     const card = renderToStaticMarkup(
@@ -355,7 +356,7 @@ describe("4. the admins' pages", () => {
     // Amara has left and not answered: a sent survey's row would offer Remind here.
     assert.equal((await w.leave("amara")).status, 200);
     const listed = await page(pages.list, {}, "zach");
-    assert.ok(listed.text.includes("AGI Strategy: leaving Confidential Fellowship: AGI Strategy 0 of 1 No closing date"), listed.text);
+    assert.ok(listed.text.includes("Leaving a programme When someone leaves · 0 of 1 answered · No closing date Open Results"), listed.text);
     assert.ok(!listed.html.includes(`/admin/surveys/${id}/send"`), "the list offers a reminder for a leaving survey");
     assert.ok(!listed.text.includes("haven’t answered"), listed.text);
   });
@@ -367,8 +368,8 @@ describe("4. the admins' pages", () => {
     assert.ok(before.html.includes(`href="/survey/${survey(id).testToken}"`), "no way to see it as people will");
     assert.ok(before.text.includes(`${OPEN_WORDS.see} ${OPEN_WORDS.fixes} ${OPEN_WORDS.open}`), before.text);
     assert.ok(before.text.includes("Who Everyone who leaves AGI Strategy"), before.text);
-    // Its tabs: the fourth is Open, at the Send tab's address.
-    assert.ok(before.text.includes("Results Who answered 0 Questions Open"), before.text);
+    // Its tabs: the last is Open, at the Send tab's address.
+    assert.ok(before.text.includes("Results Make a chart Answers 0 Questions Open"), before.text);
     await call("zach", routes.open.POST, { surveyId: id }, { body: {} });
     const after = await page(pages.send, { params: Promise.resolve({ surveyId: id }) }, "zach");
     assert.ok(after.text.includes("Open since Tue 17 Nov. Nobody has left since it opened."), after.text);
@@ -617,6 +618,8 @@ describe("7. results: for admins, and for the programme's lead, never a name", (
     const base = w.sessionOf(uid);
     return base ? { ...base, admissionsReviewer: world.db.read(`users/${uid}`)?.admissionsReviewer === true } : null;
   };
+  /** The Surveys tab's row of views, as its words read: a survey's results page sits under it. */
+  const VIEWS_TEXT = "Overview Before Check-ins Facilitators’ reports End Follow-ups";
   /** The lead's results page under a programme, as `who` sees it; a redirect answers where it went. */
   async function leadPage(who, surveyId, programmeId = AGI) {
     world.user = who === null ? null : sessionFor(who);
@@ -638,9 +641,9 @@ describe("7. results: for admins, and for the programme's lead, never a name", (
     assert.ok(shown.text.includes("Shorter readings in week 2.") && shown.text.includes("A later session time."));
     for (const name of ["Amara", "Dev", "Okafor", "Patel"]) assert.ok(!shown.text.includes(name), `the results name ${name}`);
     assert.ok(!shown.text.includes("it was sent to"), "a leaving survey's results say it was sent");
-    // Who answered is the admins' tab, with names, as for every survey.
-    const answered = await page(pages.answered, { params: Promise.resolve({ surveyId: id }) }, "zach");
-    assert.ok(answered.text.includes("Amara Okafor") && answered.text.includes("Dev Patel"), answered.text);
+    // The Answers tab is the admins', with names, as for every survey, once its route records the opening.
+    const answered = (await call("zach", routes.answersTab.POST, { surveyId: id })).body.answers;
+    assert.deepEqual(answered.rows.map((row) => row.name), ["Amara Okafor", "Dev Patel"]);
   });
 
   test("the programme's lead reads them under the programme, from the first answer, never a name, comments by their words", async () => {
@@ -652,8 +655,10 @@ describe("7. results: for admins, and for the programme's lead, never a name", (
     for (const name of ["Amara", "Dev", "Okafor", "Patel"]) assert.ok(!page.text.includes(name), `the lead's page names ${name}`);
     // The comments in the order of their words: Dev's came second and is listed first.
     assert.ok(page.text.indexOf("A later session time.") < page.text.indexOf("Shorter readings in week 2."), page.text);
+    // CHANGED ON PURPOSE (the charts on a survey's results): the admins' Results list them by their words too, so the
+    // two pages read alike; an admin who needs to know whose a comment is presses "Whose is this?".
     const admins = await results(id);
-    assert.ok(admins.text.indexOf("Shorter readings in week 2.") < admins.text.indexOf("A later session time."), "the admins' page no longer lists comments as they came");
+    assert.ok(admins.text.indexOf("A later session time.") < admins.text.indexOf("Shorter readings in week 2."), "the admins' page lists comments as they came");
     // An admin reads the lead's page too.
     assert.ok((await leadPage("zach", id)).text.includes("2 answers from the 2 people it reached (100%)."));
     // From the first answer: no floor.
@@ -681,7 +686,7 @@ describe("7. results: for admins, and for the programme's lead, never a name", (
     }
   });
 
-  // CHANGED ON PURPOSE (finding L2; Q41, Q49 A): the lead reads every survey
+  // CHANGED ON PURPOSE (finding L2): the lead reads every survey
   // of the programme (`LEAD_READS`), not the leaving survey alone, as the box
   // at the top of each tells the people answering it. The test that pinned
   // "another survey of the programme is answered in a sentence" now pins the
@@ -694,10 +699,12 @@ describe("7. results: for admins, and for the programme's lead, never a name", (
     const page = await leadPage("claudia", before.body.survey.id);
     assert.equal(page.to, null);
     assert.ok(!page.text.includes(lib.words.LEAD_RESULTS_WORDS.notHere), page.text);
-    assert.ok(page.text.startsWith(`AGI Strategy: before ${lib.words.LEAD_RESULTS_WORDS.line} No answers yet.`), page.text);
+    // Under the Surveys tab's row of views, the before survey's view current (CHANGED ON PURPOSE: the tab has views).
+    assert.ok(page.text.startsWith(`${VIEWS_TEXT} AGI Strategy: before ${lib.words.LEAD_RESULTS_WORDS.line} No answers yet.`), page.text);
+    assert.match(page.html, /<a href="[^"]*\/surveys\/before"[^>]*aria-current="page"/);
     const event = await call("zach", routes.create.POST, {}, { body: { template: "event", eventId: "pizza", audience: "came", closesOn: "2026-11-26" } });
     assert.equal(event.status, 200, JSON.stringify(event.body));
     const night = await leadPage("claudia", event.body.survey.id);
-    assert.equal(night.text, lib.words.LEAD_RESULTS_WORDS.notHere);
+    assert.equal(night.text, `${VIEWS_TEXT} ${lib.words.LEAD_RESULTS_WORDS.notHere}`);
   });
 });

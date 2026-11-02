@@ -50,7 +50,7 @@ export function staffUpdateRows(updates: readonly UpdateView[]): StaffUpdate[] {
   }));
 }
 
-/** How many updates the Overview shows, newest first, as wk-overview draws them. The rest are on the Messages tab. */
+/** How many updates the Overview shows, newest first, as the Overview tab draws them. The rest are on the Messages tab. */
 export const OVERVIEW_UPDATES_SHOWN = 2;
 
 /** One row of the Overview's Updates card: its title, who wrote it, and the staff list's line. */

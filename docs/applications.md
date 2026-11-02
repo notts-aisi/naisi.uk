@@ -439,6 +439,46 @@ says anything, because a term that was called off promises no decision day.
 
 ## What the form asks
 
+### About you, and the full name
+
+The first step asks what joining the site asks (`AboutStep.tsx`), starting
+with two names: **Full name** ("So the committee can tell people apart. Only
+the committee sees it.") and **What should we call you?** ("What everyone else
+sees."). Both are required to send (`aboutYouIssues` in `validate.ts`), and
+for somebody with no account the step is their join request, so the full name
+goes into their profile with the rest (`JOIN_FIELDS` in `applicant/join.ts`,
+then `completeRegistration`).
+
+For somebody with an account the step opens from their profile
+(`aboutYouFromAccount`): the full name they gave, else the account's display
+name, which for an account made with Google is Google's name for them. That
+fills a box on their own form. It is saved on the application only when they
+save, and never written back to the profile. A draft saved before the step
+asked opens with the same name in the box (`openingContent` in
+`ApplicationForm.tsx`).
+
+Who sees which name follows the site's one rule (`src/lib/names/staffName.ts`):
+
+- **The review screens** name an applicant by the staff rule, "Priya Shah
+  (Pri)" (`applicantName` in `review/people.ts`): the full name on their About
+  you, else the name on the account the application was made from, with the
+  name they go by after it when it adds something. Everybody who reads an
+  application is an admin or an SU-recognised committee member.
+- **The application's own `displayName`** is the account's display name when
+  it has one, as it always was (the save route builds it from `loadAccount`).
+  It is read by the hand-over, the term's lists and the rows written onto a
+  run, which course screens read, facilitators' included. So the full name is
+  never copied into it: it travels on `aboutYou.fullName`, where every file
+  that reads it names it and `tests/full-name-readers.test.mjs` lists them.
+  `nameOnRecord` (`handover/holders.ts`), which writes the run's rows, reads
+  `displayName` and never the full name.
+- **A question an admin types** about a programme or about arranging its
+  groups has every name each person holds taken out before it is sent: the
+  full name on their application and the name they go by (a programme's row
+  holds both, read back by `namesInStaffWords`; arranging reads the
+  application), and every name on their account, the full name among them
+  (`namesToScrubOf` in `src/lib/names/scrub.ts`).
+
 ### Question sets, and who is asked each
 
 A question set's `scope` says who is shown it, and its role follows from its
@@ -1051,8 +1091,8 @@ above). `result` is what decision day said and no reply changes it. A place give
 `status/standing.ts` reads all of that off the document, and `decideReply()`
 in `status/replies.ts` is the whole table.
 
-**Once somebody is in a group, "I can't make it" is leaving the programme**
-(Q12). When Publish has told them their group on the run their place's
+**Once somebody is in a group, "I can't make it" is leaving the programme**.
+When Publish has told them their group on the run their place's
 programme names, the reply takes the one leave "Leave the programme" takes
 on their programme page, in the same transaction and through the same
 code (see "Leaving the programme gives the place back"): they leave their
@@ -1705,7 +1745,7 @@ doors. Somebody in a group leaves from their programme page ("Leave the
 programme", behind the course's title typed to confirm), through the run's
 own leave (`DELETE /api/courses/runs/[runId]/enrol`). Or, once Publish has
 told them their group, they reply "I can’t make it" on their application
-page (Q12), which the reply route takes as the same leave. Both doors ask
+page, which the reply route takes as the same leave. Both doors ask
 `leavePathFor` (`src/lib/courses/leaving.ts`) whether the person may leave,
 and `leaveRun` (`src/lib/courses/leaveRun.ts`) writes what leaving writes,
 for both, so the two cannot come to differ. The reply door first asks
@@ -1853,6 +1893,50 @@ The operations runbook says so, under destroying an admission round.
 `tests/applications-handover-member-area.test.mjs` runs the route as each
 person, through every status the run's own applications page can give a
 row, and draws the card somebody in a group then reads.
+
+## Next term: who to ask
+
+An admin's page under a term, `/admin/admissions/forms/[roundId]/next-term`,
+reached from the term page's "Also this term" once decision day has gone
+out. It lists the people a saved note suggests for next term, one tab for
+each of a note's "Suggest for next term" boxes: Facilitating, An incubator,
+The committee, each with how many it lists. A row says their programme and
+group this term, the weeks the suggestion was made in (a note's week, or "a
+note"), their ratings for the team this term, what they said about
+facilitating on this term's application ("Offered", "No", or "No answer" for
+somebody who sent none), and one comment in the team's words with whose it
+is. On Facilitating a box keeps the list to the people who offered. It sends
+nothing and writes nothing, and it has no "not suggested" list: somebody
+nobody suggested is not on the page.
+
+**What counts** (`src/lib/applications/nextTerm/rows.ts`) is only what may be
+used when somebody is considered for something else, which the privacy
+policy allows for what came after they first agreed to version 13
+(`courseworkCountsFrom`):
+
+- a note written from one of the term's runs, with a suggestion, after its
+  person's moment, asked through the place beside an application in
+  `notesShownIn`. Any note counts, by an admin or a programme's lead, and one
+  Claude drafted for what the admin who saved it ticked; a note's own words
+  are never shown here, so nothing Claude drafted is ever given as the
+  team's;
+- a rating for the team on one of the term's runs, of a written answer first
+  written after the moment (`rowCountsFrom` on the rated row). "In the
+  team's words" is the comment beside their highest counted rating, the
+  newest on a tie, with the rater named by the name rule for the admin
+  looking;
+- nothing else: no check-in, no session report, nothing Claude returned.
+
+**Who** (`nextTerm/load.ts`): an admin. The page asks the tree's gate, then
+not found for somebody with no role on the form, then shows a lead or a
+reviewer that the page is an admin's, as pooled applicants does, and the
+loader asks `canRunTerm` again before it reads anything. Nobody is ever a row
+on their own page. Every read is by id, or one `in` on one field (the notes
+by `runId`, the ratings by `uid`), so nothing needs a declared index, and
+somebody whose notes all came before their moment is read no further.
+
+`tests/applications-next-term.test.mjs` builds the page from a stored term
+holding every way to be left out, as an admin, a lead and a member.
 
 ## What deletes what
 
@@ -2154,11 +2238,11 @@ person saved or sent go out (below).
   with no key says so and sends nothing. Each project's key lives in its own
   workspace on the Claude Platform, with its own monthly spend limit.
 
-Claude and Pangram on COURSEWORK, and the notes admins keep about a person
-(privacy v13), are built the same way and described in `docs/courses-ops.md`,
-"Claude and Pangram on coursework, and the notes admins keep". Beside an
-application an admin sees only the notes written after its person agreed to
-v13.
+Claude and Pangram on COURSEWORK, and the notes the team keeps about a
+person (privacy v13 and v15), are built the same way and described in
+`docs/courses-ops.md`, "Claude and Pangram on coursework, and the notes the
+team keeps". Beside an application an admin sees only the notes written after
+its person agreed to v13.
 
 `tests/applications-assessment.test.mjs` runs the routes: who is refused,
 that no name is sent or stored, that a changed review puts a read out of date,
@@ -2201,6 +2285,8 @@ All in `src/lib/applications/`.
 | `freedPlaces/rules.ts`, `freedPlaces/words.ts`, `freedPlaces/views.ts` | Offering a place given back: who may, the window, who can be offered one, seats, what a request may carry; the email and the page's words; what the page is sent | anywhere |
 | `freedPlaces/tested.ts` | The fingerprint a freed-place test is recorded with and a send compares | server |
 | `freedPlaces/groups.ts`, `freedPlaces/load.ts`, `freedPlaces/offer.ts` | The run's calendar and groups; the page's read; the one writer of an offer, its emails and its test | server, staff |
+| `nextTerm/rows.ts`, `nextTerm/words.ts` | Next term: who to ask: what counts, the rows and the page's words | anywhere |
+| `nextTerm/load.ts` | Next term's read, for an admin | server, staff |
 
 ## Rules for anything built on this
 

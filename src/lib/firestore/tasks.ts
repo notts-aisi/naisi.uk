@@ -15,13 +15,28 @@
  * Nothing trusts the `worksheet` label on its own: the respond page and the
  * worksheet panel key on the `artefact` pointer below AND on the circulation's
  * own response document, which only the worksheet routes write.
+ *
+ * `review-follow-up` is an admin asking a group's facilitators, from a week's
+ * review, to have a word with somebody in the group: minted by
+ * POST .../weeks/[weekId]/review/follow-up, always `assignees-only`, with
+ * fixed words and no reason. Its `sourceRef` names the run, the week, the
+ * group and the person it is about (`aboutUid`).
+ *
+ * `explainer` is one session of an explainer an admin scheduled from a
+ * week's review, for the committee member giving it: minted by
+ * POST .../weeks/[weekId]/explainers, one per session, always
+ * `assignees-only`, with the session's day, time and room and never a
+ * meeting link. Its `sourceRef` names the run, the week, the group and the
+ * session (`sessionKey`).
  */
 export type TaskSource =
   | "committee"
   | "fellowship-reminder"
   | "personal"
   | "course-register"
-  | "worksheet";
+  | "worksheet"
+  | "review-follow-up"
+  | "explainer";
 
 /** Board-facing names for the sources above. */
 export const TASK_SOURCE_LABELS: Record<TaskSource, string> = {
@@ -30,6 +45,8 @@ export const TASK_SOURCE_LABELS: Record<TaskSource, string> = {
   personal: "Personal",
   "course-register": "Register",
   worksheet: "Worksheet",
+  "review-follow-up": "Week review",
+  explainer: "Explainer",
 };
 
 export type TaskKind =
@@ -283,6 +300,8 @@ export type SourceRef = {
   weekNumber: number;
   groupId?: string;
   sessionKey?: string;
+  /** A week review's follow-up: the person it is about, so their account's deletion finds it. */
+  aboutUid?: string;
 } | null;
 
 /**
@@ -482,6 +501,7 @@ function normalizeSourceRef(raw: unknown): SourceRef {
   if (typeof s.sessionKey === "string" && s.sessionKey) {
     ref.sessionKey = s.sessionKey;
   }
+  if (typeof s.aboutUid === "string" && s.aboutUid) ref.aboutUid = s.aboutUid;
   return ref;
 }
 

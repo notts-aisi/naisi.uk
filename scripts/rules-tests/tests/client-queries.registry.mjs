@@ -482,9 +482,9 @@ export const REGISTRY = [
     path: "courseProgress/{progressId}",
     clauses: [],
     docShape:
-      "The member's own progress row at the deterministic id runId__uid__itemId, re-read before a write so a moderation stamp is carried through at full timestamp precision.",
+      "The member's own progress row at the deterministic id runId__uid__itemId, re-read before a rating or a comment is saved so the tick, its time and a moderation stamp are carried through at full timestamp precision (the rules pin all four).",
     reason:
-      "A read that precedes the one client-direct member write in the courses feature, issued from the member's own week page. Own-row only, which the deterministic id makes structural.",
+      "A read that precedes the one client-direct member write in the courses feature (a rating, a comment or a private note; a tick is the tick route's), issued from the member's own week page. Own-row only, which the deterministic id makes structural.",
     outcomes: {
       "signed-out": "refused",
       pending: "allowed",
@@ -1445,6 +1445,7 @@ export const REGISTRY = [
   },
   {
     id: "event-editor-doc",
+    sharesKeyWith: "event-editor-doc-chosen",
     file: "src/features/events/EventEditor.tsx",
     path: "events/{eventId}",
     clauses: [],
@@ -1473,12 +1474,47 @@ export const REGISTRY = [
     run: (db) => db.doc(`events/${EVENT_ID}`).get(),
   },
   {
+    // THE NEGATIVE CASE for an event for chosen people. A published event is
+    // readable by any signed-in account only while it is listed: one for
+    // chosen people is the events team's, and the people invited to it read
+    // it on the server, which decides who may open it. So a plain member is
+    // refused this read even though the event is live, whoever they are.
+    id: "event-editor-doc-chosen",
+    sharesKeyWith: "event-editor-doc",
+    file: "src/features/events/EventEditor.tsx",
+    path: "events/{eventId}",
+    clauses: [],
+    docShape:
+      "A PUBLISHED event for chosen people by another author: the case the read branch for any signed-in account leaves out.",
+    reason:
+      "The same read as the editor's, of a live event for chosen people: the events team only. A member, invited or not, is refused it, so no member-facing page can list or open one from the browser.",
+    outcomes: {
+      "signed-out": "refused",
+      pending: "refused",
+      member: "refused",
+      committee: "allowed",
+      "su-committee": "allowed",
+      admin: "allowed",
+      ...EVENT_STAFF,
+    },
+    seed: async (db) => {
+      await db.doc(`events/${EVENT_ID}`).set({
+        title: "Guard event",
+        status: "published",
+        authorUid: OTHER,
+        collaboratorUids: [],
+        visibility: "chosen",
+      });
+    },
+    run: (db) => db.doc(`events/${EVENT_ID}`).get(),
+  },
+  {
     id: "event-rsvps-by-event",
     file: "src/features/events/useEventRsvps.ts",
     path: "eventRsvps",
     clauses: ["where(eventId,==)"],
     reason:
-      "The attendee list for one event, issued twice in this file with the identical shape: once as a live listener and once as a server-forced refetch after a decision, which is why they share one entry. Attendee PII is SU-recognised committee and admins only, and the attendees page repeats that check server-side before it renders, so a non-SU committee member is redirected rather than shown an empty table.",
+      "The attendee list for one event, issued twice in this file with the identical shape: once as a live listener and once as a server-forced refetch after a decision, which is why they share one entry. Attendee PII is SU-recognised committee and admins only, and the Sign-ups page mounts this list only for them (the sign-ups rule's `everyone`, src/lib/events/signupAccess.ts); an event's other organisers are sent the requests waiting for a decision by GET /api/events/[id]/signups instead, and never open this listener.",
     outcomes: {
       "signed-out": "refused",
       pending: "refused",

@@ -400,7 +400,10 @@ function RegisterPageInner() {
     );
   }, [user]);
 
-  // Profile state
+  // Profile state. The full name starts with the account's own name where it
+  // has one, which for a Google sign-in is Google's name for them: theirs to
+  // keep or change, and nothing is saved until they press Finish.
+  const [fullName, setFullName] = useState(() => user?.displayName?.trim() ?? "");
   const [preferredName, setPreferredName] = useState("");
   const [universityEmail, setUniversityEmail] = useState("");
   const [status, setStatus] = useState<AffiliationStatus | "">("");
@@ -621,7 +624,7 @@ function RegisterPageInner() {
       setError(siteNotice.bannerMessage);
       return;
     }
-    if (!preferredName || !universityEmail || !status || !subject || !motivation) {
+    if (!fullName.trim() || !preferredName || !universityEmail || !status || !subject || !motivation) {
       setError("Please fill in every required field.");
       return;
     }
@@ -663,6 +666,7 @@ function RegisterPageInner() {
     setLoading(true);
     try {
       await completeRegistration({
+        fullName: fullName.trim(),
         preferredName,
         universityEmail: universityEmail.trim(),
         status: status as AffiliationStatus,
@@ -883,13 +887,27 @@ function RegisterPageInner() {
         />
       ) : (
         <form onSubmit={handleSubmitProfile} className={styles.profileForm}>
-          <Field id="preferredName" label="Preferred name">
+          <Field
+            id="fullName"
+            label="Full name"
+            hint="So the committee can tell people apart. Only the committee sees it."
+          >
+            <Input
+              id="fullName"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              maxLength={FIELD_LIMITS.fullName}
+              autoComplete="name"
+              required
+            />
+          </Field>
+          <Field id="preferredName" label="What should we call you?" hint="What everyone else sees.">
             <Input
               id="preferredName"
               value={preferredName}
               onChange={(e) => setPreferredName(e.target.value)}
-              placeholder="What should we call you?"
               maxLength={FIELD_LIMITS.preferredName}
+              autoComplete="nickname"
               required
             />
           </Field>

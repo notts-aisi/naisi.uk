@@ -9,7 +9,11 @@ import { isBlockWeek, type FillInBlock, type WeekBlock } from "@/lib/courses/wee
 import { weekFillInBoxes } from "@/lib/courses/weekBlocks/reader";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { answerState, instantOf, isWordCountedAnswer, readWrittenAnswer, type AnswerState } from "@/lib/courses/writtenAnswers/model";
+import { workIsReadable } from "@/lib/courses/weekWork/model";
+import { loadRunWeekStates, type RunWeekStates } from "@/lib/courses/weekWork/readers";
 import { workKey, type PersonAnswerWrite, type PersonWork, type PersonWrites } from "@/lib/courses/coursework/model";
+import { readRunFeedback } from "@/lib/courses/feedback/readers";
+import type { CourseFeedbackDoc } from "@/lib/firestore/courseFeedback";
 import { isFillInResponse, isOwnBoxResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import type { SessionUser } from "@/lib/firebase/session";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -43,7 +47,7 @@ import { promptOptionWords } from "./words";
  *    the private note).
  *  - PRIVATE NOTES: the same rows read as who, which item and the note, and
  *    only for a viewer who reads private notes (the group's facilitators and
- *    admins, Q38), only for the people whose notes that viewer reads.
+ *    admins), only for the people whose notes that viewer reads.
  *
  * Every query is equalities on (runId, weekNumber), served by the declared
  * composites that start with those two fields. Nothing here writes, and no
@@ -140,7 +144,7 @@ async function readTicks(
 }
 
 /**
- * THE ONE READER OF PRIVATE NOTES (Q38): the note a person keeps on a source,
+ * THE ONE READER OF PRIVATE NOTES: the note a person keeps on a source,
  * by item, for the people whose notes this viewer reads. Called only for a
  * viewer who reads private notes (the group's facilitators and admins), and
  * never on the page that picks lines to read out.
@@ -559,21 +563,39 @@ export async function loadNamedReflections(
  *    and written answers, told apart by kind. For everybody, counts and
  *    states only; the words (and when each was written) only for `wordsOf`,
  *    the one person whose page is being drawn.
+ *  - A WRITTEN ANSWER (privacy v15) only as its readers may read it
+ *    (`workIsReadable`, from where its week stands, `loadRunWeekStates`):
+ *    its words, and its count, only once the week is submitted or locked, or
+ *    the answer was sent before weeks were submitted. Until then it is
+ *    started or not, and waits for nobody's feedback. Reflections and boxes
+ *    are read as they are typed, as v15 says.
+ *  - The run's feedback (`courseFeedback`): an answer with a piece on it, or
+ *    with feedback given before pieces existed, has feedback. The pieces
+ *    about `wordsOf` travel back for their page.
  *  - From the progress store, who ticked which item, through a projection
  *    with no rating, no comment and no private note.
+ *  - Where each person's every week stands (`states`), which the tab's one
+ *    meaning of done asks too.
  *
  * Survey answers live elsewhere and are never read here.
  */
 export async function readRunCoursework(
   db: Firestore,
-  runId: string,
+  on: { run: CourseRunDoc; liveGroups: readonly CourseGroupDoc[]; now: Date },
   wordsOf: string | null,
-): Promise<{ work: Map<string, PersonWork>; writes: PersonWrites }> {
-  const [responses, progress] = await Promise.all([
+): Promise<{ work: Map<string, PersonWork>; writes: PersonWrites; states: RunWeekStates; feedback: CourseFeedbackDoc[] }> {
+  const runId = on.run.id;
+  const [responses, progress, states, pieces] = await Promise.all([
     db.collection("courseExerciseResponses").where("runId", "==", runId).get(),
     // The projection is the boundary: who, which item and whether it is ticked.
     db.collection("courseProgress").where("runId", "==", runId).select("uid", "itemId", "completed").get(),
+    loadRunWeekStates(db, { run: on.run, liveGroups: on.liveGroups, now: on.now }),
+    readRunFeedback(db, runId),
   ]);
+  // Every written answer somebody has left a piece of feedback on.
+  const given = new Set(
+    pieces.flatMap((piece) => (piece.on.kind === "writtenAnswer" ? [`${piece.uid} ${workKey(piece.weekNumber, piece.on.itemId)}`] : [])),
+  );
   const work = new Map<string, { reflections: Set<string>; boxes: Set<string>; answers: Map<string, AnswerState>; ticked: Set<string> }>();
   const of = (uid: string) => {
     let found = work.get(uid);
@@ -608,16 +630,28 @@ export async function readRunCoursework(
     } else if (!isOwnBoxResponse(data) && isWordCountedAnswer(data)) {
       // A block week's written answer; the summer's exercise answers have no words count.
       const record = readWrittenAnswer(data);
-      const state = answerState(record);
+      // Its words, and whether it waits for feedback, only once its readers may read it.
+      const readable = workIsReadable(states.stateOf(uid, weekNumber), record);
+      const state: AnswerState = !readable
+        ? record.words > 0
+          ? "draft"
+          : "not-started"
+        : record.feedback || given.has(`${uid} ${key}`)
+          ? "feedback"
+          : record.words > 0
+            ? answerState(record) === "draft"
+              ? "sent"
+              : answerState(record)
+            : "not-started";
       of(uid).answers.set(key, state);
       if (uid === wordsOf) {
         answers.set(key, {
           state,
-          words: record.words,
-          text: record.text,
-          boxes: record.boxes,
+          words: readable ? record.words : 0,
+          text: readable ? record.text : "",
+          boxes: readable ? record.boxes : null,
           sentAt: record.firstSentAt,
-          feedback: record.feedback,
+          feedback: readable ? record.feedback : null,
         });
       }
     }
@@ -630,12 +664,17 @@ export async function readRunCoursework(
     of(uid).ticked.add(itemId);
     if (uid === wordsOf) ticked.add(itemId);
   }
-  return { work, writes: { reflections, boxes, answers, ticked } };
+  return {
+    work,
+    writes: { reflections, boxes, answers, ticked },
+    states,
+    feedback: wordsOf ? pieces.filter((piece) => piece.uid === wordsOf) : [],
+  };
 }
 
 /**
  * ONE PERSON'S PRIVATE NOTES ON A RUN, by item, for their page: through the
- * one reader of private notes (Q38), only where this viewer reads that
+ * one reader of private notes, only where this viewer reads that
  * person's notes (`privateNotesOf`: an admin; never the programme's lead,
  * and a facilitator's own note an admin's alone). Null for a viewer who
  * reads none.
@@ -663,7 +702,7 @@ export async function readPersonPrivateNotes(
 }
 
 // ---------------------------------------------------------------------------
-// The page to read lines out (wk-reflections)
+// The page to read lines out
 // ---------------------------------------------------------------------------
 
 /** One prompt on the page to read lines out, with the group's answers to it and nobody's name on them. */

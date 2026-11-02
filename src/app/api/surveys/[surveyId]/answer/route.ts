@@ -52,6 +52,9 @@ export async function POST(req: Request, ctx: Ctx) {
   // A survey after an event is answered signed in with its QR code, by
   // whoever signed up or came, whose row is made as they answer.
   if (survey && isEventSurvey(survey)) {
+    // The one question for people who had a place and weren't checked in is
+    // answered from its email alone: no QR code or page offers it signed in.
+    if (survey.audience.kind === "event-missed") return NextResponse.json({ error: EVENT_REFUSAL.notForYou }, { status: 404 });
     if (!(await mayAnswerSignedIn(db, survey.audience.eventId, actor.uid))) {
       return NextResponse.json({ error: EVENT_REFUSAL.notForYou }, { status: 404 });
     }

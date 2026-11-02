@@ -32,7 +32,7 @@ import {
  *
  * Results show from the first answer: there is no floor below which a total
  * is held back (Zach, 25 Oct 2026). Who answered what is the export's and the
- * Who answered tab's, for admins, never this.
+ * Answers tab's, for admins, never this.
  *
  * Every percentage is of the people who answered THAT question (or line),
  * the Worksheets rule, and the count travels beside it.

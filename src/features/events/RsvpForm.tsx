@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
@@ -24,13 +24,17 @@ import {
   type FormQuestion,
   type RsvpAnswer,
 } from "@/lib/firestore/events";
+import { HELD_PLACE_WORDS } from "@/lib/events/attendanceWords";
+import { REACH_WORDS, eventReach, needsAccount } from "@/lib/events/reach";
 import { placesState, placesTone, placesWords } from "./eventWhen";
 import FormRenderer from "./FormRenderer";
 import links from "./eventLinks.module.css";
 import styles from "./RsvpForm.module.css";
 
 /**
- * The six facts the form needs, and NOT the event document.
+ * The six facts the form needs, and NOT the event document; and, for
+ * somebody who holds a place here, that place's sign-up id and whether the
+ * event has started, which only their own page carries.
  *
  * This is a client component rendered by a Server Component on the public
  * event page, and React serialises every prop a client component receives
@@ -53,7 +57,16 @@ type Props = {
   waitlistEnabled: boolean;
   /** When true, renders a banner indicating test mode (still saves real RSVPs). */
   previewMode?: boolean;
+  /**
+   * The place the person looking holds here, found on the server by their
+   * own session: the id of their confirmed sign-up, and whether the event has
+   * started. Null for everybody else, and the form is drawn as before.
+   */
+  heldPlace?: { rsvpId: string; started: boolean } | null;
 };
+
+/** Where giving a held place back has got to. */
+type GiveBack = "holding" | "asking" | "giving" | "given";
 
 type SubmitState =
   | { kind: "idle" }
@@ -69,14 +82,16 @@ export default function RsvpForm({
   rsvpCountConfirmed,
   waitlistEnabled,
   previewMode,
+  heldPlace,
 }: Props) {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, accountName, loading: authLoading } = useAuth();
   // The name and email boxes are UNCONTROLLED and read out of the DOM when the
   // form is submitted. The event page is server-rendered, so a guest can be
   // typing into this form before its JavaScript has landed, and controlled
   // boxes lost every one of those characters: React's first render wrote its
-  // own empty state over them.
+  // own empty state over them. They are a guest's boxes only: see
+  // `signedInAs` below.
   const formRef = useRef<HTMLFormElement>(null);
   const recaptcha = useRef<RecaptchaHandle | null>(null);
   const readField = useCallback((id: string) => {
@@ -97,40 +112,47 @@ export default function RsvpForm({
   // someone trying to free up a place helps nobody.
   const siteNotice = useSiteNotice();
   const signupsPaused = isSurfacePaused(siteNotice, "eventSignups");
+  // A held place: "Can't make it", then a question, then the place given
+  // back. `askAgain` is a press of "Ask for a place again" after that, which
+  // draws the form.
+  const [giveBack, setGiveBack] = useState<GiveBack>("holding");
+  const [giveBackError, setGiveBackError] = useState<string | null>(null);
+  const [askAgain, setAskAgain] = useState(false);
 
   const questions: FormQuestion[] = signupForm;
-  const needsLogin = visibility === "members" && !user && !authLoading;
+  // Who the event is for decides whether a guest may sign up at all
+  // (`src/lib/events/reach.ts`): only an event for anyone takes a guest.
+  const reach = eventReach({ visibility });
+  const needsLogin = needsAccount({ visibility }) && !user && !authLoading;
   const full = capacity !== null && rsvpCountConfirmed >= capacity;
   // The same words and tone the events list and the hero use for this event.
   const places = placesState({ capacity, rsvpCountConfirmed, waitlistEnabled, noSignup: false });
 
-  // Signed-in users have their identity locked to the session. Anonymous users
-  // type their own name + email (public events only). If the session is missing
-  // displayName/email for some reason we fall through to editable inputs so the
-  // form isn't bricked.
-  const signedInIdentity =
-    user && user.email ? { name: user.displayName ?? "", email: user.email } : null;
-  const sessionName = signedInIdentity ? signedInIdentity.name : null;
-  const sessionEmail = signedInIdentity ? signedInIdentity.email : null;
-
-  // A session resolves after the first paint, so a locked identity is written
-  // into the boxes rather than rendered as their value: the boxes have to
-  // stay uncontrolled for the guest case above.
-  useEffect(() => {
-    const form = formRef.current;
-    if (!form || sessionEmail === null) return;
-    const nameBox = form.querySelector<HTMLInputElement>("#rsvp-name");
-    if (nameBox) nameBox.value = sessionName ?? "";
-    const emailBox = form.querySelector<HTMLInputElement>("#rsvp-email");
-    if (emailBox) emailBox.value = sessionEmail;
-  }, [sessionName, sessionEmail]);
+  // SIGNED IN, THE SESSION IS WHO SIGNS UP, and the route takes the name and
+  // the address off it whatever the form sends. So the form draws no boxes for
+  // them, which would only be two fields nobody can change, and says who the
+  // sign-up is for: the account's name by the same rule the route stores it
+  // by (`useAuth().accountName`, never the Firebase Auth name, which is empty
+  // for an account made with an email address and a password), or the address
+  // where the account holds no name. A guest types their own name and address
+  // (public events only). A session with no address falls through to the
+  // boxes, so the form is never bricked.
+  //
+  // The page is drawn on the server before anybody is known, so the boxes are
+  // in its first markup for everybody and go once a session resolves. They
+  // cannot wait for the session: a guest typing before the JavaScript lands
+  // is the case the boxes are uncontrolled for.
+  const signedInAs = user && user.email ? { name: accountName, email: user.email } : null;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // The session wins where there is one, exactly as the locked boxes show;
-    // otherwise whatever the guest typed, however early they typed it.
-    const name = sessionEmail !== null ? (sessionName ?? "") : readField("rsvp-name");
-    const email = sessionEmail !== null ? sessionEmail : readField("rsvp-email");
+    // The session wins where there is one, exactly as the note says; otherwise
+    // whatever the guest typed, however early they typed it. With a session
+    // the route takes both off it and ignores these; they are still what the
+    // optional mailing-list sign-up below goes out with, which greets a person
+    // by the name, so an account with none sends none rather than its address.
+    const name = signedInAs ? (signedInAs.name ?? "") : readField("rsvp-name");
+    const email = signedInAs ? signedInAs.email : readField("rsvp-email");
     if (signupsPaused) {
       // Belt and braces behind the disabled submit — never a silent block.
       setState({ kind: "error", message: siteNotice.bannerMessage });
@@ -209,17 +231,112 @@ export default function RsvpForm({
     }
   }
 
+  /**
+   * "Can't make it": the held place goes back through the route the cancel
+   * link in their email uses, which knows the sign-up as theirs by the
+   * session, frees the place and, before the event starts, moves the first
+   * person on the waiting list up (who is emailed, as they always are).
+   * Nobody else is emailed, and from the start nobody at all.
+   */
+  async function onGiveBack() {
+    if (!heldPlace) return;
+    setGiveBack("giving");
+    setGiveBackError(null);
+    try {
+      const res = await fetch(
+        `/api/events/${encodeURIComponent(eventId)}/rsvp/${encodeURIComponent(heldPlace.rsvpId)}/cancel`,
+        { method: "POST" },
+      );
+      const body = (await res.json().catch(() => null)) as { ok?: true; error?: string } | null;
+      if (!res.ok || !body?.ok) {
+        setGiveBackError(body?.error ?? HELD_PLACE_WORDS.failed);
+        setGiveBack("asking");
+        return;
+      }
+      setGiveBack("given");
+      // The page's places and the panel are read again: the place is free now.
+      router.refresh();
+    } catch {
+      setGiveBackError(HELD_PLACE_WORDS.failed);
+      setGiveBack("asking");
+    }
+  }
+
+  // Given back: said once, with the way to ask again. Kept through the
+  // refresh above, which takes the held place away.
+  if (giveBack === "given" && !askAgain) {
+    return (
+      <section className={styles.panel}>
+        <h2 className={styles.h2}>{HELD_PLACE_WORDS.givenHeading}</h2>
+        <p className={styles.lede}>{HELD_PLACE_WORDS.givenLede}</p>
+        {/* The button pressed a moment ago has gone, so the next one takes the focus. */}
+        <Button variant="secondary" size="lg" fullWidth onClick={() => setAskAgain(true)} autoFocus>
+          {HELD_PLACE_WORDS.askAgain}
+        </Button>
+      </section>
+    );
+  }
+
+  // A place held: said in place of the form, with "Can't make it" until the
+  // event starts. Every control here is as wide as the panel and 52px tall,
+  // as the form's own button is, and nothing is pinned.
+  if (heldPlace && giveBack !== "given" && !askAgain) {
+    const asking = giveBack === "asking" || giveBack === "giving";
+    return (
+      <section className={styles.panel}>
+        <h2 className={styles.h2}>{HELD_PLACE_WORDS.heading}</h2>
+        {heldPlace.started ? (
+          <p className={styles.lede}>{HELD_PLACE_WORDS.started}</p>
+        ) : asking ? (
+          <>
+            <p className={styles.lede}>
+              <strong>{HELD_PLACE_WORDS.ask}</strong> {HELD_PLACE_WORDS.askLede}
+            </p>
+            {giveBackError && (
+              <p className={styles.danger} role="alert">
+                {giveBackError}
+              </p>
+            )}
+            {/* "Can't make it" has gone from under the pointer, so the answer to the question takes the focus. */}
+            <Button size="lg" fullWidth onClick={onGiveBack} disabled={giveBack === "giving" || !hydrated} autoFocus>
+              {giveBack === "giving" ? HELD_PLACE_WORDS.giving : HELD_PLACE_WORDS.giveBack}
+            </Button>
+            <Button
+              variant="secondary"
+              size="lg"
+              fullWidth
+              onClick={() => {
+                setGiveBack("holding");
+                setGiveBackError(null);
+              }}
+              disabled={giveBack === "giving"}
+            >
+              {HELD_PLACE_WORDS.keep}
+            </Button>
+          </>
+        ) : (
+          <>
+            <p className={styles.lede}>{HELD_PLACE_WORDS.lede}</p>
+            <Button variant="secondary" size="lg" fullWidth onClick={() => setGiveBack("asking")} disabled={!hydrated}>
+              {HELD_PLACE_WORDS.cantMakeIt}
+            </Button>
+            <p className={styles.after}>{HELD_PLACE_WORDS.never}</p>
+          </>
+        )}
+      </section>
+    );
+  }
+
   if (needsLogin) {
     return (
       <section className={styles.panel}>
-        <h2 className={styles.h2}>Members-only event</h2>
-        <p className={styles.lede}>
-          This event is for signed-in NAISI members. Sign in to RSVP.
-        </p>
+        <h2 className={styles.h2}>{REACH_WORDS.badge["listed-account"]}</h2>
+        <p className={styles.lede}>{REACH_WORDS.signInLede[reach]}</p>
         {/* An anchor, never a Button inside one: that nesting is invalid and
-            its tap behaviour is unreliable in iOS Safari. */}
+            its tap behaviour is unreliable in iOS Safari. The sign-in page
+            comes back to the address in `next`. */}
         <a
-          href={`/login?redirect=/events/${eventId}`}
+          href={`/login?next=${encodeURIComponent(`/events/${eventId}`)}`}
           className={`${links.link} ${links.primary} ${links.large} ${styles.wide}`}
         >
           Sign in
@@ -248,11 +365,7 @@ export default function RsvpForm({
           <Badge tone={placesTone(places)}>{placesWords(places)}</Badge>
         )}
       </div>
-      <p className={styles.lede}>
-        {visibility === "members"
-          ? "This one is for people with a NAISI account."
-          : "Anyone can come."}
-      </p>
+      <p className={styles.lede}>{REACH_WORDS.formLede[reach]}</p>
       {previewMode && (
         <Notice tone="warning" role="note">
           Test mode: submissions here are saved like real ones. Use them to
@@ -267,10 +380,13 @@ export default function RsvpForm({
         </Notice>
       )}
 
-      {signedInIdentity && (
+      {/* The address appears once: beside the name, or as the name where the
+          account holds none. */}
+      {signedInAs && (
         <Notice tone="neutral" role="note">
-          Signing up as <strong>{signedInIdentity.name || signedInIdentity.email}</strong>{" "}
-          ({signedInIdentity.email}). Sign out to RSVP with a different account.
+          Signing up as <strong>{signedInAs.name ?? signedInAs.email}</strong>
+          {signedInAs.name !== null && ` (${signedInAs.email})`}. Sign out to RSVP with a
+          different account.
         </Notice>
       )}
 
@@ -284,29 +400,32 @@ export default function RsvpForm({
       {/* Addressed by the browser end-to-end suite, which fills this form as a
           signed-out guest and checks it fits a phone. */}
       <form ref={formRef} onSubmit={onSubmit} className={styles.form} data-testid="rsvp-form">
-        <Field id="rsvp-name" label="Name">
-          <Input
-            id="rsvp-name"
-            maxLength={NAME_MAX}
-            disabled={state.kind === "submitting"}
-            readOnly={!!signedInIdentity}
-            required
-            autoComplete="name"
-            placeholder="Your name"
-          />
-        </Field>
-        <Field id="rsvp-email" label="Email">
-          <Input
-            id="rsvp-email"
-            type="email"
-            maxLength={EMAIL_MAX}
-            disabled={state.kind === "submitting"}
-            readOnly={!!signedInIdentity}
-            required
-            autoComplete="email"
-            placeholder="you@example.com"
-          />
-        </Field>
+        {!signedInAs && (
+          <>
+            {/* One box for both names: the people at the door tell two
+                guests called Sam apart by the second. */}
+            <Field id="rsvp-name" label="Your first and last name">
+              <Input
+                id="rsvp-name"
+                maxLength={NAME_MAX}
+                disabled={state.kind === "submitting"}
+                required
+                autoComplete="name"
+              />
+            </Field>
+            <Field id="rsvp-email" label="Email">
+              <Input
+                id="rsvp-email"
+                type="email"
+                maxLength={EMAIL_MAX}
+                disabled={state.kind === "submitting"}
+                required
+                autoComplete="email"
+                placeholder="you@example.com"
+              />
+            </Field>
+          </>
+        )}
 
         {questions.length > 0 && (
           <FormRenderer

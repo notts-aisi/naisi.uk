@@ -84,11 +84,11 @@ import styles from "./apply.module.css";
  * A ROUND OF THE OLDER KIND renders the member's own application, as it
  * always has, with one exception: the access-requirements answer. It lives in
  * `admissionApplicationPrivate` because it will in practice carry disability
- * and health information, and the privacy policy promises that the people who
- * can open it are the final decider and site admins, through a route that
- * records the read. An admin who is standing in a member's session is neither
- * of those, so the join is skipped while a view-as session is live and the
- * field renders empty. `GET .../apply` refuses outright for the same reason.
+ * and health information, and the privacy policy promises that only admins can
+ * open it, through a route that records the read. An admin who is standing in
+ * a member's session is opening it through no such route, so the join is
+ * skipped while a view-as session is live and the field renders empty.
+ * `GET .../apply` refuses outright for the same reason.
  */
 
 export const dynamic = "force-dynamic";

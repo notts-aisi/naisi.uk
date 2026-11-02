@@ -1,6 +1,6 @@
 /**
- * A certificate's PDF (`GET /api/courses/certificates/[code]/pdf`, board
- * en-cert's Download PDF), drawn by PDFKit (`src/lib/courses/certificates/pdf.ts`).
+ * A certificate's PDF (`GET /api/courses/certificates/[code]/pdf`,
+ * the certificate page's Download PDF), drawn by PDFKit (`src/lib/courses/certificates/pdf.ts`).
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *

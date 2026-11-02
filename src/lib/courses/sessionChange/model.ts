@@ -6,7 +6,7 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { PUSHED_BREAK_LABEL, coversLine, noticeCancelledLine, noticeKeepPaceLine } from "./words";
 
 /**
- * CHANGING ONE WEEK'S SESSION (Q25), as arithmetic: which session a change is
+ * CHANGING ONE WEEK'S SESSION, as arithmetic: which session a change is
  * about, what each kind of cancel makes true before anybody presses, the plan
  * a push back writes, and the notice a group's people read.
  *
@@ -170,7 +170,7 @@ export function pushStillHolds(sessions: readonly ResolvedSession[], weekNumber:
 // What a group's people read
 // ---------------------------------------------------------------------------
 
-/** A cancelled evening, as the programme page tells the group about it (wk-changes). */
+/** A cancelled evening, as the programme page tells the group about it. */
 export type SessionNotice = {
   kind: "cancelled" | "pushed";
   /** The evening nobody meets. */
@@ -276,8 +276,8 @@ export function cardChangeFacts(
 }
 
 /**
- * WHAT NEXT WEEK'S EMAIL SAYS ABOUT A CHANGED SESSION (Q25): "Cancelling or
- * moving a session rewrites its email" (wk-messages). A moved session and an
+ * WHAT NEXT WEEK'S EMAIL SAYS ABOUT A CHANGED SESSION: "Cancelling or
+ * moving a session rewrites its email". A moved session and an
  * online one need no words of their own: the email's day, time and room are
  * the week's own (`resolveSessions` applies the move) and an online week's
  * place is "Online" (never the link). What does:

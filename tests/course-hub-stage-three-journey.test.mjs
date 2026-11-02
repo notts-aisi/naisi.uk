@@ -1287,7 +1287,7 @@ async function samLeaves() {
   // Rahul writes to Group B, emailed: the number on his button, and who it reaches.
   later();
   const page = await draw(pages.group, "rahul", { runId: RUN, groupId: GROUP.B });
-  // Since board wk-fac-group, "Write to Group B (N)" and "Change a session"
+  // Since the restyle of the facilitator's group page, "Write to Group B (N)" and "Change a session"
   // are the head's two buttons, with the line under both: the button and its
   // line are read as they always were, around the second button.
   const write = /(Write to Group B \(\d+\)) Change a session ([^.]*\.(?: Replies go to \S+\.)?)/.exec(page.text);
@@ -1597,14 +1597,20 @@ const BOM = String.fromCharCode(0xfeff);
 const FOOTER = "Nottingham AI Safety Initiative · University of Nottingham · ai-safety@uonsu.com";
 const short = (response) => [response.status, response.body?.error ?? null];
 const HOME = `/learn/${RUN}`;
-/** The run's head, as the lead's tabs draw it once the last session is over (en-finish v21: "stayed to the end", was "took part"). */
+/** The run's head, as the lead's tabs draw it once the last session is over ("stayed to the end", was "took part"). */
 const HEAD_AFTER = (n) => `Programmes AGI Strategy Fellowship Finished · Tue 8 Dec C Lead: Claudia · ${n} stayed to the end Overview`;
 const RULE_SENTENCE = (n) =>
   `We’ve ticked everyone who came to at least ${n} of 6 sessions. Change any you disagree with. Only you and admins see this rule.`;
 const NO_RULE =
   "There’s no rule for who finished yet, so we haven’t ticked anybody. Set one in Settings, or tick people yourself. Only you and admins see this.";
 const NOTE = "Group B met 5 times. Its session on Tue 24 Nov was cancelled, and it doesn’t count against anyone.";
-/** Each person's row of Who finished, as the rule and the registers make it: [name, group, came to, exercises, line]. */
+/**
+ * Each person's row of Who finished, as the rule and the registers make it:
+ * [name, group, came to, exercises, line]. Who finished is read by the lead
+ * and admins, who are on the committee, so every name is the account's full
+ * name (`nameForViewer`); a facilitator who is not on it reads the name each
+ * goes by on their own pages.
+ */
 const ROWS = {
   farah: ["Farah Hussain", "Group B", "3 of 5", "0 of 6", "Missed weeks 5 and 6"],
   kofi: ["Kofi Asante", "Group B", "3 of 5", "5 of 6", "Excused in weeks 1 and 3"],
@@ -1621,7 +1627,7 @@ const LEFT = [
   ["Joel Adeyemi", "Group A", "Left Wed 4 Nov"],
   ["Sam Whitfield", "Group B", "Left Fri 13 Nov"],
 ];
-/** What the Overview says of the two who left, as every viewer reads it. */
+/** What the Overview says of the two who left, as the lead and an admin read it: each card by the full name, its sentences by the name each goes by. */
 const LEFT_ATTENTION = [
   ["left", "Sam Whitfield left on Fri 13 Nov", "Sam said: “Too much on this term.” Sam’s off Group B’s register from week 3."],
   ["left", "Joel Adeyemi left on Wed 4 Nov", "Joel’s off Group A’s register from week 2."],
@@ -1641,7 +1647,7 @@ const THE_LEAVING_EMAIL = (first) =>
 
 /**
  * Every member's own pages after the end, word for word: the run home (since
- * boards en-after-phone and en-after-nofinish-phone: the programme's name in
+ * the page after the end, whether somebody finished or not: the programme's name in
  * the heading their finished record gives them, the term and their group,
  * with its facilitators for somebody who finished and after the thanks for
  * everybody else, what they keep, then the weeks, each Done only when all it
@@ -1653,8 +1659,7 @@ const THE_LEAVING_EMAIL = (first) =>
  * which is drawn with no session to come. Group B's week 4 reads as cancelled
  * in the run home's weeks, from the run's own record of the cancellation
  * (until the walk of stage three Home's strip read it as "not marked yet",
- * from the register alone: H2); Home draws no marks since the restyle
- * (wk-home-phone).
+ * from the register alone: H2); Home draws no marks since the restyle.
  */
 const MEMBER_PAGES = {
   amara: {
@@ -1845,15 +1850,20 @@ describe("stage three of the course hub, one term from week 3 to after its end",
           "Group A,Mei Tanaka,Present,Excused,Present,,,,2,3,\n" +
           "Group A,Noah Bennett,Present,Present,Absent,,,,2,3,",
       );
-      // The register names the people in the group by the name they go by,
-      // and somebody who left by their whole name, as the grid and
-      // wk-fac-group do (until the walk of stage three it said "Sam": H8).
-      for (const who of ["rahul", "claudia"]) {
+      // The register names the people in the group, and somebody who left,
+      // by the names rule for its reader, as the grid and the group page do
+      // (until the walk of stage three somebody who left was named apart:
+      // H8): Rahul, a facilitator who is not on the committee, by the name
+      // each goes by; Claudia, the lead on the committee, by the full name.
+      for (const [who, members, sam] of [
+        ["rahul", ["Amara", "Farah", "Isaac", "Kofi"], "Sam"],
+        ["claudia", ["Amara Okafor", "Farah Hussain", "Isaac Mensah", "Kofi Asante"], "Sam Whitfield"],
+      ]) {
         const register = l().registers[who];
-        assert.deepEqual(register.members, ["Amara", "Farah", "Isaac", "Kofi"], who);
-        assert.deepEqual(register.leavers, [{ name: "Sam Whitfield", left: "Left Fri 13 Nov", marks: { "week 1": "present", "week 2": "absent" } }], who);
+        assert.deepEqual(register.members, members, who);
+        assert.deepEqual(register.leavers, [{ name: sam, left: "Left Fri 13 Nov", marks: { "week 1": "present", "week 2": "absent" } }], who);
       }
-      assert.deepEqual(l().registers.amelia.leavers, [{ name: "Joel Adeyemi", left: "Left Wed 4 Nov", marks: { "week 1": "present" } }]);
+      assert.deepEqual(l().registers.amelia.leavers, [{ name: "Joel", left: "Left Wed 4 Nov", marks: { "week 1": "present" } }]);
     });
 
     test("his group goes on without him: Publish owes nothing, his group's roster and Rahul's update leave him out", () => {
@@ -1944,7 +1954,7 @@ describe("stage three of the course hub, one term from week 3 to after its end",
     test("a member's pages are on week 6 and claim nothing", () => {
       const amara = b().amara;
       assert.deepEqual([amara.overview, amara.entry], [{ finished: false }, { finished: false, membership: "enrolled" }]);
-      // The head since the restyle (board wk-programme): the bar, the kind and
+      // The head since the restyle: the bar, the kind and
       // term, the title with this week's chip.
       assert.match(amara.home, /^My programmes AGI Strategy Fellowship · Autumn 2026 AGI Strategy Fellowship Week 6 of 6 /);
       assert.doesNotMatch([amara.home, amara.card, amara.list, amara.homeLine].join(" "), /You finished|has ended|Finished|Ended|· finished|· ended/);
@@ -1975,8 +1985,8 @@ describe("stage three of the course hub, one term from week 3 to after its end",
       // chases anybody once the run is over.
       assert.deepEqual(a().lead.overview.attention.map(([kind]) => kind), ["left", "left"]);
       assert.deepEqual([a().lead.inARow, a().admin.inARow], [[], []]);
-      assert.deepEqual(a().registers.rahul.leavers.map((leaver) => [leaver.name, leaver.left]), [["Sam Whitfield", "Left Fri 13 Nov"]]);
-      assert.deepEqual(a().registers.amelia.leavers.map((leaver) => [leaver.name, leaver.left]), [["Joel Adeyemi", "Left Wed 4 Nov"]]);
+      assert.deepEqual(a().registers.rahul.leavers.map((leaver) => [leaver.name, leaver.left]), [["Sam", "Left Fri 13 Nov"]]);
+      assert.deepEqual(a().registers.amelia.leavers.map((leaver) => [leaver.name, leaver.left]), [["Joel", "Left Wed 4 Nov"]]);
     });
 
     test("the members' own calendars still run to tonight: their pages are on week 6 and claim nothing yet", () => {
@@ -2096,7 +2106,7 @@ describe("stage three of the course hub, one term from week 3 to after its end",
         const pages = pagesOf(uid);
         assert.deepEqual([pages.overview, pages.entry], [{ finished: true }, { finished: true, membership: "enrolled" }]);
         assert.equal(pages.home, MEMBER_PAGES[uid].home);
-        // The head is the programme's, as board en-after-phone draws it: the
+        // The head is the programme's, as the programme page after the end draws it: the
         // heading, then the term, the group and its facilitators.
         assert.ok(pages.home.startsWith("My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group B · with Rahul and Sofia What you keep ") ||
           pages.home.startsWith("My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group A · with Amelia What you keep "));
@@ -2111,7 +2121,7 @@ describe("stage three of the course hub, one term from week 3 to after its end",
         const pages = pagesOf(uid);
         assert.deepEqual([pages.overview, pages.entry], [{ finished: false }, { finished: false, membership: "enrolled" }]);
         assert.equal(pages.home, MEMBER_PAGES[uid].home);
-        // The head is the programme's, as board en-after-nofinish-phone draws
+        // The head is the programme's, as the page after the end for somebody who did not finish draws
         // it: the heading, the thanks, the term and the group, and nothing
         // about finishing.
         assert.match(pages.home, /^My programmes AGI Strategy AGI Strategy has ended\. Thanks for being part of it\. Autumn 2026 · Group [AB]\. What you keep /);
@@ -2155,13 +2165,13 @@ describe("stage three of the course hub, one term from week 3 to after its end",
     // "Leave the programme" at its foot for everybody taking part, and a
     // press took a finished record (H1). Leaving now closes at the run's last
     // session, the moment who finished opens, so no run home draws it. Since
-    // the restyle (board wk-programme) the page ends with the group, and the
-    // person's marks carry no count of their sessions at all (C26): the board's
+    // the restyle the page ends with the group, and the
+    // person's marks carry no count of their sessions at all: the board's
     // line where "N of M sessions in full so far" used to be.
     test("no run home after the end offers Leave the programme", () => {
       for (const uid of ["amara", "dev", "farah", "isaac", "kofi", "mei", "noah"]) {
         assert.deepEqual(pagesOf(uid).runPage, { runHome: { canLeave: false } }, uid);
-        // The page once it is over (en-after-phone) ends with the weeks and
+        // The page once it is over ends with the weeks and
         // their way to the progress page, and has no way out.
         assert.match(pagesOf(uid).home, / The 6 weeks .* See your progress week by week →$/, uid);
         assert.ok(!pagesOf(uid).home.includes("Leave the programme"), uid);

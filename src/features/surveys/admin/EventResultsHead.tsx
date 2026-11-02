@@ -4,9 +4,9 @@ import adminStyles from "./surveyAdmin.module.css";
 import styles from "./eventSurvey.module.css";
 
 /**
- * The numbers above a survey after an event's results (sv-results): how many
- * answered and how, how many came, and how many of the people it was emailed
- * to answered it. Counts, never a name.
+ * The numbers above a survey after an event's results: how many answered and
+ * how, how many came, and how many of the people it was emailed to answered
+ * it. Counts, never a name.
  */
 export default function EventResultsHead({ head }: { head: Head }) {
   return (
@@ -31,8 +31,8 @@ export default function EventResultsHead({ head }: { head: Head }) {
 }
 
 /**
- * The results beside an aside (sv-results): the logged download, and who sees
- * them (Q42: admins only; the organiser is sent a summary).
+ * The results beside an aside: the logged download, and who sees them (admins
+ * only; the organiser is sent a summary).
  */
 export function EventResultsLayout({ who, download, children }: { who: string; download: ReactNode; children: ReactNode }) {
   return (

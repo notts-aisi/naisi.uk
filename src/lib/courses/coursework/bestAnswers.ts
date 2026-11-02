@@ -10,8 +10,12 @@ import { bestAnswersInput, withFellowNames, type CourseworkKind, type Coursework
 import { BEST_WORDS, COURSEWORK_DOOR_WORDS } from "./claudeWords";
 
 /**
- * CLAUDE'S BEST ANSWERS TO A WEEK (privacy v13), for an admin and the
- * programme's lead, on the Coursework tab, asked for and never automatic.
+ * CLAUDE'S BEST ANSWERS TO A WEEK (privacy v13), FOR AN ADMIN ALONE (privacy
+ * v15, which says what Claude returns is seen by admins only), on the
+ * Coursework tab, asked for and never automatic. The route refuses anybody
+ * else on the session before anything is read, and the coursework door here
+ * refuses them again (`adminOnly`), so the programme's lead, who may open the
+ * tab, neither asks for them nor reads them.
  *
  * `courseBestAnswers/{runId}__{weekId}`: the last answer Claude gave for one
  * week of one run. It holds what Claude picked, by the ACCOUNT each label
@@ -84,7 +88,7 @@ async function openWeek(
   programmeId: string,
   weekId: string,
 ): Promise<Ready | DoorRefusal> {
-  const door = await openCourseworkDoor(db, user, roundId, programmeId);
+  const door = await openCourseworkDoor(db, user, roundId, programmeId, { adminOnly: BEST_WORDS.onlyAdmins });
   if (!door.ok) return door;
   const week = door.weeks.find((candidate) => candidate.weekId === weekId);
   if (!week) return { ok: false, status: 404, error: COURSEWORK_DOOR_WORDS.noWeek };
@@ -131,7 +135,7 @@ function viewOf(door: CourseworkDoor, week: CourseworkWeek, stored: Stored | nul
   };
 }
 
-/** What Claude found for one week, for an admin or the programme's lead. Writes nothing and sends nothing. */
+/** What Claude found for one week, for an admin. Writes nothing and sends nothing. */
 export async function loadBestAnswers(
   db: Firestore,
   user: SessionUser,

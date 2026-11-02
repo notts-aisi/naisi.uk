@@ -71,7 +71,7 @@ import type { LeavePath } from "./leaving";
  * on the programme's Overview, with the reason when one was given. A failure
  * of any of these is logged and never turns the leave into an error.
  *
- * THE LEAVING SURVEY (Q46): on a programme the form places people on, when it
+ * THE LEAVING SURVEY: on a programme the form places people on, when it
  * has an open leaving survey, the person's own row on it is made now, with
  * their own link (`reachLeaver`), and the email links it in place of the
  * outside form. Nobody presses send, and it reaches nobody who did not leave.

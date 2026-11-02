@@ -20,7 +20,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
 /**
- * One programme's Attendance tab (board wk-attendance): every register of the
+ * One programme's Attendance tab: every register of the
  * course run the programme names, as one grid, read only.
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`loadProgrammeRun`), decided from
@@ -33,14 +33,14 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * `?group=<id>` opens the tab on one group: the Overview's "See it" links
  * here that way. An id that is not one of the run's groups is ignored.
  *
- * THE NOTES EACH GROUP'S FACILITATORS SHARE (C30) are read here too, under
+ * THE NOTES EACH GROUP'S FACILITATORS SHARE are read here too, under
  * the grid, a card per group that has any: the programme's lead and admins
  * read them and write none. They are read on the server after the tab's own
  * gate, and the cards are handed only what they show. The register's own
  * notes, on a person or a session, are not among them: those are the
  * group's facilitators' and admins' alone.
  *
- * THE NOTES EACH GROUP SHARES ON ITS WEEK PAGES (C29) are read here too, under
+ * THE NOTES EACH GROUP SHARES ON ITS WEEK PAGES are read here too, under
  * the facilitators' notes, a card per group that has any. The programme's
  * lead and admins read them and write none; `sharedNotesForAttendance` asks
  * who the reader is before it reads, and the cards are handed only what they
@@ -75,9 +75,10 @@ export default async function ProgrammeAttendancePage({
   if (!view.run) return <RunBlank view={view} />;
   const records = await readRunRecords(db, view.run.id);
   if (!records) return <RunBlank view={{ ...view, blank: "run-gone" }} />;
-  const model = buildRunAttendance(records, { isAdmin: view.viewer === "admin" }, new Date());
+  // The viewer's role decides the name each row is shown by (`nameForViewer`).
+  const model = buildRunAttendance(records, { isAdmin: view.viewer === "admin", role: user.role }, new Date());
   const asked = typeof query.group === "string" ? query.group : "all";
-  const [notes, programme] = await Promise.all([readRunGroupNotes(db, view.run.id), runProgrammeOf(db, view.run.id)]);
+  const [notes, programme] = await Promise.all([readRunGroupNotes(db, view.run.id, user), runProgrammeOf(db, view.run.id)]);
   // Who reads the notes, as the line under each card says it: "you" to the
   // lead, the lead by first name to an admin.
   const lead =
@@ -88,9 +89,9 @@ export default async function ProgrammeAttendancePage({
         : null;
   const noted = model.groups.filter((group) => (notes.get(group.id) ?? []).length > 0);
   const shared = await sharedNotesForAttendance(db, user, records.run, records.groups, programme?.leadFirstName ?? null);
-  // The written answers waiting for the lead's (or an admin's) feedback, a
-  // line per group, a facilitator's own answer among them: null on a run of
-  // the summer's weeks, which has none.
+  // Feedback to write: the written answers waiting for the lead's (or an
+  // admin's) feedback, a line per group, a facilitator's own answer among
+  // them: null on a run of the summer's weeks, which has none.
   const liveGroups = records.groups.filter((group) => !group.archived);
   const writtenQueues = await loadWrittenQueues(db, user, records.run, liveGroups);
   const writtenPath = `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/written`;
@@ -123,7 +124,7 @@ export default async function ProgrammeAttendancePage({
               .map((group) => ({
                 id: group.id,
                 name: group.name.trim() || "Untitled group",
-                waiting: writtenQueues.get(group.id)?.length ?? 0,
+                weeks: (writtenQueues.get(group.id) ?? []).map((row) => row.weekNumber),
                 href: `${writtenPath}?group=${encodeURIComponent(group.id)}`,
               }))}
           />

@@ -322,6 +322,7 @@ function userDoc(uid, overrides = {}) {
 function fullDraft(overrides = {}) {
   return {
     aboutYou: {
+      fullName: "Amara Okafor",
       preferredName: "Amara",
       universityEmail: "someone@nottingham.ac.uk",
       universityEmailVerified: false,

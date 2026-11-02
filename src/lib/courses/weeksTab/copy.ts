@@ -3,7 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 
 /**
- * WHERE "COPY WEEKS FROM THE COURSE" CAN COPY FROM (board pr-weeks), for the
+ * WHERE "COPY WEEKS FROM THE COURSE" CAN COPY FROM, for the
  * programme's lead and admins on the Weeks tab.
  *
  * A course holds no weeks of its own: weeks live on its runs, and a saved

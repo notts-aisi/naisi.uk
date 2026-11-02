@@ -180,10 +180,10 @@ is that helper inverted, for the loops that hold a raw document and are asking
 
 | Row | Email | Push |
 | --- | --- | --- |
-| `newsletter` | `POST /api/newsletter/[id]/send`, the only sender that addresses this row | the same send, alongside its email loop |
-| `events` | the new-event announcement, on publish, inline or queued to the `event-announcements` job | the same announcement |
-| `courses` | the cohort announcement composer, the weekly session nudge (pushed from a register, or on its schedule by `courses-next-week-email`), the run catch-up nudge, the admissions deadline reminder job, the admissions stage-release job, the daily invitation reminder job | an admissions decision, an allocation publish, the stage release |
-| `tasks` | the five `/api/tasks/[id]/*` senders, the four worksheet circulation messages, the worksheet due-soon reminder, the register reminder to a group's facilitators (`courses-register-reminders`) | a mirror beside each of those but the register reminder, which is email only |
+| `newsletter` | `POST /api/newsletter/[id]/send`, the only sender of an issue; and a message in Messages by their settings whose writer chose this row | the newsletter send, alongside its email loop |
+| `events` | the new-event announcement, on publish, inline or queued to the `event-announcements` job, for a listed event whose Announce is not switched off; an event for chosen people's invitation, to the people chosen who are not reached as a notice; and a message in Messages by their settings whose writer chose this row | the same announcement; never the invitation |
+| `courses` | the cohort announcement composer, the admissions deadline reminder job, the admissions stage-release job, the daily invitation reminder job; and a message in Messages by their settings whose writer chose this row | an admissions decision, an allocation publish, the stage release |
+| `tasks` | the five `/api/tasks/[id]/*` senders, the four worksheet circulation messages, the worksheet due-soon reminder, the register reminder to a group's facilitators (`courses-register-reminders`), a week review's follow-up to the person's group's facilitators (`src/lib/courses/weekReview/followUp.ts`, the you-have-been-added mail as the task is made), an explainer's one email to whoever gives it, beside the task each of its sessions gives them (`src/lib/courses/explainers/schedule.ts`) | a mirror beside each of those but the register reminder, which is email only |
 
 **The two opt-in rows share one push audience shape**, in
 `sendPushToRowAudience` (`src/lib/push/rowAudience.ts`): every account with a
@@ -234,6 +234,20 @@ which drops anybody whose row is a stored `false` before a message is rendered.
 The two admissions jobs read the row per recipient, off the user document they
 fetch for the name, and carry on with the opt-out unset when that read fails.
 
+**The "you have feedback" email is transactional, and goes in a batch.**
+Feedback on somebody's week is a signed comment that shows on their week page
+as soon as it is saved, and saving it emails nobody. An admin sends the email
+that says it is there from the programme's Overview, one message to each person
+whose feedback the press left ticked however many pieces it announces, after a
+test to themselves in the last day (`src/lib/courses/feedback/send.ts`). It is
+about the person's own work, as the placement email is about their own place
+and the certificates about their own certificate, so it consults no row and
+carries no notice marker: it reaches only the people whose feedback the press
+names, each at their own account's address. Its rows in the log carry
+`kind: "course-feedback"`, its tests `course-test`. Until November 2026 the
+same email went once per piece, straight from the review route; the
+registry's entries moved with it, and the class did not change.
+
 **Invitation reminders (`application-invitation-reminders`).** Once a day, from
 10:00 London and never after 18:00, to everybody invited on decision day who
 has not replied, from the day after they were told up to their own reply-by
@@ -283,7 +297,7 @@ notification arriving from the very message they unsubscribed from, with nothing
 on the page they landed on to suggest they had not finished.
 
 `courses` is the deliberate exception, and its two cells are the reason. The
-EMAIL cell gates cohort announcements and session nudges; the PUSH cell gates an
+EMAIL cell gates cohort announcements; the PUSH cell gates an
 admissions decision, a stage release and a course placement. Those are messages
 about somebody's own application and their own place on a run, so a click at the
 foot of a cohort email must not be read as a refusal of them. That cell is
@@ -294,6 +308,20 @@ The route also writes only the keys its token names. Rebuilding the whole
 row, which once `courses` joined the list meant an unsubscribe click on a
 newsletter stamped a course-mail refusal the member never made. Adding the push
 column keeps that rule: two dotted leaves per row, never a map.
+
+**A programme's own link stops its optional mail, not its notices.** The
+footer of a cohort announcement carries a token for that run's
+`cohort:<runId>` list, and confirming it takes the person
+off that list and writes no category at all. That stops the run's optional
+mail; a notice about running the programme still reaches them while they hold a
+place on it, because a notice is not read off the list (see "Who a notice to a
+course run reaches"). So for a cohort list the two pages say exactly that: "We
+won't send this programme's optional emails to this inbox. You'll still get
+notices about running it while you hold a place on it." The confirmation page
+drops the line about turning delivery back on from `/profile` or the homepage
+for a cohort list, because neither can put somebody back on one; the line
+under it, which says to email us, is the way back. Every other list keeps its
+words.
 
 ## The notice lane
 
@@ -311,14 +339,70 @@ preference at all.
 | `event-cancel` | `POST /api/events/[id]/cancel` | admins and `approveEvent` holders, matching publish and update | the same two statuses, always both |
 | `course-group` | `POST /api/courses/groups/[groupId]/email` | admins, and a facilitator of THIS group while it is live | the group's active members |
 | `course-room` | `POST /api/courses/groups/[groupId]/notice` | the same gate | the same members |
-| `course-run` | `POST /api/courses/runs/[runId]/email` with `asNotice: true` | admins, and the run's `runFacilitatorUids` or `trackLeadUids` | the run's cohort channel, keeping the members whose `courses` row is a stored false |
-| `course-run` | `POST /api/courses/runs/[runId]/updates`, an update to everyone or to the facilitators | admins, the run's `trackLeadUids` and the lead of the programme that names the run | to everyone: the run's cohort channel as above; to the facilitators: the facilitators of the run's live groups who still meet their bar, at their own addresses |
-| `course-group` | `POST /api/courses/runs/[runId]/updates`, an update to one group | the same, and a facilitator of that group while it is live | that group's members on the run's cohort channel, keeping the stored falses |
+| `course-run` | `POST /api/courses/runs/[runId]/email` with `asNotice: true` | admins, and the run's `runFacilitatorUids` or `trackLeadUids` | everybody holding a place on the run whose group has gone out, whatever they unsubscribed from (see below) |
+| `course-run` | `POST /api/courses/runs/[runId]/updates`, an update to everyone or to the facilitators | admins, the run's `trackLeadUids` and the lead of the programme that names the run | to everyone: everybody holding a place as above; to the facilitators: the facilitators of the run's live groups who still meet their bar, at their own addresses |
+| `course-group` | `POST /api/courses/runs/[runId]/updates`, an update to one group | the same, and a facilitator of that group while it is live | everybody holding a place in that group whose group has gone out, whatever they unsubscribed from |
 | `course-survey` | `POST /api/surveys/[surveyId]/send` and `.../remind` (docs/surveys.md) | admins | everybody holding a place on the survey's programme, each at their account's address with their own link; the reminder to those of them who have not answered |
 | `course-follow-up` | the same two routes, for a follow-up survey at 6 or 12 months (docs/surveys.md) | admins | everybody whose row on the programme's before survey says yes to follow-ups now, each with their own link; the reminder to those of them who have not answered |
-| `event-survey` | the same two routes, for the survey after an event (docs/surveys.md) | admins | the people who came to the event (each with an email: an account at its own address, a guest or a walk-in at the address they gave the event) or everybody whose sign-up was confirmed, less anybody who already answered with the QR code, each with their own link; the reminder to those it reached who have not answered |
+| `event-survey` | the same two routes, for the survey after an event (docs/surveys.md); and for one its event's Survey after step set up, `POST /api/events/[id]/survey-after/send` ("Send it now", which at a started event with no survey of its own sets one up with the standard questions first) and the `event-surveys` job | admins; the event's author and collaborators while they stand, for Send it now; the job | the people who came to the event (each with an email: an account at its own address, a guest or a walk-in at the address they gave the event) or everybody whose sign-up was confirmed, less anybody who already answered with the QR code, each with their own link; with a survey its event set up, the one question about not coming to everybody with a place who wasn't checked in, at an event whose door was opened; the reminder to those it reached who have not answered |
+| `course-check-in` | `POST /api/courses/groups/[groupId]/check-in`, opening the check-in at the end of a session (docs/surveys.md) | admins, and a facilitator of THIS group while it is live | the people the session's register marks present, late or left early, never the group's facilitators, each at their account's address with their own link; once, when it opens: somebody marked there later is reached with no email, and nobody is reminded |
+| `course-week` | "Week N is open", 6 days before each of a group's sessions at 9am: the `courses-next-week-email` job, or, while that job is off, `POST /api/courses/groups/[groupId]/attendance/push` (finishing the register before it) and an admin's Resend on a finished register | the job; the group's facilitator or an admin pressing the register; an admin resending | everybody holding a place in the group whose group has gone out, whatever they unsubscribed from; once per group per session, by the group's claim |
+| `course-week-reminder` | the reminders 3 days and 1 day before each of a group's sessions at 9am: the `courses-week-reminders` job | the job | each person holding a place in the group whose week (written as blocks, and published) is not done, listing what is left of it; one per person per reminder, by a scheduler marker; a week done, submitted or locked is never reminded about |
+| `messages` | `POST /api/messages`, a message written in Messages that goes as a programme notice ([messages.md](messages.md)) | admins, a programme's lead and a group's facilitator, each to the tags the picker gives them | the people the writer chose, when every tag is about running a programme and the writer runs everybody it reaches: holding a place on a programme they run, facilitating or leading it, or in a group they facilitate; each at their account's own address (or a university address they verified), the writer too when they are in the tags. Otherwise the message goes by their settings, not as a notice. A notice to one group, or to one programme's people (its everyone, or its people holding a place), also pushes, as the group email and the cohort email's important notice it took over did: each person it reached with an account and each whose every address bounced, never the writer (`pushTargetOf`); nothing else in Messages pushes |
+| `event-invitation` | `POST /api/events/[id]/publish` and `POST /api/events/[id]/invitations` ("Invite the N new since"), for an event for chosen people that is part of a programme (see below) | publishing: admins and `approveEvent` holders; inviting more: those and the event's author and collaborators while they stand | the people holding a place on that programme among the people chosen, at their account's own address (else a university address it verified), whatever their events row says; never the event's author; email only |
 
-An update (Q18) is kept on the site as well as emailed, and its email is a
+**The survey after an event that its event set up** goes through the same
+presses as an admin's (`sendSurveyAfter` in `src/lib/surveys/events/sending.ts`),
+with no button and no test first: by the `event-surveys` job a chosen number of
+hours after the event ends and once more as its one reminder 3 days after it
+went, or by one of the event's organisers or an admin pressing "Send it now"
+on the event's Survey after tab, which at a started event with no survey of
+its own (its step switched off, or published before the step) sets one up
+with the standard questions and sends it in the same press. The organisers run the event, and the people
+it reaches came or held a place, so it is a notice, as the admins' send is.
+The job's email is signed by the event's author, "For NAISI"; a person's press
+by the person. The job's presses take no slot under the caps: each is claimed
+once per survey by a scheduler marker (`evsurvey__{surveyId}__send|remind`).
+The job ships switched off, and while it is off the event editor's step and
+the tab say nothing goes by itself.
+
+**The week's emails** (`course-week` and `course-week-reminder`) are the
+people running the programme telling the people on it what this week is and
+what is left of their own work (privacy policy v15, "Reminders"), so they are
+notices: the line above the words says why each reached them ("you are in
+this course group"; "our records show this week's work isn't finished"),
+there is no unsubscribe link, and nothing is pushed. They take no slot under
+the caps below: each is sent by a claim, once per group per session or once
+per person per reminder, and that claim is their bound. Their words are fixed
+in `src/lib/courses/weekEmails/words.ts` and drawn by `src/emails/WeekEmail.tsx`;
+"Week N is open" was next week's email, a grid send that honoured the courses
+row and the run's list, until November 2026, and the weekly nudge beside it
+is gone. An explainer an admin scheduled at the start of a session is a line
+in its "Week N is open" ("Your session starts with a 10-minute explainer on
+..."), read when the email is built, so it rides that notice and sends
+nothing of its own: a group whose email has already gone is told on its
+session tickets alone (docs/courses-ops.md, "Explainers").
+
+**An event for chosen people's invitation** (src/lib/events/invitations.ts)
+decides its class person by person, through the picker's one resolver with
+`policy: "per-person"`. When the event is part of a programme (only that
+programme's lead or an admin may say so), the people holding a place on it
+get the invitation as a notice on the `event-invitation` surface, because
+the privacy policy says "If an event is part of a programme you are on, its
+invitation is a programme email and reaches you whatever your settings".
+Everybody else chosen, the programme's facilitators and lead among them, who
+are not on it, gets it by their `events` row (grid, kind `event-invitation`,
+with the events channel's unsubscribe link); somebody who has not said yes
+is still invited, it is on their Home, and is not emailed. The choice is
+resolved in the world of whoever chose the people, so the notice goes only
+to the people that person runs under the programme: somebody who saved the
+people without leading it reaches everybody by their row, and the editor's
+count says so. The event's author is never emailed. No push leg on either
+class: the policy says email. The caps are the lane's (3 an hour per presser
+and event, 10 a day per event), claimed only by a press that sends a notice;
+a press is refused whole over 300 people or 200 messages, never trimmed.
+
+An update is kept on the site as well as emailed, and its email is a
 notice for the reason the group email is one: the lead of a programme, an
 admin or a group's facilitator is writing to the people they run it for. It
 is email only, with no push leg, and it reuses the two course surfaces
@@ -327,6 +411,43 @@ rather than adding a third, so the marker says "you are on this course" or
 "Send a test to me" is `course-test` to the presser alone, as theirs is.
 Who reads an update on the site is decided apart from who is emailed it, in
 `src/lib/courses/updates/readers.ts`.
+
+### Who a notice to a course run reaches
+
+Everybody holding a place on the run whose group has gone out, whatever they
+unsubscribed from. Unsubscribing from a run's emails (the link at the foot of
+an announcement) takes the person off the run's cohort list, and that stops the run's OPTIONAL mail and nothing else: a
+notice is the people running the programme telling the people on it something
+they need in order to take part, and it is not read off that list at all
+(Zach, 31 October 2026). The unsubscribe page says so to whoever clicks (see
+"The marketing unsubscribe link's reach").
+
+`resolveNoticeAudience` in `src/lib/email/courseFacilitatorEmails.ts` is that
+audience, and the run composer's notice lane, an update to everyone or to one
+group, "Week N is open" and the reminders before a session all use it. It says
+who in scope it left out and why (`dropped`: no account, no address, an inbox
+shared with somebody already sent it, a suppressed address), which the
+reminders stamp on each person's marker. It reads the run's ACTIVE `courseEnrolments` rather
+than its cohort list, and holds them to everything that is not a preference,
+exactly as the notice lane did when it went through the list:
+
+- **The same people.** A learner's place (the only role a cohort row is ever
+  written for: the enrol route, allocation publish and reinstate write one for
+  a learner alone), whose placement Publish has told (`placementIsTold`).
+  Somebody placed and not told yet hears about their group from Publish first;
+  somebody who left is not active and is nobody to write to.
+- **The same group narrowing**, for an update to one group, applied before the
+  cap.
+- **The same cap**: over 200 people in scope the send is refused whole, never
+  trimmed.
+- **The same address.** The address on their cohort row when they have one, on
+  the list or not, because that is where the run has always written to them;
+  with no row, their account's own address by the group email route's rule.
+- **Deduped by address, with suppression applied.**
+
+The optional mail keeps `resolveCohortAudience`, the cohort list intersected
+with the active places, so an unsubscribe still stops it: the announcement
+lane.
 
 The event broadcast gate is wider than it was, on purpose: until this lane landed
 the committee member who organised an event could not mail its attendees unless
@@ -340,6 +461,12 @@ responsible for that event.
 
 The post-publish change notice `EventEditor` sends after an edit to a published
 event goes through the broadcast route, over the diff `update/route.ts` returns.
+It reaches the waiting list as well as the people coming, and says so: the tick
+that opens it names both, from the event's own counters, and its Send button
+names the number the route counts itself when asked with `{ preview: true }`,
+from the same audience the send uses. A preview passes the same gate, needs no
+subject or message, writes nothing, takes no slot under the caps and sends
+nothing.
 
 ### Counts, never addresses
 
@@ -369,6 +496,21 @@ to be rationed like any other send.
 | course room notice | **none** | 10 | 100 members, refused |
 | course run notice | 3 | 10 | 200 recipients, refused |
 | course update | 3, per (writer, audience) | 10, its own counter | 200 recipients, refused |
+| course check-in | **none** | 2, per group, its own counter | 40 people, refused |
+| Messages | 3, per (writer, audience) | 10, per audience, its own counter | 300 emails, refused |
+| event invitation | 3, per (presser, event) | 10, per event | 300 people and 200 messages, refused |
+
+**Messages claims both windows for every send**, a message by their settings
+as much as a notice: an audience is the people the send emails, not the
+tags that chose them, so tags in another order, a tag left out that removes
+nobody, or the same people chosen another way are the same audience
+(`audienceKeyOf` in src/lib/messages/sending.ts).
+Its ceiling counts emails rather than people, because a message by their
+settings can go to both of a member's addresses.
+
+**The check-in omits the hourly window** because it is claimed once per
+session by the check-in itself (two presses make one), and its daily counter
+bounds a group's evening of two sessions.
 
 **Two lanes omit the hourly window, for the same reason.** The room notice has to
 survive the evening where the room changes twice and the mode flips once, which
@@ -401,9 +543,10 @@ There is no unsubscribe footer and no `List-Unsubscribe` header, and
 something that cannot be switched off is the one dishonest thing this lane could
 ship.
 
-The `emailSends` receipt carries `kind: "notice"` plus `surface`, one of the eight
-strings above, so the deliverability tab can answer "how much un-switch-off-able
-mail went out, and from where" without reading subject lines. Both are set by
+The `emailSends` receipt carries `kind: "notice"` plus `surface`, one of the
+strings above (and `survey-blanks`, docs/surveys.md), so the deliverability tab
+can answer "how much un-switch-off-able mail went out, and from where" without
+reading subject lines. Both are set by
 `sendNotice` alone. The older `course-notice` kind stays defined for the room
 notice's historical rows rather than being renamed: a year of them answers "how
 much un-opt-out-able mail did this group send", and rewriting them would break
@@ -433,6 +576,14 @@ concurrently.
   row and refuse the notification.
 - An event with `visibility: "members"` drops GUEST rows (an address with no
   account) and counts them. The push audience is accounts by construction.
+- **Who an event is for decides whether it is announced at all**
+  (`announces` in `src/lib/events/reach.ts`). A listed event announces unless
+  its organiser switched Announce off; only a stored `announce: false` is off,
+  so every event made before the switch announces as it always did. An event
+  that does not announce claims nothing (`announcedAt` stays absent) and
+  sends nothing. An event for chosen people never announces, whatever is
+  stored: its people are invited instead, above. The job refuses a queued
+  event that has stopped announcing, terminally, and releases nothing.
 
 **The two paths, and the switch that chooses between them.** The send used to
 run only inside the publish request, against App Hosting's 60s timeout, which
@@ -582,7 +733,15 @@ saying "while that job is switched on"), in progress with the running totals,
 announced with the counts, reached nobody, or refused with the reason and, from
 the stored `released` flag, whether the claim came back. The Publish confirm says which path it will take,
 from a flag the manage page reads server-side (`config/scheduler` is closed to
-every client).
+every client), and how many it reaches: `GET /api/events/[id]/publish`, behind
+the press's own gate, counts the people the email would go to and the accounts
+a notification would go to (`announcementReach`, with the send's own audience
+functions and the path's own email ceilings), counts only. A leg the send would
+refuse, or could not read, has no number, and then the confirm says what it
+said before there was one. The devices are counted under the request path's
+500 on both paths, so on the queued path a device list between 500 and 5000
+reads as no number although the job would notify it: the count can leave a
+notification out, and never claims one.
 
 Publishing itself never fails because the announcement did, on either path.
 Raising the inline path's numbers means redoing the wall-clock arithmetic in
@@ -617,11 +776,12 @@ a fifth row cannot appear in the model and be missing from the page.
   every state, because the answer belongs to the account and the member may well
   be setting it for the phone in their pocket. Only the writing is disabled.
 - **The "Important notices" row is locked**: both cells drawn on, disabled,
-  writing nothing, with copy saying an organiser of an event you signed up for,
-  or the facilitator of your group, can send you a message about a change and it
-  reaches you whichever switches you set. A member who has switched everything
-  else off should learn that while they are making the choice, not the first time
-  somebody sends one.
+  writing nothing, with copy saying the people running an event you signed up
+  for, or a programme you hold a place on, can send you messages about running
+  it, and they reach you by email and notification whichever switches you set.
+  A member who has switched everything else off, or unsubscribed from a
+  programme's emails, should learn that while they are making the choice, not
+  the first time somebody sends one.
 - **Two write paths on one page.** The email cells are saved by the form's Save
   button, which writes the WHOLE `profile.notifications` map (then the
   un-awaited `POST /api/subscriptions/sync`); the push cells save themselves on
@@ -758,6 +918,11 @@ default address, because the template is how a message looks, not who sent it.
 5. **Leave `sender` out.** A new send comes from `SMTP_FROM_EMAIL` like every
    other message; only an issue of the newsletter passes `sender: "newsletter"`
    (see "Which address mail comes from").
+6. **A send to people somebody chose takes them from the picker.** Resolve the
+   writer's selection with `resolveAudience` ([messages.md](messages.md)), the
+   call that counted it, so the number on the button is the number sent;
+   `tests/send-recipient-scope.test.mjs` fails a sending file that imports the
+   picker and goes round it.
 
 ## Deliberately not built
 

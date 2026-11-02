@@ -9,7 +9,7 @@ import { namesWords } from "@/lib/courses/sessionChange/words";
 import styles from "./weekly.module.css";
 
 /**
- * "Your group" (boards wk-programme, st-programme, wk-home-phone): the people
+ * "Your group": the people
  * in the reader's group and its facilitators, by the first names they go by,
  * and nothing else about anybody.
  *

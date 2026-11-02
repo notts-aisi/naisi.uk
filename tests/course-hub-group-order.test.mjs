@@ -54,12 +54,28 @@ const COMPARATOR_HOME = "src/lib/firestore/courseGroups.ts";
  */
 const READS_WITHOUT_A_LIST = new Map([
   [
-    "src/lib/surveys/personFacts.ts",
+    "src/lib/courses/feedback/send.ts",
     {
       why:
-        "A survey reads the run's groups only to know who facilitates one (the facilitators line of \"How valuable was " +
-        "each part?\" is hidden from them, and never blank for them): a yes or no per person, never a list of groups. " +
-        "A programme's page reaches it through the survey results the lead reads.",
+        "The feedback batch reads the run's groups only to know who still takes part (a told place in a live group, or a " +
+        "live group facilitated) and the name of each person's group for their row, a map by id; its rows are ordered by " +
+        "person, never as a list of groups.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/ticks/[itemId]/route.ts",
+    {
+      why:
+        "The tick route reads the run's groups only to know whether the caller facilitates one and which group's copy of " +
+        "the week they read, and whose sessions lock it: a yes or no and maps by id, never a list of groups on any page.",
+    },
+  ],
+  [
+    "src/lib/courses/weekWork/own.ts",
+    {
+      why:
+        "Who takes part in their own week, for Submit: the run's groups read only to know whether the caller facilitates one " +
+        "and whose sessions lock their week, a yes or no and maps by id, never a list of groups on any page.",
     },
   ],
   [
@@ -205,9 +221,35 @@ const READS_WITHOUT_A_LIST = new Map([
 /** Modules the walk reaches that fetch an address it cannot read, each with what they fetch and why it lists no run's groups. */
 const FETCHES_IT_CANNOT_READ = new Map([
   [
+    "src/features/courses/feedback/FeedbackToSend.tsx",
+    "Feedback to send's two presses (its test and its send), at the address built from the run id it is handed " +
+      "(`base`): feedback and its emails, never a run's groups.",
+  ],
+  [
+    "src/features/courses/feedback/FeedbackWriter.tsx",
+    "Saving, changing and deleting one piece of feedback, at the feedback route built from the run id it is handed " +
+      "(`base`): one piece, never a run's groups.",
+  ],
+  [
+    "src/features/courses/weekNotes/DraftAll.tsx",
+    "Draft this week's notes, one request per person at the notes' draft route built from the ids it is handed " +
+      "(`route`): a draft each, never a run's groups.",
+  ],
+  [
+    "src/features/courses/weekNotes/NoteDraftCard.tsx",
+    "Save, Discard and Draft again on one person's end-of-week draft, at the notes routes built from the ids it is " +
+      "handed (`base`): one draft or note, never a run's groups.",
+  ],
+  [
+    "src/features/courses/written/RatingForTheTeam.tsx",
+    "Saving and clearing the reader's own rating for the team of one written answer, at the ratings route built " +
+      "from the run id it is handed (`base`): one rating, never a run's groups.",
+  ],
+  [
     "src/features/admin/memberNotes/PersonNotes.tsx",
-    "The notes admins keep about one person, at the notes route under the member address it builds from the " +
-      "person's id: it draws notes and the runs a note may come from by name, and no group.",
+    "The notes kept about one person, at the notes route under the member address, or under the programme's " +
+      "address for its lead, each built from the ids it is handed: it draws notes, who reads each and the runs " +
+      "a note may come from by name, and no group.",
   ],
   [
     "src/features/applications/intake/PlacementBox.tsx",

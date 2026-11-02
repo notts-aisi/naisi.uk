@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getPublishedEvent } from "@/features/events/fetchEvents";
+import { getEventForViewer } from "@/features/events/fetchEvents";
 import links from "@/features/events/eventLinks.module.css";
 import styles from "@/features/events/RsvpPages.module.css";
 
@@ -18,7 +18,10 @@ export default async function RsvpSubmittedPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const event = await getPublishedEvent(id);
+  // The title only for somebody who may open the event: an event for chosen
+  // people names itself to the people invited to it and nobody else.
+  const found = await getEventForViewer(id);
+  const event = found?.kind === "open" ? found.event : null;
 
   return (
     <section className={styles.shell}>

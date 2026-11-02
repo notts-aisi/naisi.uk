@@ -2,8 +2,8 @@
  * Every published week is open to read and work in, once Publish has told
  * somebody their group (Zach, 27 October 2026: weeks are published at the
  * start so people can read ahead; until then each week opened straight after
- * the group's previous session, C17), and a week's own page as the board
- * draws it (wk-week-phone).
+ * the group's previous session), and a week's own page as the board
+ * draws it.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -31,7 +31,7 @@
  *     is done and the minutes left, "Before your session" with THIS week's
  *     own session date (a moved week's, D2), the exercise a facilitator
  *     reviews, and the way on, a link to the next week once it is published.
- *     No sentence on it has a dash (C35).
+ *     No sentence on it has a dash.
  *
  * Real: the overview route, the week page's server shell and its client
  * page, the libraries. Faked: the session, the Admin SDK handle, the clock,
@@ -272,7 +272,7 @@ describe("3. a week's page: every published week is drawn, to read ahead", () =>
     const open = await w.weekShell("chloe", 4);
     assert.equal(open.component, "WeekView");
     assert.deepEqual(early.props, open.props);
-    // Since C29 the shell also hands the page the notes Chloe's group shares,
+    // Since notes shared with a group landed, the shell also hands the page the notes Chloe's group shares,
     // read for her on the server: Group B's, under the board's heading, which
     // she may add to. Nothing else of anybody's.
     assert.deepEqual(open.props, {
@@ -359,7 +359,7 @@ describe("3. a week's page: every published week is drawn, to read ahead", () =>
 // 4. The week page as the board draws it
 // ---------------------------------------------------------------------------
 
-describe("4. a week's page (wk-week-phone)", () => {
+describe("4. a week's page", () => {
   test("week 3, tonight: the head, before your session, the exercise and the way on", async () => {
     await w.asBrowser("chloe");
     const { text, html } = w.weekPage("chloe", 3);

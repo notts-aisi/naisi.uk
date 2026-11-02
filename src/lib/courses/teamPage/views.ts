@@ -104,7 +104,7 @@ export type TeamPageView = {
   weeks: TeamWeeksView | null;
 };
 
-/** The hand-in page (en-handin-phone), for one of the team's people. */
+/** The hand-in page, for one of the team's people. */
 export type HandInPageView = {
   runId: string;
   teamId: string;

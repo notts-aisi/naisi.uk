@@ -16,6 +16,7 @@ import { listPublishedEvents } from "@/features/events/fetchEvents";
 import { fetchPublicTerm } from "@/features/term/fetchPublicTerm";
 import { formatSiteDate } from "@/lib/datetime/siteTime";
 import { publicLocationText } from "@/lib/events/location";
+import { REACH_WORDS, needsAccount } from "@/lib/events/reach";
 import styles from "./events.module.css";
 
 export const metadata: Metadata = {
@@ -211,7 +212,7 @@ function EventCard({
             <span className={styles.ended}>Ended</span>
           ) : (
             <>
-              {event.visibility === "members" && <Badge tone="accent">Account needed</Badge>}
+              {needsAccount(event) && <Badge tone="accent">{REACH_WORDS.badge["listed-account"]}</Badge>}
               {event.noSignup && <Badge tone="success">No sign-up needed</Badge>}
               {full && event.waitlistEnabled && (
                 <Badge tone="warning">Full · waiting list open</Badge>

@@ -13,7 +13,7 @@ import { ReaderUpdateItem, type ReaderUpdate } from "./UpdatesList";
 import styles from "./Updates.module.css";
 
 /**
- * "Updates" on a programme's page (wk-programme): what the people running it
+ * "Updates" on a programme's page: what the people running it
  * wrote to the reader, newest first. Its own component, read by its own
  * route (`GET /api/courses/runs/[runId]/updates`), so the run home's one
  * overview fetch is unchanged and another card can sit beside it without

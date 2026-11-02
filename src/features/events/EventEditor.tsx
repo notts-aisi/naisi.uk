@@ -46,7 +46,14 @@ import {
   publicLocationLine,
   publicLocationText,
 } from "@/lib/events/location";
+import { signupsButtonWords } from "@/lib/events/requestWords";
+import { newSurveyAfter, type StoredSurveyAfter } from "@/lib/events/surveyAfter";
+import { confirmChosenWords, peopleCount, type InvitationCount } from "@/lib/events/inviteWords";
+import { REACH_WORDS, announces, eventReach, isForChosenPeople } from "@/lib/events/reach";
 import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
+import SurveyAfterSettings from "@/features/surveys/events/SurveyAfterSettings";
+import { STEP_WORDS, asksMissed, questionProblems, setUpSummaryWords, setUpWords, settingsOf, timesOf, whoAt } from "@/lib/surveys/events/after";
+import type { SurveyItem } from "@/lib/surveys/items";
 import BlockEditor from "@/components/blocks/BlockEditor";
 import ImageUpload from "@/components/blocks/ImageUpload";
 import {
@@ -63,14 +70,21 @@ import StepRail, { type EditorStep } from "./EditorSteps";
 import EventTabs from "./checkIn/EventTabs";
 import EventPreview from "./EventPreview";
 import { takeIncoming } from "./editorSync";
+import { useEventAudience } from "./useEventAudience";
+import WhoItsFor from "./WhoItsFor";
 import FormBuilder from "./FormBuilder";
 import {
   STATUS_WORDS,
+  announcementReachWords,
   dayWords,
+  notifyReachWords,
+  sendToWords,
+  sentToWords,
   stampWords,
   statusTone,
   timeRangeWords,
   whenWords,
+  type PublishReach,
 } from "./manageWords";
 import styles from "./EventEditor.module.css";
 
@@ -84,14 +98,26 @@ type Props = {
    * Publish confirm and nothing else: the server decides the path either way.
    */
   announcementsQueued?: boolean;
+  /**
+   * Whether the `event-surveys` job is switched on here, so the survey after
+   * an event goes by itself. Read from `config/scheduler` by the page above,
+   * for the same reason; while it is off, the Survey after step says so.
+   */
+  surveysGoByThemselves?: boolean;
+  /**
+   * The standard questions the Survey after step starts from: the question
+   * set an admin keeps on Run NAISI › Surveys, else the code's. Read on the
+   * server by the page above, because the set is closed to every client.
+   */
+  standardQuestions: SurveyItem[];
 };
 
 /**
- * The editor's four steps. They are a way of looking at one form: every field
+ * The editor's six steps. They are a way of looking at one form: every field
  * lives in the editor whichever step is showing, and nothing is saved by
  * moving between them.
  */
-type StepKey = "basics" | "details" | "signup" | "send";
+type StepKey = "basics" | "details" | "signup" | "survey" | "who" | "send";
 
 /**
  * Every field of the form, as the form holds it. One entry per field that
@@ -107,9 +133,12 @@ type FormValues = {
   locationHidden: boolean;
   locationPublicText: string;
   visibility: EventVisibility;
+  announce: boolean;
   capacity: number | null;
   waitlistEnabled: boolean;
   noSignup: boolean;
+  selfCheckIn: boolean;
+  surveyAfter: StoredSurveyAfter | null;
   signupForm: FormQuestion[];
   foodText: string;
   dietaryTags: FoodTag[];
@@ -136,9 +165,12 @@ function formValuesOf(next: EventDoc): FormValues {
     locationHidden: next.locationHidden,
     locationPublicText: next.locationPublicText ?? "",
     visibility: next.visibility,
+    announce: next.announce,
     capacity: next.capacity,
     waitlistEnabled: next.waitlistEnabled,
     noSignup: next.noSignup,
+    selfCheckIn: next.selfCheckIn,
+    surveyAfter: next.surveyAfter,
     signupForm: next.signupForm,
     foodText: next.foodText ?? "",
     dietaryTags: next.dietaryTags ?? [],
@@ -172,6 +204,12 @@ type PublishResponse = {
    * this editor reads it through the listener it already has.
    */
   announcementQueued?: boolean;
+  /** An event for chosen people: how many it shows for, and how many invitations went. */
+  invited?: { home?: number; emailed?: number; failed?: number };
+  /** Its invitations threw after it was published. The list is kept; nobody was told how many were emailed. */
+  invitationsFailed?: boolean;
+  /** The survey after it, from the Survey after step, could not be set up: why. The event is published. */
+  surveyNotSetUp?: string;
   announcement?: {
     sent?: number;
     pushed?: number;
@@ -195,6 +233,21 @@ type PublishResponse = {
  * event was quiet.
  */
 function announcementLine(body: PublishResponse): string | null {
+  if (body.invitationsFailed) {
+    return (
+      "The event is published and on the Home of the people you chose, but its invitations " +
+      "may not all have gone. Ask an admin to check the send log."
+    );
+  }
+  if (body.invited) {
+    const home = body.invited.home ?? 0;
+    const emailed = body.invited.emailed ?? 0;
+    const failed = body.invited.failed ?? 0;
+    const sent =
+      emailed === 0 ? "nobody was emailed" : emailed === 1 ? "1 invitation was emailed" : `${emailed} invitations were emailed`;
+    const trailer = failed > 0 ? ` ${failed === 1 ? "1 couldn’t be sent" : `${failed} couldn’t be sent`}.` : "";
+    return `Published. It shows on ${peopleCount(home)}’s Home, and ${sent}.${trailer}`;
+  }
   if (body.announcementQueued) {
     // NOT an outcome, and worded so it does not read as one. Nobody has been
     // told yet; the announcement card below reports what the job then does.
@@ -316,6 +369,84 @@ function queuedAnnouncementLine(event: EventDoc): string | null {
   return trailer ? `${line} ${trailer}${tail}` : `${line}${tail}`;
 }
 
+/**
+ * How long a count may take before the button that asked for it gives up on
+ * it. The count is reads only, so a slow one is a quiet database rather than a
+ * failure, and the press goes ahead without the number.
+ */
+const COUNT_TIMEOUT_MS = 8000;
+
+/** A count is a whole number of people, or nothing. */
+function countOf(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+/**
+ * HOW MANY PUBLISHING WOULD REACH, from `GET /api/events/[id]/publish`, which
+ * counts with the send's own audience functions behind the publish route's own
+ * gate. The subscriber list is closed to an approver who is not an admin, so
+ * the number has to come from there. Null when it cannot be had, for whatever
+ * reason: the confirm then says what it said before there was a number, and
+ * Publish goes ahead. Never throws.
+ */
+async function countPublishReach(
+  eventId: string,
+): Promise<(PublishReach & { invited: Pick<InvitationCount, "home" | "emails"> | null; announces: boolean }) | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), COUNT_TIMEOUT_MS);
+  try {
+    const res = await fetch(`/api/events/${eventId}/publish`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    const body = (await res.json().catch(() => null)) as
+      | { ok?: true; emailed?: unknown; notified?: unknown; announces?: unknown; invited?: unknown }
+      | null;
+    if (!res.ok || !body?.ok) return null;
+    const invited = body.invited && typeof body.invited === "object" ? (body.invited as Record<string, unknown>) : null;
+    const home = countOf(invited?.home);
+    const emails = countOf(invited?.emails);
+    return {
+      emailed: countOf(body.emailed),
+      notified: countOf(body.notified),
+      invited: home !== null && emails !== null ? { home, emails } : null,
+      announces: body.announces !== false,
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * HOW MANY THE CHANGE NOTICE WOULD EMAIL, from the broadcast route's preview
+ * (`{ preview: true }`), which derives the audience the send would and sends
+ * nothing. Null when it cannot be had; the button then keeps its old words.
+ * Never throws.
+ */
+async function countNotifyAudience(eventId: string): Promise<number | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), COUNT_TIMEOUT_MS);
+  try {
+    const res = await fetch(`/api/events/${eventId}/broadcast`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ preview: true }),
+      signal: controller.signal,
+    });
+    const body = (await res.json().catch(() => null)) as
+      | { ok?: true; people?: unknown }
+      | null;
+    if (!res.ok || !body?.ok) return null;
+    return countOf(body.people);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Local YYYY-MM-DD, used to keep the end-date picker on or after the start day. */
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
@@ -358,7 +489,7 @@ function buildNotifyDraft(
   return { subject, body };
 }
 
-export default function EventEditor({ eventId, announcementsQueued = false }: Props) {
+export default function EventEditor({ eventId, announcementsQueued = false, surveysGoByThemselves = false, standardQuestions }: Props) {
   const router = useRouter();
   const { user, role, permissions, suRecognised } = useAuth();
 
@@ -374,9 +505,12 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
   const [locationHidden, setLocationHidden] = useState(false);
   const [locationPublicText, setLocationPublicText] = useState("");
   const [visibility, setVisibility] = useState<EventVisibility>("public");
+  const [announce, setAnnounce] = useState(true);
   const [capacity, setCapacity] = useState<number | null>(null);
   const [waitlistEnabled, setWaitlistEnabled] = useState(true);
   const [noSignup, setNoSignup] = useState(false);
+  const [selfCheckIn, setSelfCheckIn] = useState(false);
+  const [surveyAfter, setSurveyAfter] = useState<StoredSurveyAfter | null>(null);
   const [signupForm, setSignupForm] = useState<FormQuestion[]>([]);
   const [foodText, setFoodText] = useState("");
   const [dietaryTags, setDietaryTags] = useState<FoodTag[]>([]);
@@ -405,9 +539,14 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     // itself: how many it reached, or why it reached nobody. Not an error.
     | { kind: "announced"; message: string }
   >({ kind: "idle" });
+  // Publish asks how many it reaches before it asks to go ahead. Apart from
+  // `publishStatus`, so a press that is counted and then not confirmed leaves
+  // whatever that said before.
+  const [countingReach, setCountingReach] = useState(false);
 
-  // After editing a published event, offer to email confirmed attendees.
-  // The opt-in checkbox by Save gates whether the composer opens at all.
+  // After editing a published event, offer to email the people coming and the
+  // waiting list. The opt-in checkbox by Save gates whether the composer opens
+  // at all.
   const [notifyOnSave, setNotifyOnSave] = useState(false);
   const [notifyDraft, setNotifyDraft] = useState<{
     subject: string;
@@ -421,6 +560,12 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     | { kind: "sent"; sent: number }
     | { kind: "error"; message: string }
   >({ kind: "idle" });
+  // How many the composer's Send would email, asked when it opens. Unknown
+  // when the count could not be had, and the button keeps its old words.
+  const [notifyCount, setNotifyCount] = useState<
+    { kind: "counting" } | { kind: "counted"; people: number } | { kind: "unknown" }
+  >({ kind: "unknown" });
+  const notifyCountAsk = useRef(0);
 
   // Cancel-with-notify modal. Cancelling sets the event to "cancelled" and,
   // when the tick is on, emails confirmed + waitlisted attendees.
@@ -492,9 +637,12 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
         setLocationHidden(pick("locationHidden"));
         setLocationPublicText(pick("locationPublicText"));
         setVisibility(pick("visibility"));
+        setAnnounce(pick("announce"));
         setCapacity(pick("capacity"));
         setWaitlistEnabled(pick("waitlistEnabled"));
         setNoSignup(pick("noSignup"));
+        setSelfCheckIn(pick("selfCheckIn"));
+        setSurveyAfter(pick("surveyAfter"));
         setSignupForm(pick("signupForm"));
         setFoodText(pick("foodText"));
         setDietaryTags(pick("dietaryTags"));
@@ -533,9 +681,12 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     !!user && !!event && (event.collaboratorUids ?? []).includes(user.uid);
   // The "Who can edit this" picker is managed by the author or an admin.
   const canManageCollaborators = isAuthor || role === "admin";
-  // Attendee PII is for SU-recognised committee and admins only.
-  const canSeeAttendees =
-    role === "admin" || (role === "committee" && suRecognised);
+  // The Sign-ups page is for the people who see an event's requests: admins
+  // and SU-recognised committee, and the event's own author and
+  // collaborators. This only draws the way there; the page asks the rule
+  // itself (src/lib/events/signupAccess.ts), with the account's standing.
+  const canSeeSignups =
+    role === "admin" || (role === "committee" && suRecognised) || isAuthor || isCollaborator;
   const status = event?.status ?? "draft";
   // Null on every event the queue has never touched, which is all of them
   // wherever the `event-announcements` job is switched off.
@@ -551,6 +702,11 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     // Drafts and returned events: the author, a collaborator, or an approver.
     return isAuthor || isCollaborator || canApprove;
   }, [event, status, canApprove, isAuthor, isCollaborator]);
+
+  // Who an event for chosen people is for: what is stored, and the choice on
+  // the screen, counted as it changes and kept by Save (`useEventAudience`).
+  const forChosenPeople = isForChosenPeople({ visibility });
+  const audience = useEventAudience(eventId, event !== null, forChosenPeople);
 
   // An event can't end before (or exactly when) it starts. This blocks Save and
   // Submit, but never the date fields themselves: an event that somehow holds
@@ -602,9 +758,12 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
       locationHidden,
       locationPublicText,
       visibility,
+      announce,
       capacity,
       waitlistEnabled,
       noSignup,
+      selfCheckIn,
+      surveyAfter,
       signupForm,
       foodText,
       dietaryTags,
@@ -628,9 +787,14 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
       locationHidden,
       locationPublicText: locationHidden ? locationPublicText : null,
       visibility,
+      announce,
       capacity,
       waitlistEnabled: capacity === null ? false : waitlistEnabled,
       noSignup,
+      selfCheckIn,
+      // The survey after it, as the step left it. Once the event is published
+      // the update route takes no part of it: the Survey after tab changes it.
+      surveyAfter: surveyAfter ?? undefined,
       signupForm,
       foodText: foodText.trim() ? foodText : null,
       dietaryTags,
@@ -645,6 +809,12 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
       coverLogoBackdrop,
       coverLogoShadow,
     };
+    // WHO IT IS FOR, FIRST. The people chosen are kept by their own route,
+    // which refuses a tag this person may not use; refused, nothing else is
+    // saved, and the sentence says why.
+    if (forChosenPeople && audience.dirty) {
+      await audience.save();
+    }
     if (status === "published") {
       // Firestore rules block client writes to published events, so go through
       // the server route, which also reports what changed.
@@ -680,6 +850,16 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
           descriptionChanged,
         });
         setNotifyState({ kind: "idle" });
+        // The button says how many it emails, so ask now, while the person
+        // reads the draft. Not awaited: the save is done either way. Only the
+        // latest ask may answer, should a second save open the composer again
+        // before the first count is back.
+        const ask = (notifyCountAsk.current += 1);
+        setNotifyCount({ kind: "counting" });
+        void countNotifyAudience(event.id).then((people) => {
+          if (notifyCountAsk.current !== ask) return;
+          setNotifyCount(people === null ? { kind: "unknown" } : { kind: "counted", people });
+        });
       }
       setNotifyOnSave(false);
     } else {
@@ -781,6 +961,19 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     }
     const limitProblem = signupFormLimitError();
     if (limitProblem) add("signup", limitProblem);
+    // The tags on the screen when this person can see them (their own choice,
+    // or a draft); otherwise whether anybody has chosen at all.
+    const nothingChosen =
+      audience.tags !== null ? audience.tags.include.length === 0 : !audience.stored?.chosenBy;
+    if (forChosenPeople && nothingChosen) {
+      add("who", "Choose who it’s for: nobody would be invited.");
+    }
+    // The survey after it: its questions, when it is on, must be ones it can
+    // be set up with. Once published it is changed on the Survey after tab.
+    if (surveyAfter?.on && status !== "published" && status !== "cancelled") {
+      const problem = questionProblems(settingsOf(surveyAfter, standardQuestions).items, standardQuestions)[0];
+      if (problem) add("survey", `The survey after it: ${problem}`);
+    }
     return found;
   }
 
@@ -858,11 +1051,68 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
 
   async function onPublish() {
     if (!event) return;
+    // WHAT IS ON THE SCREEN IS WHAT IS PUBLISHED. Unsaved changes are saved
+    // first, as Approve does, so a change to who it is for (or to Announce)
+    // can never be left behind by a publish that announces the event as it was
+    // stored. Refused, nothing is published, and the sentence says why. From
+    // here on the form and the stored event agree, so the form decides.
+    setBusy(true);
+    setError(null);
+    try {
+      await flush();
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Save failed");
+      return;
+    } finally {
+      setBusy(false);
+    }
+    const shown = { visibility, announce };
+    // AN EVENT FOR CHOSEN PEOPLE is not announced: the confirm says how many
+    // Homes it shows on and how many invitations it emails, counted by the
+    // press's own plan. A count that cannot be had says so, and the press
+    // still goes, refusing for itself whatever it would refuse.
+    if (isForChosenPeople(shown)) {
+      setCountingReach(true);
+      let counted: Awaited<ReturnType<typeof countPublishReach>> = null;
+      try {
+        counted = await countPublishReach(event.id);
+      } finally {
+        setCountingReach(false);
+      }
+      const question = counted?.invited
+        ? confirmChosenWords(counted.invited)
+        : "Publish this event? It shows on the Home of the people you chose and emails them their invitations. It won’t be listed on the events page or announced.";
+      if (!window.confirm(question)) return;
+      await pressPublish();
+      return;
+    }
+    // A LISTED EVENT WHOSE ANNOUNCEMENT IS SWITCHED OFF mails nobody.
+    if (!announces(shown)) {
+      if (!window.confirm("Publish this event? It goes live on the events page. It won’t be announced.")) return;
+      await pressPublish();
+      return;
+    }
     // PUBLISHING MAILS THE EVENTS LIST, so the confirm says so. It happens on
     // the FIRST publish only: `announcedAt` is the once-per-event claim the
     // publish route stamps, and an event pulled back to approved and pushed
     // live again announces nothing.
     const willAnnounce = !event.announcedAt;
+    // HOW MANY, because every button that emails says how many people it
+    // reaches. Asked at the press rather than when the page opens: the count
+    // reads the whole events list, and nobody should pay for that by looking
+    // at an event. A count that cannot be had leaves the words that were here
+    // before there was a number, and never stops the publish.
+    let reached: string | null = null;
+    if (willAnnounce) {
+      setCountingReach(true);
+      try {
+        reached = announcementReachWords(await countPublishReach(event.id));
+      } finally {
+        setCountingReach(false);
+      }
+    }
+    const told = reached ?? "everyone subscribed to event announcements is emailed about it";
     // WHICH PATH THIS PUBLISH WILL TAKE is the server's decision, and the
     // switch behind it is closed to clients, so the page reads it and hands it
     // down. The confirm has to say it: an approver who presses Publish and
@@ -870,14 +1120,18 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     // announcement had failed.
     const question = willAnnounce
       ? announcementsQueued
-        ? "Publish this event? It goes live on the events page, and everyone subscribed " +
-          "to event announcements is emailed about it. The announcement is queued and " +
-          "goes out with the next scheduler run rather than immediately."
-        : "Publish this event? It goes live on the events page, and everyone subscribed " +
-          "to event announcements is emailed about it."
+        ? `Publish this event? It goes live on the events page, and ${told}. ` +
+          "The announcement is queued and goes out with the next scheduler run rather than immediately."
+        : `Publish this event? It goes live on the events page, and ${told}.`
       : "Publish this event? It goes live on the events page. The announcement has " +
         "already gone out, so nobody is emailed again.";
     if (!window.confirm(question)) return;
+    await pressPublish();
+  }
+
+  /** The press itself, once the confirm has been answered. */
+  async function pressPublish() {
+    if (!event) return;
     setPublishStatus({ kind: "publishing" });
     setError(null);
     try {
@@ -890,7 +1144,12 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
         });
         return;
       }
-      const line = announcementLine(body);
+      // The survey after it is set up by the same press; when it couldn't be,
+      // the publisher is told, and how to set it up again.
+      const surveyLine = body.surveyNotSetUp
+        ? `The survey after it wasn’t set up: ${body.surveyNotSetUp} Save it on the Survey after tab to set it up.`
+        : null;
+      const line = [announcementLine(body), surveyLine].filter(Boolean).join(" ");
       setPublishStatus(line ? { kind: "announced", message: line } : { kind: "idle" });
     } catch (err) {
       setPublishStatus({
@@ -1035,7 +1294,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
   ].join(" · ");
   const previewFacts = [
     capacity !== null && !noSignup ? `${capacity} place${capacity === 1 ? "" : "s"}` : null,
-    visibility === "members" ? "Members only" : null,
+    REACH_WORDS.badge[eventReach({ visibility })],
   ].filter((fact): fact is string => fact !== null);
   const previewClosed =
     status === "cancelled"
@@ -1061,8 +1320,20 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     { key: "basics", label: "Basics", done: !missing("basics") },
     { key: "details", label: "Details", done: !missing("details") },
     { key: "signup", label: "Sign-up", done: !missing("signup") },
+    { key: "survey", label: STEP_WORDS.heading, done: !missing("survey") },
+    { key: "who", label: "Who’s it for", done: !missing("who") },
     { key: "send", label: lastLabel, done: status !== "draft" && status !== "rejected" },
   ];
+  // What publishing sets up of the survey after it, as the step stands.
+  const surveySetUp = {
+    on: surveyAfter?.on === true,
+    who: whoAt(surveyAfter ?? newSurveyAfter(), noSignup),
+    missed: surveyAfter ? asksMissed(surveyAfter, noSignup) : false,
+    sendAt: surveyAfter ? timesOf({ startAt, endAt }, surveyAfter).sendAt : null,
+    byHand: surveyAfter?.when === "hand",
+    jobOn: surveysGoByThemselves,
+  };
+  const surveySetUpLine = setUpWords(surveySetUp);
   const at = steps.findIndex((s) => s.key === step);
   const previous = at > 0 ? steps[at - 1] : null;
   const next = at < steps.length - 1 ? steps[at + 1] : null;
@@ -1114,14 +1385,13 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                 Preview
               </Button>
             </Link>
-            {canSeeAttendees && (
+            {canSeeSignups && (
               <Link
                 href={`/events/manage/${event.id}/attendees`}
                 className={styles.buttonLink}
               >
                 <Button variant="secondary" tabIndex={-1}>
-                  Attendees
-                  {pendingSignups > 0 && ` · ${pendingSignups} waiting`}
+                  {signupsButtonWords(pendingSignups)}
                 </Button>
               </Link>
             )}
@@ -1132,8 +1402,9 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
       <EventTabs
         eventId={event.id}
         current="details"
-        showSignups={canSeeAttendees}
+        showSignups={canSeeSignups}
         signups={event.rsvpCountConfirmed ?? undefined}
+        waiting={pendingSignups}
         showCheckIn={status === "published"}
       />
 
@@ -1157,7 +1428,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
 
       {status === "published" && (
         <Notice title="Published.">
-          Live at{" "}
+          {forChosenPeople ? "For the people you chose, at " : "Live at "}
           <Link
             href={`/events/${event.id}`}
             target="_blank"
@@ -1166,7 +1437,8 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
           >
             /events/{event.id}
           </Link>
-          . Share the link.{editable ? " Changes you save here go live at once." : ""}
+          .{forChosenPeople ? " Only they can open it." : " Share the link."}
+          {editable ? " Changes you save here go live at once." : ""}
         </Notice>
       )}
 
@@ -1249,13 +1521,24 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
           )}
           {notifyState.kind === "sent" && (
             <p className={styles.done} role="status">
-              Sent to {notifyState.sent} attendee{notifyState.sent === 1 ? "" : "s"}.
+              {sentToWords(notifyState.sent)}
             </p>
           )}
           <div className={styles.actions}>
+            {/* How many it emails, from the broadcast route's own count. The
+                old words stay where the count could not be had. */}
             {notifyState.kind !== "sent" && (
-              <Button onClick={onSendNotify} disabled={notifyState.kind === "sending"}>
-                {notifyState.kind === "sending" ? "Sending…" : "Send to attendees"}
+              <Button
+                onClick={onSendNotify}
+                disabled={notifyState.kind === "sending" || notifyCount.kind === "counting"}
+              >
+                {notifyState.kind === "sending"
+                  ? "Sending…"
+                  : notifyCount.kind === "counting"
+                    ? "Counting…"
+                    : notifyCount.kind === "counted"
+                      ? sendToWords(notifyCount.people)
+                      : "Send to attendees"}
               </Button>
             )}
             <Button
@@ -1606,21 +1889,93 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                     />
                   )}
                   <Switch
-                    checked={visibility === "members"}
+                    checked={selfCheckIn}
                     onChange={(value) => {
-                      setVisibility(value ? "members" : "public");
+                      setSelfCheckIn(value);
                       markDirty();
                     }}
                     disabled={locked}
-                    label="Account needed"
+                    label="People can check themselves in"
                     description={
+                      // Only a confirmation sent while it is on carries the link, and a drop-in sends none.
                       noSignup
-                        ? "The event is marked members only, and its announcement goes to people with a naisi.uk account."
-                        : "Only people with a naisi.uk account can request a place."
+                        ? "Off: everyone gives their name at the door. On: they can also scan the door code."
+                        : "Off: everyone gives their name at the door, and the confirmation email says so. On: they can also scan the door code, or use the link in a confirmation email sent while it’s on."
                     }
                   />
                 </div>
               </div>
+            </section>
+
+            <section hidden={step !== "survey"} aria-labelledby="editor-step-survey">
+              <h2 id="editor-step-survey" tabIndex={-1} className={styles.sectionTitle}>
+                {STEP_WORDS.heading}
+              </h2>
+              <p className={styles.sectionHint}>{STEP_WORDS.hint}</p>
+              {status === "published" ? (
+                // Set up by publishing: from here on it is changed, and sent
+                // sooner, on the event's Survey after tab.
+                <div className={styles.fields}>
+                  <p className={styles.surveyNote}>
+                    {surveyAfter === null
+                      ? STEP_WORDS.publishedBefore
+                      : surveyAfter.on
+                        ? STEP_WORDS.published
+                        : STEP_WORDS.publishedOff}
+                  </p>
+                  <div>
+                    <Link href={`/events/manage/${event.id}/survey`} className={styles.buttonLink}>
+                      <Button variant="secondary" tabIndex={-1}>
+                        {STEP_WORDS.openTab}
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              ) : status === "cancelled" ? (
+                <p className={styles.surveyNote}>This event is cancelled, so no survey goes after it.</p>
+              ) : (
+                <SurveyAfterSettings
+                  value={surveyAfter}
+                  onChange={(next) => {
+                    setSurveyAfter(next);
+                    markDirty();
+                  }}
+                  disabled={locked}
+                  event={{ title, startAt, endAt, noSignup }}
+                  jobOn={surveysGoByThemselves}
+                  where="editor"
+                  summary={<p className={styles.surveyNote}>{surveySetUpLine}</p>}
+                  standard={standardQuestions}
+                />
+              )}
+            </section>
+
+            <section hidden={step !== "who"} aria-labelledby="editor-step-who">
+              <h2 id="editor-step-who" tabIndex={-1} className={styles.sectionTitle}>
+                Who’s it for
+              </h2>
+              <p className={styles.sectionHint}>
+                Who can see it and sign up, and how they hear about it.
+              </p>
+              <WhoItsFor
+                status={status}
+                editable={editable}
+                busy={busy}
+                visibility={visibility}
+                onVisibility={(value) => {
+                  setVisibility(value);
+                  markDirty();
+                }}
+                announce={announce}
+                onAnnounce={(value) => {
+                  setAnnounce(value);
+                  markDirty();
+                }}
+                announced={Boolean(event.announcedAt)}
+                isAuthor={isAuthor}
+                audience={audience}
+                onAudienceChange={markDirty}
+              />
             </section>
 
             <section hidden={step !== "send"} aria-labelledby="editor-step-send">
@@ -1633,9 +1988,13 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                   : status === "pending"
                     ? "An approver checks it, then approves it or sends it back."
                     : status === "approved"
-                      ? "It’s approved. Publishing puts it on the events page."
+                      ? forChosenPeople
+                        ? "It’s approved. Publishing shows it on the Home of the people you chose and emails them their invitations."
+                        : "It’s approved. Publishing puts it on the events page."
                       : status === "published"
-                        ? "It’s on the events page."
+                        ? forChosenPeople
+                          ? "It’s on the Home of the people you chose."
+                          : "It’s on the events page."
                         : "It stays at its link, marked as cancelled."}
               </p>
 
@@ -1678,10 +2037,23 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                 <div>
                   <dt>Who it’s for</dt>
                   <dd>
-                    {visibility === "members"
-                      ? "People with a naisi.uk account"
-                      : "Anyone with the link"}
+                    {REACH_WORDS.choice[eventReach({ visibility })]}
+                    <span className={styles.summaryNote}>
+                      {forChosenPeople
+                        ? audience.count
+                          ? `On ${peopleCount(audience.count.home)}’s Home, not listed and not announced.`
+                          : "Not listed and not announced."
+                        : event.announcedAt
+                          ? "Listed, and already announced."
+                          : announces({ visibility, announce })
+                            ? "Listed, and announced when it’s published."
+                            : "Listed, and not announced."}
+                    </span>
                   </dd>
+                </div>
+                <div>
+                  <dt>Survey after</dt>
+                  <dd>{setUpSummaryWords(surveySetUp)}</dd>
                 </div>
                 <div>
                   <dt>Food</dt>
@@ -1768,7 +2140,13 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                   disabled={busy}
                   description="If you changed the date, the time, the place or the description, you’re shown the email to check before it goes."
                 >
-                  Email confirmed attendees about this change
+                  {/* The broadcast route emails the waiting list too, and this
+                      says so, with the event's own counters. */}
+                  Email the people coming and the waiting list about this change{" "}
+                  {notifyReachWords({
+                    confirmed: event.rsvpCountConfirmed ?? 0,
+                    waitlisted: event.rsvpCountWaitlisted ?? 0,
+                  })}
                 </OptionRow>
               </div>
             )}
@@ -1814,8 +2192,15 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                   </Button>
                 )}
                 {step === "send" && showPublish && (
-                  <Button onClick={onPublish} disabled={publishStatus.kind === "publishing"}>
-                    {publishStatus.kind === "publishing" ? "Publishing…" : "Publish"}
+                  <Button
+                    onClick={onPublish}
+                    disabled={busy || publishStatus.kind === "publishing" || countingReach}
+                  >
+                    {publishStatus.kind === "publishing"
+                      ? "Publishing…"
+                      : countingReach
+                        ? "Counting…"
+                        : "Publish"}
                   </Button>
                 )}
               </div>
@@ -1884,11 +2269,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
             facts={previewFacts}
             closed={previewClosed}
             questions={signupForm}
-            formNote={
-              visibility === "members"
-                ? "People sign in to their naisi.uk account first."
-                : undefined
-            }
+            formNote={REACH_WORDS.formNote[eventReach({ visibility })] ?? undefined}
           />
         </div>
       </div>

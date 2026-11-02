@@ -23,9 +23,12 @@
  *  4. **The dormant case.** With no VAPID configuration nothing is sent and
  *     nothing is read: a backend with no push keys (docs/pwa.md) must stay
  *     silent.
- *  5. **The guard, in both directions.** The weekly nudge and the deadline
- *     reminders must never push: scheduled mail that also buzzes every phone
- *     in a cohort is how people turn notifications off for good, so the rule
+ *  5. **The guard, in both directions.** The week's emails ("Week N is open"
+ *     and the reminders before a session, which replaced the weekly nudge) and
+ *     the deadline reminders must never push: scheduled mail that also buzzes
+ *     every phone in a cohort is how people turn notifications off for good,
+ *     and the week's emails are notices, whose push door would reach every
+ *     device whatever its owner's settings. So the rule
  *     is pinned as "these files import nothing from lib/push" rather than
  *     left as a habit. The stage release is the case that went the other
  *     way. It sat on that list while the owner's decision was open; the
@@ -1142,9 +1145,13 @@ describe("the notification grid draws the shape the senders read", () => {
     );
     assert.match(
       NOTICE_ROW.description,
-      /organiser|facilitator/,
+      /^The people running an event you signed up for, or a programme you hold a place on, can send you messages about running it/,
       "the row has to say WHO can reach a member this way",
     );
+    // And that a programme's notices reach them whatever they unsubscribed
+    // from: the row names a programme they hold a place on, not a group, and
+    // promises both channels whatever the switches say.
+    assert.match(NOTICE_ROW.description, /by email and notification whichever switches you set\.$/);
   });
 
   test("a push toggle cannot revert an unsaved edit elsewhere on the form", () => {
@@ -1503,8 +1510,16 @@ describe("the never-push list", () => {
 
   const NEVER_PUSH = [
     {
-      path: "src/app/api/courses/runs/[runId]/nudge/route.ts",
-      why: "the weekly reminder goes to a whole cohort on a schedule",
+      path: "src/lib/courses/nextWeekEmail.ts",
+      why: "\"Week N is open\" goes to a whole group every week, by email alone",
+    },
+    {
+      path: "src/lib/scheduler/jobs/nextWeekEmail.ts",
+      why: "\"Week N is open\" on its schedule goes to every group of every live run",
+    },
+    {
+      path: "src/lib/scheduler/jobs/weekReminders.ts",
+      why: "the reminders before a session go by email alone, twice a week",
     },
     {
       path: "src/lib/scheduler/jobs/admissionsReminders.ts",
@@ -1531,6 +1546,8 @@ describe("the never-push list", () => {
         "mirrorTaskEmailToPush",
         "mirrorCourseDecisionToPush",
         "sendPushToUid",
+        // The notice lane's push door, which reads nobody's push settings.
+        "sendNoticePush",
       ]) {
         assert.ok(!src.includes(helper), `${path} must not call ${helper}`);
       }

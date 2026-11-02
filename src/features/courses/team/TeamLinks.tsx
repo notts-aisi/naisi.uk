@@ -27,7 +27,7 @@ import {
 import styles from "./team.module.css";
 
 /**
- * "TEAM LINKS" (board in-team): each link's label and address, "Add a link",
+ * "TEAM LINKS": each link's label and address, "Add a link",
  * and for the team's people a way to remove one. The team's links are the
  * team's, so anybody in the team may remove any of them.
  *

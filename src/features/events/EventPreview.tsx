@@ -23,7 +23,7 @@ type Props = {
    * knows nothing of what is in it.
    */
   line: string;
-  /** Short facts drawn as chips: "40 places", "Members only". */
+  /** Short facts drawn as chips: "40 places", "Account needed". */
   facts: string[];
   /** What stands where the form would be, when there is no form. */
   closed?: { title: string; words: string };

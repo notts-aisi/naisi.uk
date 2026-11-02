@@ -8,7 +8,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
- * "Send 33 certificates" (board en-finish): email each person the
+ * "Send 33 certificates": email each person the
  * programme's record says finished, and each of its facilitators, their
  * certificate, once the run's last session is over. One email a person; a
  * facilitator who also finished is sent both in it.

@@ -1,5 +1,5 @@
 /**
- * Week 1 before groups go out (Q35 B) is opened by one door, decided by one
+ * Week 1 before groups go out is opened by one door, decided by one
  * test, on one answer to whether a week is ready, and walked for over the
  * whole of `src`.
  *
@@ -53,7 +53,8 @@ const filesWhere = (pattern) => FILES.filter(([, code]) => pattern.test(code)).m
 const DOOR_ASKERS = {
   "features/courses/runAccess.ts": "the gate of every page under /learn/[runId], for anybody with no other way in: it carries the answer as beforeGroups",
   "app/api/courses/runs/[runId]/overview/route.ts": "the week page's one read: week 1 alone, with no group, session or other week, for somebody the door opens to",
-  "app/api/courses/runs/[runId]/week-one/ticks/[itemId]/route.ts": "a holder's tick of one of week 1's own items, written as the browser writes it",
+  "app/api/courses/runs/[runId]/ticks/[itemId]/route.ts": "a holder's tick of one of week 1's own items, in week 1 only, through the one route every tick goes through",
+  "lib/courses/weekWork/own.ts": "who takes part in their own week for Submit: a holder submits their own week 1, in week 1 only, with no group to lock it",
   "app/api/courses/runs/[runId]/reflections/[promptId]/route.ts": "a holder's own reflection box, in week 1 only",
   "app/api/courses/runs/[runId]/my-exercises/route.ts": "a holder's own rows read back, for week 1 only",
   "lib/courses/weekOne/cards.ts": "Home's and My programmes' card for a place held before groups go out, and its Week 1 is open",
@@ -67,6 +68,7 @@ const PLACE_TESTERS = {
   "lib/courses/weekOne/door.ts": "week 1's door: whether this person holds a place on the programme that names the run",
   "lib/applications/people/model.ts": "the programme's People tab, for its lead and admins: everybody holding a place, by the same one test",
   "lib/surveys/waiting.ts": "a survey waiting for somebody (Home, My programmes, week 1's first card): whether they still hold the place a programme's survey before it or at its end was sent for, the test its own reminder asks through placeHoldersOn",
+  "lib/memberNotes/programme.ts": "the notes about one person on a programme, for its lead and admins (privacy v15): whether that person holds a place on it now, the coursework door's own set asked of one person through the same test, after the programme's gate and only once decision day has told them; it opens nothing of the run to anybody",
 };
 
 /** Every page under the run that reads a holder's way in, and what it shows them. */
@@ -95,7 +97,7 @@ describe("week 1's door is asked through one function", () => {
 
   test("each of a holder's write doors asks the door before it writes, and a view-as session first", () => {
     for (const [file, writes] of [
-      ["app/api/courses/runs/[runId]/week-one/ticks/[itemId]/route.ts", "db.runTransaction("],
+      ["app/api/courses/runs/[runId]/ticks/[itemId]/route.ts", "db.runTransaction("],
       ["app/api/courses/runs/[runId]/reflections/[promptId]/route.ts", "db.runTransaction("],
     ]) {
       const code = read(file);
@@ -106,8 +108,15 @@ describe("week 1's door is asked through one function", () => {
     }
     const own = read("app/api/courses/runs/[runId]/my-exercises/route.ts");
     assert.ok(own.indexOf("weekOneDoorFor(") < own.indexOf('.collection("courseExerciseResponses")'), "own rows are read before the door is asked");
-    // Week 1 and nothing else: both doors that are not week 1's own route hold it to week 1.
+    // Submit asks who takes part (`ownSeatOn`, which asks the door) after view-as and before it writes.
+    const submit = read("app/api/courses/runs/[runId]/weeks/[weekId]/submit/route.ts");
+    const submitGuard = submit.indexOf("const blocked = await assertNotImpersonating();");
+    const seat = submit.indexOf("await ownSeatOn(db, actor, runId, weekNumber)");
+    assert.ok(submitGuard !== -1 && seat > submitGuard && submit.indexOf("db.runTransaction(") > seat, "Submit writes before it asks who takes part, or before view-as");
+    // Week 1 and nothing else: every door but week 1's page holds a holder to week 1.
     assert.match(read("app/api/courses/runs/[runId]/reflections/[promptId]/route.ts"), /weekNumber === 1 && \(await weekOneDoorFor\(db, actor, runId\)\)\.open/);
+    assert.match(read("app/api/courses/runs/[runId]/ticks/[itemId]/route.ts"), /weekNumber === 1 && \(await weekOneDoorFor\(db, actor, runId\)\)\.open/);
+    assert.match(read("lib/courses/weekWork/own.ts"), /weekNumber === 1 && \(await weekOneDoorFor\(db, actor, runId\)\)\.open/);
     assert.match(read("app/api/courses/runs/[runId]/my-exercises/route.ts"), /week === 1 && \(await weekOneDoorFor\(db, actor, runId\)\)\.open/);
   });
 });
@@ -142,13 +151,15 @@ const READS_READY = {
   "lib/firestore/coursePacksAndCases.ts": "a talk's ready on a person's packs and cases record, their own mark, never a week's",
   "app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts":
     "the body of a person marking themselves ready for a talk, never a week's ready",
+  "lib/courses/weekWork/readers.ts":
+    "a talk's ready on a person's packs and cases record, read for how far each person has got with a week, never a week's",
 };
 
 describe("whether a week is ready is one answer", () => {
   test("a stored week's ready is read by its normaliser and weekIsReady alone", () => {
     assert.deepEqual(filesWhere(/\.ready\s*===\s*true/), Object.keys(READS_READY).sort());
     for (const [file, why] of Object.entries(READS_READY)) assert.ok(why.length > 40, `${file} needs its reason`);
-    for (const file of ["lib/firestore/coursePacksAndCases.ts", "app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts"]) {
+    for (const file of ["lib/firestore/coursePacksAndCases.ts", "app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts", "lib/courses/weekWork/readers.ts"]) {
       assert.doesNotMatch(read(file), /\bweek\w*\.ready\b/, `${file} reads a week's ready`);
     }
     assert.match(read("lib/firestore/courses.ts"), /ready: data\.ready === true && data\.published === true,/);
@@ -194,8 +205,8 @@ describe("the pages under the run that open to somebody holding a place", () => 
   test("the week page sends a holder from every other week to week 1, and draws week 1 as somebody taking part", () => {
     const page = read("app/(app)/learn/[runId]/weeks/[n]/page.tsx").replace(/\s+/g, " ");
     assert.ok(page.includes('if (!access.canLearn && access.beforeGroups) { if (n !== "1") redirect(`/learn/${encodeURIComponent(runId)}/weeks/1`);'));
-    // The holder's week 1 also hands the Start here and Glossary links, as st-week1-phone draws them for this
-    // reader, and the before survey's card while it waits for them (Q50 B: week 1's first card).
+    // The holder's week 1 also hands the Start here and Glossary links, as week 1's page before groups go out draws them for this
+    // reader, and the before survey's card while it waits for them (week 1's first card).
     assert.ok(page.includes('return <WeekView runId={runId} weekNumber={1} uid={access.user.uid} viewerRole="learner" sharedNotes={null} {...(holderGuide ? { guide: holderGuide } : {})} {...(holderSurvey ? { survey: holderSurvey } : {})} />;'));
   });
 

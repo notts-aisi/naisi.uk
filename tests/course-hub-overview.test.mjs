@@ -1,5 +1,5 @@
 /**
- * A programme's Overview tab (board wk-overview) and its "Remind", as every
+ * A programme's Overview tab and its "Remind", as every
  * kind of caller.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
@@ -69,6 +69,8 @@ const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(nam
 const SESSION = "export async function getCurrentUser() { return globalThis.__hubOverviewPages.user; }";
 const STYLESHEETS = [
   "./ProgrammeOverview.module.css",
+  // The Overview's Feedback to send draws with feedback's own stylesheet.
+  "./feedback.module.css",
   "./editor.module.css",
   "@/features/applications/editor/editor.module.css",
   "./ProgrammeFrame.module.css",
@@ -243,13 +245,25 @@ describe("1. for the lead and an admin", () => {
     assert.ok(!drawn.reads.includes("courseRuns"));
   });
 
-  test("Overview is a link in the tabs for the lead and admins, and drawn but not a link for a reviewer", () => {
+  test("Overview is a link in the tabs for the lead and admins, and not drawn for a reviewer", () => {
     const base = PAGE_PATH;
     const open = renderToStaticMarkup(createElement(ProgrammeTabs, { base, applications: 6, groups: 4, canEdit: true, groupsOpen: true }));
     assert.match(open, new RegExp(`<a href="${base}/overview"[^>]*aria-current="page">Overview</a>`));
     const shut = renderToStaticMarkup(createElement(ProgrammeTabs, { base, applications: 6, groups: 4, canEdit: false, groupsOpen: false }));
     assert.ok(!shut.includes(`${base}/overview`));
-    assert.match(shut, /<span[^>]*aria-disabled="true"[^>]*>Overview<\/span>/);
+    // Applications alone for a reviewer: no Overview, no Interest (never
+    // built), and no tab drawn that is not a link.
+    assert.doesNotMatch(shut, />Overview<|Interest|<span[^>]*aria-disabled/);
+    assert.deepEqual([...shut.matchAll(/<a href="[^"]*\/([a-z]+)"/g)].map((m) => m[1]), ["applications"]);
+    // With Settings for somebody who can open it, whose other tabs are shut.
+    const settingsOnly = renderToStaticMarkup(createElement(ProgrammeTabs, { base, applications: 6, groups: 4, canEdit: true, groupsOpen: false }));
+    assert.deepEqual([...settingsOnly.matchAll(/<a href="[^"]*\/([a-z]+)"/g)].map((m) => m[1]), ["applications", "setup"]);
+    // And the lead's whole row, in order, with no Interest tab.
+    assert.deepEqual(
+      [...open.matchAll(/<a href="[^"]*\/([a-z]+)"/g)].map((m) => m[1]),
+      ["overview", "applications", "people", "groups", "weeks", "attendance", "coursework", "messages", "surveys", "setup"],
+    );
+    assert.doesNotMatch(open, /Interest|<span[^>]*aria-disabled/);
   });
 });
 
@@ -296,11 +310,14 @@ describe("2. the week and its sessions", () => {
     assert.ok(after.rail.every((week) => week.state === "done"));
   });
 
-  // The sessions come in the order they meet, as wk-overview draws the week.
+  // The sessions come in the order they meet, as the Overview tab draws the week.
   // Since the walk of stage two's fixes (G10) their facilitators are named by
-  // their whole names, as wk-overview draws them; until then by first names.
+  // their whole names, as the Overview tab draws them; until then by first names.
   test("each group's session this week, in the order they meet, with its register in the register's own word", async () => {
     const { model, text: said } = await draw("claudia");
+    // Each facilitator by the names rule for the lead, who is on the
+    // committee (`nameForViewer`): each account's full name, here its own
+    // name, which begins with the name each goes by.
     assert.deepEqual(
       model.sessions.map((session) => [session.groupName, session.when, session.where, session.facilitators.map((person) => person.name), session.pill, session.line]),
       [

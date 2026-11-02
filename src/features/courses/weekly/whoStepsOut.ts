@@ -1,5 +1,5 @@
 /**
- * WHO STEPS OUT WHILE A GROUP ANSWERS THE SURVEY AT THE END (wk-lastweek-phone:
+ * WHO STEPS OUT WHILE A GROUP ANSWERS THE SURVEY AT THE END (the last week on Home:
  * "Rahul and Sofia leave you 5 minutes for it and step out of the room").
  *
  * The facilitators who step out are the group's facilitators who hold no place

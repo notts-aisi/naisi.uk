@@ -6,6 +6,9 @@ import {
   type GroupLeftRecently,
 } from "@/lib/courses/facilitatorGroup";
 import type { NextEmailLine } from "@/lib/courses/registerEnding";
+import { facilitatorExplainerOn, type FacilitatorExplainer } from "@/lib/courses/explainers/readers";
+import { resolveGroupCalendar } from "@/lib/courses/groupResolve";
+import { resolveSessions, sessionRange } from "@/lib/courses/sessions";
 import { updateAudienceCounts } from "@/lib/courses/updates/audience";
 import { loadRunGroups } from "@/lib/courses/updates/readers";
 import {
@@ -22,15 +25,15 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 
 /**
- * WHAT A FACILITATOR'S HOME SAYS ABOUT THEIR GROUP (boards wk-fac-home-phone
- * and, before the group's first session, st-fac-before-phone), beside what
+ * WHAT A FACILITATOR'S HOME SAYS ABOUT THEIR GROUP (the facilitator's Home,
+ * and, before the group's first session), beside what
  * the run's overview already says: how many are expected at the next session,
  * how many exercises wait for a review, when next week's email goes while it
  * is on its schedule, who left the group recently, the group's other
  * facilitators by first name, who has said they are coming, and how many an
  * update to the group reaches.
  *
- * WHO'S COMING (Q14) is handed only to a facilitator of the group, only on a
+ * WHO'S COMING is handed only to a facilitator of the group, only on a
  * day before the group's first session, and only about the people Publish has
  * told their group: each one's first name, and whether they have said they
  * are coming (`readWhosComing`). Never a reason, never anything else from an
@@ -38,6 +41,11 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * of it here: no admin's Home draws it.
  *
  *   GET  ->  FacilitatorSummary
+ *
+ * AN EXPLAINER an admin scheduled at the start of the group's next session
+ * (the session the run's overview names for the group): how long, what
+ * about, who gives it and who scheduled it, named as the reader sees people,
+ * for Home's ticket, as the group page's ticket says it.
  *
  * WHO READS IT: a live facilitator of the group, and admins: the group
  * page's own gate. Everybody else, and a group that is not there, is one 403;
@@ -62,11 +70,13 @@ export type FacilitatorSummary = {
   toReview: number;
   /**
    * Written answers waiting for the caller's feedback, as the group page's
-   * review queue lists them. Present only on a run whose weeks are written
-   * as blocks; a run of the summer's weeks answers without it.
+   * Feedback to write lists them. Present only on a run whose weeks are
+   * written as blocks; a run of the summer's weeks answers without it.
    */
   writtenToGive?: number;
-  /** The oldest of them, for Home's Give feedback: its week and whose it is. Present only when one waits. */
+  /** The week of each of them, oldest first, for Home's "3 week 2 answers". Present with `writtenToGive`. */
+  writtenWeeks?: number[];
+  /** The oldest of them, for Home's Write feedback: its week and whose it is. Present only when one waits. */
   writtenNext?: { weekNumber: number; uid: string };
   /** Null while next week's email is not on its schedule, or no email is left to go. */
   nextEmail: HomeNextEmail | null;
@@ -88,6 +98,12 @@ export type FacilitatorSummary = {
    * archived group: the group page has the button every week.
    */
   write: { people: number; emails: number; notYetTold: number } | null;
+  /**
+   * The explainer the group's next session starts with, as the ticket says
+   * it, with that session's key so Home draws it on that session alone. Null
+   * with none.
+   */
+  explainer: FacilitatorExplainer | null;
 };
 
 export async function GET(_req: Request, ctx: { params: Promise<{ groupId: string }> }) {
@@ -116,9 +132,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ groupId: strin
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const now = new Date();
   const model = await loadFacilitatorGroup(db, run, group, { isAdmin, actor }, now);
-  const [line, writtenQueue] = await Promise.all([
+  // The group's next session, on its own calendar, as the overview names it.
+  const next = sessionRange(resolveSessions(run, group, resolveGroupCalendar(run, group, now).calendar), now).next;
+  const [line, writtenQueue, explainer] = await Promise.all([
     readNextEmailForHome(db, run, group, model.scheduled, now),
     loadWrittenQueue(db, actor, run, group),
+    facilitatorExplainerOn(db, actor, run.id, group.id, next?.sessionKey),
   ]);
   // Who's coming: a facilitator's, before the first session's day, about the
   // people the facilitator's own view of the group lists (told, taking part),
@@ -146,7 +165,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ groupId: strin
     expected: model.expected,
     notYetTold: model.notYetTold,
     toReview: model.toReview.length,
-    ...(writtenQueue !== null ? { writtenToGive: writtenQueue.length } : {}),
+    ...(writtenQueue !== null ? { writtenToGive: writtenQueue.length, writtenWeeks: writtenQueue.map((row) => row.weekNumber) } : {}),
     ...(writtenQueue && writtenQueue[0] ? { writtenNext: { weekNumber: writtenQueue[0].weekNumber, uid: writtenQueue[0].uid } } : {}),
     nextEmail: line && line.state !== "missed" ? line : null,
     leftRecently: model.leftRecently.map((person) => ({
@@ -161,6 +180,16 @@ export async function GET(_req: Request, ctx: { params: Promise<{ groupId: strin
       ? whosComing.map((person) => ({ firstName: person.firstName, coming: person.coming }))
       : null,
     write: count ? { people: count.people, emails: count.emails, notYetTold: count.notYetTold } : null,
+    explainer: explainer
+      ? {
+          sessionKey: explainer.sessionKey,
+          minutes: explainer.minutes,
+          topic: explainer.topic,
+          by: explainer.by,
+          scheduledBy: explainer.scheduledBy,
+          fromWeekNumber: explainer.fromWeekNumber,
+        }
+      : null,
   };
   return NextResponse.json(answer);
 }

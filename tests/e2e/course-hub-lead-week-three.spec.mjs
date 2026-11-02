@@ -260,7 +260,12 @@ test(
     assert.ok(updateGroup && reader && notReader, "the term has no group with a meeting link and a member in each group");
     assert.equal(facilitatedGroup, unfinishedGroup, "the facilitator is appointed to another group than the unfinished register's");
 
-    /** A group's people, in the grid's order: whole names, then uid. */
+    /**
+     * A group's people, in the grid's order: the names it shows, then uid.
+     * The lead's tabs, read here by the admin, name people by the names rule
+     * (`nameForViewer`): the full name, which for this term's fixtures is the
+     * account's display name, unique to this run.
+     */
     const membersOf = (group) =>
       state.people
         .filter((person) => person.groupKey === group.key)
@@ -1044,7 +1049,8 @@ test(
         for (const group of ordered) {
           for (const person of membersOf(group)) {
             const row = grid.getByRole("row").filter({
-              has: adminPage.getByRole("rowheader", { name: new RegExp(`^${escapeRegExp(person.displayName)}`) }),
+              // The whole name the grid shows the admin, never the start of a longer one.
+              has: adminPage.getByRole("rowheader", { name: new RegExp(`^${escapeRegExp(person.displayName)}(?![A-Za-z0-9])`) }),
             });
             await row.waitFor({ timeout: WAIT_MS });
             const marks = row.getByRole("img");

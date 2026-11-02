@@ -9,7 +9,7 @@ type Props = {
 /**
  * "Would you facilitate a group on AGI Strategy?": the email a programme's
  * lead, or an admin, sends to somebody who said on the application form that
- * they would like to facilitate (board st-facilitators, "The email Grace
+ * they would like to facilitate ("The email Grace
  * got"), and its reminder.
  *
  * Its one button, "Say yes or no", opens the person's own answer page, where

@@ -10,6 +10,7 @@ import {
   clockTime,
   endWords,
   hasEnded,
+  hasStarted,
   placesState,
   placesTone,
   placesWords,
@@ -17,6 +18,7 @@ import {
 } from "./eventWhen";
 import { googleCalendarUrl, outlookOfficeUrl } from "@/lib/events/ics";
 import { locationWithheld, publicLocationLine, publicLocationText } from "@/lib/events/location";
+import { REACH_WORDS, eventReach } from "@/lib/events/reach";
 import links from "./eventLinks.module.css";
 import styles from "./EventDetailView.module.css";
 
@@ -35,23 +37,36 @@ import styles from "./EventDetailView.module.css";
  * bottom of a long description. The panel never sticks to the screen: a
  * sign-up form can be taller than a phone, and a pinned panel is how a submit
  * button ends up underneath something.
+ *
+ * `held` is the place the person looking holds here, found by their own
+ * session (`heldPlaceAt`): the panel then says so and offers "Can't make it"
+ * until the event starts, in place of the form.
  */
 export default function EventDetailView({
   event,
   previewMode,
+  held,
 }: {
   event: EventDoc;
   previewMode?: boolean;
+  held?: { rsvpId: string } | null;
 }) {
   const isCancelled = event.status === "cancelled";
   const { now, ended } = clockFor(event);
+  // A place is given back before the event starts; once it has, the panel
+  // only says they have one.
+  const started = hasStarted(event.startAt, now);
   // Nothing to sign up to and nothing to put in a calendar.
   const over = isCancelled || ended;
   const dietaryTags = event.dietaryTags ?? [];
   const foodDisplay = publicFoodLine(event);
   const whereText = publicLocationText(event);
   const calendarStart = over ? null : event.startAt;
-  const membersOnly = event.visibility === "members";
+  // Who it is for, in the one set of words every surface uses
+  // (`src/lib/events/reach.ts`). The page is only drawn for somebody who may
+  // open the event, so an event for chosen people is here for its invited.
+  const reach = eventReach(event);
+  const reachBadge = REACH_WORDS.badge[reach];
   const places = placesState(event);
   const title = event.title || "(no title)";
   const dateWords = event.startAt ? shortDate(event.startAt, now) : null;
@@ -88,7 +103,7 @@ export default function EventDetailView({
         <div className={styles.heroChips}>
           {isCancelled && <Badge tone="danger">Cancelled</Badge>}
           {!isCancelled && ended && <Badge tone="neutral">Ended</Badge>}
-          {!over && membersOnly && <Badge tone="accent">Account needed</Badge>}
+          {!over && reachBadge && <Badge tone="accent">{reachBadge}</Badge>}
           {!over && event.noSignup && <Badge tone="success">No sign-up needed</Badge>}
           {!over && places.kind !== "open" && (
             <Badge tone={placesTone(places)}>{placesWords(places)}</Badge>
@@ -174,7 +189,7 @@ export default function EventDetailView({
         <div className={styles.fact}>
           <dt className={`meta ${styles.factLabel}`}>Who can come</dt>
           <dd className={styles.factValue}>
-            {membersOnly ? "People with a NAISI account" : "Everyone"}
+            {REACH_WORDS.whoCanCome[reach]}
           </dd>
         </div>
       </dl>
@@ -339,6 +354,7 @@ export default function EventDetailView({
               rsvpCountConfirmed={event.rsvpCountConfirmed ?? 0}
               waitlistEnabled={event.waitlistEnabled}
               previewMode={previewMode}
+              heldPlace={held && !previewMode ? { rsvpId: held.rsvpId, started } : null}
             />
           )}
         </div>

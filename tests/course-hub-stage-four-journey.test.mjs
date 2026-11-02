@@ -105,9 +105,15 @@ const routes = {
   guide: await courseRoute("runs", "[runId]", "guide", "[doc]"),
   rubric: await courseRoute("[courseId]", "rubric"),
   card: await courseRoute("[courseId]", "predictions"),
-  holderTick: await courseRoute("runs", "[runId]", "week-one", "ticks", "[itemId]"),
+  // Every tick, a holder's before groups go out among them, goes through the one tick route.
+  holderTick: await courseRoute("runs", "[runId]", "ticks", "[itemId]"),
   written: await courseRoute("runs", "[runId]", "written-answers", "[answerId]"),
-  review: await courseRoute("runs", "[runId]", "written-answers", "[answerId]", "review"),
+  // A written answer is sent by submitting its week.
+  submitWeek: await courseRoute("runs", "[runId]", "weeks", "[weekId]", "submit"),
+  // Feedback as a signed comment, and the batch email an admin sends.
+  feedback: await courseRoute("runs", "[runId]", "feedback"),
+  feedbackSend: await courseRoute("runs", "[runId]", "feedback", "send"),
+  feedbackTest: await courseRoute("runs", "[runId]", "feedback", "send", "test"),
   packs: await courseRoute("runs", "[runId]", "packs-and-cases", "[blockId]"),
   draw: await courseRoute("groups", "[groupId]", "draw"),
   pairs: await courseRoute("groups", "[groupId]", "pairs"),
@@ -327,6 +333,14 @@ async function writersAndReaders() {
   return rows;
 }
 
+/** Every piece of feedback on `uid`'s work, each with its id. */
+const feedbackFor = (uid) =>
+  world.db
+    .paths()
+    .filter((path) => path.startsWith("courseFeedback/"))
+    .map((path) => ({ id: path.slice("courseFeedback/".length), ...world.db.read(path) }))
+    .filter((piece) => piece.uid === uid);
+
 /** Every message the mail door was handed to `to`, its words as the reader reads them. */
 const mailTo = (to) =>
   world.mail
@@ -418,7 +432,7 @@ describe("1. before groups go out (Mon 26 Oct)", () => {
 
   test("Amara ticks and writes through week 1's own door; one task counts once every part is done", async () => {
     const w1 = stored(1);
-    for (const itemId of w1.sources) ok(await asCourse("amara", routes.holderTick.PUT, { runId: RUN.agi, itemId }, { completed: true }), "holder tick");
+    for (const itemId of w1.sources) ok(await asCourse("amara", routes.holderTick.PUT, { runId: RUN.agi, itemId }, { weekId: "w01", completed: true }), "holder tick");
     await reflect("amara", 1, w1.prompts.slice(0, -1));
     let page = await w.weekPage("amara", 1, ticksOf("amara"));
     assert.equal(doneOn(page.text), "0 of 1 done", "one box still empty");
@@ -596,7 +610,10 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
 
   test("everybody the reflection route lets write in week 1 is answered their own boxes back, after Publish", async () => {
     const rows = await writersAndReaders();
-    assert.deepEqual(rows.filter((row) => row.wrote === 200).map((row) => row.who), ["amara", "bea", "dev", "tariq", "rahul", "sofia", "tom"]);
+    // Admitted, as before Publish; but week 1 locked for Group A when it met on Thu 29 Oct, Sofia's
+    // earlier group, so Dev, Tariq and Sofia are refused as locked (409), never as somebody not taking part.
+    assert.deepEqual(rows.filter((row) => row.wrote !== 403).map((row) => row.who), ["amara", "bea", "dev", "tariq", "rahul", "sofia", "tom"]);
+    assert.deepEqual(rows.filter((row) => row.wrote === 409).map((row) => row.who), ["dev", "tariq", "sofia"]);
     assert.deepEqual(rows.filter((row) => row.wrote === 200 && row.read !== 200), []);
   });
 
@@ -616,7 +633,7 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
     // The policy: a facilitator's own ticks are the lead's and admins', never another facilitator's.
     assert.equal(
       ticks,
-      "Reading ticks Ticks never count against anyone. Part 2 · Read A keeper's diary 1 of 1 ticked it See who AO Amara Okafor Part 2 · Watch Lamps at night 1 of 1 ticked it See who AO Amara Okafor ",
+      "Reading ticks Part 2 · Read A keeper's diary 1 of 1 ticked it See who A Amara Part 2 · Watch Lamps at night 1 of 1 ticked it See who A Amara ",
     );
     assert.equal(ticksOf("bea").length, 2);
   });
@@ -631,15 +648,15 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
   });
 
   test("W-rubric: Start here's rubric is read against the course's, and a difference is named among the things to check, never refused", async () => {
-    // The written answer's card sends a fellow to "the rubric on Start here"; feedback is given on the
-    // course's own rubric record. Loaded from two different tables, the two disagree.
+    // A fellow reads the rubric on Start here, as guidance for writing; the course keeps its own rubric
+    // record. Loaded from two different tables, the two disagree.
     const amara = await serverPage(["[runId]", "start-here", "page.tsx"], { runId: RUN.agi }, "amara");
     assert.match(amara.text, /A clear position Not yet No view Solid A view Strong A view someone could argue with/);
     const course = world.db.read(`courses/${COURSE.agi}`);
     assert.deepEqual(course.rubric.rows.map((row) => row.name), ["A clear view", "Reasons"]);
     // Reading Start here's paste again says so; saving it is not refused.
     const differs =
-      "Start here’s rubric isn’t the course’s, which feedback is given on: its rows are “A clear position” and “Reasons”, " +
+      "Start here’s rubric isn’t the course’s: its rows are “A clear position” and “Reasons”, " +
       "and the course’s are “A clear view” and “Reasons”. Make them the same, here or in the course’s details.";
     const read = ok(await asCourse("zach", routes.guide.POST, { runId: RUN.agi, doc: "start-here" }, { markdown: START_HERE_MARKDOWN }), "read Start here");
     assert.ok(read.checks.includes(differs), JSON.stringify(read.checks));
@@ -649,8 +666,8 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
     for (const who of ["claudia", "rahul"]) {
       assert.equal((await asCourse(who, routes.guide.POST, { runId: RUN.agi, doc: "start-here" }, { markdown: START_HERE_MARKDOWN })).status, 403, who);
     }
-    // With the course's rubric made Start here's own table, nothing is named; then it is put back, since the
-    // rest of the term gives feedback on it.
+    // With the course's rubric made Start here's own table, nothing is named; then it is put back, as the
+    // rest of the term reads it.
     const startHereTable = START_HERE_MARKDOWN.split("\n").filter((line) => line.startsWith("|  |") || line.startsWith("| --- | --- | --- | --- |") || /^\| \*\*(A clear position|Reasons)\*\*/.test(line)).join("\n");
     ok(await asCourse("zach", routes.rubric.PUT, { courseId: COURSE.agi }, { markdown: startHereTable }), "the course's rubric made Start here's");
     const matching = ok(await asCourse("zach", routes.guide.POST, { runId: RUN.agi, doc: "start-here" }, { markdown: START_HERE_MARKDOWN }), "read again");
@@ -662,7 +679,7 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
     assert.deepEqual(startHere.levels, ["Not yet", "Solid", "Strong"]);
     assert.equal(
       lib.startHereRubric.startHereRubricCheck(world.db.read(`courseRuns/${RUN.agi}`).startHere, null),
-      "Start here has a rubric, and the course has none, so feedback is a comment alone. Set the course’s rubric in its details if feedback should use these levels.",
+      "Start here has a rubric, and the course has none. Set the course’s rubric in its details if it should keep these rows too.",
     );
     const oneCell = { levels: startHere.levels, rows: startHere.rows.map((row, i) => (i === 0 ? { ...row, descriptors: ["Nothing", ...row.descriptors.slice(1)] } : row)) };
     assert.match(lib.startHereRubric.startHereRubricCheck(world.db.read(`courseRuns/${RUN.agi}`).startHere, oneCell), /: 1 of its cells says something else\./);
@@ -717,7 +734,7 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
     // finds the email still held, claims nothing, sends nothing, and is answered in an admin's words.
     const forced = ok(await asCourse("zach", routes.finish.POST, { groupId: A }, { weekNumber: 1, force: true }), "an admin's resend");
     assert.equal(forced.sent, 0);
-    assert.equal(forced.reason, "Week 2 isn’t published yet, so nobody was emailed. Mark it ready, then use the run’s catch-up send.");
+    assert.equal(forced.reason, "Week 2 isn’t published yet, so nobody was emailed. Mark it ready, then use Resend on this register.");
     assert.equal(world.mail.length, 0);
     // A facilitator is never told to mark it ready; a lead who facilitates a group of the lead's own run is
     // (the stage two journey's incubator, run by its lead), and is never named to themselves.
@@ -726,7 +743,7 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
         lib.ending.unpublishedPushWords(2, who),
       ),
       [
-        "Week 2 isn’t published yet, so nobody was emailed. Mark it ready, then use the run’s catch-up send.",
+        "Week 2 isn’t published yet, so nobody was emailed. Mark it ready, then use Resend on this register.",
         "Week 2 isn’t published yet, so nobody was emailed. Marking it ready publishes it.",
         "Week 2 isn’t published yet, so nobody was emailed. Claudia marks it ready.",
         "Week 2 isn’t published yet, so nobody was emailed. The programme’s lead marks it ready.",
@@ -775,49 +792,64 @@ describe("4. week 2 (Group B meets on Tue 10 Nov): a written answer, sent and gi
     assert.equal(w2.answers.length, 1);
     const answer = w2.answers[0];
     for (const who of ["amara", "bea"]) {
-      const sent = await asCourse(who, routes.written.PUT, { runId: RUN.agi, answerId: answer.id }, { weekId: "w02", text: words(220), send: true });
-      ok(sent, `${who} sends`);
+      ok(await asCourse(who, routes.written.PUT, { runId: RUN.agi, answerId: answer.id }, { weekId: "w02", text: words(220) }), `${who} writes`);
+      ok(await asCourse(who, routes.submitWeek.POST, { runId: RUN.agi, weekId: "w02" }, { submit: true }), `${who} submits`);
     }
     const counts = await threeCounts("amara", 2);
     // The answer sent is one task of three done: the parts wait for a pack, the talk for a case.
     assert.deepEqual([counts.week, counts.programme, counts.home], ["1 of 3 done", "1 of 3 done", "1 of 3 done"]);
-    assert.match(counts.pages.week.text, /Done: Part 4: your forecast, the week’s written answer \(200 to 300 words\) About 30 minutes By the end of Mon 9 Nov Sent Sun 8 Nov/);
-    assert.match(counts.pages.programme.text, /Done: Your written answer Sent Sun 8 Nov/);
+    assert.match(counts.pages.week.text, /Done: Part 4: your forecast, the week’s written answer \(200 to 300 words\) About 30 minutes By the end of Mon 9 Nov Submitted Sun 8 Nov/);
+    assert.match(counts.pages.programme.text, /Done: Your written answer Submitted Sun 8 Nov/);
   });
 
-  test("Rahul opens Amara's answer, which locks it, and sends feedback by the rubric: one email, with no level and no comment in it", async () => {
+  test("Amara's submitted week is locked, and Rahul saves feedback on it: nobody is emailed, until an admin's batch sends one email with no comment in it", async () => {
     at("2026-11-09T10:00:00Z");
     const answer = stored(2).answers[0];
     world.mail.length = 0;
-    ok(await asCourse("rahul", routes.review.POST, { runId: RUN.agi, answerId: answer.id }, { weekId: "w02", uid: "amara", action: "open" }), "open");
     const locked = await asCourse("amara", routes.written.PUT, { runId: RUN.agi, answerId: answer.id }, { weekId: "w02", text: words(230) });
     assert.equal(locked.status, 409);
     const comment = "A lighthouse view anyone could argue with.";
-    ok(await asCourse("rahul", routes.review.POST, { runId: RUN.agi, answerId: answer.id }, { weekId: "w02", uid: "amara", action: "feedback", levels: LEVELS, comment }), "feedback");
+    // Feedback is a comment: levels sent beside it are never stored.
+    ok(await asCourse("rahul", routes.feedback.POST, { runId: RUN.agi }, { uid: "amara", weekId: "w02", on: "writtenAnswer", itemId: answer.id, text: comment, levels: LEVELS }), "feedback");
+    assert.equal(mailTo("amara@example.com").length, 0, "saving feedback emails nobody");
+    assert.ok(feedbackFor("amara").every((piece) => !("levels" in piece)));
+    ok(await asCourse("zach", routes.feedbackTest.POST, { runId: RUN.agi }), "an admin's test");
+    const ids = feedbackFor("amara").map((piece) => piece.id);
+    ok(await asCourse("zach", routes.feedbackSend.POST, { runId: RUN.agi }, { ids, pieces: ids.length, people: 1 }), "the batch");
     const mail = mailTo("amara@example.com");
     assert.equal(mail.length, 1);
+    assert.equal(mail[0].kind, "course-feedback");
     assert.doesNotMatch(mail[0].text, /lighthouse view|Strong|Solid/);
   });
 
-  test("Bea's answer is the lead's and admins' to give feedback on: her co-facilitators are refused, Claudia sends it", async () => {
+  test("Bea's answer is the lead's and admins' to give feedback on: her co-facilitators are refused, Claudia saves it and the batch emails her once", async () => {
     const answer = stored(2).answers[0];
     for (const who of ["rahul", "sofia"]) {
-      const refused = await asCourse(who, routes.review.POST, { runId: RUN.agi, answerId: answer.id }, { weekId: "w02", uid: "bea", action: "open" });
+      const refused = await asCourse(who, routes.feedback.POST, { runId: RUN.agi }, { uid: "bea", weekId: "w02", on: "writtenAnswer", itemId: answer.id, text: "Not ours." });
       assert.equal(refused.status, 403, who);
     }
-    ok(await asCourse("claudia", routes.review.POST, { runId: RUN.agi, answerId: answer.id }, { weekId: "w02", uid: "bea", action: "feedback", levels: LEVELS, comment: "Clear and weighed." }), "Claudia's feedback");
+    ok(await asCourse("claudia", routes.feedback.POST, { runId: RUN.agi }, { uid: "bea", weekId: "w02", on: "writtenAnswer", itemId: answer.id, text: "Clear and weighed." }), "Claudia's feedback");
+    assert.deepEqual(feedbackFor("bea").map((piece) => [piece.byUid, piece.byRole]), [["claudia", "lead"]]);
+    assert.equal(mailTo("bea@example.com").length, 0, "saving feedback emails nobody");
+    // The admin's test in the last day still counts; the batch emails Bea once.
+    const ids = feedbackFor("bea").map((piece) => piece.id);
+    ok(await asCourse("zach", routes.feedbackSend.POST, { runId: RUN.agi }, { ids, pieces: ids.length, people: 1 }), "the batch");
     assert.equal(mailTo("bea@example.com").length, 1);
   });
 
   test("each reads their feedback on the site, from who gave it", async () => {
-    const amara = await serverPage(["[runId]", "weeks", "[n]", "feedback", "page.tsx"], { runId: RUN.agi, n: "2" }, "amara");
-    const bea = await serverPage(["[runId]", "weeks", "[n]", "feedback", "page.tsx"], { runId: RUN.agi, n: "2" }, "bea");
+    const amara = await w.weekPage("amara", 2, ticksOf("amara"));
+    const bea = await w.weekPage("bea", 2, ticksOf("bea"));
     const rahulReview = await serverPage(["[runId]", "group", "[groupId]", "written", "page.tsx"], { runId: RUN.agi, groupId: B }, "rahul", { week: "2" });
-    assert.match(amara.text, /From Rahul · Mon 9 Nov, 10am A clear view Strong A view someone could argue with Reasons Solid Some, from the week/);
-    assert.match(amara.text, /Rahul’s comment A lighthouse view anyone could argue with\./);
-    assert.match(bea.text, /From Claudia · Mon 9 Nov, 10am/);
+    assert.match(amara.text, /Feedback from Rahul Your facilitator · Mon 9 Nov A lighthouse view anyone could argue with\./);
+    assert.doesNotMatch(amara.text, /Strong|Solid|No marks/);
+    // Bea facilitates the group she holds a place in: the lead's feedback on her own work is signed as the team's.
+    assert.match(bea.text, /From the NAISI team Claudia, who leads AGI Strategy · Mon 9 Nov Clear and weighed\./);
+    // The old feedback page sends each of them to their week's Feedback.
+    const old = await serverPage(["[runId]", "weeks", "[n]", "feedback", "page.tsx"], { runId: RUN.agi, n: "2" }, "amara");
+    assert.equal(old.to, `/learn/${RUN.agi}/weeks/2#feedback`);
     // The group's review page lists the group's fellows: never Bea, who facilitates it.
-    assert.match(rahulReview.text, /AO Amara Okafor By you/);
+    assert.match(rahulReview.text, /A Amara By you/);
     assert.doesNotMatch(rahulReview.text, /Bea/);
   });
 
@@ -825,20 +857,22 @@ describe("4. week 2 (Group B meets on Tue 10 Nov): a written answer, sent and gi
     await w.asBrowser("rahul", 2, []);
     const page = await serverPage(["[runId]", "group", "[groupId]", "page.tsx"], { runId: RUN.agi, groupId: B }, "rahul");
     // The group page leaves its reader out of the group's facilitators (W-self: the programme page does not).
-    assert.match(page.text, /with Sofia Rossi and Bea Lindqvist/);
+    assert.match(page.text, /with Sofia and Bea/);
     // Counts over the fellows alone: Amara. Bea's ticks and reflections are the lead's and admins'.
     assert.match(page.text, /Review queue Reflections Part 1, 0 of 1 · Part 2, 0 of 1/);
     assert.match(page.text, /Part 1 · Read A field guide to base rates 0 of 1 ticked it/);
     assert.match(page.text, /Facilitators’ own work is for Claudia and admins to read, so it isn’t listed here\./);
-    // W-work: wk-fac-group's table has its pathway, written answer and case columns, through the packs' and
+    // W-work: the facilitator's group page's table has its pathway, written answer and case columns, through the packs' and
     // the written answers' own readers. The Choose one's own title heads the first ("Pack" in this made-up week,
     // "Pathway" in the guide's); Amara's answer reads as the review page reads it; nobody has a pack or a case
-    // before the draw. On a phone each person's lines say the same.
+    // before the draw. On a phone each person's lines say the same. The week's own column leads with where
+    // each person's week stands (the week you submit): Amara submitted it, one task of three done, and Rahul
+    // may reopen it for her; the head says when the group's week locks.
     assert.match(
       page.text,
-      /This week’s work Week 2 · Thu 5 to Wed 11 Nov Name Part 1 reflection Part 2 reflection Pack Written answer Case AO Amara Okafor Not yet Not yet Not given yet Feedback sent · Rahul Not given yet /,
+      /This week’s work Week 2 · Thu 5 to Wed 11 Nov · Locks Tue 6pm Name Part 1 reflection Part 2 reflection Week 2 Pack Written answer Case A Amara Not yet Not yet Submitted Sun 8 Nov, 8pm 1 of 3 done Reopen week 2 for Amara Not given yet Feedback · Rahul Not given yet /,
     );
-    assert.match(page.text, /AO Amara Okafor Reflections Not yet Pack Not given yet Written answer Feedback sent · Rahul Case Not given yet /);
+    assert.match(page.text, /A Amara Reflections Not yet Week 2 Submitted Sun 8 Nov, 8pm 1 of 3 done Reopen week 2 for Amara Pack Not given yet Written answer Feedback · Rahul Case Not given yet /);
     // Three facilitators: the notes are for Rahul and the other two, in one list with the reader
     // first. Putting "you and" before a list already joined with "and" said "and" twice.
     assert.match(page.text, /Notes for you, Sofia and Bea Only Group B’s facilitators, Claudia and admins see these\./);
@@ -887,11 +921,14 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     at("2026-11-10T20:20:00Z");
     world.mail.length = 0;
     await register("rahul", B, 2, ["amara", "bea"]);
-    // Finishing the register sends next week's email to the group's people, Bea among them: what it says week 3
-    // asks is what week 3's page counts, from its This week box, and never an "exercise".
+    // Finishing the register sends "Week 3 is open" to the group's people, Bea among them: what it says week 3
+    // asks for is what week 3's page asks for, read off its blocks, and never an "exercise".
     const nextWeek = mailTo("amara@example.com");
     assert.deepEqual([nextWeek.length, mailTo("bea@example.com").length, mailTo("rahul@example.com").length], [1, 1, 0]);
-    assert.match(nextWeek[0].text, /There are three things to do this week, about 2 hours in all\./);
+    assert.equal(nextWeek[0].subject, "Week 3 is open: How sure are you, again?");
+    assert.match(nextWeek[0].text, /Week 3 of AGI Strategy Fellowship is open: How sure are you, again\? Your next session is Tue 17 Nov at 6pm in Hallward B12\./);
+    assert.match(nextWeek[0].text, /4 readings Your pack’s reading 2 short reflections Your plan A written answer Getting ready for your talk/);
+    assert.match(nextWeek[0].text, /Your work saves as you go and locks when your session starts\./);
     assert.doesNotMatch(nextWeek[0].text, /exercise/i);
     const weekThree = await w.weekPage("amara", 3, ticksOf("amara"));
     assert.equal(doneOn(weekThree.text), "0 of 3 done");
@@ -940,16 +977,18 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     assert.doesNotMatch(after.text, /Tell us why/);
   });
 
-  test("Amara does her week: her pack ticked, her boxes written, her answer sent, ready for her talk; three pages agree", async () => {
+  test("Amara does her week: her pack ticked, her boxes written, ready for her talk, then submits it; three pages agree", async () => {
     at("2026-11-14T11:00:00Z");
     const w3 = stored(3);
     const given = w3.chooseOnes.find((block) => block.givenBy === "facilitator");
     for (const itemId of [...w3.sources, given.packs[0].id]) tick("amara", 3, itemId);
     await reflect("amara", 3, w3.prompts);
     at("2026-11-16T21:00:00Z");
-    ok(await asCourse("amara", routes.written.PUT, { runId: RUN.agi, answerId: w3.answers[0].id }, { weekId: "w03", text: "Elections first, then the rest. ".repeat(40).trim(), send: true }), "sent");
+    ok(await asCourse("amara", routes.written.PUT, { runId: RUN.agi, answerId: w3.answers[0].id }, { weekId: "w03", text: "Elections first, then the rest. ".repeat(40).trim() }), "written");
     const talk = w3.talks.find((block) => block.groups.some((group) => group.cases.length > 0));
     ok(await asCourse("amara", routes.packs.PUT, { runId: RUN.agi, blockId: talk.id }, { weekId: "w03", ready: true }), "ready");
+    // Submitting last: it locks everything in the week, the ready mark among it.
+    ok(await asCourse("amara", routes.submitWeek.POST, { runId: RUN.agi, weekId: "w03" }, { submit: true }), "submitted");
     const counts = await threeCounts("amara", 3);
     assert.deepEqual([counts.week, counts.programme, counts.home], ["3 of 3 done", "3 of 3 done", "3 of 3 done"]);
     assert.match(counts.pages.programme.text, /Done: Your case talk The surprise result, 2016 Done/);
@@ -958,7 +997,8 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
   test("Bea sends hers on the morning of the session, after it was due: nothing on her own page says late", async () => {
     at("2026-11-17T09:00:00Z");
     const w3 = stored(3);
-    ok(await asCourse("bea", routes.written.PUT, { runId: RUN.agi, answerId: w3.answers[0].id }, { weekId: "w03", text: "Markets first, then the rest. ".repeat(40).trim(), send: true }), "Bea sends");
+    ok(await asCourse("bea", routes.written.PUT, { runId: RUN.agi, answerId: w3.answers[0].id }, { weekId: "w03", text: "Markets first, then the rest. ".repeat(40).trim() }), "Bea writes");
+    ok(await asCourse("bea", routes.submitWeek.POST, { runId: RUN.agi, weekId: "w03" }, { submit: true }), "Bea submits");
     const page = await w.weekPage("bea", 3, ticksOf("bea"));
     assert.doesNotMatch(page.text, /\bLate\b/);
   });
@@ -966,13 +1006,15 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
   test("Late is staff's: an admin's review page marks Bea's answer Late and Amara's not; Rahul's never lists Bea's", async () => {
     const review = (who, person) => serverPage(["[runId]", "group", "[groupId]", "written", "page.tsx"], { runId: RUN.agi, groupId: B }, who, { week: "3", person });
     const admin = await review("zach", "bea");
-    assert.match(admin.text, /To give feedback on 2 AO Amara Okafor Sent Mon 16 Nov, 9pm BL Bea Lindqvist Sent Tue 17 Nov, 9am Late /);
-    assert.match(admin.text, /Bea’s answer 200 words · 200 to 300 Sent Tue 17 Nov, 9am Late /);
+    // An admin is shown each full name (the names rule); Rahul, the name each goes by.
+    assert.match(admin.text, /To give feedback on 2 AO Amara Okafor Submitted Mon 16 Nov, 9pm BL Bea Lindqvist Submitted Tue 17 Nov, 9am Late /);
+    assert.match(admin.text, /Bea’s answer 200 words · 200 to 300 Submitted Tue 17 Nov, 9am Late /);
     // Asked for Bea, Rahul's page opens on the one answer it may show him, Amara's.
     const rahul = await review("rahul", "bea");
-    assert.match(rahul.text, /To give feedback on 1 AO Amara Okafor Sent Mon 16 Nov, 9pm Feedback sent/);
-    assert.doesNotMatch(rahul.text, /Bea Lindqvist|Bea’s answer|\bLate\b/);
-    assert.match(rahul.text, /Amara can still change it until Rahul, Sofia or Bea opens it\./);
+    assert.match(rahul.text, /To give feedback on 1 A Amara Submitted Mon 16 Nov, 9pm With feedback/);
+    assert.doesNotMatch(rahul.text, /B Bea Submitted|Bea’s answer|\bLate\b/);
+    // Submitted, the week is locked: the page says so, and Rahul may reopen it for Amara.
+    assert.match(rahul.text, /Submitted Mon 16 Nov, 9pm, so Amara can’t change it now\. Reopen week 3 for Amara/);
   });
 
   test("W-work: in week 3, This week's work says each person's pack, written answer and case, to exactly the readers of each", async () => {
@@ -991,7 +1033,10 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
       const page = await groupPage(who);
       assert.match(
         page.text,
-        new RegExp(`Name Part 1 reflection Part 2 reflection ${given.title} Written answer Case AO Amara Okafor Written Written ${given.packs[0].name} To give feedback ${caseTitle("amara")} `),
+        new RegExp(
+          `Name Part 1 reflection Part 2 reflection Week 3 ${given.title} Written answer Case A Amara Written Written ` +
+            `Submitted Mon 16 Nov, 9pm 3 of 3 done Reopen week 3 for Amara ${given.packs[0].name} To give feedback ${caseTitle("amara")} `,
+        ),
         who,
       );
       assert.ok(page.html.includes(review("amara")), `${who}: no way to Amara's answer`);
@@ -1001,10 +1046,17 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
       const table = page.text.slice(page.text.indexOf("This week’s work"), page.text.indexOf("Reading ticks"));
       assert.doesNotMatch(table, new RegExp(`Bea|${given.packs[1].name}|${caseTitle("bea")}`), `${who}'s table shows Bea's own work`);
     }
-    // An admin: the fellows, then the facilitators' own rows, marked as theirs, Bea's pack and answer among them.
+    // An admin: the fellows, then the facilitators' own rows, marked as theirs, Bea's pack and answer among them,
+    // each by the full name the names rule shows an admin.
     const admin = await groupPage("zach");
-    assert.match(admin.text, new RegExp(`BL Bea Lindqvist Facilitator Not yet Not yet ${given.packs[1].name} To give feedback ${caseTitle("bea")} `));
-    assert.match(admin.text, /RM Rahul Mehta Facilitator Not yet Not yet Not given yet Not started Not given yet /);
+    assert.match(
+      admin.text,
+      new RegExp(`BL Bea Lindqvist Facilitator Not yet Not yet Submitted Tue 17 Nov, 9am 1 of 3 done Reopen week 3 for Bea ${given.packs[1].name} To give feedback ${caseTitle("bea")} `),
+    );
+    // Rahul wrote nothing in week 3, and facilitates Group B alone, whose week 3 has not met: not started, nothing to reopen.
+    assert.match(admin.text, /RM Rahul Mehta Facilitator Not yet Not yet Not started Not given yet Not started Not given yet /);
+    // Sofia also facilitates Group A, which met on Thursday: her own week 3 locked then, and an admin may reopen it.
+    assert.match(admin.text, /SR Sofia Rossi Facilitator Not yet Not yet Not submitted 0 of 3 done Reopen week 3 for Sofia /);
     assert.ok(admin.html.includes(review("bea")), "an admin has no way to Bea's answer");
     // A fellow never reaches the group page.
     assert.equal((await groupPage("amara")).to, `/learn/${encodeURIComponent(RUN.agi)}`);
@@ -1024,8 +1076,17 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
       now: new Date(),
     });
     const cellsOf = (uid) => Object.fromEntries(columns.map((column) => [column.key, column.cells[uid] ?? null]));
-    assert.deepEqual(columns.map((column) => [column.key, column.label]), [["pathway", given.title], ["written", "Written answer"], ["case", "Case"]]);
+    assert.deepEqual(columns.map((column) => [column.key, column.label]), [["week", "Week 3"], ["pathway", given.title], ["written", "Written answer"], ["case", "Case"]]);
+    assert.equal(columns[0].note, "Locks Tue 6pm", "the group's week 3 meets tonight at 6pm");
     assert.deepEqual(cellsOf("bea"), {
+      week: {
+        text: "Submitted Tue 17 Nov, 9am",
+        href: null,
+        detail: "1 of 3 done",
+        tone: "done",
+        // The lead reopens a facilitator's own week.
+        reopen: { runId: RUN.agi, weekNumber: 3, uid: "bea", firstName: "Bea" },
+      },
       pathway: { text: given.packs[1].name, href: null },
       written: { text: "To give feedback", href: "lead-review?week=3&person=bea" },
       case: { text: caseTitle("bea"), href: null },
@@ -1040,6 +1101,9 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
       const queues = await lib.queue.loadWrittenQueues(world.courseDb, w.sessionOf(who), run, groups);
       return (queues?.get(B) ?? []).map((row) => `${row.uid} w${row.weekNumber}`).sort();
     };
+    // Feedback to write waits from the week's session: before Group B meets for week 3, nothing does.
+    assert.deepEqual(await waiting("rahul"), []);
+    at("2026-11-17T18:30:00Z");
     assert.deepEqual(await waiting("rahul"), ["amara w3"]);
     assert.deepEqual(await waiting("sofia"), ["amara w3"]);
     assert.deepEqual(await waiting("claudia"), ["amara w3", "bea w3"]);
@@ -1151,7 +1215,11 @@ describe("7. week 6 (Group B meets on Tue 8 Dec, its last session)", () => {
     const fillIn = stored(6).week.blocks.flatMap((block) => (block.type === "part" ? block.blocks : [block])).find((block) => block.type === "fillIn");
     const heading = `Each person’s ${fillIn.title.replace(/^my\s+/i, "")}`;
     const section = (text) => text.slice(text.indexOf(heading), text.indexOf("Reading ticks"));
-    const listed = (text) => [...section(text).matchAll(/(Amara Okafor|Bea Lindqvist|Rahul Mehta|Sofia Rossi)(?: Facilitator)? (\d+) of 12 filled/g)].map((m) => `${m[1].split(" ")[0].toLowerCase()} ${m[2]}`);
+    // Each by the name the names rule shows the reader: a facilitator the name each goes by, an admin the full name.
+    const listed = (text) =>
+      [...section(text).matchAll(/(Amara(?: Okafor)?|Bea(?: Lindqvist)?|Rahul(?: Mehta)?|Sofia(?: Rossi)?)(?: Facilitator)? (\d+) of 12 filled/g)].map(
+        (m) => `${m[1].split(" ")[0].toLowerCase()} ${m[2]}`,
+      );
     const admitted = async (who) => {
       const out = [];
       for (const uid of ["amara", "bea", "rahul", "sofia"]) if ((await readBoxes(who, uid)).status === 200) out.push(uid);
@@ -1172,7 +1240,8 @@ describe("7. week 6 (Group B meets on Tue 8 Dec, its last session)", () => {
       // Their words are on the page, behind "Read it", and nobody else's.
       const words = (page.html.match(/A step on /g) ?? []).length;
       assert.equal(words, people.reduce((sum, entry) => sum + Number(entry.split(" ")[1]), 0), `${who}: words of people not listed`);
-      assert.match(page.html, /aria-label="Read it: Amara Okafor’s [^"]+"/);
+      // Named as the names rule names her to this reader: her full name to an admin.
+      assert.match(page.html, new RegExp(`aria-label="Read it: Amara${who === "zach" ? " Okafor" : ""}’s [^"]+"`));
     }
     // Rahul and Sofia are refused Bea's by the route, and Bea's plan is on neither of their pages.
     for (const who of ["rahul", "sofia"]) assert.deepEqual(await admitted(who), ["amara"], who);
@@ -1216,7 +1285,7 @@ describe("7. week 6 (Group B meets on Tue 8 Dec, its last session)", () => {
     ok(sent, "send");
     let waiting = await lib.waiting.surveysWaitingFor(world.db, { uid: "amara" }, new Date());
     assert.deepEqual(waiting.map((card) => card.kind), ["after"]);
-    // Dev left, so the survey at the end is not his (Q48: everyone still on the programme at the end).
+    // Dev left, so the survey at the end is not his (everyone still on the programme at the end).
     assert.equal(tokenOf(made.survey.id, "dev"), null);
     // A1, W-self in the last week: Bea holds a place in Group B, so the same survey waits for Bea too. Home's card
     // for it, on the day of the last session, names as stepping out only the group's facilitators who hold no place

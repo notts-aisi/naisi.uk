@@ -4,10 +4,11 @@
  * ## Why this step gets a real test
  *
  * A register is SHARED: one document per (group, session), with the member's
- * uid as a MAP KEY in two different maps. `records` holds their marks;
+ * uid as a MAP KEY in three different maps. `records` holds their marks;
  * `participantNotes` holds a facilitator's prose ABOUT them, which is personal
- * data written by another student and reachable by a subject access request.
- * Deleting an account has to take both, and it has to take them WITHOUT
+ * data written by another student and reachable by a subject access request;
+ * `excusedInAdvance` holds when they told us they could not make the session.
+ * Deleting an account has to take all three, and it has to take them WITHOUT
  * deleting the document, because the document is the whole group's session.
  *
  * Three ways that goes wrong, each of them silent:
@@ -321,4 +322,30 @@ test("occurrence-2 registers are swept by the same scan", async () => {
     assert.equal("gone" in db.raw.get(id).records, false, id);
     assert.equal("gone" in db.raw.get(id).participantNotes, false, id);
   }
+});
+
+test("when they told us in advance they could not make a session goes too, with the mark it came with", async () => {
+  const db = makeDb({
+    run1__grp1__w06: register({
+      records: { gone: "excused", stays: "excused" },
+      participantNotes: {},
+      excusedInAdvance: { gone: "2026-11-16T09:00:00.000Z", stays: "2026-11-16T10:00:00.000Z" },
+    }),
+  });
+
+  assert.equal(await clearCourseAttendanceMarks(db, ["run1"], "gone"), 1);
+  const doc = db.raw.get("run1__grp1__w06");
+  assert.deepEqual(doc.records, { stays: "excused" });
+  assert.deepEqual(doc.excusedInAdvance, { stays: "2026-11-16T10:00:00.000Z" }, "somebody else's word is untouched");
+});
+
+test("a register holding only their word in advance still qualifies", async () => {
+  // A facilitator may have taken the mark over and cleared it; the note of
+  // when they told us stays theirs, and goes with their account.
+  const db = makeDb({
+    run1__grp1__w07: register({ records: { stays: "present" }, participantNotes: {}, excusedInAdvance: { gone: "2026-11-16T09:00:00.000Z" } }),
+  });
+
+  assert.equal(await clearCourseAttendanceMarks(db, ["run1"], "gone"), 1);
+  assert.deepEqual(db.raw.get("run1__grp1__w07").excusedInAdvance, {});
 });

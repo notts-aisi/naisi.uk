@@ -13,7 +13,7 @@ import {
 } from "./model";
 
 /**
- * A PASTED WEEK, READ (board pr-weeks, Option B, Q39): the Markdown read
+ * A PASTED WEEK, READ: the Markdown read
  * into blocks, its ids settled against the week as stored, its pointers
  * worked out, then the found list, the things to check, and what stops it
  * being saved. The loader's route asks this for "Read it" and again for

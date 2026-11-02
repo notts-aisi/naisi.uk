@@ -9,7 +9,7 @@ import AvailabilityStep from "../apply/AvailabilityStep";
 import styles from "./WhenYoureFreeEditor.module.css";
 
 /**
- * "CHANGE WHEN YOU’RE FREE" (Q7): the form's own editor (`AvailabilityStep`:
+ * "CHANGE WHEN YOU’RE FREE": the form's own editor (`AvailabilityStep`:
  * painting, or typing times, the route for a keyboard or a screen reader),
  * on a page of its own, with Save and Cancel. Save sends the week to its
  * route, which holds it to the same codec and limits as the form and refuses

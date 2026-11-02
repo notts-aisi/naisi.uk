@@ -15,7 +15,7 @@ import { ANSWER_WORDS, STATE_WORDS } from "@/lib/surveys/words";
 import styles from "./survey.module.css";
 
 /**
- * A PERSON'S SURVEY, BY THEIR PERSONAL LINK (sv-before-phone), with no
+ * A PERSON'S SURVEY, BY THEIR PERSONAL LINK, with no
  * sign-in: the secret in the address opens their own row and nobody else's.
  * Signed in or not, the page is the same; the answers are kept against the
  * person the link was made for.
@@ -99,7 +99,7 @@ export default async function SurveyLinkPage({ params }: { params: Promise<{ tok
           <Link href="/" prefetch={false} className={styles.brand} aria-label="NAISI home">
             <BrandMark size={28} />
           </Link>
-          <span className={styles.barTitle}>{ANSWER_WORDS.eyebrow}</span>
+          <span className={styles.barTitle}>{(screen.state === "open" && screen.survey.bar) || ANSWER_WORDS.eyebrow}</span>
           <span className={styles.barEnd} aria-hidden="true" />
         </div>
         <div className={styles.body}>
