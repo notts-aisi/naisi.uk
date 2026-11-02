@@ -128,6 +128,9 @@ const { loadTs } = createLoader({
     ],
     ["@/lib/firebase/admin", "export const getAdminDb = () => globalThis.__db ?? null;"],
     ["@/lib/firebase/session", "export const getCurrentUser = async () => globalThis.__user ?? null;"],
+    // The view-as guard every event write asks first: nothing here is a view-as
+    // session (tests/event-view-as.test.mjs runs one against every handler).
+    ["@/lib/firebase/impersonation", "export async function assertNotImpersonating() { return null; }"],
     // Which path a publish takes. The real reader is executed by
     // tests/event-announcements-job.test.mjs; here it is the knob, and it can
     // fail the way a config read can.

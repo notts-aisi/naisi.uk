@@ -108,6 +108,9 @@ const { loadTs } = createLoader({
     ],
     ["@/lib/firebase/admin", "export const getAdminDb = () => globalThis.__db ?? null;"],
     ["@/lib/firebase/session", "export const getCurrentUser = async () => globalThis.__user ?? null;"],
+    // The view-as guard every event write asks first: nothing here is a view-as
+    // session (tests/event-view-as.test.mjs runs one against every handler).
+    ["@/lib/firebase/impersonation", "export async function assertNotImpersonating() { return null; }"],
     // The bot gate and the throttle, faked. What this file is about is the
     // identity a submission is keyed on, and the throttle counts hits in
     // module state that no test can reset, so a suite that reused one address

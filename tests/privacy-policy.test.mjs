@@ -7565,7 +7565,11 @@ describe("the check-in passage", () => {
     const decide = withoutComments(read("src/lib/events/selfCheckIn.ts"));
     const byLink = decide.indexOf("if (rsvpId && token) {");
     assert.ok(byLink !== -1 && byLink < decide.indexOf('if (!user) return { kind: "sign-in" };'), "the link no longer decides on its own");
-    assert.match(withoutComments(read("src/app/events/[id]/check-in/page.tsx")), /const user = link\.token \? null : await getCurrentUser\(\);/);
+    // CHANGED ON PURPOSE: the page reads the session once, first, to ask
+    // whether the person may see an event for chosen people at all
+    // (selfCheckInSight); the decision is still handed no session when a
+    // link is there, so the link still decides on its own.
+    assert.match(withoutComments(read("src/app/events/[id]/check-in/page.tsx")), /const user = link\.token \? null : signedIn;/);
     assert.ok(existsSync(join(REPO_ROOT, "tests", "event-self-check-in.test.mjs")), "tests/event-self-check-in.test.mjs sends the emails both ways, and through the routes");
   });
 
