@@ -46,7 +46,9 @@ kind of survey starts with, changed by an admin).
   event that its event sets up** (below): the event's author and
   collaborators set it up in the event editor's Survey after step, change it
   on the event's Survey after tab until it goes, and may send it sooner
-  there ("Send it now"); the `event-surveys` job sends it by itself. They see
+  there ("Send it now"), which at a started event with no survey of its own
+  sets one up with the standard questions and sends it; the `event-surveys`
+  job sends it by itself. They see
   what is set, that it went, when and to how many, never an answer, a count
   of answers or who answered: its results stay admins' alone.
 - **Confidential, never anonymous.** Every survey on the site knows who answered.
@@ -1573,7 +1575,9 @@ with `isEventSurvey` and hand it over.
     it; one reminder 3 days after it went; and whether its QR code shows on
     the Check-in tab. Saved with the event, on `events/{id}.surveyAfter`. Only
     a stored setting counts: an event made before the step has none, and
-    nothing reads a missing one as on.
+    nothing reads a missing one as on. Publishing and the job set nothing up
+    for an event switched off or with none; only "Send it now" (below) does,
+    by a person's press once it has started.
   - *Publishing sets it up* (`setUpEventSurvey` in `events/setUp.ts`, from the
     publish route): the survey as an admin's is made, with the step's
     questions and who, closing a week after the event (when a walk-in's
@@ -1607,7 +1611,26 @@ with `isEventSurvey` and hand it over.
     `POST /api/events/[id]/survey-after/send`), from the event's start until it
     has gone, with the number it emails on the button, refused when that has
     changed; no test first, the words being fixed and shown in the step.
-    "Send a test to me" (`.../survey-after/test`) is offered beside it. The
+    At a published event with no survey of its own (switched off, published
+    before the step, or one whose setting up failed), from its start until a
+    week after, the same press sets one up first and sends it: from its
+    stored setting when switched on, otherwise from the step's defaults
+    (everyone who came, the one question about not coming under the usual
+    rule about the door, the reminder, the code) with the standard questions,
+    going only by hand (`STANDARD_BY_HAND` and `sendNowSetting` in
+    `events/setUp.ts`), and the event keeps that setting, written in the same
+    transaction. It is counted before anything is written
+    (`sendNowCountBefore`), so a press refused for its number leaves nothing
+    behind, and two presses at once make one survey (the set up's
+    transaction) and send it once (the survey's claim). The tab says so above
+    the button ("No survey is set up for this event, so this sends the
+    standard questions to everyone who came."), and before the start that it
+    can be sent from then; an event with no stored setting has the button and
+    no setting to change. Nothing in the press waits on the `event-surveys`
+    job: its first email opens the survey, and the press that opened it makes
+    its QR code, as the job's opening would have.
+    "Send a test to me" (`.../survey-after/test`) is offered beside it, once
+    the survey is there. The
     setting changes there too (`PATCH /api/events/[id]/survey-after`): its
     questions until it opens, who and when until it goes, its reminder until
     that has gone, the code at any time; switched off before it opens, the
