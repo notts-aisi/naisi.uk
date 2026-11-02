@@ -149,7 +149,7 @@ export const POLICIES: Record<
     // so a comment sitting there leaves the guard unable to read the very
     // number it exists to pin. Anywhere else in the file is fine.
     versions: [
-      { version: 15, lastUpdated: "31 October 2026" },
+      { version: 15, lastUpdated: "2 November 2026" },
       { version: 14, lastUpdated: "30 October 2026" },
       { version: 13, lastUpdated: "30 October 2026" },
       { version: 12, lastUpdated: "29 October 2026" },

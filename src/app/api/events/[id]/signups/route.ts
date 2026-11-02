@@ -9,14 +9,14 @@ const EVENT_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
 /**
  * The requests for a place at one event that are waiting for a decision, for
- * the event's Sign-ups page: each with the name, when they asked, a few words
- * about who is asking (`src/lib/events/requestCard.ts`) and their answers,
- * and whether the caller may decide them.
+ * the event's Sign-ups page: each with the name, when they asked and a few
+ * words about who is asking (`src/lib/events/requestCard.ts`), and whether
+ * the caller may decide them.
  *
  * For the people who see the requests (`signupAccessFor`): admins,
  * SU-recognised committee, and the event's author and collaborators while
  * their accounts stand. What each is sent is decided once, by
- * `projectSignupRequests`: an address and every answer only for admins and
+ * `projectSignupRequests`: an address and the answers only for admins and
  * SU-recognised committee, who read the whole list client-direct as well, and
  * whether somebody missed the last two events they had a place at only for
  * admins (`src/lib/events/missedEvents.ts`). Nobody here is sent anybody
@@ -50,15 +50,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const facts = await requestFacts(db, waiting, viewer, access, new Date());
 
   return NextResponse.json({
-    // Answers are held back by the questions they were given to: the form as
-    // it stands and every version it had since the event went live.
-    requests: projectSignupRequests(
-      waiting,
-      event.signupForm,
-      facts,
-      { everyone: access.everyone, isAdmin: viewer.role === "admin" },
-      event.foodHealthAccessQuestionIds,
-    ),
+    requests: projectSignupRequests(waiting, event.signupForm, facts, { everyone: access.everyone, isAdmin: viewer.role === "admin" }),
     decides: access.decides,
   });
 }

@@ -168,10 +168,12 @@ export function questionLead(question: string): string {
 
 /**
  * A request's answers, in the order the event asks them, leaving out the
- * questions it was not answered. `withFoodHealthAndAccess` is false for an
- * organiser the Students' Union does not recognise, who is shown no answer
- * to a question that may carry dietary or accessibility details, now or in
- * any earlier version of the event's form (`heldBackBefore`).
+ * questions it was not answered. With `withFoodHealthAndAccess` false it
+ * leaves out every question that may carry dietary or accessibility details,
+ * now or in any earlier version of the event's form (`heldBackBefore`).
+ * Nothing passes false today: the requests route sends an organiser the
+ * Students' Union does not recognise no answer at all
+ * (`projectSignupRequests`).
  */
 export function answerLines(
   questions: readonly FormQuestion[],
