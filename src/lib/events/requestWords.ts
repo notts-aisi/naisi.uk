@@ -170,14 +170,20 @@ export function questionLead(question: string): string {
  * A request's answers, in the order the event asks them, leaving out the
  * questions it was not answered. `withFoodHealthAndAccess` is false for an
  * organiser the Students' Union does not recognise, who is shown no answer
- * to a question that may carry dietary or accessibility details.
+ * to a question that may carry dietary or accessibility details, now or in
+ * any earlier version of the event's form (`heldBackBefore`).
  */
 export function answerLines(
   questions: readonly FormQuestion[],
   answers: Record<string, RsvpAnswer>,
-  options: { withFoodHealthAndAccess: boolean },
+  options: { withFoodHealthAndAccess: boolean; heldBackBefore?: readonly string[] },
 ): AnswerLine[] {
-  const hidden = options.withFoodHealthAndAccess ? new Set<string>() : foodHealthOrAccessQuestions(questions);
+  // A question is held back when it is one now, or was one in an earlier
+  // version of the form (`heldBackBefore`, the event's
+  // foodHealthAccessQuestionIds): its answers were given to that question.
+  const hidden = options.withFoodHealthAndAccess
+    ? new Set<string>()
+    : new Set([...foodHealthOrAccessQuestions(questions), ...(options.heldBackBefore ?? [])]);
   const lines: AnswerLine[] = [];
   for (const q of questions) {
     if (hidden.has(q.id)) continue;

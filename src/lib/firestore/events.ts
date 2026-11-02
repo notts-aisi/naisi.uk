@@ -573,6 +573,22 @@ export type EventDoc = {
    */
   selfCheckIn: boolean;
   /**
+   * Every question id that, in any version of the sign-up form the event has
+   * carried since it went live, may carry a dietary or accessibility answer
+   * (`foodHealthOrAccessQuestions` in `src/lib/events/requestWords.ts`). An
+   * answer is hidden from an organiser the Students' Union does not recognise
+   * when its question is one now OR was one in any of those versions, so
+   * retyping, relabelling, moving or removing and re-adding a question under
+   * the same id never shows what was given as a dietary or accessibility
+   * answer. Only grows. The site writes it from `/api/events/[id]/update`
+   * alone, the one path that changes a live event's form (firestore.rules
+   * closes a published event to every browser but an admin's), adding both
+   * the form it replaces and the form it saves; an event whose form has not
+   * changed since it went live has none, and its form as it stands says the
+   * same thing.
+   */
+  foodHealthAccessQuestionIds: string[];
+  /**
    * When the door was opened, and by whom: the door list takes a tick, and
    * people check themselves in, only once the event's author or an admin has
    * opened it, inside the door's hours. Written once, by
@@ -855,6 +871,9 @@ export function normalizeEvent(id: string, data: Raw): EventDoc {
       capacity === null ? false : data.waitlistEnabled !== false,
     noSignup: data.noSignup === true,
     selfCheckIn: data.selfCheckIn === true,
+    foodHealthAccessQuestionIds: Array.isArray(data.foodHealthAccessQuestionIds)
+      ? data.foodHealthAccessQuestionIds.filter((id): id is string => typeof id === "string" && id !== "")
+      : [],
     doorOpenedAt: tsToDate(data.doorOpenedAt),
     doorOpenedBy: typeof data.doorOpenedBy === "string" && data.doorOpenedBy ? data.doorOpenedBy : null,
     surveyAfter: readSurveyAfter(data.surveyAfter),

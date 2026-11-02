@@ -50,10 +50,15 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const facts = await requestFacts(db, waiting, viewer, access, new Date());
 
   return NextResponse.json({
-    requests: projectSignupRequests(waiting, event.signupForm, facts, {
-      everyone: access.everyone,
-      isAdmin: viewer.role === "admin",
-    }),
+    // Answers are held back by the questions they were given to: the form as
+    // it stands and every version it had since the event went live.
+    requests: projectSignupRequests(
+      waiting,
+      event.signupForm,
+      facts,
+      { everyone: access.everyone, isAdmin: viewer.role === "admin" },
+      event.foodHealthAccessQuestionIds,
+    ),
     decides: access.decides,
   });
 }
