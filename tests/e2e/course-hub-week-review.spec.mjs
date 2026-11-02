@@ -23,7 +23,8 @@
  *    Fern's board with fixed words and no reason;
  *  - the admin presses Review with Claude once: in local mode the fake is
  *    asked its three asks once each, with nobody's name or address in them,
- *    and the page shows its draft grade, its theme and its hand for Ada;
+ *    and the page shows its draft grade, its theme and its one hand, on one
+ *    of the two people whose writing was sent;
  *    against a deployed target, the review or one of the site's reasons;
  *  - the week's Notes, beside its review, say who submitted and show both
  *    drafts, Ada's built only from her submitted week, with its boxes for
@@ -436,11 +437,19 @@ test(
           const themes = main.locator('section[aria-labelledby="review-themes"]');
           await themes.getByText(FAKE_CLAUDE_WORDS.themeTitle, { exact: true }).waitFor({ timeout: WAIT_MS });
           assert.ok((await wordsIn(themes)).includes(FAKE_CLAUDE_WORDS.themeDetail), "the theme does not say what it found");
-          // Who might need a hand: the first fellow sent, Ada, resting on her own answer, beside the site's own line about Ben.
+          // Who might need a hand: the fake's one hand, for the first fellow sent, resting on their own
+          // writing, with the name put back; beside the site's own line about Ben. Only Ada and Cleo
+          // had writing that could be sent, so it is one of them, and never anybody else.
           const hands = main.locator('section[aria-labelledby="review-hands"]');
-          const adaRow = hands.locator("li").filter({ hasText: FAKE_CLAUDE_WORDS.handWhy }).filter({ hasText: ada.displayName }).first();
-          await adaRow.waitFor({ timeout: WAIT_MS });
-          assert.ok((await wordsIn(adaRow)).includes(WORDS.fromClaudeAnswers), "Claude's hand does not say where it came from");
+          const handRows = hands.locator(":scope > ul > li").filter({ hasText: FAKE_CLAUDE_WORDS.handWhy });
+          await handRows.first().waitFor({ timeout: WAIT_MS });
+          assert.equal(await handRows.count(), 1, "the fake's one hand is on more than one person, or none");
+          const handSaid = await wordsIn(handRows.first());
+          assert.ok(handSaid.includes(WORDS.fromClaudeAnswers), `Claude's hand does not say where it came from: ${handSaid}`);
+          assert.ok(
+            [ada, cleo].some((person) => handSaid.includes(person.displayName)),
+            `Claude's hand is not on somebody whose writing was sent: ${handSaid}`,
+          );
           await hands.locator("li").filter({ hasText: WORDS.notStarted }).filter({ hasText: ben.displayName }).first().waitFor({ timeout: WAIT_MS });
           // The three asks, once each, and no name or address of anybody's in what would have gone to Anthropic.
           const sent = (await fakeClaudeRequests()).slice(askedBefore);
