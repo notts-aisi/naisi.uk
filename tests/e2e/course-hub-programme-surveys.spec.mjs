@@ -76,9 +76,6 @@ const MARKER = markerPath(SPEC.name, RUN_STATE_DIR);
 /** Every locator waits at most this long. Generous: a server compiles a route on its first request. */
 const WAIT_MS = 30_000;
 
-/** How often a poll asks again. */
-const POLL_MS = 500;
-
 // ---------------------------------------------------------------------------
 // The pages' words, restated
 // ---------------------------------------------------------------------------
@@ -226,16 +223,6 @@ const skipReason = !playwright
       ? "E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD are not set. Every page on this journey is an admin's, " +
         "and this harness cannot create an admin."
       : null;
-
-async function waitFor(what, predicate, { timeout = WAIT_MS } = {}) {
-  const deadline = Date.now() + timeout;
-  for (;;) {
-    const answer = await predicate();
-    if (answer) return answer;
-    if (Date.now() > deadline) throw new Error(`Timed out after ${timeout}ms waiting for ${what}.`);
-    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-  }
-}
 
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const flat = (text) => text.replace(/\s+/g, " ").trim();
