@@ -393,6 +393,10 @@ export const FIXTURE_COLLECTIONS = [
   // nothing a fixture seeds.
   "courseWeekWork",
   "courseWorkLog",
+  // A facilitator's report on a session of their group, one a writer and
+  // session (`runId` on every one). Written by the session report route a
+  // spec drives, and by nothing a fixture seeds.
+  "courseSessionReports",
   // What Claude picked from a week and what Pangram read in a person's
   // answers (privacy v13), each with `runId` on it. Written by the best
   // answers and Pangram routes a spec presses, and by nothing a fixture seeds.
