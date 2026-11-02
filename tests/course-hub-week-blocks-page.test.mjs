@@ -769,8 +769,8 @@ describe("4. counts by This week's tasks", () => {
     assert.equal(task.type, "task");
     assert.equal(task.label, "Parts 1 to 3");
     // `answerIds` joined the needs with the written answer (its own page),
-    // the Choose ones and talks a task covers with packs and cases (plan
-    // item 8), and the fill-in boxes with week 6's: week 1 has none of the
+    // the Choose ones and talks a task covers with packs and cases,
+    // and the fill-in boxes with week 6's: week 1 has none of the
     // four, so each is empty, held as strictly as the rest.
     assert.deepEqual(task.needs, {
       tickIds: sources("k1"),

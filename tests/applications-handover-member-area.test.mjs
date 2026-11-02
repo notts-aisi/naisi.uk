@@ -290,7 +290,7 @@ async function publishes() {
 }
 
 describe("once an admin puts them in a group, the run and the group show when Publish has told them", () => {
-  // CHANGED ON PURPOSE (course hub, Q11 "only once it's published and emailed").
+  // CHANGED ON PURPOSE (course hub: "only once it's published and emailed").
   // This test used to hold that the run and the group showed as soon as an
   // admin placed somebody, before Publish. It now holds the opposite at that
   // moment, and the same five facts as before once Publish has emailed them.

@@ -1,10 +1,10 @@
 /**
  * Asking people to facilitate (the Facilitators view and the page that asks somebody to facilitate:
- * Q6 option B): the Facilitators view's read, asking with a test first and a
+ * ask, then train): the Facilitators view's read, asking with a test first and a
  * count, reminding, asking somebody else, the answer, the training, and where
  * a facilitator who holds a place sits.
  *
- * Q21 ("nobody facilitates a programme they take part in", approved 24 Oct
+ * The rule "nobody facilitates a programme they take part in" (approved 24 Oct
  * 2026) was LIFTED on Mon 26 Oct 2026: a facilitator can be one of
  * the programme's fellows, holding a place, in the same group they
  * facilitate. The tests that pinned the refusal now pin that rule as
@@ -237,7 +237,7 @@ describe("2. the Facilitators view's read", () => {
       omar: ["No offer this time", null, "button"],
       wen: ["Taking part in another programme", null, "button"],
       nina: ["Gave their place back", null, "button"],
-      // Q21 was lifted on Mon 26 Oct 2026: somebody holding a place on
+      // That rule was lifted on Mon 26 Oct 2026: somebody holding a place on
       // AGI Strategy may be asked, with where they stand and the button, as
       // anybody else may. It was "Can’t facilitate a programme they’re
       // taking part in" and no button.
@@ -616,7 +616,7 @@ describe("4. answers, and who can be asked at all", () => {
     assert.deepEqual(world.db.read(`courseGroups/${B}`).facilitatorUids, ["rahul", "sofia", "wen"]);
   });
 
-  // Q21 ("nobody facilitates a programme they take part in") was lifted on
+  // The rule "nobody facilitates a programme they take part in" was lifted on
   // Mon 26 Oct 2026: a facilitator can be one of the programme's
   // fellows. This test pinned that Amara, who holds an AGI Strategy place,
   // was refused with "That person is taking part in AGI Strategy, so they
@@ -642,7 +642,7 @@ describe("4. answers, and who can be asked at all", () => {
     assert.deepEqual(asksStored().map((each) => each.uid), ["amara"]);
   });
 
-  // Q21 is lifted (above). This test pinned that Omar, asked with no offer,
+  // That rule is lifted (above). This test pinned that Omar, asked with no offer,
   // could not say yes after accepting a freed AGI Strategy place ("You’re
   // taking part in AGI Strategy, so you can’t facilitate it this term.").
   // Omar is one of the fellows now, so it pins what replaces that: the yes
@@ -675,7 +675,7 @@ describe("4. answers, and who can be asked at all", () => {
     assert.equal(groupOf(B).memberCount, 1);
   });
 
-  // Q21 is lifted (above). This test pinned that the group facilitators route
+  // That rule is lifted (above). This test pinned that the group facilitators route
   // refused Amara, a learner in Group B, as Group A's facilitator ("Amara
   // Okafor can’t facilitate a programme they’re taking part in, so nothing
   // was saved."). Amara may facilitate now, but sits in the group they

@@ -509,7 +509,7 @@ describe("the follow-up task", () => {
   });
 
   test("lands on the committee board, assigned to the run's lead and every admin", () => {
-    // Q17 as drawn: the task is the lead's and the admins'. It used to be every
+    // As designed: the task is the lead's and the admins'. It used to be every
     // admin's alone; the lead now comes first.
     const task = buildRegisterFollowUpTask(args());
     assert.equal(task.source, "course-register");

@@ -1659,8 +1659,7 @@ const THE_LEAVING_EMAIL = (first) =>
  * which is drawn with no session to come. Group B's week 4 reads as cancelled
  * in the run home's weeks, from the run's own record of the cancellation
  * (until the walk of stage three Home's strip read it as "not marked yet",
- * from the register alone: H2); Home draws no marks since the restyle
- *.
+ * from the register alone: H2); Home draws no marks since the restyle.
  */
 const MEMBER_PAGES = {
   amara: {

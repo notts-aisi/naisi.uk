@@ -1,8 +1,8 @@
 /**
  * The pages a member uses every week: their programme's home
  * (before the first session and once it has started),
- * their marks with no target, and Home's card for their programme
- *, where a reading is ticked off as it is on its week.
+ * their marks with no target, and Home's card for their programme,
+ * where a reading is ticked off as it is on its week.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *

@@ -89,8 +89,8 @@ const auditRows = () =>
 describe("who may offer a freed place: an admin, or the programme's lead", () => {
   /**
    * [caller, who they are, the answer to a press, the answer to a test].
-   * AGI Strategy's lead, Claudia, offers since the course hub's lead access
-   *: she meets the rule below, as an admin does.
+   * AGI Strategy's lead, Claudia, offers since the course hub's lead access:
+   * she meets the rule below, as an admin does.
    */
   const CALLERS = [
     [null, "signed out", 401, 401],

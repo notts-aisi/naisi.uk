@@ -433,8 +433,8 @@ export type OverviewTalk = {
 };
 
 /**
- * THE CALLER'S OWN PACKS, CASES AND READY MARKS IN ONE WEEK WRITTEN AS BLOCKS
- *, for the week page: the pack they have in each Choose
+ * THE CALLER'S OWN PACKS, CASES AND READY MARKS IN ONE WEEK WRITTEN AS BLOCKS,
+ * for the week page: the pack they have in each Choose
  * one, picked or given out, the case they were given in each talk, and the
  * talks they marked themselves ready for, each held to the week's blocks as
  * they are now. `open` says whether a pack the caller picks themselves can
@@ -570,8 +570,8 @@ export type OverviewPayload = {
     feedback: OwnFeedbackCard[] | null;
   }>;
   /**
-   * Who a person taking part asks to switch a pack or swap a case (Q32 A:
-   * "To swap, ask Rahul or Sofia"): the first names of their own group's
+   * Who a person taking part asks to switch a pack or swap a case
+   * ("To swap, ask Rahul or Sofia"): the first names of their own group's
    * facilitators other than themselves. Empty with no group.
    */
   askToSwap: string[];
@@ -584,8 +584,8 @@ export type OverviewPayload = {
    * The programme on the application form that names this run, as a member's
    * pages name it ("AGI Strategy", a fellowship), or null when no programme
    * names it. Nothing else of the form travels but its lead's first name,
-   * which a week page says when it tells someone who reads their reflections
-   *; null when no lead stands.
+   * which a week page says when it tells someone who reads their reflections;
+   * null when no lead stands.
    */
   programme: { name: string; kind: ProgrammeKind; leadFirstName: string | null } | null;
   /**

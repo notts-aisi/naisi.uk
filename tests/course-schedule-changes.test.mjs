@@ -249,8 +249,8 @@ const RUN_EDITOR = src("features", "courses", "RunEditor.tsx");
 const WEEK_PLAN_BUILDER = src("features", "courses", "WeekPlanBuilder.tsx");
 const WEEK_VIEW = src("features", "courses", "WeekView.tsx");
 const RUN_HOME = src("features", "courses", "RunHome.tsx");
-// The run home's ticket reads its session's facts here since the restyle
-//: the next session's own week.
+// The run home's ticket reads its session's facts here since the restyle:
+// the next session's own week.
 const CARD_FACTS = src("features", "courses", "sessionChange", "cardFacts.ts");
 const USE_WEEK = src("features", "courses", "useWeek.ts");
 const USE_GROUP_WEEKS = src("features", "courses", "useGroupWeeks.ts");

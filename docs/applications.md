@@ -1091,8 +1091,8 @@ above). `result` is what decision day said and no reply changes it. A place give
 `status/standing.ts` reads all of that off the document, and `decideReply()`
 in `status/replies.ts` is the whole table.
 
-**Once somebody is in a group, "I can't make it" is leaving the programme**
-. When Publish has told them their group on the run their place's
+**Once somebody is in a group, "I can't make it" is leaving the programme**.
+When Publish has told them their group on the run their place's
 programme names, the reply takes the one leave "Leave the programme" takes
 on their programme page, in the same transaction and through the same
 code (see "Leaving the programme gives the place back"): they leave their

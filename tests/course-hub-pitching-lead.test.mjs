@@ -1,6 +1,6 @@
 /**
- * The pitches from a programme's pitching week, for its lead and for admins
- *: who may read the list, what it counts, what it
+ * The pitches from a programme's pitching week, for its lead and for admins:
+ * who may read the list, what it counts, what it
  * never says, and how the Groups tab's views reach it.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).

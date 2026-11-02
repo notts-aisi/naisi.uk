@@ -111,8 +111,8 @@ import styles from "./WeekView.module.css";
  * PROGRESS SEMANTICS ARE UNCHANGED BY EXERCISES: the fraction counts
  * non-optional materials plus checklist items and nothing else.
  *
- * A WEEK WRITTEN AS BLOCKS is drawn by `weekBlocks/BlockWeek.tsx` instead
- *, from the same data: the
+ * A WEEK WRITTEN AS BLOCKS is drawn by `weekBlocks/BlockWeek.tsx` instead,
+ * from the same data: the
  * overview, the week's document, the reader's own ticks and their own rows
  * (their reflections among them). Everything below the branch is a week
  * written before blocks, drawn exactly as it always has been.

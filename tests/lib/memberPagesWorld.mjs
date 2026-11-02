@@ -1,8 +1,8 @@
 /**
  * Week 3 of AGI Strategy's run, for the suites about the pages a member uses
  * every week: their programme's home, a
- * week's page and Home's card for their programme
- *, with each week opening straight after the group's previous
+ * week's page and Home's card for their programme,
+ * with each week opening straight after the group's previous
  * session, marks with no count and ticks from Home.
  *
  * Built on `tests/lib/hubAttendanceWorld.mjs`: the run in its third week as

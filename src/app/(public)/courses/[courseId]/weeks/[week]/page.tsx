@@ -128,7 +128,7 @@ export default async function PublicCourseWeekPage({ params }: Props) {
             ) : null}
           </header>
 
-          {/* A week written as blocks shows what Q40 lets it (`publicBlockWeek`);
+          {/* A week written as blocks shows only what may be public (`publicBlockWeek`);
               any other week is drawn exactly as before. */}
           {isBlockWeek(weekDoc) ? (
             <PublicBlockWeek week={publicBlockWeek(weekDoc.blocks)} />

@@ -72,7 +72,7 @@ import styles from "./home.module.css";
  * BEFORE THE GROUP'S FIRST SESSION, on every day
  * before the day of the first session: the first session as a ticket with
  * "Open your group" in it; who's coming, each person by first name with
- * "coming" or "hasn't said", once Publish has told them their group (Q14:
+ * "coming" or "hasn't said", once Publish has told them their group (as decided,
  * the summary hands it to the group's facilitators and to nobody else, and
  * nothing else from an application); and Say hello, the way to write to the
  * group, while anybody in it has been told. From the day of the first

@@ -677,8 +677,8 @@ export type CourseWeekDoc = {
    *    the mark alone: a week already open to its groups stays open.
    *    Whether a week is ready is asked of `weekIsReady`
    *    (`src/lib/courses/weekReady.ts`) and nothing else.
-   *  - Week 1 opening BEFORE groups go out, to everybody holding a place
-   *   , asks READY, not Published: that is the lead deciding the
+   *  - Week 1 opening BEFORE groups go out, to everybody holding a place,
+   * asks READY, not Published: that is the lead deciding the
    *    week is fit to open early. After groups go out every published week
    *    is open to every group at once (Zach, 27 October 2026).
    *  - A published week that is not ready is a week shown by the switch in

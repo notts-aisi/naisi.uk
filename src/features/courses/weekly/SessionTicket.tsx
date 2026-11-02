@@ -20,8 +20,8 @@ import styles from "./weekly.module.css";
  * which the caller words) and offers the link to join, and a room that is
  * not the group's usual one says so beside it.
  *
- * "Add to calendar" (`calendar`) is the person's own calendar link
- *: under the room on the programme page, and in a row of
+ * "Add to calendar" (`calendar`) is the person's own calendar link:
+ * under the room on the programme page, and in a row of
  * its own under the card on Home. An online week's ticket carries Join online
  * in its place, in the row under the card with the line that the link is
  * only here. "Can’t make it" (`cantMakeIt`) sits beside Add to calendar on

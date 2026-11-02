@@ -10,8 +10,8 @@ import { WhatsNextCard, type NextEvent } from "./ProgrammeEnd";
 import styles from "./weekly.module.css";
 
 /**
- * THE PROGRAMME PAGE ONCE IT IS OVER, for somebody who took part in it
- *, drawn by `RunHome`
+ * THE PROGRAMME PAGE ONCE IT IS OVER, for somebody who took part in it,
+ * drawn by `RunHome`
  * from what it and the server page hand it. In the boards' order:
  *
  *  1. The head: "You finished AGI Strategy." with the term, the group and

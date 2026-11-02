@@ -42,7 +42,7 @@ import { AFTER_SURVEY_CARD_WORDS, haveAnsweredParts, leadSurveyLineWords, leadSu
  * programme's lead or an admin first (`loadProgrammeRun`).
  */
 
-/** The questions of the survey at the end the board calls "How it went": Q1, Q2 and Q3 of the questionnaire, by their fixed ids. */
+/** The questions of the survey at the end the design calls "How it went": Q1, Q2 and Q3 of the questionnaire, by their fixed ids. */
 export const HOW_IT_WENT_IDS: readonly string[] = ["q_q1", "q_q2", "q_q3"];
 /** C1, the career stage: "considering, planning or already doing it" and who moved a stage. */
 const STAGE_ID = "q_c1";

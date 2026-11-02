@@ -4,8 +4,8 @@ import { LEAVING_CARD_WORDS, leavingCardLine } from "@/lib/surveys/words";
 import styles from "./SurveyCards.module.css";
 
 /**
- * The leaving survey's card on the page that says somebody left
- *: "Tell us why", "Answer", how long and that it is
+ * The leaving survey's card on the page that says somebody left:
+ * "Tell us why", "Answer", how long and that it is
  * confidential, drawn while it waits for them (`leavingSurveyCardFor`).
  * "Answer" opens their own link, made when they left. The board's words
  * called it anonymous; these are the true ones (see `LEAVING_CARD_WORDS`).

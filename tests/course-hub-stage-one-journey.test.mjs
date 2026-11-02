@@ -1123,7 +1123,7 @@ async function aPlaceGivenBack() {
   g.reply = await step("Ella gives her place back", 200, "ella", routes.reply.POST, params(), {
     body: { reply: "cant-make-it", reason: { kind: "times", other: "" } },
   });
-  // Q12: in a group Publish told her about, her reply is leaving the
+  // In a group Publish told her about, her reply is leaving the
   // programme, and the leave's email goes after the answer without being
   // waited for.
   await new Promise((resolve) => setImmediate(resolve));
@@ -2010,7 +2010,7 @@ describe("stage one of the course hub, one term from decision day to the first s
       );
     });
 
-    // Until Q12 her seat was not free until an admin removed her, so neither
+    // Until leaving freed a seat at once, her seat was not free until an admin removed her, so neither
     // a group Hannah could make nor the offer had one. It is free the moment
     // she has left: the page offers Hannah Group B at once (the lead offers it
     // in 8, so nothing is pressed here).

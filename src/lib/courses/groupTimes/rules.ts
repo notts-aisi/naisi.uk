@@ -3,7 +3,7 @@ import { GROUP_FIELD_LIMITS, groupCapacityError } from "@/lib/firestore/courseGr
 import { REFUSAL } from "./words";
 
 /**
- * CHOOSING GROUP TIMES FROM THE TIMES PICTURE (Q2 option B):
+ * CHOOSING GROUP TIMES FROM THE TIMES PICTURE:
  * the rules, as pure functions the two routes, the dialogs and the tests all
  * ask.
  *

@@ -11,8 +11,8 @@ import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } fro
 import { programmeLedBy } from "../programmeLead";
 
 /**
- * WHO READS A WRITTEN ANSWER AND GIVES FEEDBACK ON IT, IN ONE PLACE (Q30 C;
- * Zach, Mon 26 Oct, on facilitators taking part). The review page, the
+ * WHO READS A WRITTEN ANSWER AND GIVES FEEDBACK ON IT, IN ONE PLACE
+ * (Zach, Mon 26 Oct, on facilitators taking part). The review page, the
  * review route and the review queue card all ask `writtenReviewRole`; none
  * of them decides it again.
  *

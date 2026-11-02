@@ -26,7 +26,7 @@ import {
 } from "@/lib/courses/guide/model";
 
 /**
- * LOADING A PROGRAMME'S START HERE OR GLOSSARY (Q39 as for
+ * LOADING A PROGRAMME'S START HERE OR GLOSSARY (a Markdown round trip, as for
  * weeks): the run editor's paste cards send the guide's Markdown here.
  *
  *   GET  ...  "Copy as Markdown": the stored document, as the guide's Markdown.

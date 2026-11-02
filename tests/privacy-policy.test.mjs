@@ -730,7 +730,7 @@ const MUST_NAME = [
   // `memberConductFlags` is the admin route on the Members page, and §2d
   // walks the tree for any other.
   ["the reason for a conduct flag is admins' alone, and anybody else may see only a marker", /Only admins can read the reason for a conduct flag\. Where decisions about you are made, such as reading applications or deciding event sign-ups, other people may see only a marker asking them to talk to an admin first\./],
-  // OWNER DECISION, 25 October 2026 (Q8 with Q26, as the boards draw them):
+  // OWNER DECISION, 25 October 2026 (who finished, and certificates):
   // the programme's lead or an admin sends a certificate to everybody who
   // finished and to each facilitator, and each starts private until its owner
   // turns its link on. v7 took back v6's model, in which a person minted
@@ -1062,7 +1062,7 @@ describe("the courses section", () => {
   });
 
   test("certificates are described as the owner decided: sent, and private until their owner turns the link on", async () => {
-    // OWNER DECISION, 25 October 2026 (Q8 with Q26, as the boards draw them).
+    // OWNER DECISION, 25 October 2026 (who finished, and certificates).
     // When a programme ends, its lead or an admin sends a certificate to
     // everybody its record says finished and to each of its facilitators.
     // Each starts private: only its owner can open it until they turn its
@@ -5354,8 +5354,8 @@ describe("the course hub passage", () => {
   });
 
   test("what somebody fills in on a week is read by them, their group's facilitators, the lead and admins; a facilitator's own by the lead and admins; a leaver's by the lead and admins; and goes with the account", () => {
-    // OWNER DECISIONS, 25 and 26 October 2026: Q30 C (the writer, their
-    // group's facilitators, the programme's lead and admins; never other
+    // OWNER DECISIONS, 25 and 26 October 2026: who reads it (the writer,
+    // their group's facilitators, the programme's lead and admins; never other
     // fellows), and a facilitator's own work read by the lead and admins.
     // v15 names "the boxes you fill in" among a person's work and says who
     // reads it, a facilitator's own, what stays for the lead and admins when
@@ -5652,11 +5652,11 @@ describe("the course hub passage", () => {
   });
 
   test("a written answer is read by its writer, their group's facilitators, the lead and admins; it locks when its week does; Late is its readers' alone; feedback is a signed comment on the week's page, with an email to say it is waiting", () => {
-    // OWNER DECISIONS, 25 and 26 October 2026: Q30 C (the writer, their
-    // group's facilitators, the programme's lead and admins; never other
-    // fellows), Q33 (changeable after sending until a facilitator opens it,
-    // the first-sent time kept, "Late" for staff only), Q34 B (one email,
-    // the feedback on the site), and a facilitator's own answer read and
+    // OWNER DECISIONS, 25 and 26 October 2026: who reads it (the writer,
+    // their group's facilitators, the programme's lead and admins; never other
+    // fellows), when it locks (changeable after sending until a facilitator
+    // opens it, the first-sent time kept, "Late" for staff only), how feedback
+    // arrives (one email, the feedback on the site), and a facilitator's own answer read and
     // given feedback by the lead or an admin. Each sentence is held to its
     // code below; tests/course-hub-written-answers.test.mjs runs the routes
     // and pages as every kind of caller.
@@ -5800,7 +5800,7 @@ describe("the course hub passage", () => {
     assert.match(withoutComments(read("src/lib/courses/writtenAnswers/reviewPage.ts")), /late: record\?\.firstSentAt \? isLate\(record\.firstSentAt, due\) : false,/);
 
     // Feedback is a comment, never a number or a level (v14: "never a mark";
-    // R3-7: no level goes back to the person). A piece stores its words, who
+    // and no level goes back to the person). A piece stores its words, who
     // wrote it and as what; nothing gives a rubric level any more.
     assert.ok(feedbackRoute.includes("text: text.text,"), "a piece no longer stores its words");
     assert.doesNotMatch(feedbackRoute, /\b(?:score|mark|total|points|levels?)\s*:/i, "feedback stores a score, a mark, a total or a level");

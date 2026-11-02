@@ -1,5 +1,5 @@
 /**
- * The Times view's two writes (Q2 option B): a group's day
+ * The Times view's two writes: a group's day
  * and start ("Change", and "Use for a group" on a group that exists), and a
  * new group ("Add a group", and "Use for a group" for a new one), as every
  * kind of caller, before Publish and after it.
@@ -12,8 +12,8 @@
  *
  * ## What this guards
  *
- *  1. WHO: the programme's lead and admins act, and nobody else does (C7,
- *     2b): not another programme's lead, not the programme's reviewer, not
+ *  1. WHO: the programme's lead and admins act, and nobody else does:
+ *     not another programme's lead, not the programme's reviewer, not
  *     the run's track lead, not a facilitator, not a member, not somebody
  *     signed out, not a view-as session. Every refusal writes nothing.
  *  2. THE BODY IS READ FIRST: a body that is not a time, a day, a name or a

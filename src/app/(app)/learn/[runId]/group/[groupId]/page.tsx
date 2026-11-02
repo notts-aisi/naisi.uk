@@ -74,8 +74,8 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * Group B (7)" and "Change a session"; the next session as a ticket with how
  * many are expected and "Take the register"; the group's people with each
  * finished register's marks, and who left; the registers; the work to
- * review; the updates; the pace; and the notes the group's facilitators share
- *. Drawn on the server, from the records the programme's own tabs read
+ * review; the updates; the pace; and the notes the group's facilitators share.
+ * Drawn on the server, from the records the programme's own tabs read
  * (`src/lib/courses/facilitatorGroup.ts`), so a facilitator and the lead never
  * read two stories about one group.
  *

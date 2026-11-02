@@ -10,7 +10,7 @@
  * facilitated by Sofia, who holds no place) and a Wednesday group. On top of
  * it:
  *
- *  - THE CALENDAR across two terms, as Q10 draws it: the run starts on
+ *  - THE CALENDAR across two terms, as designed: the run starts on
  *    Thursday 29 October 2026 and its plan is weeks 1 to 7, seven breaks, and
  *    weeks 8 to 10, so the Thursday group meets on Thu 26 Nov in week 5, on
  *    Thu 10 Dec in week 7, and on Thu 4, 11 and 18 Feb 2027 in weeks 8 to 10;

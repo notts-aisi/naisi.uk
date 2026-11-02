@@ -16,7 +16,7 @@
  * nobody should learn a decision from one. So both pages ask one thing,
  * whether the member holds a place, and do one thing with the answer.
  *
- * THE ONE CHANGE TO THAT, made on purpose (Q13 B with v20's Q35 B, Zach's
+ * THE ONE CHANGE TO THAT, made on purpose (Zach's
  * "as drawn"): for a place the person holds, before Publish has told them
  * their group, both pages may draw the cards `MAY_SHOW` lists, and nothing
  * else about it. Each entry says why it may be there and names the test
@@ -996,7 +996,7 @@ const MAY_SHOW = {
     test: "Week 1 is open is on the card only once week 1's door is open to them",
   },
   "a survey for you": {
-    board: "HANDOFF v21, Home and My programmes (\"A survey for you: Before you start · about 3 minutes · Answer\"), Q50 B",
+    board: "Home and My programmes (\"A survey for you: Before you start · about 3 minutes · Answer\")",
     why:
       "a survey waiting for the person is theirs to answer: sent to them, open, not answered, and for a survey of " +
       "the programme, only while they still hold the place, by the test the survey's own reminder asks. It names " +

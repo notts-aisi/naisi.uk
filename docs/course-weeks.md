@@ -547,7 +547,7 @@ The words you'll meet most, in plain words.
 ## The lead's Weeks tab, and a week for one group
 
 A programme's lead writes its run's weeks on the programme's Weeks tab
-(option B as Q39 chose), and so do admins. The run's week
+(by copying a week out as Markdown and pasting it back), and so do admins. The run's week
 editor under `/admin/courses` stays an admin's.
 
 | Where | What it does |
@@ -609,8 +609,9 @@ editor under `/admin/courses` stays an admin's.
 
 ### Not built, on purpose
 
-- **Option C's "Add a block" editor** (write a week block by block, no
-  Markdown). Q39 chose B; a page to build a week by hand comes later.
+- **An "Add a block" editor** (write a week block by block, no
+  Markdown). The Markdown round trip was chosen instead; a page to build a
+  week by hand comes later.
 - **The board's block-by-block fields**: a found row opening its block's
   fields to edit in place. A week is changed by copying it as Markdown,
   editing that and pasting it back; what was read is checked through What we

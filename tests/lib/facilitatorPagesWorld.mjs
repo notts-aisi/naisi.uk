@@ -1,7 +1,7 @@
 /**
  * Week 3 of AGI Strategy's run, for the suites about the pages a facilitator
- * uses every week: their group's page, the group's register page, their Home
- *, the summary route behind Home, the notes the group's
+ * uses every week: their group's page, the group's register page, their Home,
+ * the summary route behind Home, the notes the group's
  * facilitators share, and the lead's reading of them on the Attendance tab.
  *
  * Built on `tests/lib/hubAttendanceWorld.mjs`: the run in its third week as

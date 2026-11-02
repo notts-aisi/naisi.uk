@@ -184,7 +184,7 @@ test("once somebody else has the place, the page says so", async () => {
   assert.match(text, /Somebody else is facilitating Group B now, so this has closed\. Thank you for saying you’d like to\.$/);
 });
 
-// Q21 was lifted on Mon 26 Oct 2026: a facilitator can hold a place on
+// The rule that nobody facilitates a programme they take part in was lifted on Mon 26 Oct 2026: a facilitator can hold a place on
 // the programme they facilitate. The page used to close for somebody taking
 // part ("You’re taking part in AGI Strategy, so you can’t facilitate it this
 // term."); for Amara, who holds a place, it offers both buttons, and after

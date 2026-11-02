@@ -1,6 +1,6 @@
 /**
  * AGI Strategy's run in week 3, with weeks written as blocks that hold PACKS,
- * CASES AND TALKS, for the suite about plan item 8: the
+ * CASES AND TALKS, for the suite about packs and cases: the
  * per-person record, Choose one on the week page, the draw on the group page,
  * Your case study and "Ready for my talk", and This week's work's two columns.
  *

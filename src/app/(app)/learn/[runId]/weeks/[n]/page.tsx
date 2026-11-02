@@ -38,8 +38,8 @@ import type { PredictionsView } from "@/lib/courses/predictions/wire";
  * Somebody holding a place whom Publish has not told yet reads week 1 alone,
  * once its door is open to them (`beforeGroups`): see below.
  *
- * WEEK 1'S FIRST CARD IS THE BEFORE SURVEY'S while it waits for the reader
- *: this run's before survey, open, sent to them, still theirs and not
+ * WEEK 1'S FIRST CARD IS THE BEFORE SURVEY'S while it waits for the reader:
+ * this run's before survey, open, sent to them, still theirs and not
  * answered, by the same answer Home asks (`beforeSurveyCardFor`). Asked of
  * week 1 alone, and read for the reader alone; nothing in a view-as session.
  *

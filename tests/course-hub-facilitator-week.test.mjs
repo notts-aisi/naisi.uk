@@ -1,9 +1,9 @@
 /**
- * A group's week as its facilitators, the programme's lead and admins read it
- *: who ticked each source, by name; This week's
+ * A group's week as its facilitators, the programme's lead and admins read it:
+ * who ticked each source, by name; This week's
  * work; the review queue's reflections half and the page where lines are
- * picked to read out without names; the private notes' one reader
- *; and a facilitator's own coursework, read by the programme's lead and
+ * picked to read out without names; the private notes' one reader;
+ * and a facilitator's own coursework, read by the programme's lead and
  * admins and never by a co-facilitator (Zach, Mon 26 Oct).
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).

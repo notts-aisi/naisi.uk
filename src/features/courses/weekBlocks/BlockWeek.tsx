@@ -245,7 +245,7 @@ type Props = {
   sharedNotes: WeekSharedNotes;
   /** The programme's lead's first name, for who reads a reflection; null when no programme names the run. */
   leadFirstName: string | null;
-  /** Cards drawn above This week by later pieces (Q35's line, Q50's survey). */
+  /** Cards drawn above This week by later pieces (week 1's line before groups go out, a survey waiting). */
   leadCards?: ReactNode;
   /** The programme's Start here and Glossary, linked under the title when the run has them. */
   guide?: GuideLinks | null;

@@ -3,8 +3,7 @@ import { clockWords, coversWords, dayWords, namesWords, weeksWords } from "./ses
 /**
  * THE WORDS OF THE PAGES A MEMBER USES EVERY WEEK, in one place: their
  * programme's home (laptop and phone),
- * a week's page and Home's card for their programme
- *.
+ * a week's page and Home's card for their programme.
  *
  * The boards' own words are kept exactly, apostrophes included, and every
  * name, date, time, room and count in them is a slot filled from a record by
@@ -412,8 +411,8 @@ export function taskWhenWords(
     return withQualifier(today ? `By the end of today, ${day}` : `By the end of ${day}`);
   }
   // A task the guide says to bring along ("Bring it to session 6", week 6's
-  // action plan) keeps its own verb: "Bring it to your session, Tue 8 Dec"
-  //. It is due before the session all the same.
+  // action plan) keeps its own verb: "Bring it to your session, Tue 8 Dec".
+  // It is due before the session all the same.
   const bring = when === "before" && /^bring it to\b/i.test((options.whenText ?? "").trim());
   const lead = when === "atSession" ? `At ${session}` : bring ? `Bring it to ${session}` : `Before ${session}`;
   return withQualifier(day ? `${lead}, ${day}` : lead);
@@ -535,7 +534,7 @@ export const REFLECTION_NOT_SAVED = "Your last change isn’t saved yet. Check y
 export const RATE_OR_NOTE = "Rate it or leave a note";
 /** Over the stars. */
 export const HOW_USEFUL = "How useful was this?";
-/** The private note's label and who reads it (the group's facilitators and admins; Q37: never read out). */
+/** The private note's label and who reads it (the group's facilitators and admins; never read out). */
 export const PRIVATE_NOTE = "Private note";
 export const PRIVATE_NOTE_HINT = "Only your facilitators and admins see this. It’s never read out.";
 

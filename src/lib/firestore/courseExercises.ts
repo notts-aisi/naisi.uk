@@ -33,8 +33,8 @@
  * reader of answers leaves both out with `isOwnBoxResponse`, and a reader of
  * one kind asks for exactly that kind (`isReflectionResponse`,
  * `isFillInResponse`), because the two are read by different people and in
- * different ways (a reflection may be read out without its writer's name,
- * Q37; nothing says that of an action plan).
+ * different ways (a reflection may be read out without its writer's name;
+ * nothing says that of an action plan).
  * `tests/course-reflection-store-readers.test.mjs` walks the tree for a
  * reader that does not say. Deletion (an account's, and the run's destroy)
  * and the guards that refuse to renumber a run with answers read every row of

@@ -95,8 +95,8 @@ type Props = {
   mode: GroupSessionMode | null;
   title?: string;
   /**
-   * The session this card is dated to was cancelled and the group kept pace
-   *: the card says so, with the reason the group was given, and offers
+   * The session this card is dated to was cancelled and the group kept pace:
+   * the card says so, with the reason the group was given, and offers
    * no room and no link for an evening nobody meets.
    */
   cancelled?: { reason: string } | null;

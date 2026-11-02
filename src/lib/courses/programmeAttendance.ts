@@ -29,8 +29,8 @@ import { registerSwitchesIn, type RegisterSwitches } from "@/lib/scheduler/regis
 
 /**
  * A PROGRAMME'S ATTENDANCE, WORKED OUT ONCE, ON THE SERVER: every register of
- * the course run a programme names, as its lead's Attendance tab draws it
- *. The tab's grid, its CSV, the Overview tab's figures
+ * the course run a programme names, as its lead's Attendance tab draws it.
+ * The tab's grid, its CSV, the Overview tab's figures
  * and the line under the programme's name all read this, so the four can
  * never disagree about a number.
  *

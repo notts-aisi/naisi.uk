@@ -81,8 +81,8 @@ type Slots = {
    */
   holdsNoPlace: boolean;
   /**
-   * "Your group’s on its way" for each place held before groups go out
-   *, worded on the server (`beforeGroupsCardsFor`). Drawn under the
+   * "Your group’s on its way" for each place held before groups go out,
+   * worded on the server (`beforeGroupsCardsFor`). Drawn under the
    * greeting in every form of Home, and nothing when there is none.
    */
   beforeGroups: readonly BeforeGroupsCard[];

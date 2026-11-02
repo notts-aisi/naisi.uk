@@ -3,7 +3,7 @@ import { weekSources, type ReadableWeek } from "@/lib/courses/weekBlocks/reader"
 
 /**
  * A GROUP'S WEEK, AS ITS FACILITATORS, ITS PROGRAMME'S LEAD AND ADMINS READ
- * IT (with Q30): who has written each
+ * IT: who has written each
  * part's reflection, who ticked each source, the private notes left on a
  * source, and the reflections to read out in the session.
  *

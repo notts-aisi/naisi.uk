@@ -18,8 +18,7 @@ import { GroupWeekPaste, WeekModeField, WeekOwnerField, WeekPaste, WeekReady } f
 import styles from "./weeks.module.css";
 
 /**
- * ONE WEEK'S PAGE ON A PROGRAMME'S WEEKS TAB (as
- * Q39 chose): drawn under the list of weeks with this one marked current.
+ * ONE WEEK'S PAGE ON A PROGRAMME'S WEEKS TAB: drawn under the list of weeks with this one marked current.
  *
  * In order: the week's title and its seven days; "Paste the week, then check
  * it" (the paste box, Read it, what we found, the things to check, the
@@ -35,8 +34,8 @@ import styles from "./weeks.module.css";
  *
  * NOT BUILT, and written down in the build notes: the board's block-by-block
  * fields (a found row opening its block's fields to edit in place) and
- * option C's "Add a block" editor. A week is changed by copying it as
- * Markdown, editing that and pasting it back, which Q39 chose.
+ * an "Add a block" editor. A week is changed by copying it as
+ * Markdown, editing that and pasting it back, as decided.
  */
 export default function WeekPageView({
   page,

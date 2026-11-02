@@ -1,6 +1,6 @@
 /**
- * The pages a facilitator uses every week (plan item 2.6): their group's page
- *, the group's register page,
+ * The pages a facilitator uses every week: their group's page,
+ * the group's register page,
  * their Home and the summary route behind it, the notes
  * the group's facilitators share on the group page and on the
  * programme's Attendance tab, as every kind of caller, in week 1, week 3 and

@@ -223,7 +223,7 @@ describe("4. no copy promises the link by email", () => {
 
   test("no string in src promises to send it", () => {
     const promising = FILES.filter(([, code]) => PROMISE.test(code)).map(([file]) => file);
-    assert.deepEqual(promising, [], "these promise the meeting link by email, where Q23 keeps it on the site");
+    assert.deepEqual(promising, [], "these promise the meeting link by email, where the site keeps it behind sign-in");
   });
 
   test("the cards say where the link will be, and why it is not in an email", async () => {

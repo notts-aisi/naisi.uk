@@ -56,8 +56,8 @@ import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
  *  - somebody who left, whether or not a register marked them, with what
  *    they said when they gave a reason (it goes if they are put back).
  *
- * NOT BUILT, and so not drawn: the board's "Email Freya" (a lead writing to
- * one person through the site is new, and its email is not drawn: C21), the
+ * NOT BUILT, and so not drawn: the design's "Email Freya" (a lead writing to
+ * one person through the site is new, and its email is not designed), the
  * week's readiness detail ("2 of 3 readings and the guide are missing": a
  * week has no Ready checklist yet), "Kofi can't make it" (Can't make it is
  * said on the group's register, which each session card's See it opens, and
@@ -329,8 +329,8 @@ function remindedLine(state: ReminderState): string | null {
 
 /**
  * WHETHER ANY GROUP OF THE RUN HAS MET: a session of one of its groups that
- * still meet has started. Until then the Overview is "Get ready for week 1"
- *, and week 1's readiness is said; from then on it is
+ * still meet has started. Until then the Overview is "Get ready for week 1",
+ * and week 1's readiness is said; from then on it is
  * the week the run is in. The one answer for both.
  */
 export function anyGroupHasMet(records: RunRecords, now: Date): boolean {

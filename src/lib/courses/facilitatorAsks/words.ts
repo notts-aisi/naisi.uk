@@ -1,6 +1,6 @@
 /**
- * THE WORDS OF ASKING SOMEBODY TO FACILITATE: the lead's Facilitators view
- *, the email that asks (its "The email Grace got"), and the
+ * THE WORDS OF ASKING SOMEBODY TO FACILITATE: the lead's Facilitators view,
+ * the email that asks (its "The email Grace got"), and the
  * page its "Say yes or no" opens. The boards' own words,
  * apostrophes included; a slot is filled from a record, never typed here.
  *

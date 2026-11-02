@@ -121,7 +121,7 @@ describe("1. the lead reads every register of their run", () => {
     }
   });
 
-  // Changed for C30 and the privacy draft's item 9: the lead used to be sent
+  // Changed when the facilitators' notes became theirs and admins': the lead used to be sent
   // the facilitators' notes on a person with the marks. The register's notes
   // are now the group's facilitators' and admins', so the lead reads the
   // mark and no note, a session's own note included, while the facilitators

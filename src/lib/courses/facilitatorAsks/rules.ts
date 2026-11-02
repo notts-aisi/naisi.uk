@@ -43,7 +43,7 @@ import {
  *
  * SOMEBODY HOLDING A PLACE ON THIS PROGRAMME MAY BE ASKED. A facilitator can
  * be one of the programme's fellows too (the rule that nobody facilitates a
- * programme they take part in, Q21, was lifted on 26 October 2026): they do
+ * programme they take part in was lifted on 26 October 2026): they do
  * the course in the group they facilitate, and a yes places them in it
  * (`src/lib/courses/groupFacilitators.ts`). Somebody INVITED to it who has
  * not answered is asked once they have (`invitedTo`): until then nobody knows

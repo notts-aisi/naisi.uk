@@ -272,7 +272,7 @@ describe("3. a week's page: every published week is drawn, to read ahead", () =>
     const open = await w.weekShell("chloe", 4);
     assert.equal(open.component, "WeekView");
     assert.deepEqual(early.props, open.props);
-    // Since C29 the shell also hands the page the notes Chloe's group shares,
+    // Since notes shared with a group landed, the shell also hands the page the notes Chloe's group shares,
     // read for her on the server: Group B's, under the board's heading, which
     // she may add to. Nothing else of anybody's.
     assert.deepEqual(open.props, {

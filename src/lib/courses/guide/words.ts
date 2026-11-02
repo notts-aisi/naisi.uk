@@ -2,8 +2,8 @@ import { readOutWords, readersWords } from "../memberPageWords";
 
 /**
  * THE WORDS OF A PROGRAMME'S START HERE AND GLOSSARY PAGES, the week page's link row
- * and the programme page's "About this course"
- *. The boards' words, with the boards' apostrophes; every
+ * and the programme page's "About this course".
+ * The boards' words, with the boards' apostrophes; every
  * name and count comes in from a record. Words no board draws are marked,
  * and are listed in the build notes for the boards' designers to confirm.
  */

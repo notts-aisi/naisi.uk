@@ -82,8 +82,8 @@ import styles from "./RunHome.module.css";
  * session's ticket (tonight, a room changed this week, a session moved or
  * cancelled as "Change a session" says), "This week" (or before the first
  * session, week 1's readings to tick), the weeks with their dates and states
- * (every published week open, to read ahead), their marks with no count
- *, the updates, their group, and the way out.
+ * (every published week open, to read ahead), their marks with no count,
+ * the updates, their group, and the way out.
  *
  * "Add to calendar" is on the ticket for somebody whose group it is, taking
  * part or facilitating (their own calendar link).
@@ -218,8 +218,8 @@ function stateCopy(overview: OverviewPayload): { heading: string; line: string }
 }
 
 /**
- * The head once the programme is over, for somebody who took part
- *: "You finished AGI Strategy."
+ * The head once the programme is over, for somebody who took part:
+ * "You finished AGI Strategy."
  * only where their own finished record says so (`overview.finished`), with
  * the term, the group and its facilitators; otherwise "AGI Strategy has
  * ended." with the board's thanks and the term and group. Never that they
@@ -685,8 +685,8 @@ export default function RunHome({
     </div>
   );
 
-  // THE PROGRAMME PAGE ONCE IT IS OVER, for somebody who took part in it
-  //. Somebody who left never
+  // THE PROGRAMME PAGE ONCE IT IS OVER, for somebody who took part in it.
+  // Somebody who left never
   // reaches this page: theirs says they left.
   if (currentWeek?.phase === "after" && access.isEnrolled && data.enrolment?.role === "learner") {
     const head = afterHeadOf(data, programmeName, {
@@ -818,8 +818,8 @@ export default function RunHome({
 
           {beforeStart && yourGroup}
 
-          {/* Updates the people running the programme wrote to the reader
-             , read by their own route: what the reader is shown is the
+          {/* Updates the people running the programme wrote to the reader,
+             read by their own route: what the reader is shown is the
               route's decision, and a reader shown nothing is drawn nothing. */}
           <div className={order.updates}>
             <RunUpdates runId={runId} />

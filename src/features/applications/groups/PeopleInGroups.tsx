@@ -64,8 +64,8 @@ import * as words from "./peopleInGroupsWords";
  * since ("3 placed since you published: Ana, Raj and Tom. Publish to tell
  * them."), linking to Publish (`notToldYet`, one question for both).
  *
- * WHAT THE BOARD DRAWS AND THIS LEAVES OUT, because the feature does not
- * exist yet: "Remind" (when-you're-free open until groups go out, Q7, a
+ * WHAT THE DESIGN DRAWS AND THIS LEAVES OUT, because the feature does not
+ * exist yet: "Remind" (when-you're-free open until groups go out, a
  * later slice) and a facilitator's "(no reply yet)" (asking facilitators on
  * this board, a later slice). Publish itself is its own page, behind
  * "Publish groups…".

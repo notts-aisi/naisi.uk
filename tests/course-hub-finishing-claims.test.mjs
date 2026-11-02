@@ -67,7 +67,7 @@ const code = (file) => {
   return stripped;
 };
 
-describe("C43: only the finished record says somebody finished", () => {
+describe("only the finished record says somebody finished", () => {
   test("1. nothing under src says a course is complete or that somebody finished, but the record's words", () => {
     const files = walk(SRC);
     assert.ok(files.length > 500, `the walk found only ${files.length} files: it is not reading the tree`);

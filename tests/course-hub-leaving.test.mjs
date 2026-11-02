@@ -402,7 +402,7 @@ describe("2. leaving a run the application form placed you on", () => {
     assert.equal(read(taskPath("amara")), undefined);
 
     // One log line, naming her and her group.
-    // CHANGED ON PURPOSE (the privacy review for version 7, its item 7): the
+    // CHANGED ON PURPOSE (the privacy review for version 7): the
     // log of course actions outlives the account and says what was done, so
     // it no longer copies what she said. Her reason is kept with her seat
     // alone (above), for the programme's lead and admins.
@@ -443,7 +443,7 @@ describe("2. leaving a run the application form placed you on", () => {
     assert.equal(world.mail.length, 1);
   });
 
-  // CHANGED ON PURPOSE (the privacy review for version 7, its item 7): the log
+  // CHANGED ON PURPOSE (the privacy review for version 7): the log
   // line no longer says whether a reason was given, as it no longer carries
   // one; it is the same line with a reason and without.
   test("with no reason, none is kept, and the log line is the one a leave with a reason writes", async () => {

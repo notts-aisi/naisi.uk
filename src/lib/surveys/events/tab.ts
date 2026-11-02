@@ -8,8 +8,8 @@ import { clockWords, dayWords, peopleWords } from "../words";
 import { firstPressOf, remindAtAfter, timesOf, whoWords } from "./after";
 
 /**
- * WHAT AN EVENT'S "SURVEY AFTER" TAB SAYS TO EVERYBODY IN THE EVENTS AREA
- *: that a survey went, when and to how many, what is set to
+ * WHAT AN EVENT'S "SURVEY AFTER" TAB SAYS TO EVERYBODY IN THE EVENTS AREA:
+ * that a survey went, when and to how many, what is set to
  * happen, and who to ask for its results. Never a result, a count of answers
  * or a name of anybody who answered: an event's organiser does not see its
  * survey's results, and admins share a summary. Admins see the results

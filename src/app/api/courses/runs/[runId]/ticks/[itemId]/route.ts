@@ -46,8 +46,8 @@ import {
  * its group by Publish, on an account in standing, a facilitator's seat
  * included), a facilitator of a live group of the run, who takes part as
  * themselves, and, in week 1 alone, somebody holding a place whom Publish
- * has not told yet, once week 1's door is open to them (Q35 B:
- * `weekOneDoorFor`, the one answer). Always their OWN row: its id is built
+ * has not told yet, once week 1's door is open to them
+ * (`weekOneDoorFor`, the one answer). Always their OWN row: its id is built
  * from the caller's uid, and nothing here can address anybody else's.
  *
  * WHAT. One of the week's sources or checklist items, on the week as this
