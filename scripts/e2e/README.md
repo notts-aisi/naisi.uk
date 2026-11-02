@@ -725,6 +725,12 @@ files, and asserts the walk found the four that must always be in it:
   `config/membership` is addressable, only through `membershipConfigDoc()`, so
   a membership spec can move the current-period pointer and put it back
   without any fixture going near the scheduler cursors or the task email copy.
+  `surveyQuestionSets` has the same shape: only the end of a programme's set
+  (`surveyQuestionSets/after`) is addressable, only through
+  `surveyQuestionSetDoc()`, and the collection cannot be queried, so the survey
+  admin spec can change that set's words in the browser and its fixture can
+  put the set back exactly. The sweep skips both collections: a shared
+  document is restored from a ledger, never deleted by a run id.
   The scheduler's markers are narrower still. `schedulerMarkers` is on no list
   and every chokepoint refuses it; `registerReminderMarkerDoc()` addresses one
   register reminder marker of a fixture's own group, by an id it builds from a
@@ -1045,11 +1051,13 @@ one, and a third of the browser specs on each of three
 (`node scripts/run-e2e.mjs --local --shard N/3`, split by
 `scripts/e2e/lib/shard.mjs`). Each machine builds and boots its own loopback
 server and Mailpit, so they share nothing but the dev project, where every row
-carries its run id. The one exception is the spec that borrows
-`config/membership`: it always runs in part 1 (`BORROWS_A_SHARED_SETTING`),
-and part 1 is the only part that waits in the shared queue described next.
-`tests/e2e-shards.test.mjs` holds that every spec lands in exactly one part
-and that a fixture reaching the shared document is on the list.
+carries its run id. The exceptions are the specs that borrow a document the
+whole project shares, `config/membership` (the membership console) and the end
+of a programme's question set (the survey admin spec): each always runs in
+part 1 (`BORROWS_A_SHARED_SETTING`), and part 1 is the only part that waits in
+the shared queue described next. `tests/e2e-shards.test.mjs` holds that every
+spec lands in exactly one part and that a fixture reaching either shared
+document is on the list.
 
 **Every run that borrows the shared setting waits behind the last one.** The
 nightly `dev` job and part 1 of the local job share one concurrency group, not
@@ -1062,8 +1070,10 @@ but `config/membership` is a singleton: the membership spec snapshots that
 pointer, borrows it, and restores it in teardown. Two overlapping runs would
 restore a pointer to a period the other has already deleted, and both manifests
 would still read zero, so the corruption would be invisible to the thing meant
-to catch it. That is also why a pull request run and the 03:00 nightly cannot
-overlap.
+to catch it. The question set is the same: the survey admin spec snapshots it,
+changes its words and restores it, and an overlapping run would snapshot the
+other's change and put that back. That is also why a pull request run and the
+03:00 nightly cannot overlap.
 
 **The nightly checks out `dev`, not the default branch.** A scheduled run
 starts on `main`, and `dev.naisi.uk` deploys from `dev`, so a nightly that took

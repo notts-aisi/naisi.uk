@@ -56,7 +56,9 @@ permissions:
 # ids are per run, so ordinary rows never collide, but two things in that
 # project are singletons that a spec has to borrow and give back: the
 # `config/membership` pointer the membership console rewrites when it makes a
-# period current, and the reCAPTCHA-relaxed loopback port a local run binds.
+# period current, the end of a programme's question set the survey admin spec
+# changes and puts back, and the reCAPTCHA-relaxed loopback port a local run
+# binds.
 # The membership spec snapshots that pointer before it seeds and restores it in
 # teardown, so an overlapping pair would restore a pointer to a period the
 # other run has already deleted, and BOTH manifests would still read zero: the
@@ -103,8 +105,9 @@ jobs:
       && vars.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
       && github.event.pull_request.head.repo.full_name == github.repository
       && github.actor != 'dependabot[bot]'
-    # ONE PART JOINS THE SHARED QUEUE. The spec that borrows `config/membership`
-    # always runs in part 1 of the browser specs (BORROWS_A_SHARED_SETTING in
+    # ONE PART JOINS THE SHARED QUEUE. The specs that borrow a shared document
+    # (`config/membership`, and the end of a programme's question set)
+    # always run in part 1 of the browser specs (BORROWS_A_SHARED_SETTING in
     # scripts/e2e/lib/shard.mjs), so `specs-1` waits in the one group with the
     # nightly, as the whole job used to. The other three write only rows that
     # carry their run id, so each takes a group of its own and starts at once.
