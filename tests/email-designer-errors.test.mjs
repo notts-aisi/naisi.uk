@@ -27,7 +27,6 @@ import { session, userDoc } from "./lib/applicationsSmallTerm.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const SRC = join(REPO_ROOT, "src");
 
 /** What the failing door and the failing renderer say: words no answer may carry. */
 const THROWN = "smtp.example.invalid refused zach@example.com with key ab12cd";
