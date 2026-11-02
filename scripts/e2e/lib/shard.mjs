@@ -12,8 +12,8 @@
  * every other run that drives the dev project (`.github/workflows/e2e.yml`).
  * The other parts write only rows that carry their own run id, so they may run
  * beside anything. `tests/e2e-shards.test.mjs` walks the fixtures for a module
- * reaching the one shared document a fixture may address, and fails one that
- * is not on the list.
+ * reaching a shared document a fixture may address (`config/membership`, the
+ * end of a programme's question set), and fails one that is not on the list.
  *
  * Pure: no imports, no I/O.
  */
@@ -24,6 +24,12 @@ export const BORROWS_A_SHARED_SETTING = new Map([
     "membership-console",
     "snapshots `config/membership`, the dev project's one current-period pointer, moves it and puts it " +
       "back in teardown: two runs overlapping would restore a pointer the other had deleted",
+  ],
+  [
+    "course-hub-survey-admin",
+    "snapshots `surveyQuestionSets/after`, the dev project's one end of a programme question set, changes " +
+      "its words in the browser and puts it back in teardown: two runs overlapping would each restore the " +
+      "words the other had changed",
   ],
 ]);
 

@@ -13,8 +13,9 @@
  *
  * Goes through the harness's own doors only: `fixtureQuery` / `fixtureDoc` /
  * `fixtureSubcollection` (the collection chokepoint) and the guarded harness
- * account helpers, so it can touch nothing a fixture could not. `config` is
- * skipped: its membership doc is shared and the fixtures only ever edit it.
+ * account helpers, so it can touch nothing a fixture could not. `config` and
+ * `surveyQuestionSets` are skipped: each holds a document the whole project
+ * shares, which a fixture only ever borrows and puts back from its ledger.
  *
  * The runner's `--sweep` flag is this function.
  */
@@ -52,7 +53,8 @@ export async function sweepRunIds(runIds, { dryRun = false, log = console.log } 
 
   let rows = 0;
   for (const collection of FIXTURE_COLLECTIONS) {
-    if (collection === "config") continue;
+    // Shared documents a fixture borrows and puts back: never a run's to delete.
+    if (collection === "config" || collection === "surveyQuestionSets") continue;
     const snap = await fixtureQuery(collection).get();
     const hits = snap.docs.filter((doc) => mentions(doc.id) || mentions(doc.data()));
     if (hits.length === 0) continue;

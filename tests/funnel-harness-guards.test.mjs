@@ -327,7 +327,7 @@ test("assertFixtureCollection refuses everything off the fixture's list", () => 
   }
 });
 
-test("only the membership document is reachable in the config collection", () => {
+test("only the membership document is reachable in the config collection, and one question set in its own", () => {
   // `config` holds the scheduler cursors, the courses config and the task
   // email copy as well as the membership pointer. A membership spec has to
   // move the pointer and put it back; nothing here has any business near the
@@ -347,6 +347,20 @@ test("only the membership document is reachable in the config collection", () =>
     () => fixtureQuery("config"),
     "fixtureQuery accepted the config collection. A query there would list every " +
       "runtime config document.",
+  );
+  // The same shape for the question sets: one set a spec borrows and puts
+  // back, never another kind's and never a query that lists them all.
+  for (const id of ["before", "event", "check-in", "session-report", "leaving", "after ", ""]) {
+    assert.throws(
+      () => fixtureDoc("surveyQuestionSets", id),
+      `fixtureDoc accepted surveyQuestionSets/${JSON.stringify(id)}. surveyQuestionSetDoc() is the ` +
+        "only permitted way into that collection, and it reaches the end of a programme's set alone.",
+    );
+  }
+  assert.throws(
+    () => fixtureQuery("surveyQuestionSets"),
+    "fixtureQuery accepted the surveyQuestionSets collection. A query there would list every " +
+      "question set an admin keeps.",
   );
   for (const sub of ["users", "reviews", "", "stages "]) {
     assert.throws(
@@ -536,6 +550,12 @@ test("the funnel fixture declares every collection its teardown must drain", () 
     "courseSessionReports",
     "courseWeekWork",
     "courseWorkLog",
+    // The survey admin spec: the end of a programme's question set its
+    // browser changes and puts back (through its one door), and the weeks of
+    // check-ins the scheduler fixes once the spec names a run whose weeks are
+    // whole, which teardown counts and removes by their constructed ids.
+    "surveyQuestionSets",
+    "checkInWeeks",
   ]) {
     assert.ok(
       FIXTURE_COLLECTIONS.includes(required),
