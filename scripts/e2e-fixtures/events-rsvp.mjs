@@ -421,7 +421,10 @@ export const SPEC = {
   // Verified: run against the shared harness server on 6 September 2026, all
   // six steps completed, three rows before teardown and a zero manifest after.
   // The duplicate-submission step was added and the spec re-run against a
-  // local server on 8 September 2026.
+  // local server on 8 September 2026. The step on the services page the
+  // privacy policy points to was added on Mon 2 November 2026 and the spec
+  // re-run in local mode on dev b457d82c: all eight steps ran, 4 rows before
+  // teardown and a zero manifest after.
   status: "verified",
   seed,
   countRows,
