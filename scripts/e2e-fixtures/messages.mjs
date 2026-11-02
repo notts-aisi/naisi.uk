@@ -127,11 +127,17 @@ export const SPEC = {
     ],
   },
   /**
-   * Written beside the code it drives and not yet run end to end: it counts
-   * nothing on the coverage map until a run against the harness's server,
-   * with its mail caught, has passed and read zero rows afterwards.
+   * VERIFIED on Mon 2 November 2026: in local mode, against the harness's own
+   * server with its mail caught (`npm run e2e:browser -- --local --spec
+   * messages`), on dev b457d82c: all eight steps ran, 46 rows existed before
+   * teardown (a form and its question set, 3 applications and 3 decisions, a
+   * course and its run with 3 weeks, 2 groups, 3 enrolments, 6 attendance
+   * rows, 2 updates (one of them the message kept on the programme's page),
+   * 3 cohort subscriptions, 4 rows of the send log, the send's record and its
+   * 4 counters, and 4 accounts with their sign-ins), and the fixture manifest
+   * read zero after it.
    */
-  status: "unverified",
+  status: "verified",
   seed: async ({ runId, suppress, onState }) => {
     // The spec presses Send a test as the admin, so the test's rows are this fixture's.
     const state = await seedTerms({ runId, suppress, onState, points: ["week-three"], adminTests: true });

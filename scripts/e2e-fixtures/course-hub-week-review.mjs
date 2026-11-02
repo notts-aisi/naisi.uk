@@ -196,18 +196,15 @@ export const SPEC = {
     ],
   },
   /**
-   * VERIFIED on 1 November 2026: in local mode, against the harness's own
-   * server (`npm run e2e:browser -- --local --spec course-hub-week-review`):
-   * all eight steps ran, the term's 47 rows and the one follow-up task existed
-   * before teardown, and the fixture manifest read zero after it. Nothing was
-   * pressed that sends anything to Claude or Pangram: the local server has no
-   * key for either.
-   *
-   * OWED: the two steps on the week's Notes (the seeded draft, and saving it)
-   * were added on Sun 1 Nov 2026 after that run, and are owed a local run
-   * (`npm run e2e:browser -- --local --spec course-hub-week-review`) once the
-   * laptop's cloud credential is renewed. Their page and route are held by
-   * `tests/week-notes.test.mjs` meanwhile.
+   * VERIFIED on Mon 2 November 2026: in local mode, against the harness's own
+   * server (`npm run e2e:browser -- --local --spec course-hub-week-review`),
+   * on dev b457d82c, with the two steps on the week's Notes (the seeded draft,
+   * and saving it): all ten steps ran, the term's 48 rows existed before
+   * teardown (the one follow-up task among them) beside the follow-up's record
+   * and the one note saved, and the fixture manifest read zero after it.
+   * Nothing was pressed that sends anything to Claude or Pangram: the local
+   * server has no key for either. It had passed in the same mode on 1 November
+   * 2026, before the Notes steps were added.
    */
   status: "verified",
   seed,

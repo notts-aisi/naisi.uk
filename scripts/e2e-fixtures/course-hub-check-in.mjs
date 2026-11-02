@@ -87,11 +87,17 @@ export const SPEC = {
     ],
   },
   /**
-   * Written beside the code it drives and not yet run end to end: it counts
-   * nothing on the coverage map until a run against the harness's server,
-   * with its mail caught, has passed and read zero rows afterwards.
+   * VERIFIED on Mon 2 November 2026: in local mode, against the harness's own
+   * server with its mail caught (`npm run e2e:browser -- --local --spec
+   * course-hub-check-in`), on dev b457d82c: all ten steps ran, 68 rows existed
+   * before teardown (a form and its question set, 5 applications and 5
+   * decisions, a course and its run with 3 weeks, 1 group, 5 run applications
+   * and 6 enrolments, 1 course log row, 3 attendance rows, 5 cohort
+   * subscriptions, the check-in with its 5 people, 3 answers and 1 counter, 8
+   * rows of the send log, and 6 accounts with their sign-ins), and the fixture
+   * manifest read zero after it.
    */
-  status: "unverified",
+  status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerms({ runId, suppress, onState, points: ["check-in"] }),
   countRows: countTerms,
   teardown: teardownTerms,

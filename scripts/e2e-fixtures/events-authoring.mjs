@@ -189,7 +189,11 @@ export const SPEC = {
   // are an admin's here. The account is one the harness is given; it can
   // never make one.
   needs: { admin: true },
-  /** What a green run drives, as src/app keys. */
+  /**
+   * What a green run drives, as src/app keys. The events list
+   * (`/(app)/events/manage`) is not among them: the admin starts at New event
+   * and never opens the list.
+   */
   covers: {
     routes: [
       "/api/auth/session",
@@ -202,7 +206,6 @@ export const SPEC = {
     pages: [
       "/(auth)/login",
       "/(app)/admin/(admin-only)",
-      "/(app)/events/manage",
       "/(app)/events/manage/new",
       "/(app)/events/manage/[id]",
       "/(app)/events/manage/[id]/survey",
@@ -213,11 +216,15 @@ export const SPEC = {
     ],
   },
   /**
-   * Written beside the code it drives and not yet run end to end: it counts
-   * nothing on the coverage map until a run against the harness's server has
-   * passed and read zero rows afterwards.
+   * VERIFIED on Mon 2 November 2026: in local mode, against the harness's own
+   * server (`npm run e2e:browser -- --local --spec events-authoring`), on dev
+   * b457d82c: all eight steps ran, the request for a place among them, 12 rows
+   * existed before teardown (the event, who it is for, its one invitation,
+   * the invitee's request, the survey after it, 3 rows of the send log, and
+   * 2 accounts with their sign-ins), and the fixture manifest read zero after
+   * it.
    */
-  status: "unverified",
+  status: "verified",
   seed,
   countRows,
   teardown,

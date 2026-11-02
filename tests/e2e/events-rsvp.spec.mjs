@@ -536,6 +536,23 @@ test("events RSVP: a signed-out guest books a place and the page fits a phone", 
       );
     });
 
+    await step("the services page the privacy policy points to says what checks the sign-up form", async () => {
+      // A static page, the same for everybody and read by nobody's account:
+      // the outside services the policy names, from src/content/legal/services.ts.
+      // Its heading, and the one sentence that is about the form this guest
+      // just filled in. The list's words are pinned by
+      // tests/privacy-policy.test.mjs; this proves the page draws them.
+      await page.goto(`${origin}/privacy/services`, { waitUntil: "domcontentloaded" });
+      await page.getByRole("heading", { level: 1, name: "Services we use", exact: true }).waitFor({ timeout: WAIT_MS });
+      const recaptcha = page.locator("li#recaptcha");
+      await recaptcha.getByRole("heading", { level: 2, name: "Google reCAPTCHA", exact: true }).waitFor({ timeout: WAIT_MS });
+      await recaptcha
+        .getByText("Checks that the person filling in our registration, event sign-up and application forms is not a bot.", {
+          exact: false,
+        })
+        .waitFor({ timeout: WAIT_MS });
+    });
+
     await step("a second submission from the same address is answered the same way and files nothing new", async () => {
       // The route must not tell a signed-out caller that an address already
       // holds an RSVP: the same page, the same sentence, and nothing filed. The

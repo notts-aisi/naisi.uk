@@ -65,6 +65,7 @@ export const RSVP_STEPS = [
   "a guest fills the form and lands on the confirmation page",
   "the RSVP row carries the guest's answer and the event's pending count moved",
   "the confirmation email is accounted for",
+  "the services page the privacy policy points to says what checks the sign-up form",
   "a second submission from the same address is answered the same way and files nothing new",
   "the event page fits a 375 by 667 phone with its submit button reachable",
   "the event page fits a 414 by 896 phone with its submit button reachable",
@@ -409,16 +410,21 @@ export const SPEC = {
    * page and the confirmation page are both server components that read
    * Firestore through `getEventForViewer()` rather than fetching, and the one
    * client subscription on the page (the maintenance notice) is a Firestore
-   * listener, not an HTTP route.
+   * listener, not an HTTP route. The services page the privacy policy
+   * points to is a static server render with no read; the guest opens it
+   * between booking and booking again.
    */
   covers: {
     routes: ["/api/events/[id]/rsvp"],
-    pages: ["/(public)/events/[id]", "/(public)/events/[id]/rsvp/submitted"],
+    pages: ["/(public)/events/[id]", "/(public)/events/[id]/rsvp/submitted", "/(public)/privacy/services"],
   },
   // Verified: run against the shared harness server on 6 September 2026, all
   // six steps completed, three rows before teardown and a zero manifest after.
   // The duplicate-submission step was added and the spec re-run against a
-  // local server on 8 September 2026.
+  // local server on 8 September 2026. The step on the services page the
+  // privacy policy points to was added on Mon 2 November 2026 and the spec
+  // re-run in local mode on dev b457d82c: all eight steps ran, 4 rows before
+  // teardown and a zero manifest after.
   status: "verified",
   seed,
   countRows,
