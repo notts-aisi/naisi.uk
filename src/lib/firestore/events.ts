@@ -585,7 +585,9 @@ export type EventDoc = {
    * closes a published event to every browser but an admin's), adding both
    * the form it replaces and the form it saves; an event whose form has not
    * changed since it went live has none, and its form as it stands says the
-   * same thing.
+   * same thing. Nothing reads it today, because the requests route sends an
+   * organiser the Students' Union does not recognise no answer at all; it is
+   * kept so that showing them answers again stays safe.
    */
   foodHealthAccessQuestionIds: string[];
   /**

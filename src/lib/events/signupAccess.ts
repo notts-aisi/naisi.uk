@@ -15,10 +15,9 @@ import { runsCheckIn } from "./checkInAccess";
  *    the event, its author and its collaborators, while their accounts stand
  *    (`isNamedWithStanding`). An organiser the Students' Union does not
  *    recognise is sent the requests alone, by `GET /api/events/[id]/signups`:
- *    each one's name, when they asked, a few words about who they are and
- *    their answers to the event's questions, never an address, never an
- *    answer to a dietary or accessibility question, and nobody who already
- *    holds a place (`src/lib/events/requestCard.ts`).
+ *    each one's name, when they asked and a few words about who they are,
+ *    never an address, never an answer to the event's questions, and nobody
+ *    who already holds a place (`src/lib/events/requestCard.ts`).
  *  - WHO DECIDES (Approve, Turn down): admins, approvers (`approveEvent`), the
  *    author while they hold `draftEvent`, and the collaborators.
  *

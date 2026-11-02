@@ -15,10 +15,10 @@
  * And what each is sent (`src/lib/events/requestCard.ts`): the name by the
  * name rule for the person looking, when they asked, the card ("AGI Strategy
  * · Group K", "Facilitator · AGI Strategy, Group C", "SU member", "Guest, no
- * account"), and the answers to the event's own questions; an address, the
- * dietary and accessibility answers, the membership's source, the offer to
- * facilitate and the way to the person's page only as the privacy policy
- * says. Nobody already given a place is ever in it.
+ * account"); an address, the answers to the event's questions, the
+ * membership's source, the offer to facilitate and the way to the person's
+ * page only as the privacy policy says (v15 gives an event's organisers who
+ * has asked and a few words about each, and no answer). Nobody already given a place is ever in it.
  *
  * Through the real route, the real approve and deny routes and the real
  * Sign-ups page, as every kind of caller: an author who is a member holding
@@ -429,7 +429,7 @@ describe("what each viewer is sent about who is asking", () => {
     assert.ok(!aboutOf(await ask(ZACH), RSVP.pat).includes("Offered to facilitate"));
   });
 
-  test("answers: every one for the whole list's viewers; for anybody else none to a dietary, accessibility or catch-all question", async () => {
+  test("answers: every one for the whole list's viewers; none at all for anybody else", async () => {
     w.reset(world());
     for (const who of [ZACH, SUE]) {
       assert.deepEqual(
@@ -447,11 +447,11 @@ describe("what each viewer is sent about who is asking", () => {
     }
     for (const who of [ADA, CAL]) {
       const res = await ask(who);
-      assert.deepEqual(answersOf(res, RSVP.pat), ["Why would you like to come?: I loved the last one", "Which game first?: Beat Saber"], who.uid);
-      for (const secret of ["Vegetarian", "Step-free", "coeliac", "access needs"]) {
+      assert.deepEqual(answersOf(res, RSVP.pat), [], who.uid);
+      assert.deepEqual(answersOf(res, RSVP_SAM), [], who.uid);
+      for (const secret of ["Vegetarian", "Step-free", "coeliac", "access needs", "I loved the last one", "Beat Saber", "Half-Life"]) {
         assert.ok(!JSON.stringify(res.body).includes(secret), `${who.uid} was sent "${secret}"`);
       }
-      assert.deepEqual(answersOf(res, RSVP_SAM), ["Which game first?: Half-Life"], who.uid);
     }
   });
 });
@@ -609,7 +609,8 @@ describe("the Sign-ups page", () => {
     assert.ok(!/Open .*’s page/.test(sue));
 
     const ada = view((await ask(ADA)).body);
-    assert.match(ada, /Pat Asked Fri 16 Oct, 10:40am Turn down… Approve AGI Strategy · Group K SU member Why would you like to come\? I loved the last one Which game first\? Beat Saber Tom /);
+    assert.match(ada, /Pat Asked Fri 16 Oct, 10:40am Turn down… Approve AGI Strategy · Group K SU member Tom /);
+    assert.ok(!/Why would you like to come|Which game first/.test(ada), "an organiser the SU does not recognise was shown an answer");
   });
 
   test("with nobody waiting it says so", () => {
@@ -705,10 +706,9 @@ describe("which answers an organiser the SU does not recognise is not shown", ()
 // 6. A question changed after people answered it
 // ---------------------------------------------------------------------------
 
-describe("a question changed after people answered it hides what it hid when they answered", () => {
+describe("a question changed after people answered it shows an organiser nothing", () => {
   // Cal helps run the event, holds approveEvent, and the SU does not
-  // recognise him: he may save the live event, and is shown no dietary or
-  // accessibility answer.
+  // recognise him: he may save the live event, and is shown no answer.
   const CAL_APPROVES = person("cal", "committee", "Cal Reed", { permissions: { approveEvent: true } });
   const SECRETS = ["Vegetarian", "Step-free", "coeliac"];
   const q = (id, type, label, extra = {}) => ({ id, type, label, required: false, ...extra });
@@ -733,7 +733,7 @@ describe("a question changed after people answered it hides what it hid when the
 
   const notShown = (res, why) => {
     assert.equal(res.status, 200, why);
-    assert.deepEqual(answersOf(res, RSVP.pat), ["Why would you like to come?: I loved the last one", "Which game first?: Beat Saber"], why);
+    assert.deepEqual(answersOf(res, RSVP.pat), [], why);
     const sent = JSON.stringify(res.body);
     for (const secret of SECRETS) assert.ok(!sent.includes(secret), `${why}: sent "${secret}"`);
   };
@@ -770,10 +770,4 @@ describe("a question changed after people answered it hides what it hid when the
     notShown(await ask(CAL_APPROVES), "after the move");
   });
 
-  test("a question that was never one stays shown, whatever it is renamed to", async () => {
-    w.reset(world());
-    const renamed = QUESTIONS.map((question) => (question.id === "q_game" ? { ...question, label: "First game?" } : question));
-    assert.equal((await save(CAL_APPROVES, renamed)).status, 200);
-    assert.deepEqual(answersOf(await ask(CAL_APPROVES), RSVP.pat), ["Why would you like to come?: I loved the last one", "First game?: Beat Saber"]);
-  });
 });

@@ -295,11 +295,11 @@ const NO_NAME = "NAISI member";
  * THE REQUESTS AS ONE VIEWER IS SENT THEM. `everyone` is the bar for the whole
  * list (admins and SU-recognised committee): they are sent each address,
  * every answer, and the name the sign-up was made with where the account
- * holds none. Everybody else is sent no address, no answer to a question that
- * is, or in any earlier version of the form was, a dietary or accessibility
- * one (`heldBackBefore`, the event's foodHealthAccessQuestionIds), and
+ * holds none. Everybody else is sent no address, NO ANSWER AT ALL, and
  * nothing the request stored about an account's name, which can be an
- * address or a name from before the name rule. `names`
+ * address or a name from before the name rule. v15 says what the people
+ * organising an event may see of a request ("who has asked for a place, with
+ * a few words about each"), and answers are not in it. `names`
  * comes from `staffNamesFor` for the same viewer. Whether somebody missed the
  * last two events they had a place at is sent to an admin alone.
  */
@@ -308,7 +308,6 @@ export function projectSignupRequests(
   questions: readonly FormQuestion[],
   facts: RequestFacts,
   viewer: { everyone: boolean; isAdmin: boolean },
-  heldBackBefore: readonly string[] = [],
 ): SignupRequestView[] {
   return requests.map((request) => {
     const account = request.uid;
@@ -323,7 +322,7 @@ export function projectSignupRequests(
       name,
       askedAt: request.createdAt ? request.createdAt.toISOString() : null,
       email: viewer.everyone && request.email ? request.email : null,
-      answers: answerLines(questions, request.answers, { withFoodHealthAndAccess: viewer.everyone, heldBackBefore }),
+      answers: viewer.everyone ? answerLines(questions, request.answers, { withFoodHealthAndAccess: true }) : [],
       about: account ? (facts.about.get(account) ?? []) : [{ kind: "guest", words: REQUEST_WORDS.guest }],
       page: viewer.isAdmin && account ? `/admin/members/${encodeURIComponent(account)}` : null,
       missed: viewer.isAdmin && account !== null && facts.missed.has(account),

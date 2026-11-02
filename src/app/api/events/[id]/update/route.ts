@@ -176,9 +176,12 @@ export async function POST(
   // stored under, and whether an organiser the Students' Union does not
   // recognise is shown an answer is read from the question's type and words.
   // So both the form this save replaces and the form it saves add their
-  // dietary and accessibility questions to a list that only grows, and the
-  // requests route hides an answer whose question is on it, whatever the
-  // question says now (src/lib/firestore/events.ts, foodHealthAccessQuestionIds).
+  // dietary and accessibility questions to a list that only grows
+  // (src/lib/firestore/events.ts, foodHealthAccessQuestionIds). Nothing reads
+  // it today: the requests route sends such an organiser no answer at all.
+  // It is kept so that showing them answers again hides an answer whose
+  // question is on it, whatever the question says now (`answerLines`'
+  // `heldBackBefore`).
   const heldBack = [
     ...new Set([
       ...foodHealthOrAccessQuestions(sanitizeSignupForm(old.signupForm)),

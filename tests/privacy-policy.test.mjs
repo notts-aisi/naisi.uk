@@ -7291,21 +7291,21 @@ describe("the check-in passage", () => {
     const route = withoutComments(read("src/app/api/events/[id]/signups/route.ts"));
     const refused = route.indexOf("if (!access.requests) {");
     assert.ok(refused !== -1 && refused < route.indexOf("await waitingRequests("), "the route reads the requests before it asks who may see them");
-    // CHANGED ON PURPOSE: the event's foodHealthAccessQuestionIds goes in as
-    // well, so a question retyped or relabelled after people answered it
-    // still holds back what was given as a dietary or accessibility answer.
+    // CHANGED ON PURPOSE: an organiser the SU does not recognise is sent no
+    // answer at all, because the sentence above is all v15 says they see of a
+    // request. Answers are not in it.
     assert.match(
       route,
-      /requests: projectSignupRequests\(\s*waiting,\s*event\.signupForm,\s*facts,\s*\{ everyone: access\.everyone, isAdmin: viewer\.role === "admin" \},\s*event\.foodHealthAccessQuestionIds,\s*\),/,
+      /requests: projectSignupRequests\(waiting, event\.signupForm, facts, \{ everyone: access\.everyone, isAdmin: viewer\.role === "admin" \}\),/,
     );
     // What the projection keeps from anybody but the whole list's viewers:
-    // the address, the dietary and accessibility answers, and the name a
+    // the address, every answer, and the name a
     // sign-up stored (which can be an address); and the person's page from
     // anybody but an admin.
     const card = withoutComments(read("src/lib/events/requestCard.ts"));
     assert.match(card, /const stored = viewer\.everyone \? request\.name\.trim\(\) : "";/);
     assert.match(card, /email: viewer\.everyone && request\.email \? request\.email : null,/);
-    assert.match(card, /answers: answerLines\(questions, request\.answers, \{ withFoodHealthAndAccess: viewer\.everyone, heldBackBefore \}\),/);
+    assert.match(card, /answers: viewer\.everyone \? answerLines\(questions, request\.answers, \{ withFoodHealthAndAccess: true \}\) : \[\],/);
     assert.match(card, /page: viewer\.isAdmin && account \? `\/admin\/members\/\$\{encodeURIComponent\(account\)\}` : null,/);
     // The few words: a place and its group, facilitating, membership, or a
     // guest. The offer to facilitate is read for an admin alone, where the
