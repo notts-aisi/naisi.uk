@@ -45,9 +45,11 @@ import { openingOf } from "./checkIns";
  * went by with no check-in for them.
  *
  * "HELD A CONFIRMED PLACE WHEN IT STARTED". A sign-up keeps its status, not
- * when it got there: the cancel route moves the first person on the waiting
- * list up with a bare `status: "confirmed"`, at any hour, after an event as
- * readily as before it. So a sign-up counts when it says confirmed AND
+ * when it got there: an organiser can approve a request with a bare
+ * `status: "confirmed"` at any hour, after an event as readily as before it,
+ * and until November 2026 the cancel route moved the first person on the
+ * waiting list up the same way (it stops at the start now, but the rows it
+ * wrote are still there). So a sign-up counts when it says confirmed AND
  * nothing has written to it since before the event started, which Firestore
  * says itself (a snapshot's `updateTime`; nothing is stored for this). If
  * nothing touched the row after the start, what it says now is what it said

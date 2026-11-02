@@ -10,6 +10,7 @@ import {
   clockTime,
   endWords,
   hasEnded,
+  hasStarted,
   placesState,
   placesTone,
   placesWords,
@@ -54,7 +55,7 @@ export default function EventDetailView({
   const { now, ended } = clockFor(event);
   // A place is given back before the event starts; once it has, the panel
   // only says they have one.
-  const started = event.startAt !== null && event.startAt.getTime() <= now.getTime();
+  const started = hasStarted(event.startAt, now);
   // Nothing to sign up to and nothing to put in a calendar.
   const over = isCancelled || ended;
   const dietaryTags = event.dietaryTags ?? [];

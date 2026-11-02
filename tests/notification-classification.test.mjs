@@ -622,7 +622,7 @@ const REGISTRY = {
     "The refusal when an organiser denies that RSVP instead of approving it.",
   ),
   "src/app/api/events/[id]/rsvp/[rsvpId]/cancel/route.ts#sendRsvpEmail": T(
-    "The two cancellation notes, one for the attendee cancelling and one for the organiser cancelling on their behalf.",
+    "The note to an attendee whose place or waiting-list place an organiser cancelled, and the note to the person moved up from the waiting list. Neither goes once the event has started.",
     2,
   ),
   "src/app/api/subscriptions/route.ts#sendEmail": T(

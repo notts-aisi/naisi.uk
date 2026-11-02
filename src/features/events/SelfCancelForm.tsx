@@ -18,12 +18,19 @@ type Props = {
    * not decided yet, or a place on the waiting list, is cancelled as before.
    */
   confirmedPlace: boolean;
+  /**
+   * Whether the event had started when the page was drawn. From the start the
+   * cancel route moves nobody up from the waiting list and sends no email, so
+   * the page promises neither. The route's own answer can say so too, for a
+   * page drawn just before the start and pressed after it.
+   */
+  started: boolean;
 };
 
 type State =
   | { kind: "idle" }
   | { kind: "submitting" }
-  | { kind: "cancelled" }
+  | { kind: "cancelled"; started: boolean }
   | { kind: "error"; message: string };
 
 export default function SelfCancelForm({
@@ -33,6 +40,7 @@ export default function SelfCancelForm({
   name,
   eventTitle,
   confirmedPlace,
+  started,
 }: Props) {
   const router = useRouter();
   const [state, setState] = useState<State>({ kind: "idle" });
@@ -45,7 +53,7 @@ export default function SelfCancelForm({
         { method: "POST" },
       );
       const body = (await res.json().catch(() => null)) as
-        | { ok?: true; error?: string }
+        | { ok?: true; error?: string; started?: boolean }
         | null;
       if (!res.ok || !body?.ok) {
         setState({
@@ -54,7 +62,7 @@ export default function SelfCancelForm({
         });
         return;
       }
-      setState({ kind: "cancelled" });
+      setState({ kind: "cancelled", started: started || body.started === true });
     } catch (err) {
       setState({
         kind: "error",
@@ -64,6 +72,17 @@ export default function SelfCancelForm({
   }
 
   if (state.kind === "cancelled") {
+    // Once it has started there is nothing to come back to.
+    if (state.started) {
+      return (
+        <div className={styles.card}>
+          <h1 className={styles.title}>
+            {confirmedPlace ? `${HELD_PLACE_WORDS.givenHeading}.` : "Your RSVP is cancelled."}
+          </h1>
+          <p className={styles.muted}>Thanks for letting us know.</p>
+        </div>
+      );
+    }
     return confirmedPlace ? (
       <div className={styles.card}>
         <h1 className={styles.title}>{HELD_PLACE_WORDS.givenHeading}.</h1>
@@ -91,9 +110,13 @@ export default function SelfCancelForm({
         {confirmedPlace ? `Can’t make it to ${eventTitle}?` : `Cancel your RSVP for ${eventTitle}?`}
       </h1>
       <p className={styles.muted}>
-        {confirmedPlace
-          ? `Hi ${name || "there"}. Give your place back and somebody else can have it.`
-          : `Hi ${name || "there"}. Confirm below and we'll free up your spot.`}
+        {started
+          ? confirmedPlace
+            ? `Hi ${name || "there"}. ${HELD_PLACE_WORDS.startedLede}`
+            : `Hi ${name || "there"}. It has already started. Confirm below to cancel your RSVP.`
+          : confirmedPlace
+            ? `Hi ${name || "there"}. Give your place back and somebody else can have it.`
+            : `Hi ${name || "there"}. Confirm below and we'll free up your spot.`}
       </p>
 
       {state.kind === "error" && (
@@ -120,7 +143,8 @@ export default function SelfCancelForm({
           {confirmedPlace ? HELD_PLACE_WORDS.keep : "Never mind"}
         </Button>
       </div>
-      {confirmedPlace && <p className={styles.muted}>{HELD_PLACE_WORDS.never}</p>}
+      {/* About giving it back before the start, so said only then. */}
+      {confirmedPlace && !started && <p className={styles.muted}>{HELD_PLACE_WORDS.never}</p>}
     </div>
   );
 }

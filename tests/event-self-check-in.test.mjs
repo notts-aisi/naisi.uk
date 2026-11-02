@@ -651,7 +651,10 @@ describe("the confirmation emails follow the switch", () => {
   }
   const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
 
-  test("through the routes: a place confirmed, and a move up from the waiting list, each as the event says", async () => {
+  test("through the routes: a place confirmed, and a move up from the waiting list, each as the event says", async (t) => {
+    // A week before the night: the cancel route moves nobody up once an event
+    // has started (tests/missed-events.test.mjs), so this is set before it.
+    clock(t, BEFORE);
     for (const [extra, words] of [[{}, OFF], [SELF_ON, ON]]) {
       // A place confirmed: Gwen's sign-up, pending, approved by an admin.
       const seed = checkInSeed(withEvent(extra));

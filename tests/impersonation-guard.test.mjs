@@ -658,7 +658,7 @@ const MUST_GUARD = [
   // view-as session would give the member's place back as them.
   [
     "src/app/api/events/[id]/rsvp/[rsvpId]/cancel/route.ts",
-    "gives a place at an event back, as the sign-up's own person or an organiser, and moves the first person on the waiting list up, who is emailed",
+    "gives a place at an event back, as the sign-up's own person or an organiser, and before the event starts moves the first person on the waiting list up, who is emailed",
   ],
 ];
 
