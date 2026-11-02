@@ -23,8 +23,8 @@
  * who approves Ada, keeps and changes and deletes notes about her on her
  * profile, choosing who reads each one, keeps one for the programme's leads
  * with a suggestion for next term and then keeps it to admins, meets
- * Claude's draft (the calm sentence where Claude is not set up, one press
- * against a deployed target that has a key), and reads the notes beside her
+ * Claude's draft (one press: in local mode the fake Claude's draft, against
+ * a deployed target a draft or a reason), and reads the notes beside her
  * application. Then the Coursework tab's panels, an admin's
  * alone since privacy v15: the admin names the running run on the
  * programme's Settings tab (the fixture never does), reads Claude's best
@@ -68,7 +68,7 @@ export const COURSEWORK_NOTES_STEPS = [
   "the admin adds a note, changes its words and deletes it, and the record agrees each time",
   "the admin keeps a note for the programme's leads with a suggestion for next term, then keeps it to admins, and the record agrees each time",
   "the admin keeps a note for the application screen",
-  "Claude's draft: the calm sentence where Claude is not set up, or one press answered with a draft or a reason",
+  "Claude's draft: one press, answered in local mode with the fake Claude's draft and against a deployed target with a draft or a reason",
   "beside the application only the note written after the agreement shows, with its rule and the count of earlier notes",
   "the admin names the running course run on the programme's Settings tab",
   "under the Coursework tab, Claude's best answers to week 3, an admin's alone, and Pangram's count before any press, with nothing pressed",

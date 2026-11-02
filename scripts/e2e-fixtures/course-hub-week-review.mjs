@@ -18,13 +18,13 @@
  * admin, who approves Fern and Group A's two people, names the running run on
  * the programme's Settings tab and appoints Fern to Group A; finds Review
  * beside week 3 on the Weeks tab; reads the review page saying what would be
- * sent before any press (in local mode, with no key, the calm sentence that
- * Claude is not set up, and no press) and Pangram's count before any press,
+ * sent before any press (in local mode, where Claude is the harness's fake,
+ * the press offered and not pressed) and Pangram's count before any press,
  * with nothing pressed; reads who might need a hand from the site's own
  * records; asks Fern to have a word with Ben, which makes one task with fixed
  * words and no reason; opens the week's Notes beside its review, where Ada's
  * week 3 is submitted and a draft of a note about her waits, as if Claude had
- * drafted it (seeded here: the harness's own server has no key), built only
+ * drafted it (seeded here, so the spec presses nothing that sends), built only
  * from her submitted week; saves it to her notes; and Fern, signed in, finds
  * the task on My Work.
  *
@@ -57,7 +57,7 @@ export const WEEK_REVIEW_STEPS = [
   "the admin names the running course run on the programme's Settings tab",
   "the admin appoints the facilitator to Group A on the Facilitators view",
   "the Weeks tab offers the admin week 3's review, and no week whose first session is still to come",
-  "the review says what would be sent before any press, and with no key that Claude is not set up, with nothing pressed",
+  "the review says what would be sent before any press, and offers Review with Claude, with nothing pressed",
   "who might need a hand, from the site's own records, each line saying where it came from",
   "the admin asks the facilitator to have a word with a person: one task, fixed words and no reason",
   "the week's notes, beside its review: who submitted, and a waiting draft built only from a submitted week",

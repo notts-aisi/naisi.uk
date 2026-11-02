@@ -11,10 +11,11 @@
  * adds a note, choosing who reads it, changes its words and deletes it, and
  * the database agrees each time -> keeps one for the programme's leads with a
  * suggestion for next term, then keeps it to admins -> keeps one ->
- * meets Claude's draft: in local mode, where the site has no key, the calm
- * sentence that says so; against a deployed target with a key, one press,
- * answered with a draft or one of the site's reasons, never Claude's words
- * asserted -> opens Ada's application, where only the note written after she
+ * presses Claude's draft once: in local mode, where the server's Claude is
+ * the harness's fake (scripts/e2e/lib/fakeClaude.mjs), the fake's draft with
+ * Ada's first name put back, and the fake asked once with no name of hers in
+ * what was sent; against a deployed target with a key, a draft or one of the
+ * site's reasons, never Claude's words asserted -> opens Ada's application, where only the note written after she
  * agreed shows, with its rule and the count of the earlier one -> names the
  * running run on the programme's Settings tab -> reads, under the Coursework
  * tab, Claude's best answers to week 3 (an admin's alone since privacy v15,
@@ -23,7 +24,8 @@
  * the column beside her weeks holds the notes written from this run with the
  * earlier one held back, Claude's draft from this run, and Pangram with
  * nothing of hers to send. Nothing on the tab or her page is pressed: neither
- * Claude nor Pangram is sent a word by those steps.
+ * Claude nor Pangram is sent a word by those steps (in local mode the fake's
+ * log says so).
  *
  * ## How to run it
  *
@@ -47,6 +49,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { assertTarget, hasAdminCredentials, loadSecrets } from "../../scripts/e2e/lib/env.mjs";
 import { readUserDoc } from "../../scripts/e2e/lib/firestore.mjs";
+import { FAKE_CLAUDE_WORDS, fakeClaudeRequests } from "../../scripts/e2e/lib/fakeClaude.mjs";
 import {
   approvePendingApplicant,
   createStepRecorder,
@@ -212,6 +215,8 @@ test(
     const responseTo = (suffix, method, timeout = WAIT_MS) =>
       page.waitForResponse((r) => new URL(r.url()).pathname.endsWith(suffix) && r.request().method() === method, { timeout });
     const notesPath = `/api/admin/members/${ada.uid}/notes`;
+    /** In local mode, how many requests the fake Claude had answered once the draft was pressed. */
+    let askedAfterDraft = null;
 
     /** The one note open for changing: its words are in a box then, so it is found by the box, not by them. */
     const openEdit = () => notes().locator('textarea[id^="edit-"]').locator("xpath=ancestor::li[1]");
@@ -331,17 +336,30 @@ test(
         assert.equal(all.length, 2, `Ada has ${all.length} notes, not the earlier one and the one kept`);
       });
 
-      await step("Claude's draft: the calm sentence where Claude is not set up, or one press answered with a draft or a reason", async () => {
-        if (!deployed) {
-          await notes().getByText(WORDS.claudeNotSetUp, { exact: true }).waitFor({ timeout: WAIT_MS });
-          assert.equal(await notes().getByRole("button", { name: WORDS.draft }).count(), 0, "a draft button with no key behind it");
-          return;
-        }
+      await step("Claude's draft: one press, answered in local mode with the fake Claude's draft and against a deployed target with a draft or a reason", async () => {
         const before = (await storedNotes(ada.uid)).length;
+        const asked = deployed ? 0 : (await fakeClaudeRequests()).length;
         const answered = responseTo(`${notesPath}/draft`, "POST", CLAUDE_WAIT_MS);
         await notes().getByRole("button", { name: WORDS.draft }).click();
         const answer = await answered;
-        if (answer.status() === 200) {
+        if (!deployed) {
+          // The fake's draft, with Ada's first name where it wrote "the fellow" (src/lib/memberNotes/draft.ts).
+          assert.equal(answer.status(), 200, `the fake Claude's draft answered ${answer.status()}`);
+          await notes().getByText(WORDS.drafted, { exact: true }).waitFor({ timeout: WAIT_MS });
+          const doc = await readUserDoc(ada.uid);
+          const firstName = doc?.profile?.preferredName?.trim() || String(doc?.displayName ?? "").trim().split(/\s+/)[0];
+          assert.ok(firstName, "Ada has no first name to put back");
+          const expected = FAKE_CLAUDE_WORDS.note.replace(/\bThe fellow\b/g, firstName).replace(/\bthe fellow\b/g, firstName);
+          assert.equal(await notes().locator(`#new-note-${ada.uid}`).inputValue(), expected, "the box does not hold the fake's draft with Ada's name put back");
+          // Asked once, by the note's own ask, and sent no name or address of hers.
+          const sent = (await fakeClaudeRequests()).slice(asked);
+          assert.deepEqual(sent.map((request) => request.caller), ["coursework-note-draft"], "the draft asked the fake something else, or more than once");
+          for (const words of [ada.displayName, ada.email, firstName]) {
+            assert.ok(words && !sent[0].message.includes(words), `what was sent to Claude carries ${words}`);
+          }
+          await notes().getByRole("button", { name: WORDS.cancel }).click();
+          askedAfterDraft = asked + sent.length;
+        } else if (answer.status() === 200) {
           await notes().getByText(WORDS.drafted, { exact: true }).waitFor({ timeout: WAIT_MS });
           const drafted = await notes().locator(`#new-note-${ada.uid}`).inputValue();
           assert.ok(drafted.trim().length > 0, "a draft came back and the box is empty");
@@ -392,9 +410,9 @@ test(
           assert.equal((await bestRead).status(), 200, "reading Claude's best answers was refused");
           assert.equal((await pangramRead).status(), 200, "reading Pangram's count was refused");
 
-          // In local mode the site has no key; against a target with one, Ada's answer is the one that may be sent.
+          // In local mode Claude is the fake, so Ada's answer is the one that may be sent; a deployed target may have no key.
           const best = page.locator('section[aria-label="Best answers"]');
-          const bestSays = deployed ? [WORDS.claudeNotSetUp, WORDS.bestOneSendable] : [WORDS.claudeNotSetUp];
+          const bestSays = deployed ? [WORDS.claudeNotSetUp, WORDS.bestOneSendable] : [WORDS.bestOneSendable];
           await waitFor("the best answers panel to say what Claude may be sent", async () => {
             const text = await textOf(best);
             return bestSays.some((words) => text.includes(words));
@@ -423,8 +441,8 @@ test(
           await notes().getByText(WORDS.hiddenOnRunOne, { exact: true }).waitFor({ timeout: WAIT_MS });
           assert.equal(await notes().getByText(EARLIER_NOTE).count(), 0, "a note written before the agreement from no programme shows on the programme's page");
           if (!deployed) {
-            await notes().getByText(WORDS.claudeNotSetUp, { exact: true }).waitFor({ timeout: WAIT_MS });
-            assert.equal(await notes().getByRole("button", { name: WORDS.draft }).count(), 0, "a draft button with no key behind it");
+            await notes().getByRole("button", { name: WORDS.draft }).waitFor({ timeout: WAIT_MS });
+            assert.equal(await notes().getByText(WORDS.claudeNotSetUp, { exact: true }).count(), 0, "Claude is said not to be set up where the fake is");
           } else {
             await waitFor("Claude's draft from this run to be offered, or the sentence that says it cannot be", async () =>
               (await notes().getByRole("button", { name: WORDS.draft }).count()) > 0 || (await notes().getByText(WORDS.claudeNotSetUp, { exact: true }).count()) > 0,
@@ -435,6 +453,9 @@ test(
           const pangram = page.locator('section[aria-label="Pangram"]');
           await pangram.getByText(WORDS.pangramTooShortOne, { exact: true }).waitFor({ timeout: WAIT_MS });
           assert.equal(await pangram.getByRole("button").count(), 0, "a Pangram button with nothing of Ada's to send");
+          if (!deployed) {
+            assert.equal((await fakeClaudeRequests()).length, askedAfterDraft, "the Coursework tab or Ada's page sent something to Claude with nothing pressed");
+          }
         },
       );
     } finally {

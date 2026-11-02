@@ -776,6 +776,14 @@ around what it may touch and the hand-driven fixture CLI are in
   rule generalises: a real defect a spec finds is pinned with the fix's own
   instructions, never silently fixed or silently worked around, and the fix
   deletes the pin in the same change.
+- **Claude is a fake in local mode.** The local server's Claude features
+  reach a fake on loopback that the run starts (`scripts/e2e/lib/fakeClaude.mjs`),
+  never Anthropic: a local run costs nothing and answers the same words every
+  time, and a spec reads what would have been sent. The site honours the base
+  URL only when it is a loopback address, and `tests/e2e-fake-claude.test.mjs`
+  holds each canned answer to its caller's own checker. Against a deployed
+  target the real model answers. "A fake Claude in local mode" in
+  `scripts/e2e/README.md` says how to add a caller.
 - **A policy version shipping stops nothing.** On a production build the
   member area sends a signed-in account whose stored policy version is behind
   the current one to `/re-consent` before it renders a page, which after a

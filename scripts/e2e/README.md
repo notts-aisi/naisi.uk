@@ -22,10 +22,12 @@ so it stops being hand-verified. Two modes:
   headless Chromium); `-- --local` drives them. See "The browser suite" below.
 
 Plain Node — `node --test`, no new npm dependencies, **zero files under `src/`**
-(one exception: the optional `FIREBASE_ADMIN_SERVICE_ACCOUNT_ID` hook in
+(two exceptions: the optional `FIREBASE_ADMIN_SERVICE_ACCOUNT_ID` hook in
 `src/lib/firebase/admin.ts`, inert unless that env var is set, which only
-run.mjs does). Nothing here ships to production, so there is no production
-guard that can be forgotten. It runs by hand from a laptop, and in CI on every
+run.mjs does; and `claudeBaseUrl` in `src/lib/ai/claude.ts`, which honours
+`ANTHROPIC_BASE_URL` only when it names a loopback address, see "A fake
+Claude in local mode"). Nothing here ships to production, so there is no
+production guard that can be forgotten. It runs by hand from a laptop, and in CI on every
 pull request and nightly (see "In CI" at the end).
 
 ```sh
@@ -82,7 +84,7 @@ rather than the record.
 | `course-hub-programme-end` | A programme's end, on the same term at two points of its own: its last week, with its one group's last session tonight, and past its run's last session, with every register finished and somebody who left in week 3. In the last week the admin names the run, appoints the group's facilitator, makes the survey at the end from its template, sends a test to themselves and emails the person holding a place, whose Home then says tonight is the last session with the survey at the end under it, after tonight and what's next. After the last session the admin, as the programme's lead, sets the rule for who finished on Settings, appoints a facilitator, and on the Overview reads who finished by the rule with the person who left apart, ticks one more with the counts and the list agreeing, previews the first certificate and its email, sends a test to themselves and then the certificates, one email a person as the button says. The person who finished reads that they did, their certificate and what they keep, turns its link on and downloads its PDF; a stranger reads only what the certificate says and is refused the PDF, and a certificate whose link is off shows the same calm page as a code nobody has; the person who did not finish reads that the programme has ended and nothing about finishing; the person who left reads only that they left. No email carries the meeting link. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the survey's and the certificates' tests go to the admin's own address and each certificate email is read out of its owner's mailbox |
 | `course-hub-check-in` | The check-in at the end of a session, on the same term three weeks in with one group of five whose session is under way: the admin names the run and appoints the group's facilitator, whose register offers the check-in on the session's day and counts the five once they are marked; opening it emails each a notice with a link of their own and none to the facilitator; two answer by their links, on its own page with the box at the top, and one signed in from the code the facilitator shows; a member who has not answered sees it on Home; the facilitator's card counts who has sent it and never who, and once closed shows the totals from three answers and no comment; once closed it is off Home and its link says so. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because each person's link is read out of their mailbox |
 | `messages` | Messages, on the same term three weeks in with everybody told their group, its form made the current term by the seed (a decision day later than any other form's on the server): the picker reads that term and offers the admin the programme's people; the admin names the running run, which gives its groups their tags, opens Messages from the programme's Messages tab set to its people (three people, all to be emailed, as a programme notice, with "Also post it on the programme's page" on) and reads See who; Send waits for a test, which reaches the admin's own address alone, marked as one, with no notice line; the send emails each of the three one notice saying why it reached them and nobody else, posts the message on the programme's page with what its email did, and leaves a record of the send with no address in it; Sent lists the send with who it reached by name and no address; and the run's home opens Messages set to the programme's people holding a place from "Email the whole cohort". | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the test goes to the admin's own address and each notice is read out of its person's mailbox |
-| `course-hub-week-review` | A week's review, an admin's page, on the same term three weeks in with its weeks written as blocks: the admin names the run and appoints Group A's facilitator; the Weeks tab offers Review beside each week whose first session has started and none beside week 4; the review says what would be sent before any press (one written answer, one reflection, two not included yet) and, with no key, that Claude is not set up, with nothing pressed; who might need a hand is read from the site's own records with where each line came from; asking the facilitator to have a word with somebody makes one task with fixed words and no reason, which the facilitator finds on My Work. | Yes | Both |
+| `course-hub-week-review` | A week's review, an admin's page, on the same term three weeks in with its weeks written as blocks: the admin names the run and appoints Group A's facilitator; the Weeks tab offers Review beside each week whose first session has started and none beside week 4; the review says what would be sent before any press (one written answer, one reflection, two not included yet) and, in local mode where Claude is the fake, offers Review with Claude, with nothing pressed; who might need a hand is read from the site's own records with where each line came from; asking the facilitator to have a word with somebody makes one task with fixed words and no reason, which the facilitator finds on My Work. | Yes | Both |
 | `events-rsvp` | A guest RSVP against a real event, through the public event page to the submitted confirmation, with the services page the privacy policy points to read on the way. | Yes | Both |
 
 ## Safety properties
@@ -270,6 +272,102 @@ cannot be drained without corrupting a real number. It does sweep its
 `emailSends` rows, along with its `emailVerifications` tokens, its
 `registrations` row, its subscription rows and the account itself, so the
 counters are the only thing a run of it leaves behind.
+
+### A fake Claude in local mode
+
+The site's own Claude features (a note's draft, a week's review, the
+end-of-week notes and the rest) all leave through one door,
+`src/lib/ai/claude.ts`. In local mode they never reach Anthropic: `run.mjs`
+starts a fake Claude in its own process on `127.0.0.1:3102`
+(`scripts/e2e/lib/fakeClaude.mjs`), the way it owns Mailpit, and forces two
+variables on the servers it starts (`:3100` and the persona server on
+`:3101`), shadowing anything in the shell or `.env.local`:
+
+- `ANTHROPIC_API_KEY` is `FAKE_CLAUDE_KEY`, which is not a key: Anthropic
+  would refuse it, and the fake refuses any other.
+- `ANTHROPIC_BASE_URL` is the fake's address. The door honours that variable
+  only when it is plain http to `127.0.0.1` or `[::1]` (`claudeBaseUrl`), and
+  gives the client Anthropic's address otherwise, so nothing a deployed
+  backend holds can point its key anywhere else, and nothing on a deployed
+  backend's loopback answers as Claude. `tests/claude-base-url.test.mjs` pins
+  that rule by execution, keeps the variable out of every `apphosting*.yaml`
+  and keeps every Claude variable out of the workflows.
+
+So a local run costs nothing and says the same thing every time. Against a
+deployed target (dev.naisi.uk) nothing here applies: the backend keeps its
+real key and the real model, and a spec there accepts a draft or any of the
+site's calm reasons and never asserts Claude's words.
+
+**What it answers.** `CANNED` in `fakeClaude.mjs` holds one entry per caller,
+recognised by the schema's top-level `required` keys and a phrase of the
+system prompt, with an answer built to pass that caller's own checker:
+
+| Caller | Stands in for | Routes that reach it |
+| --- | --- | --- |
+| `coursework-note-draft` | `askForNoteDraft` in `src/lib/courses/coursework/claude.ts` | a profile's note draft, a programme person's note draft, a week's end-of-week note draft (`.../weeks/[weekId]/notes/draft`) |
+| `week-review-grades`, `week-review-themes`, `week-review-hands` | `askForGrades`, `askForThemes`, `askForHands` in `src/lib/courses/weekReview/claude.ts` | Review with Claude (`.../weeks/[weekId]/review`) |
+
+The explainers (`.../weeks/[weekId]/explainers`, `.../explainers/[explainerId]`)
+send nothing to Claude, so they need no answer. Every other caller (the
+applications' reads, intake, arrangements, invitation notes, placement notes,
+a facilitator's case, a week's best answers) has none yet: the fake answers it
+400, which the site says as "Claude couldn't answer just now. Try again.", and
+prints a loud block in the run's output naming the schema and the start of the
+system prompt. A spec that presses one of those fails on purpose until it is
+added.
+
+The words are `FAKE_CLAUDE_WORDS`: a note's draft (with "the fellow", which the
+site puts back as the person's first name), a grade of 7 for every written
+answer, one theme on the first part citing every answer and report sent and no
+check-in, and one hand for the first fellow sent, resting on their own
+answers. Where a checker holds an answer to what was sent, the answer is
+built from the request's own message, so it never cites an id that was not
+sent.
+
+**How a spec uses it.** Local mode is the fake, so the usual
+`const deployed = origin !== HARNESS_LOCAL_ORIGIN` decides it:
+
+```js
+import { FAKE_CLAUDE_WORDS, fakeClaudeRequests } from "../../scripts/e2e/lib/fakeClaude.mjs";
+
+const asked = deployed ? 0 : (await fakeClaudeRequests()).length;
+// ... press the button, wait for its answer ...
+if (!deployed) {
+  // the page shows FAKE_CLAUDE_WORDS (with the person's name where the site puts it back)
+  const sent = (await fakeClaudeRequests()).slice(asked);
+  assert.deepEqual(sent.map((r) => r.caller), ["coursework-note-draft"]);
+  assert.ok(!sent[0].message.includes(person.displayName)); // what would have gone to Anthropic
+}
+```
+
+`fakeClaudeRequests()` reads the fake's log (`GET /fake/requests` on the
+address run.mjs hands the specs as `E2E_FAKE_CLAUDE_URL`): every request the
+servers sent since the run began, in order, each `{ at, caller, model,
+required, system, message }`, with `caller` null for one it did not
+recognise. The log spans the whole run, so take its length before the press
+and read what came after. `coursework-notes` is the worked example: it
+presses Claude's draft, holds the box to the fake's words with Ada's name put
+back and reads that no name or address of hers was sent; `course-hub-week-review`
+holds that drawing the review and the notes sends nothing.
+
+**Adding a canned answer for a new caller.**
+
+1. Add an entry to `CANNED`: `caller` (a name for the log), `source` (the
+   file and function it stands in for), `required` (the schema's top-level
+   `required` keys), `system` (a phrase of the system prompt no other caller
+   has), `routes`, and `answer(message)`, returning the object Claude would
+   send. Read the caller's checker first: if it holds the answer to ids or
+   labels that were sent, build them from `message`, as the week review's
+   entries do. Put any words a spec will assert in `FAKE_CLAUDE_WORDS`.
+2. Add a case to `tests/e2e-fake-claude.test.mjs` that drives the caller's
+   REAL ask (its exported function, built from real input where the input is
+   built by a pure function) through the real door against the fake, adds the
+   caller to `DRIVEN`, and holds what the checker kept. The suite fails while
+   a `CANNED` entry has no case, so the two land together, and a later change
+   to the caller's prompt, schema or checker fails `npm test` rather than a
+   browser run.
+3. Run `node --test tests/e2e-fake-claude.test.mjs`, then the spec in local
+   mode.
 
 ## The browser suite (`npm run e2e:browser`)
 
