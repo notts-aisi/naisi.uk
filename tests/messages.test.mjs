@@ -42,6 +42,7 @@
  */
 import { describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -156,6 +157,7 @@ const T = {
   newsletter: id({ kind: "subscribed", channel: "newsletter" }),
   events: id({ kind: "subscribed", channel: "events" }),
   committee: id({ kind: "role", role: "committee" }),
+  admins: id({ kind: "role", role: "admin" }),
 };
 
 /** The session a request arrives with: the stored account, with the reviewer flag the session carries. */
@@ -653,6 +655,22 @@ describe("a bounced address, and a copy of the site that may not write", () => {
     assert.equal(words.sentWords({ sent: 0, held: 2, suppressed: 0, failed: 0 }, null), "2 held, because this copy of the site doesn’t email them.");
   });
 
+  test("an address the do-not-email list stops at the moment of sending is the admin's to be told of", async (t) => {
+    freshTerm(t);
+    for (const who of ["tom", "zach"]) {
+      await call(who, testRoute.POST, { body: WORDS });
+      const count = await countOf(who, [T.groupC]);
+      w.world.mailFate = () => "suppressed";
+      const response = await call(who, route.POST, { body: { include: [T.groupC], exclude: [], row: null, ...WORDS, count: count.emailed } });
+      w.world.mailFate = null;
+      assert.equal(response.status, 200, `${who}: ${JSON.stringify(response.body)}`);
+      const expected = who === "zach" ? { suppressed: count.emailed, failed: 0 } : { suppressed: 0, failed: count.emailed };
+      assert.deepEqual({ suppressed: response.body.suppressed, failed: response.body.failed }, expected, who);
+    }
+    // The record keeps what happened, for an admin, whoever wrote it.
+    for (const path of recordPaths()) assert.ok(w.world.db.read(path).counts.suppressed > 0, path);
+  });
+
   test("a send that throws is counted, by account, never by address", async (t) => {
     freshTerm(t);
     await call("tom", testRoute.POST, { body: WORDS });
@@ -690,21 +708,50 @@ describe("the caps refuse rather than truncate", () => {
     assert.equal(recordPaths().length, sending.MESSAGES_PER_HOUR);
   });
 
-  test("an audience is its tags in any order", () => {
-    const one = sending.audienceKeyOf({ include: [T.groupB, T.groupC], exclude: [T.vrCame] });
-    const two = sending.audienceKeyOf({ include: [T.groupC, T.groupB], exclude: [T.vrCame] });
-    assert.equal(one, two);
-    assert.notEqual(one, sending.audienceKeyOf({ include: [T.groupC], exclude: [] }));
+  test("two spellings that reach the same people share a cap", async (t) => {
+    freshTerm(t);
+    // Claudia leads AGI Strategy, so she may use Groups A, B and C. Leaving out Group A from
+    // Group C removes nobody, and leaving out AGI Strategy's facilitators removes nobody Group C emails.
+    await call("claudia", testRoute.POST, { body: WORDS });
+    const count = await countOf("claudia", [T.groupC]);
+    const press = (exclude) => call("claudia", route.POST, { body: { include: [T.groupC], exclude, row: null, ...WORDS, count: count.emailed } });
+    assert.equal((await press([])).status, 200);
+    assert.equal((await countOf("claudia", [T.groupC], [T.groupA])).emailed, count.emailed);
+    assert.equal((await press([T.groupA])).status, 200);
+    assert.equal((await press([T.groupA, T.groupB])).status, 200);
+    const sentBefore = sentMail().length;
+    const refused = await press([T.agiFacilitating]);
+    assert.equal(refused.status, 429, JSON.stringify(refused.body));
+    assert.match(refused.body.error, /in the last hour\. Nothing was sent\./);
+    assert.equal(sentMail().length, sentBefore);
+  });
+
+  test("an audience is the people it emails, in any order, and its key names nobody", () => {
+    const people = (...keys) => keys.map((key) => ({ key }));
+    const one = sending.audienceKeyOf(people("a:amara", "a:bea", "g:sam@example.com"));
+    const two = sending.audienceKeyOf(people("g:sam@example.com", "a:amara", "a:bea", "a:amara"));
+    assert.equal(one, two, "the same people in another order, or one listed twice, are another audience");
+    assert.notEqual(one, sending.audienceKeyOf(people("a:amara", "a:bea")));
+    assert.notEqual(one, sending.audienceKeyOf(people("a:amara", "a:bea", "g:mo@example.com")));
     assert.match(one, /^[0-9a-f]{24}$/);
-    const windows = sending.capWindows("tom", { include: [T.groupC], exclude: [] }, 1, 2);
+    // Keyed with the site's secret: the bare people, hashed, are not the key, so an address cannot be tested against it.
+    const bare = createHash("sha256").update(JSON.stringify(["a:amara", "a:bea", "g:sam@example.com"])).digest("hex").slice(0, 24);
+    assert.notEqual(one, bare);
+    const windows = sending.capWindows("tom", people("a:amara"), 1, 2);
     assert.equal(windows.hour.limit, 3);
     assert.equal(windows.day.limit, 10);
     assert.ok(windows.hour.key.endsWith("__tom") && !windows.day.key.includes("tom"), "the day's window is per audience, whoever writes");
+    assert.ok(!JSON.stringify(windows).includes("amara"), "a counter's key names somebody");
   });
 
   test("ten a day per audience, whoever writes", async (t) => {
     freshTerm(t);
-    const day = sending.capWindows("zach", { include: [T.groupC], exclude: [] }, 1, 2).day.key;
+    // The people Group C's message emails, as the send resolves them.
+    const { loadAudienceWorld, resolveAudience } = await lib("audience", "load.ts");
+    const world = await loadAudienceWorld(w.world.db, sessionFor("zach"), new Date());
+    const answer = await resolveAudience(w.world.db, world, { include: [T.groupC], exclude: [] }, {});
+    assert.ok(answer.ok);
+    const day = sending.capWindows("zach", sending.emailedOf(answer.resolution).people, 1, 2).day.key;
     w.world.db.seed(`courseNudges/emailrate__${day}`, { kind: "staff-email-throttle", key: day, windowStartAt: new Date(AFTER.getTime() - 60_000), count: 10, updatedAt: AFTER });
     await call("tom", testRoute.POST, { body: WORDS });
     const count = await countOf("tom", [T.groupC]);
@@ -1089,6 +1136,51 @@ describe("Sent: who reads which send", () => {
     assert.equal(sentLib.maySeeSend(scope, { tags: [] }), false, "a record with no tag is nobody's");
     assert.equal(sentLib.maySeeSend(scope, { tags: [{ id: "not a tag", label: "", sign: "include" }] }), false);
   });
+
+  test("a lead on the committee reads nobody else's message to the admins, the committee, a person by name or an event's people", async (t) => {
+    freshTerm(t);
+    withOrdering(t);
+    // Claudia leads AGI Strategy and is SU-recognised committee, so the picker lets her use the
+    // roles, a person by name and the VR night's tags. None of those people is somebody she runs.
+    const amara = id({ kind: "person", uid: "amara" });
+    const others = [
+      [[T.admins], undefined],
+      [[T.committee], undefined],
+      [[amara], undefined],
+      [[T.vrCame], "events"],
+    ];
+    await call("zach", testRoute.POST, { body: WORDS });
+    for (const [include, row] of others) {
+      const count = await countOf("zach", include, [], row ?? null);
+      const sent = await call("zach", route.POST, { body: { include, exclude: [], row: row ?? null, ...WORDS, count: count.emailed } });
+      assert.equal(sent.status, 200, `${include}: ${JSON.stringify(sent.body)}`);
+      mock.timers.tick(60_000);
+    }
+    assert.equal((await sentAs("zach")).sends.filter((send) => send.source === "messages").length, others.length);
+    assert.deepEqual((await sentAs("claudia")).sends, [], "a lead read a message to people they do not run");
+    assert.deepEqual((await sentAs("tom")).sends, []);
+
+    // Her own message to the same people is hers to read, and a message to a group she runs is too.
+    assert.equal((await testAndSend("claudia", [T.vrCame], { row: "events" })).status, 200);
+    mock.timers.tick(60_000);
+    assert.equal((await testAndSend("zach", [T.groupC], { post: false })).status, 200);
+    assert.deepEqual((await sentAs("claudia")).sends.map((send) => send.from), ["Zach Levin", "you"]);
+    // Tom is not on the committee: the name Zach goes by.
+    assert.deepEqual((await sentAs("tom")).sends.map((send) => send.from), ["Zach"]);
+
+    // The rule itself: another writer's message is read only when every tag is a programme or a
+    // group the reader runs, whatever else the picker lets them use.
+    const scope = (await lib("audience", "scope.ts")).scopeOf(sessionFor("claudia"), { leads: [`${ROUND}:${AGI}`], groups: [A, B, C] });
+    const record = (ids, writerUid) => ({ writerUid, tags: ids.map(([tagId, sign]) => ({ id: tagId, label: "", sign })) });
+    for (const ids of [[[T.vrCame, "include"]], [[T.admins, "include"]], [[amara, "include"]], [[T.groupC, "include"], [amara, "exclude"]], [[T.groupC, "include"], [T.vrCame, "exclude"]]]) {
+      assert.equal(sentLib.maySeeSend(scope, record(ids, "zach"), "claudia"), false, JSON.stringify(ids));
+      assert.equal(sentLib.maySeeSend(scope, record(ids, "claudia"), "claudia"), true, `her own: ${JSON.stringify(ids)}`);
+    }
+    assert.equal(sentLib.maySeeSend(scope, record([[T.agiEveryone, "include"], [T.groupA, "exclude"]], "zach"), "claudia"), true);
+    // Her own message is still held to the tags she may use now.
+    assert.equal(sentLib.maySeeSend(scope, record([[T.holding, "include"]], "claudia"), "claudia"), false);
+    assert.equal(sentLib.maySeeSend(scope, record([[T.vrCame, "include"]], ""), ""), false, "an empty uid is nobody's own");
+  });
 });
 
 describe("Sent: what a message says, for the person reading", () => {
@@ -1096,8 +1188,9 @@ describe("Sent: what a message says, for the person reading", () => {
     freshTerm(t);
     withOrdering(t);
     // The VR night by event announcements: Amara and Mo said yes, Gwen's address bounced, Bea and
-    // Dev said no, Dan walked in. Claudia may use the tag (SU-recognised committee).
-    assert.equal((await testAndSend("zach", [T.vrCame], { row: "events" })).status, 200);
+    // Dev said no, Dan walked in. Claudia writes it: she may use the tag (SU-recognised committee),
+    // and a message to an event's people is hers to read only because she wrote it.
+    assert.equal((await testAndSend("claudia", [T.vrCame], { row: "events" })).status, 200);
     const [admin] = (await sentAs("zach")).sends;
     assert.equal(admin.subject, WORDS.subject);
     assert.equal(admin.what, "By their settings: event announcements");
@@ -1117,7 +1210,23 @@ describe("Sent: what a message says, for the person reading", () => {
     const [lead] = (await sentAs("claudia")).sends;
     assert.deepEqual(lead.people.map((person) => person.name), admin.people.map((person) => person.name));
     assert.ok(lead.people.every((person) => person.why === null), "a reason reached somebody who is not an admin");
-    assert.deepEqual(lead.reasons, admin.reasons);
+    // The same reasons as counts, except that a bounced address is not told apart from no address:
+    // the same total, and the words cover both.
+    const total = (reasons) => reasons.reduce((n, each) => n + each.count, 0);
+    assert.equal(total(lead.reasons), total(admin.reasons));
+    assert.ok(admin.reasons.some((each) => each.why === "Their address bounced or marked us as spam"), JSON.stringify(admin.reasons));
+    assert.ok(!lead.reasons.some((each) => each.why === "Their address bounced or marked us as spam"), `a bounce reached somebody who is not an admin: ${JSON.stringify(lead.reasons)}`);
+    assert.deepEqual(
+      lead.reasons.filter((each) => each.why !== "No address we can email"),
+      admin.reasons.filter((each) => each.why !== "No address we can email" && each.why !== "Their address bounced or marked us as spam"),
+    );
+    // An address that went on the do-not-email list between the count and the send is the admin's to read.
+    const [path] = recordPaths();
+    w.world.db.poke(path, { "counts.sent": 0, "counts.suppressed": 1 });
+    assert.match((await sentAs("zach")).sends[0].counts, /1 on the do-not-email list/);
+    const told = (await sentAs("claudia")).sends[0].counts;
+    assert.doesNotMatch(told, /do-not-email/, told);
+    assert.match(told, /1 couldn’t be sent/, told);
   });
 
   test("a facilitator sees the name people go by, never a full name; nothing reaches the page but names and counts", async (t) => {
@@ -1159,7 +1268,8 @@ describe("Sent: what a message says, for the person reading", () => {
     freshTerm(t);
     withOrdering(t);
     const amara = id({ kind: "person", uid: "amara" });
-    assert.equal((await testAndSend("zach", [amara])).status, 200);
+    // Claudia writes it (SU-recognised committee may name people), and reads her own message.
+    assert.equal((await testAndSend("claudia", [amara])).status, 200);
     const [path] = recordPaths();
     // Whatever the writer saw, the reader's rule names the person.
     w.world.db.poke(path, { tags: [{ id: amara, label: "Somebody else entirely", sign: "include" }] });

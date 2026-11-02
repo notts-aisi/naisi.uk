@@ -211,7 +211,8 @@ export const LEFT_OUT_REASONS: readonly LeftOutReason[] = ["settings", "left", "
 export function leftOutWords(reason: LeftOutReason, row: GridRow): string {
   switch (reason) {
     case "no-address":
-      return "No email address on record";
+      // Also what anybody but an admin reads for a bounced address (`reasonsForViewer`), so it says nothing of why.
+      return "No address we can email";
     case "suppressed":
       return "Their address bounced or marked us as spam";
     case "settings":

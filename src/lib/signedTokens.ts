@@ -176,3 +176,14 @@ export function verifyToken<T extends TokenPayload>(
 export function randomOpaqueId(): string {
   return b64url(randomBytes(32));
 }
+
+/**
+ * A keyed fingerprint of some text, as hex: the same text gives the same
+ * fingerprint on one copy of the site, and nobody without the signing secret
+ * can work back from it or test a guess against it. For a counter's key that
+ * is made of people (an address among them), so the key names nobody.
+ * `purpose` keeps one use's fingerprints from matching another's.
+ */
+export function keyedDigest(purpose: string, text: string): string {
+  return createHmac("sha256", secret()).update(`${purpose}\n${text}`, "utf8").digest("hex");
+}

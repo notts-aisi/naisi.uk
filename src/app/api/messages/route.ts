@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import MessageEmail from "@/emails/MessageEmail";
 import { loadAudienceWorld, resolveAudience } from "@/lib/audience/load";
+import { seesReasonsByName } from "@/lib/audience/scope";
 import { AUDIENCE_REFUSAL } from "@/lib/audience/words";
 import { displayNameOf, staffMessageBlocks, staffPreheader } from "@/lib/email/courseFacilitatorEmails";
 import { dispatchSends } from "@/lib/email/dispatch";
@@ -78,7 +79,8 @@ import { sendNoticePush } from "@/lib/push/noticeNotifications";
  * post the selection or the writer cannot make, no test of these words that
  * reached the writer (as Publish waits for one), and the caps (three an hour
  * per writer and audience, ten a day per audience, claimed in one
- * transaction). Only then is the record written (`messageSends`, never an
+ * transaction, where the audience is the people it emails, however the tags
+ * were spelled). Only then is the record written (`messageSends`, never an
  * address), and the update when it is also posted on the programme's page,
  * then the emails, one message per address, never a list and never a copy to
  * anybody else; and then what they did, on both.
@@ -171,7 +173,7 @@ export async function POST(req: Request) {
   // ── The caps, claimed before anything is written ──────────────────────────
   let slot: NoticeSlotClaim;
   try {
-    slot = await reserveNoticeSlots(db, { ...capWindows(user.uid, send.selection, HOUR_MS, DAY_MS), noun: "messages" });
+    slot = await reserveNoticeSlots(db, { ...capWindows(user.uid, emailed.people, HOUR_MS, DAY_MS), noun: "messages" });
   } catch (err) {
     // Fail closed: a cap that cannot be read is no licence to send.
     console.error("[messages] throttle read failed", user.uid, err);
@@ -274,5 +276,9 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error("[messages] could not record what the emails did", recordId, err);
   }
-  return NextResponse.json({ ok: true, ...tally, pushed, posted: target ? target.programme : null });
+  // The record keeps the do-not-email list's count for admins. Anybody else
+  // is told an email held back by it as one that could not be sent, as the
+  // picker's count and Sent tell them (`reasonsForViewer`).
+  const told = seesReasonsByName(world.scope) ? tally : { ...tally, suppressed: 0, failed: tally.failed + tally.suppressed };
+  return NextResponse.json({ ok: true, ...told, pushed, posted: target ? target.programme : null });
 }
