@@ -1,5 +1,5 @@
 /**
- * Changing a session (Q25): the change route, as every kind of caller, each
+ * Changing a session: the change route, as every kind of caller, each
  * kind of change end to end, and every refusal before the write.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).

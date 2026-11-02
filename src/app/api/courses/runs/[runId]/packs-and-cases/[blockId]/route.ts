@@ -26,8 +26,7 @@ import { WeekShutError, assertWeekTakesWork, logWork, ownLockSource, weekStateIn
 import { WEEK_SHUT } from "@/lib/courses/weekWork/words";
 
 /**
- * A PERSON'S OWN PACK AND TALK (plan item 8; Q32 A; boards wk-week,
- * wk-week-phone, wk-week6-phone): `PUT` with `{ weekId, packId }` picks a
+ * A PERSON'S OWN PACK AND TALK: `PUT` with `{ weekId, packId }` picks a
  * pack in a Choose one the person picks themselves, and with
  * `{ weekId, ready }` marks themselves ready for a talk, or not. Always
  * their OWN record: its id is built from the caller's own uid, and nothing

@@ -249,8 +249,8 @@ const RUN_EDITOR = src("features", "courses", "RunEditor.tsx");
 const WEEK_PLAN_BUILDER = src("features", "courses", "WeekPlanBuilder.tsx");
 const WEEK_VIEW = src("features", "courses", "WeekView.tsx");
 const RUN_HOME = src("features", "courses", "RunHome.tsx");
-// The run home's ticket reads its session's facts here since the restyle
-// (boards wk-programme, st-programme): the next session's own week.
+// The run home's ticket reads its session's facts here since the restyle:
+// the next session's own week.
 const CARD_FACTS = src("features", "courses", "sessionChange", "cardFacts.ts");
 const USE_WEEK = src("features", "courses", "useWeek.ts");
 const USE_GROUP_WEEKS = src("features", "courses", "useGroupWeeks.ts");
@@ -2455,7 +2455,7 @@ test("GUARD — virtual/in-person reaches the member, on the card and in the ema
   assert.match(OVERVIEW, /sessionModes: sessionModesOf\(source\),/);
   // The facilitator's own group page builds the same shape and hands its
   // ticket the same week's entry, so the person who just flipped the switch
-  // sees what their members will. Since board wk-fac-group the page draws the
+  // sees what their members will. Since the restyle of the facilitator's group page, the page draws the
   // run home's ticket, which reads the mode of its own session's week through
   // `ticketFacts` (the CARD_FACTS row above pins how), handed this whole map.
   assert.match(GROUP_PAGE, /sessionModes: sessionModesOf\(group\),/);
@@ -2478,7 +2478,7 @@ test("GUARD — virtual/in-person reaches the member, on the card and in the ema
   );
   // Honest fallbacks rather than an empty card, in both directions. The online
   // one says the link will be on the card, and never that anybody will send
-  // it: the link lives on the site only, behind sign-in (Q23), so the old
+  // it: the link lives on the site only, behind sign-in, so the old
   // "your facilitator will send the joining link" is gone for good.
   assert.match(SESSION_CARD, /`Online this week\. \$\{LINK_WILL_BE_HERE\}`/);
   assert.match(
@@ -2579,7 +2579,7 @@ test("GUARD — the week page shows the VIEWED week's mode, not the current week
   );
   assert.match(WEEK_VIEW, /mode=\{viewedSessionMode\}/);
   // …the run home the one of the session its ticket is dated to (the group's
-  // next, since the restyle to boards wk-programme and st-programme), and
+  // next, since the programme page's restyle), and
   // describes that session end to end: its own week's mode, room and link.
   assert.match(CARD_FACTS, /const mode = group\.sessionModes\[weekDocId\(next\.weekNumber\)\] \?\? null;/);
   assert.match(CARD_FACTS, /const room = mode !== "virtual" && next\.location\.trim\(\) \? next\.location\.trim\(\) : null;/);

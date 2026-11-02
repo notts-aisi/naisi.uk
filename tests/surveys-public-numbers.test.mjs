@@ -1,5 +1,5 @@
 /**
- * PUBLIC NUMBERS (sv-public; docs/surveys.md, "Public numbers"): what an
+ * PUBLIC NUMBERS (docs/surveys.md, "Public numbers"): what an
  * admin is offered for a programme's public page, what Publish keeps, and
  * Take it down.
  *
@@ -581,7 +581,7 @@ describe("Take it down: any time, by an admin, and the record is gone", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. The admins' page (sv-public)
+// 4. The admins' page
 // ---------------------------------------------------------------------------
 
 const adminPage = (await w.loadTs(join("app", "(app)", "admin", "(admin-only)", "surveys", "public-numbers", "page.tsx"))).default;

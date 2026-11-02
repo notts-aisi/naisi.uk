@@ -1,5 +1,5 @@
 /**
- * Pitching week's page for somebody taking part (board in-pitch-phone),
+ * Pitching week's page for somebody taking part,
  * rendered to the HTML the server sends, in each state it can be in.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).

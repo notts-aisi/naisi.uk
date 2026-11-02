@@ -22,7 +22,7 @@ import { REGISTER_REMINDERS_JOB } from "@/lib/scheduler/registerJobs";
 import type { RegisterSwitches } from "@/lib/scheduler/registerSwitches";
 
 /**
- * A LEAD'S "REMIND" (wk-overview: "Remind Grace", "Emails 1 person"): the
+ * A LEAD'S "REMIND" ("Remind Grace", "Emails 1 person"): the
  * reminder a group's facilitators get when a session's register is not
  * finished, sent now by a person, to that group's facilitators and nobody
  * else.

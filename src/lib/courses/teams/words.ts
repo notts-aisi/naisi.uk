@@ -3,7 +3,7 @@ import { formatRunStartShort } from "@/lib/courses/window";
 /**
  * THE TEAMS TAB'S WORDS AND THE TEAM EMAIL'S, built from records.
  *
- * The sentences in-teams and in-agenda draw ("3 people", "12 of 12 in a
+ * The sentences the Teams tab and its agenda view draw ("3 people", "12 of 12 in a
  * team.", "You can change them until Wed 18 Nov.", "Emails 12 people",
  * "1st: Compute governance", "Replicate [Paper], then: …"), with every value
  * in them taken from a setting, a pitch, the form's answers or an account.

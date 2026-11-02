@@ -1,6 +1,6 @@
 /**
  * CLAUDE DRAFTS THE SENTENCE THAT MAKES THE CASE, and the chart of a person's
- * week beside an ask ("Didn't offer, but worth asking", board st-facilitators).
+ * week beside an ask ("Didn't offer, but worth asking").
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *

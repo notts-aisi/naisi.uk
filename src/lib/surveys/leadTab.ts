@@ -13,7 +13,7 @@ import { FACILITATOR_LINE_ID, SURVEY_TEMPLATES, type SurveyStage } from "./templ
 import { AFTER_SURVEY_CARD_WORDS, haveAnsweredParts, leadSurveyLineWords, leadSurveyWhenWords } from "./words";
 
 /**
- * A PROGRAMME LEAD'S SURVEYS TAB (board sv-programme; Q41, Q49 A): the
+ * A PROGRAMME LEAD'S SURVEYS TAB: the
  * programme's own surveys and what they say, in totals and comments, never a
  * name, from the first answer, made on the server. The tab's Before, End and
  * Follow-ups views draw this by stage, and its Overview's cards are these
@@ -42,7 +42,7 @@ import { AFTER_SURVEY_CARD_WORDS, haveAnsweredParts, leadSurveyLineWords, leadSu
  * programme's lead or an admin first (`loadProgrammeRun`).
  */
 
-/** The questions of the survey at the end the board calls "How it went": Q1, Q2 and Q3 of the questionnaire, by their fixed ids. */
+/** The questions of the survey at the end the design calls "How it went": Q1, Q2 and Q3 of the questionnaire, by their fixed ids. */
 export const HOW_IT_WENT_IDS: readonly string[] = ["q_q1", "q_q2", "q_q3"];
 /** C1, the career stage: "considering, planning or already doing it" and who moved a stage. */
 const STAGE_ID = "q_c1";
@@ -278,7 +278,7 @@ export type LeadAfterSurveyCard = {
 
 /**
  * THE SURVEY AT THE END ON THE LEAD'S OVERVIEW once the programme is over
- * (board en-finish, finding A5): the Surveys tab's own row for it, the same
+ * (finding A5): the Surveys tab's own row for it, the same
  * survey (`leadSurveysOf`, the first at the end) counted by the same reader
  * (its Results, `rowOf`), so the card and the tab never show two counts.
  * Null before it has gone out. For the page that holds the programme to its

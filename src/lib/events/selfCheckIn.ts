@@ -16,7 +16,7 @@ import {
 } from "./checkIns";
 
 /**
- * CHECKING YOURSELF IN (ev-self-phone), decided in one place for the page
+ * CHECKING YOURSELF IN, decided in one place for the page
  * (`/events/<id>/check-in`) and its route, so the two never disagree about
  * who may press "I'm here".
  *

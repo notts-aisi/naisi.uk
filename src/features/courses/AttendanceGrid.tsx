@@ -72,7 +72,7 @@ import useAttendance, {
  * ── EVERY TAP SAVES, AND SAYS SO ────────────────────────────────────────────
  * The status beside the legend reads "Saved 7:58pm" after each save, the time
  * of the last one in London, so a facilitator can see their register is safe
- * without finishing it. The foot under the grid is wk-register's: the session
+ * without finishing it. The foot under the grid is the register page's: the session
  * the button finishes, the button, and the words under it, every value read
  * off a record by the route (`registerEndingWords`).
  *
@@ -1016,7 +1016,7 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
                 })}
               </tr>
             ))}
-            {/* SOMEBODY WHO LEFT THE GROUP (wk-fac-group's "Sam Whitfield,
+            {/* SOMEBODY WHO LEFT THE GROUP (as the facilitator's group page shows "Sam Whitfield,
                 Left Fri 13 Nov"), as the lead's Attendance tab lists them:
                 read only, with the marks they had. Their cells are never
                 buttons, they count in no tally above, and a session after
@@ -1068,7 +1068,7 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
         <CheckInCard groupId={groupId} sessionKey={focus.sessionKey} marks={records[focus.sessionKey] ?? NO_MARKS} />
       )}
 
-      {/* THE FOOT: wk-register's ending. The session the button finishes, the
+      {/* THE FOOT: the register page's ending. The session the button finishes, the
           button, and the words under it, every value read off a record by the
           route. Once there is nothing left to finish it says so instead. */}
       {ending && focus && words && (

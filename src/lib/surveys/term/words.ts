@@ -1,5 +1,5 @@
 /**
- * EVERY SENTENCE THIS TERM IN NUMBERS SAYS (board sv-term), with the board's
+ * EVERY SENTENCE THIS TERM IN NUMBERS SAYS, with the board's
  * apostrophes and arrows. Every number in them comes from a record and
  * arrives here as an argument; nothing here names a person.
  *
@@ -46,7 +46,7 @@ export const TERM_WORDS = {
   consideringOf: "Considering, planning or already doing it: answered it in both surveys",
   /** Not drawn: an event after check-in was first used, with sign-ups, where nobody was checked in. */
   noCheckIn: "No check-in",
-  /** Not drawn: a survey made for the event and not opened or sent yet. sv-list's word for a draft. */
+  /** Not drawn: a survey made for the event and not opened or sent yet. The Surveys list's word for a draft. */
   notSent: "Not sent yet",
   /** Not drawn: the term has events, and nobody was checked in at any of them. */
   nobodyCheckedIn: "Nobody has been checked in at this term’s events yet, so there is nobody to count.",

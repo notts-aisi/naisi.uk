@@ -1,5 +1,5 @@
 /**
- * A programme's Overview tab (board wk-overview) and its "Remind", as every
+ * A programme's Overview tab and its "Remind", as every
  * kind of caller.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
@@ -310,9 +310,9 @@ describe("2. the week and its sessions", () => {
     assert.ok(after.rail.every((week) => week.state === "done"));
   });
 
-  // The sessions come in the order they meet, as wk-overview draws the week.
+  // The sessions come in the order they meet, as the Overview tab draws the week.
   // Since the walk of stage two's fixes (G10) their facilitators are named by
-  // their whole names, as wk-overview draws them; until then by first names.
+  // their whole names, as the Overview tab draws them; until then by first names.
   test("each group's session this week, in the order they meet, with its register in the register's own word", async () => {
     const { model, text: said } = await draw("claudia");
     // Each facilitator by the names rule for the lead, who is on the

@@ -9,7 +9,7 @@ import type { WrittenAnswerRecord } from "./model";
  * comment; the week page draws every piece from the overview's own.
  *
  * NEVER "LATE": whether it was sent after the due time is shown to staff
- * only (Q33), and is not a field here. Names are the first names people go
+ * only, and is not a field here. Names are the first names people go
  * by, never an address.
  */
 export type WrittenAnswerWire = {

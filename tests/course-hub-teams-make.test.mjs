@@ -4,7 +4,7 @@
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
- *  - Teams from first choices (`teamsFromFirstChoices`) reproduce in-agenda's
+ *  - Teams from first choices (`teamsFromFirstChoices`) reproduce the designed agenda's
  *    own sample exactly, keep every team within the smallest and largest
  *    size, let go of an under-size team one at a time, and never put a person
  *    in two teams.
@@ -28,7 +28,7 @@ const model = await made.loadTs(join("lib", "courses", "teams", "model.ts"));
 const courses = await made.loadTs(join("lib", "firestore", "courses.ts"));
 const mutations = await made.loadClient(join("features", "courses", "courseMutations.ts"));
 
-/** in-agenda's items, in the form's order. */
+/** The designed agenda's items, in the form's order. */
 const ITEMS = [
   "Compute governance",
   "International coordination",
@@ -39,7 +39,7 @@ const ITEMS = [
 const [CG, IC, FL, OW, AI] = ITEMS;
 
 /**
- * in-agenda's ten people, with rankings that give the board's own table:
+ * the designed agenda's ten people, with rankings that give its own table:
  * 1st 4, 3, 2, 1, 0; 2nd 2, 3, 3, 1, 1; 3rd 2, 1, 2, 3, 2.
  */
 const BOARD = [
@@ -70,7 +70,7 @@ function assertWellMade(result, people, sizes) {
 }
 
 describe("teams from first choices", () => {
-  test("in-agenda's own sample, with teams of 2 to 3, comes out as the board draws it", () => {
+  test("the designed agenda's own sample, with teams of 2 to 3, comes out as designed", () => {
     const sizes = { min: 2, max: 3 };
     const result = make.teamsFromFirstChoices(BOARD, ITEMS, sizes);
     assert.deepEqual(result.teams, [

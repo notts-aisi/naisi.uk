@@ -5,8 +5,7 @@ import { londonDateKey } from "@/lib/courses/weekPlan";
 import { handedTasksDone } from "@/lib/courses/weekBlocks/progress";
 
 /**
- * THE WEEKS OF A PROGRAMME, AS ITS HOME LISTS THEM (boards wk-programme,
- * st-programme): every taught week of the reader's own calendar, each with
+ * THE WEEKS OF A PROGRAMME, AS ITS HOME LISTS THEM: every taught week of the reader's own calendar, each with
  * its title, its session's date and its state, worked out from the overview
  * payload alone. Pure, so the page and the tests read one answer.
  *
@@ -62,7 +61,7 @@ export function weekRowsOf(
   now: Date,
   options: {
     /**
-     * The reader's group has not met yet (st-programme): their first week is
+     * The reader's group has not met yet: their first week is
      * "Next" whatever the calendar's own week.
      */
     beforeFirstSession?: boolean;

@@ -17,7 +17,7 @@ import type { PeopleCounts, PersonCategory, PersonFree, PersonRow, PersonStatus 
 import { confirmSentence, placesSentence } from "./words";
 
 /**
- * EVERYONE WHO HOLDS A PLACE ON A PROGRAMME OR GAVE IT BACK (board st-people),
+ * EVERYONE WHO HOLDS A PLACE ON A PROGRAMME OR GAVE IT BACK,
  * worked out from the records, for the programme's lead and admins.
  *
  * ## One answer per question, shared with every other screen

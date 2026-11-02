@@ -45,7 +45,7 @@ import type { JobContext, JobRegistration, JobResult } from "../registry";
  * (`config/courses.unmarkedRegisterGraceHours`, 36 by default, set in Site
  * status).
  *
- * The first of the two chases (wk-register, option B): this reminder, then,
+ * The first of the two chases: this reminder, then,
  * later, a task for the programme's lead and the admins
  * (`courses-unmarked-registers`). Counted from the session's end, never its
  * start: the register is taken during the session.

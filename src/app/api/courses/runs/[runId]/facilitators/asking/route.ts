@@ -7,7 +7,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
- * THE FACILITATORS VIEW, as one model (board st-facilitators): each group of
+ * THE FACILITATORS VIEW, as one model: each group of
  * the run with who facilitates it and who has been asked, the email the last
  * person asked got exactly as it went, the run's training, and the people who
  * said on the application form they would like to facilitate the programme

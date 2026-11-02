@@ -1,7 +1,7 @@
 /**
  * A programme's Overview before any of its groups has met ("Get ready for
- * week 1", boards st-overview and st-overview-phone) and Publish's own page
- * (board st-publish): its readiness check and the two emails as each person
+ * week 1") and Publish's own page:
+ * its readiness check and the two emails as each person
  * will get them.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).

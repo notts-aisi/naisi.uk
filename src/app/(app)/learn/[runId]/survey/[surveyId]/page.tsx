@@ -12,7 +12,7 @@ import { STATE_WORDS } from "@/lib/surveys/words";
 import styles from "./page.module.css";
 
 /**
- * A PERSON'S SURVEY, SIGNED IN (sv-before-phone): the same page as their
+ * A PERSON'S SURVEY, SIGNED IN: the same page as their
  * personal link, inside their programme. (The cards on Home, My programmes
  * and week 1 link the personal link itself: `src/lib/surveys/waiting.ts`.)
  * The run's layout has already asked whether they hold any role on the

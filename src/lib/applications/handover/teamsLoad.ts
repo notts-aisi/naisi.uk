@@ -35,8 +35,8 @@ import { findAgenda, readRankings, type Agenda } from "./agenda";
 import { RUNS_COLLECTION, readRun } from "./run";
 
 /**
- * AN INCUBATOR'S TEAMS, FOR ITS LEAD AND FOR ADMINS (boards in-teams, option
- * C, and in-agenda): who may open the Teams tab and act on it, everything the
+ * AN INCUBATOR'S TEAMS, FOR ITS LEAD AND FOR ADMINS (teams made from
+ * pitches, and what applicants ranked on the agenda): who may open the Teams tab and act on it, everything the
  * tab and its routes read, and the tab itself.
  *
  * ## Who
@@ -60,7 +60,7 @@ import { RUNS_COLLECTION, readRun } from "./run";
  * ## What is read for whom
  *
  * Names only, never an address, travel to the page. What each person ranked
- * on the application form (in-agenda's "1st: Compute governance") is read
+ * on the application form (the agenda view's "1st: Compute governance") is read
  * only for a run whose teams come from the agenda, by `./agenda.ts`, after
  * the gate above. The addresses the email needs are read here and kept on the
  * server (`TeamsContext.accounts`).
@@ -241,7 +241,7 @@ export async function hasTestedTeams(db: Firestore, runId: string, uid: string):
 const UNTITLED_GROUP = "Untitled group";
 const SOMEBODY = "NAISI member";
 
-/** What one person ranked, as their row says it (in-agenda). */
+/** What one person ranked, as their row says it. */
 function ranksOf(
   ranking: readonly string[],
   teamItem: string | null,
@@ -280,8 +280,8 @@ export function buildTeamsView(context: TeamsContext, tested: boolean, now: Date
     };
   };
 
-  // Teams made from the agenda are listed in the agenda's order, as in-agenda
-  // draws them; any other team by its name, as in-teams does.
+  // Teams made from the agenda are listed in the agenda's order, as the agenda view
+  // draws them; any other team by its name, as the Teams tab does.
   const items = context.agenda?.agenda?.items ?? [];
   const placeOf = (team: TeamDoc) => {
     const at = team.source.kind === "agenda" ? items.indexOf(team.source.item) : -1;

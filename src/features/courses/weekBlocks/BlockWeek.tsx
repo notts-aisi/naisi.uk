@@ -128,8 +128,9 @@ import answerStyles from "./writtenAnswer.module.css";
 import fillIn from "./fillIn.module.css";
 
 /**
- * A WEEK WRITTEN AS BLOCKS, AS THE PERSON TAKING PART READS IT (boards
- * st-week1-phone, wk-week-phone, and wk-week at 1440 with "On this page").
+ * A WEEK WRITTEN AS BLOCKS, AS THE PERSON TAKING PART READS IT
+ * (week 1 before groups go out, a week on a phone, and a week at 1440 with
+ * "On this page").
  * A week written before blocks never reaches this file: `WeekView` draws it
  * exactly as it always has.
  *
@@ -151,7 +152,7 @@ import fillIn from "./fillIn.module.css";
  * task for it says where it stands ("Draft · 241 words", "Sent Mon 16 Nov",
  * "Feedback from Rahul"). Never "Late": that is staff's alone.
  *
- * A CHOOSE ONE (plan item 8): its packs, the person's own open and ticked as
+ * A CHOOSE ONE: its packs, the person's own open and ticked as
  * one, given out by a facilitator or picked here until the session starts
  * (`../packsAndCases/ChooseOneView.tsx`); only that pack counts. A TALK: Your
  * case study (the case given out, "Ready for my talk", every case of the
@@ -205,14 +206,14 @@ import fillIn from "./fillIn.module.css";
  * their boxes say so. Admins and the run's other staff read the week with no
  * ticks, boxes or count.
  *
- * BEFORE GROUPS GO OUT (Q35 B), somebody holding a place whom Publish has
+ * BEFORE GROUPS GO OUT, somebody holding a place whom Publish has
  * not told reads week 1 through its door (`payload.beforeGroups`): they take
  * part as somebody placed does (ticks, boxes, their count), with no due day,
  * no group, no rating panel, and "back" to My programmes. Their line
  * ("Week 1 is open now...") is handed in as `leadCards`.
  *
  * `leadCards` draws above This week: week 1's line before groups go out
- * (Q35) and, later, the before survey's card (Q50).
+ * and, later, the before survey's card.
  *
  * SEALED PREDICTIONS (`PredictionsCard`): on the week the course's card is
  * sealed in and the week it opens in, the reader's own card, read on the
@@ -244,7 +245,7 @@ type Props = {
   sharedNotes: WeekSharedNotes;
   /** The programme's lead's first name, for who reads a reflection; null when no programme names the run. */
   leadFirstName: string | null;
-  /** Cards drawn above This week by later pieces (Q35's line, Q50's survey). */
+  /** Cards drawn above This week by later pieces (week 1's line before groups go out, a survey waiting). */
   leadCards?: ReactNode;
   /** The programme's Start here and Glossary, linked under the title when the run has them. */
   guide?: GuideLinks | null;
@@ -305,7 +306,7 @@ export default function BlockWeek({
   const placementGroupId = learner?.groupId ?? null;
   const asFacilitator =
     learner === null && payload.access.isFacilitator && payload.groups.some((group) => group.id !== placementGroupId);
-  // Somebody holding a place whom Publish has not told yet (Q35 B) takes part
+  // Somebody holding a place whom Publish has not told yet takes part
   // in week 1 without a group: their ticks and boxes go through week 1's
   // door, and there is no group, session or rating to draw for them.
   const beforeGroups = Boolean(payload.beforeGroups);
@@ -350,12 +351,12 @@ export default function BlockWeek({
   const prev = at > 0 ? taught[at - 1] : null;
   const next = at >= 0 && at < taught.length - 1 ? taught[at + 1] : null;
 
-  // Names from records, for who reads what (Q30, Q31, Q37).
+  // Names from records, for who reads what.
   const facilitatorNames = (payload.group?.facilitatorNames ?? []).map((name) => firstName(name) || name);
 
   // This week, and its count.
   const thisWeekBlock = blocks.find((block): block is ThisWeekBlock => block.type === "thisWeek") ?? null;
-  // Who reads the written answer and gives feedback on it (Q30 C): the
+  // Who reads the written answer and gives feedback on it: the
   // group's facilitators, or the lead and admins for a facilitator's own.
   const answerReaders: AnswerReaders =
     overviewWeek?.thisWeek?.answersReadBy === "lead"
@@ -422,7 +423,7 @@ export default function BlockWeek({
     if (own && own.words > 0) return work?.state === "locked" ? NOT_SUBMITTED : DRAFT;
     return null;
   };
-  // Who reads the reader's own fill-in boxes (Q30 C): the group's
+  // Who reads the reader's own fill-in boxes: the group's
   // facilitators with the lead and admins, or for somebody who facilitates a
   // group of the run, a facilitator holding a place included, the lead and
   // admins alone. The server's one reader keeps the same rule.
@@ -1455,7 +1456,7 @@ function HandsOn({ block }: { block: HandsOnBlock }) {
 }
 
 // ---------------------------------------------------------------------------
-// On this page (board wk-week, at 1440)
+// On this page (at 1440)
 // ---------------------------------------------------------------------------
 
 type RailEntry = {

@@ -34,7 +34,7 @@ import { WEEK_SHUT } from "@/lib/courses/weekWork/words";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 
 /**
- * A PERSON WRITING IN ONE FILL-IN BOX (board wk-week6-phone, week 6's action
+ * A PERSON WRITING IN ONE FILL-IN BOX (week 6's action
  * plan): the box saves as they type, and this route is the only writer of a
  * fill-in box.
  *

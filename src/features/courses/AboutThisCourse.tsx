@@ -5,7 +5,7 @@ import styles from "./RunHome.module.css";
 import weekly from "./weekly/weekly.module.css";
 
 /**
- * The programme page's "About this course" (wk-programme): the programme's
+ * The programme page's "About this course": the programme's
  * Start here, with what it covers, and its Glossary, with its count of
  * terms. Each is linked only when the run has its document; with neither,
  * nothing is drawn. Drawn with the programme page's own stylesheets, the

@@ -1,5 +1,5 @@
 /**
- * A programme's People tab (board st-people): everyone who holds a place on
+ * A programme's People tab: everyone who holds a place on
  * the programme or gave it back, for its lead and admins.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).

@@ -15,7 +15,7 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 import styles from "./certificatesPreview.module.css";
 
 /**
- * THE PREVIEW the Certificates section opens (board en-finish's thumbnail
+ * THE PREVIEW the Certificates section opens (from a certificate's thumbnail
  * and its "Preview"): one person's certificate as its page will show it to
  * them once it is sent, with its link off, and the email that sends it, laid
  * out as it will arrive. The person is the one the test is about: the first

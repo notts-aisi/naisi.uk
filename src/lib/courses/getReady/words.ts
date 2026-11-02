@@ -1,6 +1,5 @@
 /**
- * THE WORDS OF "GET READY FOR WEEK 1" (boards st-overview and
- * st-overview-phone) AND OF PUBLISH'S READINESS CHECK (board st-publish), in
+ * THE WORDS OF "GET READY FOR WEEK 1" AND OF PUBLISH'S READINESS CHECK, in
  * one place.
  *
  * The boards' own words are kept exactly, apostrophes included; every name,
@@ -307,9 +306,9 @@ export const READY_CHIP = "Ready to publish";
 export const NOT_READY_CHIP = "Not ready yet";
 /**
  * Once the groups are published and nothing a second press needs is missing,
- * the chip says so in place of "Ready to publish" (not drawn: board st-publish
- * draws only the page before the press; listed in the build notes for the
- * boards' designers to confirm).
+ * the chip says so in place of "Ready to publish" (not drawn: the Publish view's
+ * design shows only the page before the press; listed in the build notes for
+ * the designers to confirm).
  */
 export const PUBLISHED_CHIP = "Published";
 /**
@@ -460,7 +459,7 @@ export const NAMES_SHOWN = 6;
 
 /**
  * The sentence above the buttons, true of what the site does after Publish
- * (board st-publish draws "After you publish, moving someone emails just them
+ * (the Publish view's design says "After you publish, moving someone emails just them
  * and their facilitators. Changing a group’s day or room emails that group.",
  * which the site does not do): a move takes the person's group away from
  * them until Publish is pressed again, which emails only the people not told
@@ -478,7 +477,7 @@ export function remindFreeLabel(count: number): string {
   return `Remind ${peopleWords(count)}`;
 }
 
-/** "Emails 3 people": every button that emails says how many it reaches (C20). */
+/** "Emails 3 people": every button that emails says how many it reaches. */
 export function emailsPeopleWords(count: number): string {
   return `Emails ${peopleWords(count)}`;
 }

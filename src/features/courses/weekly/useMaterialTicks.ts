@@ -7,7 +7,7 @@ import { tickThroughRoute } from "../progressMutations";
 import { TICK_NOT_SAVED, tickNotSavedWords } from "./tickWords";
 
 /**
- * TICKING A READING OFF, the one way every page does it (C33): the week page,
+ * TICKING A READING OFF, the one way every page does it: the week page,
  * the programme home before the first session, and Home's card.
  *
  * A tick is the member's own `courseProgress` row for the item, written by

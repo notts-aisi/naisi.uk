@@ -620,7 +620,7 @@ describe("the spreadsheet with names", () => {
   });
 });
 
-describe("the confidential box, for every kind of person (sv-privacy)", () => {
+describe("the confidential box, for every kind of person", () => {
   const base = { namesOffOn: "2028-12-09", programmeKind: "fellowship" };
   const box = (facts) => words.confidentialPoints({ ...base, ...facts });
 

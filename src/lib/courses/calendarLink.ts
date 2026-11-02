@@ -11,8 +11,8 @@ import {
 import { CALENDAR_NAME } from "./calendarWords";
 
 /**
- * A PERSON'S CALENDAR LINK, made, found and replaced (board
- * st-calendar-phone). The record is `calendarLinks/{uid}`
+ * A PERSON'S CALENDAR LINK, made, found and replaced.
+ * The record is `calendarLinks/{uid}`
  * (`src/lib/firestore/calendarLinks.ts`); what a link's calendar holds is
  * `src/lib/courses/calendarFeed.ts`.
  *

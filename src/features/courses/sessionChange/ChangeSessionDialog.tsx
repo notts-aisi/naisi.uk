@@ -40,7 +40,7 @@ import { postedWords } from "@/lib/courses/updates/words";
 import styles from "./SessionsBoard.module.css";
 
 /**
- * "Change Group B’s week 4 session" (wk-session): what happens to the
+ * "Change Group B’s week 4 session": what happens to the
  * session, the reason the group sees, "Tell the group", and the button that
  * names the session and how many people it emails.
  *

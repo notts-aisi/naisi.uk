@@ -1,5 +1,5 @@
 /*
- * A programme's Weeks tab (board pr-weeks): the line about when weeks open,
+ * A programme's Weeks tab: the line about when weeks open,
  * the weeks in order, and a week's own page below them. Every colour, space
  * and radius reads a token from src/theme/tokens.css.
  */

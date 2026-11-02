@@ -23,7 +23,7 @@
  *     out to the dashboard.
  *  3. EVERY STATE HAS A SENTENCE: no run named, a run that has gone, each in
  *     words for a lead and for an admin.
- *  4. THE GRID, WORKED OUT ON THE SERVER. The Attendance tab (wk-attendance)
+ *  4. THE GRID, WORKED OUT ON THE SERVER. The Attendance tab
  *     is handed the run's grid, built from its records once: the groups that
  *     still meet by name, their slot and facilitators, and names and marks,
  *     never an address. Its view marks nothing. (It was handed the groups by
@@ -56,7 +56,7 @@ const STYLESHEETS = [
   "./GroupsViews.module.css",
   "./GroupFacilitators.module.css",
   "./ProgrammeAttendance.module.css",
-  // The facilitator's pages (boards wk-fac-group, wk-fac-home-phone): their own sheet and the
+  // The facilitator's pages: their own sheet and the
   // member's pages' shared one, since the group page and the Attendance tab draw their cards.
   "@/features/courses/weekly/weekly.module.css",
   "./facilitator.module.css",
@@ -72,7 +72,7 @@ const STYLESHEETS = [
   "./ProgrammeFrame.module.css",
   "./AllocationBoard.module.css",
   "./AllocationPublish.module.css",
-  // People in groups as the programme's hub draws it (board st-groups).
+  // People in groups as the programme's hub draws it.
   "./PeopleInGroups.module.css",
   "./ActionToast.module.css",
   "./Badge.module.css",
@@ -213,7 +213,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("1. People in groups is the run's own allocation board", () => {
-  // Since People in groups was restyled (board st-groups) the hub draws the
+  // Since People in groups was restyled the hub draws the
   // run's board with its own component, `PeopleInGroups`, over the same
   // allocation route and moves (tests/course-hub-people-in-groups.test.mjs);
   // the admin's mount under /admin/courses keeps `AllocationBoard`. Until
@@ -355,7 +355,7 @@ describe("4. the Attendance tab is handed the run's grid, worked out on the serv
     const [grid] = find(drawn.element, "ProgrammeAttendance");
     // The order every tab of the programme's page lists its groups in, the
     // order People in groups draws its columns (Monday first), since the walk
-    // of stage two's fixes (G10). wk-attendance draws them by name, A to D,
+    // of stage two's fixes (G10). The attendance grid draws them by name, A to D,
     // and until then this grid did too.
     assert.deepEqual(
       grid.props.model.groups.map((group) => ({ id: group.id, name: group.name, tag: group.tag, line: group.line })),
@@ -369,9 +369,9 @@ describe("4. the Attendance tab is handed the run's grid, worked out on the serv
       { roundId: ROUND, programmeId: AGI, programmeName: "AGI Strategy", initialGroup: "all" },
     );
     // The run, its groups, its enrolments and registers, the accounts they
-    // name, the switch the register's ending reads, (since board
-    // wk-fac-group's notes, C30) the notes its groups' facilitators share,
-    // and (since board wk-week-phone's, C29) the notes each group shares on
+    // name, the switch the register's ending reads, (since
+    // the group page's notes) the notes its groups' facilitators share,
+    // and (since the week page's shared notes) the notes each group shares on
     // its week pages, both of which the lead reads under the grid: nothing
     // else.
     assert.deepEqual([...new Set(drawn.reads)].sort(), [

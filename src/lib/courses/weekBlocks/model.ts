@@ -14,8 +14,8 @@ import {
 } from "./prose";
 
 /**
- * A WEEK AS AN ORDERED LIST OF BLOCKS (the coursework boards: pr-weeks,
- * wk-week, wk-week-phone, st-week1-phone and wk-week6-phone; HANDOFF's
+ * A WEEK AS AN ORDERED LIST OF BLOCKS (as designed for the Weeks tab,
+ * the week page, week 1's page before groups go out and week 6's page; HANDOFF's
  * "The building blocks"). Stored as `CourseWeekDoc.blocks` on a run's week
  * and on a group's copy of it.
  *
@@ -107,7 +107,7 @@ export const WHEN_WORDS: Record<When, string> = {
 };
 
 /**
- * Who settles which pack or case a person has (Q32): the person picks it on
+ * Who settles which pack or case a person has: the person picks it on
  * the site (week 6's career review), or a facilitator gives it out and types
  * the paper draw into the group page, swaps going through them (week 3's
  * pathways and every case).
@@ -220,7 +220,7 @@ export type ThisWeekBlock = {
 
 /**
  * Rich text with a role:
- *  - `why`: Why this week (the public pages show it, Q40);
+ *  - `why`: Why this week (the public pages show it);
  *  - `before`: Before the session, its time ("About 70 minutes, plus your
  *    threat model") and framing; the parts follow it;
  *  - `section`: a section of the guide's own with a heading ("Where to go next");
@@ -249,7 +249,7 @@ export type OutcomesBlock = {
 
 export type SupportLink = { label: string; url: string; detail: string };
 
-/** A calm box with support links (week 3, added on the site). Behind sign-in (Q40). */
+/** A calm box with support links (week 3, added on the site). Behind sign-in. */
 export type ContentNoteBlock = {
   id: string;
   type: "contentNote";
@@ -267,7 +267,7 @@ export type SourceFields = {
   lead: string;
   title: string;
   /**
-   * An https address (Q36: every source is a link; no players), or "" for
+   * An https address (every source is a link; no players), or "" for
    * a source with no single link of its own, whose note carries its links
    * ("METR's time horizons. Start with AI Digest's two-minute explainer,
    * then METR's latest update").
@@ -317,7 +317,7 @@ export type Pack = {
 
 /**
  * Packs to choose from. Only the chosen pack counts towards a person's
- * week. `givenBy` says who settles which one a person has (Q32): a
+ * week. `givenBy` says who settles which one a person has: a
  * facilitator, typing in the paper draw, or the person, on the site.
  *
  * Two ways of writing one, kept so a week copies out as it was written:

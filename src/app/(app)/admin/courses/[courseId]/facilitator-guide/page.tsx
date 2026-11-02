@@ -15,7 +15,7 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * notes, the two about every week at once), pasted one at a time as the
  * course docs export them.
  *
- * ADMINS ONLY (Q39: an admin loads the course material, for now). The
+ * ADMINS ONLY (an admin loads the course material, for now). The
  * course authoring tree around this page also admits course drafters and
  * approvers, so this page asks again and sends anybody else to the
  * dashboard, as the admin-only pages do. The route behind the card refuses

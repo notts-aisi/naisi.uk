@@ -26,7 +26,7 @@ import { dueMoment } from "@/lib/courses/weekBlocks/due";
 import { NOT_CHOSEN_YET, TO_GIVE_FEEDBACK, feedbackByWords, weekColumnWords } from "./words";
 
 /**
- * THIS WEEK'S WORK'S OTHER COLUMNS (board wk-fac-group: "Pathway", "Written
+ * THIS WEEK'S WORK'S OTHER COLUMNS ("Pathway", "Written
  * answer", "Case"), for the week a group's page shows, worked out on the
  * server after the page's own gate, through the pieces' own readers and
  * nothing else:

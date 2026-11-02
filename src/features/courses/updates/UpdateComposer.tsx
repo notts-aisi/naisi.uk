@@ -29,7 +29,7 @@ import { COURSE_UPDATE_LIMITS, type CourseUpdateTo } from "@/lib/firestore/cours
 import styles from "./UpdateComposer.module.css";
 
 /**
- * "New update" (wk-messages, option B): To, Title, Message with its count,
+ * "New update": To, Title, Message with its count,
  * "Also email it", "Send a test to me", and "Post and email N people", or
  * "Post" with the switch off.
  *

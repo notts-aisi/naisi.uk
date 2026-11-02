@@ -730,7 +730,7 @@ const MUST_NAME = [
   // `memberConductFlags` is the admin route on the Members page, and §2d
   // walks the tree for any other.
   ["the reason for a conduct flag is admins' alone, and anybody else may see only a marker", /Only admins can read the reason for a conduct flag\. Where decisions about you are made, such as reading applications or deciding event sign-ups, other people may see only a marker asking them to talk to an admin first\./],
-  // OWNER DECISION, 25 October 2026 (Q8 with Q26, as the boards draw them):
+  // OWNER DECISION, 25 October 2026 (who finished, and certificates):
   // the programme's lead or an admin sends a certificate to everybody who
   // finished and to each facilitator, and each starts private until its owner
   // turns its link on. v7 took back v6's model, in which a person minted
@@ -822,8 +822,8 @@ const MUST_NAME = [
   ["what a programme's lead sees once it is running", /<strong>What the people leading a programme see\.<\/strong>\{" "\} Everything a facilitator sees, for every group, except the notes facilitators write about a named person or a session, and the private notes people keep on the material, and also: who can&apos;t make their group&apos;s time and why, the reasons people give for leaving, the pitches and teams on an incubator, who might facilitate, who finished, and the totals and comments of the programme&apos;s surveys, never with a name\./],
   ["facilitators see names only", /<strong>What your facilitators see\.<\/strong> Who is in their group, by name only:/],
   ["what facilitators read of their own groups", /The register, your work and progress \(see <a href="#your-work">Your work<\/a>\), and before the first session whether you have said you are coming\./],
-  // The notes a group's facilitators share (C30) and the notes a group shares
-  // on its week pages (C29). §2g holds each to its code.
+  // The notes a group's facilitators share and the notes a group shares
+  // on its week pages. §2g holds each to its code.
   ["the notes a group's facilitators share, and that one can name a person", /<strong>Notes about a group\.<\/strong> A group&apos;s facilitators may keep notes for each other about how it is going, and a note may mention you;/],
   // Who reads each kind: the notes about a group, its facilitators, the
   // programme's lead and admins (`src/lib/courses/groupNotes/readers.ts`); a
@@ -1062,7 +1062,7 @@ describe("the courses section", () => {
   });
 
   test("certificates are described as the owner decided: sent, and private until their owner turns the link on", async () => {
-    // OWNER DECISION, 25 October 2026 (Q8 with Q26, as the boards draw them).
+    // OWNER DECISION, 25 October 2026 (who finished, and certificates).
     // When a programme ends, its lead or an admin sends a certificate to
     // everybody its record says finished and to each of its facilitators.
     // Each starts private: only its owner can open it until they turn its
@@ -3329,7 +3329,7 @@ describe("the course hub passage", () => {
   test("a programme's lead reads every register of its groups, and is sent none of their notes", () => {
     // OWNER DECISION, 25 October 2026: the notes a facilitator writes on a
     // register, about a named person or about a session as a whole, are the
-    // group's facilitators' and admins' (C30). A programme's lead reads every
+    // group's facilitators' and admins'. A programme's lead reads every
     // register of the run its programme names, its marks and none of its
     // notes. The policy says a facilitator sees the register, that the lead
     // sees everything a facilitator sees, for every group, except the notes
@@ -4424,7 +4424,7 @@ describe("the course hub passage", () => {
   });
 
   test("before the first session, facilitators see whether each person in their group has said they are coming, and nothing else from an application", () => {
-    // BUILT, 26 October 2026 (Q14): the summary behind a facilitator's Home
+    // BUILT, 26 October 2026: the summary behind a facilitator's Home
     // hands the group's facilitators, on the days before its first session,
     // each person's first name and whether they have said they are coming.
     // The policy says so in what facilitators see, with nothing else from an
@@ -5354,8 +5354,8 @@ describe("the course hub passage", () => {
   });
 
   test("what somebody fills in on a week is read by them, their group's facilitators, the lead and admins; a facilitator's own by the lead and admins; a leaver's by the lead and admins; and goes with the account", () => {
-    // OWNER DECISIONS, 25 and 26 October 2026: Q30 C (the writer, their
-    // group's facilitators, the programme's lead and admins; never other
+    // OWNER DECISIONS, 25 and 26 October 2026: who reads it (the writer,
+    // their group's facilitators, the programme's lead and admins; never other
     // fellows), and a facilitator's own work read by the lead and admins.
     // v15 names "the boxes you fill in" among a person's work and says who
     // reads it, a facilitator's own, what stays for the lead and admins when
@@ -5569,7 +5569,7 @@ describe("the course hub passage", () => {
     // The week's page draws the run's comments only where it draws no group's notes.
     assert.match(read("src/app/(app)/learn/[runId]/weeks/[n]/page.tsx"), /if \(!runSharesGroupNotes\(access\.run\) \|\| access\.groups\.length === 0\) return null;/);
     // Nor to somebody holding a place before groups go out, who opens week 1
-    // (Q35 B) on a programme that places people in groups and is in no group
+    // on a programme that places people in groups and is in no group
     // yet: they are drawn neither.
     assert.match(read("src/features/courses/WeekView.tsx"), /cohortNotes=\{sharedNotes === null && !beforeGroups\}/);
     // tests/course-hub-shared-notes.test.mjs §5 draws both kinds of week page.
@@ -5652,11 +5652,11 @@ describe("the course hub passage", () => {
   });
 
   test("a written answer is read by its writer, their group's facilitators, the lead and admins; it locks when its week does; Late is its readers' alone; feedback is a signed comment on the week's page, with an email to say it is waiting", () => {
-    // OWNER DECISIONS, 25 and 26 October 2026: Q30 C (the writer, their
-    // group's facilitators, the programme's lead and admins; never other
-    // fellows), Q33 (changeable after sending until a facilitator opens it,
-    // the first-sent time kept, "Late" for staff only), Q34 B (one email,
-    // the feedback on the site), and a facilitator's own answer read and
+    // OWNER DECISIONS, 25 and 26 October 2026: who reads it (the writer,
+    // their group's facilitators, the programme's lead and admins; never other
+    // fellows), when it locks (changeable after sending until a facilitator
+    // opens it, the first-sent time kept, "Late" for staff only), how feedback
+    // arrives (one email, the feedback on the site), and a facilitator's own answer read and
     // given feedback by the lead or an admin. Each sentence is held to its
     // code below; tests/course-hub-written-answers.test.mjs runs the routes
     // and pages as every kind of caller.
@@ -5800,7 +5800,7 @@ describe("the course hub passage", () => {
     assert.match(withoutComments(read("src/lib/courses/writtenAnswers/reviewPage.ts")), /late: record\?\.firstSentAt \? isLate\(record\.firstSentAt, due\) : false,/);
 
     // Feedback is a comment, never a number or a level (v14: "never a mark";
-    // R3-7: no level goes back to the person). A piece stores its words, who
+    // and no level goes back to the person). A piece stores its words, who
     // wrote it and as what; nothing gives a rubric level any more.
     assert.ok(feedbackRoute.includes("text: text.text,"), "a piece no longer stores its words");
     assert.doesNotMatch(feedbackRoute, /\b(?:score|mark|total|points|levels?)\s*:/i, "feedback stores a score, a mark, a total or a level");

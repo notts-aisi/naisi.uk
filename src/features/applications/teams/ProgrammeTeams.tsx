@@ -18,7 +18,7 @@ import { emailsWords, inATeamWords, namesInWords, peopleWords } from "@/lib/cour
 import styles from "./ProgrammeTeams.module.css";
 
 /**
- * AN INCUBATOR'S TEAMS TAB (boards in-teams, option C, and in-agenda): the
+ * AN INCUBATOR'S TEAMS TAB (and what applicants ranked on the agenda): the
  * pitches or the agenda the teams come from, the teams with each person's
  * "Move to…", and "Tell everyone their team".
  *

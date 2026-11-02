@@ -1,10 +1,9 @@
 /**
- * A group's week as its facilitators, the programme's lead and admins read it
- * (plan item 6; boards wk-fac-group, wk-fac-group-phone, wk-reflections and
- * wk-reflections-phone): who ticked each source, by name (Q31); This week's
+ * A group's week as its facilitators, the programme's lead and admins read it:
+ * who ticked each source, by name; This week's
  * work; the review queue's reflections half and the page where lines are
- * picked to read out without names (Q30, Q37); the private notes' one reader
- * (Q38); and a facilitator's own coursework, read by the programme's lead and
+ * picked to read out without names; the private notes' one reader;
+ * and a facilitator's own coursework, read by the programme's lead and
  * admins and never by a co-facilitator (Zach, Mon 26 Oct).
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
@@ -235,7 +234,7 @@ describe("1. who opens a group's week", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 2. Who ticked each source (Q31)
+// 2. Who ticked each source
 // ---------------------------------------------------------------------------
 
 describe("2. who ticked each source, by name, behind a button", () => {
@@ -314,7 +313,7 @@ describe("2. who ticked each source, by name, behind a button", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3. The page to read lines out (Q37)
+// 3. The page to read lines out
 // ---------------------------------------------------------------------------
 
 describe("3. the page to read lines out, without names", () => {
@@ -440,7 +439,7 @@ describe("4. This week's work and the review queue's counts", () => {
       assert.match(drawn.text, /Review queue Reflections Part 1, 2 of 3 · Part 2, 1 of 3 · Part 3, 0 of 3 Read them/);
       // The head says when the group's week locks, and the week's own column where each person's week stands (the week you submit).
     assert.match(drawn.text, /This week’s work Week 3 · Thu 12 to Wed 18 Nov · Locks Tue 6pm Name Part 1 reflection Part 2 reflection Part 3 reflection Week 3 CN Chloe Nguyen Written Not yet Not yet Started/);
-      // The phone's lines, as wk-fac-group-phone draws them.
+      // The phone's lines, as the facilitator's group page draws them.
       assert.match(drawn.text, /FH Farah Hussain Reflections Part 1 written · part 2 written · part 3 not yet Week 3 Started KA Kofi Asante Reflections Not yet/);
       assert.match(drawn.text, /Facilitators’ own work is for Claudia and admins to read, so it isn’t listed here\./);
       assert.doesNotMatch(drawn.text, /\bRahul Facilitator|\bSofia Facilitator|Mehta|Rossi|Isaac|Amara/);
@@ -498,7 +497,7 @@ describe("4. This week's work and the review queue's counts", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. The private notes (Q38)
+// 5. The private notes
 // ---------------------------------------------------------------------------
 
 describe("5. the private notes: the group's facilitators and admins, never the lead, never read out", () => {

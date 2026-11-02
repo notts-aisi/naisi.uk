@@ -30,7 +30,7 @@ import type { MaterialTicks } from "./useMaterialTicks";
 import styles from "./weekly.module.css";
 
 /**
- * "This week" (wk-programme) and "Before your first session" (st-programme):
+ * "This week" and "Before your first session":
  * the week the reader is in, its dates, what is done of it, and the way into
  * it. Before the first session the card lists week 1's readings to tick, as
  * the board draws it; once the programme has started it says how much is done
@@ -42,8 +42,8 @@ import styles from "./weekly.module.css";
  *
  * A WEEK WRITTEN AS BLOCKS (`thisWeek`) counts by This week's tasks, worked
  * out in `src/lib/courses/weekBlocks/progress.ts`: "0 of 1 done" for week 1.
- * Once the programme has started the card draws the tasks (board
- * wk-programme: "Parts 1 to 3 · Done") where a week written before blocks
+ * Once the programme has started the card draws the tasks
+ * ("Parts 1 to 3 · Done") where a week written before blocks
  * draws its bar, and before the first session it lists the sources on the
  * path to tick. No bar: the boards draw no percentages for these weeks. A
  * talk's task says the case given ("Shutdown resistance, 2025", or "Not
@@ -166,7 +166,7 @@ export default function ThisWeekCard({
                       {task.talk?.hasCases && <p className={styles.taskRowSub}>{task.talk.caseTitle ?? NOT_GIVEN_YET}</p>}
                       {task.talk && !task.talk.ready && !taskIsDone && <p className={styles.taskRowStatus}>{NOT_READY_YET}</p>}
                       {task.answer ? (
-                        // The written answer's own line (wk-programme): "Submitted Mon 16 Nov",
+                        // The written answer's own line: "Submitted Mon 16 Nov",
                         // then "Feedback from Rahul"; "Draft · 241 words" before it is sent, or
                         // "Not submitted" once the week locked before it was. Feedback given on
                         // an answer never sent (its readers read it once the week locked) is

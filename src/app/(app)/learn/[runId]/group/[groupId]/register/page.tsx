@@ -11,14 +11,14 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 
 /**
- * A GROUP'S REGISTER, on a page of its own (board wk-register: the register
+ * A GROUP'S REGISTER, on a page of its own (the register
  * under a way back to its group). "Take the register" on the group page and
  * on Home, and each register's "See it", lead here.
  *
  * The register itself is the one the group page used to hold
  * (`AttendanceGrid`): every tap saves, and the foot under it says how this
  * register ends. Whether it becomes one session per page is a question for
- * the boards' designers (C23), so the grid is kept as it is.
+ * the boards' designers, so the grid is kept as it is.
  *
  * THE GATE is the register's own (`gateGroupRegister`), restated here
  * because a page's only protection must not be a level above it: a live

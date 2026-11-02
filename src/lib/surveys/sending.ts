@@ -42,7 +42,7 @@ import {
 } from "./words";
 
 /**
- * SENDING A PROGRAMME SURVEY, AND REMINDING, BY HAND (sv-send-programme).
+ * SENDING A PROGRAMME SURVEY, AND REMINDING, BY HAND.
  *
  * Three presses, each made by an admin and each saying on its button how many
  * people it reaches:

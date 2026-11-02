@@ -1,6 +1,6 @@
 /**
  * Rules tests for `courseGroupSharedNotes`, the notes a group's people and
- * facilitators share with the group on its week pages (C29): shut to every
+ * facilitators share with the group on its week pages: shut to every
  * browser, a note's writer, the group's own people and facilitators, the
  * programme's lead and admins included. The shared notes routes
  * (/api/courses/groups/[groupId]/shared-notes and .../[noteId]) are the only

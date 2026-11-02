@@ -1,10 +1,10 @@
 /**
- * THE WORDS OF CHANGING A SESSION (Q25), in one place: the Sessions view's,
+ * THE WORDS OF CHANGING A SESSION, in one place: the Sessions view's,
  * the dialog's, the route's refusals, the update it posts and what the
  * group's people read. No imports, so the dialog in the browser and the route
  * on the server say the same thing in the same words.
  *
- * The words the boards draw (wk-session, wk-changes) are copied exactly, with
+ * The words the boards draw are copied exactly, with
  * their apostrophes. The words they do not draw are written in the same voice,
  * and are listed in the build notes for the boards' designers to settle.
  *
@@ -469,7 +469,7 @@ export function updateWords(
 }
 
 // ---------------------------------------------------------------------------
-// What the group's people read (wk-changes)
+// What the group's people read
 // ---------------------------------------------------------------------------
 
 /** The notice's heading: "No session tonight" on the evening, "No session today" before 5pm, the date before the day. */
@@ -528,6 +528,6 @@ export const LINK_WILL_BE_HERE = "The link to join will be here, not in your ema
 
 /**
  * Where an online week's link is, in a facilitator's room notice: the notice is
- * an email, so it says where the link is and never carries it (Q23).
+ * an email, so it says where the link is and never carries it.
  */
 export const ONLINE_NOTICE_LINK_LINE = "The link to join is on your programme page, not in your emails.";

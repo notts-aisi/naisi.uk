@@ -167,7 +167,7 @@ import { formatRunStart, formatRunStartShort } from "./window";
  *
  * ## The people's email says what the board says
  *
- * "Your AGI Strategy group: Tuesdays at 6pm" (board st-emails): the group,
+ * "Your AGI Strategy group: Tuesdays at 6pm": the group,
  * its weekly time and room, the day it meets from, how long its sessions
  * last, its facilitators by first name, how many are in it, how long week 1
  * takes while the group has not met yet (`weekReadingTime`, from week 1 as

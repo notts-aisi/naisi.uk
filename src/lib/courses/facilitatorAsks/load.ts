@@ -35,7 +35,7 @@ import {
 
 /**
  * THE FACILITATORS VIEW OF A PROGRAMME'S GROUPS TAB, as one model the page
- * draws (board st-facilitators): each group with who facilitates it and who
+ * draws: each group with who facilitates it and who
  * has been asked, the email the last person asked got, and the people who
  * said on the form they would like to facilitate, with where each stands.
  *

@@ -43,7 +43,7 @@ import OutsideNotes from "./OutsideNotes";
 import styles from "./PublishGroups.module.css";
 
 /**
- * PUBLISH, ON ITS OWN PAGE (board st-publish), below its readiness check:
+ * PUBLISH, ON ITS OWN PAGE, below its readiness check:
  * the two emails as each person will get them, then who a press reaches,
  * "Send a test to me" and "Publish and send 37 emails".
  *

@@ -1,5 +1,5 @@
 /**
- * A person's calendar link (board st-calendar-phone): the link route
+ * A person's calendar link: the link route
  * (`POST /api/courses/calendar`), the record it keeps, its deletion with the
  * account, the dialog's words and the "Add to calendar" button on the session
  * ticket.

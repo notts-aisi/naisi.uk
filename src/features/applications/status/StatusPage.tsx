@@ -192,7 +192,7 @@ export default function StatusPage({
   /** An admin is looking at this as the member, so nothing may be answered. */
   viewingAs: boolean;
   /**
-   * "When you’re free" (Q7), for somebody holding a place on a fellowship
+   * "When you’re free", for somebody holding a place on a fellowship
    * until Publish has told them their group: the form's grid, the week as
    * painted and the line under the title (`loadWhenFree`). Null draws no card.
    */

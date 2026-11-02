@@ -47,7 +47,7 @@ import { promptOptionWords } from "./words";
  *    the private note).
  *  - PRIVATE NOTES: the same rows read as who, which item and the note, and
  *    only for a viewer who reads private notes (the group's facilitators and
- *    admins, Q38), only for the people whose notes that viewer reads.
+ *    admins), only for the people whose notes that viewer reads.
  *
  * Every query is equalities on (runId, weekNumber), served by the declared
  * composites that start with those two fields. Nothing here writes, and no
@@ -144,7 +144,7 @@ async function readTicks(
 }
 
 /**
- * THE ONE READER OF PRIVATE NOTES (Q38): the note a person keeps on a source,
+ * THE ONE READER OF PRIVATE NOTES: the note a person keeps on a source,
  * by item, for the people whose notes this viewer reads. Called only for a
  * viewer who reads private notes (the group's facilitators and admins), and
  * never on the page that picks lines to read out.
@@ -674,7 +674,7 @@ export async function readRunCoursework(
 
 /**
  * ONE PERSON'S PRIVATE NOTES ON A RUN, by item, for their page: through the
- * one reader of private notes (Q38), only where this viewer reads that
+ * one reader of private notes, only where this viewer reads that
  * person's notes (`privateNotesOf`: an admin; never the programme's lead,
  * and a facilitator's own note an admin's alone). Null for a viewer who
  * reads none.
@@ -702,7 +702,7 @@ export async function readPersonPrivateNotes(
 }
 
 // ---------------------------------------------------------------------------
-// The page to read lines out (wk-reflections)
+// The page to read lines out
 // ---------------------------------------------------------------------------
 
 /** One prompt on the page to read lines out, with the group's answers to it and nobody's name on them. */

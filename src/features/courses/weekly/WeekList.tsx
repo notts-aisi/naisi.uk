@@ -7,7 +7,7 @@ import type { WeekRow } from "./weekRows";
 import styles from "./weekly.module.css";
 
 /**
- * "The 6 weeks" (boards wk-programme, st-programme): every week of the
+ * "The 6 weeks": every week of the
  * reader's programme with its date and its state. An open week is a link to
  * its page with what is done of it; a week that is not published yet is not
  * a link. Every published week is open, so the reader can read ahead (Zach,

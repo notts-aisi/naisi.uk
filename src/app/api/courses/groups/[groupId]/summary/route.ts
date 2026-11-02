@@ -25,15 +25,15 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 
 /**
- * WHAT A FACILITATOR'S HOME SAYS ABOUT THEIR GROUP (boards wk-fac-home-phone
- * and, before the group's first session, st-fac-before-phone), beside what
+ * WHAT A FACILITATOR'S HOME SAYS ABOUT THEIR GROUP (the facilitator's Home,
+ * and, before the group's first session), beside what
  * the run's overview already says: how many are expected at the next session,
  * how many exercises wait for a review, when next week's email goes while it
  * is on its schedule, who left the group recently, the group's other
  * facilitators by first name, who has said they are coming, and how many an
  * update to the group reaches.
  *
- * WHO'S COMING (Q14) is handed only to a facilitator of the group, only on a
+ * WHO'S COMING is handed only to a facilitator of the group, only on a
  * day before the group's first session, and only about the people Publish has
  * told their group: each one's first name, and whether they have said they
  * are coming (`readWhosComing`). Never a reason, never anything else from an

@@ -1,8 +1,8 @@
 import { clockWords, dayWords } from "./sessionChange/words";
 
 /**
- * THE WORDS OF ADD TO CALENDAR (board st-calendar-phone; the button on the
- * session tickets of st-programme, wk-programme and wk-home-phone), in one
+ * THE WORDS OF ADD TO CALENDAR (the button on the
+ * session tickets on the programme page before the first session), in one
  * place: the dialog's, the link route's, and what each session says in the
  * calendar the link fills.
  *

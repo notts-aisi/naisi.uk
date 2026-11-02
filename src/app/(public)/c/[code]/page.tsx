@@ -19,8 +19,7 @@ import { getCurrentUser } from "@/lib/firebase/session";
 import styles from "./certificatePage.module.css";
 
 /**
- * A CERTIFICATE'S PAGE, `naisi.uk/c/<code>` (boards en-cert and
- * en-cert-phone). The code is printed on the certificate's PDF, so this is a
+ * A CERTIFICATE'S PAGE, `naisi.uk/c/<code>`. The code is printed on the certificate's PDF, so this is a
  * printed-code landing page: everything it says is in its first HTML.
  *
  *  - TO ITS OWNER, signed in as themselves: the certificate, and under it

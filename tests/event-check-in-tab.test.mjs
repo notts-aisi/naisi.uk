@@ -1,5 +1,5 @@
 /**
- * AN EVENT'S PAGE IN SECTIONS (ev-manage): Details, Sign-ups and Check-in, and
+ * AN EVENT'S PAGE IN SECTIONS: Details, Sign-ups and Check-in, and
  * the Check-in tab itself.
  *
  * The Check-in tab is drawn on the server: four numbers for everybody in the
@@ -90,7 +90,7 @@ describe("the tabs", () => {
   const tabs = (props) => renderToStaticMarkup(createElement(EventTabs, { eventId: EVENT_ID, ...props }));
 
   // The survey after an event is built (docs/surveys.md, "Surveys after events"), so the
-  // fourth section, Survey after, sits beside Check-in, as ev-manage draws it.
+  // fourth section, Survey after, sits beside Check-in, as the event's manage page draws it.
   // CHANGED ON PURPOSE (sign-up requests that say who's asking): after the
   // count of places taken, Sign-ups says how many requests are waiting for a
   // decision, the thing somebody has to do there, and nothing while nobody is.

@@ -37,7 +37,7 @@ import { CANT_DETAILS, WHY, WOULD_WORK } from "@/lib/courses/timeAnswer/words";
 import * as words from "./peopleInGroupsWords";
 
 /**
- * A PROGRAMME'S PEOPLE IN GROUPS (board st-groups): the course run's
+ * A PROGRAMME'S PEOPLE IN GROUPS: the course run's
  * allocation board, drawn the way the lead's hub draws it.
  *
  * THE SAME BOARD UNDERNEATH. Its columns, cards and moves are the run's own:
@@ -64,8 +64,8 @@ import * as words from "./peopleInGroupsWords";
  * since ("3 placed since you published: Ana, Raj and Tom. Publish to tell
  * them."), linking to Publish (`notToldYet`, one question for both).
  *
- * WHAT THE BOARD DRAWS AND THIS LEAVES OUT, because the feature does not
- * exist yet: "Remind" (when-you're-free open until groups go out, Q7, a
+ * WHAT THE DESIGN DRAWS AND THIS LEAVES OUT, because the feature does not
+ * exist yet: "Remind" (when-you're-free open until groups go out, a
  * later slice) and a facilitator's "(no reply yet)" (asking facilitators on
  * this board, a later slice). Publish itself is its own page, behind
  * "Publish groups…".

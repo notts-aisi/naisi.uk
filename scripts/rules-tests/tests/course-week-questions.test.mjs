@@ -1,5 +1,5 @@
 /**
- * Rules tests for a week's "Questions to think about" (C29) on the run's own
+ * Rules tests for a week's "Questions to think about" on the run's own
  * weeks (`courseRuns/{runId}/weeks/{weekId}`), which the week editor writes
  * client-direct: at most five, each a line of text of 1 to 160 characters
  * (COURSE_FIELD_LIMITS.maxWeekQuestions and .weekQuestion in

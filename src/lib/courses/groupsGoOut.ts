@@ -12,12 +12,12 @@ import type { WeekPlanEntry } from "./weekPlan";
  * more, so it is left out the same way. Today is London's.
  *
  * The sentences, and the board each is from:
- *  - Home's card (st-waiting): "You’ll get an email with your group, day and
+ *  - Home's card: "You’ll get an email with your group, day and
  *    room by Wed 28 Oct."
- *  - Week 1's line before groups go out (st-week1-phone): "Week 1 is open
+ *  - Week 1's line before groups go out: "Week 1 is open
  *    now. You’ll hear your group and when it meets on Wed 28 Oct."
- *  - The application page's "When you’re free" (st-application-phone, and
- *    st-late-phone with no day): "You can change it until we email your
+ *  - The application page's "When you’re free" (and
+ *    a late joiner's, with no day): "You can change it until we email your
  *    group on Wed 28 Oct."
  *
  * Pure, with no server import, so a server page and a browser one say the
@@ -61,7 +61,7 @@ export function firstSessionWindowWords(firstWeek: { from: string; to: string } 
 }
 
 /**
- * st-week1-phone's line: "Week 1 is open now. You’ll hear your group and
+ * the line on week 1's page before groups go out: "Week 1 is open now. You’ll hear your group and
  * when it meets on Wed 28 Oct." A fellowship's place only says a group: an
  * incubator's people are told of no group, so theirs is the first sentence
  * alone (listed in the build notes for the boards' designers to confirm, with
@@ -75,8 +75,8 @@ export function weekOneOpenWords(day: string | null, kind: "fellowship" | "incub
 }
 
 /**
- * The application page's line under "When you’re free": st-application-phone's
- * two sentences with the day, st-late-phone's one without.
+ * The application page's line under "When you’re free": two
+ * sentences with the day, a late joiner's one without.
  */
 export function freeUntilWords(day: string | null): string {
   return day

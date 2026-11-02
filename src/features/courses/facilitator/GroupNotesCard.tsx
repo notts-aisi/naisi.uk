@@ -6,7 +6,7 @@ import NoteForm from "./NoteForm";
 import styles from "./facilitator.module.css";
 
 /**
- * The notes a group's facilitators share (C30): "Notes for you and Sofia",
+ * The notes a group's facilitators share: "Notes for you and Sofia",
  * who reads them, each note with its writer and day, newest first, and the
  * way to add one for the group's own facilitators.
  *

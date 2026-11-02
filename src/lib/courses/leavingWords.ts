@@ -1,7 +1,7 @@
 /**
  * THE WORDS OF LEAVING A PROGRAMME: the link at the foot of the programme
  * page, the confirmation it leads to, and the page somebody reads once they
- * have left (board wk-left-phone).
+ * have left.
  *
  * The left page's words are the board's. The confirmation is not drawn on any
  * board: its words are written in the boards' voice and listed for the
@@ -16,7 +16,7 @@
 /** The society's address, as the boards write it. */
 export const SOCIETY_ADDRESS = "ai-safety@uonsu.com";
 
-/** The link at the foot of the programme page (wk-programme). */
+/** The link at the foot of the programme page. */
 export const LEAVE_LINK = "Leave the programme";
 
 // ---------------------------------------------------------------------------
@@ -132,7 +132,7 @@ export const LEAVE_UNREACHABLE = "That didn’t go through: check your connectio
 export const LEAVE_FAILED = "That didn’t go through. Try again.";
 
 // ---------------------------------------------------------------------------
-// The page once they have left (wk-left-phone)
+// The page once they have left
 // ---------------------------------------------------------------------------
 
 export const BACK_TO_PROGRAMMES = "My programmes";

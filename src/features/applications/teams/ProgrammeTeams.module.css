@@ -1,4 +1,4 @@
-/* An incubator's Teams tab (boards in-teams, option C, and in-agenda). Sizes
+/* An incubator's Teams tab (and what applicants ranked on the agenda). Sizes
    are the boards'; colours are the theme's tokens for the boards' values. */
 
 .page {
@@ -352,7 +352,7 @@
   gap: 14px;
 }
 
-/* in-agenda's cards are wider: each row carries what the person ranked. */
+/* The agenda view's cards are wider: each row carries what the person ranked. */
 .teamGridWide {
   grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
 }

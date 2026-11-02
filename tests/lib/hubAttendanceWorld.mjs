@@ -1,6 +1,6 @@
 /**
  * Week 3 of AGI Strategy's run, for the suites about its lead's Attendance
- * and Overview tabs (boards wk-attendance and wk-overview).
+ * and Overview tabs.
  *
  * Built on `tests/lib/leadWorld.mjs` (AGI Strategy names its run, Claudia
  * leads it, Lloyd reviews it, Yusuf is the run's track lead, Tess leads

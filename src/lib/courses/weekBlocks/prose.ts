@@ -80,7 +80,7 @@ export function safeLinkUrl(raw: unknown): string | null {
 }
 
 /**
- * A source's address (Q36: every source is a link, any https link): an
+ * A source's address (every source is a link, any https link): an
  * `https:` address, or null. Narrower than `safeLinkUrl`, which also takes
  * `mailto:` for an address in running text.
  */

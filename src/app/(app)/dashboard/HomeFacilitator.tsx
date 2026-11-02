@@ -49,7 +49,7 @@ import { tilePartsOfDay } from "./homeWords";
 import styles from "./home.module.css";
 
 /**
- * HOME FOR A FACILITATOR (board wk-fac-home-phone): their group's next
+ * HOME FOR A FACILITATOR: their group's next
  * session as a ticket, with how many are expected; "Take the register" and
  * where it leads; this week's theme, the exercises waiting for a review and,
  * while next week's email is on its schedule, when it goes; somebody who left
@@ -69,10 +69,10 @@ import styles from "./home.module.css";
  * week has something loaded (`useFacilitatorGuide`), which it says only to
  * the guide's readers.
  *
- * BEFORE THE GROUP'S FIRST SESSION (board st-fac-before-phone), on every day
+ * BEFORE THE GROUP'S FIRST SESSION, on every day
  * before the day of the first session: the first session as a ticket with
  * "Open your group" in it; who's coming, each person by first name with
- * "coming" or "hasn't said", once Publish has told them their group (Q14:
+ * "coming" or "hasn't said", once Publish has told them their group (as decided,
  * the summary hands it to the group's facilitators and to nobody else, and
  * nothing else from an application); and Say hello, the way to write to the
  * group, while anybody in it has been told. From the day of the first
@@ -150,7 +150,7 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
   const known = summary.data;
   const roomLine = facts ? homeRoomLine(facts.room ?? "", known?.coFacilitators ?? []) : "";
   const weekDoc = facts ? (data?.weeks.find((week) => week.weekNumber === facts.weekNumber) ?? null) : null;
-  // Before the day of the group's first session, Home is st-fac-before-phone's.
+  // Before the day of the group's first session, Home is the facilitator's before-the-first-session Home.
   const firstDay = group?.calendar.firstSessionDate ?? "";
   const beforeFirst = Boolean(group && facts && firstDay && todayKey < firstDay);
   const whosComing = known?.whosComing ?? null;

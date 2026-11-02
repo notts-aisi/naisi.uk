@@ -71,7 +71,7 @@ export function sessionFacts(group: OverviewGroup): SessionFacts | null {
     room,
     mode,
     joinUrl,
-    // Never a promise that the link will come by email (Q23): it lives on
+    // Never a promise that the link will come by email: it lives on
     // the site, behind sign-in, so the card says where it will be.
     missing:
       mode === "virtual" && !joinUrl

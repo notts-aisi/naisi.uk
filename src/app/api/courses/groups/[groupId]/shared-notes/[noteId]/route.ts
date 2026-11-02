@@ -11,7 +11,7 @@ import {
 } from "@/lib/firestore/courseGroupSharedNotes";
 
 /**
- * DELETE A NOTE SHARED WITH A GROUP (C29), for the person who wrote it.
+ * DELETE A NOTE SHARED WITH A GROUP, for the person who wrote it.
  *
  *   DELETE  ->  { ok: true }
  *

@@ -1,6 +1,6 @@
 /**
  * A running course run in its fourth week, for the suites about changing a
- * session (Q25, wk-session, wk-changes).
+ * session.
  *
  * Built on `tests/lib/updatesWorld.mjs` (the AGI run's people in groups, its
  * cohort list, facilitators and the updates route), which is built on the

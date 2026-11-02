@@ -7,7 +7,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
- * A certificate's owner turning its link on or off (board en-cert: "Anyone
+ * A certificate's owner turning its link on or off ("Anyone
  * with the link can see it"). The body is `{ linkOn }`.
  *
  * Only the owner, signed in as themselves: a view-as session is turned away

@@ -19,7 +19,7 @@ type Props = {
 };
 
 /**
- * The door QR code (ev-manage): the code, its address, who it is for, and the
+ * The door QR code: the code, its address, who it is for, and the
  * sign and the PNG. Until the event has one, a button makes it: a short link
  * that is never deleted, so it is made once and on purpose. Who it is for is
  * `doorCodeLine`, the words its printed sign carries too.

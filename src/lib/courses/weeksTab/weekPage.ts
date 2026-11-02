@@ -12,7 +12,7 @@ import { normalizeCourse, normalizeCourseWeek, type CourseWeekDoc } from "@/lib/
 import type { WeekOwner, WeeksTab, WeeksTabWeek } from "./load";
 
 /**
- * ONE WEEK'S PAGE ON A PROGRAMME'S WEEKS TAB (board pr-weeks, option B),
+ * ONE WEEK'S PAGE ON A PROGRAMME'S WEEKS TAB,
  * worked out on the server for the programme's lead or an admin, after the
  * tab's gate (`loadProgrammeRun`) has admitted them.
  *

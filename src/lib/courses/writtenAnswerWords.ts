@@ -3,8 +3,7 @@ import { clockWords, dayWords } from "./sessionChange/words";
 import type { When, WordRange } from "./weekBlocks/model";
 
 /**
- * EVERY WORD THE WRITTEN ANSWER SAYS (boards wk-week, wk-week-phone,
- * wk-review, wk-review-phone, wk-fac-group, wk-programme), in one file, so
+ * EVERY WORD THE WRITTEN ANSWER SAYS, in one file, so
  * the pages and the routes say one thing.
  *
  * The boards' words are kept exactly, apostrophes and all. Where a board
@@ -67,7 +66,7 @@ export function overLimitWords(words: number, limit: number, alreadySent: boolea
 }
 
 // ---------------------------------------------------------------------------
-// The week page (boards wk-week, wk-week-phone)
+// The week page
 // ---------------------------------------------------------------------------
 
 export const WRITTEN_ANSWER = "Written answer";
@@ -140,28 +139,28 @@ export function sentLineWords(at: Date): string {
   return `Submitted ${dayAndClockWords(at)}.`;
 }
 
-/** "Rahul opened it on Tue 17 Nov at 9:58am, so it can’t change now." (wk-feedback-phone's locked line). */
+/** "Rahul opened it on Tue 17 Nov at 9:58am, so it can’t change now." (the locked line under feedback on the week page). */
 export function lockedLineWords(byName: string, at: Date): string {
   return `${byName} opened it on ${londonDayLabel(at)} at ${londonClockLabel(at)}, so it can’t change now.`;
 }
 
-/** "Feedback from Rahul" (wk-programme). */
+/** "Feedback from Rahul". */
 export function feedbackFromWords(byName: string): string {
   return `Feedback from ${byName}`;
 }
 
-/** "Draft · 241 words" (wk-week's This week). */
+/** "Draft · 241 words" (the week page's This week). */
 export function draftStateWords(words: number): string {
   return `${DRAFT} · ${words} ${words === 1 ? "word" : "words"}`;
 }
 
-/** "Submitted Mon 16 Nov" (wk-programme's task row). */
+/** "Submitted Mon 16 Nov" (the programme page's task row). */
 export function sentOnWords(at: Date): string {
   return `Submitted ${londonDayLabel(at)}`;
 }
 
 // ---------------------------------------------------------------------------
-// The review page (boards wk-review, wk-review-phone)
+// The review page
 // ---------------------------------------------------------------------------
 
 export const WRITTEN_ANSWERS = "Written answers";
@@ -197,7 +196,7 @@ export function nextWords(firstName: string): string {
   return `Next: ${firstName}`;
 }
 
-/** "1 of 3 to give feedback on" (wk-review-phone's bar). */
+/** "1 of 3 to give feedback on" (the review page's bar). */
 export function positionWords(at: number, of: number): string {
   return `${at} of ${of} to give feedback on`;
 }

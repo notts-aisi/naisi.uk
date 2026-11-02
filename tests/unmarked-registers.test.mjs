@@ -509,7 +509,7 @@ describe("the follow-up task", () => {
   });
 
   test("lands on the committee board, assigned to the run's lead and every admin", () => {
-    // Q17 as drawn: the task is the lead's and the admins'. It used to be every
+    // As designed: the task is the lead's and the admins'. It used to be every
     // admin's alone; the lead now comes first.
     const task = buildRegisterFollowUpTask(args());
     assert.equal(task.source, "course-register");
@@ -608,7 +608,7 @@ describe("the follow-up task", () => {
   test("the copy names the group, the course, the week and the date", () => {
     // "Register not finished" rather than "Unmarked register": a register can
     // be fully marked and still not finished, and finishing is what the card
-    // asks for (wk-register's word).
+    // asks for (the register page's word).
     const task = buildRegisterFollowUpTask(args());
     assert.equal(task.title, "Register not finished: Tuesday group, week 3");
     assert.match(task.description, /Tuesday group/);

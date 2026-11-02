@@ -30,7 +30,7 @@ import {
 import styles from "./ProgrammePeople.module.css";
 
 /**
- * A PROGRAMME'S PEOPLE TAB (board st-people), drawn from what the server
+ * A PROGRAMME'S PEOPLE TAB, drawn from what the server
  * worked out (`loadProgrammePeople`): the filters with their counts, the
  * sentence, the search, the table and "Show more".
  *

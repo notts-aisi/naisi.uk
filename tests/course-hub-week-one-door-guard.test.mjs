@@ -1,5 +1,5 @@
 /**
- * Week 1 before groups go out (Q35 B) is opened by one door, decided by one
+ * Week 1 before groups go out is opened by one door, decided by one
  * test, on one answer to whether a week is ready, and walked for over the
  * whole of `src`.
  *
@@ -205,8 +205,8 @@ describe("the pages under the run that open to somebody holding a place", () => 
   test("the week page sends a holder from every other week to week 1, and draws week 1 as somebody taking part", () => {
     const page = read("app/(app)/learn/[runId]/weeks/[n]/page.tsx").replace(/\s+/g, " ");
     assert.ok(page.includes('if (!access.canLearn && access.beforeGroups) { if (n !== "1") redirect(`/learn/${encodeURIComponent(runId)}/weeks/1`);'));
-    // The holder's week 1 also hands the Start here and Glossary links, as st-week1-phone draws them for this
-    // reader, and the before survey's card while it waits for them (Q50 B: week 1's first card).
+    // The holder's week 1 also hands the Start here and Glossary links, as week 1's page before groups go out draws them for this
+    // reader, and the before survey's card while it waits for them (week 1's first card).
     assert.ok(page.includes('return <WeekView runId={runId} weekNumber={1} uid={access.user.uid} viewerRole="learner" sharedNotes={null} {...(holderGuide ? { guide: holderGuide } : {})} {...(holderSurvey ? { survey: holderSurvey } : {})} />;'));
   });
 

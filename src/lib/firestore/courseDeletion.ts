@@ -323,8 +323,8 @@ export type RunDestroyCounts = {
    */
   updates: number;
   /**
-   * `courseGroupNotes` rows: the notes each group's facilitators share (C30,
-   * `src/lib/firestore/courseGroupNotes.ts`). Staff writing about the run's
+   * `courseGroupNotes` rows: the notes each group's facilitators share
+   * (`src/lib/firestore/courseGroupNotes.ts`). Staff writing about the run's
    * groups, keyed by `runId` on the row like every other leaf here, and it
    * dies with the run: a note is about a group this cascade deletes, and
    * nothing can show it once the group is gone.
@@ -332,8 +332,8 @@ export type RunDestroyCounts = {
   groupNotes: number;
   /**
    * `courseGroupSharedNotes` rows: the notes a group's people and
-   * facilitators share with the group (C29,
-   * `src/lib/firestore/courseGroupSharedNotes.ts`). Keyed by `runId` on the
+   * facilitators share with the group
+   * (`src/lib/firestore/courseGroupSharedNotes.ts`). Keyed by `runId` on the
    * row like every other leaf here, and it dies with the run: a note is
    * shared with a group this cascade deletes, and nothing can show it once
    * the group is gone.

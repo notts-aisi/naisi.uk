@@ -4,8 +4,8 @@ import type { FreeReminderEmail } from "@/lib/courses/getReady/words";
 /**
  * "Tell us when you’re free for AGI Strategy": the email "Remind" on a
  * programme's Overview sends somebody holding a place on a fellowship who has
- * not said when they are free, while that is still theirs to add (boards
- * st-overview and st-overview-phone, "Remind 3 people").
+ * not said when they are free, while that is still theirs to add
+ * (the Overview tab before groups meet: "Remind 3 people").
  *
  * Its one button opens the person's own "When you’re free" page, where they
  * add their week. Drawn by the body every email signed by a programme's lead

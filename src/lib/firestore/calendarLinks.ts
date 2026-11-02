@@ -1,6 +1,6 @@
 /**
  * `calendarLinks/{uid}`: ONE PRIVATE CALENDAR LINK PER PERSON (Add to
- * calendar, board st-calendar-phone). The secret in the address a calendar
+ * calendar). The secret in the address a calendar
  * app fetches the person's sessions from.
  *
  *   { uid, token, createdAt }

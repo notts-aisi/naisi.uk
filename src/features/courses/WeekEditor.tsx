@@ -173,7 +173,7 @@ function buildChecklistItem(row: ChecklistRow): ChecklistItem {
 
 export default function WeekEditor({ courseId, runId, weekId }: Props) {
   const { toast, run: runAction, dismiss } = useActionToast();
-  // Loading a week as blocks is an admin's job for now (Q39); its route refuses everyone else.
+  // Loading a week as blocks is an admin's job for now; its route refuses everyone else.
   const { role } = useAuth();
   const { data, loading, missing, error, reload } = useWeekEditorData(runId, weekId);
 
@@ -491,7 +491,7 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
             </div>
           </div>
 
-          {/* READY (board pr-weeks, Q35): the lead's mark, stored by its own
+          {/* READY: the lead's mark, stored by its own
               route, which only an admin and the programme's lead may press.
               Here it is an admin's; anybody else editing the week reads it. */}
           <div className={styles.readyCell}>
@@ -599,7 +599,7 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
       </>
       )}
 
-      {/* ---- Questions to think about (C29) ---- */}
+      {/* ---- Questions to think about ---- */}
       <WeekQuestionsEditor questions={saved.questions} onSave={saveQuestions} />
 
       {!blockWeek && (

@@ -9,7 +9,7 @@ import { isFillInResponse } from "@/lib/firestore/courseExercises";
  * ONE PERSON'S FILL-IN BOXES FOR ONE WEEK, READ BY SOMEBODY ELSE (week 6's
  * action plan): `GET /api/courses/runs/[runId]/fill-in-boxes?uid=<writer>&week=<n>`.
  *
- * WHO MAY READ (Q30 C; Zach, Mon 26 Oct): the writer's group's live
+ * WHO MAY READ (Zach, Mon 26 Oct): the writer's group's live
  * facilitators, the lead of the programme that names this run and admins;
  * for a facilitator's own boxes, the lead and admins alone. Never another
  * fellow, never a co-facilitator. Decided in one place,

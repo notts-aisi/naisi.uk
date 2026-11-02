@@ -8,7 +8,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
- * THIS WEEK'S CHECK-IN ON A TEAM'S PAGE (board in-team): "What we did" and
+ * THIS WEEK'S CHECK-IN ON A TEAM'S PAGE: "What we did" and
  * "What’s in the way", one per team per taught week, saved by anybody in
  * the team.
  *

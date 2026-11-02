@@ -48,7 +48,7 @@ import {
 } from "./words";
 
 /**
- * WHAT THE SESSIONS VIEW AND THE FACILITATOR'S PAGE DRAW (wk-session), and
+ * WHAT THE SESSIONS VIEW AND THE FACILITATOR'S PAGE DRAW, and
  * every fact the change dialog needs, worked out on the server from records:
  * the group's own sessions (`resolveSessions`), its facilitators' names, who
  * leads the programme, who an update to the group reaches (counted by the

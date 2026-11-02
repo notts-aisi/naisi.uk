@@ -69,7 +69,7 @@ import {
 } from "./words";
 
 /**
- * SENDING CERTIFICATES (board en-finish, its Certificates section), for a
+ * SENDING CERTIFICATES (its Certificates section), for a
  * programme's lead and admins, once the run's last session is over.
  *
  * ## Who is sent one
@@ -165,7 +165,7 @@ export function programmePathOf(roundId: string, programmeId: string): string {
   return `/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}`;
 }
 
-/** The lead's preview of one certificate's page and its email (board en-finish's thumbnail and Preview). */
+/** The lead's preview of one certificate's page and its email (the Certificates section's thumbnail and Preview). */
 export function previewPathOf(roundId: string, programmeId: string): string {
   return `${programmePathOf(roundId, programmeId)}/overview/certificates`;
 }

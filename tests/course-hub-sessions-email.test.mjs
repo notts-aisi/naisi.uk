@@ -1,5 +1,5 @@
 /**
- * Changing a session (Q25), and what goes out by email after it: "Week N is
+ * Changing a session, and what goes out by email after it: "Week N is
  * open" about the changed session and the one after it, on both of that
  * email's lanes, and the register chase, which a cancelled session never
  * starts.
@@ -8,7 +8,7 @@
  *
  * ## What this guards
  *
- *  1. "CANCELLING OR MOVING A SESSION REWRITES ITS EMAIL" (wk-messages). The
+ *  1. "CANCELLING OR MOVING A SESSION REWRITES ITS EMAIL". The
  *     email about a cancelled session says it is off, why, and when the group
  *     meets next, in the programme page's words, and says nothing about when
  *     and where the group meets; the email about the session after it says it

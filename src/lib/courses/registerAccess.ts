@@ -39,7 +39,7 @@ import { firstNameOfUser, programmeLedBy } from "./programmeLead";
  *    They answer for the whole programme's attendance, which is a different
  *    thing from staffing it. Their power is worked out from the form when
  *    they ask (`programmeLedBy`), and is nothing on any other run.
- *  · THE REGISTER'S NOTES are the group's facilitators' and admins' (C30):
+ *  · THE REGISTER'S NOTES are the group's facilitators' and admins':
  *    what a facilitator writes about a named person, and about a session as a
  *    whole, is not sent to a caller the read gate admits only as the lead.
  *    `readsNotes` says which callers get them, and the GET is the one door

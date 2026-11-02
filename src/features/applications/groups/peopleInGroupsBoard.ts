@@ -5,8 +5,8 @@ import { MARK_CANT_MAKE, MARK_CAN_MAKE } from "@/lib/courses/timeAnswer/words";
 import * as words from "./peopleInGroupsWords";
 
 /**
- * WHAT A CARD AND ITS MENU SAY ON A PROGRAMME'S PEOPLE IN GROUPS (board
- * st-groups), as pure functions the board and its tests ask.
+ * WHAT A CARD AND ITS MENU SAY ON A PROGRAMME'S PEOPLE IN GROUPS
+ * (the allocation board), as pure functions the board and its tests ask.
  *
  * A card's word about when somebody is free is `cardFit`'s answer, the one
  * every board's card asks (whether they sit in a group whose session they

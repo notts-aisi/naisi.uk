@@ -50,7 +50,7 @@ import styles from "./TimesPicture.module.css";
 import { dayLong, lengthWords, whenShort } from "./timesWords";
 
 /**
- * THE TIMES VIEW'S CONTROLS (board st-times): "Use for a group" beside a
+ * THE TIMES VIEW'S CONTROLS: "Use for a group" beside a
  * best time, "Change" beside each group, and "Add a group", each with the
  * dialog it opens. The picture around them is drawn on the server; these are
  * the only parts that run in the browser.

@@ -1,7 +1,7 @@
 /**
  * AGI Strategy's term after decision day, for the suites about the
- * programme's People tab (board st-people) and a facilitator's Home before
- * the group's first session (board st-fac-before-phone).
+ * programme's People tab and a facilitator's Home before
+ * the group's first session.
  *
  * Built on `tests/lib/leadWorld.mjs` (AGI Strategy names its run, Claudia
  * leads it, Lloyd reviews it, Yusuf is the run's track lead, Tess leads

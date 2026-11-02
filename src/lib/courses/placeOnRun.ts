@@ -14,7 +14,7 @@ import { leavePathFor, type LeaveAnswer } from "./leaving";
  *
  * A place on the term's application form becomes a seat in a group of the run
  * the programme names once an admin places them and Publish emails them their
- * group. From then on giving the place back is leaving the programme (Q12): the
+ * group. From then on giving the place back is leaving the programme: the
  * person leaves their group at once, by "Leave the programme" on their
  * programme's page or by "I can’t make it" on their application page, and both
  * are the one leave (`leavePathFor` in `./leaving.ts` decides, `leaveRun` in

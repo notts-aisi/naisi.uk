@@ -14,7 +14,7 @@ import {
 } from "./words";
 
 /**
- * THIS TERM IN NUMBERS (board sv-term), counted from what the loader read
+ * THIS TERM IN NUMBERS, counted from what the loader read
  * (`./load.ts`): each event's check-ins and its survey, how many different
  * people came and how many came back, and each programme's before and after.
  *

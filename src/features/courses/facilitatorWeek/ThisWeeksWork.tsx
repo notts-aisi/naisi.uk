@@ -50,12 +50,12 @@ import ReopenWeekButton from "@/features/courses/written/ReopenWeekButton";
 import styles from "@/features/courses/facilitator/facilitator.module.css";
 
 /**
- * THIS WEEK'S WORK (boards wk-fac-group at 1440, wk-fac-group-phone at 390):
+ * THIS WEEK'S WORK (on the facilitator's group page, at 1440 and 390):
  * each person in the group with each part's reflection written or not yet,
  * as a table on a wide page and a list on a narrow one; then who ticked each
- * source of the week (Q31: how many, of how many, and the names behind a
+ * source of the week (how many, of how many, and the names behind a
  * button, never on hover), with the private notes left on each for a viewer
- * who reads them (Q38).
+ * who reads them.
  *
  * Drawn on the server from what `loadGroupWeek` worked out for the viewer:
  * a facilitator is never handed a facilitator's own work, and the lead and
@@ -363,7 +363,7 @@ export default function ThisWeeksWork({
 }
 
 /**
- * THE REVIEW QUEUE'S REFLECTIONS HALF (wk-fac-group): "Reflections", how many
+ * THE REVIEW QUEUE'S REFLECTIONS HALF: "Reflections", how many
  * of the group have written each part's ("Part 1, 6 of 7 · Part 2, 5 of 7"),
  * and "Read them", to the page where lines are picked to read out. Drawn
  * under the written answers half (`separated`), or alone in its card.

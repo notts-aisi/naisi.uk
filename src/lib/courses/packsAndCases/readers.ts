@@ -23,7 +23,7 @@ import { weekDocId } from "@/lib/firestore/courses";
 import { chooseOnesOf, drawOf, findCase, findPack, talksOf, type WeekDraw } from "./model";
 
 /**
- * THE READERS OF `coursePacksAndCases` (plan item 8; Q32 A), on the server,
+ * THE READERS OF `coursePacksAndCases`, on the server,
  * and the gate the draw is behind. Nothing else reads the collection but the
  * two routes that write it and the two deletions that remove it
  * (`tests/course-packs-and-cases-readers.test.mjs` walks the tree for a file
@@ -270,7 +270,7 @@ export async function readDrawState(
 }
 
 /**
- * THE SPREAD (wk-fac-group: "Pathways in Group B"): each pack of the week's
+ * THE SPREAD ("Pathways in Group B"): each pack of the week's
  * first Choose one given out, with who has it, so every pathway has
  * somebody; and who has nothing yet. A week that gives out cases alone has
  * no tiles, and says who has no case yet.
@@ -309,7 +309,7 @@ export function spreadOf(week: GroupWeek, people: readonly DrawPerson[], state: 
 // This week's work: the pathway and case columns
 // ---------------------------------------------------------------------------
 
-/** One person's two columns of This week's work (wk-fac-group): the names, or null for none. */
+/** One person's two columns of This week's work: the names, or null for none. */
 export type WeekWorkCells = { pack: string | null; case: string | null };
 
 /**

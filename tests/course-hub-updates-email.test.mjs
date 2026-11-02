@@ -1,5 +1,5 @@
 /**
- * Updates (Q18): the email beside an update, word for word.
+ * Updates: the email beside an update, word for word.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *

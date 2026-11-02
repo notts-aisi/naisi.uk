@@ -43,7 +43,7 @@ import {
  *
  * SOMEBODY HOLDING A PLACE ON THIS PROGRAMME MAY BE ASKED. A facilitator can
  * be one of the programme's fellows too (the rule that nobody facilitates a
- * programme they take part in, Q21, was lifted on 26 October 2026): they do
+ * programme they take part in was lifted on 26 October 2026): they do
  * the course in the group they facilitate, and a yes places them in it
  * (`src/lib/courses/groupFacilitators.ts`). Somebody INVITED to it who has
  * not answered is asked once they have (`invitedTo`): until then nobody knows
@@ -132,7 +132,7 @@ export type FacilitatorColumn = {
 };
 
 /**
- * THE COLUMNS ARE THE FORM'S OWN QUESTIONS (C8): every question in the form's
+ * THE COLUMNS ARE THE FORM'S OWN QUESTIONS: every question in the form's
  * facilitator sets, in the form's order, except the one that asks which
  * programme, which decides who is listed and is said once above the table.
  * Nothing else the form holds is ever a column.

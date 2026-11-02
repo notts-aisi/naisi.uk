@@ -1,5 +1,5 @@
 /**
- * A programme's People in groups, restyled (board st-groups), and Publish's
+ * A programme's People in groups, restyled, and Publish's
  * own page behind its "Publish groups…", as every kind of caller.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
@@ -606,7 +606,7 @@ describe("5. Publish's own page draws Publish as the board did, under its readin
 const boardParts = await made.loadTs(join("features", "applications", "groups", "peopleInGroupsBoard.ts"));
 const { default: Dropdown } = await made.loadTs(join("components", "ui", "Dropdown.tsx"));
 
-/** A column as the allocation route sends it, with the head st-groups draws. */
+/** A column as the allocation route sends it, with the head the allocation board draws. */
 const column = (id, name, tag, when, sessionLabel, over = {}) => ({
   id,
   name,

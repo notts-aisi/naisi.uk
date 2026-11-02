@@ -27,8 +27,8 @@ import {
 import styles from "./weeks.module.css";
 
 /**
- * THE CONTROLS OF ONE WEEK'S PAGE ON A PROGRAMME'S WEEKS TAB (board
- * pr-weeks), each sending its own route, which decides who may: the paste
+ * THE CONTROLS OF ONE WEEK'S PAGE ON A PROGRAMME'S WEEKS TAB,
+ * each sending its own route, which decides who may: the paste
  * card, the week's owner, how the week meets, and Mark ready. Each reads the
  * page again from the server once its route has answered, so what the page
  * says is what is stored, never what was pressed. Each is drawn disabled
@@ -196,7 +196,7 @@ export type GroupChoice = {
 };
 
 /**
- * A WEEK FOR ONE GROUP (Q39), on the week's page: pick one of the run's
+ * A WEEK FOR ONE GROUP, on the week's page: pick one of the run's
  * groups, copy its week as Markdown, change it and paste it back. Every read
  * and save goes through the group's own route
  * (`/api/courses/groups/[groupId]/weeks/[weekId]/blocks`), which makes the

@@ -17,10 +17,10 @@ import styles from "./blockWeek.module.css";
 import { putReflection } from "./boxWrites";
 
 /**
- * A REFLECTION STOP (boards st-week1-phone, wk-week-phone): one or two
+ * A REFLECTION STOP: one or two
  * prompts, each a labelled box that saves as the person types, "Saved" once
  * what the box shows is stored, and on the page's first stop who reads them
- * (Q30) and that a line may be read out without the name (Q37).
+ * and that a line may be read out without the name.
  *
  * WHO SEES A BOX. Somebody taking part sees their own boxes; once their
  * enrolment is over (a finished programme) the boxes show what they wrote

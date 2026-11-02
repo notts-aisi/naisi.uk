@@ -24,7 +24,7 @@ import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staf
 import { READY_BY_DAYS, meetsLine } from "./words";
 
 /**
- * WHAT A PROGRAMME'S WEEKS TAB SHOWS (board pr-weeks), worked out on the
+ * WHAT A PROGRAMME'S WEEKS TAB SHOWS, worked out on the
  * server from records, for the programme's lead and admins.
  *
  * Each taught week of the run the programme names, in the run's plan order:
@@ -93,7 +93,7 @@ export type WeeksTab = {
   /** The programme's short name, then the course's title. */
   programmeName: string;
   weeks: WeeksTabWeek[];
-  /** pr-weeks' line under the list ("AGI Strategy meets in person every week."). */
+  /** The Weeks tab's line under the list ("AGI Strategy meets in person every week."). */
   meets: string;
   /** Who a week's owner can be: the programme's lead first, then each helper. */
   owners: WeekOwner[];

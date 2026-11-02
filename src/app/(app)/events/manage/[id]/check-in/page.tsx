@@ -52,7 +52,7 @@ export const dynamic = "force-dynamic";
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /**
- * An event's Check-in tab (ev-manage): how many came and how, opening the
+ * An event's Check-in tab: how many came and how, opening the
  * door, who came, the door code and the door list.
  *
  * COUNTS FOR EVERYBODY IN THE EVENTS AREA, NAMES FOR THE PEOPLE WHO RUN

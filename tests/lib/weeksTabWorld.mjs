@@ -1,6 +1,6 @@
 /**
  * Week 3 of AGI Strategy's run, for the suites about the lead's Weeks tab
- * (board pr-weeks) and a week changed for one group (Q39).
+ * and a week changed for one group.
  *
  * Built on `tests/lib/handoverWorld.mjs` with the member pages' seed
  * (`memberSeed` in `tests/lib/memberPagesWorld.mjs`): the run as the lead's

@@ -699,11 +699,11 @@ describe("whether a member holds a place is asked for the member, and for nobody
   /**
    * Everything Home's form for a member is handed, by name. Two are about a
    * place: whether it may say they are on nothing (one answer), and the cards
-   * week 1's door words for a place held before groups go out (Q13 B, held
+   * week 1's door words for a place held before groups go out (held
    * in tests/applications-place-in-the-member-area.test.mjs, MAY_SHOW). In
    * every world here no programme names a run, so the second is always empty,
    * and in a view-as session it is empty whatever is held. And the survey
-   * cards (`surveysWaitingFor`, Q50 B), empty in every world here, where
+   * cards (`surveysWaitingFor`), empty in every world here, where
    * nobody was sent a survey, and read for nobody in a view-as session.
    */
   const HANDED_TO_HOME = [

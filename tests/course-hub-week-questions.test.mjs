@@ -1,5 +1,5 @@
 /**
- * A week's "Questions to think about" (C29, board wk-week-phone): what a week
+ * A week's "Questions to think about": what a week
  * keeps, how the run's week editor and a group's own copy write them, how
  * every copy of a week carries them, and how the week's page draws them.
  *
@@ -147,7 +147,7 @@ describe("2. the run's week editor writes them, client-direct", () => {
     assert.deepEqual(client.writes.map((write) => write.data.questions), [[], ["Q1?", "Q2?", "Q3?", "Q4?", "Q5?"]]);
   });
 
-  test("the editor's section: board pr-weeks's words, a labelled line each, and the count", () => {
+  test("the editor's section: the Weeks tab design's words, a labelled line each, and the count", () => {
     const html = renderToStaticMarkup(createElement(editor.default, { questions: QUESTIONS.slice(0, 2), onSave: async () => true }));
     const text = textOf(html);
     assert.ok(

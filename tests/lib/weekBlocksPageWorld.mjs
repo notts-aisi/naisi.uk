@@ -1,7 +1,6 @@
 /**
  * AGI Strategy's run in week 3, with WEEKS WRITTEN AS BLOCKS, for the suite
- * about the member's side of the coursework (boards st-week1-phone,
- * wk-week-phone, wk-week and wk-programme): the week page for a block week,
+ * about the member's side of the coursework: the week page for a block week,
  * its reflection boxes and their store, and the counts by This week's tasks
  * on the week page, the programme page and Home.
  *

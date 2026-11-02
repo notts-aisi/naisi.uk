@@ -381,7 +381,7 @@ export const courseTemplateDefaults: Record<
     ],
   },
   /**
-   * The placement email, in the words of board st-emails ("Your AGI Strategy
+   * The placement email, in the words of the group emails ("Your AGI Strategy
    * group: Tuesdays at 6pm"). `composePlacementEmail` fills it
    * (`src/lib/courses/placementEmail.ts`), and that file's rule shapes this
    * copy, so an editor should know it before rewriting:
@@ -464,7 +464,7 @@ export const courseTemplateDefaults: Record<
   },
   /**
    * The facilitators' email, sent at Publish to each facilitator of each
-   * group with somebody in it, in the words of board st-emails ("You’re
+   * group with somebody in it, in the words of the group emails ("You’re
    * facilitating Group B: Tuesdays at 6pm"). `composeFacilitatingEmail`
    * fills it (`src/lib/courses/facilitatingEmail.ts`) by the placement
    * email's rules, so the same three things shape this copy:

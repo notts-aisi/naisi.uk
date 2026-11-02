@@ -29,8 +29,8 @@ import { registerSwitchesIn, type RegisterSwitches } from "@/lib/scheduler/regis
 
 /**
  * A PROGRAMME'S ATTENDANCE, WORKED OUT ONCE, ON THE SERVER: every register of
- * the course run a programme names, as its lead's Attendance tab draws it
- * (board wk-attendance). The tab's grid, its CSV, the Overview tab's figures
+ * the course run a programme names, as its lead's Attendance tab draws it.
+ * The tab's grid, its CSV, the Overview tab's figures
  * and the line under the programme's name all read this, so the four can
  * never disagree about a number.
  *
@@ -47,7 +47,7 @@ import { registerSwitchesIn, type RegisterSwitches } from "@/lib/scheduler/regis
  *    the people Publish has told their group. The register reads the same way.
  *  - Somebody who LEFT: an enrolment that has left the run, withdrawn by its
  *    owner or removed by staff, listed with the marks they had before they
- *    left (C27), for every viewer alike, and only where a register of the
+ *    left, for every viewer alike, and only where a register of the
  *    group holds a mark for them: the mark is the proof they were on that
  *    register, and somebody who left before any register marked them took
  *    no part, and is nobody's row. Both kinds keep the day they went
@@ -201,7 +201,7 @@ const CAME: ReadonlySet<AttendanceStatus> = new Set(["present", "late", "left-ea
 
 /**
  * Absent at this many sessions in a row, with no excuse, is something the
- * lead is shown (wk-attendance's "2 in a row", wk-overview's "has missed 2
+ * lead is shown (the attendance grid's "2 in a row", the Overview tab's "has missed 2
  * sessions in a row without saying"). A rule of the board, not of a term.
  */
 export const ABSENT_IN_A_ROW = 2;
@@ -675,8 +675,7 @@ export type GroupLeaver = {
 };
 
 /**
- * WHO LEFT ONE GROUP, for the group's own register (the facilitators' page,
- * wk-fac-group): exactly the people the lead's grid lists in that group as
+ * WHO LEFT ONE GROUP, for the group's own register (the facilitators' page): exactly the people the lead's grid lists in that group as
  * having left, with the same words for when, so the register and the grid
  * can never disagree about who left a group or when. Listed for every
  * viewer alike, where a register of the group marked them (see "Who is a

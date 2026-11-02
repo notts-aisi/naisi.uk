@@ -21,7 +21,7 @@ import type { PeopleView } from "./views";
 import { placesSentence } from "./words";
 
 /**
- * A PROGRAMME'S PEOPLE TAB, READ (board st-people), and the count beside the
+ * A PROGRAMME'S PEOPLE TAB, READ, and the count beside the
  * tab.
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`opensProgrammeGroups`), decided

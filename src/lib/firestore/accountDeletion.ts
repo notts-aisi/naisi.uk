@@ -176,13 +176,13 @@ export type AccountDeletionSummary = {
   courseFacilitatingCleared: number;
   /**
    * The notes this account wrote as one of a group's facilitators for the
-   * others (`courseGroupNotes`, C30). Deleted: a note is its writer's words,
+   * others (`courseGroupNotes`). Deleted: a note is its writer's words,
    * and it goes with their account.
    */
   courseGroupNotesDeleted: number;
   /**
    * The notes this account shared with a group it was in or facilitated
-   * (`courseGroupSharedNotes`, C29). Deleted: a note is its writer's words,
+   * (`courseGroupSharedNotes`). Deleted: a note is its writer's words,
    * and it goes with their account.
    */
   courseGroupSharedNotesDeleted: number;
@@ -827,7 +827,7 @@ export async function clearFacilitatorAsks(db: Firestore, uid: string): Promise<
 
 /**
  * Delete every note this account wrote for the other facilitators of a group
- * (`courseGroupNotes`, C30), on every run, a page at a time. A note is its
+ * (`courseGroupNotes`), on every run, a page at a time. A note is its
  * writer's own words, found by the one equality on `authorUid` and deleted;
  * nobody else's note is touched, whatever group it is on.
  */
@@ -836,8 +836,7 @@ export async function deleteCourseGroupNotes(db: Firestore, uid: string): Promis
 }
 
 /**
- * Delete every note this account shared with a group (`courseGroupSharedNotes`,
- * C29), on every run, a page at a time. A note is its writer's own words,
+ * Delete every note this account shared with a group (`courseGroupSharedNotes`), on every run, a page at a time. A note is its writer's own words,
  * found by the one equality on `authorUid` and deleted; nobody else's note is
  * touched, whatever group it is in.
  */

@@ -1,6 +1,6 @@
 /**
  * One course run in its second week, with registers to take and finish, for
- * the suites about how a register ends (wk-register, option B): finishing,
+ * the suites about how a register ends: finishing,
  * "Week N is open" on its schedule, the facilitators' reminder and the task
  * for the programme's lead and the admins.
  *

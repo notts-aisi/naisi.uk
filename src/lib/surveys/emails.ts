@@ -45,8 +45,8 @@ export function surveyLink(token: string): string | null {
 
 /**
  * One of the two emails in words, signed by `signer`, or null while the
- * survey has no closing time. A survey after an event has the words sv-send
- * draws for it (`./events/words.ts`).
+ * survey has no closing time. A survey after an event has the words the Send tab
+ * shows for it (`./events/words.ts`).
  */
 export function emailWordsFor(survey: SurveyDoc, email: SurveyEmailKind, signer: string): SurveyEmailWords | null {
   if (!survey.closesAt) return null;

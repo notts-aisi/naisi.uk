@@ -12,7 +12,7 @@ import {
 import styles from "@/features/applications/editor/ProgrammeSetup.module.css";
 
 /**
- * THE CREDIT LINE ON A PROGRAMME'S SETTINGS (board pr-settings, v20; Zach,
+ * THE CREDIT LINE ON A PROGRAMME'S SETTINGS (v20; Zach,
  * Sun 25 Oct: kept on the course): what every certificate of the run's
  * course prints after its weeks, shown here read-only, as a line of its own,
  * with how it prints and where it is changed. The link is offered only to

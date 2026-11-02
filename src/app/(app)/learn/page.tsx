@@ -39,9 +39,9 @@ import LearnHub, { type LeftRun } from "./LearnHub";
  * it reads); and nothing in this file looks at an application or a decision.
  *
  * Above the runs, before groups go out, the card Home draws for each place
- * held (`beforeGroups`, Q13 B), and only what `MAY_SHOW` in
+ * held (`beforeGroups`), and only what `MAY_SHOW` in
  * `tests/applications-place-in-the-member-area.test.mjs` lists. Above those,
- * "A survey for you" for each survey waiting for the member (Q50 B), as Home
+ * "A survey for you" for each survey waiting for the member, as Home
  * draws it.
  */
 export default async function LearnPage() {
@@ -61,7 +61,7 @@ export default async function LearnPage() {
 }
 
 /**
- * "A SURVEY FOR YOU" (Q50 B), the cards Home draws: each survey waiting for
+ * "A SURVEY FOR YOU", the cards Home draws: each survey waiting for
  * the member (`surveysWaitingFor`, which reads nothing in a view-as session).
  * A read that fails draws no card.
  */
@@ -100,9 +100,9 @@ async function runsLeft(uid: string): Promise<LeftRun[]> {
 }
 
 /**
- * "YOUR GROUP’S ON ITS WAY" at the top of My programmes (board st-waiting:
+ * "YOUR GROUP’S ON ITS WAY" at the top of My programmes (as decided:
  * "The same card sits at the top of My programmes"), with the way to week 1
- * once its door is open to them (Q35 B). The same reader as Home's; it reads
+ * once its door is open to them. The same reader as Home's; it reads
  * nothing in a view-as session, and a read that fails draws no card.
  */
 async function onItsWayCards(user: SessionUser): Promise<BeforeGroupsCard[]> {

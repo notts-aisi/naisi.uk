@@ -15,7 +15,7 @@ import { RUNS_COLLECTION, readRun } from "./run";
 
 /**
  * THE PITCHES FROM A PROGRAMME'S PITCHING WEEK, for its lead and for admins
- * (board in-teams, option C, its "Pitches from week 3" list).
+ * (its "Pitches from week 3" list).
  *
  * WHO: an admin, or the programme's lead while they meet the lead's bar
  * (`roleOnProgramme`). A reviewer has a role on the programme and is told the

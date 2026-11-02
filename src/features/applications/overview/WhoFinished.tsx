@@ -10,7 +10,7 @@ import { NO_RULE_AFTER, NO_RULE_BEFORE, NO_RULE_LINK, NO_RULE_SENTENCE } from "@
 import styles from "./ProgrammeOverview.module.css";
 
 /**
- * WHO FINISHED (board en-finish), on the programme's Overview once the run's
+ * WHO FINISHED, on the programme's Overview once the run's
  * last session is over, for its lead and admins. The server worded all of it
  * (`buildWhoFinished`); this draws it and sends a switch's change the moment
  * it is made.
@@ -23,7 +23,7 @@ import styles from "./ProgrammeOverview.module.css";
  * Before the page is live the switches are drawn and not pressable, since
  * nothing would be listening.
  *
- * ON A PHONE (en-finish draws no phone board) the same table is drawn a card
+ * ON A PHONE (no separate phone layout was drawn) the same table is drawn a card
  * a row: the person and their Finished switch side by side, and their group,
  * "came to" and written answers under the name, each with its column's word, so no
  * switch is ever behind a sideways scroll. The stylesheet does that from the

@@ -24,7 +24,7 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 
 /**
- * THE DRAW, TYPED IN (plan item 8; Q32 A; board wk-cases, option A): at the
+ * THE DRAW, TYPED IN: at the
  * end of a session a facilitator hands out next week's packs and cases on
  * paper, then copies the slips in here; swaps go through them too. One row
  * per person in the group (its people taking part and its facilitators, who

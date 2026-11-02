@@ -1,5 +1,5 @@
 /**
- * Sending certificates (board en-finish's Certificates section): the section
+ * Sending certificates (the Overview's Certificates section): the section
  * on the programme's Overview, "Send a test to me", the press, the preview,
  * and what a certificate does to who finished afterwards.
  *

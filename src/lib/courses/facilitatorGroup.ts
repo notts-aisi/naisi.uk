@@ -23,8 +23,7 @@ import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 
 /**
- * WHAT A FACILITATOR'S PAGES SAY ABOUT ONE GROUP (boards wk-fac-group and
- * wk-fac-home-phone), worked out on the server from the records the
+ * WHAT A FACILITATOR'S PAGES SAY ABOUT ONE GROUP, worked out on the server from the records the
  * programme's own tabs read, so the facilitator, the lead and the register
  * can never disagree about who is in a group, who left, or what a register
  * says.

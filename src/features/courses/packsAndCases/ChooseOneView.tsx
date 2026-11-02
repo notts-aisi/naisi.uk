@@ -24,8 +24,7 @@ import type { Picks } from "./usePicks";
 import styles from "./packsAndCases.module.css";
 
 /**
- * A CHOOSE ONE ON THE WEEK PAGE (plan item 8; Q32 A; boards wk-week,
- * wk-week-phone and wk-week6-phone): the packs, each with its name, time,
+ * A CHOOSE ONE ON THE WEEK PAGE: the packs, each with its name, time,
  * how many sources and its note, and its reading as the guide writes it.
  *
  *  - GIVEN OUT by a facilitator (week 3's pathways): "Pathway packs", the

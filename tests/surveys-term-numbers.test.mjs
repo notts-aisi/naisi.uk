@@ -1,5 +1,5 @@
 /**
- * THIS TERM IN NUMBERS, THE COUNTING (board sv-term, docs/surveys.md "This
+ * THIS TERM IN NUMBERS, THE COUNTING (docs/surveys.md "This
  * term in numbers"): the term at a glance for admins, each event's check-ins
  * and survey, how many different people came and how many came back, and
  * each programme's before and after. Counts only, never names; every count

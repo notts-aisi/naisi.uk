@@ -35,8 +35,7 @@ import { WEEK_SHUT } from "@/lib/courses/weekWork/words";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 
 /**
- * A MEMBER WRITING IN ONE REFLECTION BOX (boards st-week1-phone,
- * wk-week-phone): the box saves as they type, and this route is the only
+ * A MEMBER WRITING IN ONE REFLECTION BOX: the box saves as they type, and this route is the only
  * writer of a reflection.
  *
  * WHERE IT IS STORED. In `courseExerciseResponses`, the store the week's
@@ -58,7 +57,7 @@ import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exerci
  *    reflections are read by the programme's lead and admins only, never by
  *    their co-facilitators or the group (`../route.ts`, the one reader);
  *  - somebody holding a place whom Publish has not told yet, in WEEK 1's
- *    boxes only, once week 1's door is open to them (Q35 B: `weekOneDoorFor`,
+ *    boxes only, once week 1's door is open to them (`weekOneDoorFor`,
  *    the one answer). Their week is the run's own: they have no group yet.
  * Nobody writes on anybody else's behalf: not the lead, not an admin.
  *
@@ -167,7 +166,7 @@ export async function PUT(
   // Archived groups staff nobody, as everywhere else.
   const liveGroups = groupSnap.docs.map((d) => normalizeCourseGroup(d.id, d.data() ?? {})).filter((g) => !g.archived);
   const facilitates = liveGroups.filter((g) => isNamedWithStanding(actor, "courseGroups.facilitatorUids", g.facilitatorUids));
-  // Week 1 before groups go out (Q35 B): somebody holding a place whom
+  // Week 1 before groups go out: somebody holding a place whom
   // Publish has not told writes in week 1's boxes once week 1's door is open
   // to them (`weekOneDoorFor`, the one answer), and in no other week's.
   const beforeGroups =

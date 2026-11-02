@@ -13,7 +13,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
 /**
- * "COPY WEEKS FROM THE COURSE" (board pr-weeks), a page of a programme's
+ * "COPY WEEKS FROM THE COURSE", a page of a programme's
  * Weeks tab: the course's other runs that hold weeks, each with "Copy its
  * weeks", which copies only the weeks this run does not have yet.
  *

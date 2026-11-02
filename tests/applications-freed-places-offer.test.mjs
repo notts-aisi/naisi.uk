@@ -3,14 +3,14 @@
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
- * ## The rule this guards (Q15, approved on Sat 24 Oct 2026)
+ * ## The rule this guards (approved on Sat 24 Oct 2026)
  *
  * After decision day's send, an outcome may change ONLY from "No offer this
  * time" to an invitation, ONLY for a pooled applicant who ranked the
  * programme and whom it pooled, ONLY while a place is free and the window is
  * open (from the send until the end of week 1 of the run the programme
  * names, in London), ONLY by an admin or the programme's own lead (since the
- * course hub's lead access, Q1), and with a log line naming nobody. The person accepts on their own page with decision day's Accept
+ * course hub's lead access), and with a log line naming nobody. The person accepts on their own page with decision day's Accept
  * and No thanks. Every part of that is broken here once, and every other way
  * of asking is refused with the store untouched.
  *
@@ -89,8 +89,8 @@ const auditRows = () =>
 describe("who may offer a freed place: an admin, or the programme's lead", () => {
   /**
    * [caller, who they are, the answer to a press, the answer to a test].
-   * AGI Strategy's lead, Claudia, offers since the course hub's lead access
-   * (Q1): she meets the rule below, as an admin does.
+   * AGI Strategy's lead, Claudia, offers since the course hub's lead access:
+   * she meets the rule below, as an admin does.
    */
   const CALLERS = [
     [null, "signed out", 401, 401],
@@ -141,7 +141,7 @@ describe("who may offer a freed place: an admin, or the programme's lead", () =>
   });
 
   test("the gate is one predicate of the caller's role on the programme, and only an admin's and the lead's roles pass it", () => {
-    // The lead's role passes since the course hub's lead access (Q1).
+    // The lead's role passes since the course hub's lead access.
     assert.deepEqual(
       ["admin", "lead", "reviewer", null].map((role) => rules.offersFreedPlaces(role)),
       [true, true, false, false],

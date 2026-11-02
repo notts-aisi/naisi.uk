@@ -1,5 +1,5 @@
 /**
- * Updates (Q18): the updates route, as every kind of caller.
+ * Updates: the updates route, as every kind of caller.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *

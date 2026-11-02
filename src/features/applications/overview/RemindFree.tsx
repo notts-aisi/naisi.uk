@@ -6,11 +6,10 @@ import { remindedFreeWords } from "@/lib/courses/getReady/words";
 import styles from "./ProgrammeOverview.module.css";
 
 /**
- * "Remind 3 people", with "Emails 3 people" beside it (boards st-overview and
- * st-overview-phone): an email, now, to each person holding a place who has
+ * "Remind 3 people", with "Emails 3 people" beside it: an email, now, to each person holding a place who has
  * not said when they are free, while that is still theirs to add.
  *
- * Every button that emails says how many it reaches (C20), and the confirm
+ * Every button that emails says how many it reaches, and the confirm
  * says who. The press sends the count it showed, and the route refuses a
  * press whose count no longer matches, so nobody is emailed by a number they
  * did not see. Once it has gone the page is read again, and the card says who

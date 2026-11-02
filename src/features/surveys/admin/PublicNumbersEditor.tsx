@@ -49,7 +49,7 @@ function LockIcon() {
 }
 
 /**
- * The Public numbers page's working part (sv-public): the programme picker,
+ * The Public numbers page's working part: the programme picker,
  * the numbers and quotes on offer, Publish and Take it down, and the preview
  * on a phone and on a computer, drawn by the public page's own block.
  *

@@ -748,7 +748,7 @@ describe("picking a pooled applicant's outcome", () => {
   });
 
   test("nothing is picked here once the term has been sent, and the refusal says where a freed place goes", async () => {
-    // THE RULE CHANGED ON PURPOSE (Q15, approved Sat 24 Oct 2026). An outcome
+    // THE RULE CHANGED ON PURPOSE (approved Sat 24 Oct 2026). An outcome
     // can now change after the send in exactly one way: "No offer this time"
     // to an invitation, for a place given back, offered from the programme's
     // Applications tab until the end of week 1, by the freed-place writer

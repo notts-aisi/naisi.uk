@@ -585,7 +585,7 @@ const NOT_COVERED = {
   },
   "/api/admissions/forms/[roundId]/application/availability": {
     reason:
-      "Changing when you're free from the application page until groups go out (Q7). Executed by tests/course-hub-when-free.test.mjs as every kind of caller (who may, the week written, the version kept, the board and the times picture reading it, the page's card), with no browser spec yet.",
+      "Changing when you're free from the application page until groups go out. Executed by tests/course-hub-when-free.test.mjs as every kind of caller (who may, the week written, the version kept, the board and the times picture reading it, the page's card), with no browser spec yet.",
     coverWhen:
       "When a browser spec signs in as somebody holding a place before Publish, changes their week on the application page, and the allocation board's fit marks follow it.",
   },
@@ -736,7 +736,7 @@ const NOT_COVERED = {
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask": {
     reason:
-      "Course hub: asking one person to facilitate one group, pressed by a programme's lead or an admin on the Groups tab's Facilitators view (board st-facilitators). tests/course-hub-facilitator-asks.test.mjs executes it as every kind of caller, with the email it sends read word for word and counted against the button.",
+      "Course hub: asking one person to facilitate one group, pressed by a programme's lead or an admin on the Groups tab's Facilitators view. tests/course-hub-facilitator-asks.test.mjs executes it as every kind of caller, with the email it sends read word for word and counted against the button.",
     coverWhen:
       "When the end-to-end fixtures can seed a term after decision day whose form asked about facilitating, with somebody who said yes, and its programme's lead signed in.",
   },
@@ -940,7 +940,7 @@ const NOT_COVERED = {
   },
   "/api/courses/calendar": {
     reason:
-      "Course hub: a person's own calendar link (st-calendar-phone), made on their first ask, the same after, and replaced on request; tests/course-hub-calendar-link.test.mjs executes the handler as every kind of caller, its four targets, replacing and deletion with the account.",
+      "Course hub: a person's own calendar link, made on their first ask, the same after, and replaced on request; tests/course-hub-calendar-link.test.mjs executes the handler as every kind of caller, its four targets, replacing and deletion with the account.",
     coverWhen:
       "When the end-to-end fixtures can seed a run Publish has told, with a member signed in to open Add to calendar on their programme page.",
   },
@@ -994,7 +994,7 @@ const NOT_COVERED = {
   },
   "/api/courses/groups/[groupId]/weeks/[weekId]/blocks": {
     reason:
-      "Course hub: a week for one group by Markdown round trip (Q39), for admins and the programme's lead on any group of the run and a group's facilitators on their own; every caller, the copy made through templateWeekFields with its ids kept, the count of the group's answers and that no other week is written are executed by tests/course-hub-weeks-tab-groups.test.mjs.",
+      "Course hub: a week for one group by Markdown round trip, for admins and the programme's lead on any group of the run and a group's facilitators on their own; every caller, the copy made through templateWeekFields with its ids kept, the count of the group's answers and that no other week is written are executed by tests/course-hub-weeks-tab-groups.test.mjs.",
     coverWhen:
       "When a browser spec signs in as a group's facilitator, changes a week for their group, and a member of that group and one of another group each open it.",
   },
@@ -1137,19 +1137,19 @@ const NOT_COVERED = {
   },
   "/api/courses/facilitator-asks/[askId]/answer": {
     reason:
-      "Course hub: the yes or no of the person asked to facilitate, on their own page (board st-fac-ask-phone). tests/course-hub-facilitator-asks.test.mjs executes it as every kind of caller, yes appointing them through the group's own appointment code and a late answer refused.",
+      "Course hub: the yes or no of the person asked to facilitate, on their own page. tests/course-hub-facilitator-asks.test.mjs executes it as every kind of caller, yes appointing them through the group's own appointment code and a late answer refused.",
     coverWhen:
       "With the spec for the ask above: the person asked signs in, opens the page from the email and says yes.",
   },
   "/api/courses/runs/[runId]/fill-in-boxes": {
     reason:
-      "Course hub: one person's fill-in boxes, read by their group's facilitators, the programme's lead and admins (Q30 C; a facilitator's own by the lead and admins); every caller is executed by tests/course-hub-week-six.test.mjs. No page reads it yet: the facilitator's and the lead's pages that will are later pieces.",
+      "Course hub: one person's fill-in boxes, read by their group's facilitators, the programme's lead and admins (a facilitator's own by the lead and admins); every caller is executed by tests/course-hub-week-six.test.mjs. No page reads it yet: the facilitator's and the lead's pages that will are later pieces.",
     coverWhen:
       "When the page that shows a facilitator or a lead somebody's action plan exists and a browser spec opens it.",
   },
   "/api/courses/runs/[runId]/fill-in-boxes/[boxId]": {
     reason:
-      "Course hub: a fill-in box on a week written as blocks (week 6's action plan, wk-week6-phone), saved as the person types; who writes, who is refused and what a box keeps are executed by tests/course-hub-week-six.test.mjs; typed in a browser on the preview kit at 390, saved, reloaded and read back.",
+      "Course hub: a fill-in box on a week written as blocks (week 6's action plan), saved as the person types; who writes, who is refused and what a box keeps are executed by tests/course-hub-week-six.test.mjs; typed in a browser on the preview kit at 390, saved, reloaded and read back.",
     coverWhen:
       "When a browser spec signs in a member of a group Publish has told, opens week 6 written as blocks, writes in a box of the plan, reloads and reads it back.",
   },
@@ -1167,7 +1167,7 @@ const NOT_COVERED = {
   },
   "/api/courses/runs/[runId]/packs-and-cases/[blockId]": {
     reason:
-      "Course hub: a person's own pick in a Choose one and their Ready for my talk (wk-week, wk-week6-phone); who writes, who is refused, the pick's lock at the session and the ready box's wait for a case are executed by tests/course-hub-packs-and-cases.test.mjs; pressed in a browser on the preview kit.",
+      "Course hub: a person's own pick in a Choose one and their Ready for my talk; who writes, who is refused, the pick's lock at the session and the ready box's wait for a case are executed by tests/course-hub-packs-and-cases.test.mjs; pressed in a browser on the preview kit.",
     coverWhen:
       "When a browser spec signs in a member of a group Publish has told, picks a pack on a week page, marks a talk ready, reloads and reads both back.",
   },
@@ -1191,7 +1191,7 @@ const NOT_COVERED = {
   },
   "/api/courses/runs/[runId]/reflections": {
     reason:
-      "Course hub: one person's reflections, read by the programme's lead and admins (Q30; a facilitator's own reflections too); every caller is executed by tests/course-hub-week-blocks-page.test.mjs. No page reads it yet: the facilitator's and the lead's pages that will are later pieces.",
+      "Course hub: one person's reflections, read by the programme's lead and admins (a facilitator's own reflections too); every caller is executed by tests/course-hub-week-blocks-page.test.mjs. No page reads it yet: the facilitator's and the lead's pages that will are later pieces.",
     coverWhen:
       "When the page that shows a lead somebody's reflections exists and a browser spec opens it.",
   },
@@ -1215,13 +1215,13 @@ const NOT_COVERED = {
   },
   "/api/courses/runs/[runId]/weeks/[weekId]/owner": {
     reason:
-      "Course hub: a week's owner on the Weeks tab (pr-weeks), the programme's lead's and admins'; every caller, every refusal and what it stores are executed by tests/course-hub-weeks-tab-week.test.mjs.",
+      "Course hub: a week's owner on the Weeks tab, the programme's lead's and admins'; every caller, every refusal and what it stores are executed by tests/course-hub-weeks-tab-week.test.mjs.",
     coverWhen:
       "When a browser spec signs in as a programme's lead on the Weeks tab.",
   },
   "/api/courses/runs/[runId]/weeks/[weekId]/mode": {
     reason:
-      "Course hub: In person or Online for a whole week on the Weeks tab (pr-weeks), written as the groups' own week mode; every caller, the groups it leaves alone, the link it needs and that it emails nobody are executed by tests/course-hub-weeks-tab-week.test.mjs.",
+      "Course hub: In person or Online for a whole week on the Weeks tab, written as the groups' own week mode; every caller, the groups it leaves alone, the link it needs and that it emails nobody are executed by tests/course-hub-weeks-tab-week.test.mjs.",
     coverWhen:
       "When a browser spec signs in as a programme's lead on the Weeks tab, holds a week online and a member of a group opens its join link on the programme page.",
   },
@@ -1782,7 +1782,7 @@ const NOT_COVERED = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": {
     reason:
-      "Course hub: the Groups tab's People in groups view is the run's own allocation board, drawn as st-groups draws it for the programme's lead and admins; its every caller, its words in every state and its one count are executed by tests/course-hub-people-in-groups.test.mjs and tests/course-hub-lead-pages.test.mjs, the board's routes by tests/course-hub-lead-routes.test.mjs and tests/applications-handover-board.test.mjs, and it was checked by hand at 1440 and 390.",
+      "Course hub: the Groups tab's People in groups view is the run's own allocation board, drawn as designed for the programme's lead and admins; its every caller, its words in every state and its one count are executed by tests/course-hub-people-in-groups.test.mjs and tests/course-hub-lead-pages.test.mjs, the board's routes by tests/course-hub-lead-routes.test.mjs and tests/applications-handover-board.test.mjs, and it was checked by hand at 1440 and 390.",
     coverWhen:
       "When the end-to-end fixtures can seed a programme that names a run with groups, with its lead signed in.",
   },
@@ -1793,7 +1793,7 @@ const NOT_COVERED = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
     reason:
-      "Course hub: Publish's own page (st-publish), its readiness check, the two emails and Publish's own buttons, for a programme's lead and admins; its every caller, what it blocks and what it only warns, each against a real press, are executed by tests/course-hub-get-ready.test.mjs, and it was checked by hand at 1440 and 390.",
+      "Course hub: Publish's own page, its readiness check, the two emails and Publish's own buttons, for a programme's lead and admins; its every caller, what it blocks and what it only warns, each against a real press, are executed by tests/course-hub-get-ready.test.mjs, and it was checked by hand at 1440 and 390.",
     coverWhen:
       "When the groups-go-out spec presses Publish from the programme's own Groups tab rather than the run editor's board.",
   },
@@ -1877,7 +1877,7 @@ const NOT_COVERED = {
   },
   "/(app)/learn/facilitate/[askId]": {
     reason:
-      "Course hub: the page an ask to facilitate opens (board st-fac-ask-phone), rendered to HTML for the person asked, somebody else and every state of an ask by tests/course-hub-facilitator-asks.test.mjs, and checked by hand at 390 and 1440.",
+      "Course hub: the page an ask to facilitate opens, rendered to HTML for the person asked, somebody else and every state of an ask by tests/course-hub-facilitator-asks.test.mjs, and checked by hand at 390 and 1440.",
     coverWhen: "With the spec for the ask above.",
   },
   "/(app)/learn/facilitator-guide/[courseId]": {
@@ -1942,7 +1942,7 @@ const NOT_COVERED = {
   },
   "/api/courses/groups/[groupId]/draw": {
     reason:
-      "Course hub: the draw typed into the group page (Q32 A, wk-cases): who may type it, the case lists, the content note kept out, swaps and what a save clears are executed by tests/course-hub-packs-and-cases.test.mjs as every kind of caller; typed in a browser on the preview kit at 390 and 1440.",
+      "Course hub: the draw typed into the group page: who may type it, the case lists, the content note kept out, swaps and what a save clears are executed by tests/course-hub-packs-and-cases.test.mjs as every kind of caller; typed in a browser on the preview kit at 390 and 1440.",
     coverWhen:
       "When a browser spec signs in a group's facilitator after a session, copies the slips in on the draw page and a member of the group reads their case on their week page.",
   },
@@ -1954,7 +1954,7 @@ const NOT_COVERED = {
   },
   "/api/courses/groups/[groupId]/notes": {
     reason:
-      "Course hub: the notes a group's facilitators share (C30); who writes, who is refused, what a note keeps and what takes it away are executed by tests/course-hub-group-notes.test.mjs, and the page that reads them by tests/course-hub-facilitator-pages.test.mjs; written in a browser on the preview kit at 1440.",
+      "Course hub: the notes a group's facilitators share; who writes, who is refused, what a note keeps and what takes it away are executed by tests/course-hub-group-notes.test.mjs, and the page that reads them by tests/course-hub-facilitator-pages.test.mjs; written in a browser on the preview kit at 1440.",
     coverWhen:
       "When the facilitator's week spec writes a note on the group page and reads it back.",
   },
@@ -1966,25 +1966,25 @@ const NOT_COVERED = {
   },
   "/api/courses/groups/[groupId]/shared-notes": {
     reason:
-      "Course hub: the notes a group shares on its week pages (C29); who adds one, who is refused, what a note keeps and what takes it away are executed by tests/course-hub-shared-notes.test.mjs, with the week page and the Attendance tab that draw them; added in a browser on the preview kit at 390 and 1440.",
+      "Course hub: the notes a group shares on its week pages; who adds one, who is refused, what a note keeps and what takes it away are executed by tests/course-hub-shared-notes.test.mjs, with the week page and the Attendance tab that draw them; added in a browser on the preview kit at 390 and 1440.",
     coverWhen:
       "When a browser spec signs in a member of a group Publish has told, opens a week's page, adds a note and reads it back.",
   },
   "/api/courses/groups/[groupId]/shared-notes/[noteId]": {
     reason:
-      "Course hub: a note shared with a group, deleted by the person who wrote it (C29); its writer and every other caller are executed by tests/course-hub-shared-notes.test.mjs; deleted in a browser on the preview kit.",
+      "Course hub: a note shared with a group, deleted by the person who wrote it; its writer and every other caller are executed by tests/course-hub-shared-notes.test.mjs; deleted in a browser on the preview kit.",
     coverWhen:
       "When the same browser spec deletes the note it added.",
   },
   "/api/courses/runs/[runId]/team/check-in": {
     reason:
-      "Course hub: this week's check-in on an incubator team's page (in-team); who saves it, who is refused, the week rule and what deletion does are executed by tests/course-hub-team-page-routes.test.mjs and tests/course-hub-team-page-deletion.test.mjs, and the page that draws it by tests/course-hub-team-page-pages.test.mjs; saved in a browser on the preview kit at 390 and 1440.",
+      "Course hub: this week's check-in on an incubator team's page; who saves it, who is refused, the week rule and what deletion does are executed by tests/course-hub-team-page-routes.test.mjs and tests/course-hub-team-page-deletion.test.mjs, and the page that draws it by tests/course-hub-team-page-pages.test.mjs; saved in a browser on the preview kit at 390 and 1440.",
     coverWhen:
       "When the incubator's browser spec, after telling everyone their team, signs in a person in a team, opens their team's page from the programme's page and saves a check-in.",
   },
   "/api/courses/runs/[runId]/team/links": {
     reason:
-      "Course hub: a link added to an incubator team's page (in-team's Team links); the limit, the https rule and every caller are executed by tests/course-hub-team-page-routes.test.mjs; added in a browser on the preview kit.",
+      "Course hub: a link added to an incubator team's page (its Team links); the limit, the https rule and every caller are executed by tests/course-hub-team-page-routes.test.mjs; added in a browser on the preview kit.",
     coverWhen: "When the same browser spec adds a link and reads it back on the team's page.",
   },
   "/api/courses/runs/[runId]/team/links/[linkId]": {
@@ -1994,7 +1994,7 @@ const NOT_COVERED = {
   },
   "/api/courses/runs/[runId]/team/hand-in": {
     reason:
-      "Course hub: an incubator team's one hand-in (en-handin-phone); the tick, the 200 words, the due day's 23:59 and every caller are executed by tests/course-hub-team-page-routes.test.mjs; handed in on the preview kit before and after the deadline.",
+      "Course hub: an incubator team's one hand-in; the tick, the 200 words, the due day's 23:59 and every caller are executed by tests/course-hub-team-page-routes.test.mjs; handed in on the preview kit before and after the deadline.",
     coverWhen:
       "When the incubator's browser spec can seed a run whose hand-in is due, and a person in a team hands in for it.",
   },
@@ -2005,13 +2005,13 @@ const NOT_COVERED = {
   },
   "/(app)/learn/[runId]/team": {
     reason:
-      "Course hub: an incubator team's own page (in-team, in-team-phone), drawn by tests/course-hub-team-page-pages.test.mjs as every kind of caller in week 5, in the break, in February and after the end; photographed on the preview kit at 390 and 1440.",
+      "Course hub: an incubator team's own page, drawn by tests/course-hub-team-page-pages.test.mjs as every kind of caller in week 5, in the break, in February and after the end; photographed on the preview kit at 390 and 1440.",
     coverWhen:
       "When the incubator's browser spec, after telling everyone their team, opens a person's team page from the programme's page.",
   },
   "/(app)/learn/[runId]/team/hand-in": {
     reason:
-      "Course hub: an incubator team's hand-in page (en-handin-phone), drawn by tests/course-hub-team-page-pages.test.mjs before and after its deadline and for every kind of caller; photographed on the preview kit.",
+      "Course hub: an incubator team's hand-in page, drawn by tests/course-hub-team-page-pages.test.mjs before and after its deadline and for every kind of caller; photographed on the preview kit.",
     coverWhen: "With the spec for the hand-in route above.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams/[teamId]": {
@@ -2027,7 +2027,7 @@ const NOT_COVERED = {
   },
   "/(app)/learn/[runId]/group/[groupId]/written": {
     reason:
-      "Course hub: a group's written answers one at a time (wk-review, wk-review-phone), for its facilitators and admins, with Your feedback beside each, the lines the week's session reports have about the person (every report's for an admin or the programme's lead, a facilitator's own report's for that facilitator) and, for an admin or the lead alone, the ratings for the team; drawn as each kind of caller in tests/course-hub-written-answers.test.mjs, tests/course-feedback.test.mjs, tests/course-work-ratings.test.mjs and tests/course-report-beside-work.test.mjs.",
+      "Course hub: a group's written answers one at a time, for its facilitators and admins, with Your feedback beside each, the lines the week's session reports have about the person (every report's for an admin or the programme's lead, a facilitator's own report's for that facilitator) and, for an admin or the lead alone, the ratings for the team; drawn as each kind of caller in tests/course-hub-written-answers.test.mjs, tests/course-feedback.test.mjs, tests/course-work-ratings.test.mjs and tests/course-report-beside-work.test.mjs.",
     coverWhen:
       "When the work-loop spec (course-hub-work-loop) is written: a facilitator opens a submitted answer, saves feedback, " +
         "and the member reads it on their week page.",
@@ -2040,7 +2040,7 @@ const NOT_COVERED = {
   },
   "/(app)/learn/draw/[groupId]": {
     reason:
-      "Course hub: the draw's page (wk-cases, option A), drawn as each kind of caller and with its lists held word for word by tests/course-hub-packs-and-cases.test.mjs; photographed on the preview kit at 390 and 1440.",
+      "Course hub: the draw's page, drawn as each kind of caller and with its lists held word for word by tests/course-hub-packs-and-cases.test.mjs; photographed on the preview kit at 390 and 1440.",
     coverWhen:
       "When the browser spec that copies the slips in drives the page.",
   },
@@ -2088,7 +2088,7 @@ const NOT_COVERED = {
   },
   "/(public)/applications/[roundId]/free": {
     reason:
-      "Changing when you're free (Q7): the form's own week editor on a page of its own, for somebody holding a place on a fellowship until Publish has told them their group. Rendered by tests/course-hub-when-free.test.mjs for a holder before and after placement, for somebody told, for somebody with no place, signed out and in a view-as session, with no browser spec yet.",
+      "Changing when you're free: the form's own week editor on a page of its own, for somebody holding a place on a fellowship until Publish has told them their group. Rendered by tests/course-hub-when-free.test.mjs for a holder before and after placement, for somebody told, for somebody with no place, signed out and in a view-as session, with no browser spec yet.",
     coverWhen:
       "When a browser spec signs in as somebody holding a place before Publish, changes their week on this page, and the allocation board's fit marks follow it.",
   },

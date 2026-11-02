@@ -1290,7 +1290,7 @@ programme names" below).
   keeps it: the group's campus, and "Can you make this time?" with two
   buttons to the person's programme page, where they answer. "I can't make
   this time" asks why and which other times would work, KEEPS THEIR PLACE
-  (it is not leaving, Q12), and shows on their card on the board and in
+  (it is not leaving), and shows on their card on the board and in
   Circles for the lead and admins, never facilitators. A move clears it.
 - **Publishing again after people join a group** emails each of its
   facilitators already told, once per person who has joined it since.
@@ -1426,7 +1426,7 @@ programme names" below).
 Before the hand-over, they are simply not handed over.
 
 **Once Publish has told them their group**, "I can’t make it" on their
-application page is leaving the programme (Q12): it takes them out of their
+application page is leaving the programme: it takes them out of their
 group at once, exactly as "Leave the programme" does (the next section), so
 there is nothing to do on the board. Their application page no longer
 offers the button by then: it points them to their programme's page, where
@@ -1657,7 +1657,7 @@ number agrees between them and the CSV.
 
 ## Asking people to facilitate
 
-Boards st-facilitators and st-fac-ask-phone (Q6 option B: "Ask, then
+The Facilitators view and the page that asks somebody to facilitate ("Ask, then
 train"). The programme's lead, or an admin, asks somebody who said on the
 application form that they would like to facilitate; they get one email and
 say yes or no on the site; training is a dated session with a room.
@@ -1895,7 +1895,7 @@ NAISI.
 
 ## A facilitator's week: the group page, the register and Home
 
-Boards wk-fac-group (and its phone copy) and wk-fac-home-phone. Everything a
+The facilitator's group page (and its phone copy) and the facilitator's Home. Everything a
 facilitator reads about their group is worked out on the server by
 `src/lib/courses/facilitatorGroup.ts`, from the records the lead's tabs read
 (`programmeAttendance.ts`), so the two never tell different stories.
@@ -1918,7 +1918,7 @@ not built) and a facilitator guide (no record holds one).
 
 ### The register, `/learn/[runId]/group/[groupId]/register`
 
-The register is a page of its own (board wk-register), behind the register's
+The register is a page of its own, behind the register's
 own gate. "Take the register" and each register's "See it" lead there. The
 grid is the one the group page used to hold. Before Publish has told anybody
 their group the page says when the names come.
@@ -1981,8 +1981,7 @@ until the first session after they left is over. What only the group's
 facilitators are told comes from `GET /api/courses/groups/[groupId]/summary`,
 behind the group page's gate.
 
-On every day before the day of the group's first session, Home is the board
-st-fac-before-phone's instead: the first session as a ticket with "Open your
+On every day before the day of the group's first session, Home is the facilitator's before-the-first-session Home instead: the first session as a ticket with "Open your
 group", Who's coming, and Say hello (the way to write an update to the group,
 with how many it emails, while anybody in it has been told). Who's coming is
 the one thing a facilitator sees from applications (privacy policy version
@@ -2440,7 +2439,7 @@ group carrying it.
 
 One private link per person, which their calendar app subscribes to and
 fetches again by itself, so a moved, online or cancelled session reaches
-their calendar without them doing anything (board st-calendar-phone). The
+their calendar without them doing anything. The
 record is `src/lib/firestore/calendarLinks.ts`; making, finding, replacing
 and deleting a link is `src/lib/courses/calendarLink.ts`; what a link's
 calendar holds is `src/lib/courses/calendarFeed.ts`; the file is

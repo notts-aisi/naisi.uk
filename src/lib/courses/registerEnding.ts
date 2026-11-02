@@ -22,7 +22,7 @@ import { readSchedulerConfig } from "@/lib/firestore/schedulerConfig";
 import { registerSwitchesIn } from "@/lib/scheduler/registerSwitches";
 
 /**
- * WHAT A REGISTER'S PAGE SAYS ABOUT HOW IT ENDS (wk-register): the values
+ * WHAT A REGISTER'S PAGE SAYS ABOUT HOW IT ENDS: the values
  * behind the words under its button, every one read from a record.
  *
  * The page words them (`src/features/courses/registerEndingWords.ts`); this

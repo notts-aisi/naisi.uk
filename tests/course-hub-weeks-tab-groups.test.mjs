@@ -1,5 +1,5 @@
 /**
- * A week changed for one group, by Markdown round trip (Q39): copy the week
+ * A week changed for one group, by Markdown round trip: copy the week
  * as Markdown, change it, paste it back, checked block by block.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).

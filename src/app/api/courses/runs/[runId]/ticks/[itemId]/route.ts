@@ -46,8 +46,8 @@ import {
  * its group by Publish, on an account in standing, a facilitator's seat
  * included), a facilitator of a live group of the run, who takes part as
  * themselves, and, in week 1 alone, somebody holding a place whom Publish
- * has not told yet, once week 1's door is open to them (Q35 B:
- * `weekOneDoorFor`, the one answer). Always their OWN row: its id is built
+ * has not told yet, once week 1's door is open to them
+ * (`weekOneDoorFor`, the one answer). Always their OWN row: its id is built
  * from the caller's uid, and nothing here can address anybody else's.
  *
  * WHAT. One of the week's sources or checklist items, on the week as this
@@ -141,7 +141,7 @@ export async function PUT(req: Request, ctx: Params) {
     isNamedWithStanding(actor, "courseEnrolments.uid", enrolment.uid);
   const liveGroups = groupSnap.docs.map((d) => normalizeCourseGroup(d.id, d.data() ?? {})).filter((g) => !g.archived);
   const facilitates = liveGroups.filter((g) => isNamedWithStanding(actor, "courseGroups.facilitatorUids", g.facilitatorUids));
-  // Week 1 before groups go out (Q35 B): through week 1's door, and in no other week.
+  // Week 1 before groups go out: through week 1's door, and in no other week.
   const beforeGroups = !seated && facilitates.length === 0 && weekNumber === 1 && (await weekOneDoorFor(db, actor, runId)).open;
   if (!seated && facilitates.length === 0 && !beforeGroups) {
     return NextResponse.json({ error: weekNumber === 1 ? WEEK_ONE_NOT_YOURS : NOT_YOURS }, { status: 403 });

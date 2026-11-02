@@ -125,7 +125,7 @@ const FOOTER = "Nottingham AI Safety Initiative · University of Nottingham · a
 const REPLY_TO = "ai-safety@uonsu.com";
 
 /**
- * How a member's programme page draws their marks (board wk-programme, C26):
+ * How a member's programme page draws their marks:
  * a mark's letter, the dot for a session whose register is not finished yet,
  * the card's line, and the legend's name and order. `MARK_LETTER`,
  * `NOT_YET_MARK`, `MARK_STATE_WORDS`, `MARKS_LINE` and `MARKS_LEGEND_LABEL` in
@@ -579,7 +579,7 @@ test(
     }
 
     /**
-     * What a person's "Your sessions" card draws (board wk-programme): a mark for
+     * What a person's "Your sessions" card draws: a mark for
      * every session of their group's from week 1, the week they joined; the
      * week's own mark once its register is finished (`ownRecordOf`), and "Not
      * yet" until then and for every session still to come. Each mark is said
@@ -766,7 +766,7 @@ test(
     }
 
     /**
-     * The "Your sessions" card as drawn (board wk-programme): each mark's name,
+     * The "Your sessions" card as drawn: each mark's name,
      * its letter and its item's words (the letter, then the date under it),
      * the legend's items, and everything the card says. The marks are the
      * list whose items are images; the legend is the list named for what they
@@ -797,7 +797,7 @@ test(
       assert.equal(body.ownAttendance.rollup.sessionsHeld, expected.held, `${person.first}'s sessions held`);
       assert.equal(body.ownAttendance.rollup.attendedInFull, expected.inFull, `${person.first}'s sessions in full`);
 
-      // Drawn as board wk-programme draws the card (now "Your sessions": never "marks" in a member's words), with no target (C26).
+      // Drawn as the programme page's design draws the card (now "Your sessions": never "marks" in a member's words), with no target.
       // The page this replaced drew a "Your progress" card whose line counted
       // the sessions attended in full ("You have been at 1 of 2 sessions in
       // full so far.") over a row for each finished register; that line is
@@ -1001,7 +1001,7 @@ test(
           "Change a session does not lead to the group's sessions",
         );
 
-        // Since board wk-fac-group the page is drawn on the server, in the
+        // Since the restyle of the facilitator's group page, the page is drawn on the server, in the
         // board's words. The head: the group, and the line of its programme,
         // day, time and room. Fern facilitates alone, so the line names no
         // other facilitator.
@@ -1087,8 +1087,8 @@ test(
           assert.equal(text, expected, `week ${weekNumber}'s register row`);
         }
 
-        // The register itself is a page of its own beside the group's (board
-        // wk-register), and "Take the register" leads there.
+        // The register itself is a page of its own beside the group's,
+        // and "Take the register" leads there.
         await card.getByRole("link", { name: "Take the register", exact: true }).click();
         await facilitatorPage
           .getByRole("heading", { name: `${facilitated.name}’s register`, level: 1 })
@@ -1590,7 +1590,7 @@ test(
           // A move takes no evening off, so there is no notice of one.
           assert.equal(body.group?.sessionNotice, null, `${person.first} is told an evening is off`);
 
-          // The page's ticket is the group's NEXT session (board wk-programme),
+          // The page's ticket is the group's NEXT session,
           // so the member reads the move there too: the day and hours it moved
           // to, its room, and that the room is not the group's own this week.
           // (The page this replaced drew THIS week's session in that place,

@@ -2,7 +2,7 @@ import type { PushEmailLine } from "@/lib/courses/pushEmail";
 import type { NextEmailLine, RegisterEnding } from "@/lib/courses/registerEnding";
 
 /**
- * THE WORDS UNDER A REGISTER'S BUTTON (wk-register), and the confirm's line
+ * THE WORDS UNDER A REGISTER'S BUTTON, and the confirm's line
  * about who the button emails, from the values the register's route read off
  * records.
  *

@@ -11,7 +11,7 @@ import { loadForm } from "../repo";
 import { RUNS_COLLECTION, readRun } from "./run";
 
 /**
- * A PROGRAMME'S PEOPLE IN GROUPS (board st-groups), READ ON THE SERVER: what
+ * A PROGRAMME'S PEOPLE IN GROUPS, READ ON THE SERVER: what
  * the board says about people that the run's own list does not.
  *
  * The board itself is the run's allocation board: its columns, its cards and

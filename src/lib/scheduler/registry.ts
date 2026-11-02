@@ -81,8 +81,8 @@ export const SCHEDULER_JOB_IDS = [
   "application-place-confirmations",
   "courses-unmarked-registers",
   "courses-break-return",
-  // "Week N is open" on a schedule, 6 days before each session (wk-register,
-  // option B). The id is the one it shipped with as next week's email. Its
+  // "Week N is open" on a schedule, 6 days before each session.
+  // The id is the one it shipped with as next week's email. Its
   // switch is load-bearing in two places: the tick runs it, and the
   // attendance push reads it to decide whether pushing still sends the email
   // (`nextWeekEmailSchedule.ts`). It emails whole groups, so it registers with

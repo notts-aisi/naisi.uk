@@ -36,7 +36,7 @@ import { COURSE_UPDATES_COLLECTION } from "@/lib/firestore/courseUpdates";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 
 /**
- * A RUN'S UPDATES (Q18): kept on the programme page for the people they are
+ * A RUN'S UPDATES: kept on the programme page for the people they are
  * to, and emailed to them too when the writer leaves "Also email it" on.
  *
  * ## GET: the updates the caller reads

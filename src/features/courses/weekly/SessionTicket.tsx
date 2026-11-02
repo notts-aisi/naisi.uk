@@ -11,8 +11,7 @@ import AddToCalendar from "./AddToCalendar";
 import styles from "./weekly.module.css";
 
 /**
- * THE NEXT SESSION, AS A TICKET (boards wk-programme, st-programme and
- * wk-home-phone): its date on the stub, what it is over the heading, and
+ * THE NEXT SESSION, AS A TICKET: its date on the stub, what it is over the heading, and
  * where and with whom under it.
  *
  * Everything it shows is the session's own, resolved for its own week
@@ -21,8 +20,8 @@ import styles from "./weekly.module.css";
  * which the caller words) and offers the link to join, and a room that is
  * not the group's usual one says so beside it.
  *
- * "Add to calendar" (`calendar`) is the person's own calendar link
- * (st-calendar-phone): under the room on the programme page, and in a row of
+ * "Add to calendar" (`calendar`) is the person's own calendar link:
+ * under the room on the programme page, and in a row of
  * its own under the card on Home. An online week's ticket carries Join online
  * in its place, in the row under the card with the line that the link is
  * only here. "Can’t make it" (`cantMakeIt`) sits beside Add to calendar on
@@ -74,7 +73,7 @@ export default function SessionTicket({
       ))}
     </span>
   );
-  // An online week is said in the eyebrow (wk-changes); a week set in person
+  // An online week is said in the eyebrow; a week set in person
   // keeps its chip.
   const modeChip = facts.mode === "in-person" ? <span className={styles.plainChip}>In person this week</span> : null;
 
@@ -140,7 +139,7 @@ export default function SessionTicket({
         </div>
       </div>
       {facts.joinUrl && (
-        /* The row under the card (wk-changes): the link to join, and under
+        /* The row under the card: the link to join, and under
            it that the link is only here. */
         <div className={`${styles.ticketFoot} ${styles.joinFoot}`}>
           <a className={styles.joinButton} href={facts.joinUrl} target="_blank" rel="noopener noreferrer">

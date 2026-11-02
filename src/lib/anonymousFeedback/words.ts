@@ -3,7 +3,7 @@
  * card at the end of the survey at a programme's end, and the readers' page.
  * No board draws this form, so the words are the house's plain ones, listed
  * in the build notes for the boards' designers to confirm. Where an anonymous
- * survey's words on the boards (sv-privacy, wk-left-phone) say the same thing,
+ * survey's words on the boards say the same thing,
  * they are used as written.
  *
  * WHAT THE BOX SAYS HAS TO BE EXACTLY TRUE, and it describes the code:

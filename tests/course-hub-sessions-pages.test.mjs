@@ -1,13 +1,13 @@
 /**
- * Changing a session (Q25): the pages that offer it and the pages that show
+ * Changing a session: the pages that offer it and the pages that show
  * what it did, as every kind of caller.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
- *   /admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/sessions   the Sessions view (wk-session)
+ *   /admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/sessions   the Sessions view
  *   /learn/[runId]/group/[groupId]/sessions                                      a group's own sessions
  *   /learn/[runId]/group/[groupId]                                               "Change a session", and the notice
- *   GET /api/courses/runs/[runId]/overview, its cards rendered                   what the group reads (wk-changes)
+ *   GET /api/courses/runs/[runId]/overview, its cards rendered                   what the group reads
  *
  * ## What this guards
  *
@@ -357,7 +357,7 @@ describe("2. the dialog draws the board's words", () => {
   const drawDialog = (facts) =>
     renderToStaticMarkup(createElement(ChangeSessionDialog, { facts, onClose() {}, onDone() {} }));
 
-  test("every line of wk-session's dialog, with the session named on the button", async () => {
+  test("every line of changing a session's dialog, with the session named on the button", async () => {
     const html = drawDialog(await dialogFor());
     const said = text(html);
     for (const line of [
@@ -421,7 +421,7 @@ describe("2. the dialog draws the board's words", () => {
 // ---------------------------------------------------------------------------
 
 describe("3. a group's facilitators change its sessions from its own page", () => {
-  // The page drawn to wk-fac-group: the two are its head's buttons, side by
+  // The page drawn to the facilitator's group page: the two are its head's buttons, side by
   // side and in that order, "Write to Group B (7)" filled and "Change a
   // session" outlined, as the board draws them.
   test("the group page offers Change a session beside Write to Group B", async () => {
@@ -673,7 +673,7 @@ describe("4. what the group's people read after each kind of change", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. The room notice (Q23)
+// 5. The room notice
 // ---------------------------------------------------------------------------
 
 describe("5. the room notice never carries the meeting link", () => {

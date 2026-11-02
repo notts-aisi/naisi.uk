@@ -2,8 +2,7 @@ import type { CasesBlock, ChooseOneBlock } from "../weekBlocks/model";
 import type { WeekDraw } from "./model";
 
 /**
- * THE WORDS OF PACKS, CASES AND TALKS, in the boards' own words (wk-cases,
- * wk-week, wk-week-phone, wk-week6-phone, wk-fac-group, wk-programme), with
+ * THE WORDS OF PACKS, CASES AND TALKS, in the boards' own words, with
  * the names, numbers and titles filled in from records and the week's own
  * blocks: a Choose one's title ("Pathway", "Plan", "Pack") is the week's, so
  * week 3 reads "Pathway packs" and "Change pathways and cases" and week 5
@@ -49,14 +48,14 @@ function lower(words: string): string {
 // The week page: a Choose one
 // ---------------------------------------------------------------------------
 
-/** Over a Choose one a facilitator gives out (wk-week): "Pathway packs"; a title that is a pack already: "Packs". */
+/** Over a Choose one a facilitator gives out: "Pathway packs"; a title that is a pack already: "Packs". */
 export function packsEyebrowWords(title: string): string {
   const word = title.trim();
   if (!word) return "Packs";
   return /pack$/i.test(word) ? `${word}s` : `${word} packs`;
 }
 
-/** Over a Choose one the person picks (wk-week6-phone). */
+/** Over a Choose one the person picks. */
 export const CHOOSE_ONE = "Choose one";
 
 /** A list's line as its heading: "One 80,000 Hours career review that fits you". */
@@ -64,12 +63,12 @@ export function chooseOneHeadingWords(chooseOne: ChooseOneBlock): string {
   return chooseOne.form === "list" ? capital(chooseOne.title.trim()) : "";
 }
 
-/** The chip on the person's own pack (wk-week): "Your pathway". */
+/** The chip on the person's own pack: "Your pathway". */
 export function yourPackWords(title: string): string {
   return `Your ${titleWord(title)}`;
 }
 
-/** "32 minutes · 2 sources", under a pack's name (wk-week). */
+/** "32 minutes · 2 sources", under a pack's name. */
 export function packMetaWords(time: string, sources: number): string {
   const count = sources === 1 ? "1 source" : sources > 1 ? `${sources} sources` : "";
   return [time.trim(), count].filter(Boolean).join(" · ");
@@ -87,7 +86,7 @@ function askWords(verb: "switch" | "swap", askNames: readonly string[]): string 
 }
 
 /**
- * Under a Choose one a facilitator gives out (wk-week): "Given out at the end
+ * Under a Choose one a facilitator gives out: "Given out at the end
  * of session 2. Only your pathway counts. To switch, ask Rahul or Sofia."
  */
 export function givenPacksLineWords(weekNumber: number, title: string, askNames: readonly string[]): string {
@@ -96,7 +95,7 @@ export function givenPacksLineWords(weekNumber: number, title: string, askNames:
     .join(" ");
 }
 
-/** Under a Choose one the person picks (wk-week6-phone). */
+/** Under a Choose one the person picks. */
 export const ONLY_THE_ONE_YOU_CHOOSE = "Only the one you choose counts.";
 
 /**
@@ -108,51 +107,51 @@ export const PICK_CLOSED = "Your session has started, so your choice stays as it
 /** When a pick or the ready mark did not save. Not drawn on the boards; listed for the designers. */
 export const NOT_SAVED = "That didn’t save. Check your connection and try again.";
 
-/** The button that opens a pack's reading to tick it (wk-week6-phone: "Read"). */
+/** The button that opens a pack's reading to tick it ("Read"). */
 export const READ = "Read";
 
 // ---------------------------------------------------------------------------
 // The week page: your case study, and a talk
 // ---------------------------------------------------------------------------
 
-/** Over the case a person was given (wk-week). */
+/** Over the case a person was given. */
 export const YOUR_CASE = "Your case";
 
-/** Where a person's pack or case would be, before it is given (wk-cases). */
+/** Where a person's pack or case would be, before it is given. */
 export const NOT_GIVEN_YET = "Not given yet";
 
 /** Over a case's links when the guide names none. */
 export const START_HERE = "Start here";
 
-/** Under the case a person was given (wk-week): "Given out at the end of session 2. To swap, ask Rahul or Sofia." */
+/** Under the case a person was given: "Given out at the end of session 2. To swap, ask Rahul or Sofia." */
 export function givenCaseLineWords(weekNumber: number, askNames: readonly string[]): string {
   return [givenOutWords(weekNumber), askWords("swap", askNames)].filter(Boolean).join(" ");
 }
 
-/** The person's own mark (wk-week, wk-week6-phone): "Ready for my talk", "Ready for my pitch". */
+/** The person's own mark: "Ready for my talk", "Ready for my pitch". */
 export function readyWords(talk: CasesBlock["talk"]): string {
   const name = talk?.name.trim() || "talk";
   return `Ready for my ${name}`;
 }
 
-/** Until the person marks themselves ready (wk-week, wk-programme). */
+/** Until the person marks themselves ready. */
 export const NOT_READY_YET = "Not ready yet";
 
-/** "All 22 cases this week" (wk-week). */
+/** "All 22 cases this week". */
 export function allCasesWords(count: number): string {
   return count === 1 ? "The case this week" : `All ${count} cases this week`;
 }
 
-/** "8 cases", beside a group of cases (wk-week). */
+/** "8 cases", beside a group of cases. */
 export function casesWords(count: number): string {
   return count === 1 ? "1 case" : `${count} cases`;
 }
 
-/** This week's line under a talk (wk-week): "Your case:" before the case's name. */
+/** This week's line under a talk: "Your case:" before the case's name. */
 export const YOUR_CASE_LABEL = "Your case:";
 
 // ---------------------------------------------------------------------------
-// The draw page (wk-cases, option A)
+// The draw page
 // ---------------------------------------------------------------------------
 
 /** What a week's draw gives out: "Pathways and cases", "Plans", "Cases". */
@@ -184,7 +183,7 @@ export function choosePackFirstWords(title: string): string {
   return `Choose ${/^[aeiou]/i.test(word) ? "an" : "a"} ${word} first`;
 }
 
-/** Under Save (wk-cases): "Each person sees theirs on their week 3 page. No email." */
+/** Under Save: "Each person sees theirs on their week 3 page. No email." */
 export function drawFootWords(weekNumber: number): string {
   return `Each person sees theirs on their week ${weekNumber} page. No email.`;
 }
@@ -215,7 +214,7 @@ export function nothingGivenOutWords(weekNumber: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// The group page: the spread (wk-fac-group)
+// The group page: the spread
 // ---------------------------------------------------------------------------
 
 /** "Pathways in Group B"; "Cases in Group B" for a week that gives out cases alone. */
@@ -224,7 +223,7 @@ export function spreadTitleWords(draw: WeekDraw, groupName: string): string {
   return `${first ? plural(first.title) : "Cases"} in ${groupName}`;
 }
 
-/** The link to the draw page (wk-fac-group): "Change pathways and cases". */
+/** The link to the draw page: "Change pathways and cases". */
 export function changeDrawWords(draw: WeekDraw): string {
   return `Change ${lower(drawTitleWords(draw))}`;
 }

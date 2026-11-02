@@ -2,9 +2,9 @@ import { clockWords, dayWords, namesWords, weeksWords } from "./sessionChange/wo
 
 /**
  * THE WORDS OF THE PAGES A FACILITATOR USES EVERY WEEK, in one place: their
- * group's page (board wk-fac-group, laptop and phone), the group's register
- * page, their Home (wk-fac-home-phone), and the notes a group's facilitators
- * share (C30), where the programme's lead reads them too.
+ * group's page (laptop and phone), the group's register
+ * page, their Home, and the notes a group's facilitators
+ * share, where the programme's lead reads them too.
  *
  * The boards' own words are kept exactly, apostrophes included, and every
  * name, date, time, room and count in them is a slot filled from a record by
@@ -268,7 +268,7 @@ export function leftLine(args: {
 }
 
 // ---------------------------------------------------------------------------
-// Home before the group's first session (board st-fac-before-phone)
+// Home before the group's first session
 // ---------------------------------------------------------------------------
 
 /**
@@ -329,7 +329,7 @@ export function sayHelloLine(firstSessionDateKey: string, withinAWeek: boolean):
 }
 
 // ---------------------------------------------------------------------------
-// The notes a group's facilitators share (C30)
+// The notes a group's facilitators share
 // ---------------------------------------------------------------------------
 
 /**

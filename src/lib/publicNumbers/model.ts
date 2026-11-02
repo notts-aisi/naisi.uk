@@ -1,6 +1,6 @@
 /**
  * PUBLIC NUMBERS: what a programme's public page says about how its last term
- * went, in its "Last term" block (sv-public, pub-agi). `docs/surveys.md`,
+ * went, in its "Last term" block. `docs/surveys.md`,
  * "Public numbers", is the contract this file implements.
  *
  *   publicNumbers/{roundId}__{programmeId}   one per programme of a term's form

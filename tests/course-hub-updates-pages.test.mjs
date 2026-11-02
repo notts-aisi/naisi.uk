@@ -1,5 +1,5 @@
 /**
- * Updates (Q18): the pages that write and show them, as every kind of caller.
+ * Updates: the pages that write and show them, as every kind of caller.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -59,7 +59,7 @@ const STYLESHEETS = [
   "./Updates.module.css",
   "./UpdateComposer.module.css",
   "@/features/courses/updates/Messages.module.css",
-  // The facilitator's pages (boards wk-fac-group, wk-fac-home-phone): their own sheet and the
+  // The facilitator's pages: their own sheet and the
   // member's pages' shared one, since the group page and the Attendance tab draw their cards.
   "@/features/courses/weekly/weekly.module.css",
   "./facilitator.module.css",
@@ -288,7 +288,7 @@ describe("1. the Messages tab is the lead's and an admin's", () => {
 // ---------------------------------------------------------------------------
 
 describe("2. a facilitator's group page", () => {
-  // The page drawn to wk-fac-group: "Write to Group B (7)" is one of the two
+  // The page drawn to the facilitator's group page: "Write to Group B (7)" is one of the two
   // buttons of its head (the house link-as-button, "button"), beside "Change a
   // session", and the line saying what the update emails sits under both.
   test("Write to Group B, counted as the press counts, and the line under it", async () => {
@@ -496,7 +496,7 @@ describe("4. the member's section, the composer, and a message as text", () => {
   test("the run home draws the section, after the marks and before the facilitator's cards", () => {
     const source = readFileSync(join(SRC, "features", "courses", "RunHome.tsx"), "utf8");
     assert.equal((source.match(/<RunUpdates runId=\{runId\} \/>/g) ?? []).length, 1);
-    // The marks are "Your marks" since the restyle (board wk-programme), and
+    // The marks are "Your marks" since the restyle, and
     // still drawn first: the board's column reads marks, then updates.
     assert.ok(source.indexOf("<YourMarks") > 0);
     assert.ok(source.indexOf("<YourMarks") < source.indexOf("<RunUpdates"));

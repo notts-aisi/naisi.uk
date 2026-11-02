@@ -77,13 +77,13 @@ type Props = {
   /** The runs the member left by themselves, newest first. None for anybody else. */
   left?: readonly LeftRun[];
   /**
-   * "Your group’s on its way" for each place held before groups go out
-   * (Q13 B), worded on the server (`beforeGroupsCardsFor`): drawn under the
+   * "Your group’s on its way" for each place held before groups go out,
+   * worded on the server (`beforeGroupsCardsFor`): drawn under the
    * heading, above the runs, whatever they are. Empty draws nothing.
    */
   beforeGroups?: readonly BeforeGroupsCard[];
   /**
-   * "A survey for you" for each survey waiting for the member (Q50 B), worded
+   * "A survey for you" for each survey waiting for the member, worded
    * on the server (`surveysWaitingFor`): drawn first under the heading, above
    * the cards for a place and the runs. Empty draws nothing.
    */

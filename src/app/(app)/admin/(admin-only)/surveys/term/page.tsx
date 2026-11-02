@@ -13,7 +13,7 @@ import { TERM_TOTALS_PATH, TERM_WORDS } from "@/lib/surveys/term/words";
 export const dynamic = "force-dynamic";
 
 /**
- * Run NAISI › Reports › This term in numbers (sv-term): the term at a glance
+ * Run NAISI › Reports › This term in numbers: the term at a glance
  * for admins, each event's check-ins and survey, how many different people
  * came, and each programme's before and after. Counts only, never names.
  *

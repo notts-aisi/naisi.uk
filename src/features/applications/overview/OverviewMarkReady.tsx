@@ -5,7 +5,7 @@ import MarkReady from "@/features/courses/MarkReady";
 import styles from "./ProgrammeOverview.module.css";
 
 /**
- * The Overview's "Mark ready" and "Not ready" (board pr-weeks, Q35): the one
+ * The Overview's "Mark ready" and "Not ready": the one
  * control, in the Overview's own buttons, which reads the page again from
  * the server once the route has answered, so the line and the card say what
  * is stored.

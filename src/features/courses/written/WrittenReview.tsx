@@ -46,7 +46,7 @@ import weekly from "../weekly/weekly.module.css";
 import styles from "./written.module.css";
 
 /**
- * THE REVIEW PAGE (boards wk-review at 1440, wk-review-phone at 390): one
+ * THE REVIEW PAGE (at 1440 and 390): one
  * answer at a time with Previous and Next, the group's written answers for
  * the week as the board groups them ("To give feedback on", "With
  * feedback", "Not submitted yet"), the question with its range, the answer

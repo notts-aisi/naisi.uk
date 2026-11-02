@@ -1,5 +1,5 @@
 /**
- * CHECKING YOURSELF IN (ev-self-phone): the page an event's door code lands
+ * CHECKING YOURSELF IN: the page an event's door code lands
  * on (`/events/<id>/check-in`) and its button (`POST /api/events/<id>/check-in`).
  *
  * THE SWITCH. An event lets people check themselves in only when it says so

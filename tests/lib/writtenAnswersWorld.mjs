@@ -1,8 +1,6 @@
 /**
  * AGI Strategy's run in week 3, with WRITTEN ANSWERS, for the suites about
- * the written answer, its review and the feedback on it (boards wk-week,
- * wk-week-phone, wk-review, wk-review-phone, wk-fac-group, wk-programme,
- * en-finish).
+ * the written answer, its review and the feedback on it.
  *
  * Built on `tests/lib/facilitatorPagesWorld.mjs`'s seed (the attendance
  * world: four groups; Group B on Tuesdays at 6pm with Rahul and Sofia, its

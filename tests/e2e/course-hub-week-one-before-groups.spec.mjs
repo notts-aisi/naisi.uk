@@ -325,7 +325,7 @@ const ADA_WROTE = "About forty, I think, mostly in gardens.";
 /**
  * Home's and My programmes' card for a place held before groups go out:
  * src/lib/courses/weekOne/cards.ts and the sentences of
- * src/lib/courses/groupsGoOut.ts (board st-waiting, and v20's "Week 1 is open").
+ * src/lib/courses/groupsGoOut.ts (and v20's "Week 1 is open").
  */
 const CARD = Object.freeze({
   title: "Your group’s on its way",
@@ -337,7 +337,7 @@ const CARD = Object.freeze({
   free: "Check when you’re free",
 });
 
-/** Week 1's line before groups go out (board st-week1-phone): `weekOneOpenWords`, src/lib/courses/groupsGoOut.ts. */
+/** Week 1's line before groups go out: `weekOneOpenWords`, src/lib/courses/groupsGoOut.ts. */
 const weekOneLine = (day) => `Week 1 is open now. You’ll hear your group and when it meets on ${day}.`;
 
 /**
@@ -691,7 +691,7 @@ test(
     const onItsWay = (pg) => pg.getByRole("region", { name: CARD.title, exact: true });
 
     /**
-     * The card for Ada's place, as st-waiting draws it: the programme, the
+     * The card for Ada's place, as its design draws it: the programme, the
      * title, when the group email comes and when the first session will be,
      * and the way to when she is free; "Week 1 is open" only once its door is.
      */
@@ -770,7 +770,7 @@ test(
 
     /**
      * Week 1's page, as somebody holding a place reads it before groups go
-     * out (board st-week1-phone): the week's title, the programme over it,
+     * out: the week's title, the programme over it,
      * the line saying when they hear their group, Start here and the
      * Glossary, This week with the rule alone for when (no group, no day),
      * and nothing a group brings: no rating box on a reading, no progress

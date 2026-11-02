@@ -862,7 +862,7 @@ describe("4. week 2 (Group B meets on Tue 10 Nov): a written answer, sent and gi
     assert.match(page.text, /Review queue Reflections Part 1, 0 of 1 · Part 2, 0 of 1/);
     assert.match(page.text, /Part 1 · Read A field guide to base rates 0 of 1 ticked it/);
     assert.match(page.text, /Facilitators’ own work is for Claudia and admins to read, so it isn’t listed here\./);
-    // W-work: wk-fac-group's table has its pathway, written answer and case columns, through the packs' and
+    // W-work: the facilitator's group page's table has its pathway, written answer and case columns, through the packs' and
     // the written answers' own readers. The Choose one's own title heads the first ("Pack" in this made-up week,
     // "Pathway" in the guide's); Amara's answer reads as the review page reads it; nobody has a pack or a case
     // before the draw. On a phone each person's lines say the same. The week's own column leads with where
@@ -1285,7 +1285,7 @@ describe("7. week 6 (Group B meets on Tue 8 Dec, its last session)", () => {
     ok(sent, "send");
     let waiting = await lib.waiting.surveysWaitingFor(world.db, { uid: "amara" }, new Date());
     assert.deepEqual(waiting.map((card) => card.kind), ["after"]);
-    // Dev left, so the survey at the end is not his (Q48: everyone still on the programme at the end).
+    // Dev left, so the survey at the end is not his (everyone still on the programme at the end).
     assert.equal(tokenOf(made.survey.id, "dev"), null);
     // A1, W-self in the last week: Bea holds a place in Group B, so the same survey waits for Bea too. Home's card
     // for it, on the day of the last session, names as stepping out only the group's facilitators who hold no place

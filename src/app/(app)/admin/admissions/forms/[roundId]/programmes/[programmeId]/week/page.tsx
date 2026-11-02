@@ -18,7 +18,7 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * THE LEAD'S AND ADMINS' VIEW OF ONE GROUP'S WEEK, at
  * `.../programmes/[programmeId]/week?group=`, reached from the Attendance
  * tab's "Each group’s week": This week's work for the week the group is
- * getting ready for, who ticked each source by name (Q31), and how many have
+ * getting ready for, who ticked each source by name, and how many have
  * written each part's reflection, with the way to read them.
  *
  * THE GROUP'S FACILITATORS' OWN WORK IS HERE, marked as theirs (Zach, Mon 26
@@ -27,7 +27,7 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * which no page a facilitator opens ever shows. It is counted in no number:
  * the reflections and the ticks are both out of the group's fellows, as on
  * the facilitators' own page, and a line under the table says so. The private notes left on a
- * source are not shown to the lead (Q38: the group's facilitators and admins
+ * source are not shown to the lead (the group's facilitators and admins
  * read them); an admin reads them here as on the group page.
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`openLeadDoor`), decided from the

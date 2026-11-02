@@ -3,8 +3,8 @@ import type { BeforeGroupsCard } from "@/lib/courses/weekOne/cards";
 import styles from "./OnItsWay.module.css";
 
 /**
- * "Your group’s on its way" (board st-waiting, Q13 B), with v20's "Week 1 is
- * open" (Q35 B): the card Home and My programmes draw at their top for each
+ * "Your group’s on its way", with v20's "Week 1 is
+ * open": the card Home and My programmes draw at their top for each
  * place somebody holds before groups go out. Worded on the server
  * (`beforeGroupsCardsFor`); this only draws it. Links, so it reads and
  * works from the first HTML.

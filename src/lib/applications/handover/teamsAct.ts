@@ -54,9 +54,9 @@ import {
  * Four things, each the programme's lead's or an admin's (`teamsGate`, from
  * the form, before the run is read):
  *
- *  - make one pitch a team (in-teams, option C), for a run whose teams come
+ *  - make one pitch a team, for a run whose teams come
  *    from the pitches;
- *  - make the run's teams from first choices on the agenda (in-agenda), for a
+ *  - make the run's teams from first choices on the agenda, for a
  *    run whose teams come from it and that has no team yet;
  *  - move somebody to another team of their own group, or to no team;
  *  - remove a team, which puts its people in no team.

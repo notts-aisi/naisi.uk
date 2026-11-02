@@ -9,8 +9,7 @@ import {
 
 /**
  * HOW "DONE" COUNTS ON A WEEK WRITTEN AS BLOCKS: by This week's tasks
- * (HANDOFF "How done counts"; boards st-week1-phone, wk-week-phone,
- * wk-programme). Week 1 has one task, so it reads "0 of 1 done" until the
+ * (HANDOFF "How done counts"). Week 1 has one task, so it reads "0 of 1 done" until the
  * task is done.
  *
  * THE ONE PLACE IT IS WORKED OUT. The overview payload hands each block
@@ -29,9 +28,9 @@ import {
  *    row for the source's id);
  *  - a CHECKLIST item in a part, ticked the same way;
  *  - a REFLECTION box, with something written in it;
- *  - the WRITTEN ANSWER, sent (its first-sent time stored, Q33): editing it
+ *  - the WRITTEN ANSWER, sent (its first-sent time stored): editing it
  *    after sending, or a reviewer opening it, changes nothing here;
- *  - a CHOOSE ONE: the pack the person has, picked or given out (Q32), and
+ *  - a CHOOSE ONE: the pack the person has, picked or given out, and
  *    ticked. Only that pack counts: the others are not on their path, and
  *    until they have one the task is not done (`chooseOneIds`, read with the
  *    person's own pack, `DoneState.packOf`);
@@ -40,7 +39,7 @@ import {
  *    `DoneState.isReady`);
  *  - every box of a FILL-IN block (week 6's action plan), with something
  *    written in it: "A part is done when you’ve ticked what’s in it and
- *    written in its boxes" (wk-week6-phone), so a plan with some boxes
+ *    written in its boxes", so a plan with some boxes
  *    still empty is a draft and not done;
  *  - anything a later block brings before a page can see it finished (none
  *    today): UNSEEN. A task holding something unseen is counted and is never
@@ -234,7 +233,7 @@ export function partNeeds(part: PartBlock): TaskNeeds {
 
 /**
  * How many of a task's or a part's fill-in boxes hold something, of how many:
- * a draft's "6 of 12 filled" (wk-week6-phone). Zero of zero for one with none.
+ * a draft's "6 of 12 filled". Zero of zero for one with none.
  */
 export function boxesFilled(needs: TaskNeeds, isWritten: (boxId: string) => boolean): { filled: number; of: number } {
   return { filled: needs.fillInIds.filter((id) => isWritten(id)).length, of: needs.fillInIds.length };
@@ -254,8 +253,8 @@ export function weekTaskNeeds(blocks: readonly WeekBlock[]): TaskNeeds[] {
 
 /**
  * What a task is about, for the programme page's short line ("Parts 1 to
- * 3", "Your written answer", "Your case talk", "Your pitch", board
- * wk-programme): the written answer when it covers one (or a single part
+ * 3", "Your written answer", "Your case talk", "Your pitch",
+ * on the programme page): the written answer when it covers one (or a single part
  * holding one), the talk when it covers a Cases block (with whether it hands
  * out cases, and the talk's own name, "pitch" for week 6's 2-minute pitch),
  * otherwise the numbers of the parts it covers (part N is the Nth part of the

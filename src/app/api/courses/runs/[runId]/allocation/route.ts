@@ -90,7 +90,7 @@ export type AllocGroup = {
    */
   facilitatorUids: string[];
   /**
-   * What the programme's People in groups (board st-groups) heads a column
+   * What the programme's People in groups heads a column
    * with: the first names its facilitators go by ("Rahul", "Sofia"), in the
    * same order; the group's letter as the People tab and the times picture
    * write it ("C" for "Group C"); its weekly slot in the board's short form

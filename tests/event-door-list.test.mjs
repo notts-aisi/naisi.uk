@@ -1,5 +1,5 @@
 /**
- * THE DOOR LIST (ev-door-phone): the event's sign-ups with a Check in each, a
+ * THE DOOR LIST: the event's sign-ups with a Check in each, a
  * search and the count, for the people who run check-in, inside the door's
  * hours (an hour before the start to an hour after the end) and only once the
  * door is open.

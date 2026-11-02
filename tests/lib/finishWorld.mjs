@@ -1,6 +1,6 @@
 /**
  * The end of AGI Strategy's run, for the suites about who finished
- * (`tests/course-hub-finishing-*.test.mjs`, board en-finish, Q8, C43).
+ * (`tests/course-hub-finishing-*.test.mjs`).
  *
  * ## What it is made of
  *
@@ -233,8 +233,8 @@ const STYLESHEETS = [
   "./RunHome.module.css",
   // The run home's head draws the programme's crest, or the emblem in its place.
   "./BrandMark.module.css",
-  // The pages a member uses every week share one stylesheet (board
-  // wk-programme and its kin), by the three paths it is imported by.
+  // The pages a member uses every week share one stylesheet
+  // (the programme page and its kin), by the three paths it is imported by.
   "./weekly/weekly.module.css",
   "./weekly.module.css",
   "@/features/courses/weekly/weekly.module.css",
@@ -245,8 +245,7 @@ const STYLESHEETS = [
   "./MyCoursesSummary.module.css",
   "./home.module.css",
   // Home's last week and the programme page once it is over draw the survey
-  // at the end with the survey cards' own stylesheet (wk-lastweek-phone,
-  // en-after-phone).
+  // at the end with the survey cards' own stylesheet.
   "./SurveyCards.module.css",
 ];
 

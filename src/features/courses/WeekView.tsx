@@ -73,7 +73,7 @@ import type { OwnPair } from "@/lib/courses/pairs/model";
 import styles from "./WeekView.module.css";
 
 /**
- * A WEEK'S PAGE (board wk-week-phone): the week of weeks, its dates, what is
+ * A WEEK'S PAGE: the week of weeks, its dates, what is
  * done and the minutes left; "Before your session" with the session's date and
  * the readings to tick; the exercise a facilitator reviews; and the way to the
  * next week, once it is published (every published week is open, to read
@@ -98,7 +98,7 @@ import styles from "./WeekView.module.css";
  * numbered 01, 02, 03 between the readings and the exercise; a week with none
  * draws no heading.
  *
- * NOTES SHARED WITH YOUR GROUP (C29) are read on the server for this reader
+ * NOTES SHARED WITH YOUR GROUP are read on the server for this reader
  * and handed in (`sharedNotes`): a section for the group their place is in
  * and one for each group they facilitate, after the exercise. On such a run
  * they take the place of the run's comments on each reading ("Cohort notes"),
@@ -111,14 +111,14 @@ import styles from "./WeekView.module.css";
  * PROGRESS SEMANTICS ARE UNCHANGED BY EXERCISES: the fraction counts
  * non-optional materials plus checklist items and nothing else.
  *
- * A WEEK WRITTEN AS BLOCKS is drawn by `weekBlocks/BlockWeek.tsx` instead
- * (boards st-week1-phone, wk-week-phone, wk-week), from the same data: the
+ * A WEEK WRITTEN AS BLOCKS is drawn by `weekBlocks/BlockWeek.tsx` instead,
+ * from the same data: the
  * overview, the week's document, the reader's own ticks and their own rows
  * (their reflections among them). Everything below the branch is a week
  * written before blocks, drawn exactly as it always has been.
  *
  * WEEK 1'S FIRST CARD IS THE BEFORE SURVEY'S while it waits for the reader
- * (`survey`, Q50 B), read on the server by the answer Home asks
+ * (`survey`), read on the server by the answer Home asks
  * (`beforeSurveyCardFor`) and handed in: under week 1's line for somebody
  * holding a place, above everything else of the week.
  */
@@ -136,7 +136,7 @@ type Props = {
   guide?: GuideLinks | null;
   /** The run's course's routes and deadlines, read on the server; null for a course with none. */
   routes?: CourseRoutes | null;
-  /** Week 1's before survey while it waits for the reader (Q50 B), read on the server; null otherwise. */
+  /** Week 1's before survey while it waits for the reader, read on the server; null otherwise. */
   survey?: SurveyCard | null;
   /** The reader's own sealed predictions card on this week, read on the server; null on a week that holds none. */
   predictions?: PredictionsView | null;
@@ -172,7 +172,7 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
   // back their own reflections the same way.
   const isLearnerViewer = overview.data?.enrolment?.role === "learner";
   // Somebody holding a place whom Publish has not told yet, through week 1's
-  // door (Q35 B): they take part in week 1, through doors of its own.
+  // door: they take part in week 1, through doors of its own.
   const beforeGroups = overview.data?.beforeGroups ?? null;
   const placementGroupId = isLearnerViewer ? (overview.data?.enrolment?.groupId ?? null) : null;
   const facilitatesGroup =
@@ -658,7 +658,7 @@ function mirrored(week: { checklist: { id: string; mirrorToMyWork: boolean }[] }
 
 /**
  * Under "Before your session" for a week held online: where the link is.
- * The link itself is on the programme home's ticket, behind sign-in (Q23).
+ * The link itself is on the programme home's ticket, behind sign-in.
  */
 function SessionModeNote({ mode, cancelled }: { mode: string | null; cancelled: boolean }) {
   if (cancelled || mode !== "virtual") return null;

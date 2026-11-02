@@ -8,7 +8,7 @@ import type { CourseWeekDoc } from "@/lib/firestore/courses";
 import { readTabRun } from "./load";
 
 /**
- * "PREVIEW AS A FELLOW" (board pr-weeks): one week of a programme's run,
+ * "PREVIEW AS A FELLOW": one week of a programme's run,
  * drawn by the member's own week page (`BlockWeek`) as somebody taking part
  * reads it, for the programme's lead and admins on the Weeks tab.
  *

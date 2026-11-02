@@ -1,6 +1,7 @@
 /**
- * ASKING PEOPLE TO FACILITATE, AND THE FACILITATORS' TRAINING (boards
- * st-facilitators and st-fac-ask-phone, Q6 option B: "Ask, then train").
+ * ASKING PEOPLE TO FACILITATE, AND THE FACILITATORS' TRAINING
+ * (the Facilitators view and the page that asks somebody to facilitate:
+ * "Ask, then train").
  *
  * A programme's lead, or an admin, asks somebody who said on the application
  * form that they would like to facilitate. They get one email, and say yes or

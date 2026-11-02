@@ -11,7 +11,7 @@ import {
 import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staffName";
 
 /**
- * THE NOTES A GROUP'S FACILITATORS SHARE, read on the server (C30).
+ * THE NOTES A GROUP'S FACILITATORS SHARE, read on the server.
  *
  * Who may read them is decided by the page that calls this, before it does:
  * the group page for a live facilitator of the group or an admin, the

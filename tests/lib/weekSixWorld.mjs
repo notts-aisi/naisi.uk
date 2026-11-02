@@ -1,6 +1,6 @@
 /**
  * WEEK 6 OF AGI STRATEGY'S RUN, WRITTEN AS BLOCKS, for the suite about week
- * 6's own pieces (board wk-week6-phone): fill-in boxes, the checklist in
+ * 6's own pieces: fill-in boxes, the checklist in
  * blocks, and a section of routes and deadlines read from the course's
  * record.
  *

@@ -75,8 +75,8 @@
   border-radius: 4px;
 }
 
-/* The leaving survey's card on the page that says somebody left
-   (wk-left-phone): a surface card, the heading and "Answer" on one row,
+/* The leaving survey's card on the page that says somebody left:
+  a surface card, the heading and "Answer" on one row,
    the line under them. */
 .leavingCard {
   min-width: 0;
@@ -113,9 +113,9 @@
   overflow-wrap: anywhere;
 }
 
-/* The survey at the end (Q48 B). On Home in the last week a surface card
-   (wk-lastweek-phone); on the programme page once it is over a section with
-   no card around it (en-after-phone, en-after-nofinish-phone). */
+/* The survey at the end. On Home in the last week a surface card;
+  on the programme page once it is over a section with
+   no card around it. */
 .endCard {
   display: flex;
   flex-direction: column;

@@ -1,6 +1,6 @@
 /**
- * WHAT PUBLISH'S OWN PAGE IS SENT ABOUT PUBLISH'S TWO EMAILS (board
- * st-publish), by `GET /api/courses/runs/[runId]/allocation/publish/preview`.
+ * WHAT PUBLISH'S OWN PAGE IS SENT ABOUT PUBLISH'S TWO EMAILS,
+ * by `GET /api/courses/runs/[runId]/allocation/publish/preview`.
  *
  * Type-only, so the page's client part and the route share one shape. No
  * address is in it: names, ids, the subject and the email's own body.

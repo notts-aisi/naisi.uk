@@ -17,7 +17,7 @@ import {
 import styles from "./team.module.css";
 
 /**
- * "THIS WEEK’S UPDATE" (board in-team): two boxes and "Save update",
+ * "THIS WEEK’S UPDATE": two boxes and "Save update",
  * with who reads it said beside the button, as the privacy policy promises.
  *
  * The boxes are uncontrolled, so whatever is typed before the page's script

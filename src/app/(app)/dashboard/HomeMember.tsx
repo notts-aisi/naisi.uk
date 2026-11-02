@@ -46,19 +46,18 @@ import styles from "./home.module.css";
  * the member's applications card, which names no outcome either, is the way
  * to the page that says where they stand.
  *
- * BEFORE GROUPS GO OUT, one card more for a place they hold (`beforeGroups`,
- * Q13 B, board st-waiting): "Your group’s on its way", under the greeting in
+ * BEFORE GROUPS GO OUT, one card more for a place they hold (`beforeGroups`): "Your group’s on its way", under the greeting in
  * every form. Worded on the server by week 1's door; what it may say is held
  * by `MAY_SHOW` in `tests/applications-place-in-the-member-area.test.mjs`.
  *
- * A SURVEY WAITING FOR THEM is Home's first card (`surveys`, Q50 B): "A
+ * A SURVEY WAITING FOR THEM is Home's first card (`surveys`): "A
  * survey for you", above the cards for a place, in every form. Worded on the
  * server by `surveysWaitingFor`; never how many others have answered.
  *
  * IN THE LAST WEEK of the programme Home is about (`inLastWeek`, its own
  * calendar), its survey at the end leaves the top and is handed to the
  * programme's cards, which draw it as "The survey at the end" where
- * wk-lastweek-phone does: one survey, one card.
+ * the last week on Home does: one survey, one card.
  */
 
 type Slots = {
@@ -82,13 +81,13 @@ type Slots = {
    */
   holdsNoPlace: boolean;
   /**
-   * "Your group’s on its way" for each place held before groups go out
-   * (Q13 B), worded on the server (`beforeGroupsCardsFor`). Drawn under the
+   * "Your group’s on its way" for each place held before groups go out,
+   * worded on the server (`beforeGroupsCardsFor`). Drawn under the
    * greeting in every form of Home, and nothing when there is none.
    */
   beforeGroups: readonly BeforeGroupsCard[];
   /**
-   * "A survey for you" for each survey waiting for the member (Q50 B), worded
+   * "A survey for you" for each survey waiting for the member, worded
    * on the server (`surveysWaitingFor`). Drawn first under the greeting in
    * every form of Home, and nothing when there is none.
    */
@@ -148,11 +147,11 @@ export default function HomeMember({
   );
 
   // In the last week of the programme Home is about, its survey at the end
-  // is drawn among that programme's cards (wk-lastweek-phone), not here.
+  // is drawn among that programme's cards, not here.
   const { top: topSurveys, programme: endSurvey } = endSurveyOnHome(surveys, facilitated ? null : learning);
 
   // The cards sit straight under the greeting, with the install invitation:
-  // a survey waiting for them first (Q50 B), then the cards for a place.
+  // a survey waiting for them first, then the cards for a place.
   const cards = (
     <>
       <SurveyCards cards={topSurveys} />

@@ -32,7 +32,7 @@ import { weekDocId } from "@/lib/firestore/courses";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 
 /**
- * A PROGRAMME'S OVERVIEW (board wk-overview), for its lead and admins: the
+ * A PROGRAMME'S OVERVIEW, for its lead and admins: the
  * week the run is in, each group's session this week and its register, what
  * needs attention, who came by week, and how many are taking part. Every
  * value from a record, worded here on the server so the page only draws it.
@@ -47,7 +47,7 @@ import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
  *    goes when the week is published);
  *  - before any group has met, week 1 not READY (`weekIsReady`, the one
  *    answer): week 1 opens to everybody holding a place once it is marked
- *    ready (Q35 B), so the line carries the lead's "Mark ready" when the week
+ *    ready, so the line carries the lead's "Mark ready" when the week
  *    is published (it goes when the week is marked ready, and the week card
  *    then says it is ready, with "Not ready" to take it back);
  *  - a register not finished once its session has ended, with the
@@ -56,8 +56,8 @@ import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
  *  - somebody who left, whether or not a register marked them, with what
  *    they said when they gave a reason (it goes if they are put back).
  *
- * NOT BUILT, and so not drawn: the board's "Email Freya" (a lead writing to
- * one person through the site is new, and its email is not drawn: C21), the
+ * NOT BUILT, and so not drawn: the design's "Email Freya" (a lead writing to
+ * one person through the site is new, and its email is not designed), the
  * week's readiness detail ("2 of 3 readings and the guide are missing": a
  * week has no Ready checklist yet), "Kofi can't make it" (Can't make it is
  * said on the group's register, which each session card's See it opens, and
@@ -329,9 +329,9 @@ function remindedLine(state: ReminderState): string | null {
 
 /**
  * WHETHER ANY GROUP OF THE RUN HAS MET: a session of one of its groups that
- * still meet has started. Until then the Overview is "Get ready for week 1"
- * (board st-overview), and week 1's readiness is said; from then on it is
- * the week the run is in (board wk-overview). The one answer for both.
+ * still meet has started. Until then the Overview is "Get ready for week 1",
+ * and week 1's readiness is said; from then on it is
+ * the week the run is in. The one answer for both.
  */
 export function anyGroupHasMet(records: RunRecords, now: Date): boolean {
   return records.groups.some((group) => [...groupSessions(records, group, now).values()].some((facts) => facts.started));
@@ -410,7 +410,7 @@ export async function buildProgrammeOverview(
   const attendanceHref = (groupId?: string) =>
     `${place.programmePath}/attendance${groupId ? `?group=${encodeURIComponent(groupId)}` : ""}`;
 
-  // ── Week 1 before any group has met (Q35 B) ──────────────────────────────
+  // ── Week 1 before any group has met ──────────────────────────────
   // Week 1 opens to everybody holding a place once it is marked ready, so
   // until a group has met the page says whether it is, through the one answer.
   const anyGroupMet = anyGroupHasMet(records, now);
@@ -457,7 +457,7 @@ export async function buildProgrammeOverview(
         if (key && key >= card.startKey && key <= endKey) inWeek.push({ entry, facts });
       }
     }
-    // By when they start, as wk-overview draws the week's sessions: this is a
+    // By when they start, as the Overview tab draws the week's sessions: this is a
     // list of what happens when, so it reads in time. Two sessions at the
     // same moment come in the order every tab lists its groups (`listed`,
     // `compareGroupsByMeeting`).

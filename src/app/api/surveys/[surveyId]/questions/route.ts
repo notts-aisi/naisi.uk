@@ -10,7 +10,7 @@ import { REFUSAL } from "@/lib/surveys/words";
 type Ctx = { params: Promise<{ surveyId: string }> };
 
 /**
- * SAVE A SURVEY'S WORDS AND QUESTIONS from its editor (sv-edit): the title
+ * SAVE A SURVEY'S WORDS AND QUESTIONS from its editor: the title
  * and intro people see, how many minutes it takes, the day it closes, and the
  * questions' words, options, lines and order. Refused once the survey has
  * been sent: from then on the email people got names the day it closes, and

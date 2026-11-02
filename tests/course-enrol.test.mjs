@@ -53,7 +53,7 @@ const ENROL_ROUTE = readFileSync(
 );
 /**
  * The one leave, which the route's DELETE hands its press to, and which a
- * reply of "I can’t make it" from somebody in a group takes too (Q12): what
+ * reply of "I can’t make it" from somebody in a group takes too: what
  * leaving writes moved here from the route so the two doors write it with
  * the same code.
  */
@@ -599,7 +599,7 @@ test("SOURCE: the drop-out is behind a byte-exact typed confirmation", () => {
   // An unnamed course cannot be confirmed by name: "" === "" would pass the
   // ritual on an empty body.
   assert.match(del, /run\.courseTitle\.length === 0/);
-  // The press is handed to the one leave only after both checks. (Q12: the
+  // The press is handed to the one leave only after both checks. (the
   // writes moved to `leaveRun`, which the reply route's "I can’t make it"
   // takes too, so the checks are held to come before the call.)
   const handedOn = del.indexOf("await leaveRun(db, { run, path: answer.path, user, reason, now })");
@@ -607,7 +607,7 @@ test("SOURCE: the drop-out is behind a byte-exact typed confirmation", () => {
   assert.ok(del.indexOf("body.confirmName !== run.courseTitle") < handedOn, "the typed title is checked after the leave");
   assert.ok(del.indexOf("run.courseTitle.length === 0") < handedOn, "an unnamed course is refused after the leave");
   // And the leave writes the audit row the enum actually has a member for.
-  // (Q12: the row is written by the one leave now, for both doors.)
+  // (the row is written by the one leave now, for both doors.)
   assert.match(LEAVE_RUN, /kind: "enrolment-dropout"/);
 });
 
@@ -658,7 +658,7 @@ test("SOURCE: the enrol route moves both counters in the seat transaction", () =
   assert.match(post, /enrolledCount: FieldValue\.increment\(1\)/);
   assert.match(post, /selfEnrolled: true/);
 
-  // The leave's writes are the one leave's (Q12: moved from the route's
+  // The leave's writes are the one leave's (moved from the route's
   // DELETE to `leaveRun`, so a reply of "I can’t make it" from somebody in a
   // group writes them with the same code), held here exactly as they were
   // held in the route, and inside its transaction.

@@ -20,8 +20,8 @@ import { TASK_FIELD_LIMITS } from "@/lib/firestore/tasks";
 import type { JobContext, JobRegistration, JobResult } from "../registry";
 
 /**
- * `courses-next-week-email`: "WEEK N IS OPEN" ON A SCHEDULE (wk-register,
- * option B). The id is the one the job shipped with as next week's email, so
+ * `courses-next-week-email`: "WEEK N IS OPEN" ON A SCHEDULE.
+ * The id is the one the job shipped with as next week's email, so
  * the switch an admin set on Site status still means what it meant.
  *
  * Each group is sent "Week N is open" (the week, when and where it meets,

@@ -6,7 +6,7 @@
  * that had not heard -> correct a pushed mark as an admin -> force the resend
  * -> read what actually went out.
  *
- * ## TWO ENDINGS, AND THE TARGET DECIDES WHICH (wk-register, option B)
+ * ## TWO ENDINGS, AND THE TARGET DECIDES WHICH
  *
  * The register's button is "Push attendance" while "Week N is open" is NOT on
  * its schedule (the `courses-next-week-email` job switched off, how it ships),
@@ -204,7 +204,7 @@ test(
   async (t) => {
     const origin = baseUrl();
     const groupUrl = `${origin}/learn/${encodeURIComponent(state.runId)}/group/${encodeURIComponent(state.groupId)}`;
-    /** The group's register, on its own page beside the group's since board wk-fac-group. */
+    /** The group's register, on its own page beside the group's since the group page's restyle. */
     const registerUrl = `${groupUrl}/register`;
     /** True when this run's mail is caught by Mailpit rather than suppressed. */
     const mailFlows = state.suppress === false;
@@ -364,8 +364,8 @@ test(
           "the roster did not list every seeded member",
         );
         // Every session of this fixture is over, so where the next session's
-        // ticket would be, the page says there are no more (board
-        // wk-fac-group's group page, since the register moved to its own page).
+        // ticket would be, the page says there are no more
+        // (on the group page, since the register moved to its own page).
         const sessionCard = page.getByTestId("session-card").first();
         await sessionCard.waitFor({ timeout: WAIT_MS });
         assert.equal(
@@ -374,8 +374,8 @@ test(
           "the group page does not say its sessions are over",
         );
 
-        // The register is a page of its own beside the group's (board
-        // wk-register). Each register's row on the group page leads there:
+        // The register is a page of its own beside the group's.
+        // Each register's row on the group page leads there:
         // four rows, one a session, each one's register not finished yet.
         const registerRows = page.getByRole("region", { name: "Registers", exact: true }).getByRole("listitem");
         assert.equal(await registerRows.count(), state.weekCount, "the group page does not list a register a session");
@@ -404,7 +404,7 @@ test(
           "the register's caption did not name this group",
         );
 
-        // THE FOOT: wk-register's ending, under the grid. Which words it says
+        // THE FOOT: the register page's ending, under the grid. Which words it says
         // is the target's switch, read here once and asserted on from now on.
         const ending = await readEnding(page);
         assert.ok(ending, "the register's GET carries no ending");
@@ -467,7 +467,7 @@ test(
             `row ${mark.row}, column ${mark.col} did not land on ${mark.status}`,
           );
         }
-        // Every tap saves, and says so with the time (wk-register's "Saved
+        // Every tap saves, and says so with the time (the register page's "Saved
         // 7:58pm"), in London's hours and minutes.
         await page
           .locator('[role="status"]')

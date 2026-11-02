@@ -20,7 +20,7 @@ import { REVIEW_WORDS } from "./words";
  * its plan) and every live group's session of that week: when it starts,
  * whether it has, whether it is cancelled, and when the group next meets.
  *
- * A week can be reviewed from its first session (clash 6): Claude reads only
+ * A week can be reviewed from its first session: Claude reads only
  * what exists, and the page says how many groups have met.
  *
  * Who is reviewed is the coursework door's: the people holding a place on

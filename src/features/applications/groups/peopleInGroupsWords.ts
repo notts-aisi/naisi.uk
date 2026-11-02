@@ -1,5 +1,5 @@
 /**
- * THE WORDS OF A PROGRAMME'S PEOPLE IN GROUPS (board st-groups), in one place.
+ * THE WORDS OF A PROGRAMME'S PEOPLE IN GROUPS, in one place.
  *
  * The board's own words are kept exactly, apostrophes included ("To place",
  * "7 of 8", "Full", "No room yet", "Hasn’t said when they’re free", "Fits A,

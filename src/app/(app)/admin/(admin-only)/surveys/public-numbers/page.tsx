@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 const keyOf = (programme: Pick<NumbersProgramme, "roundId" | "programmeId">) => `${programme.roundId}.${programme.programmeId}`;
 
 /**
- * Run NAISI › Reports › Public numbers (sv-public): an admin picks numbers
+ * Run NAISI › Reports › Public numbers: an admin picks numbers
  * from a programme's own surveys, each with the answers it rests on, and the
  * comments their writers ticked "You can quote this, without my name", sees
  * them as the programme's public page will draw them on a phone and on a

@@ -1,5 +1,5 @@
 /**
- * HOW A REGISTER ENDS (wk-register, option B): the real handlers and the real
+ * HOW A REGISTER ENDS: the real handlers and the real
  * jobs, driven against one course run in its second week.
  *
  *  1. FINISHING. While next week's email is on its schedule, "Finish the

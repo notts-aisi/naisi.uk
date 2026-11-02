@@ -1,5 +1,5 @@
 /**
- * THIS TERM IN NUMBERS, THE FILE ("Download totals (CSV)", board sv-term):
+ * THIS TERM IN NUMBERS, THE FILE ("Download totals (CSV)"):
  * `GET /api/surveys/term/totals`, through the real route over
  * `tests/lib/termWorld.mjs`, as every kind of caller. An admin gets the
  * page's numbers as a spreadsheet, naming nobody; everybody else is refused

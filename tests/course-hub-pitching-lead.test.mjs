@@ -1,6 +1,6 @@
 /**
- * The pitches from a programme's pitching week, for its lead and for admins
- * (board in-teams, option C): who may read the list, what it counts, what it
+ * The pitches from a programme's pitching week, for its lead and for admins:
+ * who may read the list, what it counts, what it
  * never says, and how the Groups tab's views reach it.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
@@ -213,7 +213,7 @@ describe("the page", () => {
     assert.ok(!/<button/.test(html), "the list has a button");
     // The Groups tab's views are drawn for whoever may open the tab, which the
     // programme's lead may, with Pitches the one on screen. Sessions is the
-    // row's first view since changing a session landed (wk-session).
+    // row's first view since changing a session landed.
     assert.deepEqual(viewsIn(html), ["Sessions", "People in groups", "Times", "Facilitators", "Pitches"]);
     assert.match(html, PITCHES_CURRENT);
   });
@@ -254,7 +254,7 @@ describe("the page", () => {
       });
       return viewsIn(renderToStaticMarkup(element));
     };
-    // Sessions leads the row for every run since changing a session landed (wk-session).
+    // Sessions leads the row for every run since changing a session landed.
     // Circles is offered to an admin alone.
     for (const who of ["zach", "tess"]) {
       assert.deepEqual(

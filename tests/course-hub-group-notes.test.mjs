@@ -1,5 +1,5 @@
 /**
- * The notes a group's facilitators share (C30, board wk-fac-group's "Notes
+ * The notes a group's facilitators share (the facilitator's group page's "Notes
  * for you and Sofia"): who writes one, what a note keeps, who is refused,
  * how the server reads them back, and what takes them away.
  *

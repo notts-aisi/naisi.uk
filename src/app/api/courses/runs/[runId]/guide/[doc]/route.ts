@@ -26,7 +26,7 @@ import {
 } from "@/lib/courses/guide/model";
 
 /**
- * LOADING A PROGRAMME'S START HERE OR GLOSSARY (plan item 10; Q39 as for
+ * LOADING A PROGRAMME'S START HERE OR GLOSSARY (a Markdown round trip, as for
  * weeks): the run editor's paste cards send the guide's Markdown here.
  *
  *   GET  ...  "Copy as Markdown": the stored document, as the guide's Markdown.
@@ -39,7 +39,7 @@ import {
  * writes: a document is nested lists a rule cannot walk, so only here can it
  * be held to its check.
  *
- * WHO. Admins only, for now, as for a week (Q39: an admin loads the
+ * WHO. Admins only, for now, as for a week (an admin loads the
  * curriculum; a lead's own loading comes with the Weeks tab). The gate is
  * decided before anything is read; every other caller meets the same 403.
  *

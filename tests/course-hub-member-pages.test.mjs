@@ -1,8 +1,8 @@
 /**
- * The pages a member uses every week: their programme's home (boards
- * st-programme before the first session, wk-programme once it has started),
- * their marks with no target (C26), and Home's card for their programme
- * (wk-home-phone), where a reading is ticked off as it is on its week (C33).
+ * The pages a member uses every week: their programme's home
+ * (before the first session and once it has started),
+ * their marks with no target, and Home's card for their programme,
+ * where a reading is ticked off as it is on its week.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -27,7 +27,7 @@
  *     before the start and on its week's own page is the same write of the
  *     same document; a facilitator's or a finished enrolment's tick writes
  *     nothing.
- *  6. No sentence on these pages has a dash (C35).
+ *  6. No sentence on these pages has a dash.
  *
  * Real: the overview, roster and hub routes, the three pages, the libraries.
  * Faked: the session, the Admin SDK handle, the clock, the stylesheets, the
@@ -65,7 +65,7 @@ const COUNTS = /\b\d+ of \d+ (sessions|so far)|in full|so far|attendance/i;
 // ---------------------------------------------------------------------------
 
 describe("1. the programme home", () => {
-  test("before the first session (st-programme), on Sat 31 Oct", async () => {
+  test("before the first session, on Sat 31 Oct", async () => {
     at("2026-10-31T12:00:00Z");
     await w.asBrowser("chloe");
     const { text } = w.programmeHome("chloe");
@@ -73,8 +73,8 @@ describe("1. the programme home", () => {
       text,
       "My programmes AGI Strategy " +
         "Fellowship · Autumn 2026 AGI Strategy Fellowship Group B · Tuesdays 6pm · Hallward B12 · with Rahul and Sofia " +
-        // "Add to calendar" under the room, as st-programme draws it: built
-        // since st-calendar-phone (the member's own calendar link).
+        // "Add to calendar" under the room, as the programme page before the first session draws it: built
+        // since the member's own calendar link.
         "Tue 3 Nov Your first session · week 1 Tue 3 Nov, 6pm to 8pm Hallward B12 R S with Rahul and Sofia Add to calendar " +
         "Before your first session 0 of 3 done Week 1 · Week 1 readings Thu 29 Oct to Wed 4 Nov " +
         "Week 1 reading one Reading 25 min Open Week 1 reading one " +
@@ -96,7 +96,7 @@ describe("1. the programme home", () => {
     assert.doesNotMatch(text, /Week \d of 6|Your sessions|Can’t make it/);
   });
 
-  test("in week 3, the day of the session (wk-programme)", async () => {
+  test("in week 3, the day of the session", async () => {
     await w.asBrowser("chloe");
     // Chloe did all of week 1, none of week 2, and one of week 3's three.
     w.ui.progress = new Map(["w1r1", "w1v1", "w1r2", "w3r1"].map((id) => [id, { itemId: id, completed: true }]));
@@ -105,7 +105,7 @@ describe("1. the programme home", () => {
       text,
       "My programmes AGI Strategy " +
         "Fellowship · Autumn 2026 AGI Strategy Fellowship Week 3 of 6 Group B · Tuesdays 6pm · Hallward B12 · with Rahul and Sofia " +
-        // "Add to calendar" under the room, as wk-programme draws it (st-calendar-phone).
+        // "Add to calendar" under the room, as the programme page draws it.
         "Tue 17 Nov Tonight · week 3 Tue 17 Nov, 6pm to 8pm Hallward B12 R S with Rahul and Sofia Add to calendar " +
         "This week 1 of 3 done Week 3 · Who decides what AGI means Thu 12 to Wed 18 Nov Open week 3 → " +
         // A week that is over is Done only when it is done: week 1's three, and not week 2's none (A3).
@@ -150,7 +150,7 @@ describe("1. the programme home", () => {
     changeGroupB(w, { sessionOverrides: { w03: { location: "Room C21" } } });
     await w.asBrowser("chloe");
     const { text } = w.programmeHome("chloe");
-    // "Add to calendar" closes the ticket (st-calendar-phone), before "This week".
+    // "Add to calendar" closes the ticket, before "This week".
     assert.match(text, /Group B · Tuesdays 6pm · Hallward B12 · with Rahul and Sofia Tue 17 Nov Tonight · week 3 Tue 17 Nov, 6pm to 8pm Room C21 Room changed this week Add to calendar This week/);
   });
 
@@ -161,7 +161,7 @@ describe("1. the programme home", () => {
     await w.asBrowser("chloe");
     const { text } = w.programmeHome("chloe");
     assert.match(text, /No session tonight Tue 17 Nov is cancelled\. Rahul and Sofia are both away\. Do week 3’s reading anyway\. On Tue 24 Nov you’ll talk about weeks 3 and 4 together\./);
-    // Board wk-changes: the ticket of the session covering both weeks names its
+    // A changed session: the ticket of the session covering both weeks names its
     // day and both weeks over the hours ("Tue 1 Dec · weeks 4 and 5", "6pm to
     // 8pm"), so the day is said once under the stub's.
     assert.match(text, /Tue 24 Nov Tue 24 Nov · weeks 3 and 4 6pm to 8pm Hallward B12/);
@@ -176,7 +176,7 @@ describe("1. the programme home", () => {
     // Chloe did all of week 2 and nothing else.
     w.ui.progress = new Map(["w2r1", "w2v1", "w2r2"].map((id) => [id, { itemId: id, completed: true }]));
     const { text } = w.programmeHome("chloe");
-    // Boards en-after-phone and en-after-nofinish-phone: the programme's name
+    // The page after the end, whether somebody finished or not: the programme's name
     // in a card of its own with the thanks, the term and the group (Chloe's
     // record does not say Chloe finished, so nothing says so), what Chloe
     // keeps, and then the weeks, each still open.
@@ -239,7 +239,7 @@ describe("2. your marks: one per session, a legend, and no count", () => {
 
   test("every mark there is, each said whole, with the legend of those used and the board's line", async () => {
     // The last day of the last week: every session is over and every mark
-    // final. (Once the week is over the page is en-after-phone's, which
+    // final. (Once the week is over the page is the one after the end, which
     // draws no marks.)
     at("2026-12-09T12:00:00Z");
     kofiMarks(["present", "late", "left-early", "excused", "absent", null], { notHeld: [] });
@@ -305,14 +305,14 @@ describe("2. your marks: one per session, a legend, and no count", () => {
 // 3. Home's card
 // ---------------------------------------------------------------------------
 
-describe("3. Home's card (wk-home-phone)", () => {
+describe("3. Home's card", () => {
   test("on the day of a session: the ticket, the reading before tonight to tick, the group", async () => {
     await w.asBrowser("chloe");
     const home = await w.homeCard("chloe");
     assert.equal(
       home.text,
       "AGI Strategy · week 3 of 6 Hi Chloe. AGI Strategy Fellowship · Group B · week 3 of 6 " +
-        // "Add to calendar" in the row under the card, as wk-home-phone draws it (st-calendar-phone).
+        // "Add to calendar" in the row under the card, as the member's Home draws it.
         "Tue 17 Nov Tonight · week 3 Group B, 6pm to 8pm Hallward B12 R S with Rahul and Sofia Add to calendar " +
         "Before tonight 0 of 3 done Week 3 · Who decides what AGI means " +
         "Week 3 reading one Reading 25 min Week 3 talk Video 20 min Week 3 reading two Reading 30 min Open week 3 → " +
@@ -443,7 +443,7 @@ describe("4. a reading ticked on Home, the programme home or its week is the sam
 // 5. No dash
 // ---------------------------------------------------------------------------
 
-describe("5. no sentence on these pages has a dash (C35)", () => {
+describe("5. no sentence on these pages has a dash", () => {
   test("the programme home and Home's card, before, during and after", async () => {
     for (const when of ["2026-10-31T12:00:00Z", NOW.toISOString(), "2026-12-10T12:00:00Z"]) {
       at(when);

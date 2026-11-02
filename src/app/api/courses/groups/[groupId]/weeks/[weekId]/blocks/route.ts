@@ -30,7 +30,7 @@ import {
 import { templateWeekFields } from "@/lib/firestore/courseTemplates";
 
 /**
- * A WEEK FOR ONE GROUP, BY MARKDOWN (Q39): copy the week as Markdown, change
+ * A WEEK FOR ONE GROUP, BY MARKDOWN: copy the week as Markdown, change
  * it, paste it back, checked block by block, for one group of a run.
  *
  *   GET  ...  "Copy as Markdown": the group's own copy of the week when it

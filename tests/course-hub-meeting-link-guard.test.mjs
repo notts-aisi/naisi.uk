@@ -1,6 +1,6 @@
 /**
  * A group's meeting link lives on the site, behind sign-in, and never in a
- * message (Q23). Walked over the whole of `src`.
+ * message. Walked over the whole of `src`.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -149,7 +149,7 @@ describe("1. every file that names a group's meeting link is listed", () => {
       naming,
       Object.keys(READERS).sort(),
       "A file names a group's meeting link and is not listed, or a listed file no longer does. The link lives on " +
-        "the site behind sign-in (Q23): show it, save it, or ask whether it is there, and list the file here with " +
+        "the site behind sign-in: show it, save it, or ask whether it is there, and list the file here with " +
         "what it does. Nothing that writes a message may read it.",
     );
   });
@@ -223,7 +223,7 @@ describe("4. no copy promises the link by email", () => {
 
   test("no string in src promises to send it", () => {
     const promising = FILES.filter(([, code]) => PROMISE.test(code)).map(([file]) => file);
-    assert.deepEqual(promising, [], "these promise the meeting link by email, where Q23 keeps it on the site");
+    assert.deepEqual(promising, [], "these promise the meeting link by email, where the site keeps it behind sign-in");
   });
 
   test("the cards say where the link will be, and why it is not in an email", async () => {

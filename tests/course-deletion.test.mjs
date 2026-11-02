@@ -302,16 +302,16 @@ const RUN_COUNT_KEYS = [
   // reason materialNotes was: an unlisted collection means the dialog lies
   // about what a destroy takes.
   "auditRows",
-  // `courseUpdates`, the updates written to a run's people (Q18). Staff
+  // `courseUpdates`, the updates written to a run's people. Staff
   // writing keyed by `runId`, added to the manifest in the same change that
   // gave the cascade a stage for it, as auditRows was.
   "updates",
-  // `courseGroupNotes`, the notes each group's facilitators share (C30).
+  // `courseGroupNotes`, the notes each group's facilitators share.
   // Staff writing keyed by `runId`, added to the manifest in the same change
   // that gave the cascade a stage for it, as updates was.
   "groupNotes",
   // `courseGroupSharedNotes`, the notes a group's people and facilitators
-  // share with the group (C29). Keyed by `runId`, added to the manifest in the
+  // share with the group. Keyed by `runId`, added to the manifest in the
   // same change that gave the cascade a stage for it, as groupNotes was.
   "groupSharedNotes",
   // `courseSessionReports`, each facilitator's report on each session of the
@@ -349,7 +349,7 @@ const RUN_COUNT_KEYS = [
   "noteDrafts",
   "pangramChecks",
   // `coursePacksAndCases`, what each person had in the weeks' packs and
-  // talks (plan item 8). Keyed by `runId`, added to the manifest in the same
+  // talks. Keyed by `runId`, added to the manifest in the same
   // change that gave the cascade a stage for it, as groupSharedNotes was.
   "packsAndCases",
   // `courseWeekWork` and `courseWorkLog`, where each person's week stands

@@ -2226,7 +2226,7 @@ export const ROUTES = {
     GET: {
       expect: adminOnly(404),
       why:
-        "A week for one group (Q39): the group is read first, because it names its facilitators and its " +
+        "A week for one group: the group is read first, because it names its facilitators and its " +
         "run, and a group that is missing, no longer meets or is somebody else's is one 403 for everybody " +
         "but an admin, who is told the group is not there. Nothing else is read.",
     },
@@ -2543,7 +2543,7 @@ export const ROUTES = {
     GET: {
       expect: adminOnly(400),
       why:
-        "Copying a programme's Start here or Glossary out as Markdown is an admin's for now (Q39), decided " +
+        "Copying a programme's Start here or Glossary out as Markdown is an admin's for now, decided " +
         "before anything is read: every other session is forbidden, and the admin meets the page check, " +
         "which a name that is not start-here or glossary fails.",
     },
@@ -2804,7 +2804,7 @@ export const ROUTES = {
       expect: adminOnly(400),
       why:
         "Copying a week out as Markdown is for admins and the lead of the programme that names the run " +
-        "(the Weeks tab, Q39), decided before anything of the run is read (only the forms, for whether the " +
+        "(the Weeks tab), decided before anything of the run is read (only the forms, for whether the " +
         "caller leads it): every other session is forbidden, and the admin meets the week address check, " +
         "which an id that is not w01 to w60 fails.",
     },
@@ -6985,7 +6985,7 @@ function guideWriter(what) {
   };
 }
 
-/** One group's week (Q39): an admin and the programme's lead any group, a group's live facilitators their own. */
+/** One group's week: an admin and the programme's lead any group, a group's live facilitators their own. */
 function groupWeek(what, next) {
   return {
     another: {

@@ -1,8 +1,7 @@
 /**
  * Week 3 of AGI Strategy's run, WRITTEN AS BLOCKS, for the suite about a
  * group's week as its facilitators, the programme's lead and admins read it
- * (boards wk-fac-group, wk-fac-group-phone, wk-reflections and
- * wk-reflections-phone; Q30, Q31, Q37, Q38, and Zach on Mon 26 Oct for a
+ * (and Zach on Mon 26 Oct for a
  * facilitator's own coursework).
  *
  * Built on `tests/lib/facilitatorPagesWorld.mjs` (the run in its third week:

@@ -1,5 +1,5 @@
 /**
- * Week 1 before groups go out (Q35 B): somebody holding a place may open week
+ * Week 1 before groups go out: somebody holding a place may open week
  * 1 of the run their programme names once it is marked ready, and nothing
  * else of the run, until Publish tells them their group.
  *
@@ -17,7 +17,7 @@
  *  2. THE GATE (`getRunAccess`) carries the door's answer for anybody with no
  *     other way in, and never beside `canLearn`.
  *  3. THE OVERVIEW answers them week 1 and nothing else: no group, no
- *     session, no schedule, no other week, no due day, and st-week1-phone's
+ *     session, no schedule, no other week, no due day, and the line of week 1's page before groups go out
  *     line from the run's planned day (for an incubator's place, a line that
  *     names no group: its people are told of none).
  *  4. THEIR DOORS: ticks through week 1's door write their own row, in the

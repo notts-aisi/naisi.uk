@@ -2,7 +2,7 @@ import { runsText } from "../weekBlocks/prose";
 import type { GlossaryTerm } from "./model";
 
 /**
- * The Glossary's find box (wk-glossary): which terms it keeps for what was
+ * The Glossary's find box: which terms it keeps for what was
  * typed. Pure, so the page and its tests ask the same question.
  */
 

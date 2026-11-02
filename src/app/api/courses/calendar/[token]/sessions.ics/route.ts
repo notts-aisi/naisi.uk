@@ -11,8 +11,8 @@ import { standingUserOf } from "@/lib/courses/programmeLead";
 export const dynamic = "force-dynamic";
 
 /**
- * A PERSON'S SESSIONS, AS A CALENDAR THEIR CALENDAR APP SUBSCRIBES TO (board
- * st-calendar-phone). The address carries their link's secret; nothing else
+ * A PERSON'S SESSIONS, AS A CALENDAR THEIR CALENDAR APP SUBSCRIBES TO.
+ * The address carries their link's secret; nothing else
  * says who is asking, so there is no sign-in, and nothing is written.
  *
  * ── ONE ANSWER FOR EVERY LINK THAT OPENS NOTHING ────────────────────────────

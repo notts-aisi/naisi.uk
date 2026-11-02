@@ -49,8 +49,7 @@ import { PeopleIcon } from "./icons";
 import styles from "./facilitator.module.css";
 
 /**
- * THE CARDS OF A FACILITATOR'S GROUP PAGE (boards wk-fac-group and
- * wk-fac-group-phone), drawn on the server from what the page worked out
+ * THE CARDS OF A FACILITATOR'S GROUP PAGE, drawn on the server from what the page worked out
  * (`src/lib/courses/facilitatorGroup.ts`): the session ticket, the group's
  * people with each finished register's marks, the registers, the work to
  * review and the pace. The updates and the notes have cards of their own.
@@ -94,7 +93,7 @@ export function FacilitatorTicket({
   expected: number | null;
   registerHref: string;
   /**
-   * "Facilitator guide for week 3" and where it leads (wk-fac-group), or null
+   * "Facilitator guide for week 3" and where it leads, or null
    * when the session's week has nothing in the course's facilitator guide.
    */
   guide?: { href: string; label: string } | null;
@@ -114,7 +113,7 @@ export function FacilitatorTicket({
   return (
     <>
     <section className={weekly.ticket} aria-label="Your next session" data-testid="session-card">
-      {/* The stub and the body side by side, as wk-fac-group draws them: the
+      {/* The stub and the body side by side, as the facilitator's group page draws them: the
           ticket's frame is a column since Home's row of buttons sits under both. */}
       <div className={weekly.ticketRow}>
       {tile && (

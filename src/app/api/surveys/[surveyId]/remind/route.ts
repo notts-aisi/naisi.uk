@@ -13,7 +13,7 @@ import { REFUSAL } from "@/lib/surveys/words";
 type Ctx = { params: Promise<{ surveyId: string }> };
 
 /**
- * REMIND, BY HAND (sv-send-programme): the reminder, to the people a survey
+ * REMIND, BY HAND: the reminder, to the people a survey
  * was sent to who have not answered and still hold a place. Nothing goes
  * until an admin presses it; no reminder goes on its own.
  *
@@ -47,7 +47,7 @@ export async function POST(req: Request, ctx: Ctx) {
 
   const survey = await readSurvey(db, surveyId);
   if (!survey) return NextResponse.json({ error: REFUSAL.noSurvey }, { status: 404 });
-  // A leaving survey is never sent: it reaches each person as they leave (Q46).
+  // A leaving survey is never sent: it reaches each person as they leave.
   if (survey.kind === "leaving") return NextResponse.json({ error: REFUSAL.leavingNotSent }, { status: 409 });
   // Nor is a check-in: its group's facilitator opens it from the register.
   if (isCheckIn(survey)) return NextResponse.json({ error: REFUSAL.checkInNotSent }, { status: 409 });

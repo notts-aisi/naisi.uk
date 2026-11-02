@@ -9,7 +9,7 @@ import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
- * Download PDF (board en-cert): a certificate as an A4 page, for its owner
+ * Download PDF: a certificate as an A4 page, for its owner
  * alone, signed in as themselves. Anybody else, a view-as session, and any
  * code that opens nothing or cannot be one are told the same thing, whether
  * or not the link is on (`certificatePdfFor` says why).

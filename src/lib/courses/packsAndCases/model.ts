@@ -9,8 +9,7 @@ import {
 } from "../weekBlocks/model";
 
 /**
- * PACKS, CASES AND TALKS IN A WEEK WRITTEN AS BLOCKS (plan item 8; Q32 A;
- * boards wk-cases, wk-week, wk-week-phone, wk-week6-phone, wk-fac-group):
+ * PACKS, CASES AND TALKS IN A WEEK WRITTEN AS BLOCKS:
  * which blocks keep a record per person, which of them a facilitator gives
  * out (the draw), and which cases a person may be given.
  *

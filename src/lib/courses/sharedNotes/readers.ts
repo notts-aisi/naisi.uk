@@ -24,7 +24,7 @@ import {
 export type { SharedNoteView, SharedNotesSection, WeekSharedNotes } from "./views";
 
 /**
- * WHO READS AND WRITES WHICH GROUP'S SHARED NOTES ON A RUN (C29), and the one
+ * WHO READS AND WRITES WHICH GROUP'S SHARED NOTES ON A RUN, and the one
  * reader of `courseGroupSharedNotes`. Nothing else reads the collection
  * (`tests/course-hub-shared-notes.test.mjs` walks the tree for a reader that is
  * not this file), and no route hands a note to a browser except as a page

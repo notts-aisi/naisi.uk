@@ -4,7 +4,7 @@ import type { PublicBlockWeek as PublicBlockWeekData, PublicSource } from "@/lib
 import styles from "./PublicBlockWeek.module.css";
 
 /**
- * A WEEK WRITTEN AS BLOCKS, ON THE PUBLIC COURSE PAGES (Q40): Why this week,
+ * A WEEK WRITTEN AS BLOCKS, ON THE PUBLIC COURSE PAGES: Why this week,
  * After this week you can, and the sources with their times, part by part.
  * Drawn from `publicBlockWeek(...)`, the projection that leaves out everything
  * behind sign-in, never from the week's blocks. A server component: no hooks,

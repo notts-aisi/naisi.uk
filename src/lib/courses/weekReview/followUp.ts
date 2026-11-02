@@ -15,7 +15,7 @@ import { buildFollowUpTask, followUpTaskId } from "./followUpTask";
 import { FOLLOW_UP_WORDS, REVIEW_WORDS } from "./words";
 
 /**
- * "ASK RAHUL TO HAVE A WORD WITH GRACE", from a week's review (clash 5): an
+ * "ASK RAHUL TO HAVE A WORD WITH GRACE", from a week's review: an
  * admin's press, behind the review's own door, that makes one task for the
  * person's group's live facilitators (`./followUpTask.ts`, fixed words and
  * no reason) and tells each of them it is there.

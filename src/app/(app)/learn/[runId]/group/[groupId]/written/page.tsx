@@ -9,7 +9,7 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 
 /**
- * A GROUP'S WRITTEN ANSWERS, ONE AT A TIME (boards wk-review, wk-review-phone):
+ * A GROUP'S WRITTEN ANSWERS, ONE AT A TIME:
  * `/learn/[runId]/group/[groupId]/written?week=N&person=uid`, reached from the
  * group page's review queue ("Give feedback") and Home.
  *

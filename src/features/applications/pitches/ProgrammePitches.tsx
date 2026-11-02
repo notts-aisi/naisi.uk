@@ -6,7 +6,7 @@ import styles from "./ProgrammePitches.module.css";
 
 /**
  * THE PITCHES FROM A PROGRAMME'S PITCHING WEEK, for its lead and for admins
- * (board in-teams, option C, the "Pitches from week 3" list).
+ * (the "Pitches from week 3" list).
  *
  * Read only, and drawn on the server: it holds no state and sends no script.
  * What the board draws beside it and this leaves out, because the feature

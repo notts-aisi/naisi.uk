@@ -95,7 +95,7 @@ import type { SessionUser } from "@/lib/firebase/session";
  * placed. A facilitator reads their group's day, time and room from the
  * start, and no member's name is in this payload either way.
  *
- * WEEK 1 BEFORE GROUPS GO OUT (Q35 B) is the one change to that, on purpose:
+ * WEEK 1 BEFORE GROUPS GO OUT is the one change to that, on purpose:
  * somebody holding a place whom Publish has not told is answered week 1 and
  * nothing else once week 1's door is open to them (`weekOneDoorFor`, the one
  * answer; `beforeGroupsPayload` below). Their group, its sessions and every
@@ -195,7 +195,7 @@ export type OverviewNextSession = {
   durationMinutes: number;
   /**
    * The weeks this session covers: its own, and those of the cancelled
-   * sessions straight before it (Q25): `[4, 5]` after week 4's was cancelled
+   * sessions straight before it: `[4, 5]` after week 4's was cancelled
    * and the group kept pace. `[5]` otherwise.
    */
   weekNumbers: number[];
@@ -204,7 +204,7 @@ export type OverviewNextSession = {
   /**
    * Its joining link, resolved for its own week, under the same gate as the
    * group's `meetingUrl`: null for anybody that one is null for. The link is
-   * on the site only (Q23): no email or calendar feed carries it.
+   * on the site only: no email or calendar feed carries it.
    */
   meetingUrl: string | null;
   /**
@@ -218,7 +218,7 @@ export type OverviewNextSession = {
 
 /**
  * A cancelled evening the group's people must read about before their next
- * session (Q25, wk-changes): "No session tonight", why, and what to do
+ * session: "No session tonight", why, and what to do
  * instead. Worked out by `sessionNoticeFor`.
  */
 export type OverviewSessionNotice = {
@@ -244,7 +244,7 @@ export type OverviewCancelledSession = {
 
 /**
  * ONE TAUGHT WEEK OF THE CALLER'S OWN CALENDAR, as the pages a member uses
- * every week draw it (boards wk-programme, st-programme, wk-week-phone): the
+ * every week draw it: the
  * week's session as their group holds it, and whether its page is open to
  * them.
  *
@@ -378,7 +378,7 @@ export type OverviewGroup = {
    */
   campus: GroupCampus | null;
   /**
-   * A cancelled evening to tell the card's reader about (Q25), or null. The
+   * A cancelled evening to tell the card's reader about, or null. The
    * reason travels because "the group sees this": it is written for exactly
    * the people this card is for, and it can hold no link.
    */
@@ -388,8 +388,7 @@ export type OverviewGroup = {
 };
 
 /**
- * THIS WEEK ON A WEEK WRITTEN AS BLOCKS (boards st-week1-phone, wk-week-phone,
- * wk-programme): its rows in order, each task with what it needs to be done
+ * THIS WEEK ON A WEEK WRITTEN AS BLOCKS: its rows in order, each task with what it needs to be done
  * (`taskNeeds`, ids only), which of its boxes (reflection prompts and fill-in
  * boxes) the caller has written in, and the day it is due for the caller's
  * group. Every page that
@@ -419,12 +418,12 @@ export type OverviewThisWeek = {
    * boxes (`src/lib/courses/fillInBoxes/access.ts`): their group's
    * facilitators, or, for somebody who facilitates a live group of the run (a
    * facilitator holding a place included), the programme's lead and admins
-   * (Q30 C; Zach, Mon 26 Oct). One rule, which both readers keep.
+   * (Zach, Mon 26 Oct). One rule, which both readers keep.
    */
   answersReadBy: "facilitators" | "lead";
 };
 
-/** A talk a This week task covers, as the programme page draws its line (board wk-programme). */
+/** A talk a This week task covers, as the programme page draws its line. */
 export type OverviewTalk = {
   /** The talk hands out cases (a case study), so "Not given yet" means something. */
   hasCases: boolean;
@@ -434,8 +433,8 @@ export type OverviewTalk = {
 };
 
 /**
- * THE CALLER'S OWN PACKS, CASES AND READY MARKS IN ONE WEEK WRITTEN AS BLOCKS
- * (plan item 8; Q32 A), for the week page: the pack they have in each Choose
+ * THE CALLER'S OWN PACKS, CASES AND READY MARKS IN ONE WEEK WRITTEN AS BLOCKS,
+ * for the week page: the pack they have in each Choose
  * one, picked or given out, the case they were given in each talk, and the
  * talks they marked themselves ready for, each held to the week's blocks as
  * they are now. `open` says whether a pack the caller picks themselves can
@@ -571,8 +570,8 @@ export type OverviewPayload = {
     feedback: OwnFeedbackCard[] | null;
   }>;
   /**
-   * Who a person taking part asks to switch a pack or swap a case (Q32 A:
-   * "To swap, ask Rahul or Sofia"): the first names of their own group's
+   * Who a person taking part asks to switch a pack or swap a case
+   * ("To swap, ask Rahul or Sofia"): the first names of their own group's
    * facilitators other than themselves. Empty with no group.
    */
   askToSwap: string[];
@@ -585,8 +584,8 @@ export type OverviewPayload = {
    * The programme on the application form that names this run, as a member's
    * pages name it ("AGI Strategy", a fellowship), or null when no programme
    * names it. Nothing else of the form travels but its lead's first name,
-   * which a week page says when it tells someone who reads their reflections
-   * (Q30); null when no lead stands.
+   * which a week page says when it tells someone who reads their reflections;
+   * null when no lead stands.
    */
   programme: { name: string; kind: ProgrammeKind; leadFirstName: string | null } | null;
   /**
@@ -688,18 +687,17 @@ export type OverviewPayload = {
     isTrackLead: boolean;
   };
   /**
-   * WEEK 1 BEFORE GROUPS GO OUT (Q35 B): set only for somebody answered
+   * WEEK 1 BEFORE GROUPS GO OUT: set only for somebody answered
    * through week 1's door (`weekOneDoorFor`), who holds a place and has not
    * been told a group. They are answered week 1 and nothing else: `weeks`
    * holds week 1 alone, with no due day, and there is no group, no session,
-   * no schedule and no current week. `line` is st-week1-phone's sentence,
+   * no schedule and no current week. `line` is the sentence on week 1's page before groups go out,
    * worded here from the run's planned day groups go out. Null for everybody
    * else.
    */
   beforeGroups: { line: string } | null;
   /**
-   * WHAT'S NEXT (boards wk-lastweek-phone, en-after-phone,
-   * en-after-nofinish-phone), for somebody taking part, in their own
+   * WHAT'S NEXT, for somebody taking part, in their own
    * calendar's last week and once it is over: the term's form taking
    * applications or opening (`whatsNextFor`, the form's own public facts), and
    * whether to say they can ask to facilitate. Null for everybody else, on
@@ -966,11 +964,11 @@ function thisWeekPayload(
 }
 
 /**
- * WEEK 1, AND NOTHING ELSE, for somebody through week 1's door (Q35 B): the
+ * WEEK 1, AND NOTHING ELSE, for somebody through week 1's door: the
  * run's own facts a week page names (its course, label and how many weeks it
  * has), week 1 as the run holds it, This week with what the caller has
  * written and no due day (due dates wait for the group), the programme as
- * the pages name it, and st-week1-phone's line. No group, no session, no
+ * the pages name it, and the line on week 1's page before groups go out. No group, no session, no
  * schedule, no other week, no current week, no attendance: those wait for
  * Publish. Built field by field.
  */
@@ -1158,7 +1156,7 @@ export async function GET(
 
   // Reviewer and track lead are deliberately NOT access grants here.
   if (!isAdmin && !liveEnrolment && !isFacilitator) {
-    // Week 1 before groups go out (Q35 B): somebody holding a place whom
+    // Week 1 before groups go out: somebody holding a place whom
     // Publish has not told is answered week 1, once it is ready, and nothing
     // else of the run. Everybody else is refused as before.
     const door = await weekOneDoorFor(db, actor, run.id);
@@ -1628,7 +1626,7 @@ export async function GET(
     isEnrolled && liveEnrolment ? await finishedForMember(db, run, liveEnrolment, new Date(), groups) : false;
 
   // What's next, for somebody taking part, in their own last week and once
-  // their programme is over (wk-lastweek-phone, en-after-phone): the term's
+  // their programme is over: the term's
   // form, read only then. A read that fails says nothing.
   const takingPart = isEnrolled && liveEnrolment?.role === "learner";
   const atTheEnd = currentWeek?.phase === "after" || inLastWeek(currentWeek, own.totalWeeks);

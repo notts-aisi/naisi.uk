@@ -1,5 +1,5 @@
 /**
- * A week's Ready (board pr-weeks, Q35): the one route that stores it, the one
+ * A week's Ready: the one route that stores it, the one
  * answer every page asks, and the lead's "Mark ready" on the programme's
  * Overview.
  *

@@ -5,7 +5,7 @@ import { CERTIFICATE_KINDS, CERTIFICATES_COLLECTION, certificateId, normalizeCer
 
 /**
  * A PERSON'S OWN CERTIFICATES ON ONE RUN, for the card on the programme's
- * page (board en-after-phone): read by their two addresses, never a query,
+ * page: read by their two addresses, never a query,
  * and only those still theirs (`uid`) and still the run's. Nothing for
  * anybody sent none: somebody who did not finish sees nothing about
  * certificates. A view-as session is never the owner, so its caller passes

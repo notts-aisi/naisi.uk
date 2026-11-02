@@ -1,8 +1,8 @@
 /**
- * THE WORDS OF CERTIFICATES, in one place: the certificate itself (boards
- * en-cert and en-cert-phone), its owner's controls, the page anybody else is
- * shown, the card on the programme page after the end (en-after-phone), the
- * Certificates section on the programme's Overview (en-finish), the email,
+ * THE WORDS OF CERTIFICATES, in one place: the certificate itself
+ * (its page), its owner's controls, the page anybody else is
+ * shown, the card on the programme page after the end, the
+ * Certificates section on the programme's Overview, the email,
  * and the routes' refusals.
  *
  * The boards' words are kept exactly, apostrophes included. Words the boards
@@ -103,7 +103,7 @@ export const CREDIT_CHANGE = "Change it on the course";
 export const CREDIT_ASK = "An admin or the course’s author changes it on the course’s page.";
 
 // ---------------------------------------------------------------------------
-// The owner's controls (en-cert)
+// The owner's controls
 // ---------------------------------------------------------------------------
 
 export const ONLY_YOU = "Only you see this";
@@ -137,7 +137,7 @@ export const CALM_SIGN_IN_LINK = "Sign in";
 export const CALM_HOME_LINK = "NAISI home";
 
 // ---------------------------------------------------------------------------
-// The card on the programme page after the end (en-after-phone)
+// The card on the programme page after the end
 // ---------------------------------------------------------------------------
 
 export const CARD_TITLE = "Your certificate";
@@ -153,7 +153,7 @@ export const CARD_PUBLIC = `${LINK_SWITCH}.`;
 export const SEE_YOUR_CERTIFICATE = "See your certificate";
 
 // ---------------------------------------------------------------------------
-// The Certificates section on the Overview (en-finish)
+// The Certificates section on the Overview
 // ---------------------------------------------------------------------------
 
 export const SECTION_TITLE = "Certificates";
@@ -271,7 +271,7 @@ export function emailWords(input: {
 }): CertificateEmailWords {
   const kinds = inOrder(input.kinds);
   const both = kinds.length === 2;
-  // Somebody the record says finished is told so in the record's own words (C43).
+  // Somebody the record says finished is told so in the record's own words.
   const lead =
     kinds[0] === "finished"
       ? [finishedCertificateLead(input.programme, both)]

@@ -6,7 +6,7 @@
  * ## The rules this guards
  *
  *  1. ONLY WHOEVER MAY OFFER IS SHOWN IT: an admin, or the programme's lead
- *     (since the course hub's lead access, Q1). Its reviewer is told who
+ *     (since the course hub's lead access). Its reviewer is told who
  *     offers, and anybody with no role on it is answered as for a programme
  *     that is not there, before anybody's application is read. The lead is
  *     shown a person's score once their own review of that application is
@@ -132,7 +132,7 @@ describe("who is shown the page", () => {
       const loaded = await boardFor(uid);
       answers[uid] = loaded.ok ? "board" : loaded.kind;
     }
-    // The lead is shown the board since the course hub's lead access (Q1).
+    // The lead is shown the board since the course hub's lead access.
     assert.deepEqual(answers, {
       zach: "board",
       claudia: "board",

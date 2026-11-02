@@ -54,8 +54,8 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  *
  * ONCE THE RUN'S LAST SESSION IS OVER the chip reads "Finished · Wed 9 Dec",
  * the day of that session (`readRunEndById`, the moment the lead can say who
- * finished), and the line says how many "stayed to the end" (board en-finish,
- * v21): the same people the running line counted as taking part, which
+ * finished), and the line says how many "stayed to the end" (once
+ * "took part"): the same people the running line counted as taking part, which
  * leaves out everybody who left.
  *
  * Before the run is under way, the head says "Groups go out Wed 28 Oct" for

@@ -129,7 +129,7 @@ import styles from "./course.module.css";
  * emblem. 128px, decorative: the course's name is the heading beside it.
  *
  * LAST TERM. While an admin has published numbers and quotes for a programme
- * tied to this course (sv-public), the latest term's are a section of their
+ * tied to this course, the latest term's are a section of their
  * own after the sample week, drawn from the published record alone
  * (`fetchLastTerm`, which hands the block the fields it draws and nothing
  * else). Nothing published, no section: the page reads as it did.
@@ -372,7 +372,7 @@ export default async function PublicCoursePage({
                 : "A sample week"
             }
             lede={
-              // A block week's public page holds back what is behind sign-in (Q40), so it
+              // A block week's public page holds back what is behind sign-in, so it
               // is not the week in full, and the line says what it is instead.
               isBlockWeek(sampleWeek)
                 ? `Week ${sampleWeek.weekNumber}: why it matters, what you’ll be able to do after it, and what you’ll read and watch. Every other week is published too.`

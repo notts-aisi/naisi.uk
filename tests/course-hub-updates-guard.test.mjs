@@ -1,5 +1,5 @@
 /**
- * Updates (Q18) are read through one gate and written by one route, and a
+ * Updates are read through one gate and written by one route, and a
  * message is never markup. Walked over the whole of `src`.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).

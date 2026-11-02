@@ -622,7 +622,7 @@ const TYPED_IN = {
   "your group and when it meets": {
     [TABLE]: TABLE_REASON,
     "src/lib/courses/groupsGoOut.ts":
-      "st-week1-phone's line for week 1 before groups go out, said only for a fellowship's place (an incubator's is its first sentence alone), with the run's planned day",
+      "the line on week 1's page before groups go out, said only for a fellowship's place (an incubator's is its first sentence alone), with the run's planned day",
   },
   "how the first week works": { [TABLE]: TABLE_REASON },
   // Both kinds' line under "I’m coming" carry it, so one entry holds both.

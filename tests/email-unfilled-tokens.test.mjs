@@ -18,7 +18,7 @@
  *     wording an admin could save, for every combination of values a group
  *     can lack: what it returns for a send never has a token in it, and what
  *     it cannot write it refuses, with the reason. The seed copy is the
- *     board's (st-emails, course hub, October 2026), and the wording it
+ *     board's (course hub, October 2026), and the wording it
  *     replaced, which an admin may have saved, still composes as it did
  *     (`SAVED`): the composer's own rules are held on it, unchanged.
  *  2. EACH TOKEN HAS ITS RULE. The group's name and its first session are
@@ -231,7 +231,7 @@ const FACTS = {
   facilitatorNames: "Priya and Sam",
   firstSessionWhen: "Tuesday 27 October, 18:00",
   firstSessionWhere: { kind: "room", room: "Hallward B12" },
-  // The values the board's seed copy says (st-emails), from October 2026.
+  // The values the board's seed copy says, from October 2026.
   programmeName: "AI Safety Fundamentals",
   weeklySlot: "Tuesdays at 6pm",
   firstSession: "Tue 27 Oct",
@@ -293,7 +293,7 @@ const SAVED_FULL =
   "Everything you need is in the learning space on the website: the week's reading, your group's details and your progress. " +
   "Do the first week's reading before you come; the sessions work best when everyone arrives with opinions.";
 
-/** The board's email (st-emails, "Your AGI Strategy group: Tuesdays at 6pm"), as the seed copy writes it with everything known. */
+/** The board's email ("Your AGI Strategy group: Tuesdays at 6pm"), as the seed copy writes it with everything known. */
 const BOARD_FULL =
   "Your AI Safety Fundamentals group: Tuesdays at 6pm | Hi Amara, " +
   "You’re in Group A. You’ll meet on Tuesdays at 6pm in Hallward B12, starting Tue 27 Oct. Sessions last 2 hours. " +
@@ -303,7 +303,7 @@ const BOARD_FULL =
 
 describe("each token has its rule", () => {
   test("the list is the email's whole token set, and the seed copy uses nothing outside it", () => {
-    // The board's tokens joined the list in October 2026 (course hub, st-emails).
+    // The board's tokens joined the list in October 2026 (course hub).
     // The first nine stay for wording saved before then, which still sends.
     assert.deepEqual(placement.PLACEMENT_TOKEN_RULES, {
       firstName: "always",
@@ -1599,7 +1599,7 @@ describe("publishing an allocation", { concurrency: false }, () => {
     // Each of the group's facilitators is told too, once, after the people.
     assert.deepEqual(world.sent.filter(isFacilitating).map((mail) => mail.to), ["priya@example.com", "sam@example.com"]);
     const mail = await opened(world.sent[0]);
-    // The board's words (st-emails), since October 2026: the weekly time in
+    // The board's words, since October 2026: the weekly time in
     // the subject; the group, its room, the day it meets from and how long
     // its sessions last; its facilitators by first name and how many are in
     // it; the button; and, no programme naming the run, NAISI's sign-off.

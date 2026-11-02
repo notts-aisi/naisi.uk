@@ -59,7 +59,7 @@ export type CourseDroppedOutEmailOptions = {
    */
   feedbackUrl: string;
   /**
-   * The programme's leaving survey (Q46), when it reached them as they left:
+   * The programme's leaving survey, when it reached them as they left:
    * their own link, whole, and the line around it. Linked in place of the
    * outside form, and offered as the `{feedbackUrl}` token too. Null or
    * absent when there is none.

@@ -5,8 +5,8 @@ import type { CertificateDoc, CertificateKind } from "./model";
 import { CARD_PRIVATE, CARD_PUBLIC, SEE_FOR_FACILITATING, SEE_FOR_FINISHING, SEE_YOUR_CERTIFICATE, cardIssuedLine } from "./words";
 
 /**
- * ONE CERTIFICATE AS THE PROGRAMME PAGE'S CARD DRAWS IT (board
- * en-after-phone, "Your certificate"), for its owner: the certificate made
+ * ONE CERTIFICATE AS THE PROGRAMME PAGE'S CARD DRAWS IT
+ * (on the programme page after the end, "Your certificate"), for its owner: the certificate made
  * smaller, the day it was issued, whether anyone else can see it, and the
  * way to its page and to LinkedIn. Only what the card shows travels, never
  * the stored document.

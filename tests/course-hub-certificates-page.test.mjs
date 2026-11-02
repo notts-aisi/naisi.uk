@@ -1,5 +1,5 @@
 /**
- * A certificate's page, `/c/<code>` (boards en-cert and en-cert-phone), and
+ * A certificate's page, `/c/<code>`, and
  * the owner's switch (`PUT /api/courses/certificates/[code]`).
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).

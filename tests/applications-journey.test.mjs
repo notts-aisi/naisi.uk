@@ -3073,7 +3073,7 @@ describe("one term, from nothing to settled", () => {
       assert.deepEqual([seat.groupId, seat.status, seat.role], [GROUP.evening, "active", "learner"]);
     });
 
-    // CHANGED ON PURPOSE (course hub, Q11 "only once it's published and
+    // CHANGED ON PURPOSE (course hub: "only once it's published and
     // emailed"): somebody an admin has put in a group used to read their
     // group at once. They now read nothing until Publish has told them, and
     // then the same line as before.

@@ -1,5 +1,5 @@
 /**
- * A TEAM'S OWN PAGE (boards in-team, in-team-phone and en-handin-phone):
+ * A TEAM'S OWN PAGE:
  * what the people in an incubator's team write there, and how a request to
  * write it is read.
  *
@@ -56,7 +56,7 @@ export const TEAM_PAGE_LIMITS = {
   url: 500,
   /** Links a team may have at once. */
   links: 12,
-  /** The hand-in's summary, in words: board en-handin-phone's 200. */
+  /** The hand-in's summary, in words: the hand-in page's limit of 200. */
   summaryWords: 200,
   /** The summary's text, in characters: a cap on what is stored, well above 200 words. */
   summary: 2000,

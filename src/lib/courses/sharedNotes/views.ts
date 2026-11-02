@@ -1,5 +1,5 @@
 /**
- * THE SHAPES THE PAGES DRAW NOTES SHARED WITH A GROUP FROM (C29), built field
+ * THE SHAPES THE PAGES DRAW NOTES SHARED WITH A GROUP FROM, built field
  * by field on the server by `./readers.ts` and handed to the components that
  * draw them. Types only, so a component in the browser imports them without
  * reaching the server's reader.

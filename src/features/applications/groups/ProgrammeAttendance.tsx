@@ -17,7 +17,7 @@ import styles from "./ProgrammeAttendance.module.css";
 
 /**
  * EVERY REGISTER OF THE RUN A PROGRAMME NAMES, AS ONE GRID: the Attendance
- * tab of the programme's page (board wk-attendance), for its lead and admins.
+ * tab of the programme's page, for its lead and admins.
  *
  * The model is worked out on the server (`buildRunAttendance`): which weeks,
  * each group's own dates, each person's marks, "Came", who left and who has
