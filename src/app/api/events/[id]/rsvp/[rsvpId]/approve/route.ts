@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { decidesSignups } from "@/lib/events/signupAccess";
 import { sendRsvpEmail } from "@/lib/events/sendRsvpEmail";
@@ -23,6 +24,9 @@ export async function POST(
   _req: Request,
   ctx: { params: Promise<{ id: string; rsvpId: string }> },
 ) {
+  const blocked = await assertNotImpersonating();
+  if (blocked) return blocked;
+
   const { id: eventId, rsvpId } = await ctx.params;
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });

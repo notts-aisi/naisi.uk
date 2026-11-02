@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { announcementReach, sendEventAnnouncement } from "@/lib/email/eventAnnouncement";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { canApproveEvent } from "@/lib/firestore/users";
 import { baseUrl } from "@/lib/events/rsvpToken";
@@ -120,6 +121,9 @@ export async function POST(
   _req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  const blocked = await assertNotImpersonating();
+  if (blocked) return blocked;
+
   const actor = await getCurrentUser();
   if (!actor) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });

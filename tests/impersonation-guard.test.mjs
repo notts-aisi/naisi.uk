@@ -97,6 +97,15 @@ const GUARDED_TREES = [
   // name, or the test it waits for. Its one read (whether the menu draws
   // Messages) is a GET, which the sweep does not ask about.
   "src/app/api/messages",
+
+  // Events. Every write in this tree is recorded as the session's person: a
+  // request approved or turned down in their name, a place asked for or given
+  // back as them, an event published, changed, cancelled or emailed about by
+  // them. The signed-out paths (the link in a confirmation email) carry no
+  // view-as marker, so the guard lets them through untouched.
+  // tests/event-view-as.test.mjs asks every handler here the same question
+  // through the real code.
+  "src/app/api/events",
 ];
 
 /**
@@ -652,14 +661,28 @@ const MUST_GUARD = [
   // ── Messages ───────────────────────────────────────────────────────────────
   ["src/app/api/messages/route.ts", "sends a message to the people chosen, in the writer's name, and can post it on a programme's page"],
   ["src/app/api/messages/test/route.ts", "sends the presser a test and records the test the send waits for"],
-  // ── Giving a place back ─────────────────────────────────────────────────────
-  // Outside the trees above: the events tree is not one yet. The event page's
-  // "Can't make it" reaches this route as the session's own sign-up, so a
-  // view-as session would give the member's place back as them.
+  // ── The events lane: sign-ups ───────────────────────────────────────────────
+  // The event page's "Can't make it" reaches the cancel route as the session's
+  // own sign-up, so a view-as session would give the member's place back as them.
   [
     "src/app/api/events/[id]/rsvp/[rsvpId]/cancel/route.ts",
     "gives a place at an event back, as the sign-up's own person or an organiser, and before the event starts moves the first person on the waiting list up, who is emailed",
   ],
+  ["src/app/api/events/[id]/rsvp/route.ts", "asks for a place at an event as the session's own account, and emails them that it was asked"],
+  ["src/app/api/events/[id]/rsvp/[rsvpId]/approve/route.ts", "gives somebody a place, recorded as decided by the presser, and emails them"],
+  ["src/app/api/events/[id]/rsvp/[rsvpId]/deny/route.ts", "turns somebody's request down, recorded as decided by the presser, and emails them"],
+  ["src/app/api/events/[id]/rsvp/[rsvpId]/request-change/route.ts", "asks for a change to a sign-up's answers, as the sign-up's own person"],
+  ["src/app/api/events/[id]/rsvp/[rsvpId]/approve-change/route.ts", "accepts a change to somebody's answers, and emails them"],
+  ["src/app/api/events/[id]/rsvp/[rsvpId]/deny-change/route.ts", "refuses a change to somebody's answers, and emails them"],
+  ["src/app/api/events/[id]/test-rsvps/route.ts", "makes or clears an event's test sign-ups"],
+  // ── The events lane: the event itself ───────────────────────────────────────
+  ["src/app/api/events/[id]/update/route.ts", "changes a live event, its time, place and questions, in the presser's name"],
+  ["src/app/api/events/[id]/publish/route.ts", "publishes an event, announcing it or inviting its people by email in the presser's name"],
+  ["src/app/api/events/[id]/broadcast/route.ts", "emails every attendee of an event, signed by and capped on the presser"],
+  ["src/app/api/events/[id]/cancel/route.ts", "cancels an event and can email everybody holding a place"],
+  ["src/app/api/events/[id]/archive/route.ts", "archives an event or brings it back"],
+  ["src/app/api/events/[id]/delete/route.ts", "deletes an event that never went live, with its sign-ups, check-ins and list"],
+  ["src/app/api/events/[id]/collaborators/route.ts", "changes who may edit an event"],
 ];
 
 /**

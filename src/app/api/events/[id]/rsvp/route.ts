@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
 import {
@@ -134,6 +135,9 @@ export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  const blocked = await assertNotImpersonating();
+  if (blocked) return blocked;
+
   const { id: eventId } = await ctx.params;
 
   // BEFORE THE SESSION LOOKUP AND BEFORE ANY DOCUMENT IS READ. See the header:

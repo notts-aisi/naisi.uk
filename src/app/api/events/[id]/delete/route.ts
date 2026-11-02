@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAdminDb, getAdminStorage } from "@/lib/firebase/admin";
+import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { deleteEventCheckIns } from "@/lib/events/checkIns";
@@ -25,6 +26,9 @@ type Ctx = RouteContext<"/api/events/[id]/delete">;
  * visible and retryable rather than a dangling set of orphans with no parent.
  */
 export async function POST(_req: Request, ctx: Ctx) {
+  const blocked = await assertNotImpersonating();
+  if (blocked) return blocked;
+
   const { id: eventId } = await ctx.params;
 
   const viewer = await getCurrentUser();
