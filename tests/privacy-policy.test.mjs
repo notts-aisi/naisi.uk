@@ -10873,9 +10873,13 @@ describe("Messages' Sent: who reads the email log and the record of a send", () 
     assert.match(sent, /scope\.admin\s*\?\s*db\s*\.collection\("emailSends"\)/);
     assert.equal((sent.match(/collection\("emailSends"\)/g) ?? []).length, 1, "Sent reads the email log in more than one place");
     // A record of a send is read by anybody but an admin only when every tag in it is one they may
-    // use now: the people they run, by the same table the send asks.
-    assert.match(sent, /if \(scope\.admin\) return true;\s*return \(\s*record\.tags\.length > 0 &&\s*record\.tags\.every\(\(each\) => \{\s*const tag = parseTag\(each\.id\);\s*return tag !== null && mayUse\(scope, tag\);/);
-    assert.match(sent, /\.filter\(\(record\): record is MessageSendDoc => record !== null && maySeeSend\(scope, record\)\);/);
+    // use now, by the same table the send asks, and, unless they wrote it, a programme or a group
+    // they run: the people they run, never an event's people, a role or a person by name.
+    assert.match(sent, /const RUN_KINDS = new Set\(\["programme", "group"\]\);/);
+    assert.match(sent, /if \(scope\.admin\) return true;\s*if \(record\.tags\.length === 0\) return false;/);
+    assert.match(sent, /const own = typeof readerUid === "string" && readerUid !== "" && record\.writerUid === readerUid;/);
+    assert.match(sent, /return record\.tags\.every\(\(each\) => \{\s*const tag = parseTag\(each\.id\);\s*if \(tag === null \|\| !mayUse\(scope, tag\)\) return false;\s*return own \|\| RUN_KINDS\.has\(tag\.kind\);/);
+    assert.match(sent, /\.filter\(\(record\): record is MessageSendDoc => record !== null && maySeeSend\(scope, record, viewer\.uid\)\);/);
     // Everybody is named by the reader's rule, and why somebody was left out is said by name to an admin alone.
     assert.match(sent, /return data \? nameForViewer\(reader\.viewer, accountNamesOf\(data\), NO_NAME\) : SENT_WORDS\.gone;/);
     assert.match(sent, /why: reasonsByName && !emailed \? whyOf\(person, record\) : null,/);
@@ -10894,7 +10898,7 @@ describe("Messages' Sent: who reads the email log and the record of a send", () 
       new Map([
         ["src/lib/firestore/messageSends.ts", "the record's name and its shape, and the normaliser Sent reads it through"],
         ["src/lib/messages/sending.ts", "the send's writer: the record is written before the first email and settled after the last"],
-        ["src/lib/messages/sent.ts", "Sent, the one reader: each record is shown only to a writer every one of whose tags it was for, or an admin"],
+        ["src/lib/messages/sent.ts", "Sent, the one reader: each record is shown to an admin, to its writer while they may use its tags, or to a writer who runs every programme or group it was for"],
       ]),
       "places that address the record of a Messages send",
       "Decide who reads what it reads, and that it names nobody but by the reader's rule, before listing it.",
