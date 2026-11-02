@@ -406,7 +406,11 @@ test(
         ]);
         const body = await okBody(response, "Cancelling the explainer");
         assert.deepEqual(body, { archived: 1 }, "cancelling closed no task, or more than one");
-        await adminPage.getByText(WORDS.cancelled, { exact: true }).waitFor({ timeout: WAIT_MS });
+        // The press says so, until the page drawn again leaves the explainer off its list.
+        await waitFor("the review to say the explainer is cancelled, or to list it no more", async () =>
+          (await adminPage.getByText(WORDS.cancelled, { exact: true }).count()) > 0 ||
+          (await adminPage.locator("#review-explainers").getByText(WORDS.explainersNone, { exact: true }).count()) > 0,
+        );
         // Cancelled, never deleted: the record is stamped and kept, and the task is closed.
         const [explainer] = await storedExplainers();
         assert.ok(explainer?.cancelledAt, "the explainer is not stamped cancelled");

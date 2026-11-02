@@ -287,9 +287,6 @@ test(
     /** Every word of a person's that must never reach Claude: their names and their address. */
     const namesOf = (person) => [person.displayName, person.first, person.email];
 
-    /** The week's Notes page, as the admin opens it from the week's tabs. */
-    const notesUrl = `${formBase}/weeks/w03/notes`;
-
     /** Every request the review page sends to Claude's or Pangram's press, counted. */
     const pressed = [];
     adminPage.on("request", (request) => {
