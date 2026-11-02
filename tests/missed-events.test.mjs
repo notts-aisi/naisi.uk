@@ -681,7 +681,8 @@ describe("the event page for somebody holding a place", () => {
     const db = reset();
     const before = JSON.stringify(db.read("eventRsvps/ev-g__priya"));
     const res = await call(cancelRoute.POST, { as: TOM, params: { id: "ev-g", rsvpId: "ev-g__priya" } });
-    assert.equal(res.status, 403);
+    // Every refusal is the one 404 a sign-up that is not there gets.
+    assert.equal(res.status, 404);
     w.world.viewingAs = true;
     const asThem = await call(cancelRoute.POST, { as: PRIYA, params: { id: "ev-g", rsvpId: "ev-g__priya" } });
     assert.equal(asThem.status, 403);
@@ -736,7 +737,8 @@ describe("giving a place back once the event has started", () => {
     const db = reset();
     const res = await giveBack("organiser", "ev-g__priya", "ev-g");
     assert.equal(res.status, 200, JSON.stringify(res.body));
-    assert.deepEqual(res.body, { ok: true, status: "cancelled", promoted: { id: "ev-g__wren" }, started: false });
+    // The answer names nobody else; Wren's move up is read from her sign-up.
+    assert.deepEqual(res.body, { ok: true, status: "cancelled", started: false });
     assert.equal(db.read("eventRsvps/ev-g__wren").status, "confirmed");
     assert.deepEqual(counts(db, "ev-g"), { pending: 0, confirmed: 1, waitlisted: 0 });
     await settle();
@@ -753,7 +755,7 @@ describe("giving a place back once the event has started", () => {
         const db = reset();
         const res = await giveBack(way, "ev-g__priya", "ev-g", PRIYA.email);
         assert.equal(res.status, 200, `${label}: ${JSON.stringify(res.body)}`);
-        assert.deepEqual(res.body, { ok: true, status: "cancelled", promoted: null, started: true }, label);
+        assert.deepEqual(res.body, { ok: true, status: "cancelled", started: true }, label);
         assert.equal(db.read("eventRsvps/ev-g__priya").status, "cancelled", label);
         assert.equal(db.read("eventRsvps/ev-g__wren").status, "waitlisted", `${label}: somebody was moved up`);
         // The counts move as ever: one place fewer taken, the waiting list as it was.
@@ -777,7 +779,7 @@ describe("giving a place back once the event has started", () => {
       clock(t, G_UNDER_WAY);
       const db = reset();
       const res = await giveBack(way, "ev-g__wren", "ev-g", WREN.email);
-      assert.deepEqual(res.body, { ok: true, status: "cancelled", promoted: null, started: true }, way);
+      assert.deepEqual(res.body, { ok: true, status: "cancelled", started: true }, way);
       assert.equal(db.read("eventRsvps/ev-g__wren").status, "cancelled", way);
       assert.deepEqual(counts(db, "ev-g"), { pending: 0, confirmed: 1, waitlisted: 0 }, way);
       await settle();
@@ -790,7 +792,7 @@ describe("giving a place back once the event has started", () => {
       clock(t, new Date("2026-12-03T19:30:00Z"));
       const db = reset();
       const res = await giveBack(way, "ev-req__priya", "ev-req", PRIYA.email);
-      assert.deepEqual(res.body, { ok: true, status: "cancelled", promoted: null, started: true }, way);
+      assert.deepEqual(res.body, { ok: true, status: "cancelled", started: true }, way);
       assert.equal(db.read("eventRsvps/ev-req__priya").status, "cancelled", way);
       assert.equal(counts(db, "ev-req").pending, 4, way);
       await settle();

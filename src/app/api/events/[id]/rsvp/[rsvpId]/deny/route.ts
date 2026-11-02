@@ -5,6 +5,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { decidesSignups } from "@/lib/events/signupAccess";
 import { sendRsvpEmail } from "@/lib/events/sendRsvpEmail";
+import { DECISION_WORDS } from "@/lib/events/requestWords";
 
 /**
  * Organiser action: deny a pending RSVP. Accepts an optional free-text note
@@ -60,7 +61,8 @@ export async function POST(
       if (!decidesSignups(viewer, event)) throw new DenyError("You can't deny this RSVP.", 403);
 
       if (rsvp.status !== "pending") {
-        throw new DenyError(`Only pending RSVPs can be denied (was "${rsvp.status}").`, 400);
+        // Fixed words: what the request became is not every organiser's to learn.
+        throw new DenyError(DECISION_WORDS.alreadyDecided, 400);
       }
 
       const pending = typeof event.rsvpCountPending === "number" ? event.rsvpCountPending : 0;
@@ -110,11 +112,10 @@ export async function POST(
     if (err instanceof DenyError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
+    // The detail stays in the log: an error's own words can carry a
+    // collection path, an index address or the project's id.
     console.error("[rsvp deny] transaction failed", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Deny failed" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: DECISION_WORDS.failed }, { status: 500 });
   }
 }
 

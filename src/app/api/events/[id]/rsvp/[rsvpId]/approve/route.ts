@@ -8,6 +8,7 @@ import { sendRsvpEmail } from "@/lib/events/sendRsvpEmail";
 import { asSignupSnapshot } from "@/lib/firestore/events";
 import type { EventChange } from "@/lib/events/changeSummary";
 import { scheduleChangeSinceSignup } from "@/lib/events/signupSchedule";
+import { DECISION_WORDS } from "@/lib/events/requestWords";
 
 /**
  * Organiser action: approve a pending RSVP.
@@ -56,7 +57,8 @@ export async function POST(
       if (!decidesSignups(viewer, event)) throw new ApproveError("You can't approve this RSVP.", 403);
 
       if (rsvp.status !== "pending") {
-        throw new ApproveError(`Only pending RSVPs can be approved (was "${rsvp.status}").`, 400);
+        // Fixed words: what the request became is not every organiser's to learn.
+        throw new ApproveError(DECISION_WORDS.alreadyDecided, 400);
       }
 
       const capacity =
@@ -162,11 +164,10 @@ export async function POST(
     if (err instanceof ApproveError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
+    // The detail stays in the log: an error's own words can carry a
+    // collection path, an index address or the project's id.
     console.error("[rsvp approve] transaction failed", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Approve failed" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: DECISION_WORDS.failed }, { status: 500 });
   }
 }
 

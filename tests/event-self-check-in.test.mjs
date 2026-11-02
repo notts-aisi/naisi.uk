@@ -678,7 +678,9 @@ describe("the confirmation emails follow the switch", () => {
         { params: Promise.resolve({ id: EVENT_ID, rsvpId: RSVP.kofi }) },
       );
       assert.equal(cancelled.status, 200, JSON.stringify(cancelled.body));
-      assert.deepEqual(cancelled.body.promoted, { id: RSVP.wren });
+      // Wren was moved up, and the answer to the person giving the place back says nothing about her.
+      assert.equal(globalThis.__checkInMailDb.read(`eventRsvps/${RSVP.wren}`).status, "confirmed");
+      assert.ok(!JSON.stringify(cancelled.body).includes(RSVP.wren), "the answer named the person moved up");
       await settle();
       const promoted = globalThis.__checkInMail.find((sent) => sent.to === "wren@example.com");
       assert.ok(promoted, "Wren was told");

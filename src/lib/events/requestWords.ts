@@ -39,6 +39,18 @@ export const REQUEST_WORDS = {
   missed: "Didn’t come to the last 2 events they had a place at.",
 } as const;
 
+/**
+ * What Approve and Turn down answer when they cannot act. Fixed words: a
+ * request that is no longer waiting says so without saying what it became,
+ * because an organiser the Students' Union does not recognise is shown the
+ * requests waiting and nobody already holding a place. A failure inside the
+ * database keeps its detail for the server's log.
+ */
+export const DECISION_WORDS = {
+  alreadyDecided: "This request has already been decided.",
+  failed: "That didn’t go through. Try again in a moment.",
+} as const;
+
 /** "AGI Strategy · Group K", or "AGI Strategy · not in a group yet". */
 export function placeWords(programme: string, group: string | null): string {
   return `${programme} · ${group ?? REQUEST_WORDS.notInGroup}`;
