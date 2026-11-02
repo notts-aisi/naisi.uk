@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { canApproveEvent } from "@/lib/firestore/users";
 import { sanitizeBlocks } from "@/lib/firestore/newsletterBlocks";
@@ -21,6 +22,7 @@ import {
 import { formatEventWhen, type EventChange } from "@/lib/events/changeSummary";
 import { hiddenLocationLacksLabel } from "@/lib/events/location";
 import { liveVisibilityChange } from "@/lib/events/reach";
+import { foodHealthOrAccessQuestions } from "@/lib/events/requestWords";
 
 /**
  * Server-side edit of an event. Firestore rules block client writes once an
@@ -61,6 +63,9 @@ export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  const blocked = await assertNotImpersonating();
+  if (blocked) return blocked;
+
   const { id } = await ctx.params;
 
   const actor = await getCurrentUser();
@@ -167,6 +172,20 @@ export async function POST(
     return NextResponse.json({ error: limitProblem.error }, { status: 400 });
   }
 
+  // WHAT THE ANSWERS WERE GIVEN TO. A question's id is what its answers are
+  // stored under, and whether an organiser the Students' Union does not
+  // recognise is shown an answer is read from the question's type and words.
+  // So both the form this save replaces and the form it saves add their
+  // dietary and accessibility questions to a list that only grows, and the
+  // requests route hides an answer whose question is on it, whatever the
+  // question says now (src/lib/firestore/events.ts, foodHealthAccessQuestionIds).
+  const heldBack = [
+    ...new Set([
+      ...foodHealthOrAccessQuestions(sanitizeSignupForm(old.signupForm)),
+      ...foodHealthOrAccessQuestions(signupForm),
+    ]),
+  ];
+
   const patch: Record<string, unknown> = {
     updatedAt: FieldValue.serverTimestamp(),
     title,
@@ -196,6 +215,7 @@ export async function POST(
     coverLogoBackdrop: asCoverLogoBackdrop(body.coverLogoBackdrop),
     coverLogoShadow: asCoverLogoShadow(body.coverLogoShadow),
   };
+  if (heldBack.length > 0) patch.foodHealthAccessQuestionIds = FieldValue.arrayUnion(...heldBack);
 
   // Build a human-readable diff of the changes confirmed attendees would want
   // an email about. The notify-worthy set is exactly date/time, location, and

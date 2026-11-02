@@ -748,6 +748,9 @@ const eventLoader = createLoader({
     ["firebase-admin/firestore", FIRESTORE_STUB],
     ["@/lib/firebase/admin", "export const getAdminDb = () => globalThis.__db ?? null;"],
     ["@/lib/firebase/session", "export const getCurrentUser = async () => globalThis.__user ?? null;"],
+    // The view-as guard every event write asks first: nothing here is a view-as
+    // session (tests/event-view-as.test.mjs runs one against every handler).
+    ["@/lib/firebase/impersonation", "export async function assertNotImpersonating() { return null; }"],
     [
       "@/lib/email/notice",
       "export const sendNotice = async (args) => {\n" +
@@ -1396,6 +1399,9 @@ const publishLoader = createLoader({
     ["firebase-admin/firestore", FIRESTORE_STUB],
     ["@/lib/firebase/admin", "export const getAdminDb = () => globalThis.__db ?? null;"],
     ["@/lib/firebase/session", "export const getCurrentUser = async () => globalThis.__user ?? null;"],
+    // The view-as guard every event write asks first: nothing here is a view-as
+    // session (tests/event-view-as.test.mjs runs one against every handler).
+    ["@/lib/firebase/impersonation", "export async function assertNotImpersonating() { return null; }"],
     ["@/lib/events/rsvpToken", "export const baseUrl = () => 'https://naisi.test';"],
     ["@/lib/events/changeSummary", "export const formatEventWhen = () => 'Fri 6 June, 18:00';"],
     // THE SWITCH, AS A DOOR. The real helper reads `config/scheduler` through

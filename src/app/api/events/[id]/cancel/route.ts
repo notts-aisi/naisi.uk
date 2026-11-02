@@ -11,6 +11,7 @@ import {
   reserveNoticeSlots,
 } from "@/lib/email/noticeCaps";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { canApproveEvent } from "@/lib/firestore/users";
 import { filterSuppressed } from "@/lib/firestore/suppression";
@@ -80,6 +81,9 @@ export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  const blocked = await assertNotImpersonating();
+  if (blocked) return blocked;
+
   const { id: eventId } = await ctx.params;
 
   const actor = await getCurrentUser();

@@ -3170,9 +3170,10 @@ export const ROUTES = {
     POST: {
       expect: signedIn(404),
       why:
-        "Session required, then the document is read and its own membership decides. The " +
-        "battery's id addresses nothing, so every signed-in persona is told that the document " +
-        "is missing. The event decides who may approve.",
+        "View-as is refused first, then a session is required, then the document is read and its own membership " +
+        "decides. The battery's id addresses nothing, so every signed-in persona is told that the document is " +
+        "missing. The event decides who may approve, and a request no longer waiting is answered in fixed words " +
+        "that never say what it became.",
     },
   },
   "/api/events/[id]/rsvp/[rsvpId]/approve-change": {
@@ -3188,17 +3189,21 @@ export const ROUTES = {
     POST: {
       expect: everyone(404),
       why:
-        "The attendee's own signed link: without a valid token everybody, cookie or not, is " +
-        "told the RSVP is missing.",
+        "Giving a place back: view-as is refused first, then the right is checked before anything about the " +
+        "sign-up is said (the signed link from the person's own email, the sign-up's own account, or an " +
+        "organiser who may), and every refusal is the one 404 a sign-up that is not there gets. So without a " +
+        "valid token or a right to it everybody, cookie or not, is told there is no sign-up to cancel, whether " +
+        "or not one exists. A success names nobody else.",
     },
   },
   "/api/events/[id]/rsvp/[rsvpId]/deny": {
     POST: {
       expect: signedIn(404),
       why:
-        "Session required, then the document is read and its own membership decides. The " +
-        "battery's id addresses nothing, so every signed-in persona is told that the document " +
-        "is missing. The event decides who may deny.",
+        "View-as is refused first, then a session is required, then the document is read and its own membership " +
+        "decides. The battery's id addresses nothing, so every signed-in persona is told that the document is " +
+        "missing. The event decides who may deny, and a request no longer waiting is answered in fixed words " +
+        "that never say what it became.",
     },
   },
   "/api/events/[id]/rsvp/[rsvpId]/deny-change": {
@@ -3214,8 +3219,11 @@ export const ROUTES = {
     POST: {
       expect: everyone(404),
       why:
-        "The attendee's own signed link: without a valid token everybody, cookie or not, is " +
-        "told the RSVP is missing.",
+        "Asking to change a sign-up's answers: view-as is refused first, then the right is checked before " +
+        "anything about the sign-up is said (the signed link from the person's own email, the sign-up's own " +
+        "account, or an organiser who may), and every refusal is the one 404 a sign-up that is not there gets. " +
+        "So without a valid token or a right to it everybody, cookie or not, is told there is no sign-up to " +
+        "change, whether or not one exists or how it stands.",
     },
   },
   "/api/events/[id]/signups": {

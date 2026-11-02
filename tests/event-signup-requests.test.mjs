@@ -35,7 +35,8 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { EVENT_ID, PEOPLE, RSVP, makeCheckInWorld, person, rsvp, textOf, withEvent } from "./lib/checkInWorld.mjs";
+import { FIELD_VALUE_STUB } from "./lib/applicationsStore.mjs";
+import { END, EVENT_ID, PEOPLE, RSVP, START, makeCheckInWorld, person, rsvp, textOf, withEvent } from "./lib/checkInWorld.mjs";
 
 const MAIL = "__signupRequestsMail";
 const w = await makeCheckInWorld("__signupRequests", {
@@ -48,6 +49,13 @@ const w = await makeCheckInWorld("__signupRequests", {
       "export function useAuth() { const u = globalThis.__signupRequests.user; return { user: u, role: u ? u.role : null, permissions: u ? u.permissions : {}, suRecognised: Boolean(u && u.suRecognised) }; }",
     ],
     ["@/lib/firebase/client", "export function getClientDb() { throw new Error('no browser database in a server render'); }"],
+    // The live-event save writes its times as Timestamps; this store keeps Dates.
+    [
+      "firebase-admin/firestore",
+      FIELD_VALUE_STUB.replace("export class Timestamp {}", "export class Timestamp { static fromDate(date) { return date; } }") +
+        " export class FieldPath { constructor(...segments) { this.segments = segments; }" +
+        " static documentId() { return '__name__'; } }",
+    ],
     [
       "firebase/firestore",
       "export const collection = () => null; export const query = () => null; export const where = () => null;" +
@@ -59,6 +67,7 @@ const { call, render, load } = w;
 const signups = await load("app/api/events/[id]/signups/route.ts");
 const approve = await load("app/api/events/[id]/rsvp/[rsvpId]/approve/route.ts");
 const deny = await load("app/api/events/[id]/rsvp/[rsvpId]/deny/route.ts");
+const update = await load("app/api/events/[id]/update/route.ts");
 const page = await load("app/(app)/events/manage/[id]/attendees/page.tsx");
 const { SignupRequestsView } = await load("features/events/SignupRequests.tsx");
 const { default: EventTabs } = await load("features/events/checkIn/EventTabs.tsx");
@@ -689,5 +698,82 @@ describe("which answers an organiser the SU does not recognise is not shown", ()
       { question: "Why?", answer: "Fun" },
     ]);
     assert.deepEqual(words.answerLines(questions, answers, { withFoodHealthAndAccess: false }), [{ question: "Why?", answer: "Fun" }]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. A question changed after people answered it
+// ---------------------------------------------------------------------------
+
+describe("a question changed after people answered it hides what it hid when they answered", () => {
+  // Cal helps run the event, holds approveEvent, and the SU does not
+  // recognise him: he may save the live event, and is shown no dietary or
+  // accessibility answer.
+  const CAL_APPROVES = person("cal", "committee", "Cal Reed", { permissions: { approveEvent: true } });
+  const SECRETS = ["Vegetarian", "Step-free", "coeliac"];
+  const q = (id, type, label, extra = {}) => ({ id, type, label, required: false, ...extra });
+
+  /** The live event as the editor saves it, with `signupForm` in place of its questions. */
+  const save = (as, signupForm) =>
+    call(update.POST, {
+      as,
+      params: { id: EVENT_ID },
+      body: {
+        title: "VR games night",
+        startAt: START.toISOString(),
+        endAt: END.toISOString(),
+        location: "Room B52",
+        visibility: "public",
+        capacity: 30,
+        waitlistEnabled: true,
+        blocks: [],
+        signupForm,
+      },
+    });
+
+  const notShown = (res, why) => {
+    assert.equal(res.status, 200, why);
+    assert.deepEqual(answersOf(res, RSVP.pat), ["Why would you like to come?: I loved the last one", "Which game first?: Beat Saber"], why);
+    const sent = JSON.stringify(res.body);
+    for (const secret of SECRETS) assert.ok(!sent.includes(secret), `${why}: sent "${secret}"`);
+  };
+
+  test("retyped and relabelled in one save: the checklist, the access question, its follow-up and the catch-all stay hidden", async () => {
+    w.reset(world());
+    const saved = await save(CAL_APPROVES, [
+      q("q_diet", "shortText", "Your favourite colour"),
+      q("q_why", "longText", "Why would you like to come?"),
+      q("q_access", "yesNo", "Have you played before?"),
+      q("q_access_more", "shortText", "If yes, please tell us"),
+      q("q_game", "singleSelect", "Which game first?", { options: ["Beat Saber", "Half-Life"] }),
+      q("q_else", "longText", "Favourite film"),
+    ]);
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    notShown(await ask(CAL_APPROVES), "after one save");
+    // The whole list's viewers still read every answer, under the questions' words as they now stand.
+    assert.equal(answersOf(await ask(SUE), RSVP.pat).length, 6);
+  });
+
+  test("taken off in one save and put back under its old id as something harmless in the next: still hidden", async () => {
+    w.reset(world());
+    const without = QUESTIONS.filter((question) => question.id !== "q_diet");
+    assert.equal((await save(CAL_APPROVES, without)).status, 200);
+    notShown(await ask(CAL_APPROVES), "with the question taken off");
+    assert.equal((await save(CAL_APPROVES, [q("q_diet", "shortText", "Your favourite colour"), ...without])).status, 200);
+    notShown(await ask(CAL_APPROVES), "with the question put back");
+  });
+
+  test("a follow-up moved away from the question it followed: still hidden", async () => {
+    w.reset(world());
+    const moved = [QUESTIONS[0], QUESTIONS[1], QUESTIONS[2], QUESTIONS[4], QUESTIONS[3], QUESTIONS[5]];
+    assert.equal((await save(CAL_APPROVES, moved)).status, 200);
+    notShown(await ask(CAL_APPROVES), "after the move");
+  });
+
+  test("a question that was never one stays shown, whatever it is renamed to", async () => {
+    w.reset(world());
+    const renamed = QUESTIONS.map((question) => (question.id === "q_game" ? { ...question, label: "First game?" } : question));
+    assert.equal((await save(CAL_APPROVES, renamed)).status, 200);
+    assert.deepEqual(answersOf(await ask(CAL_APPROVES), RSVP.pat), ["Why would you like to come?: I loved the last one", "First game?: Beat Saber"]);
   });
 });

@@ -125,7 +125,8 @@ const PROJECTIONS = {
     why:
       "the requests waiting for a decision, each with the name by the rule for the viewer, when they asked, the card " +
       "aboutAccounts wrote for the viewer's role (the offer to facilitate and the membership's source for admins alone) " +
-      "and the answers. Withholds the address, the answers to dietary and accessibility questions and the name a sign-up " +
+      "and the answers. Withholds the address, the answers to questions that are or ever were dietary and accessibility " +
+      "questions on the event (its foodHealthAccessQuestionIds), and the name a sign-up " +
       "kept from anybody but admins and SU-recognised committee, and the person's page and whether they missed the last " +
       "two events they had a place at from anybody but admins",
   },

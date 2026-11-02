@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { sanitizeSignupForm } from "@/lib/firestore/events";
 import { buildSyntheticRsvp } from "@/lib/events/syntheticRsvps";
@@ -22,6 +23,9 @@ export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  const blocked = await assertNotImpersonating();
+  if (blocked) return blocked;
+
   const { id } = await ctx.params;
 
   const actor = await getCurrentUser();
@@ -95,6 +99,9 @@ export async function DELETE(
   _req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  const blocked = await assertNotImpersonating();
+  if (blocked) return blocked;
+
   const { id } = await ctx.params;
 
   const actor = await getCurrentUser();

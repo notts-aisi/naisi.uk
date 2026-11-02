@@ -312,7 +312,8 @@ const READERS = {
   "src/app/(public)/events/page.tsx": "the Account needed badge on the list",
   "src/app/links/page.tsx": "/links lists only events open to anyone",
   "src/app/events/[id]/calendar/page.tsx": "who the event is for, under its title",
-  "src/app/events/[id]/check-in/page.tsx": "the door code names nothing of an event for chosen people to somebody else",
+  "src/lib/events/selfCheckIn.ts":
+    "the check-in page and its button ask selfCheckInSight: the door code names nothing of an event for chosen people to somebody else, and only a link that verifies counts",
   "src/app/events/[id]/survey/page.tsx": "the survey's code names nothing of an event for chosen people to somebody else",
   "src/features/events/EventDetailView.tsx": "the badge and who can come",
   "src/features/events/RsvpForm.tsx": "whether a guest may sign up, and the form's line",

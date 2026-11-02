@@ -3,9 +3,11 @@ import type { Firestore } from "firebase-admin/firestore";
 import { isCampaignSlug } from "@/lib/campaign/attribution";
 import { clockWords, dayWords, timeRangeWords } from "@/features/events/manageWords";
 import { publicLocationLine } from "@/lib/events/location";
+import { mayOpenFor } from "@/lib/events/opening";
+import { REACH_WORDS, isForChosenPeople } from "@/lib/events/reach";
 import { verifyRsvpToken } from "@/lib/events/rsvpToken";
 import type { SessionUser } from "@/lib/firebase/session";
-import { normalizeRsvp, type EventDoc, type RsvpStatus } from "@/lib/firestore/events";
+import { normalizeRsvp, type EventDoc, type RsvpDoc, type RsvpStatus } from "@/lib/firestore/events";
 import type { EventCheckInDoc, RecordedHow } from "@/lib/firestore/eventCheckIns";
 import {
   checkInPhase,
@@ -35,6 +37,9 @@ import {
  *    email: the sign-up's id and the token signed for it and its address.
  *  - SIGNED OUT, with no link: asked to sign in. The page is a public address,
  *    so it names nobody, and says nothing about who signed up.
+ *
+ * AN EVENT FOR CHOSEN PEOPLE is seen here only by somebody it is for
+ * (`selfCheckInSight`), asked before anything else of it is said.
  *
  * Only while the door is open: the event's author or an admin has opened it,
  * inside its hours, an hour before the start to an hour after the end. A scan
@@ -74,6 +79,49 @@ export function eventLine(event: EventDoc): EventLine {
   return { id: event.id, title, line: [title, when, publicLocationLine(event)].join(" · ") };
 }
 
+/**
+ * AN EVENT FOR CHOSEN PEOPLE, AT ITS DOOR: who may see it here at all, asked
+ * by the page and its button alike, before either says anything of the event
+ * (its name, its day, its times, its place, whether it was cancelled, when its
+ * door opens).
+ *
+ *  - `sees`: every listed event, for everybody; and an event for chosen
+ *    people for a link that verifies for this event (only somebody who signed
+ *    up for it was sent one) or a session that may open it (invited, named on
+ *    it, or running events: `mayOpenFor`).
+ *  - `sign-in`: an event for chosen people, signed out, with no link that
+ *    verifies. The way in is to sign in, and nothing of the event is named.
+ *  - `not-invited`: an event for chosen people, signed in as somebody who may
+ *    not open it (an account not yet approved included), with no link that
+ *    verifies.
+ *
+ * A link counts only once it verifies for this event: the shape of `r` and
+ * `t` in an address is anybody's to type.
+ */
+export type CheckInSight = "sees" | "sign-in" | "not-invited";
+
+export async function selfCheckInSight(
+  db: Firestore,
+  input: { event: EventDoc; user: SessionUser | null; rsvpId: string | null; token: string | null },
+): Promise<CheckInSight> {
+  const { event, user, rsvpId, token } = input;
+  if (!isForChosenPeople(event)) return "sees";
+  if (rsvpId && token && (await verifiedSignup(db, event, rsvpId, token))) return "sees";
+  if (!user) return "sign-in";
+  return (await mayOpenFor(db, event.id, event, user)) ? "sees" : "not-invited";
+}
+
+/** What the page and the button say to somebody an event for chosen people is not for. */
+export const NOT_INVITED_WORDS = REACH_WORDS.onlyInvited;
+
+/** The sign-up a link from a confirmation email is for, when it verifies for this event; else null. */
+async function verifiedSignup(db: Firestore, event: EventDoc, rsvpId: string, token: string): Promise<RsvpDoc | null> {
+  const snap = await db.collection("eventRsvps").doc(rsvpId).get();
+  const rsvp = snap.exists ? normalizeRsvp(snap.id, snap.data() ?? {}) : null;
+  if (!rsvp || rsvp.eventId !== event.id || rsvp.synthetic || !verifyRsvpToken(rsvp.id, rsvp.email, token)) return null;
+  return rsvp;
+}
+
 export type SelfDecision =
   | { kind: "person"; person: CheckInPerson; firstName: string; asWalkIn: boolean; viaLink: boolean }
   | { kind: "at-the-door"; firstName: string; words: string }
@@ -88,11 +136,8 @@ export async function decideSelf(
   const { event, user, rsvpId, token } = input;
 
   if (rsvpId && token) {
-    const snap = await db.collection("eventRsvps").doc(rsvpId).get();
-    const rsvp = snap.exists ? normalizeRsvp(snap.id, snap.data() ?? {}) : null;
-    if (!rsvp || rsvp.eventId !== event.id || rsvp.synthetic || !verifyRsvpToken(rsvp.id, rsvp.email, token)) {
-      return { kind: "bad-link" };
-    }
+    const rsvp = await verifiedSignup(db, event, rsvpId, token);
+    if (!rsvp) return { kind: "bad-link" };
     const firstName = firstNameOf(rsvp.name);
     if (rsvp.status === "confirmed") {
       return { kind: "person", person: { kind: "signup", rsvp }, firstName, asWalkIn: false, viaLink: true };

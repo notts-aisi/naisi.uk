@@ -7,13 +7,13 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { normalizeEvent, type EventDoc } from "@/lib/firestore/events";
 import { eventTakesCheckIns } from "@/lib/events/checkIns";
-import { mayOpenFor } from "@/lib/events/opening";
-import { REACH_WORDS, isForChosenPeople } from "@/lib/events/reach";
 import {
+  NOT_INVITED_WORDS,
   checkInReturnPath,
   doorCodeParam,
   eventLine,
   linkParams,
+  selfCheckInSight,
   selfCheckInView,
   selfClosedWords,
   type EventLine,
@@ -85,23 +85,26 @@ export default async function SelfCheckInPage({
   }
 
   // AN EVENT FOR CHOSEN PEOPLE is for the people invited to it
-  // (src/lib/events/reach.ts). Signed in as somebody who may not open it, the
-  // page says so and names nothing of it; signed out, every state below is
-  // drawn without the event's name, day or place, and the way in is to sign
-  // in. The link in a confirmation email is its own credential, and only
-  // somebody invited has one.
-  const chosen = isForChosenPeople(event) && !link.token;
-  const signedIn = chosen ? await getCurrentUser() : null;
-  if (chosen && signedIn && !(await mayOpenFor(db, event.id, event, signedIn))) {
+  // (src/lib/events/reach.ts), and `selfCheckInSight` decides, for this page
+  // and its button alike, before anything of it is drawn. Signed in as
+  // somebody who may not open it, the page says so and names nothing of it;
+  // signed out, the way in is to sign in, with nothing of it named, whatever
+  // state it is in. A link in the address counts only once it verifies for
+  // this event: its shape is anybody's to type.
+  const signedIn = await getCurrentUser();
+  const sight = await selfCheckInSight(db, { event, user: signedIn, rsvpId: link.rsvpId, token: link.token });
+  const here = checkInReturnPath(event.id, doorCode);
+  if (sight === "not-invited") {
     return (
       <Frame>
-        <h1 className={styles.title}>{REACH_WORDS.onlyInvited}</h1>
+        <h1 className={styles.title}>{NOT_INVITED_WORDS}</h1>
         <p className={styles.lead}>Give your name at the door.</p>
       </Frame>
     );
   }
+  if (sight === "sign-in") return <SignIn here={here} noSignup={event.noSignup} />;
 
-  const line = chosen && !signedIn ? undefined : eventLine(event);
+  const line = eventLine(event);
   if (event.status === "cancelled") {
     return (
       <Frame line={line}>
@@ -120,30 +123,16 @@ export default async function SelfCheckInPage({
   }
 
   // The link in a guest's email decides on its own: it is their credential.
-  const user = link.token ? null : await getCurrentUser();
+  const user = link.token ? null : signedIn;
   const { decision, already } = await selfCheckInView(db, {
     event,
     user,
     rsvpId: link.rsvpId,
     token: link.token,
   });
-  const here = checkInReturnPath(event.id, doorCode);
   const signOut = user ? <SignOutLink returnTo={here} /> : null;
 
-  if (decision.kind === "sign-in") {
-    return (
-      <Frame line={line}>
-        <h1 className={styles.title}>Are you here?</h1>
-        <p className={styles.lead}>Sign in to check yourself in.</p>
-        <Link href={`/login?next=${encodeURIComponent(here)}`} prefetch={false} className={styles.primary}>
-          Sign in
-        </Link>
-        {/* A drop-in takes no sign-ups, so nobody has a confirmation email to check in from. */}
-        {!event.noSignup && <p>Signed up without an account? Open the check-in link in your confirmation email.</p>}
-        <p>Otherwise, give your name at the door.</p>
-      </Frame>
-    );
-  }
+  if (decision.kind === "sign-in") return <SignIn line={line} here={here} noSignup={event.noSignup} />;
   if (decision.kind === "bad-link") {
     return (
       <Frame line={line}>
@@ -205,6 +194,22 @@ async function readEvent(id: string): Promise<EventDoc | null> {
   if (!db) return null;
   const snap = await db.collection("events").doc(id).get();
   return snap.exists ? normalizeEvent(snap.id, snap.data() ?? {}) : null;
+}
+
+/** Signed out: the way in is to sign in. `line` is absent for an event for chosen people. */
+function SignIn({ line, here, noSignup }: { line?: EventLine; here: string; noSignup: boolean }) {
+  return (
+    <Frame line={line}>
+      <h1 className={styles.title}>Are you here?</h1>
+      <p className={styles.lead}>Sign in to check yourself in.</p>
+      <Link href={`/login?next=${encodeURIComponent(here)}`} prefetch={false} className={styles.primary}>
+        Sign in
+      </Link>
+      {/* A drop-in takes no sign-ups, so nobody has a confirmation email to check in from. */}
+      {!noSignup && <p>Signed up without an account? Open the check-in link in your confirmation email.</p>}
+      <p>Otherwise, give your name at the door.</p>
+    </Frame>
+  );
 }
 
 function Frame({ line, children }: { line?: EventLine; children: ReactNode }) {

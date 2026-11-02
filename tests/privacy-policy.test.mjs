@@ -7291,9 +7291,12 @@ describe("the check-in passage", () => {
     const route = withoutComments(read("src/app/api/events/[id]/signups/route.ts"));
     const refused = route.indexOf("if (!access.requests) {");
     assert.ok(refused !== -1 && refused < route.indexOf("await waitingRequests("), "the route reads the requests before it asks who may see them");
+    // CHANGED ON PURPOSE: the event's foodHealthAccessQuestionIds goes in as
+    // well, so a question retyped or relabelled after people answered it
+    // still holds back what was given as a dietary or accessibility answer.
     assert.match(
       route,
-      /requests: projectSignupRequests\(waiting, event\.signupForm, facts, \{\s+everyone: access\.everyone,\s+isAdmin: viewer\.role === "admin",\s+\}\),/,
+      /requests: projectSignupRequests\(\s*waiting,\s*event\.signupForm,\s*facts,\s*\{ everyone: access\.everyone, isAdmin: viewer\.role === "admin" \},\s*event\.foodHealthAccessQuestionIds,\s*\),/,
     );
     // What the projection keeps from anybody but the whole list's viewers:
     // the address, the dietary and accessibility answers, and the name a
@@ -7302,7 +7305,7 @@ describe("the check-in passage", () => {
     const card = withoutComments(read("src/lib/events/requestCard.ts"));
     assert.match(card, /const stored = viewer\.everyone \? request\.name\.trim\(\) : "";/);
     assert.match(card, /email: viewer\.everyone && request\.email \? request\.email : null,/);
-    assert.match(card, /answers: answerLines\(questions, request\.answers, \{ withFoodHealthAndAccess: viewer\.everyone \}\),/);
+    assert.match(card, /answers: answerLines\(questions, request\.answers, \{ withFoodHealthAndAccess: viewer\.everyone, heldBackBefore \}\),/);
     assert.match(card, /page: viewer\.isAdmin && account \? `\/admin\/members\/\$\{encodeURIComponent\(account\)\}` : null,/);
     // The few words: a place and its group, facilitating, membership, or a
     // guest. The offer to facilitate is read for an admin alone, where the
@@ -7345,6 +7348,19 @@ describe("the check-in passage", () => {
     assert.deepEqual(requestWords.answerLines(questions, answers, { withFoodHealthAndAccess: false }), [
       { question: "Why would you like to come?", answer: "To meet people" },
     ]);
+    // Nor is an answer to a question that was one when it was given, whatever the question says now.
+    const retyped = [
+      { id: "diet", type: "shortText", label: "Your favourite colour", required: false },
+      { id: "access", type: "yesNo", label: "Have you been before?", required: false },
+      { id: "why", type: "longText", label: "Why would you like to come?", required: false },
+    ];
+    assert.deepEqual(
+      requestWords.answerLines(retyped, answers, { withFoodHealthAndAccess: false, heldBackBefore: ["diet", "access"] }),
+      [{ question: "Why would you like to come?", answer: "To meet people" }],
+    );
+    const update = withoutComments(read("src/app/api/events/[id]/update/route.ts"));
+    assert.match(update, /foodHealthOrAccessQuestions\(sanitizeSignupForm\(old\.signupForm\)\)/);
+    assert.match(update, /patch\.foodHealthAccessQuestionIds = FieldValue\.arrayUnion\(\.\.\.heldBack\)/);
     // tests/event-signup-requests.test.mjs runs the route as every kind of caller and holds each one's projection.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "event-signup-requests.test.mjs")));
   });
@@ -7549,7 +7565,11 @@ describe("the check-in passage", () => {
     const decide = withoutComments(read("src/lib/events/selfCheckIn.ts"));
     const byLink = decide.indexOf("if (rsvpId && token) {");
     assert.ok(byLink !== -1 && byLink < decide.indexOf('if (!user) return { kind: "sign-in" };'), "the link no longer decides on its own");
-    assert.match(withoutComments(read("src/app/events/[id]/check-in/page.tsx")), /const user = link\.token \? null : await getCurrentUser\(\);/);
+    // CHANGED ON PURPOSE: the page reads the session once, first, to ask
+    // whether the person may see an event for chosen people at all
+    // (selfCheckInSight); the decision is still handed no session when a
+    // link is there, so the link still decides on its own.
+    assert.match(withoutComments(read("src/app/events/[id]/check-in/page.tsx")), /const user = link\.token \? null : signedIn;/);
     assert.ok(existsSync(join(REPO_ROOT, "tests", "event-self-check-in.test.mjs")), "tests/event-self-check-in.test.mjs sends the emails both ways, and through the routes");
   });
 

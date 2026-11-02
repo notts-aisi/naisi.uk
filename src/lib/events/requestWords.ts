@@ -39,6 +39,18 @@ export const REQUEST_WORDS = {
   missed: "Didn’t come to the last 2 events they had a place at.",
 } as const;
 
+/**
+ * What Approve and Turn down answer when they cannot act. Fixed words: a
+ * request that is no longer waiting says so without saying what it became,
+ * because an organiser the Students' Union does not recognise is shown the
+ * requests waiting and nobody already holding a place. A failure inside the
+ * database keeps its detail for the server's log.
+ */
+export const DECISION_WORDS = {
+  alreadyDecided: "This request has already been decided.",
+  failed: "That didn’t go through. Try again in a moment.",
+} as const;
+
 /** "AGI Strategy · Group K", or "AGI Strategy · not in a group yet". */
 export function placeWords(programme: string, group: string | null): string {
   return `${programme} · ${group ?? REQUEST_WORDS.notInGroup}`;
@@ -158,14 +170,20 @@ export function questionLead(question: string): string {
  * A request's answers, in the order the event asks them, leaving out the
  * questions it was not answered. `withFoodHealthAndAccess` is false for an
  * organiser the Students' Union does not recognise, who is shown no answer
- * to a question that may carry dietary or accessibility details.
+ * to a question that may carry dietary or accessibility details, now or in
+ * any earlier version of the event's form (`heldBackBefore`).
  */
 export function answerLines(
   questions: readonly FormQuestion[],
   answers: Record<string, RsvpAnswer>,
-  options: { withFoodHealthAndAccess: boolean },
+  options: { withFoodHealthAndAccess: boolean; heldBackBefore?: readonly string[] },
 ): AnswerLine[] {
-  const hidden = options.withFoodHealthAndAccess ? new Set<string>() : foodHealthOrAccessQuestions(questions);
+  // A question is held back when it is one now, or was one in an earlier
+  // version of the form (`heldBackBefore`, the event's
+  // foodHealthAccessQuestionIds): its answers were given to that question.
+  const hidden = options.withFoodHealthAndAccess
+    ? new Set<string>()
+    : new Set([...foodHealthOrAccessQuestions(questions), ...(options.heldBackBefore ?? [])]);
   const lines: AnswerLine[] = [];
   for (const q of questions) {
     if (hidden.has(q.id)) continue;
