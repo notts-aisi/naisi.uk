@@ -150,10 +150,8 @@ export async function POST(req: Request) {
       await new Promise((r) => setTimeout(r, 200));
     } catch (err) {
       console.error("[application-email send]", templateId, uid, address, err);
-      failures.push({
-        address,
-        error: err instanceof Error ? err.message : "unknown",
-      });
+      // Logged above; the answer carries words this route chose, never the error's own.
+      failures.push({ address, error: "Not sent. The reason is in the server log." });
     }
   }
 
