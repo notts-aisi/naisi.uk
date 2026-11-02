@@ -14,7 +14,9 @@
  *    sign-up's own account, or an organiser who may) before it says anything
  *    about the sign-up: a missing one, another event's, and one the caller may
  *    not touch all get the same answer. And its answer says nothing about
- *    anybody else: not who was moved up from the waiting list.
+ *    anybody else: not who was moved up from the waiting list. Asking to
+ *    change a sign-up's answers, the other route a signed-out link reaches,
+ *    checks the right first in the same way.
  *
  * Through the real routes. The world is `tests/lib/checkInWorld.mjs`: Iris
  * (committee the SU does not recognise) wrote the event, Cal (the same) helps
@@ -40,6 +42,7 @@ const { call, load } = w;
 const cancel = await load("app/api/events/[id]/rsvp/[rsvpId]/cancel/route.ts");
 const approve = await load("app/api/events/[id]/rsvp/[rsvpId]/approve/route.ts");
 const deny = await load("app/api/events/[id]/rsvp/[rsvpId]/deny/route.ts");
+const requestChange = await load("app/api/events/[id]/rsvp/[rsvpId]/request-change/route.ts");
 const tokens = await load("lib/events/rsvpToken.ts");
 
 const link = (rsvpId, email) => tokens.signRsvpToken(rsvpId, email);
@@ -192,5 +195,58 @@ describe("giving a place back: the right first, one refusal, nothing about anybo
     assert.equal((await call(cancel.POST, { as: "zach", params: { id: EVENT_ID, rsvpId: RSVP.chloe }, body: {} })).status, 200);
     assert.equal(w.world.db.read(`eventRsvps/${RSVP.kofi}`).status, "cancelled");
     assert.equal(w.world.db.read(`eventRsvps/${RSVP.chloe}`).status, "cancelled");
+  });
+});
+
+describe("asking to change a sign-up's answers: the right first, one refusal", () => {
+  test("signed out without a good link, a live sign-up, a cancelled one, a turned-down one, a missing one and another event's all get the same answer", async () => {
+    w.reset({
+      ...withEvent({ signupForm: [{ id: "q_game", type: "shortText", label: "Which game first?", required: false }] }),
+      "eventRsvps/rsvp-elsewhere": {
+        eventId: "another-event-ev02",
+        uid: null,
+        name: "Ella Stone",
+        email: "ella@example.com",
+        answers: {},
+        status: "confirmed",
+        synthetic: false,
+      },
+    });
+    const before = w.everything();
+    const answers = { q_game: "Beat Saber" };
+    const asked = [
+      ["a live sign-up, no link", RSVP.gwen, { answers }],
+      ["a cancelled sign-up, no link", RSVP.cora, { answers }],
+      ["a turned-down sign-up, no link", RSVP.dina, { answers }],
+      ["a live sign-up, a wrong link", RSVP.gwen, { answers, t: "y".repeat(32) }],
+      ["no such sign-up", "no-such-rsvp", { answers, t: link("no-such-rsvp", "gwen@example.com") }],
+      ["another event's sign-up, its own good link", "rsvp-elsewhere", { answers, t: link("rsvp-elsewhere", "ella@example.com") }],
+    ];
+    const said = new Set();
+    for (const [what, rsvpId, body] of asked) {
+      const res = await call(requestChange.POST, { as: null, params: { id: EVENT_ID, rsvpId }, body });
+      assert.equal(res.status, 404, what);
+      said.add(JSON.stringify(res.body));
+    }
+    assert.equal(said.size, 1, `the refusals told the cases apart: ${[...said].join(" | ")}`);
+    assert.equal(w.everything(), before, "a refusal wrote something");
+  });
+
+  test("a good link still asks for the change; on a cancelled sign-up it says so, to the person holding it", async () => {
+    w.reset(withEvent({ signupForm: [{ id: "q_game", type: "shortText", label: "Which game first?", required: false }] }));
+    const ok = await call(requestChange.POST, {
+      as: null,
+      params: { id: EVENT_ID, rsvpId: RSVP.gwen },
+      body: { answers: { q_game: "Beat Saber" }, t: link(RSVP.gwen, "gwen@example.com") },
+    });
+    assert.equal(ok.status, 200);
+    assert.deepEqual(w.world.db.read(`eventRsvps/${RSVP.gwen}`).pendingAnswers, { q_game: "Beat Saber" });
+    const gone = await call(requestChange.POST, {
+      as: null,
+      params: { id: EVENT_ID, rsvpId: RSVP.cora },
+      body: { answers: { q_game: "Beat Saber" }, t: link(RSVP.cora, "cora@example.com") },
+    });
+    assert.equal(gone.status, 400);
+    assert.match(gone.body.error, /cancelled or denied/);
   });
 });

@@ -42,24 +42,16 @@ export async function POST(
   const rsvpRef = db.collection("eventRsvps").doc(rsvpId);
 
   const [eventSnap, rsvpSnap] = await Promise.all([eventRef.get(), rsvpRef.get()]);
-  if (!eventSnap.exists) {
-    return NextResponse.json({ error: "Event not found." }, { status: 404 });
-  }
-  if (!rsvpSnap.exists) {
-    return NextResponse.json({ error: "RSVP not found." }, { status: 404 });
-  }
+  const event = eventSnap.exists ? (eventSnap.data() ?? {}) : null;
+  const rsvp = rsvpSnap.exists ? (rsvpSnap.data() ?? {}) : null;
 
-  const event = eventSnap.data() ?? {};
-  const rsvp = rsvpSnap.data() ?? {};
-
-  if (rsvp.eventId !== eventId) {
-    return NextResponse.json({ error: "This RSVP doesn't belong to that event." }, { status: 400 });
-  }
-  if (rsvp.status === "cancelled" || rsvp.status === "denied") {
-    return NextResponse.json(
-      { error: "You can't change a cancelled or denied RSVP." },
-      { status: 400 },
-    );
+  // THE RIGHT FIRST, AND ONE REFUSAL. A sign-up that is not there, one for
+  // another event, and one the caller may not change all get the same
+  // answer, and its status is said only once the right is checked, so nobody
+  // without the link or the account learns whether a sign-up exists or how
+  // it stands.
+  if (!event || !rsvp || rsvp.eventId !== eventId) {
+    return NextResponse.json({ error: NOT_YOURS }, { status: 404 });
   }
 
   const rsvpEmail = typeof rsvp.email === "string" ? rsvp.email : "";
@@ -73,7 +65,13 @@ export async function POST(
   const isOwnUid = !!viewer && typeof rsvp.uid === "string" && rsvp.uid === viewer.uid;
 
   if (!isOrganiser && !isOwnUid && !tokenValid) {
-    return NextResponse.json({ error: "You can't modify this RSVP." }, { status: 403 });
+    return NextResponse.json({ error: NOT_YOURS }, { status: 404 });
+  }
+  if (rsvp.status === "cancelled" || rsvp.status === "denied") {
+    return NextResponse.json(
+      { error: "You can't change a cancelled or denied RSVP." },
+      { status: 400 },
+    );
   }
 
   const questions: FormQuestion[] = sanitizeSignupForm(event.signupForm);
@@ -96,3 +94,6 @@ export async function POST(
 
   return NextResponse.json({ ok: true });
 }
+
+/** Every refusal, before and after the right is checked. */
+const NOT_YOURS = "We couldn’t find a sign-up you can change here. If it came from an email, open the link in it again.";
