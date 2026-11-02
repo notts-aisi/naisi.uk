@@ -569,12 +569,11 @@ export const SPEC = {
       "/(app)/events/manage/[id]/survey",
     ],
   },
-  /**
-   * Written beside the code it drives and not yet run end to end: it counts
-   * nothing on the coverage map until a run against the harness's server,
-   * with its mail caught, has passed and read zero rows afterwards.
-   */
-  status: "unverified",
+  // Verified: run against the harness's own server, its mail caught, on
+  // 2 November 2026, sitting on 310e066f (dev 3879aa87 with #245's branch,
+  // fd00545a, under it): all ten steps completed, 30 rows before teardown and
+  // a zero manifest after.
+  status: "verified",
   seed,
   countRows,
   teardown,
