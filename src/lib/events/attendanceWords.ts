@@ -84,7 +84,8 @@ export function countsFromWords(agreedOn: string): string {
 /**
  * THE EVENT PAGE'S PANEL FOR SOMEBODY WHO HOLDS A PLACE: "Can't make it"
  * gives it back, as the cancel link in their email does, and the waiting list
- * moves up. Offered until the event starts.
+ * moves up. Offered until the event starts; from then on the waiting list
+ * stays where it is.
  */
 export const HELD_PLACE_WORDS = {
   heading: "You have a place",
@@ -93,6 +94,12 @@ export const HELD_PLACE_WORDS = {
   /** True of the code: a place given back is never counted (`src/lib/events/missedEvents.ts`). */
   never: "Giving it back before it starts never counts as not coming.",
   started: "It has started. See you there.",
+  /**
+   * The email's cancel page once the event has started: the place can still
+   * be given back, and the cancel route then moves nobody up and emails
+   * nobody, so nothing here says somebody else can have it.
+   */
+  startedLede: "It has already started, so nobody else will be offered your place.",
   ask: "Give your place back?",
   askLede: "Somebody else can then have it. If you change your mind, you can ask for a place again.",
   giveBack: "Give my place back",

@@ -23,7 +23,10 @@
  *  4. THE EVENT PAGE for somebody holding a place: "You have a place" with
  *     "Can't make it" until it starts, which gives the place back through
  *     the cancel route and moves the waiting list up; the email's cancel page
- *     in the same words; and nothing of it during a view-as session.
+ *     in the same words; and nothing of it during a view-as session. From
+ *     the start a place, a waiting-list place or a request given back is
+ *     still cancelled, but nobody is moved up and nobody is emailed, and the
+ *     email's cancel page promises neither.
  *  5. THE WALK: every file that reaches the module is behind the admin
  *     check, every file that names the sign-ups collection says what it
  *     writes and what that does to the count, and the module reaches no
@@ -31,8 +34,8 @@
  *
  * The world is the check-in suites' (`tests/lib/checkInWorld.mjs`) with a
  * season of events of its own: Priya missed the last two that count, Tom came
- * to the last one, Wren was moved up from the waiting list after two events
- * had started, and Kofi has not agreed to privacy v15. Run with `npm test`.
+ * to the last one, Wren was given a place after two events had started, and
+ * Kofi has not agreed to privacy v15. Run with `npm test`.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -207,8 +210,9 @@ const EVENTS = {
  * all; gave Quiz night back; Speaker evening is still to come; and a request
  * for a place at the Winter social is waiting. Tom came to Policy social after
  * missing Film night. Wren was on the waiting list for Film night and Policy
- * social and was moved up after each had started, when somebody gave a place
- * back. Kofi missed both and has not agreed to privacy v15. Gwen is a guest
+ * social and was confirmed after each had started (an organiser approving
+ * late, or a move up written before the cancel route stopped making them at
+ * the start). Kofi missed both and has not agreed to privacy v15. Gwen is a guest
  * who signed up with Priya's address.
  */
 function season() {
@@ -240,7 +244,7 @@ function reset() {
   const db = makeDb(season(), { now: () => new Date(), seededAt: SEEDED });
   // Quiz night: Priya gave her place back two days before.
   db.seed("eventRsvps/ev-f__priya", signup("ev-f", PRIYA, "cancelled", { cancelledAt: new Date("2026-11-10T09:00:00Z") }), new Date("2026-11-10T09:00:00Z"));
-  // Wren: moved up from the waiting list after each event had started.
+  // Wren: confirmed after each event had started.
   db.seed("eventRsvps/ev-c__wren", signup("ev-c", WREN, "confirmed"), new Date("2026-10-22T18:40:00Z"));
   db.seed("eventRsvps/ev-d__wren", signup("ev-d", WREN, "confirmed"), new Date("2026-10-29T19:30:00Z"));
   w.world.db = db;
@@ -701,6 +705,131 @@ describe("the event page for somebody holding a place", () => {
   });
 });
 
+/** Speaker evening's start, and two instants from it: under way, and the next day, when it is over. */
+const G_START = EVENTS["ev-g"].startAt;
+const G_UNDER_WAY = new Date("2026-11-26T19:30:00Z");
+const G_OVER = new Date("2026-11-27T12:00:00Z");
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+/** What was emailed, as "variant address". */
+const mailed = () => globalThis[MAIL].map((mail) => `${mail.variant} ${mail.to}`);
+const counts = (db, id) => {
+  const event = db.read(`events/${id}`);
+  return { pending: event.rsvpCountPending, confirmed: event.rsvpCountConfirmed, waitlisted: event.rsvpCountWaitlisted };
+};
+
+describe("giving a place back once the event has started", () => {
+  /** The three ways in: the place's own person signed in, the email's signed link signed out, and an admin. */
+  async function giveBack(way, rsvpId, eventId, email) {
+    const { signRsvpToken } = await load("lib/events/rsvpToken.ts");
+    if (way === "own") return call(cancelRoute.POST, { as: rsvpId.endsWith("__wren") ? WREN : PRIYA, params: { id: eventId, rsvpId } });
+    if (way === "link") {
+      return call(cancelRoute.POST, {
+        params: { id: eventId, rsvpId },
+        url: `https://internal.invalid/?t=${encodeURIComponent(signRsvpToken(rsvpId, email))}`,
+      });
+    }
+    return call(cancelRoute.POST, { as: ZACH, params: { id: eventId, rsvpId } });
+  }
+
+  test("before it starts, an organiser giving a place back moves the oldest person waiting up, and both are emailed as ever", async (t) => {
+    clock(t, NOW);
+    const db = reset();
+    const res = await giveBack("organiser", "ev-g__priya", "ev-g");
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.deepEqual(res.body, { ok: true, status: "cancelled", promoted: { id: "ev-g__wren" }, started: false });
+    assert.equal(db.read("eventRsvps/ev-g__wren").status, "confirmed");
+    assert.deepEqual(counts(db, "ev-g"), { pending: 0, confirmed: 1, waitlisted: 0 });
+    await settle();
+    assert.deepEqual(mailed().sort(), ["cancelled priya@example.com", "promoted wren@example.com"]);
+  });
+
+  test("from the start, a place given back is cancelled, but nobody moves up and nobody is emailed, whoever gives it back", async (t) => {
+    // To the millisecond of the start, under way, and over.
+    for (const at of [G_START, G_UNDER_WAY, G_OVER]) {
+      for (const way of ["own", "link", "organiser"]) {
+        const label = `${way} at ${at.toISOString()}`;
+        t.mock.timers.reset();
+        clock(t, at);
+        const db = reset();
+        const res = await giveBack(way, "ev-g__priya", "ev-g", PRIYA.email);
+        assert.equal(res.status, 200, `${label}: ${JSON.stringify(res.body)}`);
+        assert.deepEqual(res.body, { ok: true, status: "cancelled", promoted: null, started: true }, label);
+        assert.equal(db.read("eventRsvps/ev-g__priya").status, "cancelled", label);
+        assert.equal(db.read("eventRsvps/ev-g__wren").status, "waitlisted", `${label}: somebody was moved up`);
+        // The counts move as ever: one place fewer taken, the waiting list as it was.
+        assert.deepEqual(counts(db, "ev-g"), { pending: 0, confirmed: 0, waitlisted: 1 }, label);
+        await settle();
+        assert.deepEqual(mailed(), [], `${label}: somebody was emailed`);
+      }
+    }
+  });
+
+  test("from the start, a waiting-list place or a request given back sends nothing either", async (t) => {
+    // Before the start an organiser taking Wren off the waiting list tells her, so the silence below is the start's doing.
+    clock(t, NOW);
+    reset();
+    assert.equal((await giveBack("organiser", "ev-g__wren", "ev-g")).status, 200);
+    await settle();
+    assert.deepEqual(mailed(), ["cancelled wren@example.com"]);
+
+    for (const way of ["own", "link", "organiser"]) {
+      t.mock.timers.reset();
+      clock(t, G_UNDER_WAY);
+      const db = reset();
+      const res = await giveBack(way, "ev-g__wren", "ev-g", WREN.email);
+      assert.deepEqual(res.body, { ok: true, status: "cancelled", promoted: null, started: true }, way);
+      assert.equal(db.read("eventRsvps/ev-g__wren").status, "cancelled", way);
+      assert.deepEqual(counts(db, "ev-g"), { pending: 0, confirmed: 1, waitlisted: 0 }, way);
+      await settle();
+      assert.deepEqual(mailed(), [], `${way}: the waiting list`);
+    }
+
+    // Winter social, under way: Priya's request, not decided yet.
+    for (const way of ["own", "link", "organiser"]) {
+      t.mock.timers.reset();
+      clock(t, new Date("2026-12-03T19:30:00Z"));
+      const db = reset();
+      const res = await giveBack(way, "ev-req__priya", "ev-req", PRIYA.email);
+      assert.deepEqual(res.body, { ok: true, status: "cancelled", promoted: null, started: true }, way);
+      assert.equal(db.read("eventRsvps/ev-req__priya").status, "cancelled", way);
+      assert.equal(counts(db, "ev-req").pending, 4, way);
+      await settle();
+      assert.deepEqual(mailed(), [], `${way}: a request`);
+    }
+  });
+
+  test("the email's cancel page, once it has started, promises nobody the place and no email", async (t) => {
+    const { signRsvpToken } = await load("lib/events/rsvpToken.ts");
+    const open = (rsvpId, email) => render(cancelPage, { params: { id: "ev-g", rsvpId }, searchParams: { t: signRsvpToken(rsvpId, email) } });
+    // Before: the place goes to somebody else, and giving it back never counts.
+    clock(t, NOW);
+    reset();
+    const before = await open("ev-g__priya", PRIYA.email);
+    assert.ok(before.text.includes("Give your place back and somebody else can have it."), before.text);
+    assert.ok(before.text.includes(HELD.never));
+    assert.ok(!before.text.includes(HELD.startedLede));
+    assert.ok((await open("ev-g__wren", WREN.email)).text.includes("Confirm below and we'll free up your spot."));
+
+    for (const at of [G_START, G_UNDER_WAY, G_OVER]) {
+      t.mock.timers.reset();
+      clock(t, at);
+      reset();
+      const place = await open("ev-g__priya", PRIYA.email);
+      for (const words of ["Can’t make it to Speaker evening?", `Hi Priya Shah. ${HELD.startedLede}`, HELD.giveBack, HELD.keep]) {
+        assert.ok(place.text.includes(words), `${at.toISOString()}: ${words}\n${place.text}`);
+      }
+      const waiting = await open("ev-g__wren", WREN.email);
+      assert.ok(waiting.text.includes("Hi Wren Hale. It has already started. Confirm below to cancel your RSVP."), waiting.text);
+      for (const page of [place, waiting]) {
+        for (const promise of [/somebody else can have it/i, /free up/i, /email/i, HELD.never]) {
+          const found = promise instanceof RegExp ? promise.test(page.text) : page.text.includes(promise);
+          assert.ok(!found, `${at.toISOString()}: ${promise}\n${page.text}`);
+        }
+      }
+    }
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 5. The walk
 // ---------------------------------------------------------------------------
@@ -773,8 +902,8 @@ describe("the walk: an admin's alone, and no survey", () => {
       "a stamp after the start leaves that event uncounted for its person, the safe side",
     ],
     "src/app/api/events/[id]/rsvp/[rsvpId]/cancel/route.ts": [
-      "gives a place back, and moves the first person on the waiting list up",
-      "a place given back never counts, and a move up after the start is the write the count is built to see",
+      "gives a place back, and moves the first person on the waiting list up until the event starts",
+      "a place given back never counts, and from the start nobody is moved up; a move up written after the start before November 2026 is a write the count is built to see",
     ],
     "src/app/api/events/[id]/rsvp/[rsvpId]/approve/route.ts": ["decides a request", "a request is decided while it waits, and a place confirmed after the start does not count"],
     "src/app/api/events/[id]/rsvp/[rsvpId]/deny/route.ts": ["turns a request down", "a request turned down never counts"],

@@ -234,8 +234,9 @@ export default function RsvpForm({
   /**
    * "Can't make it": the held place goes back through the route the cancel
    * link in their email uses, which knows the sign-up as theirs by the
-   * session, frees the place and moves the first person on the waiting list
-   * up (who is emailed, as they always are). Nobody else is emailed.
+   * session, frees the place and, before the event starts, moves the first
+   * person on the waiting list up (who is emailed, as they always are).
+   * Nobody else is emailed, and from the start nobody at all.
    */
   async function onGiveBack() {
     if (!heldPlace) return;

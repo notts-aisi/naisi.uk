@@ -59,6 +59,16 @@ export function endWords(startAt: Date, endAt: Date, now: Date): string {
 }
 
 /**
+ * Whether an event has started: from its start instant on, to the
+ * millisecond. An event with no date yet has not. The event page stops
+ * offering "Can't make it" from here, and the cancel route stops moving the
+ * waiting list up and sends nothing, so both ask this one function.
+ */
+export function hasStarted(startAt: Date | null, now: Date): boolean {
+  return startAt !== null && startAt.getTime() <= now.getTime();
+}
+
+/**
  * Whether an event is over. With an end time, once that has passed. With
  * none, once the London day it started on is over: an event with no stated
  * end is not called finished an hour after it began.
