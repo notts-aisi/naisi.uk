@@ -349,7 +349,9 @@ recognise. The log spans the whole run, so take its length before the press
 and read what came after. `coursework-notes` is the worked example: it
 presses Claude's draft, holds the box to the fake's words with Ada's name put
 back and reads that no name or address of hers was sent; `course-hub-week-review`
-holds that drawing the review and the notes sends nothing.
+holds that drawing the review and the notes sends nothing, then presses Review
+with Claude and Draft this week's notes once each and reads the fake's answers
+on the page.
 
 **Adding a canned answer for a new caller.**
 
