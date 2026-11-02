@@ -501,8 +501,10 @@ to be rationed like any other send.
 | event invitation | 3, per (presser, event) | 10, per event | 300 people and 200 messages, refused |
 
 **Messages claims both windows for every send**, a message by their settings
-as much as a notice: an audience is the choice of tags, spelled in one order
-and hashed, so the same tags chosen in another order are the same audience.
+as much as a notice: an audience is the people the send emails, not the
+tags that chose them, so tags in another order, a tag left out that removes
+nobody, or the same people chosen another way are the same audience
+(`audienceKeyOf` in src/lib/messages/sending.ts).
 Its ceiling counts emails rather than people, because a message by their
 settings can go to both of a member's addresses.
 

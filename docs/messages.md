@@ -297,9 +297,10 @@ the emails, then what they did, on both.
   audience whoever writes. The audience is the people the send emails, not
   the tags that chose them: tags in another order, a tag left out that removes
   nobody, or the same people chosen through other tags are one audience and
-  claim the same counters. The counter's key is a keyed fingerprint of those
-  people (`audienceKeyOf`), so it names nobody and no address can be tested
-  against it.
+  claim the same counters. The counter's key is a hash of those people's
+  accounts and how many others there are (`audienceKeyOf`): a guest is an
+  address, so they are counted and never spelled, and no address goes into
+  the key.
 - **Suppression** applies twice: the picker leaves out somebody whose every
   address is suppressed, and `sendEmail` drops a suppressed address on the
   way out. On a copy of the site that may not write to an address (staging),

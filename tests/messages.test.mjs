@@ -726,17 +726,22 @@ describe("the caps refuse rather than truncate", () => {
     assert.equal(sentMail().length, sentBefore);
   });
 
-  test("an audience is the people it emails, in any order, and its key names nobody", () => {
+  test("an audience is the people it emails, in any order, and its key holds no address", () => {
     const people = (...keys) => keys.map((key) => ({ key }));
     const one = sending.audienceKeyOf(people("a:amara", "a:bea", "g:sam@example.com"));
     const two = sending.audienceKeyOf(people("g:sam@example.com", "a:amara", "a:bea", "a:amara"));
     assert.equal(one, two, "the same people in another order, or one listed twice, are another audience");
     assert.notEqual(one, sending.audienceKeyOf(people("a:amara", "a:bea")));
-    assert.notEqual(one, sending.audienceKeyOf(people("a:amara", "a:bea", "g:mo@example.com")));
+    assert.notEqual(one, sending.audienceKeyOf(people("a:amara", "a:dev", "g:sam@example.com")));
+    assert.notEqual(one, sending.audienceKeyOf(people("a:amara", "a:bea", "g:sam@example.com", "g:mo@example.com")));
+    // A guest is counted, never spelled: another guest in their place is the same key.
+    assert.equal(one, sending.audienceKeyOf(people("a:amara", "a:bea", "g:mo@example.com")));
     assert.match(one, /^[0-9a-f]{24}$/);
-    // Keyed with the site's secret: the bare people, hashed, are not the key, so an address cannot be tested against it.
-    const bare = createHash("sha256").update(JSON.stringify(["a:amara", "a:bea", "g:sam@example.com"])).digest("hex").slice(0, 24);
-    assert.notEqual(one, bare);
+    // The spelling the course hub's end-to-end fixture restates to delete the counters its sends leave.
+    const restated = createHash("sha256").update(JSON.stringify(["message-audience", ["a:amara", "a:bea"], 1]), "utf8").digest("hex").slice(0, 24);
+    assert.equal(one, restated);
+    const fixture = read("scripts", "e2e-fixtures", "worlds", "course-hub-term.mjs");
+    assert.ok(fixture.includes('JSON.stringify(["message-audience", accounts, emailed.length - accounts.length])'), "the fixture no longer restates the key");
     const windows = sending.capWindows("tom", people("a:amara"), 1, 2);
     assert.equal(windows.hour.limit, 3);
     assert.equal(windows.day.limit, 10);

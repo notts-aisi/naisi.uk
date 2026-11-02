@@ -11,7 +11,7 @@ import {
   type MessagePerson,
   type MessageTally,
 } from "@/lib/firestore/messageSends";
-import { keyedDigest, signToken } from "@/lib/signedTokens";
+import { signToken } from "@/lib/signedTokens";
 
 /**
  * WHAT A SEND IN MESSAGES KEEPS AND ASKS, around the dispatch the send route
@@ -91,13 +91,17 @@ export async function recordMessageTest(db: Firestore, uid: string, wording: str
  * One audience, the caps' key: the people a send emails, however the tags
  * that chose them were spelled. Tags in another order, a tag left out that
  * removes nobody, or the same people chosen through another tag are one
- * audience. A guest is their address, so the key is a keyed fingerprint
- * (`keyedDigest`): the counter's id names nobody, and an address cannot be
- * tested against it.
+ * audience. An account is its uid; anybody else is an address, so they are
+ * only counted and no address goes into the key. Two audiences with the same
+ * accounts and as many guests share a counter, which can only make the cap
+ * stricter. Restated by the course hub's end-to-end fixture
+ * (`scripts/e2e-fixtures/worlds/course-hub-term.mjs`), which deletes the
+ * counters its sends leave.
  */
 export function audienceKeyOf(people: readonly Pick<Reached, "key">[]): string {
-  const keys = [...new Set(people.map((person) => person.key))].sort();
-  return keyedDigest("message-audience", JSON.stringify(keys)).slice(0, 24);
+  const keys = [...new Set(people.map((person) => person.key))];
+  const accounts = keys.filter((key) => key.startsWith("a:")).sort();
+  return sha256(JSON.stringify(["message-audience", accounts, keys.length - accounts.length])).slice(0, 24);
 }
 
 /** The cap windows a send claims, for `reserveNoticeSlots`, over the people it emails (`emailedOf`). */
