@@ -344,6 +344,18 @@ test(
       return { href, csv };
     }
 
+    /**
+     * One of Make a chart's menus, by the words above it. Each sits inside its
+     * own label with those words, and a label's text also holds every option
+     * of the menu it wraps, so the menu is found from the words' label rather
+     * than by a label's whole text.
+     */
+    const chartControl = (words) =>
+      main()
+        .locator("label")
+        .filter({ has: adminPage.getByText(words, { exact: true }) })
+        .locator("select");
+
     /** One chart's panel, by its group's name: the section its heading names. */
     const panelOf = (name) => main().getByRole("region", { name, exact: true });
 
@@ -387,7 +399,8 @@ test(
         await main().getByRole("heading", { level: 2, name: CHART.title, exact: true }).waitFor({ timeout: WAIT_MS });
 
         // The questions that draw as bars, by their numbers: the short answer is a comment, never charted.
-        const questionBox = main().getByLabel(CHART.question, { exact: true });
+        const questionBox = chartControl(CHART.question);
+        await questionBox.waitFor({ timeout: WAIT_MS });
         assert.deepEqual(
           await textsOf(questionBox.locator("option")),
           [`1. ${ready.title}`, `2. ${heard.title}`],
@@ -398,7 +411,7 @@ test(
         const answeredIn = (key) => Object.keys(BEFORE_SURVEY.answers).filter((person) => personOf(person).groupKey === key).length;
         const total = Object.keys(BEFORE_SURVEY.answers).length;
         assert.deepEqual(
-          await textsOf(main().getByLabel(CHART.who, { exact: true }).locator("option")),
+          await textsOf(chartControl(CHART.who).locator("option")),
           [`${CHART.everyone} (${total})`, ...groupsInOrder.map((group) => `${group.name} (${answeredIn(group.key)})`)],
           "Who's choices",
         );
@@ -408,7 +421,11 @@ test(
           adminPage.waitForURL((url) => url.searchParams.get("question") === heard.id, { timeout: WAIT_MS }),
           questionBox.selectOption(heard.id),
         ]);
-        const splitBox = main().getByLabel(CHART.splitBy, { exact: true });
+        // The chart drawn afresh for that question, its menus with it.
+        await main().getByText(heard.title, { exact: true }).waitFor({ timeout: WAIT_MS });
+        const splitBox = chartControl(CHART.splitBy);
+        await splitBox.waitFor({ timeout: WAIT_MS });
+        assert.equal(await questionBox.inputValue(), heard.id, "the menu does not hold the question chosen");
         assert.deepEqual(await textsOf(splitBox.locator("option")), [CHART.splitNone, CHART.splitGroup], "Split by's choices");
         await Promise.all([
           adminPage.waitForURL((url) => url.searchParams.get("split") === "group" && url.searchParams.get("question") === heard.id, { timeout: WAIT_MS }),
@@ -478,14 +495,14 @@ test(
         assert.ok(head.includes(CHART.weeksLine(weeksAt[0], weeksAt.at(-1), total)), `the head does not say the weeks and the answers: ${head}`);
 
         // It opens on how useful the sessions were, on average by week, a chart a group.
-        assert.equal(await main().getByLabel(CHART.question, { exact: true }).inputValue(), CHECK_IN_IDS.useful, "the chart opens on another question");
-        assert.equal(await main().getByLabel(CHART.show, { exact: true }).inputValue(), "average", "the chart opens on another figure");
-        assert.equal(await main().getByLabel(CHART.splitBy, { exact: true }).inputValue(), "group", "the chart does not open split by group");
+        assert.equal(await chartControl(CHART.question).inputValue(), CHECK_IN_IDS.useful, "the chart opens on another question");
+        assert.equal(await chartControl(CHART.show).inputValue(), "average", "the chart opens on another figure");
+        assert.equal(await chartControl(CHART.splitBy).inputValue(), "group", "the chart does not open split by group");
         await main().getByRole("heading", { level: 2, name: "Average by week, by group", exact: true }).waitFor({ timeout: WAIT_MS });
         // Who offers everybody and each group, by how many answered in it.
         const inGroup = (key) => CHECK_INS.filter((plan) => plan.group === key).reduce((sum, plan) => sum + Object.keys(plan.answers).length, 0);
         assert.deepEqual(
-          await textsOf(main().getByLabel(CHART.who, { exact: true }).locator("option")),
+          await textsOf(chartControl(CHART.who).locator("option")),
           [`${CHART.everyone} (${total})`, ...groupsInOrder.map((group) => `${group.name} (${inGroup(group.key)})`)],
           "Who's choices",
         );

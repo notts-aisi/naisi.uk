@@ -570,7 +570,18 @@ export const SPEC = {
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup",
     ],
   },
-  status: "unverified",
+  /**
+   * VERIFIED on 2026-11-02 against dev b457d82c: against the harness's
+   * loopback server on a laptop, all seven steps ran, 57 rows existed before
+   * teardown (a form and its question set, 3 applications and 3 decisions, a
+   * course and its run with 3 weeks, 2 groups, 3 enrolments, 6 register
+   * rows, 1 update, 3 cohort subscriptions, 6 surveys (the before survey,
+   * 4 check-ins and the survey at the end the spec made) with 8 people and
+   * 7 answers, and 4 accounts with their sign-ins), the end of a programme's
+   * question set stood as before the run, and the fixture manifest read zero
+   * after it.
+   */
+  status: "verified",
   seed,
   countRows,
   teardown,
