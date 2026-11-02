@@ -216,7 +216,7 @@ function beforeItems() {
  * (`checkInItems` in src/lib/surveys/checkIns/template.ts, restated): the
  * week's parts are a course page's, and the world's weeks list none.
  */
-function checkInItems() {
+export function checkInItems() {
   return [
     { ...question(CHECK_IN_IDS.useful, "How useful was today’s session?", true), type: "rating", rating: { max: 5, minLabel: "Not at all", maxLabel: "Very" } },
     { ...question(CHECK_IN_IDS.most, "What was the most useful thing?", true), type: "shortText", limit: { unit: "characters", max: 500 } },
@@ -239,7 +239,7 @@ function checkInItems() {
 }
 
 /** `checkInWindow` in src/lib/surveys/checkIns/model.ts: 11pm on the session's London day, or an hour after it ends if later. */
-function checkInClosesAt(session) {
+export function checkInClosesAt(session) {
   const night = londonWallClockToInstant(session.dateKey, "23:00");
   const late = new Date(session.endsAt.getTime() + 60 * 60_000);
   return late.getTime() > night.getTime() ? late : night;

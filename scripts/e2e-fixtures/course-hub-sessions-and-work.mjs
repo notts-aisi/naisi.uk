@@ -17,8 +17,9 @@
  * sends one. Ada writes week 4's written answer, goes through the check and
  * submits anyway, and the week locks. Fern reopens it from This week's work,
  * Ada's week page says who did, and Ada changes the answer and submits again.
- * Last, the programme's lead reads Fern's report, with names, on the
- * programme's session reports.
+ * Last, the programme's lead opens the Surveys tab from the programme's
+ * head and follows the Overview's link to the programme's session reports,
+ * where Fern's report is, with names.
  *
  * ## Every grant is made on a real page, by the admin the harness is given
  *
@@ -51,7 +52,7 @@ export const SESSIONS_AND_WORK_STEPS = [
   "the member writes the week's written answer, goes through the check and submits anyway, and the week reads submitted and locked",
   "the facilitator reopens the member's week from This week's work",
   "the member's week page says who reopened it, and the member changes the answer and submits it again",
-  "the programme's lead reads the facilitator's report, with names, on the programme's session reports",
+  "the programme's lead follows the Surveys tab's link to the session reports and reads the facilitator's report, with names",
 ];
 
 /**
@@ -74,9 +75,9 @@ export const SPEC = {
    * What a green run drives, as src/app keys. Two are reached and
    * deliberately absent: `/api/courses/runs/[runId]/sync-tasks`, which a
    * member's programme page calls on its own and nothing here reads, and the
-   * programme's session reports under the Surveys tab, which the lead opens
-   * by its address here; following the Surveys tab's own link to it is the
-   * surveys spec's.
+   * Surveys tab's Overview, which the lead passes through on the way to the
+   * session reports and reads only its reports from: the programme surveys
+   * spec reads the rest of it.
    */
   covers: {
     routes: [
@@ -104,6 +105,7 @@ export const SPEC = {
       "/(app)/learn/[runId]/group/[groupId]/register",
       "/(app)/learn/[runId]/group/[groupId]/report",
       "/(app)/learn/[runId]/weeks/[n]",
+      "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/reports",
     ],
   },
   /**

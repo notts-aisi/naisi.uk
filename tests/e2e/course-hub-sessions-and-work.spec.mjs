@@ -16,8 +16,9 @@
  * anyway: the week reads submitted and locked, the box read only, after a
  * reload too -> Fern presses "Reopen week 4 for Ada" on This week's work ->
  * Ada's week page says Fern reopened it and until when; Ada changes the
- * answer and submits again -> the programme's lead (the admin) reads Fern's
- * report with names on the programme's session reports.
+ * answer and submits again -> the programme's lead (the admin) opens the
+ * Surveys tab from the programme's head, follows the Overview's "Read the
+ * report" to the session reports, and reads Fern's report with names.
  *
  * ## How to run it
  *
@@ -100,6 +101,15 @@ const WORDS = Object.freeze({
   send: "Send report",
   sent: "Report sent.",
   reportsTitle: "Session reports",
+  // The programme's tabs and its Surveys tab (`ProgrammeTabs`, `SurveysViews`,
+  // `reportsWeekTitleWords`, `reportsAverageWords`, `readReportsWords` in src/lib/surveys/words.ts).
+  sections: "Sections",
+  surveysTab: "Surveys",
+  surveysViews: "Surveys views",
+  reportsView: "Facilitators’ reports",
+  reportsWeek: (week) => `Facilitators’ reports, week ${week}`,
+  reportsAverage: (how) => `Average ${(Math.round(how * 10) / 10).toFixed(1)} of 5 for how it went.`,
+  readReport: "Read the report",
   howOf: (how) => `${how} of 5`,
   writtenAnswer: "Written answer",
   yourAnswer: "Your answer",
@@ -210,7 +220,8 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
   assert.ok(nextSession.startsAt > now, "Group A's week 4 session has started");
   assert.equal(londonDateKey(now) < nextSession.dateKey, true, "Group A's week 4 session is today");
 
-  const formBase = `${origin}/admin/admissions/forms/${enc(state.formId)}/programmes/${enc(state.programmeId)}`;
+  const formPath = `/admin/admissions/forms/${enc(state.formId)}/programmes/${enc(state.programmeId)}`;
+  const formBase = `${origin}${formPath}`;
   const groupPath = `/learn/${enc(state.runId)}/group/${enc(group.id)}`;
   const learnUrl = `${origin}/learn/${enc(state.runId)}`;
   const weekUrl = `${origin}/learn/${enc(state.runId)}/weeks/${nextWeek}`;
@@ -550,10 +561,24 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
       await assertSubmitted(adaPage, asDate(work.submittedAt));
     });
 
-    await step("the programme's lead reads the facilitator's report, with names, on the programme's session reports", async () => {
+    await step("the programme's lead follows the Surveys tab's link to the session reports and reads the facilitator's report, with names", async () => {
       activePage = adminPage;
-      await adminPage.goto(`${formBase}/surveys/reports`, { waitUntil: "domcontentloaded" });
+      // From the programme's head, its Surveys tab: no week of check-ins
+      // shows yet, so the Overview's reports are the latest week's with one.
+      await adminPage.goto(`${formBase}/overview`, { waitUntil: "domcontentloaded" });
+      await adminPage.getByRole("navigation", { name: WORDS.sections }).getByRole("link", { name: WORDS.surveysTab, exact: true }).click();
+      await adminPage.waitForURL((url) => url.pathname === `${formPath}/surveys`, { timeout: WAIT_MS });
+      const overview = adminPage.getByRole("region", { name: WORDS.reportsWeek(thisWeek), exact: true });
+      await overview.getByText(WORDS.reportsAverage(REPORT.how), { exact: true }).waitFor({ timeout: WAIT_MS });
+      const read = overview.getByRole("link", { name: WORDS.readReport, exact: true });
+      assert.equal(await read.getAttribute("href"), `${formPath}/surveys/reports#reports-week-${thisWeek}`, "Read the report leads somewhere else");
+      await read.click();
+      await adminPage.waitForURL((url) => url.pathname === `${formPath}/surveys/reports` && url.hash === `#reports-week-${thisWeek}`, {
+        timeout: WAIT_MS,
+      });
       await adminPage.getByRole("heading", { level: 2, name: WORDS.reportsTitle, exact: true }).waitFor({ timeout: WAIT_MS });
+      const current = adminPage.getByRole("navigation", { name: WORDS.surveysViews }).locator('a[aria-current="page"]');
+      assert.equal(await textOf(current), WORDS.reportsView, "the row of views does not mark Facilitators' reports as current");
       const week = adminPage.getByRole("region", { name: `Week ${thisWeek}`, exact: true });
       await week.waitFor({ timeout: WAIT_MS });
       const card = week.getByRole("article");
