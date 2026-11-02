@@ -144,6 +144,9 @@ const WORDS = Object.freeze({
   resultsLine:
     "Totals and comments, never a name, from the first answer. Only the programme’s lead and NAISI’s admins see them; facilitators never do.",
   beforeAndNow: "Before and now",
+  /** `movedWords` in src/lib/surveys/words.ts, for a question compared person by person. */
+  movedAgainst: (both, against, up, same, down) =>
+    `Of the ${both} who answered it both times (${against}): ${up} moved up, ${same} stayed, ${down} moved down.`,
   // The Check-ins view (`CHECK_INS_TAB_WORDS` and the words beside it).
   checkInsLine: `Every group’s check-ins together, week by week, without names. A week shows shortly after every group’s check-in that week has closed: totals from ${TOTALS_FROM} answers, comments from ${COMMENTS_FROM}.`,
   noneThisWeek: "No group opened a check-in this week.",
@@ -613,7 +616,12 @@ test("course hub: a programme's Surveys tab, as its lead reads it, six months pa
       // Its link to the survey at the end's results, with before and now.
       await seeBoth.click();
       await assertResults(ids.after, afterName, WORDS.view.end, QUESTIONS.c1.title);
-      await main().getByRole("heading", { name: WORDS.beforeAndNow }).first().waitFor({ timeout: WAIT_MS });
+      // C1 compared person by person with the before survey, as What changed counted it.
+      const stage = main().getByRole("region", { name: `1. ${QUESTIONS.c1.title}`, exact: true });
+      await stage.getByText(WORDS.beforeAndNow, { exact: true }).waitFor({ timeout: WAIT_MS });
+      await stage
+        .getByText(WORDS.movedAgainst(both.length, surveyNameOf(state.programmeName, "before"), moved.up, moved.same, moved.down), { exact: true })
+        .waitFor({ timeout: WAIT_MS });
     });
 
     await step("the Follow-ups view lists the follow-up at 6 months, and its link opens its results", async () => {

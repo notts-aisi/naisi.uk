@@ -493,6 +493,8 @@ async function seedSurvey(state, { id, record, reached, answered, sentAt, answer
 const stored = {
   choice: (optionId) => ({ type: "choice", optionId }),
   scale: (value) => ({ type: "scale", value }),
+  // A check-in's two ratings are a worksheet's rating question, not the questionnaire's scale.
+  rating: (value) => ({ type: "rating", value }),
   lines: (values) => ({ type: "lines", values: { ...values } }),
   text: (words) => ({ type: "text", text: words }),
 };
@@ -619,11 +621,11 @@ async function seedSurveys(state) {
       },
       reached: plan.reached,
       answered: mapAnswers(plan.answers, (said) => ({
-        [CHECK_IN_IDS.useful]: stored.scale(said.useful),
+        [CHECK_IN_IDS.useful]: stored.rating(said.useful),
         [CHECK_IN_IDS.most]: stored.text(said.most),
         ...(said.better ? { [CHECK_IN_IDS.better]: stored.text(said.better) } : {}),
         [CHECK_IN_IDS.unclear]: { type: "choices", optionIds: [said.unclear] },
-        [CHECK_IN_IDS.confident]: stored.scale(said.confident),
+        [CHECK_IN_IDS.confident]: stored.rating(said.confident),
       })),
       sentAt: openedAt,
       answeredAt: new Date(openedAt.getTime() + 5 * 60_000),
