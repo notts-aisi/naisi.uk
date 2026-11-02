@@ -117,7 +117,10 @@ export const SPEC = {
    * subscriptions, 7 registers, 1 update, the week 4 email's marker and the
    * push's counter, 1 written answer, 1 week's work row and 4 log rows, 1
    * session report, 4 sends, 4 accounts and their documents), and the
-   * manifest read zero afterwards.
+   * manifest read zero afterwards. Verified again on 2026-11-02 at a3f512eb
+   * (on dev's 3992a724), once the lead reaches the session reports by the
+   * Surveys tab's Overview: all ten steps, the same 53 rows before teardown,
+   * and zero after.
    */
   status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three-work" }),

@@ -1441,12 +1441,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a programme whose surveys have answers, so a spec can follow the Surveys tab's links from the programme's head.",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/reports": {
-    reason:
-      "Course hub: a programme's session reports for its lead and admins, with names, the Surveys tab's Facilitators' reports view; tests/course-session-reports.test.mjs renders it for the lead, an admin, the programme's reviewer, another programme's lead, a facilitator, somebody in a group and somebody signed out, with reports and without, and tests/surveys-lead-tab.test.mjs refuses it to the run's facilitators, a reviewer and members.",
-    coverWhen:
-      "When a browser spec has a group's facilitator send a session report, then signs in the programme's lead and follows the Surveys tab's link to read it.",
-  },
   // The questions somebody left blank (docs/surveys.md). A spec would need a
   // world holding an answer kept before questions were required, which no
   // fixture world holds and no page can make any more.
