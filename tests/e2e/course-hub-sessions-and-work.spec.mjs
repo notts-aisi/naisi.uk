@@ -385,7 +385,7 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
         await signIn(fernPage, fern);
         await fernPage.goto(`${origin}${groupPath}/register`, { waitUntil: "domcontentloaded" });
         await fernPage.getByTestId("attendance-grid").waitFor({ timeout: WAIT_MS });
-        const line = fernPage.getByText(WORDS.registerLine(dayLabel(nextSession.dateKey)));
+        const line = fernPage.getByText(WORDS.registerLine(dayLabel(nextSession.dateKey))).first();
         await line.waitFor({ timeout: WAIT_MS });
         const said = await textOf(line);
         assert.ok(said.includes(ada.first), `the register's line does not name Ada: ${said}`);
@@ -404,17 +404,18 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
         await foot.getByRole("button").first().click();
         const confirm = fernPage.getByTestId("push-confirm");
         await confirm.waitFor({ timeout: WAIT_MS });
+        // The toast that says it is finished covers the page while it is up:
+        // caught as it comes, then waited out before the next press.
+        const toast = fernPage.locator('[role="status"][aria-live="polite"]').filter({ hasText: /Register (locked|finished)\./ }).first();
         const [pushed] = await Promise.all([
           responseTo(fernPage, "/attendance/push", "POST"),
+          toast.waitFor({ timeout: WAIT_MS }),
           fernPage.getByTestId("push-confirm-submit").click(),
         ]);
         assert.deepEqual(pushed.request().postDataJSON(), { weekNumber: thisWeek, occurrence: 1 }, "the press did not name week 3's register");
         const body = await okBody(pushed, "Finishing the register");
         assert.equal(body.sessionKey, weekDocId(thisWeek), "finishing named another register");
         assert.equal(body.alreadyPushed, false, "week 3's register was finished already");
-        // The toast covers the page while it is up: wait for it to go before the next press.
-        const toast = fernPage.locator('[role="status"][aria-live="polite"]').filter({ hasText: /^Register (locked|finished)/ }).first();
-        await toast.waitFor({ timeout: WAIT_MS });
         await toast.waitFor({ state: "hidden", timeout: WAIT_MS });
         const stored = (await fixtureDoc("courseAttendance", `${state.runId}__${group.id}__${weekDocId(thisWeek)}`).get()).data();
         assert.ok(stored?.pushedAt, "week 3's register is not finished");
