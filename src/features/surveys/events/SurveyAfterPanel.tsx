@@ -60,8 +60,9 @@ function confirmWords(emails: number, reminderGoes: boolean): string {
  * the number it emails and "Send a test to me", then the setting, saved by
  * its own button. At an event with no survey yet, "Send it now" sets it up
  * as it sends, and says so where that is the standard questions; an event
- * with no stored setting has the button and nothing to change. For the event's author and collaborators and admins
- * (`runsSurveyAfter`), drawn only for them; the routes ask the same rule.
+ * with no stored setting has the button and nothing to change. For the
+ * event's author and collaborators and admins (`runsSurveyAfter`), drawn
+ * only for them; the routes ask the same rule.
  * Nothing here is a result or a count of answers.
  */
 export default function SurveyAfterPanel({ eventId, event, panel, jobOn }: Props) {
