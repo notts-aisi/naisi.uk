@@ -472,6 +472,14 @@ export const FIXTURE_COLLECTIONS = [
   // event the admin's browser created (found by its title).
   "eventAudiences",
   "eventInvitations",
+  // Who came to a fixture event (`eventId` on every one): written by the
+  // door list's Check in, which the events at the door spec presses.
+  "eventCheckIns",
+  // The QR code of a fixture event's survey after it, made by the press that
+  // opened the survey and found by where it points (`/events/<id>/survey`,
+  // the event's id carrying the run's). A fixture never writes one, and
+  // deletes only those that point at its own events.
+  "trackedLinks",
   // The magic-link tokens /api/register and /api/verify-email/send mint, and
   // the signup tracker row the register route mirrors each new account into.
   // COUNT-ONLY through this chokepoint: both are removed by the auth harness's

@@ -445,12 +445,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
   },
-  "/api/admin/members/[uid]/events": {
-    reason:
-      "The Events card on an admin's page about a person: a read for an admin alone that changes nothing, drawn on the page the coursework-notes spec opens, which asserts nothing about the card. What counts, the line and the route as every caller are executed by tests/missed-events.test.mjs, and the persona battery asks it as every persona against a real build.",
-    coverWhen:
-      "When the person's page is redrawn with the Events card inside their profile, which reshapes the page the coursework-notes spec drives, or when a spec first checks somebody in at an event's door.",
-  },
   "/api/admin/membership/export": {
     reason:
       "Membership: the column matching behind /api/admin/membership/export is a guess until a real Students' Union export exists to match against.",
@@ -1299,21 +1293,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the events authoring spec (scripts/e2e-fixtures/events-authoring.mjs, written when the editor was reshaped on 1 November 2026) is extended to it, in the pull request that next changes it.",
   },
-  "/api/events/[id]/invitations": {
-    reason:
-      "Events for chosen people: Invite the N new since, on a published event's sign-ups, reaching the people new to its " +
-      "tags. Executed as every kind of caller by tests/event-chosen-people.test.mjs, which holds that nothing goes by " +
-      "itself and a second press invites nobody twice.",
-    coverWhen:
-      "When an event for chosen people that is part of a programme is published on the live site, because somebody " +
-      "joining its tags afterwards is the first real use of this press.",
-  },
-  "/api/events/[id]/rsvp/[rsvpId]/approve": {
-    reason:
-      "Events RSVP: /api/events/[id]/rsvp/[rsvpId]/approve is guest-facing, and is proven today by the hand pass over the frozen mobile baseline.",
-    coverWhen:
-      "When an event next runs with a capacity and a waitlist, because a wrong decision there is a real person losing their place.",
-  },
   "/api/events/[id]/rsvp/[rsvpId]/approve-change": {
     reason:
       "Events RSVP: /api/events/[id]/rsvp/[rsvpId]/approve-change is guest-facing, and is proven today by the hand pass over the frozen mobile baseline.",
@@ -1343,35 +1322,6 @@ const NOT_COVERED = {
       "Events RSVP: /api/events/[id]/rsvp/[rsvpId]/request-change is guest-facing, and is proven today by the hand pass over the frozen mobile baseline.",
     coverWhen:
       "When an event next runs with a capacity and a waitlist, because a wrong decision there is a real person losing their place.",
-  },
-  "/api/events/[id]/signups": {
-    reason:
-      "Sign-ups: the requests waiting for a decision, with who is asking; tests/event-signup-requests.test.mjs drives it as every " +
-      "kind of caller (the event's author holding draftEvent and without it, a collaborator the SU does not recognise, " +
-      "SU-recognised committee and admins, an approver, another drafter, other committee, a member, a pending account, a " +
-      "turned-down collaborator, signed out) and holds each one's projection: the name by the rule, no address and no dietary " +
-      "or accessibility answer for an organiser, the card's words, and who decides.",
-    coverWhen:
-      "With the events-authoring browser spec owed by the editor's reshaping: sign in as an event's author, open Sign-ups, " +
-      "read who is asking and approve a request.",
-  },
-  "/api/events/[id]/survey-after/send": {
-    reason:
-      "The survey after an event: Send it now, by the event's author, a collaborator or an admin, from the event's start until it has gone. " +
-      "Executed as every kind of caller by tests/event-survey-after.test.mjs, with the number on the button, the question about not " +
-      "coming beside it, one send against the job's tick, and the job sending nothing more but the reminder; and at an event with no " +
-      "survey of its own (switched off, or published before the step), the press setting it up and sending it, a double press sending once, with the job off.",
-    coverWhen:
-      "When the events-rsvp spec is extended past its event to the survey after it, in the pull request that next changes that spec: " +
-      "it needs an event that has started and people checked in, which the events authoring spec's event (next month) is not.",
-  },
-  "/api/events/[id]/survey-after/test": {
-    reason:
-      "The survey after an event: Send a test to me, beside Send it now, to the presser's own address. Executed as every kind of caller " +
-      "by tests/event-survey-after.test.mjs, which reads the one message it sends.",
-    coverWhen:
-      "When a spec's teardown can tell its own test mail to the harness's one admin account from another spec's (the Messages fixture's " +
-      "test rows), so the events authoring spec can press it and leave nothing behind.",
   },
   "/api/events/[id]/test-rsvps": {
     reason:
@@ -1919,20 +1869,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the credentials store is built and holds a real secret.",
   },
-  "/(app)/events/manage": {
-    reason:
-      "Events authoring: /(app)/events/manage is committee-facing, and a failure surfaces on the editor that caused it. The events authoring spec (scripts/e2e-fixtures/events-authoring.mjs) starts at New event and never opens the list.",
-    coverWhen:
-      "When the events authoring spec is extended to find its event on the list, in the pull request that next changes it.",
-  },
-  "/(app)/events/manage/[id]/attendees": {
-    reason:
-      "Events authoring: /(app)/events/manage/[id]/attendees is organiser-facing, and a failure surfaces on the editor that caused it. " +
-      "tests/event-signup-requests.test.mjs renders it as each kind of caller: the head and its tab, the requests alone for an " +
-      "organiser the SU does not recognise, and the whole list only for admins and SU-recognised committee.",
-    coverWhen:
-      "When the events authoring spec (scripts/e2e-fixtures/events-authoring.mjs, written when the editor was reshaped on 1 November 2026) is extended to it, in the pull request that next changes it.",
-  },
   "/(app)/events/manage/[id]/preview": {
     reason:
       "Events authoring: /(app)/events/manage/[id]/preview is committee-facing, and a failure surfaces on the editor that caused it.",
@@ -2318,18 +2254,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a published event with sign-ups, so a spec can make the code, scan it and check in.",
   },
-  "/api/events/[id]/door": {
-    reason:
-      "Check-in: opening the door; tests/event-door-list.test.mjs drives it as every kind of caller (the event's author with and without standing, a collaborator, an approver, SU-recognised committee, an admin, a member, signed out and view-as), at each edge of the door's hours, and twice to hold the first opening, and tests/event-check-in-tab.test.mjs renders the card that presses it as each of them.",
-    coverWhen:
-      "When the end-to-end fixtures seed a published event with sign-ups, so a spec can open the door as its author and check people in on a phone.",
-  },
-  "/api/events/[id]/check-ins": {
-    reason:
-      "Check-in: the door list's tick and a walk-in; tests/event-door-list.test.mjs and tests/event-walk-ins.test.mjs drive it at each point of the evening as every kind of caller.",
-    coverWhen:
-      "When the end-to-end fixtures seed a published event with sign-ups, so a spec can check people in at the door on a phone.",
-  },
   "/api/events/[id]/check-ins/[checkInId]": {
     reason:
       "Check-in: undo; tests/event-door-list.test.mjs undoes once, refuses twice and refuses a week after.",
@@ -2348,23 +2272,11 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a published event with sign-ups, so a spec can scan the door code and press I'm here.",
   },
-  "/(app)/events/manage/[id]/door": {
-    reason:
-      "Check-in: the door list; tests/event-door-list.test.mjs renders it as every kind of caller before the door's hours, inside them before and after the door is opened, and after them.",
-    coverWhen:
-      "When the end-to-end fixtures seed a published event with sign-ups, so a spec can check people in at the door on a phone.",
-  },
   "/events/[id]/survey": {
     reason:
       "Surveys after events: the page a survey's QR code lands on is a server render; tests/surveys-events.test.mjs renders every state (no survey, not open, signed out naming nobody, signed in as somebody who came, signed up, neither, answered) and finds it writes nothing.",
     coverWhen:
       "When the end-to-end fixtures seed a published event with sign-ups and check-ins, so a spec can make its survey, open it and answer it with the QR code.",
-  },
-  "/(app)/events/manage/[id]/check-in": {
-    reason:
-      "Check-in: an event's Check-in tab; tests/event-check-in-tab.test.mjs renders it as an organiser the SU does not recognise (numbers, no name anywhere in the page) and as the people who run check-in, through the evening.",
-    coverWhen:
-      "When the end-to-end fixtures seed a published event with sign-ups, so a spec can check people in and read who came.",
   },
 };
 
