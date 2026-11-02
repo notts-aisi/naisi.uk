@@ -165,13 +165,17 @@ export function recogniseRequest(body) {
   return CANNED.find((entry) => [...entry.required].sort().join(",") === required && system.includes(entry.system)) ?? null;
 }
 
-/** A Messages API response carrying `value` as its one text block, as the API answers a structured request. */
+/**
+ * A Messages API response carrying `value` as its one text block, as the API
+ * answers a structured request. It has no `role` key ("assistant" on the real
+ * API): the door never reads it, and tests/e2e-no-privilege-grants.test.mjs
+ * reads every role literal in the harness as a site role, rightly.
+ */
 export function messageResponse(body, value) {
   const text = JSON.stringify(value);
   return {
     id: `msg_fake_${Date.now().toString(36)}`,
     type: "message",
-    role: "assistant",
     model: typeof body?.model === "string" ? body.model : "fake-claude",
     content: [{ type: "text", text }],
     stop_reason: "end_turn",
