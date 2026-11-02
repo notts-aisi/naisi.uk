@@ -41,7 +41,9 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  * `runsSurveyAfter`), when its event set the survey up: "Send it now" with
  * the number it emails, "Send a test to me", and its setting, changeable
  * until it opens (its questions) or goes (who gets it and when)
- * (`surveyAfterPanel`).
+ * (`surveyAfterPanel`). At an event with no survey yet (switched off, or
+ * published before the step), "Send it now" from its start sets it up as it
+ * sends.
  *
  * FOR ADMINS (`canRunSurveys`), the results themselves, as the survey's own
  * Results tab draws them, with n beside every number, the logged download,
@@ -120,7 +122,7 @@ export default async function SurveyAfterTabPage({ params }: { params: Promise<{
           </p>
         ))}
         <p className={styles.cardText}>{lines.results}</p>
-        {admin && (survey || !panel) && (
+        {admin && (survey || !event.surveyAfter) && (
           <div className={styles.cardActions}>
             {survey ? (
               <>
@@ -138,7 +140,8 @@ export default async function SurveyAfterTabPage({ params }: { params: Promise<{
             ) : (
               // An event whose Survey after step set one is set up from its
               // setting, below; one with none (made before the step) is made
-              // from Surveys, as it always was.
+              // from Surveys, as it always was, or set up by Send it now
+              // below, with the standard questions, once it has started.
               event.status === "published" && (
                 <Link href={`/admin/surveys/new?event=${encodeURIComponent(event.id)}#after-a-social`} className={codeActions.action}>
                   Make a survey

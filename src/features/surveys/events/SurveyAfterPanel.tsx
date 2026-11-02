@@ -21,8 +21,11 @@ type Props = {
   panel: {
     setting: Setting;
     setUp: boolean;
+    /** The setting is drawn to change; never for an event with no stored setting and no survey. */
+    settings: boolean;
     locks: { questions: string | null; send: string | null; reminder: string | null; off: string | null };
-    send: { emails: number } | null;
+    /** The number it emails, whether its reminder is on, and the line said above the button. */
+    send: { emails: number; reminder: boolean; line: string | null } | null;
     sendNote: string | null;
     test: boolean;
     /** The standard questions as they stand: the question set an admin keeps, else the code's. */
@@ -40,8 +43,8 @@ function sendLabel(n: number): string {
 
 /**
  * Said before Send it now emails anybody. The reminder is named only where
- * it will go by itself: its setting is on (the button waits while a change
- * is unsaved, so the form then holds the saved setting) and sending by
+ * it will go by itself: the survey it sends has its reminder on (the saved
+ * setting, or what the press sets up at an event with none) and sending by
  * itself is switched on here.
  */
 function confirmWords(emails: number, reminderGoes: boolean): string {
@@ -55,7 +58,9 @@ function confirmWords(emails: number, reminderGoes: boolean): string {
 /**
  * THE EVENT'S ORGANISERS' PART OF ITS SURVEY AFTER TAB: "Send it now" with
  * the number it emails and "Send a test to me", then the setting, saved by
- * its own button. For the event's author and collaborators and admins
+ * its own button. At an event with no survey yet, "Send it now" sets it up
+ * as it sends, and says so where that is the standard questions; an event
+ * with no stored setting has the button and nothing to change. For the event's author and collaborators and admins
  * (`runsSurveyAfter`), drawn only for them; the routes ask the same rule.
  * Nothing here is a result or a count of answers.
  */
@@ -122,7 +127,7 @@ export default function SurveyAfterPanel({ eventId, event, panel, jobOn }: Props
   }
 
   async function sendNow() {
-    if (!window.confirm(confirmWords(emails, value.reminder && jobOn))) return;
+    if (!window.confirm(confirmWords(emails, (panel.send?.reminder ?? false) && jobOn))) return;
     setBusy("send");
     setError("");
     setDone("");
@@ -172,6 +177,7 @@ export default function SurveyAfterPanel({ eventId, event, panel, jobOn }: Props
             Send it sooner
           </h2>
           {panel.sendNote && <p className={styles.note}>{panel.sendNote}</p>}
+          {panel.send?.line && <p className={styles.note}>{panel.send.line}</p>}
           <div className={styles.sendRow}>
             {panel.send && (
               <Button onClick={sendNow} disabled={locked || dirty}>
@@ -188,26 +194,28 @@ export default function SurveyAfterPanel({ eventId, event, panel, jobOn }: Props
         </section>
       )}
 
-      {!panel.setUp && value.on && (
+      {panel.settings && !panel.setUp && value.on && (
         <Notice tone="neutral" role="note">
           It isn’t set up yet. Saving sets it up.
         </Notice>
       )}
 
-      <SurveyAfterSettings
-        value={value}
-        onChange={(next) => {
-          setValue(next);
-          setDirty(true);
-          setDone("");
-        }}
-        disabled={locked}
-        event={facts}
-        jobOn={jobOn}
-        where="tab"
-        locks={panel.locks}
-        standard={panel.standard}
-      />
+      {panel.settings && (
+        <SurveyAfterSettings
+          value={value}
+          onChange={(next) => {
+            setValue(next);
+            setDirty(true);
+            setDone("");
+          }}
+          disabled={locked}
+          event={facts}
+          jobOn={jobOn}
+          where="tab"
+          locks={panel.locks}
+          standard={panel.standard}
+        />
+      )}
 
       {error && (
         <p className={styles.problem} role="alert">
@@ -219,11 +227,13 @@ export default function SurveyAfterPanel({ eventId, event, panel, jobOn }: Props
           {done}
         </p>
       )}
-      <div className={styles.saveRow}>
-        <Button onClick={save} disabled={locked || !dirty}>
-          {busy === "save" ? "Saving…" : "Save"}
-        </Button>
-      </div>
+      {panel.settings && (
+        <div className={styles.saveRow}>
+          <Button onClick={save} disabled={locked || !dirty}>
+            {busy === "save" ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
