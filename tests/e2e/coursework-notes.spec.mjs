@@ -5,7 +5,7 @@
  * The term three weeks in (scripts/e2e-fixtures/coursework-notes.mjs, on
  * scripts/e2e-fixtures/worlds/course-hub-term.mjs at "week-three"), with
  * week 3 written as blocks, Ada's reflection to it written after she agreed
- * to privacy v13, and a note about Ada written before she agreed -> the admin
+ * to privacy v13 and her week 3 submitted, and a note about Ada written before she agreed -> the admin
  * approves Ada -> her profile shows the notes the team keeps, says its rule
  * in one line and marks the earlier note, which only admins read -> the admin
  * adds a note, choosing who reads it, changes its words and deletes it, and
@@ -454,6 +454,7 @@ test(
           await pangram.getByText(WORDS.pangramTooShortOne, { exact: true }).waitFor({ timeout: WAIT_MS });
           assert.equal(await pangram.getByRole("button").count(), 0, "a Pangram button with nothing of Ada's to send");
           if (!deployed) {
+            assert.ok(askedAfterDraft !== null, "the draft step did not reach the fake, so there is nothing to compare with");
             assert.equal((await fakeClaudeRequests()).length, askedAfterDraft, "the Coursework tab or Ada's page sent something to Claude with nothing pressed");
           }
         },

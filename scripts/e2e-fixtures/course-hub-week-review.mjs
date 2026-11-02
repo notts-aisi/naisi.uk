@@ -203,8 +203,12 @@ export const SPEC = {
    * teardown (the one follow-up task among them) beside the follow-up's record
    * and the one note saved, and the fixture manifest read zero after it.
    * Nothing was pressed that sends anything to Claude or Pangram: the local
-   * server has no key for either. It had passed in the same mode on 1 November
+   * server had no key for either. It had passed in the same mode on 1 November
    * 2026, before the Notes steps were added.
+   *
+   * Again the same day, in local mode with the harness's fake Claude
+   * answering there: all ten steps ran, the fake was asked nothing, 48 rows
+   * existed before teardown, and the manifest read zero after it.
    */
   status: "verified",
   seed,

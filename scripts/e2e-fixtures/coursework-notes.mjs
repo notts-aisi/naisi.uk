@@ -13,6 +13,9 @@
  *    is seeded, and the moment her coursework counts from is that agreement:
  *    `courseworkCountsFrom` in src/lib/legal/courseworkUse.ts), so it is
  *    writing Claude may be sent. Every word of it is made up.
+ *  - ADA'S WEEK 3 SUBMITTED, after she wrote it, as Submit stores it: a
+ *    note's draft is built only from submitted weeks, so without it the
+ *    draft is refused before anything is sent ("no week of it is submitted").
  *  - A NOTE ABOUT ADA WRITTEN BEFORE THAT AGREEMENT (a day before the seed),
  *    by the harness's admin, from no programme: the profile shows it marked,
  *    and the application screen leaves it out and says so. Written before
@@ -150,6 +153,20 @@ async function seed({ runId, suppress, onState }) {
     firstWrittenAt: new Date(now.getTime() + 1_000),
   });
 
+  // Ada submits week 3 after writing it, as Submit stores it: a note's draft is built from submitted weeks only.
+  const submitted = new Date(now.getTime() + 2_000);
+  await fixtureDoc("courseWeekWork", `${state.runId}__${subject.uid}__${COURSEWORK.weekId}`).set({
+    e2eTermRunId: state.termRunId,
+    runId: state.runId,
+    uid: subject.uid,
+    weekId: COURSEWORK.weekId,
+    weekNumber: COURSEWORK.weekNumber,
+    submittedAt: submitted,
+    firstSubmittedAt: submitted,
+    submitCount: 1,
+    updatedAt: submitted,
+  });
+
   // The note written before she agreed.
   await fixtureDoc("memberNotes", `e2e-cw-earlier-${runId}`).set({
     uid: subject.uid,
@@ -227,6 +244,12 @@ export const SPEC = {
    * Claude's draft came back with a draft, 86 rows existed before teardown,
    * and the fixture manifest read zero after it. Its steps had passed in the
    * pull request's end-to-end job in local mode before that.
+   *
+   * Again on 2 November 2026, in local mode, once the harness's fake Claude
+   * answered there and Ada's week 3 was seeded as submitted (a note's draft
+   * is built only from submitted weeks since end-of-week notes landed): all
+   * ten steps ran, the one press came back with the fake's draft, 39 rows
+   * existed before teardown, and the manifest read zero after it.
    */
   status: "verified",
   seed,
