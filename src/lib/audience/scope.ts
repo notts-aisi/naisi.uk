@@ -30,7 +30,9 @@ import type { Tag } from "./tags";
  * SEE WHO gives names, never addresses, and never more than the tags already
  * admit. Why one person is left out (their settings, a bounced address) is
  * said person by person to admins alone; everybody else reads the reasons as
- * counts.
+ * counts, in which a bounced address is counted with no address
+ * (`reasonsForViewer` in `./resolve.ts`), because a count of one person is
+ * that person.
  *
  * Pure, with no server import: the table is run as every persona by
  * `tests/audience-picker.test.mjs`.

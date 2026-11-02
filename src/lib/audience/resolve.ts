@@ -447,7 +447,11 @@ export function resolutionOf(plan: Plan, reached: readonly Reached[]): Resolutio
 // What leaves the server
 // ---------------------------------------------------------------------------
 
-/** The count and its reasons, as the picker draws them: numbers, never a name or an address. */
+/**
+ * The count and its reasons, as the picker draws them: numbers, never a name
+ * or an address, and the reasons as this reader may read them
+ * (`reasonsForViewer`).
+ */
 export type CountView = {
   people: number;
   emailed: number;
@@ -460,14 +464,39 @@ export type CountView = {
   reasons: { reason: LeftOutReason; count: number }[];
 };
 
-export function projectAudienceCount(resolution: Resolution): CountView {
+/**
+ * The reasons as counts, as this reader may read them. An admin reads each
+ * reason. Anybody else reads a bounced or reported address as "no address we
+ * can email", counted with the people who have none: the suppression list is
+ * the admins' alone, and a count of one person (a person by name, a group of
+ * one) would otherwise say that one person's address bounced. The total is
+ * the same either way. In the order the reasons are listed, and a reason
+ * nobody has is not listed. Pure.
+ */
+export function reasonsForViewer(
+  scope: Scope,
+  reasons: readonly { reason: LeftOutReason; count: number }[],
+): { reason: LeftOutReason; count: number }[] {
+  const byName = seesReasonsByName(scope);
+  const counts = new Map<LeftOutReason, number>();
+  for (const each of reasons) {
+    const shown: LeftOutReason = !byName && each.reason === "suppressed" ? "no-address" : each.reason;
+    counts.set(shown, (counts.get(shown) ?? 0) + each.count);
+  }
+  return LEFT_OUT_REASONS.flatMap((reason) => {
+    const count = counts.get(reason) ?? 0;
+    return count > 0 ? [{ reason, count }] : [];
+  });
+}
+
+export function projectAudienceCount(world: AudienceWorld, resolution: Resolution): CountView {
   return {
     ...resolution.counts,
     mode: resolution.mode,
     row: resolution.row,
     suggestedRow: resolution.suggestedRow,
     tagsAllow: resolution.tagsAllow,
-    reasons: resolution.reasons,
+    reasons: reasonsForViewer(world.scope, resolution.reasons),
   };
 }
 

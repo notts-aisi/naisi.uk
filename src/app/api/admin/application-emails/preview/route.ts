@@ -48,7 +48,7 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error("[application-email preview]", err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Render failed" },
+      { error: "The preview could not be drawn. The reason is in the server log." },
       { status: 500 },
     );
   }

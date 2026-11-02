@@ -1,5 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import { reasonsForViewer } from "@/lib/audience/resolve";
 import { mayUse, scopeOf, seesReasonsByName, type Scope } from "@/lib/audience/scope";
 import { parseTag } from "@/lib/audience/tags";
 import { LEFT_OUT_REASONS, NO_NAME, PICKER_WORDS, leftOutWords, type LeftOutReason } from "@/lib/audience/words";
@@ -33,11 +34,11 @@ import type { MessageWriter } from "./writers";
  *  - AN ADMIN reads every send: every message written in Messages, and what
  *    the site's other senders sent, from the email log (`emailSends`).
  *  - A PROGRAMME'S LEAD OR A GROUP'S FACILITATOR reads a message written in
- *    Messages when every tag it was for, included or left out, is one the
- *    picker's scope table lets them use now (`mayUse`, the same question the
- *    send asks of every tag), so a message to people they run, whoever wrote
- *    it. Nothing of the email log: it is the admins' alone, and its rows
- *    carry no tags the table can ask about.
+ *    Messages when every tag it was for, included or left out, is a
+ *    programme or a group they run now (`maySeeSend`), so a message to people
+ *    they run, whoever wrote it; and their own messages, held to the tags
+ *    they may use now. Nothing of the email log: it is the admins' alone, and
+ *    its rows carry no tags the table can ask about.
  *
  * WHAT IT SAYS. Each send's subject, when, who sent it, and who it reached,
  * by name, by the site's one rule for the person reading (`nameForViewer`:
@@ -185,20 +186,33 @@ export type SentView = {
 // Who may read a record
 // ---------------------------------------------------------------------------
 
+/** The tags that are about running a programme: a programme's own, and a group's. */
+const RUN_KINDS = new Set(["programme", "group"]);
+
 /**
- * May this reader read this message? An admin, any. Anybody else, only one
- * whose every tag, included or left out, they may use now: a message to the
- * people they run.
+ * May this reader read this message? An admin, any. Anybody else:
+ *
+ *  - ANOTHER WRITER'S message only when every tag, included or left out, is a
+ *    programme or a group the reader runs: a message to the people they run.
+ *    The picker lets an SU-recognised lead or facilitator use more than that
+ *    (an event's people, the committee, the admins, a person by name), and a
+ *    message to those people is not to anybody they run, so it is not theirs
+ *    to read, whoever is in it. A message that also names one of those, to
+ *    leave somebody out, is not either: who an admin chose to leave out of a
+ *    group is not the group's.
+ *  - THEIR OWN message when every tag in it is one they may use now, as the
+ *    send asked of every tag. Somebody who has since lost a tag has lost the
+ *    messages that used it.
  */
-export function maySeeSend(scope: Scope, record: Pick<MessageSendDoc, "tags">): boolean {
+export function maySeeSend(scope: Scope, record: Pick<MessageSendDoc, "tags"> & { writerUid?: string }, readerUid?: string): boolean {
   if (scope.admin) return true;
-  return (
-    record.tags.length > 0 &&
-    record.tags.every((each) => {
-      const tag = parseTag(each.id);
-      return tag !== null && mayUse(scope, tag);
-    })
-  );
+  if (record.tags.length === 0) return false;
+  const own = typeof readerUid === "string" && readerUid !== "" && record.writerUid === readerUid;
+  return record.tags.every((each) => {
+    const tag = parseTag(each.id);
+    if (tag === null || !mayUse(scope, tag)) return false;
+    return own || RUN_KINDS.has(tag.kind);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -390,10 +404,17 @@ function messageView(reader: Reader, record: MessageSendDoc): SentSendView {
       why: reasonsByName && !emailed ? whyOf(person, record) : null,
     });
   }
-  const reasons = LEFT_OUT_REASONS.map((reason) => ({
-    why: leftOutWords(reason, record.row ?? "courses"),
-    count: record.people.filter((person) => person.leftOut === reason).length,
-  })).filter((each) => each.count > 0);
+  // As counts, and for anybody but an admin a bounced address is counted with
+  // no address, as the picker's own count reads (`reasonsForViewer`).
+  const reasons = reasonsForViewer(
+    reader.scope,
+    LEFT_OUT_REASONS.map((reason) => ({ reason, count: record.people.filter((person) => person.leftOut === reason).length })),
+  ).map((each) => ({ why: leftOutWords(each.reason, record.row ?? "courses"), count: each.count }));
+  // The do-not-email list at the moment of sending, likewise: an admin reads
+  // it, anybody else reads it as an email that could not be sent.
+  const counts = reasonsByName
+    ? record.counts
+    : { ...record.counts, suppressed: 0, failed: record.counts.failed + record.counts.suppressed };
   const tags = record.tags.map((each) => {
     const tag = parseTag(each.id);
     // A person is named for the reader, as everybody else in the send is.
@@ -411,7 +432,7 @@ function messageView(reader: Reader, record: MessageSendDoc): SentSendView {
     what: sentModeWords(record.mode, record.row),
     notice: record.mode === "notice",
     tags,
-    counts: messageCountsWords(record.counts, record.settled),
+    counts: messageCountsWords(counts, record.settled),
     cutOff: !record.settled,
     posted: record.postedUpdateId !== null,
     people: people.sort(byName),
@@ -531,7 +552,7 @@ export async function loadSent(db: Firestore, viewer: SessionUser, writer: Messa
 
   const records = recordSnap.docs
     .map((doc) => normalizeMessageSend(doc.id, (doc.data() ?? {}) as Record<string, unknown>))
-    .filter((record): record is MessageSendDoc => record !== null && maySeeSend(scope, record));
+    .filter((record): record is MessageSendDoc => record !== null && maySeeSend(scope, record, viewer.uid));
   const logSends = logSnap
     ? groupLogSends(
         logSnap.docs.map((doc) => logRowOf((doc.data() ?? {}) as Record<string, unknown>)).filter((row): row is LogRow => row !== null),

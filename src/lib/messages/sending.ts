@@ -32,8 +32,9 @@ import { signToken } from "@/lib/signedTokens";
  * ── THE CAPS ────────────────────────────────────────────────────────────────
  * Every send claims the notice lane's two windows (`reserveNoticeSlots`):
  * three an hour per writer and audience, ten a day per audience whoever
- * writes. The audience is the choice of tags, canonically spelled and hashed,
- * so the same tags chosen in any order are one audience. A message by their
+ * writes. The audience is the people the send emails, not the tags that
+ * chose them (`audienceKeyOf`), so another spelling of the same people is the
+ * same audience and claims the same counters. A message by their
  * settings claims them too: nobody needs one list written to eleven times a
  * day. And over three hundred emails one send is refused whole, never
  * trimmed: a partial send looks successful, and its retry mails the same
@@ -86,15 +87,26 @@ export async function recordMessageTest(db: Firestore, uid: string, wording: str
   });
 }
 
-/** One audience, whichever order its tags were chosen in: the caps' key. */
-export function audienceKeyOf(selection: Selection): string {
-  const spelled = JSON.stringify([[...selection.include].sort(), [...selection.exclude].sort()]);
-  return sha256(spelled).slice(0, 24);
+/**
+ * One audience, the caps' key: the people a send emails, however the tags
+ * that chose them were spelled. Tags in another order, a tag left out that
+ * removes nobody, or the same people chosen through another tag are one
+ * audience. An account is its uid; anybody else is an address, so they are
+ * only counted and no address goes into the key. Two audiences with the same
+ * accounts and as many guests share a counter, which can only make the cap
+ * stricter. Restated by the course hub's end-to-end fixture
+ * (`scripts/e2e-fixtures/worlds/course-hub-term.mjs`), which deletes the
+ * counters its sends leave.
+ */
+export function audienceKeyOf(people: readonly Pick<Reached, "key">[]): string {
+  const keys = [...new Set(people.map((person) => person.key))];
+  const accounts = keys.filter((key) => key.startsWith("a:")).sort();
+  return sha256(JSON.stringify(["message-audience", accounts, keys.length - accounts.length])).slice(0, 24);
 }
 
-/** The cap windows a send claims, for `reserveNoticeSlots`. */
-export function capWindows(writerUid: string, selection: Selection, hourMs: number, dayMs: number) {
-  const audience = audienceKeyOf(selection);
+/** The cap windows a send claims, for `reserveNoticeSlots`, over the people it emails (`emailedOf`). */
+export function capWindows(writerUid: string, people: readonly Pick<Reached, "key">[], hourMs: number, dayMs: number) {
+  const audience = audienceKeyOf(people);
   return {
     hour: { key: `message__${audience}__${writerUid}`, limit: MESSAGES_PER_HOUR, windowMs: hourMs },
     day: { key: `messageday__${audience}`, limit: MESSAGES_PER_DAY, windowMs: dayMs },

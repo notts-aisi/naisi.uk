@@ -621,6 +621,46 @@ describe("the routes, as every kind of caller in the term", () => {
     }
   });
 
+  test("a bounced address is told apart from no address to an admin alone, and the count stays whole for everybody", async (t) => {
+    mock.timers.enable({ apis: ["Date"], now: AFTER });
+    t.after(() => mock.timers.reset());
+    // Amara, in Group B, reported us as spam as well: Sofia facilitates Group B.
+    w.reset(seed({ "suppressedEmails/amara@example.com": { email: "amara@example.com", reason: "complaint", source: "manual", addedAt: new Date("2026-11-21T10:00:00Z") } }));
+    const countOf = async (who, body) => {
+      const answer = await w.call(who, route.POST, {}, { body });
+      assert.equal(answer.status, 200, `${who}: ${JSON.stringify(answer.body)}`);
+      return answer.body.count;
+    };
+    const whole = (count) => count.reasons.reduce((n, each) => n + each.count, 0) === count.leftOut && count.emailed + count.leftOut === count.people;
+
+    // One person, chosen by name: the count's reason would be that person's reason.
+    const one = { include: [T.person("gwen")], row: "events" };
+    const asAdmin = await countOf("zach", one);
+    assert.deepEqual(asAdmin.reasons, [{ reason: "suppressed", count: 1 }], "an admin is told why");
+    for (const who of ["sue", "claudia"]) {
+      const count = await countOf(who, one);
+      assert.deepEqual({ people: count.people, emailed: count.emailed, leftOut: count.leftOut }, { people: 1, emailed: 0, leftOut: 1 }, who);
+      assert.ok(!count.reasons.some((each) => each.reason === "suppressed"), `${who} is told the address bounced: ${JSON.stringify(count.reasons)}`);
+      assert.ok(whole(count), `${who}'s count does not add up: ${JSON.stringify(count)}`);
+    }
+
+    // A group, as its facilitator, its lead and an admin: the same totals, and the bounce named to the admin alone.
+    const group = { include: [T.groupB] };
+    const admin = await countOf("zach", group);
+    assert.ok(admin.reasons.some((each) => each.reason === "suppressed"), JSON.stringify(admin.reasons));
+    for (const who of ["sofia", "claudia"]) {
+      const count = await countOf(who, group);
+      assert.ok(!count.reasons.some((each) => each.reason === "suppressed"), `${who} is told an address bounced: ${JSON.stringify(count.reasons)}`);
+      assert.ok(whole(count), `${who}'s count does not add up: ${JSON.stringify(count)}`);
+      assert.equal(count.leftOut, admin.leftOut, who);
+    }
+
+    // The words a non-admin reads for the reason cover both, so neither is said.
+    const merged = (await countOf("sofia", group)).reasons.find((each) => each.reason === "no-address");
+    assert.ok(merged, "the reason a facilitator reads is not there");
+    assert.equal(words.leftOutWords("no-address", "courses"), "No address we can email");
+  });
+
   test("see who: names, never an address or an account id, and reasons by name for admins alone", async (t) => {
     mock.timers.enable({ apis: ["Date"], now: AFTER });
     t.after(() => mock.timers.reset());

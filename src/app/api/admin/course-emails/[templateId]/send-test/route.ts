@@ -122,6 +122,12 @@ function admissionsPreview(
   }
 }
 
+/** What the admin is told when every test email failed. The errors are in the server log. */
+const NOTHING_SENT = "None of the test emails could be sent. The reason is in the server log.";
+
+/** Beside one address that failed when another was sent. */
+const SEND_FAILED = "This address could not be sent to. The reason is in the server log.";
+
 export async function POST(
   _req: Request,
   ctx: { params: Promise<{ templateId: string }> },
@@ -257,21 +263,17 @@ export async function POST(
       sentTo.push(address);
       await new Promise((r) => setTimeout(r, 200));
     } catch (err) {
-      failures.push({
-        address,
-        error: err instanceof Error ? err.message : "unknown",
-      });
+      // The error stays in the log: its words are the mail library's and can
+      // name a host or an address. The admin is told in words this route chose.
+      console.error("[course-email send-test]", templateId, err);
+      failures.push({ address, error: SEND_FAILED });
     }
   }
 
   // "All sends failed" is a hard error — otherwise the editor shows a green
   // "Test sent to ." off an empty array join while nothing landed.
   if (sentTo.length === 0) {
-    const reasons = failures.map((f) => `${f.address}: ${f.error}`).join("; ");
-    return NextResponse.json(
-      { error: `No emails delivered. ${reasons || "Unknown failure."}`, failures },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: NOTHING_SENT }, { status: 500 });
   }
 
   return NextResponse.json({ sentTo, failures });

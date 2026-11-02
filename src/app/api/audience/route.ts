@@ -18,7 +18,8 @@ import { getCurrentUser } from "@/lib/firebase/session";
  *  - POST `{ include, exclude, row }`: how many people the choice reaches,
  *    how many would be emailed and how many left out, why, and how it would
  *    be sent. Counts only: the names are `./who`'s, and an address is in
- *    neither answer.
+ *    neither answer. Only an admin is told a bounced address apart from no
+ *    address (`reasonsForViewer`): a count of one person is that person.
  *
  * Every approved account is answered, with the tags its records give it, so
  * a member who leads and facilitates nothing reads an empty list. A tag the
@@ -60,5 +61,5 @@ export async function POST(req: Request) {
   if (!world) return NextResponse.json({ error: AUDIENCE_REFUSAL.notApproved }, { status: 403 });
   const answer = await resolveAudience(db, world, body.selection, { row: body.row });
   if (!answer.ok) return NextResponse.json({ error: AUDIENCE_REFUSAL.notYours }, { status: 403 });
-  return NextResponse.json({ count: projectAudienceCount(answer.resolution) });
+  return NextResponse.json({ count: projectAudienceCount(world, answer.resolution) });
 }

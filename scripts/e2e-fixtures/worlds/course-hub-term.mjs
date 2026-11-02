@@ -2107,23 +2107,30 @@ async function messageSendIdsOf(state) {
 /**
  * The counters and the test record Messages leaves in `courseNudges`, by the
  * ids src/lib/messages/sending.ts builds (restated): for each of this term's
- * tags sent to alone, its daily counter and each presser's hourly one; and,
- * for each presser whose tests are this fixture's (`testPressersOf`), the
- * record of their last test and its hourly counter. An audience is the choice
- * of tags, spelled in one order and hashed.
+ * messages (`messageIds`, read before the records go), the daily counter of
+ * the people it emailed and its writer's hourly one; and, for each presser
+ * whose tests are this fixture's (`testPressersOf`), the record of their last
+ * test and its hourly counter. An audience is the people a send emails, the
+ * people its record keeps as not left out: their accounts in one order, and
+ * how many others, hashed (`audienceKeyOf`).
  */
-function messageCounterIdsOf(state) {
-  const audienceKey = (include) =>
-    createHash("sha256").update(JSON.stringify([[...include].sort(), []]), "utf8").digest("hex").slice(0, 24);
-  const pressers = [state.adminUid, state.facilitator?.uid].filter(Boolean);
+async function messageCounterIdsOf(state, messageIds) {
   const ids = [];
-  for (const tag of messageTagsOf(state)) {
-    const key = audienceKey([tag]);
+  for (const id of messageIds) {
+    const snap = await fixtureDoc("messageSends", id).get();
+    if (!snap.exists) continue;
+    const record = snap.data() ?? {};
+    const emailed = (Array.isArray(record.people) ? record.people : []).filter((person) => person && person.leftOut === null);
+    const accounts = [...new Set(emailed.filter((person) => typeof person.uid === "string").map((person) => `a:${person.uid}`))].sort();
+    const key = createHash("sha256")
+      .update(JSON.stringify(["message-audience", accounts, emailed.length - accounts.length]), "utf8")
+      .digest("hex")
+      .slice(0, 24);
     ids.push(`emailrate__messageday__${key}`);
-    for (const uid of pressers) ids.push(`emailrate__message__${key}__${uid}`);
+    if (typeof record.writerUid === "string") ids.push(`emailrate__message__${key}__${record.writerUid}`);
   }
   for (const uid of testPressersOf(state)) ids.push(`messagetest__${uid}`, `emailrate__messagetest__${uid}`);
-  return ids;
+  return [...new Set(ids)];
 }
 
 /**
@@ -2493,7 +2500,7 @@ export async function countTerm(state) {
   // Messages: each send's record, and the counters and test records it keeps.
   counts.messageSends = messageIds.length;
   let messageCounters = 0;
-  for (const id of messageCounterIdsOf(state)) {
+  for (const id of await messageCounterIdsOf(state, messageIds)) {
     if ((await fixtureDoc("courseNudges", id).get()).exists) messageCounters += 1;
   }
   counts.messageCounters = messageCounters;
@@ -2573,7 +2580,7 @@ export async function teardownTerm(state) {
   await deleteQuery(fixtureQuery("courseCertificates").where("runId", "==", runId));
 
   for (const id of sendCounterIdsOf(state)) await fixtureDoc("courseNudges", id).delete();
-  for (const id of messageCounterIdsOf(state)) await fixtureDoc("courseNudges", id).delete();
+  for (const id of await messageCounterIdsOf(state, messageIds)) await fixtureDoc("courseNudges", id).delete();
   for (const ref of reminderMarkersOf(state)) await ref.delete();
   // The eighth point's: each survey's answers, who it was sent to (with
   // their links), the download log's rows and the send counters. The surveys

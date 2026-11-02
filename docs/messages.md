@@ -126,10 +126,18 @@ you".
 | Didn't say yes to the row | by their settings, and the chosen row is off for them |
 | Left the programme | they left a group whose tag is included |
 | Came without signing up | a walk-in with no account: the address they left is only for the event's survey (privacy policy, "Coming to an event") |
-| No email address on record | no address the class may use, or an account that is gone |
+| No address we can email | no address the class may use, or an account that is gone |
 | Their address bounced or marked us as spam | every address they have is on the suppression list |
 
 The count is everybody it reaches; "N will be emailed · M left out" splits it.
+
+The suppression list is the admins' alone, so only an admin is told a bounced
+address apart from no address. Anybody else reads both as "No address we can
+email", counted together (`reasonsForViewer` in `resolve.ts`): a choice of one
+person is a count of one, and its reason would be that person's. The totals
+are the same for every reader. Sent counts its reasons the same way, and an
+email the list stopped at the moment of sending is, for anybody but an admin,
+one that could not be sent, in Sent and in what the send answers.
 
 ## The routes
 
@@ -141,8 +149,8 @@ a member who leads and facilitates nothing is offered nothing.
   (admins and SU-recognised committee only); the rows a message by settings
   may read.
 - `POST /api/audience` with `{ include, exclude, row }`: how many it reaches,
-  how many would be emailed, how many left out and why, and how it would be
-  sent. Counts only.
+  how many would be emailed, how many left out and why (a bounced address told
+  apart to admins alone), and how it would be sent. Counts only.
 - `POST /api/audience/who` with the same body: See who. A name per person,
   whether it is the caller and whether they would be emailed. Why one person
   is left out is said by name to admins alone; everybody else reads the
@@ -286,8 +294,13 @@ the emails, then what they did, on both.
   nobody and is not recorded. Ten tests an hour.
 - **The caps** are the notice lane's, claimed in one transaction for every
   send, notice or not: three an hour per writer and audience, ten a day per
-  audience whoever writes. The audience is the choice of tags, spelled in one
-  order and hashed, so the same tags are one audience.
+  audience whoever writes. The audience is the people the send emails, not
+  the tags that chose them: tags in another order, a tag left out that removes
+  nobody, or the same people chosen through other tags are one audience and
+  claim the same counters. The counter's key is a hash of those people's
+  accounts and how many others there are (`audienceKeyOf`): a guest is an
+  address, so they are counted and never spelled, and no address goes into
+  the key.
 - **Suppression** applies twice: the picker leaves out somebody whose every
   address is suppressed, and `sendEmail` drops a suppressed address on the
   way out. On a copy of the site that may not write to an address (staging),
@@ -339,7 +352,14 @@ opens it reads Write's line about who Messages is for.
 | Reader | Reads |
 | --- | --- |
 | An admin | every message written in Messages, and the site's other sends from the email log |
-| A programme's lead, a group's facilitator | a message written in Messages when every tag in it, included or left out, is one the picker's scope table lets them use now (`maySeeSend`, the question the send asks of every tag): a message to the people they run, whoever wrote it. Nothing of the email log |
+| A programme's lead, a group's facilitator | another writer's message when every tag in it, included or left out, is a programme or a group they run now (`maySeeSend`): a message to the people they run, whoever wrote it. Their own message when every tag in it is one the picker's scope table lets them use now, the question the send asked of every tag. Nothing of the email log |
+
+The picker lets a lead or a facilitator who is also SU-recognised committee
+use more tags than the ones they run (an event's people, the committee, the
+admins, a person by name), so they can write to those people. Somebody
+else's message to those people is not a message to anybody they run, and is
+not listed for them, even when it also names a group of theirs: who an admin
+chose to leave out of a group is not the group's.
 
 **Who it reached**, by name, by the site's one rule for the person reading
 (`nameForViewer`): the committee and admins see the full name, a facilitator

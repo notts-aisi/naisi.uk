@@ -19,6 +19,11 @@
  * clear is a delete) are asserted at the source in the `course-deletion.test.mjs`
  * idiom. If a pin fails, the route has drifted from the rule; do not fix it by
  * loosening the pin.
+ *
+ * The last test drives the real GET handler, in the stubbed world
+ * `tests/lib/handoverWorld.mjs` provides, because the rule it holds (the
+ * person a flag describes never reads it, an admin included) is about who
+ * asks, which a source pin cannot see.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -394,4 +399,42 @@ test("TREE: every file that names a flag is listed, and every listed file still 
       `${path} is outside the admin area`,
     );
   }
+});
+
+// ===========================================================================
+// THE HANDLER: the person a flag describes never reads it, admins included.
+// ===========================================================================
+
+test("HANDLER: an admin reads another member's flag and never the flag on their own account", async () => {
+  const { makeWorld } = await import("./lib/handoverWorld.mjs");
+  const { session, userDoc } = await import("./lib/applicationsSmallTerm.mjs");
+  const w = makeWorld("__conductFlag");
+  const route = await w.loadTs(join("app", "api", "admin", "members", "[uid]", "conduct-flag", "route.ts"));
+  const flag = (byUid, byName) => ({ flagged: true, reason: "Talked over another member in the week two session.", byUid, byName, at: new Date("2026-10-20T10:00:00Z") });
+  w.reset({
+    "users/zach": userDoc(session("zach", "admin", false, "Zach Levin")),
+    "users/ada": userDoc(session("ada", "admin", false, "Ada Byron")),
+    "users/amara": userDoc(session("amara", "member", false, "Amara Okafor")),
+    // Ada flagged Zach, and Zach flagged Amara.
+    "memberConductFlags/zach": flag("ada", "Ada Byron"),
+    "memberConductFlags/amara": flag("zach", "Zach Levin"),
+  });
+
+  const other = await w.call("zach", route.GET, { uid: "amara" });
+  assert.equal(other.status, 200);
+  assert.equal(other.body.flagged, true);
+
+  const before = w.everything();
+  const own = await w.call("zach", route.GET, { uid: "zach" });
+  assert.equal(own.status, 400, `the subject read their own flag: ${JSON.stringify(own.body)}`);
+  assert.deepEqual(Object.keys(own.body), ["error"]);
+  assert.doesNotMatch(JSON.stringify(own.body), /Talked over|Ada|flagged/i, "the refusal says something about the flag");
+  assert.equal(w.everything(), before);
+  // The same answer whether a flag is there or not, so the refusal is no answer either.
+  w.world.db.poke("memberConductFlags/zach", { flagged: false });
+  assert.deepEqual((await w.call("zach", route.GET, { uid: "zach" })).body, own.body);
+
+  // Another admin still reads it.
+  const byAnother = await w.call("ada", route.GET, { uid: "amara" });
+  assert.equal(byAnother.status, 200);
 });

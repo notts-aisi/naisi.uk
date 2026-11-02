@@ -58,6 +58,9 @@ import {
 
 type Ctx = { params: Promise<{ uid: string }> };
 
+/** What an admin is told when they ask about their own account. */
+const OWN_ACCOUNT = "The conduct record on your own account is not shown to you. Ask another admin.";
+
 const COLLECTION = "memberConductFlags";
 
 /**
@@ -118,6 +121,14 @@ export async function GET(_req: Request, ctx: Ctx) {
 
   const { uid } = await ctx.params;
   if (!uid) return NextResponse.json({ error: "Missing uid" }, { status: 400 });
+
+  // The person a flag describes never reads it, an admin included: the
+  // reason is free text that may name whoever reported them. Refused before
+  // the read, with the same answer whether a flag exists or not, as setting
+  // and clearing refuse the subject and as member notes refuse theirs.
+  if (uid === gate.actor.uid) {
+    return NextResponse.json({ error: OWN_ACCOUNT }, { status: 400 });
+  }
 
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
