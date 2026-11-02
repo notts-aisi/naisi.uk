@@ -234,6 +234,14 @@ export const SPEC = {
    * Again the same day, in local mode with the harness's fake Claude
    * answering there: all ten steps ran, the fake was asked nothing, 48 rows
    * existed before teardown, and the manifest read zero after it.
+   *
+   * Again on Mon 2 November 2026, in local mode, with the presses that reach
+   * Claude (Review with Claude, Draft this week's notes), the discarded draft
+   * and next term's page added, on the fake Claude's branch at 98565f11 with
+   * this spec's commits on it: all fourteen steps ran, the fake answered the
+   * review's three asks and one note's draft, 49 rows existed before
+   * teardown, and the manifest read zero after it. Twice, about 30 seconds
+   * of spec each time.
    */
   status: "verified",
   seed,

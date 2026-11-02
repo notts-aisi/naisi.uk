@@ -204,7 +204,16 @@ export const SPEC = {
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]",
     ],
   },
-  status: "unverified",
+  /**
+   * VERIFIED on Mon 2 November 2026: in local mode, against the harness's own
+   * server (`npm run e2e:browser -- --local --spec course-hub-explainers-and-lead-notes`),
+   * on the fake Claude's branch at 98565f11 with this spec's commits on it:
+   * all ten steps ran, 48 rows of the term (Gus's account among them) existed
+   * before teardown beside the one explainer and the two seeded notes, and
+   * the fixture manifest read zero after it. Twice, about 36 seconds of spec
+   * each time.
+   */
+  status: "verified",
   seed,
   countRows: async (state) => ({ ...(await countTerm(state)), ...(await countOwn(state)) }),
   teardown,
