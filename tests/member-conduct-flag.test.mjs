@@ -19,6 +19,11 @@
  * clear is a delete) are asserted at the source in the `course-deletion.test.mjs`
  * idiom. If a pin fails, the route has drifted from the rule; do not fix it by
  * loosening the pin.
+ *
+ * The last test drives the real GET handler, in the stubbed world
+ * `tests/lib/handoverWorld.mjs` provides, because the rule it holds (the
+ * person a flag describes never reads it, an admin included) is about who
+ * asks, which a source pin cannot see.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
