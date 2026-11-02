@@ -738,7 +738,17 @@ export const SPEC = {
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]",
     ],
   },
-  status: "unverified",
+  /**
+   * VERIFIED on 2026-11-02 at 46c0fd75 (on dev's 3992a724): twice against the
+   * harness's loopback server on a laptop, all seven steps each time. 118
+   * rows existed before teardown (the form and its question set, 5
+   * applications and 5 decisions, the course, its run with 6 weeks, 2 groups,
+   * 5 enrolments, 5 cohort subscriptions, 12 registers, 1 update, 9 surveys
+   * (the before survey, the survey at the end, the follow-up and 6 check-ins)
+   * with 28 people and 20 answers, 6 fixed weeks of check-ins, and 5 accounts
+   * with their sign-ins), and the manifest read zero after each.
+   */
+  status: "verified",
   seed,
   countRows,
   teardown,
