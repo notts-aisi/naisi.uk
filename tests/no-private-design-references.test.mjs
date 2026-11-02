@@ -152,8 +152,9 @@ const REAL_IDS = [
   {
     why:
       "The labels the coursework and week review prompts give a week's questions (\"Q1\", \"Q2\"), in the prompts " +
-      "themselves and in the tests that hold what comes back.",
+      "themselves, in the tests that hold what comes back, and in the end-to-end harness's fake model, which reads them.",
     files: {
+      "scripts/e2e/lib/fakeClaude.mjs": ["Q1"],
       "src/lib/courses/coursework/claude.ts": ["Q1", "Q2"],
       "src/lib/courses/coursework/input.ts": ["Q1"],
       "src/lib/courses/weekReview/claude.ts": ["Q1", "Q2"],
