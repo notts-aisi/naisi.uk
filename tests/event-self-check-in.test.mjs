@@ -485,6 +485,117 @@ describe("POST /api/events/<id>/check-in", () => {
 });
 
 // ---------------------------------------------------------------------------
+// An event for chosen people
+// ---------------------------------------------------------------------------
+
+describe("an event for chosen people: only the people invited, and those who run events, see it at the door", () => {
+  // Kofi is invited and holds a place; Gwen, a guest, holds a place and has
+  // her email's link; Mo is a member nobody invited; Ines is an account still
+  // waiting for approval; Iris wrote the event and runs events.
+  const invited = (uid) => ({
+    [`eventInvitations/${EVENT_ID}__${uid}`]: { eventId: EVENT_ID, uid, invitedBy: "iris", invitedAt: new Date("2026-10-20T10:00:00Z") },
+  });
+  const chosen = (...extras) => w.reset({ ...withEvent({ visibility: "chosen" }, SELF_ON, DOOR_OPEN, ...extras), ...invited("kofi") });
+  const forged = () => ({ r: RSVP.gwen, t: "x".repeat(32) });
+  /** Anything of the event a page or an answer could carry: its name, its day, its times, its place. */
+  const EVENT_WORDS = ["VR games night", "Sun 1 Nov", "1 Nov", "2pm", "5pm", "1pm", "Room B52", "Sunday"];
+  const namesNothing = (said, why) => {
+    for (const words of EVENT_WORDS) assert.ok(!said.includes(words), `${why}: said "${words}"\n${said}`);
+  };
+  const ONLY_INVITED = "This event is only for the people invited to it.";
+
+  test("the page: signed out, with no link or a link that does not verify, in every state, names nothing of it", async (t) => {
+    for (const [at, over, state] of [
+      [DURING, [], "the door open"],
+      [DURING, [{ doorOpenedAt: null, doorOpenedBy: null }], "the door not opened yet"],
+      [BEFORE, [], "before the door's hours"],
+      [AFTER, [], "after the door's hours"],
+      [DURING, [{ status: "cancelled" }], "cancelled"],
+    ]) {
+      t.mock.timers.reset();
+      clock(t, at);
+      chosen(...over);
+      for (const [link, how] of [[{}, "no link"], [forged(), "a forged link"], [{ r: "no-such-rsvp", t: gwenLink().t }, "a link for no sign-up"]]) {
+        const { html } = await open(null, link);
+        namesNothing(html, `${state}, ${how}`);
+        assert.match(html, new RegExp(`href="/login\\?next=%2Fevents%2F${EVENT_ID}%2Fcheck-in"`), `${state}, ${how}: asked to sign in`);
+        assert.ok(!html.includes("I’m here"), `${state}, ${how}: offered the button`);
+      }
+    }
+  });
+
+  test("the page: signed in as somebody not invited, or an account not approved, is refused and named nothing, with a link or without", async (t) => {
+    for (const at of [DURING, BEFORE]) {
+      t.mock.timers.reset();
+      clock(t, at);
+      chosen();
+      for (const who of ["mo", "ines"]) {
+        for (const [link, how] of [[{}, "no link"], [forged(), "a forged link"]]) {
+          const { text, html } = await open(who, link);
+          assert.equal(text, `NAISI Check in ${ONLY_INVITED} Give your name at the door.`, `${who}, ${how}`);
+          namesNothing(html, `${who}, ${how}`);
+        }
+      }
+    }
+  });
+
+  test("the page: somebody invited, somebody who runs events, and a link that verifies for this event see it", async (t) => {
+    clock(t, DURING);
+    chosen();
+    assert.ok((await open("kofi")).text.startsWith(`NAISI Check in ${LINE} `));
+    assert.ok((await open("iris")).text.startsWith(`NAISI Check in ${LINE} `));
+    const guest = await open(null, gwenLink());
+    assert.ok(guest.text.startsWith(`NAISI Check in ${LINE} Hi Gwen. Are you here?`), guest.text);
+    // A link that verifies and a session that may open it: the link is checked for this event, and is no good here.
+    assert.equal((await open("kofi", forged())).text, `NAISI Check in ${LINE} This link doesn’t work here It isn’t for this event. Give your name at the door.`);
+  });
+
+  test("the button: somebody not invited, or not approved, is refused before anything is said of it, and nothing is written", async (t) => {
+    for (const at of [DURING, BEFORE, AFTER]) {
+      t.mock.timers.reset();
+      clock(t, at);
+      chosen();
+      const before = w.everything();
+      for (const [who, body] of [["mo", {}], ["mo", { doorCode: true }], ["ines", {}]]) {
+        const res = await press(who, body);
+        assert.deepEqual(short(res), [403, ONLY_INVITED], `${who} at ${at.toISOString()}`);
+      }
+      // Signed out with a link that does not verify: the link's own refusal, which names nothing.
+      for (const link of [forged(), { r: "no-such-rsvp", t: gwenLink().t }]) {
+        const res = await press(null, { rsvpId: link.r, token: link.t });
+        assert.deepEqual(short(res), [403, "This link doesn’t work for this event. Give your name at the door."], `a bad link at ${at.toISOString()}`);
+      }
+      assert.equal(w.everything(), before, "a refusal wrote something");
+    }
+    t.mock.timers.reset();
+    clock(t, DURING);
+    chosen({ status: "cancelled" });
+    assert.deepEqual(short(await press("mo", {})), [403, ONLY_INVITED], "a cancelled event is not said to be cancelled to somebody not invited");
+  });
+
+  test("the button: somebody invited, somebody who runs events, and a guest's own link check in", async (t) => {
+    clock(t, DURING);
+    chosen();
+    assert.equal((await press("kofi", {})).status, 201);
+    assert.equal((await press("iris", {})).status, 201);
+    const link = gwenLink();
+    assert.equal((await press(null, { rsvpId: link.r, token: link.t })).status, 201);
+    assert.deepEqual(checkIns().map((row) => row.uid ?? row.rsvpId).sort(), ["iris", "kofi", RSVP.gwen].sort());
+  });
+
+  test("the page and its button ask one question, in one place", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const read = (...parts) => stripSource(readFileSync(join(here, "..", "src", ...parts), "utf8"));
+    const pageCode = read("app", "events", "[id]", "check-in", "page.tsx");
+    const routeCode = read("app", "api", "events", "[id]", "check-in", "route.ts");
+    for (const [what, code] of [["the page", pageCode], ["the route", routeCode]]) {
+      assert.match(code, /\bselfCheckInSight\(/, `${what} does not ask selfCheckInSight`);
+      assert.ok(!/\bmayOpenFor\(|\bisForChosenPeople\(/.test(code), `${what} decides who sees an event for chosen people for itself`);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Each way in, recorded as itself
 // ---------------------------------------------------------------------------
 

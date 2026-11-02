@@ -5,7 +5,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { normalizeEvent } from "@/lib/firestore/events";
 import { eventTakesCheckIns, recordCheckIn } from "@/lib/events/checkIns";
-import { decideSelf, selfClosedWords, selfHow } from "@/lib/events/selfCheckIn";
+import { NOT_INVITED_WORDS, decideSelf, selfCheckInSight, selfClosedWords, selfHow } from "@/lib/events/selfCheckIn";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +15,10 @@ export const dynamic = "force-dynamic";
  * The body is empty for somebody signed in, `{ doorCode: true }` when the page
  * was opened by the event's door code, or `{ rsvpId, token }` from the link in
  * a guest's own confirmation email.
+ *
+ * An event for chosen people answers only somebody it is for
+ * (`selfCheckInSight`, the page's own question), before anything else of it
+ * is said.
  *
  * Only at an event that lets people check themselves in (`selfCheckIn`), and
  * only while its door is open, opened by its author or an admin: otherwise
@@ -93,6 +97,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const event = snap.exists ? normalizeEvent(snap.id, snap.data() ?? {}) : null;
   if (!event || (!eventTakesCheckIns(event) && event.status !== "cancelled")) {
     return NextResponse.json({ error: "There’s no event to check in to here." }, { status: 404 });
+  }
+  // An event for chosen people, before anything else of it is said (whether
+  // it was cancelled, when its door opens): the page's own question.
+  const sight = await selfCheckInSight(db, { event, user, rsvpId: parsed.rsvpId, token: parsed.token });
+  if (sight === "not-invited") return NextResponse.json({ error: NOT_INVITED_WORDS }, { status: 403 });
+  if (sight === "sign-in") {
+    // Signed out with a link that does not verify for this event: the link's own refusal, which names nothing.
+    return NextResponse.json(
+      { error: "This link doesn’t work for this event. Give your name at the door." },
+      { status: 403 },
+    );
   }
   if (event.status === "cancelled") {
     return NextResponse.json({ error: "This event was cancelled." }, { status: 409 });
