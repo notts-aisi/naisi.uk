@@ -13,7 +13,7 @@ import { loadRunWeekStates } from "../weekWork/readers";
 import { readRunFeedback } from "../feedback/readers";
 
 /**
- * FEEDBACK TO WRITE (boards wk-fac-group and the facilitator's phone: "3
+ * FEEDBACK TO WRITE (the facilitator's group page, at 1440 and on a phone: "3
  * week 2 answers", each person with when they submitted it and Write
  * feedback; Home's line beside it; the lead's line per group): the written
  * answers of the group's people that the reader may give feedback on by the

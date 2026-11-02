@@ -75,7 +75,7 @@ export function boardTally<Row extends TallyRow>(rows: readonly Row[], inPool: (
 }
 
 /**
- * THE LINE OVER A PROGRAMME'S PEOPLE IN GROUPS (board st-groups), and the
+ * THE LINE OVER A PROGRAMME'S PEOPLE IN GROUPS, and the
  * number beside its "Publish groups…": "30 holding a place · 26 in a group ·
  * 4 to place · 2 invited". One function, asked wherever these numbers are
  * said, so no two places can disagree:

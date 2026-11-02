@@ -9,7 +9,7 @@ import type { ChipTone } from "@/components/ui/Chip";
 import styles from "./WeekBlocksLoader.module.css";
 
 /**
- * LOADING A WEEK AS BLOCKS, in the run's week editor (board pr-weeks, Option
+ * LOADING A WEEK AS BLOCKS, in the run's week editor (Option
  * B): paste the week's Markdown, "Read it", check what was found and the
  * things to check, then Save. "Copy as Markdown" gives a block week back, ids
  * written in, for editing and pasting again.

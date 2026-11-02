@@ -1,5 +1,5 @@
 /**
- * THE WORDS OF A WEEK'S FILL-IN BOXES (board wk-week6-phone, part 3 "Your
+ * THE WORDS OF A WEEK'S FILL-IN BOXES (part 3 "Your
  * action plan"), in one place so the week page, its count lines and their
  * tests say the same thing.
  *
@@ -54,7 +54,7 @@ function readersWords(facilitatorFirstNames: readonly string[], leadFirstName: s
 }
 
 /**
- * Who reads a fellow's boxes (Q30 C): "Rahul, Sofia, Claudia and admins can
+ * Who reads a fellow's boxes: "Rahul, Sofia, Claudia and admins can
  * read your action plan. Other fellows can’t." (the board's words).
  */
 export function fillInReadersWords(facilitatorFirstNames: readonly string[], leadFirstName: string | null, title: string): string {

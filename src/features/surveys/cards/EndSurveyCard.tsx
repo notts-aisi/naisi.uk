@@ -11,9 +11,9 @@ import {
 import styles from "./SurveyCards.module.css";
 
 /**
- * "THE SURVEY AT THE END" (Q48 B), on its programme's own pages: Home in the
- * last week (wk-lastweek-phone, `look` "card") and the programme page once
- * the programme is over (en-after-phone and en-after-nofinish-phone, `look`
+ * "THE SURVEY AT THE END", on its programme's own pages: Home in the
+ * last week (`look` "card") and the programme page once
+ * the programme is over (`look`
  * "section"). It draws what it is handed and decides nothing: whether the
  * survey is the person's to answer, or sent, is `endSurveyFor`'s and
  * `surveysWaitingFor`'s answer on the server.

@@ -1,8 +1,8 @@
 import { dayWords, namesWords } from "../sessionChange/words";
 
 /**
- * THE WORDS OF THE NOTES A GROUP SHARES (C29), in one place: the week's page
- * (board wk-week-phone's "Notes shared with your group"), the programme's
+ * THE WORDS OF THE NOTES A GROUP SHARES, in one place: the week's page
+ * (the week page's "Notes shared with your group"), the programme's
  * Attendance tab, where its lead and admins read them, and the shared notes
  * routes' refusals.
  *

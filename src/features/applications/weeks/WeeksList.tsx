@@ -19,7 +19,7 @@ import {
 import styles from "./weeks.module.css";
 
 /**
- * A PROGRAMME'S WEEKS, IN ORDER (board pr-weeks): the line about when weeks
+ * A PROGRAMME'S WEEKS, IN ORDER: the line about when weeks
  * open with "Copy weeks from the course", then one row a week, each a link to
  * the week's page with its state (Ready, Draft, Empty), its first session,
  * the day it should be ready by and its owner, then where the weeks meet.

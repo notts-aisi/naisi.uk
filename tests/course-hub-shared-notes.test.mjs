@@ -1,5 +1,5 @@
 /**
- * The notes a group shares on its week pages (C29, board wk-week-phone's
+ * The notes a group shares on its week pages (the week page's
  * "Notes shared with your group"): who writes one, what a note keeps, who
  * reads which group's notes, who deletes one, what the week page and the
  * programme's Attendance tab draw, what takes the notes away, and a run

@@ -1,6 +1,5 @@
 /**
- * The member's side of the coursework (boards st-week1-phone, wk-week-phone,
- * wk-week, wk-programme): the week page for a week written as blocks, the
+ * The member's side of the coursework: the week page for a week written as blocks, the
  * reflection boxes and their store, and the counts by This week's tasks on
  * the week page, the programme page and Home.
  *
@@ -71,7 +70,7 @@ const rowPath = (uid, weekId, id) => `courseExerciseResponses/${RUN.agi}__${uid}
 // ---------------------------------------------------------------------------
 
 describe("1. a week written as blocks, drawn", () => {
-  test("week 1 for Chloe, word for word and in order (st-week1-phone)", async () => {
+  test("week 1 for Chloe, word for word and in order", async () => {
     // Monday before Group B meets on Tue 3 Nov: week 1 still takes work (the week you submit).
     at("2026-11-02T12:00:00Z");
     const { text, shell } = await w.weekPage("chloe", 1);
@@ -218,7 +217,7 @@ describe("1. a week written as blocks, drawn", () => {
       "Your forecast, the week’s written answer",
       "Part 5",
       "Plan and pitch",
-      // The fill-in boxes (wk-week6-phone's action plan), drawn since week 6's
+      // The fill-in boxes (the action plan on week 6's page), drawn since week 6's
       // piece: the title, the count, each numbered heading with its hint and
       // its boxes' labels, and who reads them.
       "My plan",
@@ -278,7 +277,7 @@ describe("1. a week written as blocks, drawn", () => {
       "Keep it: you will check it in the last week.",
       "Part 5",
     ]);
-    // The packs are drawn (plan item 8, packs and cases): the Choose one a
+    // The packs are drawn (packs and cases): the Choose one a
     // facilitator gives out, with the line that says so, the questions to
     // read every pack against, and each pack's name, time, sources and
     // reading; then the one Chloe picks, with its line. Nothing is given out
@@ -311,7 +310,7 @@ describe("1. a week written as blocks, drawn", () => {
       "if you like writing",
     ]);
     assert.doesNotMatch(html, /Your pack<\/span>/);
-    // The talks are drawn (plan item 8): the pitch with how to prepare and
+    // The talks are drawn: the pitch with how to prepare and
     // "Ready for my pitch", then the case study with Chloe's case not given
     // yet, every case of the week by pack, and the content note on the one
     // that has one.

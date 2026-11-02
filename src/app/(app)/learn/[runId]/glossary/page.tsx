@@ -3,7 +3,7 @@ import { openGuidePage } from "@/features/courses/guide/pageGate";
 import { loadRunGuide } from "@/lib/courses/guide/load";
 
 /**
- * A programme's Glossary (boards wk-glossary, wk-glossary-phone): the run's
+ * A programme's Glossary: the run's
  * own document (`loadRunGuide`), open to exactly the people the run's week 1
  * opens to (`openGuidePage`).
  */

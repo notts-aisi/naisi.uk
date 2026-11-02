@@ -70,7 +70,7 @@ export type AllocGroup = {
    */
   facilitatorUids: string[];
   /**
-   * People in groups' column head (board st-groups): the facilitators' first
+   * People in groups' column head: the facilitators' first
    * names, the group's letter, its slot in the board's short form ("Thu
    * 6pm", "" with none) and its room ("" for none yet).
    */

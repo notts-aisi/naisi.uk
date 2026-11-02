@@ -27,8 +27,8 @@ import {
 import styles from "./weekly.module.css";
 
 /**
- * "ADD TO CALENDAR" AND ITS DIALOG (board st-calendar-phone; the button on
- * the session tickets of st-programme, wk-programme and wk-home-phone).
+ * "ADD TO CALENDAR" AND ITS DIALOG (the button on
+ * the session tickets of the programme page before the first session).
  *
  * The button opens a real dialog (the house Modal, as a sheet at phone
  * width): focus moves into it, Escape and Close shut it, focus goes back to
@@ -228,7 +228,7 @@ export function CalendarDialogBody({
 }
 
 type Props = {
-  /** Home's ticket: the button fills the row under the card, with no icon, as wk-home-phone draws it. */
+  /** Home's ticket: the button fills the row under the card, with no icon, as the member's Home draws it. */
   home?: boolean;
 };
 

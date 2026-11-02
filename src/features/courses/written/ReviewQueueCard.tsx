@@ -8,8 +8,8 @@ import { FEEDBACK_TO_WRITE, TO_WRITE_LINE, WRITE_FEEDBACK, toWriteWords } from "
 import { listLockedWords, listSentWords } from "@/lib/courses/writtenAnswerWords";
 
 /**
- * FEEDBACK TO WRITE ON A GROUP'S PAGE (boards wk-fac-group and the
- * facilitator's phone): "3 week 2 answers", that people see feedback on
+ * FEEDBACK TO WRITE ON A GROUP'S PAGE (the facilitator's group page, at 1440
+ * and on a phone): "3 week 2 answers", that people see feedback on
  * their page as soon as it is saved and the email goes in a batch, and each
  * person with when they submitted it (or when their week locked before they
  * did, in the review page's own words) and Write feedback, oldest first.

@@ -56,7 +56,7 @@ const JUST_CHECKED_IN = 4;
 type Show = "to-come" | "here";
 
 /**
- * The door list on the phone of whoever is on the door (ev-door-phone).
+ * The door list on the phone of whoever is on the door.
  *
  * Everything arrived with the page. A press of Check in is one small request,
  * and the row moves once the server has the record, so a press on no signal

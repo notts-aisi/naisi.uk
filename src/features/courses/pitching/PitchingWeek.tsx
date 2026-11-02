@@ -15,7 +15,7 @@ import {
 import styles from "./PitchingWeek.module.css";
 
 /**
- * PITCHING WEEK, for somebody taking part (board in-pitch-phone, drawn at
+ * PITCHING WEEK, for somebody taking part (drawn at
  * 390 and laid out the same way, wider, at 1440).
  *
  * Everything here comes from the server's `PitchingView`, sentences included:

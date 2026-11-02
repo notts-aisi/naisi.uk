@@ -186,7 +186,7 @@ export const CUT_TO_SUBMIT = "Cut your written answer to its limit to submit thi
 // ---------------------------------------------------------------------------
 
 /**
- * Who reads the written answer, and from when (the week page's line, Q30 C):
+ * Who reads the written answer, and from when (the week page's line):
  * "Once you submit, or your week locks, Rahul, Claudia and admins can read
  * your written answer." A facilitator's own: the lead and admins.
  */
@@ -244,7 +244,7 @@ export const REOPENED_NOT_SUBMITTED = "Reopened, not submitted again";
 
 /**
  * Where one person's week stands, as a staff page says it, leading with
- * Submitted (clash 21): "Submitted Tue 10 Nov, 9:31pm", "Not submitted",
+ * Submitted: "Submitted Tue 10 Nov, 9:31pm", "Not submitted",
  * "Reopened, not submitted again", "2 of 3 done", "Started", "Not started",
  * "Before they joined". The count goes beside it as detail.
  */

@@ -2,8 +2,8 @@
  * The words of a course's facilitator guide's pages and the links to them.
  *
  * Two are the boards': "Facilitator guide for week 3", on the ticket of a
- * facilitator's group page (wk-fac-group), and "Facilitator guide", under
- * this week's title on a facilitator's Home (wk-fac-home-phone). The rest no
+ * facilitator's group page, and "Facilitator guide", under
+ * this week's title on a facilitator's Home. The rest no
  * board draws yet; they are listed in the build notes for the boards'
  * designers to confirm.
  *
@@ -14,7 +14,7 @@
 /** The guide's own name, the course page's heading. */
 export const FACILITATOR_GUIDE = "Facilitator guide";
 
-/** The ticket's link on a facilitator's group page, and the week page's heading (wk-fac-group). */
+/** The ticket's link on a facilitator's group page, and the week page's heading. */
 export function guideForWeekWords(weekNumber: number): string {
   return `Facilitator guide for week ${weekNumber}`;
 }

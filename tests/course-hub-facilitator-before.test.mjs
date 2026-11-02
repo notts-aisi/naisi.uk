@@ -1,6 +1,6 @@
 /**
- * A facilitator's Home before the group's first session (board
- * st-fac-before-phone, Q14): the first session as a ticket with "Open your
+ * A facilitator's Home before the group's first session:
+ * the first session as a ticket with "Open your
  * group", who's coming, and Say hello.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).

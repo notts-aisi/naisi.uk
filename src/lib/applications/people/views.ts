@@ -1,5 +1,5 @@
 /**
- * WHAT A PROGRAMME'S PEOPLE TAB IS SENT (board st-people), field by field.
+ * WHAT A PROGRAMME'S PEOPLE TAB IS SENT, field by field.
  *
  * Built on the server (`./load.ts`, from `./model.ts`) for the programme's
  * lead and admins. Names, the degree line, the group, the reply to "I'm

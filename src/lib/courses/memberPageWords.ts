@@ -2,9 +2,9 @@ import { clockWords, coversWords, dayWords, namesWords, weeksWords } from "./ses
 
 /**
  * THE WORDS OF THE PAGES A MEMBER USES EVERY WEEK, in one place: their
- * programme's home (boards st-programme and wk-programme, laptop and phone),
- * a week's page (wk-week-phone) and Home's card for their programme
- * (wk-home-phone).
+ * programme's home (laptop and phone),
+ * a week's page and Home's card for their programme
+ *.
  *
  * The boards' own words are kept exactly, apostrophes included, and every
  * name, date, time, room and count in them is a slot filled from a record by
@@ -14,8 +14,8 @@ import { clockWords, coversWords, dayWords, namesWords, weeksWords } from "./ses
  * to confirm.
  *
  * NO TARGET. Nothing here counts a member's sessions or says how many they
- * came to: their marks are one per session with a legend (C26). No sentence
- * here carries a dash of either kind (C35).
+ * came to: their marks are one per session with a legend. No sentence
+ * here carries a dash of either kind.
  *
  * Pure, with no imports beyond the house date words, so the server pages, the
  * pages in the browser and the tests all read the same sentences.
@@ -66,21 +66,21 @@ export function groupLineWords(parts: { groupName: string; slot: string; campus?
 /**
  * Over the session's date and time: "Tonight · week 3", "Your first session ·
  * week 1", and on Home on the day "Tonight · your first session" or, the
- * group's last session, "Tonight · your last session" (wk-lastweek-phone). A
+ * group's last session, "Tonight · your last session". A
  * session that is neither the first, the last nor today is "Your next session
  * · week 4"; the last before its day is "Your last session · week 6".
  *
  * A SESSION THAT COVERS AN EARLIER, CANCELLED WEEK TOO names its own day and
- * both weeks, "Tue 1 Dec · weeks 4 and 5" (wk-changes), once the caller hands
+ * both weeks, "Tue 1 Dec · weeks 4 and 5", once the caller hands
  * its `dateKey`: the heading under it then says only the hours
  * (`eyebrowNamesTheDay`). On its own day it is "Tonight · weeks 4 and 5".
  *
- * AN ONLINE WEEK ends "· online": "Tonight · week 6 · online" (wk-changes).
+ * AN ONLINE WEEK ends "· online": "Tonight · week 6 · online".
  */
 export function sessionEyebrow(input: {
   isToday: boolean;
   isFirst: boolean;
-  /** The group's last session, by its own calendar (the last week, wk-lastweek-phone). */
+  /** The group's last session, by its own calendar (the last week). */
   isLast?: boolean;
   startTimeLocal: string;
   /** The weeks the session covers: its own, and a cancelled one before it ("weeks 4 and 5"). */
@@ -109,7 +109,7 @@ export function sessionEyebrow(input: {
 /**
  * Whether the ticket's eyebrow names the session's own day: a session that
  * covers a cancelled week too, on any day but its own ("Tue 1 Dec · weeks 4
- * and 5", wk-changes). The heading under such an eyebrow says only the hours,
+ * and 5"). The heading under such an eyebrow says only the hours,
  * "6pm to 8pm", so the day is never said twice.
  */
 export function eyebrowNamesTheDay(input: { isToday: boolean; weekNumbers: readonly number[]; dateKey?: string }): boolean {
@@ -142,7 +142,7 @@ export function hoursWords(startTimeLocal: string, durationMinutes: number): str
 export const THIS_WEEK = "This week";
 export const BEFORE_FIRST_SESSION = "Before your first session";
 export const BEFORE_YOUR_SESSION = "Before your session";
-/** Home's card on the day of the session (wk-home-phone). */
+/** Home's card on the day of the session. */
 export const BEFORE_TONIGHT = "Before tonight";
 export const BEFORE_TODAY = "Before today";
 
@@ -233,7 +233,7 @@ export function ofWords(done: number, of: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Your sessions (C26): one per session, a legend, and no count. Never "mark"
+// Your sessions: one per session, a legend, and no count. Never "mark"
 // in a word a member reads: the card is "Your sessions", its legend "What
 // each one means", and a register nobody filled in "Not filled in". The
 // names in the code stay, so the register's own words keep theirs.
@@ -293,7 +293,7 @@ export const REVIEWED_CHIP = "A facilitator reviews it";
 export const DUE_BEFORE = "Due before your session";
 export const START_EXERCISE = "Start the exercise";
 
-/** The card of a week's questions (C29). A week with none draws no card. */
+/** The card of a week's questions. A week with none draws no card. */
 export const QUESTIONS_TO_THINK_ABOUT = "Questions to think about";
 
 /** "01", "02": a question's place, as the board numbers them. */
@@ -318,7 +318,7 @@ export function homeEyebrow(name: string, part: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// A week written as blocks (boards st-week1-phone, wk-week-phone, wk-week)
+// A week written as blocks
 // ---------------------------------------------------------------------------
 
 /**
@@ -413,7 +413,7 @@ export function taskWhenWords(
   }
   // A task the guide says to bring along ("Bring it to session 6", week 6's
   // action plan) keeps its own verb: "Bring it to your session, Tue 8 Dec"
-  // (wk-week6-phone). It is due before the session all the same.
+  //. It is due before the session all the same.
   const bring = when === "before" && /^bring it to\b/i.test((options.whenText ?? "").trim());
   const lead = when === "atSession" ? `At ${session}` : bring ? `Bring it to ${session}` : `Before ${session}`;
   return withQualifier(day ? `${lead}, ${day}` : lead);
@@ -425,7 +425,7 @@ export function partWords(n: number): string {
 }
 
 /**
- * The programme page's short line for a task (board wk-programme): "Your
+ * The programme page's short line for a task: "Your
  * case talk" for a talk that hands out cases, and a talk with none by its own
  * name, "Your pitch" for week 6's 2-minute pitch (listed in the build notes
  * for the boards' designers to confirm).
@@ -464,7 +464,7 @@ export const REFLECTION_PLACEHOLDER = "A sentence or two";
 export const SAVED = "Saved";
 
 /**
- * Who reads a reflection (Q30), under the page's first stop, with names
+ * Who reads a reflection, under the page's first stop, with names
  * from records: "Rahul, Sofia, Claudia and admins can read your reflections.
  * Other fellows can’t." Before the group is known, "Your facilitators, ...".
  */
@@ -472,7 +472,7 @@ export function reflectionsReadByWords(facilitatorFirstNames: readonly string[],
   return `${readersWords(facilitatorFirstNames, leadFirstName)} can read your reflections. Other fellows can’t.`;
 }
 
-/** That a line may be read out (Q37): "Rahul or Sofia may read a line out in the session, without your name." */
+/** That a line may be read out: "Rahul or Sofia may read a line out in the session, without your name." */
 export function readOutWords(facilitatorFirstNames: readonly string[]): string {
   const who =
     facilitatorFirstNames.length === 0
@@ -484,7 +484,7 @@ export function readOutWords(facilitatorFirstNames: readonly string[]): string {
 }
 
 /**
- * Who sees the ticks (Q31), under the page's first sources: "Rahul, Sofia,
+ * Who sees the ticks, under the page's first sources: "Rahul, Sofia,
  * Claudia and admins can see which sources you tick." The boards do not
  * draw this line; it is listed for the boards' designers to confirm.
  */
@@ -531,11 +531,11 @@ export const REFLECTIONS_UNAVAILABLE = "We couldn’t load your reflections. Rel
 /** When a box's last change has not been stored. */
 export const REFLECTION_NOT_SAVED = "Your last change isn’t saved yet. Check your connection: it saves again as you type.";
 
-/** The reading's button (Q38): the rating and the private note, renamed so "reflection" means the set questions only. */
+/** The reading's button: the rating and the private note, renamed so "reflection" means the set questions only. */
 export const RATE_OR_NOTE = "Rate it or leave a note";
 /** Over the stars. */
 export const HOW_USEFUL = "How useful was this?";
-/** The private note's label and who reads it (Q38: the group's facilitators and admins; Q37: never read out). */
+/** The private note's label and who reads it (the group's facilitators and admins; Q37: never read out). */
 export const PRIVATE_NOTE = "Private note";
 export const PRIVATE_NOTE_HINT = "Only your facilitators and admins see this. It’s never read out.";
 
@@ -547,7 +547,7 @@ export function itemsWords(n: number): string {
   return n === 1 ? "1 item" : `${n} items`;
 }
 
-/** The laptop page's list of where things are (board wk-week). */
+/** The laptop page's list of where things are. */
 export const ON_THIS_PAGE = "On this page";
 
 /** "Go further", as the list of where things are names it. */
@@ -564,8 +564,8 @@ export const HANDS_ON_SHORT = "Hands-on route";
 export const SHARED_NOTES_SHORT = "Notes shared with your group";
 
 // ---------------------------------------------------------------------------
-// The last week (wk-lastweek-phone), and what's next (with en-after-phone
-// and en-after-nofinish-phone)
+// The last week, and what's next (with the page after the end, whether
+// somebody finished or not)
 // ---------------------------------------------------------------------------
 
 /**
@@ -580,7 +580,7 @@ export function afterLastSessionHeading(when: "tonight" | "today" | "around"): s
 }
 
 /**
- * What happens after the last session (wk-lastweek-phone). The board's line
+ * What happens after the last session. The board's line
  * ends "by Mon 14 Dec": no record holds the day certificates go out, so the
  * day is left out until one does.
  */
@@ -619,7 +619,7 @@ export function applicationsOpenWords(opensOn: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// After the end (en-after-phone, en-after-nofinish-phone)
+// After the end
 // ---------------------------------------------------------------------------
 
 /**

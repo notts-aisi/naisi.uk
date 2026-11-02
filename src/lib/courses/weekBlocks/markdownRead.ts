@@ -680,7 +680,7 @@ export function partNumbersIn(what: string): number[] {
 /**
  * Who gives a table's packs out, from the part's own words: "Choose one
  * agenda" is the person's pick; "the one you chose at session 2", "you'll be
- * given one" and anything else is a facilitator's draw (Q32).
+ * given one" and anything else is a facilitator's draw.
  */
 function givenByFrom(tokens: readonly Token[], counts: InlineCounts): GivenBy {
   const text = tokens.map((token) => (token.type === "paragraph" ? lineText(tokensLine((token as Tokens.Paragraph).tokens, counts)) : "")).join(" ");

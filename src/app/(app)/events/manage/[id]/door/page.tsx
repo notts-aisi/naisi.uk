@@ -22,7 +22,7 @@ import { surveyClosesFor } from "@/lib/surveys/events/records";
 export const dynamic = "force-dynamic";
 
 /**
- * The door list (ev-door-phone): the event's sign-ups with a Check in each, a
+ * The door list: the event's sign-ups with a Check in each, a
  * search, and the count, for the phone of whoever is on the door.
  *
  * For the people who run check-in only (`runsCheckIn`), as the sign-ups are:

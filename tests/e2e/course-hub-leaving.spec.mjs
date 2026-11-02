@@ -1700,7 +1700,7 @@ test(
         activePage = ivyPage;
         await signIn(ivyPage, ivy);
         // Ivy's programme page says the programme has ended, and offers no way
-        // out. Board en-after-nofinish-phone: the programme's name, then the
+        // out. The page after the end for somebody who did not finish: the programme's name, then the
         // thanks with the term and Ivy's group (Ivy finished nothing: no rule
         // was set), never that Ivy did not finish.
         await ivyPage.goto(`${origin}${learnPath(ended)}`, { waitUntil: "domcontentloaded" });

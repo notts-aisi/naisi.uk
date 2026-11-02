@@ -18,7 +18,7 @@ import { putFillIn } from "./boxWrites";
 import own from "./fillIn.module.css";
 
 /**
- * A WEEK'S FILL-IN BOXES (board wk-week6-phone, part 3 "Your action plan"):
+ * A WEEK'S FILL-IN BOXES (part 3 "Your action plan"):
  * the card's title, how many of its boxes hold something ("6 of 12 filled"),
  * that it saves as you type, each numbered heading with its box or its
  * labelled boxes, one "Saved" for the card, and who reads it.

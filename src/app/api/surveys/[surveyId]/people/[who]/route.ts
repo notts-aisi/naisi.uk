@@ -9,7 +9,7 @@ import { PERSON_WORDS, REFUSAL } from "@/lib/surveys/words";
 type Ctx = { params: Promise<{ surveyId: string; who: string }> };
 
 /**
- * AN ADMIN OPENS ONE PERSON'S ANSWERS (sv-person), from a survey's Who
+ * AN ADMIN OPENS ONE PERSON'S ANSWERS, from a survey's Who
  * answered tab: to every survey of its programme, or to a survey after an
  * event. Usually for a request to see or delete them.
  *

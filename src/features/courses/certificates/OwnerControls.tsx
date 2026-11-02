@@ -17,7 +17,7 @@ import {
 import styles from "./OwnerControls.module.css";
 
 /**
- * WHAT ONLY A CERTIFICATE'S OWNER SEES UNDER IT (board en-cert): "Only you
+ * WHAT ONLY A CERTIFICATE'S OWNER SEES UNDER IT: "Only you
  * see this", Download PDF, Add to LinkedIn, the switch that says whether
  * anyone with the link can see it, and Copy link.
  *

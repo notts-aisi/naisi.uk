@@ -1,5 +1,5 @@
 /**
- * WHO FINISHED A PROGRAMME: the finished record (board en-finish, Q8).
+ * WHO FINISHED A PROGRAMME: the finished record.
  *
  * Once a programme's last session is over, the site suggests who finished
  * from their attendance, and the programme's lead decides. Three things make

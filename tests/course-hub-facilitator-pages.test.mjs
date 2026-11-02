@@ -1,8 +1,8 @@
 /**
  * The pages a facilitator uses every week (plan item 2.6): their group's page
- * (boards wk-fac-group and wk-fac-group-phone), the group's register page,
- * their Home (wk-fac-home-phone) and the summary route behind it, the notes
- * the group's facilitators share (C30) on the group page and on the
+ *, the group's register page,
+ * their Home and the summary route behind it, the notes
+ * the group's facilitators share on the group page and on the
  * programme's Attendance tab, as every kind of caller, in week 1, week 3 and
  * after the end.
  *
@@ -175,7 +175,7 @@ describe("1. who opens a group's page, its register and its summary", () => {
 
   test("the summary route answers names and counts, field by field, never an address", async () => {
     const answer = await summary("rahul");
-    // Two fields since board st-fac-before-phone, both for Home before the
+    // Two fields since the facilitator's before-the-first-session Home, both for Home before the
     // group's first session's day and null after it (week 3 is long after
     // it): who's coming, and how many an update to the group reaches.
     // CHANGED ON PURPOSE (explainers): a third, the explainer the next
@@ -202,7 +202,7 @@ describe("1. who opens a group's page, its register and its summary", () => {
 // 2. The group page, as the board draws it (week 3)
 // ---------------------------------------------------------------------------
 
-describe("2. the group page in week 3, as wk-fac-group draws it", () => {
+describe("2. the group page in week 3, as the facilitator's group page draws it", () => {
   test("the head: the group, its week, its programme, its day, time and room, and the other facilitator", async () => {
     const drawn = await groupPage("rahul");
     assert.match(drawn.html, /<h1 class="title">Group B<\/h1><span class="weekChip">Week 3 of 6<\/span>/);
@@ -455,7 +455,7 @@ describe("3. the notes a group's facilitators share", () => {
 // 4. Home
 // ---------------------------------------------------------------------------
 
-describe("4. a facilitator's Home on session day, as wk-fac-home-phone draws it", () => {
+describe("4. a facilitator's Home on session day, as the facilitator's Home draws it", () => {
   test("tonight's ticket, who is expected, the register's way and line, this week, what waits for a review", async () => {
     const drawn = await home("rahul");
     assert.match(
@@ -526,7 +526,7 @@ describe("5. the words in week 1, before the first session and after the end", (
     assert.match(drawn.text, /Your group CN Chloe Nguyen FH Farah Hussain KA Kofi Asante Names only\./);
     assert.match(drawn.text, /Registers The first register is on Tue 3 Nov\./);
     assert.match(drawn.text, /To review Nothing to review\./);
-    // Before the day of the first session, Home is board st-fac-before-phone's
+    // Before the day of the first session, Home is the facilitator's before-the-first-session Home
     // (tests/course-hub-facilitator-before.test.mjs): the ticket with "Open
     // your group", who's coming by first name (nobody here has an application
     // to say so on), and Say hello. Take the register comes on the day. An

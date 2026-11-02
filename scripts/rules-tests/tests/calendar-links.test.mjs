@@ -1,6 +1,6 @@
 /**
  * Rules tests for `calendarLinks`, one private calendar link per person (Add
- * to calendar, board st-calendar-phone): shut to every browser, the link's
+ * to calendar): shut to every browser, the link's
  * own owner and admins included. The link route (/api/courses/calendar) is
  * the only writer and shows the owner their link; the feed route
  * (/api/courses/calendar/[token]/sessions.ics) finds whose a token is on the

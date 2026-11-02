@@ -1,6 +1,5 @@
 /**
- * A week as an ordered list of blocks (the coursework boards pr-weeks,
- * wk-week, wk-week-phone, st-week1-phone and wk-week6-phone): the model
+ * A week as an ordered list of blocks: the model
  * every later page builds on.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).

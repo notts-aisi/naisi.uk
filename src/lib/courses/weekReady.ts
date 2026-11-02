@@ -1,5 +1,5 @@
 /**
- * WHETHER A WEEK IS READY (board pr-weeks, Q35): the one answer, for every
+ * WHETHER A WEEK IS READY: the one answer, for every
  * page and route that asks.
  *
  * Ready is the lead's word that a week is finished, stored on the RUN's week
@@ -12,7 +12,7 @@
  * 2026), and a week with nothing in it cannot be marked.
  *
  * WHAT IT OPENS. Week 1, to everybody holding a place, before groups go out
- * (Q35 B: `src/lib/courses/weekOne/door.ts`). After groups go out every week
+ * (`src/lib/courses/weekOne/door.ts`). After groups go out every week
  * opens on Published, all of them at once (Zach, 27 October 2026), so a week
  * that is published and not ready still opens to its groups.
  *
@@ -28,7 +28,7 @@ export function weekIsReady(week: { published?: boolean; ready?: boolean } | nul
   return week !== null && week !== undefined && week.published === true && week.ready === true;
 }
 
-/** pr-weeks' words for the press. */
+/** The Weeks tab's words for the press. */
 export const MARK_READY = "Mark ready";
 
 /**
@@ -38,7 +38,7 @@ export const MARK_READY = "Mark ready";
 export const NOT_READY = "Not ready";
 
 /**
- * pr-weeks' line beside the weeks, and the run's week editor's under Ready:
+ * The Weeks tab's line beside the weeks, and the run's week editor's under Ready:
  * what Ready opens, and when the other weeks open. The first sentence is the
  * board's. The board's second ("Each later week opens to a group straight
  * after its previous session.") named a rule that was taken away on 27

@@ -402,7 +402,7 @@ class: the policy says email. The caps are the lane's (3 an hour per presser
 and event, 10 a day per event), claimed only by a press that sends a notice;
 a press is refused whole over 300 people or 200 messages, never trimmed.
 
-An update (Q18) is kept on the site as well as emailed, and its email is a
+An update is kept on the site as well as emailed, and its email is a
 notice for the reason the group email is one: the lead of a programme, an
 admin or a group's facilitator is writing to the people they run it for. It
 is email only, with no push leg, and it reuses the two course surfaces

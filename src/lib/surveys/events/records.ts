@@ -92,7 +92,7 @@ export async function surveyClosesFor(db: Firestore, eventId: string): Promise<D
 }
 
 /**
- * The walk-ins' emails follow the survey (Q44): they go when it closes or a
+ * The walk-ins' emails follow the survey: they go when it closes or a
  * week after the event, whichever comes first. Asked whenever its closing day
  * is set, changed or reached by hand; an event that is gone has none to move.
  */

@@ -131,7 +131,7 @@ const AT_LEAST = 4;
 const dayOfInstant = (at) => dayLabel(londonDateKey(at));
 
 /**
- * The last week on Home (board wk-lastweek-phone): the ticket's eyebrow
+ * The last week on Home: the ticket's eyebrow
  * (`sessionEyebrow` in src/lib/courses/memberPageWords.ts, "Tonight" from
  * 5pm), the card after the survey (`afterLastSessionHeading`,
  * `CERTIFICATE_LINE`), and the top card a survey would have had
@@ -325,8 +325,7 @@ function issuedWords(at, { year }) {
 
 /**
  * The programme page once it is over (src/lib/courses/finishing/words.ts and
- * src/lib/courses/memberPageWords.ts; boards en-after-phone and
- * en-after-nofinish-phone).
+ * src/lib/courses/memberPageWords.ts).
  */
 const AFTER = Object.freeze({
   finished: (name) => `You finished ${name}.`,

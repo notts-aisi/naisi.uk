@@ -21,7 +21,7 @@ type FormProps = {
 };
 
 /**
- * Adding a walk-in (ev-walkin-phone): a name, and an email only if they want
+ * Adding a walk-in: a name, and an email only if they want
  * this event's survey, with the day it is deleted said beside the box. Saved
  * by the same route as a tick on the door list, as a walk-in.
  */

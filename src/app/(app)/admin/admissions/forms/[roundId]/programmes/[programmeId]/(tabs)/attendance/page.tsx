@@ -20,7 +20,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
 /**
- * One programme's Attendance tab (board wk-attendance): every register of the
+ * One programme's Attendance tab: every register of the
  * course run the programme names, as one grid, read only.
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`loadProgrammeRun`), decided from
@@ -33,14 +33,14 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * `?group=<id>` opens the tab on one group: the Overview's "See it" links
  * here that way. An id that is not one of the run's groups is ignored.
  *
- * THE NOTES EACH GROUP'S FACILITATORS SHARE (C30) are read here too, under
+ * THE NOTES EACH GROUP'S FACILITATORS SHARE are read here too, under
  * the grid, a card per group that has any: the programme's lead and admins
  * read them and write none. They are read on the server after the tab's own
  * gate, and the cards are handed only what they show. The register's own
  * notes, on a person or a session, are not among them: those are the
  * group's facilitators' and admins' alone.
  *
- * THE NOTES EACH GROUP SHARES ON ITS WEEK PAGES (C29) are read here too, under
+ * THE NOTES EACH GROUP SHARES ON ITS WEEK PAGES are read here too, under
  * the facilitators' notes, a card per group that has any. The programme's
  * lead and admins read them and write none; `sharedNotesForAttendance` asks
  * who the reader is before it reads, and the cards are handed only what they

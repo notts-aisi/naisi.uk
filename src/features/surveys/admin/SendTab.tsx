@@ -6,7 +6,7 @@ import SendActions from "./SendActions";
 import styles from "./surveyAdmin.module.css";
 
 /**
- * The Send tab (sv-send-programme). Before the first send: the email as it
+ * The Send tab. Before the first send: the email as it
  * will go, "Send a test to me" and "Email 30 people". After it: what went and
  * when, "20 of 32 have answered", the people who joined since and the button
  * that sends it to them, and the reminder with its own test and button. Every

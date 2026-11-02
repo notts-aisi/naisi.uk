@@ -44,7 +44,7 @@ import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exerci
  * write in their own boxes before Publish has told their place, so the week
  * page can read back what they wrote; and, for week 1 alone, somebody holding
  * a place whom Publish has not told yet, once week 1's door is open to them
- * (Q35 B: `weekOneDoorFor`). Note the
+ * (`weekOneDoorFor`). Note the
  * asymmetry with the submit route, which requires an ACTIVE learner enrolment:
  * a completed cohort is the member's own history to re-read but not to rewrite.
  *
@@ -195,7 +195,7 @@ export async function GET(
       (await db.collection("courseGroups").where("runId", "==", runId).limit(MAX_GROUPS).get()).docs
         .map((d) => normalizeCourseGroup(d.id, d.data() ?? {}))
         .some((g) => !g.archived && isNamedWithStanding(actor, "courseGroups.facilitatorUids", g.facilitatorUids));
-    // Week 1 before groups go out (Q35 B): somebody holding a place whom
+    // Week 1 before groups go out: somebody holding a place whom
     // Publish has not told reads back what they wrote in week 1's boxes, once
     // week 1's door is open to them (`weekOneDoorFor`), and no other week.
     const beforeGroups = !live && !facilitates && week === 1 && (await weekOneDoorFor(db, actor, runId)).open;

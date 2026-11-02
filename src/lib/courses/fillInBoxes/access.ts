@@ -12,7 +12,7 @@ import { programmeLedBy } from "../programmeLead";
 
 /**
  * WHO READS SOMEBODY'S FILL-IN BOXES (week 6's action plan), IN ONE PLACE
- * (Q30 C; Zach, Mon 26 Oct: facilitators are fellows, and a facilitator's own
+ * (Zach, Mon 26 Oct: facilitators are fellows, and a facilitator's own
  * work is the lead's and admins'). The one reader of somebody else's boxes,
  * `GET /api/courses/runs/[runId]/fill-in-boxes`, asks `boxesReaderFor` before
  * a single box is read; the week page's line under the boxes says the same

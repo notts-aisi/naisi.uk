@@ -141,7 +141,7 @@ export async function PUT(req: Request, ctx: Params) {
     isNamedWithStanding(actor, "courseEnrolments.uid", enrolment.uid);
   const liveGroups = groupSnap.docs.map((d) => normalizeCourseGroup(d.id, d.data() ?? {})).filter((g) => !g.archived);
   const facilitates = liveGroups.filter((g) => isNamedWithStanding(actor, "courseGroups.facilitatorUids", g.facilitatorUids));
-  // Week 1 before groups go out (Q35 B): through week 1's door, and in no other week.
+  // Week 1 before groups go out: through week 1's door, and in no other week.
   const beforeGroups = !seated && facilitates.length === 0 && weekNumber === 1 && (await weekOneDoorFor(db, actor, runId)).open;
   if (!seated && facilitates.length === 0 && !beforeGroups) {
     return NextResponse.json({ error: weekNumber === 1 ? WEEK_ONE_NOT_YOURS : NOT_YOURS }, { status: 403 });

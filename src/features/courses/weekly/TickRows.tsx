@@ -8,8 +8,7 @@ import { doneItemWords, openItemWords } from "@/lib/courses/memberPageWords";
 import styles from "./weekly.module.css";
 
 /**
- * A WEEK'S READINGS, EACH WITH ITS TICK (boards st-programme, wk-week-phone,
- * wk-home-phone): a real checkbox in a 44px target, the title, what kind of
+ * A WEEK'S READINGS, EACH WITH ITS TICK: a real checkbox in a 44px target, the title, what kind of
  * thing it is and how long it takes, and the way to open it.
  *
  * The rows draw; ticking is the caller's, through `useMaterialTicks`, so
@@ -119,7 +118,7 @@ type Props = {
   /** Drawn under one row: the week page's reflections on a reading. */
   extra?: (item: TickItem) => ReactNode;
   /**
-   * Steps to tick (a block week's checklist, board wk-week6-phone): each step's
+   * Steps to tick (a block week's checklist): each step's
    * words in the body's weight, the same ticked or not, the box beside the
    * first line of a step that runs to several.
    */

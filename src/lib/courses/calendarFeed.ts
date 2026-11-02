@@ -52,7 +52,7 @@ import { resolveSessions, sessionInstants, type ResolvedSession } from "./sessio
  * online, or nothing is set for it and the session has a link to join. The
  * link itself is only ever asked about, in one line, and never put in the
  * calendar: the calendar leaves the site, and the link to a call stays on it
- * (Q23). Nobody is named, so no name and no address is in the calendar.
+ *. Nobody is named, so no name and no address is in the calendar.
  *
  * An evening cancelled through Change a session stays, marked CANCELLED, so a
  * calendar shows it as off rather than losing it; a week pushed back moves.

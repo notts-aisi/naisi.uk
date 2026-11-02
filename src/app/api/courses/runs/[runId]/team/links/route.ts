@@ -8,7 +8,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
- * "ADD A LINK" ON A TEAM'S PAGE (board in-team's Team links): a label and an
+ * "ADD A LINK" ON A TEAM'S PAGE (the team's page's Team links): a label and an
  * https address, up to the page's limit, added by anybody in the team.
  *
  *   POST { label, url }  ->  { ok: true, id }

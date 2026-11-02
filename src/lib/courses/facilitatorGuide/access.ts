@@ -153,7 +153,7 @@ export async function facilitatorGuideReaderForGroup(
  * alone (the admin's loader page and the run's Weeks tab); and the lead of a
  * programme that names a live run of the course, while they still stand as
  * one, on a course that is there and not being destroyed: the Weeks tab's
- * "Facilitator guide" box (board pr-weeks) is theirs. The same lead the
+ * "Facilitator guide" box is theirs. The same lead the
  * reader gate admits (`leadsOnCourse`), so nobody may write a guide they may
  * not read. Everybody else: null, the same refusal.
  */

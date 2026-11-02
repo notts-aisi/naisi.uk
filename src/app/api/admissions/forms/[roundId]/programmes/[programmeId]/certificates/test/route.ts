@@ -7,7 +7,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
- * "Send a test to me" beside "Send 33 certificates" (board en-finish): the
+ * "Send a test to me" beside "Send 33 certificates": the
  * email the first person still owed would get, marked as a test, to the
  * address on the caller's own session and nobody else. A test that reaches
  * them is recorded, and only then may they press.

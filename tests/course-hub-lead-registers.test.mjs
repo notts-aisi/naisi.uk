@@ -16,7 +16,7 @@
  *     register, an archived group's too, with the people Publish has told,
  *     as the group's facilitators do; corrections stay an admin's. The
  *     register's notes, on a person or on a session, are the group's
- *     facilitators' and admins' (C30): the lead reads the marks and no note.
+ *     facilitators' and admins': the lead reads the marks and no note.
  *  2. MARKING STAYS THE GROUP'S FACILITATORS' AND ADMINS'. The lead is
  *     refused every write to a register, and nothing is written.
  *  3. NOBODY ELSE READS MORE. The lead of another programme, the programme's
@@ -259,7 +259,7 @@ describe("4. a lead who stops leading the run reads nothing", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. The register's notes, as every kind of caller (C30)
+// 5. The register's notes, as every kind of caller
 // ---------------------------------------------------------------------------
 
 describe("5. the register's notes are the group's facilitators' and admins'", () => {

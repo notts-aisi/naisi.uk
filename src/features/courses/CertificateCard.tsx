@@ -5,7 +5,7 @@ import { ADD_TO_LINKEDIN, CARD_TITLE, CARD_TITLE_BOTH } from "@/lib/courses/cert
 import weekly from "./weekly/weekly.module.css";
 
 /**
- * "YOUR CERTIFICATE" (board en-after-phone), on the programme's page once the
+ * "YOUR CERTIFICATE", on the programme's page once the
  * owner has been sent one: the certificate made smaller, the day it was
  * issued, whether anyone else can see it, "See your certificate" and "Add to
  * LinkedIn". Both, one under the other, for a facilitator who also finished.

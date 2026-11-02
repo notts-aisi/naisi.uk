@@ -17,7 +17,7 @@ import { leadAfterSurveyCard } from "@/lib/surveys/leadTab";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
 /**
- * One programme's Overview tab (board wk-overview), the first tab of a
+ * One programme's Overview tab, the first tab of a
  * programme that names a course run: the week the run is in, each group's
  * session this week and its register, what needs attention, who came by
  * week, and how many are taking part.
@@ -30,12 +30,12 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * which goes through its own route. Its Updates card shows the newest
  * updates on the run, read as the Messages tab reads them, and links there.
  *
- * Once the run's last session is over, Who finished (board en-finish) leads
+ * Once the run's last session is over, Who finished leads
  * the page, and its switches save through their own route; before then the
  * People card says when it can be done (`loadWhoFinished`). Certificates
  * follows it, read only then (`loadCertificatesSection`, which asks the
  * same question of the form again), and sends through its own two routes.
- * Then "The after survey" (en-finish, finding A5): how many have answered the
+ * Then "The after survey" (finding A5): how many have answered the
  * survey at the end, the Surveys tab's own count for it
  * (`leadAfterSurveyCard`), with the way to the tab. "Certificates go out
  * [date]" is not drawn: no record holds that day.
@@ -46,7 +46,7 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * their own two routes. The lead reads the list and is told an admin sends it.
  *
  * BEFORE ANY OF THE RUN'S GROUPS HAS MET (`anyGroupHasMet`) the page is "Get
- * ready for week 1" instead (boards st-overview and st-overview-phone): the
+ * ready for week 1" instead: the
  * checklist, who has not said when they are free, the places and the
  * facilitators, read once (`readGetReady`) and worked out by `buildGetReady`,
  * the same facts Publish's own page checks itself against.

@@ -7,7 +7,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
 /**
- * One programme's People tab (board st-people): everyone who holds a place on
+ * One programme's People tab: everyone who holds a place on
  * it or gave it back, with their group, their reply to "I'm coming" and its
  * day, when they are free as fit marks against the run's groups, and where
  * their place stands.

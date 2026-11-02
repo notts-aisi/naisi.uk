@@ -1,7 +1,7 @@
 /**
  * THE WORDS OF ASKING SOMEBODY TO FACILITATE: the lead's Facilitators view
- * (st-facilitators), the email that asks (its "The email Grace got"), and the
- * page its "Say yes or no" opens (st-fac-ask-phone). The boards' own words,
+ *, the email that asks (its "The email Grace got"), and the
+ * page its "Say yes or no" opens. The boards' own words,
  * apostrophes included; a slot is filled from a record, never typed here.
  *
  * Words the boards do not draw are marked NOT DRAWN, and each is listed in
@@ -104,7 +104,7 @@ export function sizeWords(capacity: number | null): string | null {
 export type AskWhere = { kind: "room"; room: string } | { kind: "online" } | null;
 
 // ---------------------------------------------------------------------------
-// The Facilitators view (st-facilitators)
+// The Facilitators view
 // ---------------------------------------------------------------------------
 
 /** "5 facilitators for 4 groups". */
@@ -408,7 +408,7 @@ export function answerInvitationFirstWords(shortName: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// The email (st-facilitators, "The email Grace got")
+// The email ("The email Grace got")
 // ---------------------------------------------------------------------------
 
 /** Every slot the email fills, each from a record. */
@@ -539,7 +539,7 @@ export function testSubject(subject: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// The answer page (st-fac-ask-phone)
+// The answer page
 // ---------------------------------------------------------------------------
 
 /** "Fellowship: AGI Strategy" (upper case by CSS). */

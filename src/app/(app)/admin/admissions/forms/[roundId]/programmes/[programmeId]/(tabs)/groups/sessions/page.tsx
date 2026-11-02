@@ -13,7 +13,7 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
 /**
- * One programme's Groups tab, its Sessions view (wk-session): one week of the
+ * One programme's Groups tab, its Sessions view: one week of the
  * course run the programme names, each group's session in it with its slot,
  * room and facilitators, and "Change a session" with the dialog beside the
  * list. `?week=5` shows another taught week of the run; without it, the week

@@ -1,5 +1,5 @@
 /**
- * WALK-INS (ev-walkin-phone, Q44 B): somebody who came without signing up is
+ * WALK-INS: somebody who came without signing up is
  * added with a name, and an email only if they want that event's survey,
  * which is deleted a week after the event.
  *

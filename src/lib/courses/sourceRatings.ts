@@ -5,7 +5,7 @@ import { RETRO_PROGRESS_LIMIT, aggregateRetrospective, type RetroProgressRow } f
 
 /**
  * THE SOURCES PEOPLE RATED ON A RUN'S WEEK PAGES, as totals, for the
- * programme lead's Surveys tab (board sv-programme, "Sources people rated").
+ * programme lead's Surveys tab ("Sources people rated").
  *
  * The count is the retrospective's own (`aggregateRetrospective`), so the
  * two can never disagree, and so is its floor: a source's average is shown

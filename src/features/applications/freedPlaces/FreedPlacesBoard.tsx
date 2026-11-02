@@ -25,7 +25,7 @@ import { formatRunStartShort } from "@/lib/courses/window";
 import styles from "./FreedPlacesBoard.module.css";
 
 /**
- * "Offer freed places", the board st-offer: who gave places back, the window,
+ * "Offer freed places": who gave places back, the window,
  * the pooled applicants who ranked the programme with real checkboxes, the
  * email the first person picked will get, a test to yourself, and the button
  * that says how many it emails.

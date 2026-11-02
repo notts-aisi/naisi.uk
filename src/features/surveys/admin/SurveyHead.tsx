@@ -23,7 +23,7 @@ export function surveyTabHref(id: string, tab: SurveyTab): string {
 }
 
 /**
- * The head of a survey's pages (sv-send-programme): the way back to Surveys
+ * The head of a survey's pages: the way back to Surveys
  * (to its Events tab for a survey after an event), its name, whether it is
  * open, that it is confidential, its programme and when it closes, and its
  * five tabs. Drawn by each tab's page, which is the one <h1> on it. A leaving

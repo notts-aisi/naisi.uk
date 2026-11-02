@@ -3,11 +3,11 @@ import { addDaysToKey, isValidDateKey } from "@/lib/courses/weekPlan";
 import { THIS_TERM } from "./words";
 
 /**
- * "THE WEEKS" ON A TEAM'S PAGE (board in-team): every taught week of the
+ * "THE WEEKS" ON A TEAM'S PAGE: every taught week of the
  * team's group's calendar, across both terms, with the break between them.
  *
  * An incubator meets for some weeks this term and some more after a break
- * (Q10: 7 now and 3 in February). Nothing here knows that shape: the run's
+ * (7 now and 3 in February). Nothing here knows that shape: the run's
  * own calendar does. Its week plan is a list of seven-day slots, each a
  * taught week or a break, so the weeks fall into runs between breaks, and
  * each run is drawn as one row of the bar:

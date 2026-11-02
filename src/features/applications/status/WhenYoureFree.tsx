@@ -6,8 +6,7 @@ import { slotCountFor } from "@/lib/admissions/availability";
 import styles from "./status.module.css";
 
 /**
- * "WHEN YOU’RE FREE" ON THE APPLICATION PAGE (Q7: boards st-application-phone,
- * st-late-phone), for somebody holding a place on a fellowship until Publish
+ * "WHEN YOU’RE FREE" ON THE APPLICATION PAGE, for somebody holding a place on a fellowship until Publish
  * has told them their group. The server decides whether it is drawn at all
  * (`loadWhenFree`) and hands in the form's grid, the week as painted and the
  * line under the title; nothing here decides who may.

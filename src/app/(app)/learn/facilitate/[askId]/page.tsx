@@ -17,7 +17,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
- * THE PAGE AN ASK TO FACILITATE OPENS (board st-fac-ask-phone): "Would you
+ * THE PAGE AN ASK TO FACILITATE OPENS: "Would you
  * facilitate Group D?", the group's time, first session, room and size, the
  * run's training, and "Yes, I’ll facilitate" or "I can’t this term".
  *

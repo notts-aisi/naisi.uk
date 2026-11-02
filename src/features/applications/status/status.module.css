@@ -757,7 +757,7 @@
   color: var(--color-accent-text-hover);
 }
 
-/* === When you’re free (Q7: st-application-phone) ===
+/* === When you’re free ===
    The week as bars across the grid's hours, each day's times in mono upper
    case, and "Change when you’re free" under it, full width. */
 .freeCard {

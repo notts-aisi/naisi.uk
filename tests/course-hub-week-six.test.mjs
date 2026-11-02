@@ -1,5 +1,5 @@
 /**
- * Week 6's own pieces on the member's week page (board wk-week6-phone):
+ * Week 6's own pieces on the member's week page:
  * fill-in boxes (part 3's plan) and the checklist in blocks (part 2), with
  * the counts by This week's tasks they move.
  *
@@ -19,7 +19,7 @@
  *  1. The fill-in card, drawn word for word and in order.
  *  2. A fill-in box is its writer's own: stored as a fill-in box, refused
  *     to everybody else, never written over another kind of row.
- *  3. Who reads somebody's boxes (Q30 C): the group's facilitators, the
+ *  3. Who reads somebody's boxes: the group's facilitators, the
  *     programme's lead and admins; for a facilitator's own, the lead and
  *     admins alone; never another fellow.
  *  4. Every reader of answers leaves a fill-in box out.
@@ -88,7 +88,7 @@ function chloeFacilitatesB() {
 // 1. The fill-in card, drawn
 // ---------------------------------------------------------------------------
 
-describe("1. the fill-in card, drawn (wk-week6-phone, part 3)", () => {
+describe("1. the fill-in card, drawn (part 3)", () => {
   test("Chloe's card, word for word and in order", async () => {
     const { text, html } = await w.weekPage("chloe", 6);
     inOrder(text, [
@@ -360,7 +360,7 @@ describe("2. a fill-in box is its writer's own", () => {
 // 3. Who reads somebody's boxes
 // ---------------------------------------------------------------------------
 
-describe("3. who reads somebody's boxes (Q30 C)", () => {
+describe("3. who reads somebody's boxes", () => {
   test("a fellow's: the group's facilitators, the programme's lead and admins; nobody else", async () => {
     await w.writeFillIn("chloe", FB[0], "w06", "Mend the north lamp.");
     await w.writeBox("chloe", "k6-rp1", "w06", "A reflection, not a box.");
@@ -586,7 +586,7 @@ describe("6. the checklist in blocks (part 2)", () => {
     const part2 = partHtml(html, 2);
     assert.equal((part2.match(/type="checkbox"/g) ?? []).length, 3);
     assert.match(part2, /aria-label="Done: Find two keepers doing it now\."/);
-    // Drawn as steps (wk-week6-phone): the words in the body's weight, the same ticked or not.
+    // Drawn as steps: the words in the body's weight, the same ticked or not.
     assert.equal((part2.match(/<li class="tickRow stepRow">/g) ?? []).length, 3);
     assert.match(part2, /<p class="stepTitle">Find two keepers doing it now\.<\/p>/);
     const ticked = partHtml((await w.weekPage("chloe", 6, CI)).html, 2);

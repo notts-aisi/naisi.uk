@@ -14,8 +14,8 @@
  * asks the register alone whether a session happened reads a cancelled
  * session as one that did, and chases it, counts it or shows it. The walk of
  * stage three found three: the lead's tabs (fixed in the walk), the
- * facilitators' register and Home's attendance strip (gone since board
- * wk-home-phone, which draws no marks on Home: C26).
+ * facilitators' register and Home's attendance strip (gone since
+ * Home's restyle, which shows no marks on Home).
  *
  * ## How it is held
  *
@@ -349,7 +349,7 @@ describe("a register's held, and a session cancelled through Change a session", 
   });
 
   // Home's attendance strip, the other reader the walk named, is gone: Home
-  // draws no marks since board wk-home-phone (C26), and reads no register.
+  // shows no marks since Home's restyle, and reads no register.
   test("the reader the walk of stage three named, and the one it fixed, ask", () => {
     for (const file of [
       "app/api/courses/groups/[groupId]/attendance/route.ts",

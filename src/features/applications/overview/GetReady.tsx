@@ -15,22 +15,21 @@ import RemindFree from "./RemindFree";
 import styles from "./ProgrammeOverview.module.css";
 
 /**
- * A PROGRAMME'S OVERVIEW BEFORE ANY OF ITS GROUPS HAS MET (boards st-overview
- * and st-overview-phone): "Get ready for week 1", each step done, in progress
+ * A PROGRAMME'S OVERVIEW BEFORE ANY OF ITS GROUPS HAS MET: "Get ready for week 1", each step done, in progress
  * or to do with its line and its way on, then who has not said when they are
  * free, the places, and the facilitators.
  *
  * IT DRAWS WHAT THE SERVER WORKED OUT (`buildGetReady`) and decides nothing.
  * Two things run in the browser: week 1's "Mark ready", the Overview's own
  * control, and "Remind 3 people" on the card of who has not said when they
- * are free, which says how many it emails (C20).
+ * are free, which says how many it emails.
  *
  * Every link is a page of the programme's own tabs, built from the two ids
  * the page was reached by; "Set rooms" is the run editor's, offered to an
  * admin only, because the programme's tabs set no room.
  *
  * Not drawn, because it is not built: "Suggest to another programme’s lead"
- * under somebody who gave their place back (its email is not drawn, C22).
+ * under somebody who gave their place back (its email is not drawn).
  */
 
 /** A view of the programme's tabs, by where a step leads. */

@@ -5,7 +5,7 @@ import { WEEK_OPEN_DAYS_BEFORE, weekEmailSendAt } from "./weekEmails/model";
  * WHEN THE THINGS AROUND A REGISTER HAPPEN, as arithmetic.
  *
  * Three clocks hang off a group's sessions once a register stops being the
- * thing that sends the group's "Week N is open" email (wk-register, option B):
+ * thing that sends the group's "Week N is open" email:
  *
  *  1. "WEEK N IS OPEN" goes 6 days before each session, at 9am in London
  *     (`src/lib/courses/weekEmails/model.ts`, which also times the reminders

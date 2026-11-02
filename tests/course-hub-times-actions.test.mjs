@@ -1,5 +1,5 @@
 /**
- * The Times view's two writes (board st-times, Q2 option B): a group's day
+ * The Times view's two writes (Q2 option B): a group's day
  * and start ("Change", and "Use for a group" on a group that exists), and a
  * new group ("Add a group", and "Use for a group" for a new one), as every
  * kind of caller, before Publish and after it.

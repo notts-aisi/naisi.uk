@@ -20,7 +20,7 @@ import { readGuideSlot, saveGuideSlot } from "@/lib/courses/facilitatorGuide/sto
  *
  * WHO. Admins, decided on the session before anything is read, and the lead
  * of a programme that names a live run of the course, while they stand as
- * one: the Weeks tab's "Facilitator guide" box (board pr-weeks) sends here
+ * one: the Weeks tab's "Facilitator guide" box sends here
  * for each week's session plan and notes. Every other caller meets the same
  * 403 (`facilitatorGuideWriter`). The store takes a `GuideWriter`, which only
  * the gate mints.

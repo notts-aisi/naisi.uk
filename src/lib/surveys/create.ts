@@ -49,7 +49,7 @@ import { REFUSAL, STAGE_WORDS, introFor, surveyNameFor } from "./words";
  * The day names come off is worked out from records when the survey is made
  * and each time it is saved, and fixed by the first send.
  *
- * THE LEAVING SURVEY (Q46) is made the same way, one per programme, from its
+ * THE LEAVING SURVEY is made the same way, one per programme, from its
  * own template, and differs in four things: it pairs with no other survey; it
  * has no closing day; nobody sends it, so it is opened (`openLeavingSurvey`
  * in `./leaving.ts`), which fixes it as a first send does; and its test link

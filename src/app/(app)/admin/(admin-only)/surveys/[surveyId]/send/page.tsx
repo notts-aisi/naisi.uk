@@ -15,14 +15,14 @@ import { eventSendView } from "@/lib/surveys/events/adminView";
 export const dynamic = "force-dynamic";
 
 /**
- * A survey's Send tab (sv-send-programme): the email, its test and the
+ * A survey's Send tab: the email, its test and the
  * buttons that send it, to everybody holding a place, then to whoever joins
  * since, and the reminder. Each email is signed by the admin looking at it,
  * who is the one who would press. Admins only, by the `(admin-only)` group's
  * layout (`requireAdminPage()`); the session is read here for the signature,
  * and for the names rule: each name as the admin looking is shown it.
  *
- * A LEAVING SURVEY is never sent (Q46): at this address it has its Open tab
+ * A LEAVING SURVEY is never sent: at this address it has its Open tab
  * instead, where it is opened and, once open, closed. Nor is A CHECK-IN: its
  * Opening tab says how its group's facilitator opened it.
  */
@@ -56,7 +56,7 @@ export default async function SurveySendPage({ params }: { params: Promise<{ sur
       </AdminPage>
     );
   }
-  // A survey after an event: who it emails, its QR code at the event, and its email (sv-send).
+  // A survey after an event: who it emails, its QR code at the event, and its email.
   if (isEventSurvey(page.survey)) {
     const eventView = await eventSendView(db, page.survey, admin.uid, now, admin);
     return (

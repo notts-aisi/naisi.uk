@@ -22,8 +22,8 @@ import styles from "./blockWeek.module.css";
 import weekWork from "./weekWork.module.css";
 
 /**
- * SOURCES ON A PART'S PATH (boards st-week1-phone, wk-week-phone): each one a
- * link (Q36: videos too, never a player), with the words the guide writes
+ * SOURCES ON A PART'S PATH: each one a
+ * link (videos too, never a player), with the words the guide writes
  * before its title, its kind, its time, who made it and when, its note, what
  * a notebook needs to run, and for somebody taking part a tick in a 44px
  * target. A source whose note carries its links has no link of its own.
@@ -36,14 +36,14 @@ import weekWork from "./weekWork.module.css";
  * stays open (`canNote`): a rating and a private note are about the material,
  * not the week's work.
  *
- * THE READING'S BOX (Q38): once a source is ticked, "Rate it or leave a note"
+ * THE READING'S BOX: once a source is ticked, "Rate it or leave a note"
  * opens the star rating and the private note, the two things each reading
  * has always kept, renamed so that "reflection" means the week's set
  * questions only. They are stored on the same row as the tick
  * (`saveProgressReflection`). No comment for the rest of the run is drawn on
  * a week written as blocks.
  *
- * Under the page's first sources, who sees the ticks (Q31): the group's
+ * Under the page's first sources, who sees the ticks: the group's
  * facilitators, the programme's lead and admins.
  */
 
@@ -66,7 +66,7 @@ type Props = {
   ticksLine: string | null;
   /** Who reads the private note: the reader's facilitators and admins, or for a facilitator's own, admins. */
   privateNoteHint: string;
-  /** A ticked reading opens "Rate it or leave a note". Off before groups go out (Q35 B). */
+  /** A ticked reading opens "Rate it or leave a note". Off before groups go out. */
   canRate?: boolean;
 };
 

@@ -19,7 +19,7 @@ import { REQUIRED_WORDS, questionTypeWords } from "@/lib/surveys/words";
 import styles from "./surveyAdmin.module.css";
 
 /**
- * A survey's words and questions, until it is sent (sv-edit), as small as is
+ * A survey's words and questions, until it is sent, as small as is
  * honest: the title and intro people see, about how many minutes it takes,
  * the day it closes, and each question's words, the line under it, its
  * options, lines and the words on its scale, and their order. Questions are

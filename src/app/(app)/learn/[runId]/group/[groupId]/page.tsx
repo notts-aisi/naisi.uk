@@ -70,18 +70,17 @@ import { weekDocId } from "@/lib/firestore/courses";
 import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/route";
 
 /**
- * A FACILITATOR'S GROUP PAGE (boards wk-fac-group at 1440 and
- * wk-fac-group-phone at 390): the group, its week and how it meets; "Write to
+ * A FACILITATOR'S GROUP PAGE, at 1440 and at 390: the group, its week and how it meets; "Write to
  * Group B (7)" and "Change a session"; the next session as a ticket with how
  * many are expected and "Take the register"; the group's people with each
  * finished register's marks, and who left; the registers; the work to
  * review; the updates; the pace; and the notes the group's facilitators share
- * (C30). Drawn on the server, from the records the programme's own tabs read
+ *. Drawn on the server, from the records the programme's own tabs read
  * (`src/lib/courses/facilitatorGroup.ts`), so a facilitator and the lead never
  * read two stories about one group.
  *
- * THE REGISTER is a page of its own beside this one (`./register`), as board
- * wk-register draws it: "Take the register" and each register's "See it" lead
+ * THE REGISTER is a page of its own beside this one (`./register`):
+ * "Take the register" and each register's "See it" lead
  * there.
  *
  * THE WEEK (a week written as blocks): the review queue beside the ticket,
@@ -94,7 +93,7 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * theirs. The rows of cards follow the board: the ticket and the review
  * queue, then This week's work, then the group and the rest.
  *
- * THE SPREAD (Q32 A, "Pathways in Group B"): the draw of the week of the
+ * THE SPREAD ("Pathways in Group B"): the draw of the week of the
  * group's next session, each pathway with who has it, and the way to the draw
  * page (`/learn/draw/[groupId]`), where the slips are copied in.
  *
@@ -245,7 +244,7 @@ export default async function GroupHomePage({
     now,
   );
   // The same facts the overview route puts on a member's card: the next
-  // session's own weeks, room and link, and any evening that is off (Q25).
+  // session's own weeks, room and link, and any evening that is off.
   // Resolved off the same calendar, by the same pure resolver.
   const changes = cardChangeFacts(
     resolveSessions(access.run, group, groupCalendar.calendar),
@@ -330,7 +329,7 @@ export default async function GroupHomePage({
   const registerHref = `${groupPath}/register`;
   const reviewHref = (week: number | null) => `${groupPath}/review${week === null ? "" : `?week=${week}`}`;
 
-  // Updates (Q18): the way to write one to this group, counted as its press
+  // Updates: the way to write one to this group, counted as its press
   // counts, and the updates this group's page shows, through the one reader.
   // An archived group has no count, so no way to write to it.
   const runGroups = await loadRunGroups(db, runId);
@@ -357,7 +356,7 @@ export default async function GroupHomePage({
     now,
   });
 
-  // The draw of the week the group meets next (Q32 A): the slips handed out
+  // The draw of the week the group meets next: the slips handed out
   // at the end of the last session are that week's. Everybody in the group
   // is in it, its facilitators too, who take part.
   const drawWeek = !group.archived && range.next ? await readGroupWeek(db, runId, groupId, range.next.weekNumber) : null;
@@ -368,7 +367,7 @@ export default async function GroupHomePage({
   // group's pairs, its facilitators too, who take part.
   const pairsWeek = drawWeek ? await readGroupPairs(db, runId, groupId, drawWeek, drawList) : null;
 
-  // This week's work's Pathway, Written answer and Case columns (wk-fac-group),
+  // This week's work's Pathway, Written answer and Case columns,
   // for the week it shows, through the packs' and the written answers' own
   // readers: each reader is shown what the review page and the draw page show
   // them of the same people.
@@ -425,7 +424,7 @@ export default async function GroupHomePage({
   // The page's cards, drawn once, and placed below by the shape of the week.
   const ticketCards = (
     <>
-      {/* An evening is off (Q25): the notice the group reads, over the
+      {/* An evening is off: the notice the group reads, over the
           session it meets at next, as on their programme page. */}
       {sessionGroup.sessionNotice && <SessionNotice notice={sessionGroup.sessionNotice} now={now} />}
       {facts && (
@@ -501,7 +500,7 @@ export default async function GroupHomePage({
       />
     </>
   );
-  // The review queue (wk-fac-group), beside the ticket: its written answers
+  // The review queue, beside the ticket: its written answers
   // half, on a run whose weeks are written as blocks (null on a run of the
   // summer's weeks), and its reflections half, on a week written as blocks
   // with something to reflect on.
@@ -570,7 +569,7 @@ export default async function GroupHomePage({
           )}
         </div>
 
-        {/* "Write to Group B (7)" and "Change a session" (wk-fac-group), the
+        {/* "Write to Group B (7)" and "Change a session", the
             write link's line under both: it says how many the update emails.
             An archived group has neither: nobody writes to it or changes it. */}
         {!group.archived && (

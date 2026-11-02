@@ -3,8 +3,8 @@ import weekly from "../weekly/weekly.module.css";
 import styles from "./guide.module.css";
 
 /**
- * The top of Start here and the Glossary (wk-start, wk-glossary and their
- * phone boards): on a phone, the bar with the way back to the programme and
+ * The top of Start here and the Glossary (at 1440 and on a
+ * phone): on a phone, the bar with the way back to the programme and
  * the page's name; on a wide page, the breadcrumb; then the programme's
  * label and the title. Every name comes in from a record.
  */

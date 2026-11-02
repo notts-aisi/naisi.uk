@@ -54,7 +54,7 @@ export type EmailSendKind =
   // admissions mail. Its `referenceId` is the RUN id; its test goes as
   // `course-test`.
   | "course-feedback"
-  // A programme's certificates (board en-finish): one email a person, with a
+  // A programme's certificates: one email a person, with a
   // button to each certificate they are sent, from the lead's or an admin's
   // press. Its own kind so "did everybody who finished get their
   // certificate" is answerable without reading subject lines; its

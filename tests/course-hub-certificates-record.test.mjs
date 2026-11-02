@@ -273,7 +273,7 @@ describe("the drawing's words", () => {
 });
 
 // ---------------------------------------------------------------------------
-// The course's credit line (C45)
+// The course's credit line
 // ---------------------------------------------------------------------------
 
 describe("the course's credit line", () => {

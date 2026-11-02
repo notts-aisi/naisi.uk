@@ -30,7 +30,7 @@ import {
  * when no lead stands to sign it, as the group email is. The wording
  * is a template an admin can edit (`course-facilitating`, "You’re
  * facilitating" in Email designs), with `{tokens}` in it. Its seed copy is in
- * the board's words (st-emails): the room and who else facilitates sit
+ * the board's words: the room and who else facilitates sit
  * inside the sentence that says when the group meets, through the inline
  * tokens `{place}`, `{placeNote}` and `{facilitatingWith}`, and
  * `{namesOnPage}` says where the people's names are, and week 1's guide with

@@ -14,7 +14,7 @@ import { TEMPLATE_MEASURES } from "@/lib/surveys/templates";
 export const dynamic = "force-dynamic";
 
 /**
- * A survey's Questions tab (sv-edit): its words and questions, changed here
+ * A survey's Questions tab: its words and questions, changed here
  * until it is first sent and read here after. Admins only, by the
  * `(admin-only)` group's layout.
  */

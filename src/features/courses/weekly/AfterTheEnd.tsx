@@ -11,7 +11,7 @@ import styles from "./weekly.module.css";
 
 /**
  * THE PROGRAMME PAGE ONCE IT IS OVER, for somebody who took part in it
- * (boards en-after-phone and en-after-nofinish-phone), drawn by `RunHome`
+ *, drawn by `RunHome`
  * from what it and the server page hand it. In the boards' order:
  *
  *  1. The head: "You finished AGI Strategy." with the term, the group and
@@ -29,7 +29,7 @@ import styles from "./weekly.module.css";
  * that week asked of them, and a facilitator's own group panels.
  *
  * Somebody who left is never shown this: they see the page that says they
- * left, and keep nothing (wk-left-phone).
+ * left, and keep nothing.
  */
 
 /** The survey at the end as the page is handed it, named here so its page can type its props without reaching survey code. */
@@ -79,7 +79,7 @@ export default function AfterTheEnd({
         <h1 className={styles.afterTitle}>{heading}</h1>
         {thanks ? (
           /* After the thanks, the term and the group stay together with
-             their full stop, as en-after-nofinish-phone draws them. */
+             their full stop, as the page after the end for somebody who did not finish draws them. */
           <p className={styles.afterHeadLine}>
             {thanks}
             {lineParts.length > 0 && (
@@ -91,7 +91,7 @@ export default function AfterTheEnd({
           </p>
         ) : (
           lineParts.length > 0 && (
-            /* Each part whole on a line: "Autumn 2026", "Group B", "with Rahul and Sofia" (en-after-phone). */
+            /* Each part whole on a line: "Autumn 2026", "Group B", "with Rahul and Sofia". */
             <p className={styles.afterHeadLine}>
               {lineParts.map((part, index) => (
                 <Fragment key={index}>

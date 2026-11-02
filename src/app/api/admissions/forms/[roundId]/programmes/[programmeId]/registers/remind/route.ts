@@ -8,7 +8,7 @@ import { getCurrentUser } from "@/lib/firebase/session";
 import { readCoursesConfig } from "@/lib/firestore/config";
 
 /**
- * "Remind Grace" on a programme's Overview (board wk-overview): the register
+ * "Remind Grace" on a programme's Overview: the register
  * reminder, now, to the facilitators of one group whose session has ended
  * and whose register is not finished. It emails them and nobody else.
  *

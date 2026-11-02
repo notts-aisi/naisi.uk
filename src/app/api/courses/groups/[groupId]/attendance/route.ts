@@ -120,7 +120,7 @@ export type AttendanceSession = {
   /**
    * The facilitator's note on the session as a whole. "" for a caller the
    * gate admits only as the programme's lead: a register's notes are the
-   * group's facilitators' and admins' (C30).
+   * group's facilitators' and admins'.
    */
   notes: string;
   /** ISO instant of PUSH ATTENDANCE, or null while this is still a draft. */
@@ -148,7 +148,7 @@ export type AttendancePayload = {
    */
   notYetTold: boolean;
   /**
-   * SOMEBODY WHO LEFT THE GROUP, read only, as wk-fac-group draws "Sam
+   * SOMEBODY WHO LEFT THE GROUP, read only, as the facilitator's group page shows "Sam
    * Whitfield, Left Fri 13 Nov": the people the lead's Attendance tab lists
    * in this group as having left (`leaversOfGroup`, the grid's own rule, so
    * the two agree), named as the rows are, name-sorted, each with the marks

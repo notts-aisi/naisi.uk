@@ -7,7 +7,7 @@
  * a level for each row, which is still read, as it was given, by
  * `normalizeGivenLevels`.
  *
- * COURSEWORK NEVER GETS A MARK, A SCORE OR A TOTAL (board j-access). A level
+ * COURSEWORK NEVER GETS A MARK, A SCORE OR A TOTAL. A level
  * is a word and nothing else: nothing here or anywhere numbers the levels,
  * adds them up or ranks one answer above another, and no field stores a
  * number for one.

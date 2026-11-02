@@ -326,7 +326,7 @@ describe("2. every page and route that reaches the guide asks the gate first", (
     assert.match(code, /if \(group\.archived \|\|/);
     assert.match(code, /if \(await programmeLedBy\(db, user, doc\.id\)\) return true;/);
     // The loader's gate admits an admin on an id that is one, and the lead the
-    // reader admits (the Weeks tab's guide box, board pr-weeks), on a course
+    // reader admits (the Weeks tab's guide box), on a course
     // that is there and not being destroyed; nobody else.
     assert.match(code, /if \(!isAddressableId\(courseId\)\) return null;\s*if \(user\.role === "admin"\) return \{ courseId \} as GuideWriter;/);
     assert.match(code, /if \(!\(await liveCourse\(db, courseId\)\)\) return null;\s*if \(await leadsOnCourse\(db, user, courseId\)\) return \{ courseId \} as GuideWriter;\s*return null;/);

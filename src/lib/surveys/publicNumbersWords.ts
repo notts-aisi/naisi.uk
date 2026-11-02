@@ -1,5 +1,5 @@
 /**
- * The words of the admins' Public numbers page (sv-public), in one place the
+ * The words of the admins' Public numbers page, in one place the
  * page and its client parts both read. Pure, with no import, so a client
  * component takes them without taking the counting.
  */

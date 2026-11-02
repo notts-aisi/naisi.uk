@@ -36,7 +36,7 @@ const WHO_SEES =
 const SURVEY_LINE = "There may be a short survey afterwards.";
 
 /**
- * Where an event's door code lands (ev-self-phone): "Are you here?" and one
+ * Where an event's door code lands: "Are you here?" and one
  * button. `decideSelf` (`src/lib/events/selfCheckIn.ts`) decides who may press
  * it and as what; the route behind the button asks the same question. At an
  * event that does not let people check themselves in, or before its door is

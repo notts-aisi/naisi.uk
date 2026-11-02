@@ -1,6 +1,6 @@
 /**
  * Week 3 of AGI Strategy's run, for the suites about a person's calendar link
- * (board st-calendar-phone): the link route, the feed a calendar app fetches,
+ *: the link route, the feed a calendar app fetches,
  * the dialog and the button on the session ticket.
  *
  * Built on `tests/lib/memberPagesWorld.mjs` (the run in its third week as the

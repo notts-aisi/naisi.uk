@@ -16,7 +16,7 @@ import WhoFinished from "./WhoFinished";
 import styles from "./ProgrammeOverview.module.css";
 
 /**
- * A PROGRAMME'S OVERVIEW (board wk-overview), drawn from the model the
+ * A PROGRAMME'S OVERVIEW, drawn from the model the
  * server worded (`buildProgrammeOverview`): the week, the sessions this week
  * and their registers, what needs attention, who came by week, and the
  * people. Only "Remind" and week 1's "Mark ready" run in the browser.
@@ -25,7 +25,7 @@ import styles from "./ProgrammeOverview.module.css";
  * Updates card shows the newest updates and leads to the Messages tab, where
  * they are written and read in full.
  *
- * WHO FINISHED (board en-finish) leads the page once the run's last session
+ * WHO FINISHED leads the page once the run's last session
  * is over, above everything else here, which stays: a register still not
  * finished, named under Needs attention, changes who came. Before then the
  * People card says when it can be done. Both from `loadWhoFinished`.
@@ -39,7 +39,7 @@ import styles from "./ProgrammeOverview.module.css";
  * email each person gets, and an admin's test and send.
  *
  * BEFORE ANY GROUP HAS MET the page draws "Get ready for week 1" in place of
- * all of this (`GetReady`, boards st-overview and st-overview-phone), from
+ * all of this (`GetReady`), from
  * `getReady`, which the server hands over only then.
  */
 
@@ -194,7 +194,7 @@ export default function ProgrammeOverview({
         <WhoFinished model={finishing} roundId={roundId} programmeId={programmeId} />
       )}
       {finishing?.state === "open" && (certificates || afterSurvey) && (
-        /* en-finish: Certificates, and beside it The after survey, a narrower card; one under the other on a phone. */
+        /* Once the run is over: Certificates, and beside it The after survey, a narrower card; one under the other on a phone. */
         <div className={styles.endRow}>
           {certificates && (
             <div className={styles.endMain}>

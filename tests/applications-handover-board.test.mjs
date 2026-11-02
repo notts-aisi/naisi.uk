@@ -226,7 +226,7 @@ describe("6. the allocation board", () => {
       const before = everything();
       const published = await publish("yusuf");
       // The sentence names who does publish such a run: since the course
-      // hub's lead access (Q1), an admin or the lead of the programme that
+      // hub's lead access, an admin or the lead of the programme that
       // names the run (tests/course-hub-lead-rows.test.mjs).
       assert.deepEqual(short(published), [
         403,

@@ -135,7 +135,7 @@ const STYLESHEETS = [
   "./UpdateComposer.module.css",
   "./Messages.module.css",
   "@/features/courses/updates/Messages.module.css",
-  // The facilitator's pages (boards wk-fac-group, wk-fac-home-phone): their own sheet and the
+  // The facilitator's pages: their own sheet and the
   // member's pages' shared one, since the group page and the Attendance tab draw their cards.
   "@/features/courses/weekly/weekly.module.css",
   "./facilitator.module.css",
@@ -1102,7 +1102,7 @@ async function groupPageOf(who, runId, groupId) {
   const drawn = await draw(pages.group, who, { runId, groupId });
   if (drawn.to) return { sentTo: drawn.to };
   const [list] = find(drawn.element, "StaffUpdatesSection");
-  // Since board wk-fac-group the page's head draws "Write to Group B (7)" and
+  // Since the restyle of the facilitator's group page, the page's head draws "Write to Group B (7)" and
   // "Change a session" side by side, with the line under both: the button and
   // its line are read as they always were, around the second button.
   const found =
@@ -2269,7 +2269,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         amara: "Your first session Group B with Rahul and Sofia Tue 3 Nov, 6pm to 8pm Room C20",
         omar: "Your first session Group A with Tess Mon 2 Nov, 5pm to 7pm Room B5",
       });
-      // The page drawn to wk-fac-group says what it says of names under its
+      // The page drawn to the facilitator's group page says what it says of names under its
       // "Your group", in the board's words.
       assert.ok(u.groupPage.includes("Names only. Email addresses stay with admins."), u.groupPage);
       assert.equal(
@@ -2335,9 +2335,9 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     });
 
     // The Attendance tab keeps somebody who left in the group whose register
-    // marked them, with their marks, as wk-attendance draws "Sam Whitfield,
+    // marked them, with their marks, as the attendance grid draws "Sam Whitfield,
     // Left Fri 13 Nov"; the register on their facilitators' page, which
-    // wk-fac-group draws the same way, keeps them too, read only, beside the
+    // the facilitator's group page draws the same way, keeps them too, read only, beside the
     // people still in the group. The register used to drop him and his mark
     // (the walk of stage two, G3), and Remove recorded no day, so both tabs
     // said "Left" with none; Remove now records it.
@@ -2688,7 +2688,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     // Attendance and the Times view, in meeting order on the Overview's
     // sessions and in stored order on Messages (the walk of stage two, G10).
     // Every tab now lists them in People in groups' order, but for the
-    // Overview's sessions this week, which read in time, as wk-overview draws
+    // Overview's sessions this week, which read in time, as the Overview tab draws
     // them.
     test("every tab of the programme page lists the groups in one order, the order People in groups draws them in", () => {
       for (const label of MOMENTS) {
@@ -2705,7 +2705,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
             `${where}, Messages`,
           );
           // The Overview's sessions this week are a list of what happens when,
-          // and read in time, as wk-overview draws them: by their day, and two
+          // and read in time, as the Overview tab draws them: by their day, and two
           // on one day in the tabs' order.
           const sessions = look[tabs].overview.sessions;
           const inTime = [...sessions].sort(

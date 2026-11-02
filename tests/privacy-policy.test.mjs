@@ -822,8 +822,8 @@ const MUST_NAME = [
   ["what a programme's lead sees once it is running", /<strong>What the people leading a programme see\.<\/strong>\{" "\} Everything a facilitator sees, for every group, except the notes facilitators write about a named person or a session, and the private notes people keep on the material, and also: who can&apos;t make their group&apos;s time and why, the reasons people give for leaving, the pitches and teams on an incubator, who might facilitate, who finished, and the totals and comments of the programme&apos;s surveys, never with a name\./],
   ["facilitators see names only", /<strong>What your facilitators see\.<\/strong> Who is in their group, by name only:/],
   ["what facilitators read of their own groups", /The register, your work and progress \(see <a href="#your-work">Your work<\/a>\), and before the first session whether you have said you are coming\./],
-  // The notes a group's facilitators share (C30) and the notes a group shares
-  // on its week pages (C29). §2g holds each to its code.
+  // The notes a group's facilitators share and the notes a group shares
+  // on its week pages. §2g holds each to its code.
   ["the notes a group's facilitators share, and that one can name a person", /<strong>Notes about a group\.<\/strong> A group&apos;s facilitators may keep notes for each other about how it is going, and a note may mention you;/],
   // Who reads each kind: the notes about a group, its facilitators, the
   // programme's lead and admins (`src/lib/courses/groupNotes/readers.ts`); a
@@ -3329,7 +3329,7 @@ describe("the course hub passage", () => {
   test("a programme's lead reads every register of its groups, and is sent none of their notes", () => {
     // OWNER DECISION, 25 October 2026: the notes a facilitator writes on a
     // register, about a named person or about a session as a whole, are the
-    // group's facilitators' and admins' (C30). A programme's lead reads every
+    // group's facilitators' and admins'. A programme's lead reads every
     // register of the run its programme names, its marks and none of its
     // notes. The policy says a facilitator sees the register, that the lead
     // sees everything a facilitator sees, for every group, except the notes
@@ -4424,7 +4424,7 @@ describe("the course hub passage", () => {
   });
 
   test("before the first session, facilitators see whether each person in their group has said they are coming, and nothing else from an application", () => {
-    // BUILT, 26 October 2026 (Q14): the summary behind a facilitator's Home
+    // BUILT, 26 October 2026: the summary behind a facilitator's Home
     // hands the group's facilitators, on the days before its first session,
     // each person's first name and whether they have said they are coming.
     // The policy says so in what facilitators see, with nothing else from an
@@ -5569,7 +5569,7 @@ describe("the course hub passage", () => {
     // The week's page draws the run's comments only where it draws no group's notes.
     assert.match(read("src/app/(app)/learn/[runId]/weeks/[n]/page.tsx"), /if \(!runSharesGroupNotes\(access\.run\) \|\| access\.groups\.length === 0\) return null;/);
     // Nor to somebody holding a place before groups go out, who opens week 1
-    // (Q35 B) on a programme that places people in groups and is in no group
+    // on a programme that places people in groups and is in no group
     // yet: they are drawn neither.
     assert.match(read("src/features/courses/WeekView.tsx"), /cohortNotes=\{sharedNotes === null && !beforeGroups\}/);
     // tests/course-hub-shared-notes.test.mjs §5 draws both kinds of week page.

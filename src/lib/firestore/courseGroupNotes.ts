@@ -1,6 +1,6 @@
 /**
  * `courseGroupNotes/{id}`: a note one of a group's facilitators writes for
- * the others (C30, board wk-fac-group's "Notes for you and Sofia"): what went
+ * the others (the facilitator's group page's "Notes for you and Sofia"): what went
  * well, who needs a nudge. One document per note; the id is Firestore's own.
  *
  * WHO READS IT: the group's facilitators, the lead of the programme that

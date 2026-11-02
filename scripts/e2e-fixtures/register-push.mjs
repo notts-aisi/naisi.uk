@@ -792,7 +792,7 @@ export const SPEC = {
    * subscriptions, 3 accounts and their documents, the course, run, group and
    * week), and the manifest read zero afterwards.
    *
-   * CHANGED on 2026-10-24 for the register's two endings (wk-register): the
+   * CHANGED on 2026-10-24 for the register's two endings: the
    * spec now reads which ending the target is in and asserts that one. That
    * change was written against this harness and not run here; the pull
    * request's end-to-end job is its first run. With next week's email on its

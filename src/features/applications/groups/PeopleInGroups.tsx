@@ -37,7 +37,7 @@ import { CANT_DETAILS, WHY, WOULD_WORK } from "@/lib/courses/timeAnswer/words";
 import * as words from "./peopleInGroupsWords";
 
 /**
- * A PROGRAMME'S PEOPLE IN GROUPS (board st-groups): the course run's
+ * A PROGRAMME'S PEOPLE IN GROUPS: the course run's
  * allocation board, drawn the way the lead's hub draws it.
  *
  * THE SAME BOARD UNDERNEATH. Its columns, cards and moves are the run's own:

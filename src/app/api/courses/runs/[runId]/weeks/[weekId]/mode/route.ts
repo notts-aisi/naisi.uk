@@ -22,7 +22,7 @@ import {
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 
 /**
- * HOW A WHOLE WEEK MEETS, ON ITS PROGRAMME'S WEEKS TAB (board pr-weeks,
+ * HOW A WHOLE WEEK MEETS, ON ITS PROGRAMME'S WEEKS TAB (its
  * "This week is In person / Online"):
  * `PUT /api/courses/runs/[runId]/weeks/[weekId]/mode` with `{ online }`.
  *

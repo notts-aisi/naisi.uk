@@ -33,7 +33,7 @@ import { eventPeopleOf, stampEventDelivery, stampEventReminder, writeEventRows }
 import { EVENT_REFUSAL } from "./words";
 
 /**
- * OPENING A SURVEY AFTER AN EVENT, EMAILING IT AND REMINDING (sv-send).
+ * OPENING A SURVEY AFTER AN EVENT, EMAILING IT AND REMINDING.
  *
  *  - OPEN IT, for the QR code at the event: from then on it takes answers
  *    from anybody signed in who came or signed up, and its questions, words

@@ -1,5 +1,5 @@
 /**
- * "The weeks" on a team's page (board in-team): the group's taught weeks in
+ * "The weeks" on a team's page: the group's taught weeks in
  * runs between the breaks of the run's own plan, each run one row of the
  * bar, and the line above it.
  *

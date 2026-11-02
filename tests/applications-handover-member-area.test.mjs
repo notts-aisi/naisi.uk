@@ -37,7 +37,7 @@
  *    the run stays shut. Once Publish has emailed them their group, the run
  *    and the group show and the run opens to them, as for anybody in a
  *    group. From then on "I can’t make it" is leaving the programme, and
- *    takes them off the run as "Leave the programme" does (Q12). (The same
+ *    takes them off the run as "Leave the programme" does. (The same
  *    rule for every reader of placements, and for facilitators, is held in
  *    `tests/course-hub-group-published-*.test.mjs`; the leave by either door
  *    in `tests/course-hub-cant-make-it-after-placement.test.mjs`.)
@@ -340,7 +340,7 @@ describe("once an admin puts them in a group, the run and the group show when Pu
     }
   });
 
-  // CHANGED ON PURPOSE (Q11). The people left out of a group used to stand
+  // CHANGED ON PURPOSE. The people left out of a group used to stand
   // beside somebody placed and not yet published; they now stand beside
   // somebody Publish has told, because nobody is shown a group before that.
   test("somebody not in a group reads nothing, beside people who are", async () => {
@@ -356,8 +356,8 @@ describe("once an admin puts them in a group, the run and the group show when Pu
     }
   });
 
-  // CHANGED ON PURPOSE (Q11): the reply now comes after Publish has told them.
-  // CHANGED ON PURPOSE AGAIN (Q12): until then a seat stayed whatever they
+  // CHANGED ON PURPOSE: the reply now comes after Publish has told them.
+  // CHANGED ON PURPOSE AGAIN: until then a seat stayed whatever they
   // replied, until an admin removed them. Once Publish has told somebody
   // their group, "I can’t make it" is leaving the programme, the same leave
   // as "Leave the programme": off the run at once, the group and the day
@@ -387,7 +387,7 @@ describe("once an admin puts them in a group, the run and the group show when Pu
     assert.deepEqual([dev.length, dev[0].membership, dev[0].groupName], [1, "enrolled", "Monday evening"]);
   });
 
-  // CHANGED ON PURPOSE (Q11): somebody in a group reads it once Publish has
+  // CHANGED ON PURPOSE: somebody in a group reads it once Publish has
   // told them, so the people placed here are published before they are read.
   test("when the form has been destroyed: nothing until they are placed and told, and their group once they are", async () => {
     await press();

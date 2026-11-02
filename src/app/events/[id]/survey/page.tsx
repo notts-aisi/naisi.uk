@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 };
 
 /**
- * Where a survey's QR code lands at its event (sv-send, "At the event"):
+ * Where a survey's QR code lands at its event ("At the event"):
  * signed in, somebody who signed up or came answers it; signed out, they are
  * asked to sign in, and a guest is told to use their emailed link
  * (`codePageFor` in `src/lib/surveys/events/codePage.ts` decides).

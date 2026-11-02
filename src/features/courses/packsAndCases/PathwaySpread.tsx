@@ -6,7 +6,7 @@ import styles from "@/features/courses/facilitator/facilitator.module.css";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 
 /**
- * THE SPREAD ON THE GROUP PAGE (boards wk-fac-group and wk-fac-group-phone:
+ * THE SPREAD ON THE GROUP PAGE (the facilitator's group page's
  * "Pathways in Group B"): a tile per pathway of the week's draw, with how
  * many have it and who, so every pathway has somebody; who has nothing yet;
  * and "Change pathways and cases", the way to the draw page. A week that

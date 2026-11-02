@@ -1,5 +1,5 @@
 /**
- * The email that tells somebody their group, in the board's words (st-emails,
+ * The email that tells somebody their group, in the designed words (the group emails,
  * "Your AGI Strategy group: Tuesdays at 6pm"), with every value from a record.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).

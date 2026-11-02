@@ -25,9 +25,9 @@ import {
 import styles from "@/features/courses/facilitator/facilitator.module.css";
 
 /**
- * THE PAGE TO READ LINES OUT (boards wk-reflections at 1440 and
- * wk-reflections-phone at 390): one prompt at a time, everybody's answer to
- * it with no name on it, in the order of the words (Q37: a reflection may be
+ * THE PAGE TO READ LINES OUT (at 1440 and at
+ * 390): one prompt at a time, everybody's answer to
+ * it with no name on it, in the order of the words (a reflection may be
  * read out without the name of whoever wrote it). "Read this out" picks a
  * line into "To read out tonight", which keeps what was picked under every
  * prompt of the week, and "Copy for the session" copies the picked lines with

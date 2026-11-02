@@ -1,7 +1,7 @@
 /* ============================================================
    The pages a facilitator uses every week: their group's page
-   (boards wk-fac-group and wk-fac-group-phone), the group's
-   register page, and the facilitator's Home (wk-fac-home-phone).
+  , the group's
+   register page, and the facilitator's Home.
 
    The ticket, the cards and the phone's bar are the member's
    pages' own (`weekly.module.css`), so a facilitator and the
@@ -309,7 +309,7 @@
   overflow-wrap: anywhere;
 }
 
-/* "Facilitator guide for week 3", beside Take the register (wk-fac-group). */
+/* "Facilitator guide for week 3", beside Take the register. */
 .ticketGuide {
   display: inline-flex;
   align-items: center;
@@ -684,7 +684,7 @@
   white-space: nowrap;
 }
 
-/* === The review queue's written answers half (wk-fac-group), and the lead's
+/* === The review queue's written answers half, and the lead's
    line per group on the Attendance tab === */
 
 .queueHalf {
@@ -893,7 +893,7 @@
   min-width: 0;
 }
 
-/* === Home (wk-fac-home-phone) === */
+/* === Home === */
 
 /* Home's ticket heading, "Group B, 6pm", at the board's 24px: two classes
    deep, so it outranks the member's Home ticket heading it sits on. */
@@ -979,7 +979,7 @@
   overflow-wrap: anywhere;
 }
 
-/* "Facilitator guide" under this week's title (wk-fac-home-phone). */
+/* "Facilitator guide" under this week's title. */
 .weekGuide {
   margin: -6px 0 4px;
 }
@@ -1043,7 +1043,7 @@
   color: var(--color-text);
 }
 
-/* === Home before the group's first session (st-fac-before-phone) ===
+/* === Home before the group's first session ===
    The ticket with "Open your group" inside it, who's coming as a row of
    chips, and Say hello with the way to write to the group. */
 
@@ -1145,8 +1145,7 @@
   text-align: center;
 }
 
-/* === A group's week (boards wk-fac-group, wk-fac-group-phone,
-   wk-reflections and wk-reflections-phone): This week's work, the
+/* === A group's week: This week's work, the
    review queue's reflections half, who ticked each source with the
    private notes on it, the page where a facilitator picks
    reflections to read out, and the lead's view of a group's week.
@@ -1682,7 +1681,7 @@
   border-radius: var(--radius-sm);
 }
 
-/* === The page to read lines out (wk-reflections) === */
+/* === The page to read lines out === */
 
 .wkReadHead {
   margin: 4px 0 24px;
@@ -2173,7 +2172,7 @@
   }
 }
 
-/* === The spread: "Pathways in Group B" (wk-fac-group), drawn by
+/* === The spread: "Pathways in Group B", drawn by
    src/features/courses/packsAndCases/PathwaySpread.tsx === */
 
 .spreadTiles {

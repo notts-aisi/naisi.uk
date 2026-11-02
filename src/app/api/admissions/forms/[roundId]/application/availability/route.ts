@@ -16,7 +16,7 @@ import { isFormVisible } from "@/lib/applications/applicant/window";
 import { changeWhenFree, readFreeDays } from "@/lib/applications/status/whenFree";
 
 /**
- * "Change when you’re free" (Q7: boards st-application-phone, st-late-phone):
+ * "Change when you’re free":
  * `PUT` with `{ days }`, the week painted on the form's own grid, from the
  * caller's own application page.
  *

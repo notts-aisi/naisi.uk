@@ -16,11 +16,11 @@
  * text, no uploads (locked product decision 7).
  *
  * ── THREE KINDS OF ROW ──────────────────────────────────────────────────────
- * The same store holds a week written as blocks' REFLECTIONS (boards
- * st-week1-phone, wk-week-phone; Q30): one row per reflection box, its id
+ * The same store holds a week written as blocks' REFLECTIONS:
+ * one row per reflection box, its id
  * `exerciseResponseId(runId, uid, weekId, promptId)`, `exerciseId` holding
  * the prompt's id and `kind: "reflection"`. It holds a block week's FILL-IN
- * BOXES the same way (board wk-week6-phone, week 6's action plan): one row
+ * BOXES the same way (week 6's action plan): one row
  * per box, `exerciseId` holding the box's id and `kind: "fillIn"`. A row with
  * no `kind` is an exercise answer, as every row stored before either is.
  *

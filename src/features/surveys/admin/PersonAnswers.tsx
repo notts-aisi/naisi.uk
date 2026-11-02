@@ -13,7 +13,7 @@ import blankStyles from "./blanks.module.css";
 import styles from "./onePerson.module.css";
 
 /**
- * ONE PERSON'S ANSWERS (sv-person), for admins. Once this page is open in the
+ * ONE PERSON'S ANSWERS, for admins. Once this page is open in the
  * admin's browser it asks the opening route, once, which records the opening
  * before it reads anything of the person, and draws what comes back: the
  * change questions start and end side by side, each survey's own questions,

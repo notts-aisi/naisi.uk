@@ -2,8 +2,7 @@ import { countWords } from "@/lib/firestore/worksheets";
 import { normalizeGivenLevels, type GivenLevel } from "../rubric";
 
 /**
- * A WEEK'S WRITTEN ANSWER, AS ONE PERSON'S ROW (boards wk-week, wk-review,
- * wk-feedback-phone; Q30 C, Q33, Q34 B).
+ * A WEEK'S WRITTEN ANSWER, AS ONE PERSON'S ROW.
  *
  * WHERE IT IS STORED. In `courseExerciseResponses`, the store a week's
  * answers already use, as an answer's row (no `kind`: `courseExercises.ts`,
@@ -30,7 +29,7 @@ import { normalizeGivenLevels, type GivenLevel } from "../rubric";
  *    answers sent already reads (who finished counts it).
  *  - `editedAt`: the latest change after it was first sent.
  *  - `openedAt`, `openedByUid`: the lock an answer kept before weeks were
- *    submitted (Q33): set when one of its own reviewers first opened it on
+ *    submitted: set when one of its own reviewers first opened it on
  *    the review page, after which its writer could not change it. Nothing
  *    writes them now; reopening the week (`src/lib/courses/weekWork/`)
  *    clears both.

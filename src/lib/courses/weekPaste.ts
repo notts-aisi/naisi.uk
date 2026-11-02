@@ -7,7 +7,7 @@ import { MAX_PASTE_CHARS, readPastedWeek, type PastedWeek } from "@/lib/courses/
 
 /**
  * A PASTED WEEK, READ AND COUNTED: the one set of checks behind both routes
- * that load a week from its Markdown (board pr-weeks, Q39), the run's own
+ * that load a week from its Markdown, the run's own
  * week (`/api/courses/runs/[runId]/weeks/[weekId]/blocks`) and a group's own
  * copy of it (`/api/courses/groups/[groupId]/weeks/[weekId]/blocks`).
  *

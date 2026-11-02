@@ -29,7 +29,7 @@ import { COURSE_GROUP_SHARED_NOTE_LIMITS } from "@/lib/firestore/courseGroupShar
 import weekly from "@/features/courses/weekly/weekly.module.css";
 
 /**
- * ONE GROUP'S SHARED NOTES (C29), as board wk-week-phone draws "Notes shared
+ * ONE GROUP'S SHARED NOTES, as the week page draws "Notes shared
  * with your group": each note with its writer's initials, name and day, and
  * its words after the week it was written on; "Add a note"; and the sentence
  * naming everyone who reads them.

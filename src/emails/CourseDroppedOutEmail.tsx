@@ -17,7 +17,7 @@ type Props = {
    */
   feedbackUrl: string;
   /**
-   * The programme's leaving survey (Q46), when it reached them as they left:
+   * The programme's leaving survey, when it reached them as they left:
    * their own link and the line around it, drawn in place of the outside
    * form's. Null when there is none.
    */
@@ -30,7 +30,7 @@ type Props = {
  *
  * Structurally `ApplicationEmail` (admin-authored blocks through the shared
  * chrome) with one addition: an OPTIONAL feedback footer. When the
- * programme's leaving survey reached the person as they left (Q46), the
+ * programme's leaving survey reached the person as they left, the
  * footer links their own link to it, in words that say it is confidential,
  * and the outside form is not offered beside it.
  *

@@ -15,7 +15,7 @@ import { ANSWER_WORDS, STATE_WORDS } from "@/lib/surveys/words";
 import styles from "./survey.module.css";
 
 /**
- * A PERSON'S SURVEY, BY THEIR PERSONAL LINK (sv-before-phone), with no
+ * A PERSON'S SURVEY, BY THEIR PERSONAL LINK, with no
  * sign-in: the secret in the address opens their own row and nobody else's.
  * Signed in or not, the page is the same; the answers are kept against the
  * person the link was made for.

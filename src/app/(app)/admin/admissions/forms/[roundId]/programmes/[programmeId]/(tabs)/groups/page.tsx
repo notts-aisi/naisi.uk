@@ -9,8 +9,8 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
 /**
- * One programme's Groups tab, its first view: People in groups (board
- * st-groups), the allocation board of the course run the programme names,
+ * One programme's Groups tab, its first view: People in groups,
+ * the allocation board of the course run the programme names,
  * drawn the way the programme's hub draws it: To place, a column per group
  * with its time, room and facilitators, each card with its degree line and
  * marks, the line over the board, "Publish groups…" leading to Publish's own

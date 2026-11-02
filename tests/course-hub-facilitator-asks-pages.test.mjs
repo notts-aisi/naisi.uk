@@ -1,5 +1,5 @@
 /**
- * The page an ask to facilitate opens (board st-fac-ask-phone), drawn to HTML
+ * The page an ask to facilitate opens, drawn to HTML
  * on the server for the person asked and for anybody else, in every state an
  * ask can be in; and the facilitators' training card on a programme's
  * Settings tab.

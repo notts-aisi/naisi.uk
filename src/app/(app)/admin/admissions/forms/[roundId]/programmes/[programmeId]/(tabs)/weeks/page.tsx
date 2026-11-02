@@ -8,7 +8,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
 /**
- * One programme's Weeks tab (board pr-weeks): when weeks open, "Copy weeks
+ * One programme's Weeks tab: when weeks open, "Copy weeks
  * from the course", and every week of the run the programme names, in order,
  * with its state, first session, ready-by day and owner, each a link to the
  * week's own page.

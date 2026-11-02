@@ -11,7 +11,7 @@
  *
  *  - AN ADMIN'S AND THE PROGRAMME'S LEAD'S, DECIDED BEFORE ANYBODY IS READ.
  *    The page counts the people holding a place by when they are free and
- *    names the ones no group suits. Since the course hub's lead access (Q1)
+ *    names the ones no group suits. Since the course hub's lead access
  *    the programme's lead is drawn it as an admin is, without what only an
  *    admin can do from it (naming the run, the run editor). A reviewer is
  *    told the tab is the lead's and an admin's, and only the form's settings
@@ -390,7 +390,7 @@ describe("who is counted is who holds a place", () => {
 describe("what the cards say", () => {
   test("the best times, each with the group that meets then", async () => {
     const { text: said, html } = await draw("zach");
-    // Since Times in full (st-times): "Use for a group" beside each best
+    // Since Times in full: "Use for a group" beside each best
     // time no group meets at, and nowhere else. Until then the list carried
     // no control at all.
     assert.match(
@@ -406,7 +406,7 @@ describe("what the cards say", () => {
   test("each group with its day, its time and how many can make it, and a group with no time in words", async () => {
     const { text: said } = await draw("zach");
     // Monday first, as People in groups lists them (the walk of stage two's fixes, G10).
-    // Since Times in full (st-times), each group's line ends with its Change,
+    // Since Times in full, each group's line ends with its Change,
     // named for the group as the board names it.
     assert.match(
       said,
@@ -434,7 +434,7 @@ describe("what the cards say", () => {
     assert.ok(editor, "no link to the run editor");
     assert.equal(text(editor[1]), "Add or change groups in the run editor");
     assert.ok(!said.includes("set in Settings"), "the page offers set in Settings");
-    // Since Times in full (st-times) the page offers exactly the board's three
+    // Since Times in full the page offers exactly the board's three
     // controls: "Use for a group" beside each of the 5 best times no group
     // meets at, "Change" beside each of the 3 groups, and one "Add a group".
     // Arranging groups moved to Circles (a link under the picture), so no
@@ -445,7 +445,7 @@ describe("what the cards say", () => {
     );
     for (const m of html.matchAll(/<button([^>]*)>/g)) assert.match(m[1], /type="button"/, "a button that would send a form");
     // The views are the five an admin has, each a page of the tab: Sessions
-    // (first since changing a session landed, as wk-session draws the row), the
+    // (first since changing a session landed, as the design for changing a session draws the row), the
     // run's allocation board (People in groups), Circles (an admin's alone),
     // this one, and Facilitators.
     const views = /<nav class="views" aria-label="Groups views">(.*?)<\/nav>/.exec(html);
@@ -535,7 +535,7 @@ describe("every state has a sentence", () => {
     const { text: said } = await draw("zach");
     // A fellowship meets for two hours (`usualLength`).
     assert.match(said, /No group has a session time yet\. This counts 2-hour sessions, how long this programme usually meets\./);
-    // "Add a group" (st-times) sits above the admin's way to the run editor.
+    // "Add a group" sits above the admin's way to the run editor.
     assert.match(said, /Your groups This run has no groups yet\. Add a group Add groups in the run editor/);
     assert.match(said, /Monday 6pm: 1 of 2 free/);
   });

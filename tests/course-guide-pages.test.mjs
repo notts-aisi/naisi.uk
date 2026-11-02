@@ -1,7 +1,6 @@
 /**
- * A programme's Start here and Glossary as their people meet them (boards
- * wk-start, wk-start-phone, wk-glossary, wk-glossary-phone, st-week1-phone,
- * wk-programme), driven through the real loader route, the real pages and
+ * A programme's Start here and Glossary as their people meet them,
+ * driven through the real loader route, the real pages and
  * the real copy routes, as every kind of caller.
  *
  * Built on the member's week page world (`tests/lib/weekBlocksPageWorld.mjs`:
@@ -345,7 +344,7 @@ describe("2. the two pages open to exactly the people week 1 opens to", () => {
 // 3. Start here, drawn
 // ---------------------------------------------------------------------------
 
-describe("3. Start here, as its people read it (wk-start)", () => {
+describe("3. Start here, as its people read it", () => {
   test("Chloe: the breadcrumb, the label, the guide in its order, the box naming Group B's facilitators and the lead, Support and the credit", async () => {
     await loadBoth();
     const page = await open("start-here", "chloe");
@@ -451,7 +450,7 @@ describe("3. Start here, as its people read it (wk-start)", () => {
 // 4. The Glossary, drawn
 // ---------------------------------------------------------------------------
 
-describe("4. the Glossary, as its people read it (wk-glossary)", () => {
+describe("4. the Glossary, as its people read it", () => {
   test("the label, the opening, the find box with the count from the record, every term in order, and the foot", async () => {
     await loadBoth();
     const page = await open("glossary", "chloe");
@@ -515,7 +514,7 @@ describe("4. the Glossary, as its people read it (wk-glossary)", () => {
 // ---------------------------------------------------------------------------
 
 describe("5. the ways to the two pages, each only when its document exists", () => {
-  test("under a block week's title: Start here · Glossary (st-week1-phone)", async () => {
+  test("under a block week's title: Start here · Glossary", async () => {
     await loadBoth();
     const { text, html, shell } = await w.weekPage("chloe", 1);
     assert.equal(shell.component, "WeekView");
@@ -537,7 +536,7 @@ describe("5. the ways to the two pages, each only when its document exists", () 
     assert.doesNotMatch(page.text, /Start here|Glossary/);
   });
 
-  test("the programme page's About this course (wk-programme): Start here with what it covers, the Glossary with its count", async () => {
+  test("the programme page's About this course: Start here with what it covers, the Glossary with its count", async () => {
     await loadBoth();
     for (const who of ["chloe", "rahul", "zach"]) {
       w.world.user = w.sessionOf(who);
@@ -667,7 +666,7 @@ describe("6. every copy of a run carries its guide", () => {
 // 7. Neither is public
 // ---------------------------------------------------------------------------
 
-describe("7. neither document is public (Q40 B)", () => {
+describe("7. neither document is public", () => {
   /**
    * THE CLASS: a page or route that reads a run's guide. Each reader is
    * listed with why; none is under the public tree. Checked both ways, so a

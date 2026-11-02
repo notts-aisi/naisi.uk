@@ -7,7 +7,7 @@
  * ## The class this guards
  *
  * A programme's lead does a run's track lead's work on the run their
- * programme names (Q1). Their power is worked out from the form when they
+ * programme names. Their power is worked out from the form when they
  * ask, by one module (`src/lib/courses/programmeLead.ts`), and handed to the
  * routes by one gate (`runStaffingOf` and `doesTrackLeadWork` in
  * `src/lib/courses/runStaffing.ts`). Three ways that can quietly stop being

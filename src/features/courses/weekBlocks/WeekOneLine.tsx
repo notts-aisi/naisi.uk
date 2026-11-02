@@ -1,8 +1,8 @@
 import styles from "./WeekOneLine.module.css";
 
 /**
- * Week 1's line for somebody holding a place before groups go out (board
- * st-week1-phone, Q35 B): "Week 1 is open now. You’ll hear your group and
+ * Week 1's line for somebody holding a place before groups go out:
+ * "Week 1 is open now. You’ll hear your group and
  * when it meets on Wed 28 Oct." Worded on the server from the run's planned
  * day groups go out (`weekOneOpenWords`), and drawn above This week. A status
  * line, so a screen reader hears it with the page.

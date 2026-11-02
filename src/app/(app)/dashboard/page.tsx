@@ -49,9 +49,9 @@ import styles from "./home.module.css";
  * `MAY_SHOW` in `tests/applications-place-in-the-member-area.test.mjs`
  * lists: before groups go out, "Your group’s on its way" with their
  * programme's name, when the group email comes and the way to week 1 once it
- * is open (Q13 B, Q35 B). It is worked out by week 1's door, never from what
+ * is open. It is worked out by week 1's door, never from what
  * this page reads of their applications. And "A survey for you" for each
- * survey waiting for them (Q50 B), which `surveysWaitingFor` alone decides.
+ * survey waiting for them, which `surveysWaitingFor` alone decides.
  */
 
 /**
@@ -91,9 +91,9 @@ const COULD_NOT_TELL: HoldsPlace = "unknown";
 const NO_CARDS: BeforeGroupsCard[] = [];
 
 /**
- * "YOUR GROUP’S ON ITS WAY" (Q13 B, board st-waiting) for each place the
+ * "YOUR GROUP’S ON ITS WAY" for each place the
  * member holds before groups go out, with "Week 1 is open" once week 1's
- * door is open to them (Q35 B). Who gets one, and every word on it, is
+ * door is open to them. Who gets one, and every word on it, is
  * `beforeGroupsCardsFor`'s, which asks week 1's door. A read that fails
  * draws no card and says nothing either way. What a card may say is held by
  * `tests/applications-place-in-the-member-area.test.mjs` (`MAY_SHOW`).
@@ -114,7 +114,7 @@ const NO_SURVEYS: SurveyCard[] = [];
 const NO_FOR_YOU: ForYouEvent[] = [];
 
 /**
- * "A SURVEY FOR YOU" (Q50 B) for each survey waiting for the member: open,
+ * "A SURVEY FOR YOU" for each survey waiting for the member: open,
  * sent to them and still theirs, and not answered, as `surveysWaitingFor`
  * says, with the one closing soonest first. Never how many others have
  * answered. A read that fails draws no card and says nothing either way.
@@ -151,9 +151,9 @@ export default async function DashboardPage() {
     // Whether they hold a place, asked of the rounds just listed. When that
     // list could not be read the page cannot tell, and says nothing either way.
     user && applications ? holdsPlace(user.uid, applications.map((row) => row.roundId)) : COULD_NOT_TELL,
-    // "Your group’s on its way" (Q13 B), with "Week 1 is open" (Q35 B).
+    // "Your group’s on its way", with "Week 1 is open".
     user && !viewingAs ? onItsWayCards(user, now) : NO_CARDS,
-    // "A survey for you" (Q50 B). Nothing of the member's is read in a view-as session.
+    // "A survey for you". Nothing of the member's is read in a view-as session.
     user && !viewingAs ? surveyCards(user, now) : NO_SURVEYS,
     // "What's your full name?", once. Not in a view-as session: the card
     // writes to the account it is signed in as, which there is the member's.

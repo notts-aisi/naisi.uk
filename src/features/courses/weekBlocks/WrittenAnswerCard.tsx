@@ -26,8 +26,7 @@ import styles from "./blockWeek.module.css";
 import own from "./writtenAnswer.module.css";
 
 /**
- * THE WEEK'S WRITTEN ANSWER ON THE WEEK PAGE (boards wk-week, wk-week-phone;
- * Q30 C, Q33): the question, what a strong answer does, "Your answer" (one
+ * THE WEEK'S WRITTEN ANSWER ON THE WEEK PAGE: the question, what a strong answer does, "Your answer" (one
  * box, or a box per label for an answer in labelled boxes), a live count of
  * words against the range, a box that saves as the person types, the day it
  * is due for their own group, and who reads it and from when. It is sent by

@@ -3,7 +3,7 @@ import { addDaysToKey, londonWallClockToInstant } from "../weekPlan";
 import { isClockTime, type When } from "./model";
 
 /**
- * WHEN A WEEK'S WORK IS DUE, FOR ONE GROUP (Q33, the written answer's due
+ * WHEN A WEEK'S WORK IS DUE, FOR ONE GROUP (the written answer's due
  * rule; the same rule dates a This week task).
  *
  * A block stores only the rule (`When`): before the session, by the end of
@@ -12,7 +12,7 @@ import { isClockTime, type When } from "./model";
  * every one-off move of a session applied), because groups meet on
  * different days.
  *
- * THE RULE FOR A CANCELLED SESSION (board wk-changes): nobody meets, so the
+ * THE RULE FOR A CANCELLED SESSION: nobody meets, so the
  * week's work is due by the group's NEXT session, the one that covers both
  * weeks, read by the same rule: a written answer due "by the end of the day
  * before" is due by the end of the day before that next session, and a talk

@@ -5,8 +5,7 @@ import { loadTeamPage } from "@/lib/courses/teamPage/load";
 import { getAdminDb } from "@/lib/firebase/admin";
 
 /**
- * A TEAM'S OWN PAGE, for the people in it (boards in-team and
- * in-team-phone), reached from their programme's page once teams are made
+ * A TEAM'S OWN PAGE, for the people in it, reached from their programme's page once teams are made
  * and they have been told theirs.
  *
  * Drawn on the server from `loadTeamPage`, so it is all there before the

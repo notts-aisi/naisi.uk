@@ -15,7 +15,7 @@ import { REFUSAL } from "@/lib/surveys/words";
 type Ctx = { params: Promise<{ surveyId: string }> };
 
 /**
- * SEND A PROGRAMME SURVEY (sv-send-programme): "Email 30 people", the first
+ * SEND A PROGRAMME SURVEY: "Email 30 people", the first
  * send, to everybody holding a place; then "Send to the 2 who joined since",
  * the same email to whoever holds a place and has not been sent it.
  *
@@ -69,7 +69,7 @@ export async function POST(req: Request, ctx: Ctx) {
 
   const survey = await readSurvey(db, surveyId);
   if (!survey) return NextResponse.json({ error: REFUSAL.noSurvey }, { status: 404 });
-  // A leaving survey is never sent: it reaches each person as they leave (Q46).
+  // A leaving survey is never sent: it reaches each person as they leave.
   if (survey.kind === "leaving") return NextResponse.json({ error: REFUSAL.leavingNotSent }, { status: 409 });
   // Nor is a check-in: its group's facilitator opens it from the register.
   if (isCheckIn(survey)) return NextResponse.json({ error: REFUSAL.checkInNotSent }, { status: 409 });

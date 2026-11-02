@@ -81,7 +81,7 @@ When a week is pasted:
 
 `published` means the week's people can open it. `ready` means the
 programme's lead has marked the week ready: week 1 opens to everyone who holds
-a place once it is ready (Q35), before groups go out. Ready counts only on a
+a place once it is ready, before groups go out. Ready counts only on a
 published week (`normalizeCourseWeek` reads `ready` as false otherwise), so
 taking a week down takes its Ready with it. Marking a week ready publishes it
 in the same write (Zach, 26 October 2026), so the lead needs nobody else to
@@ -211,7 +211,7 @@ Most questions have happened before, in some form.
   Only a notebook has one: on any other kind such a sentence is part of the
   note, where it stays, and a copy of the week writes what a notebook needs
   for a notebook alone, so a week copied out and pasted back is the same week.
-  Every source is a link (Q36), an `https://` one; a source with no link of
+  Every source is a link, an `https://` one; a source with no link of
   its own carries its links in its note.
 - Reflect, then one or two prompts as a list, is one reflection stop.
   Another Reflect starts another stop.
@@ -236,7 +236,7 @@ Read the pack you chose or were given at the end of session 2. Read it against t
   name ("In one line") is the pack's note.
 - A list straight before the table is the questions to read every pack
   against.
-- Who settles which pack a person has (Q32): "Choose one" or "pick one" with
+- Who settles which pack a person has: "Choose one" or "pick one" with
   no word of choosing earlier or being given is each person's pick on the
   site; anything else ("the one you chose at session 2", "you'll be given")
   is a facilitator's draw, typed into the group page.
@@ -547,7 +547,7 @@ The words you'll meet most, in plain words.
 ## The lead's Weeks tab, and a week for one group
 
 A programme's lead writes its run's weeks on the programme's Weeks tab
-(board pr-weeks, option B as Q39 chose), and so do admins. The run's week
+(option B as Q39 chose), and so do admins. The run's week
 editor under `/admin/courses` stays an admin's.
 
 | Where | What it does |

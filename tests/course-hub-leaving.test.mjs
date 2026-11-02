@@ -1,10 +1,10 @@
 /**
- * Leaving a programme's run (Q12, board wk-left-phone), and what everybody
+ * Leaving a programme's run, and what everybody
  * else then sees of somebody who left, as every kind of caller.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
- *   /learn/[runId]                                          the programme page: the way out, and once left, wk-left-phone
+ *   /learn/[runId]                                          the programme page: the way out, and once left, the page after leaving
  *   /learn/[runId]/leave                                    the confirmation
  *   DELETE /api/courses/runs/[runId]/enrol                  the leave itself
  *   /learn/[runId]/notes, /learn/[runId]/reading            the same page, for somebody who left

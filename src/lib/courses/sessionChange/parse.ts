@@ -14,7 +14,7 @@ import { CHANGE_KINDS, REFUSAL, parseClock, reasonTooLongWords, type ChangeKind 
  *
  * NOTHING IN A PRESS CAN CARRY A LINK. The reason goes into an update and its
  * email, and a moved session's room onto every card and into next week's
- * email; a link to a session belongs on the site, behind sign-in (Q23). So
+ * email; a link to a session belongs on the site, behind sign-in. So
  * both are refused when they hold anything a reader could follow, by the one
  * function the two emails that print a room already ask (`couldBeFollowed`).
  */

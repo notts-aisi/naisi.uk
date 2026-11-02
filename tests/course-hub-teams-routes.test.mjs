@@ -1,6 +1,6 @@
 /**
  * An incubator's teams, made and changed through the real route, as every
- * kind of caller (boards in-teams, option C, and in-agenda).
+ * kind of caller (and what people ranked on the agenda).
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -387,7 +387,7 @@ describe("4. teams from the agenda", () => {
       assert.deepEqual(team.source, { kind: "agenda", item: team.name });
     }
     const view = answer.body.view;
-    // In the agenda's order, as in-agenda lists them.
+    // In the agenda's order, as the agenda view lists them.
     assert.deepEqual(view.teams.map((team) => team.name), ["Compute governance", "International coordination", "Frontier lab safety policies"]);
     assert.deepEqual(view.noTeam.map((person) => person.name), ["Omar"]);
     assert.equal(view.inATeam, 8);

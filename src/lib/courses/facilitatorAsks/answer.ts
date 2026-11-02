@@ -33,7 +33,7 @@ import {
 
 /**
  * THE ANSWER TO AN ASK, from the person asked and nobody else: "Yes, I’ll
- * facilitate" or "I can’t this term" on their own page (st-fac-ask-phone).
+ * facilitate" or "I can’t this term" on their own page.
  *
  * One transaction reads the ask, every ask of its run, the group, the run,
  * the person's own application, their own row on the run and their own row

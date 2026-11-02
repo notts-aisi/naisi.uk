@@ -1,5 +1,5 @@
 /**
- * A programme's Attendance tab (board wk-attendance), its CSV and the run's
+ * A programme's Attendance tab, its CSV and the run's
  * line under the programme's name, as every kind of caller.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
@@ -66,7 +66,7 @@ const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(nam
 const SESSION = "export async function getCurrentUser() { return globalThis.__hubAttendancePages.user; }";
 const STYLESHEETS = [
   "./ProgrammeAttendance.module.css",
-  // The facilitator's pages (boards wk-fac-group, wk-fac-home-phone): their own sheet and the
+  // The facilitator's pages: their own sheet and the
   // member's pages' shared one, since the group page and the Attendance tab draw their cards.
   "@/features/courses/weekly/weekly.module.css",
   "./facilitator.module.css",
@@ -669,9 +669,9 @@ describe("5. the line under the programme's name", () => {
     const before = await head("claudia");
     assert.ok(!before.includes("taking part") && !before.includes("Running"), before);
     mock.timers.setTime(new Date("2026-12-20T12:00:00Z").getTime());
-    // Once the last session is over the head is board en-finish's (Q8): the
+    // Once the last session is over the head is the finished run's: the
     // chip carries that session's day, and the line says how many stayed to
-    // the end (en-finish v21, which reworded v19's "took part"), the same
+    // the end (reworded from "took part"), the same
     // people it counted as taking part while the run was going.
     assert.match(await head("claudia"), /AGI Strategy Fellowship Finished · Wed 9 Dec C Lead: Claudia · 10 stayed to the end Overview/);
   });

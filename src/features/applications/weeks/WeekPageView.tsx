@@ -18,7 +18,7 @@ import { GroupWeekPaste, WeekModeField, WeekOwnerField, WeekPaste, WeekReady } f
 import styles from "./weeks.module.css";
 
 /**
- * ONE WEEK'S PAGE ON A PROGRAMME'S WEEKS TAB (board pr-weeks, option B, as
+ * ONE WEEK'S PAGE ON A PROGRAMME'S WEEKS TAB (as
  * Q39 chose): drawn under the list of weeks with this one marked current.
  *
  * In order: the week's title and its seven days; "Paste the week, then check

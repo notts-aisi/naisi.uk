@@ -1,5 +1,5 @@
 /**
- * NOTHING TELLS SOMEBODY THEY FINISHED BUT THEIR RECORD (C43).
+ * NOTHING TELLS SOMEBODY THEY FINISHED BUT THEIR RECORD.
  *
  * Run with `npm test` (Node's built-in runner, no dependencies).
  *

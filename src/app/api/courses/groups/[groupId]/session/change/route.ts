@@ -28,7 +28,7 @@ import {
 import { COURSE_FIELD_LIMITS, normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 
 /**
- * CHANGE ONE WEEK'S SESSION OF ONE GROUP (Q25, wk-session): hold it online,
+ * CHANGE ONE WEEK'S SESSION OF ONE GROUP: hold it online,
  * move it for that week only, cancel it and keep pace, or cancel it and push
  * the rest back a week; or put a changed session back as usual.
  *

@@ -10,7 +10,7 @@ import {
 import styles from "./termInNumbers.module.css";
 
 /**
- * This term in numbers (board sv-term): the three numbers, then the term's
+ * This term in numbers: the three numbers, then the term's
  * events and its programmes. Drawn on the server from the view the page is
  * handed, which holds counts and words and nothing about a person.
  */

@@ -14,8 +14,8 @@ import GuideHead, { GuidePhoneBar } from "./GuideHead";
 import styles from "./guide.module.css";
 
 /**
- * A PROGRAMME'S START HERE, AS SOMEBODY ON IT READS IT (boards wk-start at
- * 1440 with "On this page", and wk-start-phone): the programme's label and
+ * A PROGRAMME'S START HERE, AS SOMEBODY ON IT READS IT (at 1440 with
+ * "On this page", and on a phone): the programme's label and
  * "Start here", the guide's opening, then each section as the guide wrote
  * it (lists, numbered lists and tables, a table's rows stacked on a phone),
  * Support in a box of its own, and the credit line at the foot.

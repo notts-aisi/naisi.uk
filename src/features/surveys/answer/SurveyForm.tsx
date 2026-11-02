@@ -15,7 +15,7 @@ import { AnonymousFormCard } from "@/features/anonymousFeedback/AfterTheSurvey";
 
 /**
  * The survey's questions, a page at a time, and "Send my answers"
- * (sv-before-phone).
+ *.
  *
  * Phone first. Every box is a real form control, left to the browser
  * (uncontrolled), so nothing typed before the page's script arrives is lost,

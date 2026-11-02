@@ -1,8 +1,7 @@
 import { FEEDBACK, dayAndClockWords, namesAnd } from "@/lib/courses/writtenAnswerWords";
 
 /**
- * THE WORDS OF A GROUP'S WEEK (boards wk-fac-group, wk-fac-group-phone,
- * wk-reflections and wk-reflections-phone), in one place: This week's work,
+ * THE WORDS OF A GROUP'S WEEK, in one place: This week's work,
  * the reflections half of the review queue, who ticked each source, the
  * private notes, and the page where a facilitator picks reflections to read
  * out. Every name, number and date in them comes from a record.
@@ -14,7 +13,7 @@ import { FEEDBACK, dayAndClockWords, namesAnd } from "@/lib/courses/writtenAnswe
  */
 
 // ---------------------------------------------------------------------------
-// This week's work (wk-fac-group)
+// This week's work
 // ---------------------------------------------------------------------------
 
 export const THIS_WEEKS_WORK = "This week’s work";
@@ -78,7 +77,7 @@ export function ownCountedApartLine(fellows: number): string {
 /** Before anybody in the group is listed. */
 export const NOBODY_LISTED = "Nobody is in this group yet.";
 
-// The pathway, written answer and case columns (wk-fac-group) ---------------
+// The pathway, written answer and case columns ---------------
 
 /** A written answer waiting for the reader's feedback, a link to it: the board's words. */
 export const TO_GIVE_FEEDBACK = "To give feedback";
@@ -145,7 +144,7 @@ export function queueCountsWords(counts: ReadonlyArray<{ number: number; written
 export const READ_THEM = "Read them";
 
 // ---------------------------------------------------------------------------
-// Who ticked each source (Q31) and the private notes (Q38)
+// Who ticked each source and the private notes
 // ---------------------------------------------------------------------------
 
 export const READING_TICKS = "Reading ticks";
@@ -202,7 +201,7 @@ export const NOBODY_TICKED = "Nobody yet";
 export const NO_SOURCES = "This week has no sources to tick.";
 
 // ---------------------------------------------------------------------------
-// Reading lines out (wk-reflections)
+// Reading lines out
 // ---------------------------------------------------------------------------
 
 /** "Group B · Week 3 · Reflections", set in capitals by the stylesheet. */

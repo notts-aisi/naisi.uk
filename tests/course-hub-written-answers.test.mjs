@@ -1,7 +1,7 @@
 /**
- * The week's written answer, its review and the feedback on it (boards
- * wk-week, wk-week-phone, wk-review, wk-review-phone, wk-fac-group,
- * wk-programme, en-finish; Q30 C, Q33; Zach on Mon 26 Oct: a facilitator's
+ * The week's written answer, its review and the feedback on it
+ * (the week page, the review page, the facilitator's group page,
+ * the programme page and the finished Overview; a facilitator's
  * own answer is the lead's and admins' to read and give feedback on), since
  * a week's work is submitted (the week you submit, `src/lib/courses/weekWork/`):
  * the answer is sent by submitting its week, the week locks when it is

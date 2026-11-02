@@ -23,7 +23,7 @@ export type EventOption = {
 };
 
 /**
- * New survey's "After a social" card (sv-new): the survey after an event. An
+ * New survey's "After a social" card: the survey after an event. An
  * admin picks the event, who its email goes to and the day it closes; the
  * rest is the template's, every word of it changeable on the next page until
  * the survey opens.

@@ -13,7 +13,7 @@ const PLACEHOLDER_NAME = "NAISI member";
  * run's week 1 opens to. That is everybody who can open the run today (the
  * run gate's `canLearn`: somebody taking part, a facilitator of one of its
  * groups, an admin), and somebody holding a place before groups go out once
- * week 1 is Ready (Q35 B).
+ * week 1 is Ready.
  *
  * THE SECOND HALF IS WEEK 1'S DOOR, AND THIS ASKS IT RATHER THAN REPEATING IT.
  * The door is `weekOneDoorFor` in `src/lib/courses/weekOne/door.ts`, which
@@ -31,8 +31,7 @@ export function guideDoor(access: RunAccess): "run" | "week-one" | null {
 }
 
 /**
- * Who reads this person's reflections, as Start here's box names them (Q30,
- * Q37): a facilitator of one of the run's live groups takes part as
+ * Who reads this person's reflections, as Start here's box names them: a facilitator of one of the run's live groups takes part as
  * themselves, read by the programme's lead and admins only (Zach, Mon 26
  * Oct); somebody placed in a group and told it, by that group's
  * facilitators, first names from their accounts (never an address); anybody

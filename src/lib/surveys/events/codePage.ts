@@ -14,7 +14,7 @@ import { eventLine } from "./words";
 
 /**
  * WHERE A SURVEY'S QR CODE LANDS (`/events/<id>/survey`), decided for one
- * visitor (Q43: confidential, never anonymous):
+ * visitor (confidential, never anonymous):
  *
  *  - SIGNED IN, and they signed up or came: the survey, kept with their name;
  *    once an admin has sent them the questions they left blank, only those.

@@ -1,5 +1,5 @@
 /**
- * THE "LAST TERM" BLOCK ON A PROGRAMME'S PUBLIC PAGE (pub-agi, sv-public):
+ * THE "LAST TERM" BLOCK ON A PROGRAMME'S PUBLIC PAGE:
  * drawn only while something is published for a programme tied to the
  * course, from the published record alone, and nothing about anybody.
  *

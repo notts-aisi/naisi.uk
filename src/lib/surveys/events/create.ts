@@ -14,7 +14,7 @@ import { alignWalkInEmails, eventNamesOffOn, eventSurveyOf, readEventFor } from 
 import { EVENT_REFUSAL, eventIntro, eventSurveyName, eventSurveyTitle } from "./words";
 
 /**
- * MAKING THE SURVEY AFTER AN EVENT (sv-new, "After a social"). An admin picks
+ * MAKING THE SURVEY AFTER AN EVENT ("After a social"). An admin picks
  * a published event, who its email goes to (the people who came, or everybody
  * who signed up) and the day it closes; everything else is the template's,
  * with the event's name and day in its words. The template is the question

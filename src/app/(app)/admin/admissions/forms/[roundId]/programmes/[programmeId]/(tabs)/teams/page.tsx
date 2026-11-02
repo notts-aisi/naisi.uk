@@ -12,8 +12,8 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 /**
  * An incubator's Teams tab: the teams inside its one weekly group, made from
  * the pitches or from the agenda people ranked on the form, each person's
- * "Move to…", and "Tell everyone their team" (boards in-teams, option C, and
- * in-agenda).
+ * "Move to…", and "Tell everyone their team" (and
+ * the view of what applicants ranked on the agenda).
  *
  * WHO. The tree's gate runs first, then the `(tabs)` layout draws "there is
  * no programme here" in place of this page for somebody with no role on the
@@ -23,7 +23,7 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * What each person ranked on the form is read only for those two, and only
  * for a run whose teams come from the agenda.
  *
- * Under the teams, "Hand-ins" (boards in-team and en-handin-phone): the
+ * Under the teams, "Hand-ins": the
  * hand-in dates the lead and admins set, and every team's hand-in, read from
  * the team pages through the same gate (`loadTeamHandIns`), with the way to
  * each team's page.

@@ -452,7 +452,7 @@ describe("who is reminded about an invitation", () => {
       why: "not-invited",
     });
     // With an invitation beside it, it is a freed place offered after decision
-    // day (Q15, approved Sat 24 Oct 2026), which this job leaves alone by name:
+    // day (approved Sat 24 Oct 2026), which this job leaves alone by name:
     // still not due, and the reason says why
     // (tests/applications-freed-places-offer.test.mjs runs the job against one).
     assert.deepEqual(due({ result: { kind: "no-offer", programmeId: null } }), { due: false, why: "freed-place" });

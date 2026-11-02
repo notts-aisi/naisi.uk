@@ -1,6 +1,6 @@
 /**
  * `courseUpdates/{id}`: an update somebody running a course run wrote to the
- * people on it (Q18). It is kept on the programme's page for the people it
+ * people on it. It is kept on the programme's page for the people it
  * is to, and, when its writer chose, emailed to them too. One document per
  * update; the id is Firestore's own.
  *

@@ -46,8 +46,7 @@ import { WEEK_SHUT } from "@/lib/courses/weekWork/words";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 
 /**
- * A PERSON WRITING THEIR OWN WRITTEN ANSWER (boards wk-week, wk-week-phone;
- * Q33): `PUT /api/courses/runs/[runId]/written-answers/[answerId]` with
+ * A PERSON WRITING THEIR OWN WRITTEN ANSWER: `PUT /api/courses/runs/[runId]/written-answers/[answerId]` with
  * `{ weekId, text }` (an answer of one box) or `{ weekId, boxes }` (an answer
  * in labelled boxes, box id to words). The box saves as they type; this route
  * is the only writer of what they wrote. It is sent by submitting the week

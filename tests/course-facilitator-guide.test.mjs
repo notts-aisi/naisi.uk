@@ -139,7 +139,7 @@ describe("1. who reads a course's facilitator guide", () => {
     assert.equal(await gate("claudia"), null);
   });
 
-  // The Weeks tab's "Facilitator guide" box (board pr-weeks) is the
+  // The Weeks tab's "Facilitator guide" box is the
   // programme's lead's, so the writer admits the lead the reader admits as
   // the lead (a programme naming a live run of the course, standing as one),
   // as strictly as the reader does, and still nobody else.
@@ -214,7 +214,7 @@ describe("1. who reads a course's facilitator guide", () => {
 
 describe("2. the loader's route: admins and the programme's lead, and what is saved is what was read", () => {
   // The programme's lead loads the course's guide from the Weeks tab's
-  // "Facilitator guide" box (board pr-weeks), so the lead is answered as an
+  // "Facilitator guide" box, so the lead is answered as an
   // admin is; everybody else is refused as before, as strictly.
   test("every method refuses everybody but an admin and the programme's lead, and a view-as session, before anything is read", async () => {
     const before = JSON.stringify(stored().map((path) => world.db.read(path)));
@@ -549,7 +549,7 @@ describe("4. the guide's pages", () => {
 // ---------------------------------------------------------------------------
 
 describe("5. the links: the group page's ticket and Home", () => {
-  test("Group B's ticket links its week's guide, as wk-fac-group draws it, for its facilitators and an admin", async () => {
+  test("Group B's ticket links its week's guide, as the facilitator's group page draws it, for its facilitators and an admin", async () => {
     for (const who of ["rahul", "sofia", "zach"]) {
       const drawn = await groupPage(who);
       const ticket = find(drawn.element, "FacilitatorTicket")[0]?.props;

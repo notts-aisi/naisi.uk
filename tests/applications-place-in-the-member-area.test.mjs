@@ -23,7 +23,7 @@
  * that holds it. Never "No offer this time", never anything of another
  * person's, never how many others have answered anything. A new card for a
  * place is one more entry with its own test, never a second rewrite: the
- * before survey's (Q50 B), "A survey for you", is the third. Seven things
+ * before survey's, "A survey for you", is the third. Seven things
  * have to hold:
  *
  *  1. THE ANSWER IS YES EXACTLY WHEN THE PERSON'S OWN PAGE IS THE PAGE OF
@@ -720,7 +720,7 @@ describe("Home, for a member on no run", () => {
     assert.match(slots, /holdsNoPlace: boolean;/);
     // The cards come worded from the server, by week 1's door: section 7.
     assert.match(slots, /beforeGroups: readonly BeforeGroupsCard\[\];/);
-    // CHANGED ON PURPOSE (Q50 B): the survey cards, worded on the server by
+    // CHANGED ON PURPOSE: the survey cards, worded on the server by
     // their own reader (`surveysWaitingFor`): section 7's third entry.
     assert.match(slots, /surveys: readonly SurveyCard\[\];/);
   });
@@ -824,7 +824,7 @@ describe("the pages ask one function, and it asks the reader behind the person's
       LEARN_PAGE.includes(
         // The page also hands the hub the runs the member left by
         // themselves (tests/course-hub-leaving.test.mjs) and the cards of
-        // section 7, the survey cards among them (CHANGED ON PURPOSE, Q50 B);
+        // section 7, the survey cards among them (CHANGED ON PURPOSE);
         // what it hands in a run's stead is still decided by the answer alone.
         'const held = user ? await holdsPlace(user.uid) : "unknown"; const left = user ? await runsLeft(user.uid) : []; ' +
           'const cards = user ? await onItsWayCards(user) : []; ' +
@@ -981,7 +981,7 @@ describe("nobody is told they are on nothing by a file that has not asked about 
  */
 const MAY_SHOW = {
   "on its way": {
-    board: "st-waiting, option B (Q13), on Home and at the top of My programmes",
+    board: "\"Your group’s on its way\", on Home and at the top of My programmes",
     why:
       "between decision day and the group email, somebody holding a place reads that their group is on its way, " +
       "when the email comes and when their first session will be. It names their own programme, which their own " +
@@ -989,7 +989,7 @@ const MAY_SHOW = {
     test: "the card for a place held before groups go out is drawn whole, for the holder alone",
   },
   "week 1 is open": {
-    board: "st-waiting read with v20's change, beside st-week1-phone (Q35 B)",
+    board: "\"Your group’s on its way\", with week 1 open beside it",
     why:
       "week 1 opens to everybody holding a place once the lead marks it ready, and this card is where they find " +
       "it: the way to week 1, only once week 1's door is open to them",
@@ -1040,7 +1040,7 @@ describe("7. what Home and My programmes may show for a place the person holds",
   const CHECK = "Check when you’re free";
   const HOW_MANY = /\b\d+\s+(?:of\s+\d+\s+)?(?:people\s+)?(?:have\s+|has\s+)?answered\b/i;
 
-  // CHANGED ON PURPOSE (Q50 B): the place kept for the before survey's card
+  // CHANGED ON PURPOSE: the place kept for the before survey's card
   // is filled by the third entry, so the test now holds the three entries.
   test("every entry carries its board, its reason and its test, and the survey's card is the third", () => {
     assert.deepEqual(Object.keys(MAY_SHOW), ["on its way", "week 1 is open", "a survey for you"]);
@@ -1145,7 +1145,7 @@ describe("7. what Home and My programmes may show for a place the person holds",
   });
 
   // -------------------------------------------------------------------------
-  // The third entry: "A survey for you" (Q50 B)
+  // The third entry: "A survey for you"
   // -------------------------------------------------------------------------
 
   const templates = await loadTs(join("lib", "surveys", "templates.ts"));

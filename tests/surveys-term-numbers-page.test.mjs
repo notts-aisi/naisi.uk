@@ -1,5 +1,5 @@
 /**
- * THIS TERM IN NUMBERS, THE PAGE (board sv-term): Run NAISI › Reports › This
+ * THIS TERM IN NUMBERS, THE PAGE: Run NAISI › Reports › This
  * term in numbers, through the real page over `tests/lib/termWorld.mjs`, as
  * every kind of caller: an admin, SU-recognised committee, the events'
  * organiser, a programme's lead, a member, a view-as session and somebody

@@ -49,7 +49,7 @@ import { besideScopeOf, type ReportLinesView } from "../sessionReports/beside";
 import { readReportLinesAbout } from "../sessionReports/readers";
 
 /**
- * WHAT THE REVIEW PAGE SHOWS (boards wk-review, wk-review-phone), worked
+ * WHAT THE REVIEW PAGE SHOWS, worked
  * out on the server once, after the page's gate, for the group's
  * facilitators' page and the lead's page alike.
  *

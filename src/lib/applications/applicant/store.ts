@@ -363,7 +363,7 @@ export async function sendApplication(
 }
 
 /**
- * CHANGE THE WEEK A PLACE PAINTED, after decision day (Q7: "When you’re
+ * CHANGE THE WEEK A PLACE PAINTED, after decision day ("When you’re
  * free" on the application page, until Publish has told them their group;
  * whether it may is `../status/whenFree.ts`'s to decide before this is
  * called). The application of record and its draft take the new week, held

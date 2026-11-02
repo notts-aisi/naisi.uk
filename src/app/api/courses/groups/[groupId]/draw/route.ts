@@ -16,7 +16,7 @@ import {
 } from "@/lib/firestore/coursePacksAndCases";
 
 /**
- * THE DRAW, TYPED IN (plan item 8; Q32 A; board wk-cases, option A): `PUT`
+ * THE DRAW, TYPED IN: `PUT`
  * with `{ weekId, entries: [{ uid, blockId, value }] }` gives each person
  * named a pack in a Choose one a facilitator gives out, or a case in a talk
  * they give out, or takes one back (`value: null`, "Not given yet"). At the

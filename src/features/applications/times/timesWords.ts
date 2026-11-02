@@ -4,7 +4,7 @@ import { listInWords } from "@/lib/applications/review/people";
 import { NEW_GROUP_SESSION_MINUTES, lengthWords } from "@/lib/courses/sessionLength";
 
 /**
- * What the times picture says, in the words of the st-times board.
+ * What the times picture says, in the words it was designed with.
  *
  * Times are written the way the site writes them ("9am", "6pm", "7:30pm"),
  * days "Mon" to "Sun" where the board abbreviates and in full where it reads

@@ -33,7 +33,7 @@ import { CARD_WORDS, cardSizeWords, closesWords, dateKeyWords, dayWords } from "
 /**
  * A SURVEY WAITING FOR SOMEBODY: the one answer to "is there a survey for
  * this person to answer now?", which Home, My programmes and week 1's page
- * all ask (Q50 B), and nothing else decides. `docs/surveys.md`, "The cards".
+ * all ask, and nothing else decides. `docs/surveys.md`, "The cards".
  *
  * A survey waits for a person while all three hold:
  *
@@ -118,8 +118,7 @@ export type AtTheEnd = {
 };
 
 /**
- * THE SURVEY AT THE END, AS ITS RUN'S OWN PAGES SHOW IT TO ONE PERSON (Q48 B;
- * boards en-after-phone, en-after-nofinish-phone): either it is theirs to
+ * THE SURVEY AT THE END, AS ITS RUN'S OWN PAGES SHOW IT TO ONE PERSON: either it is theirs to
  * answer, as `surveysWaitingFor` says (its card), or they have sent it (the
  * day they sent it, and the day their name comes off it, "Sat 9 Dec 2028",
  * null while that cannot be dated). Nothing of anybody else's.
@@ -257,7 +256,7 @@ export async function surveysWaitingFor(db: Firestore, person: Pick<SessionUser,
 }
 
 /**
- * Week 1's first card (Q50 B): the before survey of the run whose week 1 this
+ * Week 1's first card: the before survey of the run whose week 1 this
  * is, while it waits for the person, or null. The same answer as Home's.
  */
 export async function beforeSurveyCardFor(
@@ -271,7 +270,7 @@ export async function beforeSurveyCardFor(
 }
 
 /**
- * The page that says somebody left (wk-left-phone): the leaving survey of the
+ * The page that says somebody left: the leaving survey of the
  * run they left while it waits for them, or null. The same answer as Home's.
  */
 export async function leavingSurveyCardFor(

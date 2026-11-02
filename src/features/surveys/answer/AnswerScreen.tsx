@@ -6,7 +6,7 @@ import SurveyForm from "./SurveyForm";
 import styles from "./AnswerScreen.module.css";
 
 /**
- * One person's survey, as the answer page draws it (sv-before-phone): the
+ * One person's survey, as the answer page draws it: the
  * programme and week, the title and intro, "Every question needs an answer
  * unless it’s marked optional." (with "The boxes asking your permission are
  * up to you." where the form has one), the confidential box, then the

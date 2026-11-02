@@ -1,6 +1,6 @@
 /**
  * Rules tests for `courseGroupNotes`, the notes a group's facilitators share
- * (C30): shut to every browser, a note's writer, the group's facilitators,
+ *: shut to every browser, a note's writer, the group's facilitators,
  * the programme's lead and admins included. The notes route
  * (/api/courses/groups/[groupId]/notes) is the only writer, and the pages that
  * show notes read them on the server after their own gate, so no browser

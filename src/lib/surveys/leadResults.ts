@@ -4,7 +4,7 @@ import { isProgrammeAudience, type SurveyDoc, type SurveyKind } from "@/lib/fire
 import { readSurvey } from "./repo";
 
 /**
- * A PROGRAMME'S SURVEY RESULTS FOR ITS LEAD (Q41, Q49 A): totals and comments
+ * A PROGRAMME'S SURVEY RESULTS FOR ITS LEAD: totals and comments
  * for their own programme, made on the server, never a name, from the first
  * answer, as admins read them. The pages that ask this have held the caller
  * to the programme's lead or an admin first (`loadProgrammeRun`).

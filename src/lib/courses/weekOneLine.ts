@@ -5,7 +5,7 @@ import { weekIsReady } from "./weekReady";
  * WHAT IS SAID ABOUT WEEK 1 BEFORE ANY GROUP HAS MET: the one line, for every
  * page that says it.
  *
- * Week 1 opens to everybody holding a place once it is marked ready (Q35 B),
+ * Week 1 opens to everybody holding a place once it is marked ready,
  * so until a group has met, the programme's lead is told whether it is,
  * through the one answer (`weekIsReady`), and what stands in the way. Three
  * readers say it, and each says exactly this:

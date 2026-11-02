@@ -32,7 +32,7 @@ import { getCurrentUser } from "@/lib/firebase/session";
 /**
  * ONE PAGE OF A COURSE'S FACILITATOR GUIDE: a week (its session plan, then
  * its notes, as "Facilitator guide for week 3", the words of the ticket's
- * link on wk-fac-group), or one of the course's own documents (How to use
+ * link on the facilitator's group page), or one of the course's own documents (How to use
  * these plans, the Handbook, Case studies and feedback, Printables, its
  * templates drawn exactly as written, and Sessions and Week notes, the two
  * about every week at once).

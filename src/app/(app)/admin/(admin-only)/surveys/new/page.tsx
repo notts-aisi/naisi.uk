@@ -27,8 +27,8 @@ function sizeOf(stage: SurveyTemplate): string {
 }
 
 /**
- * New survey (sv-new): a programme's survey at each stage, made from the
- * programme impact questionnaire's templates, its leaving survey (Q46), and
+ * New survey: a programme's survey at each stage, made from the
+ * programme impact questionnaire's templates, its leaving survey, and
  * the survey after an event ("After a social"), which `?event=<id>` starts on
  * that event. Admins only, by the `(admin-only)` group's layout. The board's
  * other templates (a blank survey, copying a past one) come with the surveys
@@ -79,7 +79,7 @@ export default async function NewSurveyPage({ searchParams }: { searchParams?: P
           today={today}
           closes={stage !== "leaving"}
         />,
-        // sv-new draws "After a social" second, after the programme's first survey.
+        // The New survey page lists "After a social" second, after the programme's first survey.
         stage === "before" ? (
           <EventSurveyForm
             key="event"

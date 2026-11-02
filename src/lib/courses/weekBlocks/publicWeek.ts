@@ -2,7 +2,7 @@ import { SOURCE_KIND_LABEL, partsOf, type WeekBlock } from "./model";
 import type { Prose, Run } from "./prose";
 
 /**
- * WHAT THE PUBLIC COURSE PAGES SHOW OF A BLOCK WEEK (Q40): its Why this week,
+ * WHAT THE PUBLIC COURSE PAGES SHOW OF A BLOCK WEEK: its Why this week,
  * After this week you can, and the sources with their times, part by part.
  * Everything else stays behind sign-in: reflection prompts, the written
  * answer, the case study and its cases, content notes, fill-in boxes,

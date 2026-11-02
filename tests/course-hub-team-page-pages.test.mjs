@@ -4,8 +4,8 @@
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
- *  - `/learn/[runId]/team` (boards in-team, in-team-phone) and
- *    `/learn/[runId]/team/hand-in` (en-handin-phone), drawn on the server by
+ *  - `/learn/[runId]/team` and
+ *    `/learn/[runId]/team/hand-in`, drawn on the server by
  *    their real pages for the people in a team who have been told it, and
  *    sent back to the run's home for everybody else;
  *  - "Your team" on the programme's page (`teamCardFor`);
@@ -42,7 +42,7 @@ beforeEach(async () => {
 /** The page's words in order, for matching a run of them. */
 const words = (html) => textOf(html);
 
-describe("the team's page, for the people in the team (in-team)", () => {
+describe("the team's page, for the people in the team", () => {
   test("in week 5 it draws the board's page from records", async () => {
     const { html, to } = await view.team("amara");
     assert.equal(to, null);
@@ -205,7 +205,7 @@ describe("the team's page, for the people in the team (in-team)", () => {
   });
 });
 
-describe("the hand-in page (en-handin-phone)", () => {
+describe("the hand-in page", () => {
   test("on the due day it draws the board's page from records", async () => {
     at(WHEN.dueDay);
     const { html, to } = await view.handIn("amara");

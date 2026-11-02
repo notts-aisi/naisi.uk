@@ -67,12 +67,12 @@ import styles from "./SessionCard.module.css";
  * in-person week with no room each say so in a sentence a member can act on
  * rather than rendering an empty card that reads as "there is nowhere to be".
  * The online one says the link will be HERE, never that anybody will send it:
- * the link lives on the site, behind sign-in, and no email carries it (Q23).
+ * the link lives on the site, behind sign-in, and no email carries it.
  * The `meetingUrl` PII gate is upstream and untouched: `null` here can also
  * mean "not yours to see", and the fallback copy is written so it is true
  * either way.
  *
- * "Join online" carries the board's line under it (wk-changes): the link is
+ * "Join online" carries the board's line under it: the link is
  * here, not in your emails, so it can't be forwarded.
  */
 
@@ -96,7 +96,7 @@ type Props = {
   title?: string;
   /**
    * The session this card is dated to was cancelled and the group kept pace
-   * (Q25): the card says so, with the reason the group was given, and offers
+   *: the card says so, with the reason the group was given, and offers
    * no room and no link for an evening nobody meets.
    */
   cancelled?: { reason: string } | null;
@@ -171,7 +171,7 @@ export default function SessionCard({
   // apart is what makes the fallbacks honest rather than blank.
   const showLocation = mode !== "virtual" && Boolean(group.location);
   const showJoin = mode !== "in-person" && Boolean(meetingUrl);
-  // Never a promise that the link will come by email (Q23): it is on the
+  // Never a promise that the link will come by email: it is on the
   // site only, so the card says where it will be.
   const missing = cancelled
     ? null

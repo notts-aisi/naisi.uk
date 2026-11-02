@@ -19,7 +19,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
 /**
- * ONE WEEK OF A PROGRAMME'S RUN, ON ITS WEEKS TAB (board pr-weeks): the list
+ * ONE WEEK OF A PROGRAMME'S RUN, ON ITS WEEKS TAB: the list
  * of weeks with this one marked current, and below it the week's own page,
  * where its Markdown is pasted and checked, its owner chosen, how it meets
  * set, its facilitator guide loaded, and it is previewed as a fellow reads it

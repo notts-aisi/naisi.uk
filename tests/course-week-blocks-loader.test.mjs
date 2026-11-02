@@ -1,5 +1,5 @@
 /**
- * Loading a week as blocks (board pr-weeks, Option B; Q39): the route the
+ * Loading a week as blocks: the route the
  * run's week editor sends a week's Markdown to,
  * `/api/courses/runs/[runId]/weeks/[weekId]/blocks`, driven as every kind of
  * caller on week 3 of AGI Strategy's run (`tests/lib/memberPagesWorld.mjs`).
@@ -10,7 +10,7 @@
  *   POST  "Read it": what was found, what to check, what stops a save, the answers at stake
  *   PUT   "Save": the same read, then the blocks and the title written
  *
- * Admins and the programme's lead (from the Weeks tab, board pr-weeks), the
+ * Admins and the programme's lead (from the Weeks tab), the
  * lead answered exactly as an admin: the lead of another programme, a lead
  * who no longer stands as one, the run's track lead, a group's facilitator, a
  * member and somebody signed out are all refused before a document of the run
@@ -56,8 +56,8 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("1. who may load a week", () => {
-  // The programme's lead loads the run's weeks from the Weeks tab (board
-  // pr-weeks, Q39), so the lead moved out of this list into the test below,
+  // The programme's lead loads the run's weeks from the Weeks tab,
+  // so the lead moved out of this list into the test below,
   // which holds every answer of theirs to the admin's. The lead of ANOTHER
   // programme takes the lead's old place here, refused as strictly.
   const REFUSED = [

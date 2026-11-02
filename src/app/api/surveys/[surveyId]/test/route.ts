@@ -13,7 +13,7 @@ import { REFUSAL } from "@/lib/surveys/words";
 type Ctx = { params: Promise<{ surveyId: string }> };
 
 /**
- * "SEND A TEST TO ME" (sv-send-programme): the survey's email, or its
+ * "SEND A TEST TO ME": the survey's email, or its
  * reminder, as it would go now, signed by the presser, to the address on
  * their own session and nobody else's, marked as a test. Its button opens the
  * survey through the survey's test link, which keeps nothing.
@@ -51,7 +51,7 @@ export async function POST(req: Request, ctx: Ctx) {
 
   const survey = await readSurvey(db, surveyId);
   if (!survey) return NextResponse.json({ error: REFUSAL.noSurvey }, { status: 404 });
-  // A leaving survey is never sent: it reaches each person as they leave (Q46).
+  // A leaving survey is never sent: it reaches each person as they leave.
   if (survey.kind === "leaving") return NextResponse.json({ error: REFUSAL.leavingNotSent }, { status: 409 });
   // Nor is a check-in: its group's facilitator opens it from the register.
   if (isCheckIn(survey)) return NextResponse.json({ error: REFUSAL.checkInNotSent }, { status: 409 });

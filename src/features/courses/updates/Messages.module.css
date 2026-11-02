@@ -10,7 +10,7 @@
 }
 
 /* The facilitator's way to the composer on their group's page, with the line
-   from st-fac-before-phone under it. */
+   from the facilitator's before-the-first-session Home under it. */
 .write {
   display: flex;
   flex-direction: column;

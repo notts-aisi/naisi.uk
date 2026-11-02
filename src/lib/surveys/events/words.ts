@@ -5,9 +5,8 @@ import { dateKeyWords, dayWords, minutesWords, paragraphsOf, peopleWords, questi
  * EVERY SENTENCE A SURVEY AFTER AN EVENT SAYS, in one place: New survey's
  * card, the answer page and its confidential box, the QR code's page, the
  * two emails, the Send tab and the event's Survey after tab. The words are
- * the boards' (sv-new, sv-social-phone, sv-privacy, sv-send, sv-results,
- * ev-manage), with their apostrophes, changed only where Zach's answers of 25
- * October 2026 changed what is true (Q42, Q43, Q44, names kept two years).
+ * the boards', with their apostrophes, changed only where Zach's answers of 25
+ * October 2026 changed what is true (names kept two years).
  * Every value comes from a record and arrives here as an argument.
  *
  * No imports but words and types, so the server and the browser say a
@@ -22,7 +21,7 @@ export function weekdayWords(at: Date): string {
 }
 
 // ---------------------------------------------------------------------------
-// Making one (sv-new, "After a social")
+// Making one ("After a social")
 // ---------------------------------------------------------------------------
 
 export const TEMPLATE_WORDS = {
@@ -122,7 +121,7 @@ export function emailsWords(n: number): string {
   return `Emails ${peopleWords(n)}.`;
 }
 
-/** The Send tab's other words for a survey after an event (sv-send). */
+/** The Send tab's other words for a survey after an event. */
 export const SEND_TAB_WORDS = {
   whoHeading: "Who answers",
   who: "People at an event",
@@ -143,7 +142,7 @@ export const SEND_TAB_WORDS = {
   eventGone: "The event this survey is about is no longer on the site, so nothing more can be sent.",
 } as const;
 
-/** "At the event: the QR code" on the Send tab (sv-send). */
+/** "At the event: the QR code" on the Send tab. */
 export const CODE_CARD_WORDS = {
   heading: "At the event: the QR code",
   upSince: (since: string, answers: number) => `Up since ${since} · ${answers} ${answers === 1 ? "answer" : "answers"}`,
@@ -198,7 +197,7 @@ export const EVENT_REFUSAL = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// The confidential box (sv-privacy, "An event survey")
+// The confidential box ("An event survey")
 // ---------------------------------------------------------------------------
 
 export type EventBoxFacts = {
@@ -212,8 +211,8 @@ export type EventBoxFacts = {
 
 /**
  * The box at the top of a survey after an event, point by point, as
- * sv-privacy words it, with two years for names (Zach, 26 October 2026) and
- * nothing anonymous (Q43): an answer keeps the person's name, and the box says
+ * the surveys' privacy wording puts it, with two years for names (Zach, 26 October 2026) and
+ * nothing anonymous: an answer keeps the person's name, and the box says
  * it is kept with the fact that they came, or signed up.
  */
 export function eventBoxPoints(facts: EventBoxFacts): { points: string[]; note: string } {
@@ -237,7 +236,7 @@ export function eventBoxPoints(facts: EventBoxFacts): { points: string[]; note: 
 }
 
 // ---------------------------------------------------------------------------
-// The two emails (sv-send, "The email")
+// The two emails ("The email")
 // ---------------------------------------------------------------------------
 
 const CONFIDENTIAL_LINE = "It’s confidential: only NAISI’s admins can see who said what.";

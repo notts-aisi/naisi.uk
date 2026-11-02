@@ -76,7 +76,7 @@ mock.timers.enable({ apis: ["Date"], now: NOW });
 
 const LINK = "https://meet.example/j/8675309?pwd=opensesame";
 const WAY_IN = ["meet.example", "8675309", "opensesame"];
-// Since the course hub's lead access (Q1) the lead of the programme that
+// Since the course hub's lead access the lead of the programme that
 // names the run publishes it too, so the sentence names both.
 const ADMIN_ONLY =
   "This run’s people came from the application form, so only an admin or its programme’s lead can publish it or send its test.";
@@ -198,7 +198,7 @@ describe("1. who may press", () => {
       assert.deepEqual(short(await call(null, route, { runId: RUN.agi }, { body: { emails: 7 }, course: true })), [401, "Not signed in"]);
       // A member placed on the run, one who is not, the run's reviewer and
       // one of the group's facilitators. The programme's lead, Claudia,
-      // presses both since the course hub's lead access (Q1): that is held
+      // presses both since the course hub's lead access: that is held
       // in tests/course-hub-lead-routes.test.mjs.
       for (const who of ["amara", "omar", "lloyd", "rahul"]) {
         assert.deepEqual(short(await call(who, route, { runId: RUN.agi }, { body: { emails: 7 }, course: true })), [403, "Forbidden"], who);
@@ -309,7 +309,7 @@ describe("2. a test first", () => {
       assert.equal(mail.kind, "course-test");
     }
     const [person, facilitator] = await Promise.all(world.mail.map(opened));
-    // Amara's email in the board's words (st-emails, October 2026; until then
+    // Amara's email in the board's words (October 2026; until then
     // "Your AGI Strategy Fellowship group: first session Tue 3 Nov, 6pm"),
     // as Publish would send it: no week of the run is written yet, so it
     // says nothing of week 1.
@@ -820,7 +820,7 @@ describe("6. the emails", () => {
     await pressNow();
     const bea = await opened(realMail().find((mail) => mail.to === "bea@example.com"));
     // The day it meets from, in the boards' words ("Thu 5 Nov"): in the
-    // subject until the email took the board's words (st-emails, October
+    // subject until the email took the board's words (October
     // 2026), and in its first sentence since, beside the weekly time the
     // subject now says.
     assert.equal(bea.subject, "Your AGI Strategy group: Thursdays at 6pm");

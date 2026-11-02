@@ -312,7 +312,7 @@ const LINK_IS_ON_THE_PAGE = "The link to join is on your programme's page in the
 const WHERE_IS_ON_THE_PAGE = "You'll find where it meets on your programme's page in the learning space.";
 
 // ---------------------------------------------------------------------------
-// The board's words for the values (st-emails, "Your AGI Strategy group")
+// The board's words for the values ("Your AGI Strategy group")
 // ---------------------------------------------------------------------------
 
 /** How "You’ll meet on Tuesdays at 6pm ..." says a group that meets online, as the ask to facilitate says it. */

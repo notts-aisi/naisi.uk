@@ -1,5 +1,5 @@
 /**
- * Asking people to facilitate (boards st-facilitators and st-fac-ask-phone,
+ * Asking people to facilitate (the Facilitators view and the page that asks somebody to facilitate:
  * Q6 option B): the Facilitators view's read, asking with a test first and a
  * count, reminding, asking somebody else, the answer, the training, and where
  * a facilitator who holds a place sits.

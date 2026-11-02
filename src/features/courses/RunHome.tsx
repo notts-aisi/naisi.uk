@@ -70,8 +70,8 @@ import styles from "./RunHome.module.css";
 
 /**
  * THE PROGRAMME HOME: where am I, what do I do next, who am I doing it with
- * (boards st-programme before the first session and wk-programme once it has
- * started, at 1440 and on a phone).
+ * (before the first session and once it has started, at 1440 and on a
+ * phone).
  *
  * One data source, `/api/courses/runs/[runId]/overview`, drives the page; the
  * member's own ticks are live (`useMaterialTicks`), and their group's names
@@ -83,10 +83,10 @@ import styles from "./RunHome.module.css";
  * cancelled as "Change a session" says), "This week" (or before the first
  * session, week 1's readings to tick), the weeks with their dates and states
  * (every published week open, to read ahead), their marks with no count
- * (C26), the updates, their group, and the way out.
+ *, the updates, their group, and the way out.
  *
  * "Add to calendar" is on the ticket for somebody whose group it is, taking
- * part or facilitating (st-calendar-phone: their own calendar link).
+ * part or facilitating (their own calendar link).
  *
  * "CAN YOU MAKE THIS TIME?" (Zach, 29 Oct 2026) follows the ticket for
  * somebody Publish has told their group: their group's day, time and campus,
@@ -101,8 +101,8 @@ import styles from "./RunHome.module.css";
  * STAFF (a facilitator, an admin) read the same head, ticket and weeks, every
  * published week open, with their own panels below; no marks, no ticks.
  *
- * ONCE THE PROGRAMME IS OVER, somebody who took part reads the page boards
- * en-after-phone and en-after-nofinish-phone draw (`AfterTheEnd`): told they
+ * ONCE THE PROGRAMME IS OVER, somebody who took part reads the
+ * page after the end, whether they finished or not (`AfterTheEnd`): told they
  * finished only where their own finished record says so, their certificate,
  * the survey at the end, what they keep, what's next, and then the weeks.
  * Staff read the head's sentence over the page as before.
@@ -141,7 +141,7 @@ type Props = {
    */
   team?: TeamCardView | null;
   /**
-   * Whether "Leave the programme" is drawn at the foot (wk-programme): the
+   * Whether "Leave the programme" is drawn at the foot: the
    * server page asks the leave route's own rule (`leavePathFor`), so the link
    * is there exactly where the press would work.
    */
@@ -170,13 +170,13 @@ type Props = {
   uid?: string | null;
   /**
    * The programme's Start here and Glossary, from the server page: "About
-   * this course" (wk-programme) links each the run has, and is not drawn
+   * this course" links each the run has, and is not drawn
    * when it has neither.
    */
   guide?: GuideLinks | null;
   /**
    * The caller's own certificates on this run, from the server page
-   * (`readOwnCertificates`): "Your certificate" (en-after-phone) under the
+   * (`readOwnCertificates`): "Your certificate" under the
    * head. Empty for anybody sent none, and drawn nothing.
    */
   certificates?: CertificateCardView[];
@@ -219,7 +219,7 @@ function stateCopy(overview: OverviewPayload): { heading: string; line: string }
 
 /**
  * The head once the programme is over, for somebody who took part
- * (en-after-phone, en-after-nofinish-phone): "You finished AGI Strategy."
+ *: "You finished AGI Strategy."
  * only where their own finished record says so (`overview.finished`), with
  * the term, the group and its facilitators; otherwise "AGI Strategy has
  * ended." with the board's thanks and the term and group. Never that they
@@ -236,7 +236,7 @@ function afterHeadOf(
 }
 
 /**
- * What they keep (en-after-phone), each thing linked to the page that holds
+ * What they keep, each thing linked to the page that holds
  * it, and only once such a page exists, and only what the person has: the
  * action plan (the one week whose fill-in boxes hold it), once they have
  * written in at least one of its boxes, counted by the reader that counts
@@ -285,7 +285,7 @@ function RunHomeSkeleton() {
 }
 
 // ---------------------------------------------------------------------------
-// Your sessions (C26): one per session, a legend, and no count
+// Your sessions: one per session, a legend, and no count
 // ---------------------------------------------------------------------------
 
 type MarkKind = AttendanceStatus | "not-yet" | "not-marked" | "cancelled" | "did-not-happen";
@@ -468,7 +468,7 @@ export default function RunHome({
 
   // Somebody taking part, on an active enrolment, ticks; nobody else does.
   const learner = data?.enrolment?.role === "learner" ? data.enrolment : null;
-  // Before the reader's group first meets (st-programme): the run's calendar
+  // Before the reader's group first meets: the run's calendar
   // may have begun, but this group's first session is still to come.
   const firstNext = data?.group?.calendar.nextSession ?? null;
   const beforeStart =
@@ -579,7 +579,7 @@ export default function RunHome({
     ? { ticket: weekly.order1, week: weekly.order2, group: weekly.order3, updates: weekly.order4, weeks: weekly.order5 }
     : { ticket: weekly.order1, week: weekly.order2, updates: weekly.order3, marks: weekly.order4, weeks: weekly.order5, group: weekly.order6 };
 
-  // The ticket's words (wk-changes): a session covering a cancelled week
+  // The ticket's words: a session covering a cancelled week
   // names its day in the eyebrow, "Tue 1 Dec · weeks 4 and 5", and its
   // heading then says only the hours; an online week ends "· online". The
   // group's last session is "Your last session" before its day.
@@ -686,7 +686,7 @@ export default function RunHome({
   );
 
   // THE PROGRAMME PAGE ONCE IT IS OVER, for somebody who took part in it
-  // (en-after-phone, en-after-nofinish-phone). Somebody who left never
+  //. Somebody who left never
   // reaches this page: theirs says they left.
   if (currentWeek?.phase === "after" && access.isEnrolled && data.enrolment?.role === "learner") {
     const head = afterHeadOf(data, programmeName, {
@@ -788,7 +788,7 @@ export default function RunHome({
           )}
 
           {team && (
-            /* Their team (in-team): from the moment they are told it, while
+            /* Their team: from the moment they are told it, while
                they take part. The page is the team's own. */
             <Card as="section" padding="md" className={`${styles.panel} ${weekly.order2}`}>
               <h3 className={styles.panelTitle}>{YOUR_TEAM}</h3>
@@ -819,7 +819,7 @@ export default function RunHome({
           {beforeStart && yourGroup}
 
           {/* Updates the people running the programme wrote to the reader
-              (Q18), read by their own route: what the reader is shown is the
+             , read by their own route: what the reader is shown is the
               route's decision, and a reader shown nothing is drawn nothing. */}
           <div className={order.updates}>
             <RunUpdates runId={runId} />
@@ -828,7 +828,7 @@ export default function RunHome({
           {!beforeStart && yourGroup}
           {beforeStart && weekList}
 
-          {/* Start here and the Glossary (wk-programme), after the group. */}
+          {/* Start here and the Glossary, after the group. */}
           <AboutThisCourse runId={runId} links={guide} className={weekly.order7} />
 
           {/* One card per group they facilitate. The cohort-wide links ride on
@@ -895,7 +895,7 @@ export default function RunHome({
         </div>
       </div>
 
-      {/* At the foot, as wk-programme draws it: the way out, behind its own
+      {/* At the foot, as the programme page draws it: the way out, behind its own
           confirmation page. Only for somebody taking part who can leave by
           themselves (see `canLeave`). */}
       {canLeave && access.isEnrolled && (

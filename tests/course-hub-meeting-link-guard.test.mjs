@@ -1,6 +1,6 @@
 /**
  * A group's meeting link lives on the site, behind sign-in, and never in a
- * message (Q23). Walked over the whole of `src`.
+ * message. Walked over the whole of `src`.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -149,7 +149,7 @@ describe("1. every file that names a group's meeting link is listed", () => {
       naming,
       Object.keys(READERS).sort(),
       "A file names a group's meeting link and is not listed, or a listed file no longer does. The link lives on " +
-        "the site behind sign-in (Q23): show it, save it, or ask whether it is there, and list the file here with " +
+        "the site behind sign-in: show it, save it, or ask whether it is there, and list the file here with " +
         "what it does. Nothing that writes a message may read it.",
     );
   });

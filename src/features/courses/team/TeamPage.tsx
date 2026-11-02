@@ -21,7 +21,7 @@ import TeamLinks from "./TeamLinks";
 import styles from "./team.module.css";
 
 /**
- * A TEAM'S PAGE (boards in-team at 1440 and in-team-phone at 390): the
+ * A TEAM'S PAGE (at 1440 and 390): the
  * team's name and people with its group's slot and room, "The project" from
  * its pitch, the group's next session, "This week’s update", "Team links",
  * "Hand-in", and "The weeks" across both terms.

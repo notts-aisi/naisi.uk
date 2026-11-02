@@ -7,7 +7,7 @@ import { NO, YES } from "@/lib/courses/facilitatorAsks/words";
 import styles from "./Facilitating.module.css";
 
 /**
- * "Yes, I’ll facilitate" and "I can’t this term" (st-fac-ask-phone).
+ * "Yes, I’ll facilitate" and "I can’t this term".
  *
  * Each press posts one word to the answer route and then asks the server to
  * draw the page again, so what is on the screen afterwards is what is stored

@@ -27,7 +27,7 @@ import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
  * cohort surface still narrows to `canLearn`, which leaving takes away.
  *
  * Somebody HOLDING A PLACE whom Publish has not told yet passes too, once
- * week 1 is ready (`beforeGroups`, week 1's door, Q35 B), for week 1's page
+ * week 1 is ready (`beforeGroups`, week 1's door), for week 1's page
  * and nothing else: the week page draws week 1 for them, and every other
  * page here, the run home included, narrows to `canLearn` (or its own
  * predicate) and sends them away.

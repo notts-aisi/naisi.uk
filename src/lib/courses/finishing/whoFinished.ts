@@ -28,8 +28,8 @@ import {
 } from "./words";
 
 /**
- * WHO FINISHED, AS THE PROGRAMME'S LEAD AND ADMINS ARE SHOWN IT (board
- * en-finish): a section of the programme's Overview once the run's last
+ * WHO FINISHED, AS THE PROGRAMME'S LEAD AND ADMINS ARE SHOWN IT:
+ * a section of the programme's Overview once the run's last
  * session is over, and before then one line saying when it can be done.
  *
  * Everybody taking part, as the Attendance tab lists them for this viewer

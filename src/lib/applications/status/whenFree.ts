@@ -18,8 +18,8 @@ import { loadForm, loadOwnApplication } from "../repo";
 import { standingOf } from "./standing";
 
 /**
- * "WHEN YOU’RE FREE" STAYS OPEN UNTIL GROUPS GO OUT (Q7: boards
- * st-application-phone and st-late-phone).
+ * "WHEN YOU’RE FREE" STAYS OPEN UNTIL GROUPS GO OUT
+ * (on the application page, and for a late joiner).
  *
  * Somebody holding a place on a fellowship can change the week they painted
  * on the form, from their own application page, until Publish has told them

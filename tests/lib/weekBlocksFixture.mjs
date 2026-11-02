@@ -481,8 +481,8 @@ export function syntheticWeekDoc(over = {}) {
 }
 
 /**
- * A week IN THE GUIDE'S OWN SHAPE, as its export pastes (board pr-weeks,
- * Option B): no ids; the This week table in the guide's own "when" words; a
+ * A week IN THE GUIDE'S OWN SHAPE, as its export pastes (the Weeks tab's
+ * paste): no ids; the This week table in the guide's own "when" words; a
  * time in brackets after each heading; numbered source lines; Reflect with
  * its prompts as a list; packs from a table; the written answer's range in
  * its part's heading and its send line; the case study as one table with a

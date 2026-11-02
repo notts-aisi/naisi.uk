@@ -19,7 +19,7 @@ type Props = {
 };
 
 /**
- * THE CERTIFICATE EMAIL (board en-finish, "The email"): one to each person a
+ * THE CERTIFICATE EMAIL ("The email"): one to each person a
  * programme's lead or an admin sends certificates to, with a button to each
  * of their certificates' pages, both for a facilitator who also finished.
  *

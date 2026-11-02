@@ -8,7 +8,7 @@ import { findTerms, foldForFind } from "@/lib/courses/guide/find";
 import styles from "./guide.module.css";
 
 /**
- * The Glossary's find box and its terms (wk-glossary): every term is in the
+ * The Glossary's find box and its terms: every term is in the
  * page's first HTML, in the guide's order; once the page is live, typing in
  * the box keeps the terms whose words or definition hold what was typed
  * (letters' case and accents aside), and the count says how many of them

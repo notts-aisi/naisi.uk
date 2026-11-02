@@ -16,7 +16,7 @@ type Props = {
 };
 
 /**
- * An event's own page, in sections (ev-manage): Details (the editor), Sign-ups
+ * An event's own page, in sections: Details (the editor), Sign-ups
  * (the requests, and for some people everybody who signed up), Check-in and
  * Survey after. Each is its own address, so each keeps its own gate: Sign-ups
  * shows only to those its page admits (`signupAccessFor`), with how many have

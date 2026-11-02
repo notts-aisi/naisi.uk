@@ -22,7 +22,7 @@ import facilitator from "../facilitator/facilitator.module.css";
 import styles from "./packsAndCases.module.css";
 
 /**
- * THE DRAW'S FORM (board wk-cases, option A): a row per person with a select
+ * THE DRAW'S FORM: a row per person with a select
  * per Choose one given out ("Pathway") and per talk given out ("Case"), "Swap
  * two people" over them, and Save under them with "Each person sees theirs
  * on their week 3 page. No email."

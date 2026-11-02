@@ -9,7 +9,7 @@ import { REFUSAL } from "@/lib/surveys/words";
 type Ctx = { params: Promise<{ surveyId: string }> };
 
 /**
- * OPEN A LEAVING SURVEY (Q46): from this moment it reaches each person who
+ * OPEN A LEAVING SURVEY: from this moment it reaches each person who
  * leaves its programme by their own hand, through their own link, on the
  * page that says they left and in the email that says so. Nobody presses
  * send and nobody is emailed by this press. It fixes the questions and words

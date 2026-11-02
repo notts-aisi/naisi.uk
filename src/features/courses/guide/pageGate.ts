@@ -17,7 +17,7 @@ import { guideDoor } from "./door";
  * Everybody else is sent where the week page sends them: a reviewer or a
  * track lead to the run's admissions queue, anybody else to My programmes,
  * somebody signed out to sign in. Redirects, never a 403: a guessed run id
- * learns nothing about which runs exist. Neither page is public (Q40 B).
+ * learns nothing about which runs exist. Neither page is public.
  */
 export type GuidePage = {
   access: RunAccess;

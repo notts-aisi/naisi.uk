@@ -25,7 +25,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
 /**
- * THE LEAD'S AND ADMINS' READING OF ONE GROUP'S REFLECTIONS (Q30), at
+ * THE LEAD'S AND ADMINS' READING OF ONE GROUP'S REFLECTIONS, at
  * `.../programmes/[programmeId]/reflections?group=&week=`, reached from
  * "Read them" on the lead's view of the group's week.
  *

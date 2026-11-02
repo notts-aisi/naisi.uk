@@ -192,7 +192,7 @@ export default async function GroupEditIndexPage({
           // as "no change to announce" rather than inventing one.
           mode: sessionModeForWeek(group, currentWeekId),
           location: currentSession.location,
-          // Never the meeting link: the notice is an email (Q23).
+          // Never the meeting link: the notice is an email.
         };
 
   const eyebrow = [access.run.courseTitle, access.run.label].filter(Boolean).join(" · ");

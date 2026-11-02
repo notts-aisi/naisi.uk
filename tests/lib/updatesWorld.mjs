@@ -1,5 +1,5 @@
 /**
- * A running course run, for the suites about updates (Q18): people in
+ * A running course run, for the suites about updates: people in
  * groups, a cohort list, facilitators, and the updates route.
  *
  * Built on `tests/lib/leadWorld.mjs` (AGI Strategy names its run, Claudia

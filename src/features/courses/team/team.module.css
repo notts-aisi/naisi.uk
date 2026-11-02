@@ -1,6 +1,5 @@
 /* ============================================================
-   A team's page and its hand-in (boards in-team, in-team-phone
-   and en-handin-phone). The frame (the phone's bar, the head,
+   A team's page and its hand-in. The frame (the phone's bar, the head,
    the two columns, a card) is the weekly pages' own
    (`weekly.module.css`), so the team page folds on the same
    820px of page width as the programme's page. What is here is
@@ -46,7 +45,7 @@
   min-width: 0;
 }
 
-/* in-team's title: 34px at both widths, as both boards draw it. */
+/* The team page's title: 34px at both widths, as both designs draw it. */
 .teamTitle {
   margin: 8px 0 0;
   font-family: var(--font-display);
@@ -609,7 +608,7 @@
   border: 0;
 }
 
-/* === The hand-in page (en-handin-phone): one column at every width === */
+/* === The hand-in page: one column at every width === */
 
 .handInPage {
   width: 100%;
@@ -853,7 +852,7 @@
 
 @media (max-width: 48rem) {
   /* The cards keep the boards' padding on a phone, so the project's labels
-     sit above their words, as in-team-phone draws them. */
+     sit above their words, as the team page's phone design draws them. */
   .handInFoot {
     margin: 0 calc(-1 * var(--space-4));
     padding-left: var(--space-4);

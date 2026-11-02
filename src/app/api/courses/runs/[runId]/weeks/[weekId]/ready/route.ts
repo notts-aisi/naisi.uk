@@ -10,7 +10,7 @@ import { getCurrentUser } from "@/lib/firebase/session";
 import { normalizeCourseWeek } from "@/lib/firestore/courses";
 
 /**
- * MARK A WEEK READY, OR TAKE IT BACK (board pr-weeks, Q35):
+ * MARK A WEEK READY, OR TAKE IT BACK:
  * `PUT /api/courses/runs/[runId]/weeks/[weekId]/ready` with `{ ready: true }`
  * or `{ ready: false }`.
  *

@@ -1,8 +1,7 @@
 import { clockWords, dayWords, namesWords } from "@/lib/courses/sessionChange/words";
 
 /**
- * EVERY WORD A TEAM'S PAGE AND ITS HAND-IN SAY (boards in-team,
- * in-team-phone and en-handin-phone), in one file, so the pages, the routes
+ * EVERY WORD A TEAM'S PAGE AND ITS HAND-IN SAY, in one file, so the pages, the routes
  * and the tests say one thing.
  *
  * The boards' words are kept exactly, apostrophes and all. Every square
@@ -13,7 +12,7 @@ import { clockWords, dayWords, namesWords } from "@/lib/courses/sessionChange/wo
  * deadline, the lead's reading), the words are written here in the boards'
  * voice and listed in the build notes for the boards' designers to confirm.
  *
- * One change to a drawn line, on purpose: in-team's "Zach and your team see
+ * One change to a drawn line, on purpose: the team page design's "Zach and your team see
  * this." names admins too, because the privacy policy says the page names
  * everybody who reads what is written there ("the team, the programme's lead
  * and admins"). And the team's weekly entry is an UPDATE in every word a
@@ -85,7 +84,7 @@ export function removeLinkName(label: string): string {
 
 /**
  * Beside what somebody writes on their team's page: "Zach, your team and
- * admins see this." (in-team draws "Zach and your team see this."; the
+ * admins see this." (the design says "Zach and your team see this."; the
  * policy promises the page names admins too). With no programme lead who
  * stands, "Your team and admins see this."
  */
@@ -153,7 +152,7 @@ export function handInActionWords(handedIn: boolean, open: boolean): string {
 }
 
 // ---------------------------------------------------------------------------
-// The hand-in page (en-handin-phone)
+// The hand-in page
 // ---------------------------------------------------------------------------
 
 /** "Incubator: Alignment Research · Week 10": the week the due day falls in, when it falls in one. */

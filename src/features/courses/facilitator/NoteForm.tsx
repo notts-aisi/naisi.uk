@@ -15,7 +15,7 @@ import { COURSE_GROUP_NOTE_LIMITS } from "@/lib/firestore/courseGroupNotes";
 import styles from "./facilitator.module.css";
 
 /**
- * "Add a note" and "Save note" under a group's notes (wk-fac-group), for the
+ * "Add a note" and "Save note" under a group's notes, for the
  * group's own facilitators: the page draws it for nobody else, and the notes
  * route takes a note from nobody else.
  *

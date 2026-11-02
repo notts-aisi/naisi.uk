@@ -19,7 +19,7 @@ import { OPEN_IN_MESSAGES, messagesHrefFor } from "@/lib/messages/words";
 import { messageWriterOf } from "@/lib/messages/writers";
 
 /**
- * One programme's Messages tab (wk-messages, option B): "New update", and
+ * One programme's Messages tab: "New update", and
  * below it every update on the run the programme names, newest first, each
  * with who it was to and what its email did.
  *

@@ -1050,7 +1050,7 @@ test("GUARD: a garbled stored mark reads as unmarked, and no uid reads as nothin
 
 const RUN_HOME = src("features", "courses", "RunHome.tsx");
 const GROUP_PANEL = src("features", "courses", "FacilitatorGroupPanel.tsx");
-// Since the programme home was drawn to boards st-programme and wk-programme,
+// Since the programme home's restyle (before the first session and once it has started),
 // its ticket, its week card and its list of weeks are components of their own.
 const CARD_FACTS = src("features", "courses", "sessionChange", "cardFacts.ts");
 const WEEK_LIST = src("features", "courses", "weekly", "WeekList.tsx");
@@ -1069,7 +1069,7 @@ test("GUARD: every card on the run home reads its OWN group's calendar", () => {
   assert.doesNotMatch(GROUP_PANEL, /targetWeekNumber: number \| null/);
 
   // The session card is dated by its own group too, not by the page's week.
-  // Since the restyle (boards wk-programme, st-programme) the card is the
+  // Since the restyle the card is the
   // ticket for the group's NEXT session, read off that group's own calendar
   // (`ticketFacts(group)`, the next session's own day, time and room), and
   // "This week" is dated by the reader's own calendar's entry for the week,
@@ -1082,12 +1082,12 @@ test("GUARD: every card on the run home reads its OWN group's calendar", () => {
 
 test("GUARD: the run home links the progress page and shows own attendance", () => {
   // /learn/[runId]/progress shipped with no link to it from anywhere. This is
-  // the link: since the restyle (boards wk-programme, st-programme) it sits at
+  // the link: since the restyle it sits at
   // the foot of the programme's weeks, for somebody taking part.
   assert.match(RUN_HOME, /\/progress`\}/);
   assert.match(RUN_HOME, /showProgress=\{learner !== null\}/);
   assert.match(WEEK_LIST, /\{showProgress && \(/);
-  // The member's own record is "Your sessions" (C26: one a session, no
+  // The member's own record is "Your sessions" (one a session, no
   // count; never "marks" in a word a member reads), handed the overview's own
   // projection of their registers.
   assert.match(RUN_HOME, /<YourMarks[\s\S]{0,200}ownAttendance=\{data\.ownAttendance\}/);
@@ -1115,7 +1115,7 @@ test("GUARD: one spelling of a week URL, shared by both surfaces", () => {
   assert.match(LINKS, /export function weekHref\(runId: string, weekNumber: number\)/);
   assert.match(LINKS, /\/learn\/\$\{encodeURIComponent\(runId\)\}\/weeks\/\$\{weekNumber\}/);
   // The run home's week links are drawn by its list of weeks and its week
-  // card since the restyle (boards wk-programme, st-programme), which import
+  // card since the restyle, which import
   // the one spelling from beside them; the run home itself spells none.
   for (const file of [GROUP_PANEL]) {
     assert.match(file, /from "\.\/links"/);

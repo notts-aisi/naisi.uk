@@ -1092,7 +1092,7 @@ above). `result` is what decision day said and no reply changes it. A place give
 in `status/replies.ts` is the whole table.
 
 **Once somebody is in a group, "I can't make it" is leaving the programme**
-(Q12). When Publish has told them their group on the run their place's
+. When Publish has told them their group on the run their place's
 programme names, the reply takes the one leave "Leave the programme" takes
 on their programme page, in the same transaction and through the same
 code (see "Leaving the programme gives the place back"): they leave their
@@ -1745,7 +1745,7 @@ doors. Somebody in a group leaves from their programme page ("Leave the
 programme", behind the course's title typed to confirm), through the run's
 own leave (`DELETE /api/courses/runs/[runId]/enrol`). Or, once Publish has
 told them their group, they reply "I can’t make it" on their application
-page (Q12), which the reply route takes as the same leave. Both doors ask
+page, which the reply route takes as the same leave. Both doors ask
 `leavePathFor` (`src/lib/courses/leaving.ts`) whether the person may leave,
 and `leaveRun` (`src/lib/courses/leaveRun.ts`) writes what leaving writes,
 for both, so the two cannot come to differ. The reply door first asks

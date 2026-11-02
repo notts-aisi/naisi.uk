@@ -45,7 +45,7 @@ import {
 } from "./words";
 
 /**
- * WHAT THE ANSWER PAGE IS HANDED (sv-before-phone), built on the server for
+ * WHAT THE ANSWER PAGE IS HANDED, built on the server for
  * one person: the survey's words and questions as plain values, the
  * confidential box with the names it gives, and where "Send my answers"
  * goes. Never a stored document, never a secret but the person's own (the

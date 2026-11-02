@@ -1,5 +1,5 @@
 /**
- * A programme's Weeks tab (board pr-weeks): the list of the run's weeks, in
+ * A programme's Weeks tab: the list of the run's weeks, in
  * order, each with its state, its first session from the groups' own
  * calendars, the day it should be ready by and its owner; the line about when
  * weeks open with "Copy weeks from the course"; where the weeks meet; and the

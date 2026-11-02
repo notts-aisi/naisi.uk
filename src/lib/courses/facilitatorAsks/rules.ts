@@ -132,7 +132,7 @@ export type FacilitatorColumn = {
 };
 
 /**
- * THE COLUMNS ARE THE FORM'S OWN QUESTIONS (C8): every question in the form's
+ * THE COLUMNS ARE THE FORM'S OWN QUESTIONS: every question in the form's
  * facilitator sets, in the form's order, except the one that asks which
  * programme, which decides who is listed and is said once above the table.
  * Nothing else the form holds is ever a column.

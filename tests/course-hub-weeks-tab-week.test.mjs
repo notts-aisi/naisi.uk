@@ -1,5 +1,5 @@
 /**
- * One week's page on a programme's Weeks tab (board pr-weeks, option B as
+ * One week's page on a programme's Weeks tab (option B as
  * Q39 chose), the routes its controls send, and "Preview as a fellow".
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).

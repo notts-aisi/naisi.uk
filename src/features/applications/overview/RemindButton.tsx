@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import styles from "./ProgrammeOverview.module.css";
 
 /**
- * "Remind Grace", with "Emails 1 person" beside it (board wk-overview): the
+ * "Remind Grace", with "Emails 1 person" beside it: the
  * register reminder, now, to the facilitators of one group.
  *
  * The confirm says who it emails and how many, and there is no test step:

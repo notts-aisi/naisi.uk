@@ -46,7 +46,7 @@ type Props = {
 };
 
 /**
- * Who came (ev-manage), for the people who run check-in: everybody checked
+ * Who came, for the people who run check-in: everybody checked
  * in, how and when, with a walk-in's email noted by the day it goes; then the
  * confirmed sign-ups who did not come, behind a disclosure, each with "They
  * came" while people can still be added. Not coming is recorded nowhere and

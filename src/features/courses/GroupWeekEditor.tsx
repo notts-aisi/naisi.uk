@@ -1663,7 +1663,7 @@ export default function GroupWeekEditor({
   }
 
   const shown = week ?? canonical;
-  // A week written as blocks (Q39) is changed for this group by Markdown:
+  // A week written as blocks is changed for this group by Markdown:
   // copy it, change it, paste it back. The fork door and the editor of the
   // old lists below are for a week written before blocks.
   const blockShape = shown !== null && shown !== undefined && isBlockWeek(shown);
@@ -1780,7 +1780,7 @@ export default function GroupWeekEditor({
         </p>
       </Card>
 
-      {/* ---- A week written as blocks: copy as Markdown, change, paste back (Q39) ---- */}
+      {/* ---- A week written as blocks: copy as Markdown, change, paste back ---- */}
       {blockShape && (
         <WeekBlocksLoader
           runId={runId}
