@@ -107,11 +107,17 @@ export const SPEC = {
     ],
   },
   /**
-   * Written beside the code it drives and not yet run end to end: it counts
-   * nothing on the coverage map until a run has passed and read zero rows
-   * afterwards.
+   * VERIFIED on 2026-11-02, on dev b457d82c: twice against the harness's
+   * loopback server on a laptop (a fresh build, then the same build again),
+   * all ten steps each time. 53 rows existed before teardown (the form and
+   * its question set, 3 applications and 3 decisions, the course, the run and
+   * its 4 published weeks, 2 groups, 4 enrolments, 1 audit row, 3 cohort
+   * subscriptions, 7 registers, 1 update, the week 4 email's marker and the
+   * push's counter, 1 written answer, 1 week's work row and 4 log rows, 1
+   * session report, 4 sends, 4 accounts and their documents), and the
+   * manifest read zero afterwards.
    */
-  status: "unverified",
+  status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three-work" }),
   countRows: countTerm,
   teardown: teardownTerm,

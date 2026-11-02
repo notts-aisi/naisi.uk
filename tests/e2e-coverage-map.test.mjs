@@ -795,11 +795,6 @@ const NOT_COVERED = {
       "Course hub: a group's campus, from the Sessions view of a programme's Groups tab. tests/course-hub-time-answer.test.mjs executes it as every kind of caller, before Publish and after, with the board's columns carrying it.",
     coverWhen: "When the groups-go-out spec sets a group's campus on the Sessions view before it presses Publish.",
   },
-  "/api/courses/groups/[groupId]/cant-make-it": {
-    reason:
-      "Course hub: Can't make it on the next session's ticket, which records the person as excused on that session's register. tests/course-session-cant-make-it.test.mjs executes it as every kind of caller, with the ticket it is pressed from, the register's line its facilitators read and every refusal.",
-    coverWhen: "When a browser spec signs in as somebody Publish has told their group and presses Can't make it on their programme page.",
-  },
   "/api/courses/runs/[runId]/time-answer": {
     reason:
       "Course hub: a person's answer to Can you make this time? on their programme page. tests/course-hub-time-answer.test.mjs executes it as every kind of caller, with the card it is pressed from, every move that clears it and who reads it.",
@@ -1253,24 +1248,6 @@ const NOT_COVERED = {
       "Course hub: In person or Online for a whole week on the Weeks tab (pr-weeks), written as the groups' own week mode; every caller, the groups it leaves alone, the link it needs and that it emails nobody are executed by tests/course-hub-weeks-tab-week.test.mjs.",
     coverWhen:
       "When a browser spec signs in as a programme's lead on the Weeks tab, holds a week online and a member of a group opens its join link on the programme page.",
-  },
-  "/api/courses/runs/[runId]/weeks/[weekId]/submit": {
-    reason:
-      "Course hub: submitting one's own week, which locks it and sends its written answer to its readers (the week you submit); who may, the week that asks for nothing written, the word limit, the stamps and the log are executed by tests/course-week-work.test.mjs.",
-    coverWhen:
-      "When the fellowships' first week written as blocks is submitted on the site by people taking part, and a browser spec then drives a member through the check and Submit anyway.",
-  },
-  "/api/courses/runs/[runId]/weeks/[weekId]/reopen": {
-    reason:
-      "Course hub: reopening one person's submitted or locked week, for the people running their group (the week you submit); every caller, the week that is not locked, the cleared answer lock and the log are executed by tests/course-week-work.test.mjs.",
-    coverWhen:
-      "When the first facilitator reopens a week for somebody on the site, and a browser spec then drives a facilitator's Reopen and the member's resubmit.",
-  },
-  "/api/courses/runs/[runId]/written-answers/[answerId]": {
-    reason:
-      "Course hub: a written answer on a week written as blocks, saved as the person types and sent by submitting its week (wk-week, wk-week-phone); who writes, the limit, the boxes and the week's lock are executed by tests/course-hub-written-answers.test.mjs.",
-    coverWhen:
-      "When a browser spec signs in a member of a group Publish has told, opens a week with a written answer, writes, submits the week, reloads and reads it back as submitted.",
   },
   "/api/courses/runs/[runId]/feedback": {
     reason:
@@ -2081,12 +2058,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a run whose last session is over, with a group's facilitator signed in.",
   },
-  "/(app)/learn/[runId]/group/[groupId]/report": {
-    reason:
-      "Course hub: a facilitator's session report, the form after the register; tests/course-session-reports.test.mjs renders it as both of a group's facilitators, an admin, the programme's lead, another group's facilitator, somebody in the group and somebody signed out, open, before its session and once closed.",
-    coverWhen:
-      "When a browser spec signs in a group's facilitator, finishes a register, follows its link to the report and sends one.",
-  },
   "/(app)/learn/[runId]/group/[groupId]/review": {
     reason:
       "Learn hub: /(app)/learn/[runId]/group/[groupId]/review is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
@@ -2166,12 +2137,6 @@ const NOT_COVERED = {
     reason:
       "Course hub: an admin discards Claude's end-of-week draft; the admin and every other caller are executed by tests/week-notes.test.mjs through the real route.",
     coverWhen: "When the course-hub-week-review fixture seeds a draft and its spec discards it from the week's Notes page.",
-  },
-  "/api/courses/groups/[groupId]/session-report": {
-    reason:
-      "Course hub: a facilitator's own report on a session of their group; who writes, every refusal, who a report may pick, when it is open and what it keeps are executed by tests/course-session-reports.test.mjs as each kind of caller, with the account deletion and the run's destroy.",
-    coverWhen:
-      "When a browser spec signs in a group's facilitator, finishes a register, follows its link to the report and sends one, and the programme's lead reads it.",
   },
   "/api/courses/groups/[groupId]/shared-notes": {
     reason:
