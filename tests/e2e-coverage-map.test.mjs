@@ -639,18 +639,6 @@ const NOT_COVERED = {
     coverWhen:
       "With the assessment route's spec, once the harness can stand in for Anthropic: a course hub world after the hand-over, Suggest, then Apply through the site's own routes.",
   },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/notes": {
-    reason:
-      "The notes a programme's lead reads and adds about somebody on their programme (privacy v15). Only a lead who is not an admin is answered through this route's lead branch, and the harness never makes one: a lead must be SU-recognised committee, and the browser harness grants nothing above a waiting account (an admin a spec needs is an account it is given). Who reads which note, the projection a lead is sent and every refusal are executed by tests/notes-for-leads.test.mjs; the persona battery asks it as the lead persona on its own programme and another, against a real build.",
-    coverWhen:
-      "When the end-to-end harness is given a second account that stands as a programme's lead on dev without being an admin, as it is given its admin: then the coursework-notes spec reads and adds a note as that lead.",
-  },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/notes/[noteId]": {
-    reason:
-      "A programme's lead changing or deleting a note they added (privacy v15), through the same door as the list, so it waits on the same lead account. The lead's own notes alone, another's refused and a note the lead may not read answered as not here are executed by tests/notes-for-leads.test.mjs.",
-    coverWhen:
-      "When the end-to-end harness is given a second account that stands as a programme's lead on dev without being an admin, as it is given its admin: then the coursework-notes spec changes and deletes the note that lead added.",
-  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
     reason:
       "Circles reading the run's groups again after a change. It writes nothing; who may read it, who is on the screen and that a second Apply sends nothing are executed by tests/applications-circles.test.mjs.",
@@ -811,12 +799,6 @@ const NOT_COVERED = {
       "Course hub: Remind on the Overview's card of who has not said when they are free; tests/course-hub-get-ready.test.mjs executes it as every kind of caller, with the count it must match, once a person a day, and a failed send given back.",
     coverWhen:
       "When the end-to-end fixtures can seed a fellowship whose people sent the form with no week painted, with its lead signed in and the suite's mail catcher reading the reminder.",
-  },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/roles": {
-    reason:
-      "Application forms: /api/admissions/forms/[roundId]/programmes/[programmeId]/roles is pressed by a programme's lead or an admin, and tests/applications-editor-routes.test.mjs and tests/applications-access.test.mjs execute who may name whom.",
-    coverWhen:
-      "When a programme is first run with a reviewer who is not its lead, so a grant made here is used by somebody other than the person who made it.",
   },
   "/api/admissions/forms/[roundId]/sets": {
     reason:
@@ -1812,12 +1794,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the first application form is opened to applicants, alongside the spec that walks an applicant through it.",
   },
-  "/(app)/admin/admissions/forms/[roundId]/next-term": {
-    reason:
-      "Application system: /(app)/admin/admissions/forms/[roundId]/next-term is an admin's read-only page that sends and writes nothing; tests/applications-next-term.test.mjs builds it from a stored term as an admin, a lead and a member, and holds what counts (notes and rated work from after the person agreed to version 13) to fixtures. No end-to-end world yet seeds saved notes with suggestions beside ratings for the team.",
-    coverWhen:
-      "When an end-to-end spec seeds the term world with saved notes that suggest somebody for next term (the week review's spec, once end-of-week notes save them), and opens this page as an admin.",
-  },
   "/(app)/admin/admissions/forms/[roundId]/pool": {
     reason:
       "Application system: /(app)/admin/admissions/forms/[roundId]/pool is an admin's page whose every number is worked out by modules the unit suite executes; nobody has applied through the new form yet, so there is no term to drive it against.",
@@ -2051,50 +2027,6 @@ const NOT_COVERED = {
       "Course hub: one rating of one fellow at a programme's end; who rates whom, every refusal and what a rating keeps are executed by tests/course-ratings.test.mjs as each kind of caller.",
     coverWhen:
       "When the end-to-end fixtures seed a run whose last session is over, with a group's facilitator signed in.",
-  },
-  // The week review (privacy v15): its page and its follow-up are driven by
-  // the course-hub-week-review spec; the press that sends to Claude is not
-  // yet. In local mode it now reaches the harness's fake Claude, whose canned
-  // answers for the three asks are ready (scripts/e2e/lib/fakeClaude.mjs); a
-  // deployed target's real one costs money for every run.
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review": {
-    reason:
-      "Course hub: Review with Claude; every caller, a view-as session, no key, a page that saw something else, nothing to send and a part that fails are executed by tests/week-review.test.mjs with Claude stubbed, reading every message that would go. The browser spec reads the page and never presses it.",
-    coverWhen: "When a browser spec runs against a server with a Claude key and presses Review with Claude once, as the coursework notes spec presses Claude's draft.",
-  },
-  // Explainers, from a week's review: the form, the press and Cancel.
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review/explainer": {
-    reason:
-      "Course hub: Schedule an explainer, an admin's form under a week's review. Drawn as an admin, the lead, a reviewer, a facilitator and a member, from a theme and with a typed topic, before and after the week's first session, by tests/course-explainers.test.mjs, which reads the props it hands the browser's form.",
-    coverWhen:
-      "When the course-hub-week-review spec next changes: it schedules one with a typed topic from this page and reads the facilitator's ticket.",
-  },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/explainers": {
-    reason:
-      "Course hub: scheduling an explainer. Every caller, a view-as session, every body it refuses, somebody not on the committee, a session that is not its group's next, a second explainer on one session, the record, the tasks, the one email and its push are executed by tests/course-explainers.test.mjs on the term's world.",
-    coverWhen:
-      "When the course-hub-week-review spec next changes: it schedules one with a typed topic and the facilitator reads it on their ticket.",
-  },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/explainers/[explainerId]": {
-    reason:
-      "Course hub: cancelling an explainer. Every caller, a view-as session, an explainer of another run, the tasks closed, every ticket and the week's email line cleared and nobody emailed are executed by tests/course-explainers.test.mjs.",
-    coverWhen: "When the course-hub-week-review spec next changes: after scheduling one it cancels it and finds the ticket clear.",
-  },
-  // The end-of-week notes (privacy v15): the course-hub-week-review spec opens
-  // a week's Notes and saves a draft its fixture seeds; drafting sends to
-  // Claude, which no spec presses yet (in local mode it now reaches the
-  // harness's fake Claude, whose canned note is ready), and the harness signs
-  // in no lead who is not an admin, so the lead's side is the persona
-  // battery's and tests/week-notes.test.mjs's.
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/draft": {
-    reason:
-      "Course hub: Claude drafts one person's end-of-week note; every caller, a view-as session, no key, not every group met, no submission, nothing that may go, a label slip, a second press and Draft again are executed by tests/week-notes.test.mjs with Claude stubbed, reading every message that would go.",
-    coverWhen: "When a browser spec runs against a server with a Claude key and presses Draft this week's notes once, as the coursework notes spec presses Claude's draft.",
-  },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/[uid]": {
-    reason:
-      "Course hub: an admin discards Claude's end-of-week draft; the admin and every other caller are executed by tests/week-notes.test.mjs through the real route.",
-    coverWhen: "When the course-hub-week-review fixture seeds a draft and its spec discards it from the week's Notes page.",
   },
   "/api/courses/groups/[groupId]/shared-notes": {
     reason:

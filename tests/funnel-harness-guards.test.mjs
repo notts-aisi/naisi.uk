@@ -556,6 +556,11 @@ test("the funnel fixture declares every collection its teardown must drain", () 
     // whole, which teardown counts and removes by their constructed ids.
     "surveyQuestionSets",
     "checkInWeeks",
+    // A week's review: Claude's review the press keeps, the drafts of notes
+    // the draft press keeps, and the explainers scheduled from the review.
+    "courseWeekReviews",
+    "courseNoteDrafts",
+    "courseExplainers",
   ]) {
     assert.ok(
       FIXTURE_COLLECTIONS.includes(required),

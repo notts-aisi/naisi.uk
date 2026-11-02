@@ -39,13 +39,13 @@
  *
  * ## What it cannot drive, and where that is held instead
  *
- * Nobody leads the programme at this point of the term, and the harness
- * cannot make a lead who is not an admin: a lead must be SU-recognised
- * committee, and the harness grants nothing above a waiting account (an admin
- * it needs is an account it is given), so an admin named as the lead would be
- * answered as an admin. So the lead's side of the notes (reading only the
- * notes kept for leads about the people on their programme, never how many
- * others there are, adding their own, changing only those), "the lead is
+ * Nobody leads the programme at this point of the term, and an admin named
+ * as the lead would be answered as an admin. The lead's side of the notes
+ * (reading only the notes kept for leads about the people on their
+ * programme, never how many others there are, adding their own, changing
+ * only those) is driven by `course-hub-explainers-and-lead-notes`, whose
+ * admin makes a waiting account SU-recognised committee and the programme's
+ * lead on the real pages. That side, and "the lead is
  * refused the admins' notes routes and Claude's draft", "the lead is drawn no
  * panel under the tab and refused Claude's best answers" and "the lead never
  * sees Pangram" are held by the persona battery against a real build

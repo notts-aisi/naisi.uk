@@ -7,38 +7,42 @@
  * at its coursework point: three weeks into a running run whose weeks are
  * written as blocks, Ada and Ben in Group A, Cleo in Group B and Dan in no
  * group, with week 3's sessions of both groups over. On top of it this
- * fixture writes one thing: Ada's week 3 written answer and her first week 3
- * reflection are marked first written a second after the seed, so after her
- * account agreed to the policy (every fixture account agrees to the current
- * version, 15, when it is seeded). They are writing the review may send;
- * everything else the term wrote carries no first-written time and is "not
- * included yet".
+ * fixture writes, for Ada and for Cleo: what each wrote in week 3 marked
+ * first written a second after the seed, so after their accounts agreed to
+ * the policy (every fixture account agrees to the current version, 15, when
+ * it is seeded); their week 3 submitted a second after that; and a draft of a
+ * note about each, as if Claude had drafted it, built only from that
+ * submitted week. Ada wrote a written answer and a reflection, Cleo one
+ * reflection. Everything else the term wrote carries no first-written time
+ * and is "not included yet".
  *
  * The spec (`tests/e2e/course-hub-week-review.spec.mjs`) is the harness's
  * admin, who approves Fern and Group A's two people, names the running run on
  * the programme's Settings tab and appoints Fern to Group A; finds Review
  * beside week 3 on the Weeks tab; reads the review page saying what would be
- * sent before any press (in local mode, where Claude is the harness's fake,
- * the press offered and not pressed) and Pangram's count before any press,
- * with nothing pressed; reads who might need a hand from the site's own
- * records; asks Fern to have a word with Ben, which makes one task with fixed
- * words and no reason; opens the week's Notes beside its review, where Ada's
- * week 3 is submitted and a draft of a note about her waits, as if Claude had
- * drafted it (seeded here, so the spec presses nothing that sends), built only
- * from her submitted week; saves it to her notes; and Fern, signed in, finds
- * the task on My Work.
+ * sent before any press and Pangram's count, with nothing pressed; reads who
+ * might need a hand from the site's own records; asks Fern to have a word
+ * with Ben, which makes one task with fixed words and no reason; presses
+ * Review with Claude once (in local mode the harness's fake Claude answers
+ * it, `scripts/e2e/lib/fakeClaude.mjs`) and reads the draft grades, the theme
+ * and the hand that come back; opens the week's Notes beside its review,
+ * where both drafts wait; saves Ada's to her notes with a suggestion for
+ * next term; discards Cleo's, which leaves Cleo the one person to draft for;
+ * presses Draft this week's notes once, which drafts Cleo's again through
+ * Claude; reads next term's page, where the saved note suggests Ada for
+ * facilitating; and Fern, signed in, finds the task on My Work.
  *
  * ## What it cannot drive, and where that is held instead
  *
- * The harness signs in no lead who is not an admin (a lead must be
- * SU-recognised committee, and the harness grants nothing above a waiting
- * account), so "the programme's lead is shown a calm 'a week's review is for
- * admins' and nothing of the week is read" is held by the persona battery
- * against a real build (`tests/persona-route-gates.registry.mjs`, the `lead`
- * persona on the review page and both routes) and by
- * `tests/week-review.test.mjs`, not here; so is the lead's reading of the
- * saved notes kept for leads (`tests/week-notes.test.mjs`). Nothing is pressed
- * that would send anything to Claude or Pangram.
+ * The programme's lead's side of the review ("a week's review is for admins",
+ * nothing of the week read) and of the week's notes (the saved notes kept for
+ * leads, never a draft) is not driven here: this spec names no lead. It is
+ * held by the persona battery against a real build
+ * (`tests/persona-route-gates.registry.mjs`, the `lead` persona on the review
+ * page and both routes), by `tests/week-review.test.mjs` and by
+ * `tests/week-notes.test.mjs`. A lead who is not an admin is signed in by
+ * `course-hub-explainers-and-lead-notes`, for the notes about a person.
+ * Pangram is never pressed.
  *
  * ## It reads no mail
  *
@@ -60,8 +64,12 @@ export const WEEK_REVIEW_STEPS = [
   "the review says what would be sent before any press, and offers Review with Claude, with nothing pressed",
   "who might need a hand, from the site's own records, each line saying where it came from",
   "the admin asks the facilitator to have a word with a person: one task, fixed words and no reason",
+  "the admin presses Review with Claude once, and its draft grades, what people found hard and a hand come back",
   "the week's notes, beside its review: who submitted, and a waiting draft built only from a submitted week",
   "the admin saves the draft to the person's notes, in the admin's words, and the card says who saved it",
+  "the admin discards a waiting draft, and its person is the one left to draft for",
+  "the admin presses Draft this week's notes once, and a draft comes back for the one person without one",
+  "next term's page shows the person the saved note suggests for facilitating",
   "the facilitator finds the task on My Work",
 ];
 
@@ -87,46 +95,56 @@ async function seed({ runId, suppress, onState }) {
     },
   });
   if (!state) throw new Error("The term published no state.");
-  const ada = state.people.find((person) => person.key === "ada");
-  if (!ada) throw new Error("The term has no Ada.");
+  const personOf = (key) => {
+    const person = state.people.find((each) => each.key === key);
+    if (!person) throw new Error(`The term has no ${key}.`);
+    return person;
+  };
   const after = new Date(Date.now() + AFTER_AGREEMENT_MS);
-  // Ada's week 3 written answer and first reflection, first written after she agreed.
-  for (const key of ["wa", "rp1"]) {
-    await fixtureDoc("courseExerciseResponses", `${state.runId}__${ada.uid}__w03__${courseworkItemId(3, key)}`).set(
-      { firstWrittenAt: after },
-      { merge: true },
-    );
-  }
-  // Ada submits week 3 after writing it, as Submit stores it.
   const submitted = new Date(Date.now() + SUBMITTED_AFTER_MS);
-  await fixtureDoc("courseWeekWork", `${state.runId}__${ada.uid}__w03`).set({
-    e2eTermRunId: state.termRunId,
-    runId: state.runId,
-    uid: ada.uid,
-    weekId: "w03",
-    weekNumber: 3,
-    submittedAt: submitted,
-    firstSubmittedAt: submitted,
-    submitCount: 1,
-    updatedAt: submitted,
-  });
-  // A draft of a note about Ada from week 3, in the shape the draft route keeps
-  // (src/lib/firestore/courseNoteDrafts.ts), built from her submitted week alone.
-  await fixtureDoc("courseNoteDrafts", `${state.runId}__w03__${ada.uid}`).set({
-    e2eTermRunId: state.termRunId,
-    runId: state.runId,
-    weekId: "w03",
-    weekNumber: 3,
-    uid: ada.uid,
-    text: DRAFTED,
-    builtFrom: [{ kind: "work", weekNumber: 3, submittedAt: submitted, written: 1, reflections: 1, boxes: 0 }],
-    raters: {},
-    sourceUids: [],
-    fingerprint: "e2e-seeded",
-    model: "e2e-seeded",
-    at: submitted,
-    askedByUid: "",
-  });
+  // What each of the two wrote in week 3 that was first written after they
+  // agreed, and what the seeded draft about them says it was built from.
+  const writers = [
+    { person: personOf("ada"), keys: ["wa", "rp1"], text: DRAFTED, built: { written: 1, reflections: 1 } },
+    { person: personOf("cleo"), keys: ["rp1"], text: DRAFTED_TO_DISCARD, built: { written: 0, reflections: 1 } },
+  ];
+  for (const { person, keys, text, built } of writers) {
+    for (const key of keys) {
+      await fixtureDoc("courseExerciseResponses", `${state.runId}__${person.uid}__w03__${courseworkItemId(3, key)}`).set(
+        { firstWrittenAt: after },
+        { merge: true },
+      );
+    }
+    // Their week 3 submitted after writing it, as Submit stores it.
+    await fixtureDoc("courseWeekWork", `${state.runId}__${person.uid}__w03`).set({
+      e2eTermRunId: state.termRunId,
+      runId: state.runId,
+      uid: person.uid,
+      weekId: "w03",
+      weekNumber: 3,
+      submittedAt: submitted,
+      firstSubmittedAt: submitted,
+      submitCount: 1,
+      updatedAt: submitted,
+    });
+    // A draft of a note about them from week 3, in the shape the draft route
+    // keeps (src/lib/firestore/courseNoteDrafts.ts), built from their submitted week alone.
+    await fixtureDoc("courseNoteDrafts", `${state.runId}__w03__${person.uid}`).set({
+      e2eTermRunId: state.termRunId,
+      runId: state.runId,
+      weekId: "w03",
+      weekNumber: 3,
+      uid: person.uid,
+      text,
+      builtFrom: [{ kind: "work", weekNumber: 3, submittedAt: submitted, ...built, boxes: 0 }],
+      raters: {},
+      sourceUids: [],
+      fingerprint: "e2e-seeded",
+      model: "e2e-seeded",
+      at: submitted,
+      askedByUid: "",
+    });
+  }
   return state;
 }
 
@@ -135,6 +153,9 @@ const SUBMITTED_AFTER_MS = 2_000;
 
 /** The seeded draft's words, labels and all, as Claude's would come back. */
 export const DRAFTED = "The fellow argues from the week's reading with care. Worth asking the fellow about facilitating.";
+
+/** The words of the seeded draft about Cleo, which the admin discards. */
+export const DRAFTED_TO_DISCARD = "The fellow answers the week's question in one short line.";
 
 /** What the review keeps on the run, the follow-ups made from it, the drafts of notes and the notes saved from them. */
 async function countReview(state) {
@@ -181,7 +202,10 @@ export const SPEC = {
       "/api/admissions/forms/[roundId]/programmes/[programmeId]/run",
       "/api/courses/groups/[groupId]/facilitators",
       "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/pangram",
+      "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review",
       "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review/follow-up",
+      "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/draft",
+      "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/[uid]",
       "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/[uid]/save",
     ],
     pages: [
@@ -192,6 +216,7 @@ export const SPEC = {
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/notes",
+      "/(app)/admin/admissions/forms/[roundId]/next-term",
       "/(app)/tasks",
     ],
   },
@@ -209,6 +234,14 @@ export const SPEC = {
    * Again the same day, in local mode with the harness's fake Claude
    * answering there: all ten steps ran, the fake was asked nothing, 48 rows
    * existed before teardown, and the manifest read zero after it.
+   *
+   * Again on Mon 2 November 2026, in local mode, with the presses that reach
+   * Claude (Review with Claude, Draft this week's notes), the discarded draft
+   * and next term's page added, on the fake Claude's branch at 98565f11 with
+   * this spec's commits on it: all fourteen steps ran, the fake answered the
+   * review's three asks and one note's draft, 49 rows existed before
+   * teardown, and the manifest read zero after it. Twice, about 30 seconds
+   * of spec each time.
    */
   status: "verified",
   seed,

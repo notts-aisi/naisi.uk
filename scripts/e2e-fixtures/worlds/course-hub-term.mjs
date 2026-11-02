@@ -2033,9 +2033,15 @@ async function seedWeekThree(state, plan, at) {
 // Counting: the manifest that must read zero
 // ---------------------------------------------------------------------------
 
-/** Every account the term made, the ones the seed never reached left out. */
+/**
+ * Every account the term made, the ones the seed never reached left out.
+ * `state.lead` is an account a spec module makes beside the term for an admin
+ * to make the programme's lead on the real pages
+ * (`course-hub-explainers-and-lead-notes.mjs`): it is the term's to count and
+ * tear down like any other, so its rows and its address are swept with them.
+ */
 export function accountsOf(state) {
-  return [...(state.people ?? []), state.facilitator].filter(Boolean);
+  return [...(state.people ?? []), state.facilitator, state.lead].filter(Boolean);
 }
 
 /** Every cohort subscription id this term's people could be given, constructed. */

@@ -423,14 +423,19 @@ export const FIXTURE_COLLECTIONS = [
   "courseBestAnswers",
   "coursePangramChecks",
   // Claude's review of a week (privacy v15), with `runId` on it. Written by
-  // the week review's route a spec presses, against a target with a key, and
-  // by nothing a fixture seeds.
+  // the week review's route a spec presses (in local mode through the
+  // harness's fake Claude), and by nothing a fixture seeds.
   "courseWeekReviews",
   // Claude's draft of an end-of-week note about one person (privacy v15),
   // with `runId` on it. Seeded by the week review's fixture, as if Claude had
-  // drafted it, so its spec can save it from the week's Notes page; written
-  // by the draft route only against a target with a key.
+  // drafted it, so its spec can save one and discard another from the week's
+  // Notes page; written by the draft route its spec presses.
   "courseNoteDrafts",
+  // An explainer an admin schedules from a week's review, with `runId` on
+  // it. Written by the explainers' routes a spec presses (scheduled, then
+  // stamped cancelled, never deleted by them), and by nothing a fixture
+  // seeds; its fixture's teardown deletes it.
+  "courseExplainers",
   // The end of a programme: who finished (the run's rule, set on the
   // programme's Settings tab, and the lead's decisions on its Overview, each
   // with `runId` on it), and the certificates the Overview's send makes, one
