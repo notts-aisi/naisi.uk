@@ -1596,30 +1596,6 @@ const NOT_COVERED = {
     coverWhen:
       "When an end-to-end spec downloads a file anywhere on the site, so the download path is driven in a browser once for all of them.",
   },
-  "/(app)/admin/(admin-only)/surveys/[surveyId]/chart": {
-    reason:
-      "Surveys: Make a chart on a survey's own pages; tests/surveys-chart.test.mjs draws it for an admin over a sent before survey and a survey after an event, a chart a group and Who, reads no name and writes nothing, and holds every bar to its Results' count.",
-    coverWhen:
-      "When the course-hub-before-survey spec is next extended past its Results, so a browser makes a chart of the survey it sent and answered.",
-  },
-  "/(app)/admin/(admin-only)/surveys/check-ins/[roundId]/[programmeId]/chart": {
-    reason:
-      "Surveys: Make a chart across a programme's check-ins; tests/surveys-chart.test.mjs draws it for an admin over five groups' check-ins of two weeks, average by week and by group, the rest of the groups behind the press, and an address with no check-ins in a sentence.",
-    coverWhen:
-      "When the course-hub-check-in spec answers check-ins in more than one group, so a browser charts them by group.",
-  },
-  "/api/surveys/[surveyId]/chart": {
-    reason:
-      "Surveys: Make a chart's numbers as a file; tests/surveys-chart.test.mjs asks for it as every kind of caller, refused before anything is read, and reads it against the page's own chart, naming nobody and writing nothing.",
-    coverWhen:
-      "When an end-to-end spec downloads a file anywhere on the site, so the download path is driven in a browser once for all of them.",
-  },
-  "/api/surveys/check-ins/[roundId]/[programmeId]/chart": {
-    reason:
-      "Surveys: Make a chart's numbers across a programme's check-ins; tests/surveys-chart.test.mjs asks for it as every kind of caller, refused before anything is read, and reads it against the page's own chart, naming nobody and writing nothing.",
-    coverWhen:
-      "When an end-to-end spec downloads a file anywhere on the site, so the download path is driven in a browser once for all of them.",
-  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/anonymous-feedback": {
     reason:
       "The anonymous form's answers for the programme's lead and admins; tests/anonymous-feedback.test.mjs renders it as the lead, an admin, the lead of another programme, a reviewer, a facilitator, a member and signed out, and finds only answers from a day that is over, each question's in alphabetical order.",
@@ -1799,24 +1775,6 @@ const NOT_COVERED = {
       "Public numbers: the admins' page; tests/surveys-public-numbers.test.mjs renders it before and after publishing, with the offer, the ticked quotes, the boxes of what is published ticked and both previews, and finds no name.",
     coverWhen:
       "When the end-to-end fixtures seed a programme whose survey at the end has answers, so a spec can publish its numbers and read them on the programme's public page.",
-  },
-  "/(app)/admin/(admin-only)/reports": {
-    reason:
-      "Reports: three links, to This term in numbers, Public numbers and Kairos, by their names, and nothing read; tests/surveys-hub.test.mjs renders it as every kind of caller and holds each link to its page, and tests/app-frame.test.mjs lights its menu entry on all three.",
-    coverWhen:
-      "When a spec opens This term in numbers, Public numbers or Kairos, which it reaches from the menu through this page.",
-  },
-  "/(app)/admin/(admin-only)/surveys/question-sets/[kind]": {
-    reason:
-      "Surveys: one kind's question set; tests/survey-question-sets.test.mjs draws every kind's page as every kind of caller, with the set's words over the code's and the original beside a changed word, and a kind that names no set in a sentence.",
-    coverWhen:
-      "When a spec changes a question set and then makes a survey from it, so the browser drives the save the route keeps.",
-  },
-  "/api/surveys/question-sets/[kind]": {
-    reason:
-      "Surveys: keeping one kind's question set; tests/survey-question-sets.test.mjs saves every kind as every kind of caller and during view-as, refuses a question added, taken out or retyped where only words change, and makes surveys before and after a change to prove none already made is reached; the check-in, event and report suites do the same for theirs.",
-    coverWhen:
-      "When a spec changes a question set and then makes a survey from it, so the browser drives the save the route keeps.",
   },
   "/(app)/admin/(admin-only)/surveys/term": {
     reason:

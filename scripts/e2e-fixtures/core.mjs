@@ -109,6 +109,9 @@ export const ARTIFACTS_DIR = join(REPO_ROOT, ".e2e-artifacts");
  *  - `password`: a fixture account's sign-in.
  *  - `adminUid`, `throttleId`: the one account in a run that the harness did
  *    not make, and a document id built from it.
+ *  - `questionSetBefore`: a site-wide question set as it stood before a spec
+ *    changed it, which names the admin who last changed it, so teardown can
+ *    put it back exactly.
  *
  * `writeState` lifts every value under one of these keys, at any depth, into
  * a second file in `privateDir()`, which is beside the state directory and
@@ -116,7 +119,7 @@ export const ARTIFACTS_DIR = join(REPO_ROOT, ".e2e-artifacts");
  * file, and a spec reads its state through `readState`, never by parsing the
  * ledger itself: `tests/e2e-ledger-credentials.test.mjs` holds all of that.
  */
-export const PRIVATE_KEYS = Object.freeze(["password", "adminUid", "throttleId"]);
+export const PRIVATE_KEYS = Object.freeze(["password", "adminUid", "throttleId", "questionSetBefore"]);
 
 /**
  * Where THIS process reads and writes its ledgers.
@@ -358,11 +361,28 @@ export const FIXTURE_COLLECTIONS = [
   // stage, the form's id on every one as `roundId`), who it was sent to with
   // each person's own link, and each person's answers, kept once. Written by
   // the survey routes a spec drives (make, edit, test, send, remind, answer,
-  // change a consent, close), and by nothing a fixture seeds. Found by the
-  // form, then by each survey's id.
+  // change a consent, close), and seeded by the survey admin spec's fixture
+  // (a survey sent and answered, and check-ins answered in two groups, each
+  // with the run's id as `runId`). Found by the form or the run, then by each
+  // survey's id.
   "surveys",
   "surveyPeople",
   "surveyAnswers",
+  // Which check-ins each week of a programme showed its lead
+  // (`{runId}__w03`). Written by the scheduler's `surveys-check-in-weeks`
+  // job, never by a fixture or a route a spec drives: the job looks at every
+  // run a programme names, so a spec that names a run whose weeks are whole
+  // can find one written under it on a project whose tick is armed. Counted
+  // and removed by its constructed id, so the manifest cannot read zero past
+  // one.
+  "checkInWeeks",
+  // ONLY the end of a programme's question set (`surveyQuestionSets/after`),
+  // and only through `surveyQuestionSetDoc()`. It is one document for the
+  // whole project, like `config/membership`: the survey admin spec changes its
+  // words in the browser and puts them back, and its fixture snapshots it
+  // before and restores it in teardown. `fixtureDoc` refuses every other set
+  // and `fixtureQuery` refuses the collection.
+  "surveyQuestionSets",
   // The record of each time an admin opened people's survey answers: one
   // person's answers, the names behind a bar or a comment, or the Answers
   // table (`kind` survey-answers, survey-bar, survey-comment or survey-table),
@@ -468,6 +488,9 @@ export const FIXTURE_COLLECTIONS = [
 /** The one document id any fixture may address in the `config` collection. */
 export const MEMBERSHIP_CONFIG_DOC_ID = "membership";
 
+/** The one question set any fixture may address: the end of a programme's. */
+export const BORROWED_QUESTION_SET_ID = "after";
+
 /**
  * Subcollections a fixture may reach off a document the chokepoint produced.
  *
@@ -541,6 +564,13 @@ export function fixtureDoc(collection, id) {
         "and only to snapshot it before a spec moves it and restore it afterwards.",
     );
   }
+  if (collection === "surveyQuestionSets" && id !== BORROWED_QUESTION_SET_ID) {
+    throw new Error(
+      `REFUSING to address surveyQuestionSets/${String(id)}. The only question set an e2e ` +
+        `fixture may reach is ${BORROWED_QUESTION_SET_ID}, through surveyQuestionSetDoc(), ` +
+        "and only to snapshot it before a spec changes it and restore it afterwards.",
+    );
+  }
   return db().collection(collection).doc(id);
 }
 
@@ -552,6 +582,13 @@ export function fixtureQuery(collection) {
       "REFUSING to query the config collection. A query would list every runtime " +
         `config document; a fixture may only address ${MEMBERSHIP_CONFIG_DOC_ID}, ` +
         "through membershipConfigDoc().",
+    );
+  }
+  if (collection === "surveyQuestionSets") {
+    throw new Error(
+      "REFUSING to query the surveyQuestionSets collection. A query would list every " +
+        `question set an admin keeps; a fixture may only address ${BORROWED_QUESTION_SET_ID}, ` +
+        "through surveyQuestionSetDoc().",
     );
   }
   return db().collection(collection);
@@ -573,6 +610,19 @@ export function fixtureSubcollection(parentCollection, parentId, collection) {
  */
 export function membershipConfigDoc() {
   return fixtureDoc("config", MEMBERSHIP_CONFIG_DOC_ID);
+}
+
+/**
+ * The end of a programme's question set, and the only permitted way to
+ * address `surveyQuestionSets`.
+ *
+ * The survey admin spec changes the set's words on its real page and makes a
+ * survey from it. The set is real configuration on a shared project, so the
+ * fixture reads it first, keeps it in its state file, and puts it back in
+ * teardown, whatever the spec reached.
+ */
+export function surveyQuestionSetDoc() {
+  return fixtureDoc("surveyQuestionSets", BORROWED_QUESTION_SET_ID);
 }
 
 /**
