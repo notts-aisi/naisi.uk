@@ -530,6 +530,12 @@ test("the funnel fixture declares every collection its teardown must drain", () 
     // A message from Messages to a term's people: the send's own record, found
     // by the tags it was for.
     "messageSends",
+    // A group's sessions and a week's work: the session report a facilitator
+    // sends, and where a member's week stands once they submit it or it is
+    // reopened, with the log of each.
+    "courseSessionReports",
+    "courseWeekWork",
+    "courseWorkLog",
   ]) {
     assert.ok(
       FIXTURE_COLLECTIONS.includes(required),

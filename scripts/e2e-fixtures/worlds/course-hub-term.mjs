@@ -77,6 +77,18 @@
  * people and an email to the group has a link it must never carry. The admin
  * appoints Fern to Group A on the real page, as at the second point.
  *
+ * ## The week's work point ("week-three-work")
+ *
+ * The third point with its weeks written as blocks and one more of them out
+ * (`WEEK_THREE_WORK`): the same day, places and registers (Group A's week 3
+ * register never opened), and weeks 1 to 4 published as the coursework
+ * point writes a week, each with reflections, two sources and a written
+ * answer. Group A's week 3 session is over, so its week 3 has locked, and
+ * its week 4 session is days ahead, so week 4 takes work: written, submitted,
+ * reopened and submitted again on the real pages. Nobody has written
+ * anything, and no session report exists. The admin appoints Fern to Group A
+ * on the real page.
+ *
  * ## The coursework point ("coursework")
  *
  * The term three weeks in with its weeks written as blocks (`COURSEWORK`):
@@ -225,6 +237,7 @@ export const TERM_POINTS = Object.freeze([
   "first-day",
   "week-three",
   "week-three-unmarked",
+  "week-three-work",
   "coursework",
   "pitching-week",
   "week-four",
@@ -363,6 +376,20 @@ export const WEEK_THREE_UNMARKED = Object.freeze({
   published: WEEK_THREE.published,
 });
 
+/**
+ * THE TERM THREE WEEKS IN, ITS WEEKS WRITTEN AS BLOCKS AND WEEK 4 OUT: the
+ * third point (`WEEK_THREE_UNMARKED`) with weeks 1 to 4 published as blocks
+ * (`courseworkWeekDoc`), so a member of Group A can write week 4, submit it
+ * and have it reopened before the group's week 4 session, and Group A's
+ * finished week 3 register has a session report to lead on to. No
+ * coursework, no session report: those are the spec's to write.
+ */
+export const WEEK_THREE_WORK = Object.freeze({
+  ...WEEK_THREE_UNMARKED,
+  published: 4,
+  blockWeeks: true,
+});
+
 /** Weeks 1 and 2 of the incubator's group: everybody came. */
 const ALL_FIVE_PRESENT = Object.freeze({ ada: "present", ben: "present", cleo: "present", dan: "present", eve: "present" });
 
@@ -426,6 +453,7 @@ export function laterPlanOf(point) {
   if (point === "first-day") return FIRST_DAY;
   if (point === "week-three") return WEEK_THREE;
   if (point === "week-three-unmarked") return WEEK_THREE_UNMARKED;
+  if (point === "week-three-work") return WEEK_THREE_WORK;
   if (point === "pitching-week") return PITCHING_WEEK;
   if (point === "week-four") return WEEK_FOUR;
   if (point === "after-the-end") return AFTER_THE_END;
@@ -2235,6 +2263,18 @@ function reminderMarkersOf(state) {
  *  - the update that tells the group: as an update above, with the
  *    facilitator as the presser.
  *
+ * And at the week's work point, as its facilitator and a member drive it:
+ *  - marking and finishing a register: as at the third point;
+ *  - "Can't make it" on the next session's ticket: that session's
+ *    `courseAttendance` row, made or merged into (`runId` on it);
+ *  - a session report: one `courseSessionReports` row a writer and session
+ *    (`runId` on it);
+ *  - a written answer typed on a week page: its `courseExerciseResponses`
+ *    row (`runId` on it);
+ *  - Submit and Reopen: the week's `courseWeekWork` row and a
+ *    `courseWorkLog` row for each submit, reopen and writing spell (`runId`
+ *    on each).
+ *
  * And at the fourth point, as its people and its lead drive it:
  *  - a pitch saved, and a pick pressed or taken back: one `coursePitches` row
  *    a pitch (`runId` on it), the picks on the pitch itself;
@@ -2361,6 +2401,10 @@ export async function countTerm(state) {
   // The week you submit: a submitted or reopened week, and the log every tick, box, submit and reopen writes.
   counts.courseWeekWork = (await fixtureQuery("courseWeekWork").where("runId", "==", runId).get()).size;
   counts.courseWorkLog = (await fixtureQuery("courseWorkLog").where("runId", "==", runId).get()).size;
+  // A facilitator's session reports, one a writer and session.
+  counts.courseSessionReports = (
+    await fixtureQuery("courseSessionReports").where("runId", "==", runId).get()
+  ).size;
   counts.weeks = (await fixtureSubcollection("courseRuns", runId, "weeks").get()).size;
   counts.tasks = (await fixtureQuery("tasks").where("sourceRef.cohortId", "==", runId).get()).size;
   counts.subscriptions = (
@@ -2494,6 +2538,8 @@ export async function teardownTerm(state) {
   // The week you submit's rows, written by the routes a spec drives.
   await deleteQuery(fixtureQuery("courseWeekWork").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseWorkLog").where("runId", "==", runId));
+  // The session reports a facilitator sent.
+  await deleteQuery(fixtureQuery("courseSessionReports").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("tasks").where("sourceRef.cohortId", "==", runId));
   // The second point's: registers and updates (seeded and posted alike), the
   // download log's row, the updates route's counters, Remind's markers.
