@@ -28,6 +28,12 @@
  * 4. No real mail can be attempted. SMTP_HOST/PORT are forced to the loopback
  *    Mailpit; the credentials in .env.local are shadowed, so even a template
  *    bug that addressed a real inbox would land in the catcher.
+ *
+ * 5. No real Claude call can be made. ANTHROPIC_API_KEY is forced to a value
+ *    that is not a key and ANTHROPIC_BASE_URL to the fake Claude this script
+ *    runs on loopback (lib/fakeClaude.mjs), the same way SMTP is forced to
+ *    Mailpit. The site honours that base URL only when it is a loopback
+ *    address (`claudeBaseUrl` in src/lib/ai/claude.ts).
  */
 import { execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -35,6 +41,7 @@ import webpush from "web-push";
 import { existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { REPO_ROOT, parseEnvFile, signingServiceAccount } from "./lib/env.mjs";
+import { FAKE_CLAUDE_KEY, FAKE_CLAUDE_PORT, startFakeClaude } from "./lib/fakeClaude.mjs";
 import { clearMailbox, mailpitAvailable } from "./lib/mailpit.mjs";
 
 const HOST = "127.0.0.1";
@@ -57,6 +64,8 @@ const PERSONA_SERVER_LOG = join(REPO_ROOT, ".next", "e2e-persona-server.log");
 const MAILPIT_HTTP = "http://127.0.0.1:8025";
 const MAILPIT_SMTP_PORT = "1025";
 const DEV_PROJECT = "naisi-uk-dev";
+/** The fake Claude this run starts in its own process (lib/fakeClaude.mjs). */
+const FAKE_CLAUDE_URL = `http://${HOST}:${FAKE_CLAUDE_PORT}`;
 
 /**
  * Google's PUBLISHED reCAPTCHA test secret — the pair documented at
@@ -278,6 +287,11 @@ function buildServerEnv(vapid) {
     // routes reach their gates instead of answering 503 for want of keys.
     NEXT_PUBLIC_VAPID_PUBLIC_KEY: vapid.publicKey,
     VAPID_PRIVATE_KEY: vapid.privateKey,
+    // Claude is the fake on loopback, with a key that is not a key, so no
+    // request can reach Anthropic and none costs anything. Both forced, so a
+    // real key in the shell or .env.local never reaches the child.
+    ANTHROPIC_API_KEY: FAKE_CLAUDE_KEY,
+    ANTHROPIC_BASE_URL: FAKE_CLAUDE_URL,
     // The batteries assert 401s, so the dev auth bypass must be provably inert.
     NEXT_PUBLIC_DEV_BYPASS_AUTH: "false",
     NEXT_PUBLIC_DEBUG_MONITOR: "false",
@@ -439,6 +453,25 @@ function killAndWait(child, timeoutMs = 5000) {
     });
     child.kill("SIGTERM");
   });
+}
+
+/** The fake Claude, closed by teardown. Null until started. */
+let fakeClaude = null;
+
+/**
+ * Starts the fake Claude in this process, on loopback. Refuses a port that is
+ * already held for the same reason startServer refuses one: a listener this
+ * run did not start could answer anything.
+ */
+async function ensureFakeClaude() {
+  if (portInUse(FAKE_CLAUDE_PORT)) {
+    fail(
+      `Something is already listening on :${FAKE_CLAUDE_PORT}, where this run starts its fake Claude. ` +
+        "Stop it and rerun.",
+    );
+  }
+  fakeClaude = await startFakeClaude({ port: FAKE_CLAUDE_PORT, log: (line) => log(line) });
+  log(`Fake Claude is up at ${fakeClaude.url}: no request from the local server reaches Anthropic.`);
 }
 
 async function startServer(serverEnv) {
@@ -648,6 +681,8 @@ function runTests(serverEnv, personas) {
           E2E_ALLOW_REGISTER: "1",
           E2E_LOCAL_TOKEN_SECRET: serverEnv.EVENTS_TOKEN_SECRET,
           MAILPIT_URL: MAILPIT_HTTP,
+          // For a spec to read what the server asked the fake (fakeClaudeRequests).
+          E2E_FAKE_CLAUDE_URL: FAKE_CLAUDE_URL,
           // Only when the emulator and the persona server came up. The
           // battery skips (or fails, when required) without these two. The
           // emulator host is handed over under its OWN name, never as
@@ -675,6 +710,7 @@ async function main() {
     for (const { child } of [...CHILDREN].reverse()) {
       await killAndWait(child);
     }
+    if (fakeClaude) await fakeClaude.close();
   };
   // Say so LOUDLY when a run is interrupted. Tearing down kills the server out
   // from under whatever test is mid-request, so an interrupted run reports a
@@ -700,6 +736,7 @@ async function main() {
     await ensureMailpit();
     await ensureBuild(serverEnv, skipBuild, vapid);
     await ensureMailpit(); // re-check: the build can take minutes
+    await ensureFakeClaude();
     await startServer(serverEnv);
     const personas = await ensureEmulator();
     if (personas) await startPersonaServer(serverEnv);
