@@ -2185,13 +2185,13 @@ const NOT_COVERED = {
   },
   "/api/events/[id]/check-in": {
     reason:
-      "Check-in: checking yourself in; tests/event-self-check-in.test.mjs drives it as a member with each kind of sign-up, a guest with their email's link, a wrong link, signed out and view-as, at an event that lets people and one that does not, before and after its door is opened, each way in recorded as itself.",
+      "Check-in: checking yourself in; tests/event-self-check-in.test.mjs drives it as a member with each kind of sign-up, a guest with their email's link, a wrong link, signed out and view-as, at an event that lets people and one that does not, before and after its door is opened, each way in recorded as itself, and at an event for chosen people as somebody invited, somebody not, an account not approved and a link that does not verify.",
     coverWhen:
       "When the end-to-end fixtures seed a published event with sign-ups, so a spec can scan the door code and press I'm here.",
   },
   "/events/[id]/check-in": {
     reason:
-      "Check-in: the page the door code lands on is a server render with one button; tests/event-self-check-in.test.mjs renders every state, signed out naming nobody and a gone event answering with a page.",
+      "Check-in: the page the door code lands on is a server render with one button; tests/event-self-check-in.test.mjs renders every state, signed out naming nobody and a gone event answering with a page, and an event for chosen people naming nothing of itself to anybody it is not for.",
     coverWhen:
       "When the end-to-end fixtures seed a published event with sign-ups, so a spec can scan the door code and press I'm here.",
   },
