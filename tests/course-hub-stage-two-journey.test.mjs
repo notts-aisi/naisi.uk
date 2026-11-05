@@ -2137,7 +2137,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         assert.equal(
           readFrom(mail, "Hi "),
           `Hi ${first}, You’ll meet on Mondays at 5pm, starting Mon 2 Nov. Where: Room B5 Tess runs the sessions. ` +
-            `Week 1 is on your programme’s page. Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and we’ll record you as excused. If you can’t make most weeks, say why and which other times would work, and we’ll see what we can do. You keep your place either way. You can also email ai-safety@uonsu.com. Yes Most weeks, not all No, I need a different time Tess Research incubator lead, NAISI ${FOOTER}`,
+            `Week 1 is on your programme’s page. Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and the people running your group will know. If you can’t make most weeks, say why and which other times would work, and we’ll see what we can do. You keep your place either way. You can also email ai-safety@uonsu.com. Yes Most weeks, not all No, I need a different time Tess Research incubator lead, NAISI ${FOOTER}`,
         );
         assert.doesNotMatch(`${mail.subject} ${mail.text}`, /group|facilitat/i, mail.to);
       }

@@ -65,16 +65,18 @@ export const SAID_YES = "You’ve told us you can make it.";
 export const SAID_MOST_WEEKS = "You’ve told us you can make it most weeks.";
 
 /**
- * Under that, the sessions still to come they told us they can't make:
- * "You can’t make Tue 17 Nov, so its register records you as excused. Your
- * facilitators see it there." Days as `londonDayLabel` writes them.
+ * Under that, the sessions still to come they told us they can't make, and
+ * what that does: "You can’t make Tue 17 Nov or Tue 1 Dec, and the people
+ * running your group know." The register says so to the group's
+ * facilitators, the programme's lead and admins, so the words name nobody a
+ * group may not have yet. Days as `londonDayLabel` writes them. Words a
+ * member reads say what happens, never "mark", and never how many they may
+ * miss.
  */
 export function missingLine(days: readonly string[]): string {
   if (days.length === 0) return "";
   const list = days.length === 1 ? days[0] : `${days.slice(0, -1).join(", ")} or ${days[days.length - 1]}`;
-  return days.length === 1
-    ? `You can’t make ${list}, so its register records you as excused. Your facilitators see it there.`
-    : `You can’t make ${list}, so their registers record you as excused. Your facilitators see them there.`;
+  return `You can’t make ${list}, and the people running your group know.`;
 }
 
 /** Once they have said they need a different time. */
@@ -90,8 +92,7 @@ export const CHANGE_ANSWER = "Change your answer";
 // The short form behind "Most weeks, not all"
 // ---------------------------------------------------------------------------
 
-export const MOST_WEEKS_INTRO =
-  "Tick the sessions you can’t make. Each one’s register records you as excused, and your facilitators see it there.";
+export const MOST_WEEKS_INTRO = "Tick the sessions you can’t make, and the people running your group will know.";
 
 /** One session to tick: "Week 3, Tue 17 Nov". */
 export function sessionOptionWords(weekNumber: number, day: string): string {
@@ -104,7 +105,7 @@ export const NONE_TO_TICK =
 
 /** Who reads it, said where it is ticked. */
 export const MOST_WEEKS_WHO_READS =
-  "The programme’s lead and our admins read your answer. Your facilitators see only the sessions you tick, on their register.";
+  "The programme’s lead and our admins read your answer. Your facilitators see only which sessions you can’t make.";
 
 // ---------------------------------------------------------------------------
 // The short form behind "No, I need a different time"
@@ -154,7 +155,7 @@ export function moveWords(incubator: boolean): string {
 /** The sentences after the question, before the society's address. */
 export function emailAskWords(incubator: boolean): string {
   return (
-    "Tell us on your programme page. If you’ll miss the odd week, say which and we’ll record you as excused. " +
+    "Tell us on your programme page. If you’ll miss the odd week, say which and the people running your group will know. " +
     `If you can’t make most weeks, say why and which other times would work, and ${moveWords(incubator)}. ` +
     "You keep your place either way."
   );

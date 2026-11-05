@@ -12,7 +12,9 @@
  *
  * The spec (`tests/e2e/course-hub-sessions-and-work.spec.mjs`) is Ada and
  * Fern, Group A's facilitator, in that week. Ada presses Can't make it on
- * her next session's ticket, and Fern's register says so. Fern's register
+ * her next session's ticket, then answers "Can you make this time most
+ * weeks?" with "Most weeks, not all", ticking week 5 beside the week 4 her
+ * press already ticked, and Fern's register says so. Fern's register
  * leads to week 3's session report before it is finished; Fern marks and
  * finishes it, follows its link to the session report and sends one. Ada
  * writes week 4's written answer, goes through the check and
@@ -48,6 +50,7 @@ export const SESSIONS_AND_WORK_STEPS = [
   "the admin names the running course run on the programme's Settings tab",
   "the admin appoints the facilitator to the group whose register nobody has marked",
   "the member presses Can't make it on their next session's ticket, and the ticket says the register records them as excused",
+  "the member answers Can you make this time most weeks? with Most weeks, not all, ticking a later session, and its register records them as excused as the ticket's does",
   "the facilitator's register says who can't make next week's session, leads to this week's session report before it is finished, and the facilitator marks this week's and finishes it",
   "the facilitator follows the finished register's link to the session report and sends one",
   "the member writes the week's written answer, goes through the check and submits anyway, and the week reads submitted and locked",
@@ -88,6 +91,7 @@ export const SPEC = {
       "/api/courses/runs/[runId]/facilitators",
       "/api/courses/groups/[groupId]/facilitators",
       "/api/courses/groups/[groupId]/cant-make-it",
+      "/api/courses/runs/[runId]/time-answer",
       "/api/courses/groups/[groupId]/attendance",
       "/api/courses/groups/[groupId]/attendance/push",
       "/api/courses/groups/[groupId]/session-report",

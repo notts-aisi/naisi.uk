@@ -67,7 +67,7 @@ describe("where the section goes", () => {
     assert.equal(
       textOf(sent),
       "Hi Amara, You’re in Group B. Your group meets on Jubilee campus. Can you make this time most weeks? Tell us on " +
-        "your programme page. If you’ll miss the odd week, say which and we’ll record you as excused. If you can’t make " +
+        "your programme page. If you’ll miss the odd week, say which and the people running your group will know. If you can’t make " +
         "most weeks, say why and which other times would work, and we’ll do our best to move you to another group. You " +
         "keep your place either way. You can also email ai-safety@uonsu.com . " +
         "Yes Most weeks, not all No, I need a different time Claudia",
@@ -135,8 +135,11 @@ describe("what it says, and to whom", () => {
       .filter(([, href]) => !href.startsWith("mailto:"))
       .map(([, href, label]) => [href, label]);
     assert.deepEqual(buttons, [yes, most, cant].map((label) => [`${URL}#your-group-time`, label]));
-    // Missing a week is told apart from needing another time, and recorded as excused.
-    assert.match(text, /If you’ll miss the odd week, say which and we’ll record you as excused\./);
+    // Missing a week is told apart from needing another time, in words that say what happens.
+    assert.match(text, /If you’ll miss the odd week, say which and the people running your group will know\./);
+    assert.doesNotMatch(text, /\bmark|\bgrade|\bscore/i, "the email tells a member they are marked");
+    // The section cannot know whether the group has a facilitator yet, so it names none.
+    assert.doesNotMatch(section.timeQuestionHtml(ASKED) + section.timeQuestionHtml({ ...ASKED, incubator: true }), /facilitator/i);
     assert.match(text, /If you can’t make most weeks, say why and which other times would work/);
     assert.match(text, /You keep your place either way\./);
     assert.ok(!/give your place back|leave/i.test(text), "the section leads to the leave");

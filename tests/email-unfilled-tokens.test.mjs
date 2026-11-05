@@ -1609,7 +1609,7 @@ describe("publishing an allocation", { concurrency: false }, () => {
     assert.ok(
       mail.text.includes(
         "Hi Amara, You’re in Group A. You’ll meet on Tuesdays at 6pm in Hallward B12, starting Tue 27 Oct. " +
-          "Sessions last 90 minutes. Priya and Sam are your facilitators. There are 2 of you. Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and we’ll record you as excused. If you can’t make most weeks, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . Yes Most weeks, not all No, I need a different time NAISI",
+          "Sessions last 90 minutes. Priya and Sam are your facilitators. There are 2 of you. Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and the people running your group will know. If you can’t make most weeks, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . Yes Most weeks, not all No, I need a different time NAISI",
       ),
       mail.text,
     );
@@ -2030,7 +2030,7 @@ describe("Publish on a run a programme names", { concurrency: false }, () => {
     assert.ok(
       mails[0].text.includes(
         "Hi Amara, You’ll meet on Tuesdays at 6pm, starting Tue 27 Oct. Where: Hallward B12 Priya runs the sessions. " +
-          "Week 1 is on your programme’s page. Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and we’ll record you as excused. If you can’t make most weeks, say why and which other times would work, and we’ll see what we can do. You keep your place either way. You can also email ai-safety@uonsu.com . Yes Most weeks, not all No, I need a different time Priya Research incubator lead, NAISI",
+          "Week 1 is on your programme’s page. Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and the people running your group will know. If you can’t make most weeks, say why and which other times would work, and we’ll see what we can do. You keep your place either way. You can also email ai-safety@uonsu.com . Yes Most weeks, not all No, I need a different time Priya Research incubator lead, NAISI",
       ),
       mails[0].text,
     );
@@ -2063,7 +2063,7 @@ describe("Publish on a run a programme names", { concurrency: false }, () => {
     assert.ok(
       mail.text.includes(
         "Hi Amara, You’ll meet on Tuesdays at 6pm, starting Tue 27 Oct. Where: Hallward B12 Priya runs the sessions. " +
-          "Week 1 is on your programme’s page. Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and we’ll record you as excused. If you can’t make most weeks, say why and which other times would work, and we’ll see what we can do. You keep your place either way. You can also email ai-safety@uonsu.com . Yes Most weeks, not all No, I need a different time Priya Research incubator lead, NAISI",
+          "Week 1 is on your programme’s page. Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and the people running your group will know. If you can’t make most weeks, say why and which other times would work, and we’ll see what we can do. You keep your place either way. You can also email ai-safety@uonsu.com . Yes Most weeks, not all No, I need a different time Priya Research incubator lead, NAISI",
       ),
       mail.text,
     );
@@ -2087,7 +2087,7 @@ describe("Publish on a run a programme names", { concurrency: false }, () => {
       assert.equal(mail.subject, "Your AI Safety Fundamentals group: Tuesdays at 6pm", JSON.stringify(naming));
       assert.ok(mail.text.includes("Hi Amara, You’re in Group A. You’ll meet on Tuesdays at 6pm in Hallward B12, starting"), mail.text);
       assert.ok(mail.text.includes("Sam is your facilitator."), mail.text);
-      const signed = naming ? "Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and we’ll record you as excused. If you can’t make most weeks, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . Yes Most weeks, not all No, I need a different time Priya AI Safety Fundamentals lead, NAISI" : "Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and we’ll record you as excused. If you can’t make most weeks, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . Yes Most weeks, not all No, I need a different time NAISI";
+      const signed = naming ? "Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and the people running your group will know. If you can’t make most weeks, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . Yes Most weeks, not all No, I need a different time Priya AI Safety Fundamentals lead, NAISI" : "Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and the people running your group will know. If you can’t make most weeks, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . Yes Most weeks, not all No, I need a different time NAISI";
       assert.ok(mail.text.includes(signed), mail.text);
       assert.equal((await planNow()).incubator, false);
     }

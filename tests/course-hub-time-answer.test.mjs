@@ -590,13 +590,13 @@ describe("3. the card on the programme page", () => {
     const most = await runHome("amara");
     assert.match(
       most.text,
-      /Group A meets Thursdays, 6pm to 8pm\. You’ve told us you can make it most weeks\. You can’t make Thu 26 Nov or Thu 3 Dec, so their registers record you as excused\. Your facilitators see them there\. Change your answer/,
+      /Group A meets Thursdays, 6pm to 8pm\. You’ve told us you can make it most weeks\. You can’t make Thu 26 Nov or Thu 3 Dec, and the people running your group know\. Change your answer/,
     );
     assert.ok(!most.text.includes(WHY));
     await answer("amara", MOST("w04"));
     assert.match(
       (await runHome("amara")).text,
-      /You’ve told us you can make it most weeks\. You can’t make Thu 19 Nov, so its register records you as excused\. Your facilitators see it there\. Change your answer/,
+      /You’ve told us you can make it most weeks\. You can’t make Thu 19 Nov, and the people running your group know\. Change your answer/,
     );
     // None ticked: most weeks, and nothing more.
     await answer("amara", MOST());
@@ -611,8 +611,8 @@ describe("3. the card on the programme page", () => {
     assert.match(
       text,
       new RegExp(
-        "You’ve told us you can make it most weeks\\. You can’t make Thu 26 Nov, so its register records you as excused\\. " +
-          `Your facilitators see it there\\. What you told us Why ${WHY} Would work ${WOULD} Change your answer`,
+        "You’ve told us you can make it most weeks\\. You can’t make Thu 26 Nov, and the people running your group know\\. " +
+          `What you told us Why ${WHY} Would work ${WOULD} Change your answer`,
       ),
     );
   });
@@ -1384,9 +1384,34 @@ describe("10. they meant some weeks: an admin or the programme's lead reads a di
       ["Can make most weeks", "Misses week 5", "Misses weeks 3 and 5", "Misses weeks 3, 5 and 6"],
     );
     assert.equal(words.sessionOptionWords(3, "Tue 17 Nov"), "Week 3, Tue 17 Nov");
-    // Nothing a person reads says their place goes, or leads to the leave.
-    for (const line of [words.SAID_MOST_WEEKS, words.SAID_CANT, words.FORM_INTRO, words.MOST_WEEKS_INTRO, words.emailAskWords(false)]) {
+    // Nothing a person reads says their place goes, or leads to the leave; nothing says they are marked,
+    // graded or scored, or how many sessions they may miss.
+    const toThePerson = [
+      words.CARD_TITLE,
+      words.ANSWER_YES,
+      words.ANSWER_MOST_WEEKS,
+      words.ANSWER_CANT,
+      words.KEEP_YOUR_PLACE,
+      words.SAID_YES,
+      words.SAID_MOST_WEEKS,
+      words.SAID_CANT,
+      words.MOST_WEEKS_INTRO,
+      words.NONE_TO_TICK,
+      words.MOST_WEEKS_WHO_READS,
+      words.FORM_INTRO,
+      words.ODD_WEEK_NOTE,
+      words.missingLine(["Thu 26 Nov"]),
+      words.missingLine(["Thu 26 Nov", "Thu 3 Dec"]),
+      words.emailAskWords(false),
+      words.emailAskWords(true),
+      ...Object.values(words.ANSWER_REFUSAL),
+      ...["yes", "mostWeeks", "cant"].map(words.savedWords),
+    ];
+    for (const line of toThePerson) {
       assert.doesNotMatch(line, /give your place back|leave the programme/i, line);
+      assert.doesNotMatch(line, /\bmark|\bgrade|\bscore|dropped out/i, line);
+      assert.doesNotMatch(line, /\b(?:one|two|three|four|five|\d+) (?:sessions?|weeks?)\b/i, line);
     }
+    assert.equal(words.missingLine(["Thu 26 Nov", "Thu 3 Dec"]), "You can’t make Thu 26 Nov or Thu 3 Dec, and the people running your group know.");
   });
 });
