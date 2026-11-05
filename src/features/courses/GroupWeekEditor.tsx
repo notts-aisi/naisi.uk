@@ -1767,8 +1767,10 @@ export default function GroupWeekEditor({
               {modeDraft === mode
                 ? "Your group sees "
                 : "If you save this, your group will see "}
-              <span className={styles.modeNowValue}>{location}</span> and not the
-              meeting link.
+              <span className={styles.modeNowValue}>{location}</span>
+              {/* A week in a room still carries its link, for anybody joining
+                  it online: the tickets say so beside it. */}
+              {meetingUrl ? ", and the meeting link for anybody joining online." : "."}
             </>
           ) : (
             <>
