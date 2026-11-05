@@ -1,20 +1,25 @@
 /**
  * The words of a course's facilitator guide's pages and the links to them.
  *
- * Two are the boards': "Facilitator guide for week 3", on the ticket of a
- * facilitator's group page, and "Facilitator guide", under
- * this week's title on a facilitator's Home. The rest no
- * board draws yet; they are listed in the build notes for the boards'
- * designers to confirm.
+ * The links a facilitator follows in, on the ticket of their group page and
+ * under this week's title on their Home, each say the heading of the page it
+ * opens: "Facilitator guide for week 3" for this week's page, and "Facilitator
+ * guide" for the guide's course page, which lists every week and the course's
+ * own documents, so last week's guide is still one tap away once the week
+ * has moved on. The rest are listed in the build notes for the designers to
+ * confirm.
  *
  * Pure, with no imports, so a page drawn in the browser reads them here too.
  * No dash and no gendered pronoun anywhere in this file.
  */
 
-/** The guide's own name, the course page's heading. */
+/**
+ * The guide's own name: the course page's heading, and the link to that page
+ * beside this week's on a facilitator's Home and group page.
+ */
 export const FACILITATOR_GUIDE = "Facilitator guide";
 
-/** The ticket's link on a facilitator's group page, and the week page's heading. */
+/** This week's link on a facilitator's group page and Home, and the week page's heading. */
 export function guideForWeekWords(weekNumber: number): string {
   return `Facilitator guide for week ${weekNumber}`;
 }

@@ -21,7 +21,9 @@
  *  3. EVERYBODY ELSE IS GIVEN ONE CALM ANSWER, the same words whether or not
  *     the course or the page is there.
  *  4. THE PAGES draw what the documents say, as text, never markup.
- *  5. THE LINKS appear exactly when the week has something loaded.
+ *  5. THE LINKS: this week's appears exactly when the week has something
+ *     loaded, and the guide's course page's whenever the guide has anything,
+ *     so last week's guide is still reachable once the week has moved on.
  *  6. THE COURSE'S DESTROY takes the guide with it, in its final batch.
  *  7. SESSIONS AND WEEK NOTES, the two tabs over every week, are course
  *     documents like the others: the same route, gates, refusals and pages,
@@ -373,6 +375,25 @@ describe("3. the guide's list of titles: the gate's three, one 403 for everybody
     assert.equal(guideWeeksFrom({ error: REFUSED }, "c"), null);
     assert.deepEqual(guideWeeksFrom({ courseId: "c", weeks: [{ weekNumber: "2" }, { weekNumber: 0 }, { weekNumber: 4 }, null] }, "c"), { courseId: "c", weeks: [4] });
   });
+
+  test("Home's reading of it: the course's own documents alone are something loaded, with no week to link; nothing is nothing", async () => {
+    const { guideWeeksFrom } = guide.hook;
+    const handbook = { key: "handbook", label: "Handbook", title: "Weather Fellowship: facilitator guide" };
+    assert.deepEqual(guideWeeksFrom({ courseId: "c", documents: [handbook], weeks: [] }, "c"), { courseId: "c", weeks: [] });
+    assert.equal(guideWeeksFrom({ courseId: "c", documents: [], weeks: [] }, "c"), null);
+    // A document counts only by a key the guide has; another course's answer, or one with no weeks, counts for nothing.
+    assert.equal(guideWeeksFrom({ courseId: "c", documents: [{ key: "preface" }, { label: "Handbook" }, null, "handbook"], weeks: [] }, "c"), null);
+    assert.equal(guideWeeksFrom({ courseId: "other", documents: [handbook], weeks: [] }, "c"), null);
+    assert.equal(guideWeeksFrom({ courseId: "c", documents: [handbook] }, "c"), null);
+    // The route's own answers, read the same way.
+    assert.deepEqual(guideWeeksFrom((await index("rahul")).body, COURSE.agi), { courseId: COURSE.agi, weeks: [1, 3] });
+    reset();
+    await seedGuide(COURSE.agi, [["handbook", HANDBOOK]]);
+    assert.deepEqual(guideWeeksFrom((await index("rahul")).body, COURSE.agi), { courseId: COURSE.agi, weeks: [] });
+    reset();
+    assert.equal(guideWeeksFrom((await index("rahul")).body, COURSE.agi), null);
+    assert.equal(guideWeeksFrom((await index("amara")).body, COURSE.agi), null);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -549,13 +570,18 @@ describe("4. the guide's pages", () => {
 // ---------------------------------------------------------------------------
 
 describe("5. the links: the group page's ticket and Home", () => {
-  test("Group B's ticket links its week's guide, as the facilitator's group page draws it, for its facilitators and an admin", async () => {
+  test("Group B's ticket links its week's guide and the guide's course page, as the facilitator's group page draws it, for its facilitators and an admin", async () => {
     for (const who of ["rahul", "sofia", "zach"]) {
       const drawn = await groupPage(who);
       const ticket = find(drawn.element, "FacilitatorTicket")[0]?.props;
       assert.deepEqual(ticket.guide, { href: `${AGI_GUIDE}/week-3`, label: "Facilitator guide for week 3" }, who);
-      assert.match(drawn.html, new RegExp(`<a href="${AGI_GUIDE}/week-3" class="ticketGuide"><span>Facilitator guide for week 3</span><svg`), who);
-      assert.match(drawn.text, /Take the register Facilitator guide for week 3/, who);
+      assert.deepEqual(ticket.guideContents, { href: AGI_GUIDE, label: "Facilitator guide" }, who);
+      assert.match(
+        drawn.html,
+        new RegExp(`<a href="${AGI_GUIDE}/week-3" class="ticketGuide"><span>Facilitator guide for week 3</span><svg[^>]*><path[^>]*></path></svg></a><a href="${AGI_GUIDE}" class="ticketGuide"><span>Facilitator guide</span><svg`),
+        who,
+      );
+      assert.match(drawn.text, /Take the register Facilitator guide for week 3 Facilitator guide/, who);
     }
   });
 
@@ -563,43 +589,89 @@ describe("5. the links: the group page's ticket and Home", () => {
   // 1’s guide are on your group page.", tests/course-hub-publish-routes.test.mjs
   // section 8) is what this page shows: before the group first meets its
   // ticket is week 1's, and links week 1's guide when the guide has it.
-  test("before Group B first meets, its ticket is week 1's and links week 1's guide when the guide has it; once it has met, it does not", async (t) => {
+  test("before Group B first meets, its ticket is week 1's and links week 1's guide when the guide has it; once it has met, it does not, and the guide's course page stays linked throughout", async (t) => {
     t.after(() => w.at(NOW));
     w.at("2026-10-28T12:00:00Z");
     for (const who of ["rahul", "sofia"]) {
       const ticket = find((await groupPage(who)).element, "FacilitatorTicket")[0]?.props;
       assert.equal(ticket.facts.weekNumber, 1, who);
       assert.deepEqual(ticket.guide, { href: `${AGI_GUIDE}/week-1`, label: "Facilitator guide for week 1" }, who);
+      assert.deepEqual(ticket.guideContents, { href: AGI_GUIDE, label: "Facilitator guide" }, who);
     }
-    // No week 1 in the guide: no link.
+    // No week 1 in the guide: no link to week 1, and the course page, which has week 3, is linked.
     reset();
     await seedGuide(COURSE.agi, [["w03-plan", PLAN_W3]]);
     w.at("2026-10-28T12:00:00Z");
-    assert.equal(find((await groupPage("rahul")).element, "FacilitatorTicket")[0]?.props.guide, null);
-    // Group B met on Tue 3 Nov, 6pm to 8pm: the next morning its ticket is week 2's, and week 1's guide is linked no more.
+    const without = find((await groupPage("rahul")).element, "FacilitatorTicket")[0]?.props;
+    assert.equal(without.guide, null);
+    assert.deepEqual(without.guideContents, { href: AGI_GUIDE, label: "Facilitator guide" });
+    // Group B met on Tue 3 Nov, 6pm to 8pm: the next morning its ticket is week 2's, and week 1's guide is linked no more;
+    // the guide's course page, which lists week 1, still is.
     reset();
     await seedGuide();
     w.at("2026-11-04T09:00:00Z");
-    const after = find((await groupPage("rahul")).element, "FacilitatorTicket")[0]?.props;
-    assert.equal(after.facts.weekNumber, 2);
-    assert.equal(after.guide, null);
+    const after = await groupPage("rahul");
+    const ticket = find(after.element, "FacilitatorTicket")[0]?.props;
+    assert.equal(ticket.facts.weekNumber, 2);
+    assert.equal(ticket.guide, null);
+    assert.deepEqual(ticket.guideContents, { href: AGI_GUIDE, label: "Facilitator guide" });
+    assert.match(after.html, new RegExp(`<a href="${AGI_GUIDE}" class="ticketGuide"><span>Facilitator guide</span><svg`));
+    assert.doesNotMatch(after.text, /Facilitator guide for week/);
+    // And the page it leads to lists week 1, for the same facilitator.
+    assert.match((await coursePage("rahul")).text, /Each week Week 1: First look Session plan/);
   });
 
-  test("no link when the ticket's week has nothing in the guide", async () => {
+  test("no link to the ticket's week when it has nothing in the guide; the guide's course page is linked still", async () => {
     reset();
     await seedGuide(COURSE.agi, [["w01-plan", PLAN_W1]]);
     const drawn = await groupPage("rahul");
-    assert.equal(find(drawn.element, "FacilitatorTicket")[0]?.props.guide, null);
-    assert.doesNotMatch(drawn.text, /Facilitator guide/);
+    const ticket = find(drawn.element, "FacilitatorTicket")[0]?.props;
+    assert.equal(ticket.guide, null);
+    assert.doesNotMatch(drawn.text, /Facilitator guide for week/);
+    assert.doesNotMatch(drawn.html, new RegExp(`href="${AGI_GUIDE}/`));
+    assert.deepEqual(ticket.guideContents, { href: AGI_GUIDE, label: "Facilitator guide" });
+    assert.match(drawn.html, new RegExp(`<a href="${AGI_GUIDE}" class="ticketGuide"><span>Facilitator guide</span><svg`));
+    assert.equal(drawn.text.match(/Facilitator guide/g)?.length, 1);
   });
 
-  test("Home says “Facilitator guide” under this week's title, leading to the week, when the week has some", async () => {
+  test("the course's own documents alone are linked by the guide's course page, and nothing loaded links nothing", async () => {
+    reset();
+    await seedGuide(COURSE.agi, [["handbook", HANDBOOK]]);
+    const documentsOnly = await groupPage("rahul");
+    const ticket = find(documentsOnly.element, "FacilitatorTicket")[0]?.props;
+    assert.equal(ticket.guide, null);
+    assert.deepEqual(ticket.guideContents, { href: AGI_GUIDE, label: "Facilitator guide" });
     const home = await homeWithGuide("rahul");
-    assert.match(home.text, /This week Week 3 · Who decides what AGI means Facilitator guide 3 exercises to review/);
-    assert.match(home.html, new RegExp(`<div class="weekGuide"><a href="${AGI_GUIDE}/week-3" class="textLink">Facilitator guide<svg`));
+    assert.match(home.html, new RegExp(`<div class="weekGuide"><a href="${AGI_GUIDE}" class="textLink">Facilitator guide<svg`));
+    assert.doesNotMatch(home.text, /Facilitator guide for week/);
+
+    reset();
+    const nothing = await groupPage("rahul");
+    const bare = find(nothing.element, "FacilitatorTicket")[0]?.props;
+    assert.equal(bare.guide, null);
+    assert.equal(bare.guideContents, null);
+    assert.doesNotMatch(nothing.text, /Facilitator guide/);
+    assert.doesNotMatch(nothing.html, /facilitator-guide/);
+    const bareHome = await homeWithGuide("rahul");
+    assert.doesNotMatch(bareHome.text, /Facilitator guide/);
+    assert.doesNotMatch(bareHome.html, /weekGuide|facilitator-guide/);
+  });
+
+  test("Home, under this week's title: “Facilitator guide for week 3” to the week when it has some, and “Facilitator guide” to the guide's course page whenever the guide has anything", async () => {
+    const home = await homeWithGuide("rahul");
+    assert.match(home.text, /This week Week 3 · Who decides what AGI means Facilitator guide for week 3 Facilitator guide 3 exercises to review/);
+    assert.match(
+      home.html,
+      new RegExp(`<div class="weekGuide"><a href="${AGI_GUIDE}/week-3" class="textLink">Facilitator guide for week 3<svg[^>]*><path[^>]*></path></svg></a><a href="${AGI_GUIDE}" class="textLink">Facilitator guide<svg`),
+    );
+    // The week has moved on to one with nothing in the guide: its link goes, and the course page's stays.
     reset();
     await seedGuide(COURSE.agi, [["w01-plan", PLAN_W1]]);
-    assert.doesNotMatch((await homeWithGuide("rahul")).text, /Facilitator guide/);
+    const later = await homeWithGuide("rahul");
+    assert.match(later.text, /This week Week 3 · Who decides what AGI means Facilitator guide 3 exercises to review/);
+    assert.doesNotMatch(later.text, /Facilitator guide for week/);
+    assert.doesNotMatch(later.html, new RegExp(`href="${AGI_GUIDE}/`));
+    assert.match(later.html, new RegExp(`<div class="weekGuide"><a href="${AGI_GUIDE}" class="textLink">Facilitator guide<svg`));
   });
 });
 

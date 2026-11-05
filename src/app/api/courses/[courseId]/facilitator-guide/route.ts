@@ -7,8 +7,9 @@ import { GUIDE_REFUSED } from "@/lib/courses/facilitatorGuide/words";
 
 /**
  * WHAT A COURSE'S FACILITATOR GUIDE HOLDS, for a page drawn in the browser
- * that links into it (a facilitator's Home: "Facilitator guide" under this
- * week's title, only when that week has something loaded).
+ * that links into it (a facilitator's Home, under this week's title:
+ * "Facilitator guide for week 3" only when that week has something loaded,
+ * and "Facilitator guide", the course page, when anything is).
  *
  *   GET  ->  { courseId, documents: [{ key, label, title }], weeks: [{ weekNumber, plan, notes }] }
  *
