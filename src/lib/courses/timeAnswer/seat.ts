@@ -1,6 +1,18 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import {
+  closedWords,
+  readSessionLines,
+  readSessionLinesNow,
+  registerHasRoom,
+  sessionDay,
+  stillToCome,
+  writeExcusedInAdvance,
+  writeTakenBack,
+} from "@/lib/courses/cantMakeIt/seat";
+import { CANT_MAKE_IT_REFUSAL } from "@/lib/courses/cantMakeIt/words";
 import { sessionWhenLabel } from "@/lib/courses/londonLabels";
+import { resolveSessions } from "@/lib/courses/sessions";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import {
@@ -10,17 +22,19 @@ import {
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import {
   currentTimeAnswer,
   type TimeAnswerRequest,
   type TimeAnswerView,
+  type TimeQuestionSession,
   type TimeQuestionView,
 } from "./model";
-import { ANSWER_REFUSAL } from "./words";
+import { ANSWER_REFUSAL, sessionRefusalWords } from "./words";
 
 /**
- * "CAN YOU MAKE THIS TIME?" ON THE PERSON'S OWN SEAT: who is asked, the card
- * their programme page draws, and the one write of their answer.
+ * "CAN YOU MAKE THIS TIME MOST WEEKS?" ON THE PERSON'S OWN SEAT: who is
+ * asked, the card their programme page draws, and the write of their answer.
  *
  * ## Who is asked
  *
@@ -34,21 +48,30 @@ import { ANSWER_REFUSAL } from "./words";
  *
  * ## What it is not
  *
- * Leaving. "I can't make this time" keeps the person's place and their seat
- * and asks to be moved; it writes one field on their seat and nothing else,
- * and shares no code with the leave (`src/lib/courses/leaveRun.ts`), which
- * gives the place back. Nobody is emailed, and nothing is sent later because
- * of it.
+ * Leaving. No answer gives the person's place back: each writes on their own
+ * seat and, for "Most weeks, not all", on their own lines of their group's
+ * registers, and shares no code with the leave (`src/lib/courses/leaveRun.ts`).
+ * Nobody is emailed, and nothing is sent later because of it.
  *
  * ## What it writes
  *
  * `courseEnrolments/{runId}__{uid}.timeAnswer`, addressed by the caller's own
  * uid, so nothing here can spell anybody else's seat: `{ kind, reason,
- * alternatives, forGroupId, at }`. The person may change it while they are in
- * that group; a move deletes it (every writer that clears Publish's stamp
- * clears it too). The answer the page was showing names its group, and a
- * seat in another group now is refused, so an answer is never kept about a
- * group the person was not looking at.
+ * alternatives, forGroupId, at }`, and for `mostWeeks` the `sessionKeys` they
+ * ticked. The person may change it while they are in that group; a move
+ * deletes it (every writer that clears Publish's stamp clears it too). The
+ * answer the page was showing names its group, and a seat in another group
+ * now is refused, so an answer is never kept about a group the person was
+ * not looking at.
+ *
+ * "Most weeks, not all" also makes the person's lines of their group's
+ * registers still to come match what they ticked, through the ticket's own
+ * write (`src/lib/courses/cantMakeIt/seat.ts`): each session ticked is
+ * recorded as excused on their word, and a session they told us about before
+ * and have now unticked is taken back, while the line is still their word.
+ * "Yes" and "No, I need a different time" touch no register: under a question
+ * about most weeks, yes still holds for somebody who misses one, and the
+ * ticket is the way to tell us about one session.
  */
 
 /** Why the question is not open to this seat about this group. */
@@ -70,44 +93,67 @@ function askedOf(user: SessionUser, seat: CourseEnrolmentDoc, group: CourseGroup
 
 /**
  * The card for the programme page, worked out from what the page's gate has
- * already read (`getRunAccess`: the caller, their seat as shown to them, and
- * the run's live groups). No read of its own. Null for everybody not asked.
+ * already read (`getRunAccess`: the caller, the run, their seat as shown to
+ * them, and the run's live groups), and one read of the group's registers
+ * still to come, so the sessions "Most weeks, not all" lists say which they
+ * have already told us they can't make. Null for everybody not asked, who
+ * costs no read.
  */
-export function timeQuestionFor(input: {
-  user: SessionUser;
-  runId: string;
-  enrolment: CourseEnrolmentDoc | null;
-  groups: readonly CourseGroupDoc[];
-}): TimeQuestionView | null {
+export async function timeQuestionFor(
+  db: Firestore,
+  input: {
+    user: SessionUser;
+    run: CourseRunDoc;
+    enrolment: CourseEnrolmentDoc | null;
+    groups: readonly CourseGroupDoc[];
+    now: Date;
+  },
+): Promise<TimeQuestionView | null> {
   const seat = input.enrolment;
   if (!seat?.groupId) return null;
   const group = input.groups.find((each) => each.id === seat.groupId);
-  if (!group || askedOf(input.user, seat, group, input.runId) !== "asked") return null;
+  if (!group || askedOf(input.user, seat, group, input.run.id) !== "asked") return null;
+  const lines = await readSessionLinesNow(db, {
+    run: input.run,
+    group,
+    uid: input.user.uid,
+    sessions: resolveSessions(input.run, group),
+    now: input.now,
+  });
+  const sessions: TimeQuestionSession[] = stillToCome(lines).map((line) => ({
+    sessionKey: line.session.sessionKey,
+    weekNumber: line.session.weekNumber,
+    day: sessionDay(line.session),
+    told: line.state.kind === "told",
+  }));
   return {
     groupId: group.id,
     groupName: group.name.trim(),
     when: sessionWhenLabel(group.session),
     campus: group.campus,
     answer: currentTimeAnswer(seat),
+    sessions,
   };
 }
 
 export type AnswerOutcome =
   | { ok: true; answer: TimeAnswerView }
-  | { ok: false; status: 404 | 409; error: string };
+  | { ok: false; status: 400 | 404 | 409; error: string };
 
-const refuse = (status: 404 | 409, error: string): AnswerOutcome => ({ ok: false, status, error });
+const refuse = (status: 400 | 404 | 409, error: string): AnswerOutcome => ({ ok: false, status, error });
 
 /**
  * The one write of an answer: the caller's own seat, read again inside the
- * transaction with its group, and written only while the question is still
- * theirs about the group the page showed.
+ * transaction with its group (and, for "Most weeks, not all", the group's
+ * registers), and written only while the question is still theirs about the
+ * group the page showed.
  */
 export async function recordTimeAnswer(
   db: Firestore,
   user: SessionUser,
   runId: string,
   request: TimeAnswerRequest,
+  now: Date,
 ): Promise<AnswerOutcome> {
   const runRef = db.collection("courseRuns").doc(runId);
   const seatRef = db.collection("courseEnrolments").doc(courseEnrolmentId(runId, user.uid));
@@ -131,23 +177,50 @@ export async function recordTimeAnswer(
     // told again since it was opened.
     if (seat.groupId !== request.groupId) return refuse(409, ANSWER_REFUSAL.moved);
 
-    tx.update(seatRef, {
-      timeAnswer: {
+    if (request.kind !== "mostWeeks") {
+      const answer: TimeAnswerView = {
         kind: request.kind,
         reason: request.kind === "cant" ? request.reason : null,
         alternatives: request.kind === "cant" ? request.alternatives : null,
-        forGroupId: seat.groupId,
-        at: FieldValue.serverTimestamp(),
-      },
+      };
+      tx.update(seatRef, {
+        timeAnswer: { ...answer, forGroupId: seat.groupId, at: FieldValue.serverTimestamp() },
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return { ok: true, answer };
+    }
+
+    // "Most weeks, not all": every session the group holds, its register read
+    // before anything is written. Each one ticked is a session of the group.
+    const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
+    const sessions = resolveSessions(run, group);
+    const known = new Set(sessions.map((session) => session.sessionKey));
+    if (!request.sessionKeys.every((key) => known.has(key))) return refuse(400, CANT_MAKE_IT_REFUSAL.noSession);
+    const lines = await readSessionLines(tx, db, { run, group, uid: user.uid, sessions, now });
+    const ticked = new Set(request.sessionKeys);
+
+    // Everything decided before anything is written: a ticked session that
+    // can no longer be told about refuses the whole answer, naming its day.
+    for (const line of lines) {
+      if (!ticked.has(line.session.sessionKey)) continue;
+      const day = sessionDay(line.session);
+      if (line.state.kind === "closed") return refuse(409, sessionRefusalWords(day, closedWords(line.state)));
+      if (line.state.kind === "marked") return refuse(409, sessionRefusalWords(day, CANT_MAKE_IT_REFUSAL.marked));
+      if (line.state.kind === "open" && !registerHasRoom(line)) return refuse(409, sessionRefusalWords(day, CANT_MAKE_IT_REFUSAL.full));
+    }
+    for (const line of lines) {
+      if (ticked.has(line.session.sessionKey)) {
+        if (line.state.kind === "open") writeExcusedInAdvance(tx, line, { run, group, uid: user.uid, told: FieldValue.serverTimestamp() });
+      } else if (line.state.kind === "told") {
+        // Told before and unticked now: their own word, taken back.
+        writeTakenBack(tx, line, user.uid);
+      }
+    }
+    const answer: TimeAnswerView = { kind: "mostWeeks", reason: null, alternatives: null, sessionKeys: request.sessionKeys };
+    tx.update(seatRef, {
+      timeAnswer: { ...answer, forGroupId: seat.groupId, at: FieldValue.serverTimestamp() },
       updatedAt: FieldValue.serverTimestamp(),
     });
-    return {
-      ok: true,
-      answer: {
-        kind: request.kind,
-        reason: request.kind === "cant" ? request.reason : null,
-        alternatives: request.kind === "cant" ? request.alternatives : null,
-      },
-    };
+    return { ok: true, answer };
   });
 }

@@ -1,5 +1,11 @@
 import "server-only";
-import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import {
+  FieldValue,
+  type DocumentReference,
+  type DocumentSnapshot,
+  type Firestore,
+  type Transaction,
+} from "firebase-admin/firestore";
 import { londonDayLabel } from "@/lib/courses/londonLabels";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
@@ -13,6 +19,7 @@ import {
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
+  orderedSessionKeys,
   placementIsTold,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
@@ -30,7 +37,8 @@ import { CANT_MAKE_IT_REFUSAL } from "./words";
 
 /**
  * "CAN'T MAKE IT" ON THE PERSON'S OWN LINE OF A REGISTER: who may say it, the
- * ticket's state on their programme page, and the one write.
+ * ticket's state on their programme page, the one write, and the parts of it
+ * that every other way of telling us in advance shares.
  *
  * ## Who may say it
  *
@@ -55,6 +63,22 @@ import { CANT_MAKE_IT_REFUSAL } from "./words";
  * switch, the push, its notes, who marked it last) are never touched, so a
  * register made this way is still a draft nobody has marked: no job, task or
  * reminder reads it differently.
+ *
+ * One more field moves, on their own seat: when they have answered "Can you
+ * make this time most weeks?" with "Most weeks, not all" about this group,
+ * the answer lists the sessions they can't make, and the ticket keeps that
+ * list in step with the register (`keepListInStep`). No other answer changes.
+ *
+ * ## The parts every word in advance shares
+ *
+ * `readSessionLines`, `writeExcusedInAdvance` and `writeTakenBack` are the
+ * ONE way a line of a register is written on somebody's word in advance. The
+ * ticket uses them for one session; the card's "Most weeks, not all"
+ * (`src/lib/courses/timeAnswer/seat.ts`) for each session the person ticks
+ * or unticks; and staff's "They meant some weeks"
+ * (`src/lib/courses/timeAnswer/someWeeks.ts`) for each session the person
+ * named in their own words. Each caller decides who and which sessions, and
+ * reads every line before it writes any.
  *
  * Nobody is emailed, and nothing is sent later because of it.
  */
@@ -85,6 +109,144 @@ function stateOn(session: ResolvedSession, line: RegisterLine, now: Date): CantM
   return cantMakeItState({ startsAt: sessionInstants(session).startsAt, cancelled: session.cancelled, line, now });
 }
 
+/** One session of a group with its register as read, and where one person stands on it. */
+export type SessionLine = {
+  session: ResolvedSession;
+  ref: DocumentReference;
+  /** The register as stored, or undefined while the session has none. */
+  data: Record<string, unknown> | undefined;
+  state: CantMakeItState;
+};
+
+/** The register of one session of a group: the address every word in advance writes to. */
+function registerRef(db: Firestore, run: CourseRunDoc, group: CourseGroupDoc, session: ResolvedSession): DocumentReference {
+  return db.collection("courseAttendance").doc(attendanceDocId(run.id, group.id, session.weekNumber, session.occurrence));
+}
+
+/** A register as read, as a line: what `readSessionLines` and the ticket's loader both make of a snapshot. */
+function lineFrom(session: ResolvedSession, ref: DocumentReference, snap: DocumentSnapshot, uid: string, now: Date): SessionLine {
+  const data = snap.exists ? (snap.data() ?? {}) : undefined;
+  return { session, ref, data, state: stateOn(session, lineOf(data, ref.id, uid), now) };
+}
+
+/**
+ * The registers of these sessions of the group, read inside `tx` (before it
+ * writes anything), and where `uid` stands on each. Reads only.
+ */
+export async function readSessionLines(
+  tx: Transaction,
+  db: Firestore,
+  input: { run: CourseRunDoc; group: CourseGroupDoc; uid: string; sessions: readonly ResolvedSession[]; now: Date },
+): Promise<SessionLine[]> {
+  const refs = input.sessions.map((session) => registerRef(db, input.run, input.group, session));
+  const snaps = await Promise.all(refs.map((ref) => tx.get(ref)));
+  return input.sessions.map((session, at) => lineFrom(session, refs[at], snaps[at], input.uid, input.now));
+}
+
+/**
+ * The same registers read outside a transaction, for a page that only draws
+ * where somebody stands (the card's list of sessions, the board's "They
+ * meant some weeks"): one `getAll`, and nothing written.
+ */
+export async function readSessionLinesNow(
+  db: Firestore,
+  input: { run: CourseRunDoc; group: CourseGroupDoc; uid: string; sessions: readonly ResolvedSession[]; now: Date },
+): Promise<SessionLine[]> {
+  if (input.sessions.length === 0) return [];
+  const refs = input.sessions.map((session) => registerRef(db, input.run, input.group, session));
+  const snaps = await db.getAll(...refs);
+  return input.sessions.map((session, at) => lineFrom(session, refs[at], snaps[at], input.uid, input.now));
+}
+
+/**
+ * The group's sessions still to come that somebody may still say something
+ * about, soonest first: those whose state is open (nothing on their line
+ * yet) or told (excused on their word). A session started, called off, with
+ * no day, finished, not held, or filled in by a facilitator is left out.
+ */
+export function stillToCome(lines: readonly SessionLine[]): SessionLine[] {
+  return lines
+    .filter((line) => line.state.kind === "open" || line.state.kind === "told")
+    .sort((a, b) => (sessionInstants(a.session).startsAt?.getTime() ?? 0) - (sessionInstants(b.session).startsAt?.getTime() ?? 0));
+}
+
+/** "Tue 17 Nov": the day a session is on, as the ticket names it, or "" with none. */
+export function sessionDay(session: ResolvedSession): string {
+  const { startsAt } = sessionInstants(session);
+  return startsAt ? londonDayLabel(startsAt) : "";
+}
+
+/** Room for one more line: the register's cap is a property of its whole map, as the marking route counts it. */
+export function registerHasRoom(line: SessionLine): boolean {
+  const records = (line.data?.records ?? {}) as Record<string, unknown>;
+  return Object.keys(records).length + 1 <= ATTENDANCE_LIMITS.maxRecords;
+}
+
+/**
+ * THE ONE WRITE OF A WORD IN ADVANCE: `uid` excused on this session's
+ * register, with when they said so, and nothing else of the register. Only
+ * on a line whose state is `open` and whose register has room
+ * (`registerHasRoom`), which the caller has asked.
+ *
+ * `set` with `merge`: it makes the register when this is the session's first
+ * line, and otherwise merges this one key into each map, so nobody else's
+ * line is ever written. The parts of the id live as fields, as the marking
+ * route writes them.
+ */
+export function writeExcusedInAdvance(
+  tx: Transaction,
+  line: SessionLine,
+  input: { run: CourseRunDoc; group: CourseGroupDoc; uid: string; told: Date | FieldValue },
+): void {
+  const { uid, told } = input;
+  const { startsAt } = sessionInstants(line.session);
+  tx.set(
+    line.ref,
+    {
+      runId: input.run.id,
+      groupId: input.group.id,
+      weekNumber: line.session.weekNumber,
+      occurrence: line.session.occurrence,
+      records: { [uid]: "excused" },
+      [EXCUSED_IN_ADVANCE]: { [uid]: told },
+      ...(startsAt ? { sessionAt: startsAt } : {}),
+    },
+    { merge: true },
+  );
+}
+
+/** Taking a word in advance back: both keys of `uid`'s line, only on a line whose state is `told`. */
+export function writeTakenBack(tx: Transaction, line: SessionLine, uid: string): void {
+  tx.set(
+    line.ref,
+    { records: { [uid]: FieldValue.delete() }, [EXCUSED_IN_ADVANCE]: { [uid]: FieldValue.delete() } },
+    { merge: true },
+  );
+}
+
+/**
+ * A "Most weeks, not all" answer about the group the seat is in lists the
+ * sessions its person can't make, and the ticket keeps the list in step: a
+ * session is listed while its register records them excused on their word.
+ * Nothing else of the answer changes, and an answer of another kind, or
+ * about another group, is left as it is.
+ */
+function keepListInStep(
+  tx: Transaction,
+  seatRef: DocumentReference,
+  seat: CourseEnrolmentDoc,
+  sessionKey: string,
+  told: boolean,
+): void {
+  const answer = seat.timeAnswer;
+  if (!answer || answer.kind !== "mostWeeks" || answer.forGroupId !== seat.groupId) return;
+  if (answer.sessionKeys.includes(sessionKey) === told) return;
+  const sessionKeys = told
+    ? orderedSessionKeys([...answer.sessionKeys, sessionKey])
+    : answer.sessionKeys.filter((key) => key !== sessionKey);
+  tx.update(seatRef, { "timeAnswer.sessionKeys": sessionKeys, updatedAt: FieldValue.serverTimestamp() });
+}
+
 /**
  * The ticket's "Can't make it", for the programme page: about the group's
  * next session, the one its ticket shows, while there is still something to
@@ -105,11 +267,10 @@ export async function cantMakeItFor(
   const snap = await db.collection("courseAttendance").doc(id).get();
   const state = stateOn(next, lineOf(snap.exists ? snap.data() : undefined, id, input.user.uid), input.now);
   if (state.kind !== "open" && state.kind !== "told") return null;
-  const startsAt = sessionInstants(next).startsAt;
   return {
     groupId: group.id,
     sessionKey: next.sessionKey,
-    day: startsAt ? londonDayLabel(startsAt) : "",
+    day: sessionDay(next),
     told: state.kind === "told",
   };
 }
@@ -129,10 +290,19 @@ const CLOSED: Record<Extract<CantMakeItState, { kind: "closed" }>["why"], string
 };
 
 /**
- * The one write. Everything it decides on is read again inside the
+ * Why one of the person's own sessions has nothing more to say about it, in
+ * the ticket's words, for every press of their own that names a session
+ * (the ticket, and the card's "Most weeks, not all").
+ */
+export function closedWords(state: Extract<CantMakeItState, { kind: "closed" }>): string {
+  return CLOSED[state.why];
+}
+
+/**
+ * The one press. Everything it decides on is read again inside the
  * transaction that writes: the run, the caller's own seat, their group and
  * the session's register. Saying it twice, or taking back what is not there,
- * changes nothing and answers where they stand.
+ * changes nothing on the register and answers where they stand.
  */
 export async function recordCantMakeIt(
   db: Firestore,
@@ -162,47 +332,24 @@ export async function recordCantMakeIt(
     // The session is one this group holds, by the group's own calendar.
     const session = resolveSessions(run, group).find((each) => each.sessionKey === request.sessionKey);
     if (!session) return refuse(400, CANT_MAKE_IT_REFUSAL.noSession);
-    const ref = db.collection("courseAttendance").doc(attendanceDocId(run.id, group.id, session.weekNumber, session.occurrence));
-    const registerSnap = await tx.get(ref);
-    const data = registerSnap.exists ? (registerSnap.data() ?? {}) : undefined;
-    const state = stateOn(session, lineOf(data, ref.id, user.uid), now);
+    const [line] = await readSessionLines(tx, db, { run, group, uid: user.uid, sessions: [session], now });
+    const state = line.state;
     if (state.kind === "closed") return refuse(409, CLOSED[state.why]);
 
     if (request.cantMakeIt) {
-      if (state.kind === "told") return { ok: true, told: true };
       if (state.kind === "marked") return refuse(409, CANT_MAKE_IT_REFUSAL.marked);
-      // The register's cap is a property of its whole map, as the marking route counts it.
-      const records = (data?.records ?? {}) as Record<string, unknown>;
-      if (Object.keys(records).length + 1 > ATTENDANCE_LIMITS.maxRecords) return refuse(409, CANT_MAKE_IT_REFUSAL.full);
-      const { startsAt } = sessionInstants(session);
-      // `set` with `merge`: it makes the register when this is the session's
-      // first line, and otherwise merges this one key into each map, so
-      // nobody else's line is ever written. The parts of the id live as
-      // fields, as the marking route writes them.
-      tx.set(
-        ref,
-        {
-          runId: run.id,
-          groupId: group.id,
-          weekNumber: session.weekNumber,
-          occurrence: session.occurrence,
-          records: { [user.uid]: "excused" },
-          [EXCUSED_IN_ADVANCE]: { [user.uid]: FieldValue.serverTimestamp() },
-          ...(startsAt ? { sessionAt: startsAt } : {}),
-        },
-        { merge: true },
-      );
+      if (state.kind === "open") {
+        if (!registerHasRoom(line)) return refuse(409, CANT_MAKE_IT_REFUSAL.full);
+        writeExcusedInAdvance(tx, line, { run, group, uid: user.uid, told: FieldValue.serverTimestamp() });
+      }
+      keepListInStep(tx, seatSnap.ref, seat, session.sessionKey, true);
       return { ok: true, told: true };
     }
 
     // Taking it back: only their own word, while it still stands.
-    if (state.kind === "open") return { ok: true, told: false };
     if (state.kind === "marked") return refuse(409, CANT_MAKE_IT_REFUSAL.marked);
-    tx.set(
-      ref,
-      { records: { [user.uid]: FieldValue.delete() }, [EXCUSED_IN_ADVANCE]: { [user.uid]: FieldValue.delete() } },
-      { merge: true },
-    );
+    if (state.kind === "told") writeTakenBack(tx, line, user.uid);
+    keepListInStep(tx, seatSnap.ref, seat, session.sessionKey, false);
     return { ok: true, told: false };
   });
 }

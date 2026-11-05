@@ -84,6 +84,9 @@ const STYLESHEETS = [
   "./kit.module.css",
   "@/features/applications/kit/kit.module.css",
   "./Chip.module.css",
+  // A can't's "They meant some weeks", on the board's card and in Circles: its stylesheet, and the rows it ticks.
+  "./SomeWeeks.module.css",
+  "./OptionRow.module.css",
 ];
 const { loadTs } = createLoader({
   stubs: new Map([

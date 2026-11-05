@@ -2120,11 +2120,16 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.deepEqual(p.pressed.body.report.facilitators, { sent: 0, held: 0, suppressed: 0 });
       assert.deepEqual(
         p.pressMail.map((mail) => [mail.to, mail.subject, mail.links]),
-        // The society's address, and the two "Can you make this time?" buttons, each to the programme page's card.
+        // The society's address, and the three "Can you make this time most weeks?" buttons, each to the programme page's card.
         ["lena", "omar", "tariq", "wen"].map((uid) => [
           address(uid),
           "Your Research incubator sessions: Mondays at 5pm",
-          ["mailto:ai-safety@uonsu.com", `${APP_URL}/learn/${INC_RUN}#your-group-time`, `${APP_URL}/learn/${INC_RUN}#your-group-time`],
+          [
+            "mailto:ai-safety@uonsu.com",
+            `${APP_URL}/learn/${INC_RUN}#your-group-time`,
+            `${APP_URL}/learn/${INC_RUN}#your-group-time`,
+            `${APP_URL}/learn/${INC_RUN}#your-group-time`,
+          ],
         ]),
       );
       for (const mail of p.pressMail) {
@@ -2132,7 +2137,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         assert.equal(
           readFrom(mail, "Hi "),
           `Hi ${first}, You’ll meet on Mondays at 5pm, starting Mon 2 Nov. Where: Room B5 Tess runs the sessions. ` +
-            `Week 1 is on your programme’s page. Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll see what we can do. You keep your place either way. You can also email ai-safety@uonsu.com. I can make it I can’t make this time Tess Research incubator lead, NAISI ${FOOTER}`,
+            `Week 1 is on your programme’s page. Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and whoever runs your sessions will know. If you can’t make most weeks, say why and which other times would work, and we’ll see what we can do. You keep your place either way. You can also email ai-safety@uonsu.com. Yes Most weeks, not all No, I need a different time Tess Research incubator lead, NAISI ${FOOTER}`,
         );
         assert.doesNotMatch(`${mail.subject} ${mail.text}`, /group|facilitat/i, mail.to);
       }

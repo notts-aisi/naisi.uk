@@ -777,10 +777,11 @@ const NOT_COVERED = {
       "Course hub: a group's campus, from the Sessions view of a programme's Groups tab. tests/course-hub-time-answer.test.mjs executes it as every kind of caller, before Publish and after, with the board's columns carrying it.",
     coverWhen: "When the groups-go-out spec sets a group's campus on the Sessions view before it presses Publish.",
   },
-  "/api/courses/runs/[runId]/time-answer": {
+  "/api/courses/runs/[runId]/enrolments/[uid]/time-answer": {
     reason:
-      "Course hub: a person's answer to Can you make this time? on their programme page. tests/course-hub-time-answer.test.mjs executes it as every kind of caller, with the card it is pressed from, every move that clears it and who reads it.",
-    coverWhen: "When a browser spec signs in as somebody Publish has told their group and answers the card on their programme page.",
+      "Course hub: They meant some weeks, under a No, I need a different time on the allocation board's card and in Circles, for an admin or the programme's lead. tests/course-hub-time-answer.test.mjs executes both handlers as every kind of caller, with the registers and the audit row it writes and every refusal.",
+    coverWhen:
+      "When a browser spec signs in as an admin or the programme's lead, opens a can't on the board and saves They meant some weeks.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time": {
     reason:

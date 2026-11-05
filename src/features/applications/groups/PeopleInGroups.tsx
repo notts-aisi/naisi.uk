@@ -33,6 +33,7 @@ import { divergenceNote, type GroupDivergenceInput } from "@/lib/courses/groupRe
 import { GroupsFrame } from "./GroupsViews";
 import styles from "./PeopleInGroups.module.css";
 import { POOL, TAKE_OFF, marksOf, menuOptions, notToldYet, type Mark } from "./peopleInGroupsBoard";
+import SomeWeeks from "@/features/courses/timeAnswer/SomeWeeks";
 import { CANT_DETAILS, WHY, WOULD_WORK } from "@/lib/courses/timeAnswer/words";
 import * as words from "./peopleInGroupsWords";
 
@@ -138,9 +139,26 @@ type CardProps = {
   onMenu: (row: AllocRow, value: string) => void;
   busy: boolean;
   reducedMotion: boolean;
+  /** The run, for "They meant some weeks" under a can't. */
+  runId: string;
+  /** "They meant some weeks" saved: the board is read again. */
+  onAnswerChanged: (message: string) => void;
 };
 
-function PersonCard({ row, name, detail, marks, warns, columnId, options, onMenu, busy, reducedMotion }: CardProps) {
+function PersonCard({
+  row,
+  name,
+  detail,
+  marks,
+  warns,
+  columnId,
+  options,
+  onMenu,
+  busy,
+  reducedMotion,
+  runId,
+  onAnswerChanged,
+}: CardProps) {
   // The six dots are a pointer's handle and nothing else: the card's menu is
   // the way to move somebody from a keyboard or a touch screen.
   const { listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
@@ -186,7 +204,10 @@ function PersonCard({ row, name, detail, marks, warns, columnId, options, onMenu
             ))}
           </span>
         )}
-        {row.timeAnswer?.kind === "cant" ? (
+        {/* What they wrote, under a can't, and under a most weeks that staff
+            read from a can't, which keeps their words. Only a can't offers
+            "They meant some weeks". */}
+        {row.timeAnswer && row.timeAnswer.kind !== "yes" && row.timeAnswer.reason ? (
           <details className={styles.why}>
             <summary>{CANT_DETAILS}</summary>
             <p>
@@ -195,6 +216,9 @@ function PersonCard({ row, name, detail, marks, warns, columnId, options, onMenu
             <p>
               <strong>{WOULD_WORK}</strong> {row.timeAnswer.alternatives}
             </p>
+            {row.timeAnswer.kind === "cant" ? (
+              <SomeWeeks runId={runId} uid={row.uid} disabled={busy} onSaved={onAnswerChanged} />
+            ) : null}
           </details>
         ) : null}
       </div>
@@ -260,6 +284,11 @@ export default function PeopleInGroups({ view, views }: Props) {
   const runId = view.run.id;
   const { data, loading, error, reload, place, removeEnrolment } = useAllocation(runId);
   const { toast, run: runAction, dismiss } = useActionToast();
+  // "They meant some weeks" saved on a card: the board is read again, and says so.
+  const onAnswerChanged = useCallback(
+    (message: string) => void runAction(async () => reload(), { successMessage: message || undefined }),
+    [runAction, reload],
+  );
   const reducedMotion = useReducedMotion();
   const [pending, setPending] = useState<Record<string, string | null>>({});
   const [busy, setBusy] = useState(false);
@@ -531,6 +560,8 @@ export default function PeopleInGroups({ view, views }: Props) {
         onMenu={onMenu}
         busy={busy}
         reducedMotion={reducedMotion}
+        runId={runId}
+        onAnswerChanged={onAnswerChanged}
       />
     );
   };

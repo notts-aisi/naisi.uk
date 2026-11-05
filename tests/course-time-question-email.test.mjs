@@ -1,6 +1,7 @@
 /**
  * THE "YOUR GROUP" EMAIL'S OWN SECTION: the group's campus, and "Can you make
- * this time?" with its two buttons (`src/lib/courses/timeAnswer/emailSection.ts`).
+ * this time most weeks?" with its three buttons
+ * (`src/lib/courses/timeAnswer/emailSection.ts`).
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -10,8 +11,12 @@
  *     was edited in Email designs still carries it: it takes the place of the
  *     template's own link to the programme page, and with no such link it
  *     goes at the end. It is never lost and never doubled.
- *  2. Both buttons open the programme page at the card, where answering
+ *  2. Every button opens the programme page at the card, where answering
  *     needs the person's session. No link records an answer.
+ *  2a. It asks the card's own question with the card's own three answers,
+ *     in the card's order (`src/lib/courses/timeAnswer/words.ts`), so the
+ *     email and the page cannot drift apart: "Yes", "Most weeks, not all",
+ *     "No, I need a different time".
  *  3. Somebody not asked (a facilitator who sits in the group they
  *     facilitate) gets the campus line and keeps the template's button.
  *     Nothing to say leaves the email exactly as it was.
@@ -28,6 +33,7 @@ import { createLoader } from "./lib/tsLoader.mjs";
 
 const { loadTs } = createLoader({ stubs: new Map([["server-only", "export {};"]]) });
 const section = await loadTs(join("lib", "courses", "timeAnswer", "emailSection.ts"));
+const words = await loadTs(join("lib", "courses", "timeAnswer", "words.ts"));
 
 const URL = "https://naisi.invalid/learn/run-1";
 const TEMPLATE = {
@@ -60,13 +66,19 @@ describe("where the section goes", () => {
     assert.equal(sent.blocks.length, 1);
     assert.equal(
       textOf(sent),
-      "Hi Amara, You’re in Group B. Your group meets on Jubilee campus. Can you make this time? Tell us on your " +
-        "programme page. If you can’t, say why and which other times would work, and we’ll do our best to move you " +
-        "to another group. You keep your place either way. You can also email ai-safety@uonsu.com . " +
-        "I can make it I can’t make this time Claudia",
+      "Hi Amara, You’re in Group B. Your group meets on Jubilee campus. Can you make this time most weeks? Tell us on " +
+        "your programme page. If you’ll miss the odd week, say which and whoever runs your sessions will know. If you can’t make " +
+        "most weeks, say why and which other times would work, and we’ll do our best to move you to another group. You " +
+        "keep your place either way. You can also email ai-safety@uonsu.com . " +
+        "Yes Most weeks, not all No, I need a different time Claudia",
     );
-    assert.ok(!textOf(sent).includes("Open your programme"), "three buttons to one page");
-    assert.deepEqual(linksOf(sent), ["mailto:ai-safety@uonsu.com", `${URL}#your-group-time`, `${URL}#your-group-time`]);
+    assert.ok(!textOf(sent).includes("Open your programme"), "four buttons to one page");
+    assert.deepEqual(linksOf(sent), [
+      "mailto:ai-safety@uonsu.com",
+      `${URL}#your-group-time`,
+      `${URL}#your-group-time`,
+      `${URL}#your-group-time`,
+    ]);
   });
 
   test("at the end of a template with no link to the programme page", () => {
@@ -75,7 +87,7 @@ describe("where the section goes", () => {
     assert.equal(sent.blocks.length, 2);
     assert.equal(sent.blocks[0], edited.blocks[0]);
     assert.equal(sent.blocks[1].type, "richText");
-    assert.match(textOf(sent), /your group is ready\. Your group meets on Jubilee campus\. Can you make this time\?/);
+    assert.match(textOf(sent), /your group is ready\. Your group meets on Jubilee campus\. Can you make this time most weeks\?/);
   });
 
   test("the email it was given is not changed", () => {
@@ -89,14 +101,18 @@ describe("what it says, and to whom", () => {
   test("somebody not asked gets the campus line and keeps the template's own button", () => {
     const sent = section.withTimeQuestion(TEMPLATE, { ...ASKED, asks: false });
     assert.match(textOf(sent), /Your group meets on Jubilee campus\. Open your programme Claudia$/);
-    assert.ok(!textOf(sent).includes("Can you make this time?"));
+    // Neither the question, in any of its wordings, nor any of its answers.
+    assert.ok(!textOf(sent).includes("Can you make this time"));
+    for (const answer of [words.ANSWER_YES, words.ANSWER_MOST_WEEKS, words.ANSWER_CANT]) {
+      assert.ok(!textOf(sent).includes(answer), answer);
+    }
     assert.deepEqual(linksOf(sent), [URL]);
   });
 
   test("no campus yet: the question alone; nothing to say: the email exactly as it was", () => {
     const asked = section.withTimeQuestion(TEMPLATE, { ...ASKED, campus: null });
     assert.ok(!textOf(asked).includes("campus"));
-    assert.match(textOf(asked), /Can you make this time\?/);
+    assert.match(textOf(asked), /Can you make this time most weeks\?/);
     const quiet = section.withTimeQuestion(TEMPLATE, { ...ASKED, campus: null, asks: false });
     assert.deepEqual(quiet, { subject: TEMPLATE.subject, blocks: TEMPLATE.blocks });
   });
@@ -105,6 +121,30 @@ describe("what it says, and to whom", () => {
     assert.equal(section.timeQuestionHtml({ ...ASKED, asks: false, campus: "university-park" }), "<p>Your group meets on University Park campus.</p>");
     assert.equal(section.timeQuestionHtml({ ...ASKED, asks: false, campus: "jubilee" }), "<p>Your group meets on Jubilee campus.</p>");
     assert.equal(section.timeQuestionHtml({ ...ASKED, asks: false, campus: "online" }), "<p>Your group meets online.</p>");
+  });
+
+  test("the card's own question and its three answers, in the card's order, and the place kept", () => {
+    const text = textOf({ blocks: [{ html: section.timeQuestionHtml(ASKED) }] });
+    assert.ok(text.includes(words.CARD_TITLE), "the email does not ask the card's question");
+    assert.equal(words.CARD_TITLE, "Can you make this time most weeks?");
+    const [yes, most, cant] = [words.ANSWER_YES, words.ANSWER_MOST_WEEKS, words.ANSWER_CANT];
+    assert.deepEqual([yes, most, cant], ["Yes", "Most weeks, not all", "No, I need a different time"]);
+    assert.ok(text.endsWith(`${yes} ${most} ${cant}`), text);
+    // Each button is its own link to the card, in that order.
+    const buttons = [...section.timeQuestionHtml(ASKED).matchAll(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/g)]
+      .filter(([, href]) => !href.startsWith("mailto:"))
+      .map(([, href, label]) => [href, label]);
+    assert.deepEqual(buttons, [yes, most, cant].map((label) => [`${URL}#your-group-time`, label]));
+    // Missing a week is told apart from needing another time, in words that say what happens.
+    assert.match(text, /If you’ll miss the odd week, say which and whoever runs your sessions will know\./);
+    assert.doesNotMatch(text, /\bmark|\bgrade|\bscore/i, "the email tells a member they are marked");
+    // The section cannot know whether the group has a facilitator yet, so it names none.
+    assert.doesNotMatch(section.timeQuestionHtml(ASKED) + section.timeQuestionHtml({ ...ASKED, incubator: true }), /facilitat/i);
+    // And an incubator's people are told of no group: their section's words never say group.
+    assert.doesNotMatch(textOf({ blocks: [{ html: section.timeQuestionHtml({ ...ASKED, campus: null, incubator: true }) }] }), /group/i);
+    assert.match(text, /If you can’t make most weeks, say why and which other times would work/);
+    assert.match(text, /You keep your place either way\./);
+    assert.ok(!/give your place back|leave/i.test(text), "the section leads to the leave");
   });
 
   test("an incubator's one weekly session is not another group", () => {

@@ -118,6 +118,12 @@ export const SPEC = {
    * loopback server beside the other course hub specs, all fourteen steps each
    * time and a manifest of zero; the pull request's end-to-end job is its
    * first CI run.
+   *
+   * CHANGED on 2026-11-05 for "Can you make this time most weeks?": each
+   * person's email is held to the section's new words and its three buttons
+   * to the card. Run against the harness's loopback server at f2865f3b (on
+   * dev's a788b495): all fourteen steps, the same 45 rows before teardown, and
+   * a manifest of zero.
    */
   status: "verified",
   seed: ({ runId, suppress, onState }) =>

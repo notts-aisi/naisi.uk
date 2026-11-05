@@ -154,6 +154,15 @@ const READERS = {
     asks: 1,
     why: "week 1's door before groups go out: the caller's own seat only, never shown. A seat Publish has told them about is the run gate's, a seat that has left shuts the door, and an untold seat opens week 1 alone, by the place on the form, with nothing of its group",
   },
+  "lib/courses/timeAnswer/someWeeks.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "They meant some weeks, behind its route's gate (an admin or the lead of the programme that names the run): one " +
+      "person's seat by its address, to read their answer of No, I need a different time as most weeks. A seat Publish " +
+      "has not told them about holds no answer and is refused as no seat, so nothing acts on a placement before Publish " +
+      "has, and nothing is shown to anybody but the staff who asked",
+  },
   "lib/courses/cantMakeIt/seat.ts": {
     kind: "told",
     asks: 1,
