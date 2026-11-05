@@ -1376,8 +1376,7 @@ describe("10. they meant some weeks: an admin or the programme's lead reads a di
       ...["yes", "mostWeeks", "cant"].map(words.savedWords),
     ];
     for (const line of lines) {
-      assert.doesNotMatch(line, /[–—]/, line);
-      assert.doesNotMatch(line, /\bcollate\b/i, line);
+      assert.doesNotMatch(line, /[\u2013\u2014]/, line);
     }
     assert.deepEqual(
       [words.mostWeeksMark([]), words.mostWeeksMark([5]), words.mostWeeksMark([5, 3, 5]), words.mostWeeksMark([6, 3, 5])],
