@@ -108,8 +108,13 @@ export function marksOf(
       tone: facilitates.id === group?.id ? "plain" : "warn",
     });
   }
-  if (row.allocatedEmailAt && row.allocatedEmailDelivery === "held") marks.push({ words: words.EMAIL_HELD, tone: "warn" });
-  if (row.allocatedEmailAt && row.allocatedEmailDelivery === "suppressed") {
+  // What became of their group's email. Not for somebody moved since: that
+  // email was about another group, and their card says the next Publish
+  // emails them.
+  if (row.allocatedEmailAt && !row.moved && row.allocatedEmailDelivery === "held") {
+    marks.push({ words: words.EMAIL_HELD, tone: "warn" });
+  }
+  if (row.allocatedEmailAt && !row.moved && row.allocatedEmailDelivery === "suppressed") {
     marks.push({ words: words.EMAIL_STOPPED, tone: "warn" });
   }
   return { marks, warns: conflict };

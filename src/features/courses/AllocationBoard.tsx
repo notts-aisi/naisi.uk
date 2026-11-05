@@ -430,8 +430,10 @@ function PersonCardBody({
           </li>
         ) : null}
         {/* What became of their group's email, as Publish recorded it: a
-            held or stopped email is not "Emailed", and the card says so. */}
-        {row.allocatedEmailAt ? (
+            held or stopped email is not "Emailed", and the card says so.
+            Not for somebody moved since: that email was about another
+            group, and the card says the next Publish emails them. */}
+        {row.allocatedEmailAt && !row.moved ? (
           row.allocatedEmailDelivery === "held" ? (
             <li className={styles.chipWarn} title="This copy of the site doesn't email that address, so nothing went.">
               Email held
