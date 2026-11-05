@@ -44,7 +44,9 @@ export default function ThisWeeksCheckIns({
               <Link
                 key={weekNumber}
                 href={`${path}?week=${weekNumber}`}
-                className={here ? `${styles.week} ${styles.weekHere}` : styles.week}
+                className={
+                  here ? `${styles.week} ${styles.weekHere}` : styles.week
+                }
                 aria-current={here ? "page" : undefined}
                 aria-label={weekWords(weekNumber)}
               >
@@ -57,48 +59,50 @@ export default function ThisWeeksCheckIns({
       {table.rows.length === 0 ? (
         <p className={styles.lede}>{WORDS.noSessions}</p>
       ) : (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th scope="col">{WORDS.group}</th>
-              <th scope="col">{WORDS.session}</th>
-              <th scope="col">{WORDS.register}</th>
-              <th scope="col">{WORDS.checkIn}</th>
-              <th scope="col">{WORDS.answered}</th>
-              <th scope="col">
-                <span className={styles.srOnly}>{WORDS.actions}</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {table.rows.map((row) => (
-              <tr key={row.key}>
-                <th scope="row" className={styles.group}>
-                  {row.groupName}
+        <div className={styles.scroll}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th scope="col">{WORDS.group}</th>
+                <th scope="col">{WORDS.session}</th>
+                <th scope="col">{WORDS.register}</th>
+                <th scope="col">{WORDS.checkIn}</th>
+                <th scope="col">{WORDS.answered}</th>
+                <th scope="col">
+                  <span className={styles.srOnly}>{WORDS.actions}</span>
                 </th>
-                <td data-label={WORDS.session}>{row.when}</td>
-                <td data-label={WORDS.register}>{row.register}</td>
-                <td data-label={WORDS.checkIn}>{row.checkIn}</td>
-                <td data-label={WORDS.answered}>{row.answered}</td>
-                <td className={styles.doing}>
-                  <CheckInRowActions
-                    roundId={roundId}
-                    programmeId={programmeId}
-                    groupId={row.groupId}
-                    sessionKey={row.sessionKey}
-                    registerHref={registerPath(runId, row.groupId)}
-                    open={row.open}
-                    close={row.close}
-                    remind={row.remind}
-                    takeRegisterFirst={row.takeRegisterFirst}
-                    note={row.note}
-                    reminded={row.reminded}
-                  />
-                </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {table.rows.map((row) => (
+                <tr key={row.key}>
+                  <th scope="row" className={styles.group}>
+                    {row.groupName}
+                  </th>
+                  <td data-label={WORDS.session}>{row.when}</td>
+                  <td data-label={WORDS.register}>{row.register}</td>
+                  <td data-label={WORDS.checkIn}>{row.checkIn}</td>
+                  <td data-label={WORDS.answered}>{row.answered}</td>
+                  <td className={styles.doing}>
+                    <CheckInRowActions
+                      roundId={roundId}
+                      programmeId={programmeId}
+                      groupId={row.groupId}
+                      sessionKey={row.sessionKey}
+                      registerHref={registerPath(runId, row.groupId)}
+                      open={row.open}
+                      close={row.close}
+                      remind={row.remind}
+                      takeRegisterFirst={row.takeRegisterFirst}
+                      note={row.note}
+                      reminded={row.reminded}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
