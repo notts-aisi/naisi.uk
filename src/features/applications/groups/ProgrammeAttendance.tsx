@@ -34,8 +34,9 @@ import styles from "./ProgrammeAttendance.module.css";
  * corner of its own, says so to assistive technology, and is in the legend
  * once any is drawn; somebody who came to any session online has, under
  * their "3 of 4", how many in the room and how many online ("2 in the room,
- * 1 online"), and a group's week says how many came online. Where nobody
- * joined online the tab reads as it always has.
+ * 1 online"). A week's count by group is the Surveys tab's too
+ * (`cameWords`), so it says who came and not where. Where nobody joined
+ * online the tab reads as it always has.
  */
 
 const LETTER: Record<AttendanceStatus, string> = {
@@ -295,8 +296,7 @@ function weekWords(group: GridGroup, weekNumber: number, ending: RunAttendance["
   const date = week?.dateLabel ?? "";
   if (!week || !date) return { date: "", said: NOT_YET };
   if (total && total.percent !== null) {
-    const came = cameWords(total.came, total.of, total.soFar);
-    return { date, said: total.online > 0 ? `${came}, ${total.online} online` : came };
+    return { date, said: cameWords(total.came, total.of, total.soFar) };
   }
   return { date, said: tagWord(week.tag, ending) ?? NOT_YET };
 }
