@@ -4,8 +4,15 @@
  *
  * Run with `npm test`.
  *
- * The current version is v15: the whole policy arranged by kind of use, with
- * a summary at the top, and the last version anybody is asked to accept. It
+ * The current version is v16: v15 with two passages about joining a session
+ * online (a register keeps whether somebody was in the room or joined
+ * online, and somebody may say in advance that they are joining online), and
+ * the first version told rather than asked. Every other word is v15's, so the
+ * sections below that name v15 hold v16's text, and the describe for joining
+ * online holds the two passages to the code.
+ *
+ * v15 is the whole policy arranged by kind of use, with a summary at the
+ * top, and the last version anybody is asked to accept. It
  * says again, in fewer words, everything v14 said that is still true, takes
  * back some of v14's promises (facilitators never see anything of a survey,
  * notes are admins' alone, not coming is recorded nowhere, a tick never
@@ -26,7 +33,7 @@
  * promise, held in the frozen files themselves.
  *
  * Every version behind the current one is frozen byte for byte (§1b): v1 to
- * v14. Editing an accepted version changes what somebody sees at the archive
+ * v15. Editing an accepted version changes what somebody sees at the archive
  * URL for the wording they agreed to, without anybody being asked, so new
  * wording goes in a new file, every time. From v15 a new version is told,
  * not asked (`needsPolicyAcceptance`, §3), which makes the freeze matter
@@ -152,15 +159,17 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v15.tsx");
+const CURRENT = read("src/content/legal/privacy/v16.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
  * no pattern written as a sentence would ever match the raw source. Every
- * content check below runs against this, because v15 is the text the site
+ * content check below runs against this, because v16 is the text the site
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v15, frozen: read by the joining online describe, which proves v16's two passages are not in it and the words they replace are. */
+const V15_FLAT = read("src/content/legal/privacy/v15.tsx").replace(/\s+/g, " ");
 /** v14, frozen: read by §1b, and by the v15 checks, which prove what v15 takes back is still in the words people accepted. */
 const V14_FLAT = read("src/content/legal/privacy/v14.tsx").replace(/\s+/g, " ");
 /** v13, frozen: read by §2n, which proves the required-questions sentences are not in it and "Every question can be skipped." is. */
@@ -208,12 +217,16 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v15 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 15);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.15");
+  test("privacy v16 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 16);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.16");
   });
 
-  test("privacy v15 is dated the day its words last changed", () => {
+  test("privacy v16 is dated the day its words last changed", () => {
+    // Provisional: set again to the day v16 goes live, as v15's was.
+    const sixteen = POLICIES.privacy.versions.find((v) => v.version === 16);
+    assert.equal(sixteen?.lastUpdated, "9 November 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 16).length, 1);
     const fifteen = POLICIES.privacy.versions.find((v) => v.version === 15);
     assert.equal(fifteen?.lastUpdated, "2 November 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 15).length, 1);
@@ -360,6 +373,13 @@ describe("policy versions", () => {
  * identical. Anything that changes a word needs a new version instead.
  */
 const FROZEN_VERSIONS = new Map([
+  [
+    "privacy/v15",
+    {
+      sha256: "22d7582783f7958823b32fba67ced77d6a053d838ef6c00482036f73e15e5b0f",
+      why: "the whole policy arranged by kind of use, current from 2 November 2026 until v16 replaced it; the last version anybody was asked to accept, and the wording everybody accepted at that time, frozen when joining a session online moved the version rather than adding two sentences in place",
+    },
+  ],
   [
     "privacy/v14",
     {
@@ -697,7 +717,8 @@ const MUST_NAME = [
   // that section to the words this sentence relies on.
   ["feedback on an application is not promised, and can be asked for", /We do not send feedback on applications as standard; ask us and we will consider it\./],
   ["scores and comments are within the right to a copy of your data", /A copy of your data covers what other people wrote about you as well as what you wrote: reviewers&apos; scores and comments,/],
-  ["attendance registers", /<strong>Registers\.<\/strong> Your group&apos;s facilitators take the register at each session: present, arrived late, left early, absent or excused\./],
+  // v16: and whether somebody who came was in the room or joined online.
+  ["attendance registers", /<strong>Registers\.<\/strong> Your group&apos;s facilitators take the register at each session: present, arrived late, left early, absent or excused, and whether you were in the room or joined online\./],
   ["participant notes", /Facilitators may also write a note about a named person after a session, which the group&apos;s facilitators and admins read\./],
   // v15 names everything a week's pages record in one sentence, written
   // answers among it; the entries below for ticks, reflections, boxes and
@@ -821,7 +842,8 @@ const MUST_NAME = [
   // v15 itself says the private notes are the facilitators' and admins'.
   ["what a programme's lead sees once it is running", /<strong>What the people leading a programme see\.<\/strong>\{" "\} Everything a facilitator sees, for every group, except the notes facilitators write about a named person or a session, and the private notes people keep on the material, and also: who can&apos;t make their group&apos;s time and why, the reasons people give for leaving, the pitches and teams on an incubator, who might facilitate, who finished, and the totals and comments of the programme&apos;s surveys, never with a name\./],
   ["facilitators see names only", /<strong>What your facilitators see\.<\/strong> Who is in their group, by name only:/],
-  ["what facilitators read of their own groups", /The register, your work and progress \(see <a href="#your-work">Your work<\/a>\), and before the first session whether you have said you are coming\./],
+  // v16: and whether somebody has said they are joining a session online.
+  ["what facilitators read of their own groups", /The register, your work and progress \(see <a href="#your-work">Your work<\/a>\), before the first session whether you have said you are coming, and whether you have said you are joining a session online\./],
   // The notes a group's facilitators share and the notes a group shares
   // on its week pages. §2g holds each to its code.
   ["the notes a group's facilitators share, and that one can name a person", /<strong>Notes about a group\.<\/strong> A group&apos;s facilitators may keep notes for each other about how it is going, and a note may mention you;/],
@@ -4434,7 +4456,7 @@ describe("the course hub passage", () => {
     const facilitatorsSee = hubPassageOf("<strong>What your facilitators see.</strong>");
     assert.ok(
       facilitatorsSee.includes(
-        " and before the first session whether you have said you are coming. Nothing else from your application, and no review scores.",
+        " before the first session whether you have said you are coming, and whether you have said you are joining a session online. Nothing else from your application, and no review scores.",
       ),
       "the policy no longer says facilitators see, before the first session, who has said they are coming, and nothing else from an application",
     );
@@ -9122,6 +9144,19 @@ describe("the re-consent gate", () => {
     assert.ok(!/newsletter/i.test(said), "the accept page says v15 changed something about the newsletter");
   });
 
+  test("the accept page says what version 16 changes, after version 15's paragraphs, held to version 16's own sentences", () => {
+    // Asked only of an agreement older than v15, which accepts v16: so the
+    // page says both versions' changes, v15's first.
+    const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
+    const fifteen = accept.indexOf("What changed in version 15.</strong>");
+    const sixteen = accept.indexOf("What changed in version 16.</strong>");
+    assert.ok(fifteen !== -1 && sixteen > fifteen && accept.indexOf("Read the full", sixteen) > sixteen, "the accept page no longer says what version 16 changed, after version 15");
+    const said = accept.slice(sixteen, accept.indexOf("Read the full", sixteen));
+    assert.ok(said.includes("Registers record whether you were in the room or joined online, and you can tell us in advance that you are joining online."));
+    assert.ok(PAGE_FLAT.includes("absent or excused, and whether you were in the room or joined online."));
+    assert.ok(PAGE_FLAT.includes("You can also tell us in advance that you&apos;re joining a session online:"));
+  });
+
   test("is not left behind on the dashboard layout alone", () => {
     // The old placement asked only members who opened /dashboard, which is
     // less than the policy page promises.
@@ -10812,7 +10847,7 @@ describe("v15 says you may tell us in advance that you can't make a session, whi
   test("the policy says it, in those words, beside the register's marks", () => {
     assert.ok(
       PAGE_FLAT.includes(
-        "<strong>Registers.</strong> Your group&apos;s facilitators take the register at each session: present, arrived late, left early, absent or excused. You can see your own once it is submitted. We may let you tell us in advance that you can&apos;t make a session, which records you as excused.",
+        "<strong>Registers.</strong> Your group&apos;s facilitators take the register at each session: present, arrived late, left early, absent or excused, and whether you were in the room or joined online. You can see your own once it is submitted. We may let you tell us in advance that you can&apos;t make a session, which records you as excused.",
       ),
       "the policy no longer says you may tell us in advance, and that it records you as excused",
     );
@@ -10890,6 +10925,76 @@ describe("v15 says you may tell us in advance that you can't make a session, whi
     assert.match(card, /if \(line\.state\.kind === "marked"\) return refuse\(409, sessionRefusalWords\(day, CANT_MAKE_IT_REFUSAL\.marked\)\);/);
     assert.match(staff, /if \(line\.state\.kind === "closed"\) return refuse\(409, sessionRefusalWords\(day, CLOSED_FOR_STAFF\[line\.state\.why\]\)\);/);
     assert.match(staff, /if \(line\.state\.kind === "marked"\) return refuse\(409, sessionRefusalWords\(day, SOME_WEEKS_REFUSAL\.marked\)\);/);
+  });
+});
+
+describe("v16 says a register records the room or online, and you may tell us in advance you are joining online; the code agrees", () => {
+  // The two passages v16 added to v15, each clause held to the code that
+  // makes it true; the routes are run as every kind of caller in
+  // tests/course-session-joining-online.test.mjs.
+  const seat = withoutComments(read("src/lib/courses/joiningOnline/seat.ts"));
+  const route = withoutComments(read("src/app/api/courses/groups/[groupId]/joining-online/route.ts"));
+  const marking = withoutComments(read("src/app/api/courses/groups/[groupId]/attendance/route.ts"));
+  const box = withoutComments(read("src/lib/courses/meetingLink/box.ts"));
+  const NEW_REGISTERS = "absent or excused, and whether you were in the room or joined online.";
+  const NEW_IN_ADVANCE =
+    "You can also tell us in advance that you&apos;re joining a session online: your facilitators see it, and are asked to add a link to join it to your programme page.";
+  const NEW_FACILITATORS_SEE =
+    "before the first session whether you have said you are coming, and whether you have said you are joining a session online. Nothing else from your application,";
+
+  test("the policy says it, in those words, and v15 did not", () => {
+    for (const words of [NEW_REGISTERS, NEW_IN_ADVANCE, NEW_FACILITATORS_SEE]) {
+      assert.ok(PAGE_FLAT.includes(words), `v16 no longer says: ${words}`);
+      assert.ok(!V15_FLAT.includes(words), `v15 is frozen and never said: ${words}`);
+    }
+    assert.ok(PAGE_FLAT.includes(`${NEW_REGISTERS} You can see your own once it is submitted. We may let you tell us in advance that you can&apos;t make a session, which records you as excused. ${NEW_IN_ADVANCE}`));
+    assert.ok(V15_FLAT.includes("left early, absent or excused. You can see your own once it is submitted."));
+    assert.ok(V15_FLAT.includes("(see <a href=\"#your-work\">Your work</a>), and before the first session whether you have said you are coming. Nothing else"));
+  });
+
+  test("whether you were in the room or joined online: beside a mark that says you came, written by the attendance route alone", () => {
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\[ONLINE\]:|FieldPath\(ONLINE,/),
+      new Map([
+        ["src/app/api/courses/groups/[groupId]/attendance/route.ts", "the register's marking and an admin's correction: where somebody marked as having come was, beside that mark"],
+        ["src/lib/firestore/accountDeletion.ts", "account deletion clears the person's own entry, key by key, and nobody else's"],
+      ]),
+      "writing where somebody who came was",
+      "The policy says the register records it. A new writer has to be one the register's facilitators make, or the policy needs a new version.",
+    );
+    assert.match(marking, /return \{ ok: false, error: "online is only for somebody marked present, late or left early\." \};/);
+  });
+
+  test("telling us in advance: your own line, by your own uid, and nothing is sent", () => {
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\[ONLINE_SAID\]:|FieldPath\(ONLINE_SAID,/),
+      new Map([
+        ["src/lib/courses/joiningOnline/seat.ts", "Joining online: the caller's own word on their own line of the session's register, and taking it back"],
+        ["src/lib/firestore/accountDeletion.ts", "account deletion clears the person's own word, key by key, and nobody else's"],
+      ]),
+      "writing that somebody is joining a session online",
+      "The policy says you tell us in advance. Nobody may say it for anybody else.",
+    );
+    assert.match(seat, /if \(seat\.uid !== user\.uid \|\| seat\.runId !== runId\) return false;/);
+    assert.match(seat, /tx\.get\(db\.collection\("courseEnrolments"\)\.doc\(courseEnrolmentId\(group\.runId, user\.uid\)\)\)/);
+    assert.match(seat, /\[ONLINE_SAID\]: \{ \[user\.uid\]: FieldValue\.serverTimestamp\(\) \},/);
+    assert.match(seat, /tx\.set\(ref, \{ \[ONLINE_SAID\]: \{ \[user\.uid\]: FieldValue\.delete\(\) \} \}, \{ merge: true \}\);/);
+    assert.match(route, /const outcome = await recordJoiningOnline\(db, user, groupId, parsed\.value, new Date\(\)\);/);
+    assert.doesNotMatch(seat + route, /sendEmail|sendNotice|dispatchSends|mirrorCourse/, "saying you are joining online now emails or notifies somebody");
+  });
+
+  test("your facilitators see it, and are asked for a link to join it: the box on their group page and register", () => {
+    assert.match(box, /if \(!register\.onlineSaid\[person\.uid\]\) return false;/);
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bjoiningOnlineBox\(/).filter((file) => file !== "src/lib/courses/meetingLink/box.ts"),
+      new Map([
+        ["src/app/(app)/learn/[runId]/group/[groupId]/page.tsx", "a facilitator's group page, which asks for the session's link"],
+        ["src/app/(app)/learn/[runId]/group/[groupId]/register/page.tsx", "the register a facilitator takes, with the same box at its top"],
+      ]),
+      "showing facilitators who is joining online",
+      "The policy says your facilitators see it. A new reader needs the policy's readers to grow first.",
+    );
+    assert.match(marking, /onlineSaid,\s*participantNotes,/, "the register's payload no longer carries who said they are joining online");
   });
 });
 

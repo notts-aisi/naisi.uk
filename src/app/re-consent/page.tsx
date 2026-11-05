@@ -105,8 +105,9 @@ export default async function ReConsentPage() {
         </p>
         {/* What changed in version 15, said before Accept: the last version
             anybody is asked to accept (`needsPolicyAcceptance`), so these four
-            paragraphs replace what every earlier version said here. Each
-            clause is held to version 15's own sentence by
+            paragraphs replace what every earlier version said here, and each
+            later version adds one line after them for anybody still asked.
+            Each clause is held to the current policy's own sentence by
             tests/privacy-policy.test.mjs. */}
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           <strong style={{ color: "var(--color-text)" }}>What changed in version 15.</strong>{" "}
@@ -137,6 +138,11 @@ export default async function ReConsentPage() {
           decided. When you ask for a place at an event, its organisers may see
           whether you&apos;re on a programme, whether you facilitate, and
           whether you hold SU membership.
+        </p>
+        <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
+          <strong style={{ color: "var(--color-text)" }}>What changed in version 16.</strong>{" "}
+          Registers record whether you were in the room or joined online, and
+          you can tell us in advance that you are joining online.
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}

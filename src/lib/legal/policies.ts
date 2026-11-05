@@ -143,12 +143,20 @@ export const POLICIES: Record<
     // to /privacy/services (`src/content/legal/services.ts`), so adding one
     // is a change to that page and a notice, not a new version.
     //
+    // v16 is joining a session online: a register keeps whether somebody who
+    // came was in the room or joined online, and somebody may say in advance
+    // that they are joining online, which their facilitators see. The first
+    // version told rather than asked: `LAST_PRIVACY_VERSION_ASKED` stays 15,
+    // so nobody who accepted v15 is asked again. Its date is the day it goes
+    // live, set when it is promoted.
+    //
     // Keep this comment ABOVE `versions:`, never between the `[` and the first
     // `{`: tests/funnel-harness-guards.test.mjs reads the current version out
     // of this file with a regex that allows only whitespace across that gap,
     // so a comment sitting there leaves the guard unable to read the very
     // number it exists to pin. Anywhere else in the file is fine.
     versions: [
+      { version: 16, lastUpdated: "9 November 2026" },
       { version: 15, lastUpdated: "2 November 2026" },
       { version: 14, lastUpdated: "30 October 2026" },
       { version: 13, lastUpdated: "30 October 2026" },
