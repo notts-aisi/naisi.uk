@@ -1107,7 +1107,6 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
                           <button
                             type="button"
                             className={`${styles.where} ${isOnline ? styles.whereOnline : ""}`}
-                            data-testid="attendance-where"
                             aria-pressed={isOnline}
                             aria-label={whereChoiceLabel(member.displayName, session.weekNumber, isOnline)}
                             onClick={() => void onWhere(session, member)}

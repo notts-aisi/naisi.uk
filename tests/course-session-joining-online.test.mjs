@@ -590,13 +590,13 @@ describe("6. the register keeps in the room or online beside the marks", () => {
     assert.equal((await online("chloe", "w03")).status, 200);
     assert.equal((await markAs("rahul", 3, [{ uid: "chloe", status: "present" }, { uid: "kofi", status: "absent" }])).status, 200);
     const drawn = drawRegister((await registerAs("rahul")).body);
-    const choices = [...drawn.html.matchAll(/data-testid="attendance-where"[^>]*aria-label="([^"]+)"/g)].map((match) => match[1]);
+    const choices = [...drawn.html.matchAll(/aria-label="(Where [^"]+)"/g)].map((match) => match[1]);
     // Week 1 and 2's registers are finished and locked for a facilitator; week 3 has two marks, one that says came.
     assert.deepEqual(choices, ["Where Chloe Nguyen was in week 3: joined online. Sets in the room."]);
     assert.match(drawn.html, /aria-label="Chloe Nguyen, week 3: Present\. Joined online\. Sets Late\."/);
     assert.match(drawn.html, /aria-label="Kofi Asante, week 3: Absent\. Sets Excused\."/);
-    // Never a second control whose name starts as a cell's does.
-    assert.doesNotMatch(drawn.html, /data-testid="attendance-where"[^>]*aria-label="Chloe Nguyen, week/);
+    // Never a second control whose name starts as a cell's does: one cell button per marked week of Chloe's.
+    assert.equal([...drawn.html.matchAll(/aria-label="Chloe Nguyen, week 3: /g)].length, 1);
     assert.ok(drawn.text.includes("Not marked Online"), "the legend says what the screen is");
     // Somebody who said it and is not marked yet: heard beside the cell.
     assert.equal((await online("farah", "w04")).status, 200);
