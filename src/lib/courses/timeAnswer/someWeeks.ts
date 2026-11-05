@@ -30,8 +30,8 @@ import { CARD_TITLE, SOME_WEEKS_REFUSAL, sessionRefusalWords, someWeeksAuditDeta
  * weeks, not all".
  *
  * WHY IT EXISTS. Until 5 Nov 2026 "Can you make this time?" had two answers,
- * and people who could not make ONE week (a reading week, a trip home) said
- * they could not make the time, which every reader took as somebody to move.
+ * and people who could not make ONE week said they could not make the time,
+ * which every reader took as somebody to move.
  * Their own words say what they meant. This turns such an answer into the
  * third answer, as the person would have given it.
  *
