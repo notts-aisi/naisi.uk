@@ -394,6 +394,14 @@ const MUST_GUARD = [
     "records the person as excused on a session's register, on their own word that they can't make it, which their facilitators read",
   ],
   [
+    "src/app/api/courses/groups/[groupId]/joining-online/route.ts",
+    "keeps the person's own word that they are joining a session online on its register, which their facilitators read and are asked for a link by",
+  ],
+  [
+    "src/app/api/courses/groups/[groupId]/meeting-link/route.ts",
+    "sets a session's meeting link, for one week or every week, which everybody in the group then sees on their programme page",
+  ],
+  [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time/route.ts",
     "changes a group's day and start on the run a programme names, from the Times view",
   ],

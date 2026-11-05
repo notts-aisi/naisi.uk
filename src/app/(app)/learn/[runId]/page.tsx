@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { homeEvents } from "@/app/(app)/dashboard/homeData";
 import { cantMakeItFor } from "@/lib/courses/cantMakeIt/seat";
+import { joiningOnlineFor } from "@/lib/courses/joiningOnline/seat";
 import { readOwnCertificates } from "@/lib/courses/certificates/own";
 import { liveGroupsOf, runEndOf } from "@/lib/courses/finishing/runEnd";
 import { endSurveyFor } from "@/lib/surveys/waiting";
@@ -157,6 +158,15 @@ export default async function RunHomePage({
           () => null,
         )
       : null;
+  // "Joining online" beside it, for a session held in a room, until the
+  // session starts: one read, of the same register. A read that fails draws
+  // nothing.
+  const joiningOnline =
+    access.isEnrolled && db
+      ? await joiningOnlineFor(db, { user: access.user, run: access.run, enrolment: access.enrolment, groups: access.groups, now: new Date() }).catch(
+          () => null,
+        )
+      : null;
   // Where "Email the group" and "Email the whole cohort" open Messages, set
   // to that audience (`messagesEntriesFor`), for somebody who staffs the run
   // or facilitates one of its groups; read for nobody else. A link with no
@@ -205,6 +215,7 @@ export default async function RunHomePage({
       leaveNote={leaveNote}
       timeQuestion={timeQuestion}
       cantMakeIt={cantMakeIt}
+      joiningOnline={joiningOnline}
       viewAs={viewAs}
       uid={access.user.uid}
       {...(guide ? { guide } : {})}

@@ -1596,6 +1596,25 @@ a.weekItem:focus-visible {
   height: 22px;
 }
 
+/* A session they joined online: the box keeps its tone and gains a corner,
+   said in words to a screen reader and in the legend. */
+.markOnline {
+  position: relative;
+  border-style: dashed;
+}
+
+.markOnline::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-surface);
+}
+
 .markHere {
   border: 1px solid var(--color-ok-line);
   background: var(--color-success-soft);

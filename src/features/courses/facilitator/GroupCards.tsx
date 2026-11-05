@@ -41,6 +41,7 @@ import {
 } from "@/lib/courses/facilitatorPageWords";
 import { MARK_LETTER, ROOM_CHANGED } from "@/lib/courses/memberPageWords";
 import { JOIN_ONLINE, LINK_IS_HERE, dayWords } from "@/lib/courses/sessionChange/words";
+import { FOR_JOINING_ONLINE } from "@/lib/courses/joiningOnline/words";
 import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
 import { ATTENDANCE_STATUS_LABEL, type AttendanceStatus } from "@/lib/firestore/courseAttendance";
 import weekly from "@/features/courses/weekly/weekly.module.css";
@@ -183,7 +184,12 @@ export function FacilitatorTicket({
               </a>
             )}
           </div>
-          {facts.joinUrl && <p className={weekly.ticketNote}>{LINK_IS_HERE}</p>}
+          {facts.joinUrl && (
+            <p className={weekly.ticketNote}>
+              {facts.joinFor === "joining-online" ? `${FOR_JOINING_ONLINE} ` : ""}
+              {LINK_IS_HERE}
+            </p>
+          )}
         </div>
       </div>
       </div>

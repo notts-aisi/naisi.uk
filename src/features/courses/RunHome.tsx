@@ -16,14 +16,16 @@ import SessionNotice from "./sessionChange/SessionNotice";
 import RunUpdates from "./updates/RunUpdates";
 import { useRunOverview } from "./useRunOverview";
 import { useSyncTasks } from "./useSyncTasks";
-import CantMakeIt from "./weekly/CantMakeIt";
 import SessionTicket from "./weekly/SessionTicket";
+import TicketAnswers from "./weekly/TicketAnswers";
 import ThisWeekCard from "./weekly/ThisWeekCard";
 import WeekList from "./weekly/WeekList";
 import YourGroup from "./weekly/YourGroup";
 import AboutThisCourse from "./AboutThisCourse";
 import CertificateCard from "./CertificateCard";
 import type { CantMakeItView } from "@/lib/courses/cantMakeIt/model";
+import type { JoiningOnlineView } from "@/lib/courses/joiningOnline/model";
+import { ONLINE_WORD } from "@/lib/courses/joiningOnline/words";
 import type { CertificateCardView } from "@/lib/courses/certificates/card";
 import type { GuideLinks } from "@/lib/courses/guide/model";
 import type { TeamCardView } from "@/lib/courses/teamPage/views";
@@ -98,6 +100,13 @@ import styles from "./RunHome.module.css";
  * by the server page): it records them as excused on that session's register,
  * which their facilitators read.
  *
+ * "JOINING ONLINE" beside it, for a session held in a room (`joiningOnline`,
+ * worked out by the server page the same way): their word is kept on the
+ * session's register, never as a mark, and their facilitators are asked for
+ * a meeting link for that week. One at a time (`TicketAnswers`): somebody who
+ * has told us they can't make it is offered "Joining online" only once they
+ * can make it after all, and the other way round.
+ *
  * STAFF (a facilitator, an admin) read the same head, ticket and weeks, every
  * published week open, with their own panels below; no marks, no ticks.
  *
@@ -165,6 +174,12 @@ type Props = {
    * until the session starts. Null draws nothing.
    */
   cantMakeIt?: CantMakeItView | null;
+  /**
+   * "Joining online" on the same ticket, worked out by the server page for
+   * somebody taking part in the group (`joiningOnlineFor`), until the session
+   * starts, for a session held in a room. Null draws nothing.
+   */
+  joiningOnline?: JoiningOnlineView | null;
   /** An admin is looking at this as the member: the card's answers are drawn and cannot be pressed. */
   viewAs?: boolean;
   /** The session's own uid, from the server gate: the ticks' row, and "(you)" in the group. */
@@ -333,7 +348,9 @@ function shortDay(dateKey: string): string {
 /**
  * THE MEMBER'S OWN MARKS: one per session of their group's, from the week
  * they joined, and a legend. Nothing here counts them, says "in full", or
- * says how many they came to: a member is never shown a target.
+ * says how many they came to: a member is never shown a target. A session
+ * they joined online has a corner of its own and says so ("Present,
+ * online"), with "Online" in the legend once any has.
  *
  * A mark shows once its register is finished, which the route decides
  * (`ownAttendance?.sessions` holds finished registers only); until then the
@@ -370,9 +387,13 @@ function YourMarks({
           : !session.held
             ? "did-not-happen"
             : (session.status ?? "not-marked");
-      return { week, kind, dateKey: week.dateKey || session?.dateKey || "" };
+      // Joined online: only beside a mark that says they came, as the route
+      // projects it (`ownAttendanceSessions`).
+      const online = session?.online === true && (kind === "present" || kind === "late" || kind === "left-early");
+      return { week, kind, online, dateKey: week.dateKey || session?.dateKey || "" };
     });
   const used = new Set(rows.map((row) => row.kind));
+  const anyOnline = rows.some((row) => row.online);
 
   return (
     <section className={[weekly.card, className ?? ""].filter(Boolean).join(" ")} aria-labelledby="your-marks">
@@ -389,13 +410,13 @@ function YourMarks({
         <>
           {rows.length > 0 && (
             <ol className={weekly.marks} role="list">
-              {rows.map(({ week, kind, dateKey }) => (
+              {rows.map(({ week, kind, online, dateKey }) => (
                 <li key={week.weekNumber} className={weekly.markItem}>
                   <span
-                    className={[weekly.markBox, MARK_CLASS[kind]].filter(Boolean).join(" ")}
+                    className={[weekly.markBox, MARK_CLASS[kind], online ? weekly.markOnline : ""].filter(Boolean).join(" ")}
                     role="img"
-                    aria-label={markWords(week.weekNumber, dateKey, markWord(kind))}
-                    title={markWord(kind)}
+                    aria-label={markWords(week.weekNumber, dateKey, online ? `${markWord(kind)}, ${ONLINE_WORD.toLowerCase()}` : markWord(kind))}
+                    title={online ? `${markWord(kind)}, ${ONLINE_WORD.toLowerCase()}` : markWord(kind)}
                   >
                     {markGlyph(kind)}
                   </span>
@@ -419,6 +440,12 @@ function YourMarks({
                   {markWord(kind)}
                 </li>
               ))}
+              {anyOnline && (
+                <li className={weekly.legendItem}>
+                  <span className={[weekly.markBox, weekly.markSmall, weekly.markHere, weekly.markOnline].join(" ")} aria-hidden="true" />
+                  {ONLINE_WORD}
+                </li>
+              )}
             </ul>
           )}
           <p className={`${weekly.cardLine} ${weekly.marksLine}`}>{MARKS_LINE}</p>
@@ -446,6 +473,7 @@ export default function RunHome({
   leaveNote = null,
   timeQuestion = null,
   cantMakeIt = null,
+  joiningOnline = null,
   viewAs = false,
   guide = null,
   uid = null,
@@ -596,6 +624,13 @@ export default function RunHome({
         online: facts.mode === "virtual",
       }
     : null;
+  // What the reader can tell us about the session this ticket shows, of the
+  // group it is their place in: each only when it is about that session.
+  const nextKey = group?.calendar.nextSession?.sessionKey ?? null;
+  const ticketCantMakeIt =
+    cantMakeIt && group?.id === cantMakeIt.groupId && nextKey === cantMakeIt.sessionKey ? cantMakeIt : null;
+  const ticketJoiningOnline =
+    joiningOnline && group?.id === joiningOnline.groupId && nextKey === joiningOnline.sessionKey ? joiningOnline : null;
   const ticket =
     group?.sessionNotice || facts ? (
       <div className={order.ticket}>
@@ -618,8 +653,14 @@ export default function RunHome({
               calendar={learnerGroup !== null || access.isFacilitator}
               cantMakeIt={
                 /* About the session this ticket shows, of the group it is the reader's place in. */
-                cantMakeIt && group?.id === cantMakeIt.groupId && group.calendar.nextSession?.sessionKey === cantMakeIt.sessionKey ? (
-                  <CantMakeIt key={cantMakeIt.sessionKey} view={cantMakeIt} locked={viewAs} />
+                ticketCantMakeIt || ticketJoiningOnline ? (
+                  <TicketAnswers
+                    key={(ticketCantMakeIt ?? ticketJoiningOnline)?.sessionKey}
+                    cantMakeIt={ticketCantMakeIt}
+                    joiningOnline={ticketJoiningOnline}
+                    hasLink={facts.joinUrl !== null}
+                    locked={viewAs}
+                  />
                 ) : null
               }
             />
