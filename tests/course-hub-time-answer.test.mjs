@@ -1203,15 +1203,33 @@ describe("10. they meant some weeks: an admin or the programme's lead reads a di
     assert.deepEqual(world.mail, [], "somebody was emailed");
   });
 
-  test("it adds and never takes away: what she told the ticket stays hers, and is listed", async () => {
-    await amaraSaidCant();
+  test("it adds and never takes away: what she told the ticket stays hers, as she said it, and is listed", async () => {
+    const answeredAt = await amaraSaidCant();
+    // An hour after answering, she tells the ticket about week 4 herself.
+    mock.timers.setTime(new Date("2026-11-17T13:00:00Z").getTime());
     assert.equal((await ticket("amara", "w04")).status, 200);
-    const toldAt = registerOf(4).excusedInAdvance.amara;
+    const toldAt = instant(registerOf(4).excusedInAdvance.amara).toISOString();
+    assert.equal(toldAt, "2026-11-17T13:00:00.000Z");
+    mock.timers.setTime(new Date("2026-11-17T15:00:00Z").getTime());
+    // Left unchosen, her week 4 is kept and listed.
     const saved = await someWeeks("zach", "amara", { sessionKeys: ["w06"] });
     assert.equal(saved.status, 200, JSON.stringify(saved.body));
     assert.deepEqual(saved.body.answer.sessionKeys, ["w04", "w06"]);
     assert.deepEqual([toldOn(4), toldOn(5), toldOn(6)], [["amara"], [], ["amara"]]);
-    assert.equal(instant(registerOf(4).excusedInAdvance.amara).toISOString(), instant(toldAt).toISOString(), "her own word was rewritten");
+    assert.equal(instant(registerOf(4).excusedInAdvance.amara).toISOString(), toldAt, "her own word was rewritten");
+    assert.equal(instant(registerOf(6).excusedInAdvance.amara).toISOString(), instant(answeredAt).toISOString());
+    // Sent as the screen sends it, ticked: still hers, as she said it.
+    await answer("bea", CANT);
+    mock.timers.setTime(new Date("2026-11-17T16:00:00Z").getTime());
+    assert.equal((await ticket("bea", "w05")).status, 200);
+    mock.timers.setTime(new Date("2026-11-17T17:00:00Z").getTime());
+    assert.equal((await someWeeks("zach", "bea", { sessionKeys: ["w05", "w06"] })).status, 200);
+    assert.equal(instant(registerOf(5).excusedInAdvance.bea).toISOString(), "2026-11-17T16:00:00.000Z", "her own word was rewritten");
+    // The audit row names what this recorded, and not what was hers already.
+    assert.equal(
+      auditRows().find((row) => row.subjectUid === "bea").detail,
+      "Changed from No, I need a different time to Most weeks, not all, recording them excused for week 6 (Thu 3 Dec).",
+    );
     // Choosing none: most weeks, recording no session.
     await answer("dev", CANT);
     const none = await someWeeks("zach", "dev", { sessionKeys: [] });

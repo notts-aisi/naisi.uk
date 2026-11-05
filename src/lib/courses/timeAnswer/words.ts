@@ -264,9 +264,10 @@ export const SAVING = "Saving…";
 export const SOME_WEEKS_SAVED = "Saved. Their answer is now Most weeks, not all.";
 
 /**
- * The audit row's sentence: what changed, and which sessions were recorded,
- * never the person's words. "Changed from No, I need a different time to
- * Most weeks, not all, recording them excused for week 3 (Tue 17 Nov)."
+ * The audit row's sentence: what changed, and which sessions this recorded
+ * (not the ones the person had already told us about themselves), never the
+ * person's words. "Changed from No, I need a different time to Most weeks,
+ * not all, recording them excused for week 3 (Tue 17 Nov)."
  */
 export function someWeeksAuditDetail(recorded: readonly { weekNumber: number; day: string }[]): string {
   const from = `Changed from ${ANSWER_CANT} to ${ANSWER_MOST_WEEKS}`;

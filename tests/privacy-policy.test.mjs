@@ -10749,12 +10749,37 @@ describe("v15 says reminders before a session are about what is left, are part o
 describe("v15 says you may tell us in advance that you can't make a session, which records you as excused; the code agrees", () => {
   // "We may let you tell us in advance that you can't make a session, which
   // records you as excused." Each clause, held to the one write that does it
-  // (`recordCantMakeIt`, from "Can't make it" on the programme page); the
-  // route is run as every kind of caller in
-  // tests/course-session-cant-make-it.test.mjs.
+  // (`writeExcusedInAdvance`) and to each of its three callers: "Can't make
+  // it" on the ticket (`recordCantMakeIt`), "Most weeks, not all" on the
+  // card (`recordTimeAnswer`), and staff's "They meant some weeks", which
+  // records the sessions a person named in their own words
+  // (`recordSomeWeeks`). The routes are run as every kind of caller in
+  // tests/course-session-cant-make-it.test.mjs and
+  // tests/course-hub-time-answer.test.mjs.
   const seat = withoutComments(read("src/lib/courses/cantMakeIt/seat.ts"));
   const model = withoutComments(read("src/lib/courses/cantMakeIt/model.ts"));
   const route = withoutComments(read("src/app/api/courses/groups/[groupId]/cant-make-it/route.ts"));
+  const card = withoutComments(read("src/lib/courses/timeAnswer/seat.ts"));
+  const cardRoute = withoutComments(read("src/app/api/courses/runs/[runId]/time-answer/route.ts"));
+  const staff = withoutComments(read("src/lib/courses/timeAnswer/someWeeks.ts"));
+  const staffRoute = withoutComments(read("src/app/api/courses/runs/[runId]/enrolments/[uid]/time-answer/route.ts"));
+  /** Every file under src that calls `name(`, but the writer's own module, which defines it. */
+  const callersOf = (name) => {
+    const found = [];
+    const walk = (dir) => {
+      for (const entry of readdirSync(join(REPO_ROOT, dir), { withFileTypes: true })) {
+        const path = `${dir}/${entry.name}`;
+        if (entry.isDirectory()) walk(path);
+        else if (/\.tsx?$/.test(entry.name) && path !== "src/lib/courses/cantMakeIt/seat.ts") {
+          const code = withoutComments(read(path));
+          const calls = [...code.matchAll(new RegExp(`\\b${name}\\(`, "g"))].length;
+          if (calls > 0) found.push([path, calls]);
+        }
+      }
+    };
+    walk("src");
+    return found.sort(([a], [b]) => a.localeCompare(b));
+  };
 
   test("the policy says it, in those words, beside the register's marks", () => {
     assert.ok(
@@ -10779,14 +10804,64 @@ describe("v15 says you may tell us in advance that you can't make a session, whi
   });
 
   test("records you as excused: the one mark it writes is excused, beside when you said so, and nothing is sent", () => {
-    assert.match(seat, /records: \{ \[user\.uid\]: "excused" \},/);
+    assert.match(seat, /records: \{ \[uid\]: "excused" \},/);
     assert.deepEqual(
       [...seat.matchAll(/"(present|late|left-early|absent|excused)"/g)].map((match) => match[1]),
       ["excused"],
       "the write records something other than excused",
     );
-    assert.match(seat, /\[EXCUSED_IN_ADVANCE\]: \{ \[user\.uid\]: FieldValue\.serverTimestamp\(\) \},/);
-    assert.doesNotMatch(seat + route, /sendEmail|sendNotice|dispatchSends|mirrorCourse/, "telling us in advance now emails or notifies somebody");
+    assert.match(seat, /\[EXCUSED_IN_ADVANCE\]: \{ \[uid\]: told \},/);
+    for (const [file, code] of [["the card's", card], ["the staff's", staff]]) {
+      assert.doesNotMatch(code, /"(present|late|left-early|absent)"/, `${file} writer records a mark other than excused`);
+      assert.doesNotMatch(code, /EXCUSED_IN_ADVANCE|records:/, `${file} writer writes a register line of its own`);
+    }
+    assert.doesNotMatch(
+      seat + route + card + cardRoute + staff + staffRoute,
+      /sendEmail|sendNotice|dispatchSends|mirrorCourse/,
+      "telling us in advance now emails or notifies somebody",
+    );
+  });
+
+  test("the one write has three callers: you, by your own uid, when you say so; or staff, from your own words", () => {
+    assert.deepEqual(callersOf("writeExcusedInAdvance"), [
+      ["src/lib/courses/timeAnswer/seat.ts", 1],
+      ["src/lib/courses/timeAnswer/someWeeks.ts", 1],
+    ]);
+    // The ticket, in the writer's own module: your own uid, now.
+    assert.match(seat, /writeExcusedInAdvance\(tx, line, \{ run, group, uid: user\.uid, told: FieldValue\.serverTimestamp\(\) \}\);/);
+    assert.equal([...seat.matchAll(/\bwriteExcusedInAdvance\(/g)].length, 2, "the ticket calls the write once, beside its definition");
+    // The card: your own seat, by your own uid, now.
+    assert.match(card, /const seatRef = db\.collection\("courseEnrolments"\)\.doc\(courseEnrolmentId\(runId, user\.uid\)\);/);
+    assert.match(card, /if \(seat\.uid !== user\.uid \|\| seat\.runId !== runId\) return "not-asked";/);
+    assert.match(card, /writeExcusedInAdvance\(tx, line, \{ run, group, uid: user\.uid, told: FieldValue\.serverTimestamp\(\) \}\)/);
+    // Staff: only an answer of No, I need a different time, behind the bar its readers stand behind, dated when you gave it.
+    assert.match(staff, /if \(answer\?\.kind !== "cant"\) return refuse\(409, SOME_WEEKS_REFUSAL\.notCant\);/);
+    assert.match(staff, /const told = stored\.at \?\? FieldValue\.serverTimestamp\(\);/);
+    assert.match(staff, /writeExcusedInAdvance\(tx, line, \{ run, group, uid: seat\.uid, told \}\);/);
+    assert.equal(
+      [...staffRoute.matchAll(/if \(!readsTimeAnswers\(staffing\)\) return NextResponse\.json\(\{ error: SOME_WEEKS_REFUSAL\.notStaff \}, \{ status: 403 \}\);/g)].length,
+      2,
+      "a handler of the staff route writes or reads without asking who reads the answer",
+    );
+  });
+
+  test("taking it back is yours alone: staff never take back what you said", () => {
+    assert.deepEqual(callersOf("writeTakenBack"), [["src/lib/courses/timeAnswer/seat.ts", 1]]);
+    assert.match(card, /writeTakenBack\(tx, line, user\.uid\);/);
+    assert.match(seat, /if \(state\.kind === "told"\) writeTakenBack\(tx, line, user\.uid\);/);
+    assert.doesNotMatch(staff, /writeTakenBack|FieldValue\.delete\(\)/, "staff's reading of an answer takes something back");
+  });
+
+  test("in advance, for every caller: only a session not started, on a line that is still nobody else's", () => {
+    // The ticket writes only on an open line; the card and staff skip every other.
+    assert.match(seat, /if \(state\.kind === "open"\) \{\s*if \(!registerHasRoom\(line\)\) return refuse\(409, CANT_MAKE_IT_REFUSAL\.full\);\s*writeExcusedInAdvance\(/);
+    assert.match(card, /if \(line\.state\.kind === "open"\) writeExcusedInAdvance\(/);
+    assert.match(staff, /if \(!chosen\.has\(line\.session\.sessionKey\) \|\| line\.state\.kind !== "open"\) continue;\s*writeExcusedInAdvance\(/);
+    // A session named that has started, or that a facilitator has filled in, refuses the whole answer.
+    assert.match(card, /if \(line\.state\.kind === "closed"\) return refuse\(409, sessionRefusalWords\(day, closedWords\(line\.state\)\)\);/);
+    assert.match(card, /if \(line\.state\.kind === "marked"\) return refuse\(409, sessionRefusalWords\(day, CANT_MAKE_IT_REFUSAL\.marked\)\);/);
+    assert.match(staff, /if \(line\.state\.kind === "closed"\) return refuse\(409, sessionRefusalWords\(day, CLOSED_FOR_STAFF\[line\.state\.why\]\)\);/);
+    assert.match(staff, /if \(line\.state\.kind === "marked"\) return refuse\(409, sessionRefusalWords\(day, SOME_WEEKS_REFUSAL\.marked\)\);/);
   });
 });
 

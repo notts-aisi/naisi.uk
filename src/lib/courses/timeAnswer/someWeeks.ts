@@ -170,12 +170,13 @@ export async function recordSomeWeeks(
       if (line.state.kind === "open" && !registerHasRoom(line)) return refuse(409, sessionRefusalWords(day, SOME_WEEKS_REFUSAL.full));
     }
 
-    // On their own word, as they gave it: dated when they answered.
+    // On their own word, as they gave it: dated when they answered. A session
+    // they told us about themselves is theirs already, and is left as it is.
     const told = stored.at ?? FieldValue.serverTimestamp();
     const recorded: SessionLine[] = [];
     for (const line of lines) {
-      if (!chosen.has(line.session.sessionKey)) continue;
-      if (line.state.kind === "open") writeExcusedInAdvance(tx, line, { run, group, uid: seat.uid, told });
+      if (!chosen.has(line.session.sessionKey) || line.state.kind !== "open") continue;
+      writeExcusedInAdvance(tx, line, { run, group, uid: seat.uid, told });
       recorded.push(line);
     }
     // The answer lists every session still to come they can't make: the ones

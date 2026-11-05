@@ -28,6 +28,12 @@
  *  5. THE PROGRAMME PAGE offers it on the ticket of the group's next session,
  *     says so once told, and offers it back.
  *  6. THE WORDS: no dash, and never "mark" in what the person reads.
+ *  7. FURTHER AHEAD, AND ONE LIST ON THE SEAT. The write records a session
+ *     further ahead than the next one exactly as it records the next (the
+ *     card's "Most weeks, not all" and staff's "They meant some weeks" use
+ *     it for every session they name, `tests/course-hub-time-answer.test.mjs`),
+ *     and the ticket keeps a "Most weeks, not all" answer's list of sessions
+ *     in step with the register, changing no other answer.
  *
  * Real: the press's and the register's handlers, the programme page's loader
  * and component, and every library under them. Faked: what the member pages
@@ -446,5 +452,68 @@ describe("6. the words", () => {
       words.registerCantMakeItLine("Tue 17 Nov", ["Ada", "Ben", "Cleo"]),
       "Tue 17 Nov: Ada, Ben and Cleo can’t make it.",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. Further ahead, and one list on the seat
+// ---------------------------------------------------------------------------
+
+describe("7. a session further ahead, and a most weeks answer's list", () => {
+  const seatPath = (uid) => `courseEnrolments/${RUN.agi}__${uid}`;
+  const answerOf = (uid) => world.db.read(seatPath(uid))?.timeAnswer;
+
+  test("a session weeks ahead of the next is recorded exactly as the next is, and the register says so", async () => {
+    // Group B meets tonight (week 3); week 5 is Tue 1 Dec.
+    assert.equal((await cantMake("chloe", "w03")).status, 200);
+    assert.equal((await cantMake("chloe", "w05")).status, 200);
+    const next = stored(B, 3);
+    const ahead = stored(B, 5);
+    assert.deepEqual(
+      [ahead.records, Object.keys(ahead.excusedInAdvance), ahead.weekNumber, ahead.occurrence, ahead.runId, ahead.groupId],
+      [next.records, Object.keys(next.excusedInAdvance), 5, 1, RUN.agi, B],
+    );
+    assert.equal(instant(ahead.sessionAt).toISOString(), "2026-12-01T18:00:00.000Z");
+    const answer = await registerAs("rahul");
+    assert.deepEqual(
+      answer.body.cantMakeIt.map((entry) => [entry.sessionKey, entry.dateKey, entry.uids]),
+      [
+        ["w03", "2026-11-17", ["chloe"]],
+        ["w05", "2026-12-01", ["chloe"]],
+      ],
+    );
+    // And taken back the same way.
+    assert.equal((await canAfterAll("chloe", "w05")).status, 200);
+    assert.deepEqual(stored(B, 5).records, {});
+  });
+
+  test("the ticket keeps a most weeks answer's list in step with the register", async () => {
+    world.db.poke(seatPath("chloe"), {
+      timeAnswer: { kind: "mostWeeks", reason: null, alternatives: null, sessionKeys: ["w05"], forGroupId: B, at: NOW },
+    });
+    assert.equal((await cantMake("chloe", "w04")).status, 200);
+    assert.deepEqual(answerOf("chloe").sessionKeys, ["w04", "w05"]);
+    assert.ok(instant(world.db.read(seatPath("chloe")).updatedAt).getTime() >= NOW.getTime());
+    // Taken back on the ticket: off the list. And what it never listed comes off nothing.
+    assert.equal((await canAfterAll("chloe", "w04")).status, 200);
+    assert.deepEqual(answerOf("chloe").sessionKeys, ["w05"]);
+    // A session listed that the register does not hold (it was never pressed here): taken back, it leaves the list.
+    assert.equal((await canAfterAll("chloe", "w05")).status, 200);
+    assert.deepEqual(answerOf("chloe"), { kind: "mostWeeks", reason: null, alternatives: null, sessionKeys: [], forGroupId: B, at: NOW });
+  });
+
+  test("no other answer is changed: a yes, a different time, and a most weeks about another group", async () => {
+    const answers = {
+      chloe: { kind: "yes", reason: null, alternatives: null, forGroupId: B, at: NOW },
+      farah: { kind: "cant", reason: "A lab then.", alternatives: "Mondays.", forGroupId: B, at: NOW },
+      kofi: { kind: "mostWeeks", reason: null, alternatives: null, sessionKeys: ["w05"], forGroupId: D, at: NOW },
+    };
+    for (const [uid, timeAnswer] of Object.entries(answers)) world.db.poke(seatPath(uid), { timeAnswer });
+    for (const uid of Object.keys(answers)) {
+      const before = world.db.read(seatPath(uid));
+      assert.equal((await cantMake(uid, "w04")).status, 200, uid);
+      assert.equal((await canAfterAll(uid, "w04")).status, 200, uid);
+      assert.deepEqual(world.db.read(seatPath(uid)), before, `${uid}'s seat changed`);
+    }
   });
 });
