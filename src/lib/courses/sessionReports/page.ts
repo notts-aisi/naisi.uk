@@ -33,6 +33,11 @@ import {
  * latest of the group's sessions that has started. Before the first, the
  * page says when reports open.
  *
+ * WHO CAME is the session's register as its marks stand when the page is
+ * drawn. The register leads here from the session's start, before it is
+ * finished, so while it is not, the form says the people listed are those
+ * marked so far; Send is checked against the marks again when it is pressed.
+ *
  * THE QUESTIONS are asked in the words of the session report's question set
  * (Run NAISI › Surveys › Question sets) as it stands when the form is drawn,
  * else the code's. The answers are kept by question, not by its words, so a
@@ -46,6 +51,8 @@ export type ReportFormProps = {
   leadFirstName: string;
   /** Who the register has down as here: who engaged well, who seemed not to have done the readings. */
   came: ReportPerson[];
+  /** False while the session's register is not finished, so `came` is the marks so far, and the form says so. */
+  registerFinished: boolean;
   /** Everybody on the register: who might need a hand. */
   inGroup: ReportPerson[];
   parts: ReportPart[];
@@ -123,6 +130,7 @@ export async function loadReportPage(
       sessionKey: chosen.sessionKey,
       leadFirstName: lead,
       came: session.came,
+      registerFinished: session.finished,
       inGroup: session.inGroup,
       parts: session.parts,
       answers: own?.answers ?? null,

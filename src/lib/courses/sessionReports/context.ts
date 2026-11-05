@@ -40,7 +40,8 @@ import { REPORT_REFUSAL } from "./words";
  * ── WHAT IT PICKS FROM ──────────────────────────────────────────────────────
  * The session's register: its rows as the writer sees them on the register
  * (`loadRegisterMembers`: the people Publish has told), never the group's own
- * facilitators, and who of them the register has down as here. The week's
+ * facilitators, and who of them the register has down as here, as its marks
+ * stand when asked, whether or not it is finished yet. The week's
  * parts come from the group's own copy of the week when it has one, the run's
  * otherwise: what the group read.
  */
@@ -106,6 +107,12 @@ export type ReportSession = {
   state: WindowState;
   /** False when the session's register says it did not happen. */
   held: boolean;
+  /**
+   * True once the session's register is finished (its push stamped). Until
+   * then `came` is the marks so far: the report opens at the session's start,
+   * and the register leads to it from then on, finished or not.
+   */
+  finished: boolean;
   /** Who the register has down as here, never the group's facilitators, by name. */
   came: ReportPerson[];
   /** Everybody on the register, never the group's facilitators, by name. */
@@ -162,6 +169,7 @@ export async function loadReportSession(
     // `reportWindowOf` has already refused one): the register's own switch
     // speaks only for a session that met.
     held: !session.cancelled && register.held !== false,
+    finished: Boolean(register.pushedAt),
     came,
     inGroup,
     parts,

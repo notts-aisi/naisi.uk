@@ -27,7 +27,7 @@ import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import { facilitatorGuideReader } from "@/lib/courses/facilitatorGuide/access";
 import { facilitatorGuidePath } from "@/lib/courses/facilitatorGuide/model";
 import { readGuideIndex } from "@/lib/courses/facilitatorGuide/store";
-import { guideForWeekWords } from "@/lib/courses/facilitatorGuide/words";
+import { FACILITATOR_GUIDE, guideForWeekWords } from "@/lib/courses/facilitatorGuide/words";
 import { loadFacilitatorGroup } from "@/lib/courses/facilitatorGroup";
 import { facilitatorExplainerOn } from "@/lib/courses/explainers/readers";
 import { hasDraw } from "@/lib/courses/packsAndCases/model";
@@ -105,11 +105,13 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * NOT DRAWN HERE: who can't make it tonight. The register says it, from the
  * moment somebody tells us, and the ticket's Take the register leads there.
  *
- * THE FACILITATOR GUIDE FOR THE WEEK ("Facilitator guide for week 3" on the
- * ticket) is drawn when that week of the course's facilitator guide has its
- * session plan or its notes loaded, and is asked of the guide's own gate
- * (`src/lib/courses/facilitatorGuide/access.ts`), which admits this page's
- * readers: the group's live facilitators and admins.
+ * THE FACILITATOR GUIDE, on the ticket: "Facilitator guide for week 3" is
+ * drawn when that week of the course's facilitator guide has its session
+ * plan or its notes loaded, and "Facilitator guide", to the guide's course
+ * page with every week, whenever the guide has anything loaded, so last
+ * week's is still a tap away once the ticket has moved on. Both are asked of
+ * the guide's own gate (`src/lib/courses/facilitatorGuide/access.ts`), which
+ * admits this page's readers: the group's live facilitators and admins.
  *
  * ── THE GATE IS TWO CHECKS, NOT ONE ─────────────────────────────────────────
  * `[runId]/layout.tsx` has already established that the caller holds SOME role
@@ -409,16 +411,23 @@ export default async function GroupHomePage({
   const facts = ticketFacts(sessionGroup);
   const todayKey = londonDateKey(now);
 
-  // "Facilitator guide for week 3" on the ticket, when the course's guide has
-  // that week, through the guide's own gate and its list of titles.
-  const guideReader = facts && facts.weekNumber >= 1 ? await facilitatorGuideReader(db, access.user, access.run.courseId) : null;
-  const guideWeeks = guideReader ? (await readGuideIndex(db, guideReader)).weeks.map((week) => week.weekNumber) : [];
+  // The course's facilitator guide on the ticket, through the guide's own
+  // gate and its list of titles: "Facilitator guide for week 3" when the guide
+  // has that week, and "Facilitator guide", its course page with every week,
+  // whenever it has anything loaded, so last week's is still a tap away.
+  const guideReader = facts ? await facilitatorGuideReader(db, access.user, access.run.courseId) : null;
+  const guideIndex = guideReader ? await readGuideIndex(db, guideReader) : null;
+  const guideWeeks = guideIndex ? guideIndex.weeks.map((week) => week.weekNumber) : [];
   const guide =
-    facts && guideWeeks.includes(facts.weekNumber)
+    facts && facts.weekNumber >= 1 && guideWeeks.includes(facts.weekNumber)
       ? {
           href: facilitatorGuidePath(access.run.courseId, { kind: "week", weekNumber: facts.weekNumber }),
           label: guideForWeekWords(facts.weekNumber),
         }
+      : null;
+  const guideContents =
+    guideIndex && (guideIndex.documents.length > 0 || guideIndex.weeks.length > 0)
+      ? { href: facilitatorGuidePath(access.run.courseId), label: FACILITATOR_GUIDE }
       : null;
 
   // The page's cards, drawn once, and placed below by the shape of the week.
@@ -441,6 +450,7 @@ export default async function GroupHomePage({
           expected={model.expected > 0 ? model.expected : null}
           registerHref={registerHref}
           guide={guide}
+          guideContents={guideContents}
           explainer={explainer}
         />
       )}

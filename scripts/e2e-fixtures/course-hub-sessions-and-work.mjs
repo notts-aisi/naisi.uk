@@ -12,9 +12,10 @@
  *
  * The spec (`tests/e2e/course-hub-sessions-and-work.spec.mjs`) is Ada and
  * Fern, Group A's facilitator, in that week. Ada presses Can't make it on
- * her next session's ticket, and Fern's register says so. Fern marks and
- * finishes week 3's register, follows its link to the session report and
- * sends one. Ada writes week 4's written answer, goes through the check and
+ * her next session's ticket, and Fern's register says so. Fern's register
+ * leads to week 3's session report before it is finished; Fern marks and
+ * finishes it, follows its link to the session report and sends one. Ada
+ * writes week 4's written answer, goes through the check and
  * submits anyway, and the week locks. Fern reopens it from This week's work,
  * Ada's week page says who did, and Ada changes the answer and submits again.
  * Last, the programme's lead opens the Surveys tab from the programme's
@@ -47,7 +48,7 @@ export const SESSIONS_AND_WORK_STEPS = [
   "the admin names the running course run on the programme's Settings tab",
   "the admin appoints the facilitator to the group whose register nobody has marked",
   "the member presses Can't make it on their next session's ticket, and the ticket says the register records them as excused",
-  "the facilitator's register says who can't make next week's session, and the facilitator marks this week's and finishes it",
+  "the facilitator's register says who can't make next week's session, leads to this week's session report before it is finished, and the facilitator marks this week's and finishes it",
   "the facilitator follows the finished register's link to the session report and sends one",
   "the member writes the week's written answer, goes through the check and submits anyway, and the week reads submitted and locked",
   "the facilitator reopens the member's week from This week's work",

@@ -12,8 +12,9 @@ import { getAdminDb } from "@/lib/firebase/admin";
 
 /**
  * A FACILITATOR'S SESSION REPORT: two minutes straight after the register,
- * on a phone. "Next: two minutes on how it went." under
- * a finished register leads here, naming its session (`?session=w03`).
+ * on a phone. "Next: two minutes on how it went." beside the register's
+ * check-in leads here from the session's start, finished or not, naming its
+ * session (`?session=w03`).
  *
  * THE GATE is the report route's own (`gateReportWriter`), restated because a
  * page's only protection must not be a level above it: a live facilitator of
