@@ -1,7 +1,8 @@
 import type { DropdownOption } from "@/components/ui/Dropdown";
 import { cardFit, facilitatedGroupOf, facilitatesWords } from "@/features/courses/allocationFit";
 import type { AllocGroup, AllocRow } from "@/features/courses/useAllocation";
-import { MARK_CANT_MAKE, MARK_CAN_MAKE } from "@/lib/courses/timeAnswer/words";
+import { weekOfSessionKey } from "@/lib/courses/timeAnswer/model";
+import { MARK_CANT_MAKE, MARK_CAN_MAKE, mostWeeksMark } from "@/lib/courses/timeAnswer/words";
 import * as words from "./peopleInGroupsWords";
 
 /**
@@ -85,9 +86,14 @@ export function marksOf(
   else if (!conflict && timed > 0 && row.fromForm?.availability === "given") {
     marks.push({ words: words.fitsNoneWords(timed), tone: "warn" });
   }
-  // Their answer to "Can you make this time?" about the group they are in
-  // (null unless told, and never for a group they have left).
+  // Their answer to "Can you make this time most weeks?" about the group
+  // they are in (null unless told, and never for a group they have left).
+  // Most weeks, not all, can make the time: a tick with the weeks they miss,
+  // never a warning, and nobody to move.
   if (row.timeAnswer?.kind === "yes") marks.push({ words: MARK_CAN_MAKE, tone: "ok" });
+  if (row.timeAnswer?.kind === "mostWeeks") {
+    marks.push({ words: mostWeeksMark(row.timeAnswer.sessionKeys.map(weekOfSessionKey)), tone: "ok" });
+  }
   if (row.timeAnswer?.kind === "cant") marks.push({ words: MARK_CANT_MAKE, tone: "warn" });
   if (coming) marks.push({ words: words.COMING, tone: "ok" });
   if (fit.gaveBack) marks.push({ words: words.GAVE_PLACE_BACK, tone: "warn" });

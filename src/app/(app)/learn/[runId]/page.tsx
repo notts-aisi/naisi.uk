@@ -131,13 +131,22 @@ export default async function RunHomePage({
   // and who gives them one.
   const leaveNote = leave !== null && "closed" in leave && leave.closed === "facilitating" ? leaveClosedLine(leave, access.run.courseTitle) : null;
 
-  // "Can you make this time?", for somebody taking part whom Publish has told
-  // their group (`timeQuestionFor`), from what the gate already read.
-  // Answering "I can't make this time" keeps their place: it is not the leave
-  // at the foot.
-  const timeQuestion = access.isEnrolled
-    ? timeQuestionFor({ user: access.user, runId: access.run.id, enrolment: access.enrolment, groups: access.groups })
-    : null;
+  // "Can you make this time most weeks?", for somebody taking part whom
+  // Publish has told their group (`timeQuestionFor`), from what the gate
+  // already read and one read of their group's registers still to come, so
+  // "Most weeks, not all" lists which sessions they already told us about.
+  // Every answer keeps their place: none is the leave at the foot. A read
+  // that fails draws nothing.
+  const timeQuestion =
+    access.isEnrolled && db
+      ? await timeQuestionFor(db, {
+          user: access.user,
+          run: access.run,
+          enrolment: access.enrolment,
+          groups: access.groups,
+          now: new Date(),
+        }).catch(() => null)
+      : null;
 
   // "Can't make it" on the next session's ticket, for somebody taking part in
   // the group, until the session starts: one read, of that session's

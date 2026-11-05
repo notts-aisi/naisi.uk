@@ -1,4 +1,5 @@
 import type { SessionSlot } from "@/lib/admissions/availability";
+import type { TimeAnswerView } from "@/lib/courses/timeAnswer/model";
 import type { Lean } from "../assessment/types";
 
 /**
@@ -20,8 +21,13 @@ export type RingPerson = {
   offered: boolean;
   /** Publish has told them their group: a suggestion leaves them in it. */
   told: boolean;
-  /** Their answer to "Can you make this time?" about the group they sit in, or null. Never sent to Claude. */
-  timeAnswer: { kind: "yes" | "cant"; reason: string | null; alternatives: string | null } | null;
+  /**
+   * Their answer to "Can you make this time most weeks?" about the group they
+   * sit in, or null: yes, most weeks with the sessions they can't make (who
+   * can make the time, and are nobody to move), or cant with why and what
+   * would work. Never sent to Claude.
+   */
+  timeAnswer: TimeAnswerView | null;
   /** The run's group they sit in now, or null. */
   groupId: string | null;
   /** The run's groups they facilitate, by id: they sit in that group and no other. */

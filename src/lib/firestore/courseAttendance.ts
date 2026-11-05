@@ -152,9 +152,11 @@ export type CourseAttendanceDoc = {
   /**
    * THE PEOPLE WHO TOLD US IN ADVANCE THAT THEY CAN'T MAKE THIS SESSION,
    * keyed by uid, with when they said so ("Can't make it" on their
-   * programme page, `src/lib/courses/cantMakeIt/`). Each one's mark in
-   * `records` is `excused`, set by the same write, before the session
-   * started. A facilitator who marks the person afterwards takes the line
+   * programme page, the sessions they ticked under "Most weeks, not all",
+   * or the sessions staff recorded from their own words under "They meant
+   * some weeks"; one write for all three, `writeExcusedInAdvance` in
+   * `src/lib/courses/cantMakeIt/seat.ts`). Each one's mark in `records` is
+   * `excused`, set by the same write, before the session started. A facilitator who marks the person afterwards takes the line
    * over: the marking route deletes their entry with the mark it came with.
    * The register shows it to the group's facilitators, the lead and admins,
    * and nobody else reads it.

@@ -144,12 +144,13 @@ export type AllocRow = {
    */
   putBack?: true;
   /**
-   * What they said to "can you make this time?" about the group they are in
-   * now: "yes", or "cant" with why and which other times would. Null before
-   * they answer, and always null for a viewer who is not an admin or the
-   * programme's lead (the route decides). Facilitators never reach this
-   * payload. The words for a card's mark are in
-   * `src/lib/courses/timeAnswer/words.ts`.
+   * What they said to "can you make this time most weeks?" about the group
+   * they are in now: "yes"; "mostWeeks" with the sessions they can't make
+   * (they can make the time, so nobody moves them for it); or "cant" with
+   * why and which other times would. Null before they answer, and always
+   * null for a viewer who is not an admin or the programme's lead (the route
+   * decides). Facilitators never reach this payload. The words for a card's
+   * mark are in `src/lib/courses/timeAnswer/words.ts`.
    */
   timeAnswer: TimeAnswerView | null;
 };

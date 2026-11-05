@@ -153,8 +153,9 @@ type Props = {
    */
   leaveNote?: string | null;
   /**
-   * "Can you make this time?", worked out by the server page for somebody
-   * taking part whom Publish has told their group (`timeQuestionFor`). Null
+   * "Can you make this time most weeks?", worked out by the server page for
+   * somebody taking part whom Publish has told their group
+   * (`timeQuestionFor`), with their group's sessions still to come. Null
    * draws nothing.
    */
   timeQuestion?: TimeQuestionView | null;

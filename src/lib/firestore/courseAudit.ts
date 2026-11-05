@@ -59,6 +59,14 @@ export type CourseAuditKind =
   /** A run was settled: enrolments closed out and completion decided. */
   | "run-settled"
   /**
+   * An admin or the programme's lead read somebody's answer of "No, I need a
+   * different time" as "Most weeks, not all" ("They meant some weeks",
+   * `src/lib/courses/timeAnswer/someWeeks.ts`), recording them excused on the
+   * sessions chosen. `subjectUid` is the person; `detail` names the sessions
+   * and never their words.
+   */
+  | "time-answer-changed"
+  /**
    * An admin handed the people who hold a place on a programme of the
    * application form over to this run's allocation board. One row for each
    * press that put anybody there, saying how many and from which programme.
@@ -107,6 +115,7 @@ export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "enrolment-dropout",
   "enrol-mode-change",
   "run-settled",
+  "time-answer-changed",
   "run-hand-over",
   "access-requirements-read",
   "application-decision",
@@ -129,6 +138,7 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "enrolment-dropout": "Member dropped out",
   "enrol-mode-change": "Enrolment mode changed",
   "run-settled": "Run settled",
+  "time-answer-changed": "Time answer read as most weeks",
   "run-hand-over": "People handed over from the application form",
   "access-requirements-read": "Access requirements read",
   "application-decision": "Application decided",

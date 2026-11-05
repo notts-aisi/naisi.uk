@@ -835,6 +835,8 @@ export default function Circles({ initial }: { initial: CirclesView }) {
                 onRole={(role) => setRole(chosen.uid, role)}
                 onFacilitate={(ring, add) => facilitateLive(ring, chosen.uid, add)}
                 onClose={() => setSelected(null)}
+                runId={option ? null : live.runId}
+                onAnswerChanged={(message) => void save(async () => ({ ok: true, lines: message ? [message] : [] }))}
               />
             ) : (
               <p className={styles.line}>{W.LEGEND}</p>

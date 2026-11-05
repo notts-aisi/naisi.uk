@@ -86,22 +86,68 @@ export const ENROLMENT_LIMITS = {
   /** Free text a member types when they leave. Optional, and never shown
       back to the cohort: the programme's lead and admins read it. */
   dropOutReason: 500,
-  /** Why their group's time does not work, from "I can't make this time".
+  /** Why their group's time does not work, from "No, I need a different time".
       Required with that answer; the programme's lead and admins read it. */
   timeAnswerReason: 500,
   /** Which other times would, from the same form. Required with it. */
   timeAnswerAlternatives: 300,
+  /**
+   * How many of the group's sessions one "Most weeks, not all" answer may
+   * name. A run's plan holds at most 60 weeks and a group meets at most
+   * twice a week, so no real answer comes near it: it bounds a body, and a
+   * stored list read back.
+   */
+  timeAnswerSessions: 120,
 } as const;
 
 /**
- * "CAN YOU MAKE THIS TIME?" (Zach, 29 Oct 2026): the person's own answer
- * about the group Publish told them, kept on their seat.
+ * A session's key as `sessionKey` in `src/lib/firestore/courses.ts` makes it,
+ * and as a register's id ends: "w03", or "w03-2" for a week's second session.
+ * The same pattern the ticket's "Can't make it" reads a press by
+ * (`src/lib/courses/cantMakeIt/model.ts`).
+ */
+const SESSION_KEY = /^w\d{2,3}(?:-[2-9])?$/;
+
+/** Whether a value is a session's key ("w03", "w03-2"). */
+export function isSessionKey(value: unknown): value is string {
+  return typeof value === "string" && SESSION_KEY.test(value);
+}
+
+/** Where a session key sorts: its week, then its occurrence, so "w03" < "w03-2" < "w10". */
+function sessionOrder(key: string): number {
+  const [week, occurrence] = key.slice(1).split("-");
+  return Number(week) * 10 + (occurrence ? Number(occurrence) : 1);
+}
+
+/** Session keys once each, in the group's order, the way an answer keeps them. */
+export function orderedSessionKeys(keys: readonly string[]): string[] {
+  return [...new Set(keys)].sort((a, b) => sessionOrder(a) - sessionOrder(b));
+}
+
+/**
+ * "CAN YOU MAKE THIS TIME MOST WEEKS?" (Zach, 29 Oct 2026, three answers
+ * from 5 Nov 2026): the person's own answer about the group Publish told
+ * them, kept on their seat.
  *
  *  - `yes`: they can make it.
- *  - `cant`: they can't make this time, why, and which other times would.
- *    It KEEPS their place and their seat and asks to be moved. It is not
- *    leaving (`src/lib/courses/leaveRun.ts`), which gives the place back,
- *    and nothing about it touches that path.
+ *  - `mostWeeks`: they can make it most weeks, not all. `sessionKeys` are
+ *    the group's sessions they said they can't make, by their registers'
+ *    keys, in the group's order (none is an answer too). Each is recorded as
+ *    excused on its register, the way the ticket's "Can't make it" records
+ *    it (`src/lib/courses/cantMakeIt/seat.ts`), and the ticket keeps this
+ *    list in step when it records or takes one back. They can make the
+ *    group's time: nobody moves them for it.
+ *  - `cant`: they need a different time most weeks, why, and which other
+ *    times would. It KEEPS their place and their seat and asks to be moved.
+ *    It is not leaving (`src/lib/courses/leaveRun.ts`), which gives the
+ *    place back, and nothing about it touches that path.
+ *
+ * Until 5 Nov 2026 the question had two answers, and some people who could
+ * not make one week answered `cant`. An admin or the programme's lead can
+ * read such an answer as `mostWeeks` ("They meant some weeks",
+ * `src/lib/courses/timeAnswer/someWeeks.ts`): the answer keeps the words the
+ * person wrote, so a `mostWeeks` answer has `reason` and `alternatives` only
+ * then.
  *
  * `forGroupId` is the group the answer was given about. A seat that changes
  * group has its answer deleted in the same write (every writer that clears
@@ -109,23 +155,36 @@ export const ENROLMENT_LIMITS = {
  * it is about the seat's group now (`currentTimeAnswer` in
  * `src/lib/courses/timeAnswer/model.ts`), so a stale answer can never show.
  *
- * Written only by `POST /api/courses/runs/[runId]/time-answer`, on the
- * caller's own seat. Read by the person, the programme's lead and admins,
- * never by facilitators or the rest of the group. Kept with the seat, so it
- * is deleted with the account and with the run.
+ * Written by `POST /api/courses/runs/[runId]/time-answer` on the caller's
+ * own seat, by the ticket's "Can't make it" (only a `mostWeeks` answer's
+ * list), and by staff reading a `cant` as `mostWeeks`. Read by the person,
+ * the programme's lead and admins, never by facilitators or the rest of the
+ * group, who see only the register. Kept with the seat, so it is deleted
+ * with the account and with the run.
  */
-export type TimeAnswerKind = "yes" | "cant";
+export type TimeAnswerKind = "yes" | "mostWeeks" | "cant";
 
-export type StoredTimeAnswer = {
-  kind: TimeAnswerKind;
-  /** Why the time does not work: set with `cant`, null with `yes`. */
-  reason: string | null;
-  /** Which other times would: set with `cant`, null with `yes`. */
-  alternatives: string | null;
-  /** The group it was given about. */
-  forGroupId: string;
-  at: Date | null;
-};
+export type StoredTimeAnswer =
+  | {
+      kind: "yes" | "cant";
+      /** Why the time does not work: set with `cant`, null with `yes`. */
+      reason: string | null;
+      /** Which other times would: set with `cant`, null with `yes`. */
+      alternatives: string | null;
+      /** The group it was given about. */
+      forGroupId: string;
+      at: Date | null;
+    }
+  | {
+      kind: "mostWeeks";
+      /** Their own words, kept when staff read a `cant` as most weeks; null otherwise. */
+      reason: string | null;
+      alternatives: string | null;
+      /** The sessions they can't make, by register key, in the group's order. */
+      sessionKeys: string[];
+      forGroupId: string;
+      at: Date | null;
+    };
 
 export type CourseEnrolmentDoc = {
   /** Firestore doc id: `courseEnrolmentId(runId, uid)`. */
@@ -369,16 +428,29 @@ function ownWords(v: unknown, max: number): string | null {
 
 /**
  * A stored answer, or undefined when it is not a whole one: a known kind, the
- * group it is about, and for `cant` both of what they wrote. A `yes` carries
- * no words, whatever the document holds.
+ * group it is about, for `cant` both of what they wrote, and for `mostWeeks`
+ * a list of the sessions they can't make (empty is a list). A `yes` carries
+ * no words, whatever the document holds; a `mostWeeks` keeps what staff kept
+ * of a `cant`'s words, and lists only session keys, once each, in order.
  */
 function asTimeAnswer(v: unknown): StoredTimeAnswer | undefined {
   if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
   const raw = v as Raw;
-  if (raw.kind !== "yes" && raw.kind !== "cant") return undefined;
+  if (raw.kind !== "yes" && raw.kind !== "cant" && raw.kind !== "mostWeeks") return undefined;
   if (typeof raw.forGroupId !== "string" || !raw.forGroupId) return undefined;
   if (raw.kind === "yes") {
     return { kind: "yes", reason: null, alternatives: null, forGroupId: raw.forGroupId, at: tsToDate(raw.at) };
+  }
+  if (raw.kind === "mostWeeks") {
+    if (!Array.isArray(raw.sessionKeys)) return undefined;
+    return {
+      kind: "mostWeeks",
+      reason: ownWords(raw.reason, ENROLMENT_LIMITS.timeAnswerReason),
+      alternatives: ownWords(raw.alternatives, ENROLMENT_LIMITS.timeAnswerAlternatives),
+      sessionKeys: orderedSessionKeys(raw.sessionKeys.filter(isSessionKey)).slice(0, ENROLMENT_LIMITS.timeAnswerSessions),
+      forGroupId: raw.forGroupId,
+      at: tsToDate(raw.at),
+    };
   }
   const reason = ownWords(raw.reason, ENROLMENT_LIMITS.timeAnswerReason);
   const alternatives = ownWords(raw.alternatives, ENROLMENT_LIMITS.timeAnswerAlternatives);

@@ -1,4 +1,5 @@
 import type { SessionSlot } from "@/lib/admissions/availability";
+import type { TimeAnswerView } from "@/lib/courses/timeAnswer/model";
 import type { PaintedWeek } from "../handover/paintedWeek";
 
 /**
@@ -72,10 +73,12 @@ export type ArrangePerson = {
    */
   marked?: readonly { weekday: number; start: number; end: number }[];
   /**
-   * Their answer to "Can you make this time?" about the group they sit in,
-   * for the admin's screen. Their own words: NEVER in anything sent to Claude.
+   * Their answer to "Can you make this time most weeks?" about the group they
+   * sit in, for the admin's screen. Nothing here plans by it: a told person
+   * stays where they are whatever they answered (rule 1). Their own words:
+   * NEVER in anything sent to Claude.
    */
-  timeAnswer?: { kind: "yes" | "cant"; reason: string | null; alternatives: string | null } | null;
+  timeAnswer?: TimeAnswerView | null;
 };
 
 export type ArrangeGroup = {
