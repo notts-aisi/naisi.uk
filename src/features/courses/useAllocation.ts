@@ -144,6 +144,18 @@ export type AllocRow = {
    */
   putBack?: true;
   /**
+   * Told about a group by Publish, and still on the run: the group they were
+   * told about, by id and by name (null when it has gone). What a page says
+   * after a move of theirs (`movedSentence`). Present only then.
+   */
+  told?: { groupId: string | null; groupName: string | null };
+  /**
+   * Told about a group and moved since: they see the group they are in now,
+   * and the next Publish emails them "You’ve moved". The name of the group
+   * they were told about, or null when it has gone. Present only then.
+   */
+  moved?: { from: string | null };
+  /**
    * What they said to "can you make this time most weeks?" about the group
    * they are in now: "yes"; "mostWeeks" with the sessions they can't make
    * (they can make the time, so nobody moves them for it); or "cant" with
@@ -179,6 +191,14 @@ export type PublishSummary = {
   gaveBack?: number;
   /** Facilitators already told about their group whom a press tells who has joined. Present only when there is somebody. */
   joined?: number;
+  /**
+   * People a press tells they have moved since they were told, listed apart
+   * from the people it tells their group: name, the group they are in now and
+   * the one they were told about. Present only when there is somebody.
+   */
+  moved?: { name: string; to: string; from: string | null }[];
+  /** Facilitators a press tells who is no longer in their group. Present only when there is somebody. */
+  left?: number;
   /** Who a press waits for a note, or "Send without a note", for. Present only when there is somebody. */
   notesNeeded?: string[];
   test: {

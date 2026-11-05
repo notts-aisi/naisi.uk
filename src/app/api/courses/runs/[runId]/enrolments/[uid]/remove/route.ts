@@ -222,6 +222,9 @@ export async function POST(_req: Request, ctx: Ctx) {
         // no current group any more, and a future re-placement must earn a
         // fresh placement email on the next publish.
         allocatedEmailAt: FieldValue.delete(),
+        // And the group it was about, beside it, as every writer that
+        // clears the stamp clears it.
+        toldGroupId: FieldValue.delete(),
         // An answer about the group's time was about a group they are no
         // longer in.
         timeAnswer: FieldValue.delete(),

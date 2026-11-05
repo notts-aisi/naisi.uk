@@ -38,10 +38,20 @@ export const TITLE = "Circles";
 export const LEDE =
   "Each ring is one of the run’s groups, with the people in it now. Click a person to see their week against every group’s time, what Claude made of their application and their Pangram flags, and to move them. A move saves straight away, as on People in groups. Nobody is emailed: Publish tells people their group. Only admins see this.";
 
-/** "40 on the run’s list · 34 in a group · 6 not in a group · 3 placed and not told yet". */
-export function countsLine(counts: { onList: number; inAGroup: number; notInAGroup: number; untold: number | null }): string {
+/**
+ * "40 on the run’s list · 34 in a group · 6 not in a group · 3 placed and not
+ * told yet · 2 moved since they were told".
+ */
+export function countsLine(counts: {
+  onList: number;
+  inAGroup: number;
+  notInAGroup: number;
+  untold: number | null;
+  moved?: number;
+}): string {
   const parts = [`${counts.onList} on the run’s list`, `${counts.inAGroup} in a group`, `${counts.notInAGroup} not in a group`];
   if (counts.untold !== null && counts.untold > 0) parts.push(`${counts.untold} placed and not told yet`);
+  if (counts.moved && counts.moved > 0) parts.push(`${counts.moved} moved since they were told`);
   return parts.join(" · ");
 }
 
@@ -70,6 +80,8 @@ export const FACILITATING = "Facilitating";
 export const LEAD = "Lead";
 export const BACK_UP = "Back-up";
 export const NOT_TOLD = "Not told yet";
+/** On a ring, somebody told their group and moved since: the next Publish emails them. */
+export const MOVED = "Moved";
 export const MOVES_IN = "Moves in";
 export const MOVE_HERE = "Move here";
 export const MOVE_HERE_CANT = "Move here (can’t make it)";
@@ -98,7 +110,7 @@ export const WARN = {
 };
 
 export const LEGEND =
-  "Click a person to see their week and what Claude made of their application, then click a ring, or a group on their chart, to move them. A red tag is somebody who didn’t mark that time as free, “!” is a Pangram flag, and “Not told yet” is somebody Publish hasn’t told their group.";
+  "Click a person to see their week and what Claude made of their application, then click a ring, or a group on their chart, to move them. A red tag is somebody who didn’t mark that time as free, “!” is a Pangram flag, “Not told yet” is somebody Publish hasn’t told their group, and “Moved” is somebody told their group and moved since, whom the next Publish emails.";
 
 // ---------------------------------------------------------------------------
 // One person
@@ -274,6 +286,18 @@ export function applyLabel(count: number): string {
 export const APPLYING = "Applying…";
 export const NOTHING_TO_APPLY = "This preview changes nothing: everybody in it is where they are now.";
 export const APPLY_LINE = "Only these are sent, in this order. Nobody is emailed: Publish tells people their group.";
+
+/**
+ * Under the list, when some of its moves are of people told their group,
+ * into a group other than the one they were told about: they see it at once,
+ * and the next Publish emails them. Null for none.
+ */
+export function toldMovesWords(count: number): string | null {
+  if (count <= 0) return null;
+  return count === 1
+    ? "1 of these moves is of somebody told their group: they see the new one at once, and the next Publish emails them that they have moved."
+    : `${count} of these moves are of people told their group: they see their new ones at once, and the next Publish emails each of them that they have moved.`;
+}
 export const CHANGES_TITLE = "What Apply would change";
 
 export const CHANGE = {

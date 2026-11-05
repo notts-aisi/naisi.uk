@@ -166,11 +166,28 @@ describe("1. the lead reads every register of their run", () => {
     assert.equal((await read("tom", C)).status, 403);
   });
 
-  test("somebody placed and not yet told is not on the lead's register, as on the facilitators'", async () => {
+  // CHANGED ON PURPOSE (November 2026). Until then a move after Publish made
+  // somebody untold, so this test moved Dev to make one. A move now keeps
+  // somebody told, so Dev is on Group A's register at once; somebody placed
+  // and not told (taken off the run and put back) still is not.
+  test("somebody told their group and moved after Publish is on the lead's register at once, as on the facilitators'", async () => {
     await join_.place("claudia", [{ uid: "dev", groupId: A }]);
-    const asLead = (await read("claudia", A)).body;
-    assert.deepEqual(asLead.members.map((member) => member.uid), ["bea"]);
-    assert.equal(asLead.notYetTold, true);
+    for (const who of ["claudia", "sofia"]) {
+      const body = (await read(who, A)).body;
+      assert.deepEqual(body.members.map((member) => member.uid).sort(), ["bea", "dev"], who);
+      assert.equal(body.notYetTold, false, who);
+    }
+  });
+
+  test("somebody placed and not yet told is not on the lead's register, as on the facilitators'", async () => {
+    const removed = await call("claudia", join_.routes.remove.POST, { runId: RUN.agi, uid: "dev" }, { course: true });
+    assert.equal(removed.status, 200, JSON.stringify(removed.body));
+    await join_.place("claudia", [{ uid: "dev", groupId: A }]);
+    for (const who of ["claudia", "sofia"]) {
+      const body = (await read(who, A)).body;
+      assert.deepEqual(body.members.map((member) => member.uid), ["bea"], who);
+      assert.equal(body.notYetTold, true, who);
+    }
   });
 });
 

@@ -1026,11 +1026,11 @@ describe("B. Publish: the number on its button is the emails a press sends, to t
     // move emails, in place of "Ready to publish".
     assert.deepEqual(seen.publishAfter.readiness.published, {
       when: stepOf(seen.overviewPublished, "publish").line,
-      later: "Someone you move now sees nothing of their new group until you publish again, which emails only the people who haven’t been told.",
+      later: "Once somebody has been told their group, moving them shows them the new one at once, and the next publish emails them that they have moved. Anybody you place who hasn’t been told sees nothing until you publish again.",
     });
     assert.ok(
       seen.publishAfter.text.startsWith(
-        "People in groups Publish AGI Strategy’s groups Ready? Published Published Tue 27 Oct, 10am. Someone you move now sees nothing of their new group until you publish again, which emails only the people who haven’t been told.",
+        "People in groups Publish AGI Strategy’s groups Ready? Published Published Tue 27 Oct, 10am. Once somebody has been told their group, moving them shows them the new one at once, and the next publish emails them that they have moved. Anybody you place who hasn’t been told sees nothing until you publish again.",
       ),
     );
     assert.equal(seen.publishAfter.readiness.ready, true);

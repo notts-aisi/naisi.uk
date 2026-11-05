@@ -42,8 +42,8 @@ export const GROUPS_GO_OUT_STEPS = [
   "Send a test to me emails the admin the first email of each kind, marked as a test",
   "Publish with the count on its button emails each person placed and the facilitator once",
   "a person placed sees their group and its first session on their programme page",
-  "a person moved after Publish sees nothing of the run until Publish is pressed again",
-  "Publish again emails only the person moved, who then sees their new group",
+  "a person moved after Publish sees their new group at once, and the board says the next press emails them",
+  "Publish again emails the person moved that they have moved, never their first email, and tells the group they left",
   "the facilitator sees their group, its roster and its register",
   "every email went to the send log, and none carries the meeting link",
 ];
@@ -124,6 +124,12 @@ export const SPEC = {
    * to the card. Run against the harness's loopback server at f2865f3b (on
    * dev's a788b495): all fourteen steps, the same 45 rows before teardown, and
    * a manifest of zero.
+   *
+   * CHANGED in November 2026 for moves of people already told their group:
+   * steps 11 and 12 hold that a move keeps Ben told (he reads Group B at
+   * once, and his card says the next press emails him), and that the next
+   * press sends him "You’ve moved", never the first email again, and tells
+   * Fern he is no longer in Group A. The last step counts Fern's third email.
    */
   status: "verified",
   seed: ({ runId, suppress, onState }) =>

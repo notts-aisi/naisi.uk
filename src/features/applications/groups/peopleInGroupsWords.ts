@@ -99,6 +99,23 @@ export function invitedWords(on: string | null, fits: readonly string[]): string
 export const NOT_TOLD_YET = "Not told yet";
 
 /**
+ * Over the board once the groups are published: "2 moved since they were
+ * told: Ana and Raj. Publish to email them their new group." First names, in
+ * the board's order. The link is "Publish to email them". Somebody moved back
+ * to the group they were told about is not in it.
+ */
+export function movedSinceWords(firstNames: readonly string[]): { lead: string; link: string } {
+  const names =
+    firstNames.length <= 1
+      ? (firstNames[0] ?? "")
+      : `${firstNames.slice(0, -1).join(", ")} and ${firstNames[firstNames.length - 1]}`;
+  return {
+    lead: `${firstNames.length} moved since they were told: ${names}. They see their new group now.`,
+    link: firstNames.length === 1 ? "Publish to email them about it" : "Publish to email each of them about it",
+  };
+}
+
+/**
  * Over the board once the groups are published: "3 placed since you
  * published: Ana, Raj and Tom. Publish to tell them." First names, in the
  * board's order. The link is "Publish to tell them".
@@ -180,9 +197,12 @@ export function gaveBackTitle(count: number): string {
 /** The note under the board before Publish has been pressed, the board's. */
 export const BEFORE_PUBLISH = "People see their group only when you publish. Until then, moving people emails nobody.";
 
-/** The note once it has been. */
+/**
+ * The note once it has been. Somebody told their group is never hidden by a
+ * move: they see the new one at once, and the next Publish tells them.
+ */
 export const AFTER_PUBLISH =
-  "People see their group only when you publish. Somebody you move now sees nothing of the new one until you publish again, which tells them.";
+  "People see their group only when you publish. Somebody told their group sees a move at once, and your next publish emails them that they have moved. Anybody you place who hasn’t been told sees nothing until you publish again.";
 
 /** Somebody holding a place who has not been handed over to the run, in the To place column. */
 export function notOnTheRunWords(count: number, admin: boolean): string {

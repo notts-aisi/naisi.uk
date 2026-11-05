@@ -8,6 +8,8 @@ import {
   readGroupSessions,
   type PlannedFacilitator,
   type PlannedJoined,
+  type PlannedLeft,
+  type PlannedMoved,
   type PlannedPerson,
 } from "@/lib/courses/allocationPublish";
 import type { PreviewEmail, PreviewKind, PublishPreview } from "@/lib/courses/getReady/preview";
@@ -50,14 +52,19 @@ import { isPushConfigured } from "@/lib/push/config";
  * of our own (and the first such email, when the first person's carries
  * none), who it waits for a choice for, and which of the people have the
  * phone notification that mirrors their email switched on, each read from
- * the same plan and the same batch as the press.
+ * the same plan and the same batch as the press. And, listed apart from the
+ * people told their group for the first time, everybody moved since they
+ * were told, with where each is now and the group they were told about, and
+ * the first "You’ve moved" and "no longer in" emails.
  */
 
 type Ctx = { params: Promise<{ runId: string }> };
 
+type AnyRecipient = PlannedPerson | PlannedMoved | PlannedFacilitator | PlannedJoined | PlannedLeft;
+
 /** Each person once, in the order given, by the whole name on their account. */
 function namesOf(
-  recipients: readonly (PlannedPerson | PlannedFacilitator | PlannedJoined)[],
+  recipients: readonly AnyRecipient[],
   fullName: (uid: string, fallback: string) => string,
 ): PreviewKind["names"] {
   const seen = new Set<string>();
@@ -71,7 +78,7 @@ function namesOf(
 }
 
 async function drawn(
-  recipient: PlannedPerson | PlannedFacilitator | PlannedJoined | null,
+  recipient: AnyRecipient | null,
   fromName: string | undefined,
   fullName: (uid: string, fallback: string) => string,
 ): Promise<PreviewEmail | null> {
@@ -128,7 +135,9 @@ export async function GET(_req: Request, ctx: Ctx) {
 
   const batch = pressBatch(plan);
   // The whole name on each account, as the programme's tabs name people.
-  const uids = [...new Set([...batch.people, ...batch.facilitators, ...batch.joined].map((recipient) => recipient.uid))];
+  const uids = [
+    ...new Set([...batch.people, ...batch.moved, ...batch.facilitators, ...batch.joined, ...batch.left].map((recipient) => recipient.uid)),
+  ];
   const accounts = uids.length ? await db.getAll(...uids.map((uid) => db.collection("users").doc(uid))) : [];
   const nameByUid = new Map(accounts.filter((snap) => snap.exists).map((snap) => [snap.id, fullNameOfUser(snap.data() ?? {})] as const));
   const fullName = (uid: string, fallback: string) => nameByUid.get(uid) ?? fallback;
@@ -141,8 +150,10 @@ export async function GET(_req: Request, ctx: Ctx) {
   };
 
   const person = batch.people.find((candidate) => candidate.email) ?? null;
+  const moved = batch.moved.find((candidate) => candidate.email) ?? null;
   const facilitator = batch.facilitators.find((candidate) => candidate.email) ?? null;
   const joined = batch.joined.find((candidate) => candidate.email) ?? null;
+  const left = batch.left.find((candidate) => candidate.email) ?? null;
   const notedUids = new Set(plan.outside.filter((entry) => entry.note.state === "noted").map((entry) => entry.uid));
   const notedPeople = batch.people.filter((candidate) => notedUids.has(candidate.uid));
   const notedFirst =
@@ -155,6 +166,17 @@ export async function GET(_req: Request, ctx: Ctx) {
       names: namesOf(batch.people, fullName),
       email: await drawn(person, plan.templates.allocated.fromName, fullName),
     },
+    moved: {
+      emails: batch.moved.length,
+      names: namesOf(batch.moved, fullName),
+      email: await drawn(moved, plan.templates.allocated.fromName, fullName),
+    },
+    moves: batch.moved.map((recipient) => ({
+      uid: recipient.uid,
+      name: fullName(recipient.uid, recipient.name),
+      to: recipient.groupName.trim() || "a group with no name",
+      from: recipient.fromGroupName,
+    })),
     facilitators: {
       emails: batch.facilitators.length,
       names: namesOf(batch.facilitators, fullName),
@@ -164,6 +186,11 @@ export async function GET(_req: Request, ctx: Ctx) {
       emails: batch.joined.length,
       names: namesOf(batch.joined, fullName),
       email: await drawn(joined, plan.templates.facilitating.fromName, fullName),
+    },
+    left: {
+      emails: batch.left.length,
+      names: namesOf(batch.left, fullName),
+      email: await drawn(left, plan.templates.facilitating.fromName, fullName),
     },
     noted: namesOf(notedPeople, fullName),
     notedEmail: await drawn(notedFirst, plan.templates.allocated.fromName, fullName),

@@ -14,10 +14,10 @@
  *
  *  - THE COHORT LANE, through `resolveCohortAudience`: the run email's
  *    announcement. Its audience is the run's mailing list, which Publish puts
- *    people on. Somebody moved to another group after Publish is still on the
- *    list, and is left out, not counted as skipped, until Publish tells them
- *    their new group. It is asked here about one group as well as the whole
- *    run;
+ *    people on. Somebody told their group and moved to another after Publish
+ *    is still on the list and still told, so they are reached in the group
+ *    they are in now at once, and never in the one they left. It is asked
+ *    here about one group as well as the whole run;
  *  - THE NOTICES ("Week N is open", the reminders before a session, the run
  *    email's notice, an update's email) ask `resolveNoticeAudience`, which
  *    puts the same question to each place. That is held in
@@ -69,7 +69,7 @@ describe("the cohort lanes reach the people Publish has told, and nobody it has 
     assert.deepEqual(await reachRun(), ["amara", "bea", "dev", "tariq"]);
   });
 
-  test("somebody moved after Publish is left out of every lane, not counted as skipped, until Publish tells them", async () => {
+  test("somebody told their group and moved after Publish is reached in the group they are in now at once, and never the one they left", async () => {
     await steps.published();
     await steps.place([{ uid: "amara", groupId: GROUP.monday }]);
     // Still on the run's list: Publish put them there and a move takes nobody off.
@@ -81,10 +81,12 @@ describe("the cohort lanes reach the people Publish has told, and nobody it has 
     assert.equal(rows.length, 1);
     assert.equal(rows[0].subscribed, true);
 
-    assert.deepEqual(await reach(GROUP.monday), { uids: ["bea", "dev"], skipped: 0 });
+    // Still told: a move never hides somebody told about a group.
+    assert.deepEqual(await reach(GROUP.monday), { uids: ["amara", "bea", "dev"], skipped: 0 });
     assert.deepEqual(await reach(GROUP.thursday), { uids: ["tariq"], skipped: 0 });
-    assert.deepEqual(await reachRun(), ["bea", "dev", "tariq"]);
+    assert.deepEqual(await reachRun(), ["amara", "bea", "dev", "tariq"]);
 
+    // The next press tells her she moved, and changes nobody's reach.
     await steps.publishes();
     assert.deepEqual(await reach(GROUP.monday), { uids: ["amara", "bea", "dev"], skipped: 0 });
     assert.deepEqual(await reachRun(), ["amara", "bea", "dev", "tariq"]);
@@ -101,9 +103,10 @@ describe("the cohort lanes reach the people Publish has told, and nobody it has 
 
 /**
  * What one message the mail door was handed is: Publish's placement email,
- * its facilitators' email ("You’re facilitating"), or the presser's test of
- * either, which is marked in its subject and logged as a test. Anything else
- * is answered with its own kind and subject, so a comparison names it.
+ * its facilitators' email ("You’re facilitating"), its "You’ve moved", "has
+ * joined" and "no longer in", or the presser's test of any of them, which is
+ * marked in its subject and logged as a test. Anything else is answered with
+ * its own kind and subject, so a comparison names it.
  */
 function whatItIs(mail) {
   const test = mail.subject.startsWith("[TEST] ");
@@ -116,7 +119,13 @@ function whatItIs(mail) {
     ? "placement"
     : subject.startsWith("You’re facilitating ")
       ? "facilitating"
-      : `${mail.kind}: ${mail.subject}`;
+      : subject.startsWith("You’ve moved to ")
+        ? "moved"
+        : / (has|have) joined /.test(subject)
+          ? "joined"
+          : subject.includes(" no longer in ")
+            ? "no longer in"
+            : `${mail.kind}: ${mail.subject}`;
   return test ? `test of ${what}` : what;
 }
 
@@ -130,7 +139,7 @@ const sentTo = (what) =>
 const addressOf = (uid) => world.db.read(`users/${uid}`).email;
 
 describe("Publish itself is the one email before which nothing reaches them", () => {
-  test("placing everybody emails nobody; Publish emails each person once; a move emails nobody", async () => {
+  test("placing everybody emails nobody; Publish emails each person once; a move emails nobody until the next press", async () => {
     await steps.placed();
     assert.equal(world.mail.length, 0);
     await steps.publishes();
@@ -162,5 +171,19 @@ describe("Publish itself is the one email before which nothing reaches them", ()
     world.mail.length = 0;
     await steps.place([{ uid: "dev", groupId: GROUP.thursday }]);
     assert.equal(world.mail.length, 0, "a move after Publish emailed somebody");
+    // The next press: a test of the email it would send him first (the
+    // wording in force has a test already, so the press needs no new one),
+    // then "You’ve moved" to him, and "Dev has joined" to Tess. Claudia, the
+    // group he left, leads the programme and is never written to about it.
+    const tested = await steps.sendTest();
+    assert.equal(tested.status, 200, JSON.stringify(tested.body));
+    assert.deepEqual(world.mail.map(whatItIs), ["test of moved", "test of joined"]);
+    world.mail.length = 0;
+    await steps.publishes();
+    assert.deepEqual(world.mail.map(whatItIs), ["moved", "joined"]);
+    assert.deepEqual(sentTo("joined"), [addressOf("tess")]);
+    assert.deepEqual(sentTo("moved"), [addressOf("dev")]);
+    // Never the first email to somebody told.
+    assert.deepEqual(sentTo("placement"), []);
   });
 });

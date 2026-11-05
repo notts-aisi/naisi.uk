@@ -26,8 +26,12 @@ import {
 } from "@/lib/firestore/courseApplications";
 import {
   courseEnrolmentId,
+  enrolmentHasLeft,
   enrolmentIsPutBack,
+  movedSinceTold,
   normalizeCourseEnrolment,
+  placementIsTold,
+  groupToldAbout,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
 import { compareGroupsByMeeting, normalizeCourseGroup } from "@/lib/firestore/courseGroups";
@@ -181,6 +185,20 @@ export type AllocRow = {
    */
   putBack?: true;
   /**
+   * Told about a group by Publish, and still on the run (`placementIsTold`):
+   * the group they were told about (`groupToldAbout`), by id and by name (null
+   * when it has gone). What the board says after a move of theirs. Present
+   * only then, so every other row is exactly as it was.
+   */
+  told?: { groupId: string | null; groupName: string | null };
+  /**
+   * Told about a group and moved since (`movedSinceTold`): they see the group
+   * they are in now, and the next Publish emails them "You’ve moved". The
+   * name of the group they were told about, or null when it has gone.
+   * Present only then, so every other row is exactly as it was.
+   */
+  moved?: { from: string | null };
+  /**
    * Their answer to "can you make this time most weeks?" about the group
    * they are in now (`currentTimeAnswer`: an answer about a group they were
    * moved out of is never here): "yes"; "mostWeeks" with the sessions they
@@ -239,6 +257,18 @@ export type PublishSummary = {
    * is exactly as it was before this was counted.
    */
   gaveBack?: number;
+  /**
+   * Everybody a press tells they have moved since they were told, listed
+   * apart from the people it tells their group for the first time: name,
+   * the group they are in now, and the one they were told about. Counted in
+   * `emails`. Present only when there is somebody.
+   */
+  moved?: { name: string; to: string; from: string | null }[];
+  /**
+   * How many facilitators a press tells who is no longer in their group:
+   * counted in `emails`. Present only when there is somebody.
+   */
+  left?: number;
   test: {
     state: TestState;
     /** "5:38pm", or "Mon 26 Oct at 5:38pm" on another day. Null with no test. */
@@ -379,6 +409,11 @@ export async function GET(
     .map((d) => normalizeCourseGroup(d.id, d.data() ?? {}))
     .filter((g) => !g.archived)
     .sort(compareGroupsByMeeting);
+  /** A group of the run by id, archived or not, by name: null when it has gone or has none. */
+  const nameById = new Map(
+    groupSnap.docs.map((d) => [d.id, normalizeCourseGroup(d.id, d.data() ?? {}).name.trim()] as const),
+  );
+  const groupNameOf = (groupId: string | null): string | null => (groupId ? nameById.get(groupId) || null : null);
 
   // The join is by CONSTRUCTION, not by query: the enrolment doc id is
   // `courseEnrolmentId(runId, uid)`, so each accepted applicant's enrolment —
@@ -478,6 +513,13 @@ export async function GET(
   const people: AllocRow[] = accepted.map((app) => {
     const enrolment = enrolmentByUid.get(app.uid) ?? null;
     const fromForm = app.fromForm !== null ? (formFacts.get(app.uid) ?? null) : null;
+    // Told about a group, and still on the run: the group they were told
+    // about, read by name from every group of the run, archived ones too.
+    const toldAbout =
+      enrolment && enrolment.role === "learner" && !enrolmentHasLeft(enrolment.status) && placementIsTold(enrolment)
+        ? groupToldAbout(enrolment)
+        : undefined;
+    const told = toldAbout === undefined ? null : { groupId: toldAbout, groupName: groupNameOf(toldAbout) };
     return {
       uid: app.uid,
       displayName: nameByUid.get(app.uid) ?? app.displayName ?? "NAISI member",
@@ -502,6 +544,9 @@ export async function GET(
           }
         : null,
       ...(enrolment && enrolmentIsPutBack(enrolment) ? { putBack: true as const } : {}),
+      ...(told ? { told } : {}),
+      // And moved since: the next Publish emails them "You’ve moved".
+      ...(told && enrolment && movedSinceTold(enrolment) ? { moved: { from: told.groupName } } : {}),
       timeAnswer: readsAnswers && enrolment ? currentTimeAnswer(enrolment) : null,
     };
   });
@@ -536,6 +581,16 @@ export async function GET(
     emptyGroups: plan.emptyGroups,
     refusals: plan.refusals,
     ...(batch.joined.length > 0 ? { joined: batch.joined.length } : {}),
+    ...(batch.moved.length > 0
+      ? {
+          moved: batch.moved.map((recipient) => ({
+            name: recipient.name,
+            to: recipient.groupName.trim() || "a group with no name",
+            from: recipient.fromGroupName,
+          })),
+        }
+      : {}),
+    ...(batch.left.length > 0 ? { left: batch.left.length } : {}),
     ...(plan.notesNeeded.length > 0 ? { notesNeeded: plan.notesNeeded } : {}),
     ...(plan.gaveBack.length > 0 ? { gaveBack: plan.gaveBack.length } : {}),
     test: {

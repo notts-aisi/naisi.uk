@@ -313,12 +313,14 @@ export const NOT_READY_CHIP = "Not ready yet";
 export const PUBLISHED_CHIP = "Published";
 /**
  * Under the card's head once published, after when (`publishedWords`, the
- * Overview's checklist's words): what a later move emails, true of what the
- * site does (`AFTER_YOU_PUBLISH`, said before the press, is the same fact).
- * Not drawn: listed in the build notes for the boards' designers to confirm.
+ * Overview's checklist's words): what a later move does and emails, true of
+ * what the site does (`AFTER_YOU_PUBLISH`, said before the press, is the same
+ * fact). Somebody told their group is never hidden by a move, and the next
+ * press tells them they have moved. Not drawn: listed in the build notes for
+ * the boards' designers to confirm.
  */
 export const AFTER_PUBLISHED =
-  "Someone you move now sees nothing of their new group until you publish again, which emails only the people who haven’t been told.";
+  "Once somebody has been told their group, moving them shows them the new one at once, and the next publish emails them that they have moved. Anybody you place who hasn’t been told sees nothing until you publish again.";
 export const NEEDED_TITLE = "Needed to publish";
 export const WORTH_TITLE = "Worth checking";
 export const WORTH_LINE = "These don’t stop you publishing.";
@@ -424,6 +426,16 @@ export const EMAIL_CARD = {
     title: "Who has joined",
     line: "To each facilitator already told about their group, naming who has joined it since, by first name.",
   },
+  /** "You’ve moved to Group H", to each person moved since they were told their group. */
+  moved: {
+    title: "You’ve moved",
+    line: "To each person moved since they were told their group, with their new group, when it next meets and the group it replaces.",
+  },
+  /** "Ana is no longer in Group D", to each facilitator told about a group somebody moved out of. */
+  left: {
+    title: "No longer in their group",
+    line: "To each facilitator told about a group somebody moved out of, naming who by first name, and never where they went.",
+  },
   people: {
     title: "Your group",
     line: "To each person, with their group, day, room and facilitators’ first names.",
@@ -461,12 +473,13 @@ export const NAMES_SHOWN = 6;
  * The sentence above the buttons, true of what the site does after Publish
  * (the Publish view's design says "After you publish, moving someone emails just them
  * and their facilitators. Changing a group’s day or room emails that group.",
- * which the site does not do): a move takes the person's group away from
- * them until Publish is pressed again, which emails only the people not told
- * yet, and one week's change of a session can tell its group.
+ * which the site does not do as the move happens): a move shows somebody
+ * told their group the new one at once, and the next press emails them that
+ * they have moved and tells both groups' facilitators; one week's change of a
+ * session can tell its group.
  */
 export const AFTER_YOU_PUBLISH =
-  "After you publish, someone you move sees nothing of their new group until you publish again, which emails only the people who haven’t been told. Change a session can tell a group about one week.";
+  "After you publish, moving somebody shows them their new group at once, and the next publish emails them that they have moved. Anybody you place later sees nothing until you publish again. Change a session can tell a group about one week.";
 
 // ---------------------------------------------------------------------------
 // "Remind 3 people", on the card of who has not said when they are free
@@ -561,6 +574,16 @@ export function facilitatingCountWords(count: number): string {
 /** "“Who has joined” to 2 facilitators already told about their group". */
 export function joinedCountWords(count: number): string {
   return `“Who has joined” to ${count} ${count === 1 ? "facilitator" : "facilitators"} already told about their group`;
+}
+
+/** "“You’ve moved” to 2 people moved since they were told". */
+export function movedCountWords(count: number): string {
+  return `“You’ve moved” to ${peopleWords(count)} moved since they were told`;
+}
+
+/** "“No longer in their group” to 1 facilitator". */
+export function leftCountWords(count: number): string {
+  return `“No longer in their group” to ${count} ${count === 1 ? "facilitator" : "facilitators"}`;
 }
 
 /** Whose "Your group" email carries a note of our own words, above the site's details. */

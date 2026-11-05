@@ -2755,7 +2755,7 @@ service cloud.firestore {
     // === told placements ===
     // Whether a courseEnrolments row is a placement its owner has been told:
     // a facilitator's row, a seat they took on an open run, or one Publish
-    // has emailed them about (a move deletes that stamp). The pages keep the
+    // has emailed them about (a move keeps that stamp). The pages keep the
     // same rule in `placementIsTold` (src/lib/firestore/courseEnrolments.ts),
     // and course-placements-told.test.mjs fails if the two differ. Read each
     // field with its default, as the normaliser does.

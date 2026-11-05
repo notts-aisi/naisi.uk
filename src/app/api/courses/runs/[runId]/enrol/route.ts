@@ -735,10 +735,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
         updatedAt: FieldValue.serverTimestamp(),
       };
       if (movingGroup) {
-        // The stamp certifies "emailed about their CURRENT group"; a changed
-        // session invalidates it, exactly as it does on the allocate route,
-        // and so is an answer about the time of the session they leave.
+        // A seat somebody took for themselves is told by their own choice,
+        // so a session they change to themselves is one they know: no
+        // stamp, and no group they were told about, is kept for it, and the
+        // next Publish owes them nothing. An answer about the time of the
+        // session they leave goes with it.
         patch.allocatedEmailAt = FieldValue.delete();
+        patch.toldGroupId = FieldValue.delete();
         patch.timeAnswer = FieldValue.delete();
       }
       tx.update(enrolmentRef, patch);

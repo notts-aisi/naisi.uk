@@ -42,6 +42,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Dropdown, { type DropdownOption } from "@/components/ui/Dropdown";
 import { divergenceNote, type GroupDivergenceInput } from "@/lib/courses/groupResolve";
+import { MOVED_CARD_WHY, movedBatchSentence, movedCardWords, movedSentence } from "@/lib/courses/moveWords";
 import { sessionLabelWords } from "@/lib/courses/outsideTheirTimes";
 import { emailsLabel, publishConfirmText, publishResultLines } from "@/lib/courses/publishWords";
 import AllocationPublish from "./AllocationPublish";
@@ -421,9 +422,18 @@ function PersonCardBody({
             <span className={styles.srOnly}>: {row.reviewerNotes}</span>
           </li>
         ) : null}
+        {/* Told about another group and moved since: they see this one, and
+            the next Publish emails them "You’ve moved". */}
+        {row.moved ? (
+          <li className={styles.chipWarn} title={MOVED_CARD_WHY}>
+            {movedCardWords(row.moved.from)}
+          </li>
+        ) : null}
         {/* What became of their group's email, as Publish recorded it: a
-            held or stopped email is not "Emailed", and the card says so. */}
-        {row.allocatedEmailAt ? (
+            held or stopped email is not "Emailed", and the card says so.
+            Not for somebody moved since: that email was about another
+            group, and the card says the next Publish emails them. */}
+        {row.allocatedEmailAt && !row.moved ? (
           row.allocatedEmailDelivery === "held" ? (
             <li className={styles.chipWarn} title="This copy of the site doesn't email that address, so nothing went.">
               Email held
@@ -1021,15 +1031,31 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
     [runPlacements, raiseError, runAction],
   );
 
-  /** Drag, keyboard drop, and the per-card menu all land here. */
+  /**
+   * Drag, keyboard drop, and the per-card menu all land here. A move sends
+   * nothing; for somebody who already knows their group it leaves a sentence
+   * saying what it did (they see their new group at once, and the next
+   * Publish emails them), beside any note about the group's weeks.
+   */
   const moveOne = useCallback(
     (uid: string, columnId: string) => {
       const fromColumnId = columnIdOf(uid);
       if (fromColumnId === columnId) return;
-      setMoveNote(divergenceMessage(fromColumnId, columnId, nameOf(uid)));
-      void commit([{ uid, groupId: groupIdForColumn(columnId) }], null);
+      const row = peopleByUid.get(uid);
+      const toGroupId = groupIdForColumn(columnId);
+      const told = row?.told
+        ? movedSentence({
+            name: nameOf(uid),
+            toldGroupId: row.told.groupId,
+            toldGroupName: row.told.groupName,
+            to: toGroupId ? { id: toGroupId, name: columnNameOf(columnId) } : null,
+          })
+        : null;
+      const note = divergenceMessage(fromColumnId, columnId, nameOf(uid));
+      setMoveNote([told, note].filter(Boolean).join(" ") || null);
+      void commit([{ uid, groupId: toGroupId }], null);
     },
-    [columnIdOf, commit, divergenceMessage, nameOf],
+    [columnIdOf, columnNameOf, commit, divergenceMessage, nameOf, peopleByUid],
   );
 
   const moveSelection = useCallback(
@@ -1051,7 +1077,16 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
         note = divergenceMessage(from, columnId, who);
         if (note) break;
       }
-      setMoveNote(note);
+      // How many of them knew another group: they see this one at once, and
+      // the next Publish emails them.
+      const toGroupId = groupIdForColumn(columnId);
+      const movedOn = toGroupId
+        ? moving.filter((uid) => {
+            const told = peopleByUid.get(uid)?.told;
+            return told !== undefined && told.groupId !== toGroupId;
+          }).length
+        : 0;
+      setMoveNote([movedBatchSentence(movedOn, columnNameOf(columnId)), note].filter(Boolean).join(" ") || null);
       const where = columnNameOf(columnId);
       setSelectedUids(new Set());
       void commit(placements, {
@@ -1059,7 +1094,7 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
         success: `${n} ${plural(n, "person", "people")} → ${where}`,
       });
     },
-    [liveSelection, columnIdOf, columnNameOf, commit, divergenceMessage, nameOf],
+    [liveSelection, columnIdOf, columnNameOf, commit, divergenceMessage, nameOf, peopleByUid],
   );
 
   const handleRemove = useCallback(
@@ -1157,6 +1192,8 @@ export default function AllocationBoard({ courseId, runId, runEditorHref }: Prop
           emptyGroups: summary.emptyGroups,
           gaveBack: summary.gaveBack ?? 0,
           joined: summary.joined ?? 0,
+          moved: summary.moved?.length ?? 0,
+          left: summary.left ?? 0,
           republish: data.run.allocationPublishedAt != null,
         }),
       )

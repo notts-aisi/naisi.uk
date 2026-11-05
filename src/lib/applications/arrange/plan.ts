@@ -63,6 +63,14 @@ export type ArrangePerson = {
   /** Publish has told them their group: they stay in it. */
   told: boolean;
   /**
+   * For the admin's screen, never the plan: the group they were told about
+   * (null when nobody has told them), and, when they were moved since, its
+   * name (null when it is not one of the run's live groups). The next
+   * Publish emails somebody moved "You’ve moved".
+   */
+  toldGroupId?: string | null;
+  moved?: { from: string | null } | null;
+  /**
    * The run's groups they facilitate, by id: they sit in that group and in no
    * other (the allocate route refuses anything else), so they stay there.
    */

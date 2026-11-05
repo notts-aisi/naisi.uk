@@ -9,8 +9,8 @@
  * The course hub boards: somebody sees their group only once it has
  * been published and emailed. An admin's placement on the allocation board
  * makes the seat at once, and the seat is the board's working copy until
- * Publish emails its owner the group they are in now (`allocatedEmailAt` on
- * the enrolment; a move clears it). One predicate says so,
+ * Publish emails its owner about a group (`allocatedEmailAt` on the
+ * enrolment, which no move clears). One predicate says so,
  * `placementIsTold` in `src/lib/firestore/courseEnrolments.ts`, and its
  * viewer form `placementIsShownTo` shows an untold placement to admins alone.
  *
@@ -25,8 +25,10 @@
  *    email, sends it to the presser, and changes nothing anybody reads. The
  *    press after it stamps, and so shows, exactly the people it wrote to:
  *    somebody whose email failed reads nothing until a press reaches them.
- *  - MOVED AFTER PUBLISH: untold again. They read nothing of the run until
- *    Publish is pressed again, which emails them alone their new group.
+ *  - MOVED AFTER PUBLISH: still told. A move sends nothing and hides nobody:
+ *    they read their new group at once, and so do its people. The next press
+ *    sends them "You’ve moved", never their first email again, and tells the
+ *    group they left; moved back first, nobody is owed anything.
  *  - AN OPEN SIGN-UP RUN, where people pick their own group: shown at once.
  *  - A ROW FROM THE HAND-OVER NEVER PLACED: nothing, whatever else happens.
  *  - ANOTHER MEMBER OF THE GROUP: is shown the people Publish has told.
@@ -336,64 +338,159 @@ describe("a test of Publish's emails shows nobody their group, and a press shows
 // Moved after Publish
 // ---------------------------------------------------------------------------
 
-describe("moved after Publish: untold again until Publish is pressed again", () => {
-  test("the moved person reads nothing of the run, and nobody but an admin sees them in either group", async () => {
+/** Every seat's stamp, its delivery and the group it was told about, by uid. */
+const toldOf = (uid) => {
+  const stored = world.db.read(enrolmentPath(uid));
+  return { told: stored.allocatedEmailAt instanceof Date, toldGroupId: stored.toldGroupId ?? null, groupId: stored.groupId ?? null };
+};
+
+describe("moved after Publish: still told, so shown at once in the new group, and told of the move by the next press", () => {
+  test("a move sends nothing and hides nobody: the person reads their new group, and only its people see them", async () => {
     await steps.published();
     world.mail.length = 0;
     const moved = await steps.place([{ uid: "amara", groupId: GROUP.monday }]);
     assert.deepEqual(moved.body, { ok: true, placed: 1, rejected: [] });
-    assert.equal(world.db.read(enrolmentPath("amara")).allocatedEmailAt, undefined, "a move clears Publish's stamp");
+    // Publish's stamp stays, and the seat now names the group she was told about.
+    assert.deepEqual(toldOf("amara"), { told: true, toldGroupId: GROUP.thursday, groupId: GROUP.monday });
+    assert.equal(world.mail.length, 0, "a move emailed somebody by itself");
 
     const read = await everythingTheyRead("amara", GROUP.monday);
-    assert.deepEqual(read.hub, [], "the moved person is shown a run or a group Publish has not told them");
-    assert.equal(read.access.canLearn, false);
-    assert.equal(read.overview.status, 403);
-    assert.equal(read.roster.status, 403);
-    assert.equal((await ask.roster("amara", GROUP.thursday)).status, 403, "their old group is not theirs");
-    // The people of the group they moved into are not shown them yet.
-    assert.deepEqual((await ask.roster("dev", GROUP.monday)).body.members.map((m) => m.uid).sort(), ["bea", "dev"]);
-    // Nor are the people of the group they left: they are not in it any more.
-    assert.deepEqual((await ask.roster("tariq", GROUP.thursday)).body.members.map((m) => m.uid), ["tariq"]);
-    // An admin is shown where everybody is.
     assert.deepEqual(
-      (await ask.roster("zach", GROUP.monday)).body.members.map((m) => m.uid).sort(),
-      ["amara", "bea", "dev"],
+      read.hub.map((entry) => [entry.runId, entry.membership, entry.groupName]),
+      [[RUN.agi, "enrolled", "Monday evening"]],
+      "the moved person is not shown the group she is in now",
     );
-    assert.equal(world.mail.length, 0, "moving somebody emails nobody");
+    assert.deepEqual([read.access.canLearn, read.access.enrolment?.groupId], [true, GROUP.monday]);
+    assert.deepEqual([read.overview.status, read.overview.body.group?.name], [200, "Monday evening"]);
+    assert.equal(read.roster.status, 200);
+    assert.equal((await ask.roster("amara", GROUP.thursday)).status, 403, "the group she left is still hers");
+    // The people of the group she joined are shown her at once; the group she left is not.
+    assert.deepEqual((await ask.roster("dev", GROUP.monday)).body.members.map((m) => m.uid).sort(), ["amara", "bea", "dev"]);
+    assert.deepEqual((await ask.roster("tariq", GROUP.thursday)).body.members.map((m) => m.uid), ["tariq"]);
   });
 
-  test("Publish pressed again emails the moved person alone, and then they read their new group", async () => {
+  test("the next press sends “You’ve moved”, never the first email again, tells the group she left, and then owes nothing", async () => {
     await steps.published();
     await steps.place([{ uid: "amara", groupId: GROUP.monday }]);
     world.mail.length = 0;
     const again = await steps.publishes();
-    // One person's email went, and nothing else: the first press told each
-    // facilitator about their group, and the test it needed still counts.
+    // Amara is told she has moved. Tess, told about Thursday's group, is told
+    // Amara is no longer in it. Claudia facilitates Monday's group and leads
+    // the programme: she signs these emails and is never sent one.
     assert.deepEqual(again.report, {
-      people: { sent: 1, held: 0, suppressed: 0 },
+      people: { sent: 0, held: 0, suppressed: 0 },
       facilitators: { sent: 0, held: 0, suppressed: 0 },
+      moved: { sent: 1, held: 0, suppressed: 0 },
+      left: { sent: 1, held: 0, suppressed: 0 },
       failed: [],
       noAddress: [],
       alreadyTold: 0,
       more: 0,
     });
-    assert.deepEqual(world.mail.map((m) => m.to), [world.db.read("users/amara").email]);
     assert.deepEqual(
-      (await ask.me("amara")).map((entry) => [entry.membership, entry.groupName]),
-      [["enrolled", "Monday evening"]],
+      world.mail.map((m) => [m.to, m.subject]),
+      [
+        [addressOf("amara"), "You’ve moved to Monday evening: Mondays at 6pm"],
+        [addressOf("tess"), "Amara is no longer in Thursday morning"],
+      ],
     );
+    assert.ok(!world.mail.some((m) => m.subject.startsWith(PLACEMENT_SUBJECT)), "a told person was sent the first email again");
+    const words = await wordsOf(world.mail[0]);
+    assert.ok(words.includes("You’re no longer in Thursday morning, so you don’t need to go to its sessions."), words);
+    assert.ok(!(await wordsOf(world.mail[1])).includes("Monday"), "the group she left is told where she went");
+    // Stamped again, about the group she is in now: owed nothing more.
+    assert.deepEqual(toldOf("amara"), { told: true, toldGroupId: GROUP.monday, groupId: GROUP.monday });
+    assert.equal(world.db.read(enrolmentPath("amara")).allocatedEmailDelivery, "sent");
+    const summary = await ask.publishSummary();
+    assert.deepEqual([summary.emails, summary.moved ?? null], [0, null]);
+  });
+
+  test("moved and moved back before the next press: nothing is owed, and the press sends nothing", async () => {
+    await steps.published();
+    const firstStamp = world.db.read(enrolmentPath("amara")).allocatedEmailAt;
+    await steps.place([{ uid: "amara", groupId: GROUP.monday }]);
+    assert.equal((await ask.publishSummary()).moved?.length, 1);
+    await steps.place([{ uid: "amara", groupId: GROUP.thursday }]);
+    assert.deepEqual(toldOf("amara"), { told: true, toldGroupId: GROUP.thursday, groupId: GROUP.thursday });
+    assert.deepEqual(world.db.read(enrolmentPath("amara")).allocatedEmailAt, firstStamp, "a swap and swap back wrote the stamp");
+    const summary = await ask.publishSummary();
+    assert.deepEqual([summary.emails, summary.moved ?? null], [0, null]);
+    world.mail.length = 0;
+    await steps.publishes();
+    assert.equal(world.mail.length, 0, "a swap and swap back emailed somebody");
+  });
+
+  test("moved twice before the next press: one email, about the group they are in now", async () => {
+    await steps.published();
+    await steps.place([{ uid: "amara", groupId: GROUP.unset }]);
+    await steps.place([{ uid: "amara", groupId: GROUP.monday }]);
+    world.mail.length = 0;
+    await steps.publishes();
     assert.deepEqual(
-      (await ask.roster("dev", GROUP.monday)).body.members.map((m) => m.uid).sort(),
-      ["amara", "bea", "dev"],
+      world.mail.map((m) => [m.to, m.subject]),
+      [
+        [addressOf("amara"), "You’ve moved to Monday evening: Mondays at 6pm"],
+        [addressOf("tess"), "Amara is no longer in Thursday morning"],
+      ],
     );
   });
 
-  test("taken out of every group after Publish: nothing, as before they were placed", async () => {
+  test("a move into a group whose facilitator was told about it tells them who has joined", async () => {
+    await steps.published();
+    await steps.place([{ uid: "dev", groupId: GROUP.thursday }]);
+    world.mail.length = 0;
+    const again = await steps.publishes();
+    // Dev is told; Tess, told about Thursday's group, is told he has joined
+    // it. Claudia, who facilitates the group he left, leads the programme.
+    assert.deepEqual([again.report.moved, again.report.joined, again.report.left], [
+      { sent: 1, held: 0, suppressed: 0 },
+      { sent: 1, held: 0, suppressed: 0 },
+      undefined,
+    ]);
+    assert.deepEqual(
+      world.mail.map((m) => [m.to, m.subject]),
+      [
+        [addressOf("dev"), "You’ve moved to Thursday morning: Thursdays at 10am"],
+        [addressOf("tess"), "Dev has joined Thursday morning"],
+      ],
+    );
+  });
+
+  test("a failed “You’ve moved” leaves them told and owed it, and the next press sends it and the group they left is told", async (t) => {
+    t.mock.method(console, "error", () => {});
+    await steps.published();
+    await steps.place([{ uid: "amara", groupId: GROUP.monday }]);
+    world.mailFate = (args) => (args.to === addressOf("amara") ? "fail" : "sent");
+    world.mail.length = 0;
+    const failed = await steps.publishes();
+    assert.deepEqual([failed.report.failed, failed.report.left ?? null, world.mail.length], [["Amara"], null, 0]);
+    // Still told and still shown, and still owed.
+    assert.deepEqual(toldOf("amara"), { told: true, toldGroupId: GROUP.thursday, groupId: GROUP.monday });
+    assert.deepEqual((await ask.me("amara")).map((entry) => entry.groupName), ["Monday evening"]);
+    world.mailFate = null;
+    await steps.publishes();
+    assert.deepEqual(
+      world.mail.map((m) => [m.to, m.subject]),
+      [
+        [addressOf("amara"), "You’ve moved to Monday evening: Mondays at 6pm"],
+        [addressOf("tess"), "Amara is no longer in Thursday morning"],
+      ],
+    );
+    assert.deepEqual(toldOf("amara"), { told: true, toldGroupId: GROUP.monday, groupId: GROUP.monday });
+  });
+
+  test("taken out of every group after Publish: still told, and owed nothing while in no group", async () => {
     await steps.published();
     await steps.place([{ uid: "dev", groupId: null }]);
-    assert.deepEqual(await ask.me("dev"), []);
-    assert.equal((await ask.access("dev")).canLearn, false);
-    assert.equal((await ask.overview("dev")).status, 403);
+    // No change of group clears the stamp of somebody told, to no group included.
+    assert.deepEqual(toldOf("dev"), { told: true, toldGroupId: GROUP.monday, groupId: null });
+    // Their programme stays theirs, with no group in it.
+    assert.deepEqual((await ask.me("dev")).map((entry) => [entry.runId, entry.groupName ?? null]), [[RUN.agi, null]]);
+    // Nobody is owed anything for them, and Publish waits for them to be placed, as before.
+    assert.equal((await ask.publishSummary()).moved, undefined);
+    // Put back in the group they were told about: nothing is owed.
+    await steps.place([{ uid: "dev", groupId: GROUP.monday }]);
+    assert.deepEqual([(await ask.publishSummary()).emails, (await ask.publishSummary()).moved ?? null], [0, null]);
   });
 });
 

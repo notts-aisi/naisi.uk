@@ -29,7 +29,9 @@ import {
   emailCountWords,
   facilitatingCountWords,
   joinedCountWords,
+  leftCountWords,
   moreNamesWords,
+  movedCountWords,
   namesInWords,
   nextWeekWords,
   notedWords,
@@ -38,7 +40,7 @@ import {
   registerRemindersWords,
   yourGroupCountWords,
 } from "@/lib/courses/getReady/words";
-import { emailsLabel, publishConfirmText, publishResultLines } from "@/lib/courses/publishWords";
+import { emailsLabel, movedPersonWords, publishConfirmText, publishResultLines } from "@/lib/courses/publishWords";
 import OutsideNotes from "./OutsideNotes";
 import styles from "./PublishGroups.module.css";
 
@@ -211,7 +213,8 @@ function someNames(names: readonly string[]): string {
  */
 function SendsPanel({ preview, follows, admin }: { preview: PublishPreview; follows: WhatFollows | null; admin: boolean }) {
   const names = (kind: PreviewKind) => kind.names.map((person) => person.name);
-  const total = preview.people.emails + preview.facilitators.emails + preview.joined.emails;
+  const total =
+    preview.people.emails + preview.moved.emails + preview.facilitators.emails + preview.joined.emails + preview.left.emails;
   return (
     <section className={styles.card} aria-labelledby="publish-sends-title">
       <h2 id="publish-sends-title" className={styles.cardTitle}>
@@ -225,6 +228,12 @@ function SendsPanel({ preview, follows, admin }: { preview: PublishPreview; foll
           </li>
         ) : null}
         {preview.noted.length > 0 ? <li>{notedWords(preview.noted.map((person) => person.name))}</li> : null}
+        {preview.moved.emails > 0 ? (
+          <li>
+            <strong>{movedCountWords(preview.moved.emails)}:</strong>{" "}
+            {preview.moves.map((move) => movedPersonWords(move)).join("; ")}.
+          </li>
+        ) : null}
         {preview.facilitators.emails > 0 ? (
           <li>
             <strong>{facilitatingCountWords(preview.facilitators.emails)}:</strong> {someNames(names(preview.facilitators))}.
@@ -233,6 +242,11 @@ function SendsPanel({ preview, follows, admin }: { preview: PublishPreview; foll
         {preview.joined.emails > 0 ? (
           <li>
             <strong>{joinedCountWords(preview.joined.emails)}:</strong> {someNames(names(preview.joined))}.
+          </li>
+        ) : null}
+        {preview.left.emails > 0 ? (
+          <li>
+            <strong>{leftCountWords(preview.left.emails)}:</strong> {someNames(names(preview.left))}.
           </li>
         ) : null}
         {preview.people.emails > 0 ? (
@@ -368,6 +382,8 @@ export default function PublishGroups({ runId, follows = null, admin = false }: 
           emptyGroups: summary.emptyGroups,
           gaveBack: summary.gaveBack ?? 0,
           joined: summary.joined ?? 0,
+          moved: summary.moved?.length ?? 0,
+          left: summary.left ?? 0,
           noted: preview?.noted.length ?? 0,
           republish: data.run.allocationPublishedAt != null,
         }),
@@ -437,6 +453,13 @@ export default function PublishGroups({ runId, follows = null, admin = false }: 
       {/* Once groups are out, or whenever a press would send one. */}
       {preview && (preview.joined.emails > 0 || data?.run.allocationPublishedAt) ? (
         <EmailCard id="publish-joined-title" title={EMAIL_CARD.joined.title} line={EMAIL_CARD.joined.line} kind={preview.joined} />
+      ) : null}
+      {/* Somebody moved since they were told, and their old group's facilitators: only when a press would write to them. */}
+      {preview && preview.moved.emails > 0 ? (
+        <EmailCard id="publish-moved-title" title={EMAIL_CARD.moved.title} line={EMAIL_CARD.moved.line} kind={preview.moved} />
+      ) : null}
+      {preview && preview.left.emails > 0 ? (
+        <EmailCard id="publish-left-title" title={EMAIL_CARD.left.title} line={EMAIL_CARD.left.line} kind={preview.left} />
       ) : null}
       {preview && preview.refusals.length > 0 ? (
         <div className={styles.unplaced} role="status">

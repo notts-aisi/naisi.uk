@@ -466,6 +466,36 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/app/api/courses/runs/[runId]/allocation/publish/route.ts#local:movedRecipients",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "The people `loadPublishPlan` found told about a group and moved since: the run's accepted rows this caller " +
+        "is served, each with an active seat that Publish told (`placementIsTold`) in a group other than the one it was " +
+        "told about (`movedSinceTold`, from `toldGroupId`), and no card that says they gave their place back, at the " +
+        "account's own address. The plan sends nothing, so the scan does not read it.",
+      why:
+        "Each person told their group and moved since, emailed \"You’ve moved\" about the group they are in now, once. " +
+        "Nothing in the request names a recipient: the body carries only how many emails the board showed.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/allocation/publish/route.ts#local:leftRecipients",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "The facilitators `loadPublishPlan` found owed a no-longer-in email: `facilitatorUids` of each live group " +
+        "(written by src/app/api/courses/groups/[groupId]/facilitators/route.ts) with a `facilitating__` marker in " +
+        "courseNudges, of a group somebody this press tells they have moved was told about, or whose earlier " +
+        "announcement failed, less the programme's lead, at each account's own address.",
+      why:
+        "Each facilitator told about a group, told once per person who has moved out of it, never where they went. The " +
+        "request names nobody.",
+    },
+  ],
+  [
     "src/app/api/courses/runs/[runId]/allocation/publish/route.ts#local:facilitatorRecipients",
     {
       reads: 1,
