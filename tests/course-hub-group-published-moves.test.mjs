@@ -268,7 +268,7 @@ const wordsOfBlocks = (email) =>
     .replace(/\s+/g, " ")
     .trim();
 
-const NO_DASH = /[–—]/;
+const NO_DASH = /[\u2013\u2014]/;
 const GENDERED = /\b(he|she|him|her|his|hers|himself|herself)\b/i;
 
 describe("5. the two emails, as their composers write them", () => {
