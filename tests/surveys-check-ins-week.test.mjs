@@ -114,7 +114,6 @@ const at = (instant) => mock.timers.setTime(new Date(instant).getTime());
 const A = GROUP.a;
 const B = GROUP.b;
 const read = (path) => world.db.read(path);
-const REMIND_ROUTE = `/api/admissions/forms/${ROUND}/programmes/${AGI}/check-ins/remind`;
 
 beforeEach(() => {
   at(DURING);
