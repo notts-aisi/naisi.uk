@@ -190,6 +190,13 @@ const READERS = {
       "Can't make it on a session's ticket: the caller's own seat only, read by their uid and shown to nobody else; " +
       "a seat Publish has not told them about takes no part, so its ticket offers nothing and its press is refused",
   },
+  "lib/courses/joiningOnline/seat.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "Joining online on a session's ticket: the caller's own seat only, read by their uid and shown to nobody else; " +
+      "a seat Publish has not told them about takes no part, so its ticket offers nothing and its press is refused",
+  },
   "lib/courses/getReady/remind.ts": {
     kind: "told",
     asks: 1,
