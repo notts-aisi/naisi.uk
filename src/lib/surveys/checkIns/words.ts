@@ -46,7 +46,7 @@ export function sessionLineWords(groupName: string, startsAt: Date | null, now: 
   return sameLondonDay(startsAt, now) ? `${groupName}, today at ${clockWords(startsAt)}.` : `${groupName}, ${sessionWhenWords(startsAt)}.`;
 }
 
-/** "11pm", or "12:30am on Thu 19 Nov" when it closes on another London day than `from`. */
+/** "11pm", or "11pm on Thu 19 Nov" when it closes on another London day than `from`. */
 export function closesClockWords(closesAt: Date, from: Date): string {
   return sameLondonDay(closesAt, from) ? clockWords(closesAt) : `${clockWords(closesAt)} on ${dayWords(closesAt)}`;
 }
@@ -66,7 +66,7 @@ export function checkInMinutesWords(minutes: number): string {
   return minutes === 1 ? "1 minute" : `${minutes} minutes`;
 }
 
-/** Under the Send button: "It closes at 11pm. Once sent, your answers can’t change." */
+/** Under the Send button: "It closes at 11pm on Thu 19 Nov. Once sent, your answers can’t change.", the day left out on its own day. */
 export function checkInClosingWords(closesAt: Date, now: Date): string {
   return `It closes at ${closesClockWords(closesAt, now)}. Once sent, your answers can’t change.`;
 }
@@ -112,6 +112,8 @@ export type CheckInEmailFacts = {
   minutes: number;
   programmeName: string;
   closesAt: Date;
+  /** Opened by an admin after its window had passed: it is no longer fresh, so its words do not say so. */
+  late?: boolean;
   /** The opener's first name, or "" when their account has none. */
   signer: string;
 };
@@ -125,7 +127,7 @@ export function checkInEmailWords(facts: CheckInEmailFacts): { subject: string; 
   return {
     subject: `${facts.title} ${questionsWords(facts.questions)} for ${facts.programmeName}`,
     paragraphs: [
-      `${when} Tell us how the session went while it’s fresh. It’s ${questionsWords(facts.questions)} and takes ${minutesWords(facts.minutes)}.`,
+      `${when} Tell us how the session went${facts.late ? "" : " while it’s fresh"}. It’s ${questionsWords(facts.questions)} and takes ${minutesWords(facts.minutes)}.`,
       CHECK_IN_CONFIDENTIAL_LINE,
       `It closes at ${clockWords(facts.closesAt)} on ${dayWords(facts.closesAt)}.`,
     ],
@@ -142,7 +144,7 @@ export const CHECK_IN_CARD_WORDS = {
   eyebrow: "A check-in for you",
 } as const;
 
-/** "Closes 11pm" on the day, "Closes Thu 19 Nov, 12:30am" on another. */
+/** "Closes 11pm" on the day, "Closes Thu 19 Nov, 11pm" on another. */
 export function checkInCardClosesWords(closesAt: Date, now: Date): string {
   return sameLondonDay(closesAt, now) ? `Closes ${clockWords(closesAt)}` : `Closes ${dayWords(closesAt)}, ${clockWords(closesAt)}`;
 }
@@ -185,7 +187,7 @@ export function sentSoFarWords(answered: number, of: number): string {
   return `${answered} of ${of} ${answered === 1 ? "has" : "have"} sent it`;
 }
 
-/** Under the open card: "It closes by itself at 11pm. Then you see your group’s totals, never who said what." */
+/** Under the open card: "It closes by itself at 11pm on Thu 19 Nov. Then you see your group’s totals, never who said what." */
 export function closesByItselfWords(closesAt: Date, now: Date): string {
   return `It closes by itself at ${closesClockWords(closesAt, now)}. Then you see your group’s totals, never who said what.`;
 }
@@ -331,6 +333,14 @@ export const CHECK_IN_REFUSAL = {
   notHeld: "This session didn’t happen, so it has no check-in.",
   early: "The check-in opens when the session starts.",
   past: "This session’s check-in time has passed.",
+  /** An admin, more than 48 hours after the session ended. */
+  pastLate: "It’s more than 48 hours since this session ended, so its check-in can’t be opened now.",
+  /** An admin pressed Open once the window had passed: a late one closes at another time, so it is asked for by name. */
+  openLate: "This session’s usual check-in time has passed. Reload the page to open it late.",
+  /** Late, while the usual window is still open. */
+  notLate: "This session’s check-in can still be opened as usual. Reload the page and press Open.",
+  /** Late, from anybody but an admin. */
+  lateAdminOnly: "Only an admin can open a check-in late.",
   alreadyOpen: "The check-in for this session has been opened already.",
   nobody: CHECK_IN_CARD.takeRegisterFirst,
   tooMany: "More than 40 people are marked here, which is more than one check-in reaches. Ask an admin.",

@@ -31,6 +31,9 @@
  * fakes. The world is AGI Strategy's run (`tests/lib/hubAttendanceWorld.mjs`),
  * from Tue 10 Nov 2026 to the night of Wed 18 Nov, the end of its week 3,
  * with each group's own copy of week 3 so a check-in asks about its parts.
+ * A check-in stays open until 11pm the day after its session, and a session
+ * with none keeps its week waiting until an admin could no longer open one
+ * late, 48 hours after it ends.
  */
 import { before, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
@@ -49,6 +52,7 @@ const { call, loadTs, world } = w;
 
 const routes = {
   checkIn: await w.courseRoute("groups", "[groupId]", "check-in"),
+  close: await w.courseRoute("groups", "[groupId]", "check-in", "close"),
   change: await w.courseRoute("groups", "[groupId]", "session", "change"),
   answerByLink: await loadTs(join("app", "api", "surveys", "answer", "route.ts")),
 };
@@ -213,13 +217,17 @@ const made = {};
  *  - Tue 10 Nov: Group C's week 3 session (Wed 18 Nov, 1pm) is called off,
  *    keeping pace. The tick that morning fixes week 1, after one that found
  *    the run being destroyed and one that found it named by two programmes.
- *  - Group A's check-in (Thu 12 Nov) and Group D's (Mon 16 Nov) open and are
- *    answered by 3 and 1; a tick fixes week 2 and not week 3.
- *  - Tue 17 Nov: Group B's opens, for 3, and 1 answers. It closes at 11pm,
- *    and with C's session off the week is whole: before the next tick the
- *    lead reads nothing of it; two ticks at once fix it, a, d and b.
+ *  - Group A's check-in (Thu 12 Nov) opens and is answered by 3; the tick on
+ *    Friday afternoon, once week 2's last session (C's, Wed 11 Nov, with no
+ *    check-in) is 48 hours over, fixes week 2 and not week 3. Group D's (Mon
+ *    16 Nov) opens and is answered by 1.
+ *  - Tue 17 Nov: Group B's opens, for 3, and 1 answers, and Rahul closes it
+ *    by hand. D's closes by itself at 11pm, and with C's session off the week
+ *    is whole: before the next tick the lead reads nothing of it; two ticks at
+ *    once fix it, a, d and b.
  *  - Wed 18 Nov: C's session is put back as usual in the morning, meets at
- *    1pm, and its check-in opens and is answered. It closes at 11pm.
+ *    1pm, and its check-in opens and is answered; Tom closes it by hand that
+ *    night (it would stay open until 11pm on Thu 19 Nov).
  */
 async function story() {
   w.reset();
@@ -242,7 +250,11 @@ async function story() {
   await answer(made.a3, "amara", checkInAnswers({ useful: 4, most: "Defining terms first", unclear: ["pt-define"], reading: "all", confident: 4 }));
   await answer(made.a3, "dev", checkInAnswers({ useful: 3, most: "The definitions table", unclear: ["pt-define"], reading: "some", confident: 3 }));
   await answer(made.a3, "bea", checkInAnswers({ useful: 5, most: "A clear week", unclear: ["o_ci_nothing"], reading: "most", confident: 5 }));
+  // Thursday night week 2 is not whole yet: C's session on Wed 11 Nov had no
+  // check-in, and an admin could open one late until 3pm on Friday.
   at("2026-11-12T23:30:00Z");
+  seen.week2Thursday = await tick();
+  at("2026-11-13T15:30:00Z");
   seen.week2Tick = await tick();
   made.d3 = await openCheckIn("grace", D, 1, "2026-11-16T19:50:00Z");
   await answer(made.d3, "yasmin", checkInAnswers({ useful: 4, most: "Who gets to decide", unclear: ["pt-define"], reading: "most", confident: 4 }));
@@ -256,8 +268,12 @@ async function story() {
   at("2026-11-17T21:00:00Z");
   seen.openTick = await tick();
   seen.openRecord = recordOf(3);
+  // Rahul closes B's by hand: it would stay open until 11pm tomorrow.
+  at("2026-11-17T21:30:00Z");
+  seen.closedByHand = await call("rahul", routes.close.POST, { groupId: B }, { body: { session: "w03" }, course: true });
+  seen.closedTick = await tick();
 
-  // 11pm: B's check-in has closed by itself, and with C's session off the week is whole. Nothing has fixed it yet.
+  // 11pm: D's check-in has closed by itself, and with C's session off the week is whole. Nothing has fixed it yet.
   at("2026-11-17T23:00:00Z");
   seen.unfixed = {
     lead: await week3("lead"),
@@ -293,7 +309,9 @@ async function story() {
   at("2026-11-18T15:30:00Z");
   seen.whileOpen = { lead: await week3("lead"), adminView: await readAs("admin") };
 
-  // 11pm: C's check-in has closed, and the scheduler ticks.
+  // Tom closes C's by hand that night (it would stay open until 11pm tomorrow), and the scheduler ticks.
+  at("2026-11-18T22:00:00Z");
+  seen.cClosed = await call("tom", routes.close.POST, { groupId: C }, { body: { session: "w03" }, course: true });
   at("2026-11-18T23:00:00Z");
   seen.lateTick = await tick();
   seen.late = {
@@ -330,16 +348,21 @@ describe("1. the job fixes a week once, the first tick it is whole, and nothing 
     assert.doesNotMatch(`${surveyCheckInWeeksJob.label} ${surveyCheckInWeeksJob.description}`, /[–—]/);
   });
 
-  test("it fixes each week the first tick at which the week is whole and has begun: week 1 on Tue 10 Nov, week 2 that Thursday night, week 3 once B's check-in closed", () => {
+  test("it fixes each week the first tick at which the week is whole and has begun: week 1 on Tue 10 Nov, week 2 that Friday afternoon, week 3 once B's and D's check-ins closed", () => {
     assert.deepEqual(seen.recordsBeforeWeek1, [], "a week was fixed by a tick that should have left the run alone");
     assert.equal(seen.week1Tick.processed, 1);
     assert.deepEqual(recordOf(1).surveyIds, [], "week 1 had no check-in, and is fixed with none");
+    // A session with no check-in keeps its week waiting while an admin could still open one late.
+    assert.equal(seen.week2Thursday.processed, 0, "week 2 was fixed while an admin could still open a check-in for C's session");
     assert.equal(seen.week2Tick.processed, 1);
     assert.deepEqual(recordOf(2).surveyIds, []);
     // Week 3 is not whole while a session of it is still to come, nor while one of its check-ins is open.
     assert.equal(seen.noonTick.processed, 0);
     assert.equal(seen.openTick.processed, 0);
     assert.equal(seen.openRecord, undefined);
+    // Nor once B's is closed by hand while D's is still open.
+    assert.equal(seen.closedByHand.status, 200, JSON.stringify(seen.closedByHand.body));
+    assert.equal(seen.closedTick.processed, 0, "a week was fixed while one of its check-ins was open");
     // Then it is fixed with every group's check-in of the week, all closed, by when each session started.
     assert.deepEqual(seen.record.surveyIds, [made.a3, made.d3, made.b3]);
     assert.deepEqual([seen.record.runId, seen.record.weekNumber], [RUN.agi, 3]);
@@ -351,6 +374,7 @@ describe("1. the job fixes a week once, the first tick it is whole, and nothing 
     assert.equal(seen.againTick.processed, 0);
     assert.deepEqual(seen.againRecord, seen.record);
     assert.equal(seen.restoreTick.processed, 0);
+    assert.equal(seen.cClosed.status, 200, JSON.stringify(seen.cClosed.body));
     assert.equal(seen.lateTick.processed, 0);
     assert.deepEqual(seen.late.record, seen.record, "a check-in opened for a fixed week joined its record");
     assert.ok(!seen.late.record.surveyIds.includes(made.c3));
@@ -425,7 +449,7 @@ describe("1. the job fixes a week once, the first tick it is whole, and nothing 
 // ---------------------------------------------------------------------------
 
 describe("2. a week not fixed yet shows the lead nothing, whole or not", () => {
-  test("whole at 11pm on Tue 17 Nov and not fixed yet: waiting, on the reader, the Check-ins view and the Overview", () => {
+  test("whole at 11pm on Tue 17 Nov (B's closed by hand, D's by itself) and not fixed yet: waiting, on the reader, the Check-ins view and the Overview", () => {
     assert.deepEqual(seen.unfixed.lead, { weekNumber: 3, state: "waiting" });
     // An admin reads the lead's weeks too.
     assert.deepEqual(seen.unfixed.admin, { weekNumber: 3, state: "waiting" });

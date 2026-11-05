@@ -24,7 +24,7 @@ import { checkInSetItems } from "../questionSetsStore";
 import { mintSurveyToken } from "../token";
 import { SURVEY_FROM_NAME, SURVEY_REPLY_TO } from "../words";
 import { checkInSurveyId } from "./ids";
-import { CHECK_INS_PER_DAY, MAX_CHECK_IN_PEOPLE, hereOf, windowState } from "./model";
+import { CHECK_INS_PER_DAY, MAX_CHECK_IN_PEOPLE, hereOf, openingAt } from "./model";
 import { readCheckInSession, readCheckInWeek, readRegisterMarks } from "./sessionRead";
 import { CHECK_IN_MINUTES } from "./template";
 import {
@@ -43,7 +43,13 @@ import {
  *
  *  1. THE SESSION: one the group holds, that can be dated, that happened (not
  *     cancelled, and its register not marked as not held), and whose window
- *     is now: from its start until it closes (`checkInWindow`).
+ *     is now: from its start until 11pm on the day after it (`checkInWindow`).
+ *     After that an admin, and only an admin, may open it LATE, saying so
+ *     (`late`), until 48 hours after the session ends; a late one closes at
+ *     11pm on the day after it is opened (`openingAt`). A press that does not
+ *     say what the clock says (Open after the window, or late within it) is
+ *     refused in a sentence, so nobody opens one that closes when they did
+ *     not see.
  *  2. WHO IT IS FOR: the people its register marks there, never the group's
  *     facilitators (`hereOf`), at least one and at most a register's forty,
  *     and exactly the number on the button pressed: when the register has
@@ -94,7 +100,18 @@ function alreadyThere(err: unknown): boolean {
 
 export async function openCheckIn(
   db: Firestore,
-  input: { opener: { uid: string }; group: CourseGroupDoc; runId: string; sessionKey: string; people: number; now: Date },
+  input: {
+    opener: { uid: string };
+    /** Whether the opener is an admin, the one who may open a check-in late. */
+    admin: boolean;
+    /** Whether the press said it opens one late. */
+    late: boolean;
+    group: CourseGroupDoc;
+    runId: string;
+    sessionKey: string;
+    people: number;
+    now: Date;
+  },
 ): Promise<OpenOutcome> {
   const { group, runId, now } = input;
   const refuse = (status: number, error: string, extra: { people?: number; retryAfterSeconds?: number } = {}): OpenOutcome => ({
@@ -110,9 +127,12 @@ export async function openCheckIn(
   const { session, window, startsAt, endsAt } = at;
   if (session.cancelled) return refuse(409, CHECK_IN_REFUSAL.notHeld);
   if (!window) return refuse(409, CHECK_IN_REFUSAL.undated);
-  const when = windowState(window, now);
-  if (when === "early") return refuse(409, CHECK_IN_REFUSAL.early);
-  if (when === "past") return refuse(409, CHECK_IN_REFUSAL.past);
+  const opening = openingAt(window, now, input.admin);
+  if (opening.state === "early") return refuse(409, CHECK_IN_REFUSAL.early);
+  if (opening.state === "past") return refuse(409, input.admin ? CHECK_IN_REFUSAL.pastLate : CHECK_IN_REFUSAL.past);
+  if (opening.state === "late" && !input.late) return refuse(409, CHECK_IN_REFUSAL.openLate);
+  if (opening.state === "now" && input.late) return refuse(409, CHECK_IN_REFUSAL.notLate);
+  const { closesAt } = opening;
   const surveyId = checkInSurveyId(runId, group.id, session.sessionKey);
   const surveyRef = db.collection(SURVEYS_COLLECTION).doc(surveyId);
   if ((await surveyRef.get()).exists) return refuse(409, CHECK_IN_REFUSAL.alreadyOpen);
@@ -182,7 +202,7 @@ export async function openCheckIn(
     pairOf: null,
     strand: null,
     checkIn: { groupName, startsAt, endsAt },
-    closesAt: window.closesAt,
+    closesAt,
     closedAt: null,
     namesOffOn,
     namesOffAt: null,
@@ -225,7 +245,8 @@ export async function openCheckIn(
     questions: surveyQuestionsOf(items).length,
     minutes: CHECK_IN_MINUTES,
     programmeName,
-    closesAt: window.closesAt,
+    closesAt,
+    late: opening.state === "late",
     signer,
   });
   const tally = { sent: 0, held: 0, suppressed: 0, failed: 0, noAddress: 0 };

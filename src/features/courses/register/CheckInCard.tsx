@@ -16,7 +16,8 @@ import styles from "./CheckInCard.module.css";
  * programme's lead, who reads the register) with a refusal, and the card then
  * draws nothing.
  *
- *  - ON THE SESSION'S DAY, before it is opened: what it is, "Open it for the
+ *  - WITHIN ITS WINDOW (the session's day and the next, until 11pm), before
+ *    it is opened: what it is, "Open it for the
  *    6 here" counted from the register as it stands on this screen (marked
  *    present, late or left early, among the rows the route says it can
  *    reach: never the group's facilitators, nor anybody Publish has not told
