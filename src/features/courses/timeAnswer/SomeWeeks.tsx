@@ -53,13 +53,14 @@ export default function SomeWeeks({
   const [chosen, setChosen] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const url = `/api/courses/runs/${encodeURIComponent(runId)}/enrolments/${encodeURIComponent(uid)}/time-answer`;
 
   async function open() {
     setStep({ at: "loading" });
     setError(null);
     try {
-      const res = await fetch(url, { cache: "no-store" });
+      const res = await fetch(`/api/courses/runs/${encodeURIComponent(runId)}/enrolments/${encodeURIComponent(uid)}/time-answer`, {
+        cache: "no-store",
+      });
       const body = (await res.json().catch(() => ({}))) as { error?: string; sessions?: Offered[] };
       if (!res.ok || !Array.isArray(body.sessions)) {
         setError(body.error ?? SOME_WEEKS_DIDNT_LOAD);
@@ -79,7 +80,7 @@ export default function SomeWeeks({
     setError(null);
     try {
       const sessionKeys = sessions.map((each) => each.sessionKey).filter((key) => chosen.includes(key));
-      const res = await fetch(url, {
+      const res = await fetch(`/api/courses/runs/${encodeURIComponent(runId)}/enrolments/${encodeURIComponent(uid)}/time-answer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionKeys }),
