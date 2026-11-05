@@ -17,9 +17,6 @@ import { withTimeQuestion } from "./timeAnswer/emailSection";
  * first meets, which for a group that has met is a day already past, and
  * nothing in it says it replaces an earlier one. This one says:
  *
- *  - that they are in it as they asked: nobody is moved to another group
- *    unless they asked to be, so the email never reads as a move made over
- *    their head;
  *  - the group they are in now, and when it NEXT meets on its own calendar,
  *    counted from the press (`nextSession`, worked out by the plan with
  *    `sessionRange`), never a week 1 already behind it;
@@ -34,9 +31,12 @@ import { withTimeQuestion } from "./timeAnswer/emailSection";
  *
  * AN INCUBATOR'S PEOPLE ARE NEVER TOLD THE WORD "GROUP" (decision day promised
  * them their weekly session, and Publish's email to them names no group), so
- * for a run an incubator names the email says their sessions have moved, as
- * they asked, when and where they meet now, and that it replaces the time
- * they were told, and names no group and no facilitator.
+ * for a run an incubator names the email says their sessions have moved,
+ * when and where they meet now, and that it replaces the time they were
+ * told, and names no group and no facilitator.
+ *
+ * It says that they moved, never why: somebody may have asked to, or staff
+ * may have moved them to balance the groups.
  *
  * FIXED WORDS, WRITTEN HERE: nothing comes from a template, so it can never
  * carry a token. Every value is typed by a person (a group's name, a room, a
@@ -140,13 +140,13 @@ export function composeMovedEmail(facts: MovedFacts): { subject: string; blocks:
   const paragraphs = facts.incubator
     ? [
         greeting(facts.name),
-        paragraph("As you asked, your sessions have moved.", meetingSentence(facts), html(sessionLength), html(placeNote)),
+        paragraph("Your sessions have moved.", meetingSentence(facts), html(sessionLength), html(placeNote)),
         paragraph("This replaces the time you were told before, so you don’t need to go to those sessions."),
       ]
     : [
         greeting(facts.name),
         paragraph(
-          `As you asked, you’re in ${html(facts.groupName) || "a new group"} now.`,
+          `You’re in ${html(facts.groupName) || "a new group"} now.`,
           meetingSentence(facts),
           html(sessionLength),
           html(placeNote),

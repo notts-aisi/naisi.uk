@@ -938,7 +938,7 @@ describe("6. the emails", () => {
     // group she was in. Never her first email again.
     assert.ok(
       amara.text.includes(
-        "Hi Amara, As you asked, you’re in Group A now. You’ll meet on Thursdays at 6pm in Portland A13, from Thu 29 Oct. " +
+        "Hi Amara, You’re in Group A now. You’ll meet on Thursdays at 6pm in Portland A13, from Thu 29 Oct. " +
           "Sessions last 2 hours. Sofia is your facilitator. You’re no longer in Group B, so you don’t need to go to its sessions.",
       ),
       amara.text,

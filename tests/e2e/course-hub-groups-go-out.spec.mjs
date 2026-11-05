@@ -1086,7 +1086,7 @@ test(
           who: "Ben's “You’ve moved”",
           sentences: [
             `Hi ${ben.first},`,
-            `As you asked, you’re in ${groupB.name} now.`,
+            `You’re in ${groupB.name} now.`,
             `You’ll meet on ${weeklySlotWords(groupB)} in ${groupB.room}, from ${dayLabel(groupB.firstDateKey)}.`,
             `Sessions last ${groupB.durationMinutes} minutes.`,
             `You’re no longer in ${groupA.name}, so you don’t need to go to its sessions.`,
@@ -1095,7 +1095,8 @@ test(
             "I can’t make this time",
             "NAISI",
           ],
-          absent: ["your facilitator", "Your AGI Strategy group", "Week 1’s reading"],
+          // It says Ben moved, never why: staff move people too, not only when somebody asks.
+          absent: ["your facilitator", "Your AGI Strategy group", "Week 1’s reading", "As you asked", "you asked"],
         });
         assertNoMeetingLink(newest, "Ben's “You’ve moved”");
         // Fern: approval, "You’re facilitating", then that Ben is no longer in her group, and never where he went.

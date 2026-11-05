@@ -270,6 +270,8 @@ const wordsOfBlocks = (email) =>
 
 const NO_DASH = /[\u2013\u2014]/;
 const GENDERED = /\b(he|she|him|her|his|hers|himself|herself)\b/i;
+/** A reason for a move. The email never gives one: staff move people too, not only when somebody asks. */
+const ASKED = /\basked\b|\byour request\b/i;
 
 describe("5. the two emails, as their composers write them", () => {
   test("“You’ve moved”: their new group, when it next meets, where, who facilitates it, what it replaces, and the question", () => {
@@ -278,7 +280,7 @@ describe("5. the two emails, as their composers write them", () => {
     const words = wordsOfBlocks(email);
     for (const sentence of [
       "Hi Ana,",
-      "As you asked, you’re in Group H now.",
+      "You’re in Group H now.",
       "You’ll meet on Tuesdays at 6pm in Hallward B12, from Tue 10 Nov.",
       "Sessions last 2 hours.",
       "Raj and Sofia are your facilitators.",
@@ -295,6 +297,8 @@ describe("5. the two emails, as their composers write them", () => {
     assert.ok(email.blocks[0].html.includes('href="https://naisi.invalid/learn/run-1#your-group-time"'));
     assert.ok(!/\{[A-Za-z]+\}/.test(`${email.subject} ${words}`));
     assert.ok(!NO_DASH.test(`${email.subject} ${words}`) && !GENDERED.test(words), words);
+    // It says they moved, never why.
+    assert.ok(!ASKED.test(`${email.subject} ${words}`), words);
   });
 
   test("“You’ve moved”, with less to say: no next session, no time yet, no facilitator, no lead, no address", () => {
@@ -348,7 +352,8 @@ describe("5. the two emails, as their composers write them", () => {
     const words = wordsOfBlocks(email);
     assert.ok(!/\bgroups?\b/i.test(`${email.subject} ${words}`), `an incubator's people are told the word: ${words}`);
     assert.ok(!words.includes("Raj"), words);
-    assert.ok(words.includes("As you asked, your sessions have moved."), words);
+    assert.ok(words.includes("Your sessions have moved."), words);
+    assert.ok(!ASKED.test(`${email.subject} ${words}`), words);
     assert.ok(words.includes("This replaces the time you were told before, so you don’t need to go to those sessions."), words);
   });
 

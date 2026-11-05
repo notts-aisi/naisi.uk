@@ -422,7 +422,7 @@ describe("4. somebody told after the group first met", () => {
     const amara = await opened(sent.find((mail) => mail.to === "amara@example.com"));
     assert.ok(
       amara.text.includes(
-        "Hi Amara, As you asked, you’re in Group A now. You’ll meet on Thursdays at 6pm in Portland A13, from Thu 5 Nov. Sessions last 2 hours. " +
+        "Hi Amara, You’re in Group A now. You’ll meet on Thursdays at 6pm in Portland A13, from Thu 5 Nov. Sessions last 2 hours. " +
           "Sofia is your facilitator. You’re no longer in Group B, so you don’t need to go to its sessions. Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and whoever runs your sessions will know. If you can’t make most weeks, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . Yes Most weeks, not all No, I need a different time Claudia AGI Strategy lead, NAISI",
       ),
       amara.text,
