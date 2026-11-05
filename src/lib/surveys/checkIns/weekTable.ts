@@ -10,7 +10,7 @@ import { SURVEYS_COLLECTION, isCheckIn, normalizeSurvey, type CheckInSurveyDoc }
 import { answersOf, isOpen, sentCountOf } from "../repo";
 import { checkInSurveyId } from "./ids";
 import { checkInWindow, hereOf, openingAt, type CheckInWindow } from "./model";
-import { nudgeNeedOf, nudgeRecipients, remindedTodayAt, type NudgeFacts } from "./nudge";
+import { reminderNeedOf, facilitatorRecipients, remindedTodayAt, type ReminderFacts } from "./facilitatorReminder";
 import {
   THIS_WEEK_WORDS as WORDS,
   answeredOfReachedWords,
@@ -45,7 +45,7 @@ import {
  *    route asks for, from the same rows: `loadToldRegisterMembers` and
  *    `hereOf`), within its window or LATE until 48 hours after the session
  *    ended (`openingAt`); close it now; and remind the group's facilitators
- *    once a day (`./nudge.ts`). With nobody marked there the row says to take
+ *    once a day (`./facilitatorReminder.ts`). With nobody marked there the row says to take
  *    the register first, with the way to it.
  *
  * Reads: the run's records the page already has, each session's check-in by
@@ -249,12 +249,12 @@ export async function readWeekTable(
       }
     }
     if (reminds) {
-      const need = nudgeNeedOf({ held: each.held, ended: each.ended, finished: each.finished, hasCheckIn: survey !== null, window: each.window }, now);
+      const need = reminderNeedOf({ held: each.held, ended: each.ended, finished: each.finished, hasCheckIn: survey !== null, window: each.window }, now);
       if (need) {
         const at = await remindedTodayAt(db, runId, group.id, session.sessionKey, now);
         if (at) row.reminded = remindedTodayWords(at);
         else {
-          const recipients = await nudgeRecipients(db, records, group);
+          const recipients = await facilitatorRecipients(db, records, group);
           if (recipients.length > 0) {
             row.remind = {
               emails: recipients.length,
@@ -276,30 +276,30 @@ export async function readWeekTable(
 }
 
 /** What the reminder's route needs of one session: its facts, what is not done, and who it emails now. */
-export type NudgePlan =
+export type FacilitatorReminderPlan =
   | { state: "none" }
   | { state: "nothing"; facts: SessionFacts }
   | { state: "reminded"; facts: SessionFacts; at: Date }
-  | { state: "ready"; facts: SessionFacts; need: NudgeFacts; recipients: Awaited<ReturnType<typeof nudgeRecipients>> };
+  | { state: "ready"; facts: SessionFacts; need: ReminderFacts; recipients: Awaited<ReturnType<typeof facilitatorRecipients>> };
 
 /**
  * One session's reminder as the route works it out, by the same reads the
  * table draws its button from, so the count the button showed is the count
  * the press emails.
  */
-export async function nudgePlanFor(
+export async function facilitatorReminderPlan(
   db: Firestore,
   input: { records: RunRecords; group: CourseGroupDoc; sessionKey: string; now: Date },
-): Promise<NudgePlan> {
+): Promise<FacilitatorReminderPlan> {
   const { records, group, now } = input;
   const session = resolveSessions(records.run, group).find((each) => each.sessionKey === input.sessionKey);
   const facts = session ? sessionsInWeek(records, group, session.weekNumber, now).find((each) => each.session.sessionKey === input.sessionKey) : undefined;
   if (!facts) return { state: "none" };
   if (!remindsOn(records)) return { state: "nothing", facts };
   const survey = (await checkInsOf(db, records.run.id, [facts])).get(`${group.id}:${facts.session.sessionKey}`) ?? null;
-  const need = nudgeNeedOf({ held: facts.held, ended: facts.ended, finished: facts.finished, hasCheckIn: survey !== null, window: facts.window }, now);
+  const need = reminderNeedOf({ held: facts.held, ended: facts.ended, finished: facts.finished, hasCheckIn: survey !== null, window: facts.window }, now);
   if (!need) return { state: "nothing", facts };
   const at = await remindedTodayAt(db, records.run.id, group.id, facts.session.sessionKey, now);
   if (at) return { state: "reminded", facts, at };
-  return { state: "ready", facts, need, recipients: await nudgeRecipients(db, records, group) };
+  return { state: "ready", facts, need, recipients: await facilitatorRecipients(db, records, group) };
 }

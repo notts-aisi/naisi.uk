@@ -307,9 +307,9 @@ const DEADLINE_NAMES = new Map([
     "checkInClosesAt",
     {
       // An admin's reminder to a group's facilitators from the programme's
-      // Check-ins view: `nudge.ts` carries the session's window into the email
+      // Check-ins view: `facilitatorReminder.ts` carries the session's window into the email
       // and `words.ts` names it there.
-      files: ["src/lib/surveys/checkIns/nudge.ts", "src/lib/surveys/checkIns/words.ts"],
+      files: ["src/lib/surveys/checkIns/facilitatorReminder.ts", "src/lib/surveys/checkIns/words.ts"],
       promises: [
         {
           of: "a session's check-in window, as an admin's reminder tells its facilitators",

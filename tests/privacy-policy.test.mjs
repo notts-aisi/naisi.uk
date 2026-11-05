@@ -6495,7 +6495,7 @@ describe("the course hub passage", () => {
         "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/route.ts",
         [
           "an admin's reminder to a group's facilitators that a session's check-in or register is not done: reads whether its check-in exists and is open, never an answer or who answered, deciding nothing",
-          ["@/lib/surveys/checkIns/nudge", "@/lib/surveys/checkIns/weekTable", "@/lib/surveys/checkIns/words"],
+          ["@/lib/surveys/checkIns/facilitatorReminder", "@/lib/surveys/checkIns/weekTable", "@/lib/surveys/checkIns/words"],
         ],
       ],
       [

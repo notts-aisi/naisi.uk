@@ -393,14 +393,14 @@ const RECIPIENT_SOURCES = new Map([
       origin: "roster",
       writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
       why:
-        "The facilitators of one of the programme's groups that still meet (`nudgeRecipients`: the group's " +
+        "The facilitators of one of the programme's groups that still meet (`facilitatorRecipients`: the group's " +
         "facilitatorUids through `facilitatorsOf`, each held to the standing the role is appointed behind, with an " +
         "address and not on the do-not-email list). The body names a group and a session, never a person, and the " +
         "group must be one of the run's; the count must be the one the button showed.",
     },
   ],
   [
-    "src/lib/surveys/checkIns/nudge.ts#input.recipients",
+    "src/lib/surveys/checkIns/facilitatorReminder.ts#input.recipients",
     {
       reads: 1,
       origin: "derived",

@@ -4,9 +4,9 @@ import { readRunRecords } from "@/lib/courses/programmeAttendance";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { sendNudge } from "@/lib/surveys/checkIns/nudge";
-import { nudgePlanFor } from "@/lib/surveys/checkIns/weekTable";
-import { CHECK_IN_NUDGE_REFUSAL as REFUSAL, nudgeCountChangedWords } from "@/lib/surveys/checkIns/words";
+import { sendFacilitatorReminder } from "@/lib/surveys/checkIns/facilitatorReminder";
+import { facilitatorReminderPlan } from "@/lib/surveys/checkIns/weekTable";
+import { FACILITATOR_REMINDER_REFUSAL as REFUSAL, reminderCountChangedWords } from "@/lib/surveys/checkIns/words";
 
 /**
  * "Remind 2 facilitators" on a programme's Check-ins view (its Surveys tab):
@@ -27,10 +27,10 @@ import { CHECK_IN_NUDGE_REFUSAL as REFUSAL, nudgeCountChangedWords } from "@/lib
  *  4. The group must be one of the run's groups that still meet, the session
  *     one of its own, over, held, and something its facilitators can do must
  *     be left: its register not finished, or its check-in not opened while
- *     they can still open it (`nudgePlanFor`, the table's own reading).
+ *     they can still open it (`facilitatorReminderPlan`, the table's own reading).
  *  5. Who it emails must be the number the button showed; a different number
  *     is refused, so nobody is emailed by a count they did not see.
- *  6. The day's marker is claimed before the first email (`sendNudge`), so
+ *  6. The day's marker is claimed before the first email (`sendFacilitatorReminder`), so
  *     two presses email once.
  *
  * The answer is built field by field: how many were emailed and how many
@@ -92,13 +92,13 @@ export async function POST(req: Request, ctx: Ctx) {
   if (!group) return NextResponse.json({ error: REFUSAL.noGroup }, { status: 404 });
 
   const now = new Date();
-  const plan = await nudgePlanFor(db, { records, group, sessionKey: body.sessionKey, now });
+  const plan = await facilitatorReminderPlan(db, { records, group, sessionKey: body.sessionKey, now });
   if (plan.state === "none") return NextResponse.json({ error: REFUSAL.noSession }, { status: 404 });
   if (plan.state === "nothing") return NextResponse.json({ error: REFUSAL.nothingLeft }, { status: 409 });
   if (plan.state === "reminded") return NextResponse.json({ error: REFUSAL.already }, { status: 409 });
   if (plan.recipients.length === 0) return NextResponse.json({ error: REFUSAL.nobody }, { status: 409 });
   if (plan.recipients.length !== body.emails) {
-    return NextResponse.json({ error: nudgeCountChangedWords(plan.recipients.length) }, { status: 409 });
+    return NextResponse.json({ error: reminderCountChangedWords(plan.recipients.length) }, { status: 409 });
   }
   const startsAt = plan.facts.startsAt;
   if (!startsAt) return NextResponse.json({ error: REFUSAL.noSession }, { status: 404 });
@@ -106,7 +106,7 @@ export async function POST(req: Request, ctx: Ctx) {
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/+$/, "");
   if (!appUrl) return NextResponse.json({ error: REFUSAL.noAddress }, { status: 503 });
 
-  const sent = await sendNudge(db, {
+  const sent = await sendFacilitatorReminder(db, {
     runId: records.run.id,
     group,
     sessionKey: body.sessionKey,

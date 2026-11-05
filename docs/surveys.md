@@ -832,7 +832,7 @@ The code: `src/lib/surveys/checkIns/` (the rules in `model.ts`, the questions in
 `adminView.ts`, the lead's weeks in `leadView.ts`, which check-ins each
 week has, fixed the first time it is whole, in `weeks.ts`, an admin's table of
 the week's sessions in `weekTable.ts`, the reminder to a group's facilitators
-in `nudge.ts`, and the reminder the morning after in `remind.ts`),
+in `facilitatorReminder.ts`, and the reminder the morning after in `remind.ts`),
 `src/app/api/courses/groups/[groupId]/check-in/` (the routes),
 `src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/`
 (an admin's Remind), `src/features/courses/register/CheckInCard.tsx` (the card),
@@ -1006,7 +1006,7 @@ reminder the morning after).
   that table; `POST /api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind`
   with `{ groupId, sessionKey, emails }`): once a session has ended, when its
   register is not finished or its check-in has not been opened while its
-  facilitators can still open it (`nudgeNeedOf` in `nudge.ts`), one email to
+  facilitators can still open it (`reminderNeedOf` in `facilitatorReminder.ts`), one email to
   each of the group's live facilitators (standing behind the role, with an
   address, not on the do-not-email list) saying what is not done, with the
   way to the register, signed by whoever pressed. Transactional: about the

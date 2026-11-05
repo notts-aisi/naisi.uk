@@ -1,6 +1,6 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
-import CheckInNudgeEmail from "@/emails/CheckInNudgeEmail";
+import FacilitatorReminderEmail from "@/emails/FacilitatorReminderEmail";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { facilitatorsOf, type RunRecords } from "@/lib/courses/programmeAttendance";
 import { londonDateKey } from "@/lib/courses/weekPlan";
@@ -8,19 +8,19 @@ import { sendEmail } from "@/lib/email/send";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { isSuppressed } from "@/lib/firestore/suppression";
 import { windowState, type CheckInWindow } from "./model";
-import { facilitatorNudgeWords, type NudgeNeed } from "./words";
+import { facilitatorReminderWords, type ReminderNeed } from "./words";
 
 /**
  * "REMIND 2 FACILITATORS", AN ADMIN'S PRESS ON THE CHECK-INS VIEW: one email
  * to a group's live facilitators saying a session's check-in, or its
  * register, is not done, with the way to the register.
  *
- *  - WHAT IS NOT DONE (`nudgeNeedOf`), once the session has ended and only if
+ *  - WHAT IS NOT DONE (`reminderNeedOf`), once the session has ended and only if
  *    it happened: its register is not finished, or its check-in has not been
  *    opened while its facilitators can still open it (the session's window,
  *    until 11pm the next day). Past that window an admin can open it late
  *    themselves, so nobody is asked to.
- *  - WHO (`nudgeRecipients`): the group's facilitators while their accounts
+ *  - WHO (`facilitatorRecipients`): the group's facilitators while their accounts
  *    stand behind the role (`facilitatorsOf`, the Attendance tab's own list),
  *    each with an address and not on the do-not-email list, so the number on
  *    the button is the number emailed. Never anybody holding a place.
@@ -37,25 +37,25 @@ import { facilitatorNudgeWords, type NudgeNeed } from "./words";
 const NUDGES = "courseNudges";
 
 /** One session's reminder on one London day. CONSTRUCT-ONLY, NEVER PARSE: run and group ids already contain `__`. */
-export function nudgeMarkerId(runId: string, groupId: string, sessionKey: string, dateKey: string): string {
+export function facilitatorReminderMarkerId(runId: string, groupId: string, sessionKey: string, dateKey: string): string {
   return `cinudge__${runId}__${groupId}__${sessionKey}__${dateKey}`;
 }
 
 /** What is not done about a session, and until when its check-in can still be opened by its facilitators. */
-export type NudgeFacts = NudgeNeed & { checkInClosesAt: Date | null };
+export type ReminderFacts = ReminderNeed & { checkInClosesAt: Date | null };
 
 /**
  * WHAT A FACILITATOR HAS LEFT TO DO about one session, or null when nothing
  * is: before it has ended, when it did not happen, and once its register is
  * finished and its check-in opened (or past the time they could open it).
  */
-export function nudgeNeedOf(
+export function reminderNeedOf(
   facts: { held: boolean; ended: boolean; finished: boolean; hasCheckIn: boolean; window: CheckInWindow | null },
   now: Date,
-): NudgeFacts | null {
+): ReminderFacts | null {
   if (!facts.held || !facts.ended) return null;
   const canOpen = !facts.hasCheckIn && facts.window !== null && windowState(facts.window, now) === "now";
-  const need: NudgeFacts = {
+  const need: ReminderFacts = {
     register: !facts.finished,
     checkIn: canOpen,
     checkInClosesAt: canOpen && facts.window ? facts.window.closesAt : null,
@@ -64,11 +64,11 @@ export function nudgeNeedOf(
 }
 
 /** A facilitator the press emails. The address never leaves the server. */
-export type NudgeRecipient = { uid: string; firstName: string; to: string };
+export type FacilitatorRecipient = { uid: string; firstName: string; to: string };
 
 /** The group's live facilitators a press emails now: standing behind the role, with an address, not on the do-not-email list. */
-export async function nudgeRecipients(db: Firestore, records: RunRecords, group: CourseGroupDoc): Promise<NudgeRecipient[]> {
-  const out: NudgeRecipient[] = [];
+export async function facilitatorRecipients(db: Firestore, records: RunRecords, group: CourseGroupDoc): Promise<FacilitatorRecipient[]> {
+  const out: FacilitatorRecipient[] = [];
   for (const person of facilitatorsOf(records, group)) {
     const data = records.accounts.get(person.uid);
     const to = typeof data?.email === "string" ? data.email.trim() : "";
@@ -80,7 +80,7 @@ export async function nudgeRecipients(db: Firestore, records: RunRecords, group:
 
 /** When the session's facilitators were reminded today (London), or null. */
 export async function remindedTodayAt(db: Firestore, runId: string, groupId: string, sessionKey: string, now: Date): Promise<Date | null> {
-  const snap = await db.collection(NUDGES).doc(nudgeMarkerId(runId, groupId, sessionKey, londonDateKey(now))).get();
+  const snap = await db.collection(NUDGES).doc(facilitatorReminderMarkerId(runId, groupId, sessionKey, londonDateKey(now))).get();
   if (!snap.exists) return null;
   const at = (snap.data() ?? {}).claimedAt as { toDate?: () => Date } | Date | null | undefined;
   if (at instanceof Date) return at;
@@ -97,34 +97,34 @@ export function registerUrl(appUrl: string, runId: string, groupId: string): str
   return `${appUrl}/learn/${encodeURIComponent(runId)}/group/${encodeURIComponent(groupId)}/register`;
 }
 
-export type NudgeOutcome = { ok: true; emailed: number; failed: number } | { ok: false; reason: "already" };
+export type FacilitatorReminderOutcome = { ok: true; emailed: number; failed: number } | { ok: false; reason: "already" };
 
 /**
  * Claim the day's marker, then email each facilitator, one message each.
  * Answers how many were handed to the mail door and how many failed; a press
  * whose every send failed gives the marker back.
  */
-export async function sendNudge(
+export async function sendFacilitatorReminder(
   db: Firestore,
   input: {
     runId: string;
     group: Pick<CourseGroupDoc, "id" | "name">;
     sessionKey: string;
     sessionStartsAt: Date;
-    need: NudgeFacts;
+    need: ReminderFacts;
     /** The register's own word for ending it. */
     ended: "finished" | "pushed";
-    recipients: readonly NudgeRecipient[];
+    recipients: readonly FacilitatorRecipient[];
     appUrl: string;
     byUid: string;
     now: Date;
   },
-): Promise<NudgeOutcome> {
+): Promise<FacilitatorReminderOutcome> {
   const dateKey = londonDateKey(input.now);
-  const ref = db.collection(NUDGES).doc(nudgeMarkerId(input.runId, input.group.id, input.sessionKey, dateKey));
+  const ref = db.collection(NUDGES).doc(facilitatorReminderMarkerId(input.runId, input.group.id, input.sessionKey, dateKey));
   try {
     await ref.create({
-      kind: "check-in-nudge",
+      kind: "check-in-facilitators",
       runId: input.runId,
       groupId: input.group.id,
       sessionKey: input.sessionKey,
@@ -139,7 +139,7 @@ export async function sendNudge(
   }
   const presser = await db.collection("users").doc(input.byUid).get();
   const signer = presser.exists ? firstNameOfUser((presser.data() ?? {}) as Record<string, unknown>) : "";
-  const words = facilitatorNudgeWords({
+  const words = facilitatorReminderWords({
     groupName: input.group.name,
     sessionStartsAt: input.sessionStartsAt,
     need: input.need,
@@ -160,7 +160,7 @@ export async function sendNudge(
         kind: "course-facilitator",
         actorUid: input.byUid,
         referenceId: input.runId,
-        react: CheckInNudgeEmail({
+        react: FacilitatorReminderEmail({
           subject: words.subject,
           recipientName: person.firstName,
           paragraphs: words.paragraphs,

@@ -45,7 +45,7 @@ export const SEND_DOOR_NAMES = [
   "sendFeedbackTest",
   "sendFreeReminders",
   "sendSurveyAfter",
-  "sendNudge",
+  "sendFacilitatorReminder",
   "sendCheckInReminder",
 ];
 

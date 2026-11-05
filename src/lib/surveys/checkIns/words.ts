@@ -404,9 +404,9 @@ export function remindFacilitatorsWords(n: number): string {
 }
 
 /** What is not done about one session, for an admin's table and the question before the email. */
-export type NudgeNeed = { register: boolean; checkIn: boolean };
+export type ReminderNeed = { register: boolean; checkIn: boolean };
 
-function needWords(need: NudgeNeed, ended: "finished" | "pushed"): string {
+function needWords(need: ReminderNeed, ended: "finished" | "pushed"): string {
   if (need.register && need.checkIn) return "its register and check-in aren’t done";
   if (need.checkIn) return "its check-in hasn’t been opened";
   return `its register isn’t ${ended}`;
@@ -416,7 +416,7 @@ function needWords(need: NudgeNeed, ended: "finished" | "pushed"): string {
  * The question in front of the reminder: "Email Group B’s 2 facilitators that
  * its check-in hasn’t been opened?", the register in its own word for ending it.
  */
-export function remindConfirmWords(groupName: string, n: number, need: NudgeNeed, ended: "finished" | "pushed"): string {
+export function remindConfirmWords(groupName: string, n: number, need: ReminderNeed, ended: "finished" | "pushed"): string {
   const who = n === 1 ? "facilitator" : `${n} facilitators`;
   return `Email ${groupName}’s ${who} that ${needWords(need, ended)}? Each gets one email with the way to the register.`;
 }
@@ -435,10 +435,10 @@ export function remindedWords(emailed: number): string {
 // The reminder to a group's facilitators (an admin's press on the table)
 // ---------------------------------------------------------------------------
 
-export type FacilitatorNudgeFacts = {
+export type FacilitatorReminderFacts = {
   groupName: string;
   sessionStartsAt: Date;
-  need: NudgeNeed;
+  need: ReminderNeed;
   /** When the facilitators can open the check-in until, when that is what is not done. */
   checkInClosesAt: Date | null;
   /** The register's own word for ending it: "finished" or "pushed". */
@@ -447,14 +447,14 @@ export type FacilitatorNudgeFacts = {
   signer: string;
 };
 
-export type FacilitatorNudgeWords = { subject: string; paragraphs: string[]; button: string; signOff: string[] };
+export type FacilitatorReminderWords = { subject: string; paragraphs: string[]; button: string; signOff: string[] };
 
 /**
  * The one email to a group's facilitators that a session's check-in, or its
  * register, is not done, with the way to the register. Nothing of anybody's
  * answers, no count of who answered, and no meeting link.
  */
-export function facilitatorNudgeWords(facts: FacilitatorNudgeFacts): FacilitatorNudgeWords {
+export function facilitatorReminderWords(facts: FacilitatorReminderFacts): FacilitatorReminderWords {
   const group = facts.groupName.trim() || "Your group";
   const day = dayWords(facts.sessionStartsAt);
   const { register, checkIn } = facts.need;
@@ -486,7 +486,7 @@ export function facilitatorNudgeWords(facts: FacilitatorNudgeFacts): Facilitator
 }
 
 /** The reminder's route, refusing in a sentence. */
-export const CHECK_IN_NUDGE_REFUSAL = {
+export const FACILITATOR_REMINDER_REFUSAL = {
   body: "Say which group’s session to remind its facilitators about, and how many the button said it emails.",
   noProgramme: "There is no programme here.",
   adminOnly: "Only an admin can remind a group’s facilitators from here.",
@@ -501,7 +501,7 @@ export const CHECK_IN_NUDGE_REFUSAL = {
 } as const;
 
 /** The count on the button no longer matches: "Nothing was sent: the reminder now emails 1 person. Reload the page and press again." */
-export function nudgeCountChangedWords(now: number): string {
+export function reminderCountChangedWords(now: number): string {
   return `Nothing was sent: the reminder now emails ${peopleWords(now)}. Reload the page and press again.`;
 }
 

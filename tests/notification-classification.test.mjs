@@ -776,10 +776,10 @@ const REGISTRY = {
     1,
     "src/lib/surveys/checkIns/remind.ts",
   ),
-  "src/lib/surveys/checkIns/nudge.ts#sendEmail": T(
+  "src/lib/surveys/checkIns/facilitatorReminder.ts#sendEmail": T(
     "Remind on a programme's Check-ins view, an admin's press: one email to each of a group's live facilitators (standing behind the role, with an address, not on the do-not-email list) that a session's check-in has not been opened or its register is not finished, with the way to the register. About the session they facilitate, owed to them by the press, so it reads no notification row and is no notice. Once a session a London day, by a marker claimed first.",
   ),
-  "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/route.ts#sendNudge": T(
+  "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/route.ts#sendFacilitatorReminder": T(
     "Remind on a programme's Check-ins view, pressed by an admin with the number it emails on the button: the reminder above, to the group's live facilitators and nobody else. One call, which loops over them.",
   ),
   "src/app/api/events/[id]/survey-after/test/route.ts#sendEmail": T(

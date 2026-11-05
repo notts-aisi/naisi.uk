@@ -6,7 +6,7 @@ type Props = {
   subject: string;
   /** The facilitator's own first name, or "" for no name in the greeting. */
   recipientName: string;
-  /** Its sentences, in order, written by `facilitatorNudgeWords`. */
+  /** Its sentences, in order, written by `facilitatorReminderWords`. */
   paragraphs: string[];
   /** "Open the register". */
   button: string;
@@ -22,13 +22,13 @@ type Props = {
  * or its register is not finished: what is not done, and the way to the
  * register. At most once a session a day.
  *
- * Every sentence comes from `facilitatorNudgeWords`, from records the sender
+ * Every sentence comes from `facilitatorReminderWords`, from records the sender
  * read: the group's name, the session's day, what is not done and until when
  * the check-in can still be opened. It never carries an answer, a count of
  * who answered, or a meeting link. About the facilitator's own session, owed
  * to them by the press, so it has no unsubscribe footer.
  */
-export default function CheckInNudgeEmail({ subject, recipientName, paragraphs, button, registerLink, signOff }: Props) {
+export default function FacilitatorReminderEmail({ subject, recipientName, paragraphs, button, registerLink, signOff }: Props) {
   return (
     <EmailChrome subject={subject} greeting={recipientName ? `Hi ${recipientName},` : undefined} preheader={paragraphs[0]}>
       <Section>

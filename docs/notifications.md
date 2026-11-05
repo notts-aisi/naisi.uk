@@ -249,7 +249,7 @@ same email went once per piece, straight from the review route; the
 registry's entries moved with it, and the class did not change.
 
 **An admin's reminder to a group's facilitators is transactional.** "Remind 2
-facilitators" on a programme's Check-ins view (`src/lib/surveys/checkIns/nudge.ts`)
+facilitators" on a programme's Check-ins view (`src/lib/surveys/checkIns/facilitatorReminder.ts`)
 emails each of a group's live facilitators that a session's check-in has not
 been opened, or its register is not finished, with the way to the register.
 It is about the session they facilitate and owed to them by the press, so it

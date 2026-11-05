@@ -95,7 +95,7 @@ const registry = await lib("scheduler", "registry.ts");
 const words = await lib("surveys", "checkIns", "words.ts");
 const { checkInSurveyId } = await lib("surveys", "checkIns", "ids.ts");
 const remindLib = await lib("surveys", "checkIns", "remind.ts");
-const nudgeLib = await lib("surveys", "checkIns", "nudge.ts");
+const facilitatorReminderLib = await lib("surveys", "checkIns", "facilitatorReminder.ts");
 const surveys = await lib("firestore", "surveys.ts");
 const weekTable = await lib("surveys", "checkIns", "weekTable.ts");
 const attendance = await lib("courses", "programmeAttendance.ts");
@@ -335,7 +335,7 @@ describe("2. remind the facilitators: an admin's alone, the number on the button
       Object.keys(marker).sort(),
       ["byUid", "claimedAt", "dateKey", "emailed", "groupId", "kind", "runId", "sessionKey", "settledAt", "state"],
     );
-    assert.deepEqual([marker.kind, marker.runId, marker.byUid, marker.state, marker.emailed], ["check-in-nudge", RUN, "zach", "sent", 1]);
+    assert.deepEqual([marker.kind, marker.runId, marker.byUid, marker.state, marker.emailed], ["check-in-facilitators", RUN, "zach", "sent", 1]);
     assert.ok(!JSON.stringify(marker).includes("amelia"));
   });
 
@@ -397,7 +397,7 @@ describe("2. remind the facilitators: an admin's alone, the number on the button
 
   test("what is left, worked out once: the register, and the check-in only while its facilitators can open it", () => {
     const window = { opensAt: new Date("2026-10-26T18:00:00Z"), closesAt: new Date("2026-10-27T23:00:00Z"), lateUntil: new Date("2026-10-28T20:00:00Z") };
-    const of = (facts, now) => nudgeLib.nudgeNeedOf({ held: true, ended: true, finished: false, hasCheckIn: false, window, ...facts }, new Date(now));
+    const of = (facts, now) => facilitatorReminderLib.reminderNeedOf({ held: true, ended: true, finished: false, hasCheckIn: false, window, ...facts }, new Date(now));
     assert.deepEqual(of({}, "2026-10-27T10:00:00Z"), { register: true, checkIn: true, checkInClosesAt: window.closesAt });
     assert.deepEqual(of({ finished: true }, "2026-10-27T10:00:00Z"), { register: false, checkIn: true, checkInClosesAt: window.closesAt });
     assert.deepEqual(of({}, "2026-10-28T10:00:00Z"), { register: true, checkIn: false, checkInClosesAt: null });
@@ -405,7 +405,7 @@ describe("2. remind the facilitators: an admin's alone, the number on the button
     assert.equal(of({ finished: true, hasCheckIn: true }, "2026-10-27T10:00:00Z"), null);
     assert.equal(of({ held: false }, "2026-10-27T10:00:00Z"), null, "a session that didn't happen needs nothing");
     assert.equal(of({ ended: false }, "2026-10-26T19:00:00Z"), null, "a session still under way is not chased");
-    assert.equal(nudgeLib.nudgeMarkerId(RUN, A, "w02", "2026-10-27"), `cinudge__${RUN}__${A}__w02__2026-10-27`);
+    assert.equal(facilitatorReminderLib.facilitatorReminderMarkerId(RUN, A, "w02", "2026-10-27"), `cinudge__${RUN}__${A}__w02__2026-10-27`);
   });
 });
 
@@ -553,12 +553,12 @@ describe("4. who reads the table, and who presses its reminder", () => {
     walk(SRC);
     const strip = (code) => code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     const finding = files
-      .filter((file) => /\b(?:readWeekTable|nudgePlanFor|sendNudge)\(/.test(strip(readFileSync(file, "utf8"))))
+      .filter((file) => /\b(?:readWeekTable|facilitatorReminderPlan|sendFacilitatorReminder)\(/.test(strip(readFileSync(file, "utf8"))))
       .map((file) => relative(SRC, file).split(sep).join("/"))
       .sort();
     const LISTED = {
       "lib/surveys/checkIns/weekTable.ts": "defines the table's reading and the reminder's plan, the same reads for both",
-      "lib/surveys/checkIns/nudge.ts": "defines the reminder's send, claimed once a session a day",
+      "lib/surveys/checkIns/facilitatorReminder.ts": "defines the reminder's send, claimed once a session a day",
       "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/check-ins/page.tsx":
         "the Check-ins view, which reads the table only when loadProgrammeRun said the reader is an admin",
       "app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/route.ts":
