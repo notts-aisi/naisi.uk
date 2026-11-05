@@ -147,6 +147,12 @@ export const SPEC = {
    * start), once Ada also answers "Most weeks, not all" and ticks week 5: all
    * eleven steps, 54 rows before teardown (week 5's register the one more),
    * and zero after.
+   * Verified again on 2026-11-05 at 8134783e (on 1b6a3f08, over
+   * dev's f516daa5), once the journey carries Joining online, the box's
+   * meeting link, the register's in the room or online and the Attendance
+   * tab, with Group A given no meeting link at its point: all fourteen steps
+   * against the loopback server on a laptop, 53 rows before teardown, and
+   * zero after.
    */
   status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three-work" }),
