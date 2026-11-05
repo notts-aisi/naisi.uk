@@ -384,17 +384,26 @@ describe("4. once Publish has told somebody when a group meets, its time is not 
       world.db.read(`courseNudges/facilitating__${RUN.agi}__${GROUP.monday}__nobody`),
       "Publish did not tell the facilitator",
     );
-    // Everybody moves to Thursday: each stamp goes with its move.
+    // Everybody moves to Thursday. CHANGED ON PURPOSE (November 2026): until
+    // then each stamp went with its move. A move now keeps each seat told,
+    // and the seat keeps the group it was told about, Monday.
     const moved = await place("claudia", everybodyIn(GROUP.thursday));
     assert.equal(moved.body.placed, 4, JSON.stringify(moved.body));
     for (const uid of ["amara", "bea", "dev", "tariq"]) {
-      assert.equal(world.db.read(`courseEnrolments/${RUN.agi}__${uid}`).allocatedEmailAt, undefined, uid);
+      const seat = world.db.read(`courseEnrolments/${RUN.agi}__${uid}`);
+      assert.ok(seat.allocatedEmailAt, `${uid} is no longer told`);
+      assert.equal(seat.toldGroupId, GROUP.monday, uid);
     }
     const answer = await change("claudia", GROUP.monday, TUESDAY_7PM, MONDAY);
     assert.equal(answer.status, 409, JSON.stringify(answer.body));
-    // Taken off the group, the facilitator is told nothing more of it, and nobody else was told.
+    // Taken off the group, the facilitator is told nothing more of it, and
+    // nobody in it was told: the four told about it are in Thursday now.
     world.db.poke(`courseGroups/${GROUP.monday}`, { facilitatorUids: [] });
     assert.equal((await change("claudia", GROUP.monday, TUESDAY_7PM, MONDAY)).status, 200);
+    // And Thursday still changes: the four in it were emailed Monday's time,
+    // and the next Publish emails them Thursday's.
+    const thursday = await change("claudia", GROUP.thursday, { weekday: 3, start: "7pm" }, { weekday: 4, start: "10:00" });
+    assert.equal(thursday.status, 200, JSON.stringify(thursday.body));
   });
 
   test("somebody told who has left the group's run is told nothing more about it", async () => {

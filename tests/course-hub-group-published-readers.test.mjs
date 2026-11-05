@@ -210,7 +210,11 @@ const READERS = {
   "lib/courses/groupTimes/told.ts": {
     kind: "told",
     asks: 1,
-    why: "whether Publish has told anybody when a group meets, for the Times view and the two routes that change a group's time: a seat counts only once Publish has told it, and the answer is a group's id, never a seat or a name",
+    derived: { groupToldAbout: 1 },
+    why:
+      "whether Publish has told anybody when a group meets, for the Times view and the two routes that change a group's " +
+      "time: a seat counts only once Publish has told it about that group, so a told seat moved in since (emailed another " +
+      "group's time, and this one's by the next Publish) does not, and the answer is a group's id, never a seat or a name",
   },
   "lib/courses/registerAccess.ts": {
     kind: "shown",

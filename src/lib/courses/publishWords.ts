@@ -270,8 +270,10 @@ export function publishResultLines(report: PublishReport): string[] {
     lines.push(`Published. ${emailsLabel(sent)} sent: ${nameList(parts)}.`);
   }
   if (report.failed.length > 0) {
+    // One name per person: a facilitator of two groups can be sent two
+    // emails by one press, and both can fail.
     lines.push(
-      `Not sent to ${nameList(report.failed)}, because the send failed. Press Publish again to try again: nobody already told is emailed twice.`,
+      `Not sent to ${nameList([...new Set(report.failed)])}, because the send failed. Press Publish again to try again: nobody already told is emailed twice.`,
     );
   }
   if (report.noAddress.length > 0) {
