@@ -136,7 +136,7 @@ const lib = {
 const { LEAD_TAB_WORDS, LEAD_RESULTS_WORDS, LEAD_OVERVIEW_WORDS } = lib.words;
 /** The scheduler's job that fixes each week's check-ins the first time it is whole. */
 const { surveyCheckInWeeksJob } = await loadTs(join("lib", "scheduler", "jobs", "surveyCheckInWeeks.ts"));
-const { CHECK_INS_TAB_WORDS } = lib.checkInWords;
+const { CHECK_INS_TAB_WORDS, THIS_WEEK_WORDS } = lib.checkInWords;
 const BASE = `/admin/admissions/forms/${ROUND}/programmes/${AGI}`;
 
 /** The session getCurrentUser() builds from the stored account, with the reviewer flag the roles writer keeps. */
@@ -535,7 +535,15 @@ describe("1. who opens the tab", () => {
       if (segment === "/check-ins") {
         // An admin also has each group's check-in; the lead never does.
         assert.ok(asAdmin.text.includes(CHECK_INS_TAB_WORDS.groups) && !asLead.text.includes(CHECK_INS_TAB_WORDS.groups));
-        assert.equal(asAdmin.text.replace(/ Each group’s check-in Only admins see these\..*?(?= Week \d| $|$)/gs, ""), asLead.text);
+        // And the table of a week's sessions above the weeks, a group at a time; the lead never has it.
+        assert.ok(asAdmin.text.includes(THIS_WEEK_WORDS.lede) && !asLead.text.includes(THIS_WEEK_WORDS.lede));
+        assert.ok(!/check-ins\/remind|Remind \d+ facilitators?|Open it (?:late )?for \d/.test(asLead.html), "the lead is offered an admin's presses");
+        const table = new RegExp(`^${VIEWS_TEXT} .*?${THIS_WEEK_WORDS.lede}.*?(?= ${lib.checkInWords.checkInsTabLine(3, 5)})`, "s");
+        assert.match(asAdmin.text, table, "an admin's table is not between the row of views and the weeks");
+        assert.equal(
+          asAdmin.text.replace(table, VIEWS_TEXT).replace(/ Each group’s check-in Only admins see these\..*?(?= Week \d| $|$)/gs, ""),
+          asLead.text,
+        );
       } else {
         assert.equal(asAdmin.text, asLead.text, `${segment || "the Overview"} differs for an admin`);
       }
@@ -1348,6 +1356,12 @@ describe("4c. the Check-ins view: whole weeks, its floors, never a group's own f
         "the Surveys tab's reading, behind the tab's gate: a week once its check-ins are fixed, and only those, totals from three answers and comments from five; each group's row for an admin alone",
       "lib/surveys/checkIns/weeks.ts":
         "the scheduler's job that fixes each week's check-ins the first time it is whole, by their ids and whether any is open; reads no answer",
+      // This week's check-ins, an admin's table on the Check-ins view, and the
+      // check-in's one reminder the morning after.
+      "lib/surveys/checkIns/weekTable.ts":
+        "an admin's table of a week's sessions, behind the tab's gate and read only when it says the reader is an admin: each session's check-in by its id, its state and how many answered, as its Results count them; the lead never has it",
+      "lib/scheduler/jobs/surveyCheckInReminders.ts":
+        "the job that reminds the people an open check-in reached at 9am the day after its session, by their own rows; reads whether each has answered, never an answer",
       "lib/surveys/onePerson.ts": "the admins' page of one person's answers, read once the opening is recorded",
       // The admins' week review (privacy v15): Claude may be sent survey
       // answers, and check-ins go pooled by group for what people found hard.

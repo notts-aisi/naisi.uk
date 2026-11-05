@@ -259,7 +259,7 @@ export async function readWeekTable(
             row.remind = {
               emails: recipients.length,
               label: remindFacilitatorsWords(recipients.length),
-              confirm: remindConfirmWords(group.name, recipients.length, need),
+              confirm: remindConfirmWords(group.name, recipients.length, need, scheduled ? "finished" : "pushed"),
             };
           }
         }

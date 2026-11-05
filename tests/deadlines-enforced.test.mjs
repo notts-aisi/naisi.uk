@@ -213,9 +213,12 @@ const DEADLINE_NAMES = new Map([
         // session's report closes, which the report route refuses past.
         "src/lib/courses/sessionReports/model.ts",
         // A check-in at the end of a session: `checkIns/open.ts` writes its close
-        // (11pm on the session's day, or an hour after a late session ends) when
-        // it is opened, and `checkIns/words.ts` names it in its email.
+        // (11pm the day after the session, or for one an admin opens late, 11pm
+        // the day after it opens) when it is opened, `checkIns/words.ts` names
+        // it in its email, and `checkIns/remind.ts` hands it to the reminder the
+        // morning after, which names it too.
         "src/lib/surveys/checkIns/open.ts",
+        "src/lib/surveys/checkIns/remind.ts",
         "src/lib/surveys/checkIns/words.ts",
       ],
       promises: [
@@ -279,9 +282,10 @@ const DEADLINE_NAMES = new Map([
             "src/lib/surveys/events/words.ts",
             "src/lib/surveys/blanksView.ts",
             "src/lib/surveys/blanksStore.ts",
-            // A check-in's page and its email.
+            // A check-in's page, its email and its reminder the morning after.
             "src/lib/surveys/checkIns/answerView.ts",
             "src/lib/surveys/checkIns/words.ts",
+            "src/lib/surveys/checkIns/remind.ts",
           ],
           enforced: ["src/lib/surveys/answer.ts", "src/lib/surveys/events/store.ts", "src/lib/surveys/blanksStore.ts"],
           predicate: "isOpen(",
@@ -295,6 +299,28 @@ const DEADLINE_NAMES = new Map([
           told: ["src/lib/anonymousFeedback/view.ts", "src/lib/anonymousFeedback/readers.ts"],
           enforced: ["src/app/api/feedback/route.ts"],
           predicate: "isFormOpen(",
+        },
+      ],
+    },
+  ],
+  [
+    "checkInClosesAt",
+    {
+      // An admin's reminder to a group's facilitators from the programme's
+      // Check-ins view: `nudge.ts` carries the session's window into the email
+      // and `words.ts` names it there.
+      files: ["src/lib/surveys/checkIns/nudge.ts", "src/lib/surveys/checkIns/words.ts"],
+      promises: [
+        {
+          of: "a session's check-in window, as an admin's reminder tells its facilitators",
+          binds: "a group's facilitators, opening the session's check-in from the register",
+          why:
+            "Not stored: the session's own window (`checkInWindow`, until 11pm the day after it) carried into the " +
+            "reminder, so the time the email names and the time the open route refuses a facilitator past are one " +
+            "reading of the same session.",
+          told: ["src/lib/surveys/checkIns/words.ts"],
+          enforced: ["src/lib/surveys/checkIns/open.ts"],
+          predicate: "openingAt(",
         },
       ],
     },

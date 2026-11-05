@@ -132,7 +132,6 @@ export async function openCheckIn(
   if (opening.state === "past") return refuse(409, input.admin ? CHECK_IN_REFUSAL.pastLate : CHECK_IN_REFUSAL.past);
   if (opening.state === "late" && !input.late) return refuse(409, CHECK_IN_REFUSAL.openLate);
   if (opening.state === "now" && input.late) return refuse(409, CHECK_IN_REFUSAL.notLate);
-  const { closesAt } = opening;
   const surveyId = checkInSurveyId(runId, group.id, session.sessionKey);
   const surveyRef = db.collection(SURVEYS_COLLECTION).doc(surveyId);
   if ((await surveyRef.get()).exists) return refuse(409, CHECK_IN_REFUSAL.alreadyOpen);
@@ -202,7 +201,7 @@ export async function openCheckIn(
     pairOf: null,
     strand: null,
     checkIn: { groupName, startsAt, endsAt },
-    closesAt,
+    closesAt: opening.closesAt,
     closedAt: null,
     namesOffOn,
     namesOffAt: null,
@@ -245,7 +244,7 @@ export async function openCheckIn(
     questions: surveyQuestionsOf(items).length,
     minutes: CHECK_IN_MINUTES,
     programmeName,
-    closesAt,
+    closesAt: opening.closesAt,
     late: opening.state === "late",
     signer,
   });

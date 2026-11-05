@@ -406,16 +406,19 @@ export function remindFacilitatorsWords(n: number): string {
 /** What is not done about one session, for an admin's table and the question before the email. */
 export type NudgeNeed = { register: boolean; checkIn: boolean };
 
-function needWords(need: NudgeNeed): string {
+function needWords(need: NudgeNeed, ended: "finished" | "pushed"): string {
   if (need.register && need.checkIn) return "its register and check-in aren’t done";
   if (need.checkIn) return "its check-in hasn’t been opened";
-  return "its register isn’t finished";
+  return `its register isn’t ${ended}`;
 }
 
-/** The question in front of the reminder: "Email Group B’s 2 facilitators that its check-in hasn’t been opened?" */
-export function remindConfirmWords(groupName: string, n: number, need: NudgeNeed): string {
+/**
+ * The question in front of the reminder: "Email Group B’s 2 facilitators that
+ * its check-in hasn’t been opened?", the register in its own word for ending it.
+ */
+export function remindConfirmWords(groupName: string, n: number, need: NudgeNeed, ended: "finished" | "pushed"): string {
   const who = n === 1 ? "facilitator" : `${n} facilitators`;
-  return `Email ${groupName}’s ${who} that ${needWords(need)}? Each gets one email with the way to the register.`;
+  return `Email ${groupName}’s ${who} that ${needWords(need, ended)}? Each gets one email with the way to the register.`;
 }
 
 /** Once a press today has gone: "Facilitators reminded today at 10:15am." */

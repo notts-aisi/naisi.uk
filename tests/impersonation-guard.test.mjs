@@ -410,6 +410,10 @@ const MUST_GUARD = [
     "emails a group's facilitators a reminder about an unfinished register in the caller's name, and claims the reminder job's own marker for each so that the job sends them none",
   ],
   [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/route.ts",
+    "emails a group's facilitators that a session's check-in or register is not done, in the caller's name, and claims the day's marker for the session",
+  ],
+  [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind/route.ts",
     "emails the people holding a place who have not said when they are free in the caller's name, and claims a marker for each for the day",
   ],

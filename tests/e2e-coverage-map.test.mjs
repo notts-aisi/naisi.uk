@@ -789,6 +789,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the groups-go-out spec changes a group's time on the Times view before it presses Publish.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind": {
+    reason:
+      "Course hub: Remind on the Check-ins view's table of the week's sessions, an admin's press; tests/surveys-check-ins-week.test.mjs executes it as every kind of caller, with the count it must match, what is left to do (the register, the check-in while its facilitators can still open it), once a session a day, a failed send given back, and the facilitators' email rendered.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a session that has ended with its register unfinished and its check-in not opened, so an admin can press Remind on the table and the facilitator's email can be read from the suite's mail catcher.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind": {
     reason:
       "Course hub: Remind on the Overview's card of who has not said when they are free; tests/course-hub-get-ready.test.mjs executes it as every kind of caller, with the count it must match, once a person a day, and a failed send given back.",

@@ -94,9 +94,9 @@ export function checkInWindow(session: { dateKey: string; startsAt: Date | null;
   return { opensAt: session.startsAt, closesAt, lateUntil };
 }
 
-/** When a check-in an admin opens late closes: 11pm in London on the day after the day it is opened. */
-export function lateClosesAt(openedAt: Date): Date {
-  return nightAfter(londonDateKey(openedAt)) ?? new Date(openedAt.getTime() + 24 * 60 * 60 * 1000);
+/** When a check-in an admin opens late at `when` closes: 11pm in London on the day after that day. */
+export function lateClosesAt(when: Date): Date {
+  return nightAfter(londonDateKey(when)) ?? new Date(when.getTime() + 24 * 60 * 60 * 1000);
 }
 
 /** Where a session stands for its check-in at `now`: before its start, within its window, or past it. */

@@ -7,7 +7,7 @@ import { SURVEY_PEOPLE_COLLECTION, normalizeSurveyPerson, type CheckInSurveyDoc,
 import { surveyLink } from "../emails";
 import { surveyQuestionsOf } from "../items";
 import { isOpen, peopleOf } from "../repo";
-import { onTheRun } from "../waiting";
+import { onTheRun } from "../seat";
 import { SURVEY_FROM_NAME, SURVEY_REPLY_TO } from "../words";
 import { checkInReminderWords } from "./words";
 

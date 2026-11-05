@@ -384,6 +384,30 @@ const RECIPIENT_SOURCES = new Map([
         "and only for pieces the admin left ticked that the server reads back and claims itself.",
     },
   ],
+  // Remind on a programme's Check-ins view, an admin's press: a group's live
+  // facilitators, read on the server from the group the body names.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/route.ts#plan.recipients",
+    {
+      reads: 4,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "The facilitators of one of the programme's groups that still meet (`nudgeRecipients`: the group's " +
+        "facilitatorUids through `facilitatorsOf`, each held to the standing the role is appointed behind, with an " +
+        "address and not on the do-not-email list). The body names a group and a session, never a person, and the " +
+        "group must be one of the run's; the count must be the one the button showed.",
+    },
+  ],
+  [
+    "src/lib/surveys/checkIns/nudge.ts#input.recipients",
+    {
+      reads: 1,
+      origin: "derived",
+      derivedFrom: ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/route.ts#plan.recipients"],
+      why: "The route's own list of the group's live facilitators, handed over as it was counted; each gets one email at their own address.",
+    },
+  ],
   [
     "src/lib/courses/registerRemind.ts#group.facilitatorUids",
     {
