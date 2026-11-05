@@ -1304,7 +1304,9 @@ programme names" below).
   "Misses week 3", and nobody moves them for it. "No, I need a different
   time" asks why and which other times would work, KEEPS THEIR PLACE (it
   is not leaving), and shows on their card on the board and in Circles for
-  the lead and admins, never facilitators. A move clears the answer.
+  the lead and admins, never facilitators. Remove and putting somebody
+  back after they left clear it; a move keeps it on the seat, shown only
+  while they are in the group it is about.
 - **An answer given before the third answer existed** (until 5 Nov 2026 the
   question had two, and some people who could not make one week said they
   could not make the time): under that answer's "Why, and what would work"
@@ -1320,6 +1322,18 @@ programme names" below).
   facilitators already told, once per person who has joined it since.
   Pressing it twice writes nothing twice: a press that finds everybody
   already there says so and changes nothing.
+- **Moving somebody already told their group sends nothing, and hides
+  nobody.** They see their new group at once, and so do its people, its
+  facilitators, its register and its check-in. Their card on the board and
+  in Circles says they were moved since they were told and will be emailed
+  at the next Publish, which sends them "You’ve moved" (their new group,
+  when it next meets counted from the press, where, its facilitators, and
+  that it replaces the group they were told about), tells the new group's
+  facilitators who has joined and the old group's who is no longer in it,
+  and lists them on its own ("Will: moved to Group H, was Group D"), with
+  "Send a test to me" sending the first "You’ve moved" too. A swap and a
+  swap back before the press owes nothing, and Publish never sends somebody
+  told the first email again.
 - **A run has to start with no applications of its own.** A run that
   already took applications through its own page cannot be named. Make a
   new run for the term.

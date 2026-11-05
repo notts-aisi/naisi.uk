@@ -716,7 +716,7 @@ describe("4. Publish's readiness check: what Publish refuses for is needed, the 
     // publish" (walk 4b, L7); the next test draws the card before the press.
     assert.match(
       drawn.text,
-      /^People in groups Publish AGI Strategy’s groups Ready\? Published Published Mon 26 Oct, 12pm\. Someone you move now sees nothing of their new group until you publish again, which emails only the people who haven’t been told\. Needed to publish Every group has a day, a time and a room 3 groups: Tue 6pm, Wed 1pm, Thu 6pm Worth checking These don’t stop you publishing\. Every group has a facilitator/,
+      /^People in groups Publish AGI Strategy’s groups Ready\? Published Published Mon 26 Oct, 12pm\. Once somebody has been told their group, moving them shows them the new one at once, and the next publish emails them that they have moved\. Anybody you place who hasn’t been told sees nothing until you publish again\. Needed to publish Every group has a day, a time and a room 3 groups: Tue 6pm, Wed 1pm, Thu 6pm Worth checking These don’t stop you publishing\. Every group has a facilitator/,
     );
     assert.match(drawn.html, new RegExp(`<a href="${PROGRAMME_PATH}/groups" class="back">`));
     // What can follow by itself is read on the server from the scheduler's
@@ -762,10 +762,10 @@ describe("4. Publish's readiness check: what Publish refuses for is needed, the 
       const step = (await facts(who)).checklist.steps.find((each) => each.key === "publish");
       assert.deepEqual(after.readiness.published, {
         when: step.line,
-        later: "Someone you move now sees nothing of their new group until you publish again, which emails only the people who haven’t been told.",
+        later: "Once somebody has been told their group, moving them shows them the new one at once, and the next publish emails them that they have moved. Anybody you place who hasn’t been told sees nothing until you publish again.",
       }, who);
       assert.equal(step.line, "Published Mon 26 Oct, 12pm.");
-      assert.match(after.text, /Ready\? Published Published Mon 26 Oct, 12pm\. Someone you move now /, who);
+      assert.match(after.text, /Ready\? Published Published Mon 26 Oct, 12pm\. Once somebody has been told their group, moving them /, who);
       assert.ok(!after.text.includes("Ready to publish"), who);
     }
   });

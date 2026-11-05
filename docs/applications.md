@@ -1861,16 +1861,21 @@ tells the admin who presses it.
 Publish has told them it.** An admin's first placement of somebody on the
 board makes their place on the run, and that place is the board's working
 copy until Publish emails them their group (`allocatedEmailAt` on the
-enrolment, which a move clears). Until then their member area reads exactly
-as it did before the placement and the run stays shut to them, and nobody
-but an admin is shown their name in the group: not its facilitators, not
-its other members. Moving people on the board emails nobody and shows
-nobody anything. Once Publish has emailed them, the run and their group
-show and the run opens to them, as for anybody in a group. Somebody moved
-to another group after Publish is untold again, and reads nothing of the
-run until Publish is pressed again and emails them alone their new group.
-One function decides all of it, `placementIsTold` in
-`src/lib/firestore/courseEnrolments.ts`, and
+enrolment, with the group it was about in `toldGroupId`). Until then their
+member area reads exactly as it did before the placement and the run stays
+shut to them, and nobody but an admin is shown their name in the group: not
+its facilitators, not its other members. Moving people on the board emails
+nobody by itself. Once Publish has emailed them, the run and their group
+show and the run opens to them, as for anybody in a group, and they stay
+told whatever group they are moved to: they, their new group's people and
+facilitators, its register and its check-in see them there at once. While
+they sit in a group other than the one they were told about
+(`movedSinceTold`, worked out and never stored), the next press of Publish
+sends them "You’ve moved" about it, never the first email again, and tells
+the facilitators of the group they joined who has joined and those of the
+group they were told about who is no longer in it. Moved back before then,
+nobody is owed anything. One function decides who is shown what,
+`placementIsTold` in `src/lib/firestore/courseEnrolments.ts`, and
 `tests/course-hub-group-published-readers.test.mjs` holds every reader of
 placements to it. Once Publish has told somebody their group, "I can't make
 it" on the form is leaving the programme and takes them off the run
