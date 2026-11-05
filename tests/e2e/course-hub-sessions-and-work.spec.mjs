@@ -16,10 +16,10 @@
  * session report before it is finished; Fern marks week 3, puts Ada down as
  * having joined it online, and finishes it -> Fern follows "Next: two
  * minutes on how it went." to the session report and sends one -> Ada can
- * make week 4 after all and says she is joining it online instead, one thing
- * at a time on her ticket -> the box at the top of Fern's group page asks
+ * make week 4 after all and says Ada is joining it online instead, one thing
+ * at a time on the ticket -> the box at the top of Fern's group page asks
  * for a meeting link for week 4, Fern adds one, and the box and the register
- * say Ada is joining online -> Ada's ticket, on her programme page and on
+ * say Ada is joining online -> Ada's ticket, on the programme page and on
  * Home, carries the link for anybody joining online, beside Add to calendar
  * -> Ada writes week 4's written answer, presses
  * Submit week 4, reads the check (two reflections empty) and presses Submit
@@ -29,7 +29,7 @@
  * answer and submits again -> the programme's lead (the admin) opens the
  * Surveys tab from the programme's head, follows the Overview's "Read the
  * report" to the session reports, and reads Fern's report with names -> the
- * lead's Attendance tab says Ada came to one of her sessions online.
+ * lead's Attendance tab says Ada came to one session online.
  *
  * ## How to run it
  *
@@ -535,7 +535,7 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
         // Marked and still not finished: the way on is where it was.
         assert.equal(await reportLink.getAttribute("href"), reportHref, "marking the register moved the way on to the report");
 
-        // Ada joined from home: the choice beside her mark, in the register as it is taken.
+        // Ada joined from home: the choice beside Ada's mark, in the register as it is taken.
         const where = fernPage.getByTestId("attendance-grid").getByRole("button", { name: WORDS.whereChoice(ada.first, thisWeek, false), exact: true });
         await where.waitFor({ timeout: WAIT_MS });
         const [placed] = await Promise.all([responseTo(fernPage, `/groups/${group.id}/attendance`, "POST"), where.click()]);
@@ -575,7 +575,7 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
         assert.deepEqual(stored?.online, { [ada.uid]: true, [ben.uid]: false }, "week 3's register does not say Ada joined online and Ben was in the room");
         // Finishing rebuilt their figures: Ada came to one session online.
         const rollupOf = async (person) => (await fixtureDoc("courseEnrolments", `${state.runId}__${person.uid}`).get()).data()?.attendance;
-        assert.equal((await rollupOf(ada))?.online, 1, "Ada's figures do not count her session online");
+        assert.equal((await rollupOf(ada))?.online, 1, "Ada's figures do not count the session online");
         assert.equal((await rollupOf(ben))?.online, 0, "Ben's figures count a session online");
       },
     );
@@ -626,7 +626,7 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
         await adaPage.goto(learnUrl, { waitUntil: "domcontentloaded" });
         const ticket = adaPage.getByRole("region", { name: WORDS.ticket, exact: true });
         await ticket.getByRole("status").filter({ hasText: WORDS.toldUs }).waitFor({ timeout: WAIT_MS });
-        // While she can't make it, Joining online is not offered.
+        // While Ada can't make it, Joining online is not offered.
         assert.equal(await ticket.getByRole("button", { name: WORDS.joiningOnline(day), exact: true }).count(), 0, "Joining online is offered beside Can't make it");
         const back = ticket.getByRole("button", { name: WORDS.canMakeItAfterAll, exact: true });
         await waitFor("I can make it after all to be live once the page has hydrated", async () => back.isEnabled());
@@ -642,14 +642,14 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
         assert.deepEqual(await okBody(said, "Joining online"), { ok: true, online: true, message: WORDS.saidOnline });
         await ticket.getByRole("status").filter({ hasText: WORDS.saidOnline }).waitFor({ timeout: WAIT_MS });
         await ticket.getByRole("button", { name: WORDS.inTheRoomAfterAll, exact: true }).waitFor({ timeout: WAIT_MS });
-        // And now Can't make it waits until she is in the room after all.
+        // And now Can't make it waits until Ada is in the room after all.
         assert.equal(await ticket.getByRole("button", { name: WORDS.cantMakeIt(day), exact: true }).count(), 0, "Can't make it is offered beside Joining online");
 
-        // Kept on the register beside its marks, never one of them; her excuse is gone with her word.
+        // Kept on the register beside its marks, never one of them; the excuse is gone with the word that made it.
         const register = (await fixtureDoc("courseAttendance", `${state.runId}__${group.id}__${nextKey}`).get()).data();
-        assert.ok(register?.onlineSaid?.[ada.uid], "the register does not keep Ada's word that she is joining online");
+        assert.ok(register?.onlineSaid?.[ada.uid], "the register does not keep Ada's word about joining online");
         assert.equal(register?.records?.[ada.uid], undefined, "saying it wrote a mark");
-        assert.equal(register?.excusedInAdvance?.[ada.uid], undefined, "her word that she can't make it is still there");
+        assert.equal(register?.excusedInAdvance?.[ada.uid], undefined, "Ada's word that Ada can't make it is still there");
         assert.equal(register?.onlineSaid?.[ben.uid], undefined, "Ada's press wrote somebody else's word");
         await adaPage.reload({ waitUntil: "domcontentloaded" });
         await ticket.getByRole("status").filter({ hasText: WORDS.saidOnline }).waitFor({ timeout: WAIT_MS });
@@ -844,7 +844,7 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
       // Ada came to weeks 1 to 3 (present, late, present): week 3 online, the rest in the room.
       await row.getByRole("img", { name: new RegExp(`, week ${thisWeek}: Present, online$`) }).waitFor({ timeout: WAIT_MS });
       const came = flat(await row.locator("td").last().innerText());
-      assert.equal(came, `3 of 3 ${WORDS.roomAndOnline(2, 1)}`, `Ada's Came does not say where she was: ${came}`);
+      assert.equal(came, `3 of 3 ${WORDS.roomAndOnline(2, 1)}`, `Ada's Came does not say where Ada was: ${came}`);
       const benCame = flat(
         await grid
           .getByRole("row")
@@ -853,7 +853,7 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
           .last()
           .innerText(),
       );
-      assert.ok(!/online|in the room/.test(benCame), `Ben's Came speaks of where he was, who was always in the room: ${benCame}`);
+      assert.ok(!/online|in the room/.test(benCame), `Ben's Came speaks of where Ben was, always in the room: ${benCame}`);
     });
   } finally {
     await Promise.allSettled([context, ...identities.map((each) => each.context)].map((each) => each.close()));

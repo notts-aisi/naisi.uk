@@ -249,7 +249,7 @@ describe("1. who may say it", () => {
       assert.equal(answer.status, status, `${why}: ${JSON.stringify(answer.body)}`);
       if (status === 404) assert.equal(answer.body.error, words.JOINING_ONLINE_REFUSAL.notYours, why);
     }
-    // Una is placed in Group C and Publish has not told her.
+    // Una is placed in Group C and Publish has not told Una the group yet.
     assert.equal((await online("una", "w03", { groupId: "agi-autumn-2026-wednesday__grp00003" })).status, 404);
     assert.deepEqual((await online("chloe", "w03", { groupId: "no-such-group" })).body, { error: words.JOINING_ONLINE_REFUSAL.notYours });
     assert.equal((await online("chloe", "w03", { groupId: ".." })).status, 404);
@@ -366,11 +366,11 @@ describe("3. the box asks the facilitators for a link, and the link route saves 
   });
 
   test("somebody who has told us they can't make it is nobody's to expect online, and nor is a session not asked about", async () => {
-    // Kofi says he is joining online, then (by a page that had not caught up) that he can't make it.
+    // Kofi says Joining online, then (from a page that had not caught up) Can't make it.
     assert.equal((await online("kofi", "w04")).status, 200);
     assert.equal((await cantMake("kofi", "w04")).status, 200);
     assert.deepEqual(await boxOfB(), [], "an excused person is asked about");
-    // Can't make it wins on his ticket too: told, and not said.
+    // Can't make it wins on Kofi's ticket too: told, and not said.
     at("2026-11-17T20:30:00Z");
     assert.deepEqual(await ticketFor("kofi"), { groupId: B, sessionKey: "w04", day: "Tue 24 Nov", said: false, told: true });
     // An online week is not asked about: everybody joins it online, and Hold it online already asks for its link.
@@ -570,7 +570,7 @@ describe("6. the register keeps in the room or online beside the marks", () => {
     assert.deepEqual(stored(B, 3).records, { chloe: "present", kofi: "late" });
     assert.deepEqual((await registerAs("rahul")).body.online, { w03: { chloe: true, kofi: false } });
 
-    // She was in the room after all: kept there through every mark that still says she came.
+    // Chloe was in the room after all: kept there through every mark that still says Chloe came.
     assert.equal((await markAs("rahul", 3, [{ uid: "chloe", status: "present", online: false }])).status, 200);
     assert.equal((await markAs("rahul", 3, [{ uid: "chloe", status: "late" }])).status, 200);
     assert.equal(stored(B, 3).online.chloe, false);
@@ -579,7 +579,7 @@ describe("6. the register keeps in the room or online beside the marks", () => {
     assert.equal(Object.hasOwn(stored(B, 3).online, "chloe"), false);
     assert.equal((await markAs("rahul", 3, [{ uid: "kofi", status: "excused", online: true }])).status, 400);
     assert.equal((await markAs("rahul", 3, [{ uid: "kofi", status: "present", online: "yes" }])).status, 400);
-    // Her word stays hers: marking never took it.
+    // Chloe's word stays Chloe's: marking never took it.
     assert.deepEqual(Object.keys(stored(B, 3).onlineSaid), ["chloe"]);
     // "Rest present" puts the people who said it online.
     assert.equal((await markAs("rahul", 3, [{ uid: "chloe", status: "present", online: true }, { uid: "farah", status: "present", online: false }])).status, 200);
@@ -740,7 +740,7 @@ describe("8. the words", () => {
       ...Object.values(words.JOINING_ONLINE_REFUSAL),
     ];
     for (const line of toThePerson) {
-      assert.doesNotMatch(line, /[–—]/, line);
+      assert.doesNotMatch(line, /[\u2013\u2014]/, line);
       assert.doesNotMatch(line, /\bmark|\bgrade|\bscore|\bmiss|dropped out/i, line);
     }
     const toStaff = [
@@ -762,7 +762,7 @@ describe("8. the words", () => {
       words.sessionsWhereWords(4, 1),
       ...Object.values(words.MEETING_LINK_REFUSAL),
     ];
-    for (const line of toStaff) assert.doesNotMatch(line, /[–—]/, line);
+    for (const line of toStaff) assert.doesNotMatch(line, /[\u2013\u2014]/, line);
     assert.equal(words.joiningCountWords(2, "Tue 10 Nov"), "2 people are joining online on Tue 10 Nov.");
     assert.equal(words.joiningCountWords(1, "Tue 10 Nov"), "1 person is joining online on Tue 10 Nov.");
     assert.equal(`${words.joiningCountWords(2, "Tue 10 Nov")} ${words.addLinkWords(2)}`, "2 people are joining online on Tue 10 Nov. Add a meeting link for week 2.");

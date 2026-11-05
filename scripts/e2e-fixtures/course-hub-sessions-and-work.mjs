@@ -20,10 +20,10 @@
  * leads to week 3's session report before it is finished; Fern marks it,
  * puts Ada down as having joined it online, finishes it, follows its link to
  * the session report and sends one. Ada can make week 4 after all and says
- * she is joining it online instead, one thing at a time on her ticket; the
+ * Ada is joining it online instead, one thing at a time on Ada's ticket; the
  * box at the top of Fern's group page asks for a meeting link for week 4
  * (Group A has none at this point), Fern adds one, and the box and the
- * register say Ada is joining online; Ada's ticket, on her programme page
+ * register say Ada is joining online; Ada's ticket, on Ada's programme page
  * and on Home, carries the link for anybody joining online. Ada
  * writes week 4's written answer, goes through the check and
  * submits anyway, and the week locks. Fern reopens it from This week's work,
@@ -31,7 +31,7 @@
  * Then the programme's lead opens the Surveys tab from the programme's
  * head and follows the Overview's link to the programme's session reports,
  * where Fern's report is, with names; last, the lead's Attendance tab says
- * Ada came to one of her three sessions online.
+ * Ada came to one of three sessions online.
  *
  * ## Every grant is made on a real page, by the admin the harness is given
  *
