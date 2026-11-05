@@ -1370,12 +1370,12 @@ programme names" below).
   are added, and reads "You’ll see your group’s names when groups go out."
   where the names will be. Moving people around on the board emails nobody
   and shows nobody anything.
-- **After Publish, press Publish again straight away after any move.** A
-  move clears the person's "Emailed" mark, so until Publish is pressed
-  again the person moved reads nothing of the run, is on neither group's
-  roster or register, and gets none of the group's mail. Publish emails just
-  them, and then they see their new group. The same goes for anybody placed
-  late.
+- **After Publish, press Publish again soon after any move or late
+  placement.** Somebody already told their group sees a move at once (see
+  "Moving somebody already told their group" above), and the next press
+  emails them that they have moved. Somebody placed late, or put back after
+  they left, reads nothing of the run, is on no group's roster or register,
+  and gets none of the group's mail until Publish emails them their group.
 - **Publish never emails somebody who gave their place back.** Somebody
   placed and not told yet who replies "I can’t make it" keeps their seat
   until somebody Removes it, and their card says "Gave their place back".

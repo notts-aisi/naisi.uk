@@ -38,10 +38,10 @@ export function fitTags(row: AllocRow, groups: readonly AllocGroup[]): string[] 
 
 /**
  * Placed in a group and not told yet, once the groups are published: Publish
- * has written no "Your group" email to them since they were put there (a
- * move clears the stamp), and their card does not say they gave their place
- * back, whom no press writes to. The board's mark and the line over it both
- * ask this.
+ * has written no "Your group" email to them (a move keeps the stamp of
+ * somebody told, whose card says they moved instead), and their card does
+ * not say they gave their place back, whom no press writes to. The board's
+ * mark and the line over it both ask this.
  */
 export function notToldYet(row: AllocRow, group: AllocGroup | null, published: boolean): boolean {
   return (
