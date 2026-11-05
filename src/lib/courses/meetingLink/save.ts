@@ -1,5 +1,5 @@
 import "server-only";
-import { FieldPath, FieldValue, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -92,7 +92,10 @@ export async function saveSessionLink(
     const { endsAt } = sessionInstants(session);
     if (endsAt !== null && endsAt.getTime() <= now.getTime()) return { ok: false, status: 409, error: MEETING_LINK_REFUSAL.over };
 
-    const weekLink = new FieldPath("sessionOverrides", session.weekId, "meetingUrl");
+    // A dotted path is safe here: a week id is "w" and digits (`weekDocId`),
+    // never a dot, unlike a uid, which is why maps keyed by uid take a
+    // `FieldPath`.
+    const weekLink = `sessionOverrides.${session.weekId}.meetingUrl`;
     // The weeks as STORED: the group as read folds each week's mode in too,
     // which is kept in a map of its own and is no week set apart.
     const stored = groupSnap.data()?.sessionOverrides;
@@ -102,14 +105,11 @@ export async function saveSessionLink(
       // that week; a week without one is not given an empty entry.
       const week = storedWeeks[session.weekId];
       const ownLink = Boolean(week) && typeof week === "object" && Object.hasOwn(week as object, "meetingUrl");
-      tx.update(
-        groupRef,
-        new FieldPath("session", "meetingUrl"),
-        request.url,
-        ...(ownLink ? [weekLink, FieldValue.delete()] : []),
-        new FieldPath("updatedAt"),
-        FieldValue.serverTimestamp(),
-      );
+      tx.update(groupRef, {
+        "session.meetingUrl": request.url,
+        ...(ownLink ? { [weekLink]: FieldValue.delete() } : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
     } else {
       // The group keeps at most so many weeks apart from its usual slot, and
       // a week past the cap would be dropped when the group is read.
@@ -117,7 +117,7 @@ export async function saveSessionLink(
       if (!weeks.includes(session.weekId) && weeks.length >= GROUP_FIELD_LIMITS.maxSessionOverrides) {
         return { ok: false, status: 409, error: MEETING_LINK_REFUSAL.full };
       }
-      tx.update(groupRef, weekLink, request.url, new FieldPath("updatedAt"), FieldValue.serverTimestamp());
+      tx.update(groupRef, { [weekLink]: request.url, updatedAt: FieldValue.serverTimestamp() });
     }
     return { ok: true, sessionKey: session.sessionKey, everyWeek: request.everyWeek };
   });
