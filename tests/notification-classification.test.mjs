@@ -520,7 +520,7 @@ const REGISTRY = {
     "The decision on that enquiry, approved or rejected, to the person who sent it.",
   ),
   "src/lib/email/courseApplicationEmails.ts#sendEmail": T(
-    "Course application submitted, decided and allocated, and the facilitators' email beside the allocation: answers to one person about their own application or their own group, and a marked test of the last two to whoever presses \"Send a test to me\".",
+    "Course application submitted, decided and allocated, \"You’ve moved\" to somebody told their group and moved since, and the facilitators' emails beside them (\"You’re facilitating\", who has joined, who is no longer in their group): answers to one person about their own application or their own group, and a marked test of Publish's to whoever presses \"Send a test to me\".",
   ),
   "src/app/api/courses/runs/[runId]/apply/route.ts#sendCourseApplicationEmail": T(
     "The receipt for a course application, sent as it is submitted.",
@@ -529,10 +529,10 @@ const REGISTRY = {
     "The decision on that application, accepted or not, to the applicant.",
   ),
   "src/app/api/courses/runs/[runId]/allocation/publish/route.ts#sendCourseApplicationEmail": T(
-    "The placement mail telling an accepted applicant which group they are in, and, from the same loop, the \"You're facilitating\" mail telling each facilitator of a group with people in it that they facilitate it, once per group. Both are owed to their recipient by the press.",
+    "The placement mail telling an accepted applicant which group they are in, \"You’ve moved\" telling somebody told their group and moved since about the group they are in now, and, from the same loop, the \"You're facilitating\" mail telling each facilitator of a group with people in it that they facilitate it, once per group, and the facilitators' notes of who has joined their group and who is no longer in it. Each is owed to its recipient by the press.",
   ),
   "src/app/api/courses/runs/[runId]/allocation/publish/test/route.ts#sendCourseApplicationEmail": T(
-    "\"Send a test to me\" on the allocation board: the first person's placement email and the first facilitator's \"You're facilitating\" email, marked as a test, to the address on the presser's own session and nobody else. One call, in a loop over the two.",
+    "\"Send a test to me\" on the allocation board: the first email of each kind a press would send (the first person's placement email, the first \"You’ve moved\", the first facilitator's \"You're facilitating\", and the first notes of who has joined and who is no longer in a group), marked as a test, to the address on the presser's own session and nobody else. One call, in a loop over them.",
   ),
   "src/lib/email/courseEnrolmentEmails.ts#sendEmail": T(
     "The dropped-out note confirming a member is off a run. A change to their own enrolment.",

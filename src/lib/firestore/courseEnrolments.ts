@@ -149,11 +149,12 @@ export function orderedSessionKeys(keys: readonly string[]): string[] {
  * person wrote, so a `mostWeeks` answer has `reason` and `alternatives` only
  * then.
  *
- * `forGroupId` is the group the answer was given about. A seat that changes
- * group has its answer deleted in the same write (every writer that clears
- * Publish's stamp clears this too), and a reader shows an answer only while
- * it is about the seat's group now (`currentTimeAnswer` in
- * `src/lib/courses/timeAnswer/model.ts`), so a stale answer can never show.
+ * `forGroupId` is the group the answer was given about. Every writer that
+ * clears Publish's stamp deletes the answer in the same write. A told seat
+ * keeps both through a move, and a reader shows an answer only while it is
+ * about the seat's group now (`currentTimeAnswer` in
+ * `src/lib/courses/timeAnswer/model.ts`), so a stale answer can never show,
+ * and somebody moved by mistake and moved back has their answer again.
  *
  * Written by `POST /api/courses/runs/[runId]/time-answer` on the caller's
  * own seat, by the ticket's "Can't make it" (only a `mostWeeks` answer's
@@ -270,26 +271,41 @@ export type CourseEnrolmentDoc = {
    */
   lastTaskSyncedWeek?: number;
   /**
-   * When the "you've been placed" email for the CURRENT `groupId` was sent.
-   * The idempotency guard for allocation publish: re-publishing a run emails
-   * only enrolments lacking this stamp, so newly placed people get their
-   * email and everyone already told does not get it twice. The allocate route
-   * clears it whenever `groupId` changes — the stamp certifies "emailed about
-   * their current group", and a move invalidates that.
+   * When Publish last emailed its owner about a group: the first email about
+   * their group ("Your group"), or "You’ve moved" once they were moved since.
+   * The group that email was about is `toldGroupId`.
    *
-   * It is also what lets a placement be SHOWN: an allocated seat without it
-   * is somebody nobody has told yet, and `placementIsTold` below keeps it to
-   * the board until Publish has.
+   * It is what lets a placement be SHOWN: an allocated seat without it is
+   * somebody nobody has told yet, and `placementIsTold` below keeps it to the
+   * board until Publish has. And it is the idempotency guard for Publish's
+   * first email: a press never sends that email to a seat that is told.
+   *
+   * ONCE TOLD, A SEAT STAYS TOLD THROUGH ANY MOVE. No change of `groupId` on
+   * a told seat clears it, to another group, to no group, or back: the
+   * person is shown the group they are in now at once, and the next Publish
+   * owes them "You’ve moved" only while they sit in a group other than the
+   * one they were told about (`movedSinceTold`). A move of a seat nobody has
+   * told clears nothing, because there is nothing to clear, and Publish tells
+   * them. Leaving keeps it; Remove, and putting back somebody who left,
+   * clear it, and the next Publish tells them afresh.
    */
   allocatedEmailAt?: Date | null;
   /**
    * What became of that email, written beside the stamp by Publish: handed
    * to the mail provider, held because this copy of the site may not write
    * to the address, or stopped by the do-not-email list. Absent on a stamp
-   * written before Publish recorded it. Read only beside the stamp: a move
-   * clears the stamp and leaves this for the next Publish to overwrite.
+   * written before Publish recorded it. Read only beside the stamp.
    */
   allocatedEmailDelivery?: "sent" | "held" | "suppressed";
+  /**
+   * THE GROUP ITS OWNER WAS TOLD ABOUT, written beside `allocatedEmailAt`
+   * wherever that is written (Publish's first email, and its "You’ve moved"
+   * email), and deleted beside it wherever that is deleted. Null on a seat
+   * nobody has told, and on a seat told before this was kept, which is read
+   * as told about the group it is in (`groupToldAbout`); the first move of such
+   * a seat writes the group it leaves here, in the same write.
+   */
+  toldGroupId: string | null;
   /**
    * The person's answer to "can you make this time?" (see
    * `StoredTimeAnswer`). Absent until they answer, and on a stored value
@@ -346,11 +362,13 @@ export function enrolmentIsPutBack(enrolment: Pick<CourseEnrolmentDoc, "putBackA
  *
  *  - A seat somebody took for themselves on an open run is theirs from the
  *    moment they take it: they chose the group (`selfEnrolled`).
- *  - A seat an admin allocated is told when Publish has emailed its owner the
- *    group they are in NOW (`allocatedEmailAt`). Until then it is the board's
- *    working copy: moving people around on the board tells nobody anything.
- *    A move clears the stamp, so somebody moved after Publish is untold again
- *    until Publish is pressed again and emails them their new group.
+ *  - A seat an admin allocated is told once Publish has emailed its owner
+ *    about a group (`allocatedEmailAt`). Until then it is the board's working
+ *    copy: moving people around on the board tells nobody anything. Once
+ *    told, it stays told whatever group it is moved to, so its owner is never
+ *    hidden by a move: they see the group they are in now at once, and the
+ *    next Publish emails them about it ("You’ve moved") while it is not the
+ *    group they were told about (`movedSinceTold`).
  *  - A facilitator's own enrolment is not a placement in a group, and is
  *    always told: a facilitator sees the group they run, its day, time and
  *    room from the moment they are added.
@@ -360,7 +378,8 @@ export function enrolmentIsPutBack(enrolment: Pick<CourseEnrolmentDoc, "putBackA
  * group's facilitators and other members are not shown their name, and no
  * email or notification about their group reaches them.
  *
- * Every reader of placements asks one of these two functions;
+ * Every reader of placements asks one of these two functions, or one of the
+ * two made of the first below (`groupToldAbout`, `movedSinceTold`);
  * `tests/course-hub-group-published-readers.test.mjs` lists them all.
  */
 export function placementIsTold(
@@ -382,6 +401,39 @@ export function placementIsShownTo(
   viewer: { isAdmin: boolean },
 ): boolean {
   return viewer.isAdmin || placementIsTold(enrolment);
+}
+
+/**
+ * THE GROUP A TOLD SEAT'S OWNER WAS TOLD ABOUT: `toldGroupId`, or, on a seat
+ * told before that was kept, the group it is in now. Asked only of a seat
+ * that is told (`placementIsTold`).
+ */
+export function groupToldAbout(enrolment: Pick<CourseEnrolmentDoc, "groupId" | "toldGroupId">): string | null {
+  return enrolment.toldGroupId ?? enrolment.groupId;
+}
+
+/**
+ * WHETHER A TOLD SEAT HAS MOVED SINCE ITS OWNER WAS TOLD: a learner's active
+ * seat, in a group, told (`placementIsTold`), in a group other than the one
+ * they were told about (`groupToldAbout`). It is what the next Publish owes
+ * them: "You’ve moved", about the group they are in now, and never the
+ * first email about a group.
+ *
+ * DERIVED, NEVER STORED. Moving them back to the group they were told about
+ * owes nothing, with no write beyond the move itself; a move from A to B to
+ * C owes one email, about C; and Publish, once that email has gone, writes
+ * the group it was about into `toldGroupId`, so it is owed no more.
+ */
+export function movedSinceTold(
+  enrolment: Pick<CourseEnrolmentDoc, "role" | "status" | "groupId" | "toldGroupId" | "selfEnrolled" | "allocatedEmailAt">,
+): boolean {
+  return (
+    enrolment.role === "learner" &&
+    enrolment.status === "active" &&
+    enrolment.groupId !== null &&
+    placementIsTold(enrolment) &&
+    enrolment.groupId !== groupToldAbout(enrolment)
+  );
 }
 
 type Raw = Record<string, unknown>;
@@ -484,6 +536,7 @@ export function normalizeCourseEnrolment(id: string, data: Raw): CourseEnrolment
       typeof data.joinedWeekNumber === "number" && Number.isFinite(data.joinedWeekNumber)
         ? Math.max(1, Math.floor(data.joinedWeekNumber))
         : 1,
+    toldGroupId: typeof data.toldGroupId === "string" && data.toldGroupId ? data.toldGroupId : null,
     createdAt: tsToDate(data.createdAt),
     updatedAt: tsToDate(data.updatedAt),
   };

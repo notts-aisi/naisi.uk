@@ -53,7 +53,9 @@ import { sendEmail } from "./send";
  * Nothing here fills a token for that kind, and a placement email that still
  * carries one is refused rather than sent. The facilitators' email that goes
  * beside it at Publish (`facilitating`, written by `composeFacilitatingEmail`)
- * is sent the same way, under the same refusal.
+ * is sent the same way, under the same refusal, and so are the three emails a
+ * move of somebody who knew their group sends (`moved`, `joined` and `left`,
+ * `src/lib/courses/moveTell.ts`), which are fixed words and carry none.
  *
  * A COMPOSED EMAIL CAN BE A TEST: the same words to the address of whoever
  * pressed "Send a test to me", marked in its subject the way decision day
@@ -85,15 +87,29 @@ export type CourseApplicationEmailKind =
   | "rejected"
   | "allocated"
   | "facilitating"
-  | "joined";
+  | "joined"
+  | "moved"
+  | "left";
 
 /**
- * The emails Publish writes with a composer and hands over finished: the
- * people's, the facilitators', and "Ana has joined Group B" to a facilitator
- * already told about their group (`composeJoinedEmail`,
- * `src/lib/courses/joinedEmail.ts`).
+ * The emails written with a composer and handed over finished: Publish's
+ * (the people's, the facilitators', and "Ana has joined Group B" to a
+ * facilitator already told about their group, `composeJoinedEmail` in
+ * `src/lib/courses/joinedEmail.ts`), and a move's of somebody who knew their
+ * group (`src/lib/courses/moveTell.ts`): "You’ve moved to Group H" to them
+ * (`moved`), "joined" to their new group's facilitators, and "Ana is no
+ * longer in Group D" to their old group's (`left`).
  */
-export type ComposedCourseEmailKind = "allocated" | "facilitating" | "joined";
+export type ComposedCourseEmailKind = "allocated" | "facilitating" | "joined" | "moved" | "left";
+
+/** What each composed email is called when one is refused at the door. */
+const COMPOSED_EMAIL_NAME: Record<ComposedCourseEmailKind, string> = {
+  allocated: "placement email",
+  facilitating: "facilitators' email",
+  joined: "joined email",
+  moved: "moved email",
+  left: "no-longer-in email",
+};
 
 const TEMPLATE_FOR_KIND: Record<Exclude<CourseApplicationEmailKind, ComposedCourseEmailKind>, CourseTemplateId> = {
   submitted: "course-application-submitted",
@@ -197,7 +213,7 @@ export function courseTestSubject(subject: string): string {
 function isComposed(
   opts: CourseApplicationEmailOptions | ComposedCourseEmailOptions,
 ): opts is ComposedCourseEmailOptions {
-  return opts.kind === "allocated" || opts.kind === "facilitating" || opts.kind === "joined";
+  return Object.hasOwn(COMPOSED_EMAIL_NAME, opts.kind);
 }
 
 export async function sendCourseApplicationEmail(
@@ -236,9 +252,7 @@ function asComposed(opts: ComposedCourseEmailOptions): CourseEmailTemplate {
   const { subject, blocks } = opts.composed;
   const left = unfilledTokens([subject, ...blocks.map(printedText)].join("\n"));
   if (left.length > 0) {
-    const what =
-      opts.kind === "facilitating" ? "facilitators' email" : opts.kind === "joined" ? "joined email" : "placement email";
-    throw new Error(`${what} not sent: unfilled ${left.map((token) => `{${token}}`).join(", ")}`);
+    throw new Error(`${COMPOSED_EMAIL_NAME[opts.kind]} not sent: unfilled ${left.map((token) => `{${token}}`).join(", ")}`);
   }
   return { subject, blocks, fromName: opts.fromName };
 }

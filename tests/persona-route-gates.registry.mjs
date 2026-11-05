@@ -2331,7 +2331,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/allocation/publish/preview": {
     GET: {
       expect: signedIn(404),
-      fields: ["incubator", "people", "facilitators", "joined", "noted", "notedEmail", "push", "notesNeeded", "refusals"],
+      fields: ["incubator", "people", "moved", "moves", "facilitators", "joined", "left", "noted", "notedEmail", "push", "notesNeeded", "refusals"],
       why:
         "Publish's two emails, for Publish's own page: session required, then the run is read and " +
         "Publish's own gate decides. The battery's id addresses nothing, so every signed-in persona " +

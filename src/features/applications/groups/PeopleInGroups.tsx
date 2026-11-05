@@ -30,6 +30,7 @@ import { useAllocation, type AllocGroup, type AllocRow, type Placement } from "@
 import type { PeopleInGroupsView } from "@/lib/applications/handover/peopleInGroups";
 import { own } from "@/lib/applications/keys";
 import { divergenceNote, type GroupDivergenceInput } from "@/lib/courses/groupResolve";
+import { movedSentence } from "@/lib/courses/moveWords";
 import { GroupsFrame } from "./GroupsViews";
 import styles from "./PeopleInGroups.module.css";
 import { POOL, TAKE_OFF, marksOf, menuOptions, notToldYet, type Mark } from "./peopleInGroupsBoard";
@@ -64,6 +65,13 @@ import * as words from "./peopleInGroupsWords";
  * says "Not told yet", and a line over the board names everybody placed
  * since ("3 placed since you published: Ana, Raj and Tom. Publish to tell
  * them."), linking to Publish (`notToldYet`, one question for both).
+ *
+ * SOMEBODY TOLD THEIR GROUP AND MOVED SINCE sees the group they are in now at
+ * once: a move sends nothing and hides nobody. Their card says they were
+ * moved and that the next Publish emails them, a line over the board names
+ * them ("2 moved since they were told: Ana and Raj."), and the move itself
+ * leaves a sentence saying what it did (`movedSentence`). Moved back to the
+ * group they were told about, they owe nothing and the card says nothing.
  *
  * WHAT THE DESIGN DRAWS AND THIS LEAVES OUT, because the feature does not
  * exist yet: "Remind" (when-you're-free open until groups go out, a
@@ -389,13 +397,23 @@ export default function PeopleInGroups({ view, views }: Props) {
       if (!row) return;
       const from = columnOf(row);
       if (from === columnId) return;
-      setMoveNote(
-        divergenceNote(autonomyOf(groupsById.get(from) ?? null), autonomyOf(groupsById.get(columnId) ?? null), {
-          source: columnName(from),
-          target: columnId === POOL ? null : columnName(columnId),
-          who: nameOf(uid),
-        }),
-      );
+      // What the move did, for somebody who already knew their group: they
+      // see the group they are in now at once, and the next Publish emails
+      // them. Beside any note about the group's weeks.
+      const told = row.told
+        ? movedSentence({
+            name: nameOf(uid),
+            toldGroupId: row.told.groupId,
+            toldGroupName: row.told.groupName,
+            to: columnId === POOL ? null : { id: columnId, name: columnName(columnId) },
+          })
+        : null;
+      const note = divergenceNote(autonomyOf(groupsById.get(from) ?? null), autonomyOf(groupsById.get(columnId) ?? null), {
+        source: columnName(from),
+        target: columnId === POOL ? null : columnName(columnId),
+        who: nameOf(uid),
+      });
+      setMoveNote([told, note].filter(Boolean).join(" ") || null);
       const placement: Placement = {
         uid,
         groupId: columnId === POOL ? null : columnId,
@@ -591,6 +609,13 @@ export default function PeopleInGroups({ view, views }: Props) {
           .map((row) => nameOf(row.uid).split(" ")[0]),
       )
     : [];
+  // Everybody told their group and moved since, in the board's order: the
+  // next Publish emails them "You’ve moved".
+  const movedSince = groups.flatMap((group) =>
+    (byColumn.get(group.id) ?? [])
+      .filter((row) => !(row.uid in livePending) && row.moved)
+      .map((row) => nameOf(row.uid).split(" ")[0]),
+  );
 
   return (
     <GroupsFrame views={views} beside={beside}>
@@ -604,6 +629,18 @@ export default function PeopleInGroups({ view, views }: Props) {
               className={styles.noteLink}
             >
               {words.placedSinceWords(placedSince).link}
+            </Link>
+            .
+          </p>
+        )}
+        {movedSince.length > 0 && (
+          <p className={styles.placedSince} role="status">
+            {words.movedSinceWords(movedSince).lead}{" "}
+            <Link
+              href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/publish`}
+              className={styles.noteLink}
+            >
+              {words.movedSinceWords(movedSince).link}
             </Link>
             .
           </p>

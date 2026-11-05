@@ -58,8 +58,10 @@ import { ANSWER_REFUSAL, sessionRefusalWords } from "./words";
  * `courseEnrolments/{runId}__{uid}.timeAnswer`, addressed by the caller's own
  * uid, so nothing here can spell anybody else's seat: `{ kind, reason,
  * alternatives, forGroupId, at }`, and for `mostWeeks` the `sessionKeys` they
- * ticked. The person may change it while they are in that group; a move
- * deletes it (every writer that clears Publish's stamp clears it too). The
+ * ticked. The person may change it while they are in that group. Every writer
+ * that clears Publish's stamp deletes it too; a told seat keeps it through a
+ * move, shown only while they are in the group it is about
+ * (`currentTimeAnswer`), so it is theirs again if they are moved back. The
  * answer the page was showing names its group, and a seat in another group
  * now is refused, so an answer is never kept about a group the person was
  * not looking at.

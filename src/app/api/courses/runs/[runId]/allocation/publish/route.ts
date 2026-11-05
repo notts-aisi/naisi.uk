@@ -7,8 +7,11 @@ import { getCurrentUser } from "@/lib/firebase/session";
 import {
   claimFacilitatorEmail,
   claimJoined,
+  claimLeft,
   facilitatorEmailFor,
+  forgetMoveMarkers,
   joinedEmailFor,
+  leftEmailFor,
   loadPublishPlan,
   pressBatch,
   publishTestBlocker,
@@ -16,9 +19,12 @@ import {
   releasePressLock,
   settleFacilitatorEmail,
   settleJoined,
+  settleLeft,
   takePressLock,
   type PlannedFacilitator,
   type PlannedJoined,
+  type PlannedLeft,
+  type PlannedMoved,
   type PlannedPerson,
 } from "@/lib/courses/allocationPublish";
 import { markPlacementNoteSent } from "@/lib/courses/placementNotes/store";
@@ -83,9 +89,21 @@ import { mirrorCourseDecisionToPush } from "@/lib/push/courseNotifications";
  * RE-PUBLISH IS EXPECTED, not an error: late acceptances get placed, someone
  * gets moved, publish runs again and reaches exactly the people owed an
  * email. A person's `enrolment.allocatedEmailAt` is written after their
- * email went (a move clears it), and a facilitator's marker is claimed before
- * theirs goes and given back if it fails. The run-level
- * `allocationPublishedAt` re-stamps on every publish.
+ * email went, with the group it was about (`toldGroupId`), and a
+ * facilitator's marker is claimed before theirs goes and given back if it
+ * fails. The run-level `allocationPublishedAt` re-stamps on every publish.
+ *
+ * SOMEBODY MOVED SINCE THEY WERE TOLD (`movedSinceTold`) IS SENT "You’ve
+ * moved", never the first email about a group: a move keeps a told seat told,
+ * so they already see their new group, and this tells them what changed. Their
+ * stamp is then written again with the group it was about, so they are owed
+ * nothing more, and the markers of their time in the groups they moved
+ * between are forgotten. A send that fails writes nothing: they are still
+ * owed it, and the next press tries again. The facilitators of the group they
+ * joined are told who has joined, as for anybody new, and those told about
+ * the group they were told about are told who is no longer in it
+ * (`left__` markers, claimed like `joined__`), naming only people whose own
+ * email went.
  *
  * A FACILITATOR ALREADY TOLD ABOUT A GROUP IS TOLD WHO HAS JOINED IT. After
  * the facilitators' emails, each facilitator who held their marker for a
@@ -149,11 +167,17 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-/** One email this press sends: a person's, a facilitator's, or "who has joined" to a facilitator. */
+/**
+ * One email this press sends: a person's first about their group, a person's
+ * "You’ve moved", a facilitator's, or "who has joined" or "who is no longer
+ * in" to a facilitator.
+ */
 type Letter =
   | { kind: "allocated"; who: PlannedPerson }
+  | { kind: "moved"; who: PlannedMoved }
   | { kind: "facilitating"; who: PlannedFacilitator }
-  | { kind: "joined"; who: PlannedJoined };
+  | { kind: "joined"; who: PlannedJoined }
+  | { kind: "left"; who: PlannedLeft };
 
 export async function POST(req: Request, ctx: Ctx) {
   const blocked = await assertNotImpersonating();
@@ -305,9 +329,12 @@ export async function POST(req: Request, ctx: Ctx) {
     const report: PublishReport = { ...emptyPublishReport(), noAddress: batch.noAddress, more: batch.more };
     const fromName = {
       allocated: plan.templates.allocated.fromName,
+      // "You’ve moved" is the people's, from the same sender as their first.
+      moved: plan.templates.allocated.fromName,
       facilitating: plan.templates.facilitating.fromName,
-      // "Who has joined" is the facilitators' too, from the same sender.
+      // "Who has joined" and "who is no longer in" are the facilitators' too.
       joined: plan.templates.facilitating.fromName,
+      left: plan.templates.facilitating.fromName,
     };
     /** People whose email went, for the push pass below the loop. */
     const placed: { uid: string; groupName: string }[] = [];
@@ -315,24 +342,33 @@ export async function POST(req: Request, ctx: Ctx) {
       const side =
         letter.kind === "allocated"
           ? report.people
-          : letter.kind === "facilitating"
-            ? report.facilitators
-            : (report.joined ??= { sent: 0, held: 0, suppressed: 0 });
+          : letter.kind === "moved"
+            ? (report.moved ??= { sent: 0, held: 0, suppressed: 0 })
+            : letter.kind === "facilitating"
+              ? report.facilitators
+              : letter.kind === "joined"
+                ? (report.joined ??= { sent: 0, held: 0, suppressed: 0 })
+                : (report.left ??= { sent: 0, held: 0, suppressed: 0 });
       side[delivery] += 1;
     };
     /** Whose email carried a choice made for them: it is spent once their email went. */
     const chosenFor = new Set(plan.outside.filter((entry) => entry.note.state !== "missing").map((entry) => entry.uid));
 
     // WHO THIS PRESS WRITES TO is the plan's decision, never the request's:
-    // the people owed their group's email, then the facilitators owed theirs,
-    // in the order and to the number the board showed.
+    // the people owed their group's email, then the people moved since they
+    // were told, then the facilitators owed theirs, in the order and to the
+    // number the board showed.
     const peopleRecipients = batch.people;
+    const movedRecipients = batch.moved;
     const facilitatorRecipients = batch.facilitators;
     const joinedRecipients = batch.joined;
+    const leftRecipients = batch.left;
     const letters: Letter[] = [
       ...peopleRecipients.map((who): Letter => ({ kind: "allocated", who })),
+      ...movedRecipients.map((who): Letter => ({ kind: "moved", who })),
       ...facilitatorRecipients.map((who): Letter => ({ kind: "facilitating", who })),
       ...joinedRecipients.map((who): Letter => ({ kind: "joined", who })),
+      ...leftRecipients.map((who): Letter => ({ kind: "left", who })),
     ];
     /** The people this press has told, by group: what each facilitator's email counts. */
     const toldByPress = new Map<string, number>();
@@ -345,8 +381,32 @@ export async function POST(req: Request, ctx: Ctx) {
       let composed = who.email;
       /** The people a "joined" email claimed, to give back if it fails. */
       let announced: PlannedJoined["people"] = [];
+      /** The people a "no longer in" email claimed, to give back if it fails. */
+      let gone: PlannedLeft["people"] = [];
 
-      if (letter.kind === "joined") {
+      if (letter.kind === "left") {
+        // Only those whose own email went, or whose announcement failed
+        // before, and each claimed before it goes.
+        const due = leftEmailFor(letter.who, toldNow, toldByPress.get(who.groupId) ?? 0);
+        if (!due) {
+          // Nobody moved out of the group was told: the next press that tells them says so.
+          report.more += 1;
+          continue;
+        }
+        gone = await claimLeft(db, runId, letter.who, due.people, actor.uid);
+        if (gone.length === 0) {
+          report.alreadyTold += 1;
+          continue;
+        }
+        const claimed = new Set(gone.map((person) => person.uid));
+        const written = leftEmailFor(
+          { ...letter.who, people: letter.who.people.filter((person) => claimed.has(person.uid)) },
+          toldNow,
+          toldByPress.get(who.groupId) ?? 0,
+        );
+        if (!written) continue;
+        composed = written.email;
+      } else if (letter.kind === "joined") {
         // Only those whose own email went, and each claimed before it goes.
         const due = joinedEmailFor(letter.who, toldNow, toldByPress.get(who.groupId) ?? 0);
         if (!due) {
@@ -384,7 +444,7 @@ export async function POST(req: Request, ctx: Ctx) {
           report.alreadyTold += 1;
           continue;
         }
-      } else {
+      } else if (letter.kind === "allocated") {
         // Channel membership first, then the email that mentions the course.
         // `confirmed: true` via `inboxProven`: this is the account's own
         // sign-in address. Non-fatal: a bookkeeping failure must not block
@@ -419,21 +479,31 @@ export async function POST(req: Request, ctx: Ctx) {
           runId,
         });
 
-        if (letter.kind === "allocated") {
+        if (letter.kind === "allocated" || letter.kind === "moved") {
           // The stamp goes AFTER the send: it is the once-only guard, so it
           // must record "told", never "tried". A held or a suppressed email
           // is settled too, as decision day settles one: it is not retried.
+          // Beside it, the group the email was about: the one the plan read,
+          // so a seat moved again while this press ran is owed the next one.
           await db
             .collection("courseEnrolments")
             .doc(courseEnrolmentId(runId, who.uid))
             .update({
               allocatedEmailAt: FieldValue.serverTimestamp(),
               allocatedEmailDelivery: delivery,
+              toldGroupId: who.groupId,
               updatedAt: FieldValue.serverTimestamp(),
             });
+          toldNow.add(who.uid);
+        }
+        if (letter.kind === "moved") {
+          // Somebody moved was counted in their new group already: they saw
+          // it from the moment they moved. Their time in the groups they
+          // moved between is over now that they are told.
+          await forgetMoveMarkers(db, letter.who);
+        } else if (letter.kind === "allocated") {
           // Stamped, so told: their group's facilitators count them.
           toldByPress.set(who.groupId, (toldByPress.get(who.groupId) ?? 0) + 1);
-          toldNow.add(who.uid);
           // What was chosen for them, a note or none, went with it: spent.
           if (chosenFor.has(who.uid)) {
             await markPlacementNoteSent(db, runId, who.uid).catch((err) => {
@@ -445,14 +515,17 @@ export async function POST(req: Request, ctx: Ctx) {
           if (delivery === "sent") placed.push({ uid: who.uid, groupName: who.groupName });
         } else if (letter.kind === "facilitating") {
           await settleFacilitatorEmail(db, letter.who, delivery);
-        } else {
+        } else if (letter.kind === "joined") {
           await settleJoined(db, announced, delivery);
+        } else if (letter.kind === "left") {
+          await settleLeft(db, gone, delivery);
         }
         counted(letter, delivery);
         await sleep(SLEEP_MS);
       } catch (err) {
         // Per recipient: one bad address must not strand the rest. Nothing
-        // records them as told, so the next press tries them again.
+        // records them as told, so the next press tries them again: a person
+        // moved since they were told stays told, and owed "You’ve moved".
         console.error("[allocation publish] send failed", runId, letter.kind, who.uid, err);
         if (letter.kind === "facilitating") {
           await settleFacilitatorEmail(db, letter.who, "failed").catch((release) => {
@@ -461,6 +534,10 @@ export async function POST(req: Request, ctx: Ctx) {
         } else if (letter.kind === "joined") {
           await settleJoined(db, announced, "failed").catch((release) => {
             console.error("[allocation publish] could not give a joined claim back", runId, who.uid, release);
+          });
+        } else if (letter.kind === "left") {
+          await settleLeft(db, gone, "failed").catch((release) => {
+            console.error("[allocation publish] could not give a no-longer-in claim back", runId, who.uid, release);
           });
         }
         report.failed.push(who.name);

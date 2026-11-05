@@ -32,9 +32,15 @@ export type PublishPreview = {
   /** The run is an incubator's: its people are sent the weekly session, not a group. */
   incubator: boolean;
   people: PreviewKind;
+  /** "You’ve moved", to each person moved since they were told their group. */
+  moved: PreviewKind;
+  /** Those people, each with the group they are in now and the one they were told about ("Will: moved to Group H, was Group D"). */
+  moves: { uid: string; name: string; to: string; from: string | null }[];
   facilitators: PreviewKind;
   /** "Ana has joined Group B", to each facilitator already told about their group. */
   joined: PreviewKind;
+  /** "Ana is no longer in Group D", to each facilitator told about a group somebody moved out of. */
+  left: PreviewKind;
   /** Of the people a press emails, whose email carries a note of our own, by name. */
   noted: { uid: string; name: string }[];
   /** The first of those, drawn, when the first person's email (`people.email`) carries none. */

@@ -5,6 +5,7 @@ import SomeWeeks from "@/features/courses/timeAnswer/SomeWeeks";
 import type { SessionSlot } from "@/lib/admissions/availability";
 import type { RingPerson } from "@/lib/applications/arrange/view";
 import { own } from "@/lib/applications/keys";
+import { movedCardWords } from "@/lib/courses/moveWords";
 import { weekOfSessionKey } from "@/lib/courses/timeAnswer/model";
 import { CANT_DETAILS, MARK_CANT_MAKE, MARK_CAN_MAKE, WHY, WOULD_WORK, mostWeeksMark } from "@/lib/courses/timeAnswer/words";
 import WeekChart from "../times/WeekChart";
@@ -124,6 +125,8 @@ export default function PersonPanel({
         {person.told ? TOLD : ""}
         {person.littleMarked ? LITTLE_MARKED : ""}
       </p>
+      {/* Told about another group and moved since: the next Publish emails them. */}
+      {person.moved ? <p className={styles.line}>{movedCardWords(person.moved.from)}.</p> : null}
       {answer?.kind === "yes" ? <p className={styles.line}>{MARK_CAN_MAKE}.</p> : null}
       {misses && !answer?.reason ? <p className={styles.line}>{misses}.</p> : null}
       {answer && answer.kind !== "yes" && answer.reason ? (

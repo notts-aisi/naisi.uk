@@ -18,8 +18,9 @@
  *    make. They are told the names come when groups go out (`notYetTold`),
  *    and a group email reaches nobody;
  *  - AFTER PUBLISH the names of everybody Publish has told, and nobody it
- *    has not: somebody moved in afterwards is shown once Publish is pressed
- *    again;
+ *    has not: somebody told their group and moved in afterwards is shown at
+ *    once, because a move keeps them told, and the next press tells them
+ *    they have moved;
  *  - AN ADMIN is shown everybody placed, everywhere, as before.
  *
  * `tests/lib/groupPublishedWorld.mjs` says what is real and what is stubbed.
@@ -177,28 +178,30 @@ describe("after Publish a facilitator is shown the people Publish told", () => {
 // Somebody moved in after Publish
 // ---------------------------------------------------------------------------
 
-describe("somebody moved into the group after Publish is shown to its facilitator once Publish tells them", () => {
-  test("until then they are on no roster, register or queue, and no send reaches them", async () => {
+describe("somebody told their group and moved into another after Publish is shown to its facilitator at once", () => {
+  test("they are on its roster, register and queue straight away, and off the group they left", async (t) => {
+    // At its own moment: Mon 26 Oct 2026 at 7:30pm in London, as the Monday
+    // group's first session ends: Amara joined in week 1, so week 1's
+    // register takes a mark for her.
+    t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-10-26T19:30:00Z") });
     await steps.published();
+    world.mail.length = 0;
     await steps.place([{ uid: "amara", groupId: GROUP.monday }]);
+    assert.equal(world.mail.length, 0, "a move emailed somebody by itself");
     const roster = await ask.roster("claudia", GROUP.monday);
-    assert.deepEqual([uidsOf(roster), roster.body.notYetTold], [MONDAY_PEOPLE, true]);
-    assert.deepEqual(uidsOf(await ask.register("claudia", GROUP.monday)), MONDAY_PEOPLE);
-    assert.deepEqual(uidsOf(await ask.queue("claudia", GROUP.monday)), MONDAY_PEOPLE);
-    assert.equal((await mark("claudia", GROUP.monday, "amara")).status, 400);
-    assert.equal((await review("claudia", "amara")).status, 403);
-    // The group they left: not theirs any more, and its facilitator waits for nobody.
+    assert.deepEqual([uidsOf(roster), roster.body.notYetTold], [["amara", ...MONDAY_PEOPLE], false]);
+    assert.deepEqual(uidsOf(await ask.register("claudia", GROUP.monday)), ["amara", ...MONDAY_PEOPLE]);
+    assert.deepEqual(uidsOf(await ask.queue("claudia", GROUP.monday)), ["amara", ...MONDAY_PEOPLE]);
+    // The register is what the check-in is made from: she can be marked there now.
+    assert.equal((await mark("claudia", GROUP.monday, "amara")).status, 200);
+    assert.equal((await review("claudia", "amara")).status, 200);
+    // The group she left: not hers any more, and its facilitator waits for nobody.
     const left = await ask.roster("tess", GROUP.thursday);
     assert.deepEqual([uidsOf(left), left.body.notYetTold], [["tariq"], false]);
-    // A send reaches the two Publish has told.
+    // A send to the group she joined reaches her too.
     world.mail.length = 0;
-    assert.equal((await groupEmail("claudia", GROUP.monday)).body.sent, 2);
-    assert.ok(!world.mail.some((m) => m.to === world.db.read("users/amara").email));
-
-    await steps.publishes();
-    const after = await ask.roster("claudia", GROUP.monday);
-    assert.deepEqual([uidsOf(after), after.body.notYetTold], [["amara", ...MONDAY_PEOPLE], false]);
-    assert.equal((await review("claudia", "amara")).status, 200);
+    assert.equal((await groupEmail("claudia", GROUP.monday)).body.sent, 3);
+    assert.ok(world.mail.some((m) => m.to === world.db.read("users/amara").email));
   });
 });
 

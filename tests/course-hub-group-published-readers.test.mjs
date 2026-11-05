@@ -8,16 +8,26 @@
  *
  * A placement is somebody's seat in a group: a `courseEnrolments` row. An
  * admin's placement on the allocation board makes the row at once, and the
- * row is the board's working copy until Publish emails its owner their group
- * (`allocatedEmailAt`; a move clears it). Until then nothing may show it:
- * not to its owner, not to the group's facilitators or its other members,
- * and no email or notification about the group may reach them. Admins are
- * shown everything placed. Two functions in
+ * row is the board's working copy until Publish emails its owner about a
+ * group (`allocatedEmailAt`). Until then nothing may show it: not to its
+ * owner, not to the group's facilitators or its other members, and no email
+ * or notification about the group may reach them. Admins are shown
+ * everything placed. ONCE TOLD, A SEAT STAYS TOLD: no move clears the stamp,
+ * so its owner sees the group they are in now at once, and the seat keeps
+ * the group they were told about (`toldGroupId`). Two functions in
  * `src/lib/firestore/courseEnrolments.ts` say it:
  *
- *  - `placementIsTold(enrolment)`, the fact;
+ *  - `placementIsTold(enrolment)`, the fact: told about a group;
  *  - `placementIsShownTo(enrolment, { isAdmin })`, for a reader that shows
  *    one person's placement, or a name, to the session in front of it.
+ *
+ * And two more are made of the first, beside them, and counted here the same
+ * way (`DERIVED`):
+ *
+ *  - `groupToldAbout(enrolment)`, the group a told seat's owner was told
+ *    about;
+ *  - `movedSinceTold(enrolment)`, a told seat in a group other than that one:
+ *    what the next Publish owes them, "You’ve moved".
  *
  * The class of failure is "a reader shows a placement before the person was
  * told". A new route that reads enrolments and forgets the question would put
@@ -29,7 +39,11 @@
  * below with what it does about an untold placement, and each entry's claim
  * is read out of the source. A new reader fails this file until somebody
  * decides. A reader that shows placements has to ask the question as many
- * times as its entry says, and about the caller's own role.
+ * times as its entry says, and about the caller's own role. A file of the
+ * board or a writer that asks whether a seat was told, to keep a told seat
+ * told through a move or to decide what a press sends, says how many times
+ * (`told`), and every file that asks one of the derived questions says how
+ * many times it asks each (`derived`).
  *
  * THREE HELPERS carry the question for the files that call them, and are
  * held here too: `loadRegisterMembers` (the register, its notes) is handed the
@@ -81,11 +95,17 @@ const RULE_HOME = "lib/firestore/courseEnrolments.ts";
  *    told, whoever sends. It asks `placementIsTold` `asks` times.
  *  - `board`: the allocation board and Publish. Their callers place people
  *    and tell them, so they read every placement, and they are this rule's
- *    source, not its readers. `proof` is the gate.
+ *    source, not its readers. `proof` is the gate. One may ask
+ *    `placementIsTold` (`told`): a move keeps a told seat told, and a press
+ *    never sends a told seat its first email.
  *  - `staff`: a run's own staff tools that show no member a placement and
  *    name nobody to a facilitator. `proof` is the gate.
  *  - `writer`: it counts, rebuilds or deletes, and shows nobody anything.
- *    `proof` is what makes that true.
+ *    `proof` is what makes that true. One that changes a seat's group asks
+ *    `placementIsTold` (`told`), so a told seat stays told.
+ *
+ * `derived` counts the calls of `groupToldAbout` and `movedSinceTold`, on an
+ * entry of any kind.
  */
 const READERS = {
   "app/api/courses/me/route.ts": {
@@ -411,33 +431,49 @@ const READERS = {
   "app/api/courses/runs/[runId]/allocation/route.ts": {
     kind: "board",
     proof: ["if (!doesTrackLeadWork(staffing)) {"],
+    told: 1,
+    derived: { groupToldAbout: 1, movedSinceTold: 1 },
     why:
       "the allocation board itself, for an admin, the run's track leads or the lead of the programme that names the " +
-      "run, who place people and see every seat",
+      "run, who place people and see every seat; each row says which group a told seat was told about, and whether " +
+      "it moved since, so the board says what a move did and what the next Publish sends",
   },
   "app/api/courses/runs/[runId]/allocate/route.ts": {
     kind: "board",
-    proof: ["if (!doesTrackLeadWork(staffing)) {"],
-    why: "the board's placements, the writer of every seat and of the move that clears Publish's stamp",
+    proof: [
+      "if (!doesTrackLeadWork(staffing)) {",
+      'enrolment.role === "learner" && !enrolmentHasLeft(enrolment.status) && placementIsTold(enrolment);',
+      "patch.toldGroupId = enrolment.groupId;",
+    ],
+    told: 1,
+    why:
+      "the board's placements, the writer of every seat: a move of a told seat keeps Publish's stamp, to another group, " +
+      "to no group or back, and writes the group it was told about the first time a seat told before that was kept moves",
   },
   "app/api/courses/runs/[runId]/allocation/publish/route.ts": {
     kind: "board",
-    proof: ["if (!doesTrackLeadWork(staffing)) {", "allocatedEmailAt: FieldValue.serverTimestamp()"],
-    why: "Publish: it emails each untold seat its group and then stamps it told, which is the fact this rule reads",
+    proof: ["if (!doesTrackLeadWork(staffing)) {", "allocatedEmailAt: FieldValue.serverTimestamp()", "toldGroupId: who.groupId,"],
+    why:
+      "Publish: it emails each untold seat its group, and each seat moved since it was told that it has moved, and then " +
+      "stamps it told with the group it was about, which is the fact this rule reads",
   },
   "lib/courses/allocationPublish.ts": {
     kind: "board",
     proof: [
       "if (input.adminOnly) return { ...empty, adminOnly: true };",
-      "!enrolmentByUid.get(row.uid)?.allocatedEmailAt",
+      "return group && !told(row.uid) ? [{ row, group }] : [];",
+      "if (!group || !seat || !movedSinceTold(seat) || gaveBack(row.uid)) return [];",
       "const size = toldBefore + (writesIn.get(group.id) ?? 0);",
     ],
+    told: 1,
+    derived: { groupToldAbout: 1, movedSinceTold: 1 },
     why:
       "Publish's plan, read behind the board's gate by the board's count, \"Send a test to me\" and Publish, and an admin's " +
-      "alone on a run the form fills: it reads each seat Publish has not told to write its owner's email, which a press " +
-      "sends to them and a test, the first one only, to the presser alone; its facilitators' email counts only the " +
-      "people in the group told by the end of the press, never an untold seat; and its answers name only the people it " +
-      "cannot write to",
+      "alone on a run the form fills: it reads each seat Publish has not told to write its owner's first email, and never " +
+      "writes that email to a told seat; a told seat moved since it was told is written \"You’ve moved\" instead, a press " +
+      "sending them to them and a test, the first of each only, to the presser alone; its facilitators' email counts only " +
+      "the people in the group told by the end of the press, never an untold seat; and its answers name only the people " +
+      "it cannot write to",
   },
   "lib/courses/coursework/gather.ts": {
     kind: "staff",
@@ -471,14 +507,22 @@ const READERS = {
   },
   "lib/courses/groupFacilitators.ts": {
     kind: "writer",
-    proof: ['role: "facilitator"', 'if (existing.role === "facilitator") {', 'role: "learner"', "allocatedEmailAt: FieldValue.delete()"],
+    proof: [
+      'role: "facilitator"',
+      'if (existing.role === "facilitator") {',
+      'role: "learner"',
+      "allocatedEmailAt: FieldValue.delete()",
+      'const told = seat !== null && seat.role === "learner" && placementIsTold(seat);',
+    ],
+    told: 1,
     why:
       "the one place a group's facilitators change, by hand or by an answer to an ask: it writes and " +
       "retires facilitator rows, places a facilitator who holds a place and sits in no group in the group " +
-      "they facilitate (a learner's row with no Publish stamp, so the next Publish tells them), never moves " +
-      "anybody between groups, and shows nobody anything. Its callers name where somebody sits only to the " +
-      "people who place people (the group facilitators route, and an ask by the programme's lead or an " +
-      "admin); the person asked is told only about the group they were asked about",
+      "they facilitate (a seat nobody has told stays untold, so the next Publish tells them; a told seat taken " +
+      "out of its group stays told, and the next Publish tells them they moved), never moves anybody between " +
+      "groups, and shows nobody anything. Its callers name where somebody sits only to the people who place " +
+      "people (the group facilitators route, and an ask by the programme's lead or an admin); the person asked " +
+      "is told only about the group they were asked about",
   },
   "app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts": {
     kind: "staff",
@@ -490,11 +534,13 @@ const READERS = {
   "lib/applications/arrange/load.ts": {
     kind: "staff",
     proof: ['if (!canRunTerm(user)) return refuse(403, "Only an admin can ask for an arrangement.");'],
+    derived: { groupToldAbout: 1, movedSinceTold: 1 },
     why:
       "an admin's arrangement into groups, and Circles' picture of the run's groups as they are: it reads each seat " +
-      "on the run for the group somebody sits in now and whether Publish has told them it. Every placement stays " +
-      "where it is in a suggestion; one Publish has not told may be moved by the admin, or by a suggestion only when " +
-      "the admin starts again, and Circles marks it not told yet. It shows the admin alone and writes nothing",
+      "on the run for the group somebody sits in now, whether Publish has told them it, the group they were told " +
+      "about and whether they moved since. Every placement stays where it is in a suggestion; one Publish has not " +
+      "told may be moved by the admin, or by a suggestion only when the admin starts again, and Circles marks it not " +
+      "told yet, or moved since it was told. It shows the admin alone and writes nothing",
   },
   "lib/applications/nextTerm/load.ts": {
     kind: "staff",
@@ -565,6 +611,15 @@ const KINDS = ["shown", "told", "board", "staff", "writer"];
 const SHOWN = /\bplacementIsShownTo\s*\(/g;
 const TOLD = /\bplacementIsTold\s*\(/g;
 
+/**
+ * The two questions made of `placementIsTold`, beside it in the rule's home:
+ * every call of either outside it is counted on its file's entry (`derived`).
+ */
+const DERIVED = ["groupToldAbout", "movedSinceTold"];
+const callsOf = (code, name) => [...code.matchAll(new RegExp(`\\b${name}\\s*\\(`, "g"))].length;
+const importsFromRule = (code, name) =>
+  new RegExp(`import\\s*\\{[^}]*\\b${name}\\b[^}]*\\}\\s*from\\s*"@/lib/firestore/courseEnrolments"`).test(code);
+
 describe("every reader of placements says what it does about a placement Publish has not told", () => {
   const files = [...walkSource(SRC)];
   const readers = files.filter((file) => ADDRESSES.test(codeOf(file))).map(inSrc).sort();
@@ -624,11 +679,31 @@ describe("every reader of placements says what it does about a placement Publish
           );
         }
       } else {
-        assert.equal(shown + told, 0, "it is not listed as a reader that shows, and it asks the question");
+        // The board and a writer show nobody a placement. One may ask whether
+        // a seat was told, to keep a told seat told through a move or to
+        // decide what a press sends, as many times as its entry says.
+        assert.equal(shown, 0, "it is not listed as a reader that shows, and it asks the question");
+        assert.ok(entry.told === undefined || (Number.isInteger(entry.told) && entry.told > 0), "`told` is a count");
+        assert.equal(
+          told,
+          entry.told ?? 0,
+          "It asks placementIsTold a number of times its entry does not say. A file of the board or a writer that " +
+            "asks whether a seat was told says how many times, and why.",
+        );
+        if (told > 0) assert.ok(importsFromRule(code, "placementIsTold"), "it asks a question of its own instead of the collection's");
         assert.ok(Array.isArray(entry.proof) && entry.proof.length > 0, "names what the file has to contain");
         for (const literal of entry.proof) {
           assert.ok(code.includes(literal), `its reason is about \`${literal}\`, which the file no longer contains`);
         }
+      }
+      // The two questions made of the rule, counted on any kind of entry.
+      for (const name of Object.keys(entry.derived ?? {})) {
+        assert.ok(DERIVED.includes(name), `\`${name}\` is not one of the questions made of the rule`);
+      }
+      for (const name of DERIVED) {
+        const asked = callsOf(code, name);
+        assert.equal(asked, entry.derived?.[name] ?? 0, `It asks ${name} a number of times its entry does not say.`);
+        if (asked > 0) assert.ok(importsFromRule(code, name), `it asks a ${name} of its own instead of the collection's`);
       }
     });
   }
@@ -642,9 +717,26 @@ describe("every reader of placements says what it does about a placement Publish
     assert.deepEqual(
       asking,
       Object.entries(READERS)
-        .filter(([, entry]) => entry.kind === "shown" || entry.kind === "told")
+        .filter(([, entry]) => entry.kind === "shown" || entry.kind === "told" || (entry.told ?? 0) > 0)
         .map(([file]) => file)
         .sort(),
+    );
+  });
+
+  test("nothing asks a question made of the rule without being a listed reader that counts it", () => {
+    const asking = files
+      .filter((file) => DERIVED.some((name) => callsOf(codeOf(file), name) > 0))
+      .map(inSrc)
+      .filter((file) => file !== RULE_HOME)
+      .sort();
+    assert.ok(asking.length >= 3, `only ${asking.length} files ask a question made of the rule`);
+    assert.deepEqual(
+      asking,
+      Object.entries(READERS)
+        .filter(([, entry]) => Object.values(entry.derived ?? {}).some((count) => count > 0))
+        .map(([file]) => file)
+        .sort(),
+      "These ask groupToldAbout or movedSinceTold and are not readers that say how many times: list them.",
     );
   });
 
@@ -675,5 +767,21 @@ describe("every reader of placements says what it does about a placement Publish
     assert.match(code, /if \(enrolment\.selfEnrolled\) return true;/);
     assert.match(code, /return enrolment\.allocatedEmailAt instanceof Date;/);
     assert.match(code, /return viewer\.isAdmin \|\| placementIsTold\(enrolment\);/);
+  });
+
+  test("the two questions made of the rule are made of it: the group a told seat was told about, and a move since", () => {
+    const code = codeOf(join(SRC, ...RULE_HOME.split("/")));
+    // Told before the group was kept: told about the group it is in.
+    assert.match(code, /export function groupToldAbout\([^)]*\)[^{]*\{\s*return enrolment\.toldGroupId \?\? enrolment\.groupId;\s*\}/);
+    const moved = /export function movedSinceTold\([\s\S]*?\n\}/.exec(code)?.[0] ?? "";
+    for (const clause of [
+      'enrolment.role === "learner"',
+      'enrolment.status === "active"',
+      "enrolment.groupId !== null",
+      "placementIsTold(enrolment)",
+      "enrolment.groupId !== groupToldAbout(enrolment)",
+    ]) {
+      assert.ok(moved.includes(clause), `movedSinceTold no longer asks ${clause}`);
+    }
   });
 });

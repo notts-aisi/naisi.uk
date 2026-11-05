@@ -10,7 +10,7 @@
  *   PUT  /api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/campus   a group's campus
  *   /learn/[runId] and its run home                                                   the card, and the campus
  *   GET  /api/courses/runs/[runId]/allocation                                         who reads the answer
- *   POST /api/courses/runs/[runId]/allocate, Remove, the facilitators route            a move clears it
+ *   POST /api/courses/runs/[runId]/allocate, Remove, the facilitators route            what a move does to it
  *   /applications/[roundId]                                                           the line that points to it
  *
  * ## What this guards
@@ -29,9 +29,12 @@
  *     the two answers, their answer once given, locked in a view-as session
  *     and until the page's script has arrived, naming no group for an
  *     incubator. And the head names the campus, standing in for no room.
- *  4. A MOVE RESETS IT: the board's move, un-placing, putting somebody back
- *     after they left, Remove, and an appointment that seats a facilitator
- *     who holds a place each delete it. The tree: every write that clears
+ *  4. WHAT A MOVE DOES TO IT: a seat Publish told keeps it through a move,
+ *     as it keeps the stamp (the board's move, un-placing, an appointment
+ *     that seats a facilitator who holds a place and sits in no group), and
+ *     nothing shows it while the seat is in another group than the one it is
+ *     about; moved back, it shows again. Putting somebody back after they
+ *     left, and Remove, delete it. The tree: every write that clears
  *     Publish's stamp clears the answer in the same write, and the leave
  *     names neither.
  *  5. THE STALE-ANSWER RULE: an answer about another group than the seat's
@@ -646,36 +649,50 @@ describe("3. the card on the programme page", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. A move resets it
+// 4. What a move does to it
 // ---------------------------------------------------------------------------
 
-describe("4. a move clears the answer about the group they leave", () => {
-  test("the board's move, and a placement where they already are", async () => {
+describe("4. a told seat keeps its answer through a move, shown only while it is about the seat's group", () => {
+  test("the board's move, a placement where they already are, and a move back", async () => {
     await answer("amara", CANT);
     // Placed where they already are: nothing to do, and the answer stays.
     assert.equal((await w.join.place("zach", [{ uid: "amara", groupId: A }])).status, 200);
     assert.equal(seat("amara").timeAnswer.kind, "cant");
-    // Moved: the answer goes, with Publish's stamp.
+    assert.equal((await boardRows("zach")).rows.amara.timeAnswer?.kind, "cant");
+    // Moved: she stays told, with Publish's stamp and the group she was told
+    // about, and her answer about Group A stays on her seat, shown nowhere
+    // while she is in Group B.
     const moved = await w.join.place("zach", [{ uid: "amara", groupId: B }]);
     assert.equal(moved.status, 200, JSON.stringify(moved.body));
-    assert.deepEqual([seat("amara").groupId, seat("amara").timeAnswer, seat("amara").allocatedEmailAt], [B, undefined, undefined]);
+    assert.deepEqual(
+      [seat("amara").groupId, seat("amara").timeAnswer.forGroupId, seat("amara").allocatedEmailAt instanceof Date, seat("amara").toldGroupId],
+      [B, A, true, A],
+    );
+    assert.equal((await boardRows("zach")).rows.amara.timeAnswer, null);
+    // Moved back by mistake undone: the answer is hers again, and nothing else changed.
+    assert.equal((await w.join.place("zach", [{ uid: "amara", groupId: A }])).status, 200);
+    assert.equal((await boardRows("zach")).rows.amara.timeAnswer?.kind, "cant");
+    assert.equal(seat("amara").toldGroupId, A);
   });
 
-  test("a most weeks answer goes with a move too, and the group left behind stops naming them", async () => {
+  test("a most weeks answer stays on a told seat through a move, about the group it was given for, and the group left behind stops naming them", async () => {
     assert.equal((await answer("amara", MOST("w05"))).status, 200);
     const moved = await w.join.place("zach", [{ uid: "amara", groupId: B }]);
     assert.equal(moved.status, 200, JSON.stringify(moved.body));
-    assert.deepEqual([seat("amara").groupId, seat("amara").timeAnswer], [B, undefined]);
+    assert.equal(seat("amara").groupId, B);
+    // Kept, as a told seat keeps its answer through a move, and shown only while they are in the group it is about.
+    assert.deepEqual([seat("amara").timeAnswer?.kind, seat("amara").timeAnswer?.forGroupId], ["mostWeeks", A]);
     // The register keeps its line, as it keeps every line of somebody who moved, and names only its people.
     const register = await call("sofia", routes.register.GET, { groupId: A }, { course: true });
     assert.equal(register.status, 200);
     assert.ok(!JSON.stringify(register.body.cantMakeIt ?? []).includes("amara"));
   });
 
-  test("taking somebody out of groups", async () => {
+  test("taking somebody out of groups keeps it, and shows it nowhere", async () => {
     await answer("dev", { ...CANT });
     assert.equal((await w.join.place("zach", [{ uid: "dev", groupId: null }])).status, 200);
-    assert.deepEqual([seat("dev").groupId, seat("dev").timeAnswer], [null, undefined]);
+    assert.deepEqual([seat("dev").groupId, seat("dev").timeAnswer.forGroupId, seat("dev").allocatedEmailAt instanceof Date], [null, A, true]);
+    assert.equal((await boardRows("zach")).rows.dev.timeAnswer, null);
   });
 
   test("the leave keeps it as it keeps the stamp, nothing shows it, and putting them back clears it", async () => {
@@ -700,11 +717,35 @@ describe("4. a move clears the answer about the group they leave", () => {
   });
 
   test("an appointment that seats a facilitator who holds a place and sits in no group", async () => {
-    // Tariq was taken out of groups after answering about Group A: the
-    // answer would be stale anyway, and the appointment deletes it.
+    // Tariq was told about Group A, then taken out of groups after answering
+    // about it: he stays told, so the appointment keeps the answer as it
+    // keeps the stamp, and nothing shows it while he sits in Group B.
     world.db.seed(enrolmentPath("tariq"), {
       ...seat("tariq"),
       groupId: null,
+      toldGroupId: A,
+      timeAnswer: { kind: "cant", reason: WHY, alternatives: WOULD, forGroupId: A, at: NOW },
+    });
+    assert.ok(seat("tariq").allocatedEmailAt instanceof Date, "Tariq is not told in this world");
+    const appointed = await call("zach", facilitatorsRoute.POST, { groupId: B }, {
+      body: { uids: ["rahul", "sofia", "tariq"] },
+      course: true,
+    });
+    assert.equal(appointed.status, 200, JSON.stringify(appointed.body));
+    assert.deepEqual(
+      [seat("tariq").groupId, seat("tariq").timeAnswer.forGroupId, seat("tariq").allocatedEmailAt instanceof Date],
+      [B, A, true],
+    );
+    assert.equal((await boardRows("zach")).rows.tariq?.timeAnswer ?? null, null);
+  });
+
+  test("an appointment that seats somebody nobody has told deletes an answer, as the stamp", async () => {
+    // A stored answer on a seat nobody has told is no answer anybody gave
+    // about a group they were told: it goes as the seat is placed.
+    world.db.seed(enrolmentPath("tariq"), {
+      ...seat("tariq"),
+      groupId: null,
+      allocatedEmailAt: null,
       timeAnswer: { kind: "cant", reason: WHY, alternatives: WOULD, forGroupId: A, at: NOW },
     });
     const appointed = await call("zach", facilitatorsRoute.POST, { groupId: B }, {
@@ -712,7 +753,7 @@ describe("4. a move clears the answer about the group they leave", () => {
       course: true,
     });
     assert.equal(appointed.status, 200, JSON.stringify(appointed.body));
-    assert.deepEqual([seat("tariq").groupId, seat("tariq").timeAnswer], [B, undefined]);
+    assert.deepEqual([seat("tariq").groupId, seat("tariq").timeAnswer, seat("tariq").allocatedEmailAt], [B, undefined, undefined]);
   });
 
   test("THE TREE: every write that clears Publish's stamp clears the answer in the same write, and the leave names neither", () => {

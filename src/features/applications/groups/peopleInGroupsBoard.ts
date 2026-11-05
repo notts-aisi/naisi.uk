@@ -1,6 +1,7 @@
 import type { DropdownOption } from "@/components/ui/Dropdown";
 import { cardFit, facilitatedGroupOf, facilitatesWords } from "@/features/courses/allocationFit";
 import type { AllocGroup, AllocRow } from "@/features/courses/useAllocation";
+import { movedCardWords } from "@/lib/courses/moveWords";
 import { weekOfSessionKey } from "@/lib/courses/timeAnswer/model";
 import { MARK_CANT_MAKE, MARK_CAN_MAKE, mostWeeksMark } from "@/lib/courses/timeAnswer/words";
 import * as words from "./peopleInGroupsWords";
@@ -82,6 +83,9 @@ export function marksOf(
   // knows where to move them.
   if (conflict && group) marks.push({ words: words.notFreeWords(group.when || group.name), tone: "warn" });
   if (notToldYet(row, group, published)) marks.push({ words: words.NOT_TOLD_YET, tone: "plain" });
+  // Told about another group and moved since: they see this one, and the
+  // next Publish emails them "You’ve moved".
+  if (row.moved && group !== null) marks.push({ words: movedCardWords(row.moved.from), tone: "plain" });
   if (tags.length > 0) marks.push({ words: words.fitsWords(tags), tone: "plain" });
   else if (!conflict && timed > 0 && row.fromForm?.availability === "given") {
     marks.push({ words: words.fitsNoneWords(timed), tone: "warn" });

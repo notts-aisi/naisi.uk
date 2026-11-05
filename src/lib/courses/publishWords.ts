@@ -31,6 +31,16 @@ export type PublishReport = {
    * is exactly as it was before these were sent.
    */
   joined?: { sent: number; held: number; suppressed: number };
+  /**
+   * The people told they have moved since they were told their group ("You’ve
+   * moved"), by what became of each email. Present only when there was one.
+   */
+  moved?: { sent: number; held: number; suppressed: number };
+  /**
+   * The facilitators told who is no longer in their group, by what became of
+   * each email. Present only when there was one.
+   */
+  left?: { sent: number; held: number; suppressed: number };
   /** Names whose send failed. They are still owed, and the next press tries them. */
   failed: string[];
   /** Names owed an email with no address on file. */
@@ -83,17 +93,36 @@ export function publishButtonLabel(emails: number): string {
 /**
  * "32 people and 5 facilitators", the line above the buttons. `joined` is how
  * many facilitators already told about their group are told who has joined
- * it: "2 people and 1 facilitator told who has joined".
+ * it: "2 people and 1 facilitator told who has joined". `moved` is how many
+ * people told their group and moved since are told they have moved, and
+ * `left` how many facilitators are told who is no longer in their group.
  */
-export function publishAudienceLine(people: number, facilitators: number, joined = 0): string {
+export function publishAudienceLine(people: number, facilitators: number, joined = 0, moved = 0, left = 0): string {
   const parts = [
     ...(people > 0 ? [peopleLabel(people)] : []),
+    ...(moved > 0 ? [`${peopleLabel(moved)} moved since they were told`] : []),
     ...(facilitators > 0 ? [facilitatorsLabel(facilitators)] : []),
     ...(joined > 0 ? [`${facilitatorsLabel(joined)} told who has joined`] : []),
+    ...(left > 0 ? [`${facilitatorsLabel(left)} told who is no longer in their group`] : []),
   ];
   if (parts.length === 0) return "Nobody is waiting for an email.";
   return nameList(parts);
 }
+
+/** Somebody moved since they were told, as Publish lists them: their name, where they are now, and the group they were told about. */
+export type MovedLine = { name: string; to: string; from: string | null };
+
+/** "Will: moved to Group H, was Group D". */
+export function movedPersonWords(moved: MovedLine): string {
+  return moved.from ? `${moved.name}: moved to ${moved.to}, was ${moved.from}` : `${moved.name}: moved to ${moved.to}`;
+}
+
+/**
+ * Over the list of people moved since they were told, each said by
+ * `movedPersonWords`: what a press sends them, and what it never does.
+ */
+export const MOVED_LEAD =
+  "Moved since they were told: a press emails each of them “You’ve moved” about the group they are in now, never their first email again.";
 
 /**
  * Publish waits for a choice for each person placed outside the times they
@@ -156,6 +185,10 @@ export function publishConfirmText(input: {
   gaveBack?: number;
   /** Facilitators already told about their group, told who has joined it. */
   joined?: number;
+  /** People told their group and moved since, told they have moved. */
+  moved?: number;
+  /** Facilitators told about a group, told who is no longer in it. */
+  left?: number;
   /** Of the people, those whose email carries a note of our own above its details. */
   noted?: number;
   republish: boolean;
@@ -171,6 +204,11 @@ export function publishConfirmText(input: {
         `${emailsLabel(input.people)} to ${input.people === 1 ? "the person" : "people"} placed in a group, with their group, day, room and facilitators`,
       );
     }
+    if (input.moved && input.moved > 0) {
+      parts.push(
+        `${emailsLabel(input.moved)} to ${input.moved === 1 ? "a person" : "people"} moved since they were told, with their new group and when it next meets`,
+      );
+    }
     if (input.facilitators > 0) {
       parts.push(
         `${emailsLabel(input.facilitators)} to ${input.facilitators === 1 ? "a facilitator" : "facilitators"}, with their group, day and room`,
@@ -179,6 +217,11 @@ export function publishConfirmText(input: {
     if (input.joined && input.joined > 0) {
       parts.push(
         `${emailsLabel(input.joined)} to ${input.joined === 1 ? "a facilitator" : "facilitators"} already told about their group, naming who has joined it`,
+      );
+    }
+    if (input.left && input.left > 0) {
+      parts.push(
+        `${emailsLabel(input.left)} to ${input.left === 1 ? "a facilitator" : "facilitators"} naming who is no longer in their group`,
       );
     }
     lines.push(`${parts.join(". ")}.`);
@@ -195,7 +238,13 @@ export function publishConfirmText(input: {
   if (input.emptyGroups.length > 0) lines.push(emptyGroupsLine(input.emptyGroups));
   if (input.gaveBack && input.gaveBack > 0) lines.push(gaveBackLine(input.gaveBack));
   if (input.emails > 0) {
-    lines.push(input.republish ? "Only people and facilitators not told before are emailed. Emails cannot be unsent." : "Emails cannot be unsent.");
+    lines.push(
+      !input.republish
+        ? "Emails cannot be unsent."
+        : input.moved && input.moved > 0
+          ? "Only people and facilitators not told before, and people moved since they were told, are emailed. Emails cannot be unsent."
+          : "Only people and facilitators not told before are emailed. Emails cannot be unsent.",
+    );
   }
   return lines.join("\n\n");
 }
@@ -203,15 +252,21 @@ export function publishConfirmText(input: {
 /** What a press did, in sentences whose numbers are the server's. */
 export function publishResultLines(report: PublishReport): string[] {
   const lines: string[] = [];
-  const joined = report.joined ?? { sent: 0, held: 0, suppressed: 0 };
-  const sent = report.people.sent + report.facilitators.sent + joined.sent;
+  const none = { sent: 0, held: 0, suppressed: 0 };
+  const joined = report.joined ?? none;
+  const moved = report.moved ?? none;
+  const left = report.left ?? none;
+  const sides = [report.people, moved, report.facilitators, joined, left];
+  const sent = sides.reduce((sum, side) => sum + side.sent, 0);
   if (sent === 0) {
     lines.push("Published. No email was sent.");
   } else {
     const parts: string[] = [];
     if (report.people.sent > 0) parts.push(`${report.people.sent} to people with their group`);
+    if (moved.sent > 0) parts.push(`${moved.sent} to people moved since they were told, with their new group`);
     if (report.facilitators.sent > 0) parts.push(`${report.facilitators.sent} to facilitators`);
     if (joined.sent > 0) parts.push(`${joined.sent} to facilitators about who has joined their group`);
+    if (left.sent > 0) parts.push(`${left.sent} to facilitators about who is no longer in their group`);
     lines.push(`Published. ${emailsLabel(sent)} sent: ${nameList(parts)}.`);
   }
   if (report.failed.length > 0) {
@@ -222,13 +277,13 @@ export function publishResultLines(report: PublishReport): string[] {
   if (report.noAddress.length > 0) {
     lines.push(`Not sent to ${nameList(report.noAddress)}, because there is no email address on file.`);
   }
-  const suppressed = report.people.suppressed + report.facilitators.suppressed + joined.suppressed;
+  const suppressed = sides.reduce((sum, side) => sum + side.suppressed, 0);
   if (suppressed > 0) {
     lines.push(
       `Not sent to ${suppressed === 1 ? "1 address" : `${suppressed} addresses`} on the do-not-email list. ${suppressed === 1 ? "It counts" : "They count"} as told, so ${suppressed === 1 ? "it isn’t" : "they aren’t"} tried again.`,
     );
   }
-  const held = report.people.held + report.facilitators.held + joined.held;
+  const held = sides.reduce((sum, side) => sum + side.held, 0);
   if (held > 0) {
     lines.push(
       `Held, not sent: ${held === 1 ? "1 email" : `${held} emails`} to addresses this copy of the site doesn’t email. That is how a rehearsal works.`,

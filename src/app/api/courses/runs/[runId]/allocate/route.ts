@@ -17,6 +17,7 @@ import {
   courseEnrolmentId,
   enrolmentHasLeft,
   normalizeCourseEnrolment,
+  placementIsTold,
 } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
@@ -72,6 +73,24 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * Placements are processed in chunks of ≤100, each chunk one transaction, so
  * a board-wide "auto-place all" stays inside Firestore's transaction limits
  * while a single drag is still one tiny atomic commit.
+ *
+ * ── A TOLD SEAT STAYS TOLD, WHEREVER IT IS MOVED ────────────────────────────
+ * A move of a seat whose owner Publish has told about a group (a learner's
+ * seat still on the run, `placementIsTold`) never clears Publish's stamp: to
+ * another group, to no group, or back. Its owner is never hidden by a move:
+ * they, their new group's facilitators, its register and its next check-in
+ * see them in the group they are in now at once. The seat remembers which
+ * group they were told about (`toldGroupId`): a seat told before that was
+ * kept gets the group it leaves written there by its first move, in the same
+ * write. Whether they are owed an email is worked out, never stored
+ * (`movedSinceTold`): in a group other than the one they were told about,
+ * the next Publish emails them "You’ve moved"; moved back, nothing is owed.
+ * Their answer to "can you make this time?" stays too, and is shown only
+ * while they are in the group it is about. Nothing here emails anybody.
+ *
+ * A move of a seat nobody has told is the board's working copy, as always:
+ * nothing to clear, and Publish tells them their group.
+ * ────────────────────────────────────────────────────────────────────────────
  *
  * ── A FACILITATOR WHO HOLDS A PLACE SITS IN THE GROUP THEY FACILITATE ───────
  * A facilitator can be one of the run's fellows too. So a placement asks
@@ -462,13 +481,28 @@ export async function POST(req: Request, ctx: Ctx) {
             patch.applicationId = courseApplicationId(runId, uid);
             patch.joinedWeekNumber = joinedWeekFor(run, targetGroup);
           }
+          // Told about a group by Publish, and still on the run: a learner's
+          // seat (a facilitator's row is nobody's place yet), not one that
+          // left, which the branch below puts back afresh.
+          const told =
+            enrolment.role === "learner" && !enrolmentHasLeft(enrolment.status) && placementIsTold(enrolment);
           if (enrolment.groupId !== groupId) {
-            // The stamp certifies "emailed about their CURRENT group"; a
-            // changed placement invalidates it, so the next publish emails
-            // them about the new group. Their answer to "can you make this
-            // time?" was about the group they leave, so it goes with it.
-            patch.allocatedEmailAt = FieldValue.delete();
-            patch.timeAnswer = FieldValue.delete();
+            if (told) {
+              // THEY STAY TOLD (see the note at the top). A seat told before
+              // the group it was told about was kept was told about the group
+              // it leaves: written now, in the move's own write, so the next
+              // Publish knows what changed and a move back owes nothing.
+              if (enrolment.toldGroupId === null && enrolment.groupId !== null) {
+                patch.toldGroupId = enrolment.groupId;
+              }
+            } else {
+              // Nobody has told them, so there is no stamp to keep, and the
+              // next Publish tells them their group. An answer about a group
+              // they were never told goes with it.
+              patch.allocatedEmailAt = FieldValue.delete();
+              patch.toldGroupId = FieldValue.delete();
+              patch.timeAnswer = FieldValue.delete();
+            }
           }
           if (!facilitatorRow && enrolmentHasLeft(enrolment.status)) {
             // SOMEBODY WHO LEFT, PUT BACK. Leaving keeps the group and
@@ -479,6 +513,7 @@ export async function POST(req: Request, ctx: Ctx) {
             // has, and the day they left and why go with the leaving: on an
             // active row they would read as current to every later reader.
             patch.allocatedEmailAt = FieldValue.delete();
+            patch.toldGroupId = FieldValue.delete();
             // A fresh placement is asked afresh whether its time works.
             patch.timeAnswer = FieldValue.delete();
             patch.droppedOutAt = null;

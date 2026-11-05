@@ -2,11 +2,13 @@
 
 import Button from "@/components/ui/Button";
 import {
+  MOVED_LEAD,
   NOTHING_TO_SEND,
   PUBLISH_ADMIN_ONLY,
   emptyGroupsLine,
   gaveBackLine,
   moreLine,
+  movedPersonWords,
   noAddressLine,
   notesNeededLine,
   publishAudienceLine,
@@ -96,7 +98,13 @@ export default function AllocationPublish({
     <section className={styles.publish} aria-labelledby="allocation-publish-title">
       <div className={styles.words}>
         <h3 id="allocation-publish-title" className={styles.title}>
-          {publishAudienceLine(summary.people, summary.facilitators, summary.joined ?? 0)}
+          {publishAudienceLine(
+            summary.people,
+            summary.facilitators,
+            summary.joined ?? 0,
+            summary.moved?.length ?? 0,
+            summary.left ?? 0,
+          )}
         </h3>
         {note && !summary.adminOnly ? <p className={styles.line}>{note}</p> : null}
 
@@ -105,6 +113,18 @@ export default function AllocationPublish({
         ) : (
           <>
             {sends ? null : <p className={styles.line}>{NOTHING_TO_SEND}</p>}
+            {/* Listed apart from the people a press tells their group: each
+                is sent "You’ve moved", never their first email again. */}
+            {summary.moved && summary.moved.length > 0 ? (
+              <div className={styles.line}>
+                <p>{MOVED_LEAD}</p>
+                <ul>
+                  {summary.moved.map((moved, at) => (
+                    <li key={at}>{movedPersonWords(moved)}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {summary.more > 0 ? <p className={styles.line}>{moreLine(summary.more)}</p> : null}
             {summary.noAddress.length > 0 ? (
               <p className={styles.lineWarn}>{noAddressLine(summary.noAddress)}</p>

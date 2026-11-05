@@ -21,6 +21,15 @@ export type RingPerson = {
   offered: boolean;
   /** Publish has told them their group: a suggestion leaves them in it. */
   told: boolean;
+  /** The group they were told about, or null when nobody has told them. What a move of theirs says. */
+  toldGroupId: string | null;
+  /**
+   * Told about another group and moved since: they see the one they are in
+   * now, and the next Publish emails them "You’ve moved". The name of the
+   * group they were told about (null when it is not one of the run's live
+   * groups), or null when they have not moved since they were told.
+   */
+  moved: { from: string | null } | null;
   /**
    * Their answer to "Can you make this time most weeks?" about the group they
    * sit in, or null: yes, most weeks with the sessions they can't make (who
