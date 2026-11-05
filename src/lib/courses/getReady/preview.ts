@@ -34,7 +34,7 @@ export type PublishPreview = {
   people: PreviewKind;
   /** "You’ve moved", to each person moved since they were told their group. */
   moved: PreviewKind;
-  /** Those people, each with the group they are in now and the one they were told about ("Will: moved to Group H, was Group D"). */
+  /** Those people, each with the group they are in now and the one they were told about ("Raj: moved to Group H, was Group D"). */
   moves: { uid: string; name: string; to: string; from: string | null }[];
   facilitators: PreviewKind;
   /** "Ana has joined Group B", to each facilitator already told about their group. */

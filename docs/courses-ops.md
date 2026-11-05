@@ -1330,7 +1330,7 @@ programme names" below).
   when it next meets counted from the press, where, its facilitators, and
   that it replaces the group they were told about), tells the new group's
   facilitators who has joined and the old group's who is no longer in it,
-  and lists them on its own ("Will: moved to Group H, was Group D"), with
+  and lists them on its own ("Raj: moved to Group H, was Group D"), with
   "Send a test to me" sending the first "You’ve moved" too. A swap and a
   swap back before the press owes nothing, and Publish never sends somebody
   told the first email again.

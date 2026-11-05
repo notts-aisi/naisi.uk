@@ -53,9 +53,10 @@ import { sendEmail } from "./send";
  * Nothing here fills a token for that kind, and a placement email that still
  * carries one is refused rather than sent. The facilitators' email that goes
  * beside it at Publish (`facilitating`, written by `composeFacilitatingEmail`)
- * is sent the same way, under the same refusal, and so are the three emails a
- * move of somebody who knew their group sends (`moved`, `joined` and `left`,
- * `src/lib/courses/moveTell.ts`), which are fixed words and carry none.
+ * is sent the same way, under the same refusal, and so are the three emails
+ * the next press sends about a move of somebody already told their group
+ * (`moved`, `joined` and `left`, planned in `src/lib/courses/allocationPublish.ts`),
+ * which are fixed words and carry none.
  *
  * A COMPOSED EMAIL CAN BE A TEST: the same words to the address of whoever
  * pressed "Send a test to me", marked in its subject the way decision day
@@ -92,13 +93,14 @@ export type CourseApplicationEmailKind =
   | "left";
 
 /**
- * The emails written with a composer and handed over finished: Publish's
- * (the people's, the facilitators', and "Ana has joined Group B" to a
- * facilitator already told about their group, `composeJoinedEmail` in
- * `src/lib/courses/joinedEmail.ts`), and a move's of somebody who knew their
- * group (`src/lib/courses/moveTell.ts`): "You’ve moved to Group H" to them
- * (`moved`), "joined" to their new group's facilitators, and "Ana is no
- * longer in Group D" to their old group's (`left`).
+ * The emails written with a composer and handed over finished, all of them
+ * Publish's: the people's, the facilitators', "Ana has joined Group B" to a
+ * facilitator already told about their group (`composeJoinedEmail` in
+ * `src/lib/courses/joinedEmail.ts`), and, for somebody told their group and
+ * moved since, "You’ve moved to Group H" to them (`moved`,
+ * `src/lib/courses/movedEmail.ts`) and "Ana is no longer in Group D" to the
+ * facilitators of the group they were told about (`left`,
+ * `src/lib/courses/leftEmail.ts`).
  */
 export type ComposedCourseEmailKind = "allocated" | "facilitating" | "joined" | "moved" | "left";
 

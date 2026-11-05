@@ -387,20 +387,20 @@ describe("5. the two emails, as their composers write them", () => {
 
 describe("what the pages say about a move", () => {
   test("a move's sentence, by where it put somebody told; and nothing about somebody nobody has told", () => {
-    const told = { name: "Will", toldGroupId: "d", toldGroupName: "Group D" };
+    const told = { name: "Raj", toldGroupId: "d", toldGroupName: "Group D" };
     assert.equal(
       moveWords.movedSentence({ ...told, to: { id: "h", name: "Group H" } }),
-      "Will is in Group H now and sees it straight away. The next Publish emails them that they have moved.",
+      "Raj is in Group H now and sees it straight away. The next Publish emails them that they have moved.",
     );
     assert.equal(
       moveWords.movedSentence({ ...told, to: { id: "d", name: "Group D" } }),
-      "Will is back in Group D, the group they were told about, so nobody needs telling.",
+      "Raj is back in Group D, the group they were told about, so nobody needs telling.",
     );
-    assert.ok(moveWords.movedSentence({ ...told, to: null }).startsWith("Will is in no group now, and still sees the programme."));
-    assert.equal(moveWords.movedSentence({ name: "Will", toldGroupId: null, toldGroupName: null, to: { id: "h", name: "Group H" } }), null);
+    assert.ok(moveWords.movedSentence({ ...told, to: null }).startsWith("Raj is in no group now, and still sees the programme."));
+    assert.equal(moveWords.movedSentence({ name: "Raj", toldGroupId: null, toldGroupName: null, to: { id: "h", name: "Group H" } }), null);
     assert.equal(moveWords.movedCardWords("Group D"), "Moved from Group D: emailed at the next Publish");
     assert.equal(moveWords.movedBatchSentence(0, "Group H"), null);
-    assert.equal(publishWords.movedPersonWords({ name: "Will", to: "Group H", from: "Group D" }), "Will: moved to Group H, was Group D");
+    assert.equal(publishWords.movedPersonWords({ name: "Raj", to: "Group H", from: "Group D" }), "Raj: moved to Group H, was Group D");
   });
 
   test("Publish's words count and name the moved apart from the people told their group for the first time", () => {

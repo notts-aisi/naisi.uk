@@ -112,7 +112,7 @@ export function publishAudienceLine(people: number, facilitators: number, joined
 /** Somebody moved since they were told, as Publish lists them: their name, where they are now, and the group they were told about. */
 export type MovedLine = { name: string; to: string; from: string | null };
 
-/** "Will: moved to Group H, was Group D". */
+/** "Raj: moved to Group H, was Group D". */
 export function movedPersonWords(moved: MovedLine): string {
   return moved.from ? `${moved.name}: moved to ${moved.to}, was ${moved.from}` : `${moved.name}: moved to ${moved.to}`;
 }
