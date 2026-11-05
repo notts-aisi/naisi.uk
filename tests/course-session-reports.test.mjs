@@ -25,10 +25,11 @@
  *     first sent and when last. People are picked from the session's
  *     register, never its facilitators.
  *  4. THE PAGES. The facilitator's page draws the form while the report is
- *     open, and the register leads there once it is finished, for the group's
- *     facilitators only. The lead's page draws every report of the run, with
- *     names, for the lead and admins alone; the Surveys tab leads there with
- *     a count and no name.
+ *     open, picking from the register as its marks stand, and the register
+ *     leads there from the session's start, beside the check-in, finished or
+ *     not, for the group's facilitators only. The lead's page draws every
+ *     report of the run, with names, for the lead and admins alone; the
+ *     Surveys tab leads there with a count and no name.
  *  5. WHAT TAKES IT AWAY. Deleting an account takes the person's entries out
  *     of every report that picks them, and keeps the reports the account
  *     wrote with no writer at all, id included. Destroying the run deletes
@@ -48,7 +49,7 @@ import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { enrolment, registerPath } from "./lib/hubAttendanceWorld.mjs";
+import { enrolment, register, registerPath } from "./lib/hubAttendanceWorld.mjs";
 import { A, AGI, B, C, NOW, ROUND, RUN, find, makeFacilitatorPagesWorld, textOf } from "./lib/facilitatorPagesWorld.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
@@ -706,26 +707,114 @@ describe("4. the pages", () => {
     assert.ok((await reportPageAs("rahul")).text.includes("Reports open when the group’s first session starts."));
   });
 
-  test("the register leads its facilitators on to the report once its session is finished, and nobody else", async () => {
+  test("the register leads its facilitators on to the report from the session's start, beside the check-in, finished or not, and nobody else", async () => {
     const page = (await w.registerPage("rahul")).element;
     assert.equal(find(page, "AttendanceGrid")[0].props.reportHref, REPORT_PAGE);
     assert.equal(find((await w.registerPage("sofia")).element, "AttendanceGrid")[0].props.reportHref, REPORT_PAGE);
     assert.equal(find((await w.registerPage("zach")).element, "AttendanceGrid")[0].props.reportHref, undefined);
 
-    // Week 2 finished, week 3 not started: the foot is about week 2.
+    // Week 2 finished, week 3 not started: the foot is about week 2, and so is the way on.
     const finished = await gridAs("rahul", REPORT_PAGE);
     assert.ok(finished.includes(`href="${REPORT_PAGE}?session=w02"`), "the finished register does not lead to its report");
     assert.ok(textOf(finished).includes("Next: two minutes on how it went."));
+    assert.ok(!finished.includes("?session=w03"), "the register leads to the report on a session that has not started");
     assert.ok(!(await gridAs("zach", undefined)).includes("/report?session="), "an admin's register leads to a report");
+
+    // Its place: after the grid and the check-in, before the foot, and never inside the foot.
+    const linkAt = finished.indexOf('data-testid="register-report"');
+    const footAt = finished.indexOf('data-testid="register-ending"');
+    assert.ok(finished.indexOf("</table>") < linkAt && linkAt < footAt, "the way on to the report is not between the grid and the foot");
+    assert.ok(finished.indexOf(`href="${REPORT_PAGE}?session=w02"`) > linkAt, "the link is not the one beside the check-in");
+    assert.ok(!finished.slice(footAt).includes("/report?session="), "the foot leads to a report as well");
+    assert.equal(finished.split("/report?session=").length - 1, 1, "the register leads to the report more than once");
 
     // A finished register that says its session did not happen: it has no report.
     world.db.poke(registerPath(B, 2), { held: false });
     assert.ok(!(await gridAs("rahul", REPORT_PAGE)).includes("/report?session="), "a session that did not happen leads to a report");
     world.db.poke(registerPath(B, 2), { held: true });
 
-    // Tonight's session has started and is not finished: no way on yet.
+    // A minute before tonight's session starts, the way on is still week 2's.
+    at("2026-11-17T17:59:00Z");
+    const before = await gridAs("rahul", REPORT_PAGE);
+    assert.ok(before.includes(`href="${REPORT_PAGE}?session=w02"`) && !before.includes("?session=w03"), "the register leads to tonight's report before it starts");
+
+    // From the minute it starts, with its register not finished: the way on is tonight's, beside the button that finishes it.
+    for (const now of ["2026-11-17T18:00:00Z", "2026-11-17T19:45:00Z"]) {
+      at(now);
+      const tonight = await gridAs("rahul", REPORT_PAGE);
+      assert.ok(tonight.includes(`href="${REPORT_PAGE}?session=w03"`), `the unfinished register does not lead to tonight's report at ${now}`);
+      assert.ok(!tonight.includes("?session=w02"), `the register still leads to last week's report at ${now}`);
+      assert.ok(tonight.indexOf('data-testid="register-report"') < tonight.indexOf('data-testid="register-ending"'));
+      // The foot is about tonight's register and still offers to finish it.
+      assert.match(textOf(tonight), /Week 3 register Tue 17 Nov .*(Finish the register|Push attendance)/);
+    }
+    assert.ok(!(await gridAs("zach", undefined)).includes("/report?session="), "an admin's register leads to a report tonight");
+
+    // Some of tonight's marks in, the register still a draft: no change.
+    world.db.seed(registerPath(B, 3), register(B, 3, { chloe: "present", kofi: "late" }, { pushed: false }));
+    assert.ok((await gridAs("rahul", REPORT_PAGE)).includes(`href="${REPORT_PAGE}?session=w03"`), "a half marked register does not lead to its report");
+
+    // Tonight's register says the session did not happen: no report, finished or not.
+    world.db.poke(registerPath(B, 3), { held: false });
+    assert.ok(!(await gridAs("rahul", REPORT_PAGE)).includes("/report?session="), "a session that did not happen leads to a report");
+    world.db.poke(registerPath(B, 3), { held: true });
+
+    // Finished: the way on stays, to the same report.
+    world.db.seed(registerPath(B, 3), register(B, 3, { chloe: "present", farah: "present", kofi: "late" }));
+    const done = await gridAs("rahul", REPORT_PAGE);
+    assert.ok(done.includes(`href="${REPORT_PAGE}?session=w03"`), "the finished register no longer leads to its report");
+    assert.ok(!done.slice(done.indexOf('data-testid="register-ending"')).includes("/report?session="), "the finished foot leads to a report as well");
+  });
+
+  test("from the session's start the form picks from the register as it stands, and says so until it is finished", async () => {
     at("2026-11-17T19:00:00Z");
-    assert.ok(!(await gridAs("rahul", REPORT_PAGE)).includes("/report?session="), "an unfinished register leads to a report");
+    // Nothing marked tonight yet: the plain sentence, and nobody to pick from but the group.
+    const empty = await reportPageAs("rahul", "w03");
+    const emptyForm = find(empty.element, "SessionReportForm")[0]?.props;
+    assert.ok(emptyForm, empty.text);
+    assert.deepEqual([emptyForm.sessionKey, emptyForm.registerFinished, emptyForm.came], ["w03", false, []]);
+    assert.deepEqual(emptyForm.inGroup.map((person) => person.uid), ["chloe", "farah", "kofi"]);
+    assert.ok(empty.text.includes("Who engaged well? Nobody is down as here on this session’s register yet."), empty.text);
+    assert.ok(!empty.text.includes("so far"), "a register with nobody down as here says who is so far");
+
+    // Chloe present and Kofi late, Farah not marked yet: the two, and the line over them.
+    world.db.seed(registerPath(B, 3), register(B, 3, { chloe: "present", kofi: "late" }, { pushed: false }));
+    const draft = await reportPageAs("rahul", "w03");
+    const form = find(draft.element, "SessionReportForm")[0].props;
+    assert.equal(form.registerFinished, false);
+    assert.deepEqual(form.came.map((person) => person.uid), ["chloe", "kofi"]);
+    assert.deepEqual(form.inGroup.map((person) => person.uid), ["chloe", "farah", "kofi"]);
+    assert.ok(
+      draft.text.includes("Who engaged well? This is who’s down as here on this session’s register so far. Chloe Nguyen Kofi Asante"),
+      draft.text,
+    );
+    assert.ok(draft.text.includes("Did anyone seem not to have done the readings? Chloe Nguyen Kofi Asante"), draft.text);
+    assert.equal(draft.text.split("so far").length - 1, 1, "the line is said more than once");
+    // Read out with both lists that come from the register.
+    assert.equal(draft.html.split('aria-describedby="report-here-so-far"').length - 1, 2);
+    assert.match(draft.html, /<p id="report-here-so-far" class="note">This is who’s down as here on this session’s register so far\.<\/p>/);
+
+    // Send is checked against the marks as they stand when it is pressed:
+    // Farah marked here since the page opened is taken; Kofi taken off since, refused.
+    world.db.seed(registerPath(B, 3), register(B, 3, { chloe: "present", farah: "present", kofi: "absent" }, { pushed: false }));
+    const took = await send("rahul", withAnswers({ engaged: [{ uid: "farah", note: "" }], notRead: [], needsHand: [] }, "w03"));
+    assert.equal(took.status, 200, JSON.stringify(took.body));
+    const refused = await send("rahul", withAnswers({ engaged: [{ uid: "kofi", note: "" }], notRead: [], needsHand: [] }, "w03"));
+    assert.deepEqual([refused.status, refused.body.error], [400, words.REPORT_REFUSAL.pickedCame]);
+    // The page opened again lists who is down as here now, the report's answers ticked.
+    const again = find((await reportPageAs("rahul", "w03")).element, "SessionReportForm")[0].props;
+    assert.deepEqual(again.came.map((person) => person.uid), ["chloe", "farah"]);
+    assert.deepEqual(again.answers.engaged, [{ uid: "farah", note: "" }]);
+
+    // Finished: the same people, and no line.
+    world.db.seed(registerPath(B, 3), register(B, 3, { chloe: "present", farah: "present", kofi: "absent" }));
+    const done = await reportPageAs("rahul", "w03");
+    const finishedForm = find(done.element, "SessionReportForm")[0].props;
+    assert.equal(finishedForm.registerFinished, true);
+    assert.deepEqual(finishedForm.came.map((person) => person.uid), ["chloe", "farah"]);
+    assert.ok(!done.text.includes("so far"), "a finished register's people are said to be so far");
+    assert.doesNotMatch(done.html, /report-here-so-far/);
+    assert.ok(done.text.includes("Who engaged well? Chloe Nguyen Farah Hussain"), done.text);
   });
 
   test("the lead's page: the programme's lead and admins; a reviewer is told so, another lead finds no programme", async () => {

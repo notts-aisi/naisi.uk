@@ -9,9 +9,10 @@
  * -> the admin approves Ada and Fern -> names the running run -> appoints
  * Fern to Group A -> Ada presses Can't make it on her next session's ticket,
  * which says the register records her as excused, and still does after a
- * reload -> Fern's register says Ada can't make week 4; Fern marks week 3
- * and finishes it -> Fern follows "Next: two minutes on how it went." to the
- * session report and sends one -> Ada writes week 4's written answer, presses
+ * reload -> Fern's register says Ada can't make week 4, and leads to week 3's
+ * session report before it is finished; Fern marks week 3 and finishes it ->
+ * Fern follows "Next: two minutes on how it went." to the session report and
+ * sends one -> Ada writes week 4's written answer, presses
  * Submit week 4, reads the check (two reflections empty) and presses Submit
  * anyway: the week reads submitted and locked, the box read only, after a
  * reload too -> Fern presses "Reopen week 4 for Ada" on This week's work ->
@@ -390,7 +391,7 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
     );
 
     await step(
-      "the facilitator's register says who can't make next week's session, and the facilitator marks this week's and finishes it",
+      "the facilitator's register says who can't make next week's session, leads to this week's session report before it is finished, and the facilitator marks this week's and finishes it",
       async () => {
         activePage = fernPage;
         await signIn(fernPage, fern);
@@ -402,6 +403,19 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
         assert.ok(said.includes(ada.first), `the register's line does not name Ada: ${said}`);
         assert.ok(!said.includes(ben.first), `the register's line names Ben: ${said}`);
 
+        // The way on to this week's session report is there from the
+        // session's start, beside the check-in, while nobody is marked and
+        // the register is not finished, and never in the register's foot.
+        const reportLink = fernPage.getByTestId("register-report").getByRole("link", { name: WORDS.reportNext, exact: true });
+        await reportLink.waitFor({ timeout: WAIT_MS });
+        const reportHref = `${groupPath}/report?session=${weekDocId(thisWeek)}`;
+        assert.equal(await reportLink.getAttribute("href"), reportHref, "the unfinished register leads to another session's report");
+        assert.equal(
+          await fernPage.getByTestId("register-ending").getByRole("link", { name: WORDS.reportNext, exact: true }).count(),
+          0,
+          "the register's foot leads to the report as well",
+        );
+
         // "Rest present" on this week's column marks the two.
         const column = fernPage.getByTestId("attendance-session").filter({ hasText: `Week ${thisWeek}` });
         const [marked] = await Promise.all([
@@ -409,6 +423,8 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
           column.getByTestId("attendance-bulk").click(),
         ]);
         await okBody(marked, "Marking the register");
+        // Marked and still not finished: the way on is where it was.
+        assert.equal(await reportLink.getAttribute("href"), reportHref, "marking the register moved the way on to the report");
 
         const foot = fernPage.getByTestId("register-ending");
         await foot.getByRole("heading", { name: `Week ${thisWeek} register`, exact: true }).waitFor({ timeout: WAIT_MS });
@@ -436,7 +452,8 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
 
     await step("the facilitator follows the finished register's link to the session report and sends one", async () => {
       activePage = fernPage;
-      const link = fernPage.getByTestId("register-ending").getByRole("link", { name: WORDS.reportNext, exact: true });
+      // Kept once the register is finished, beside the check-in where it was.
+      const link = fernPage.getByTestId("register-report").getByRole("link", { name: WORDS.reportNext, exact: true });
       await link.waitFor({ timeout: WAIT_MS });
       assert.equal(await link.getAttribute("href"), `${groupPath}/report?session=${weekDocId(thisWeek)}`, "the link leads somewhere else");
       await link.click();

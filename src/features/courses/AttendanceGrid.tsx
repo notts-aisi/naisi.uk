@@ -115,8 +115,9 @@ export type AttendanceGridProps = {
   runId?: string;
   /**
    * The session report page of this group, for a caller who writes one (a
-   * live facilitator of the group): once the session the foot is about is
-   * finished, the foot leads on to its report. Absent for anybody else.
+   * live facilitator of the group): from the start of the session the foot is
+   * about, finished or not, the register leads on to its report, beside the
+   * check-in. Absent for anybody else.
    */
   reportHref?: string;
 };
@@ -1068,6 +1069,19 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
         <CheckInCard groupId={groupId} sessionKey={focus.sessionKey} marks={records[focus.sessionKey] ?? NO_MARKS} />
       )}
 
+      {/* THE SESSION REPORT, beside the check-in: from the session's start,
+          whether or not its register is finished, and still there once it
+          is, so a facilitator can write it while the room answers the
+          check-in. Only for a caller who writes one (`reportHref`), and only
+          for a session that happened. */}
+      {focus &&
+        reportHref &&
+        sessions.some((session) => session.sessionKey === focus.sessionKey && session.held) && (
+          <div data-testid="register-report">
+            <ReportLink href={reportHref} sessionKey={focus.sessionKey} />
+          </div>
+        )}
+
       {/* THE FOOT: the register page's ending. The session the button finishes, the
           button, and the words under it, every value read off a record by the
           route. Once there is nothing left to finish it says so instead. */}
@@ -1105,11 +1119,6 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
               ))}
             </div>
           )}
-          {focus.finished &&
-            reportHref &&
-            sessions.some((session) => session.sessionKey === focus.sessionKey && session.held) && (
-              <ReportLink href={reportHref} sessionKey={focus.sessionKey} />
-            )}
         </section>
       )}
 

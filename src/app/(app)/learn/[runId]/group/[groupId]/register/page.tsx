@@ -63,7 +63,8 @@ export default async function GroupRegisterPage({
   const roster = await loadRegisterMembers(db, gated.runId, groupId, { isAdmin: gated.isAdmin });
   const namesToCome = roster.members.length === 0 && roster.notYetTold;
   // Each of the group's live facilitators writes their own session report,
-  // so the finished register leads them on to it; an admin writes none.
+  // so the register leads them on to it from the session's start, beside the
+  // check-in, finished or not; an admin writes none.
   const writesReports =
     !gated.group.archived && isNamedWithStanding(access.user, "courseGroups.facilitatorUids", gated.group.facilitatorUids);
 
