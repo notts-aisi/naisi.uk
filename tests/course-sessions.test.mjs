@@ -399,6 +399,7 @@ function register(weekNumber, status, extra = {}) {
     held: extra.held ?? true,
     pushedAt: "pushedAt" in extra ? extra.pushedAt : PUSHED,
     status,
+    ...("online" in extra ? { online: extra.online } : {}),
   };
 }
 
@@ -420,9 +421,61 @@ test("the five states each land in their own count", () => {
     leftEarly: 1,
     absent: 1,
     excused: 1,
+    // Nobody's register said where they were: everybody was in the room.
+    online: 0,
     lastPushedSessionKey: "w05",
     lastComputedAt: NOW,
   });
+});
+
+test("of the sessions somebody came to, the ones the register records online are counted apart, and nothing else moves", () => {
+  const rollup = recomputeRollup(
+    [
+      register(1, "present", { online: true }),
+      register(2, "late", { online: true }),
+      register(3, "left-early", { online: false }),
+      register(4, "present"),
+      register(5, "excused"),
+    ],
+    { joinedWeekNumber: 1, now: NOW },
+  );
+  assert.deepEqual(rollup, {
+    sessionsHeld: 5,
+    attendedInFull: 2,
+    late: 1,
+    leftEarly: 1,
+    absent: 0,
+    excused: 1,
+    // Weeks 1 and 2: present online and late online. Week 3 was in the room,
+    // and week 4 says nothing, so it was in the room too.
+    online: 2,
+    lastPushedSessionKey: "w05",
+    lastComputedAt: NOW,
+  });
+});
+
+test("online beside a mark that is not a coming one counts for nothing, and neither does a register not finished or not held", () => {
+  const rollup = recomputeRollup(
+    [
+      // A stale entry left beside an absence or an excuse is not attendance.
+      register(1, "absent", { online: true }),
+      register(2, "excused", { online: true }),
+      register(3, null, { online: true }),
+      // Drafts and sessions that did not happen are out of every figure.
+      register(4, "present", { online: true, pushedAt: null }),
+      register(5, "present", { online: true, held: false }),
+      // Before they joined.
+      register(6, "present", { online: true, occurrence: 1 }),
+    ],
+    { joinedWeekNumber: 1, now: NOW },
+  );
+  assert.equal(rollup.online, 1, "only week 6, present online, counts as online");
+  assert.equal(rollup.sessionsHeld, 4);
+  const joinedLater = recomputeRollup([register(1, "present", { online: true }), register(2, "present")], {
+    joinedWeekNumber: 2,
+    now: NOW,
+  });
+  assert.equal(joinedLater.online, 0, "a session before they joined counted as one they joined online");
 });
 
 test("a session that was not held leaves every denominator", () => {

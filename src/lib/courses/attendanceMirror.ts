@@ -52,6 +52,12 @@ import {
 export type RegisterOverride = {
   /** Marks to apply. `null` clears the mark back to unmarked. */
   marks?: Map<string, AttendanceStatus | null>;
+  /**
+   * Where people who came were, to apply: `true` online, `false` in the
+   * room, `null` no entry (in the room). Read only beside a mark that says
+   * they came, as the register's own `online` map is.
+   */
+  online?: Map<string, boolean | null>;
   /** The session-held switch, when this change moves it. */
   held?: boolean;
   /** The push stamp. Set when this change is what makes the register count. */
@@ -148,6 +154,11 @@ export async function readMirrorPlan(
       const status = override?.marks?.has(member.uid)
         ? (override.marks.get(member.uid) ?? null)
         : (stored?.records[member.uid] ?? null);
+      // Where they were, by the same override-then-stored order. Only a mark
+      // that says they came carries it (`recomputeRollup` asks again).
+      const online = override?.online?.has(member.uid)
+        ? override.online.get(member.uid) === true
+        : stored?.online[member.uid] === true;
       facts.push({
         sessionKey: session.sessionKey,
         weekNumber: session.weekNumber,
@@ -158,6 +169,7 @@ export async function readMirrorPlan(
         held: !session.cancelled && (override?.held ?? stored?.held ?? true),
         pushedAt: override?.pushedAt ?? stored?.pushedAt ?? null,
         status,
+        online,
       });
     }
     writes.push({

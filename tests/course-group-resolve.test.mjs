@@ -942,6 +942,10 @@ test("GUARD: the projection carries no other uid's mark and no participant notes
           grace: "SECRET-NOTE-ABOUT-GRACE",
           ada: "SECRET-NOTE-ABOUT-ADA",
         },
+        // Where the room was, and who said they were joining online: only
+        // the caller's own entry may be read, and only as a yes or no.
+        online: { ada: true, grace: true, ovid: false },
+        onlineSaid: { ada: new Date("2026-09-28T09:00:00Z"), linus: new Date("2026-09-28T10:00:00Z") },
         pushedByUid: "facilitator-uid",
         markedByUid: "facilitator-uid",
         notes: "SECRET-SESSION-NOTE",
@@ -954,15 +958,19 @@ test("GUARD: the projection carries no other uid's mark and no participant notes
 
   assert.equal(out.length, 1);
   assert.equal(out[0].status, "late", "the caller's own mark is the one fact kept");
+  assert.equal(out[0].online, true, "where the caller was is the other");
   for (const leak of [
     "grace",
     "linus",
+    "ovid",
     "SECRET-NOTE-ABOUT-GRACE",
     "SECRET-NOTE-ABOUT-ADA",
     "SECRET-SESSION-NOTE",
     "facilitator-uid",
     "participantNotes",
     "records",
+    "onlineSaid",
+    "2026-09-28",
   ]) {
     assert.ok(!wire.includes(leak), `the payload must not carry ${leak}`);
   }
@@ -970,10 +978,38 @@ test("GUARD: the projection carries no other uid's mark and no participant notes
     "dateKey",
     "held",
     "occurrence",
+    "online",
     "sessionKey",
     "status",
     "weekNumber",
   ]);
+});
+
+test("GUARD: online is the caller's own, beside a mark that says they came, and in the room otherwise", () => {
+  const sessions = [1, 2, 3, 4, 5].map((n) => ownSession(n, `2026-10-${String(n + 5).padStart(2, "0")}`));
+  const registers = new Map([
+    ["w01", { pushedAt: new Date(), records: { ada: "present" }, online: { ada: true } }],
+    ["w02", { pushedAt: new Date(), records: { ada: "left-early" }, online: { ada: false } }],
+    // Written before the register recorded where people were: in the room.
+    ["w03", { pushedAt: new Date(), records: { ada: "late" } }],
+    // A stale entry beside an absence is not attendance online.
+    ["w04", { pushedAt: new Date(), records: { ada: "absent" }, online: { ada: true } }],
+    // A garbled entry is no entry.
+    ["w05", { pushedAt: new Date(), records: { ada: "present" }, online: { ada: "yes" } }],
+  ]);
+  assert.deepEqual(
+    ownAttendanceSessions("ada", sessions, registers).map((s) => [s.sessionKey, s.status, s.online]),
+    [
+      ["w01", "present", true],
+      ["w02", "left-early", false],
+      ["w03", "late", false],
+      ["w04", "absent", false],
+      ["w05", "present", false],
+    ],
+  );
+  // Somebody else online in the room says nothing about the caller.
+  const others = new Map([["w01", { pushedAt: new Date(), records: { ada: "present", grace: "present" }, online: { grace: true } }]]);
+  assert.equal(ownAttendanceSessions("ada", [sessions[0]], others)[0].online, false);
 });
 
 test("GUARD: an unmarked cell in a pushed register is null here, not 'absent'", () => {

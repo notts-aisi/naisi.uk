@@ -664,6 +664,8 @@ export type OverviewPayload = {
       leftEarly: number;
       absent: number;
       excused: number;
+      /** Of the sessions they came to, how many they joined online; the rest were in the room. */
+      online: number;
       lastPushedSessionKey: string | null;
       /** ISO 8601, or null before the first push. */
       lastComputedAt: string | null;
@@ -1612,6 +1614,7 @@ export async function GET(
             leftEarly: rollup.leftEarly,
             absent: rollup.absent,
             excused: rollup.excused,
+            online: rollup.online,
             lastPushedSessionKey: rollup.lastPushedSessionKey,
             lastComputedAt: rollup.lastComputedAt
               ? rollup.lastComputedAt.toISOString()

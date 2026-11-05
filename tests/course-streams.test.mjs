@@ -524,9 +524,30 @@ test("GUARD §5.5 an enrolment with no rollup reads as a zeroed one, not as unde
     leftEarly: 0,
     absent: 0,
     excused: 0,
+    // Nobody's register said where they were: 0 online, everybody in the room.
+    online: 0,
     lastPushedSessionKey: null,
     lastComputedAt: null,
   });
+  // A rollup computed before the register recorded where people were has no
+  // online count: it reads as 0, and the rest of it is untouched.
+  const older = normalizeCourseEnrolment("run1__u2", {
+    runId: "run1",
+    courseId: "course1",
+    uid: "u2",
+    status: "active",
+    attendance: { sessionsHeld: 3, attendedInFull: 2, late: 1, leftEarly: 0, absent: 0, excused: 0, lastPushedSessionKey: "w03" },
+  });
+  assert.equal(older.attendance.online, 0);
+  assert.equal(older.attendance.attendedInFull, 2);
+  const garbled = normalizeCourseEnrolment("run1__u3", {
+    runId: "run1",
+    courseId: "course1",
+    uid: "u3",
+    status: "active",
+    attendance: { online: -2 },
+  });
+  assert.equal(garbled.attendance.online, 0, "a count below nothing reads as 0");
   assert.equal(row.submissionDone, false);
   assert.equal(row.selfEnrolled, false);
   assert.equal(row.streamId, null);

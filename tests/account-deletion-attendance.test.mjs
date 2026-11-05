@@ -349,3 +349,34 @@ test("a register holding only their word in advance still qualifies", async () =
   assert.equal(await clearCourseAttendanceMarks(db, ["run1"], "gone"), 1);
   assert.deepEqual(db.raw.get("run1__grp1__w07").excusedInAdvance, {});
 });
+
+test("when they said they were joining a session online, and where the register records they were, go too", async () => {
+  const db = makeDb({
+    run1__grp1__w08: register({
+      records: { gone: "present", stays: "late" },
+      participantNotes: {},
+      onlineSaid: { gone: "2026-11-23T09:00:00.000Z", stays: "2026-11-23T10:00:00.000Z" },
+      online: { gone: true, stays: false },
+    }),
+  });
+
+  assert.equal(await clearCourseAttendanceMarks(db, ["run1"], "gone"), 1);
+  const doc = db.raw.get("run1__grp1__w08");
+  assert.deepEqual(doc.records, { stays: "late" });
+  assert.deepEqual(doc.onlineSaid, { stays: "2026-11-23T10:00:00.000Z" }, "somebody else's word is untouched");
+  assert.deepEqual(doc.online, { stays: false }, "where somebody else was is untouched");
+  assert.deepEqual(db.deletedDocs, [], "the shared register was deleted");
+});
+
+test("a register holding only their word that they were joining online still qualifies, and so does one holding only where they were", async () => {
+  // Said before a session nobody marked yet: no mark, no note, only the word.
+  // And a hand-edited register could keep where they were after the mark went.
+  const db = makeDb({
+    run1__grp1__w09: register({ records: { stays: "present" }, participantNotes: {}, onlineSaid: { gone: "2026-11-30T09:00:00.000Z" } }),
+    run1__grp1__w10: register({ records: { stays: "present" }, participantNotes: {}, online: { gone: true } }),
+  });
+
+  assert.equal(await clearCourseAttendanceMarks(db, ["run1"], "gone"), 2);
+  assert.deepEqual(db.raw.get("run1__grp1__w09").onlineSaid, {});
+  assert.deepEqual(db.raw.get("run1__grp1__w10").online, {});
+});
