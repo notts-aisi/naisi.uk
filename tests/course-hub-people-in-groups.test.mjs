@@ -75,6 +75,9 @@ const STYLESHEETS = [
   "@/features/applications/decisionDay/decisionDay.module.css",
   "./WeekChart.module.css",
   "./Input.module.css",
+  // A card's "They meant some weeks", under a can't: its own stylesheet, and the rows it ticks.
+  "./SomeWeeks.module.css",
+  "./OptionRow.module.css",
 ];
 
 const made = makeWorld("__hubPeopleInGroups", [

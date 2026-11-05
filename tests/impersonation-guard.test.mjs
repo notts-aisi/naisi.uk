@@ -383,7 +383,11 @@ const MUST_GUARD = [
   ],
   [
     "src/app/api/courses/runs/[runId]/time-answer/route.ts",
-    "records the person's own answer to can you make this time on their own seat, which the programme's lead and admins read",
+    "records the person's own answer to can you make this time most weeks on their own seat, which the programme's lead and admins read, and for most weeks, not all, records them excused on the registers of the sessions they tick",
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/enrolments/[uid]/time-answer/route.ts",
+    "reads somebody's answer of no, I need a different time as most weeks, not all, records them excused on the registers of the sessions chosen and writes an audit row naming the admin or lead who did it",
   ],
   [
     "src/app/api/courses/groups/[groupId]/cant-make-it/route.ts",

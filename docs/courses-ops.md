@@ -1199,6 +1199,13 @@ of that session's register and nothing else: `records.<uid>` as `excused`, and
 `excusedInAdvance.<uid>` as when they said so. **I can make it after all**
 deletes both while the session has not started. Nobody is emailed either way.
 
+The same write records the sessions ticked under "Most weeks, not all" on the
+"Can you make this time most weeks?" card (any session still to come, not only
+the next; one unticked later is taken back the same way), and the sessions
+staff choose under **They meant some weeks**. When somebody's answer is "Most
+weeks, not all", the ticket keeps its list of sessions in step: a press adds
+the session, taking it back removes it.
+
 So a register can exist before its session, holding nothing but excused marks.
 It is still a draft nobody has marked: nothing has been finished, and the
 reminder and the task chase it after the session exactly as they chase a
@@ -1217,7 +1224,9 @@ keeps its register, so a person who told us about the old day is still
 excused on the new one until they press **I can make it after all**. And a
 group's pace that would stop teaching a week whose register holds such a word
 is refused, as it is for any mark on that register: ask the person to take it
-back first.
+back first. "Most weeks, not all" can record weeks well ahead, so this refusal
+is likelier after people answer it: the register's line over the grid names
+who told us, for each session still to come.
 
 ## Placing a term's accepted people on a course run
 
@@ -1287,11 +1296,26 @@ programme names" below).
   the catch-all; pressing it again adds only who is missing.
 - **Every "Your group" email carries a section the site writes itself**
   (`src/lib/courses/timeAnswer/emailSection.ts`), so an edited template
-  keeps it: the group's campus, and "Can you make this time?" with two
-  buttons to the person's programme page, where they answer. "I can't make
-  this time" asks why and which other times would work, KEEPS THEIR PLACE
-  (it is not leaving), and shows on their card on the board and in
-  Circles for the lead and admins, never facilitators. A move clears it.
+  keeps it: the group's campus, and "Can you make this time most weeks?"
+  with three buttons to the person's programme page, where they answer.
+  "Yes" saves. "Most weeks, not all" lists the group's sessions still to
+  come and records each one ticked as excused on its register, exactly as
+  "Can't make it" on a ticket does (below); the board's card then says
+  "Misses week 3", and nobody moves them for it. "No, I need a different
+  time" asks why and which other times would work, KEEPS THEIR PLACE (it
+  is not leaving), and shows on their card on the board and in Circles for
+  the lead and admins, never facilitators. A move clears the answer.
+- **An answer given before the third answer existed** (until 5 Nov 2026 the
+  question had two, and some people who could not make one week said they
+  could not make the time): under that answer's "Why, and what would work"
+  on the board's card, or in Circles, an admin or the programme's lead can
+  press **They meant some weeks**, choose the session or sessions they
+  meant (none, when the week is over), and save. The answer becomes "Most
+  weeks, not all" with their words kept; each session chosen is recorded as
+  excused on its register, dated when they answered; a session they already
+  told us about themselves is kept as theirs; a `courseAudit` row of kind
+  `time-answer-changed` says who did it and which sessions, without their
+  words. Nobody is emailed.
 - **Publishing again after people join a group** emails each of its
   facilitators already told, once per person who has joined it since.
   Pressing it twice writes nothing twice: a press that finds everybody

@@ -16,6 +16,7 @@ import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
   orderedSessionKeys,
+  placementIsTold,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -71,7 +72,12 @@ export type SomeWeeksRefusal = { ok: false; status: 400 | 404 | 409; error: stri
 
 const refuse = (status: 400 | 404 | 409, error: string): SomeWeeksRefusal => ({ ok: false, status, error });
 
-/** A seat whose answer may be read as some weeks, and the group it is about; or why not. */
+/**
+ * A seat whose answer may be read as some weeks, and the group it is about;
+ * or why not. Only a seat Publish has told can hold an answer (the person's
+ * own write asks it, and every move clears both), and it is asked again here
+ * so nothing acts on a placement before Publish has.
+ */
 function whoseAnswer(
   seat: CourseEnrolmentDoc | null,
   group: CourseGroupDoc | null,
@@ -80,6 +86,7 @@ function whoseAnswer(
   if (!seat || seat.runId !== runId || seat.role !== "learner" || seat.status !== "active" || !seat.groupId) {
     return refuse(404, SOME_WEEKS_REFUSAL.noSeat);
   }
+  if (!placementIsTold(seat)) return refuse(404, SOME_WEEKS_REFUSAL.noSeat);
   if (!group || group.id !== seat.groupId || group.runId !== runId || group.archived) return refuse(404, SOME_WEEKS_REFUSAL.noSeat);
   const answer = currentTimeAnswer(seat);
   if (answer?.kind !== "cant") return refuse(409, SOME_WEEKS_REFUSAL.notCant);

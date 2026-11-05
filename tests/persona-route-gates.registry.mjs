@@ -2342,9 +2342,10 @@ export const ROUTES = {
     POST: {
       expect: signedIn(400),
       why:
-        "View-as is refused first, then the session, then the body (a group id and yes or cant, with why and " +
-        "which times would for cant) is checked before anything is read, so every signed-in persona meets the " +
-        "same 400 on an empty one. The caller's own seat is read once a valid body arrives.",
+        "View-as is refused first, then the session, then the body (a group id and one of the three answers: yes, " +
+        "most weeks with the sessions they can't make, or cant with why and which times would) is checked before " +
+        "anything is read, so every signed-in persona meets the same 400 on an empty one. The caller's own seat is " +
+        "read once a valid body arrives.",
     },
   },
   "/api/courses/runs/[runId]/applications": {
@@ -2507,6 +2508,22 @@ export const ROUTES = {
         "Session required, then the document is read and its own membership decides. The " +
         "battery's id addresses nothing, so every signed-in persona is told that the document " +
         "is missing.",
+    },
+  },
+  "/api/courses/runs/[runId]/enrolments/[uid]/time-answer": {
+    GET: {
+      expect: signedIn(404),
+      why:
+        "They meant some weeks, what it offers: session required, then the run is read and the gate (an admin or the " +
+        "lead of the programme that names the run) decides. The battery's id addresses nothing, so every signed-in " +
+        "persona is told the run is not there. It writes nothing.",
+    },
+    POST: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the body (a list of the group's sessions, none allowed) is " +
+        "checked before anything is read, so every signed-in persona meets the same 400 on an empty one. The run and " +
+        "the gate come next.",
     },
   },
   "/api/courses/runs/[runId]/exercises/[exerciseId]/submit": {
@@ -6328,6 +6345,53 @@ export const REAL_ROUTES = {
       "Taking somebody off the run",
       c(ACTS, "Admitted, and it takes no body: it would take the participant off the run."),
     ),
+  },
+  "/api/courses/runs/[runId]/enrolments/[uid]/time-answer": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(
+          403,
+          "Neither an admin nor the lead of the programme that names the run: what people said about their group's time is read by nobody else, refused before the person is read.",
+        ),
+        admin: c(409, "Admitted, and the participant has given no answer of No, I need a different time, so there is nothing to read as some weeks."),
+      },
+      theirs: {
+        lead: c(
+          409,
+          "Leads the programme that names the run, so admitted; the participant has given no answer of No, I need a different time, so there is nothing to read as some weeks.",
+        ),
+        facilitator: c(403, "Facilitating one of the run's groups reads nobody's answer about its time: refused before the person is read."),
+        participant: c(403, "Holding a place reads nobody's answer here, their own included: their own card on the programme page is the way to change it."),
+      },
+    },
+    POST: {
+      realDrive: {
+        body: { sessionKeys: [] },
+        why:
+          "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused " +
+          "(neither an admin nor the programme's lead) are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(
+          403,
+          "Neither an admin nor the lead of the programme that names the run: nobody else changes what a person said about their group's time, refused before the person is read.",
+        ),
+        admin: c(
+          ACTS,
+          "Admitted: a whole body is never sent to somebody the gate admits, so it is not sent (on a can't it would change the answer, record sessions on registers and write an audit row).",
+        ),
+      },
+      theirs: {
+        lead: c(
+          ACTS,
+          "Leads the programme that names the run, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent.",
+        ),
+        facilitator: c(403, "Facilitating one of the run's groups changes nobody's answer about its time: refused before the person is read."),
+        participant: c(403, "Holding a place changes nobody's answer here, their own included: refused before the person is read."),
+      },
+    },
   },
   "/api/courses/runs/[runId]/exercises/[exerciseId]/submit": {
     POST: {

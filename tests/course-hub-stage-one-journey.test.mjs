@@ -1277,7 +1277,7 @@ const programmePage = (runId) => `${APP_URL}/learn/${runId}`;
 const placementWords = ({ first, group, slot, room, from, facilitators, size }) =>
   `Hi ${first}, You’re in ${group}. You’ll meet on ${slot} in ${room}, starting ${from}. Sessions last 2 hours. ` +
   (facilitators.length === 1 ? `${facilitators[0]} is your facilitator. ` : `${facilitators.join(" and ")} are your facilitators. `) +
-  `There are ${size} of you. Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com. I can make it I can’t make this time Claudia AGI Strategy lead, NAISI ${FOOTER}`;
+  `There are ${size} of you. Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and we’ll record you as excused. If you can’t make most weeks, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com. Yes Most weeks, not all No, I need a different time Claudia AGI Strategy lead, NAISI ${FOOTER}`;
 
 /**
  * The facilitators' email Publish writes, word for word, from its greeting to
@@ -1745,9 +1745,14 @@ describe("stage one of the course hub, one term from decision day to the first s
       for (const mail of [...p().testMail, ...p().pressMail]) {
         assert.deepEqual([...`${mail.subject} ${mail.text}`.matchAll(/\{[a-zA-Z]+\}/g)].map((m) => m[0]), [], mail.to);
       }
-      // A person's email: the society's address, and the two "Can you make
-      // this time?" buttons, each to their programme page's card.
-      const asked = ["mailto:ai-safety@uonsu.com", `${programmePage(RUN)}#your-group-time`, `${programmePage(RUN)}#your-group-time`];
+      // A person's email: the society's address, and the three "Can you make
+      // this time most weeks?" buttons, each to their programme page's card.
+      const asked = [
+        "mailto:ai-safety@uonsu.com",
+        `${programmePage(RUN)}#your-group-time`,
+        `${programmePage(RUN)}#your-group-time`,
+        `${programmePage(RUN)}#your-group-time`,
+      ];
       assert.deepEqual(
         Object.fromEntries(p().pressMail.map((mail) => [mail.to, mail.links])),
         {
@@ -1887,15 +1892,20 @@ describe("stage one of the course hub, one term from decision day to the first s
         assert.equal(
           readFrom(mail, "Hi "),
           `Hi ${NAME[to].split(" ")[0]}, You’ll meet on Mondays at 5pm, starting Mon 2 Nov. Where: Room B5 ` +
-            "Tess runs the sessions. Week 1 is on your programme’s page. Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll see what we can do. You keep your place either way. You can also email ai-safety@uonsu.com. I can make it I can’t make this time " +
+            "Tess runs the sessions. Week 1 is on your programme’s page. Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and we’ll record you as excused. If you can’t make most weeks, say why and which other times would work, and we’ll see what we can do. You keep your place either way. You can also email ai-safety@uonsu.com. Yes Most weeks, not all No, I need a different time " +
             `Tess Research incubator lead, NAISI ${FOOTER}`,
           mail.to,
         );
         // The one link is their programme's page, where week 1 is: no meeting link, no token.
-        // The society's address, and the two "Can you make this time?" buttons to the programme page's card.
+        // The society's address, and the three "Can you make this time most weeks?" buttons to the programme page's card.
         assert.deepEqual(
           mail.links,
-          ["mailto:ai-safety@uonsu.com", `${APP_URL}/learn/${INC_RUN}#your-group-time`, `${APP_URL}/learn/${INC_RUN}#your-group-time`],
+          [
+            "mailto:ai-safety@uonsu.com",
+            `${APP_URL}/learn/${INC_RUN}#your-group-time`,
+            `${APP_URL}/learn/${INC_RUN}#your-group-time`,
+            `${APP_URL}/learn/${INC_RUN}#your-group-time`,
+          ],
           mail.to,
         );
         assert.deepEqual([...`${mail.subject} ${mail.text}`.matchAll(/\{[a-zA-Z]+\}/g)].map((m) => m[0]), [], mail.to);

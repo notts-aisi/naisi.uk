@@ -86,8 +86,8 @@ export const ENROLMENT_LIMITS = {
   /** Free text a member types when they leave. Optional, and never shown
       back to the cohort: the programme's lead and admins read it. */
   dropOutReason: 500,
-  /** Why their group's time does not work, from "No, I need a different time".
-      Required with that answer; the programme's lead and admins read it. */
+  /** Why their group's time does not work, with the answer "No, I need a
+      different time". Required with it; the programme's lead and admins read it. */
   timeAnswerReason: 500,
   /** Which other times would, from the same form. Required with it. */
   timeAnswerAlternatives: 300,

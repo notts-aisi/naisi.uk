@@ -544,12 +544,16 @@ test(
           ...(facilitator ? [`${facilitator.first} is your facilitator.`] : []),
           ...(size > 1 ? [`There are ${size} of you.`] : []),
           // The site's own section (src/lib/courses/timeAnswer/emailSection.ts),
-          // in place of the template's "Open your programme".
-          "Can you make this time?",
+          // in place of the template's "Open your programme": the card's own
+          // question and its three answers, in the card's order.
+          "Can you make this time most weeks?",
           "Tell us on your programme page.",
+          "If you’ll miss the odd week, say which and we’ll record you as excused.",
+          "If you can’t make most weeks, say why and which other times would work,",
           "You keep your place either way.",
-          "I can make it",
-          "I can’t make this time",
+          "Yes",
+          "Most weeks, not all",
+          "No, I need a different time",
           "NAISI",
         ],
         absent: [
@@ -562,11 +566,16 @@ test(
           "Your group meets on",
         ],
       });
-      // The society's address, and the two buttons, each to the programme's page at its card.
+      // The society's address, and the three buttons, each to the programme's page at its card.
       const programmePage = `${origin}${programmePath}`;
       assert.deepEqual(
         email.links,
-        ["mailto:ai-safety@uonsu.com", `${programmePage}#your-group-time`, `${programmePage}#your-group-time`],
+        [
+          "mailto:ai-safety@uonsu.com",
+          `${programmePage}#your-group-time`,
+          `${programmePage}#your-group-time`,
+          `${programmePage}#your-group-time`,
+        ],
         `the placement email's links are not the society's address and the programme's page (${programmePage})`,
       );
     }
