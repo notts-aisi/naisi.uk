@@ -91,7 +91,7 @@ const WORDS = Object.freeze({
   sendAnswer: "Send",
   savedMostWeeks: "Thanks. You’ve told us you can make it most weeks.",
   saidMostWeeks: "You’ve told us you can make it most weeks.",
-  missing: (days) => `You can’t make ${days.join(" or ")}, and the people running your group know.`,
+  missing: (days) => `You can’t make ${days.join(" or ")}, and whoever runs your sessions knows.`,
   ticket: "Your next session",
   cantMakeIt: (day) => `Can’t make it on ${day}`,
   toldUs:

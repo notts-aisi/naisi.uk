@@ -548,7 +548,7 @@ test(
           // question and its three answers, in the card's order.
           "Can you make this time most weeks?",
           "Tell us on your programme page.",
-          "If you’ll miss the odd week, say which and the people running your group will know.",
+          "If you’ll miss the odd week, say which and whoever runs your sessions will know.",
           "If you can’t make most weeks, say why and which other times would work,",
           "You keep your place either way.",
           "Yes",
