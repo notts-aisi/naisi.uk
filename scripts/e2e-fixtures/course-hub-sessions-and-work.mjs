@@ -125,10 +125,11 @@ export const SPEC = {
    * manifest read zero afterwards. Verified again on 2026-11-02 at a3f512eb
    * (on dev's 3992a724), once the lead reaches the session reports by the
    * Surveys tab's Overview: all ten steps, the same 53 rows before teardown,
-   * and zero after. Verified again on 2026-11-05 at 95bd4c25 (on dev's
-   * f516daa5), once Ada also answers "Most weeks, not all" and ticks week 5:
-   * all eleven steps, 54 rows before teardown (week 5's register the one
-   * more), and zero after.
+   * and zero after. Verified again on 2026-11-05 at f2865f3b (on dev's
+   * a788b495, whose register leads to the session report from the session's
+   * start), once Ada also answers "Most weeks, not all" and ticks week 5: all
+   * eleven steps, 54 rows before teardown (week 5's register the one more),
+   * and zero after.
    */
   status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three-work" }),
