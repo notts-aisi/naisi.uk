@@ -149,6 +149,13 @@ const READERS = {
       "a facilitator's session report: a session called off has no report (its window is refused before its register " +
       "is read), and one whose register says it did not happen has none either",
   },
+  "lib/surveys/checkIns/weekTable.ts": {
+    kind: "asks",
+    proof: ["held: !session.cancelled && (register ? register.held : true)"],
+    why:
+      "an admin's table of the week's sessions on the Check-ins view: a cancelled session's register reads " +
+      "\"Didn't happen\", and nothing is offered for it: no opening, late or not, and no reminder to its facilitators",
+  },
   "lib/surveys/checkIns/sessionRead.ts": {
     kind: "asks",
     proof: ["held: !session.cancelled && register.held"],

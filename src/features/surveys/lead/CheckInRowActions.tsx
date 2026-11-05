@@ -53,19 +53,26 @@ export default function CheckInRowActions({
   const [busy, setBusy] = useState<"open" | "close" | "remind" | null>(null);
   const [line, setLine] = useState<string | null>(null);
 
-  async function post(path: string, body: Record<string, unknown>): Promise<{ ok: boolean; data: Record<string, unknown> }> {
-    const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-    return { ok: response.ok, data };
-  }
+  /** A POST of this body, as every press sends one. */
+  const posting = (body: Record<string, unknown>): RequestInit => ({
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 
-  async function press(kind: "open" | "close" | "remind", confirm: string, path: string, body: Record<string, unknown>, said: (data: Record<string, unknown>) => string) {
+  async function press(
+    kind: "open" | "close" | "remind",
+    confirm: string,
+    request: () => Promise<Response>,
+    said: (data: Record<string, unknown>) => string,
+  ) {
     if (busy || !window.confirm(confirm)) return;
     setBusy(kind);
     setLine(null);
     try {
-      const { ok, data } = await post(path, body);
-      setLine(ok ? said(data) : typeof data.error === "string" ? data.error : WORDS.notReached);
+      const response = await request();
+      const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+      setLine(response.ok ? said(data) : typeof data.error === "string" ? data.error : WORDS.notReached);
       router.refresh();
     } catch {
       setLine(WORDS.notReached);
@@ -74,7 +81,6 @@ export default function CheckInRowActions({
     }
   }
 
-  const group = `/api/courses/groups/${encodeURIComponent(groupId)}`;
   const count = (data: Record<string, unknown>, key: string) => (typeof data[key] === "number" ? (data[key] as number) : 0);
 
   return (
@@ -86,8 +92,15 @@ export default function CheckInRowActions({
             className={styles.button}
             disabled={busy !== null}
             onClick={() =>
-              void press("open", open.confirm, `${group}/check-in`, { session: sessionKey, people: open.people, ...(open.late ? { late: true } : {}) }, (data) =>
-                openedWords(count(data, "emailed")),
+              void press(
+                "open",
+                open.confirm,
+                () =>
+                  fetch(
+                    `/api/courses/groups/${encodeURIComponent(groupId)}/check-in`,
+                    posting({ session: sessionKey, people: open.people, ...(open.late ? { late: true } : {}) }),
+                  ),
+                (data) => openedWords(count(data, "emailed")),
               )
             }
           >
@@ -110,7 +123,14 @@ export default function CheckInRowActions({
           type="button"
           className={`${styles.button} ${styles.quiet}`}
           disabled={busy !== null}
-          onClick={() => void press("close", close.confirm, `${group}/check-in/close`, { session: sessionKey }, () => WORDS.closed)}
+          onClick={() =>
+            void press(
+              "close",
+              close.confirm,
+              () => fetch(`/api/courses/groups/${encodeURIComponent(groupId)}/check-in/close`, posting({ session: sessionKey })),
+              () => WORDS.closed,
+            )
+          }
         >
           {busy === "close" ? WORDS.closing : close.label}
         </button>
@@ -124,8 +144,11 @@ export default function CheckInRowActions({
             void press(
               "remind",
               remind.confirm,
-              `/api/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/check-ins/remind`,
-              { groupId, sessionKey, emails: remind.emails },
+              () =>
+                fetch(
+                  `/api/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/check-ins/remind`,
+                  posting({ groupId, sessionKey, emails: remind.emails }),
+                ),
               (data) => remindedWords(count(data, "emailed")),
             )
           }

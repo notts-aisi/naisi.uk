@@ -863,7 +863,7 @@ reminder the morning after).
   the answer carries the new number).
 - **Opened late, by an admin**: once the window has passed, an admin (and only
   an admin: facilitators keep the window) may open it from the programme's
-  Check-ins view until 48 hours after the session ended, saying so
+  Check-ins view, up to 48 hours from the end of the session, saying so
   (`late: true`); a late one closes at 11pm on the day after it is opened, and
   its email does not call the session fresh (`openingAt` in `model.ts`). An
   admin's Open after the window, or `late` while the window is open, is
