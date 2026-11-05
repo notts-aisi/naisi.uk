@@ -1,6 +1,8 @@
 /**
  * The course hub's browser spec for a group's sessions and a week's work:
- * "Can't make it", the register's session report, and the week you submit.
+ * "Can't make it" and "Joining online", the box that asks a group's
+ * facilitators for a meeting link, the register's session report and its in
+ * the room or online, and the week you submit.
  *
  * The term the earlier course hub specs stand on (`./worlds/course-hub-term.mjs`),
  * at its week's work point ("week-three-work"): three weeks into a running
@@ -15,14 +17,21 @@
  * her next session's ticket, then answers "Can you make this time most
  * weeks?" with "Most weeks, not all", ticking week 5 beside the week 4 her
  * press already ticked, and Fern's register says so. Fern's register
- * leads to week 3's session report before it is finished; Fern marks and
- * finishes it, follows its link to the session report and sends one. Ada
+ * leads to week 3's session report before it is finished; Fern marks it,
+ * puts Ada down as having joined it online, finishes it, follows its link to
+ * the session report and sends one. Ada can make week 4 after all and says
+ * she is joining it online instead, one thing at a time on her ticket; the
+ * box at the top of Fern's group page asks for a meeting link for week 4
+ * (Group A has none at this point), Fern adds one, and the box and the
+ * register say Ada is joining online; Ada's ticket, on her programme page
+ * and on Home, carries the link for anybody joining online. Ada
  * writes week 4's written answer, goes through the check and
  * submits anyway, and the week locks. Fern reopens it from This week's work,
  * Ada's week page says who did, and Ada changes the answer and submits again.
- * Last, the programme's lead opens the Surveys tab from the programme's
+ * Then the programme's lead opens the Surveys tab from the programme's
  * head and follows the Overview's link to the programme's session reports,
- * where Fern's report is, with names.
+ * where Fern's report is, with names; last, the lead's Attendance tab says
+ * Ada came to one of her three sessions online.
  *
  * ## Every grant is made on a real page, by the admin the harness is given
  *
@@ -51,12 +60,16 @@ export const SESSIONS_AND_WORK_STEPS = [
   "the admin appoints the facilitator to the group whose register nobody has marked",
   "the member presses Can't make it on their next session's ticket, and the ticket says the register records them as excused",
   "the member answers Can you make this time most weeks? with Most weeks, not all, ticking a later session, and its register records them as excused as the ticket's does",
-  "the facilitator's register says who can't make next week's session, leads to this week's session report before it is finished, and the facilitator marks this week's and finishes it",
+  "the facilitator's register says who can't make next week's session, leads to this week's session report before it is finished, and the facilitator marks this week's, puts the member down as having joined it online, and finishes it",
   "the facilitator follows the finished register's link to the session report and sends one",
+  "the member can make next week's session after all and says they are joining it online instead, one thing at a time on the ticket",
+  "the box at the top of the facilitator's group page asks for a link for the week the member is joining online, the facilitator adds one, and the box and the register say who is joining online",
+  "the member's ticket carries the week's link for anybody joining online, beside Add to calendar, on the programme page and on Home",
   "the member writes the week's written answer, goes through the check and submits anyway, and the week reads submitted and locked",
   "the facilitator reopens the member's week from This week's work",
   "the member's week page says who reopened it, and the member changes the answer and submits it again",
   "the programme's lead follows the Surveys tab's link to the session reports and reads the facilitator's report, with names",
+  "the programme's lead reads on the Attendance tab how many sessions the member came to in the room and online",
 ];
 
 /**
@@ -92,6 +105,8 @@ export const SPEC = {
       "/api/courses/groups/[groupId]/facilitators",
       "/api/courses/groups/[groupId]/cant-make-it",
       "/api/courses/runs/[runId]/time-answer",
+      "/api/courses/groups/[groupId]/joining-online",
+      "/api/courses/groups/[groupId]/meeting-link",
       "/api/courses/groups/[groupId]/attendance",
       "/api/courses/groups/[groupId]/attendance/push",
       "/api/courses/groups/[groupId]/session-report",
@@ -111,6 +126,8 @@ export const SPEC = {
       "/(app)/learn/[runId]/group/[groupId]/report",
       "/(app)/learn/[runId]/weeks/[n]",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/reports",
+      "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance",
+      "/(app)/dashboard",
     ],
   },
   /**
