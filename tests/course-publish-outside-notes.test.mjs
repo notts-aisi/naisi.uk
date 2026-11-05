@@ -496,6 +496,14 @@ describe("5. Claude is sent the application alone, and its draft is never sent",
 // 6. Who has joined
 // ---------------------------------------------------------------------------
 
+// CHANGED ON PURPOSE (November 2026). The moves in this section are of
+// people Publish has told their group. Until then a move made them untold
+// and the next press sent them their first email again. A move now keeps
+// them told: the press sends each "You’ve moved", and tells the facilitators
+// of the group they left that they are no longer in it, beside who has
+// joined, said as before. Every check below is as strict as the one it
+// replaced, and the moves themselves are held in
+// tests/course-hub-group-published-moves.test.mjs.
 describe("6. a facilitator already told is told who has joined, once per person", () => {
   async function published() {
     await placed();
@@ -507,27 +515,54 @@ describe("6. a facilitator already told is told who has joined, once per person"
 
   test("one email per facilitator per press, naming everybody new by first name, counted on the button and in the test", async () => {
     await published();
-    // After the first press, Amara and Dev move into Group A, whose Sofia was told about it.
+    // After the first press, Amara and Dev move from Group B into Group A, whose Sofia was told about it.
     await place("zach", [{ uid: "amara", groupId: A }, { uid: "dev", groupId: A }]);
     await join_.withoutNotes();
     const shown = await summary();
-    assert.deepEqual([shown.emails, shown.people, shown.facilitators, shown.joined], [3, 2, 0, 1]);
-    assert.equal(publishWords.publishAudienceLine(shown.people, shown.facilitators, shown.joined), "2 people and 1 facilitator told who has joined");
+    assert.deepEqual(
+      [shown.emails, shown.people, shown.moved, shown.facilitators, shown.joined, shown.left],
+      [5, 0, [{ name: "Amara", to: "Group A", from: "Group B" }, { name: "Dev", to: "Group A", from: "Group B" }], 0, 1, 2],
+    );
+    assert.equal(
+      publishWords.publishAudienceLine(shown.people, shown.facilitators, shown.joined, shown.moved.length, shown.left),
+      "2 people moved since they were told, 1 facilitator told who has joined and 2 facilitators told who is no longer in their group",
+    );
     const tested = await sendTest();
     assert.equal(tested.status, 200);
-    assert.ok(world.mail.filter(isTest).some((mail) => mail.subject === "[TEST] Amara and Dev have joined Group A"));
+    const testSubjects = world.mail.filter(isTest).map((mail) => mail.subject);
+    for (const subject of [
+      "[TEST] You’ve moved to Group A: Thursdays at 6pm",
+      "[TEST] Amara and Dev have joined Group A",
+      "[TEST] Amara and Dev are no longer in Group B",
+    ]) {
+      assert.ok(testSubjects.includes(subject), `${subject}: ${JSON.stringify(testSubjects)}`);
+    }
     world.mail.length = 0;
     const pressed = await pressNow();
-    assert.deepEqual(pressed.body.report.joined, { sent: 1, held: 0, suppressed: 0 });
-    const sofia = await opened(realMail().find((mail) => mail.to === "sofia@example.com"));
+    assert.deepEqual(
+      [pressed.body.report.moved, pressed.body.report.joined, pressed.body.report.left],
+      [{ sent: 2, held: 0, suppressed: 0 }, { sent: 1, held: 0, suppressed: 0 }, { sent: 2, held: 0, suppressed: 0 }],
+    );
+    const sofia = await opened(realMail().find((mail) => mail.to === "sofia@example.com" && mail.subject.endsWith("Group A")));
     assert.equal(sofia.subject, "Amara and Dev have joined Group A");
     assert.ok(sofia.text.includes("Hi Sofia, Amara and Dev have joined Group A, which meets on Thursdays at 6pm. There are 4 people in the group now."), sofia.text);
-    // Group B's facilitators hear nothing: nobody joined it.
-    assert.ok(!realMail().some((mail) => mail.to === "rahul@example.com"));
+    // Group B's facilitators hear, one email each, who is no longer in it,
+    // and nothing else: nobody joined it.
+    for (const who of ["rahul", "sofia"]) {
+      assert.deepEqual(
+        realMail().filter((mail) => mail.to === `${who}@example.com` && !mail.subject.endsWith("Group A")).map((mail) => mail.subject),
+        ["Amara and Dev are no longer in Group B"],
+        who,
+      );
+    }
     // Each pair is claimed once.
     assert.deepEqual(
       world.db.paths().filter((path) => path.startsWith(`courseNudges/joined__`)).sort(),
       [`courseNudges/joined__${RUN.agi}__${A}__sofia__amara`, `courseNudges/joined__${RUN.agi}__${A}__sofia__dev`],
+    );
+    assert.deepEqual(
+      world.db.paths().filter((path) => path.startsWith(`courseNudges/left__`)).sort(),
+      ["rahul__amara", "rahul__dev", "sofia__amara", "sofia__dev"].map((pair) => `courseNudges/left__${RUN.agi}__${B}__${pair}`),
     );
     assert.equal((await summary()).emails, 0);
   });
@@ -537,28 +572,39 @@ describe("6. a facilitator already told is told who has joined, once per person"
     await place("zach", [{ uid: "amara", groupId: A }]);
     await join_.withoutNotes();
     assert.equal((await pressNow()).status, 200);
-    // Back to B and into A again: Amara is told again, Sofia is not.
+    // Back to B and into A again before the next press: Amara is in the
+    // group she was told about, so nobody is owed anything. Until November
+    // 2026 she was sent her first email again.
     await place("zach", [{ uid: "amara", groupId: B }]);
     await place("zach", [{ uid: "amara", groupId: A }]);
     await join_.withoutNotes();
     world.mail.length = 0;
     const shown = await summary();
-    assert.deepEqual([shown.people, "joined" in shown], [1, false]);
+    assert.deepEqual(
+      [shown.emails, shown.people, "moved" in shown, "joined" in shown, "left" in shown],
+      [0, 0, false, false, false],
+    );
     assert.equal((await pressNow()).status, 200);
-    assert.deepEqual(realMail().map((mail) => mail.to), ["amara@example.com"]);
+    assert.deepEqual(realMail().map((mail) => mail.to), []);
   });
 
   test("never the programme's lead, and a facilitator told for the first time gets You're facilitating alone", async () => {
     await published();
-    // Claudia leads AGI Strategy, which names the run; Tom is added to Group A.
+    // Claudia leads AGI Strategy, which names the run; she facilitates both
+    // groups as well, and Tom is added to Group A.
     world.db.poke(`courseGroups/${A}`, { facilitatorUids: ["sofia", "claudia", "tom"] });
+    world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia", "claudia"] });
     await place("zach", [{ uid: "dev", groupId: A }]);
     await join_.withoutNotes();
     assert.equal((await pressNow()).status, 200);
     const to = realMail().map((mail) => [mail.to, mail.subject]);
-    assert.ok(!to.some(([address]) => address === "claudia@example.com"), JSON.stringify(to));
-    assert.deepEqual(to.filter(([address]) => address === "tom@example.com").map(([, subject]) => subject), ["You’re facilitating Group A: Thursdays at 6pm"]);
-    assert.deepEqual(to.filter(([address]) => address === "sofia@example.com").map(([, subject]) => subject), ["Dev has joined Group A"]);
+    const subjectsTo = (who) => to.filter(([address]) => address === `${who}@example.com`).map(([, subject]) => subject);
+    assert.deepEqual(subjectsTo("claudia"), [], JSON.stringify(to));
+    assert.deepEqual(subjectsTo("tom"), ["You’re facilitating Group A: Thursdays at 6pm"]);
+    // Sofia facilitates both groups: told Dev has joined one, and is no longer in the other.
+    assert.deepEqual(subjectsTo("sofia"), ["Dev has joined Group A", "Dev is no longer in Group B"]);
+    assert.deepEqual(subjectsTo("rahul"), ["Dev is no longer in Group B"]);
+    assert.deepEqual(subjectsTo("dev"), ["You’ve moved to Group A: Thursdays at 6pm"]);
   });
 
   test("a failed send of a joined email marks its claims failed, and the next press announces them again", async (t) => {
@@ -568,16 +614,30 @@ describe("6. a facilitator already told is told who has joined, once per person"
     await join_.withoutNotes();
     world.mailFate = (args) => (args.to === "sofia@example.com" ? "fail" : "sent");
     const pressed = await pressNow();
-    assert.deepEqual(pressed.body.report.failed, ["Sofia"]);
+    // Sofia facilitates both groups, so both her emails failed: the one
+    // saying Dev has joined Group A, and the one saying he is no longer in
+    // Group B. Her name is said once.
+    assert.deepEqual(pressed.body.report.failed, ["Sofia", "Sofia"]);
+    assert.ok(
+      publishWords.publishResultLines(pressed.body.report).includes(
+        "Not sent to Sofia, because the send failed. Press Publish again to try again: nobody already told is emailed twice.",
+      ),
+    );
     assert.equal(world.db.read(`courseNudges/joined__${RUN.agi}__${A}__sofia__dev`).state, "failed");
-    // Dev was told; Sofia still is owed hearing it, and nothing else is.
+    assert.equal(world.db.read(`courseNudges/left__${RUN.agi}__${B}__sofia__dev`).state, "failed");
+    // Dev was told he moved and Rahul that he is no longer in Group B; Sofia
+    // is still owed hearing both, and nothing else is.
     world.mailFate = null;
     world.mail.length = 0;
     const again = await summary();
-    assert.deepEqual([again.emails, again.people, again.joined], [1, 0, 1]);
+    assert.deepEqual([again.emails, again.people, "moved" in again, again.joined, again.left], [2, 0, false, 1, 1]);
     assert.equal((await pressNow()).status, 200);
-    assert.deepEqual(realMail().map((mail) => [mail.to, mail.subject]), [["sofia@example.com", "Dev has joined Group A"]]);
+    assert.deepEqual(realMail().map((mail) => [mail.to, mail.subject]), [
+      ["sofia@example.com", "Dev has joined Group A"],
+      ["sofia@example.com", "Dev is no longer in Group B"],
+    ]);
     assert.equal(world.db.read(`courseNudges/joined__${RUN.agi}__${A}__sofia__dev`).state, "sent");
+    assert.equal(world.db.read(`courseNudges/left__${RUN.agi}__${B}__sofia__dev`).state, "sent");
     assert.equal((await summary()).emails, 0);
   });
 });

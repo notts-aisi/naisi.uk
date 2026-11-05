@@ -551,13 +551,27 @@ describe("4. once per facilitator per group", () => {
     await pressNow();
     assert.ok(!realMail().some((mail) => mail.to === "tom@example.com"));
     await place("zach", [{ uid: "tariq", groupId: C }]);
-    // Moved, so what was chosen for him in Group A is void: chosen again.
     await join_.withoutNotes();
     const shown = await summary();
-    // Tariq again, with his new group, and Tom.
-    assert.deepEqual([shown.emails, shown.people, shown.facilitators, shown.emptyGroups], [2, 1, 1, []]);
+    // Tariq, told about Group A, with "You’ve moved" to his new group; Tom;
+    // and Sofia, told about Group A, that he is no longer in it. Until
+    // November 2026 a move made Tariq untold, and he was sent his first
+    // email again.
+    assert.deepEqual(
+      [shown.emails, shown.people, shown.moved, shown.facilitators, shown.left, shown.emptyGroups],
+      [3, 0, [{ name: "Tariq", to: "Group C", from: "Group A" }], 1, 1, []],
+    );
+    const before = realMail().length;
     const again = await pressNow();
     assert.equal(again.status, 200, JSON.stringify(again.body));
+    assert.deepEqual(
+      realMail().slice(before).map((mail) => [mail.to, mail.subject]).sort(),
+      [
+        ["sofia@example.com", "Tariq is no longer in Group A"],
+        ["tariq@example.com", "You’ve moved to Group C: Wednesdays at 1pm"],
+        ["tom@example.com", "You’re facilitating Group C: Wednesdays at 1pm"],
+      ],
+    );
     const tom = await opened(realMail().find((mail) => mail.to === "tom@example.com"));
     assert.equal(tom.subject, "You’re facilitating Group C: Wednesdays at 1pm");
     assert.ok(tom.text.includes("There is 1 person in the group."), tom.text);
@@ -891,8 +905,12 @@ describe("6. the emails", () => {
   // Until 29 October 2026 a move after Publish told the moved person alone.
   // Since then the facilitators of the group they joined, told about it
   // already, are told who has joined (Zach's decision of that day): one
-  // email each, held in tests/course-publish-outside-notes.test.mjs.
-  test("somebody moved after Publish is told their new group, and only its facilitator hears that they joined", async () => {
+  // email each, held in tests/course-publish-outside-notes.test.mjs. Until
+  // November 2026 the moved person was sent their first email again; a move
+  // now keeps them told, so they are sent "You’ve moved", and the
+  // facilitators of the group they were told about hear they are no longer
+  // in it. The moves themselves: tests/course-hub-group-published-moves.test.mjs.
+  test("somebody moved after Publish is told they moved, its facilitator that they joined, and the group they left that they are no longer in it", async () => {
     await placed();
     await sendTest();
     await pressNow();
@@ -900,19 +918,28 @@ describe("6. the emails", () => {
     await place("zach", [{ uid: "amara", groupId: A }]);
     await join_.withoutNotes();
     const shown = await summary();
-    assert.deepEqual([shown.emails, shown.people, shown.facilitators, shown.joined], [2, 1, 0, 1]);
+    assert.deepEqual(
+      [shown.emails, shown.people, shown.moved, shown.facilitators, shown.joined, shown.left],
+      [4, 0, [{ name: "Amara", to: "Group A", from: "Group B" }], 0, 1, 2],
+    );
     assert.equal((await pressNow()).status, 200);
     const moved = realMail().slice(before);
-    assert.deepEqual(toOf(moved), ["amara@example.com", "sofia@example.com"]);
-    const sofia = await opened(moved[1]);
-    assert.equal(sofia.subject, "Amara has joined Group A");
+    assert.deepEqual(
+      moved.map((mail) => [mail.to, mail.subject]),
+      [
+        ["amara@example.com", "You’ve moved to Group A: Thursdays at 6pm"],
+        ["sofia@example.com", "Amara has joined Group A"],
+        ["rahul@example.com", "Amara is no longer in Group B"],
+        ["sofia@example.com", "Amara is no longer in Group B"],
+      ],
+    );
     const amara = await opened(moved[0]);
-    // Her new group, in the board's words since October 2026 (until then
-    // "You're in Group A for AGI Strategy Fellowship"), counting Bea and Tariq, told before.
+    // Her new group, when it next meets, where, and that it replaces the
+    // group she was in. Never her first email again.
     assert.ok(
       amara.text.includes(
-        "Hi Amara, You’re in Group A. You’ll meet on Thursdays at 6pm in Portland A13, starting Thu 29 Oct. Sessions last 2 hours. " +
-          "Sofia is your facilitator. There are 3 of you.",
+        "Hi Amara, As you asked, you’re in Group A now. You’ll meet on Thursdays at 6pm in Portland A13, from Thu 29 Oct. " +
+          "Sessions last 2 hours. Sofia is your facilitator. You’re no longer in Group B, so you don’t need to go to its sessions.",
       ),
       amara.text,
     );

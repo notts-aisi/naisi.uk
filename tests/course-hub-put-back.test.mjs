@@ -391,9 +391,15 @@ describe("3. nothing else is given", () => {
   test("moving somebody who never left writes nothing on the form", async () => {
     const application = applicationOf("dev");
     const counts = formCounts();
+    const toldAbout = read(enrolmentPath("dev")).groupId;
     assert.equal((await putBack("claudia", "dev", B)).body.placed, 1);
     assert.deepEqual([applicationOf("dev"), formCounts()], [application, counts]);
-    assert.deepEqual(seatOf("dev"), { status: "active", groupId: B, told: false, putBack: "absent" });
+    // A move is no putting back: Dev, told his group by Publish, stays told
+    // (until November 2026 a move made him untold), and his seat keeps the
+    // group he was told about, for the next Publish to tell him he moved.
+    assert.deepEqual(seatOf("dev"), { status: "active", groupId: B, told: true, putBack: "absent" });
+    assert.equal(read(enrolmentPath("dev")).toldGroupId, toldAbout);
+    assert.notEqual(toldAbout, B);
   });
 });
 

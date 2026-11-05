@@ -35,7 +35,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ANSWER, B, C, MONDAY, makePeopleWorld, termSeed } from "./lib/peopleWorld.mjs";
+import { ANSWER, B, C, MONDAY, RUN, makePeopleWorld, termSeed } from "./lib/peopleWorld.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
@@ -118,14 +118,39 @@ describe("1. only after Publish has told the group", () => {
     }
   });
 
-  test("somebody placed after Publish is not in the list until Publish tells them", async () => {
+  // CHANGED ON PURPOSE (November 2026). Until then a move after Publish
+  // deleted the told stamp, so this test moved Callum to make somebody placed
+  // and not told. A move now keeps somebody told (the next press tells them
+  // they moved), so he is in the list at once; somebody placed after Publish
+  // whom nobody has told is still left out until Publish tells them, and the
+  // test below makes one by taking Callum off the run and putting him back.
+  test("somebody told their group and moved into this one after Publish is in the list at once", async () => {
     await told();
-    // Callum is moved into Group B after Publish: the move clears the told stamp.
     const moved = await place("claudia", [{ uid: "callum", groupId: B }]);
     assert.equal(moved.body.placed, 1);
-    const names = (await summary("rahul")).body.whosComing.map((person) => person.firstName);
-    assert.ok(!names.includes("Callum"), JSON.stringify(names));
-    assert.equal((await summary("rahul")).body.notYetTold, true);
+    const answer = await summary("rahul");
+    assert.deepEqual(
+      answer.body.whosComing.map((person) => person.firstName),
+      ["Amara", "Callum", "Dev", "Kofi", "Sam"],
+    );
+    assert.equal(answer.body.notYetTold, false);
+  });
+
+  test("somebody placed after Publish is not in the list until Publish tells them", async () => {
+    await told();
+    // Taken off the run and put back in Group B: coming back is told afresh.
+    const removed = await w.call("claudia", w.join.routes.remove.POST, { runId: RUN.agi, uid: "callum" }, { course: true });
+    assert.equal(removed.status, 200, JSON.stringify(removed.body));
+    const back = await place("claudia", [{ uid: "callum", groupId: B }]);
+    assert.equal(back.body.placed, 1, JSON.stringify(back.body));
+    let answer = await summary("rahul");
+    assert.ok(!answer.body.whosComing.map((person) => person.firstName).includes("Callum"), JSON.stringify(answer.body.whosComing));
+    assert.equal(answer.body.notYetTold, true);
+    // Publish tells him, and he is in the list.
+    assert.equal((await publish("claudia")).status, 200);
+    answer = await summary("rahul");
+    assert.ok(answer.body.whosComing.map((person) => person.firstName).includes("Callum"), JSON.stringify(answer.body.whosComing));
+    assert.equal(answer.body.notYetTold, false);
   });
 });
 

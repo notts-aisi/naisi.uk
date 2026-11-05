@@ -343,17 +343,37 @@ describe("once an admin puts them in a group, the run and the group show when Pu
   // CHANGED ON PURPOSE. The people left out of a group used to stand
   // beside somebody placed and not yet published; they now stand beside
   // somebody Publish has told, because nobody is shown a group before that.
-  test("somebody not in a group reads nothing, beside people who are", async () => {
+  // CHANGED ON PURPOSE AGAIN (November 2026): until then taking somebody out
+  // of their group after Publish made them untold, and they read nothing. A
+  // move now keeps somebody told, out of every group included: they keep the
+  // run, with no group named, until they are placed again (the next Publish
+  // tells them only if that is not the group they were told about).
+  // Somebody nobody has told, in no group, still reads nothing: taken off the
+  // run and put back with no group, which is coming back afresh.
+  test("somebody not in a group reads nothing unless Publish told them a group, beside people who are in one", async () => {
     await press();
     await place("zach", EVERYBODY_IN_A_GROUP);
     await publishes();
-    // Taken out of their groups after Publish: in no group, and told of none.
+    // Taken out of their groups after Publish: in no group, and still told.
     await place("zach", ["dev", "bea", "tariq"].map((uid) => ({ uid, groupId: null })));
     assert.equal((await me("amara")).length, 1);
     for (const who of ["dev", "bea", "tariq"]) {
-      assert.deepEqual(await me(who), [], who);
-      assert.equal((await access(who)).canLearn, false, who);
+      const entries = await me(who);
+      assert.deepEqual(
+        entries.map((entry) => [entry.runId, entry.membership, entry.roles, entry.groupName]),
+        [[RUN.agi, "enrolled", ["learner"], null]],
+        who,
+      );
+      assert.equal((await access(who)).canLearn, true, who);
     }
+    // Taken off the run and put back with no group: nobody has told them anything since.
+    const removed = await call("zach", routes.remove.POST, { runId: RUN.agi, uid: "tariq" }, { course: true });
+    assert.equal(removed.status, 200, JSON.stringify(removed.body));
+    await place("zach", [{ uid: "tariq", groupId: null }]);
+    const seat = world.db.read(`courseEnrolments/${RUN.agi}__tariq`);
+    assert.deepEqual([seat.status, seat.groupId, "allocatedEmailAt" in seat], ["active", null, false]);
+    assert.deepEqual(await me("tariq"), []);
+    assert.equal((await access("tariq")).canLearn, false);
   });
 
   // CHANGED ON PURPOSE: the reply now comes after Publish has told them.
