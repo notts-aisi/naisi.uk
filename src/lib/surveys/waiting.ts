@@ -166,8 +166,13 @@ async function leftTheRun(db: Firestore, runId: string, uid: string): Promise<bo
   return seat !== null && enrolmentHasLeft(seat.status);
 }
 
-/** Whether the person's own told seat on a run is live: told by Publish and not left. */
-async function onTheRun(db: Firestore, runId: string, uid: string): Promise<boolean> {
+/**
+ * Whether the person's own told seat on a run is live: told by Publish and not
+ * left. A check-in's card asks it, and so does its reminder the morning after
+ * (`src/lib/surveys/checkIns/remind.ts`), so the two never disagree about
+ * whose it still is.
+ */
+export async function onTheRun(db: Firestore, runId: string, uid: string): Promise<boolean> {
   const seat = await toldSeatOn(db, runId, uid);
   return seat !== null && !enrolmentHasLeft(seat.status);
 }

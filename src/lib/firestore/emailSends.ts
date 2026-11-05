@@ -166,6 +166,9 @@ export type EmailSendSurface =
   // The check-in at the end of a session (docs/surveys.md, "Check-ins"), to
   // the people the register marks at it, when the group's facilitator opens it.
   | "course-check-in"
+  // Its one reminder, at 9am the day after the session, to each person it
+  // reached who has not sent it (`surveys-check-in-reminders`).
+  | "course-check-in-reminder"
   // "Week N is open", 6 days before a group's session, to everybody holding a
   // place in the group (`src/lib/courses/nextWeekEmail.ts`).
   | "course-week"

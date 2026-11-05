@@ -45,6 +45,7 @@ import { eventSurveysJob } from "./jobs/eventSurveys";
 import { heartbeatJob } from "./jobs/heartbeat";
 import { nextWeekEmailJob } from "./jobs/nextWeekEmail";
 import { registerRemindersJob } from "./jobs/registerReminders";
+import { surveyCheckInRemindersJob } from "./jobs/surveyCheckInReminders";
 import { surveyCheckInWeeksJob } from "./jobs/surveyCheckInWeeks";
 import { surveyNamesOffJob } from "./jobs/surveyNamesOff";
 import { unmarkedRegistersJob } from "./jobs/unmarkedRegisters";
@@ -112,6 +113,11 @@ export const SCHEDULER_JOB_IDS = [
   // switch to say whether anything goes by itself.
   "event-surveys",
   "newsletter-drain",
+  // The check-in's one reminder, at 9am the day after a session, to each
+  // person it reached who has not sent it (docs/surveys.md, "Check-ins at the
+  // end of a session"). It emails people, so it registers with
+  // `enabledByDefault: false`.
+  "surveys-check-in-reminders",
   // Each week of a programme's check-ins is fixed the first time it is whole,
   // and the programme's lead reads only fixed weeks (docs/surveys.md,
   // "Check-ins at the end of a session"). It emails nobody, so it registers
@@ -283,6 +289,7 @@ export const JOBS: readonly JobRegistration[] = [
   eventCheckInsTidyJob,
   eventSurveysJob,
   heartbeatJob,
+  surveyCheckInRemindersJob,
   surveyCheckInWeeksJob,
   surveyNamesOffJob,
   worksheetDueRemindersJob,
