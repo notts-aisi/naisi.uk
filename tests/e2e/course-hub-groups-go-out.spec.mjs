@@ -1090,9 +1090,10 @@ test(
             `You’ll meet on ${weeklySlotWords(groupB)} in ${groupB.room}, from ${dayLabel(groupB.firstDateKey)}.`,
             `Sessions last ${groupB.durationMinutes} minutes.`,
             `You’re no longer in ${groupA.name}, so you don’t need to go to its sessions.`,
-            "Can you make this time?",
-            "I can make it",
-            "I can’t make this time",
+            "Can you make this time most weeks?",
+            "Yes",
+            "Most weeks, not all",
+            "No, I need a different time",
             "NAISI",
           ],
           // It says Ben moved, never why: staff move people too, not only when somebody asks.

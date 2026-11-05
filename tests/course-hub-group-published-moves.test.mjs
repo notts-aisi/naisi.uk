@@ -285,9 +285,10 @@ describe("5. the two emails, as their composers write them", () => {
       "Sessions last 2 hours.",
       "Raj and Sofia are your facilitators.",
       "You’re no longer in Group D, so you don’t need to go to its sessions.",
-      "Can you make this time?",
-      timeWords.CAN_MAKE_IT,
-      timeWords.CANT_MAKE_THIS_TIME,
+      timeWords.CARD_TITLE,
+      timeWords.ANSWER_YES,
+      timeWords.ANSWER_MOST_WEEKS,
+      timeWords.ANSWER_CANT,
       "Rahul",
       "AGI Strategy lead, NAISI",
     ]) {
@@ -317,10 +318,10 @@ describe("5. the two emails, as their composers write them", () => {
     assert.ok(untimed.includes("Its day and time aren’t set yet. Your programme page will show them once they are."), untimed);
     assert.equal(movedEmail.composeMovedEmail({ ...BASE, weeklySlot: null }).subject, "You’ve moved to Group H");
     const nowhere = movedEmail.composeMovedEmail({ ...BASE, programmeUrl: null });
-    assert.ok(!wordsOfBlocks(nowhere).includes("Can you make this time?") && !nowhere.blocks[0].html.includes("href="));
+    assert.ok(!wordsOfBlocks(nowhere).includes(timeWords.CARD_TITLE) && !nowhere.blocks[0].html.includes("href="));
     // A facilitator sitting in the group they facilitate is not asked, and keeps the way to their programme.
     const facilitating = movedEmail.composeMovedEmail({ ...BASE, asks: false });
-    assert.ok(!wordsOfBlocks(facilitating).includes("Can you make this time?"));
+    assert.ok(!wordsOfBlocks(facilitating).includes(timeWords.CARD_TITLE));
     assert.ok(facilitating.blocks[0].html.includes("Open your programme"));
   });
 
