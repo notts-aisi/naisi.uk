@@ -153,6 +153,10 @@ export const SPEC = {
    * tab, with Group A given no meeting link at its point: all fourteen steps
    * against the loopback server on a laptop, 53 rows before teardown, and
    * zero after.
+   * Verified again on 2026-11-06 at 7163b840 (on dev's 67cb9896), the first
+   * run with both "Most weeks, not all" and Joining online in the journey:
+   * all fifteen steps against the loopback server on a laptop, 54 rows
+   * before teardown, and zero after.
    */
   status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three-work" }),
