@@ -1296,6 +1296,16 @@ export const ROUTES = {
         "programme's lead and admins email a group's facilitators.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Remind on the Check-ins view's table: the body (which group, which session, how many the " +
+        "button said it emails) is checked before anything is read, so every signed-in persona meets " +
+        "the same 400 on an empty body. Then the role from the form, and an admin's alone: the " +
+        "programme's lead never has the table, which reads a group's session at a time.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind": {
     POST: {
       expect: signedIn(400),
@@ -1985,7 +1995,7 @@ export const ROUTES = {
   "/api/courses/groups/[groupId]/attendance": {
     GET: {
       expect: adminOnly(404),
-      fields: ["group", "sessions", "members", "notYetTold", "leavers", "records", "participantNotes", "canEditPushed", "ending", "cantMakeIt"],
+      fields: ["group", "sessions", "members", "notYetTold", "leavers", "records", "online", "onlineSaid", "participantNotes", "canEditPushed", "ending", "cantMakeIt"],
       why:
         "The register gate (gateGroupRegister) collapses missing, archived and not-yours onto " +
         "one 403 for a non-admin and tells an admin the group is missing.",
@@ -2018,6 +2028,15 @@ export const ROUTES = {
         "View-as is refused first, then the session, then the address and the body (a session of the group and " +
         "whether they can make it) are checked before anything is read, so every signed-in persona meets the same " +
         "400 on an empty one. The caller's own seat is read once a whole body arrives.",
+    },
+  },
+  "/api/courses/groups/[groupId]/joining-online": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the address and the body (a session of the group and " +
+        "whether they are joining it online) are checked before anything is read, so every signed-in persona meets " +
+        "the same 400 on an empty one. The caller's own seat is read once a whole body arrives.",
     },
   },
   "/api/courses/groups/[groupId]/check-in": {
@@ -2134,6 +2153,14 @@ export const ROUTES = {
         "Session required, then the document is read and its own membership decides. The " +
         "battery's id addresses nothing, so every signed-in persona is told that the document " +
         "is missing. A roster is read by the group's facilitators, its active members and admins.",
+    },
+  },
+  "/api/courses/groups/[groupId]/meeting-link": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "A session's meeting link, from the facilitators' box: group staff only, collapsed onto one 403 for a " +
+        "non-admin before the body is read; an admin is told the group is missing.",
     },
   },
   "/api/courses/groups/[groupId]/session": {
@@ -2331,7 +2358,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/allocation/publish/preview": {
     GET: {
       expect: signedIn(404),
-      fields: ["incubator", "people", "facilitators", "joined", "noted", "notedEmail", "push", "notesNeeded", "refusals"],
+      fields: ["incubator", "people", "moved", "moves", "facilitators", "joined", "left", "noted", "notedEmail", "push", "notesNeeded", "refusals"],
       why:
         "Publish's two emails, for Publish's own page: session required, then the run is read and " +
         "Publish's own gate decides. The battery's id addresses nothing, so every signed-in persona " +
@@ -2342,9 +2369,10 @@ export const ROUTES = {
     POST: {
       expect: signedIn(400),
       why:
-        "View-as is refused first, then the session, then the body (a group id and yes or cant, with why and " +
-        "which times would for cant) is checked before anything is read, so every signed-in persona meets the " +
-        "same 400 on an empty one. The caller's own seat is read once a valid body arrives.",
+        "View-as is refused first, then the session, then the body (a group id and one of the three answers: yes, " +
+        "most weeks with the sessions they can't make, or cant with why and which times would) is checked before " +
+        "anything is read, so every signed-in persona meets the same 400 on an empty one. The caller's own seat is " +
+        "read once a valid body arrives.",
     },
   },
   "/api/courses/runs/[runId]/applications": {
@@ -2507,6 +2535,22 @@ export const ROUTES = {
         "Session required, then the document is read and its own membership decides. The " +
         "battery's id addresses nothing, so every signed-in persona is told that the document " +
         "is missing.",
+    },
+  },
+  "/api/courses/runs/[runId]/enrolments/[uid]/time-answer": {
+    GET: {
+      expect: signedIn(404),
+      why:
+        "They meant some weeks, what it offers: session required, then the run is read and the gate (an admin or the " +
+        "lead of the programme that names the run) decides. The battery's id addresses nothing, so every signed-in " +
+        "persona is told the run is not there. It writes nothing.",
+    },
+    POST: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the body (a list of the group's sessions, none allowed) is " +
+        "checked before anything is read, so every signed-in persona meets the same 400 on an empty one. The run and " +
+        "the gate come next.",
     },
   },
   "/api/courses/runs/[runId]/exercises/[exerciseId]/submit": {
@@ -5573,6 +5617,24 @@ export const REAL_ROUTES = {
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/registers/remind": {
     POST: bodyFirst("Only the programme's lead and admins email a group's facilitators, decided from the form."),
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind": {
+    POST: {
+      realDrive: {
+        body: { groupId: "e2e-battery-group", sessionKey: "w01", emails: 1 },
+        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before its run is read."),
+        admin: c(ACTS, "An admin reminds a group's facilitators on any programme, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(403, "The programme's own lead reads check-ins a whole week at a time and never a group's session alone: refused before its run is read."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind": {
     POST: {
       realDrive: { body: { emails: 1 }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
@@ -5903,6 +5965,30 @@ export const REAL_ROUTES = {
       },
     },
   },
+  "/api/courses/groups/[groupId]/joining-online": {
+    POST: {
+      realDrive: {
+        body: { sessionKey: "w01", online: true },
+        why:
+          "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the " +
+          "refused (nobody with a told seat in the group) are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No seat in this group: there is no line of its register for them to say they are joining online on."),
+        admin: c(404, "An admin holds no seat in this group, so has no line of its register to say they are joining online on."),
+      },
+      theirs: {
+        lead: c(404, "Leading the programme gives no seat in the group: answered as a group they are not in."),
+        facilitator: c(
+          ACTS,
+          "Holds a told seat in this group as well as facilitating it, so admitted: a whole body is never sent to " +
+            "somebody the gate admits, so it is not sent (it would write their word on a register).",
+        ),
+        participant: c(404, "Holds a place in the run's other group: answered as a group they are not in."),
+      },
+    },
+  },
   "/api/courses/groups/[groupId]/check-in": {
     GET: {
       realDrive: { query: "?session=w01", why: "The session is required in the query, which an empty one fails for everybody admitted: week 1 reaches the card." },
@@ -5988,6 +6074,9 @@ export const REAL_ROUTES = {
         participant: c(403, "Holds a place in the run's other group, not this one: another group's roster is not theirs."),
       },
     },
+  },
+  "/api/courses/groups/[groupId]/meeting-link": {
+    POST: groupStaff("A session's meeting link", c(400, "Admitted, then the body is checked: an empty one names no session.")),
   },
   "/api/courses/groups/[groupId]/session": {
     PATCH: groupStaff("A session's mode", c(400, "Admitted, then the body is checked: an empty one names no week.")),
@@ -6328,6 +6417,53 @@ export const REAL_ROUTES = {
       "Taking somebody off the run",
       c(ACTS, "Admitted, and it takes no body: it would take the participant off the run."),
     ),
+  },
+  "/api/courses/runs/[runId]/enrolments/[uid]/time-answer": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(
+          403,
+          "Neither an admin nor the lead of the programme that names the run: what people said about their group's time is read by nobody else, refused before the person is read.",
+        ),
+        admin: c(409, "Admitted, and the participant has given no answer of No, I need a different time, so there is nothing to read as some weeks."),
+      },
+      theirs: {
+        lead: c(
+          409,
+          "Leads the programme that names the run, so admitted; the participant has given no answer of No, I need a different time, so there is nothing to read as some weeks.",
+        ),
+        facilitator: c(403, "Facilitating one of the run's groups reads nobody's answer about its time: refused before the person is read."),
+        participant: c(403, "Holding a place reads nobody's answer here, their own included: their own card on the programme page is the way to change it."),
+      },
+    },
+    POST: {
+      realDrive: {
+        body: { sessionKeys: [] },
+        why:
+          "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused " +
+          "(neither an admin nor the programme's lead) are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(
+          403,
+          "Neither an admin nor the lead of the programme that names the run: nobody else changes what a person said about their group's time, refused before the person is read.",
+        ),
+        admin: c(
+          ACTS,
+          "Admitted: a whole body is never sent to somebody the gate admits, so it is not sent (on a can't it would change the answer, record sessions on registers and write an audit row).",
+        ),
+      },
+      theirs: {
+        lead: c(
+          ACTS,
+          "Leads the programme that names the run, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent.",
+        ),
+        facilitator: c(403, "Facilitating one of the run's groups changes nobody's answer about its time: refused before the person is read."),
+        participant: c(403, "Holding a place changes nobody's answer here, their own included: refused before the person is read."),
+      },
+    },
   },
   "/api/courses/runs/[runId]/exercises/[exerciseId]/submit": {
     POST: {

@@ -17,7 +17,10 @@ import { londonClockLabel, londonDayLabel } from "@/lib/courses/londonLabels";
 export const REPORT_WORDS = {
   /** The phone bar's title. */
   barTitle: "Session report",
-  /** Under a finished register, the way on to the report on its session. */
+  /**
+   * Beside the register's check-in, the way on to the report on its session:
+   * from the session's start, whether or not the register is finished.
+   */
   next: "Next: two minutes on how it went.",
   /** Set in capitals by the page's style. */
   eyebrow: "After the register · 2 minutes",
@@ -38,6 +41,11 @@ export const REPORT_WORDS = {
   failed: "Your report wasn’t sent. Check your connection and try again.",
   /** Under the people questions, before anybody is down as here. */
   nobodyHere: "Nobody is down as here on this session’s register yet.",
+  /**
+   * Over the people down as here, while the session's register is not
+   * finished: the list is the register as it stood when the page opened.
+   */
+  hereSoFar: "This is who’s down as here on this session’s register so far.",
   /** Under "Anyone who might need a hand?" with nobody on the register. */
   nobodyInGroup: "Nobody in the group is on the register yet.",
   /** Before the group's first session has started. */

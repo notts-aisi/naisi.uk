@@ -383,11 +383,23 @@ const MUST_GUARD = [
   ],
   [
     "src/app/api/courses/runs/[runId]/time-answer/route.ts",
-    "records the person's own answer to can you make this time on their own seat, which the programme's lead and admins read",
+    "records the person's own answer to can you make this time most weeks on their own seat, which the programme's lead and admins read, and for most weeks, not all, records them excused on the registers of the sessions they tick",
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/enrolments/[uid]/time-answer/route.ts",
+    "reads somebody's answer of no, I need a different time as most weeks, not all, records them excused on the registers of the sessions chosen and writes an audit row naming the admin or lead who did it",
   ],
   [
     "src/app/api/courses/groups/[groupId]/cant-make-it/route.ts",
     "records the person as excused on a session's register, on their own word that they can't make it, which their facilitators read",
+  ],
+  [
+    "src/app/api/courses/groups/[groupId]/joining-online/route.ts",
+    "keeps the person's own word that they are joining a session online on its register, which their facilitators read and are asked for a link by",
+  ],
+  [
+    "src/app/api/courses/groups/[groupId]/meeting-link/route.ts",
+    "sets a session's meeting link, for one week or every week, which everybody in the group then sees on their programme page",
   ],
   [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time/route.ts",
@@ -404,6 +416,10 @@ const MUST_GUARD = [
   [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/registers/remind/route.ts",
     "emails a group's facilitators a reminder about an unfinished register in the caller's name, and claims the reminder job's own marker for each so that the job sends them none",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/route.ts",
+    "emails a group's facilitators that a session's check-in or register is not done, in the caller's name, and claims the day's marker for the session",
   ],
   [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind/route.ts",

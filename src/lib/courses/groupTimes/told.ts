@@ -8,7 +8,7 @@ import type {
   Transaction,
 } from "firebase-admin/firestore";
 import { facilitatingMarkerId } from "@/lib/courses/allocationPublish";
-import { normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
+import { groupToldAbout, normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
 
 /**
  * WHICH OF A RUN'S GROUPS PUBLISH HAS TOLD SOMEBODY THE TIME OF, the one
@@ -19,8 +19,12 @@ import { normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/cours
  *
  *  - SOMEBODY PLACED IN IT, emailed their group, day and time: their seat
  *    is told (`placementIsTold`, the one answer every reader of placements
- *    asks). A seat that has left the run, or is somewhere else now, or a
- *    move that cleared the stamp, tells nothing about this group.
+ *    asks) ABOUT THIS GROUP (`groupToldAbout`). A seat that has left the run,
+ *    or is somewhere else now, tells nothing about this group. Nor does a
+ *    told seat moved into it since: a move keeps a seat told, but what its
+ *    owner was emailed is the time of the group they were told about, and
+ *    the next Publish emails them this group's time ("You’ve moved"), so
+ *    until then it can still change here.
  *  - ITS FACILITATORS, emailed "You’re facilitating": a once-only marker per
  *    facilitator per group in `courseNudges`, at the id Publish's own plan
  *    reads (`facilitatingMarkerId`). Only the group's facilitators NOW are
@@ -76,7 +80,7 @@ export async function toldGroupIds(
     if (seat.runId !== runId || seat.role !== "learner") continue;
     if (seat.status !== "active" && seat.status !== "completed") continue;
     if (!seat.groupId || !asked.has(seat.groupId)) continue;
-    if (placementIsTold(seat)) told.add(seat.groupId);
+    if (placementIsTold(seat) && groupToldAbout(seat) === seat.groupId) told.add(seat.groupId);
   }
 
   // Each facilitator's marker by its own address, for the groups not told yet.

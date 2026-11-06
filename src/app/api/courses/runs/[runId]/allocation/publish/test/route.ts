@@ -40,6 +40,11 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * to a facilitator already told about their group, and, when the first
  * person's email carries no note of our own, the first one that does, so
  * whoever presses reads a noted email as its person will.
+ *
+ * AND TWO MORE FOR A MOVE, WHEN A PRESS WOULD SEND THEM: the first "You’ve
+ * moved" to somebody moved since they were told, which is their test as
+ * their first email is everybody else's, and the first "Ana is no longer in
+ * Group D" to a facilitator of the group they were told about.
  */
 
 type Ctx = { params: Promise<{ runId: string }> };
@@ -101,8 +106,10 @@ export async function POST(_req: Request, ctx: Ctx) {
 
   const batch = pressBatch(plan);
   const person = batch.people.find((candidate) => candidate.email) ?? null;
+  const moved = batch.moved.find((candidate) => candidate.email) ?? null;
   const facilitator = batch.facilitators.find((candidate) => candidate.email) ?? null;
   const joined = batch.joined.find((candidate) => candidate.email) ?? null;
+  const left = batch.left.find((candidate) => candidate.email) ?? null;
   const notedUids = new Set(plan.outside.filter((entry) => entry.note.state === "noted").map((entry) => entry.uid));
   const noted =
     person && notedUids.has(person.uid)
@@ -111,9 +118,15 @@ export async function POST(_req: Request, ctx: Ctx) {
   const letters = [
     ...(person?.email ? [{ kind: "allocated" as const, email: person.email }] : []),
     ...(noted?.email ? [{ kind: "allocated" as const, email: noted.email }] : []),
+    ...(moved?.email ? [{ kind: "moved" as const, email: moved.email }] : []),
     ...(facilitator?.email ? [{ kind: "facilitating" as const, email: facilitator.email }] : []),
     ...(joined?.email ? [{ kind: "joined" as const, email: joined.email }] : []),
+    ...(left?.email ? [{ kind: "left" as const, email: left.email }] : []),
   ];
+  // Each email from its own sender, as a press sends it: the people's two
+  // from the people's template, the facilitators' three from theirs.
+  const senderOf = (kind: (typeof letters)[number]["kind"]) =>
+    plan.templates[kind === "allocated" || kind === "moved" ? "allocated" : "facilitating"].fromName;
   if (letters.length === 0) {
     return NextResponse.json(
       { error: "Publishing now would send no email, so there is nothing to test." },
@@ -129,7 +142,7 @@ export async function POST(_req: Request, ctx: Ctx) {
           kind: letter.kind,
           to: actor.email,
           composed: letter.email,
-          fromName: plan.templates[letter.kind === "joined" ? "facilitating" : letter.kind].fromName,
+          fromName: senderOf(letter.kind),
           uid: actor.uid,
           runId,
           test: true,

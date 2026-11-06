@@ -238,11 +238,9 @@ export function checkInItems() {
   ];
 }
 
-/** `checkInWindow` in src/lib/surveys/checkIns/model.ts: 11pm on the session's London day, or an hour after it ends if later. */
+/** `checkInWindow` in src/lib/surveys/checkIns/model.ts: 11pm on the day after the session's London day. */
 export function checkInClosesAt(session) {
-  const night = londonWallClockToInstant(session.dateKey, "23:00");
-  const late = new Date(session.endsAt.getTime() + 60 * 60_000);
-  return late.getTime() > night.getTime() ? late : night;
+  return londonWallClockToInstant(shiftDateKey(session.dateKey, 1), "23:00");
 }
 
 /** Two years after the run's last session, as `namesOffDayFor` dates it. */

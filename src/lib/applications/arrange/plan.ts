@@ -1,4 +1,5 @@
 import type { SessionSlot } from "@/lib/admissions/availability";
+import type { TimeAnswerView } from "@/lib/courses/timeAnswer/model";
 import type { PaintedWeek } from "../handover/paintedWeek";
 
 /**
@@ -62,6 +63,14 @@ export type ArrangePerson = {
   /** Publish has told them their group: they stay in it. */
   told: boolean;
   /**
+   * For the admin's screen, never the plan: the group they were told about
+   * (null when nobody has told them), and, when they were moved since, its
+   * name (null when it is not one of the run's live groups). The next
+   * Publish emails somebody moved "You’ve moved".
+   */
+  toldGroupId?: string | null;
+  moved?: { from: string | null } | null;
+  /**
    * The run's groups they facilitate, by id: they sit in that group and in no
    * other (the allocate route refuses anything else), so they stay there.
    */
@@ -72,10 +81,12 @@ export type ArrangePerson = {
    */
   marked?: readonly { weekday: number; start: number; end: number }[];
   /**
-   * Their answer to "Can you make this time?" about the group they sit in,
-   * for the admin's screen. Their own words: NEVER in anything sent to Claude.
+   * Their answer to "Can you make this time most weeks?" about the group they
+   * sit in, for the admin's screen. Nothing here plans by it: a told person
+   * stays where they are whatever they answered (rule 1). Their own words:
+   * NEVER in anything sent to Claude.
    */
-  timeAnswer?: { kind: "yes" | "cant"; reason: string | null; alternatives: string | null } | null;
+  timeAnswer?: TimeAnswerView | null;
 };
 
 export type ArrangeGroup = {

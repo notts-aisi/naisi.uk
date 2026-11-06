@@ -487,6 +487,66 @@
   color: var(--color-accent);
 }
 
+/* === In the room or online ===================================
+   Beside a mark that says somebody came: a screen, faint while they were in
+   the room (a tap says online), whole once they joined online. The slot is
+   the same size in every markable cell, so a tap that gives a cell its first
+   mark never moves the mark under the thumb (rule 1: no cell geometry ever
+   moves). A full 44px target: the register is taken standing in a room. */
+.where,
+.whereSlot {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.where {
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-subtle);
+  font: inherit;
+  cursor: pointer;
+  opacity: 0.55;
+  transition:
+    opacity var(--dur-quick) var(--ease-naisi),
+    color var(--dur-quick) var(--ease-naisi),
+    background var(--dur-quick) var(--ease-naisi);
+}
+
+.where:hover,
+.where:focus-visible {
+  opacity: 1;
+  color: var(--color-text);
+}
+
+.where:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Joined online: said in colour AND by the screen drawn whole, so the signal
+   survives a greyscale display and a colour-blind reader. */
+.whereOnline {
+  opacity: 1;
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.whereOnline svg rect {
+  fill: currentColor;
+  fill-opacity: 0.25;
+}
+
+/* Read only: a finished register, or somebody who left. */
+.whereStatic {
+  cursor: default;
+}
+
 .glyph {
   display: inline-flex;
   align-items: center;
@@ -580,6 +640,7 @@
 
   .glyph,
   .cellButton,
+  .where,
   .bulk,
   .finishButton {
     transition: none;

@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import SomeWeeks from "@/features/courses/timeAnswer/SomeWeeks";
 import type { SessionSlot } from "@/lib/admissions/availability";
 import type { RingPerson } from "@/lib/applications/arrange/view";
 import { own } from "@/lib/applications/keys";
-import { CANT_DETAILS, MARK_CANT_MAKE, MARK_CAN_MAKE, WHY, WOULD_WORK } from "@/lib/courses/timeAnswer/words";
+import { movedCardWords } from "@/lib/courses/moveWords";
+import { weekOfSessionKey } from "@/lib/courses/timeAnswer/model";
+import { CANT_DETAILS, MARK_CANT_MAKE, MARK_CAN_MAKE, WHY, WOULD_WORK, mostWeeksMark } from "@/lib/courses/timeAnswer/words";
 import WeekChart from "../times/WeekChart";
 import styles from "./Circles.module.css";
 import type { DrawnRing } from "./circlesModel";
@@ -48,6 +51,11 @@ import {
  * group a "Move here". On the run as it is a move saves at once; in a
  * preview it changes the preview. Somebody who facilitates a group is not
  * moved: the panel says why and what to do.
+ *
+ * Their answer to "Can you make this time most weeks?": yes, the weeks they
+ * miss, or that they need a different time with why and what would work,
+ * and on the run as it is, under that last, "They meant some weeks"
+ * (`src/features/courses/timeAnswer/SomeWeeks.tsx`).
  */
 
 export type Start = { session: SessionSlot; leftOut: number; everybody: number };
@@ -67,6 +75,8 @@ export default function PersonPanel({
   onRole,
   onFacilitate,
   onClose,
+  runId,
+  onAnswerChanged,
 }: {
   person: RingPerson;
   /** The ring they are in on the screen, or null. */
@@ -87,6 +97,10 @@ export default function PersonPanel({
   /** On the run as it is: make them a facilitator of their group, or stop. */
   onFacilitate: (ring: DrawnRing, add: boolean) => void;
   onClose: () => void;
+  /** The run as it is, for "They meant some weeks"; null in a preview, which changes nothing on the run. */
+  runId: string | null;
+  /** "They meant some weeks" saved: Circles reads the run again. */
+  onAnswerChanged: (message: string) => void;
 }) {
   const facilitates = person.appointed
     .map((id) => rings.find((each) => each.id === id))
@@ -94,6 +108,9 @@ export default function PersonPanel({
   const pinned = facilitates.length > 0;
   const role = ring ? (own(ring.roles, person.uid) ?? null) : null;
   const read = person.read;
+  const answer = person.timeAnswer;
+  // Most weeks, not all: the weeks they miss, "Misses week 3".
+  const misses = answer?.kind === "mostWeeks" ? mostWeeksMark(answer.sessionKeys.map(weekOfSessionKey)) : null;
 
   return (
     <div className={styles.person}>
@@ -108,18 +125,24 @@ export default function PersonPanel({
         {person.told ? TOLD : ""}
         {person.littleMarked ? LITTLE_MARKED : ""}
       </p>
-      {person.timeAnswer?.kind === "yes" ? <p className={styles.line}>{MARK_CAN_MAKE}.</p> : null}
-      {person.timeAnswer?.kind === "cant" ? (
+      {/* Told about another group and moved since: the next Publish emails them. */}
+      {person.moved ? <p className={styles.line}>{movedCardWords(person.moved.from)}.</p> : null}
+      {answer?.kind === "yes" ? <p className={styles.line}>{MARK_CAN_MAKE}.</p> : null}
+      {misses && !answer?.reason ? <p className={styles.line}>{misses}.</p> : null}
+      {answer && answer.kind !== "yes" && answer.reason ? (
         <details className={styles.why} open>
           <summary>
-            <strong>{MARK_CANT_MAKE}.</strong> {CANT_DETAILS}
+            <strong>{answer.kind === "cant" ? MARK_CANT_MAKE : misses}.</strong> {CANT_DETAILS}
           </summary>
           <p className={styles.line}>
-            <strong>{WHY}</strong> {person.timeAnswer.reason}
+            <strong>{WHY}</strong> {answer.reason}
           </p>
           <p className={styles.line}>
-            <strong>{WOULD_WORK}</strong> {person.timeAnswer.alternatives}
+            <strong>{WOULD_WORK}</strong> {answer.alternatives}
           </p>
+          {answer.kind === "cant" && runId && !preview ? (
+            <SomeWeeks runId={runId} uid={person.uid} disabled={disabled} onSaved={onAnswerChanged} />
+          ) : null}
         </details>
       ) : null}
       {person.potential ? (

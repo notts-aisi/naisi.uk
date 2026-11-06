@@ -384,6 +384,30 @@ const RECIPIENT_SOURCES = new Map([
         "and only for pieces the admin left ticked that the server reads back and claims itself.",
     },
   ],
+  // Remind on a programme's Check-ins view, an admin's press: a group's live
+  // facilitators, read on the server from the group the body names.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/route.ts#plan.recipients",
+    {
+      reads: 4,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "The facilitators of one of the programme's groups that still meet (`facilitatorRecipients`: the group's " +
+        "facilitatorUids through `facilitatorsOf`, each held to the standing the role is appointed behind, with an " +
+        "address and not on the do-not-email list). The body names a group and a session, never a person, and the " +
+        "group must be one of the run's; the count must be the one the button showed.",
+    },
+  ],
+  [
+    "src/lib/surveys/checkIns/facilitatorReminder.ts#input.recipients",
+    {
+      reads: 1,
+      origin: "derived",
+      derivedFrom: ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/route.ts#plan.recipients"],
+      why: "The route's own list of the group's live facilitators, handed over as it was counted; each gets one email at their own address.",
+    },
+  ],
   [
     "src/lib/courses/registerRemind.ts#group.facilitatorUids",
     {
@@ -463,6 +487,36 @@ const RECIPIENT_SOURCES = new Map([
       why:
         "Each person placed in a group and not yet told, emailed their own group once. Nothing in the " +
         "request names a recipient: the body carries only how many emails the board showed.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/allocation/publish/route.ts#local:movedRecipients",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "The people `loadPublishPlan` found told about a group and moved since: the run's accepted rows this caller " +
+        "is served, each with an active seat that Publish told (`placementIsTold`) in a group other than the one it was " +
+        "told about (`movedSinceTold`, from `toldGroupId`), and no card that says they gave their place back, at the " +
+        "account's own address. The plan sends nothing, so the scan does not read it.",
+      why:
+        "Each person told their group and moved since, emailed \"You’ve moved\" about the group they are in now, once. " +
+        "Nothing in the request names a recipient: the body carries only how many emails the board showed.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/allocation/publish/route.ts#local:leftRecipients",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "The facilitators `loadPublishPlan` found owed a no-longer-in email: `facilitatorUids` of each live group " +
+        "(written by src/app/api/courses/groups/[groupId]/facilitators/route.ts) with a `facilitating__` marker in " +
+        "courseNudges, of a group somebody this press tells they have moved was told about, or whose earlier " +
+        "announcement failed, less the programme's lead, at each account's own address.",
+      why:
+        "Each facilitator told about a group, told once per person who has moved out of it, never where they went. The " +
+        "request names nobody.",
     },
   ],
   [

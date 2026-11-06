@@ -979,8 +979,14 @@
   overflow-wrap: anywhere;
 }
 
-/* "Facilitator guide" under this week's title. */
+/* Under this week's title: "Facilitator guide for week 3" and "Facilitator
+   guide", side by side while they fit and one under the other when they do
+   not. Each link is its own 44px row, so the rows need no gap. */
 .weekGuide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 18px;
   margin: -6px 0 4px;
 }
 

@@ -82,6 +82,8 @@ export const SENT_SURFACES: Record<EmailSendSurface, SentEntry> = {
   "event-survey": { listed: { label: "Survey after an event", byPerson: true } },
   "survey-blanks": { listed: { label: "Survey questions left blank", byPerson: true } },
   "course-check-in": { listed: { label: "Check-in after a session", byPerson: true } },
+  // Sent by the job, whose id is no account.
+  "course-check-in-reminder": { listed: { label: "Check-in reminder", byPerson: false } },
   // Pressed by a group's facilitator from the register, or sent by the job,
   // whose id is no account: Sent names whichever is an account.
   "course-week": { listed: { label: "The week’s email", byPerson: true } },

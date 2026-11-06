@@ -9,10 +9,11 @@
  * on the Times view -> places each person with the Move to menu -> appoints a
  * facilitator -> sends the test of Publish's emails to themselves -> presses
  * Publish with the count on its button -> the person placed reads their group
- * and its first session -> the admin moves them after Publish and they see
- * nothing until Publish is pressed again, which emails only them -> the
- * facilitator reads their group, its roster and its register -> every email
- * went to the send log and none carries the meeting link.
+ * and its first session -> the admin moves them after Publish and they read
+ * their new group at once, and the next press emails them "You’ve moved" and
+ * tells the facilitator of the group they left -> the facilitator reads their
+ * group, its roster and its register -> every email went to the send log and
+ * none carries the meeting link.
  *
  * ## How to run it
  *
@@ -544,12 +545,16 @@ test(
           ...(facilitator ? [`${facilitator.first} is your facilitator.`] : []),
           ...(size > 1 ? [`There are ${size} of you.`] : []),
           // The site's own section (src/lib/courses/timeAnswer/emailSection.ts),
-          // in place of the template's "Open your programme".
-          "Can you make this time?",
+          // in place of the template's "Open your programme": the card's own
+          // question and its three answers, in the card's order.
+          "Can you make this time most weeks?",
           "Tell us on your programme page.",
+          "If you’ll miss the odd week, say which and whoever runs your sessions will know.",
+          "If you can’t make most weeks, say why and which other times would work,",
           "You keep your place either way.",
-          "I can make it",
-          "I can’t make this time",
+          "Yes",
+          "Most weeks, not all",
+          "No, I need a different time",
           "NAISI",
         ],
         absent: [
@@ -562,11 +567,16 @@ test(
           "Your group meets on",
         ],
       });
-      // The society's address, and the two buttons, each to the programme's page at its card.
+      // The society's address, and the three buttons, each to the programme's page at its card.
       const programmePage = `${origin}${programmePath}`;
       assert.deepEqual(
         email.links,
-        ["mailto:ai-safety@uonsu.com", `${programmePage}#your-group-time`, `${programmePage}#your-group-time`],
+        [
+          "mailto:ai-safety@uonsu.com",
+          `${programmePage}#your-group-time`,
+          `${programmePage}#your-group-time`,
+          `${programmePage}#your-group-time`,
+        ],
         `the placement email's links are not the society's address and the programme's page (${programmePage})`,
       );
     }
@@ -996,99 +1006,34 @@ test(
         await assertProgrammePage(memberPage, { group: groupA, facilitator: fern, people: [ben, ada] });
       });
 
-      await step("a person moved after Publish sees nothing of the run until Publish is pressed again", async () => {
+      await step("a person moved after Publish sees their new group at once, and the board says the next press emails them", async () => {
         activePage = adminPage;
         await openBoard();
+        // A move sends nothing by itself: no dialog, and no email.
         await moveWithMenu(ben, groupB);
-        await publishTitleSays("1 person");
+        // Ben was told about Group A: the next press tells him he moved, and
+        // tells Fern, told about Group A, that he is no longer in it.
+        await publishTitleSays("1 person moved since they were told and 1 facilitator told who is no longer in their group");
         await publishArea()
-          .getByRole("button", { name: "Publish and send 1 email", exact: true })
+          .getByRole("button", { name: "Publish and send 2 emails", exact: true })
+          .waitFor({ timeout: WAIT_MS });
+        await publishArea()
+          .getByText(`${ben.first}: moved to ${groupB.name}, was ${groupA.name}`, { exact: true })
+          .waitFor({ timeout: WAIT_MS });
+        // His card says so too.
+        await column(groupB.name)
+          .getByText(`Moved from ${groupA.name}: emailed at the next Publish`, { exact: true })
           .waitFor({ timeout: WAIT_MS });
         const moved = (await fixtureDoc("courseEnrolments", enrolmentId(state.runId, ben.uid)).get()).data();
         assert.equal(moved?.groupId, groupB.id, "Ben's place did not move");
-        assert.equal(moved?.allocatedEmailAt ?? null, null, "Ben is still stamped as told about a group he left");
-
-        activePage = memberPage;
-        // Caught here and thrown below, so a page that never asks cannot
-        // leave a rejection with nobody waiting on it.
-        const hub = memberPage
-          .waitForResponse(
-            (r) => new URL(r.url()).pathname === "/api/courses/me" && r.request().method() === "GET",
-            { timeout: WAIT_MS },
-          )
-          .catch((err) => err);
-        await memberPage.goto(`${origin}${programmePath}`, { waitUntil: "domcontentloaded" });
-        await memberPage.waitForURL((url) => url.pathname === "/learn", { timeout: WAIT_MS });
-        const listed = await hub;
-        if (listed instanceof Error) throw listed;
-        const runs = await okBody(listed, "The member's runs");
-        assert.ok(
-          !JSON.stringify(runs).includes(state.runId),
-          "the member's list of runs still has the run, before Publish has told him his new group",
-        );
-        await memberPage.getByRole("heading", { name: "My programmes", level: 1 }).waitFor({ timeout: WAIT_MS });
-        // Its text content, not `innerText`: a group's name set in capitals
-        // by CSS would read "GROUP A" there, and this check would pass
-        // without looking.
-        const page = await textOf(memberPage.getByRole("main"));
-        for (const group of state.groups) {
-          assert.ok(!page.includes(group.name), `the courses page names ${group.name}: ${page}`);
-        }
-        assert.equal(
-          await memberPage.locator(`a[href="${programmePath}"]`).count(),
-          0,
-          "the courses page links to the run",
-        );
-      });
-
-      await step("Publish again emails only the person moved, who then sees their new group", async () => {
-        activePage = adminPage;
-        const { confirm, answer } = await pressPublish("Publish and send 1 email");
-        assert.equal(
-          confirm,
-          `Publish ${state.runLabel} and send 1 email?\n\n` +
-            "1 email to the person placed in a group, with their group, day, room and facilitators.\n\n" +
-            "Only people and facilitators not told before are emailed. Emails cannot be unsent.",
-          "the second confirmation is not the one the boards draw",
-        );
-        assert.deepEqual(
-          answer.report,
-          {
-            people: { sent: 1, held: 0, suppressed: 0 },
-            facilitators: { sent: 0, held: 0, suppressed: 0 },
-            failed: [],
-            noAddress: [],
-            alreadyTold: 0,
-            more: 0,
-          },
-          "the second press did not email Ben alone",
-        );
-        await publishArea()
-          .getByText("Published. 1 email sent: 1 to people with their group.", { exact: true })
-          .waitFor({ timeout: WAIT_MS });
-
-        // Approval, Group A, then Group B: the newest is about the group he is in now.
-        const bensMail = await mailTo(ben.email, 3);
-        assert.equal(bensMail.length, 3, `Ben has ${bensMail.length} emails`);
-        const newest = await readEmail(bensMail[2]);
-        // Group B is Cleo, told at the first press, and Ben.
-        assertPlacement(newest, { person: ben, group: groupB, facilitator: null, size: 2 });
-        assertNoMeetingLink(newest, "Ben's second placement email");
-        // Nobody else was written to again.
-        for (const [account, count] of [
-          [ada, 1],
-          [cleo, 1],
-          [fern, 2],
-        ]) {
-          const mail = await messagesTo(account.email);
-          assert.equal(mail.length, count, `${account.first} has ${mail.length} emails, not ${count}`);
-        }
-        assert.equal((await adminTests()).length, 2, "the second press sent the admin another test");
+        assert.ok(moved?.allocatedEmailAt, "a move took Publish's stamp off somebody it had told");
+        assert.equal(moved?.toldGroupId, groupA.id, "Ben's place does not keep the group he was told about");
+        assert.equal((await messagesTo(ben.email)).length, 2, "the move emailed Ben by itself");
 
         activePage = memberPage;
         await memberPage.goto(`${origin}${programmePath}`, { waitUntil: "domcontentloaded" });
-        // Group B, which has no facilitator and no link, its first session,
-        // and Cleo beside him in the group.
+        // Group B at once, which has no facilitator and no link, its first
+        // session, and Cleo beside him in the group.
         const { main } = await assertProgrammePage(memberPage, { group: groupB, facilitator: null, people: [ben, cleo] });
         // And nothing of the group he left, anywhere on the page: not its
         // name, not its facilitator, not its way to join.
@@ -1098,6 +1043,97 @@ test(
           `Ben's page still names the group he left: ${page}`,
         );
         assert.ok(!(await memberPage.content()).includes(groupA.meetingUrl), "Ben's page still carries Group A's meeting link");
+      });
+
+      await step("Publish again emails the person moved that they have moved, never their first email, and tells the group they left", async () => {
+        activePage = adminPage;
+        const { confirm, answer } = await pressPublish("Publish and send 2 emails");
+        assert.equal(
+          confirm,
+          `Publish ${state.runLabel} and send 2 emails?\n\n` +
+            "1 email to a person moved since they were told, with their new group and when it next meets. " +
+            "1 email to a facilitator naming who is no longer in their group.\n\n" +
+            "Only people and facilitators not told before, and people moved since they were told, are emailed. Emails cannot be unsent.",
+          "the second confirmation is not the one the boards draw",
+        );
+        assert.deepEqual(
+          answer.report,
+          {
+            people: { sent: 0, held: 0, suppressed: 0 },
+            facilitators: { sent: 0, held: 0, suppressed: 0 },
+            moved: { sent: 1, held: 0, suppressed: 0 },
+            left: { sent: 1, held: 0, suppressed: 0 },
+            failed: [],
+            noAddress: [],
+            alreadyTold: 0,
+            more: 0,
+          },
+          "the second press did not email Ben and Fern alone",
+        );
+        await publishArea()
+          .getByText(
+            "Published. 2 emails sent: 1 to people moved since they were told, with their new group and 1 to facilitators about who is no longer in their group.",
+            { exact: true },
+          )
+          .waitFor({ timeout: WAIT_MS });
+
+        // Approval, Group A, then "You’ve moved": the newest is about the group he is in now.
+        const bensMail = await mailTo(ben.email, 3);
+        assert.equal(bensMail.length, 3, `Ben has ${bensMail.length} emails`);
+        const newest = await readEmail(bensMail[2]);
+        assert.equal(newest.subject, `You’ve moved to ${groupB.name}: ${weeklySlotWords(groupB)}`);
+        assertSays(newest, {
+          who: "Ben's “You’ve moved”",
+          sentences: [
+            `Hi ${ben.first},`,
+            `You’re in ${groupB.name} now.`,
+            `You’ll meet on ${weeklySlotWords(groupB)} in ${groupB.room}, from ${dayLabel(groupB.firstDateKey)}.`,
+            `Sessions last ${groupB.durationMinutes} minutes.`,
+            `You’re no longer in ${groupA.name}, so you don’t need to go to its sessions.`,
+            "Can you make this time most weeks?",
+            "Yes",
+            "Most weeks, not all",
+            "No, I need a different time",
+            "NAISI",
+          ],
+          // It says Ben moved, never why: staff move people too, not only when somebody asks.
+          absent: ["your facilitator", "Your AGI Strategy group", "Week 1’s reading", "As you asked", "you asked"],
+        });
+        assertNoMeetingLink(newest, "Ben's “You’ve moved”");
+        // Fern: approval, "You’re facilitating", then that Ben is no longer in her group, and never where he went.
+        const fernsMail = await mailTo(fern.email, 3);
+        assert.equal(fernsMail.length, 3, `Fern has ${fernsMail.length} emails`);
+        const gone = await readEmail(fernsMail[2]);
+        assert.equal(gone.subject, `${ben.first} is no longer in ${groupA.name}`);
+        assertSays(gone, {
+          who: "Fern's “no longer in”",
+          sentences: [
+            `Hi ${fern.first},`,
+            `${ben.first} is no longer in ${groupA.name}, which meets on ${weeklySlotWords(groupA)}. There is 1 person in the group now.`,
+            "Their name is no longer on your group page.",
+            "Open your group",
+            "NAISI",
+          ],
+          absent: [groupB.name],
+        });
+        assertNoMeetingLink(gone, "Fern's “no longer in”");
+        // Nobody else was written to again, and Ben is owed nothing more.
+        for (const [account, count] of [
+          [ada, 1],
+          [cleo, 1],
+        ]) {
+          const mail = await messagesTo(account.email);
+          assert.equal(mail.length, count, `${account.first} has ${mail.length} emails, not ${count}`);
+        }
+        assert.equal((await adminTests()).length, 2, "the second press sent the admin another test");
+        const told = (await fixtureDoc("courseEnrolments", enrolmentId(state.runId, ben.uid)).get()).data();
+        assert.equal(told?.toldGroupId, groupB.id, "Ben is not stamped as told about Group B");
+        assert.equal(told?.allocatedEmailDelivery, "sent");
+        await publishArea().getByRole("button", { name: "Publish", exact: true }).waitFor({ timeout: WAIT_MS });
+
+        activePage = memberPage;
+        await memberPage.goto(`${origin}${programmePath}`, { waitUntil: "domcontentloaded" });
+        await assertProgrammePage(memberPage, { group: groupB, facilitator: null, people: [ben, cleo] });
       });
 
       await step("the facilitator sees their group, its roster and its register", async () => {
@@ -1172,12 +1208,12 @@ test(
       await step("every email went to the send log, and none carries the meeting link", async () => {
         activePage = adminPage;
         // Who was written to, by kind: the two approvals, each placement, the
-        // facilitators' email, and Ben's second placement.
+        // facilitators' email, Ben's "You’ve moved" and Fern's "no longer in".
         const expected = [
           [ada, ["course-application"]],
           [ben, ["application", "course-application", "course-application"]],
           [cleo, ["course-application"]],
-          [fern, ["application", "course-application"]],
+          [fern, ["application", "course-application", "course-application"]],
         ];
         for (const [account, kinds] of expected) {
           const logged = await waitFor(`${account.first}'s send rows`, async () => {
@@ -1186,14 +1222,14 @@ test(
           });
           assert.deepEqual(logged, [...kinds].sort(), `${account.first}'s send rows`);
         }
-        // About the run, whoever it went to: the two tests and the five emails Publish sent.
+        // About the run, whoever it went to: the two tests and the six emails Publish sent.
         const about = (await fixtureQuery("emailSends").where("referenceId", "==", state.runId).get()).docs.map(
           (doc) => doc.data(),
         );
         assert.equal(about.filter((row) => row.kind === "course-test").length, 2, "the run's tests are not both logged");
         assert.equal(
           about.filter((row) => row.kind === "course-application").length,
-          state.people.length + 2,
+          state.people.length + 3,
           "Publish's emails are not all logged against the run",
         );
 
@@ -1202,7 +1238,7 @@ test(
         for (const account of [...state.people, fern]) {
           for (const summary of await messagesTo(account.email)) everything.push(await readEmail(summary));
         }
-        assert.equal(everything.length, 2 + 1 + 3 + 1 + 2, `the journey caused ${everything.length} emails`);
+        assert.equal(everything.length, 2 + 1 + 3 + 1 + 3, `the journey caused ${everything.length} emails`);
         for (const email of everything) assertNoMeetingLink(email, JSON.stringify(email.subject));
       });
     } finally {

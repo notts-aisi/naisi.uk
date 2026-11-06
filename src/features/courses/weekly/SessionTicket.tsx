@@ -6,6 +6,7 @@ import { tilePartsOfDay } from "@/app/(app)/dashboard/homeWords";
 import type { TicketFacts } from "../sessionChange/cardFacts";
 import { ROOM_CHANGED, withWords } from "@/lib/courses/memberPageWords";
 import { JOIN_ONLINE, LINK_IS_HERE } from "@/lib/courses/sessionChange/words";
+import { FOR_JOINING_ONLINE } from "@/lib/courses/joiningOnline/words";
 import { memberLineWords } from "@/lib/courses/explainers/words";
 import AddToCalendar from "./AddToCalendar";
 import styles from "./weekly.module.css";
@@ -24,9 +25,11 @@ import styles from "./weekly.module.css";
  * under the room on the programme page, and in a row of
  * its own under the card on Home. An online week's ticket carries Join online
  * in its place, in the row under the card with the line that the link is
- * only here. "Can’t make it" (`cantMakeIt`) sits beside Add to calendar on
- * the programme page's ticket, for somebody taking part in the group, until
- * the session starts; Home's ticket has none.
+ * only here. A session held in a room with a link keeps Add to calendar, and
+ * carries the link in the same row, said to be for anybody joining online
+ * (`facts.joinFor`). "Can’t make it" and "Joining online" (`cantMakeIt`) sit
+ * beside Add to calendar on the programme page's ticket, for somebody taking
+ * part in the group, until the session starts; Home's ticket has neither.
  *
  * A session an admin scheduled an explainer for says so under the room
  * ("Your session starts with a 10-minute explainer on ..."), from the
@@ -49,7 +52,7 @@ type Props = {
   home?: boolean;
   /** Offer "Add to calendar": the reader's ticket is a group Publish has told them about, or one they facilitate. */
   calendar?: boolean;
-  /** "Can’t make it", drawn beside Add to calendar (`CantMakeIt`), or nothing. */
+  /** "Can’t make it" and "Joining online", drawn beside Add to calendar (`TicketAnswers`), or nothing. */
   cantMakeIt?: ReactNode;
 };
 
@@ -65,7 +68,9 @@ export default function SessionTicket({
 }: Props) {
   const tile = tilePartsOfDay(facts.dateKey);
   const withLine = withWords(facilitators.map((person) => person.firstName));
-  const offerCalendar = calendar && !facts.joinUrl;
+  // An online session's ticket carries Join online in Add to calendar's
+  // place; a session in a room keeps it, whatever link it has.
+  const offerCalendar = calendar && facts.joinFor !== "everybody";
   const faces = (
     <span className={styles.faces} aria-hidden="true">
       {facilitators.map((person) => (
@@ -140,12 +145,15 @@ export default function SessionTicket({
       </div>
       {facts.joinUrl && (
         /* The row under the card: the link to join, and under
-           it that the link is only here. */
+           it who it is for and that the link is only here. */
         <div className={`${styles.ticketFoot} ${styles.joinFoot}`}>
           <a className={styles.joinButton} href={facts.joinUrl} target="_blank" rel="noopener noreferrer">
             {JOIN_ONLINE}
           </a>
-          <p className={styles.joinNote}>{LINK_IS_HERE}</p>
+          <p className={styles.joinNote}>
+            {facts.joinFor === "joining-online" ? `${FOR_JOINING_ONLINE} ` : ""}
+            {LINK_IS_HERE}
+          </p>
         </div>
       )}
       {offerCalendar && home && (

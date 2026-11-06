@@ -777,16 +777,23 @@ const NOT_COVERED = {
       "Course hub: a group's campus, from the Sessions view of a programme's Groups tab. tests/course-hub-time-answer.test.mjs executes it as every kind of caller, before Publish and after, with the board's columns carrying it.",
     coverWhen: "When the groups-go-out spec sets a group's campus on the Sessions view before it presses Publish.",
   },
-  "/api/courses/runs/[runId]/time-answer": {
+  "/api/courses/runs/[runId]/enrolments/[uid]/time-answer": {
     reason:
-      "Course hub: a person's answer to Can you make this time? on their programme page. tests/course-hub-time-answer.test.mjs executes it as every kind of caller, with the card it is pressed from, every move that clears it and who reads it.",
-    coverWhen: "When a browser spec signs in as somebody Publish has told their group and answers the card on their programme page.",
+      "Course hub: They meant some weeks, under a No, I need a different time on the allocation board's card and in Circles, for an admin or the programme's lead. tests/course-hub-time-answer.test.mjs executes both handlers as every kind of caller, with the registers and the audit row it writes and every refusal.",
+    coverWhen:
+      "When a browser spec signs in as an admin or the programme's lead, opens a can't on the board and saves They meant some weeks.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time": {
     reason:
       "Course hub: a group's day and start, from Change and Use for a group on a programme's Times view. tests/course-hub-times-actions.test.mjs executes it as every kind of caller, before Publish has told anybody and after, with a press of Publish landing between its read and its write.",
     coverWhen:
       "When the groups-go-out spec changes a group's time on the Times view before it presses Publish.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind": {
+    reason:
+      "Course hub: Remind on the Check-ins view's table of the week's sessions, an admin's press; tests/surveys-check-ins-week.test.mjs executes it as every kind of caller, with the count it must match, what is left to do (the register, the check-in while its facilitators can still open it), once a session a day, a failed send given back, and the facilitators' email rendered.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a session that has ended with its register unfinished and its check-in not opened, so an admin can press Remind on the table and the facilitator's email can be read from the suite's mail catcher.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind": {
     reason:

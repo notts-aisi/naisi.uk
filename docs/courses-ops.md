@@ -1199,6 +1199,13 @@ of that session's register and nothing else: `records.<uid>` as `excused`, and
 `excusedInAdvance.<uid>` as when they said so. **I can make it after all**
 deletes both while the session has not started. Nobody is emailed either way.
 
+The same write records the sessions ticked under "Most weeks, not all" on the
+"Can you make this time most weeks?" card (any session still to come, not only
+the next; one unticked later is taken back the same way), and the sessions
+staff choose under **They meant some weeks**. When somebody's answer is "Most
+weeks, not all", the ticket keeps its list of sessions in step: a press adds
+the session, taking it back removes it.
+
 So a register can exist before its session, holding nothing but excused marks.
 It is still a draft nobody has marked: nothing has been finished, and the
 reminder and the task chase it after the session exactly as they chase a
@@ -1217,7 +1224,9 @@ keeps its register, so a person who told us about the old day is still
 excused on the new one until they press **I can make it after all**. And a
 group's pace that would stop teaching a week whose register holds such a word
 is refused, as it is for any mark on that register: ask the person to take it
-back first.
+back first. "Most weeks, not all" can record weeks well ahead, so this refusal
+is likelier after people answer it: the register's line over the grid names
+who told us, for each session still to come.
 
 ## Placing a term's accepted people on a course run
 
@@ -1287,15 +1296,44 @@ programme names" below).
   the catch-all; pressing it again adds only who is missing.
 - **Every "Your group" email carries a section the site writes itself**
   (`src/lib/courses/timeAnswer/emailSection.ts`), so an edited template
-  keeps it: the group's campus, and "Can you make this time?" with two
-  buttons to the person's programme page, where they answer. "I can't make
-  this time" asks why and which other times would work, KEEPS THEIR PLACE
-  (it is not leaving), and shows on their card on the board and in
-  Circles for the lead and admins, never facilitators. A move clears it.
+  keeps it: the group's campus, and "Can you make this time most weeks?"
+  with three buttons to the person's programme page, where they answer.
+  "Yes" saves. "Most weeks, not all" lists the group's sessions still to
+  come and records each one ticked as excused on its register, exactly as
+  "Can't make it" on a ticket does (below); the board's card then says
+  "Misses week 3", and nobody moves them for it. "No, I need a different
+  time" asks why and which other times would work, KEEPS THEIR PLACE (it
+  is not leaving), and shows on their card on the board and in Circles for
+  the lead and admins, never facilitators. Remove and putting somebody
+  back after they left clear it; a move keeps it on the seat, shown only
+  while they are in the group it is about.
+- **An answer given before the third answer existed** (until 5 Nov 2026 the
+  question had two, and some people who could not make one week said they
+  could not make the time): under that answer's "Why, and what would work"
+  on the board's card, or in Circles, an admin or the programme's lead can
+  press **They meant some weeks**, choose the session or sessions they
+  meant (none, when the week is over), and save. The answer becomes "Most
+  weeks, not all" with their words kept; each session chosen is recorded as
+  excused on its register, dated when they answered; a session they already
+  told us about themselves is kept as theirs; a `courseAudit` row of kind
+  `time-answer-changed` says who did it and which sessions, without their
+  words. Nobody is emailed.
 - **Publishing again after people join a group** emails each of its
   facilitators already told, once per person who has joined it since.
   Pressing it twice writes nothing twice: a press that finds everybody
   already there says so and changes nothing.
+- **Moving somebody already told their group sends nothing, and hides
+  nobody.** They see their new group at once, and so do its people, its
+  facilitators, its register and its check-in. Their card on the board and
+  in Circles says they were moved since they were told and will be emailed
+  at the next Publish, which sends them "You’ve moved" (their new group,
+  when it next meets counted from the press, where, its facilitators, and
+  that it replaces the group they were told about), tells the new group's
+  facilitators who has joined and the old group's who is no longer in it,
+  and lists them on its own ("Raj: moved to Group H, was Group D"), with
+  "Send a test to me" sending the first "You’ve moved" too. A swap and a
+  swap back before the press owes nothing, and Publish never sends somebody
+  told the first email again.
 - **A run has to start with no applications of its own.** A run that
   already took applications through its own page cannot be named. Make a
   new run for the term.
@@ -1332,12 +1370,12 @@ programme names" below).
   are added, and reads "You’ll see your group’s names when groups go out."
   where the names will be. Moving people around on the board emails nobody
   and shows nobody anything.
-- **After Publish, press Publish again straight away after any move.** A
-  move clears the person's "Emailed" mark, so until Publish is pressed
-  again the person moved reads nothing of the run, is on neither group's
-  roster or register, and gets none of the group's mail. Publish emails just
-  them, and then they see their new group. The same goes for anybody placed
-  late.
+- **After Publish, press Publish again soon after any move or late
+  placement.** Somebody already told their group sees a move at once (see
+  "Moving somebody already told their group" above), and the next press
+  emails them that they have moved. Somebody placed late, or put back after
+  they left, reads nothing of the run, is on no group's roster or register,
+  and gets none of the group's mail until Publish emails them their group.
 - **Publish never emails somebody who gave their place back.** Somebody
   placed and not told yet who replies "I can’t make it" keeps their seat
   until somebody Removes it, and their card says "Gave their place back".
@@ -1933,7 +1971,7 @@ the register's own gate, so the programme's lead, who reads the register,
 is shown nothing of it there: the lead reads check-ins a whole week at a time,
 every group's together, on the programme's Surveys tab.
 
-- On the session's day, from its start until it would close: "Open it for the
+- From the session's start until 11pm the next day: "Open it for the
   6 here", counted from the grid as it is tapped (marked present, late or left
   early, among the rows the route says it can reach: never the group's
   facilitators, nor anybody Publish has not told their group, whom an admin's
@@ -1941,8 +1979,9 @@ every group's together, on the programme's Surveys tab.
   counts again on the server and refuses a number that has moved, with the
   new one.
 - While it is open: how many have sent it, never who; "Show the QR code";
-  "Close it now", asked once; and when it closes by itself (11pm, or an hour
-  after a late session ends).
+  "Close it now", asked once; and when it closes by itself (11pm the day after
+  the session; one an admin opened late from the programme's Check-ins view,
+  11pm the day after it opened).
 - Once it has closed: the group's totals from three answers, with how many
   answered, never a comment. Beside it, the group's latest closed check-in
   before this session's.
@@ -3294,7 +3333,7 @@ certificate was sent in error, and tell its owner.
 
 Privacy policy version 13 took back version 12's promise that nothing
 written in a course is used outside its programme, from its own agreement on,
-and the current policy (`src/content/legal/privacy/v15.tsx`) keeps those
+and the current policy (`src/content/legal/privacy/v16.tsx`) keeps those
 words. Three features rest on that, each an admin's press and never
 automatic, all built like the applications' second reader
 (`docs/applications.md`, "Claude and Pangram"): labels to Claude, names put

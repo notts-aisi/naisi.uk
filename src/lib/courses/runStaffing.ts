@@ -62,3 +62,15 @@ export async function runStaffingOf(db: Firestore, actor: SessionUser, run: Staf
 export function doesTrackLeadWork(staffing: RunStaffing): boolean {
   return staffing.isAdmin || staffing.isTrackLead || staffing.leadOf !== null;
 }
+
+/**
+ * Reads what people said about their group's time ("Can you make this time
+ * most weeks?"), and may read a "No, I need a different time" as "Most
+ * weeks, not all": an admin, or the lead of the programme that names the
+ * run. Never a run's track lead by that alone: the person wrote it for the
+ * lead and admins. The allocation board's rows and "They meant some weeks"
+ * both ask this.
+ */
+export function readsTimeAnswers(staffing: RunStaffing): boolean {
+  return staffing.isAdmin || staffing.leadOf !== null;
+}

@@ -23,8 +23,9 @@ import {
  * admins (the route has asked `gateGroupRegister` first): the one floored
  * view of a check-in a facilitator ever reads.
  *
- *  - Before it is opened, on its session's day: that it can be opened, when
- *    it would close, and which of the register's rows it can reach (the rows
+ *  - Before it is opened, within its window (from the session's start until
+ *    11pm the next day): that it can be opened, when it would close, and
+ *    which of the register's rows it can reach (the rows
  *    Publish has told, never the group's facilitators), so the button counts
  *    who it is for from the marks on the screen. An admin's register also
  *    shows people Publish has not told yet; the check-in never counts them.
@@ -41,7 +42,7 @@ import {
 export type CheckInCodeView = { size: number; d: string; address: string };
 
 export type CheckInCardView =
-  /** On its session's day, not opened yet. `counted` are the rows it can reach when marked there. */
+  /** Within its window, not opened yet. `counted` are the rows it can reach when marked there. */
   | { state: "ready"; closes: string; counted: string[] }
   | { state: "open"; sent: string; answered: number; of: number; closes: string; confirm: string; code: CheckInCodeView }
   /** Once it has closed: "Week 3’s check-in, Group C", and its totals (with how many answered) or too few. */

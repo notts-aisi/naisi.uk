@@ -1,34 +1,45 @@
 import type { Block } from "@/lib/firestore/newsletterBlocks";
 import type { GroupCampus } from "../campus";
 import { campusSentence } from "../campusWords";
-import { ANSWER_BY_EMAIL_ADDRESS, CAN_MAKE_IT, CANT_MAKE_THIS_TIME } from "./words";
+import {
+  ANSWER_BY_EMAIL_ADDRESS,
+  ANSWER_CANT,
+  ANSWER_MOST_WEEKS,
+  ANSWER_YES,
+  CARD_TITLE,
+  OR_EMAIL,
+  emailAskWords,
+} from "./words";
 
 /**
  * THE "YOUR GROUP" EMAIL'S OWN SECTION: where the group meets, by campus, and
- * "Can you make this time?" with its two buttons. Written by the site, never
- * by a template, so an email whose wording somebody edited in Email designs
- * still carries it (Zach, 29 Oct 2026: "format emails programmatically").
+ * "Can you make this time most weeks?" with its three buttons. Written by
+ * the site, never by a template, so an email whose wording somebody edited
+ * in Email designs still carries it (Zach, 29 Oct 2026: "format emails
+ * programmatically").
  *
  *  - THE CAMPUS LINE, when the group has a campus: "Your group meets on
  *    Jubilee campus." The room is released separately.
  *  - THE QUESTION AND ITS BUTTONS, for somebody the programme page asks
- *    (`asks`; not a facilitator who sits in the group they facilitate). Both
- *    buttons open the card on their programme page, where answering needs
- *    their session: opening the email, or either link, records nothing.
+ *    (`asks`; not a facilitator who sits in the group they facilitate), in
+ *    the card's own words (`./words.ts`): "Yes", "Most weeks, not all" and
+ *    "No, I need a different time". Every button opens the card on their
+ *    programme page, where answering needs their session: opening the
+ *    email, or any link in it, records nothing.
  *
  * WHERE IT GOES: in place of the template's own link to the programme page
  * (the paragraph whose link is `programmeUrl`), so the email has one place to
- * go and not three buttons to the same page. A template with no such link
+ * go and not four buttons to the same page. A template with no such link
  * gets the section at its end, so it is never lost. With nothing to say (no
  * campus, nobody asked), the email is exactly as it was.
  *
  * Pure, so Publish, its preview and its test all write the same email.
  */
 
-/** The card's id on the programme page, so both buttons open at it. */
+/** The card's id on the programme page, so every button opens at it. */
 export const TIME_ANSWER_ANCHOR = "your-group-time";
 
-/** One of the two buttons, styled as the template's own button is, the second quieter. */
+/** One of the buttons, styled as the template's own button is, the others quieter. */
 function buttonHtml(href: string, label: string, primary: boolean): string {
   const look = primary
     ? "background:#6a82ff;color:#050810"
@@ -41,11 +52,6 @@ function buttonHtml(href: string, label: string, primary: boolean): string {
 
 const escapeAttr = (value: string) => value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
-/** What "can't" leads to: another group, or, on an incubator's one weekly session, whatever can be done. */
-export function moveWords(incubator: boolean): string {
-  return incubator ? "we’ll see what we can do" : "we’ll do our best to move you to another group";
-}
-
 type Section = { campus: GroupCampus | null; asks: boolean; incubator: boolean; programmeUrl: string };
 
 export function timeQuestionHtml(input: Section): string {
@@ -54,11 +60,10 @@ export function timeQuestionHtml(input: Section): string {
   if (input.asks) {
     const href = escapeAttr(`${input.programmeUrl}#${TIME_ANSWER_ANCHOR}`);
     parts.push(
-      "<p><strong>Can you make this time?</strong> Tell us on your programme page. If you can’t, say why and " +
-        `which other times would work, and ${moveWords(input.incubator)}. You keep your ` +
-        `place either way. You can also email <a href="mailto:${ANSWER_BY_EMAIL_ADDRESS}">${ANSWER_BY_EMAIL_ADDRESS}</a>.</p>`,
-      // A space between the two, so the email read as text says them apart.
-      `<p>${buttonHtml(href, CAN_MAKE_IT, true)} ${buttonHtml(href, CANT_MAKE_THIS_TIME, false)}</p>`,
+      `<p><strong>${CARD_TITLE}</strong> ${emailAskWords(input.incubator)} ` +
+        `${OR_EMAIL} <a href="mailto:${ANSWER_BY_EMAIL_ADDRESS}">${ANSWER_BY_EMAIL_ADDRESS}</a>.</p>`,
+      // A space between each, so the email read as text says them apart.
+      `<p>${buttonHtml(href, ANSWER_YES, true)} ${buttonHtml(href, ANSWER_MOST_WEEKS, false)} ${buttonHtml(href, ANSWER_CANT, false)}</p>`,
     );
   }
   return parts.join("");

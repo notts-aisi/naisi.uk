@@ -1,5 +1,6 @@
-/* "Can you make this time?" on the programme page: the weekly card's frame
-   (weekly.module.css), with its answers, its short form and what they wrote. */
+/* "Can you make this time most weeks?" on the programme page: the weekly
+   card's frame (weekly.module.css), with its three answers, its two short
+   forms and what they wrote. */
 
 .line {
   margin: var(--space-3) 0 0;
@@ -38,6 +39,15 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  min-width: 0;
+}
+
+/* "Most weeks, not all": one row a session, each the whole row's target
+   (OptionRow keeps every row at least 44px tall). */
+.sessions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
   min-width: 0;
 }
 

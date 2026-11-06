@@ -1,0 +1,248 @@
+/*
+  This week's check-ins: an admin's table above the weeks on a programme's
+  Check-ins view. On a computer, a table: a row for each group's session in
+  the week, its register, its check-in, how many answered, and the buttons.
+  On a phone each row is a card of its own, every value with its column's
+  name beside it, the buttons under them. Every button and link is at least
+  44px tall. Nothing here is coloured by what it says: a register or a
+  check-in is reported, never marked as good or bad.
+*/
+
+.card {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 1.375rem 1.625rem 1.625rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  text-wrap: balance;
+}
+
+.lede {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* The weeks to choose from, each a link the size of a finger. */
+.weeks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: var(--space-3) 0 0;
+}
+
+.week {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.week:hover {
+  background: var(--color-surface-hover);
+}
+
+.weekHere {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
+}
+
+/* A narrow screen between the two layouts scrolls the table, never the page. */
+.scroll {
+  min-width: 0;
+  max-width: 100%;
+  margin: var(--space-4) 0 0;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text);
+}
+
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-3) var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table thead th {
+  border-top: 0;
+  font-size: var(--text-caption);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.group {
+  font-weight: 600;
+}
+
+.doing {
+  min-width: 12rem;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+
+.button {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-row);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.button:focus-visible,
+.week:focus-visible,
+.link:focus-visible {
+  outline: 2px solid var(--color-accent-ring);
+  outline-offset: 2px;
+}
+
+.quiet {
+  border-color: var(--color-border);
+  font-weight: 500;
+}
+
+.aside {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--color-accent-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.link:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.line {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .card {
+    padding: 1.125rem var(--space-4) 1.25rem;
+  }
+
+  /* Each row is a card of its own, its values named. */
+  .table,
+  .table tbody,
+  .table tr,
+  .table th,
+  .table td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .table tr {
+    padding: var(--space-2) 0;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .table th,
+  .table td {
+    padding: 0.125rem 0;
+    border-top: 0;
+  }
+
+  .table td[data-label]::before {
+    content: attr(data-label) ": ";
+    color: var(--color-text-muted);
+  }
+
+  .table td:empty {
+    display: none;
+  }
+
+  .doing {
+    min-width: 0;
+    padding-top: var(--space-2);
+  }
+}

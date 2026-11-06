@@ -32,7 +32,9 @@ import styles from "./sessionReport.module.css";
  * PEOPLE ARE PICKED, NEVER TYPED: each person is a pill holding a real
  * checkbox, from the lists the server worked out off the session's register,
  * and is sent by account. Picking somebody who engaged well, or who might
- * need a hand, opens a line about them under the list.
+ * need a hand, opens a line about them under the list. The register leads
+ * here from the session's start, so while it is not finished the people down
+ * as here are its marks so far, and the form says so over the first list.
  *
  * Every box is left to the browser (`defaultValue`, `defaultChecked`) and
  * read from the form when Send is pressed, so nothing typed before the page's
@@ -53,6 +55,8 @@ type Props = {
   sessionKey: string;
   leadFirstName: string;
   came: Person[];
+  /** False while the session's register is not finished: `came` is who is down as here so far. */
+  registerFinished: boolean;
   inGroup: Person[];
   parts: ReportPart[];
   answers: SessionReportAnswers | null;
@@ -85,6 +89,7 @@ export default function SessionReportForm({
   sessionKey,
   leadFirstName,
   came,
+  registerFinished,
   inGroup,
   parts,
   answers,
@@ -176,6 +181,10 @@ export default function SessionReportForm({
   }
 
   const picked = (list: string[], people: Person[]) => people.filter((person) => list.includes(person.uid));
+  // While the register is not finished, the people down as here are its marks
+  // so far: said once over the first list, and read out with both.
+  const soFar = !registerFinished && came.length > 0;
+  const cameDescribedBy = soFar ? "report-here-so-far" : undefined;
 
   return (
     <form ref={formRef} className={styles.form} onSubmit={onSubmit} noValidate>
@@ -255,8 +264,13 @@ export default function SessionReportForm({
         </fieldset>
       )}
 
-      <fieldset className={styles.question}>
+      <fieldset className={styles.question} aria-describedby={cameDescribedBy}>
         <legend className={styles.legend}>{questions.engaged}</legend>
+        {soFar && (
+          <p id="report-here-so-far" className={styles.note}>
+            {REPORT_WORDS.hereSoFar}
+          </p>
+        )}
         {came.length === 0 ? (
           <p className={styles.empty}>{REPORT_WORDS.nobodyHere}</p>
         ) : (
@@ -294,7 +308,7 @@ export default function SessionReportForm({
         </div>
       ))}
 
-      <fieldset className={styles.question}>
+      <fieldset className={styles.question} aria-describedby={cameDescribedBy}>
         <legend className={styles.legend}>{questions.notRead}</legend>
         {came.length === 0 ? (
           <p className={styles.empty}>{REPORT_WORDS.nobodyHere}</p>

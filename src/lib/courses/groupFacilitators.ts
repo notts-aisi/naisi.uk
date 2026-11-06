@@ -1,7 +1,12 @@
 import "server-only";
 import { FieldValue, type DocumentReference, type DocumentSnapshot, type Firestore } from "firebase-admin/firestore";
 import { courseApplicationId } from "@/lib/firestore/courseApplications";
-import { courseEnrolmentId, enrolmentHasLeft } from "@/lib/firestore/courseEnrolments";
+import {
+  courseEnrolmentId,
+  enrolmentHasLeft,
+  normalizeCourseEnrolment,
+  placementIsTold,
+} from "@/lib/firestore/courseEnrolments";
 
 /**
  * STAFFING A GROUP: the one place a group's facilitators are changed. Two
@@ -249,17 +254,29 @@ export function writeFacilitatorChange(
       continue;
     }
     if (place?.row === "update") {
-      // A fellow in no group: into this one. Publish's stamp certifies the
-      // group they were told about, so a new group clears it, as a move on
-      // the board does, and the next Publish tells them.
-      writer.update(ref, {
-        groupId: input.groupRef.id,
-        allocatedEmailAt: FieldValue.delete(),
-        // And any answer to "can you make this time?", which was about no
-        // group of theirs now.
-        timeAnswer: FieldValue.delete(),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+      // A fellow in no group: into this one, as a move on the board puts
+      // them. Somebody Publish has told about a group (taken out of their
+      // group after it) STAYS TOLD, as every move keeps them: the seat keeps
+      // the group they were told about (`toldGroupId`, written when they
+      // were taken out), so the next Publish emails them "You’ve moved"
+      // unless it was this group. Somebody nobody has told has no stamp to
+      // keep, and the next Publish tells them.
+      const seat = snap?.exists ? normalizeCourseEnrolment(snap.id, snap.data() ?? {}) : null;
+      const told = seat !== null && seat.role === "learner" && placementIsTold(seat);
+      writer.update(
+        ref,
+        told
+          ? { groupId: input.groupRef.id, updatedAt: FieldValue.serverTimestamp() }
+          : {
+              groupId: input.groupRef.id,
+              allocatedEmailAt: FieldValue.delete(),
+              toldGroupId: FieldValue.delete(),
+              // And any answer to "can you make this time?", which was about
+              // no group of theirs now.
+              timeAnswer: FieldValue.delete(),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+      );
       continue;
     }
     if (!snap?.exists) {

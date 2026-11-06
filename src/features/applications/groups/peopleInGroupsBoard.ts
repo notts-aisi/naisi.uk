@@ -1,7 +1,9 @@
 import type { DropdownOption } from "@/components/ui/Dropdown";
 import { cardFit, facilitatedGroupOf, facilitatesWords } from "@/features/courses/allocationFit";
 import type { AllocGroup, AllocRow } from "@/features/courses/useAllocation";
-import { MARK_CANT_MAKE, MARK_CAN_MAKE } from "@/lib/courses/timeAnswer/words";
+import { movedCardWords } from "@/lib/courses/moveWords";
+import { weekOfSessionKey } from "@/lib/courses/timeAnswer/model";
+import { MARK_CANT_MAKE, MARK_CAN_MAKE, mostWeeksMark } from "@/lib/courses/timeAnswer/words";
 import * as words from "./peopleInGroupsWords";
 
 /**
@@ -36,10 +38,10 @@ export function fitTags(row: AllocRow, groups: readonly AllocGroup[]): string[] 
 
 /**
  * Placed in a group and not told yet, once the groups are published: Publish
- * has written no "Your group" email to them since they were put there (a
- * move clears the stamp), and their card does not say they gave their place
- * back, whom no press writes to. The board's mark and the line over it both
- * ask this.
+ * has written no "Your group" email to them (a move keeps the stamp of
+ * somebody told, whose card says they moved instead), and their card does
+ * not say they gave their place back, whom no press writes to. The board's
+ * mark and the line over it both ask this.
  */
 export function notToldYet(row: AllocRow, group: AllocGroup | null, published: boolean): boolean {
   return (
@@ -81,13 +83,21 @@ export function marksOf(
   // knows where to move them.
   if (conflict && group) marks.push({ words: words.notFreeWords(group.when || group.name), tone: "warn" });
   if (notToldYet(row, group, published)) marks.push({ words: words.NOT_TOLD_YET, tone: "plain" });
+  // Told about another group and moved since: they see this one, and the
+  // next Publish emails them "You’ve moved".
+  if (row.moved && group !== null) marks.push({ words: movedCardWords(row.moved.from), tone: "plain" });
   if (tags.length > 0) marks.push({ words: words.fitsWords(tags), tone: "plain" });
   else if (!conflict && timed > 0 && row.fromForm?.availability === "given") {
     marks.push({ words: words.fitsNoneWords(timed), tone: "warn" });
   }
-  // Their answer to "Can you make this time?" about the group they are in
-  // (null unless told, and never for a group they have left).
+  // Their answer to "Can you make this time most weeks?" about the group
+  // they are in (null unless told, and never for a group they have left).
+  // Most weeks, not all, can make the time: a tick with the weeks they miss,
+  // never a warning, and nobody to move.
   if (row.timeAnswer?.kind === "yes") marks.push({ words: MARK_CAN_MAKE, tone: "ok" });
+  if (row.timeAnswer?.kind === "mostWeeks") {
+    marks.push({ words: mostWeeksMark(row.timeAnswer.sessionKeys.map(weekOfSessionKey)), tone: "ok" });
+  }
   if (row.timeAnswer?.kind === "cant") marks.push({ words: MARK_CANT_MAKE, tone: "warn" });
   if (coming) marks.push({ words: words.COMING, tone: "ok" });
   if (fit.gaveBack) marks.push({ words: words.GAVE_PLACE_BACK, tone: "warn" });
@@ -98,8 +108,13 @@ export function marksOf(
       tone: facilitates.id === group?.id ? "plain" : "warn",
     });
   }
-  if (row.allocatedEmailAt && row.allocatedEmailDelivery === "held") marks.push({ words: words.EMAIL_HELD, tone: "warn" });
-  if (row.allocatedEmailAt && row.allocatedEmailDelivery === "suppressed") {
+  // What became of their group's email. Not for somebody moved since: that
+  // email was about another group, and their card says the next Publish
+  // emails them.
+  if (row.allocatedEmailAt && !row.moved && row.allocatedEmailDelivery === "held") {
+    marks.push({ words: words.EMAIL_HELD, tone: "warn" });
+  }
+  if (row.allocatedEmailAt && !row.moved && row.allocatedEmailDelivery === "suppressed") {
     marks.push({ words: words.EMAIL_STOPPED, tone: "warn" });
   }
   return { marks, warns: conflict };

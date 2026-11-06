@@ -35,11 +35,13 @@ kind of survey starts with, changed by an admin).
   in, on the programme's Surveys tab and each survey's page under it (below).
   Nothing here holds results back until a survey closes. **The one exception
   is the check-in at the end of a session** (below): the group's live
-  facilitators open it from the register and may close it, and see their own
-  group's count while it is open and its totals from three answers once it
-  has closed, never a comment or who said what; the lead reads check-ins a
-  whole week at a time, once every group's check-in that week has closed,
-  every group's together, totals from three answers and comments from five,
+  facilitators open it from the register and may close it (an admin may also
+  open it, late too, and close it from the programme's Check-ins view), and
+  see their own group's count while it is open and its totals from three
+  answers once it has closed, never a comment or who said what; the lead
+  reads check-ins a whole week at a time, once every group's check-in that
+  week has closed and none can still be opened, every group's together,
+  totals from three answers and comments from five,
   and a week's check-ins are fixed when it first shows: one opened for that
   week later never joins it. Facilitators see nothing else of any survey,
   about themselves included. **The other exception is the survey after an
@@ -77,12 +79,14 @@ kind of survey starts with, changed by an admin).
   What they send through it is kept beside their first answers, never over
   them, and every reader merges the two through one function (see "Sending
   the questions left blank").
-- **No reminder goes on its own**, but one. An admin presses Remind, and no
+- **No reminder goes on its own**, but two. An admin presses Remind, and no
   schedule sends anything, except the survey after an event that its event
   set up: its Survey after step may ask for it to go by itself a number of
   hours after the event, and for one reminder 3 days after it went, which
-  the `event-surveys` job sends (below). Nothing sends the questions
-  somebody left blank but an admin's press for that one person.
+  the `event-surveys` job sends (below); and the check-in at the end of a
+  session, whose one reminder the `surveys-check-in-reminders` job sends at
+  9am the day after it, while the job is on (below). Nothing sends the
+  questions somebody left blank but an admin's press for that one person.
 - **No floors**, but on check-ins. Results show from the first answer (Zach,
   25 Oct 2026), and public numbers have no threshold either (Zach, 26 Oct
   2026): an admin chooses what is published, and every number says what it
@@ -736,7 +740,8 @@ place, by `holdsPlaceOn`, the test the reminder asks through
   its QR code, and a card's lines are a programme's; a row of one is never
   "theirs" here (`stillTheirs`).
 - **A check-in's card** says "A check-in for you" and when it closes ("Closes
-  11pm"), while it is open and the person's seat on its run is live and told.
+  Wed 18 Nov, 11pm", or "Closes 11pm" on that day), while it is open and the
+  person's seat on its run is live and told.
 
 ### The survey at the end, on its programme's pages
 
@@ -818,16 +823,23 @@ A two-minute survey at the end of one session of one group (a fellowship's or
 an incubator's weekly meeting, never an event's door): in the session's last
 ten minutes the group's facilitator opens it from the register, everybody the
 register marks there gets it on their phone while the facilitator goes round
-the room, and it closes by itself that night. Confidential like every survey.
+the room, and it closes by itself at 11pm the next day, so somebody who reads
+the email the next morning can still answer. Confidential like every survey.
 The code: `src/lib/surveys/checkIns/` (the rules in `model.ts`, the questions in
 `template.ts`, the words in `words.ts`, opening in `open.ts`, closing in
 `close.ts`, somebody marked later in `lateMark.ts`, the register's card in
 `facilitatorView.ts`, the page in `answerView.ts`, the admins' pages in
-`adminView.ts`, the lead's weeks in `leadView.ts`, and which check-ins each
-week has, fixed the first time it is whole, in `weeks.ts`),
+`adminView.ts`, the lead's weeks in `leadView.ts`, which check-ins each
+week has, fixed the first time it is whole, in `weeks.ts`, an admin's table of
+the week's sessions in `weekTable.ts`, the reminder to a group's facilitators
+in `facilitatorReminder.ts`, and the reminder the morning after in `remind.ts`),
 `src/app/api/courses/groups/[groupId]/check-in/` (the routes),
-`src/features/courses/register/CheckInCard.tsx` (the card) and
-`src/lib/scheduler/jobs/surveyCheckInWeeks.ts` (the job that fixes the weeks).
+`src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/`
+(an admin's Remind), `src/features/courses/register/CheckInCard.tsx` (the card),
+`src/features/surveys/lead/ThisWeeksCheckIns.tsx` (an admin's table),
+`src/lib/scheduler/jobs/surveyCheckInWeeks.ts` (the job that fixes the weeks)
+and `src/lib/scheduler/jobs/surveyCheckInReminders.ts` (the job that sends the
+reminder the morning after).
 
 - **Its own kind on the same records.** A `surveys` document with `kind:
   "checkIn"`, its audience `{ kind: "checkIn", roundId, programmeId, groupId,
@@ -845,9 +857,18 @@ week has, fixed the first time it is whole, in `weeks.ts`),
   with `{ session, people }`, view-as refused first. Refused, each in a
   sentence, for a session the group does not hold, one that cannot be dated,
   one cancelled through "Change a session" or marked as not held, before the
-  session starts, after its check-in has closed, with nobody marked there, for
-  a run no programme names, and when the number on the button is not the
-  register's now (nothing is opened and the answer carries the new number).
+  session starts, once its window has passed (11pm the day after the
+  session), with nobody marked there, for a run no programme names, and when
+  the number on the button is not the register's now (nothing is opened and
+  the answer carries the new number).
+- **Opened late, by an admin**: once the window has passed, an admin (and only
+  an admin: facilitators keep the window) may open it from the programme's
+  Check-ins view, up to 48 hours from the end of the session, saying so
+  (`late: true`); a late one closes at 11pm on the day after it is opened, and
+  its email does not call the session fresh (`openingAt` in `model.ts`). An
+  admin's Open after the window, or `late` while the window is open, is
+  refused with what to do instead, so nobody opens one that closes when they
+  did not see; `late` from anybody else is refused before anything is read.
 - **Who it reaches**: the people the register marks present, late or left
   early, among its rows Publish has told (`loadToldRegisterMembers`, whoever
   presses: an admin's register also shows people Publish has not told their
@@ -857,7 +878,8 @@ week has, fixed the first time it is whole, in `weeks.ts`),
   with the check-in in one batch, then one notice (surface `course-check-in`,
   `docs/notifications.md`) at their account's address, whatever their settings
   say, signed by whoever opened it. No test first: its words are fixed, and it
-  opens in the room. Two a London day per group. Nobody is reminded.
+  opens in the room. Two a London day per group. Its one reminder is the
+  morning after (below).
 - **Somebody marked there later**, while it is open, gets a row as they are
   marked (`reachLateMarks`, called by the register's marking route after it
   keeps the mark) and no email; the rows made are counted as one `joined`
@@ -868,11 +890,12 @@ week has, fixed the first time it is whole, in `weeks.ts`),
   ("Show the QR code"), which opens `/learn/<run>/survey/<id>` signed in. The
   code is drawn on the screen only (`src/lib/qr/pageCode.ts`), never printed or
   downloaded, so it encodes the page itself rather than a short link.
-- **When it closes**: at 11pm on the session's London day, or an hour after
-  the session ends when that is later (a 9:30 to 11:30pm group's closes at
-  12:30am), by `closesAt`, which `isOpen` reads like every survey's; or earlier
-  by "Close it now" on the register (`POST .../check-in/close`, asked once,
-  never undone), or an admin's Close on its Opening tab.
+- **When it closes**: at 11pm on the day after the session's London day
+  (`checkInWindow`; one an admin opened late, at 11pm on the day after it was
+  opened), by `closesAt`, which `isOpen` reads like every survey's; or earlier
+  by "Close it now" on the register or on the programme's Check-ins view
+  (`POST .../check-in/close`, asked once, never undone), or an admin's Close on
+  its Opening tab.
 - **Its questions**, from the group's own copy of the week the session is
   about (`checkInItems`), in the words of the check-in's question set as it
   opens (`checkInSetItems`; "Question sets", above): how useful the session was (1 to 5, "Not at all" to
@@ -887,13 +910,14 @@ week has, fixed the first time it is whole, in `weeks.ts`),
 - **Its page** (`checkInSurveyFor`): "Check-in · 2 minutes", "How was week
   3?", "Group C, today at 3pm." (the day and time on any other London day), the
   confidential box at the top, the questions on one page, "Send check-in", and
-  "It closes at 11pm. Once sent, your answers can’t change." The box: only
+  "It closes at 11pm on Wed 18 Nov. Once sent, your answers can’t change." (the
+  day left out on the day it closes). The box: only
   admins see who said what; the lead, by name, sees totals and comments
   without names; the facilitators see the group's totals, never the person's
   answers; and the day the name comes off.
 - **What its group's facilitators see** (`checkInRegisterView`, the one
-  floored view, `GET .../check-in?session=w03`, the register's own gate): on
-  the session's day, before it opens, "Open it for the 6 here" counted from the
+  floored view, `GET .../check-in?session=w03`, the register's own gate):
+  within its window, before it opens, "Open it for the 6 here" counted from the
   register as it is tapped, among the rows the route says it can reach; while
   it is open, "4 of 6 have sent it", never who,
   the code and "Close it now"; once it has closed, its totals from three
@@ -914,10 +938,12 @@ week has, fixed the first time it is whole, in `weeks.ts`),
 - **What the programme's lead and admins read**, on the programme's Surveys
   tab (below): its Check-ins view and the Overview's figures, by
   `readProgrammeCheckIns` (`src/lib/surveys/checkIns/leadView.ts`). A week,
-  never a group: nothing of it until it is **whole** (`weekIsWhole`: every
-  session of the week that can have a check-in, dated and not called off, is
-  past its check-in window, and none of the week's check-ins is open, so none
-  can still be opened) and its check-ins are **fixed** (below), then every
+  never a group: nothing of it until it is **whole** (`weekIsWhole`: none of
+  the week's check-ins is open and none can still be opened: a session with a
+  check-in can have no other, so the week waits for that one to close, and a
+  session of the week with none, dated and not called off, keeps it waiting
+  until an admin could no longer open one late, 48 hours after it ended, so a
+  late one joins its week) and its check-ins are **fixed** (below), then every
   group's answers together (`leadWeekOf`), totals from three answers
   (`TOTALS_FROM`) and comments from five (`COMMENTS_FROM`), the comments in
   the order of their words. Below three it says how many answered and that
@@ -960,9 +986,56 @@ week has, fixed the first time it is whole, in `weeks.ts`),
   (`surveysNamesDueBy`), so the check-ins the list of surveys leaves out are
   found too. An account's deletion takes its name off its check-in answers and
   deletes its rows, as for every survey.
+- **This week's check-ins, for admins**: above the weeks on the programme's
+  Check-ins view, an admin (and never the lead, who reads a whole week and
+  never a group's alone) has a table of one week's sessions
+  (`readWeekTable` in `weekTable.ts`, drawn by `ThisWeeksCheckIns`): the week
+  the run is in, or another chosen with `?week=`, a row for each session of
+  each of the run's groups that still meet. Each row says the group, when the
+  session was, its register (not taken, being taken, finished or pushed in
+  the register's own word, or that it didn't happen), its check-in (not
+  opened, open until when, closed) and how many answered of how many it
+  reached, counted as its Results count them; never a name or an answer.
+  And what an admin can do, each through the route that already does it:
+  open it for the people the register marks there (the open route's own
+  count, from the register's told rows), late once its window has passed
+  ("Open it late for 6 people", with when it would close), or, with nobody
+  marked there, the way to the register; close it now; and remind the
+  group's facilitators (below). Drawing it writes nothing.
+- **Remind the facilitators** ("Remind 2 facilitators", an admin's press on
+  that table; `POST /api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind`
+  with `{ groupId, sessionKey, emails }`): once a session has ended, when its
+  register is not finished or its check-in has not been opened while its
+  facilitators can still open it (`reminderNeedOf` in `facilitatorReminder.ts`), one email to
+  each of the group's live facilitators (standing behind the role, with an
+  address, not on the do-not-email list) saying what is not done, with the
+  way to the register, signed by whoever pressed. Transactional: about the
+  session they facilitate, owed to them by the press, so it reads no
+  notification row (`docs/notifications.md`). The number on the button is
+  the number emailed, or nothing goes. At most once a session a London day:
+  the press claims `courseNudges/cinudge__{runId}__{groupId}__{sessionKey}__{dateKey}`
+  first and gives it back when every send fails. An admin's alone: the
+  programme's lead is refused before the run is read. No answer, no count of
+  who answered and no meeting link is ever in it.
+- **The reminder the morning after**: at 9am in London the day after a
+  session, the `surveys-check-in-reminders` job (which ships switched off)
+  sends one notice to each person an open check-in reached who has not sent
+  it, whose seat on the run is still live and told (the Home card's own test,
+  `onTheRun` in `src/lib/surveys/seat.ts`), with their own link: surface
+  `course-check-in-reminder`, about their own programme like the reminders
+  before a session, whatever their settings say. Only for a check-in opened
+  on its session's own London day: one opened the next morning, or late by an
+  admin, sent its own email then. Once a person, by a scheduler marker
+  (`ciremind__{groupId}__{sessionKey}__{uid}`) claimed before the send;
+  somebody who answered first or left is stamped with why, and twelve hours
+  late it is stale. Their row is stamped with when they were reminded, and
+  the check-in still reached the same people: a reminder is no send.
 - Guards: `tests/surveys-check-ins.test.mjs` (the rules, the floors, and every
-  route, page and card as every kind of caller), and the policy's
-  confidential block in `tests/privacy-policy.test.mjs`.
+  route, page and card as every kind of caller),
+  `tests/surveys-check-ins-week.test.mjs` (an admin's table, Remind and the
+  reminder the morning after, as every kind of caller, and every file that
+  reads the table), and the policy's confidential block in
+  `tests/privacy-policy.test.mjs`.
 
 ## The admins' pages
 
@@ -1189,7 +1262,9 @@ say.
 newest first, each with how many answered of how many its check-ins reached,
 usefulness and confidence on average, the share who did most or all of the
 reading, what was unclear, and from five answers what people wrote; for an
-admin, each group's check-in under its week.
+admin, each group's check-in under its week, and above the weeks this week's
+check-ins, a row for each group's session with what can be done about it
+(Check-ins, above). The lead has neither.
 
 **Before, End and Follow-ups** draw what the tab drew before it had views, made
 on the server by `leadSurveysTab` (`src/lib/surveys/leadTab.ts`) and drawn by
@@ -1862,8 +1937,12 @@ page's reader; a week of check-ins only once whole and fixed, with its
 floors; nothing about a person, and no group for the lead; and a walk of
 every file that finds check-ins), and
 `tests/surveys-check-ins.test.mjs` (the check-in at the end of a session: its
-window, who it reaches, its questions and its floors, and every route, page
-and card as every kind of caller), and
+window, an admin's late opening, who it reaches, its questions and its floors,
+and every route, page and card as every kind of caller), and
+`tests/surveys-check-ins-week.test.mjs` (an admin's table of the week's
+sessions, never the lead's; Remind to a group's facilitators, once a session a
+day; the reminder the morning after, once each; and every file that reads the
+table), and
 `tests/surveys-check-in-weeks.test.mjs` (the job that fixes each week's
 check-ins: once, at the first tick the week is whole and has begun, two ticks
 at once included; a week not fixed shows the lead nothing; a check-in opened

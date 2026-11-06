@@ -152,9 +152,11 @@ export type CourseAttendanceDoc = {
   /**
    * THE PEOPLE WHO TOLD US IN ADVANCE THAT THEY CAN'T MAKE THIS SESSION,
    * keyed by uid, with when they said so ("Can't make it" on their
-   * programme page, `src/lib/courses/cantMakeIt/`). Each one's mark in
-   * `records` is `excused`, set by the same write, before the session
-   * started. A facilitator who marks the person afterwards takes the line
+   * programme page, the sessions they ticked under "Most weeks, not all",
+   * or the sessions staff recorded from their own words under "They meant
+   * some weeks"; one write for all three, `writeExcusedInAdvance` in
+   * `src/lib/courses/cantMakeIt/seat.ts`). Each one's mark in `records` is
+   * `excused`, set by the same write, before the session started. A facilitator who marks the person afterwards takes the line
    * over: the marking route deletes their entry with the mark it came with.
    * The register shows it to the group's facilitators, the lead and admins,
    * and nobody else reads it.
@@ -163,6 +165,30 @@ export type CourseAttendanceDoc = {
    * `FieldPath`, as it does `records` and `participantNotes`.
    */
   excusedInAdvance: Record<string, Date>;
+  /**
+   * THE PEOPLE WHO SAID THEY ARE JOINING THIS SESSION ONLINE, keyed by uid,
+   * with when they said so ("Joining online" on their programme page,
+   * `src/lib/courses/joiningOnline/`). Their own word, given before the
+   * session starts, and never a mark: `records` is untouched by it. The
+   * facilitators' box asks for a meeting link from it, and the register
+   * prefills `online` from it when the person is marked as having come.
+   *
+   * Keyed by uid, so account deletion clears it key by key with a
+   * `FieldPath`, as it does `records`.
+   */
+  onlineSaid: Record<string, Date>;
+  /**
+   * WHERE EACH PERSON WHO CAME WAS: `true` joined online, `false` in the
+   * room, keyed by uid. Only somebody marked present, late or left early
+   * carries an entry; any other mark, or clearing one, deletes it. A
+   * register written before this map existed has none, and everybody on it
+   * reads as in the room (`joinedOnline`). The five statuses never change
+   * because of it.
+   *
+   * Keyed by uid, so account deletion clears it key by key with a
+   * `FieldPath`, as it does `records`.
+   */
+  online: Record<string, boolean>;
   markedByUid: string;
   updatedAt?: Date | null;
 };
@@ -172,6 +198,41 @@ export type CourseAttendanceDoc = {
  * One name for the field, for the write, the readers and account deletion.
  */
 export const EXCUSED_IN_ADVANCE = "excusedInAdvance";
+
+/**
+ * The register's map of who said they are joining the session online. One
+ * name for the field, for the write, the readers and account deletion.
+ */
+export const ONLINE_SAID = "onlineSaid";
+
+/**
+ * The register's map of where each person who came was, online or in the
+ * room. One name for the field, for the writes, the readers and account
+ * deletion.
+ */
+export const ONLINE = "online";
+
+/** The marks that say somebody came: present, late and left early. */
+export const CAME_STATUSES: readonly AttendanceStatus[] = ["present", "late", "left-early"];
+
+/** Whether a mark says somebody came (present, late or left early). */
+export function cameBy(status: AttendanceStatus | null | undefined): boolean {
+  return status === "present" || status === "late" || status === "left-early";
+}
+
+/**
+ * WHETHER ONE PERSON JOINED ONE SESSION ONLINE, as the register records it:
+ * marked as having come, and recorded online. Everything else is in the
+ * room, including every register written before the map existed. The one
+ * reading every figure asks, so an entry left beside a mark that is not a
+ * coming one can never count.
+ */
+export function joinedOnline(
+  register: Pick<CourseAttendanceDoc, "records" | "online">,
+  uid: string,
+): boolean {
+  return cameBy(register.records[uid]) && register.online[uid] === true;
+}
 
 /**
  * Deterministic doc id: one register per (run, group, SESSION), structurally
@@ -236,10 +297,11 @@ function asParticipantNotes(v: unknown): Record<string, string> {
 }
 
 /**
- * Who told us in advance, capped in number of keys as `asRecords` is: a
- * stamp that is not a time is no entry.
+ * A map of uid to when they said something (who told us in advance they
+ * can't make it, who said they are joining online), capped in number of keys
+ * as `asRecords` is: a stamp that is not a time is no entry.
  */
-function asExcusedInAdvance(v: unknown): Record<string, Date> {
+function asStamps(v: unknown): Record<string, Date> {
   if (!v || typeof v !== "object") return {};
   const out: Record<string, Date> = {};
   let count = 0;
@@ -248,6 +310,25 @@ function asExcusedInAdvance(v: unknown): Record<string, Date> {
     const at = tsToDate((v as Record<string, unknown>)[uid]);
     if (!uid || !at) continue;
     out[uid] = at;
+    count += 1;
+  }
+  return out;
+}
+
+/**
+ * Where each person who came was, capped in number of keys as `asRecords`
+ * is: a value that is not `true` or `false` is no entry, so a garbled one
+ * reads as in the room.
+ */
+function asOnline(v: unknown): Record<string, boolean> {
+  if (!v || typeof v !== "object") return {};
+  const out: Record<string, boolean> = {};
+  let count = 0;
+  for (const uid of Object.keys(v as Record<string, unknown>).sort()) {
+    if (count >= ATTENDANCE_LIMITS.maxRecords) break;
+    const value = (v as Record<string, unknown>)[uid];
+    if (!uid || typeof value !== "boolean") continue;
+    out[uid] = value;
     count += 1;
   }
   return out;
@@ -283,7 +364,13 @@ export function normalizeCourseAttendance(id: string, data: Raw): CourseAttendan
     pushedAt: tsToDate(data.pushedAt),
     pushedByUid: str(data.pushedByUid),
     participantNotes: asParticipantNotes(data.participantNotes),
-    excusedInAdvance: asExcusedInAdvance(data[EXCUSED_IN_ADVANCE]),
+    excusedInAdvance: asStamps(data[EXCUSED_IN_ADVANCE]),
+    // Read as the word in advance above is: a stamp that is not a time is
+    // no entry.
+    onlineSaid: asStamps(data[ONLINE_SAID]),
+    // Absent means everybody who came was in the room, which is what every
+    // register written before the map existed recorded.
+    online: asOnline(data[ONLINE]),
     markedByUid: str(data.markedByUid),
     updatedAt: tsToDate(data.updatedAt),
   };

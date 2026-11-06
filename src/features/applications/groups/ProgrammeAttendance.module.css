@@ -359,6 +359,33 @@
   font-weight: 700;
 }
 
+/* Joined online: the mark keeps its tone and gains a corner, said in words
+   too, to assistive technology and in the legend. */
+.mark.online {
+  position: relative;
+  border-style: dashed;
+}
+
+.onlineDot {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-surface);
+}
+
+/* Under "3 of 4": where the sessions they came to were. */
+.cameWhere {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
 .present {
   border-color: var(--color-ok-line);
   background: var(--color-success-soft);

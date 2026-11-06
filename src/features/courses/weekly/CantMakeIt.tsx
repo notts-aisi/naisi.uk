@@ -30,8 +30,20 @@ import styles from "./weekly.module.css";
  * `locked` is a view-as session: an admin looking as the member reads the
  * ticket and can press nothing (the route refuses it too). Disabled until the
  * page has hydrated, as every control that needs its script is.
+ *
+ * `onToldChange` hears every press that saved, so the ticket can offer
+ * "Joining online" only while they have not told us they can't make it
+ * (`TicketAnswers`).
  */
-export default function CantMakeIt({ view, locked = false }: { view: CantMakeItView; locked?: boolean }) {
+export default function CantMakeIt({
+  view,
+  locked = false,
+  onToldChange,
+}: {
+  view: CantMakeItView;
+  locked?: boolean;
+  onToldChange?: (told: boolean) => void;
+}) {
   const hydrated = useHydrated();
   const [told, setTold] = useState(view.told);
   const [busy, setBusy] = useState(false);
@@ -57,6 +69,7 @@ export default function CantMakeIt({ view, locked = false }: { view: CantMakeItV
       }
       setTold(body.told === true);
       setPressed(true);
+      onToldChange?.(body.told === true);
     } catch {
       setError(CANT_MAKE_IT_REFUSAL.failed);
     } finally {

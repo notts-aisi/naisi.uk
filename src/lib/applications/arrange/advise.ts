@@ -211,6 +211,8 @@ export function ringPeopleOf(
       href: `/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/applications/${encodeURIComponent(person.uid)}`,
       offered: person.facilitates,
       told: person.told,
+      toldGroupId: person.toldGroupId ?? null,
+      moved: person.moved ?? null,
       timeAnswer: person.timeAnswer ?? null,
       groupId: person.groupId,
       appointed: [...(person.appointed ?? [])],

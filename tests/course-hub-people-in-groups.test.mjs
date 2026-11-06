@@ -75,6 +75,9 @@ const STYLESHEETS = [
   "@/features/applications/decisionDay/decisionDay.module.css",
   "./WeekChart.module.css",
   "./Input.module.css",
+  // A card's "They meant some weeks", under a can't: its own stylesheet, and the rows it ticks.
+  "./SomeWeeks.module.css",
+  "./OptionRow.module.css",
 ];
 
 const made = makeWorld("__hubPeopleInGroups", [
@@ -697,6 +700,10 @@ describe("6. each card's marks in every state, and its menu", () => {
     const stopped = { ...held, allocatedEmailDelivery: "suppressed" };
     assert.deepEqual(said(stopped, COLUMNS[0])[0].at(-1), "Not emailed: do-not-email list (warn)");
     assert.deepEqual(said({ ...held, allocatedEmailDelivery: "sent" }, COLUMNS[0])[0], ["Fits A, B (plain)"]);
+    // Told about Group B and moved here since: the card says the next Publish
+    // emails them, and nothing about the email that was about Group B.
+    const moved = { ...held, told: { groupId: "gb", groupName: "Group B" }, moved: { from: "Group B" } };
+    assert.deepEqual(said(moved, COLUMNS[0])[0], ["Moved from Group B: emailed at the next Publish (plain)", "Fits A, B (plain)"]);
   });
 
   test("their answer to Can you make this time?: a tick for yes, a warning for can't, nothing before they answer", () => {

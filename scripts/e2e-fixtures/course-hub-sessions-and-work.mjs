@@ -1,6 +1,8 @@
 /**
  * The course hub's browser spec for a group's sessions and a week's work:
- * "Can't make it", the register's session report, and the week you submit.
+ * "Can't make it" and "Joining online", the box that asks a group's
+ * facilitators for a meeting link, the register's session report and its in
+ * the room or online, and the week you submit.
  *
  * The term the earlier course hub specs stand on (`./worlds/course-hub-term.mjs`),
  * at its week's work point ("week-three-work"): three weeks into a running
@@ -12,14 +14,24 @@
  *
  * The spec (`tests/e2e/course-hub-sessions-and-work.spec.mjs`) is Ada and
  * Fern, Group A's facilitator, in that week. Ada presses Can't make it on
- * her next session's ticket, and Fern's register says so. Fern marks and
- * finishes week 3's register, follows its link to the session report and
- * sends one. Ada writes week 4's written answer, goes through the check and
+ * her next session's ticket, then answers "Can you make this time most
+ * weeks?" with "Most weeks, not all", ticking week 5 beside the week 4 her
+ * press already ticked, and Fern's register says so. Fern's register
+ * leads to week 3's session report before it is finished; Fern marks it,
+ * puts Ada down as having joined it online, finishes it, follows its link to
+ * the session report and sends one. Ada can make week 4 after all and says
+ * Ada is joining it online instead, one thing at a time on Ada's ticket; the
+ * box at the top of Fern's group page asks for a meeting link for week 4
+ * (Group A has none at this point), Fern adds one, and the box and the
+ * register say Ada is joining online; Ada's ticket, on Ada's programme page
+ * and on Home, carries the link for anybody joining online. Ada
+ * writes week 4's written answer, goes through the check and
  * submits anyway, and the week locks. Fern reopens it from This week's work,
  * Ada's week page says who did, and Ada changes the answer and submits again.
- * Last, the programme's lead opens the Surveys tab from the programme's
+ * Then the programme's lead opens the Surveys tab from the programme's
  * head and follows the Overview's link to the programme's session reports,
- * where Fern's report is, with names.
+ * where Fern's report is, with names; last, the lead's Attendance tab says
+ * Ada came to one of three sessions online.
  *
  * ## Every grant is made on a real page, by the admin the harness is given
  *
@@ -47,12 +59,17 @@ export const SESSIONS_AND_WORK_STEPS = [
   "the admin names the running course run on the programme's Settings tab",
   "the admin appoints the facilitator to the group whose register nobody has marked",
   "the member presses Can't make it on their next session's ticket, and the ticket says the register records them as excused",
-  "the facilitator's register says who can't make next week's session, and the facilitator marks this week's and finishes it",
+  "the member answers Can you make this time most weeks? with Most weeks, not all, ticking a later session, and its register records them as excused as the ticket's does",
+  "the facilitator's register says who can't make next week's session, leads to this week's session report before it is finished, and the facilitator marks this week's, puts the member down as having joined it online, and finishes it",
   "the facilitator follows the finished register's link to the session report and sends one",
+  "the member can make next week's session after all and says they are joining it online instead, one thing at a time on the ticket",
+  "the box at the top of the facilitator's group page asks for a link for the week the member is joining online, the facilitator adds one, and the box and the register say who is joining online",
+  "the member's ticket carries the week's link for anybody joining online, beside Add to calendar, on the programme page and on Home",
   "the member writes the week's written answer, goes through the check and submits anyway, and the week reads submitted and locked",
   "the facilitator reopens the member's week from This week's work",
   "the member's week page says who reopened it, and the member changes the answer and submits it again",
   "the programme's lead follows the Surveys tab's link to the session reports and reads the facilitator's report, with names",
+  "the programme's lead reads on the Attendance tab how many sessions the member came to in the room and online",
 ];
 
 /**
@@ -87,6 +104,9 @@ export const SPEC = {
       "/api/courses/runs/[runId]/facilitators",
       "/api/courses/groups/[groupId]/facilitators",
       "/api/courses/groups/[groupId]/cant-make-it",
+      "/api/courses/runs/[runId]/time-answer",
+      "/api/courses/groups/[groupId]/joining-online",
+      "/api/courses/groups/[groupId]/meeting-link",
       "/api/courses/groups/[groupId]/attendance",
       "/api/courses/groups/[groupId]/attendance/push",
       "/api/courses/groups/[groupId]/session-report",
@@ -106,6 +126,8 @@ export const SPEC = {
       "/(app)/learn/[runId]/group/[groupId]/report",
       "/(app)/learn/[runId]/weeks/[n]",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/reports",
+      "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance",
+      "/(app)/dashboard",
     ],
   },
   /**
@@ -120,7 +142,21 @@ export const SPEC = {
    * manifest read zero afterwards. Verified again on 2026-11-02 at a3f512eb
    * (on dev's 3992a724), once the lead reaches the session reports by the
    * Surveys tab's Overview: all ten steps, the same 53 rows before teardown,
+   * and zero after. Verified again on 2026-11-05 at f2865f3b (on dev's
+   * a788b495, whose register leads to the session report from the session's
+   * start), once Ada also answers "Most weeks, not all" and ticks week 5: all
+   * eleven steps, 54 rows before teardown (week 5's register the one more),
    * and zero after.
+   * Verified again on 2026-11-05 at 8134783e (on 1b6a3f08, over
+   * dev's f516daa5), once the journey carries Joining online, the box's
+   * meeting link, the register's in the room or online and the Attendance
+   * tab, with Group A given no meeting link at its point: all fourteen steps
+   * against the loopback server on a laptop, 53 rows before teardown, and
+   * zero after.
+   * Verified again on 2026-11-06 at 7163b840 (on dev's 67cb9896), the first
+   * run with both "Most weeks, not all" and Joining online in the journey:
+   * all fifteen steps against the loopback server on a laptop, 54 rows
+   * before teardown, and zero after.
    */
   status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three-work" }),

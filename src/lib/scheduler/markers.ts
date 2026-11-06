@@ -41,6 +41,7 @@ export {
   SCHEDULER_MARKERS_COLLECTION,
   SCHEDULER_MARKER_RETENTION_DAYS,
   breakReturnMarker,
+  checkInReminderMarker,
   decideMarkerClaim,
   eventAnnouncementMarker,
   eventSurveyMarker,

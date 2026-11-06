@@ -41,6 +41,7 @@ import {
 } from "@/lib/courses/facilitatorPageWords";
 import { MARK_LETTER, ROOM_CHANGED } from "@/lib/courses/memberPageWords";
 import { JOIN_ONLINE, LINK_IS_HERE, dayWords } from "@/lib/courses/sessionChange/words";
+import { FOR_JOINING_ONLINE } from "@/lib/courses/joiningOnline/words";
 import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
 import { ATTENDANCE_STATUS_LABEL, type AttendanceStatus } from "@/lib/firestore/courseAttendance";
 import weekly from "@/features/courses/weekly/weekly.module.css";
@@ -67,8 +68,14 @@ import styles from "./facilitator.module.css";
  * register". The session's own week: a session moved for one week shows its
  * new day, time and room, and an online week its link to join.
  *
+ * THE FACILITATOR GUIDE, beside "Take the register": "Facilitator guide for
+ * week 3" when the session's week has something in the course's facilitator
+ * guide, and "Facilitator guide", to the guide's course page with every week,
+ * whenever the guide has anything in it, so last week's guide is still a tap
+ * away once the ticket has moved on to the next session.
+ *
  * Not drawn: who can't make it (the register says it, which "Take the
- * register" opens) and the facilitator guide (no record holds one).
+ * register" opens).
  *
  * AN EXPLAINER at the start of the session, when an admin scheduled one from
  * a week's review: "Starts with an explainer", how long, what about and who
@@ -83,6 +90,7 @@ export function FacilitatorTicket({
   expected,
   registerHref,
   guide = null,
+  guideContents = null,
   explainer = null,
 }: {
   facts: TicketFacts;
@@ -97,6 +105,11 @@ export function FacilitatorTicket({
    * when the session's week has nothing in the course's facilitator guide.
    */
   guide?: { href: string; label: string } | null;
+  /**
+   * "Facilitator guide" and the guide's course page, every week and the
+   * course's own documents, or null when the guide has nothing loaded.
+   */
+  guideContents?: { href: string; label: string } | null;
   /**
    * The explainer the session starts with, named as this reader sees people
    * (`by` and `scheduledBy`, null once an account is gone), or null.
@@ -159,13 +172,24 @@ export function FacilitatorTicket({
                 <ArrowRight />
               </Link>
             )}
+            {guideContents && (
+              <Link href={guideContents.href} className={styles.ticketGuide}>
+                <span>{guideContents.label}</span>
+                <ArrowRight />
+              </Link>
+            )}
             {facts.joinUrl && (
               <a className={styles.buttonGhost} href={facts.joinUrl} target="_blank" rel="noopener noreferrer">
                 {JOIN_ONLINE}
               </a>
             )}
           </div>
-          {facts.joinUrl && <p className={weekly.ticketNote}>{LINK_IS_HERE}</p>}
+          {facts.joinUrl && (
+            <p className={weekly.ticketNote}>
+              {facts.joinFor === "joining-online" ? `${FOR_JOINING_ONLINE} ` : ""}
+              {LINK_IS_HERE}
+            </p>
+          )}
         </div>
       </div>
       </div>

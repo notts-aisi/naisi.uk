@@ -1,14 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import AttendanceGrid from "@/features/courses/AttendanceGrid";
+import JoiningOnlineBox from "@/features/courses/facilitator/JoiningOnlineBox";
 import facilitator from "@/features/courses/facilitator/facilitator.module.css";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
 import { registerTitle } from "@/lib/courses/facilitatorPageWords";
 import { gateGroupRegister, loadRegisterMembers } from "@/lib/courses/registerAccess";
+import { joiningOnlineBox } from "@/lib/courses/meetingLink/box";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
+import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 
 /**
  * A GROUP'S REGISTER, on a page of its own (the register
@@ -19,6 +22,11 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
  * (`AttendanceGrid`): every tap saves, and the foot under it says how this
  * register ends. Whether it becomes one session per page is a question for
  * the boards' designers, so the grid is kept as it is.
+ *
+ * JOINING ONLINE, at the top: the group page's box (`joiningOnlineBox`), who
+ * is joining a session online and, while it has no meeting link, the field
+ * to add one. The register itself puts them down as online when they are
+ * marked as having come.
  *
  * THE GATE is the register's own (`gateGroupRegister`), restated here
  * because a page's only protection must not be a level above it: a live
@@ -63,9 +71,21 @@ export default async function GroupRegisterPage({
   const roster = await loadRegisterMembers(db, gated.runId, groupId, { isAdmin: gated.isAdmin });
   const namesToCome = roster.members.length === 0 && roster.notYetTold;
   // Each of the group's live facilitators writes their own session report,
-  // so the finished register leads them on to it; an admin writes none.
+  // so the register leads them on to it from the session's start, beside the
+  // check-in, finished or not; an admin writes none.
   const writesReports =
     !gated.group.archived && isNamedWithStanding(access.user, "courseGroups.facilitatorUids", gated.group.facilitatorUids);
+  // The box at the top, named as the register names its rows for this reader.
+  // Nothing is offered to press in a view-as session, where nothing is written.
+  const [joiningOnline, viewAs] = await Promise.all([
+    joiningOnlineBox(db, {
+      run: access.run,
+      group: gated.group,
+      people: roster.members.map((member) => ({ uid: member.uid, name: member.displayName })),
+      now: new Date(),
+    }).catch(() => []),
+    getImpersonator().then((marker) => markerIsLive(marker, access.user.uid)),
+  ]);
 
   return (
     <div className={`${facilitator.page} ${facilitator.registerPage}`}>
@@ -87,6 +107,9 @@ export default async function GroupRegisterPage({
         </Link>
         <h1 className={weekly.title}>{registerTitle(groupName)}</h1>
       </header>
+
+      {/* Who is joining a session online, and the field for its link. */}
+      <JoiningOnlineBox groupId={groupId} sessions={joiningOnline} canAdd={!viewAs} />
 
       {namesToCome && <p className={weekly.cardLine}>{NAMES_WHEN_GROUPS_GO_OUT}</p>}
 

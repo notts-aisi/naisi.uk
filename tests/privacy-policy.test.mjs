@@ -4,8 +4,15 @@
  *
  * Run with `npm test`.
  *
- * The current version is v15: the whole policy arranged by kind of use, with
- * a summary at the top, and the last version anybody is asked to accept. It
+ * The current version is v16: v15 with two passages about joining a session
+ * online (a register keeps whether somebody was in the room or joined
+ * online, and somebody may say in advance that they are joining online), and
+ * the first version told rather than asked. Every other word is v15's, so the
+ * sections below that name v15 hold v16's text, and the describe for joining
+ * online holds the two passages to the code.
+ *
+ * v15 is the whole policy arranged by kind of use, with a summary at the
+ * top, and the last version anybody is asked to accept. It
  * says again, in fewer words, everything v14 said that is still true, takes
  * back some of v14's promises (facilitators never see anything of a survey,
  * notes are admins' alone, not coming is recorded nowhere, a tick never
@@ -26,7 +33,7 @@
  * promise, held in the frozen files themselves.
  *
  * Every version behind the current one is frozen byte for byte (§1b): v1 to
- * v14. Editing an accepted version changes what somebody sees at the archive
+ * v15. Editing an accepted version changes what somebody sees at the archive
  * URL for the wording they agreed to, without anybody being asked, so new
  * wording goes in a new file, every time. From v15 a new version is told,
  * not asked (`needsPolicyAcceptance`, §3), which makes the freeze matter
@@ -152,15 +159,17 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v15.tsx");
+const CURRENT = read("src/content/legal/privacy/v16.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
  * no pattern written as a sentence would ever match the raw source. Every
- * content check below runs against this, because v15 is the text the site
+ * content check below runs against this, because v16 is the text the site
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v15, frozen: read by the joining online describe, which proves v16's two passages are not in it and the words they replace are. */
+const V15_FLAT = read("src/content/legal/privacy/v15.tsx").replace(/\s+/g, " ");
 /** v14, frozen: read by §1b, and by the v15 checks, which prove what v15 takes back is still in the words people accepted. */
 const V14_FLAT = read("src/content/legal/privacy/v14.tsx").replace(/\s+/g, " ");
 /** v13, frozen: read by §2n, which proves the required-questions sentences are not in it and "Every question can be skipped." is. */
@@ -208,12 +217,16 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v15 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 15);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.15");
+  test("privacy v16 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 16);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.16");
   });
 
-  test("privacy v15 is dated the day its words last changed", () => {
+  test("privacy v16 is dated the day its words last changed", () => {
+    // Provisional: set again to the day v16 goes live, as v15's was.
+    const sixteen = POLICIES.privacy.versions.find((v) => v.version === 16);
+    assert.equal(sixteen?.lastUpdated, "6 November 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 16).length, 1);
     const fifteen = POLICIES.privacy.versions.find((v) => v.version === 15);
     assert.equal(fifteen?.lastUpdated, "2 November 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 15).length, 1);
@@ -360,6 +373,13 @@ describe("policy versions", () => {
  * identical. Anything that changes a word needs a new version instead.
  */
 const FROZEN_VERSIONS = new Map([
+  [
+    "privacy/v15",
+    {
+      sha256: "22d7582783f7958823b32fba67ced77d6a053d838ef6c00482036f73e15e5b0f",
+      why: "the whole policy arranged by kind of use, current from 2 November 2026 until v16 replaced it; the last version anybody was asked to accept, and the wording everybody accepted at that time, frozen when joining a session online moved the version rather than adding two sentences in place",
+    },
+  ],
   [
     "privacy/v14",
     {
@@ -697,7 +717,8 @@ const MUST_NAME = [
   // that section to the words this sentence relies on.
   ["feedback on an application is not promised, and can be asked for", /We do not send feedback on applications as standard; ask us and we will consider it\./],
   ["scores and comments are within the right to a copy of your data", /A copy of your data covers what other people wrote about you as well as what you wrote: reviewers&apos; scores and comments,/],
-  ["attendance registers", /<strong>Registers\.<\/strong> Your group&apos;s facilitators take the register at each session: present, arrived late, left early, absent or excused\./],
+  // v16: and whether somebody who came was in the room or joined online.
+  ["attendance registers", /<strong>Registers\.<\/strong> Your group&apos;s facilitators take the register at each session: present, arrived late, left early, absent or excused, and whether you were in the room or joined online\./],
   ["participant notes", /Facilitators may also write a note about a named person after a session, which the group&apos;s facilitators and admins read\./],
   // v15 names everything a week's pages record in one sentence, written
   // answers among it; the entries below for ticks, reflections, boxes and
@@ -821,7 +842,8 @@ const MUST_NAME = [
   // v15 itself says the private notes are the facilitators' and admins'.
   ["what a programme's lead sees once it is running", /<strong>What the people leading a programme see\.<\/strong>\{" "\} Everything a facilitator sees, for every group, except the notes facilitators write about a named person or a session, and the private notes people keep on the material, and also: who can&apos;t make their group&apos;s time and why, the reasons people give for leaving, the pitches and teams on an incubator, who might facilitate, who finished, and the totals and comments of the programme&apos;s surveys, never with a name\./],
   ["facilitators see names only", /<strong>What your facilitators see\.<\/strong> Who is in their group, by name only:/],
-  ["what facilitators read of their own groups", /The register, your work and progress \(see <a href="#your-work">Your work<\/a>\), and before the first session whether you have said you are coming\./],
+  // v16: and whether somebody has said they are joining a session online.
+  ["what facilitators read of their own groups", /The register, your work and progress \(see <a href="#your-work">Your work<\/a>\), before the first session whether you have said you are coming, and whether you have said you are joining a session online\./],
   // The notes a group's facilitators share and the notes a group shares
   // on its week pages. §2g holds each to its code.
   ["the notes a group's facilitators share, and that one can name a person", /<strong>Notes about a group\.<\/strong> A group&apos;s facilitators may keep notes for each other about how it is going, and a note may mention you;/],
@@ -1351,7 +1373,7 @@ describe("the courses section", () => {
       // to accept or decline it. v15 is the last version anybody is asked to
       // accept, and says a change to how it uses somebody's information is
       // told on the site and by email before it takes effect.
-      ["a change is told before it takes effect, and this is the last version anybody is asked to accept", /we tell you on the site and by email before it takes effect, saying what changed\. Anything that relies on your consent asks you for that one thing on its own\. You were asked to accept this version\. If you decline it, you are signed out, and you can email us to have your account removed; an external collaborator can delete theirs there and then\. We will not ask you to accept later versions\./],
+      ["a change is told before it takes effect, and this is the last version anybody is asked to accept", /we tell you on the site and by email before it takes effect, saying what changed\. Anything that relies on your consent asks you for that one thing on its own\. New members accept this policy when they join, and anybody who had not accepted version 15 is asked to accept it once\. If you decline it, you are signed out, and you can email us to have your account removed; an external collaborator can delete theirs there and then\. We will not ask you to accept later versions\./],
       ["the statutory response time", /We aim to answer within 30 days\./],
       ["no solely automated decisions", /No decision about you is made solely by automated means\./],
       ["children", /We do not knowingly collect data from anyone under 16\./],
@@ -4434,7 +4456,7 @@ describe("the course hub passage", () => {
     const facilitatorsSee = hubPassageOf("<strong>What your facilitators see.</strong>");
     assert.ok(
       facilitatorsSee.includes(
-        " and before the first session whether you have said you are coming. Nothing else from your application, and no review scores.",
+        " before the first session whether you have said you are coming, and whether you have said you are joining a session online. Nothing else from your application, and no review scores.",
       ),
       "the policy no longer says facilitators see, before the first session, who has said they are coming, and nothing else from an application",
     );
@@ -6024,6 +6046,11 @@ describe("the course hub passage", () => {
         // check-ins the week has, by their ids, and reads no answer and nobody
         // a check-in was sent to.
         ["src/lib/scheduler/jobs/surveyCheckInWeeks.ts", "the job that fixes which check-ins each whole week of a programme has, by their ids, reading no answer and no row of who a check-in was sent to"],
+        // The check-in's one reminder the morning after (docs/surveys.md): it
+        // reads whether each person it reached has answered, to email those
+        // who have not, each at their own address with their own link, and
+        // never an answer.
+        ["src/lib/scheduler/jobs/surveyCheckInReminders.ts", "the job that reminds, at 9am the day after a session, each person its check-in reached who has not sent it, with their own link, reading whether each has answered and never an answer"],
         // CHANGED ON PURPOSE (v15, "Admins may ask Claude to help review
         // coursework, survey answers and session reports"): the admins' week
         // review sends a week's check-ins to Claude pooled by group, with no
@@ -6145,6 +6172,10 @@ describe("the course hub passage", () => {
           "the group's live facilitators and admins (gateGroupRegister first): opens a session's check-in, a row and an email for each person the register marks there, and hands the register's card how many have sent it while it is open and its totals from three answers once closed, never a comment, an answer or a name",
         ],
         ["src/app/api/courses/groups/[groupId]/check-in/close/route.ts", "the group's live facilitators and admins (gateGroupRegister first): closes a session's check-in, reading no answer"],
+        [
+          "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/route.ts",
+          "an admin alone (loadProgrammeRun first, then the admin): emails a group's live facilitators that a session's check-in or register is not done, reading whether its check-in exists and is open, never an answer or who answered",
+        ],
         ["src/features/courses/register/CheckInCard.tsx", "the register's check-in card: draws what the check-in route hands it, a count while it is open and totals once closed, never a comment, an answer or a name"],
         ["src/app/api/courses/groups/[groupId]/attendance/route.ts", "the register's marking route: somebody marked at a session while its check-in is open gets their own row on it (reachLateMarks), with no email, and no answer is read"],
       ]),
@@ -6186,6 +6217,9 @@ describe("the course hub passage", () => {
         // an answer; its readers of answers are repo.ts's, above.
         ["src/lib/surveys/checkIns/open.ts", "the check-in's rows as it opens: one for each person the register marks at the session, with their own link, before their email; never an answer"],
         ["src/lib/surveys/checkIns/lateMark.ts", "the check-in's row for somebody marked at the session after it opened, with their own link and no email; never an answer"],
+        // Its one reminder the morning after: each person's own row, read to
+        // email them alone if they have not answered, and stamped with when.
+        ["src/lib/surveys/checkIns/remind.ts", "the check-in's reminder the morning after: a person's own row, read again to email them alone while they have not answered, and stamped with when they were reminded; never an answer"],
       ]),
       "addressing who a survey was sent to, or what somebody answered",
       "The policy says only admins see who said what or who has answered. If " +
@@ -6466,8 +6500,24 @@ describe("the course hub passage", () => {
       [
         "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/check-ins/page.tsx",
         [
-          "the Surveys tab's Check-ins view: a whole week of check-ins for its lead and admins, totals from three answers and comments from five, never a name, deciding nothing",
-          ["@/features/surveys/lead/CheckInsWeeks", "@/lib/surveys/checkIns/leadView", "@/lib/surveys/words"],
+          "the Surveys tab's Check-ins view: a whole week of check-ins for its lead and admins, totals from three answers and comments from five, never a name; and for an admin alone, this week's sessions a group at a time, each check-in's state and how many answered, with the presses to open, close and remind; deciding nothing",
+          [
+            "@/features/surveys/lead/CheckInsWeeks",
+            "@/features/surveys/lead/ThisWeeksCheckIns",
+            "@/lib/surveys/checkIns/leadView",
+            "@/lib/surveys/checkIns/weekTable",
+            "@/lib/surveys/words",
+          ],
+        ],
+      ],
+      // An admin's Remind on that table: one email to a group's facilitators
+      // that a session's check-in or register is not done. It reads whether the
+      // session's check-in exists, never what anybody said in it.
+      [
+        "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/route.ts",
+        [
+          "an admin's reminder to a group's facilitators that a session's check-in or register is not done: reads whether its check-in exists and is open, never an answer or who answered, deciding nothing",
+          ["@/lib/surveys/checkIns/facilitatorReminder", "@/lib/surveys/checkIns/weekTable", "@/lib/surveys/checkIns/words"],
         ],
       ],
       [
@@ -8940,7 +8990,7 @@ describe("the re-consent gate", () => {
     // space"); v15 does not, and the walk below still holds where.
     assert.ok(
       PAGE_FLAT.includes(
-        "You were asked to accept this version. If you decline it, you are signed out, and you can email us to have your account removed; an external collaborator can delete theirs there and then. We will not ask you to accept later versions.",
+        "New members accept this policy when they join, and anybody who had not accepted version 15 is asked to accept it once. If you decline it, you are signed out, and you can email us to have your account removed; an external collaborator can delete theirs there and then. We will not ask you to accept later versions.",
       ),
     );
     // Declining, as the accept page does it: a member presses "I don't
@@ -9056,7 +9106,8 @@ describe("the re-consent gate", () => {
       ],
     ]) {
       assert.ok(said.includes(page), `the accept page no longer says v15 changed ${what}`);
-      assert.ok(PAGE_FLAT.includes(policy), `the accept page says v15 changed ${what}, and v15 does not say it`);
+      // Held to version 15's own text, frozen, now that the current version is a later one.
+      assert.ok(V15_FLAT.includes(policy), `the accept page says v15 changed ${what}, and v15 does not say it`);
     }
     // The weekly note is drafted from submitted work and the team's feedback.
     assert.ok(PAGE_FLAT.includes("Once a week Claude may also draft a short note on how each person is doing, using only the work they submitted and the feedback, ratings and comments people on the team gave it."));
@@ -9092,6 +9143,19 @@ describe("the re-consent gate", () => {
     // A register's notes are not among what a lead reads, and the newsletter is unchanged: neither is said.
     assert.ok(!/notes facilitators write/i.test(said), "the accept page says a programme's lead sees the notes facilitators write on a register");
     assert.ok(!/newsletter/i.test(said), "the accept page says v15 changed something about the newsletter");
+  });
+
+  test("the accept page says what version 16 changes, after version 15's paragraphs, held to version 16's own sentences", () => {
+    // Asked only of an agreement older than v15, which accepts v16: so the
+    // page says both versions' changes, v15's first.
+    const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
+    const fifteen = accept.indexOf("What changed in version 15.</strong>");
+    const sixteen = accept.indexOf("What changed in version 16.</strong>");
+    assert.ok(fifteen !== -1 && sixteen > fifteen && accept.indexOf("Read the full", sixteen) > sixteen, "the accept page no longer says what version 16 changed, after version 15");
+    const said = accept.slice(sixteen, accept.indexOf("Read the full", sixteen));
+    assert.ok(said.includes("Registers record whether you were in the room or joined online, and you can tell us in advance that you are joining online."));
+    assert.ok(PAGE_FLAT.includes("absent or excused, and whether you were in the room or joined online."));
+    assert.ok(PAGE_FLAT.includes("You can also tell us in advance that you&apos;re joining a session online:"));
   });
 
   test("is not left behind on the dashboard layout alone", () => {
@@ -10749,17 +10813,42 @@ describe("v15 says reminders before a session are about what is left, are part o
 describe("v15 says you may tell us in advance that you can't make a session, which records you as excused; the code agrees", () => {
   // "We may let you tell us in advance that you can't make a session, which
   // records you as excused." Each clause, held to the one write that does it
-  // (`recordCantMakeIt`, from "Can't make it" on the programme page); the
-  // route is run as every kind of caller in
-  // tests/course-session-cant-make-it.test.mjs.
+  // (`writeExcusedInAdvance`) and to each of its three callers: "Can't make
+  // it" on the ticket (`recordCantMakeIt`), "Most weeks, not all" on the
+  // card (`recordTimeAnswer`), and staff's "They meant some weeks", which
+  // records the sessions a person named in their own words
+  // (`recordSomeWeeks`). The routes are run as every kind of caller in
+  // tests/course-session-cant-make-it.test.mjs and
+  // tests/course-hub-time-answer.test.mjs.
   const seat = withoutComments(read("src/lib/courses/cantMakeIt/seat.ts"));
   const model = withoutComments(read("src/lib/courses/cantMakeIt/model.ts"));
   const route = withoutComments(read("src/app/api/courses/groups/[groupId]/cant-make-it/route.ts"));
+  const card = withoutComments(read("src/lib/courses/timeAnswer/seat.ts"));
+  const cardRoute = withoutComments(read("src/app/api/courses/runs/[runId]/time-answer/route.ts"));
+  const staff = withoutComments(read("src/lib/courses/timeAnswer/someWeeks.ts"));
+  const staffRoute = withoutComments(read("src/app/api/courses/runs/[runId]/enrolments/[uid]/time-answer/route.ts"));
+  /** Every file under src that calls `name(`, but the writer's own module, which defines it. */
+  const callersOf = (name) => {
+    const found = [];
+    const walk = (dir) => {
+      for (const entry of readdirSync(join(REPO_ROOT, dir), { withFileTypes: true })) {
+        const path = `${dir}/${entry.name}`;
+        if (entry.isDirectory()) walk(path);
+        else if (/\.tsx?$/.test(entry.name) && path !== "src/lib/courses/cantMakeIt/seat.ts") {
+          const code = withoutComments(read(path));
+          const calls = [...code.matchAll(new RegExp(`\\b${name}\\(`, "g"))].length;
+          if (calls > 0) found.push([path, calls]);
+        }
+      }
+    };
+    walk("src");
+    return found.sort(([a], [b]) => a.localeCompare(b));
+  };
 
   test("the policy says it, in those words, beside the register's marks", () => {
     assert.ok(
       PAGE_FLAT.includes(
-        "<strong>Registers.</strong> Your group&apos;s facilitators take the register at each session: present, arrived late, left early, absent or excused. You can see your own once it is submitted. We may let you tell us in advance that you can&apos;t make a session, which records you as excused.",
+        "<strong>Registers.</strong> Your group&apos;s facilitators take the register at each session: present, arrived late, left early, absent or excused, and whether you were in the room or joined online. You can see your own once it is submitted. We may let you tell us in advance that you can&apos;t make a session, which records you as excused.",
       ),
       "the policy no longer says you may tell us in advance, and that it records you as excused",
     );
@@ -10779,14 +10868,134 @@ describe("v15 says you may tell us in advance that you can't make a session, whi
   });
 
   test("records you as excused: the one mark it writes is excused, beside when you said so, and nothing is sent", () => {
-    assert.match(seat, /records: \{ \[user\.uid\]: "excused" \},/);
+    assert.match(seat, /records: \{ \[uid\]: "excused" \},/);
     assert.deepEqual(
       [...seat.matchAll(/"(present|late|left-early|absent|excused)"/g)].map((match) => match[1]),
       ["excused"],
       "the write records something other than excused",
     );
-    assert.match(seat, /\[EXCUSED_IN_ADVANCE\]: \{ \[user\.uid\]: FieldValue\.serverTimestamp\(\) \},/);
-    assert.doesNotMatch(seat + route, /sendEmail|sendNotice|dispatchSends|mirrorCourse/, "telling us in advance now emails or notifies somebody");
+    assert.match(seat, /\[EXCUSED_IN_ADVANCE\]: \{ \[uid\]: told \},/);
+    for (const [file, code] of [["the card's", card], ["the staff's", staff]]) {
+      assert.doesNotMatch(code, /"(present|late|left-early|absent)"/, `${file} writer records a mark other than excused`);
+      assert.doesNotMatch(code, /EXCUSED_IN_ADVANCE|records:/, `${file} writer writes a register line of its own`);
+    }
+    assert.doesNotMatch(
+      seat + route + card + cardRoute + staff + staffRoute,
+      /sendEmail|sendNotice|dispatchSends|mirrorCourse/,
+      "telling us in advance now emails or notifies somebody",
+    );
+  });
+
+  test("the one write has three callers: you, by your own uid, when you say so; or staff, from your own words", () => {
+    assert.deepEqual(callersOf("writeExcusedInAdvance"), [
+      ["src/lib/courses/timeAnswer/seat.ts", 1],
+      ["src/lib/courses/timeAnswer/someWeeks.ts", 1],
+    ]);
+    // The ticket, in the writer's own module: your own uid, now.
+    assert.match(seat, /writeExcusedInAdvance\(tx, line, \{ run, group, uid: user\.uid, told: FieldValue\.serverTimestamp\(\) \}\);/);
+    assert.equal([...seat.matchAll(/\bwriteExcusedInAdvance\(/g)].length, 2, "the ticket calls the write once, beside its definition");
+    // The card: your own seat, by your own uid, now.
+    assert.match(card, /const seatRef = db\.collection\("courseEnrolments"\)\.doc\(courseEnrolmentId\(runId, user\.uid\)\);/);
+    assert.match(card, /if \(seat\.uid !== user\.uid \|\| seat\.runId !== runId\) return "not-asked";/);
+    assert.match(card, /writeExcusedInAdvance\(tx, line, \{ run, group, uid: user\.uid, told: FieldValue\.serverTimestamp\(\) \}\)/);
+    // Staff: only an answer of No, I need a different time, behind the bar its readers stand behind, dated when you gave it.
+    assert.match(staff, /if \(answer\?\.kind !== "cant"\) return refuse\(409, SOME_WEEKS_REFUSAL\.notCant\);/);
+    assert.match(staff, /const told = stored\.at \?\? FieldValue\.serverTimestamp\(\);/);
+    assert.match(staff, /writeExcusedInAdvance\(tx, line, \{ run, group, uid: seat\.uid, told \}\);/);
+    assert.equal(
+      [...staffRoute.matchAll(/if \(!readsTimeAnswers\(staffing\)\) return NextResponse\.json\(\{ error: SOME_WEEKS_REFUSAL\.notStaff \}, \{ status: 403 \}\);/g)].length,
+      2,
+      "a handler of the staff route writes or reads without asking who reads the answer",
+    );
+  });
+
+  test("taking it back is yours alone: staff never take back what you said", () => {
+    assert.deepEqual(callersOf("writeTakenBack"), [["src/lib/courses/timeAnswer/seat.ts", 1]]);
+    assert.match(card, /writeTakenBack\(tx, line, user\.uid\);/);
+    assert.match(seat, /if \(state\.kind === "told"\) writeTakenBack\(tx, line, user\.uid\);/);
+    assert.doesNotMatch(staff, /writeTakenBack|FieldValue\.delete\(\)/, "staff's reading of an answer takes something back");
+  });
+
+  test("in advance, for every caller: only a session not started, on a line that is still nobody else's", () => {
+    // The ticket writes only on an open line; the card and staff skip every other.
+    assert.match(seat, /if \(state\.kind === "open"\) \{\s*if \(!registerHasRoom\(line\)\) return refuse\(409, CANT_MAKE_IT_REFUSAL\.full\);\s*writeExcusedInAdvance\(/);
+    assert.match(card, /if \(line\.state\.kind === "open"\) writeExcusedInAdvance\(/);
+    assert.match(staff, /if \(!chosen\.has\(line\.session\.sessionKey\) \|\| line\.state\.kind !== "open"\) continue;\s*writeExcusedInAdvance\(/);
+    // A session named that has started, or that a facilitator has filled in, refuses the whole answer.
+    assert.match(card, /if \(line\.state\.kind === "closed"\) return refuse\(409, sessionRefusalWords\(day, closedWords\(line\.state\)\)\);/);
+    assert.match(card, /if \(line\.state\.kind === "marked"\) return refuse\(409, sessionRefusalWords\(day, CANT_MAKE_IT_REFUSAL\.marked\)\);/);
+    assert.match(staff, /if \(line\.state\.kind === "closed"\) return refuse\(409, sessionRefusalWords\(day, CLOSED_FOR_STAFF\[line\.state\.why\]\)\);/);
+    assert.match(staff, /if \(line\.state\.kind === "marked"\) return refuse\(409, sessionRefusalWords\(day, SOME_WEEKS_REFUSAL\.marked\)\);/);
+  });
+});
+
+describe("v16 says a register records the room or online, and you may tell us in advance you are joining online; the code agrees", () => {
+  // The two passages v16 added to v15, each clause held to the code that
+  // makes it true; the routes are run as every kind of caller in
+  // tests/course-session-joining-online.test.mjs.
+  const seat = withoutComments(read("src/lib/courses/joiningOnline/seat.ts"));
+  const route = withoutComments(read("src/app/api/courses/groups/[groupId]/joining-online/route.ts"));
+  const marking = withoutComments(read("src/app/api/courses/groups/[groupId]/attendance/route.ts"));
+  const box = withoutComments(read("src/lib/courses/meetingLink/box.ts"));
+  const NEW_REGISTERS = "absent or excused, and whether you were in the room or joined online.";
+  const NEW_IN_ADVANCE =
+    "You can also tell us in advance that you&apos;re joining a session online: your facilitators see it, and are asked to add a link to join it to your programme page.";
+  const NEW_FACILITATORS_SEE =
+    "before the first session whether you have said you are coming, and whether you have said you are joining a session online. Nothing else from your application,";
+
+  test("the policy says it, in those words, and v15 did not", () => {
+    for (const words of [NEW_REGISTERS, NEW_IN_ADVANCE, NEW_FACILITATORS_SEE]) {
+      assert.ok(PAGE_FLAT.includes(words), `v16 no longer says: ${words}`);
+      assert.ok(!V15_FLAT.includes(words), `v15 is frozen and never said: ${words}`);
+    }
+    assert.ok(PAGE_FLAT.includes(`${NEW_REGISTERS} You can see your own once it is submitted. We may let you tell us in advance that you can&apos;t make a session, which records you as excused. ${NEW_IN_ADVANCE}`));
+    assert.ok(V15_FLAT.includes("left early, absent or excused. You can see your own once it is submitted."));
+    assert.ok(V15_FLAT.includes("(see <a href=\"#your-work\">Your work</a>), and before the first session whether you have said you are coming. Nothing else"));
+  });
+
+  test("whether you were in the room or joined online: beside a mark that says you came, written by the attendance route alone", () => {
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\[ONLINE\]:|FieldPath\(ONLINE,/),
+      new Map([
+        ["src/app/api/courses/groups/[groupId]/attendance/route.ts", "the register's marking and an admin's correction: where somebody marked as having come was, beside that mark"],
+        ["src/lib/firestore/accountDeletion.ts", "account deletion clears the person's own entry, key by key, and nobody else's"],
+      ]),
+      "writing where somebody who came was",
+      "The policy says the register records it. A new writer has to be one the register's facilitators make, or the policy needs a new version.",
+    );
+    assert.match(marking, /return \{ ok: false, error: "online is only for somebody marked present, late or left early\." \};/);
+  });
+
+  test("telling us in advance: your own line, by your own uid, and nothing is sent", () => {
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\[ONLINE_SAID\]:|FieldPath\(ONLINE_SAID,/),
+      new Map([
+        ["src/lib/courses/joiningOnline/seat.ts", "Joining online: the caller's own word on their own line of the session's register, and taking it back"],
+        ["src/lib/firestore/accountDeletion.ts", "account deletion clears the person's own word, key by key, and nobody else's"],
+      ]),
+      "writing that somebody is joining a session online",
+      "The policy says you tell us in advance. Nobody may say it for anybody else.",
+    );
+    assert.match(seat, /if \(seat\.uid !== user\.uid \|\| seat\.runId !== runId\) return false;/);
+    assert.match(seat, /tx\.get\(db\.collection\("courseEnrolments"\)\.doc\(courseEnrolmentId\(group\.runId, user\.uid\)\)\)/);
+    assert.match(seat, /\[ONLINE_SAID\]: \{ \[user\.uid\]: FieldValue\.serverTimestamp\(\) \},/);
+    assert.match(seat, /tx\.set\(ref, \{ \[ONLINE_SAID\]: \{ \[user\.uid\]: FieldValue\.delete\(\) \} \}, \{ merge: true \}\);/);
+    assert.match(route, /const outcome = await recordJoiningOnline\(db, user, groupId, parsed\.value, new Date\(\)\);/);
+    assert.doesNotMatch(seat + route, /sendEmail|sendNotice|dispatchSends|mirrorCourse/, "saying you are joining online now emails or notifies somebody");
+  });
+
+  test("your facilitators see it, and are asked for a link to join it: the box on their group page and register", () => {
+    assert.match(box, /if \(!register\.onlineSaid\[person\.uid\]\) return false;/);
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bjoiningOnlineBox\(/).filter((file) => file !== "src/lib/courses/meetingLink/box.ts"),
+      new Map([
+        ["src/app/(app)/learn/[runId]/group/[groupId]/page.tsx", "a facilitator's group page, which asks for the session's link"],
+        ["src/app/(app)/learn/[runId]/group/[groupId]/register/page.tsx", "the register a facilitator takes, with the same box at its top"],
+      ]),
+      "showing facilitators who is joining online",
+      "The policy says your facilitators see it. A new reader needs the policy's readers to grow first.",
+    );
+    assert.match(marking, /onlineSaid,\s*participantNotes,/, "the register's payload no longer carries who said they are joining online");
   });
 });
 

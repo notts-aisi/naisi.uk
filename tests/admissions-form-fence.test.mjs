@@ -901,6 +901,13 @@ const ROUND_SURFACES = {
       "reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers " +
       "'none' for a round that is not a form, so nobody is emailed for one",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind": {
+    kind: "form",
+    why:
+      "emails the facilitators of one group of the run a programme names that a session's check-in or register " +
+      "is not done, an admin's press. It reaches the round only through loadProgrammeRun, which starts from the " +
+      "form's own loader and answers 'none' for a round that is not a form, so nobody is emailed for one",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind": {
     kind: "form",
     why:

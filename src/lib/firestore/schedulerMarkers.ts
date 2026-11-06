@@ -55,6 +55,7 @@ export const MARKER_FAMILIES = [
   "regremind",
   "weekremind",
   "evsurvey",
+  "ciremind",
 ] as const;
 
 export type SchedulerMarkerFamily = (typeof MARKER_FAMILIES)[number];
@@ -395,6 +396,31 @@ export function eventSurveyMarker(surveyId: string, step: EventSurveyStep): Sche
   return {
     id: `evsurvey__${fields.surveyId}__${fields.step}`,
     family: "evsurvey",
+    fields,
+  };
+}
+
+/**
+ * `ciremind__{groupId}__{sessionKey}__{uid}`, ONE PERSON'S reminder, at 9am
+ * the day after a session, that they have not sent its check-in
+ * (`surveys-check-in-reminders`). A session has one check-in at most (its id
+ * is the session's), so the session and the person name the unit of work.
+ * Somebody who sends it first is stamped `answered`, and is not mailed.
+ *
+ * The group id and the uid are stored as fields, so the run's destroy sweep
+ * (by group) and an account's deletion (by uid) take these with the rest.
+ */
+export function checkInReminderMarker(groupId: string, sessionKey: string, uid: string): SchedulerMarkerRef {
+  const fields = {
+    groupId: assertDocIdComponent("groupId", groupId),
+    sessionKey: assertKeyComponent("sessionKey", sessionKey),
+    // A Firebase uid is 28 alphanumeric characters, so it belongs in the
+    // stricter bucket even though it is an id rather than a key.
+    uid: assertKeyComponent("uid", uid),
+  };
+  return {
+    id: `ciremind__${fields.groupId}__${fields.sessionKey}__${fields.uid}`,
+    family: "ciremind",
     fields,
   };
 }

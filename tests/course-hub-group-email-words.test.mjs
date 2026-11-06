@@ -188,7 +188,7 @@ const AMARA =
   "Hi Amara, You’re in Group B. You’ll meet on Tuesdays at 6pm in Hallward B12, starting Tue 3 Nov. Sessions last 2 hours. " +
   "Rahul and Sofia are your facilitators. There are 2 of you. " +
   "Week 1’s reading takes about 80 minutes. Have a look before Tuesday. " +
-  "Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . I can make it I can’t make this time Claudia AGI Strategy lead, NAISI";
+  "Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and whoever runs your sessions will know. If you can’t make most weeks, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . Yes Most weeks, not all No, I need a different time Claudia AGI Strategy lead, NAISI";
 
 beforeEach(() => {
   mock.timers.setTime(NOW.getTime());
@@ -211,11 +211,12 @@ describe("1. the board's email, from the records", () => {
     assert.equal(amara.subject, "Your AGI Strategy group: Tuesdays at 6pm");
     assert.equal(amara.words, AMARA);
     assert.ok(test.text.includes(AMARA), "the test is not the words Publish sends");
-    // The links: the society's address, and the two buttons, each to the
-    // person's own programme page at its "Can you make this time?" card.
-    // Never a meeting link.
+    // The links: the society's address, and the three buttons, each to the
+    // person's own programme page at its "Can you make this time most
+    // weeks?" card. Never a meeting link.
     assert.deepEqual([...amara.html.matchAll(/href="([^"]*)"/g)].map((m) => m[1]), [
       "mailto:ai-safety@uonsu.com",
+      `https://naisi.invalid/learn/${RUN.agi}#your-group-time`,
       `https://naisi.invalid/learn/${RUN.agi}#your-group-time`,
       `https://naisi.invalid/learn/${RUN.agi}#your-group-time`,
     ]);
@@ -229,7 +230,7 @@ describe("1. the board's email, from the records", () => {
       (await saidTo("bea")).words,
       "Hi Bea, You’re in Group A. You’ll meet on Thursdays at 6pm in Portland A13, starting Thu 29 Oct. Sessions last 2 hours. " +
         "Sofia is your facilitator. There are 2 of you. Week 1’s reading takes about 80 minutes. Have a look before Thursday. " +
-        "Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . I can make it I can’t make this time Claudia AGI Strategy lead, NAISI",
+        "Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and whoever runs your sessions will know. If you can’t make most weeks, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . Yes Most weeks, not all No, I need a different time Claudia AGI Strategy lead, NAISI",
     );
   });
 });
@@ -325,7 +326,7 @@ describe("3. what a group lacks is left out, and nothing else", () => {
       amara.words,
       "Hi Amara, You’re in Group C. You’ll meet on Wednesdays at 1pm online, starting Wed 4 Nov. Sessions last 2 hours. " +
         "The link to join is on your programme’s page. Tom is your facilitator. " +
-        "Week 1’s reading takes about 80 minutes. Have a look before Wed 4 Nov. Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . I can make it I can’t make this time Claudia AGI Strategy lead, NAISI",
+        "Week 1’s reading takes about 80 minutes. Have a look before Wed 4 Nov. Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and whoever runs your sessions will know. If you can’t make most weeks, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . Yes Most weeks, not all No, I need a different time Claudia AGI Strategy lead, NAISI",
     );
     assert.ok(!amara.html.includes("meet.example"));
   });
@@ -399,8 +400,8 @@ describe("4. somebody told after the group first met", () => {
     t.after(() => mock.timers.setTime(NOW.getTime()));
     await placeEverybody();
     await publish();
-    // Group A met on Thu 29 Oct. The next morning Amara is moved into it, and
-    // the press tells her, and only her, her new group.
+    // Group A met on Thu 29 Oct. The next morning Amara, told about Group B,
+    // is moved into it, and the press tells her she has moved.
     mock.timers.setTime(new Date("2026-10-30T09:00:00Z").getTime());
     const moved = await place("zach", [{ uid: "amara", groupId: A }]);
     assert.equal(moved.status, 200, JSON.stringify(moved.body));
@@ -408,19 +409,25 @@ describe("4. somebody told after the group first met", () => {
     const pressed = await pressNow();
     assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
     // Since 29 October 2026 Sofia, told about Group A already, is also told
-    // that Amara has joined it: a facilitator's email, not a group's.
-    const joined = world.mail.slice(before).filter((mail) => mail.subject === "Amara has joined Group A");
-    assert.deepEqual(joined.map((mail) => mail.to), ["sofia@example.com"]);
-    const told = world.mail.slice(before).filter((mail) => !isFacilitating(mail) && !joined.includes(mail));
-    assert.deepEqual(told.map((mail) => mail.to), ["amara@example.com"]);
-    const amara = await opened(told[0]);
+    // that Amara has joined it: a facilitator's email, not a group's. Since
+    // November 2026 a move keeps Amara told, so she is sent "You’ve moved"
+    // and never her first email again, and Group B's facilitators hear she
+    // is no longer in it.
+    const sent = world.mail.slice(before);
+    const to = (subject) => sent.filter((mail) => mail.subject === subject).map((mail) => mail.to);
+    assert.deepEqual(to("Amara has joined Group A"), ["sofia@example.com"]);
+    assert.deepEqual(to("Amara is no longer in Group B"), ["rahul@example.com", "sofia@example.com"]);
+    assert.deepEqual(to("You’ve moved to Group A: Thursdays at 6pm"), ["amara@example.com"]);
+    assert.equal(sent.length, 4, JSON.stringify(sent.map((mail) => [mail.to, mail.subject])));
+    const amara = await opened(sent.find((mail) => mail.to === "amara@example.com"));
     assert.ok(
       amara.text.includes(
-        "Hi Amara, You’re in Group A. You’ll meet on Thursdays at 6pm in Portland A13, starting Thu 5 Nov. Sessions last 2 hours. " +
-          "Sofia is your facilitator. There are 3 of you. Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . I can make it I can’t make this time Claudia AGI Strategy lead, NAISI",
+        "Hi Amara, You’re in Group A now. You’ll meet on Thursdays at 6pm in Portland A13, from Thu 5 Nov. Sessions last 2 hours. " +
+          "Sofia is your facilitator. You’re no longer in Group B, so you don’t need to go to its sessions. Can you make this time most weeks? Tell us on your programme page. If you’ll miss the odd week, say which and whoever runs your sessions will know. If you can’t make most weeks, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . Yes Most weeks, not all No, I need a different time Claudia AGI Strategy lead, NAISI",
       ),
       amara.text,
     );
+    assert.ok(!amara.text.includes("Thu 29 Oct"), amara.text);
   });
 });
 

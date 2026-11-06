@@ -14,8 +14,13 @@
  * finished says it apart from the weeks somebody missed.
  *
  * WHAT IT IS NOT. It is not the event's "Can't make it", which gives a place
- * back; nor "I can't make this time", which is about the group's time and
- * keeps the person's place while they are moved. It never touches the seat.
+ * back; nor "No, I need a different time", which is about the group's time
+ * most weeks and keeps the person's place while they are moved. It changes
+ * nothing on the seat but one list: when the person answered "Can you make
+ * this time most weeks?" with "Most weeks, not all", the sessions they can't
+ * make, which it keeps in step with the register. "Most weeks, not all"
+ * records each session it names through the same write, as does staff's
+ * "They meant some weeks" (`src/lib/courses/timeAnswer/`).
  *
  * WHILE IT MAY BE SAID OR TAKEN BACK. Only before the session starts, on a
  * session the group holds that has a day and a time, is not cancelled through

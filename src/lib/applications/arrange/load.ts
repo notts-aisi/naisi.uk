@@ -5,7 +5,7 @@ import { nextGroupName, sharedPlaces } from "@/lib/courses/groupTimes/rules";
 import type { SessionUser } from "@/lib/firebase/session";
 import { readsOf, toldGroupIds } from "@/lib/courses/groupTimes/told";
 import { currentTimeAnswer } from "@/lib/courses/timeAnswer/model";
-import { enrolmentHasLeft, normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
+import { enrolmentHasLeft, movedSinceTold, normalizeCourseEnrolment, groupToldAbout } from "@/lib/firestore/courseEnrolments";
 import { canRunTerm } from "../access";
 import { isInTerm, placementFor } from "../decisions";
 import { compareWithRun, nameOnRecord, placeHoldersOn, type PlaceHolder } from "../handover/holders";
@@ -151,19 +151,33 @@ export async function loadArranging(
   const inTerm = applications.filter(isInTerm);
   const byUid = new Map(inTerm.map((application) => [application.uid, application] as const));
   const liveIds = new Set(live.map((group) => group.id));
+  const liveName = new Map(live.map((group) => [group.id, group.name] as const));
   // Each seat: where a fellow sits now, whether Publish has told them it, and whether it has left the run.
   const seatOf = new Map<
     string,
-    { groupId: string | null; told: boolean; left: boolean; answer: ReturnType<typeof currentTimeAnswer> }
+    {
+      groupId: string | null;
+      told: boolean;
+      toldGroupId: string | null;
+      moved: { from: string | null } | null;
+      left: boolean;
+      answer: ReturnType<typeof currentTimeAnswer>;
+    }
   >();
   for (const doc of seats.docs) {
     const seat = normalizeCourseEnrolment(doc.id, doc.data() ?? {});
     const left = enrolmentHasLeft(seat.status);
     const sits = seat.role === "learner" && seat.status === "active" && seat.groupId !== null && liveIds.has(seat.groupId);
-    // A fellow's seat is told once Publish has emailed them its group (a move clears the stamp).
+    // A fellow's seat is told once Publish has emailed them a group, and a
+    // move keeps it told: they see the group they are in now.
+    const told = sits && seat.allocatedEmailAt instanceof Date;
+    // Told about another group and moved since: the next Publish emails them.
+    const toldAbout = told ? groupToldAbout(seat) : null;
     seatOf.set(seat.uid, {
       groupId: sits ? seat.groupId : null,
-      told: sits && seat.allocatedEmailAt instanceof Date,
+      told,
+      toldGroupId: toldAbout,
+      moved: sits && movedSinceTold(seat) ? { from: (toldAbout ? liveName.get(toldAbout) : null) ?? null } : null,
       left,
       // Their answer about the group they sit in, by the stale rule the board's rows read it by.
       answer: sits ? currentTimeAnswer(seat) : null,
@@ -197,6 +211,8 @@ export async function loadArranging(
       marked: application?.sent ? markedRanges(application.sent.availability, form.round.availabilityGrid) : [],
       groupId: seat?.groupId ?? null,
       told: seat?.told ?? false,
+      toldGroupId: seat?.toldGroupId ?? null,
+      moved: seat?.moved ?? null,
       appointed: appointed.get(row.uid) ?? [],
       timeAnswer: seat?.answer ?? null,
     });

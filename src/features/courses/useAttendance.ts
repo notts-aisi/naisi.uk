@@ -55,14 +55,23 @@ import type { AttendanceStatus } from "@/lib/firestore/courseAttendance";
 
 export type { AttendanceStatus };
 
-/** One cell's target state. `null` CLEARS the mark (back to unmarked). */
-export type AttendanceMark = { uid: string; status: AttendanceStatus | null };
+/**
+ * One cell's target state. `null` CLEARS the mark (back to unmarked).
+ * `online` is where somebody marked as having come was (true online, false
+ * in the room), sent beside a mark that says they came and never beside any
+ * other.
+ */
+export type AttendanceMark = { uid: string; status: AttendanceStatus | null; online?: boolean };
 
 export type { AttendanceSession };
 export type AttendanceMember = AttendancePayload["members"][number];
 /** Somebody who left the group: read only, beside the register's rows. */
 export type AttendanceLeaver = AttendancePayload["leavers"][number];
 export type AttendanceRecords = AttendancePayload["records"];
+/** `sessionKey -> uid -> online`, beside a mark that says they came. */
+export type AttendanceOnline = AttendancePayload["online"];
+/** `sessionKey -> uids` who said they are joining online. */
+export type AttendanceOnlineSaid = AttendancePayload["onlineSaid"];
 export type AttendanceNotes = AttendancePayload["participantNotes"];
 /** A session where somebody told us in advance they can't make it, with who. */
 export type AttendanceCantMakeIt = AttendancePayload["cantMakeIt"][number];
@@ -85,6 +94,10 @@ export type AttendanceState = {
   leavers: AttendanceLeaver[];
   /** `sessionKey -> uid -> status`. Sparse: absent means unmarked. */
   records: AttendanceRecords;
+  /** `sessionKey -> uid -> online`. Sparse: somebody who came with no entry was in the room. */
+  online: AttendanceOnline;
+  /** `sessionKey -> uids` who said in advance they are joining online. */
+  onlineSaid: AttendanceOnlineSaid;
   /** `sessionKey -> uid -> note`. Private to staff. */
   participantNotes: AttendanceNotes;
   /** True when this caller may correct a register that is already pushed. */
@@ -141,6 +154,8 @@ const NO_SESSIONS: AttendanceSession[] = [];
 const NO_MEMBERS: AttendanceMember[] = [];
 const NO_LEAVERS: AttendanceLeaver[] = [];
 const NO_RECORDS: AttendanceRecords = {};
+const NO_ONLINE: AttendanceOnline = {};
+const NO_ONLINE_SAID: AttendanceOnlineSaid = {};
 const NO_NOTES: AttendanceNotes = {};
 const NO_CANT_MAKE_IT: AttendanceCantMakeIt[] = [];
 
@@ -175,6 +190,28 @@ function withMarks(
     else week[mark.uid] = mark.status;
   }
   const next = { ...records };
+  if (Object.keys(week).length === 0) delete next[sessionKey];
+  else next[sessionKey] = week;
+  return next;
+}
+
+/**
+ * `online` with `marks` applied to one session, the twin of `withMarks`: a
+ * mark that says they came and carries where they were sets it, and any other
+ * mark takes their entry away, as the route writes it.
+ */
+function withOnline(
+  online: AttendanceOnline,
+  sessionKey: string,
+  marks: AttendanceMark[],
+): AttendanceOnline {
+  const week = { ...(online[sessionKey] ?? {}) };
+  for (const mark of marks) {
+    const came = mark.status === "present" || mark.status === "late" || mark.status === "left-early";
+    if (came && typeof mark.online === "boolean") week[mark.uid] = mark.online;
+    else if (!came) delete week[mark.uid];
+  }
+  const next = { ...online };
   if (Object.keys(week).length === 0) delete next[sessionKey];
   else next[sessionKey] = week;
   return next;
@@ -254,6 +291,7 @@ export function useAttendance(groupId: string): AttendanceState {
       const before = new Map<string, AttendanceStatus | null>();
       const current = data?.records[sessionKey] ?? {};
       for (const m of marks) before.set(m.uid, current[m.uid] ?? null);
+      const whereBefore = data?.online?.[sessionKey] ?? {};
 
       // OPTIMISTIC: the cells move now. Key-guarded like every other write
       // here. The session patch is NOT applied optimistically; it lands on the
@@ -267,6 +305,7 @@ export function useAttendance(groupId: string): AttendanceState {
                 data: {
                   ...prev.data,
                   records: withMarks(prev.data.records, sessionKey, marks),
+                  online: withOnline(prev.data.online ?? NO_ONLINE, sessionKey, marks),
                 },
               }
             : prev,
@@ -304,16 +343,27 @@ export function useAttendance(groupId: string): AttendanceState {
           setStore((prev) => {
             if (prev.key !== key || !prev.data) return prev;
             const week = prev.data.records[sessionKey] ?? {};
-            const restore = marks.filter((m) => (week[m.uid] ?? null) === m.status);
+            const where = prev.data.online?.[sessionKey] ?? {};
+            const restore = marks.filter(
+              (m) => (week[m.uid] ?? null) === m.status && (typeof m.online !== "boolean" || where[m.uid] === m.online),
+            );
             if (restore.length === 0) return prev;
+            const back = restore.map((m) => ({
+              uid: m.uid,
+              status: before.get(m.uid) ?? null,
+              ...(typeof whereBefore[m.uid] === "boolean" ? { online: whereBefore[m.uid] } : {}),
+            }));
             return {
               ...prev,
               data: {
                 ...prev.data,
-                records: withMarks(
-                  prev.data.records,
+                records: withMarks(prev.data.records, sessionKey, back),
+                // Where they were goes back with the mark: what it was, or no
+                // entry where there was none.
+                online: withOnline(
+                  withOnline(prev.data.online ?? NO_ONLINE, sessionKey, restore.map((m) => ({ uid: m.uid, status: null }))),
                   sessionKey,
-                  restore.map((m) => ({ uid: m.uid, status: before.get(m.uid) ?? null })),
+                  back,
                 ),
               },
             };
@@ -430,6 +480,8 @@ export function useAttendance(groupId: string): AttendanceState {
     notYetTold: data?.notYetTold === true,
     leavers: data?.leavers ?? NO_LEAVERS,
     records: data?.records ?? NO_RECORDS,
+    online: data?.online ?? NO_ONLINE,
+    onlineSaid: data?.onlineSaid ?? NO_ONLINE_SAID,
     participantNotes: data?.participantNotes ?? NO_NOTES,
     canEditPushed: data?.canEditPushed ?? false,
     ending: data?.ending ?? null,

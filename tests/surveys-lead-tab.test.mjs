@@ -136,7 +136,7 @@ const lib = {
 const { LEAD_TAB_WORDS, LEAD_RESULTS_WORDS, LEAD_OVERVIEW_WORDS } = lib.words;
 /** The scheduler's job that fixes each week's check-ins the first time it is whole. */
 const { surveyCheckInWeeksJob } = await loadTs(join("lib", "scheduler", "jobs", "surveyCheckInWeeks.ts"));
-const { CHECK_INS_TAB_WORDS } = lib.checkInWords;
+const { CHECK_INS_TAB_WORDS, THIS_WEEK_WORDS } = lib.checkInWords;
 const BASE = `/admin/admissions/forms/${ROUND}/programmes/${AGI}`;
 
 /** The session getCurrentUser() builds from the stored account, with the reviewer flag the roles writer keeps. */
@@ -360,8 +360,9 @@ async function sendReport(who, groupId, sessionKey, how, unclear, when) {
  *  - WEEK 2, Group A's alone, for 2, 1 answering: too few for totals. Rahul
  *    reports on B's session.
  *  - WEEK 3, Group A's for 3, all answering, and D's for 1, who answers: 4,
- *    totals and no comments, once B's session tonight and C's tomorrow are past
- *    their check-ins' closing time. Sofia reports on A's session.
+ *    totals and no comments, once B's check-in tonight has closed and C's
+ *    session tomorrow is past the time an admin could open one for it late.
+ *    Sofia reports on A's session.
  */
 async function checkInsAndReports() {
   giveGroupsTheirWeeks();
@@ -403,7 +404,8 @@ async function tellTheStory() {
   w.reset();
   await checkInsAndReports();
   at(NOW);
-  // By now the scheduler has fixed weeks 1 and 2, each whole by its last Wednesday night.
+  // By now the scheduler has fixed weeks 1 and 2: week 1 whole once its last check-in closed, week 2 once its
+  // sessions with none were 48 hours over, on the Friday after it.
   assert.equal((await tick()).processed, 2);
   // Four more of the run's people hold their place through the form, as Amara does, so the surveys reach eight.
   const application = world.db.read(`admissionApplications/${ROUND}__amara`);
@@ -533,7 +535,15 @@ describe("1. who opens the tab", () => {
       if (segment === "/check-ins") {
         // An admin also has each group's check-in; the lead never does.
         assert.ok(asAdmin.text.includes(CHECK_INS_TAB_WORDS.groups) && !asLead.text.includes(CHECK_INS_TAB_WORDS.groups));
-        assert.equal(asAdmin.text.replace(/ Each group’s check-in Only admins see these\..*?(?= Week \d| $|$)/gs, ""), asLead.text);
+        // And the table of a week's sessions above the weeks, a group at a time; the lead never has it.
+        assert.ok(asAdmin.text.includes(THIS_WEEK_WORDS.lede) && !asLead.text.includes(THIS_WEEK_WORDS.lede));
+        assert.ok(!/check-ins\/remind|Remind \d+ facilitators?|Open it (?:late )?for \d/.test(asLead.html), "the lead is offered an admin's presses");
+        const table = new RegExp(`^${VIEWS_TEXT} .*?${THIS_WEEK_WORDS.lede}.*?(?= ${lib.checkInWords.checkInsTabLine(3, 5)})`, "s");
+        assert.match(asAdmin.text, table, "an admin's table is not between the row of views and the weeks");
+        assert.equal(
+          asAdmin.text.replace(table, VIEWS_TEXT).replace(/ Each group’s check-in Only admins see these\..*?(?= Week \d| $|$)/gs, ""),
+          asLead.text,
+        );
       } else {
         assert.equal(asAdmin.text, asLead.text, `${segment || "the Overview"} differs for an admin`);
       }
@@ -1231,13 +1241,35 @@ describe("4c. the Check-ins view: whole weeks, its floors, never a group's own f
     // The reading question asked of two people only: the week shows, and its share does not.
     const sliced = leadWeekOf(2, true, [{ items, answers: [one(5, "e"), one(4, "d")], of: 2 }, { items: noReading, answers: [one(3, "c", false), one(2, "b", false)], of: 2 }]);
     assert.deepEqual([sliced.state, sliced.totals.reading], ["shown", null]);
-    // Whole: every session of the week past its check-in's closing time, and none of its check-ins open.
-    const session = { weekNumber: 3, cancelled: false, dateKey: "2026-11-18", startsAt: new Date("2026-11-18T13:00:00Z"), endsAt: new Date("2026-11-18T15:00:00Z") };
-    const closes = new Date("2026-11-18T23:00:00Z");
-    assert.equal(weekIsWhole(3, [session], [], new Date(closes.getTime() - 1)), false);
-    assert.equal(weekIsWhole(3, [session], [], closes), true);
-    assert.equal(weekIsWhole(3, [session], [{ weekNumber: 3, open: true }], new Date("2026-11-20T12:00:00Z")), false, "an open check-in keeps its week waiting");
-    assert.equal(weekIsWhole(3, [{ ...session, cancelled: true }], [], new Date(closes.getTime() - 1)), true, "a session called off has no check-in to wait for");
+    // Whole: none of the week's check-ins open, and none can still be opened.
+    const session = {
+      groupId: "group-c",
+      sessionKey: "w03",
+      weekNumber: 3,
+      cancelled: false,
+      dateKey: "2026-11-18",
+      startsAt: new Date("2026-11-18T13:00:00Z"),
+      endsAt: new Date("2026-11-18T15:00:00Z"),
+    };
+    // A session with no check-in keeps its week waiting past its own window (11pm the next day), while an
+    // admin could still open one late: until 48 hours after it ends.
+    const windowCloses = new Date("2026-11-19T23:00:00Z");
+    const lateEnds = new Date("2026-11-20T15:00:00Z");
+    assert.equal(weekIsWhole(3, [session], [], new Date(windowCloses.getTime() - 1)), false);
+    assert.equal(weekIsWhole(3, [session], [], windowCloses), false, "whole while an admin could still open a late one");
+    assert.equal(weekIsWhole(3, [session], [], new Date(lateEnds.getTime() - 1)), false);
+    assert.equal(weekIsWhole(3, [session], [], lateEnds), true);
+    // A session with its check-in can have no other: the week waits for that one alone.
+    const own = { groupId: "group-c", sessionKey: "w03", weekNumber: 3 };
+    assert.equal(weekIsWhole(3, [session], [{ ...own, open: true }], new Date("2026-11-20T12:00:00Z")), false, "an open check-in keeps its week waiting");
+    assert.equal(weekIsWhole(3, [session], [{ ...own, open: true }], lateEnds), false, "an open check-in keeps its week waiting, late or not");
+    assert.equal(weekIsWhole(3, [session], [{ ...own, open: false }], new Date("2026-11-18T16:00:00Z")), true, "closed by hand, it is all its session can have");
+    // Another group's check-in, or another session's, does not stand for this one.
+    assert.equal(weekIsWhole(3, [session], [{ ...own, groupId: "group-b", open: false }], windowCloses), false);
+    assert.equal(weekIsWhole(3, [session], [{ ...own, sessionKey: "w03-2", open: false }], windowCloses), false);
+    // An open check-in of another week is that week's.
+    assert.equal(weekIsWhole(3, [session], [{ ...own, weekNumber: 4, open: true }], lateEnds), true);
+    assert.equal(weekIsWhole(3, [{ ...session, cancelled: true }], [], new Date(windowCloses.getTime() - 1)), true, "a session called off has no check-in to wait for");
     assert.equal(weekIsWhole(3, [{ ...session, dateKey: "", startsAt: null, endsAt: null }], [], new Date(0)), true, "a session with no date has none either");
   });
 
@@ -1324,6 +1356,12 @@ describe("4c. the Check-ins view: whole weeks, its floors, never a group's own f
         "the Surveys tab's reading, behind the tab's gate: a week once its check-ins are fixed, and only those, totals from three answers and comments from five; each group's row for an admin alone",
       "lib/surveys/checkIns/weeks.ts":
         "the scheduler's job that fixes each week's check-ins the first time it is whole, by their ids and whether any is open; reads no answer",
+      // This week's check-ins, an admin's table on the Check-ins view, and the
+      // check-in's one reminder the morning after.
+      "lib/surveys/checkIns/weekTable.ts":
+        "an admin's table of a week's sessions, behind the tab's gate and read only when it says the reader is an admin: each session's check-in by its id, its state and how many answered, as its Results count them; the lead never has it",
+      "lib/scheduler/jobs/surveyCheckInReminders.ts":
+        "the job that reminds the people an open check-in reached at 9am the day after its session, by their own rows; reads whether each has answered, never an answer",
       "lib/surveys/onePerson.ts": "the admins' page of one person's answers, read once the opening is recorded",
       // The admins' week review (privacy v15): Claude may be sent survey
       // answers, and check-ins go pooled by group for what people found hard.
@@ -1375,7 +1413,7 @@ describe("4c. the Check-ins view: whole weeks, its floors, never a group's own f
       assert.equal(fixedWeek3(), undefined, "a week is fixed while one of its check-ins is open");
       assert.deepEqual(await week3(), { weekNumber: 3, state: "waiting" });
       assert.ok((await checkInsAs("zach")).text.includes("Group B · Tue 17 Nov, 6pm · 1 of 3 answered · Open"));
-      // It closes by itself at 11pm; Group C's session tomorrow can still have one.
+      // It stays open until 11pm tomorrow, and Group C's session tomorrow can still have one.
       at("2026-11-17T23:30:00Z");
       await tick();
       assert.equal(fixedWeek3(), undefined, "a week is fixed while a session of it can still have a check-in");
@@ -1383,10 +1421,18 @@ describe("4c. the Check-ins view: whole weeks, its floors, never a group's own f
       tab = await tabAs("claudia");
       assert.ok(tab.text.includes("Week 3: not shown yet") && !tab.text.includes("Arguing both sides"));
 
-      // Wed 18 Nov at 11pm, Group C's session is past its check-in's closing
-      // time: the week is whole, and still shows nothing until the scheduler
-      // has fixed its check-ins.
+      // Wed 18 Nov at 11pm B's check-in closes by itself. Group C met that
+      // afternoon and nobody opened its check-in, which an admin could still
+      // open late until 48 hours after the session ended: the week waits.
       at("2026-11-18T23:00:00Z");
+      await tick();
+      assert.equal(fixedWeek3(), undefined, "a week is fixed while an admin could still open a session's check-in late");
+      assert.deepEqual(await week3(), { weekNumber: 3, state: "waiting" });
+
+      // Fri 20 Nov at 3pm, 48 hours after C's session ended: the week is
+      // whole, and still shows nothing until the scheduler has fixed its
+      // check-ins.
+      at("2026-11-20T15:00:00Z");
       assert.deepEqual(await week3(), { weekNumber: 3, state: "waiting" }, "a week shows before its check-ins are fixed");
       assert.ok((await checkInsAs("claudia")).text.includes(`Week 3 ${CHECK_INS_TAB_WORDS.waiting}`));
       assert.ok(!(await tabAs("claudia")).text.includes("Arguing both sides"));

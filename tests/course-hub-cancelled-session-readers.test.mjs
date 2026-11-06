@@ -149,12 +149,27 @@ const READERS = {
       "a facilitator's session report: a session called off has no report (its window is refused before its register " +
       "is read), and one whose register says it did not happen has none either",
   },
+  "lib/surveys/checkIns/weekTable.ts": {
+    kind: "asks",
+    proof: ["held: !session.cancelled && (register ? register.held : true)"],
+    why:
+      "an admin's table of the week's sessions on the Check-ins view: a cancelled session's register reads " +
+      "\"Didn't happen\", and nothing is offered for it: no opening, late or not, and no reminder to its facilitators",
+  },
   "lib/surveys/checkIns/sessionRead.ts": {
     kind: "asks",
     proof: ["held: !session.cancelled && register.held"],
     why:
       "the check-in's read of a session's register: a cancelled session reads as not held, so the check-in is " +
       "never offered or opened for it and nobody marked on it is reached",
+  },
+  "lib/courses/joiningOnline/seat.ts": {
+    kind: "asks",
+    proof: ["cancelled: session.cancelled,", "notHeld: !register.held,"],
+    why:
+      "Joining online, pressed on a programme page: a session called off is closed before its register's switch is " +
+      "asked (`joiningOnlineState` answers cancelled first), so nobody is offered it or keeps a word for a session " +
+      "that is not happening, and a register that says its session did not happen closes it too",
   },
   "lib/courses/cantMakeIt/seat.ts": {
     kind: "asks",

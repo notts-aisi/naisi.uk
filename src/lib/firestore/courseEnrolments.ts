@@ -59,6 +59,12 @@ export type CourseEnrolmentRole = "learner" | "facilitator";
  * `lastPushedSessionKey` is the idempotency marker: a re-push of the same
  * session recomputes to the same numbers, and the key says which session the
  * figures are current as of.
+ *
+ * `online` counts the sessions they came to (present, late or left early)
+ * that the register records them as having joined online; the rest of the
+ * sessions they came to were in the room. A rollup written before the
+ * register recorded where people were has none, and reads as 0: everybody
+ * was in the room.
  */
 export type EnrolmentAttendanceRollup = {
   sessionsHeld: number;
@@ -67,6 +73,8 @@ export type EnrolmentAttendanceRollup = {
   leftEarly: number;
   absent: number;
   excused: number;
+  /** Of the sessions they came to, how many they joined online. */
+  online: number;
   lastPushedSessionKey: string | null;
   lastComputedAt: Date | null;
 };
@@ -78,6 +86,7 @@ export const EMPTY_ATTENDANCE_ROLLUP: EnrolmentAttendanceRollup = {
   leftEarly: 0,
   absent: 0,
   excused: 0,
+  online: 0,
   lastPushedSessionKey: null,
   lastComputedAt: null,
 };
@@ -86,46 +95,106 @@ export const ENROLMENT_LIMITS = {
   /** Free text a member types when they leave. Optional, and never shown
       back to the cohort: the programme's lead and admins read it. */
   dropOutReason: 500,
-  /** Why their group's time does not work, from "I can't make this time".
-      Required with that answer; the programme's lead and admins read it. */
+  /** Why their group's time does not work, with the answer "No, I need a
+      different time". Required with it; the programme's lead and admins read it. */
   timeAnswerReason: 500,
   /** Which other times would, from the same form. Required with it. */
   timeAnswerAlternatives: 300,
+  /**
+   * How many of the group's sessions one "Most weeks, not all" answer may
+   * name. A run's plan holds at most 60 weeks and a group meets at most
+   * twice a week, so no real answer comes near it: it bounds a body, and a
+   * stored list read back.
+   */
+  timeAnswerSessions: 120,
 } as const;
 
 /**
- * "CAN YOU MAKE THIS TIME?" (Zach, 29 Oct 2026): the person's own answer
- * about the group Publish told them, kept on their seat.
+ * A session's key as `sessionKey` in `src/lib/firestore/courses.ts` makes it,
+ * and as a register's id ends: "w03", or "w03-2" for a week's second session.
+ * The same pattern the ticket's "Can't make it" reads a press by
+ * (`src/lib/courses/cantMakeIt/model.ts`).
+ */
+const SESSION_KEY = /^w\d{2,3}(?:-[2-9])?$/;
+
+/** Whether a value is a session's key ("w03", "w03-2"). */
+export function isSessionKey(value: unknown): value is string {
+  return typeof value === "string" && SESSION_KEY.test(value);
+}
+
+/** Where a session key sorts: its week, then its occurrence, so "w03" < "w03-2" < "w10". */
+function sessionOrder(key: string): number {
+  const [week, occurrence] = key.slice(1).split("-");
+  return Number(week) * 10 + (occurrence ? Number(occurrence) : 1);
+}
+
+/** Session keys once each, in the group's order, the way an answer keeps them. */
+export function orderedSessionKeys(keys: readonly string[]): string[] {
+  return [...new Set(keys)].sort((a, b) => sessionOrder(a) - sessionOrder(b));
+}
+
+/**
+ * "CAN YOU MAKE THIS TIME MOST WEEKS?" (Zach, 29 Oct 2026, three answers
+ * from 5 Nov 2026): the person's own answer about the group Publish told
+ * them, kept on their seat.
  *
  *  - `yes`: they can make it.
- *  - `cant`: they can't make this time, why, and which other times would.
- *    It KEEPS their place and their seat and asks to be moved. It is not
- *    leaving (`src/lib/courses/leaveRun.ts`), which gives the place back,
- *    and nothing about it touches that path.
+ *  - `mostWeeks`: they can make it most weeks, not all. `sessionKeys` are
+ *    the group's sessions they said they can't make, by their registers'
+ *    keys, in the group's order (none is an answer too). Each is recorded as
+ *    excused on its register, the way the ticket's "Can't make it" records
+ *    it (`src/lib/courses/cantMakeIt/seat.ts`), and the ticket keeps this
+ *    list in step when it records or takes one back. They can make the
+ *    group's time: nobody moves them for it.
+ *  - `cant`: they need a different time most weeks, why, and which other
+ *    times would. It KEEPS their place and their seat and asks to be moved.
+ *    It is not leaving (`src/lib/courses/leaveRun.ts`), which gives the
+ *    place back, and nothing about it touches that path.
  *
- * `forGroupId` is the group the answer was given about. A seat that changes
- * group has its answer deleted in the same write (every writer that clears
- * Publish's stamp clears this too), and a reader shows an answer only while
- * it is about the seat's group now (`currentTimeAnswer` in
- * `src/lib/courses/timeAnswer/model.ts`), so a stale answer can never show.
+ * Until 5 Nov 2026 the question had two answers, and some people who could
+ * not make one week answered `cant`. An admin or the programme's lead can
+ * read such an answer as `mostWeeks` ("They meant some weeks",
+ * `src/lib/courses/timeAnswer/someWeeks.ts`): the answer keeps the words the
+ * person wrote, so a `mostWeeks` answer has `reason` and `alternatives` only
+ * then.
  *
- * Written only by `POST /api/courses/runs/[runId]/time-answer`, on the
- * caller's own seat. Read by the person, the programme's lead and admins,
- * never by facilitators or the rest of the group. Kept with the seat, so it
- * is deleted with the account and with the run.
+ * `forGroupId` is the group the answer was given about. Every writer that
+ * clears Publish's stamp deletes the answer in the same write. A told seat
+ * keeps both through a move, and a reader shows an answer only while it is
+ * about the seat's group now (`currentTimeAnswer` in
+ * `src/lib/courses/timeAnswer/model.ts`), so a stale answer can never show,
+ * and somebody moved by mistake and moved back has their answer again.
+ *
+ * Written by `POST /api/courses/runs/[runId]/time-answer` on the caller's
+ * own seat, by the ticket's "Can't make it" (only a `mostWeeks` answer's
+ * list), and by staff reading a `cant` as `mostWeeks`. Read by the person,
+ * the programme's lead and admins, never by facilitators or the rest of the
+ * group, who see only the register. Kept with the seat, so it is deleted
+ * with the account and with the run.
  */
-export type TimeAnswerKind = "yes" | "cant";
+export type TimeAnswerKind = "yes" | "mostWeeks" | "cant";
 
-export type StoredTimeAnswer = {
-  kind: TimeAnswerKind;
-  /** Why the time does not work: set with `cant`, null with `yes`. */
-  reason: string | null;
-  /** Which other times would: set with `cant`, null with `yes`. */
-  alternatives: string | null;
-  /** The group it was given about. */
-  forGroupId: string;
-  at: Date | null;
-};
+export type StoredTimeAnswer =
+  | {
+      kind: "yes" | "cant";
+      /** Why the time does not work: set with `cant`, null with `yes`. */
+      reason: string | null;
+      /** Which other times would: set with `cant`, null with `yes`. */
+      alternatives: string | null;
+      /** The group it was given about. */
+      forGroupId: string;
+      at: Date | null;
+    }
+  | {
+      kind: "mostWeeks";
+      /** Their own words, kept when staff read a `cant` as most weeks; null otherwise. */
+      reason: string | null;
+      alternatives: string | null;
+      /** The sessions they can't make, by register key, in the group's order. */
+      sessionKeys: string[];
+      forGroupId: string;
+      at: Date | null;
+    };
 
 export type CourseEnrolmentDoc = {
   /** Firestore doc id: `courseEnrolmentId(runId, uid)`. */
@@ -211,26 +280,41 @@ export type CourseEnrolmentDoc = {
    */
   lastTaskSyncedWeek?: number;
   /**
-   * When the "you've been placed" email for the CURRENT `groupId` was sent.
-   * The idempotency guard for allocation publish: re-publishing a run emails
-   * only enrolments lacking this stamp, so newly placed people get their
-   * email and everyone already told does not get it twice. The allocate route
-   * clears it whenever `groupId` changes — the stamp certifies "emailed about
-   * their current group", and a move invalidates that.
+   * When Publish last emailed its owner about a group: the first email about
+   * their group ("Your group"), or "You’ve moved" once they were moved since.
+   * The group that email was about is `toldGroupId`.
    *
-   * It is also what lets a placement be SHOWN: an allocated seat without it
-   * is somebody nobody has told yet, and `placementIsTold` below keeps it to
-   * the board until Publish has.
+   * It is what lets a placement be SHOWN: an allocated seat without it is
+   * somebody nobody has told yet, and `placementIsTold` below keeps it to the
+   * board until Publish has. And it is the idempotency guard for Publish's
+   * first email: a press never sends that email to a seat that is told.
+   *
+   * ONCE TOLD, A SEAT STAYS TOLD THROUGH ANY MOVE. No change of `groupId` on
+   * a told seat clears it, to another group, to no group, or back: the
+   * person is shown the group they are in now at once, and the next Publish
+   * owes them "You’ve moved" only while they sit in a group other than the
+   * one they were told about (`movedSinceTold`). A move of a seat nobody has
+   * told clears nothing, because there is nothing to clear, and Publish tells
+   * them. Leaving keeps it; Remove, and putting back somebody who left,
+   * clear it, and the next Publish tells them afresh.
    */
   allocatedEmailAt?: Date | null;
   /**
    * What became of that email, written beside the stamp by Publish: handed
    * to the mail provider, held because this copy of the site may not write
    * to the address, or stopped by the do-not-email list. Absent on a stamp
-   * written before Publish recorded it. Read only beside the stamp: a move
-   * clears the stamp and leaves this for the next Publish to overwrite.
+   * written before Publish recorded it. Read only beside the stamp.
    */
   allocatedEmailDelivery?: "sent" | "held" | "suppressed";
+  /**
+   * THE GROUP ITS OWNER WAS TOLD ABOUT, written beside `allocatedEmailAt`
+   * wherever that is written (Publish's first email, and its "You’ve moved"
+   * email), and deleted beside it wherever that is deleted. Null on a seat
+   * nobody has told, and on a seat told before this was kept, which is read
+   * as told about the group it is in (`groupToldAbout`); the first move of such
+   * a seat writes the group it leaves here, in the same write.
+   */
+  toldGroupId: string | null;
   /**
    * The person's answer to "can you make this time?" (see
    * `StoredTimeAnswer`). Absent until they answer, and on a stored value
@@ -287,11 +371,13 @@ export function enrolmentIsPutBack(enrolment: Pick<CourseEnrolmentDoc, "putBackA
  *
  *  - A seat somebody took for themselves on an open run is theirs from the
  *    moment they take it: they chose the group (`selfEnrolled`).
- *  - A seat an admin allocated is told when Publish has emailed its owner the
- *    group they are in NOW (`allocatedEmailAt`). Until then it is the board's
- *    working copy: moving people around on the board tells nobody anything.
- *    A move clears the stamp, so somebody moved after Publish is untold again
- *    until Publish is pressed again and emails them their new group.
+ *  - A seat an admin allocated is told once Publish has emailed its owner
+ *    about a group (`allocatedEmailAt`). Until then it is the board's working
+ *    copy: moving people around on the board tells nobody anything. Once
+ *    told, it stays told whatever group it is moved to, so its owner is never
+ *    hidden by a move: they see the group they are in now at once, and the
+ *    next Publish emails them about it ("You’ve moved") while it is not the
+ *    group they were told about (`movedSinceTold`).
  *  - A facilitator's own enrolment is not a placement in a group, and is
  *    always told: a facilitator sees the group they run, its day, time and
  *    room from the moment they are added.
@@ -301,7 +387,8 @@ export function enrolmentIsPutBack(enrolment: Pick<CourseEnrolmentDoc, "putBackA
  * group's facilitators and other members are not shown their name, and no
  * email or notification about their group reaches them.
  *
- * Every reader of placements asks one of these two functions;
+ * Every reader of placements asks one of these two functions, or one of the
+ * two made of the first below (`groupToldAbout`, `movedSinceTold`);
  * `tests/course-hub-group-published-readers.test.mjs` lists them all.
  */
 export function placementIsTold(
@@ -323,6 +410,39 @@ export function placementIsShownTo(
   viewer: { isAdmin: boolean },
 ): boolean {
   return viewer.isAdmin || placementIsTold(enrolment);
+}
+
+/**
+ * THE GROUP A TOLD SEAT'S OWNER WAS TOLD ABOUT: `toldGroupId`, or, on a seat
+ * told before that was kept, the group it is in now. Asked only of a seat
+ * that is told (`placementIsTold`).
+ */
+export function groupToldAbout(enrolment: Pick<CourseEnrolmentDoc, "groupId" | "toldGroupId">): string | null {
+  return enrolment.toldGroupId ?? enrolment.groupId;
+}
+
+/**
+ * WHETHER A TOLD SEAT HAS MOVED SINCE ITS OWNER WAS TOLD: a learner's active
+ * seat, in a group, told (`placementIsTold`), in a group other than the one
+ * they were told about (`groupToldAbout`). It is what the next Publish owes
+ * them: "You’ve moved", about the group they are in now, and never the
+ * first email about a group.
+ *
+ * DERIVED, NEVER STORED. Moving them back to the group they were told about
+ * owes nothing, with no write beyond the move itself; a move from A to B to
+ * C owes one email, about C; and Publish, once that email has gone, writes
+ * the group it was about into `toldGroupId`, so it is owed no more.
+ */
+export function movedSinceTold(
+  enrolment: Pick<CourseEnrolmentDoc, "role" | "status" | "groupId" | "toldGroupId" | "selfEnrolled" | "allocatedEmailAt">,
+): boolean {
+  return (
+    enrolment.role === "learner" &&
+    enrolment.status === "active" &&
+    enrolment.groupId !== null &&
+    placementIsTold(enrolment) &&
+    enrolment.groupId !== groupToldAbout(enrolment)
+  );
 }
 
 type Raw = Record<string, unknown>;
@@ -352,6 +472,9 @@ function asAttendanceRollup(v: unknown): EnrolmentAttendanceRollup {
     leftEarly: asCount(raw.leftEarly),
     absent: asCount(raw.absent),
     excused: asCount(raw.excused),
+    // Absent on every rollup computed before the register recorded where
+    // people were: 0, everybody in the room.
+    online: asCount(raw.online),
     lastPushedSessionKey:
       typeof raw.lastPushedSessionKey === "string" && raw.lastPushedSessionKey
         ? raw.lastPushedSessionKey
@@ -369,16 +492,29 @@ function ownWords(v: unknown, max: number): string | null {
 
 /**
  * A stored answer, or undefined when it is not a whole one: a known kind, the
- * group it is about, and for `cant` both of what they wrote. A `yes` carries
- * no words, whatever the document holds.
+ * group it is about, for `cant` both of what they wrote, and for `mostWeeks`
+ * a list of the sessions they can't make (empty is a list). A `yes` carries
+ * no words, whatever the document holds; a `mostWeeks` keeps what staff kept
+ * of a `cant`'s words, and lists only session keys, once each, in order.
  */
 function asTimeAnswer(v: unknown): StoredTimeAnswer | undefined {
   if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
   const raw = v as Raw;
-  if (raw.kind !== "yes" && raw.kind !== "cant") return undefined;
+  if (raw.kind !== "yes" && raw.kind !== "cant" && raw.kind !== "mostWeeks") return undefined;
   if (typeof raw.forGroupId !== "string" || !raw.forGroupId) return undefined;
   if (raw.kind === "yes") {
     return { kind: "yes", reason: null, alternatives: null, forGroupId: raw.forGroupId, at: tsToDate(raw.at) };
+  }
+  if (raw.kind === "mostWeeks") {
+    if (!Array.isArray(raw.sessionKeys)) return undefined;
+    return {
+      kind: "mostWeeks",
+      reason: ownWords(raw.reason, ENROLMENT_LIMITS.timeAnswerReason),
+      alternatives: ownWords(raw.alternatives, ENROLMENT_LIMITS.timeAnswerAlternatives),
+      sessionKeys: orderedSessionKeys(raw.sessionKeys.filter(isSessionKey)).slice(0, ENROLMENT_LIMITS.timeAnswerSessions),
+      forGroupId: raw.forGroupId,
+      at: tsToDate(raw.at),
+    };
   }
   const reason = ownWords(raw.reason, ENROLMENT_LIMITS.timeAnswerReason);
   const alternatives = ownWords(raw.alternatives, ENROLMENT_LIMITS.timeAnswerAlternatives);
@@ -412,6 +548,7 @@ export function normalizeCourseEnrolment(id: string, data: Raw): CourseEnrolment
       typeof data.joinedWeekNumber === "number" && Number.isFinite(data.joinedWeekNumber)
         ? Math.max(1, Math.floor(data.joinedWeekNumber))
         : 1,
+    toldGroupId: typeof data.toldGroupId === "string" && data.toldGroupId ? data.toldGroupId : null,
     createdAt: tsToDate(data.createdAt),
     updatedAt: tsToDate(data.updatedAt),
   };

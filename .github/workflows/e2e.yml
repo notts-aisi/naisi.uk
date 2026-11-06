@@ -176,11 +176,14 @@ jobs:
       # Deliberately not a dependency: the root package.json is on the critical
       # path of every production deploy's `npm ci`, and a browser automation
       # library plus a downloaded Chromium has no business there. The runner
-      # refuses to run without Playwright and prints this same line.
+      # refuses to run without Playwright and prints this same line. Pinned to
+      # a release, as Mailpit is below: on 5 November 2026 "latest" became a
+      # release whose playwright-core was not yet downloadable, and every run
+      # failed at this step. tests/actions-pinned.test.mjs holds the pin.
       - name: Install Playwright
         if: matrix.part != 'batteries'
         run: |
-          npm install --no-save playwright
+          npm install --no-save playwright@1.64.1
           npx playwright install --with-deps chromium
 
       # Mailpit catches every message the loopback server sends, so a spec can
@@ -416,7 +419,7 @@ jobs:
 
       - name: Install Playwright
         run: |
-          npm install --no-save playwright
+          npm install --no-save playwright@1.64.1
           npx playwright install --with-deps chromium
 
       # No Mailpit here, and no .env.local: nothing is built and nothing is

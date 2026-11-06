@@ -11,6 +11,7 @@ import {
   BACK_UP,
   FACILITATING,
   LEAD,
+  MOVED,
   MOVE_HERE,
   MOVE_HERE_CANT,
   MOVES_IN,
@@ -140,6 +141,8 @@ export default function Ring({
               {!role && movesIn ? <span className={styles.chipRole}>{MOVES_IN}</span> : null}
               <span>{tagName(person?.name ?? "?")}</span>
               {notTold ? <span className={styles.chipNote}>{NOT_TOLD}</span> : null}
+              {/* Told about another group and moved since: the next Publish emails them. */}
+              {showNotTold && person?.moved ? <span className={styles.chipNote}>{MOVED}</span> : null}
               {/* Only on the live run: a preview shows where people would go, not what they said. */}
               {showNotTold && person?.timeAnswer?.kind === "cant" ? (
                 <span className={`${styles.chipNote} ${styles.chipCant}`}>{MARK_CANT_MAKE}</span>

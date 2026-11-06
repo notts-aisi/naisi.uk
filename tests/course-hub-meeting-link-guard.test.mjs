@@ -73,6 +73,14 @@ const READERS = {
     does: "saves",
     why: "a group added from the Times view is born in the run editor's own session shape, its link empty (null); nothing there reads it",
   },
+  "lib/courses/meetingLink/save.ts": {
+    does: "saves",
+    why: "the facilitators' box saves the link they typed for one week (the week's own) or for every week (the group's standing link), behind its route's gate; it emails nobody",
+  },
+  "features/courses/facilitator/JoiningOnlineBox.tsx": {
+    does: "saves",
+    why: "the facilitators' box at the top of the group page and the register: the field a facilitator types a week's link into, held to the group's own cap, which it sends to its route and never shows back",
+  },
   "features/courses/GroupWeekEditor.tsx": {
     does: "shows",
     why: "a facilitator's week editor, which shows them the link their group will see on the site in an online week",
@@ -108,6 +116,14 @@ const READERS = {
   "lib/courses/sessions.ts": {
     does: "resolves",
     why: "the session resolver, whose stand-in slot for a reader with no group carries no link",
+  },
+  "lib/courses/joiningOnline/seat.ts": {
+    does: "asks",
+    why: "Joining online asks whether the session has a link, to tell the person it is on their ticket or will be; the answer never carries it",
+  },
+  "lib/courses/meetingLink/box.ts": {
+    does: "asks",
+    why: "the facilitators' box asks whether a session somebody is joining online has a link yet, to ask for one or not; it never hands it back",
   },
   "lib/courses/sessionChange/view.ts": {
     does: "asks",

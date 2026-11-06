@@ -198,7 +198,10 @@ export default function WhoFinished({
                     </div>
                   </td>
                   <td className={`${styles.wfTd} ${styles.wfCellGroup}`}>{row.groupName}</td>
-                  <td className={`${styles.wfTd} ${styles.wfCellCame}`}>{row.came}</td>
+                  <td className={`${styles.wfTd} ${styles.wfCellCame}`}>
+                    {row.came}
+                    {row.cameWhere && <div className={styles.wfLine}>{row.cameWhere}</div>}
+                  </td>
                   <td className={`${styles.wfTd} ${styles.wfCellExercises}`}>{row.exercises ?? "None set"}</td>
                   <td className={`${styles.wfTd} ${styles.wfCellFinished}`}>
                     <div className={styles.wfFinishedCell}>

@@ -21,8 +21,8 @@ import { weekHasBegun, weekIsWhole, type WeekCheckIn, type WeekSession } from ".
  *    week the job fixes is the week the tab draws.
  *  - A WEEK'S CHECK-INS ARE FIXED WHEN IT FIRST SHOWS. On each tick the
  *    scheduler's `surveys-check-in-weeks` job fixes every week of a programme
- *    that is whole (`weekIsWhole`: every session of it that can have a
- *    check-in is past its check-in time, and none of its check-ins is open)
+ *    that is whole (`weekIsWhole`: none of its check-ins is open, and every
+ *    session of it with none is past the time an admin could open one late)
  *    and has begun (`weekHasBegun`, so a week whose sessions are not dated yet
  *    is never fixed empty), and is not fixed yet (`freezeWholeWeeks`). The
  *    lead reads a week only once it is fixed, and then only its check-ins: one
@@ -54,7 +54,15 @@ export function sessionsOf(run: CourseRunDoc, groups: readonly CourseGroupDoc[])
   return groups.flatMap((group) =>
     resolveSessions(run, group).map((session): WeekSession => {
       const { startsAt, endsAt } = sessionInstants(session);
-      return { weekNumber: session.weekNumber, cancelled: session.cancelled, dateKey: session.dateKey, startsAt, endsAt };
+      return {
+        groupId: group.id,
+        sessionKey: session.sessionKey,
+        weekNumber: session.weekNumber,
+        cancelled: session.cancelled,
+        dateKey: session.dateKey,
+        startsAt,
+        endsAt,
+      };
     }),
   );
 }
@@ -66,7 +74,12 @@ export function weekNumbersOf(weeks: readonly number[], checkIns: readonly Check
 
 /** Where each of these check-ins stands at `now`, as a week waits on it. */
 export function marksOf(checkIns: readonly CheckInSurveyDoc[], now: Date): WeekCheckIn[] {
-  return checkIns.map((survey) => ({ weekNumber: survey.audience.weekNumber, open: isOpen(survey, now) }));
+  return checkIns.map((survey) => ({
+    groupId: survey.audience.groupId,
+    sessionKey: survey.audience.sessionKey,
+    weekNumber: survey.audience.weekNumber,
+    open: isOpen(survey, now),
+  }));
 }
 
 /** Each fixed week of the run, by its number, with the ids of the check-ins it was fixed with. */

@@ -123,6 +123,7 @@ const SURFACE_LABELS: Record<string, string> = {
   "event-survey": "survey after an event",
   "survey-blanks": "survey questions left blank",
   "course-check-in": "check-in at a session",
+  "course-check-in-reminder": "check-in reminder",
   "course-week": "week is open",
   "course-week-reminder": "reminder before a session",
   messages: "a message from Messages",

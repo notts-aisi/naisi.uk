@@ -3,6 +3,7 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { redirect } from "next/navigation";
 import { firstName as firstNameOf } from "@/app/(app)/dashboard/homeWords";
 import GroupNotesCard from "@/features/courses/facilitator/GroupNotesCard";
+import JoiningOnlineBox from "@/features/courses/facilitator/JoiningOnlineBox";
 import {
   FacilitatorTicket,
   GroupPeopleCard,
@@ -27,8 +28,11 @@ import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import { facilitatorGuideReader } from "@/lib/courses/facilitatorGuide/access";
 import { facilitatorGuidePath } from "@/lib/courses/facilitatorGuide/model";
 import { readGuideIndex } from "@/lib/courses/facilitatorGuide/store";
-import { guideForWeekWords } from "@/lib/courses/facilitatorGuide/words";
+import { FACILITATOR_GUIDE, guideForWeekWords } from "@/lib/courses/facilitatorGuide/words";
 import { loadFacilitatorGroup } from "@/lib/courses/facilitatorGroup";
+import { seesSessionLink } from "@/lib/courses/meetingLink/audience";
+import { joiningOnlineBox } from "@/lib/courses/meetingLink/box";
+import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import { facilitatorExplainerOn } from "@/lib/courses/explainers/readers";
 import { hasDraw } from "@/lib/courses/packsAndCases/model";
 import { drawPeople, readDrawState, readGroupWeek, spreadOf } from "@/lib/courses/packsAndCases/readers";
@@ -105,11 +109,18 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * NOT DRAWN HERE: who can't make it tonight. The register says it, from the
  * moment somebody tells us, and the ticket's Take the register leads there.
  *
- * THE FACILITATOR GUIDE FOR THE WEEK ("Facilitator guide for week 3" on the
- * ticket) is drawn when that week of the course's facilitator guide has its
- * session plan or its notes loaded, and is asked of the guide's own gate
- * (`src/lib/courses/facilitatorGuide/access.ts`), which admits this page's
- * readers: the group's live facilitators and admins.
+ * JOINING ONLINE, at the top: for each session still to end where somebody
+ * has said they are joining online, who, and while the session has no
+ * meeting link, the field to add one for that week or for every week
+ * (`joiningOnlineBox`, the register page's box too). Nobody is emailed.
+ *
+ * THE FACILITATOR GUIDE, on the ticket: "Facilitator guide for week 3" is
+ * drawn when that week of the course's facilitator guide has its session
+ * plan or its notes loaded, and "Facilitator guide", to the guide's course
+ * page with every week, whenever the guide has anything loaded, so last
+ * week's is still a tap away once the ticket has moved on. Both are asked of
+ * the guide's own gate (`src/lib/courses/facilitatorGuide/access.ts`), which
+ * admits this page's readers: the group's live facilitators and admins.
  *
  * ── THE GATE IS TWO CHECKS, NOT ONE ─────────────────────────────────────────
  * `[runId]/layout.tsx` has already established that the caller holds SOME role
@@ -267,6 +278,16 @@ export default async function GroupHomePage({
     : 0;
   const weekId = weekNumber >= 1 ? weekDocId(weekNumber) : "";
   const session = sessionForWeek(group, weekId);
+  // Who sees a session's link is one answer (`seesSessionLink`), the run
+  // overview's too. Everybody this page admits is in it (a facilitator of the
+  // group, or an admin); asking it here keeps the two from drifting apart.
+  const seesLink = seesSessionLink({
+    viewer: access.user,
+    isAdmin: access.isAdmin,
+    seat: access.enrolment,
+    group,
+    sessionKey: range.next?.sessionKey ?? null,
+  });
 
   const sessionGroup: OverviewGroup = {
     id: group.id,
@@ -291,8 +312,8 @@ export default async function GroupHomePage({
             durationMinutes: range.next.session.durationMinutes,
             weekNumbers: changes.next?.weekNumbers ?? [range.next.weekNumber],
             location: changes.next?.location ?? "",
-            // The gate above is the overview route's `canSeeMeetingUrl`.
-            meetingUrl: changes.next?.meetingUrl ?? null,
+            // The page's gate, and the one answer about who sees a link.
+            meetingUrl: seesLink ? (changes.next?.meetingUrl ?? null) : null,
             explainer: explainer ? { minutes: explainer.minutes, topic: explainer.topic } : null,
           }
         : null,
@@ -302,9 +323,9 @@ export default async function GroupHomePage({
     startTimeLocal: session.startTimeLocal,
     durationMinutes: session.durationMinutes,
     location: session.location,
-    // The gate above is the check the overview route calls `canSeeMeetingUrl`:
-    // a facilitator of this group, or an admin. Nobody else reaches this line.
-    meetingUrl: session.meetingUrl,
+    // The gate above admits a facilitator of this group, or an admin, and
+    // nobody else reaches this line; `seesSessionLink` says the same.
+    meetingUrl: seesLink ? session.meetingUrl : null,
     // The whole map, exactly as the overview route sends it: this shape IS
     // `OverviewGroup`, and a divergence here would mean the facilitator's own
     // ticket is fed differently from their members'. The ticket reads the
@@ -341,6 +362,18 @@ export default async function GroupHomePage({
     readGroupNotes(db, group, access.user),
     // The review queue's written answers half: null on a run of the summer's weeks.
     loadWrittenQueue(db, access.user, access.run, group),
+  ]);
+  // The box at the top: who is joining a session online, named as this
+  // reader is shown the group's people, and where a link is still wanted.
+  // Nothing is offered to press in a view-as session, where nothing is written.
+  const [joiningOnline, viewAs] = await Promise.all([
+    joiningOnlineBox(db, {
+      run: access.run,
+      group,
+      people: model.people.filter((person) => person.left === null).map((person) => ({ uid: person.uid, name: person.name })),
+      now,
+    }).catch(() => []),
+    getImpersonator().then((marker) => markerIsLive(marker, access.user.uid)),
   ]);
   const writtenHref = (row: { uid: string; weekNumber: number }) =>
     `${groupPath}/written?week=${row.weekNumber}&person=${encodeURIComponent(row.uid)}`;
@@ -409,16 +442,23 @@ export default async function GroupHomePage({
   const facts = ticketFacts(sessionGroup);
   const todayKey = londonDateKey(now);
 
-  // "Facilitator guide for week 3" on the ticket, when the course's guide has
-  // that week, through the guide's own gate and its list of titles.
-  const guideReader = facts && facts.weekNumber >= 1 ? await facilitatorGuideReader(db, access.user, access.run.courseId) : null;
-  const guideWeeks = guideReader ? (await readGuideIndex(db, guideReader)).weeks.map((week) => week.weekNumber) : [];
+  // The course's facilitator guide on the ticket, through the guide's own
+  // gate and its list of titles: "Facilitator guide for week 3" when the guide
+  // has that week, and "Facilitator guide", its course page with every week,
+  // whenever it has anything loaded, so last week's is still a tap away.
+  const guideReader = facts ? await facilitatorGuideReader(db, access.user, access.run.courseId) : null;
+  const guideIndex = guideReader ? await readGuideIndex(db, guideReader) : null;
+  const guideWeeks = guideIndex ? guideIndex.weeks.map((week) => week.weekNumber) : [];
   const guide =
-    facts && guideWeeks.includes(facts.weekNumber)
+    facts && facts.weekNumber >= 1 && guideWeeks.includes(facts.weekNumber)
       ? {
           href: facilitatorGuidePath(access.run.courseId, { kind: "week", weekNumber: facts.weekNumber }),
           label: guideForWeekWords(facts.weekNumber),
         }
+      : null;
+  const guideContents =
+    guideIndex && (guideIndex.documents.length > 0 || guideIndex.weeks.length > 0)
+      ? { href: facilitatorGuidePath(access.run.courseId), label: FACILITATOR_GUIDE }
       : null;
 
   // The page's cards, drawn once, and placed below by the shape of the week.
@@ -441,6 +481,7 @@ export default async function GroupHomePage({
           expected={model.expected > 0 ? model.expected : null}
           registerHref={registerHref}
           guide={guide}
+          guideContents={guideContents}
           explainer={explainer}
         />
       )}
@@ -590,6 +631,9 @@ export default async function GroupHomePage({
           </div>
         )}
       </header>
+
+      {/* Who is joining a session online, and the field for its link. */}
+      <JoiningOnlineBox groupId={groupId} sessions={joiningOnline} canAdd={!viewAs} />
 
       {groupWeek ? (
         /* A week written as blocks, in the board's rows: the ticket and the

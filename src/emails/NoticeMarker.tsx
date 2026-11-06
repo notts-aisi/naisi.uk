@@ -48,6 +48,8 @@ const NOTICE_REASON: Record<EmailSendSurface, string> = {
   "survey-blanks": "you sent this survey with some of its questions left blank",
   // The register marks the person at the session the check-in is about.
   "course-check-in": "you were at this session of your course group",
+  // Its reminder goes only to somebody it reached who has not sent it, and says so.
+  "course-check-in-reminder": "you were at this session of your course group and haven’t sent its check-in",
   // "Week N is open": everybody holding a place in the group.
   "course-week": "you are in this course group",
   // A reminder goes only to somebody whose week is not done, and says so.

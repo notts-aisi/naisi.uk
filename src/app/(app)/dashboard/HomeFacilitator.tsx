@@ -39,7 +39,7 @@ import {
 } from "@/lib/courses/facilitatorPageWords";
 import { facilitatorGuidePath } from "@/lib/courses/facilitatorGuide/model";
 import { STARTS_WITH_AN_EXPLAINER, facilitatorLineWords, scheduledByWords } from "@/lib/courses/explainers/words";
-import { FACILITATOR_GUIDE } from "@/lib/courses/facilitatorGuide/words";
+import { FACILITATOR_GUIDE, guideForWeekWords } from "@/lib/courses/facilitatorGuide/words";
 import { WRITE_FEEDBACK, toWriteWords } from "@/lib/courses/feedback/words";
 import { sessionEyebrow, weekTitleWords } from "@/lib/courses/memberPageWords";
 import { writeToGroupLine, writeToGroupWords } from "@/lib/courses/updates/words";
@@ -64,10 +64,14 @@ import styles from "./home.module.css";
  * NOT DRAWN: who can't make it tonight. The register says it, which "Take
  * the register" opens.
  *
- * "Facilitator guide" under this week's title leads to that week of the
- * course's facilitator guide, drawn only when the guide's own route says the
- * week has something loaded (`useFacilitatorGuide`), which it says only to
- * the guide's readers.
+ * THE FACILITATOR GUIDE, under this week's title: "Facilitator guide for
+ * week 3" leads to that week of the course's facilitator guide, drawn only
+ * when the guide's own route says the week has something loaded; and
+ * "Facilitator guide" beside it leads to the guide's course page, every week
+ * and the course's own documents, drawn whenever the guide has anything
+ * loaded at all, so last week's guide is still a tap away once the week has
+ * moved on. Both come from one answer (`useFacilitatorGuide`), which the
+ * route gives only the guide's readers.
  *
  * BEFORE THE GROUP'S FIRST SESSION, on every day
  * before the day of the first session: the first session as a ticket with
@@ -157,13 +161,18 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
   // The explainer the next session starts with, on that session's ticket alone.
   const explainer =
     known?.explainer && known.explainer.sessionKey === group?.calendar.nextSession?.sessionKey ? known.explainer : null;
-  // This week's part of the course's facilitator guide, when it has one. An
-  // overview that names no course asks for nothing.
+  // This week's part of the course's facilitator guide, when it has one, and
+  // the guide's course page whenever it has anything. An overview that names
+  // no course asks for nothing.
   const guide = useFacilitatorGuide(data?.run?.courseId ?? "");
-  const guideHref =
+  const guideWeek =
     guide && facts && guide.weeks.includes(facts.weekNumber)
-      ? facilitatorGuidePath(guide.courseId, { kind: "week", weekNumber: facts.weekNumber })
+      ? {
+          href: facilitatorGuidePath(guide.courseId, { kind: "week", weekNumber: facts.weekNumber }),
+          label: guideForWeekWords(facts.weekNumber),
+        }
       : null;
+  const guideHref = guide ? facilitatorGuidePath(guide.courseId) : null;
 
   return (
     <>
@@ -373,6 +382,12 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
               <p className={facilitator.weekTitle}>{weekTitleWords(facts.weekNumber, weekDoc?.title ?? "")}</p>
               {guideHref && (
                 <div className={facilitator.weekGuide}>
+                  {guideWeek && (
+                    <Link href={guideWeek.href} className={styles.textLink}>
+                      {guideWeek.label}
+                      <ArrowRight />
+                    </Link>
+                  )}
                   <Link href={guideHref} className={styles.textLink}>
                     {FACILITATOR_GUIDE}
                     <ArrowRight />

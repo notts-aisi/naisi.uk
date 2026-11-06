@@ -1,5 +1,7 @@
 import {
   ATTENDANCE_STATUSES,
+  ONLINE,
+  cameBy,
   type AttendanceStatus,
 } from "@/lib/firestore/courseAttendance";
 import type { ResolvedSession } from "./sessions";
@@ -14,12 +16,13 @@ import type { ResolvedSession } from "./sessions";
  *
  * So this function is a PROJECTION, not a filter, and the distinction is the
  * whole point. It never spreads a register, never deletes keys off a copy of
- * one, never passes a normalised register doc along. It reads exactly four
+ * one, never passes a normalised register doc along. It reads exactly five
  * facts out of each one and builds a new object from them:
  *
  *   the session it belongs to, whether that session was held (a session
- *   cancelled through "Change a session" never was), its date, and THIS
- *   uid's mark.
+ *   cancelled through "Change a session" never was), its date, THIS uid's
+ *   mark, and whether THIS uid joined it online (only beside a mark that
+ *   says they came; a register that does not say reads as in the room).
  *
  * Nothing else can leak, because nothing else is ever read. A field added to
  * `courseAttendance` next term travels nowhere by default, which is the
@@ -60,6 +63,13 @@ export type OwnAttendanceSession = {
   held: boolean;
   /** This member's mark, or null when the pushed register did not name them. */
   status: AttendanceStatus | null;
+  /**
+   * True when they came (present, late, left early) and the register records
+   * them as having joined online. False for in the room, for every other
+   * mark, and for every register written before it recorded where people
+   * were.
+   */
+  online: boolean;
 };
 
 /**
@@ -86,6 +96,12 @@ function statusOf(records: unknown, uid: string): AttendanceStatus | null {
   return ATTENDANCE_STATUSES.includes(mark as AttendanceStatus)
     ? (mark as AttendanceStatus)
     : null;
+}
+
+/** Whether THIS uid's entry in a register's `online` map says online. Nobody else's is read. */
+function onlineOf(online: unknown, uid: string): boolean {
+  if (!online || typeof online !== "object") return false;
+  return (online as Record<string, unknown>)[uid] === true;
 }
 
 /**
@@ -133,6 +149,7 @@ export function ownAttendanceSessions(
   for (const session of sessions) {
     const raw = registers.get(session.sessionKey);
     if (!raw || !isPushed(raw.pushedAt)) continue;
+    const status = statusOf(raw.records, uid);
     out.push({
       sessionKey: session.sessionKey,
       weekNumber: session.weekNumber,
@@ -143,7 +160,8 @@ export function ownAttendanceSessions(
       // that happened. A session cancelled through "Change a session" did not
       // happen, whatever its register says.
       held: !session.cancelled && raw.held !== false,
-      status: statusOf(raw.records, uid),
+      status,
+      online: cameBy(status) && onlineOf(raw[ONLINE], uid),
     });
   }
   return out;

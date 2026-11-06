@@ -49,6 +49,7 @@ const routes = await loadAskRoutes(made);
 // The hand-over and the board, for the people who hold a place.
 const join = await loadJoin(made);
 const words = await made.lib("courses", "facilitatorAsks", "words.ts");
+const enrolments = await made.lib("firestore", "courseEnrolments.ts");
 
 /** Start from the world at `at`, the store's clock and the suite's agreeing. */
 function begin(t, { at = NOW, over = {} } = {}) {
@@ -787,20 +788,45 @@ describe("4b. a facilitator who holds a place is one of the group's fellows, in 
     assert.equal(groupOf(A).memberCount, 1, "somebody who holds no place was counted in the group");
   });
 
+  // CHANGED ON PURPOSE (November 2026). Until then any new group cleared
+  // Publish's stamp, so this test poked one onto a fellow in no group and
+  // held that the appointment cleared it. Somebody Publish has told now stays
+  // told through every move, the board's and this one alike, and the next
+  // Publish tells them they moved; somebody nobody has told is placed with no
+  // stamp, and the next Publish tells them their group. Both are held here.
   test("a fellow the board took out of their group is placed in the group they are made facilitator of, and Publish will tell them", async (t) => {
     begin(t);
     await handOver();
+    // Nobody has told her: placed in Group B, taken out, made Group A's facilitator.
     await placeOnBoard("amara", B);
     await placeOnBoard("amara", null);
     assert.equal(rowOf("amara").groupId, null);
-    // As if a stamp had been left on the row: it certifies a group, and a new one clears it.
-    world.db.poke(`courseEnrolments/${RUN.agi}__amara`, { allocatedEmailAt: NOW });
-    const saved = await call("claudia", routes.byHand.POST, { groupId: A }, { body: { uids: ["sofia", "amara"] }, course: true });
+    let saved = await call("claudia", routes.byHand.POST, { groupId: A }, { body: { uids: ["sofia", "amara"] }, course: true });
     assert.equal(saved.status, 200, JSON.stringify(saved.body));
     assert.deepEqual(saved.body.placed, ["Amara Okafor"]);
-    const row = rowOf("amara");
+    let row = rowOf("amara");
     assert.deepEqual([row.role, row.status, row.groupId], ["learner", "active", A]);
-    assert.ok(!("allocatedEmailAt" in row), "the row still says Publish told them about a group");
+    assert.ok(!("allocatedEmailAt" in row), "the row says Publish told them about a group");
+    assert.ok(!("toldGroupId" in row), "the row names a group Publish told them about");
+    assert.deepEqual([groupOf(A).memberCount, groupOf(B).memberCount], [1, 0]);
+
+    // Told about Group B by Publish, then taken out of it on the board, which
+    // keeps the stamp and records the group they were told about. Made Group
+    // A's facilitator, they stay told, and the next Publish tells them they moved.
+    begin(t);
+    await handOver();
+    await placeOnBoard("amara", B);
+    world.db.poke(`courseEnrolments/${RUN.agi}__amara`, { allocatedEmailAt: NOW, allocatedEmailDelivery: "sent" });
+    await placeOnBoard("amara", null);
+    assert.deepEqual([rowOf("amara").groupId, rowOf("amara").toldGroupId], [null, B]);
+    saved = await call("claudia", routes.byHand.POST, { groupId: A }, { body: { uids: ["sofia", "amara"] }, course: true });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.deepEqual(saved.body.placed, ["Amara Okafor"]);
+    row = rowOf("amara");
+    assert.deepEqual([row.role, row.status, row.groupId, row.toldGroupId], ["learner", "active", A, B]);
+    assert.ok(row.allocatedEmailAt, "the appointment untold somebody Publish had told");
+    const seat = enrolments.normalizeCourseEnrolment(`${RUN.agi}__amara`, row);
+    assert.equal(enrolments.movedSinceTold(seat), true, "the next Publish would not tell them they moved");
     assert.deepEqual([groupOf(A).memberCount, groupOf(B).memberCount], [1, 0]);
   });
 

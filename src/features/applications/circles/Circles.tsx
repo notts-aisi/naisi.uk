@@ -8,6 +8,7 @@ import type { SessionSlot } from "@/lib/admissions/availability";
 import { changesBetween, freeGroupName, placementOrder } from "@/lib/applications/arrange/changes";
 import type { ArrangementOptionsView, CirclesView, RingOption, RingPerson } from "@/lib/applications/arrange/view";
 import { own } from "@/lib/applications/keys";
+import { movedSentence } from "@/lib/courses/moveWords";
 import { lengthWords } from "@/lib/courses/sessionLength";
 import { clockWords } from "@/lib/courses/sessionChange/words";
 import { groupsViewPath } from "../groups/GroupsViews";
@@ -51,6 +52,9 @@ import Ring from "./Ring";
  * pressing Apply again sends what is left.
  *
  * Nobody is emailed by anything here: Publish tells people their group.
+ * Somebody Publish has told about a group sees a move at once, and the next
+ * Publish emails them that they have moved: their ring says "Moved", and the
+ * sentence a move leaves says what it did (`movedSentence`).
  */
 
 type Preview = {
@@ -134,6 +138,7 @@ export default function Circles({ initial }: { initial: CirclesView }) {
   const movable = Object.values(live.people).filter(
     (person) => person.groupId !== null && !person.told && person.appointed.length === 0,
   ).length;
+  const movedSince = Object.values(live.people).filter((person) => person.moved !== null).length;
 
   // What Apply would send, worked out from the preview and the run as it is.
   const facts = useMemo(() => liveFacts(live), [live]);
@@ -174,6 +179,23 @@ export default function Circles({ initial }: { initial: CirclesView }) {
 
   const liveName = (groupId: string | null) => live.groups.find((group) => group.id === groupId)?.name ?? W.A_GROUP;
 
+  /**
+   * What a move said, for somebody Publish has told about a group: they see
+   * where they are now at once, and the next Publish emails them, or nobody
+   * needs telling when they are back in the group they were told about. Null
+   * for anybody else.
+   */
+  const toldSentence = (uid: string, to: { id: string; name: string } | null): string | null => {
+    const person = own(live.people, uid);
+    if (!person?.toldGroupId) return null;
+    return movedSentence({
+      name: nameOf(uid),
+      toldGroupId: person.toldGroupId,
+      toldGroupName: live.groups.find((group) => group.id === person.toldGroupId)?.name ?? null,
+      to,
+    });
+  };
+
   const moveLive = (uid: string, groupId: string | null) =>
     save(async () => {
       const answer = await allocate([{ uid, groupId }]);
@@ -183,7 +205,8 @@ export default function Circles({ initial }: { initial: CirclesView }) {
         const where = groupId ? liveName(groupId) : liveName(own(live.people, uid)?.groupId ?? null);
         return { ok: false, lines: refused.map((r) => notMovedWords(nameOf(r.uid), where, r.reason)) };
       }
-      return { ok: true, lines: [W.movedWords(nameOf(uid), groupId ? liveName(groupId) : null)] };
+      const told = toldSentence(uid, groupId ? { id: groupId, name: liveName(groupId) } : null);
+      return { ok: true, lines: [told ?? W.movedWords(nameOf(uid), groupId ? liveName(groupId) : null)] };
     });
 
   const facilitateLive = (ring: DrawnRing, uid: string, add: boolean) => {
@@ -218,7 +241,7 @@ export default function Circles({ initial }: { initial: CirclesView }) {
       const refused = placed.ok ? rejectedOf(placed.data) : [];
       if (!placed.ok) return { ok: false, lines: [...lines, placed.error] };
       if (refused.length > 0) return { ok: false, lines: [...lines, ...refused.map((r) => notMovedWords(nameOf(r.uid), name, r.reason))] };
-      return { ok: true, lines: [...lines, W.movedWords(nameOf(withUid), name)] };
+      return { ok: true, lines: [...lines, toldSentence(withUid, { id, name }) ?? W.movedWords(nameOf(withUid), name)] };
     });
 
   const timeLive = (ring: DrawnRing, day: number, start: number) => {
@@ -443,9 +466,10 @@ export default function Circles({ initial }: { initial: CirclesView }) {
           }
           for (const place of ordered) {
             const to = place.to ? (nameOfKey.get(place.to) ?? W.A_GROUP) : null;
+            const toId = place.to ? (idOf.get(place.to) ?? null) : null;
             const no = refused.find((r) => r.uid === place.uid);
             if (no) say(false, notMovedWords(nameOf(place.uid), to ?? liveName(place.from), no.reason));
-            else say(true, W.RESULT.placed(nameOf(place.uid), to));
+            else say(true, toldSentence(place.uid, toId && to ? { id: toId, name: to } : null) ?? W.RESULT.placed(nameOf(place.uid), to));
           }
           if (refused.length > 0) stopped = true;
         }
@@ -582,6 +606,16 @@ export default function Circles({ initial }: { initial: CirclesView }) {
   const askLines = changes && draft
     ? changes.toAsk.map((ask) => W.CHANGE.ask(nameOf(ask.uid), draft.find((group) => group.key === ask.key)?.name ?? W.A_GROUP))
     : [];
+  // Of the moves Apply would make, those of people told their group into a
+  // group other than the one they were told about: the next Publish emails them.
+  const toldMoves = changes && draft
+    ? changes.places.filter((place) => {
+        const person = own(live.people, place.uid);
+        if (!person?.toldGroupId || place.to === null) return false;
+        const toId = draft.find((group) => group.key === place.to)?.id ?? null;
+        return toId !== person.toldGroupId;
+      }).length
+    : 0;
 
   /** A live group's campus and room, each saved through its own route; a preview changes neither. */
   const campusControl = (ring: DrawnRing) => {
@@ -667,7 +701,7 @@ export default function Circles({ initial }: { initial: CirclesView }) {
           <p className={styles.line}>{W.LEDE}</p>
           {live.sent ? (
             <p className={styles.counts}>
-              {W.countsLine({ onList, inAGroup, notInAGroup: onList - inAGroup, untold })}
+              {W.countsLine({ onList, inAGroup, notInAGroup: onList - inAGroup, untold, moved: movedSince })}
             </p>
           ) : (
             <p className={styles.preview}>{W.BEFORE_DECISIONS}</p>
@@ -835,6 +869,8 @@ export default function Circles({ initial }: { initial: CirclesView }) {
                 onRole={(role) => setRole(chosen.uid, role)}
                 onFacilitate={(ring, add) => facilitateLive(ring, chosen.uid, add)}
                 onClose={() => setSelected(null)}
+                runId={option ? null : live.runId}
+                onAnswerChanged={(message) => void save(async () => ({ ok: true, lines: message ? [message] : [] }))}
               />
             ) : (
               <p className={styles.line}>{W.LEGEND}</p>
@@ -930,6 +966,7 @@ export default function Circles({ initial }: { initial: CirclesView }) {
                         <li key={i}>{line}</li>
                       ))}
                     </ol>
+                    {W.toldMovesWords(toldMoves) ? <p className={styles.line}>{W.toldMovesWords(toldMoves)}</p> : null}
                   </>
                 )}
                 {askLines.length > 0 ? (

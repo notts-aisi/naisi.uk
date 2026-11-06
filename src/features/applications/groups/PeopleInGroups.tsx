@@ -30,9 +30,11 @@ import { useAllocation, type AllocGroup, type AllocRow, type Placement } from "@
 import type { PeopleInGroupsView } from "@/lib/applications/handover/peopleInGroups";
 import { own } from "@/lib/applications/keys";
 import { divergenceNote, type GroupDivergenceInput } from "@/lib/courses/groupResolve";
+import { movedSentence } from "@/lib/courses/moveWords";
 import { GroupsFrame } from "./GroupsViews";
 import styles from "./PeopleInGroups.module.css";
 import { POOL, TAKE_OFF, marksOf, menuOptions, notToldYet, type Mark } from "./peopleInGroupsBoard";
+import SomeWeeks from "@/features/courses/timeAnswer/SomeWeeks";
 import { CANT_DETAILS, WHY, WOULD_WORK } from "@/lib/courses/timeAnswer/words";
 import * as words from "./peopleInGroupsWords";
 
@@ -63,6 +65,13 @@ import * as words from "./peopleInGroupsWords";
  * says "Not told yet", and a line over the board names everybody placed
  * since ("3 placed since you published: Ana, Raj and Tom. Publish to tell
  * them."), linking to Publish (`notToldYet`, one question for both).
+ *
+ * SOMEBODY TOLD THEIR GROUP AND MOVED SINCE sees the group they are in now at
+ * once: a move sends nothing and hides nobody. Their card says they were
+ * moved and that the next Publish emails them, a line over the board names
+ * them ("2 moved since they were told: Ana and Raj."), and the move itself
+ * leaves a sentence saying what it did (`movedSentence`). Moved back to the
+ * group they were told about, they owe nothing and the card says nothing.
  *
  * WHAT THE DESIGN DRAWS AND THIS LEAVES OUT, because the feature does not
  * exist yet: "Remind" (when-you're-free open until groups go out, a
@@ -138,9 +147,26 @@ type CardProps = {
   onMenu: (row: AllocRow, value: string) => void;
   busy: boolean;
   reducedMotion: boolean;
+  /** The run, for "They meant some weeks" under a can't. */
+  runId: string;
+  /** "They meant some weeks" saved: the board is read again. */
+  onAnswerChanged: (message: string) => void;
 };
 
-function PersonCard({ row, name, detail, marks, warns, columnId, options, onMenu, busy, reducedMotion }: CardProps) {
+function PersonCard({
+  row,
+  name,
+  detail,
+  marks,
+  warns,
+  columnId,
+  options,
+  onMenu,
+  busy,
+  reducedMotion,
+  runId,
+  onAnswerChanged,
+}: CardProps) {
   // The six dots are a pointer's handle and nothing else: the card's menu is
   // the way to move somebody from a keyboard or a touch screen.
   const { listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
@@ -186,7 +212,10 @@ function PersonCard({ row, name, detail, marks, warns, columnId, options, onMenu
             ))}
           </span>
         )}
-        {row.timeAnswer?.kind === "cant" ? (
+        {/* What they wrote, under a can't, and under a most weeks that staff
+            read from a can't, which keeps their words. Only a can't offers
+            "They meant some weeks". */}
+        {row.timeAnswer && row.timeAnswer.kind !== "yes" && row.timeAnswer.reason ? (
           <details className={styles.why}>
             <summary>{CANT_DETAILS}</summary>
             <p>
@@ -195,6 +224,9 @@ function PersonCard({ row, name, detail, marks, warns, columnId, options, onMenu
             <p>
               <strong>{WOULD_WORK}</strong> {row.timeAnswer.alternatives}
             </p>
+            {row.timeAnswer.kind === "cant" ? (
+              <SomeWeeks runId={runId} uid={row.uid} disabled={busy} onSaved={onAnswerChanged} />
+            ) : null}
           </details>
         ) : null}
       </div>
@@ -260,6 +292,11 @@ export default function PeopleInGroups({ view, views }: Props) {
   const runId = view.run.id;
   const { data, loading, error, reload, place, removeEnrolment } = useAllocation(runId);
   const { toast, run: runAction, dismiss } = useActionToast();
+  // "They meant some weeks" saved on a card: the board is read again, and says so.
+  const onAnswerChanged = useCallback(
+    (message: string) => void runAction(async () => reload(), { successMessage: message || undefined }),
+    [runAction, reload],
+  );
   const reducedMotion = useReducedMotion();
   const [pending, setPending] = useState<Record<string, string | null>>({});
   const [busy, setBusy] = useState(false);
@@ -360,13 +397,23 @@ export default function PeopleInGroups({ view, views }: Props) {
       if (!row) return;
       const from = columnOf(row);
       if (from === columnId) return;
-      setMoveNote(
-        divergenceNote(autonomyOf(groupsById.get(from) ?? null), autonomyOf(groupsById.get(columnId) ?? null), {
-          source: columnName(from),
-          target: columnId === POOL ? null : columnName(columnId),
-          who: nameOf(uid),
-        }),
-      );
+      // What the move did, for somebody who already knew their group: they
+      // see the group they are in now at once, and the next Publish emails
+      // them. Beside any note about the group's weeks.
+      const told = row.told
+        ? movedSentence({
+            name: nameOf(uid),
+            toldGroupId: row.told.groupId,
+            toldGroupName: row.told.groupName,
+            to: columnId === POOL ? null : { id: columnId, name: columnName(columnId) },
+          })
+        : null;
+      const note = divergenceNote(autonomyOf(groupsById.get(from) ?? null), autonomyOf(groupsById.get(columnId) ?? null), {
+        source: columnName(from),
+        target: columnId === POOL ? null : columnName(columnId),
+        who: nameOf(uid),
+      });
+      setMoveNote([told, note].filter(Boolean).join(" ") || null);
       const placement: Placement = {
         uid,
         groupId: columnId === POOL ? null : columnId,
@@ -531,6 +578,8 @@ export default function PeopleInGroups({ view, views }: Props) {
         onMenu={onMenu}
         busy={busy}
         reducedMotion={reducedMotion}
+        runId={runId}
+        onAnswerChanged={onAnswerChanged}
       />
     );
   };
@@ -560,6 +609,13 @@ export default function PeopleInGroups({ view, views }: Props) {
           .map((row) => nameOf(row.uid).split(" ")[0]),
       )
     : [];
+  // Everybody told their group and moved since, in the board's order: the
+  // next Publish emails them "You’ve moved".
+  const movedSince = groups.flatMap((group) =>
+    (byColumn.get(group.id) ?? [])
+      .filter((row) => !(row.uid in livePending) && row.moved)
+      .map((row) => nameOf(row.uid).split(" ")[0]),
+  );
 
   return (
     <GroupsFrame views={views} beside={beside}>
@@ -573,6 +629,18 @@ export default function PeopleInGroups({ view, views }: Props) {
               className={styles.noteLink}
             >
               {words.placedSinceWords(placedSince).link}
+            </Link>
+            .
+          </p>
+        )}
+        {movedSince.length > 0 && (
+          <p className={styles.placedSince} role="status">
+            {words.movedSinceWords(movedSince).lead}{" "}
+            <Link
+              href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/publish`}
+              className={styles.noteLink}
+            >
+              {words.movedSinceWords(movedSince).link}
             </Link>
             .
           </p>

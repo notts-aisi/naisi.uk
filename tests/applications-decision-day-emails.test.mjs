@@ -686,6 +686,16 @@ describe("the settings page shows the subject that is sent, and empty means stan
             "group they are in, never a programme, under the heading the standard subject gives, and is no email's subject",
         },
       ],
+      [
+        "lib/courses/movedEmail.ts",
+        {
+          text: '`You’re in ${html(facts.groupName) || "a new group"} now.`',
+          times: 1,
+          why:
+            "the first line of the body of \"You've moved\", sent by Publish to somebody moved since they were told: " +
+            "it names the group they are in now, never a programme, and the email's subject is \"You've moved to ...\"",
+        },
+      ],
     ]);
     const offenders = [];
     const seen = new Set();

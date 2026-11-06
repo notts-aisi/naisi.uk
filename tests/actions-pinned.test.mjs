@@ -123,3 +123,35 @@ test("every workflow scopes the token its jobs receive", () => {
   }
   assert.deepEqual(problems, [], `\n${problems.join("\n")}\n`);
 });
+
+/**
+ * A package a workflow installs by name is pinned to an exact release, as its
+ * actions are pinned to commits. On 5 November 2026 the end-to-end jobs ran
+ * `npm install --no-save playwright` and npm's "latest" had just become a
+ * release whose `playwright-core` could not be downloaded yet, so every
+ * browser job failed before it began. An exact version is also the only kind
+ * a reviewer can read: "latest" changes under a merged workflow with no pull
+ * request. `npm ci` installs the lockfile and names nothing, so it is not
+ * asked; neither is a bare `npm install` with no package.
+ */
+test("every package a workflow installs by name is pinned to an exact version", () => {
+  const problems = [];
+  let seen = 0;
+  for (const file of [...workflowFiles, ...actionFiles]) {
+    readFileSync(file, "utf8")
+      .split("\n")
+      .forEach((line, i) => {
+        const m = line.match(/\bnpm\s+(?:install|i|add)\b(.*)$/);
+        if (!m) return;
+        const names = m[1].split(/\s+/).filter((word) => word && !word.startsWith("-") && !word.startsWith("#"));
+        for (const name of names) {
+          seen += 1;
+          if (!/^(?:@[^/\s]+\/)?[^@\s]+@\d+\.\d+\.\d+$/.test(name)) {
+            problems.push(`${relative(REPO_ROOT, file)}:${i + 1}: "${name}" is not pinned to an exact version`);
+          }
+        }
+      });
+  }
+  assert.ok(seen > 0, "found no npm install of a named package: the scan reads nothing");
+  assert.deepEqual(problems, []);
+});

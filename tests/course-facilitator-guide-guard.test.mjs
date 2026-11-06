@@ -145,7 +145,7 @@ const READERS = {
   },
   "app/api/courses/[courseId]/facilitator-guide/route.ts": {
     gate: "facilitatorGuideReader(",
-    why: "the titles of a course's guide for a facilitator's Home, for the gate's three; one 403 for everybody else",
+    why: "the titles of a course's guide for a facilitator's Home, which links this week's page and the course page from them, for the gate's three; one 403 for everybody else",
   },
   "app/api/courses/[courseId]/facilitator-guide/[slot]/route.ts": {
     gate: "facilitatorGuideWriter(",
@@ -161,7 +161,7 @@ const READERS = {
   },
   "app/(app)/learn/[runId]/group/[groupId]/page.tsx": {
     gate: "facilitatorGuideReader(",
-    why: "a facilitator's group page: which weeks have something, by title, for the ticket's link; the page itself is its live facilitators' and admins'",
+    why: "a facilitator's group page: which weeks have something, by title, for the ticket's link to this week, and whether anything is loaded at all, for its link to the guide's course page; the page itself is its live facilitators' and admins'",
   },
   "lib/courses/allocationPublish.ts": {
     gate: "facilitatorGuideReaderForGroup(",

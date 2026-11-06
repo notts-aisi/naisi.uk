@@ -3,10 +3,12 @@ import { REPORT_WORDS } from "@/lib/courses/sessionReports/words";
 import styles from "./sessionReport.module.css";
 
 /**
- * "Next: two minutes on how it went.": the way from a finished register on
- * to its writer's report on that session. The register's page hands its grid
- * the report page's address only for a live facilitator of the group, who
- * writes one; the session is the one the register's foot is about.
+ * "Next: two minutes on how it went.": the way from a register on to its
+ * writer's report on that session, beside the check-in, from the session's
+ * start and whether or not the register is finished. The register's page
+ * hands its grid the report page's address only for a live facilitator of
+ * the group, who writes one; the session is the one the register's foot is
+ * about.
  *
  * No directive: it draws a link and nothing else, wherever it is used.
  */

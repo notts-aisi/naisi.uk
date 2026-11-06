@@ -53,6 +53,16 @@ const COMPARATOR_HOME = "src/lib/firestore/courseGroups.ts";
  * the groups are handed on to, which must ask the comparator.
  */
 const READS_WITHOUT_A_LIST = new Map([
+  // Reached from the Check-ins view's table, whose Open press is the check-in's
+  // own route: opening one works out the day names come off.
+  [
+    "src/lib/surveys/namesOff.ts",
+    {
+      why:
+        "The day a survey's names come off: it reads the run's groups only for the last session any of them holds " +
+        "(`runEndOf`), one date two years on, never a list of groups on any page.",
+    },
+  ],
   [
     "src/lib/courses/feedback/send.ts",
     {
