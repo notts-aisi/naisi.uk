@@ -25,7 +25,10 @@ import {
   ATTENDANCE_STATUSES,
   ATTENDANCE_STATUS_LABEL,
   EXCUSED_IN_ADVANCE,
+  ONLINE,
+  ONLINE_SAID,
   attendanceDocId,
+  cameBy,
   normalizeCourseAttendance,
   type AttendanceStatus,
   type CourseAttendanceDoc,
@@ -87,6 +90,19 @@ import { reachLateMarks } from "@/lib/surveys/checkIns/lateMark";
  * facilitator to mark a room full of people absent from a class that never
  * happened. Column TITLES resolve group-first too, so a week the facilitator
  * has forked and renamed reads under the name their members see.
+ *
+ * ── IN THE ROOM OR ONLINE ───────────────────────────────────────────────────
+ * Somebody marked present, late or left early was either in the room or
+ * joined online, and the register keeps which beside its marks (`online`,
+ * `uid -> true` online or `false` in the room), never as a sixth mark. Every
+ * mark that says somebody came writes their entry: the place the press
+ * gives, or the one the register already keeps, or, the first time, their
+ * own word in advance ("Joining online", `onlineSaid`), so somebody who said
+ * they are joining online is put down as online until a facilitator says
+ * they were in the room. Any other mark, or clearing one, takes the entry
+ * away. A register written before this has none, and everybody on it was in
+ * the room. An admin's correction of a finished register moves it on the
+ * same lane as a mark, with its own audit row.
  *
  * ── A SESSION CANCELLED THROUGH "CHANGE A SESSION" ─────────────────────────
  * Its column reads as not held, as the lead's tabs and the register jobs
@@ -164,6 +180,21 @@ export type AttendancePayload = {
    */
   records: Record<string, Record<string, AttendanceStatus>>;
   /**
+   * WHERE EACH PERSON WHO CAME WAS, `sessionKey -> uid -> online`: true
+   * joined online, false in the room, as the register keeps it beside the
+   * marks above. Rows only, and only beside a mark that says they came
+   * (present, late, left early). Somebody who came with no entry was in the
+   * room: every register written before this was kept.
+   */
+  online: Record<string, Record<string, boolean>>;
+  /**
+   * WHO SAID THEY ARE JOINING ONLINE ("Joining online" on their programme
+   * page), `sessionKey -> uids`, for each column: the grid says so beside
+   * their cell, and puts them down as online when they are marked as having
+   * come. Rows only, in the rows' order.
+   */
+  onlineSaid: Record<string, string[]>;
+  /**
    * Post-session notes about individual participants, `sessionKey -> uid ->
    * note`. PERSONAL DATA ABOUT A NAMED STUDENT: served only to the group's
    * live facilitators and admins (`readsNotes` on the gate's answer), never
@@ -216,6 +247,11 @@ export type AttendanceLeaver = {
   left: string;
   /** Their marks on this group's registers, `sessionKey -> status`. */
   records: Record<string, AttendanceStatus>;
+  /**
+   * The sessions among those they joined online, by key. Absent when they
+   * joined none online: every one was in the room.
+   */
+  online?: string[];
 };
 
 /** POST's answer. `marked` counts cells written, including cells cleared. */
@@ -323,18 +359,26 @@ function parseSessionTarget(
   return { ok: true, value: { weekNumber, occurrence } };
 }
 
-type IncomingMark = { uid?: unknown; status?: unknown };
+type IncomingMark = { uid?: unknown; status?: unknown; online?: unknown };
 
 /**
  * The marks a write path is asking for, deduplicated by uid, LAST WINS. One
  * cell, one outcome, and the count that comes back is the number of cells that
  * actually changed hands rather than the length of the array.
+ *
+ * `online` is where somebody marked as having come was, when the press says
+ * (true online, false in the room), keyed by uid beside the marks; a press
+ * that does not say leaves it to `onlineAfter`. It is refused beside a mark
+ * that does not say they came.
  */
 function parseMarks(
   raw: unknown,
-): { ok: true; value: Map<string, AttendanceStatus | null> } | { ok: false; error: string } {
+):
+  | { ok: true; value: Map<string, AttendanceStatus | null>; online: Map<string, boolean> }
+  | { ok: false; error: string } {
   const wanted = new Map<string, AttendanceStatus | null>();
-  if (raw === undefined || raw === null) return { ok: true, value: wanted };
+  const online = new Map<string, boolean>();
+  if (raw === undefined || raw === null) return { ok: true, value: wanted, online };
   if (!Array.isArray(raw)) return { ok: false, error: "marks must be a list." };
   if (raw.length > ATTENDANCE_LIMITS.maxRecords) {
     return {
@@ -358,9 +402,37 @@ function parseMarks(
         error: `status must be null or one of: ${ATTENDANCE_STATUSES.join(", ")}.`,
       };
     }
+    const where = entry.online;
+    if (where !== undefined && typeof where !== "boolean") {
+      return { ok: false, error: "online must be true or false." };
+    }
+    if (typeof where === "boolean" && !cameBy(status as AttendanceStatus | null)) {
+      return { ok: false, error: "online is only for somebody marked present, late or left early." };
+    }
     wanted.set(uid, (status as AttendanceStatus | null) ?? null);
+    if (typeof where === "boolean") online.set(uid, where);
+    else online.delete(uid);
   }
-  return { ok: true, value: wanted };
+  return { ok: true, value: wanted, online };
+}
+
+/**
+ * WHERE SOMEBODY MARKED AS HAVING COME WAS, after a write: what the press
+ * says, else what the register keeps beside a mark that already said they
+ * came, else their own word in advance that they are joining online. A
+ * facilitator who puts somebody in the room keeps them there through every
+ * mark that still says they came.
+ */
+function onlineAfter(given: boolean | undefined, kept: unknown, said: unknown): boolean {
+  if (typeof given === "boolean") return given;
+  if (typeof kept === "boolean") return kept;
+  return Boolean(said);
+}
+
+/** A mark as an audit row says it: "Present", "Present online", "not marked". */
+function markLabel(status: AttendanceStatus | null, online: boolean): string {
+  if (!status) return "not marked";
+  return cameBy(status) && online ? `${ATTENDANCE_STATUS_LABEL[status]} online` : ATTENDANCE_STATUS_LABEL[status];
 }
 
 /**
@@ -567,6 +639,7 @@ export async function GET(
   }
   const leaving = runRecords ? leaversOfGroup(runRecords, groupId, now) : [];
   const leaverMarks = new Map(leaving.map((leaver) => [leaver.uid, {} as Record<string, AttendanceStatus>]));
+  const leaverOnline = new Map(leaving.map((leaver) => [leaver.uid, [] as string[]]));
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const sessions = resolveSessions(run, group);
   const columns = columnsFor(run, group, sessions, requestedWeek);
@@ -631,6 +704,8 @@ export async function GET(
   );
   const memberUids = new Set(members.map((m) => m.uid));
   const records: AttendancePayload["records"] = {};
+  const online: AttendancePayload["online"] = {};
+  const onlineSaid: AttendancePayload["onlineSaid"] = {};
   const participantNotes: AttendancePayload["participantNotes"] = {};
   const stateByKey = new Map<string, { held: boolean; notes: string; pushedAt: string | null }>();
   // Who told us in advance, by session: every register read, the columns' and
@@ -665,6 +740,22 @@ export async function GET(
       week[uid] = status as AttendanceStatus;
     }
     if (Object.keys(week).length > 0) records[column.sessionKey] = week;
+
+    // Where each row who came was, beside their mark and nowhere else, and
+    // who said they are joining online. Read off the register as its own
+    // reader keeps them; somebody who left keeps the sessions they joined
+    // online with their marks.
+    const kept = normalizeCourseAttendance(snap.id, data);
+    const where: Record<string, boolean> = {};
+    for (const [uid, status] of Object.entries(week)) {
+      if (cameBy(status) && typeof kept.online[uid] === "boolean") where[uid] = kept.online[uid];
+    }
+    if (Object.keys(where).length > 0) online[column.sessionKey] = where;
+    for (const [uid, sessionKeys] of leaverOnline) {
+      if (cameBy(kept.records[uid]) && kept.online[uid] === true) sessionKeys.push(column.sessionKey);
+    }
+    const said = members.map((m) => m.uid).filter((uid) => kept.onlineSaid[uid]);
+    if (said.length > 0) onlineSaid[column.sessionKey] = said;
 
     // A register's notes go to the group's facilitators and admins only: a
     // caller the gate admits as the programme's lead is sent none of them.
@@ -704,6 +795,7 @@ export async function GET(
       displayName: nameForViewer(actor, accountNamesOf(runRecords?.accounts.get(leaver.uid) ?? {}), "NAISI member"),
       left: leaver.left,
       records: leaverMarks.get(leaver.uid) ?? {},
+      ...((leaverOnline.get(leaver.uid) ?? []).length > 0 ? { online: leaverOnline.get(leaver.uid) } : {}),
     }))
     .sort((a, b) => a.displayName.localeCompare(b.displayName) || a.uid.localeCompare(b.uid));
 
@@ -752,6 +844,8 @@ export async function GET(
     notYetTold,
     leavers,
     records,
+    online,
+    onlineSaid,
     participantNotes,
     canEditPushed: gated.isAdmin,
     ending,
@@ -793,6 +887,7 @@ export async function POST(
     return NextResponse.json({ error: parsedMarks.error }, { status: 400 });
   }
   const wanted = parsedMarks.value;
+  const givenOnline = parsedMarks.online;
 
   const hasHeld = body.held !== undefined;
   if (hasHeld && typeof body.held !== "boolean") {
@@ -868,6 +963,21 @@ export async function POST(
       for (const uid of wanted.keys()) {
         if (Object.hasOwn(toldBefore, uid)) toldTakenOver[uid] = FieldValue.delete();
       }
+      // Where each person marked as having come was (`onlineAfter`): kept
+      // only beside a mark that said they came before this write. Any other
+      // mark takes their entry away.
+      const recordsBefore = (data.records ?? {}) as Record<string, unknown>;
+      const onlineBefore = (data[ONLINE] ?? {}) as Record<string, unknown>;
+      const saidBefore = (data[ONLINE_SAID] ?? {}) as Record<string, unknown>;
+      const where: Record<string, boolean | FieldValue> = {};
+      for (const [uid, status] of wanted) {
+        if (cameBy(status)) {
+          const kept = cameBy(recordsBefore[uid] as AttendanceStatus) ? onlineBefore[uid] : undefined;
+          where[uid] = onlineAfter(givenOnline.get(uid), kept, saidBefore[uid]);
+        } else if (Object.hasOwn(onlineBefore, uid)) {
+          where[uid] = FieldValue.delete();
+        }
+      }
 
       tx.set(
         ref,
@@ -879,6 +989,7 @@ export async function POST(
           occurrence: session.occurrence,
           records,
           ...(Object.keys(toldTakenOver).length > 0 ? { [EXCUSED_IN_ADVANCE]: toldTakenOver } : {}),
+          ...(Object.keys(where).length > 0 ? { [ONLINE]: where } : {}),
           markedByUid: actor.uid,
           updatedAt: FieldValue.serverTimestamp(),
           ...(hasHeld ? { held: body.held === true } : {}),
@@ -964,6 +1075,7 @@ export async function PATCH(
     return NextResponse.json({ error: parsedMarks.error }, { status: 400 });
   }
   const wanted = parsedMarks.value;
+  const givenOnline = parsedMarks.online;
   const hasHeld = body.held !== undefined;
   if (hasHeld && typeof body.held !== "boolean") {
     return NextResponse.json({ error: "held must be true or false." }, { status: 400 });
@@ -1022,16 +1134,32 @@ export async function PATCH(
             : null,
         );
       }
+      // Where each of them was before, and after this correction: online only
+      // beside a mark that says they came (`onlineAfter` for the after).
+      const onlineStored = (data[ONLINE] ?? {}) as Record<string, unknown>;
+      const saidStored = (data[ONLINE_SAID] ?? {}) as Record<string, unknown>;
+      const onlineBefore = new Map<string, boolean>();
+      const onlineNow = new Map<string, boolean>();
+      for (const [uid, status] of wanted) {
+        const was = before.get(uid) ?? null;
+        onlineBefore.set(uid, cameBy(was) && onlineStored[uid] === true);
+        onlineNow.set(
+          uid,
+          cameBy(status) && onlineAfter(givenOnline.get(uid), cameBy(was) ? onlineStored[uid] : undefined, saidStored[uid]),
+        );
+      }
       const heldBefore = data.held !== false;
       const heldAfter = hasHeld ? body.held === true : heldBefore;
       held = heldAfter;
       const notesBefore = typeof data.notes === "string" ? data.notes : "";
       const notesMoved = hasNotes && notes !== notesBefore;
 
-      // Only the marks that actually MOVE are written or logged. An audit row
-      // per unchanged cell would bury the one row that matters.
+      // Only the marks that actually MOVE are written or logged, a mark whose
+      // room or online moved among them. An audit row per unchanged cell
+      // would bury the one row that matters.
       const moved = [...wanted.entries()].filter(
-        ([uid, status]) => (before.get(uid) ?? null) !== status,
+        ([uid, status]) =>
+          (before.get(uid) ?? null) !== status || onlineBefore.get(uid) !== onlineNow.get(uid),
       );
       changed = moved.length;
 
@@ -1049,6 +1177,7 @@ export async function PATCH(
           session.sessionKey,
           {
             marks: new Map(moved),
+            online: new Map(moved.map(([uid, status]) => [uid, cameBy(status) ? onlineNow.get(uid) === true : null])),
             held: heldAfter,
             // Already pushed, and staying pushed. Stated so the recompute
             // counts this session whatever the read raced with.
@@ -1070,13 +1199,17 @@ export async function PATCH(
 
       if (moved.length > 0 || heldAfter !== heldBefore || notesMoved) {
         const records: Record<string, AttendanceStatus | FieldValue> = {};
+        const where: Record<string, boolean | FieldValue> = {};
         for (const [uid, status] of moved) {
           records[uid] = status === null ? FieldValue.delete() : status;
+          if (cameBy(status)) where[uid] = onlineNow.get(uid) === true;
+          else if (Object.hasOwn(onlineStored, uid)) where[uid] = FieldValue.delete();
         }
         tx.set(
           ref,
           {
             records,
+            ...(Object.keys(where).length > 0 ? { [ONLINE]: where } : {}),
             ...(hasHeld ? { held: heldAfter } : {}),
             ...(notesMoved ? { notes } : {}),
             updatedAt: FieldValue.serverTimestamp(),
@@ -1097,6 +1230,15 @@ export async function PATCH(
       // none of the questions the log exists for.
       for (const [uid, status] of moved) {
         const from = before.get(uid) ?? null;
+        const wasOnline = onlineBefore.get(uid) === true;
+        const isOnline = onlineNow.get(uid) === true;
+        // A mark that only moved between the room and online says both
+        // places; otherwise each mark says online where it was, and the room
+        // goes without saying, as it did before the register kept it.
+        const change =
+          from === status
+            ? `${markLabel(from, false)} ${wasOnline ? "online" : "in the room"} to ${markLabel(status, false)} ${isOnline ? "online" : "in the room"}`
+            : `${markLabel(from, wasOnline)} to ${markLabel(status, isOnline)}`;
         tx.set(db.collection(COURSE_AUDIT_COLLECTION).doc(), {
           kind: "attendance-edit",
           runId,
@@ -1106,9 +1248,7 @@ export async function PATCH(
           actorName,
           targetLabel: `${session.sessionKey} register`,
           detail:
-            `${memberName.get(uid) ?? uid}: ` +
-            `${from ? ATTENDANCE_STATUS_LABEL[from] : "not marked"} to ` +
-            `${status ? ATTENDANCE_STATUS_LABEL[status] : "not marked"}, ` +
+            `${memberName.get(uid) ?? uid}: ${change}, ` +
             `week ${session.weekNumber} session ${session.occurrence}.`,
           at: FieldValue.serverTimestamp(),
         });

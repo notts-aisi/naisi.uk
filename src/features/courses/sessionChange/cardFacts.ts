@@ -1,5 +1,6 @@
 import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/route";
 import { campusLabel } from "@/lib/courses/campus";
+import { heldOnline } from "@/lib/courses/joiningOnline/model";
 import { coversWords, LINK_WILL_BE_HERE } from "@/lib/courses/sessionChange/words";
 import { GROUP_FIELD_LIMITS, type GroupSessionMode } from "@/lib/firestore/courseGroups";
 import { validateSubmissionUrl, weekDocId } from "@/lib/firestore/courses";
@@ -54,10 +55,16 @@ export function coversTitle(group: OverviewGroup, weekNumber: number): string | 
  * link, each resolved for its own week, so a session moved or held online for
  * one week reads as it will be held, and never as the group's usual slot.
  *
- * The room is left out of an online week and the link out of an in-person
- * one. A week with no room yet that is not online names the group's campus
- * in the room's place ("Jubilee"); a week set in person with no room still
- * says the room is to come.
+ * The room is left out of an online week. A week with no room yet that is
+ * not online names the group's campus in the room's place ("Jubilee"); a
+ * week set in person with no room still says the room is to come.
+ *
+ * THE LINK, whenever the session has one (its week's own or the group's
+ * standing one), is on the ticket of everybody in the group, an in-person
+ * week's too: somebody may be joining online. `joinFor` says who it is for.
+ * A session held online is joined online by everybody; a session held in a
+ * room has the link for whoever is joining online, and the room is still
+ * where it is (`heldOnline`).
  * The link is the site's only: it is checked as a web address again
  * here, and an online week with no link to show says where it will be,
  * never that anybody will send it. Null once the group has no session left.
@@ -72,6 +79,12 @@ export type TicketFacts = {
   room: string | null;
   mode: GroupSessionMode | null;
   joinUrl: string | null;
+  /**
+   * Who the link is for: `everybody` when the session is held online,
+   * `joining-online` when it is held in a room and the link is for whoever
+   * joins from elsewhere. Null with no link.
+   */
+  joinFor: "everybody" | "joining-online" | null;
   /** A sentence for an online week whose link is not here yet, or an in-person week with no room yet. */
   missing: string | null;
   /** The explainer the session starts with: how long and what about, or null. */
@@ -84,7 +97,10 @@ export function ticketFacts(group: OverviewGroup): TicketFacts | null {
   const mode = group.sessionModes[weekDocId(next.weekNumber)] ?? null;
   const link =
     next.meetingUrl && !validateSubmissionUrl(next.meetingUrl, GROUP_FIELD_LIMITS.meetingUrl) ? next.meetingUrl : null;
-  const joinUrl = mode !== "in-person" ? link : null;
+  // The link whenever the session has one, an in-person week's too: somebody
+  // may be joining it online.
+  const joinUrl = link;
+  const online = heldOnline({ mode, campus: group.campus ?? null, room: next.location });
   const room = mode !== "virtual" && next.location.trim() ? next.location.trim() : null;
   // Where the room would be, while there is none: the group's campus.
   const standIn = mode !== "virtual" ? campusLabel(group.campus ?? null) || null : null;
@@ -97,6 +113,7 @@ export function ticketFacts(group: OverviewGroup): TicketFacts | null {
     room: room ?? standIn,
     mode,
     joinUrl,
+    joinFor: joinUrl ? (online ? "everybody" : "joining-online") : null,
     missing:
       mode === "virtual" && !joinUrl
         ? LINK_WILL_BE_HERE

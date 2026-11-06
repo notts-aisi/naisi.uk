@@ -2,7 +2,7 @@ import {
   EMPTY_ATTENDANCE_ROLLUP,
   type EnrolmentAttendanceRollup,
 } from "@/lib/firestore/courseEnrolments";
-import type { AttendanceStatus } from "@/lib/firestore/courseAttendance";
+import { cameBy, type AttendanceStatus } from "@/lib/firestore/courseAttendance";
 
 /**
  * THE ATTENDANCE ROLLUP, RECOMPUTED FROM SOURCE.
@@ -45,6 +45,11 @@ import type { AttendanceStatus } from "@/lib/firestore/courseAttendance";
  * incomparable. Whether an excused session counts against a completion bar is
  * the reviewer's judgement, and the rollup gives them the parts to make it.
  *
+ * `online` is a part of the sessions they came to, never a sixth status: of
+ * the sessions marked present, late or left early, how many the register
+ * records them as having joined online. The rest were in the room. A register
+ * written before it recorded where people were says nobody was online.
+ *
  * PURE. No reads, no clock beyond the `now` the caller passes, so the whole
  * thing is testable as arithmetic.
  */
@@ -62,6 +67,12 @@ export type RegisterFact = {
   pushedAt: Date | null;
   /** This member's mark, or null when the register does not name them. */
   status: AttendanceStatus | null;
+  /**
+   * Whether the register records this member as having joined online. Read
+   * only beside a mark that says they came (present, late, left early); a
+   * register that does not say reads as in the room.
+   */
+  online?: boolean;
 };
 
 export type RollupInput = {
@@ -101,6 +112,7 @@ export function recomputeRollup(
 
   for (const register of counted) {
     rollup.sessionsHeld += 1;
+    if (register.online === true && cameBy(register.status)) rollup.online += 1;
     switch (register.status) {
       case "present":
         rollup.attendedInFull += 1;

@@ -12,17 +12,24 @@
  * reload -> Ada answers Can you make this time most weeks? with Most weeks,
  * not all: week 4 is ticked already, she ticks week 5, and its register
  * records her as excused as the ticket's does, after a reload too -> Fern's
- * register says Ada can't make week 4, and leads to week 3's session report
- * before it is finished; Fern marks week 3 and finishes it -> Fern follows
- * "Next: two minutes on how it went." to the session report and sends one ->
- * Ada writes week 4's written answer, presses
+ * register says Ada can't make week 4, and leads to week 3's
+ * session report before it is finished; Fern marks week 3, puts Ada down as
+ * having joined it online, and finishes it -> Fern follows "Next: two
+ * minutes on how it went." to the session report and sends one -> Ada can
+ * make week 4 after all and says Ada is joining it online instead, one thing
+ * at a time on the ticket -> the box at the top of Fern's group page asks
+ * for a meeting link for week 4, Fern adds one, and the box and the register
+ * say Ada is joining online -> Ada's ticket, on the programme page and on
+ * Home, carries the link for anybody joining online, beside Add to calendar
+ * -> Ada writes week 4's written answer, presses
  * Submit week 4, reads the check (two reflections empty) and presses Submit
  * anyway: the week reads submitted and locked, the box read only, after a
  * reload too -> Fern presses "Reopen week 4 for Ada" on This week's work ->
  * Ada's week page says Fern reopened it and until when; Ada changes the
  * answer and submits again -> the programme's lead (the admin) opens the
  * Surveys tab from the programme's head, follows the Overview's "Read the
- * report" to the session reports, and reads Fern's report with names.
+ * report" to the session reports, and reads Fern's report with names -> the
+ * lead's Attendance tab says Ada came to one session online.
  *
  * ## How to run it
  *
@@ -79,6 +86,7 @@ const POLL_MS = 500;
 
 /**
  * THE WORDS THIS JOURNEY CHECKS, restated from src/lib/courses/cantMakeIt/words.ts,
+ * src/lib/courses/joiningOnline/words.ts, src/lib/courses/sessionChange/words.ts,
  * src/lib/courses/timeAnswer/words.ts, src/lib/courses/sessionReports/words.ts,
  * src/lib/courses/weekWork/words.ts and src/lib/courses/writtenAnswerWords.ts,
  * with their slots filled from the records.
@@ -97,6 +105,24 @@ const WORDS = Object.freeze({
   toldUs:
     "You’ve told us you can’t make this session, so the register records you as excused. Your facilitators see it there.",
   canMakeItAfterAll: "I can make it after all",
+  canMakeItBack: "You’ve told us you can make it after all.",
+  joiningOnline: (day) => `Joining online on ${day}`,
+  saidOnline:
+    "You’ve said you’re joining online, and your facilitators can see that. The link to join will be on this ticket, not in your emails.",
+  saidOnlineLinked: "You’ve said you’re joining online, and your facilitators can see that. The link to join is on this ticket.",
+  inTheRoomAfterAll: "I’ll be in the room after all",
+  whereChoice: (name, week, online) =>
+    `Where ${name} was in week ${week}: ${online ? "joined online" : "in the room"}. Sets ${online ? "in the room" : "joined online"}.`,
+  boxAsks: (count, day, week) =>
+    `${count === 1 ? "1 person is" : `${count} people are`} joining online on ${day}. Add a meeting link for week ${week}.`,
+  boxSays: (name, day) => `${name} is joining online on ${day}.`,
+  linkField: (week) => `Meeting link for week ${week}`,
+  addLink: "Add the link",
+  joinOnline: "Join online",
+  forJoiningOnline: "For anybody joining online. The link is here, not in your emails, so it can’t be forwarded.",
+  addToCalendar: "Add to calendar",
+  attendanceTab: "Attendance",
+  roomAndOnline: (room, online) => `${room} in the room, ${online} online`,
   registerLine: (day) => new RegExp(`^${escapeRegExp(day)}: .+ can’t make it\\.$`),
   reportNext: "Next: two minutes on how it went.",
   reportTitle: (week) => `How did week ${week} go?`,
@@ -143,6 +169,9 @@ const WORDS = Object.freeze({
   reopenedLine: (by, at) =>
     `${by} reopened this week for you. It locks again when you submit it, or at your next session, ${londonDayLabel(at)}, ${londonClockLabel(at)}.`,
 });
+
+/** The link Fern gives week 4, at a reserved domain nothing answers on. */
+const LINK = "https://meet.example.com/e2e-week-4";
 
 /** What Fern writes in the report, and what Ada writes in her answer: words nothing else on the site says. */
 const REPORT = Object.freeze({
@@ -465,7 +494,7 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
     );
 
     await step(
-      "the facilitator's register says who can't make next week's session, leads to this week's session report before it is finished, and the facilitator marks this week's and finishes it",
+      "the facilitator's register says who can't make next week's session, leads to this week's session report before it is finished, and the facilitator marks this week's, puts the member down as having joined it online, and finishes it",
       async () => {
         activePage = fernPage;
         await signIn(fernPage, fern);
@@ -497,8 +526,29 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
           column.getByTestId("attendance-bulk").click(),
         ]);
         await okBody(marked, "Marking the register");
+        // Nobody said they were joining week 3 online, so "Rest present" puts both in the room.
+        assert.deepEqual(
+          marked.request().postDataJSON()?.marks?.map((mark) => [mark.uid, mark.status, mark.online]).sort(),
+          [[ada.uid, "present", false], [ben.uid, "present", false]].sort(),
+          "Rest present did not say where each of them was",
+        );
         // Marked and still not finished: the way on is where it was.
         assert.equal(await reportLink.getAttribute("href"), reportHref, "marking the register moved the way on to the report");
+
+        // Ada joined from home: the choice beside Ada's mark, in the register as it is taken.
+        const where = fernPage.getByTestId("attendance-grid").getByRole("button", { name: WORDS.whereChoice(ada.first, thisWeek, false), exact: true });
+        await where.waitFor({ timeout: WAIT_MS });
+        const [placed] = await Promise.all([responseTo(fernPage, `/groups/${group.id}/attendance`, "POST"), where.click()]);
+        assert.deepEqual(
+          placed.request().postDataJSON(),
+          { weekNumber: thisWeek, occurrence: 1, marks: [{ uid: ada.uid, status: "present", online: true }] },
+          "the choice sent something other than Ada's place",
+        );
+        await okBody(placed, "Putting Ada down as having joined online");
+        await fernPage
+          .getByTestId("attendance-grid")
+          .getByRole("button", { name: WORDS.whereChoice(ada.first, thisWeek, true), exact: true })
+          .waitFor({ timeout: WAIT_MS });
 
         const foot = fernPage.getByTestId("register-ending");
         await foot.getByRole("heading", { name: `Week ${thisWeek} register`, exact: true }).waitFor({ timeout: WAIT_MS });
@@ -521,6 +571,12 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
         const stored = (await fixtureDoc("courseAttendance", `${state.runId}__${group.id}__${weekDocId(thisWeek)}`).get()).data();
         assert.ok(stored?.pushedAt, "week 3's register is not finished");
         assert.deepEqual(stored?.records, { [ada.uid]: "present", [ben.uid]: "present" }, "week 3's register is not the two marked present");
+        // Where they were, beside the marks and never one of them.
+        assert.deepEqual(stored?.online, { [ada.uid]: true, [ben.uid]: false }, "week 3's register does not say Ada joined online and Ben was in the room");
+        // Finishing rebuilt their figures: Ada came to one session online.
+        const rollupOf = async (person) => (await fixtureDoc("courseEnrolments", `${state.runId}__${person.uid}`).get()).data()?.attendance;
+        assert.equal((await rollupOf(ada))?.online, 1, "Ada's figures do not count the session online");
+        assert.equal((await rollupOf(ben))?.online, 0, "Ben's figures count a session online");
       },
     );
 
@@ -560,6 +616,100 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
       assert.equal(report.groupId, group.id);
       assert.equal(report.weekNumber, thisWeek);
       assert.deepEqual([...report.aboutUids].sort(), [ada.uid, ben.uid].sort(), "the report does not pick Ada and Ben");
+    });
+
+    await step(
+      "the member can make next week's session after all and says they are joining it online instead, one thing at a time on the ticket",
+      async () => {
+        activePage = adaPage;
+        const day = dayLabel(nextSession.dateKey);
+        await adaPage.goto(learnUrl, { waitUntil: "domcontentloaded" });
+        const ticket = adaPage.getByRole("region", { name: WORDS.ticket, exact: true });
+        await ticket.getByRole("status").filter({ hasText: WORDS.toldUs }).waitFor({ timeout: WAIT_MS });
+        // While Ada can't make it, Joining online is not offered.
+        assert.equal(await ticket.getByRole("button", { name: WORDS.joiningOnline(day), exact: true }).count(), 0, "Joining online is offered beside Can't make it");
+        const back = ticket.getByRole("button", { name: WORDS.canMakeItAfterAll, exact: true });
+        await waitFor("I can make it after all to be live once the page has hydrated", async () => back.isEnabled());
+        const [undone] = await Promise.all([responseTo(adaPage, `/groups/${group.id}/cant-make-it`, "POST"), back.click()]);
+        assert.deepEqual(undone.request().postDataJSON(), { sessionKey: nextKey, cantMakeIt: false }, "the press named another session");
+        await okBody(undone, "I can make it after all");
+        await ticket.getByRole("status").filter({ hasText: WORDS.canMakeItBack }).waitFor({ timeout: WAIT_MS });
+
+        const join = ticket.getByRole("button", { name: WORDS.joiningOnline(day), exact: true });
+        await join.waitFor({ timeout: WAIT_MS });
+        const [said] = await Promise.all([responseTo(adaPage, `/groups/${group.id}/joining-online`, "POST"), join.click()]);
+        assert.deepEqual(said.request().postDataJSON(), { sessionKey: nextKey, online: true }, "the press named another session");
+        assert.deepEqual(await okBody(said, "Joining online"), { ok: true, online: true, message: WORDS.saidOnline });
+        await ticket.getByRole("status").filter({ hasText: WORDS.saidOnline }).waitFor({ timeout: WAIT_MS });
+        await ticket.getByRole("button", { name: WORDS.inTheRoomAfterAll, exact: true }).waitFor({ timeout: WAIT_MS });
+        // And now Can't make it waits until Ada is in the room after all.
+        assert.equal(await ticket.getByRole("button", { name: WORDS.cantMakeIt(day), exact: true }).count(), 0, "Can't make it is offered beside Joining online");
+
+        // Kept on the register beside its marks, never one of them; the excuse is gone with the word that made it.
+        const register = (await fixtureDoc("courseAttendance", `${state.runId}__${group.id}__${nextKey}`).get()).data();
+        assert.ok(register?.onlineSaid?.[ada.uid], "the register does not keep Ada's word about joining online");
+        assert.equal(register?.records?.[ada.uid], undefined, "saying it wrote a mark");
+        assert.equal(register?.excusedInAdvance?.[ada.uid], undefined, "Ada's word that Ada can't make it is still there");
+        assert.equal(register?.onlineSaid?.[ben.uid], undefined, "Ada's press wrote somebody else's word");
+        await adaPage.reload({ waitUntil: "domcontentloaded" });
+        await ticket.getByRole("status").filter({ hasText: WORDS.saidOnline }).waitFor({ timeout: WAIT_MS });
+        await ticket.getByRole("button", { name: WORDS.inTheRoomAfterAll, exact: true }).waitFor({ timeout: WAIT_MS });
+      },
+    );
+
+    await step(
+      "the box at the top of the facilitator's group page asks for a link for the week the member is joining online, the facilitator adds one, and the box and the register say who is joining online",
+      async () => {
+        activePage = fernPage;
+        const day = dayLabel(nextSession.dateKey);
+        assert.equal(group.meetingUrl, null, "Group A has a meeting link at this point");
+        await fernPage.goto(`${origin}${groupPath}`, { waitUntil: "domcontentloaded" });
+        const box = fernPage.getByTestId("joining-online-box");
+        await box.getByText(WORDS.boxAsks(1, day, nextWeek), { exact: true }).waitFor({ timeout: WAIT_MS });
+        await box.getByText(ada.first, { exact: true }).waitFor({ timeout: WAIT_MS });
+        const field = box.getByLabel(WORDS.linkField(nextWeek), { exact: true });
+        const add = box.getByRole("button", { name: WORDS.addLink, exact: true });
+        await waitFor("Add the link to be live once the page has hydrated", async () => add.isEnabled());
+        await field.fill(LINK);
+        const [saved] = await Promise.all([responseTo(fernPage, `/groups/${group.id}/meeting-link`, "POST"), add.click()]);
+        assert.deepEqual(saved.request().postDataJSON(), { sessionKey: nextKey, url: LINK, everyWeek: false }, "the box saved something else");
+        assert.deepEqual(await okBody(saved, "Adding the link"), { ok: true, sessionKey: nextKey, everyWeek: false });
+        // The page asks the server again: who is joining online, and nothing to add.
+        await box.getByText(WORDS.boxSays(ada.first, day), { exact: true }).waitFor({ timeout: WAIT_MS });
+        await add.waitFor({ state: "detached", timeout: WAIT_MS });
+        assert.ok(!(await textOf(box)).includes(LINK), "the box shows the link");
+
+        // The week's own link, and the group's standing link untouched.
+        const stored = (await fixtureDoc("courseGroups", group.id).get()).data();
+        assert.equal(stored?.sessionOverrides?.[nextKey]?.meetingUrl, LINK, "week 4 does not have the link");
+        assert.equal(stored?.session?.meetingUrl ?? null, null, "the link was kept for every week");
+
+        // The register says the same at its top.
+        await fernPage.goto(`${origin}${groupPath}/register`, { waitUntil: "domcontentloaded" });
+        await fernPage.getByTestId("attendance-grid").waitFor({ timeout: WAIT_MS });
+        await fernPage.getByTestId("joining-online-box").getByText(WORDS.boxSays(ada.first, day), { exact: true }).waitFor({ timeout: WAIT_MS });
+      },
+    );
+
+    await step("the member's ticket carries the week's link for anybody joining online, beside Add to calendar, on the programme page and on Home", async () => {
+      activePage = adaPage;
+      await adaPage.goto(learnUrl, { waitUntil: "domcontentloaded" });
+      const ticket = adaPage.getByRole("region", { name: WORDS.ticket, exact: true });
+      const join = ticket.getByRole("link", { name: WORDS.joinOnline, exact: true });
+      await join.waitFor({ timeout: WAIT_MS });
+      assert.equal(await join.getAttribute("href"), LINK, "the ticket's way to join is not week 4's link");
+      const said = flat(await ticket.innerText());
+      assert.ok(said.includes(WORDS.forJoiningOnline), `the ticket does not say who the link is for: ${said}`);
+      await ticket.getByRole("button", { name: WORDS.addToCalendar, exact: true }).waitFor({ timeout: WAIT_MS });
+      await ticket.getByRole("status").filter({ hasText: WORDS.saidOnlineLinked }).waitFor({ timeout: WAIT_MS });
+
+      // Home's ticket: the same link, said the same way.
+      await adaPage.goto(`${origin}/dashboard`, { waitUntil: "domcontentloaded" });
+      const home = adaPage.getByRole("region", { name: WORDS.ticket, exact: true });
+      const homeJoin = home.getByRole("link", { name: WORDS.joinOnline, exact: true });
+      await homeJoin.waitFor({ timeout: WAIT_MS });
+      assert.equal(await homeJoin.getAttribute("href"), LINK, "Home's way to join is not week 4's link");
+      assert.ok(flat(await home.innerText()).includes(WORDS.forJoiningOnline), "Home's ticket does not say who the link is for");
     });
 
     await step(
@@ -683,6 +833,27 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
       // With names: the people it picks, by the names the lead is shown.
       for (const person of [ada, ben]) assert.ok(said.includes(person.first), `the report does not name ${person.first}: ${said}`);
       assert.ok(said.includes(londonDayLabel(thisSession.startsAt)), `the report does not give its session's day: ${said}`);
+    });
+
+    await step("the programme's lead reads on the Attendance tab how many sessions the member came to in the room and online", async () => {
+      activePage = adminPage;
+      await adminPage.goto(`${formBase}/attendance`, { waitUntil: "domcontentloaded" });
+      const grid = adminPage.getByRole("region", { name: "Attendance grid", exact: true });
+      await grid.waitFor({ timeout: WAIT_MS });
+      const row = grid.getByRole("row").filter({ has: adminPage.getByRole("rowheader", { name: new RegExp(escapeRegExp(ada.first)) }) });
+      // Ada came to weeks 1 to 3 (present, late, present): week 3 online, the rest in the room.
+      await row.getByRole("img", { name: new RegExp(`, week ${thisWeek}: Present, online$`) }).waitFor({ timeout: WAIT_MS });
+      const came = flat(await row.locator("td").last().innerText());
+      assert.equal(came, `3 of 3 ${WORDS.roomAndOnline(2, 1)}`, `Ada's Came does not say where Ada was: ${came}`);
+      const benCame = flat(
+        await grid
+          .getByRole("row")
+          .filter({ has: adminPage.getByRole("rowheader", { name: new RegExp(escapeRegExp(ben.first)) }) })
+          .locator("td")
+          .last()
+          .innerText(),
+      );
+      assert.ok(!/online|in the room/.test(benCame), `Ben's Came speaks of where Ben was, always in the room: ${benCame}`);
     });
   } finally {
     await Promise.allSettled([context, ...identities.map((each) => each.context)].map((each) => each.close()));

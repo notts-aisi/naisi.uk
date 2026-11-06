@@ -15,6 +15,7 @@ import { normalizeGroupWeek } from "@/lib/firestore/courseGroups";
 import { normalizeCourseWeek, type CourseWeekDoc } from "@/lib/firestore/courses";
 import { weekWrittenAnswers } from "@/lib/courses/weekBlocks/reader";
 import { readFinishing, recordOf, runEndOf, type Finishing, type RunEnd } from "./record";
+import { roomAndOnlineWords } from "@/lib/courses/joiningOnline/words";
 import {
   NO_RULE_SENTENCE,
   cancelledNote,
@@ -62,6 +63,12 @@ export type WhoFinishedRow = {
   groupName: string;
   /** "2 of 6": sessions they came to, of those their group held while they were in it. */
   came: string;
+  /**
+   * "1 in the room, 1 online": where the sessions they came to were, for
+   * somebody who came to any of them online. Absent for everybody else, who
+   * came to every one in the room.
+   */
+  cameWhere?: string;
   /** "2 of 6": exercises answered, of those set to their group; null when their group was set none. */
   exercises: string | null;
   /** "Excused in week 2. Missed weeks 4, 5 and 6.", or null. */
@@ -256,6 +263,7 @@ export function buildWhoFinished(
         name: row.name,
         groupName: entry.group.name,
         came: ofLine(row.came, row.of),
+        ...(row.online > 0 ? { cameWhere: roomAndOnlineWords(row.came - row.online, row.online) } : {}),
         exercises: tally && tally.of > 0 ? ofLine(tally.done, tally.of) : null,
         line: missedLine(excused, missed),
         finished: record?.finished === true,

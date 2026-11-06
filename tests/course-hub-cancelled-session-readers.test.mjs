@@ -163,6 +163,14 @@ const READERS = {
       "the check-in's read of a session's register: a cancelled session reads as not held, so the check-in is " +
       "never offered or opened for it and nobody marked on it is reached",
   },
+  "lib/courses/joiningOnline/seat.ts": {
+    kind: "asks",
+    proof: ["cancelled: session.cancelled,", "notHeld: !register.held,"],
+    why:
+      "Joining online, pressed on a programme page: a session called off is closed before its register's switch is " +
+      "asked (`joiningOnlineState` answers cancelled first), so nobody is offered it or keeps a word for a session " +
+      "that is not happening, and a register that says its session did not happen closes it too",
+  },
   "lib/courses/cantMakeIt/seat.ts": {
     kind: "asks",
     proof: ["cancelled: session.cancelled, line, now", "notHeld: !register.held,"],

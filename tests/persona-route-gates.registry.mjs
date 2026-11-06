@@ -1995,7 +1995,7 @@ export const ROUTES = {
   "/api/courses/groups/[groupId]/attendance": {
     GET: {
       expect: adminOnly(404),
-      fields: ["group", "sessions", "members", "notYetTold", "leavers", "records", "participantNotes", "canEditPushed", "ending", "cantMakeIt"],
+      fields: ["group", "sessions", "members", "notYetTold", "leavers", "records", "online", "onlineSaid", "participantNotes", "canEditPushed", "ending", "cantMakeIt"],
       why:
         "The register gate (gateGroupRegister) collapses missing, archived and not-yours onto " +
         "one 403 for a non-admin and tells an admin the group is missing.",
@@ -2028,6 +2028,15 @@ export const ROUTES = {
         "View-as is refused first, then the session, then the address and the body (a session of the group and " +
         "whether they can make it) are checked before anything is read, so every signed-in persona meets the same " +
         "400 on an empty one. The caller's own seat is read once a whole body arrives.",
+    },
+  },
+  "/api/courses/groups/[groupId]/joining-online": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the address and the body (a session of the group and " +
+        "whether they are joining it online) are checked before anything is read, so every signed-in persona meets " +
+        "the same 400 on an empty one. The caller's own seat is read once a whole body arrives.",
     },
   },
   "/api/courses/groups/[groupId]/check-in": {
@@ -2144,6 +2153,14 @@ export const ROUTES = {
         "Session required, then the document is read and its own membership decides. The " +
         "battery's id addresses nothing, so every signed-in persona is told that the document " +
         "is missing. A roster is read by the group's facilitators, its active members and admins.",
+    },
+  },
+  "/api/courses/groups/[groupId]/meeting-link": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "A session's meeting link, from the facilitators' box: group staff only, collapsed onto one 403 for a " +
+        "non-admin before the body is read; an admin is told the group is missing.",
     },
   },
   "/api/courses/groups/[groupId]/session": {
@@ -5948,6 +5965,30 @@ export const REAL_ROUTES = {
       },
     },
   },
+  "/api/courses/groups/[groupId]/joining-online": {
+    POST: {
+      realDrive: {
+        body: { sessionKey: "w01", online: true },
+        why:
+          "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the " +
+          "refused (nobody with a told seat in the group) are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No seat in this group: there is no line of its register for them to say they are joining online on."),
+        admin: c(404, "An admin holds no seat in this group, so has no line of its register to say they are joining online on."),
+      },
+      theirs: {
+        lead: c(404, "Leading the programme gives no seat in the group: answered as a group they are not in."),
+        facilitator: c(
+          ACTS,
+          "Holds a told seat in this group as well as facilitating it, so admitted: a whole body is never sent to " +
+            "somebody the gate admits, so it is not sent (it would write their word on a register).",
+        ),
+        participant: c(404, "Holds a place in the run's other group: answered as a group they are not in."),
+      },
+    },
+  },
   "/api/courses/groups/[groupId]/check-in": {
     GET: {
       realDrive: { query: "?session=w01", why: "The session is required in the query, which an empty one fails for everybody admitted: week 1 reaches the card." },
@@ -6033,6 +6074,9 @@ export const REAL_ROUTES = {
         participant: c(403, "Holds a place in the run's other group, not this one: another group's roster is not theirs."),
       },
     },
+  },
+  "/api/courses/groups/[groupId]/meeting-link": {
+    POST: groupStaff("A session's meeting link", c(400, "Admitted, then the body is checked: an empty one names no session.")),
   },
   "/api/courses/groups/[groupId]/session": {
     PATCH: groupStaff("A session's mode", c(400, "Admitted, then the body is checked: an empty one names no week.")),

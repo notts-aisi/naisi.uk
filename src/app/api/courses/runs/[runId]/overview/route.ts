@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
+import { seesSessionLink } from "@/lib/courses/meetingLink/audience";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { londonDateKey, type CurrentWeek, type WeekPlanEntry } from "@/lib/courses/weekPlan";
 import {
@@ -664,6 +665,8 @@ export type OverviewPayload = {
       leftEarly: number;
       absent: number;
       excused: number;
+      /** Of the sessions they came to, how many they joined online; the rest were in the room. */
+      online: number;
       lastPushedSessionKey: string | null;
       /** ISO 8601, or null before the first push. */
       lastComputedAt: string | null;
@@ -1248,12 +1251,11 @@ export async function GET(
   const currentWeek = own.currentWeek;
 
   // Per group, not once: an admin sees every link, a member sees their own
-  // room's, and a facilitator sees the link for each room they hold. The
-  // answer for `ownGroup` is byte-identical to what it was before.
+  // room's, and a facilitator sees the link for each room they hold. Who
+  // that is lives in one place (`seesSessionLink`), which is where somebody
+  // visiting a group for one week is to be added.
   const canSeeMeetingUrlFor = (group: CourseGroupDoc): boolean =>
-    isAdmin ||
-    (liveEnrolment?.status === "active" && liveEnrolment.groupId === group.id) ||
-    isNamedWithStanding(actor, "courseGroups.facilitatorUids", group.facilitatorUids);
+    seesSessionLink({ viewer: actor, isAdmin, seat: liveEnrolment ?? null, group, sessionKey: null });
 
   // The union across every card, deduped, so two groups sharing a facilitator
   // cost one user read rather than two.
@@ -1612,6 +1614,7 @@ export async function GET(
             leftEarly: rollup.leftEarly,
             absent: rollup.absent,
             excused: rollup.excused,
+            online: rollup.online,
             lastPushedSessionKey: rollup.lastPushedSessionKey,
             lastComputedAt: rollup.lastComputedAt
               ? rollup.lastComputedAt.toISOString()

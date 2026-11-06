@@ -73,11 +73,11 @@ const UNREADABLE = [
 ];
 
 describe("needsPolicyAcceptance, against the policies the site serves today", () => {
-  test("the site serves privacy 15 and terms 1, and 15 is the last version anybody is asked to accept", () => {
+  test("the site serves privacy 16 and terms 1, and 15 is still the last version anybody is asked to accept", () => {
     assert.equal(acceptance.LAST_PRIVACY_VERSION_ASKED, 15);
-    assert.equal(policies.currentPolicy("privacy").version, 15);
+    assert.equal(policies.currentPolicy("privacy").version, 16);
     assert.equal(policies.currentPolicy("terms").version, 1);
-    assert.equal(policies.CURRENT_POLICY_VERSION, "terms.1+privacy.15");
+    assert.equal(policies.CURRENT_POLICY_VERSION, "terms.1+privacy.16");
   });
 
   test("what accepting stamps is never asked about again", () => {
@@ -85,16 +85,20 @@ describe("needsPolicyAcceptance, against the policies the site serves today", ()
   });
 
   const TABLE = [
-    // An agreement to 15 with the current terms, in either order.
+    // An agreement to 15 or 16 with the current terms, in either order: v16
+    // is told, not asked, so nobody who accepted 15 is asked again.
     ["terms.1+privacy.15", false],
     ["privacy.15+terms.1", false],
+    ["terms.1+privacy.16", false],
+    ["privacy.16+terms.1", false],
     // Every version before 15 is asked once more.
     ...Array.from({ length: 14 }, (_, i) => [`terms.1+privacy.${i + 1}`, true]),
     ["privacy.14+terms.1", true],
     // A version the site has never served is no agreement to anything.
-    ["terms.1+privacy.16", true],
+    ["terms.1+privacy.17", true],
     ["terms.1+privacy.99", true],
     ["terms.2+privacy.15", true],
+    ["terms.2+privacy.16", true],
     ["terms.9+privacy.99", true],
     ...UNREADABLE.map((value) => [value, true]),
   ];

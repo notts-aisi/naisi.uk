@@ -59,6 +59,12 @@ export type CourseEnrolmentRole = "learner" | "facilitator";
  * `lastPushedSessionKey` is the idempotency marker: a re-push of the same
  * session recomputes to the same numbers, and the key says which session the
  * figures are current as of.
+ *
+ * `online` counts the sessions they came to (present, late or left early)
+ * that the register records them as having joined online; the rest of the
+ * sessions they came to were in the room. A rollup written before the
+ * register recorded where people were has none, and reads as 0: everybody
+ * was in the room.
  */
 export type EnrolmentAttendanceRollup = {
   sessionsHeld: number;
@@ -67,6 +73,8 @@ export type EnrolmentAttendanceRollup = {
   leftEarly: number;
   absent: number;
   excused: number;
+  /** Of the sessions they came to, how many they joined online. */
+  online: number;
   lastPushedSessionKey: string | null;
   lastComputedAt: Date | null;
 };
@@ -78,6 +86,7 @@ export const EMPTY_ATTENDANCE_ROLLUP: EnrolmentAttendanceRollup = {
   leftEarly: 0,
   absent: 0,
   excused: 0,
+  online: 0,
   lastPushedSessionKey: null,
   lastComputedAt: null,
 };
@@ -463,6 +472,9 @@ function asAttendanceRollup(v: unknown): EnrolmentAttendanceRollup {
     leftEarly: asCount(raw.leftEarly),
     absent: asCount(raw.absent),
     excused: asCount(raw.excused),
+    // Absent on every rollup computed before the register recorded where
+    // people were: 0, everybody in the room.
+    online: asCount(raw.online),
     lastPushedSessionKey:
       typeof raw.lastPushedSessionKey === "string" && raw.lastPushedSessionKey
         ? raw.lastPushedSessionKey

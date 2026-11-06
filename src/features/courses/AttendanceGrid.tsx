@@ -9,10 +9,12 @@ import MemberName from "@/components/ui/MemberName";
 import Modal from "@/components/ui/Modal";
 import Skeleton from "@/components/ui/Skeleton";
 import { TOLD_IN_ADVANCE, registerCantMakeItLine } from "@/lib/courses/cantMakeIt/words";
+import { JOINED_ONLINE, ONLINE_WORD, SAID_ONLINE_IN_ADVANCE, whereChoiceLabel } from "@/lib/courses/joiningOnline/words";
 import { londonClockLabel } from "@/lib/courses/londonLabels";
 import {
   ATTENDANCE_LIMITS,
   ATTENDANCE_STATUS_LABEL,
+  cameBy,
   type AttendanceStatus,
 } from "@/lib/firestore/courseAttendance";
 import styles from "./AttendanceGrid.module.css";
@@ -85,6 +87,18 @@ import useAttendance, {
  * session is a column yet; and beside the mark, to a screen reader, that
  * the excused mark was their own word. A facilitator who taps the cell takes
  * the mark over, and the line goes with it.
+ *
+ * ── IN THE ROOM OR ONLINE ───────────────────────────────────────────────────
+ * Beside every cell marked present, late or left early, the register keeps
+ * where the person was: in the room (the faint screen, which a tap turns to
+ * online) or online (the screen drawn whole). Its own small control in a slot
+ * every markable cell keeps, so the mark under the facilitator's thumb never
+ * moves when a tap gives it one. A mark that says somebody came is sent with
+ * where they were: kept from the mark before, or, the first time, online for
+ * somebody who said in advance they are joining online ("Joining online" on
+ * their programme page), which a screen reader hears beside the cell. Any
+ * other mark takes it away. A finished register shows it and moves it only
+ * for whoever may correct one, on the same lane as a mark.
  *
  * ── MID-RUN JOINERS ─────────────────────────────────────────────────────────
  * Cells before a member's `joinedWeekNumber` are INERT: a dash, not an
@@ -159,6 +173,20 @@ const GLYPH: Record<AttendanceStatus, string> = {
  * 44px square reads as a gap in the table instead.
  */
 const UNMARKED_GLYPH = "·";
+
+/**
+ * Online, drawn as a screen: whole for somebody who joined online, faint for
+ * somebody in the room (the choice a tap turns round). Decorative: every
+ * cell and choice says where in words.
+ */
+function ScreenIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <rect x="4" y="5" width="16" height="11" rx="1.5" />
+      <path d="M2 19h20" />
+    </svg>
+  );
+}
 
 /** Shared empty list of people who left. Read only by contract. */
 const NO_LEAVERS: AttendanceLeaver[] = [];
@@ -317,6 +345,8 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
     notYetTold,
     leavers: givenLeavers,
     records,
+    online,
+    onlineSaid,
     participantNotes,
     canEditPushed,
     ending,
@@ -386,6 +416,30 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
     [records],
   );
 
+  /** Where somebody marked as having come was, as the register keeps it: true online. */
+  const onlineOf = useCallback(
+    (sessionKey: string, uid: string): boolean =>
+      cameBy(records[sessionKey]?.[uid]) && online?.[sessionKey]?.[uid] === true,
+    [online, records],
+  );
+  /** Whether somebody said in advance they are joining this session online. */
+  const saidOnline = useCallback(
+    (sessionKey: string, uid: string): boolean => onlineSaid?.[sessionKey]?.includes(uid) ?? false,
+    [onlineSaid],
+  );
+  /**
+   * Where somebody marked as having come is to be, as the route decides it:
+   * kept from a mark that already said they came, else their own word in
+   * advance. Sent with every such mark, so the cell and the register agree.
+   */
+  const whereFor = useCallback(
+    (sessionKey: string, uid: string, before: AttendanceStatus | null): boolean => {
+      const kept = cameBy(before) ? online?.[sessionKey]?.[uid] : undefined;
+      return typeof kept === "boolean" ? kept : saidOnline(sessionKey, uid);
+    },
+    [online, saidOnline],
+  );
+
   /** Who told us in advance they can't make each session, by session key. */
   const toldInAdvance = useMemo(
     () => new Map((cantMakeIt ?? []).map((entry) => [entry.sessionKey, new Set(entry.uids)])),
@@ -433,7 +487,13 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
       setSaving(true);
       pop([cellKey(session.sessionKey, member.uid)]);
       try {
-        const marks: AttendanceMark[] = [{ uid: member.uid, status: next }];
+        const marks: AttendanceMark[] = [
+          {
+            uid: member.uid,
+            status: next,
+            ...(cameBy(next) ? { online: whereFor(session.sessionKey, member.uid, current) } : {}),
+          },
+        ];
         // A LOCKED register takes the admin's PATCH lane instead, which logs
         // the change. Same gesture, a different door, and a facilitator never
         // reaches it because their cells are not buttons.
@@ -447,7 +507,34 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
         setSaving(false);
       }
     },
-    [edit, mark, pop, statusOf],
+    [edit, mark, pop, statusOf, whereFor],
+  );
+
+  // ---- In the room or online ----------------------------------------------
+
+  /**
+   * The other place, for somebody marked as having come: the same mark, sent
+   * with where they were turned round. A finished register takes the admin's
+   * lane, as a mark does.
+   */
+  const onWhere = useCallback(
+    async (session: AttendanceSession, member: AttendanceMember) => {
+      const current = statusOf(session.sessionKey, member.uid);
+      if (!cameBy(current)) return;
+      setCellError(null);
+      setSaving(true);
+      try {
+        const marks: AttendanceMark[] = [{ uid: member.uid, status: current, online: !onlineOf(session.sessionKey, member.uid) }];
+        if (session.pushedAt) await edit(session, marks);
+        else await mark(session, marks);
+        setSavedAt(new Date());
+      } catch (e) {
+        setCellError(e instanceof Error ? e.message : "That didn't go through.");
+      } finally {
+        setSaving(false);
+      }
+    },
+    [edit, mark, onlineOf, statusOf],
   );
 
   // ---- A whole column ------------------------------------------------------
@@ -469,8 +556,8 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
             session.weekNumber >= m.joinedWeekNumber &&
             statusOf(session.sessionKey, m.uid) === null,
         )
-        .map((m) => ({ uid: m.uid, status: "present" as const })),
-    [members, statusOf],
+        .map((m) => ({ uid: m.uid, status: "present" as const, online: saidOnline(session.sessionKey, m.uid) })),
+    [members, saidOnline, statusOf],
   );
 
   const onBulk = useCallback(
@@ -705,6 +792,12 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
               {UNMARKED_GLYPH}
             </span>
             Not marked
+          </li>
+          <li className={styles.legendItem}>
+            <span className={`${styles.legendGlyph} ${styles.whereOnline}`} aria-hidden="true">
+              <ScreenIcon />
+            </span>
+            {ONLINE_WORD}
           </li>
         </ul>
 
@@ -951,6 +1044,14 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
                   // nobody can explain.
                   const locked = session.pushedAt !== null && !canEditPushed;
                   const next = nextStatus(status);
+                  // Where they were, beside a mark that says they came; and
+                  // their own word in advance, beside a cell not marked yet.
+                  const came = cameBy(status);
+                  const isOnline = onlineOf(session.sessionKey, member.uid);
+                  const said = saidOnline(session.sessionKey, member.uid);
+                  const besides = `${toldUs(session.sessionKey, member.uid) ? ` ${TOLD_IN_ADVANCE}` : ""}${
+                    isOnline ? ` ${JOINED_ONLINE}` : ""
+                  }${said && !came ? ` ${SAID_ONLINE_IN_ADVANCE}` : ""}`;
                   return (
                     <td key={key} className={styles.cell}>
                       <div className={styles.cellStack}>
@@ -963,7 +1064,7 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
                             role="img"
                             aria-label={`${member.displayName}, week ${session.weekNumber}: ${
                               status ? ATTENDANCE_STATUS_LABEL[status] : "not marked"
-                            }.${toldUs(session.sessionKey, member.uid) ? ` ${TOLD_IN_ADVANCE}` : ""} This register is finished and locked.`}
+                            }.${besides} This register is finished and locked.`}
                           >
                             {status ? GLYPH[status] : UNMARKED_GLYPH}
                           </span>
@@ -977,7 +1078,7 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
                             aria-pressed={status !== null}
                             aria-label={`${member.displayName}, week ${session.weekNumber}: ${
                               status ? ATTENDANCE_STATUS_LABEL[status] : "not marked"
-                            }.${toldUs(session.sessionKey, member.uid) ? ` ${TOLD_IN_ADVANCE}` : ""} Sets ${
+                            }.${besides} Sets ${
                               next ? ATTENDANCE_STATUS_LABEL[next] : "not marked"
                             }.`}
                             onClick={() => void onCycle(session, member)}
@@ -996,6 +1097,28 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
                               {status ? GLYPH[status] : UNMARKED_GLYPH}
                             </span>
                           </button>
+                        )}
+                        {/* In the room or online: a slot every markable cell
+                            keeps, so the mark never moves when a tap gives it
+                            a control; the control only beside a mark that
+                            says they came, and drawn alone, read only, on a
+                            finished register for anybody who cannot correct it. */}
+                        {came && !locked ? (
+                          <button
+                            type="button"
+                            className={`${styles.where} ${isOnline ? styles.whereOnline : ""}`}
+                            aria-pressed={isOnline}
+                            aria-label={whereChoiceLabel(member.displayName, session.weekNumber, isOnline)}
+                            onClick={() => void onWhere(session, member)}
+                          >
+                            <ScreenIcon />
+                          </button>
+                        ) : came && isOnline ? (
+                          <span className={`${styles.where} ${styles.whereOnline} ${styles.whereStatic}`} aria-hidden="true">
+                            <ScreenIcon />
+                          </span>
+                        ) : (
+                          <span className={styles.whereSlot} aria-hidden="true" />
                         )}
                         <button
                           type="button"
@@ -1036,15 +1159,26 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
                 {sessions.map((session) => {
                   const status = leaver.records[session.sessionKey] ?? null;
                   const key = cellKey(session.sessionKey, leaver.uid);
+                  // The sessions they joined online, with the marks they had.
+                  const leftOnline = cameBy(status) && (leaver.online ?? []).includes(session.sessionKey);
                   return (
                     <td key={key} className={styles.cell}>
                       {status ? (
-                        <span
-                          className={`${styles.cellButton} ${styles.cellLocked} ${STATUS_CLASS[status]}`}
-                          role="img"
-                          aria-label={`${leaver.displayName}, week ${session.weekNumber}: ${ATTENDANCE_STATUS_LABEL[status]}. ${leaver.left}.`}
-                        >
-                          {GLYPH[status]}
+                        <span className={styles.cellStack}>
+                          <span
+                            className={`${styles.cellButton} ${styles.cellLocked} ${STATUS_CLASS[status]}`}
+                            role="img"
+                            aria-label={`${leaver.displayName}, week ${session.weekNumber}: ${ATTENDANCE_STATUS_LABEL[status]}.${
+                              leftOnline ? ` ${JOINED_ONLINE}` : ""
+                            } ${leaver.left}.`}
+                          >
+                            {GLYPH[status]}
+                          </span>
+                          {leftOnline && (
+                            <span className={`${styles.where} ${styles.whereOnline} ${styles.whereStatic}`} aria-hidden="true">
+                              <ScreenIcon />
+                            </span>
+                          )}
                         </span>
                       ) : (
                         <span

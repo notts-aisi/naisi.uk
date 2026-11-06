@@ -3,6 +3,7 @@
 import { useState } from "react";
 import InitialsChip from "@/components/ui/InitialsChip";
 import { cameWords } from "@/lib/courses/attendanceWords";
+import { ONLINE_WORD, roomAndOnlineWords } from "@/lib/courses/joiningOnline/words";
 import type {
   GridCell,
   GridGroup,
@@ -28,6 +29,14 @@ import styles from "./ProgrammeAttendance.module.css";
  *
  * The board's mark for "not yet" is a dash, which the house rule forbids, so
  * this draws the register's own dot, as the facilitators' register does.
+ *
+ * IN THE ROOM OR ONLINE: a mark the register records as joined online has a
+ * corner of its own, says so to assistive technology, and is in the legend
+ * once any is drawn; somebody who came to any session online has, under
+ * their "3 of 4", how many in the room and how many online ("2 in the room,
+ * 1 online"). A week's count by group is the Surveys tab's too
+ * (`cameWords`), so it says who came and not where. Where nobody joined
+ * online the tab reads as it always has.
  */
 
 const LETTER: Record<AttendanceStatus, string> = {
@@ -70,7 +79,7 @@ function tagWord(tag: GridSessionTag, ending: RunAttendance["ending"]): string |
 function cellWords(cell: GridCell, person: GridPerson, ending: RunAttendance["ending"]): string {
   switch (cell.state) {
     case "mark": {
-      const word = cell.mark ? ATTENDANCE_STATUS_LABEL[cell.mark] : "";
+      const word = `${cell.mark ? ATTENDANCE_STATUS_LABEL[cell.mark] : ""}${cell.online ? ", online" : ""}`;
       const saved = cell.saved ? `, saved, not ${ending}` : "";
       return person.left ? `${word}, before they left${saved}` : `${word}${saved}`;
     }
@@ -97,10 +106,12 @@ function Mark({ cell, person, ending }: { cell: GridCell; person: GridPerson; en
       MARK_CLASS[cell.mark],
       cell.saved ? styles.saved : "",
       person.left ? styles.beforeLeft : "",
+      cell.online ? styles.online : "",
     ].join(" ");
     return (
       <span className={classes} role="img" aria-label={label}>
         {LETTER[cell.mark]}
+        {cell.online && <span className={styles.onlineDot} aria-hidden="true" />}
       </span>
     );
   }
@@ -220,7 +231,12 @@ function ByPerson({
                       <Mark cell={cell} person={person} ending={model.ending} />
                     </td>
                   ))}
-                  <td className={styles.came}>{came(person)}</td>
+                  <td className={styles.came}>
+                    {came(person)}
+                    {person.online > 0 && (
+                      <span className={styles.cameWhere}>{roomAndOnlineWords(person.came - person.online, person.online)}</span>
+                    )}
+                  </td>
                 </tr>
               ))}
               {hidden > 0 && (
@@ -392,6 +408,8 @@ export default function ProgrammeAttendance({
   // it stands for today is in the daytime.
   const tags = model.groups.flatMap((group) => group.weeks.map((week) => week.tag));
   const todayWord = tags.includes("today") && !tags.includes("tonight") ? "Today" : "Tonight";
+  // The legend says what the online corner is once any mark carries it.
+  const anyOnline = model.groups.some((group) => group.people.some((person) => person.cells.some((cell) => cell.online)));
 
   return (
     <div className={styles.page}>
@@ -476,6 +494,15 @@ export default function ProgrammeAttendance({
             </span>
             {saved}
           </li>
+          {anyOnline && (
+            <li className={styles.legendItem}>
+              <span className={`${styles.mark} ${styles.present} ${styles.online}`} aria-hidden="true">
+                P
+                <span className={styles.onlineDot} />
+              </span>
+              {ONLINE_WORD}
+            </li>
+          )}
         </ul>
         <p className={styles.legendNote}>Late and left early count as came.</p>
       </div>

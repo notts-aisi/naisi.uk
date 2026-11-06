@@ -87,7 +87,9 @@
  * its week 4 session is days ahead, so week 4 takes work: written, submitted,
  * reopened and submitted again on the real pages. Nobody has written
  * anything, and no session report exists. The admin appoints Fern to Group A
- * on the real page.
+ * on the real page. Group A has NO meeting link at this point (its own
+ * groups, `WEEK_THREE_WORK.groups`), so the box at the top of Fern's pages
+ * asks for one once somebody says they are joining a session online.
  *
  * ## The coursework point ("coursework")
  *
@@ -399,6 +401,9 @@ export const WEEK_THREE_WORK = Object.freeze({
   ...WEEK_THREE_UNMARKED,
   published: 4,
   blockWeeks: true,
+  // The fellowship's groups with no meeting link for Group A, so a session
+  // somebody is joining online has none until its facilitator adds one.
+  groups: Object.freeze(GROUP_PLAN.map((group) => (group.key === "A" ? Object.freeze({ ...group, online: false }) : group))),
 });
 
 /** Weeks 1 and 2 of the incubator's group: everybody came. */
@@ -691,7 +696,8 @@ function castOf(plan) {
       facilitatorPlan: plan.facilitator,
     };
   }
-  return { programme: FELLOWSHIP, groupPlan: GROUP_PLAN, peoplePlan: PEOPLE_PLAN, facilitatorPlan: FACILITATOR_PLAN };
+  // The fellowship's own people, in the plan's groups where it names them.
+  return { programme: FELLOWSHIP, groupPlan: plan?.groups ?? GROUP_PLAN, peoplePlan: PEOPLE_PLAN, facilitatorPlan: FACILITATOR_PLAN };
 }
 
 /** True for the one register of a plan that was saved and not finished. */

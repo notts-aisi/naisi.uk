@@ -11,6 +11,7 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import {
   ATTENDANCE_STATUS_LABEL,
   attendanceDocId,
+  joinedOnline,
   normalizeCourseAttendance,
   type AttendanceStatus,
   type CourseAttendanceDoc,
@@ -107,6 +108,12 @@ export type GridCell = {
   mark: GridMark | null;
   /** True when the mark is on a register saved and not finished yet. */
   saved: boolean;
+  /**
+   * True beside a mark that says they came (present, late, left early) when
+   * the register records them as having joined online. Absent otherwise:
+   * in the room, or no such mark.
+   */
+  online?: true;
 };
 
 /**
@@ -146,6 +153,12 @@ export type GridPerson = {
   came: number;
   of: number;
   /**
+   * Of the sessions counted in `came`, how many they joined online; the
+   * rest they came to in the room. A register that does not say where
+   * people were says they were in the room.
+   */
+  online: number;
+  /**
    * The sessions their group held while they were in it, marked or not: from
    * the week they joined, and for somebody who left, until they left; held,
    * not cancelled, and started. What "came to every session their group
@@ -177,6 +190,8 @@ export type GridWeekTotal = {
   percent: number | null;
   came: number;
   of: number;
+  /** Of `came`, how many joined online; the rest came to the room. */
+  online: number;
   /** True while a group's session that week is still to come or its register is not finished. */
   soFar: boolean;
   /** The names of the groups whose marks make up the figure, in the grid's order. */
@@ -492,6 +507,7 @@ function personRow(
   const cells: GridCell[] = [];
   let came = 0;
   let of = 0;
+  let online = 0;
   let groupHeld = 0;
   for (const weekNumber of weeks) {
     const facts = sessions.get(weekNumber);
@@ -521,10 +537,14 @@ function personRow(
     }
     if (happened(facts)) groupHeld += 1;
     if (mark) {
-      cells.push({ weekNumber, state: "mark", mark, saved: !facts.finished });
+      const joined = facts.register !== null && joinedOnline(facts.register, enrolment.uid);
+      cells.push({ weekNumber, state: "mark", mark, saved: !facts.finished, ...(joined ? { online: true as const } : {}) });
       if (happened(facts)) {
         of += 1;
-        if (CAME.has(mark)) came += 1;
+        if (CAME.has(mark)) {
+          came += 1;
+          if (joined) online += 1;
+        }
       }
       continue;
     }
@@ -558,6 +578,7 @@ function personRow(
     cells,
     came,
     of,
+    online,
     groupHeld,
   };
 }
@@ -706,6 +727,7 @@ function needsLooking(listed: ListedGroup): boolean {
 function weekTotal(entries: readonly ListedGroup[], weekNumber: number): GridWeekTotal {
   let came = 0;
   let of = 0;
+  let online = 0;
   let soFar = false;
   const from: string[] = [];
   for (const entry of entries) {
@@ -718,7 +740,10 @@ function weekTotal(entries: readonly ListedGroup[], weekNumber: number): GridWee
       const cell = row.cells.find((c) => c.weekNumber === weekNumber);
       if (!cell || cell.state !== "mark" || !cell.mark) continue;
       counted += 1;
-      if (CAME.has(cell.mark)) came += 1;
+      if (CAME.has(cell.mark)) {
+        came += 1;
+        if (cell.online) online += 1;
+      }
     }
     if (counted > 0) {
       of += counted;
@@ -726,7 +751,7 @@ function weekTotal(entries: readonly ListedGroup[], weekNumber: number): GridWee
     }
   }
   const percent = of > 0 ? Math.round((came * 100) / of) : null;
-  return { weekNumber, percent, came, of, soFar: percent !== null && soFar, from };
+  return { weekNumber, percent, came, of, online, soFar: percent !== null && soFar, from };
 }
 
 /**
@@ -877,7 +902,8 @@ export async function readRunHeader(
 
 /**
  * The grid as a spreadsheet: one row a person, in the grid's order, with the
- * group, the name, each week's mark in words, the figures and when they
+ * group, the name, each week's mark in words ("Present online" for somebody
+ * the register records as having joined online), the figures and when they
  * left. Nothing a register does not show: names and marks, never an address
  * and never a note.
  */
@@ -899,7 +925,7 @@ export function attendanceCsvTable(model: RunAttendance): { header: string[]; ro
         person.name,
         ...person.cells.map((cell) =>
           cell.state === "mark" && cell.mark
-            ? `${markWord(cell.mark)}${cell.saved ? unfinished : ""}`
+            ? `${markWord(cell.mark)}${cell.online ? " online" : ""}${cell.saved ? unfinished : ""}`
             : cell.state === "not-held"
               ? "Not held"
               : "",
