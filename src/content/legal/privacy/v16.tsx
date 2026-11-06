@@ -1253,8 +1253,10 @@ export default function PrivacyContentV16({
                 outside service, or keeping something longer), we tell you on
                 the site and by email before it takes effect, saying what
                 changed. Anything that relies on your consent asks you for that
-                one thing on its own. You were asked to accept this version. If
-                you decline it, you are signed out, and you can email us to have
+                one thing on its own. New members accept this policy when they
+                join, and anybody who had not accepted version 15 is asked to
+                accept it once. If you decline it, you are signed out, and you
+                can email us to have
                 your account removed; an external collaborator can delete theirs
                 there and then. We will not ask you to accept later versions.
                 The application

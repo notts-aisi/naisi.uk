@@ -225,7 +225,7 @@ describe("policy versions", () => {
   test("privacy v16 is dated the day its words last changed", () => {
     // Provisional: set again to the day v16 goes live, as v15's was.
     const sixteen = POLICIES.privacy.versions.find((v) => v.version === 16);
-    assert.equal(sixteen?.lastUpdated, "9 November 2026");
+    assert.equal(sixteen?.lastUpdated, "6 November 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 16).length, 1);
     const fifteen = POLICIES.privacy.versions.find((v) => v.version === 15);
     assert.equal(fifteen?.lastUpdated, "2 November 2026");
@@ -1373,7 +1373,7 @@ describe("the courses section", () => {
       // to accept or decline it. v15 is the last version anybody is asked to
       // accept, and says a change to how it uses somebody's information is
       // told on the site and by email before it takes effect.
-      ["a change is told before it takes effect, and this is the last version anybody is asked to accept", /we tell you on the site and by email before it takes effect, saying what changed\. Anything that relies on your consent asks you for that one thing on its own\. You were asked to accept this version\. If you decline it, you are signed out, and you can email us to have your account removed; an external collaborator can delete theirs there and then\. We will not ask you to accept later versions\./],
+      ["a change is told before it takes effect, and this is the last version anybody is asked to accept", /we tell you on the site and by email before it takes effect, saying what changed\. Anything that relies on your consent asks you for that one thing on its own\. New members accept this policy when they join, and anybody who had not accepted version 15 is asked to accept it once\. If you decline it, you are signed out, and you can email us to have your account removed; an external collaborator can delete theirs there and then\. We will not ask you to accept later versions\./],
       ["the statutory response time", /We aim to answer within 30 days\./],
       ["no solely automated decisions", /No decision about you is made solely by automated means\./],
       ["children", /We do not knowingly collect data from anyone under 16\./],
@@ -8990,7 +8990,7 @@ describe("the re-consent gate", () => {
     // space"); v15 does not, and the walk below still holds where.
     assert.ok(
       PAGE_FLAT.includes(
-        "You were asked to accept this version. If you decline it, you are signed out, and you can email us to have your account removed; an external collaborator can delete theirs there and then. We will not ask you to accept later versions.",
+        "New members accept this policy when they join, and anybody who had not accepted version 15 is asked to accept it once. If you decline it, you are signed out, and you can email us to have your account removed; an external collaborator can delete theirs there and then. We will not ask you to accept later versions.",
       ),
     );
     // Declining, as the accept page does it: a member presses "I don't
@@ -9106,7 +9106,8 @@ describe("the re-consent gate", () => {
       ],
     ]) {
       assert.ok(said.includes(page), `the accept page no longer says v15 changed ${what}`);
-      assert.ok(PAGE_FLAT.includes(policy), `the accept page says v15 changed ${what}, and v15 does not say it`);
+      // Held to version 15's own text, frozen, now that the current version is a later one.
+      assert.ok(V15_FLAT.includes(policy), `the accept page says v15 changed ${what}, and v15 does not say it`);
     }
     // The weekly note is drafted from submitted work and the team's feedback.
     assert.ok(PAGE_FLAT.includes("Once a week Claude may also draft a short note on how each person is doing, using only the work they submitted and the feedback, ratings and comments people on the team gave it."));
