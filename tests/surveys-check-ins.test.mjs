@@ -4,7 +4,8 @@
  * the group's facilitator, for the people the register marks there.
  *
  *  1. THE RULES, pure: when one can be opened and when it closes (11pm on the
- *     session's day, or an hour after a late session ends), who it is for
+ *     day after the session; an admin's late opening, until 48 hours after the
+ *     session ends, closes at 11pm the day after it opens), who it is for
  *     (present, late or left early; never the group's facilitators, a
  *     facilitator holding a place included), its questions made from the
  *     group's own copy of the week, its id, and the floors: a facilitator sees
@@ -93,8 +94,12 @@ const AnswerScreen = (await loadTs("features/surveys/answer/AnswerScreen.tsx")).
 const DURING = new Date("2026-10-27T19:50:00Z");
 /** Before it starts. */
 const BEFORE = new Date("2026-10-27T17:30:00Z");
-/** 11pm GMT that night: it closes. */
-const CLOSES = new Date("2026-10-27T23:00:00Z");
+/** 11pm GMT the next night, Wednesday 28 October: it closes, so the people who read their email that morning can still answer. */
+const CLOSES = new Date("2026-10-28T23:00:00Z");
+/** Wednesday 28 October, 8:30am GMT: the morning after. */
+const NEXT_MORNING = new Date("2026-10-28T08:30:00Z");
+/** Thursday 29 October, 8pm GMT: 48 hours after the session ended, when an admin can no longer open it late. */
+const LATE_ENDS = new Date("2026-10-29T20:00:00Z");
 
 mock.timers.enable({ apis: ["Date"], now: DURING });
 const at = (instant) => mock.timers.setTime(instant.getTime());
@@ -146,20 +151,56 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("1. the rules: the window, who it is for, its questions, its id and its floors", () => {
-  test("it closes at 11pm on the session's London day, or an hour after a late session ends", () => {
+  test("it closes at 11pm on the day after the session's London day, whatever time the session ends", () => {
     const afternoon = model.checkInWindow({ dateKey: "2026-11-18", startsAt: new Date("2026-11-18T15:00:00Z"), endsAt: new Date("2026-11-18T17:00:00Z") });
     assert.equal(afternoon.opensAt.toISOString(), "2026-11-18T15:00:00.000Z");
-    assert.equal(afternoon.closesAt.toISOString(), "2026-11-18T23:00:00.000Z");
+    assert.equal(afternoon.closesAt.toISOString(), "2026-11-19T23:00:00.000Z", "11pm the next day, so a reader of the next morning's email can still answer");
     const late = model.checkInWindow({ dateKey: "2026-11-18", startsAt: new Date("2026-11-18T21:30:00Z"), endsAt: new Date("2026-11-18T23:30:00Z") });
-    assert.equal(late.closesAt.toISOString(), "2026-11-19T00:30:00.000Z", "a 9:30 to 11:30pm session's closes at 12:30am");
+    assert.equal(late.closesAt.toISOString(), "2026-11-19T23:00:00.000Z", "a 9:30 to 11:30pm session's closes at 11pm the next day too");
+    assert.ok(late.closesAt.getTime() - late.opensAt.getTime() > 24 * 60 * 60 * 1000, "a late session's window is still more than a day long");
     // British summer time: 11pm in London is 10pm in UTC.
     const summer = model.checkInWindow({ dateKey: "2026-10-20", startsAt: new Date("2026-10-20T17:00:00Z"), endsAt: new Date("2026-10-20T19:00:00Z") });
-    assert.equal(summer.closesAt.toISOString(), "2026-10-20T22:00:00.000Z");
+    assert.equal(summer.closesAt.toISOString(), "2026-10-21T22:00:00.000Z");
+    // A Saturday in British summer time closes at 11pm on the Sunday the clocks go back, which is 11pm GMT.
+    const clocks = model.checkInWindow({ dateKey: "2026-10-24", startsAt: new Date("2026-10-24T09:00:00Z"), endsAt: new Date("2026-10-24T11:00:00Z") });
+    assert.equal(clocks.closesAt.toISOString(), "2026-10-25T23:00:00.000Z");
     assert.equal(model.checkInWindow({ dateKey: "", startsAt: null, endsAt: null }), null, "a session that cannot be dated has none");
     assert.equal(model.windowState(afternoon, new Date("2026-11-18T14:59:00Z")), "early");
     assert.equal(model.windowState(afternoon, new Date("2026-11-18T15:00:00Z")), "now");
-    assert.equal(model.windowState(afternoon, new Date("2026-11-18T22:59:59Z")), "now");
-    assert.equal(model.windowState(afternoon, new Date("2026-11-18T23:00:00Z")), "past");
+    assert.equal(model.windowState(afternoon, new Date("2026-11-18T23:00:00Z")), "now", "the session's own night is no longer its close");
+    assert.equal(model.windowState(afternoon, new Date("2026-11-19T22:59:59Z")), "now");
+    assert.equal(model.windowState(afternoon, new Date("2026-11-19T23:00:00Z")), "past");
+    assert.equal(model.CLOSES_AT_CLOCK, "23:00");
+    assert.equal(model.CLOSES_DAYS_AFTER, 1);
+  });
+
+  test("an admin may open it late, until 48 hours after the session ends, and a late one closes at 11pm the day after it opens; facilitators keep the window", () => {
+    const afternoon = model.checkInWindow({ dateKey: "2026-11-18", startsAt: new Date("2026-11-18T15:00:00Z"), endsAt: new Date("2026-11-18T17:00:00Z") });
+    assert.equal(model.LATE_OPEN_HOURS, 48);
+    assert.equal(afternoon.lateUntil.toISOString(), "2026-11-20T17:00:00.000Z", "48 hours after the session ends");
+    const at = (iso) => new Date(iso);
+    // Within the window: the same for both, closing at the window's close.
+    for (const admin of [true, false]) {
+      assert.deepEqual(model.openingAt(afternoon, at("2026-11-18T14:59:00Z"), admin), { state: "early" });
+      const now = model.openingAt(afternoon, at("2026-11-19T10:00:00Z"), admin);
+      assert.equal(now.state, "now");
+      assert.equal(now.closesAt.toISOString(), "2026-11-19T23:00:00.000Z");
+    }
+    // Past the window: late for an admin, closing at 11pm on the day after it opens; past for a facilitator.
+    const late = model.openingAt(afternoon, at("2026-11-19T23:00:00Z"), true);
+    assert.equal(late.state, "late");
+    assert.equal(late.closesAt.toISOString(), "2026-11-20T23:00:00.000Z");
+    const nextDay = model.openingAt(afternoon, at("2026-11-20T16:59:59Z"), true);
+    assert.equal(nextDay.state, "late");
+    assert.equal(nextDay.closesAt.toISOString(), "2026-11-21T23:00:00.000Z");
+    assert.deepEqual(model.openingAt(afternoon, at("2026-11-19T23:00:00Z"), false), { state: "past" }, "a facilitator opens nothing late");
+    assert.deepEqual(model.openingAt(afternoon, at("2026-11-20T17:00:00Z"), true), { state: "past" }, "48 hours after the session ended, not even an admin");
+    // In British summer time, 11pm in London is 10pm in UTC.
+    assert.equal(model.lateClosesAt(at("2026-10-20T09:00:00Z")).toISOString(), "2026-10-21T22:00:00.000Z");
+    // A session ending in the small hours: its late opening never ends before its window does.
+    const longNight = model.checkInWindow({ dateKey: "2026-11-18", startsAt: new Date("2026-11-18T00:00:00Z"), endsAt: new Date("2026-11-18T00:30:00Z") });
+    assert.ok(longNight.lateUntil.getTime() >= longNight.closesAt.getTime());
+    assert.equal(longNight.lateUntil.toISOString(), "2026-11-20T00:30:00.000Z");
   });
 
   test("who it is for: present, late and left early; never absent, excused, unmarked or a facilitator", () => {
@@ -251,14 +292,20 @@ describe("1. the rules: the window, who it is for, its questions, its id and its
     assert.equal(words.tooFewWords(2, 6), "2 of 6 answered. Too few answers to show.");
   });
 
-  test("its words, in the house's clock: today only on the session's own day, and 11pm or 12:30am", () => {
+  test("its words, in the house's clock: today only on the session's own day, and the day it closes on whenever that is another", () => {
     const three = new Date("2026-11-18T15:00:00Z");
     assert.equal(words.sessionLineWords("Group C", three, new Date("2026-11-18T16:50:00Z")), "Group C, today at 3pm.");
     assert.equal(words.sessionLineWords("Group C", three, new Date("2026-11-19T00:10:00Z")), "Group C, Wed 18 Nov, 3pm.", "after midnight it is no longer today");
     assert.equal(words.checkInTitle(3), "How was week 3?");
     assert.equal(words.closesByItselfWords(new Date("2026-11-18T23:00:00Z"), three), "It closes by itself at 11pm. Then you see your group’s totals, never who said what.");
     assert.equal(words.closesClockWords(new Date("2026-11-19T00:30:00Z"), new Date("2026-11-18T21:30:00Z")), "12:30am on Thu 19 Nov");
-    // The email names the day it closes on, which after a late session is the next one.
+    // The day after the session, the day it closes on is named; on that day itself, the clock alone.
+    assert.equal(words.closesByItselfWords(new Date("2026-11-19T23:00:00Z"), three), "It closes by itself at 11pm on Thu 19 Nov. Then you see your group’s totals, never who said what.");
+    assert.equal(words.closesClockWords(new Date("2026-11-19T23:00:00Z"), new Date("2026-11-19T08:30:00Z")), "11pm");
+    assert.equal(words.checkInClosingWords(new Date("2026-11-19T23:00:00Z"), three), "It closes at 11pm on Thu 19 Nov. Once sent, your answers can’t change.");
+    assert.equal(words.checkInClosingWords(new Date("2026-11-19T23:00:00Z"), new Date("2026-11-19T08:30:00Z")), "It closes at 11pm. Once sent, your answers can’t change.");
+    assert.equal(words.checkInCardClosesWords(new Date("2026-11-19T23:00:00Z"), three), "Closes Thu 19 Nov, 11pm");
+    // The email names the day it closes on, which is the day after the session.
     const late = { title: "How was week 3?", groupName: "Group C", questions: 6, minutes: 2, programmeName: "AGI Strategy", signer: "Rahul" };
     assert.equal(
       words.checkInEmailWords({ ...late, startsAt: new Date("2026-11-18T21:30:00Z"), closesAt: new Date("2026-11-19T00:30:00Z") }).paragraphs[2],
@@ -268,6 +315,13 @@ describe("1. the rules: the window, who it is for, its questions, its id and its
       words.checkInEmailWords({ ...late, startsAt: three, closesAt: new Date("2026-11-18T23:00:00Z") }).paragraphs[2],
       "It closes at 11pm on Wed 18 Nov.",
     );
+    const nextNight = words.checkInEmailWords({ ...late, startsAt: three, closesAt: new Date("2026-11-19T23:00:00Z") });
+    assert.equal(nextNight.paragraphs[2], "It closes at 11pm on Thu 19 Nov.");
+    assert.equal(nextNight.paragraphs[0], "Group C, Wed 18 Nov, 3pm. Tell us how the session went while it’s fresh. It’s 6 questions and takes about 2 minutes.");
+    // Opened late by an admin: no longer fresh, and its words do not say so.
+    const opened = words.checkInEmailWords({ ...late, startsAt: three, closesAt: new Date("2026-11-21T23:00:00Z"), late: true });
+    assert.equal(opened.paragraphs[0], "Group C, Wed 18 Nov, 3pm. Tell us how the session went. It’s 6 questions and takes about 2 minutes.");
+    assert.equal(opened.paragraphs[2], "It closes at 11pm on Sat 21 Nov.");
     assert.equal(words.openButtonWords(6), "Open it for the 6 here");
     assert.equal(words.sentSoFarWords(4, 6), "4 of 6 have sent it");
     assert.equal(words.sentSoFarWords(1, 6), "1 of 6 has sent it");
@@ -357,7 +411,7 @@ describe("2. opening it from the register", () => {
       "You are getting this because you were at this session of your course group, so it reaches you whatever your notification settings say, and it is never marketing.",
       "Group B, Tue 27 Oct, 6pm. Tell us how the session went while it’s fresh. It’s 6 questions and takes about 2 minutes.",
       "It’s confidential: only NAISI’s admins can see who said what. Your facilitators see your group’s totals, never your answers.",
-      "It closes at 11pm on Tue 27 Oct.",
+      "It closes at 11pm on Wed 28 Oct.",
       "Answer the check-in",
       `https://naisi.invalid/survey/${rowOf("amara").token}`,
       "Rahul For NAISI",
@@ -374,6 +428,49 @@ describe("2. opening it from the register", () => {
     assert.equal(again.status, 409);
     assert.equal(again.body.error, "The check-in for this session has been opened already.");
     assert.equal(world.mail.length, 3, "the second press emailed nobody");
+  });
+
+  test("the morning after, its facilitators can still open it, and it closes that night", async () => {
+    await mark({ amara: "present", chloe: "late", farah: "left-early" });
+    at(NEXT_MORNING);
+    assert.equal((await card("rahul")).body.card.state, "ready", "the card still offers it the morning after");
+    const opened = await open("rahul");
+    assert.equal(opened.status, 200, JSON.stringify(opened.body));
+    assert.equal(read(`surveys/${ID}`).closesAt.toISOString(), CLOSES.toISOString(), "it closes at 11pm the day after the session, not later");
+    const text = await textOf(world.mail.find((message) => message.to === "amara@example.com"));
+    assert.ok(text.includes("Tell us how the session went while it’s fresh."), text);
+    assert.ok(text.includes("It closes at 11pm on Wed 28 Oct."), text);
+  });
+
+  test("an admin opens it late, after the window and until 48 hours after the session ended: it closes at 11pm the next day, and its email does not call it fresh", async () => {
+    await mark({ amara: "present", chloe: "late", farah: "left-early" });
+    // Thursday 29 October, 10am GMT: the window closed at 11pm last night.
+    at(new Date("2026-10-29T10:00:00Z"));
+    // The facilitators' card offers nothing now, and their press is refused.
+    assert.equal((await card("rahul")).body.card, null);
+    assert.equal((await open("rahul")).body.error, "This session’s check-in time has passed.");
+    const opened = await open("zach", { session: "w02", people: 3, late: true });
+    assert.equal(opened.status, 200, JSON.stringify(opened.body));
+    assert.deepEqual(opened.body, { ok: true, people: 3, emailed: 3, failed: 0, noAddress: 0 });
+    const survey = read(`surveys/${ID}`);
+    assert.equal(survey.closesAt.toISOString(), "2026-10-30T23:00:00.000Z", "11pm on the day after it opened");
+    assert.deepEqual(survey.presses.map((press) => [press.kind, press.count, press.byUid]), [["first", 3, "zach"]]);
+    assert.deepEqual(world.mail.map((message) => [message.to, message.kind, message.surface]).sort(), [
+      ["amara@example.com", "notice", "course-check-in"],
+      ["chloe@example.com", "notice", "course-check-in"],
+      ["farah@example.com", "notice", "course-check-in"],
+    ]);
+    const text = await textOf(world.mail.find((message) => message.to === "amara@example.com"));
+    assert.ok(text.includes("Group B, Tue 27 Oct, 6pm. Tell us how the session went. It’s 6 questions and takes about 2 minutes."), text);
+    assert.ok(!text.includes("while it’s fresh"), "a late check-in calls the session fresh");
+    assert.ok(text.includes("It closes at 11pm on Fri 30 Oct."), text);
+    // It takes answers until then, and not after.
+    const normalised = records.normalizeSurvey(ID, survey);
+    assert.ok(repo.isOpen(normalised, new Date("2026-10-30T22:59:00Z")));
+    assert.ok(!repo.isOpen(normalised, new Date("2026-10-30T23:00:00Z")));
+    // Once open, a late one is closed by hand like any other, by its group's facilitators too.
+    assert.equal((await close("rahul")).status, 200);
+    assert.ok(read(`surveys/${ID}`).closedAt instanceof Date);
   });
 
   test("the number on the button is the register's: a moved count is refused with the new one", async () => {
@@ -407,6 +504,21 @@ describe("2. opening it from the register", () => {
     await refusal({ session: "w02", people: 1 }, "The check-in opens when the session starts.");
     at(CLOSES);
     await refusal({ session: "w02", people: 1 }, "This session’s check-in time has passed.");
+    // The window's own words, for an admin: past it, a late opening is asked for by name; within it, never.
+    const asZach = async (body, words, status = 409) => {
+      const response = await open("zach", body);
+      assert.equal(response.status, status, JSON.stringify(response.body));
+      assert.equal(response.body.error, words);
+    };
+    await asZach({ session: "w02", people: 1 }, "This session’s usual check-in time has passed. Reload the page to open it late.");
+    // Only an admin opens one late: a facilitator saying so is refused before anything is read.
+    await refusal({ session: "w02", people: 1, late: true }, "Only an admin can open a check-in late.", 403);
+    await refusal({ session: "w02", people: 1, late: "yes" }, "That request didn’t arrive in a shape this page understands. Reload the page and try again.", 400);
+    at(LATE_ENDS);
+    await asZach({ session: "w02", people: 1, late: true }, "It’s more than 48 hours since this session ended, so its check-in can’t be opened now.");
+    at(NEXT_MORNING);
+    await asZach({ session: "w02", people: 1, late: true }, "This session’s check-in can still be opened as usual. Reload the page and press Open.");
+    assert.equal(read(`surveys/${ID}`), undefined, "a refused press opened something");
     at(DURING);
     await refusal({ session: "w09", people: 1 }, "That isn’t one of this group’s sessions.", 400);
     await refusal({ session: "week two", people: 1 }, "That request didn’t arrive in a shape this page understands. Reload the page and try again.", 400);
@@ -533,7 +645,7 @@ describe("4. answering it, by the person's own link or signed in", () => {
       "Your facilitators see your group’s totals, never your answers.",
     ]);
     assert.match(screen.survey.box.points[3], /^Your name comes off on .* 2028, two years after the fellowship ends\. The totals stay\.$/);
-    assert.equal(screen.survey.closing, "It closes at 11pm. Once sent, your answers can’t change.");
+    assert.equal(screen.survey.closing, "It closes at 11pm on Wed 28 Oct. Once sent, your answers can’t change.");
     assert.ok(screen.survey.pages[0].questions.every((question) => !(question.kind === "text" && question.quote)), "a quote tick is drawn");
 
     const html = renderToStaticMarkup(createElement(AnswerScreen, { screen }));
@@ -543,10 +655,15 @@ describe("4. answering it, by the person's own link or signed in", () => {
     assert.ok(!text.includes("Page 1 of 1"), "a check-in's one page has no page line");
     assert.ok(!text.includes("Every question needs an answer"), "a check-in has a rule line");
     assert.ok(text.includes("What could have gone better? (optional)"));
-    // After midnight, the line names the day.
+    // After midnight it is still open, and the line names the session's day; it closes at 11pm, today now.
     at(new Date("2026-10-28T00:10:00Z"));
     const late = await answerScreenFor(world.db, survey, { uid: "amara", answered: false, answeredAt: null, submit: { kind: "link", token: rowOf("amara").token }, now: new Date(), person: null });
-    assert.equal(late.state, "message", "it closed at 11pm");
+    assert.equal(late.state, "open", "it closed on the session's own night");
+    assert.deepEqual(late.survey.intro, ["Group B, Tue 27 Oct, 6pm."]);
+    assert.equal(late.survey.closing, "It closes at 11pm. Once sent, your answers can’t change.");
+    at(CLOSES);
+    const closed = await answerScreenFor(world.db, survey, { uid: "amara", answered: false, answeredAt: null, submit: { kind: "link", token: rowOf("amara").token }, now: new Date(), person: null });
+    assert.equal(closed.state, "message", "it closed at 11pm the day after the session");
   });
 
   test("by link and signed in, each once; refused after it closes; the answer keeps what every survey's does", async () => {
@@ -555,6 +672,8 @@ describe("4. answering it, by the person's own link or signed in", () => {
     const byLink = await answerAs("amara");
     assert.equal(byLink.status, 200, JSON.stringify(byLink.body));
     assert.equal((await answerAs("amara")).status, 409, "a second send is refused");
+    // Chloe reads her email the next morning, and it still takes her answer.
+    at(NEXT_MORNING);
     const signedIn = await call("chloe", answerSignedIn.POST, { surveyId: ID }, { body: { answers: ANSWERS(5, "Seeing the numbers") } });
     assert.equal(signedIn.status, 200, JSON.stringify(signedIn.body));
     assert.equal((await call("nell", answerSignedIn.POST, { surveyId: ID }, { body: { answers: ANSWERS() } })).status, 404, "somebody it was not for");
@@ -565,8 +684,10 @@ describe("4. answering it, by the person's own link or signed in", () => {
     // A quote tick is refused: a check-in draws none.
     const quoted = await call(null, answerByLink.POST, {}, { body: { token: rowOf("farah").token, answers: { ...ANSWERS(), q_ci_better: { type: "text", text: "More time", quote: true } } } });
     assert.equal(quoted.status, 400);
+    at(new Date(CLOSES.getTime() - 1));
+    assert.equal((await answerAs("farah", { q_ci_useful: { type: "rating", value: 3 } })).status, 400, "a moment before it closes it still reads her answer, and refuses its blanks");
     at(CLOSES);
-    assert.equal((await answerAs("farah")).status, 409, "it takes no answer from 11pm");
+    assert.equal((await answerAs("farah")).status, 409, "it takes no answer from 11pm the day after the session");
     const kept = answersOf();
     assert.equal(kept.length, 2);
     for (const answer of kept) {
@@ -591,12 +712,23 @@ describe("5. the register's card, as every kind of caller, and its floors", () =
     assert.equal((await card("rahul", "w09")).status, 400);
   });
 
-  test("before it opens on the session's day: ready, with when it closes and the rows it can reach", async () => {
+  test("before it opens, within its window (the session's day and the next): ready, with when it closes and the rows it can reach", async () => {
     const response = await card("rahul");
     assert.deepEqual(Object.keys(response.body).sort(), ["card", "last", "sessionKey"]);
-    assert.deepEqual(response.body.card, { state: "ready", closes: "It closes by itself at 11pm. Then you see your group’s totals, never who said what.", counted: ["amara", "chloe", "farah"] });
+    assert.deepEqual(response.body.card, {
+      state: "ready",
+      closes: "It closes by itself at 11pm on Wed 28 Oct. Then you see your group’s totals, never who said what.",
+      counted: ["amara", "chloe", "farah"],
+    });
     assert.equal(response.body.last, null);
-    // Not on its day, nothing.
+    // The next morning, still ready, closing tonight.
+    at(NEXT_MORNING);
+    assert.deepEqual((await card("rahul")).body.card, {
+      state: "ready",
+      closes: "It closes by itself at 11pm. Then you see your group’s totals, never who said what.",
+      counted: ["amara", "chloe", "farah"],
+    });
+    // Before it starts, and once its window has passed, nothing.
     at(BEFORE);
     assert.equal((await card("rahul")).body.card, null);
     at(CLOSES);
@@ -714,8 +846,11 @@ describe("7. Home's card: while it is open and theirs, until they send it", () =
     const [cardOf] = await surveysWaitingFor(world.db, { uid: "amara" }, DURING);
     assert.deepEqual(
       { eyebrow: cardOf.eyebrow, title: cardOf.title, programme: cardOf.programme, size: cardOf.size, closes: cardOf.closes, answer: cardOf.answer, kind: cardOf.kind },
-      { eyebrow: "A check-in for you", title: "How was week 2?", programme: "AGI Strategy", size: "6 questions, about 2 minutes", closes: "Closes 11pm", answer: "Answer", kind: "checkIn" },
+      { eyebrow: "A check-in for you", title: "How was week 2?", programme: "AGI Strategy", size: "6 questions, about 2 minutes", closes: "Closes Wed 28 Oct, 11pm", answer: "Answer", kind: "checkIn" },
     );
+    // The morning after, it is still there, closing tonight.
+    const [morning] = await surveysWaitingFor(world.db, { uid: "amara" }, NEXT_MORNING);
+    assert.equal(morning.closes, "Closes 11pm");
     assert.equal(cardOf.href, `/survey/${rowOf("amara").token}`);
     assert.deepEqual(await surveysWaitingFor(world.db, { uid: "farah" }, DURING), [], "somebody not marked there has none");
     await answerAs("amara");
@@ -769,7 +904,7 @@ describe("8. the admins' pages and routes", () => {
     assert.equal(groups.length, 1);
     assert.equal(groups[0].programme, "Fellowship: AGI Strategy");
     assert.equal(groups[0].line, "1 check-in, 1 open now");
-    assert.deepEqual(groups[0].rows.map((row) => [row.label, row.open, row.closes, row.reached]), [["Week 2 · Group B · Tue 27 Oct", true, "Closes Tue 27 Oct", 3]]);
+    assert.deepEqual(groups[0].rows.map((row) => [row.label, row.open, row.closes, row.reached]), [["Week 2 · Group B · Tue 27 Oct", true, "Closes Wed 28 Oct", 3]]);
     // The Opening tab is an admin's, and names the opener as the names rule
     // names him to an admin: in full (`namesOf`, handed the admin).
     const opening = await openingView(world.db, records.normalizeSurvey(ID, read(`surveys/${ID}`)), DURING, made.sessionOf("zach"));
@@ -778,7 +913,7 @@ describe("8. the admins' pages and routes", () => {
     const plain = await openingView(world.db, records.normalizeSurvey(ID, read(`surveys/${ID}`)), DURING, null);
     assert.equal(plain.opened, "Opened by Rahul on Tue 27 Oct, 7:50pm, for the 2 marked here.");
     assert.deepEqual(opening.joined, ["1 more marked here after it opened, with no email."]);
-    assert.deepEqual(opening.closes, { label: "Closes", value: "Tue 27 Oct, 11pm" });
+    assert.deepEqual(opening.closes, { label: "Closes", value: "Wed 28 Oct, 11pm" });
   });
 
   test("one person's answers show their check-ins, the opening recorded first; the programme's lead never reaches one", async () => {

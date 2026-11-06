@@ -20,10 +20,13 @@ type Ctx = { params: Promise<{ groupId: string }> };
  *    from three answers, and the group's latest closed check-in beside it
  *    (`checkInRegisterView`, the one floored view a facilitator reads). Never
  *    a comment, a name or a row per person.
- *  - POST `{ session, people }`: opens it, for the people the register marks
- *    there, each emailed their own link as a notice (`openCheckIn`). `people`
- *    is the number on the button pressed; when the register has moved since,
- *    nothing is opened and the answer carries the new number.
+ *  - POST `{ session, people, late? }`: opens it, for the people the register
+ *    marks there, each emailed their own link as a notice (`openCheckIn`).
+ *    `people` is the number on the button pressed; when the register has
+ *    moved since, nothing is opened and the answer carries the new number.
+ *    `late: true` is an admin's press after the session's window has passed
+ *    (the programme's Surveys tab, its Check-ins view): anybody else sending it
+ *    is refused in a sentence before anything is read.
  *
  * WHO: the register's own gate (`gateGroupRegister`), the group's live
  * facilitators and admins, asked before anything else is read: a missing
@@ -76,14 +79,25 @@ export async function POST(req: Request, ctx: Ctx) {
   } catch {
     raw = null;
   }
-  const body = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as { session?: unknown; people?: unknown }) : {};
+  const body =
+    raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as { session?: unknown; people?: unknown; late?: unknown }) : {};
   const people = body.people;
-  if (!isSessionKey(body.session) || typeof people !== "number" || !Number.isInteger(people) || people < 0) {
+  if (
+    !isSessionKey(body.session) ||
+    typeof people !== "number" ||
+    !Number.isInteger(people) ||
+    people < 0 ||
+    (body.late !== undefined && typeof body.late !== "boolean")
+  ) {
     return NextResponse.json({ error: CHECK_IN_REFUSAL.body }, { status: 400 });
   }
+  const late = body.late === true;
+  if (late && !gated.isAdmin) return NextResponse.json({ error: CHECK_IN_REFUSAL.lateAdminOnly }, { status: 403 });
 
   const outcome = await openCheckIn(db, {
     opener: { uid: actor.uid },
+    admin: gated.isAdmin,
+    late,
     group: gated.group,
     runId: gated.runId,
     sessionKey: body.session,

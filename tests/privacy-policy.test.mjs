@@ -6024,6 +6024,11 @@ describe("the course hub passage", () => {
         // check-ins the week has, by their ids, and reads no answer and nobody
         // a check-in was sent to.
         ["src/lib/scheduler/jobs/surveyCheckInWeeks.ts", "the job that fixes which check-ins each whole week of a programme has, by their ids, reading no answer and no row of who a check-in was sent to"],
+        // The check-in's one reminder the morning after (docs/surveys.md): it
+        // reads whether each person it reached has answered, to email those
+        // who have not, each at their own address with their own link, and
+        // never an answer.
+        ["src/lib/scheduler/jobs/surveyCheckInReminders.ts", "the job that reminds, at 9am the day after a session, each person its check-in reached who has not sent it, with their own link, reading whether each has answered and never an answer"],
         // CHANGED ON PURPOSE (v15, "Admins may ask Claude to help review
         // coursework, survey answers and session reports"): the admins' week
         // review sends a week's check-ins to Claude pooled by group, with no
@@ -6145,6 +6150,10 @@ describe("the course hub passage", () => {
           "the group's live facilitators and admins (gateGroupRegister first): opens a session's check-in, a row and an email for each person the register marks there, and hands the register's card how many have sent it while it is open and its totals from three answers once closed, never a comment, an answer or a name",
         ],
         ["src/app/api/courses/groups/[groupId]/check-in/close/route.ts", "the group's live facilitators and admins (gateGroupRegister first): closes a session's check-in, reading no answer"],
+        [
+          "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/route.ts",
+          "an admin alone (loadProgrammeRun first, then the admin): emails a group's live facilitators that a session's check-in or register is not done, reading whether its check-in exists and is open, never an answer or who answered",
+        ],
         ["src/features/courses/register/CheckInCard.tsx", "the register's check-in card: draws what the check-in route hands it, a count while it is open and totals once closed, never a comment, an answer or a name"],
         ["src/app/api/courses/groups/[groupId]/attendance/route.ts", "the register's marking route: somebody marked at a session while its check-in is open gets their own row on it (reachLateMarks), with no email, and no answer is read"],
       ]),
@@ -6186,6 +6195,9 @@ describe("the course hub passage", () => {
         // an answer; its readers of answers are repo.ts's, above.
         ["src/lib/surveys/checkIns/open.ts", "the check-in's rows as it opens: one for each person the register marks at the session, with their own link, before their email; never an answer"],
         ["src/lib/surveys/checkIns/lateMark.ts", "the check-in's row for somebody marked at the session after it opened, with their own link and no email; never an answer"],
+        // Its one reminder the morning after: each person's own row, read to
+        // email them alone if they have not answered, and stamped with when.
+        ["src/lib/surveys/checkIns/remind.ts", "the check-in's reminder the morning after: a person's own row, read again to email them alone while they have not answered, and stamped with when they were reminded; never an answer"],
       ]),
       "addressing who a survey was sent to, or what somebody answered",
       "The policy says only admins see who said what or who has answered. If " +
@@ -6466,8 +6478,24 @@ describe("the course hub passage", () => {
       [
         "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/check-ins/page.tsx",
         [
-          "the Surveys tab's Check-ins view: a whole week of check-ins for its lead and admins, totals from three answers and comments from five, never a name, deciding nothing",
-          ["@/features/surveys/lead/CheckInsWeeks", "@/lib/surveys/checkIns/leadView", "@/lib/surveys/words"],
+          "the Surveys tab's Check-ins view: a whole week of check-ins for its lead and admins, totals from three answers and comments from five, never a name; and for an admin alone, this week's sessions a group at a time, each check-in's state and how many answered, with the presses to open, close and remind; deciding nothing",
+          [
+            "@/features/surveys/lead/CheckInsWeeks",
+            "@/features/surveys/lead/ThisWeeksCheckIns",
+            "@/lib/surveys/checkIns/leadView",
+            "@/lib/surveys/checkIns/weekTable",
+            "@/lib/surveys/words",
+          ],
+        ],
+      ],
+      // An admin's Remind on that table: one email to a group's facilitators
+      // that a session's check-in or register is not done. It reads whether the
+      // session's check-in exists, never what anybody said in it.
+      [
+        "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/route.ts",
+        [
+          "an admin's reminder to a group's facilitators that a session's check-in or register is not done: reads whether its check-in exists and is open, never an answer or who answered, deciding nothing",
+          ["@/lib/surveys/checkIns/facilitatorReminder", "@/lib/surveys/checkIns/weekTable", "@/lib/surveys/checkIns/words"],
         ],
       ],
       [

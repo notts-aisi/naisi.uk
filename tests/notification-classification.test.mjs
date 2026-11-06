@@ -766,7 +766,21 @@ const REGISTRY = {
     "The questions somebody left blank on a survey they sent (docs/surveys.md): an admin's press, for that one person, sending a link of their own to just those questions, whatever their grid says, as the survey's own email did, with the marker (surface survey-blanks). Never in bulk and never on its own; one person a press, at most three a day, and the lane's hourly cap per admin. Email only: no push leg.",
   ),
   "src/lib/surveys/checkIns/open.ts#sendNotice": N(
-    "The check-in at the end of a session (docs/surveys.md, \"Check-ins\"): a group's facilitator, or an admin, opening it from the register, which emails each person the register marks at that session, never the group's facilitators, a link of their own, whatever their courses row says, with the marker (surface course-check-in). Once per session, by the check-in's own claim; two a day per group, and at most the register's forty. Nobody is reminded, and somebody marked there later is reached with no email. Email only: no push leg.",
+    "The check-in at the end of a session (docs/surveys.md, \"Check-ins\"): a group's facilitator, or an admin, opening it from the register (or late, an admin alone, from the programme's Check-ins view), which emails each person the register marks at that session, never the group's facilitators, a link of their own, whatever their courses row says, with the marker (surface course-check-in). Once per session, by the check-in's own claim; two a day per group, and at most the register's forty. Its one reminder is the job's below; somebody marked there later is reached with no email when they are marked. Email only: no push leg.",
+  ),
+  "src/lib/surveys/checkIns/remind.ts#sendNotice": N(
+    "The check-in's one reminder, at 9am the day after its session (docs/surveys.md, \"Check-ins\"): to each person it reached who has not sent it while it is open, a check-in opened on its session's own day, whose seat on the run is still live and told, with their own link, whatever their courses row says, with the marker (surface course-check-in-reminder). About their own programme, like the reminders before a session. Once a person, by a scheduler marker. Email only: no push leg.",
+  ),
+  "src/lib/scheduler/jobs/surveyCheckInReminders.ts#sendCheckInReminder": N(
+    "The `surveys-check-in-reminders` job, which ships switched off: the check-in's one reminder the morning after, sent as the notice it is, one person at a time, each claimed by their own scheduler marker first.",
+    1,
+    "src/lib/surveys/checkIns/remind.ts",
+  ),
+  "src/lib/surveys/checkIns/facilitatorReminder.ts#sendEmail": T(
+    "Remind on a programme's Check-ins view, an admin's press: one email to each of a group's live facilitators (standing behind the role, with an address, not on the do-not-email list) that a session's check-in has not been opened or its register is not finished, with the way to the register. About the session they facilitate, owed to them by the press, so it reads no notification row and is no notice. Once a session a London day, by a marker claimed first.",
+  ),
+  "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/route.ts#sendFacilitatorReminder": T(
+    "Remind on a programme's Check-ins view, pressed by an admin with the number it emails on the button: the reminder above, to the group's live facilitators and nobody else. One call, which loops over them.",
   ),
   "src/app/api/events/[id]/survey-after/test/route.ts#sendEmail": T(
     "\"Send a test to me\" beside Send it now on an event's Survey after tab: the survey's email, marked [TEST], to the address on the presser's own session and nobody else. Nobody's preference is passed over, so it is no notice.",

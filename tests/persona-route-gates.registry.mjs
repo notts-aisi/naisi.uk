@@ -1296,6 +1296,16 @@ export const ROUTES = {
         "programme's lead and admins email a group's facilitators.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Remind on the Check-ins view's table: the body (which group, which session, how many the " +
+        "button said it emails) is checked before anything is read, so every signed-in persona meets " +
+        "the same 400 on an empty body. Then the role from the form, and an admin's alone: the " +
+        "programme's lead never has the table, which reads a group's session at a time.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind": {
     POST: {
       expect: signedIn(400),
@@ -5589,6 +5599,24 @@ export const REAL_ROUTES = {
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/registers/remind": {
     POST: bodyFirst("Only the programme's lead and admins email a group's facilitators, decided from the form."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind": {
+    POST: {
+      realDrive: {
+        body: { groupId: "e2e-battery-group", sessionKey: "w01", emails: 1 },
+        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before its run is read."),
+        admin: c(ACTS, "An admin reminds a group's facilitators on any programme, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(403, "The programme's own lead reads check-ins a whole week at a time and never a group's session alone: refused before its run is read."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind": {
     POST: {

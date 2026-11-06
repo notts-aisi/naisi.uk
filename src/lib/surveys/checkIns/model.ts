@@ -1,5 +1,5 @@
 import { own } from "@/lib/applications/keys";
-import { londonWallClockToInstant } from "@/lib/courses/weekPlan";
+import { addDaysToKey, londonDateKey, londonWallClockToInstant } from "@/lib/courses/weekPlan";
 import type { AttendanceStatus } from "@/lib/firestore/courseAttendance";
 import type { SurveyAnswer, SurveyChoiceQuestion, SurveyItem } from "../items";
 import { surveyQuestionsOf } from "../items";
@@ -14,11 +14,13 @@ import type { TotalsFacts, UnclearCount } from "./words";
  * reads a database or a clock.
  *
  *  - WHEN. A session that can be dated has a check-in window: from its start
- *    until 11pm on its London day, or an hour after it ends when that is
- *    later (a 9:30 to 11:30pm online group's closes at 12:30am). It closes by
- *    itself then (`closesAt`, read by `isOpen` like every survey's), or
- *    earlier by "Close it now". A session that cannot be dated, or did not
- *    happen, has none.
+ *    until 11pm on the day after its London day, so somebody who reads the
+ *    email the next morning can still answer. It closes by itself then
+ *    (`closesAt`, read by `isOpen` like every survey's), or earlier by "Close
+ *    it now". An admin may also open it LATE, once that window has passed
+ *    and until 48 hours after the session ends (`openingAt`); a late one
+ *    closes at 11pm on the day after the day it was opened. A session that
+ *    cannot be dated, or did not happen, has none.
  *  - WHO. The people the register marks there: present, late or left early,
  *    among its rows (the group's active members Publish has told), and never
  *    one of the group's facilitators, holding a place or not: they run it.
@@ -27,18 +29,22 @@ import type { TotalsFacts, UnclearCount } from "./words";
  *    its totals, and only from three answers, so a small group's answers are
  *    never read one by one. Never a comment, never who said what.
  *  - WHAT THE LEAD SEES (`leadWeekOf`). A week, never a group: nothing until
- *    every group's check-in that week has closed and none can still be opened
- *    (`weekIsWhole`) and the week's check-ins have been fixed (`./weeks.ts`),
+ *    every group's check-in that week has closed and none can still be opened,
+ *    an admin's late one included (`weekIsWhole`), and the week's check-ins
+ *    have been fixed (`./weeks.ts`),
  *    then every group's answers together, totals from three answers and
  *    comments from five, the comments in the order of their words.
  *  - ONE COUNT. Both readings count answers through `tallyOf`.
  */
 
-/** A check-in closes at this London wall-clock time on its session's day, at the earliest. */
+/** A check-in closes at this London wall-clock time... */
 export const CLOSES_AT_CLOCK = "23:00";
 
-/** And never sooner than this after its session ends. */
-export const CLOSES_AFTER_END_MS = 60 * 60 * 1000;
+/** ...on the day this many days after its session's London day (or, opened late, after the day it was opened). */
+export const CLOSES_DAYS_AFTER = 1;
+
+/** An admin may open a session's check-in late until this many hours after the session ends. */
+export const LATE_OPEN_HOURS = 48;
 
 /** The register's marks that say somebody was there. */
 export const HERE_STATUSES: readonly AttendanceStatus[] = ["present", "late", "left-early"];
@@ -58,25 +64,39 @@ export const MAX_CHECK_IN_PEOPLE = 40;
 /** Check-ins a group may open in a London day, whoever opens them: a group meets at most twice in a day. */
 export const CHECK_INS_PER_DAY = 2;
 
-/** When one session's check-in may be opened, and when it closes. */
-export type CheckInWindow = { opensAt: Date; closesAt: Date };
-
 /**
- * A session's check-in window, or null when the session cannot be dated:
- * from its start until 11pm on its London day, or an hour after it ends when
- * that is later.
+ * When one session's check-in may be opened, and when it closes: from
+ * `opensAt` until `closesAt` by its group's facilitators or an admin, and
+ * then, by an admin alone, late until `lateUntil`.
  */
-export function checkInWindow(session: { dateKey: string; startsAt: Date | null; endsAt: Date | null }): CheckInWindow | null {
-  if (!session.dateKey || !session.startsAt) return null;
-  let night: Date;
+export type CheckInWindow = { opensAt: Date; closesAt: Date; lateUntil: Date };
+
+/** 11pm in London on the day after `dateKey`, or null for a key that is not a day. */
+function nightAfter(dateKey: string): Date | null {
   try {
-    night = londonWallClockToInstant(session.dateKey, CLOSES_AT_CLOCK);
+    return londonWallClockToInstant(addDaysToKey(dateKey, CLOSES_DAYS_AFTER), CLOSES_AT_CLOCK);
   } catch {
     return null;
   }
+}
+
+/**
+ * A session's check-in window, or null when the session cannot be dated:
+ * from its start until 11pm on the day after its London day; and an admin's
+ * late opening until 48 hours after it ends, never before that close.
+ */
+export function checkInWindow(session: { dateKey: string; startsAt: Date | null; endsAt: Date | null }): CheckInWindow | null {
+  if (!session.dateKey || !session.startsAt) return null;
+  const closesAt = nightAfter(session.dateKey);
+  if (!closesAt) return null;
   const ends = session.endsAt ?? session.startsAt;
-  const late = new Date(ends.getTime() + CLOSES_AFTER_END_MS);
-  return { opensAt: session.startsAt, closesAt: late.getTime() > night.getTime() ? late : night };
+  const lateUntil = new Date(Math.max(closesAt.getTime(), ends.getTime() + LATE_OPEN_HOURS * 60 * 60 * 1000));
+  return { opensAt: session.startsAt, closesAt, lateUntil };
+}
+
+/** When a check-in an admin opens late at `when` closes: 11pm in London on the day after that day. */
+export function lateClosesAt(when: Date): Date {
+  return nightAfter(londonDateKey(when)) ?? new Date(when.getTime() + 24 * 60 * 60 * 1000);
 }
 
 /** Where a session stands for its check-in at `now`: before its start, within its window, or past it. */
@@ -84,6 +104,28 @@ export function windowState(window: CheckInWindow, now: Date): "early" | "now" |
   if (now.getTime() < window.opensAt.getTime()) return "early";
   if (now.getTime() >= window.closesAt.getTime()) return "past";
   return "now";
+}
+
+/**
+ * WHETHER A SESSION'S CHECK-IN CAN BE OPENED AT `now`, and by whom, with when
+ * it would close: within its window by its group's facilitators or an admin
+ * (`now`, closing at the window's close); after that, by an admin alone, until
+ * 48 hours after the session ends (`late`, closing at 11pm on the day after
+ * it is opened); otherwise not before it starts (`early`) and never once it
+ * is past (`past`). Facilitators keep the window: nothing is late for them.
+ */
+export type Opening =
+  | { state: "early" }
+  | { state: "now"; closesAt: Date }
+  | { state: "late"; closesAt: Date }
+  | { state: "past" };
+
+export function openingAt(window: CheckInWindow, now: Date, admin: boolean): Opening {
+  const state = windowState(window, now);
+  if (state === "early") return { state };
+  if (state === "now") return { state, closesAt: window.closesAt };
+  if (admin && now.getTime() < window.lateUntil.getTime()) return { state: "late", closesAt: lateClosesAt(now) };
+  return { state: "past" };
 }
 
 /**
@@ -242,29 +284,45 @@ export function facilitatorCount(
 // What the programme's lead sees: a whole week, every group's answers together
 // ---------------------------------------------------------------------------
 
-/** A session of one of the run's groups, as a week's check-ins wait on it. */
-export type WeekSession = { weekNumber: number; cancelled: boolean; dateKey: string; startsAt: Date | null; endsAt: Date | null };
+/** A session of one of the run's groups, as a week's check-ins wait on it: which group's, which session, and when. */
+export type WeekSession = {
+  groupId: string;
+  sessionKey: string;
+  weekNumber: number;
+  cancelled: boolean;
+  dateKey: string;
+  startsAt: Date | null;
+  endsAt: Date | null;
+};
 
-/** One of the programme's check-ins, as a week waits on it. */
-export type WeekCheckIn = { weekNumber: number; open: boolean };
+/** One of the programme's check-ins, as a week waits on it: the session it is about, and whether it is open. */
+export type WeekCheckIn = { groupId: string; sessionKey: string; weekNumber: number; open: boolean };
 
 /**
  * WHETHER A WEEK'S CHECK-INS ARE ALL IN at `now`: none of the week's is open,
- * and none can still be opened, because every session of the week that can
- * have one (dated, and not called off) is past its check-in window. Only then
- * does the lead read the week, all of it at once, so no group's answers can be
- * had by reading the week before and after that group's check-in closed. The
- * first tick at which a week that has begun is whole fixes its check-ins
- * (`freezeWholeWeeks` in `./weeks.ts`), and the lead reads that week from then
- * on, whatever its sessions do afterwards.
+ * and none can still be opened. A session with a check-in can have no other
+ * (its id is the session's), so the week waits for that one to close and no
+ * longer; a session of the week with none (dated, and not called off) keeps
+ * the week waiting until no check-in can be opened for it at all, an admin's
+ * late one included (`lateUntil`, 48 hours after it ends), so a group's check-in
+ * an admin opens late joins its week. Only then does the lead read the week,
+ * all of it at once, so no group's answers can be had by reading the week
+ * before and after that group's check-in closed. The first tick at which a
+ * week that has begun is whole fixes its check-ins (`freezeWholeWeeks` in
+ * `./weeks.ts`), and the lead reads that week from then on, whatever its
+ * sessions do afterwards.
  */
 export function weekIsWhole(weekNumber: number, sessions: readonly WeekSession[], checkIns: readonly WeekCheckIn[], now: Date): boolean {
+  const week = checkIns.filter((checkIn) => checkIn.weekNumber === weekNumber);
+  if (week.some((checkIn) => checkIn.open)) return false;
   for (const session of sessions) {
     if (session.weekNumber !== weekNumber || session.cancelled) continue;
     const window = checkInWindow(session);
-    if (window && windowState(window, now) !== "past") return false;
+    if (!window) continue;
+    if (week.some((checkIn) => checkIn.groupId === session.groupId && checkIn.sessionKey === session.sessionKey)) continue;
+    if (now.getTime() < window.lateUntil.getTime()) return false;
   }
-  return !checkIns.some((checkIn) => checkIn.weekNumber === weekNumber && checkIn.open);
+  return true;
 }
 
 /** Whether a week has begun: a session of it has started, or one of its check-ins exists. */

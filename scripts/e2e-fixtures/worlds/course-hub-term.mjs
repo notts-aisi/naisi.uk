@@ -2767,8 +2767,7 @@ export const SESSION_UNDER_WAY = "under-way";
  * The London wall clock half an hour before `now`, on five minutes, and never
  * before midnight: a seed at 00:10 has a session that started at 00:00 that
  * day. A ninety-minute session started then is under way for an hour at
- * least, and its check-in stays open until 11pm, or an hour after it ends
- * when that is later.
+ * least, and its check-in stays open until 11pm the next day.
  */
 export function underWayClock(now) {
   const parts = Object.fromEntries(

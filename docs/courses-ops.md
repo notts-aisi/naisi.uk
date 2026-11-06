@@ -1971,7 +1971,7 @@ the register's own gate, so the programme's lead, who reads the register,
 is shown nothing of it there: the lead reads check-ins a whole week at a time,
 every group's together, on the programme's Surveys tab.
 
-- On the session's day, from its start until it would close: "Open it for the
+- From the session's start until 11pm the next day: "Open it for the
   6 here", counted from the grid as it is tapped (marked present, late or left
   early, among the rows the route says it can reach: never the group's
   facilitators, nor anybody Publish has not told their group, whom an admin's
@@ -1979,8 +1979,9 @@ every group's together, on the programme's Surveys tab.
   counts again on the server and refuses a number that has moved, with the
   new one.
 - While it is open: how many have sent it, never who; "Show the QR code";
-  "Close it now", asked once; and when it closes by itself (11pm, or an hour
-  after a late session ends).
+  "Close it now", asked once; and when it closes by itself (11pm the day after
+  the session; one an admin opened late from the programme's Check-ins view,
+  11pm the day after it opened).
 - Once it has closed: the group's totals from three answers, with how many
   answered, never a comment. Beside it, the group's latest closed check-in
   before this session's.

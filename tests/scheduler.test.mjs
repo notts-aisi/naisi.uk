@@ -105,6 +105,7 @@ const {
   DEFAULT_MARKER_POLICY,
   MARKER_FAMILIES,
   breakReturnMarker,
+  checkInReminderMarker,
   decideMarkerClaim,
   eventAnnouncementMarker,
   eventSurveyMarker,
@@ -339,6 +340,7 @@ const FAMILY_SAMPLES = {
   regremind: () => registerReminderMarker("tuesdays-1800__aa11bb22", "w03", "uid1"),
   weekremind: () => weekReminderMarker("tuesdays-1800__aa11bb22", "w03", "uid1", 3),
   evsurvey: () => eventSurveyMarker("Ab3dE5fG7hJ9kL1mN3pQ", "send"),
+  ciremind: () => checkInReminderMarker("tuesdays-1800__aa11bb22", "w03", "uid1"),
 };
 
 describe("marker ids", () => {
@@ -500,6 +502,16 @@ describe("marker ids", () => {
     assert.equal(surveySend.id, "evsurvey__Ab3dE5fG7hJ9kL1mN3pQ__send");
     assert.equal(surveyRemind.id, "evsurvey__Ab3dE5fG7hJ9kL1mN3pQ__remind");
     assert.deepEqual(surveySend.fields, { surveyId: "Ab3dE5fG7hJ9kL1mN3pQ", step: "send" });
+
+    // A check-in's one reminder: one marker per person per session, the
+    // session named as the register names it (a session has one check-in at
+    // most), so it is swept with the run by its group and with an account by
+    // its uid.
+    const ciremind = checkInReminderMarker("tuesdays-1800__aa11bb22", "w03-2", "uid1");
+    assert.equal(ciremind.id, "ciremind__tuesdays-1800__aa11bb22__w03-2__uid1");
+    assert.equal(ciremind.family, "ciremind");
+    assert.deepEqual(ciremind.fields, { groupId: "tuesdays-1800__aa11bb22", sessionKey: "w03-2", uid: "uid1" });
+    assert.notEqual(ciremind.id, weekReminderMarker("tuesdays-1800__aa11bb22", "w03", "uid1", 1).id);
   });
 
   test("refuse a component Firestore would reject or that we compose ourselves", () => {
@@ -549,6 +561,12 @@ describe("marker ids", () => {
     assert.throws(() => weekReminderMarker("g/1", "w03", "uid1", 1), /groupId/);
     assert.throws(() => weekReminderMarker("g1", "w03", "uid1", 1.5), /daysBefore/);
     assert.doesNotThrow(() => weekReminderMarker("tuesdays-1800__aa11bb22", "w03-2", "uid1", 1));
+    // The check-in's reminder: the same split as the week's.
+    assert.throws(() => checkInReminderMarker("g1", "w03", "uid__1"), /uid/);
+    assert.throws(() => checkInReminderMarker("g1", "w03.1", "uid1"), /sessionKey/);
+    assert.throws(() => checkInReminderMarker("g/1", "w03", "uid1"), /groupId/);
+    assert.throws(() => checkInReminderMarker("g1", "", "uid1"), /sessionKey/);
+    assert.doesNotThrow(() => checkInReminderMarker("tuesdays-1800__aa11bb22", "w03-2", "uid1"));
   });
 
   test("family is recoverable from a stored id", () => {

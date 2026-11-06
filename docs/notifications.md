@@ -248,6 +248,15 @@ names, each at their own account's address. Its rows in the log carry
 same email went once per piece, straight from the review route; the
 registry's entries moved with it, and the class did not change.
 
+**An admin's reminder to a group's facilitators is transactional.** "Remind 2
+facilitators" on a programme's Check-ins view (`src/lib/surveys/checkIns/facilitatorReminder.ts`)
+emails each of a group's live facilitators that a session's check-in has not
+been opened, or its register is not finished, with the way to the register.
+It is about the session they facilitate and owed to them by the press, so it
+consults no row and carries no notice marker; the button names how many it
+emails, and it goes at most once a session a day. Its rows in the log carry
+`kind: "course-facilitator"`, as the register reminder's do.
+
 **Invitation reminders (`application-invitation-reminders`).** Once a day, from
 10:00 London and never after 18:00, to everybody invited on decision day who
 has not replied, from the day after they were told up to their own reply-by
@@ -345,7 +354,8 @@ preference at all.
 | `course-survey` | `POST /api/surveys/[surveyId]/send` and `.../remind` (docs/surveys.md) | admins | everybody holding a place on the survey's programme, each at their account's address with their own link; the reminder to those of them who have not answered |
 | `course-follow-up` | the same two routes, for a follow-up survey at 6 or 12 months (docs/surveys.md) | admins | everybody whose row on the programme's before survey says yes to follow-ups now, each with their own link; the reminder to those of them who have not answered |
 | `event-survey` | the same two routes, for the survey after an event (docs/surveys.md); and for one its event's Survey after step set up, `POST /api/events/[id]/survey-after/send` ("Send it now", which at a started event with no survey of its own sets one up with the standard questions first) and the `event-surveys` job | admins; the event's author and collaborators while they stand, for Send it now; the job | the people who came to the event (each with an email: an account at its own address, a guest or a walk-in at the address they gave the event) or everybody whose sign-up was confirmed, less anybody who already answered with the QR code, each with their own link; with a survey its event set up, the one question about not coming to everybody with a place who wasn't checked in, at an event whose door was opened; the reminder to those it reached who have not answered |
-| `course-check-in` | `POST /api/courses/groups/[groupId]/check-in`, opening the check-in at the end of a session (docs/surveys.md) | admins, and a facilitator of THIS group while it is live | the people the session's register marks present, late or left early, never the group's facilitators, each at their account's address with their own link; once, when it opens: somebody marked there later is reached with no email, and nobody is reminded |
+| `course-check-in` | `POST /api/courses/groups/[groupId]/check-in`, opening the check-in at the end of a session (docs/surveys.md), from the register or, late too, from the programme's Check-ins view | admins, and a facilitator of THIS group while it is live; opening it late, admins alone | the people the session's register marks present, late or left early, never the group's facilitators, each at their account's address with their own link; once, when it opens: somebody marked there later is reached with no email; its one reminder is the next row |
+| `course-check-in-reminder` | the `surveys-check-in-reminders` job, at 9am the day after a session (docs/surveys.md) | the job | each person an open check-in reached who has not sent it and whose seat on the run is still live and told, with their own link, for a check-in opened on its session's own day; once each, by a scheduler marker |
 | `course-week` | "Week N is open", 6 days before each of a group's sessions at 9am: the `courses-next-week-email` job, or, while that job is off, `POST /api/courses/groups/[groupId]/attendance/push` (finishing the register before it) and an admin's Resend on a finished register | the job; the group's facilitator or an admin pressing the register; an admin resending | everybody holding a place in the group whose group has gone out, whatever they unsubscribed from; once per group per session, by the group's claim |
 | `course-week-reminder` | the reminders 3 days and 1 day before each of a group's sessions at 9am: the `courses-week-reminders` job | the job | each person holding a place in the group whose week (written as blocks, and published) is not done, listing what is left of it; one per person per reminder, by a scheduler marker; a week done, submitted or locked is never reminded about |
 | `messages` | `POST /api/messages`, a message written in Messages that goes as a programme notice ([messages.md](messages.md)) | admins, a programme's lead and a group's facilitator, each to the tags the picker gives them | the people the writer chose, when every tag is about running a programme and the writer runs everybody it reaches: holding a place on a programme they run, facilitating or leading it, or in a group they facilitate; each at their account's own address (or a university address they verified), the writer too when they are in the tags. Otherwise the message goes by their settings, not as a notice. A notice to one group, or to one programme's people (its everyone, or its people holding a place), also pushes, as the group email and the cohort email's important notice it took over did: each person it reached with an account and each whose every address bounced, never the writer (`pushTargetOf`); nothing else in Messages pushes |
@@ -510,7 +520,9 @@ settings can go to both of a member's addresses.
 
 **The check-in omits the hourly window** because it is claimed once per
 session by the check-in itself (two presses make one), and its daily counter
-bounds a group's evening of two sessions.
+bounds a group's evening of two sessions. Its reminder the morning after takes
+no slot at all: the job sends it once a person, by a scheduler marker, and
+that claim is its bound, as for the reminders before a session.
 
 **Two lanes omit the hourly window, for the same reason.** The room notice has to
 survive the evening where the room changes twice and the mode flips once, which

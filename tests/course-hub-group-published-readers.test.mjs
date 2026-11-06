@@ -409,12 +409,15 @@ const READERS = {
       "met dates their answers: a seat Publish has not told them about is no group of theirs, so the box names " +
       "nobody's facilitators and the answers count as before their first session",
   },
-  "lib/surveys/waiting.ts": {
+  // Moved out of `lib/surveys/waiting.ts` with the seat test it asks, which a
+  // check-in's reminder the morning after asks too, the same way.
+  "lib/surveys/seat.ts": {
     kind: "told",
     asks: 1,
     why:
-      "whether a leaving survey or a check-in is still the caller's to answer: the caller's own seat only, and " +
-      "nothing of it is shown. A seat Publish has not told them about is no seat they left or are on, so it keeps no card",
+      "whether a leaving survey or a check-in is still a person's to answer, for their card and for a check-in's " +
+      "reminder the morning after: the person's own seat only, and nothing of it is shown. A seat Publish has not " +
+      "told them about is no seat they left or are on, so it keeps no card and is sent no reminder",
   },
   "lib/surveys/resultsFilters.ts": {
     kind: "told",
