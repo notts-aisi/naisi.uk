@@ -19,12 +19,15 @@
  *     surface resolves then say so.
  *  3. THE GROUP IS TOLD THROUGH THE UPDATES LANE. With "Tell the group" on,
  *     the route answers with the update's words and the dialog posts them to
- *     the group through the updates route: the email reaches the people that
- *     route counts, nobody else, word for word, and never a meeting link.
- *  4. WHOLE OR NOT AT ALL. A stale dialog, a session that has started, a day
- *     outside the week, a time that is no time, a room or reason holding a
- *     link, nothing to put back, and a count that no longer holds are each
- *     refused before anything changes.
+ *     the group through the updates route with `withFacilitators`: the email
+ *     reaches the group's told people and its facilitators with standing,
+ *     never the presser, nobody else, word for word, and never a meeting link.
+ *  4. WHOLE OR NOT AT ALL. A stale dialog, a session that met (its register
+ *     taken), a day outside the week, a time that is no time, a room or
+ *     reason holding a link, nothing to put back, and a count that no longer
+ *     holds are each refused before anything changes. A session whose time
+ *     has passed and whose register nobody took is put right (the suite
+ *     `tests/course-group-time-change.test.mjs` holds those rules).
  *  5. THE FINISHING DATE under both kinds of cancel.
  *  6. THE FACILITATORS' REGISTER of a session cancelled and kept pace: its
  *     column reads as not held for everybody who reads the register, its
@@ -173,16 +176,17 @@ describe("1. who may change a session of Group B", () => {
 // ---------------------------------------------------------------------------
 
 /**
- * The update's email to Group B, which must reach Amara and Ines and nobody
- * else: the group's two emailable people (Ines unsubscribed from the cohort
- * list, and an update is a notice, so it reaches her all the same; Omar's
- * address is stopped). One message each, the same email; Amara's is returned.
+ * The update's email to Group B, which must reach Amara and Ines, the
+ * group's two emailable people (Ines unsubscribed from the cohort list, and
+ * an update is a notice, so it reaches her all the same; Omar's address is
+ * stopped), and the group's facilitators, Rahul and Sofia, never the person
+ * who pressed. One message each, the same email; Amara's is returned.
  */
-function onlyEmail() {
+function onlyEmail(presser) {
   const to = world.mail.map((m) => m.to).sort();
-  assert.deepEqual(to, ["amara@example.com", "ines@example.com"], `expected Group B's two, got ${to.join(", ")}`);
-  const [first, second] = world.mail;
-  assert.equal(first.subject, second.subject);
+  const expected = ["amara", "ines", "rahul", "sofia"].filter((uid) => uid !== presser).map((uid) => `${uid}@example.com`);
+  assert.deepEqual(to, expected, `expected Group B's two and its facilitators, got ${to.join(", ")}`);
+  for (const message of world.mail) assert.equal(message.subject, world.mail[0].subject);
   return world.mail.find((m) => m.to === "amara@example.com");
 }
 
@@ -194,9 +198,11 @@ describe("2. cancel it, and keep pace", () => {
     assert.deepEqual(changed.body.change, { kind: "cancel", weekNumber: 4, dateKey: TUE_24, newDateKey: null });
     assert.deepEqual(changed.body.update, {
       groupId: B,
-      title: "Tue 24 Nov’s session is cancelled",
-      message: "Rahul and Sofia are both away. Week 4’s reading stays open.",
-      emailCount: 2,
+      title: "No session for week 4",
+      message:
+        "Group B won’t meet for week 4. Week 5 is still Tue 1 Dec, and week 4’s work is still on your programme page.\n\nWhy: Rahul and Sofia are both away.",
+      emailCount: 4,
+      withFacilitators: true,
     });
 
     const after = world.db.read(`courseGroups/${B}`);
@@ -218,15 +224,16 @@ describe("2. cancel it, and keep pace", () => {
     assert.deepEqual(model.coveredWeeks(sessionsOf(), weekOf(5)), [4, 5]);
 
     // The update went through the updates lane: kept for Group B and emailed
-    // to the two people in it who can be emailed, whatever they unsubscribed from.
+    // to the two people in it who can be emailed, whatever they unsubscribed
+    // from, and to its facilitators.
     assert.equal(told.status, 200, JSON.stringify(told.body));
     const [update] = w.stored();
     assert.equal(update.to, "group");
     assert.equal(update.groupId, B);
-    assert.equal(update.title, "Tue 24 Nov’s session is cancelled");
-    const message = onlyEmail();
-    assert.equal(message.subject, "Tue 24 Nov’s session is cancelled");
-    assert.ok(allOf(message).includes("Rahul and Sofia are both away. Week 4’s reading stays open."));
+    assert.equal(update.title, "No session for week 4");
+    const message = onlyEmail("claudia");
+    assert.equal(message.subject, "No session for week 4");
+    assert.ok(allOf(message).includes("Group B won’t meet for week 4. Week 5 is still Tue 1 Dec"));
     assert.equal(message.replyTo, "ai-safety@uonsu.com");
   });
 
@@ -262,10 +269,10 @@ describe("2. cancel it, and push the rest back a week", () => {
     const { changed, told } = await press("yusuf", B, { week: 4, dateKey: TUE_24, kind: "push" });
     assert.equal(changed.status, 200, JSON.stringify(changed.body));
     assert.deepEqual(changed.body.change, { kind: "push", weekNumber: 4, dateKey: TUE_24, newDateKey: "2026-12-01" });
-    assert.equal(changed.body.update.title, "Tue 24 Nov’s session is cancelled");
+    assert.equal(changed.body.update.title, "Week 4 moves to next week, and the rest follow");
     assert.equal(
       changed.body.update.message,
-      "Rahul and Sofia are both away. Week 4 is now on Tue 1 Dec, and every session after it moves back a week.",
+      "Group B won’t meet on Tue 24 Nov. Week 4 now meets on Tue 1 Dec and each later week moves back one, so your last session is Tue 15 Dec.\n\nWhy: Rahul and Sofia are both away.",
     );
 
     const stored = world.db.read(`courseGroups/${B}`);
@@ -282,8 +289,8 @@ describe("2. cancel it, and push the rest back a week", () => {
     assert.equal(w.sessionsLib.sessionRange(sessionsOf(), NOW).lastDateKey, "2026-12-15");
 
     assert.equal(told.status, 200);
-    const message = onlyEmail();
-    assert.ok(allOf(message).includes("Week 4 is now on Tue 1 Dec, and every session after it moves back a week."));
+    const message = onlyEmail("yusuf");
+    assert.ok(allOf(message).includes("Week 4 now meets on Tue 1 Dec and each later week moves back one"));
   });
 
   test("the other groups keep their dates", async () => {
@@ -300,9 +307,11 @@ describe("2. hold it online", () => {
     assert.equal(changed.status, 200, JSON.stringify(changed.body));
     assert.deepEqual(changed.body.update, {
       groupId: B,
-      title: "Tue 8 Dec’s session is online",
-      message: "Rahul and Sofia are both away. Same day and time. The link to join is on your programme page, not in your emails.",
-      emailCount: 2,
+      title: "Week 6 is online: Tue 8 Dec, 6pm",
+      message:
+        "Group B’s week 6 session is online, at the usual time. The link to join is on your programme page.\n\nWhy: Rahul and Sofia are both away.",
+      emailCount: 3,
+      withFacilitators: true,
     });
     const stored = world.db.read(`courseGroups/${B}`);
     assert.equal(stored.sessionModes.w06, "virtual");
@@ -312,7 +321,7 @@ describe("2. hold it online", () => {
     assert.equal(weekOf(6).session.startTimeLocal, "18:00", "same time");
 
     assert.equal(told.status, 200);
-    const message = onlyEmail();
+    const message = onlyEmail("sofia");
     assert.ok(!allOf(message).includes(LINK), "the meeting link is in the email");
     assert.ok(!allOf(message).includes("meet.example"), "the link's host is in the email");
   });
@@ -336,10 +345,10 @@ describe("2. move it", () => {
     const { changed, told } = await press("rahul", B, MOVE);
     assert.equal(changed.status, 200, JSON.stringify(changed.body));
     assert.equal(changed.body.change.newDateKey, "2026-11-25");
-    assert.equal(changed.body.update.title, "Tue 24 Nov’s session has moved");
+    assert.equal(changed.body.update.title, "Week 4 moves to Wed 25 Nov, 7pm");
     assert.equal(
       changed.body.update.message,
-      "Rahul and Sofia are both away. It’s on Wed 25 Nov at 7pm in Portland A13, this week only.",
+      "Group B’s week 4 session moves, for this week only, to Wed 25 Nov, 7pm to 9pm, Portland A13.\n\nWhy: Rahul and Sofia are both away.\n\nCan’t make the new time? Tell us on your programme page.",
     );
     const stored = world.db.read(`courseGroups/${B}`);
     assert.deepEqual(stored.sessionOverrides.w04, { weekday: 3, startTimeLocal: "19:00", location: "Portland A13" });
@@ -352,7 +361,7 @@ describe("2. move it", () => {
     assert.equal(weekOf(5).dateKey, "2026-12-01", "one week only");
     assert.equal(weekOf(5).session.location, "Hallward B12");
     assert.equal(told.status, 200);
-    assert.ok(allOf(onlyEmail()).includes("It’s on Wed 25 Nov at 7pm in Portland A13, this week only."));
+    assert.ok(allOf(onlyEmail("rahul")).includes("to Wed 25 Nov, 7pm to 9pm, Portland A13."));
   });
 
   const REFUSALS = [
@@ -394,15 +403,16 @@ describe("2. hold it as usual", () => {
     assert.equal(changed.status, 200, JSON.stringify(changed.body));
     assert.deepEqual(changed.body.update, {
       groupId: B,
-      title: "Week 4’s session is back to usual",
-      message: "Sofia can make it after all. It’s on Tue 24 Nov at 6pm in Hallward B12.",
-      emailCount: 2,
+      title: "Week 4 is back to its usual time",
+      message: "Group B’s week 4 session is back to Tue 24 Nov, 6pm, Hallward B12, as usual.\n\nWhy: Sofia can make it after all.",
+      emailCount: 3,
+      withFacilitators: true,
     });
     const stored = world.db.read(`courseGroups/${B}`);
     assert.deepEqual(stored.sessionChanges, {});
     assert.equal(weekOf(4).cancelled, false);
     assert.equal(told.status, 200);
-    onlyEmail();
+    onlyEmail("rahul");
   });
 
   test("puts a moved session back on its own day", async () => {
@@ -429,7 +439,6 @@ describe("2. hold it as usual", () => {
 describe("4. every refusal comes before the write", () => {
   const cases = [
     ["a dialog opened on another date", { ...CANCEL, dateKey: "2026-11-23" }, 409, "That session has changed since this was opened. Close it and open it again."],
-    ["a session that has started", { week: 3, dateKey: "2026-11-17", kind: "cancel" }, 409, "That session has started, so it can’t be changed now."],
     ["a week the group has no session in", { week: 9, dateKey: TUE_24, kind: "cancel" }, 400, "That group has no session in that week."],
     ["no reason", { ...CANCEL, reason: "  " }, 400, "Give a reason. The group sees it."],
     ["a reason of two lines", { ...CANCEL, reason: "Away.\nSorry." }, 400, "The reason must be one line."],
@@ -453,8 +462,33 @@ describe("4. every refusal comes before the write", () => {
     });
   }
 
-  test("a session under way is not changed: the register is its now", async () => {
+  test("a session that met is not changed: once its register is taken, the register is its record", async () => {
+    // Week 3 (Tue 17 Nov) met, and Rahul marked its register.
+    world.db.seed(`courseAttendance/${RUN.agi}__${B}__w03`, {
+      runId: RUN.agi,
+      groupId: B,
+      weekNumber: 3,
+      records: { amara: "present" },
+      markedByUid: "rahul",
+    });
+    const before = everything();
+    const response = await ask.change("claudia", B, silently({ week: 3, dateKey: "2026-11-17", kind: "cancel" }));
+    assert.deepEqual(
+      [response.status, response.body.error],
+      [409, "That session met and its register has been taken, so its time can’t change. Correct its register instead."],
+    );
+    assert.equal(everything(), before);
+  });
+
+  test("a session under way is the register's once it is taken: Rahul marking it stops any change", async () => {
     at("2026-11-24T18:30:00Z");
+    world.db.seed(`courseAttendance/${RUN.agi}__${B}__w04`, {
+      runId: RUN.agi,
+      groupId: B,
+      weekNumber: 4,
+      records: { amara: "present" },
+      markedByUid: "rahul",
+    });
     const response = await ask.change("rahul", B, silently(CANCEL));
     assert.equal(response.status, 409);
   });
@@ -464,7 +498,7 @@ describe("4. every refusal comes before the write", () => {
     const response = await ask.change("claudia", B, { ...CANCEL, reason: AWAY, tell: true, emailCount: 7 });
     assert.deepEqual(
       [response.status, response.body.error, response.body.emails],
-      [409, "The number of people this emails has changed to 2. Check it, then press again.", 2],
+      [409, "The number of people this emails has changed to 4. Check it, then press again.", 4],
     );
     assert.equal(everything(), before);
     assert.equal(world.mail.length, 0);
@@ -480,17 +514,17 @@ describe("4. every refusal comes before the write", () => {
   });
 
   test("the route itself never sends, even with Tell the group on", async () => {
-    const response = await ask.change("claudia", B, { ...CANCEL, reason: AWAY, tell: true, emailCount: 2 });
+    const response = await ask.change("claudia", B, { ...CANCEL, reason: AWAY, tell: true, emailCount: 4 });
     assert.equal(response.status, 200);
     assert.equal(world.mail.length, 0, "the email goes through the updates route, never this one");
     assert.equal(w.stored().length, 0, "the update is posted by the updates route, never this one");
   });
 
   test("answers field by field: the change and the update's words, nothing of the group", async () => {
-    const response = await ask.change("claudia", B, { ...CANCEL, reason: AWAY, tell: true, emailCount: 2 });
+    const response = await ask.change("claudia", B, { ...CANCEL, reason: AWAY, tell: true, emailCount: 4 });
     assert.deepEqual(Object.keys(response.body).sort(), ["change", "ok", "update"]);
     assert.deepEqual(Object.keys(response.body.change).sort(), ["dateKey", "kind", "newDateKey", "weekNumber"]);
-    assert.deepEqual(Object.keys(response.body.update).sort(), ["emailCount", "groupId", "message", "title"]);
+    assert.deepEqual(Object.keys(response.body.update).sort(), ["emailCount", "groupId", "message", "title", "withFacilitators"]);
   });
 });
 
@@ -501,13 +535,14 @@ describe("4. every refusal comes before the write", () => {
 describe("the update's email, word for word", () => {
   test("cancelled, keeping pace: the board's update, as a notice to the group, from whoever pressed", async () => {
     await press("claudia", B, CANCEL);
-    const message = onlyEmail();
-    assert.equal(message.subject, "Tue 24 Nov’s session is cancelled");
+    const message = onlyEmail("claudia");
+    assert.equal(message.subject, "No session for week 4");
     assert.deepEqual(await linesOf(message), [
-      "TUE 24 NOV’S SESSION IS CANCELLED",
+      "NO SESSION FOR WEEK 4",
       "Sent as an important notice",
       "You are getting this because you are in this course group, so it reaches you whatever your notification settings say, and it is never marketing.",
-      "Rahul and Sofia are both away. Week 4’s reading stays open.",
+      "Group B won’t meet for week 4. Week 5 is still Tue 1 Dec, and week 4’s work is still on your programme page.",
+      "Why: Rahul and Sofia are both away.",
       RULE,
       "Sent by Claudia · Group B · AGI Strategy Fellowship (Autumn 2026)",
       RULE,
@@ -518,28 +553,34 @@ describe("the update's email, word for word", () => {
   test("held online: where the link is, and no link", async () => {
     world.db.poke(`courseGroups/${B}`, { "session.meetingUrl": LINK });
     await press("rahul", B, { week: 6, dateKey: "2026-12-08", kind: "online", reason: "The room is being painted." });
-    const message = onlyEmail();
-    assert.equal(message.subject, "Tue 8 Dec’s session is online");
+    const message = onlyEmail("rahul");
+    assert.equal(message.subject, "Week 6 is online: Tue 8 Dec, 6pm");
     const lines = await linesOf(message);
-    assert.deepEqual(lines.slice(3, 4), [
-      "The room is being painted. Same day and time. The link to join is on your programme page, not in your emails.",
+    assert.deepEqual(lines.slice(3, 5), [
+      "Group B’s week 6 session is online, at the usual time. The link to join is on your programme page.",
+      "Why: The room is being painted.",
     ]);
-    assert.equal(lines[5], "Sent by Rahul · Group B · AGI Strategy Fellowship (Autumn 2026)");
+    assert.equal(lines[6], "Sent by Rahul · Group B · AGI Strategy Fellowship (Autumn 2026)");
     assert.ok(!allOf(message).includes(LINK));
   });
 });
 
-describe("the update reaches Group B's people and nobody else", () => {
-  test("not the members of other groups, not somebody not yet told, not somebody who left, not a facilitator", async () => {
+describe("the update reaches Group B's people and its facilitators, and nobody else", () => {
+  test("not the members of other groups, not somebody not yet told, not somebody who left, not another group's facilitator, not the presser", async () => {
     world.db.poke(`courseGroups/${B}`, { "session.meetingUrl": LINK });
     await press("claudia", B, CANCEL);
     const to = world.mail.map((message) => message.to).sort();
     // Ines is in Group B and unsubscribed from the cohort list: a notice still
-    // reaches her. Omar is in it too, and his address is stopped.
-    assert.deepEqual(to, ["amara@example.com", "ines@example.com"]);
-    for (const uid of ["bea", "tariq", "dev", "nina", "omar", "rahul", "sofia", "tom"]) {
+    // reaches her. Omar is in it too, and his address is stopped. Rahul and
+    // Sofia run it, so they are told too, each once.
+    assert.deepEqual(to, ["amara@example.com", "ines@example.com", "rahul@example.com", "sofia@example.com"]);
+    for (const uid of ["bea", "tariq", "dev", "nina", "omar", "tom", "claudia"]) {
       assert.ok(!to.includes(`${uid}@example.com`), `${uid} was emailed`);
     }
+    // A facilitator who presses is never sent their own notice.
+    world.mail.length = 0;
+    await press("rahul", B, { week: 5, dateKey: "2026-12-01", kind: "cancel" });
+    assert.deepEqual(world.mail.map((message) => message.to).sort(), ["amara@example.com", "ines@example.com", "sofia@example.com"]);
     // And the run's other runs and groups have nothing new.
     assert.deepEqual(group(A).sessionChanges, {});
     assert.deepEqual(group(C).sessionChanges, {});

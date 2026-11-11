@@ -389,7 +389,181 @@ export const REFUSAL = {
   full: "This group has changed 20 of its weeks already, which is all a group can hold. Ask an admin.",
   overCap: "Too many people to email in one send. Turn off Tell the group, then tell them with an update from Messages.",
   nobodyToEmail: "Nobody in the group can be emailed yet. Turn off Tell the group to change it without telling them.",
+  /** A session whose time has passed and whose register somebody took. */
+  met: "That session met and its register has been taken, so its time can’t change. Correct its register instead.",
+  /** "Hold it online" for a session whose time has passed. */
+  startedOnline: "That session’s time has passed, so it can’t be held online now. Move it, or cancel it.",
+  /** "Put it back as usual" for a session whose time has passed. */
+  startedRestore: "That session’s time has passed, so it can’t be put back as usual now. Move it to when it met, or cancel it.",
+  /** "It met at another time" for a session still to come. */
+  notMetYet: "That session hasn’t happened yet. Choose Move it to give it a new time.",
+  /** "It met at another time" with a time still to come. */
+  metInFuture: "That time hasn’t come yet. If the session is still to happen, choose It hasn’t met yet: move it.",
+  /** "It met at another time" asked of anything but a move. */
+  metNeedsMove: "Say when the session met: it met at another time is a move.",
+  /** The length, when it is no length. */
+  length: "Choose how long the session is, up to 8 hours.",
+  /** The campus, when it is none of the three. */
+  campus: "Choose University Park, Jubilee or Online.",
+  /** "Room to be confirmed" ticked with a room typed. */
+  roomOrToBeConfirmed: "Either type the room or tick Room to be confirmed, not both.",
+  /** The flags a press may carry, when one is not true or false. */
+  flag: "Expected true or false.",
 } as const;
+
+// ---------------------------------------------------------------------------
+// What the group is told, as the email's subject and its first lines
+// ---------------------------------------------------------------------------
+
+/**
+ * The end of a session on the wall clock, from its start and length: "5pm"
+ * from "15:00" and 120. "" with no length.
+ */
+export function endClockWords(hhmm: string, minutes: number): string {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm);
+  if (!match || !Number.isInteger(minutes) || minutes <= 0) return "";
+  const end = (Number(match[1]) * 60 + Number(match[2]) + minutes) % (24 * 60);
+  return clockWords(`${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`);
+}
+
+/** "3pm to 5pm", or "3pm" with no length. */
+export function hoursWords(hhmm: string, minutes: number): string {
+  const end = endClockWords(hhmm, minutes);
+  return end ? `${clockWords(hhmm)} to ${end}` : clockWords(hhmm);
+}
+
+/** "Monica Partridge E02 (University Park)", "Monica Partridge E02", "University Park" or "". */
+export function roomAndCampusWords(room: string, campusLabel: string): string {
+  const where = room.trim();
+  if (where && campusLabel) return `${where} (${campusLabel})`;
+  return where || campusLabel;
+}
+
+/** "Why: Portland A21 is closed.", with a full stop when the reason has none; "" with no reason. */
+export function whyWords(reason: string): string {
+  const said = reason.trim();
+  if (!said) return "";
+  return /[.!?]$/.test(said) ? `Why: ${said}` : `Why: ${said}.`;
+}
+
+/** The line every notice of a room still to book says, the design's own words. */
+export const ROOM_TO_BE_CONFIRMED_LINE =
+  "Room to be confirmed: we’ll email you as soon as it’s booked, and it’ll show on your programme page.";
+
+/** Under a moved session: where somebody who can't make it says so. */
+export const CANT_MAKE_NEW_TIME = "Can’t make the new time? Tell us on your programme page.";
+
+/** What one week's notice is about, as the route works it out. */
+export type OneWeekNotice =
+  | {
+      kind: "move";
+      weekNumber: number;
+      dateKey: string;
+      hhmm: string;
+      minutes: number;
+      room: string;
+      campusLabel: string;
+    }
+  | { kind: "online"; weekNumber: number; dateKey: string; hhmm: string }
+  | { kind: "cancel"; weekNumber: number; next: { weekNumber: number; dateKey: string } | null }
+  | { kind: "push"; weekNumber: number; fromDateKey: string; newDateKey: string; lastDateKey: string }
+  | { kind: "restore"; weekNumber: number; dateKey: string; hhmm: string; room: string }
+  | {
+      kind: "metAtAnotherTime";
+      weekNumber: number;
+      dateKey: string;
+      hhmm: string;
+      minutes: number;
+      room: string;
+      campusLabel: string;
+      wasDateKey: string;
+      wasHhmm: string;
+    };
+
+/**
+ * THE NOTICE ONE WEEK'S CHANGE SENDS: the email's subject and its lines, in
+ * the words the design's list of emails gives (subject and first lines), and
+ * in the same voice for the one it does not (a session put right after it
+ * met, which emails nobody unless asked). One paragraph per line, so the
+ * update lane prints each as its own paragraph.
+ *
+ * `who` names the session's owner: "Group C’s" for a group, or, for an
+ * incubator's people, who are never told the word group, "Your". None
+ * carries a link: the reason and a room refuse one, and an online week says
+ * where its link is.
+ */
+export function oneWeekNoticeWords(
+  change: OneWeekNotice,
+  context: { groupName: string; incubator: boolean; reason: string },
+): { title: string; message: string } {
+  const owner = context.incubator ? "Your" : `${context.groupName}’s`;
+  const subject = context.incubator ? "There’s no session" : `${context.groupName} won’t meet`;
+  const why = whyWords(context.reason);
+  const lines = (...parts: string[]) => parts.filter(Boolean).join("\n\n");
+  const n = change.weekNumber;
+  switch (change.kind) {
+    case "move": {
+      const where = change.room.trim()
+        ? `, ${roomAndCampusWords(change.room, change.campusLabel)}`
+        : "";
+      return {
+        title: `Week ${n} moves to ${dayWords(change.dateKey)}, ${clockWords(change.hhmm)}`,
+        message: lines(
+          `${owner} week ${n} session moves, for this week only, to ${dayWords(change.dateKey)}, ${hoursWords(change.hhmm, change.minutes)}${where}.`,
+          change.room.trim() ? "" : ROOM_TO_BE_CONFIRMED_LINE,
+          why,
+          CANT_MAKE_NEW_TIME,
+        ),
+      };
+    }
+    case "online":
+      return {
+        title: `Week ${n} is online: ${dayWords(change.dateKey)}, ${clockWords(change.hhmm)}`,
+        message: lines(
+          `${owner} week ${n} session is online, at the usual time. The link to join is on your programme page.`,
+          why,
+        ),
+      };
+    case "cancel":
+      return {
+        title: `No session for week ${n}`,
+        message: lines(
+          change.next
+            ? `${subject} for week ${n}. Week ${change.next.weekNumber} is still ${dayWords(change.next.dateKey)}, and week ${n}’s work is still on your programme page.`
+            : `${subject} for week ${n}. Week ${n}’s work is still on your programme page.`,
+          why,
+        ),
+      };
+    case "push":
+      return {
+        title: `Week ${n} moves to next week, and the rest follow`,
+        message: lines(
+          `${subject} on ${dayWords(change.fromDateKey)}. Week ${n} now meets on ${dayWords(change.newDateKey)} and each later week moves back one, so your last session is ${dayWords(change.lastDateKey)}.`,
+          why,
+        ),
+      };
+    case "restore": {
+      const room = change.room.trim() ? `, ${change.room.trim()}` : "";
+      return {
+        title: `Week ${n} is back to its usual time`,
+        message: lines(
+          `${owner} week ${n} session is back to ${dayWords(change.dateKey)}, ${clockWords(change.hhmm)}${room}, as usual.`,
+          why,
+        ),
+      };
+    }
+    case "metAtAnotherTime": {
+      const where = change.room.trim() ? `, ${roomAndCampusWords(change.room, change.campusLabel)}` : "";
+      return {
+        title: `Week ${n} met on ${dayWords(change.dateKey)}, ${clockWords(change.hhmm)}`,
+        message: lines(
+          `${owner} week ${n} session took place on ${dayWords(change.dateKey)}, ${hoursWords(change.hhmm, change.minutes)}${where}, not ${dayWords(change.wasDateKey)}, ${clockWords(change.wasHhmm)}.`,
+          why,
+        ),
+      };
+    }
+  }
+}
 
 /** "The reason must be 200 characters or fewer." */
 export function reasonTooLongWords(max: number): string {

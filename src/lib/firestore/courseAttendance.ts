@@ -235,6 +235,27 @@ export function joinedOnline(
 }
 
 /**
+ * HAS THIS SESSION'S REGISTER BEEN TAKEN? Asked of the register as STORED
+ * (`undefined` when the session has none yet), by everything that has to
+ * know whether a session met before it moves it: changing one week's session,
+ * a new regular time from a week onwards, and the script that pins weeks
+ * that met.
+ *
+ * Taken means the document exists AND somebody took it: it is finished
+ * (`pushedAt`), a facilitator or an admin has marked it (`markedByUid`, the
+ * last person to save a mark), or it says the session did not happen
+ * (`held === false`). A register that exists only because somebody said in
+ * advance they can't make it, or are joining online, is NOT taken: those
+ * writes touch only their own line and never the register's own fields.
+ */
+export function registerIsTaken(data: Readonly<Record<string, unknown>> | null | undefined): boolean {
+  if (!data) return false;
+  if (data.pushedAt !== undefined && data.pushedAt !== null) return true;
+  if (typeof data.markedByUid === "string" && data.markedByUid !== "") return true;
+  return data.held === false;
+}
+
+/**
  * Deterministic doc id: one register per (run, group, SESSION), structurally
  * (see module comment). The suffix is `sessionKey`, which sorts in week order
  * in the console and is BYTE-IDENTICAL to the old `weekDocId` suffix for

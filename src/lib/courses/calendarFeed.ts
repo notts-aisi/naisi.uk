@@ -11,6 +11,7 @@ import {
 } from "@/lib/firestore/courseEnrolments";
 import {
   GROUP_FIELD_LIMITS,
+  campusForWeek,
   normalizeCourseGroup,
   sessionChangeForWeek,
   sessionModeForWeek,
@@ -132,12 +133,13 @@ function eventOf(
   const hasLink = typeof slot.meetingUrl === "string" && validateSubmissionUrl(slot.meetingUrl, GROUP_FIELD_LIMITS.meetingUrl) === null;
   const online = mode === "virtual" || (mode === null && hasLink);
   // The week's own room; while there is none, and the week is not online,
-  // the group's campus stands in for it.
+  // the week's campus stands in for it (its own, else the group's).
+  const campus = session.occurrence === 1 ? campusForWeek(group, session.weekId) : group.campus;
   const room =
     mode !== "virtual" && slot.location.trim()
       ? slot.location.trim()
       : !online
-        ? campusLabel(group.campus) || null
+        ? campusLabel(campus) || null
         : null;
   return {
     uid: sessionUid(run, group, session),

@@ -1,0 +1,124 @@
+import { campusLabel } from "../campus";
+import { resolveSessions, type ResolvedSession } from "../sessions";
+import { campusForWeek } from "@/lib/firestore/courseGroups";
+import type { CourseRunDoc } from "@/lib/firestore/courses";
+import {
+  cancelledHeadline,
+  historyDetail,
+  momentWords,
+  movedHeadline,
+  onlineHeadline,
+  pushedHeadline,
+  putRightHeadline,
+  restoredHeadline,
+} from "../groupChange/words";
+import type { CheckedPress } from "./check";
+import { nextHeldAfter, sessionOfWeek } from "./model";
+import type { ChangePress } from "./parse";
+import { oneWeekNoticeWords, type OneWeekNotice } from "./words";
+
+/**
+ * WHAT ONE WEEK'S CHANGE SAYS: the notice the group is told (its subject and
+ * lines) and the sentence the group's history keeps, both from one reading
+ * of what the press makes true (`checkPress`). Pure.
+ */
+
+/** The week's session as it will read once the press is written, or null with none. */
+export function sessionAfter(run: CourseRunDoc, checked: CheckedPress, weekNumber: number): ResolvedSession | null {
+  return sessionOfWeek(resolveSessions(run, checked.after), weekNumber);
+}
+
+/** What the notice is about, worked out from the press and the group after it. */
+export function oneWeekNoticeOf(run: CourseRunDoc, checked: CheckedPress, press: ChangePress): OneWeekNotice {
+  const n = press.weekNumber;
+  const before = checked.session;
+  const after = sessionAfter(run, checked, n);
+  switch (press.kind) {
+    case "move": {
+      const moved = after ?? before;
+      const campus = campusLabel(campusForWeek(checked.after, checked.weekId));
+      const facts = {
+        weekNumber: n,
+        dateKey: moved.dateKey,
+        hhmm: moved.session.startTimeLocal,
+        minutes: moved.session.durationMinutes,
+        room: moved.session.location,
+        campusLabel: campus,
+      };
+      return press.metAtAnotherTime
+        ? { kind: "metAtAnotherTime", ...facts, wasDateKey: before.dateKey, wasHhmm: before.session.startTimeLocal }
+        : { kind: "move", ...facts };
+    }
+    case "online":
+      return { kind: "online", weekNumber: n, dateKey: before.dateKey, hhmm: before.session.startTimeLocal };
+    case "cancel": {
+      const sessions = resolveSessions(run, checked.after);
+      const cancelled = sessionOfWeek(sessions, n);
+      const next = cancelled ? nextHeldAfter(sessions, cancelled) : null;
+      return { kind: "cancel", weekNumber: n, next: next ? { weekNumber: next.weekNumber, dateKey: next.dateKey } : null };
+    }
+    case "push":
+      return {
+        kind: "push",
+        weekNumber: n,
+        fromDateKey: before.dateKey,
+        newDateKey: checked.pushed?.newDateKey ?? "",
+        lastDateKey: checked.pushed?.lastDateKey ?? "",
+      };
+    case "restore": {
+      const back = after ?? before;
+      return {
+        kind: "restore",
+        weekNumber: n,
+        dateKey: back.dateKey,
+        hhmm: back.session.startTimeLocal,
+        room: back.session.location,
+      };
+    }
+  }
+}
+
+/** The notice's subject and lines. */
+export function oneWeekNoticeFor(
+  run: CourseRunDoc,
+  checked: CheckedPress,
+  press: ChangePress,
+  context: { groupName: string; incubator: boolean },
+): { title: string; message: string } {
+  return oneWeekNoticeWords(oneWeekNoticeOf(run, checked, press), { ...context, reason: press.reason });
+}
+
+/** The one sentence the group's history keeps of the press. */
+export function oneWeekHistoryDetail(
+  run: CourseRunDoc,
+  checked: CheckedPress,
+  press: ChangePress,
+  emailed: number,
+): string {
+  const n = press.weekNumber;
+  const before = checked.session;
+  const was = {
+    dateKey: before.dateKey,
+    hhmm: before.session.startTimeLocal,
+    room: before.session.location.trim(),
+  };
+  const after = sessionAfter(run, checked, n);
+  const now = after
+    ? { dateKey: after.dateKey, hhmm: after.session.startTimeLocal, room: after.session.location.trim() }
+    : was;
+  const tail = { reason: press.reason, emailed };
+  switch (checked.auditKind) {
+    case "session-moved":
+      return historyDetail({ headline: movedHeadline(n, now), before: momentWords(was), ...tail });
+    case "session-put-right":
+      return historyDetail({ headline: putRightHeadline(n, now), before: momentWords(was), ...tail });
+    case "session-online":
+      return historyDetail({ headline: onlineHeadline(n, was), ...tail });
+    case "session-cancelled":
+      return historyDetail({ headline: cancelledHeadline(n, was.dateKey), ...tail });
+    case "session-pushed":
+      return historyDetail({ headline: pushedHeadline(n, was.dateKey, checked.pushed?.newDateKey ?? ""), ...tail });
+    default:
+      return historyDetail({ headline: restoredHeadline(n, now), before: momentWords(was), ...tail });
+  }
+}

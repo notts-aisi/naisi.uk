@@ -132,7 +132,8 @@ export async function loadArranging(
   if (form.decisionsSentAt === null) return refuse(409, "Decisions haven’t gone out yet.");
 
   const runId = read.run.id;
-  const live = await groupsOf(db, runId);
+  const askedSince = new Map<string, Date>();
+  const live = await groupsOf(db, runId, askedSince);
   const options = lengthOptions(live);
   const minutes = pickLength(wanted.minutes, options, defaultLength(lengthFromGroups(live), programme.kind));
   const askedSize = Number(wanted.size);
@@ -180,7 +181,7 @@ export async function loadArranging(
       moved: sits && movedSinceTold(seat) ? { from: (toldAbout ? liveName.get(toldAbout) : null) ?? null } : null,
       left,
       // Their answer about the group they sit in, by the stale rule the board's rows read it by.
-      answer: sits ? currentTimeAnswer(seat) : null,
+      answer: sits ? currentTimeAnswer(seat, (seat.groupId && askedSince.get(seat.groupId)) || null) : null,
     });
   }
   // Who facilitates which of the run's groups.

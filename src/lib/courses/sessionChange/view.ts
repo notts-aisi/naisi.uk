@@ -191,7 +191,10 @@ async function contextFor(
     namesOf(db, [...groups.flatMap((group) => group.facilitatorUids), ...trackLeadUids]),
     readRunLead(db, run.id),
     groups.length
-      ? updateAudienceCounts(db, run, groups, { groupIds: groups.map((group) => group.id) }, viewerUid)
+      ? updateAudienceCounts(db, run, groups, { groupIds: groups.map((group) => group.id) }, viewerUid, {
+          // A change's update is emailed to the group's facilitators too.
+          withFacilitators: true,
+        })
       : Promise.resolve([]),
   ]);
   const counts = new Map<string, { people: number; emails: number; refused: boolean }>();
@@ -259,7 +262,6 @@ function dialogFor(group: CourseGroupDoc, session: ResolvedSession, context: Con
   const days = slotDays(session.slotStartKey)
     .filter((dateKey) => dateKey >= context.todayKey)
     .map((dateKey) => ({ dateKey, label: dayWords(dateKey) }));
-  const arranged = Object.hasOwn(group.sessionOverrides, session.weekId);
   const change = sessionChangeForWeek(group, session.weekId);
   const standing = slotWords(group.session.weekday, group.session.startTimeLocal);
   return {
@@ -296,8 +298,11 @@ function dialogFor(group: CourseGroupDoc, session: ResolvedSession, context: Con
         : "",
     },
     push: pushed ? { available: true, hint: pushHint(name, pushed.lastDateKey) } : { available: false, hint: "" },
+    // Only a week "Change a session" changed has anything to put back: a
+    // week whose override has no change record is pinned to when it met, or
+    // holds its own link (`checkPress`).
     restore:
-      (change && change.kind !== "pushed") || arranged
+      change && change.kind !== "pushed"
         ? { hint: restoreHint(standing, group.session.location) }
         : null,
     tell: { ...count, line: tellLine(name, count.people, count.emails) },

@@ -463,10 +463,23 @@ test(
     const thisSession = sessionOf(facilitated, thisWeek);
     const nextSession = sessionOf(facilitated, nextWeek);
     const movedDateKey = shiftDateKey(nextSession.dateKey, MOVE.daysLater);
-    /** The words the update carries, as `updateWords` in src/lib/courses/sessionChange/words.ts builds them. */
+    /**
+     * The words the update carries, as `oneWeekNoticeWords` in
+     * src/lib/courses/sessionChange/words.ts builds them: the email's subject,
+     * and its paragraphs (the group has no campus, so none is named).
+     */
+    const movedEndMinutes = Number(MOVE.startTimeLocal.slice(0, 2)) * 60 + Number(MOVE.startTimeLocal.slice(3)) + facilitated.durationMinutes;
+    const movedEnd = clockWords(
+      `${String(Math.floor(movedEndMinutes / 60) % 24).padStart(2, "0")}:${String(movedEndMinutes % 60).padStart(2, "0")}`,
+    );
+    const UPDATE_LINES = Object.freeze([
+      `${facilitated.name}’s week ${nextWeek} session moves, for this week only, to ${dayLabel(movedDateKey)}, ${clockWords(MOVE.startTimeLocal)} to ${movedEnd}, ${MOVE.room}.`,
+      `Why: ${MOVE.reason}`,
+      "Can’t make the new time? Tell us on your programme page.",
+    ]);
     const UPDATE = Object.freeze({
-      title: `${dayLabel(nextSession.dateKey)}’s session has moved`,
-      message: `${MOVE.reason} It’s on ${dayLabel(movedDateKey)} at ${clockWords(MOVE.startTimeLocal)} in ${MOVE.room}, this week only.`,
+      title: `Week ${nextWeek} moves to ${dayLabel(movedDateKey)}, ${clockWords(MOVE.startTimeLocal)}`,
+      message: UPDATE_LINES.join("\n\n"),
     });
 
     const formBase = `${origin}/admin/admissions/forms/${enc(state.formId)}/programmes/${enc(state.programmeId)}`;
@@ -1475,7 +1488,13 @@ test(
           {
             ok: true,
             change: { kind: "move", weekNumber: nextWeek, dateKey: nextSession.dateKey, newDateKey: movedDateKey },
-            update: { groupId: facilitated.id, title: UPDATE.title, message: UPDATE.message, emailCount: inGroup.length },
+            update: {
+              groupId: facilitated.id,
+              title: UPDATE.title,
+              message: UPDATE.message,
+              emailCount: inGroup.length,
+              withFacilitators: true,
+            },
           },
           "the change's answer",
         );
@@ -1577,7 +1596,7 @@ test(
           );
           assert.deepEqual(
             await readUpdates(pg),
-            [[UPDATE.title, `${fern.first} · to ${facilitated.name} · ${today}`, UPDATE.message], earlier],
+            [[UPDATE.title, `${fern.first} · to ${facilitated.name} · ${today}`, flat(UPDATE.message)], earlier],
             `${person.first}'s Updates`,
           );
           // The session the group meets at next is the moved one: its day, its time and its room.
@@ -1664,7 +1683,7 @@ test(
             "Sent as an important notice",
             "You are getting this because you are in this course group, so it reaches you whatever your " +
               "notification settings say, and it is never marketing.",
-            UPDATE.message,
+            ...UPDATE_LINES,
             `Sent by ${fern.first} · ${facilitated.name} · ${state.courseTitle} (${state.runLabel})`,
             FOOTER,
           ];

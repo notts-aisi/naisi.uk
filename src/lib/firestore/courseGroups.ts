@@ -112,10 +112,18 @@ export const GROUP_SESSION_MODES: GroupSessionMode[] = ["in-person", "virtual"];
  * One week's deviation from the recurring slot, AS RESOLVED: the partial
  * session fields a facilitator may edit client-direct, plus the server-owned
  * `mode` folded in from `sessionModes` (see `GroupSessionMode`).
+ *
+ * `campus` is the campus that week meets on when it is not the group's own
+ * (a session moved to another building for one week, or a week pinned to the
+ * campus it met on before the group's regular campus changed). Missing means
+ * the group's campus, which is every override written before the field
+ * existed. Read it through `campusForWeek`, never off the override.
  */
 export type GroupSessionOverride = Partial<GroupSession> & {
   /** SERVER-OWNED — folded from `sessionModes` at normalise time. */
   mode?: GroupSessionMode;
+  /** The week's own campus; missing means the group's (`campusForWeek`). */
+  campus?: GroupCampus;
 };
 
 /**
@@ -263,6 +271,16 @@ export type CourseGroupDoc = {
    * and by the Groups tab's campus route. Not a room and never a link.
    */
   campus: GroupCampus | null;
+  /**
+   * When the group's regular day or time last changed through "From a week
+   * onwards" (`POST /api/courses/groups/[groupId]/session/regular`). An answer
+   * to "Can you make this time?" given before it is about the old time, so it
+   * no longer counts as the person's answer and they are asked again
+   * (`currentTimeAnswer`); the stored answer is kept. Missing, which is every
+   * group whose time never changed that way, means every answer about the
+   * group counts, as before the field existed. Server-written only.
+   */
+  timeQuestionSince?: Date | null;
   archived: boolean;
   createdAt?: Date | null;
   updatedAt?: Date | null;
@@ -460,6 +478,10 @@ function normalizeSessionOverride(v: unknown): GroupSessionOverride {
         : null;
   }
   if (raw.notes !== undefined) out.notes = str(raw.notes, GROUP_FIELD_LIMITS.notes);
+  // Only one of the three campuses is a campus. Anything else (a garbled
+  // value, a null) is left out, so the week reads the group's own.
+  const campus = campusOf(raw.campus);
+  if (campus) out.campus = campus;
   return out;
 }
 
@@ -508,11 +530,25 @@ function foldSessionModes(
 export function sessionForWeek(group: CourseGroupDoc, weekId: string): GroupSession {
   const override = group.sessionOverrides[weekId];
   if (!override) return group.session;
-  // `mode` is deliberately not part of GroupSession — strip it so the merged
-  // slot stays the shape every existing consumer expects; the mode has its
-  // own reader below.
-  const { mode: _mode, ...sessionFields } = override;
+  // `mode` and `campus` are deliberately not part of GroupSession: strip them
+  // so the merged slot stays the shape every existing consumer expects; each
+  // has its own reader below.
+  const { mode: _mode, campus: _campus, ...sessionFields } = override;
   return { ...group.session, ...sessionFields };
+}
+
+/**
+ * THE CAMPUS ONE WEEK'S SESSION MEETS ON: the week's own (a session moved to
+ * another campus for that week, or a week pinned to the campus it met on),
+ * else the group's. Every place that shows a week's campus beside its session
+ * asks this, so a week moved to Jubilee never reads University Park. Same
+ * `weekDocId(n)` addressing as `sessionForWeek`.
+ */
+export function campusForWeek(
+  group: Pick<CourseGroupDoc, "campus" | "sessionOverrides">,
+  weekId: string,
+): GroupCampus | null {
+  return group.sessionOverrides?.[weekId]?.campus ?? group.campus ?? null;
 }
 
 /**
@@ -699,6 +735,8 @@ export function normalizeCourseGroup(id: string, data: Raw): CourseGroupDoc {
     // Absent, null and anything that is not one of the three all read as
     // "not chosen yet" (`campusOf`).
     campus: campusOf(data.campus),
+    // Missing means no answer is stale for a change of time (see the type).
+    timeQuestionSince: tsToDate(data.timeQuestionSince),
     archived: data.archived === true,
     createdAt: tsToDate(data.createdAt),
     updatedAt: tsToDate(data.updatedAt),

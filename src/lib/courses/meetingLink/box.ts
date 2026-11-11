@@ -4,7 +4,7 @@ import { heldOnline } from "@/lib/courses/joiningOnline/model";
 import { londonDayLabel } from "@/lib/courses/londonLabels";
 import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
 import { attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
-import { GROUP_FIELD_LIMITS, sessionModeForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import { GROUP_FIELD_LIMITS, campusForWeek, sessionModeForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { validateSubmissionUrl, type CourseRunDoc } from "@/lib/firestore/courses";
 
 /**
@@ -59,7 +59,7 @@ export async function joiningOnlineBox(
     const { endsAt } = sessionInstants(session);
     if (endsAt === null || endsAt.getTime() <= now.getTime()) return false;
     const mode = sessionModeForWeek(group, session.weekId);
-    return !heldOnline({ mode, campus: group.campus, room: session.session.location });
+    return !heldOnline({ mode, campus: campusForWeek(group, session.weekId), room: session.session.location });
   });
   if (ahead.length === 0) return [];
 
