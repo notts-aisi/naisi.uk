@@ -144,6 +144,19 @@ export default async function ReConsentPage() {
           Registers record whether you were in the room or joined online, and
           you can tell us in advance that you are joining online.
         </p>
+        {/* Version 17's line is the policy's own "What's changed in version
+            17", word for word, so it says too that changes are now told on
+            the site, which takes back the "and by email" in version 15's
+            paragraph above. */}
+        <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
+          <strong style={{ color: "var(--color-text)" }}>What changed in version 17.</strong>{" "}
+          Who can take and correct a register; asking to change session or
+          group, to be excused, or to message the team; work added after a
+          session, and reminders after it; a second form that never records who
+          fills it in; conduct records that can note good things as well as
+          concerns; how long we keep reasons and messages; and that we tell you
+          about changes to this policy on the site.
+        </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}
           <Link href="/privacy" target="_blank" style={{ color: "var(--color-accent-text)" }}>

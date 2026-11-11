@@ -108,6 +108,12 @@
   color: var(--color-text-muted);
 }
 
+/* A lede that says what changed before its summary (from privacy v17): the
+   summary's label sits clear of that paragraph. */
+.lede > p + h2 {
+  margin-top: 1.5rem;
+}
+
 .lede ul {
   margin-top: 0.875rem;
   padding-left: 1.375rem;

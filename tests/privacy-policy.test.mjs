@@ -4,12 +4,22 @@
  *
  * Run with `npm test`.
  *
- * The current version is v16: v15 with two passages about joining a session
- * online (a register keeps whether somebody was in the room or joined
- * online, and somebody may say in advance that they are joining online), and
- * the first version told rather than asked. Every other word is v15's, so the
- * sections below that name v15 hold v16's text, and the describe for joining
- * online holds the two passages to the code.
+ * The current version is v17: v16 with "What's changed in version 17" at the
+ * top, and new words for taking part (who takes and corrects a register,
+ * requests and messages to the team, visiting another group's session, a
+ * facilitator's own attendance), work added after a session and reminders
+ * after it, a second anonymous form, conduct records (each opening recorded
+ * first), how long the new records are kept, two lawful bases, and changes
+ * to the policy told on the site rather than by email. Told, not asked, like
+ * v16. Every other word is v16's, so the sections below that name v15 or v16
+ * hold v17's text, the describe for version 17 holds its new passages to the
+ * code, and where a v16 sentence was replaced, its pin moved to the sentence
+ * that replaced it and the old sentence is held in frozen v16.
+ *
+ * v16 is v15 with two passages about joining a session online (a register
+ * keeps whether somebody was in the room or joined online, and somebody may
+ * say in advance that they are joining online), and the first version told
+ * rather than asked.
  *
  * v15 is the whole policy arranged by kind of use, with a summary at the
  * top, and the last version anybody is asked to accept. It
@@ -33,7 +43,7 @@
  * promise, held in the frozen files themselves.
  *
  * Every version behind the current one is frozen byte for byte (§1b): v1 to
- * v15. Editing an accepted version changes what somebody sees at the archive
+ * v16. Editing an accepted version changes what somebody sees at the archive
  * URL for the wording they agreed to, without anybody being asked, so new
  * wording goes in a new file, every time. From v15 a new version is told,
  * not asked (`needsPolicyAcceptance`, §3), which makes the freeze matter
@@ -159,15 +169,17 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v16.tsx");
+const CURRENT = read("src/content/legal/privacy/v17.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
  * no pattern written as a sentence would ever match the raw source. Every
- * content check below runs against this, because v16 is the text the site
+ * content check below runs against this, because v17 is the text the site
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v16, frozen: read by the version 17 describe, which proves the sentences v17 replaced are still in the words v16 published, and v17's are not. */
+const V16_FLAT = read("src/content/legal/privacy/v16.tsx").replace(/\s+/g, " ");
 /** v15, frozen: read by the joining online describe, which proves v16's two passages are not in it and the words they replace are. */
 const V15_FLAT = read("src/content/legal/privacy/v15.tsx").replace(/\s+/g, " ");
 /** v14, frozen: read by §1b, and by the v15 checks, which prove what v15 takes back is still in the words people accepted. */
@@ -217,13 +229,16 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v16 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 16);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.16");
+  test("privacy v17 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 17);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.17");
   });
 
-  test("privacy v16 is dated the day its words last changed", () => {
-    // Provisional: set again to the day v16 goes live, as v15's was.
+  test("privacy v17 is dated the day its words last changed", () => {
+    // Provisional: set again to the day v17 goes live, as v16's and v15's were.
+    const seventeen = POLICIES.privacy.versions.find((v) => v.version === 17);
+    assert.equal(seventeen?.lastUpdated, "12 November 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 17).length, 1);
     const sixteen = POLICIES.privacy.versions.find((v) => v.version === 16);
     assert.equal(sixteen?.lastUpdated, "6 November 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 16).length, 1);
@@ -373,6 +388,13 @@ describe("policy versions", () => {
  * identical. Anything that changes a word needs a new version instead.
  */
 const FROZEN_VERSIONS = new Map([
+  [
+    "privacy/v16",
+    {
+      sha256: "bb2a1d7f0357939c5ca2fec965fe7c09deed366bcf020763e22b2b13ce3e9fa0",
+      why: "joining a session online, current from 6 November 2026 until v17 replaced it; the first version told rather than asked, and the wording that still promised a change would be told by email before it took effect, frozen when v17 rewrote registers, work after a session, reminders and conduct rather than editing it in place",
+    },
+  ],
   [
     "privacy/v15",
     {
@@ -718,7 +740,13 @@ const MUST_NAME = [
   ["feedback on an application is not promised, and can be asked for", /We do not send feedback on applications as standard; ask us and we will consider it\./],
   ["scores and comments are within the right to a copy of your data", /A copy of your data covers what other people wrote about you as well as what you wrote: reviewers&apos; scores and comments,/],
   // v16: and whether somebody who came was in the room or joined online.
-  ["attendance registers", /<strong>Registers\.<\/strong> Your group&apos;s facilitators take the register at each session: present, arrived late, left early, absent or excused, and whether you were in the room or joined online\./],
+  // CHANGED ON PURPOSE (v17): the Registers paragraph is replaced by a record
+  // of each session somebody is due at, the same five marks and the room or
+  // online, under Taking part in a programme. v16's sentence is held in
+  // frozen v16 by the version 17 describe.
+  ["attendance registers", /Your group meets at set sessions, and we keep a record of each session you&apos;re due at: whether you came, in the room or online, arrived late or left early, or were absent or excused\./],
+  ["who takes a register, and that it records who did", /Your group&apos;s facilitators usually take the register\. If they can&apos;t, someone else running the programme may take it, and the register records who did\./],
+  ["correcting a register, and what is recorded of it", /If a register is wrong, the people running the programme may correct it, and we record who changed it, when and what it said before, and may record why\. You can see your own register, with any corrections\./],
   ["participant notes", /Facilitators may also write a note about a named person after a session, which the group&apos;s facilitators and admins read\./],
   // v15 names everything a week's pages record in one sentence, written
   // answers among it; the entries below for ticks, reflections, boxes and
@@ -744,13 +772,21 @@ const MUST_NAME = [
   ["how long the anonymous answers are kept", /Answers to the anonymous form are kept until the programme&apos;s run is deleted\./],
   ["membership tier", /We keep your membership tier for each year \(paid, comped, alumni or staff\)/],
   ["membership provenance", /and where we learned it: a list the Students&apos; Union gives us, or an admin adding you by hand\./],
-  ["the conduct flag", /If there has been a conduct concern, an admin may flag an account and must record a reason: what happened, and when\./],
+  // CHANGED ON PURPOSE (v17): a conduct flag is a conduct record, which may
+  // note good things as well as concerns, and each entry says who, when and
+  // why. Today's record is the flag, which keeps who set it, when and the
+  // reason the route requires (tests/member-conduct-flag.test.mjs).
+  ["the conduct flag", /We may record how someone has behaved at NAISI, good or bad: a concern, or something done well, such as helping at an event or looking out for someone\. Each entry says who recorded it, when and why\./],
+  ["what a conduct record is not for, and replying to a decision it caused", /Conduct records aren&apos;t for health information or allegations of crimes, and we ask anyone adding to one to leave them out\. If a decision goes against you because of a concern, we&apos;ll tell you, and you can reply; we keep your reply with it\. Your conduct record is personal data about you, and you can ask us for it\./],
   // CHANGED ON PURPOSE (v15): v14 said neither the flag nor its reason is
   // shown where applications are read and scored; v15 says a marker asking
   // people to talk to an admin first may be. None is built: the one reader of
   // `memberConductFlags` is the admin route on the Members page, and §2d
   // walks the tree for any other.
-  ["the reason for a conduct flag is admins' alone, and anybody else may see only a marker", /Only admins can read the reason for a conduct flag\. Where decisions about you are made, such as reading applications or deciding event sign-ups, other people may see only a marker asking them to talk to an admin first\./],
+  // CHANGED ON PURPOSE (v17): admins alone add to or read a conduct record,
+  // each opening is recorded (`recordOpenings`, kind `conduct-flag`), and the
+  // marker may also show where a request is approved, for a concern only.
+  ["the reason for a conduct flag is admins' alone, and anybody else may see only a marker", /Only admins can add to a conduct record or read it, and we record each time one is opened\. Where decisions about you are made, such as reading applications, deciding event sign-ups or approving a request, other people may see only a marker asking them to talk to an admin first\. Only a concern adds that marker\./],
   // OWNER DECISION, 25 October 2026 (who finished, and certificates):
   // the programme's lead or an admin sends a certificate to everybody who
   // finished and to each facilitator, and each starts private until its owner
@@ -863,7 +899,9 @@ const MUST_NAME = [
   ["fill-in boxes", /the boxes you fill in,/],
   // v15 says who reads somebody's work once, for all of it: written answers,
   // reflections, ticks and the boxes they fill in.
-  ["who reads somebody's work, and that the week's page says so", /<strong>Who reads it\.<\/strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and nobody else taking part; the week&apos;s page says so\./],
+  // CHANGED ON PURPOSE (v17): and, for a week spent at another group's
+  // session, that group's facilitators.
+  ["who reads somebody's work, and that the week's page says so", /<strong>Who reads it\.<\/strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators\. Nobody else taking part; the week&apos;s page says so\./],
   ["a facilitator's own work is the lead's and admins' only", /If you facilitate a group, your own work is read by the lead and admins only\./],
   // Pairs for a session in pairs (Technical AI Safety's hands-on night).
   // §2g holds what each person sees of their pair to its code.
@@ -941,7 +979,14 @@ const MUST_NAME = [
   // others who read it see only that you have started it, never what it
   // says. v15 keeps that, and says that if the week locks first they may
   // read it.
-  ["changing your work, and what is read before it is sent", /<strong>Changing your work\.<\/strong> Your reflections and the boxes you fill in save as you type, and the people who read your work can read them as you write\. A written answer is yours until you send it: until then they see only that you have started it, never what it says, and if your week locks before you send it, they may then read what you wrote\. The week&apos;s page says until when you can change your work, and the people running your group can reopen it for you\./],
+  // CHANGED ON PURPOSE (v17): once the session a week is due at has
+  // started, its readers may read what has been written so far, sent or not;
+  // work may be added after the session and shown as late; and a change after
+  // a reading or feedback keeps the earlier version. v16's words, with the
+  // people running a group reopening a week, are held in frozen v16 by the
+  // version 17 describe.
+  ["changing your work, and what is read before it is sent", /<strong>Changing your work\.<\/strong> Your reflections and the boxes you fill in save as you type, and the people who read your work can read them as you write\. A written answer is yours until you send it: until then they see only that you&apos;ve started it\. Once the session it&apos;s due at has started, they may read what you&apos;ve written so far, sent or not\. The week&apos;s page says until when you can change your work\./],
+  ["work added after a session, and what is kept when it changes", /We may let you keep adding to a week and changing it after its session, until your programme closes\. When you do, we record when, and the people who read your work see anything added or changed after the session as late, with how late\. If you change something after it&apos;s been read or given feedback, we keep the earlier version, with its feedback, beside the new one\./],
   // CHANGED ON PURPOSE (v13): v12 promised that nothing written in a course
   // is used outside its programme. v13 took it back from its own agreement
   // on and said the cut-off in its place; v15 says the same cut-off (§2m
@@ -963,7 +1008,8 @@ const MUST_NAME = [
   ["how long course records are kept", /<strong>Your course record<\/strong> \(your place, the registers, your work and the feedback on it, notes facilitators wrote and session reports\): while your account exists\./],
   ["how long the Kairos choice is kept", /<strong>Your choice about Kairos:<\/strong> while your account exists, so a later programme goes by it too\./],
   ["how long who came to an event is kept with names, and a walk-in's address", /<strong>Who came to an event:<\/strong> names for a year after the event, then only the count\. A walk-in&apos;s email address until that event&apos;s survey closes, or a week after the event if sooner\./],
-  ["what a deletion removes, every kind of course record named", /Deleting it removes your account and profile, your subscriptions, your applications and drafts with their access requirements and the scores, comments and decisions about them, your places on programmes, your work and the feedback on it, the notes and ratings about you, the ratings you gave, the notes you wrote for a group&apos;s other facilitators, the notes you shared with a group, a conduct flag, your survey links and your name on your survey answers, your membership records, your choice about Kairos and a certificate whose link is off\. Registers keep the rest of the group, without you\./],
+  // v17: "a conduct flag" became "your conduct record", here and in a copy of your data.
+  ["what a deletion removes, every kind of course record named", /Deleting it removes your account and profile, your subscriptions, your applications and drafts with their access requirements and the scores, comments and decisions about them, your places on programmes, your work and the feedback on it, the notes and ratings about you, the ratings you gave, the notes you wrote for a group&apos;s other facilitators, the notes you shared with a group, your conduct record, your survey links and your name on your survey answers, your membership records, your choice about Kairos and a certificate whose link is off\. Registers keep the rest of the group, without you\./],
   ["work goes with the account", /your places on programmes, your work and the feedback on it,/],
   ["notes and ratings go with the account of whoever they are about or wrote them", /the notes and ratings about you, the ratings you gave, the notes you wrote for a group&apos;s other facilitators,/],
   // A note on a register about a named person records no writer, so the
@@ -975,7 +1021,7 @@ const MUST_NAME = [
   ["a certificate whose link is on, after a deletion", /and a certificate whose link is on, because it exists for the people you gave the link to \(email us and we will withdraw it\)\./],
   ["the staff records a deletion leaves, the openings of sealed predictions and survey answers among them", /We also record each time an admin opened an access-requirements answer, sealed predictions or survey answers, and keep a log of decisions on applications\. These record what staff did, not what you wrote, and are kept as long as we need them to look into problems and show we acted properly\.[\s\S]*the email log and suppression list; staff logs;/],
   ["saying no to Kairos on the profile, among the rights you serve yourself", /Most of this you can do yourself: edit your profile and notification choices, and say no to sharing with Kairos, on\{" "\} <a href="\/profile">your profile page<\/a>, and unsubscribe from optional email through the link in it\./],
-  ["a copy of your data covers what others wrote about you, notes and ratings among it", /A copy of your data covers what other people wrote about you as well as what you wrote: reviewers&apos; scores and comments, each programme&apos;s decision and any reason noted, notes facilitators and admins wrote, session reports, ratings, and the reason for a conduct flag\. Where a record also names somebody else, we may need to leave their part out\./],
+  ["a copy of your data covers what others wrote about you, notes and ratings among it", /A copy of your data covers what other people wrote about you as well as what you wrote: reviewers&apos; scores and comments, each programme&apos;s decision and any reason noted, notes facilitators and admins wrote, session reports, ratings, and your conduct record\. Where a record also names somebody else, we may need to leave their part out\./],
 ];
 
 describe("the courses section", () => {
@@ -1373,7 +1419,11 @@ describe("the courses section", () => {
       // to accept or decline it. v15 is the last version anybody is asked to
       // accept, and says a change to how it uses somebody's information is
       // told on the site and by email before it takes effect.
-      ["a change is told before it takes effect, and this is the last version anybody is asked to accept", /we tell you on the site and by email before it takes effect, saying what changed\. Anything that relies on your consent asks you for that one thing on its own\. New members accept this policy when they join, and anybody who had not accepted version 15 is asked to accept it once\. If you decline it, you are signed out, and you can email us to have your account removed; an external collaborator can delete theirs there and then\. We will not ask you to accept later versions\./],
+      // CHANGED ON PURPOSE (v17): told on the site, saying what changed, and
+      // no longer by email before it takes effect (Home and /privacy carry a
+      // line for 14 days from a version's date, `policyUpdateLine`). v16's
+      // words are held in frozen v16 by the version 17 describe.
+      ["a change is told on the site, and this is the last version anybody is asked to accept", /If a change affects how we use your information \(a new use, a new outside service, or keeping something longer\), we tell you on the site, saying what changed\. Anything that relies on your consent asks you for that one thing on its own\. New members accept this policy when they join, and anybody who had not accepted version 15 is asked to accept it once\. If you decline it, you are signed out, and you can email us to have your account removed; an external collaborator can delete theirs there and then\. We will not ask you to accept later versions\./],
       ["the statutory response time", /We aim to answer within 30 days\./],
       ["no solely automated decisions", /No decision about you is made solely by automated means\./],
       ["children", /We do not knowingly collect data from anyone under 16\./],
@@ -1566,10 +1616,11 @@ describe("the notification grid passage", () => {
     // v15 lists the notices under the contract basis, and leaves them out of
     // what consent covers. Without that the page promises that the
     // notification settings switch off every message, and an organiser's
-    // room change ignores them by design.
+    // room change ignores them by design. v17 adds requests and messages to
+    // the team to the same list.
     assert.match(
       page,
-      /<strong>Our contract with you as a member<\/strong> for your account and member pages; handling your applications; running a programme you hold a place on, including registers, your work, feedback, reminders, check-ins, session reports and its notices; and handling your event sign-ups and their notices\./,
+      /<strong>Our contract with you as a member<\/strong> for your account and member pages; handling your applications; running a programme you hold a place on, including registers, your work, feedback, reminders, requests and messages to the team, check-ins, session reports and its notices; and handling your event sign-ups and their notices\./,
     );
     assert.match(
       page,
@@ -2391,10 +2442,12 @@ describe("the application form passage", () => {
     // see only a marker asking them to talk to an admin first. No marker is
     // built, so today the walk below still finds the flag on admin screens
     // alone; a marker that lands is one more file here, with its reason, and
-    // it may say nothing more than that.
+    // it may say nothing more than that. v17 says the same of a conduct
+    // record, adds approving a request to where the marker may show, says a
+    // concern alone adds it, and that each opening is recorded.
     assert.match(
       PAGE_FLAT,
-      /Only admins can read the reason for a conduct flag\. Where decisions about you are made, such as reading applications or deciding event sign-ups, other people may see only a marker asking them to talk to an admin first\./,
+      /Only admins can add to a conduct record or read it, and we record each time one is opened\. Where decisions about you are made, such as reading applications, deciding event sign-ups or approving a request, other people may see only a marker asking them to talk to an admin first\. Only a concern adds that marker\./,
     );
     // Who reads an application is shown neither the answer about SU
     // membership nor the access requirements (v14 listed the membership tier
@@ -4194,7 +4247,7 @@ describe("the course hub passage", () => {
     );
     const whoReads = hubPassageOf("<strong>Who reads it.</strong>");
     for (const sentence of [
-      "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and nobody else taking part; the week&apos;s page says so.",
+      "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators. Nobody else taking part; the week&apos;s page says so.",
       " If you facilitate a group, your own work is read by the lead and admins only.",
       " Your private notes on the material are read by your group&apos;s facilitators and admins (if you facilitate the group, by admins alone), and we use them to improve the course.",
       " A facilitator may read out a line of a reflection without saying whose it is.",
@@ -4824,7 +4877,7 @@ describe("the course hub passage", () => {
       hubPassageOf("<strong>Deleting your account.</strong>").includes(" the notes and ratings about you, the ratings you gave, the notes you wrote for a group&apos;s other facilitators,"),
       "the policy no longer says a deletion removes the notes somebody wrote for a group's other facilitators",
     );
-    assertHubSays("notes facilitators and admins wrote, session reports, ratings, and the reason for a conduct flag.");
+    assertHubSays("notes facilitators and admins wrote, session reports, ratings, and your conduct record.");
     // The one reader, and the two pages that call it, each after its own
     // gate: the group's page lets in the group's live facilitators and
     // admins, the programme's Attendance tab its lead and admins.
@@ -4892,7 +4945,7 @@ describe("the course hub passage", () => {
     );
     assertHubSays(
       "<strong>Your course record</strong> (your place, the registers, your work and the feedback on it, notes facilitators wrote and session reports): while your account exists.",
-      " notes facilitators and admins wrote, session reports, ratings, and the reason for a conduct flag.",
+      " notes facilitators and admins wrote, session reports, ratings, and your conduct record.",
     );
 
     // "including who engaged well and who seemed to need a hand or hadn't
@@ -5215,7 +5268,7 @@ describe("the course hub passage", () => {
     assert.ok(hubPassageOf("<strong>What we record.</strong>").includes(" the packs you pick,"), "the policy no longer names the packs somebody picks among their work");
     const whoReads = hubPassageOf("<strong>Who reads it.</strong>");
     for (const sentence of [
-      "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and nobody else taking part; the week&apos;s page says so.",
+      "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators. Nobody else taking part; the week&apos;s page says so.",
       " If you facilitate a group, your own work is read by the lead and admins only.",
     ]) {
       assert.ok(whoReads.includes(sentence), `the policy's Who reads it no longer says: ${sentence}`);
@@ -5389,7 +5442,7 @@ describe("the course hub passage", () => {
     assert.ok(hubPassageOf("<strong>What we record.</strong>").includes(" the boxes you fill in,"), "the policy no longer names the boxes somebody fills in among their work");
     const whoReads = hubPassageOf("<strong>Who reads it.</strong>");
     for (const sentence of [
-      "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and nobody else taking part; the week&apos;s page says so.",
+      "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators. Nobody else taking part; the week&apos;s page says so.",
       " If you facilitate a group, your own work is read by the lead and admins only.",
     ]) {
       assert.ok(whoReads.includes(sentence), `the policy's Who reads it no longer says: ${sentence}`);
@@ -5704,7 +5757,7 @@ describe("the course hub passage", () => {
     );
     const whoReads = hubPassageOf("<strong>Who reads it.</strong>");
     for (const sentence of [
-      "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and nobody else taking part; the week&apos;s page says so.",
+      "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators. Nobody else taking part; the week&apos;s page says so.",
       " If you facilitate a group, your own work is read by the lead and admins only.",
     ]) {
       assert.ok(whoReads.includes(sentence), `the policy's Who reads it no longer says: ${sentence}`);
@@ -5715,12 +5768,14 @@ describe("the course hub passage", () => {
       ),
       "the policy no longer says a facilitator's own work is the lead's and admins' to read and give feedback on",
     );
+    // v17 says the week's page says until when, and no longer names who can
+    // reopen a week; the reopen route's checks below stay. v16's sentence is
+    // held in frozen v16.
     assert.ok(
-      hubPassageOf("<strong>Changing your work.</strong>").includes(
-        " The week&apos;s page says until when you can change your work, and the people running your group can reopen it for you.",
-      ),
-      "the policy no longer says the week's page says until when work can change, and who can reopen it",
+      hubPassageOf("<strong>Changing your work.</strong>").includes(" The week&apos;s page says until when you can change your work. "),
+      "the policy no longer says the week's page says until when work can change",
     );
+    assert.ok(V16_FLAT.includes(" The week&apos;s page says until when you can change your work, and the people running your group can reopen it for you."));
     assertHubSays(
       "<strong>Feedback.</strong> Feedback on your work is written by a person on the team running your programme, and shows their name. It appears on the week&apos;s page, and we may email you to say feedback is waiting.",
     );
@@ -5865,7 +5920,7 @@ describe("the course hub passage", () => {
   test("a deletion removes the calendar link, the notes shared with a group and the notes written for a group's other facilitators", () => {
     assert.ok(
       hubPassageOf("<strong>Deleting your account.</strong>").includes(
-        " your places on programmes, your work and the feedback on it, the notes and ratings about you, the ratings you gave, the notes you wrote for a group&apos;s other facilitators, the notes you shared with a group, a conduct flag, your survey links and your name on your survey answers,",
+        " your places on programmes, your work and the feedback on it, the notes and ratings about you, the ratings you gave, the notes you wrote for a group&apos;s other facilitators, the notes you shared with a group, your conduct record, your survey links and your name on your survey answers,",
       ),
       "the policy no longer says a deletion removes somebody's work, the notes they gave and their survey links",
     );
@@ -5957,9 +6012,15 @@ describe("the course hub passage", () => {
     // would say so and how, with the policy first. The anonymous form keeps
     // that promise and replaces the sentence: the surveys section closes
     // with the form's paragraph, on the page once, and the promise is gone
-    // (the anonymous form's test holds the paragraph to the code).
+    // (the anonymous form's test holds the paragraph to the code). v17 adds
+    // one paragraph after it, the second form that may open, and the section
+    // closes with the two.
     const surveys = PAGE_FLAT.slice(PAGE_FLAT.indexOf('<section id="surveys"'), PAGE_FLAT.indexOf('<section id="ai-review"'));
-    assert.match(surveys, /<p> <strong>The anonymous form\.<\/strong> One form never records who answers: [^<]* <\/p> <\/section> $/, "the surveys section no longer closes with the anonymous form");
+    assert.match(
+      surveys,
+      /<p> <strong>The anonymous form\.<\/strong> One form never records who answers: [^<]* <\/p> <p> We may also open a second form that never records who fills it in: [^<]* <\/p> <\/section> $/,
+      "the surveys section no longer closes with the anonymous form and the second form",
+    );
     assert.equal((PAGE_FLAT.match(/We do not currently run anonymous surveys/g) ?? []).length, 0, "the promise is still on the page beside the form that kept it");
     assert.equal((PAGE_FLAT.match(/One form never records who answers/g) ?? []).length, 1);
 
@@ -7206,7 +7267,7 @@ describe("the course hub passage", () => {
     );
     // A copy of a person's data covers the ratings they were given: each one
     // is found by the person it is about (the store's own reading, below).
-    assertHubSays(" notes facilitators and admins wrote, session reports, ratings, and the reason for a conduct flag.");
+    assertHubSays(" notes facilitators and admins wrote, session reports, ratings, and your conduct record.");
     assert.match(withoutComments(read("src/lib/firestore/accountDeletion.ts")), /summary\.programmeRatingsDeleted = await deleteRatingsForAccount\(db, uid\);/);
     const store = withoutComments(read("src/lib/ratings/store.ts"));
     assert.match(store, /\.where\("raterUid", "==", uid\)\.get\(\),\s*db\.collection\(RATINGS_COLLECTION\)\.where\("ratedUid", "==", uid\)\.get\(\),/);
@@ -8691,7 +8752,8 @@ describe("the last pass before version 7 goes live, held to v15", () => {
   const SEND_AGAIN = "A change counts only when you press Send again; until then the people reading your application see what you last sent. Once you hold a place on a fellowship,";
   /** The class of email the reminder to say when you are free is: it answers the person's own application. */
   const REMIND = "Some answer something you did, such as a sign-up&apos;s confirmation, an application&apos;s receipt or a decision.";
-  const DRAFT = "A written answer is yours until you send it: until then they see only that you have started it, never what it says,";
+  // v17: "never what it says" left the sentence, which says "only" instead.
+  const DRAFT = "A written answer is yours until you send it: until then they see only that you&apos;ve started it.";
   /** Reflections and boxes have no Send: what is saved is what their readers read. */
   const AS_TYPED = "<strong>Changing your work.</strong> Your reflections and the boxes you fill in save as you type, and the people who read your work can read them as you write.";
   const PAIRS = "When a session is in pairs, your partner sees your first name and whether you are bringing a laptop.";
@@ -8826,7 +8888,11 @@ describe("the last pass before version 7 goes live, held to v15", () => {
     says(DRAFT);
     // v15 takes back part of this: if the week locks before somebody sends it, its readers may read it.
     // Built by the week you submit: `workIsReadable` (src/lib/courses/weekWork/model.ts), held above.
-    says("never what it says, and if your week locks before you send it, they may then read what you wrote.");
+    // v17 says when the week locks: once the session it is due at has
+    // started (the written answer's route refuses a write from then, until
+    // the week is reopened). v16's words stay in frozen v16.
+    says("Once the session it&apos;s due at has started, they may read what you&apos;ve written so far, sent or not.");
+    assert.ok(V16_FLAT.includes("A written answer is yours until you send it: until then they see only that you have started it, never what it says, and if your week locks before you send it, they may then read what you wrote."));
     // Reflections and the boxes to fill in have no Send at all: each card
     // saves as it is typed, a reflection is stored as never sent, and the
     // group's page reads every saved reflection with no sent mark asked for.
@@ -9019,8 +9085,15 @@ describe("the re-consent gate", () => {
     assert.match(reconsent, /const summary = await deleteAccountCascade\(auth, db, uid\);\s*await clearSessionCookieOnly\(\);/);
     // A collaborator's record is what the page is told: no member document, so the delete is theirs.
     assert.match(read("src/app/re-consent/page.tsx"), /const isMember = !collaborator;/);
+    // CHANGED ON PURPOSE (v17): told on the site, no longer by email before
+    // it takes effect. v16's sentence is held in frozen v16.
     assert.ok(
       PAGE_FLAT.includes(
+        "If a change affects how we use your information (a new use, a new outside service, or keeping something longer), we tell you on the site, saying what changed.",
+      ),
+    );
+    assert.ok(
+      V16_FLAT.includes(
         "If a change affects how we use your information (a new use, a new outside service, or keeping something longer), we tell you on the site and by email before it takes effect, saying what changed.",
       ),
     );
@@ -9152,10 +9225,32 @@ describe("the re-consent gate", () => {
     const fifteen = accept.indexOf("What changed in version 15.</strong>");
     const sixteen = accept.indexOf("What changed in version 16.</strong>");
     assert.ok(fifteen !== -1 && sixteen > fifteen && accept.indexOf("Read the full", sixteen) > sixteen, "the accept page no longer says what version 16 changed, after version 15");
-    const said = accept.slice(sixteen, accept.indexOf("Read the full", sixteen));
+    const said = accept.slice(sixteen, accept.indexOf("What changed in version 17.</strong>", sixteen));
     assert.ok(said.includes("Registers record whether you were in the room or joined online, and you can tell us in advance that you are joining online."));
-    assert.ok(PAGE_FLAT.includes("absent or excused, and whether you were in the room or joined online."));
+    // Held to version 16's own sentences, frozen, now that the current
+    // version is a later one; and to the words version 17 says it in.
+    assert.ok(V16_FLAT.includes("absent or excused, and whether you were in the room or joined online."));
+    assert.ok(V16_FLAT.includes("You can also tell us in advance that you&apos;re joining a session online:"));
+    assert.ok(PAGE_FLAT.includes("we keep a record of each session you&apos;re due at: whether you came, in the room or online,"));
     assert.ok(PAGE_FLAT.includes("You can also tell us in advance that you&apos;re joining a session online:"));
+  });
+
+  test("the accept page says what version 17 changes, after version 16's line, in version 17's own words", () => {
+    // Asked only of an agreement older than v15, which accepts v17: so the
+    // page says each version's change, oldest first. Version 17's line is the
+    // policy's own "What's changed in version 17", which also says changes
+    // are now told on the site, taking back version 15's paragraph's "and by
+    // email before it takes effect".
+    const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
+    const sixteen = accept.indexOf("What changed in version 16.</strong>");
+    const seventeen = accept.indexOf("What changed in version 17.</strong>");
+    assert.ok(sixteen !== -1 && seventeen > sixteen && accept.indexOf("Read the full", seventeen) > seventeen, "the accept page no longer says what version 17 changed, after version 16");
+    const said = accept.slice(seventeen, accept.indexOf("Read the full", seventeen));
+    const CHANGED =
+      "who can take and correct a register; asking to change session or group, to be excused, or to message the team; work added after a session, and reminders after it; a second form that never records who fills it in; conduct records that can note good things as well as concerns; how long we keep reasons and messages; and that we tell you about changes to this policy on the site.";
+    assert.ok(said.includes(`W${CHANGED.slice(1)}`), "the accept page's line for version 17 is no longer the policy's own words");
+    assert.ok(PAGE_FLAT.includes(`<strong>What&apos;s changed in version 17:</strong> ${CHANGED}`), "the policy no longer says what changed in version 17, in those words");
+    assert.ok(!V16_FLAT.includes("What&apos;s changed in version 17"));
   });
 
   test("is not left behind on the dashboard layout alone", () => {
@@ -10251,7 +10346,7 @@ describe("v15 lets the people running a programme rate written work for each oth
       RETENTION,
       " the notes and ratings about you, the ratings you gave,",
       "the team&apos;s ratings and notes about you, and using them and your work (written after version 13) when we consider you for something else later;",
-      " notes facilitators and admins wrote, session reports, ratings, and the reason for a conduct flag.",
+      " notes facilitators and admins wrote, session reports, ratings, and your conduct record.",
     ]);
   });
 
@@ -10777,11 +10872,21 @@ describe("v15 says reminders before a session are about what is left, are part o
   const words = withoutComments(read("src/lib/courses/weekEmails/words.ts"));
 
   test("the policy says it, in those words", () => {
+    // CHANGED ON PURPOSE (v17): before the session a week's work is due at,
+    // and after it the people running the group may remind somebody of a
+    // week that is not done, and later weeks' emails may mention it. Nothing
+    // sends after the session yet: the job below still stops once a session
+    // has started. v16's words are held in frozen v16.
     assert.ok(
       PAGE_FLAT.includes(
+        "<strong>Reminders.</strong> Before the session a week&apos;s work is due at, we may email you about what&apos;s left of it. After that session, the people running your group may remind you about a week that isn&apos;t done, and our emails about later weeks may mention it. These reminders are part of running the programme, so your notification settings don&apos;t switch them off, and they stop once the week is done.",
+      ),
+      "the policy no longer says what the reminders before and after a session are",
+    );
+    assert.ok(
+      V16_FLAT.includes(
         "<strong>Reminders.</strong> Before your group&apos;s session we may email you about what is left of that week&apos;s work. These reminders are part of running the programme, so your notification settings don&apos;t switch them off, and they stop once the week is done.",
       ),
-      "the policy no longer says what the reminders before a session are",
     );
   });
 
@@ -10846,11 +10951,22 @@ describe("v15 says you may tell us in advance that you can't make a session, whi
   };
 
   test("the policy says it, in those words, beside the register's marks", () => {
+    // CHANGED ON PURPOSE (v17): the Registers paragraph became the record of
+    // each session somebody is due at, and telling us in advance opens the
+    // paragraph after it, in the same words. v16's are held in frozen v16.
     assert.ok(
       PAGE_FLAT.includes(
+        "or were absent or excused. We may also record that you went to another group&apos;s session instead.",
+      ) &&
+        PAGE_FLAT.includes(
+          "You can see your own register, with any corrections. </p> <p> We may let you tell us in advance that you can&apos;t make a session, which records you as excused.",
+        ),
+      "the policy no longer says you may tell us in advance, and that it records you as excused",
+    );
+    assert.ok(
+      V16_FLAT.includes(
         "<strong>Registers.</strong> Your group&apos;s facilitators take the register at each session: present, arrived late, left early, absent or excused, and whether you were in the room or joined online. You can see your own once it is submitted. We may let you tell us in advance that you can&apos;t make a session, which records you as excused.",
       ),
-      "the policy no longer says you may tell us in advance, and that it records you as excused",
     );
   });
 
@@ -10944,11 +11060,19 @@ describe("v16 says a register records the room or online, and you may tell us in
     "before the first session whether you have said you are coming, and whether you have said you are joining a session online. Nothing else from your application,";
 
   test("the policy says it, in those words, and v15 did not", () => {
+    // v16 is frozen now that v17 is current, so v16's words are held in v16's
+    // own file, and what v17 says of the same things in the policy served.
     for (const words of [NEW_REGISTERS, NEW_IN_ADVANCE, NEW_FACILITATORS_SEE]) {
-      assert.ok(PAGE_FLAT.includes(words), `v16 no longer says: ${words}`);
+      assert.ok(V16_FLAT.includes(words), `v16 is frozen and no longer says: ${words}`);
       assert.ok(!V15_FLAT.includes(words), `v15 is frozen and never said: ${words}`);
     }
-    assert.ok(PAGE_FLAT.includes(`${NEW_REGISTERS} You can see your own once it is submitted. We may let you tell us in advance that you can&apos;t make a session, which records you as excused. ${NEW_IN_ADVANCE}`));
+    assert.ok(V16_FLAT.includes(`${NEW_REGISTERS} You can see your own once it is submitted. We may let you tell us in advance that you can&apos;t make a session, which records you as excused. ${NEW_IN_ADVANCE}`));
+    // CHANGED ON PURPOSE (v17): the register's record says "in the room or
+    // online" beside whether you came; telling us in advance, and what your
+    // facilitators see, are v16's words.
+    for (const words of [NEW_IN_ADVANCE, NEW_FACILITATORS_SEE]) assert.ok(PAGE_FLAT.includes(words), `v17 no longer says: ${words}`);
+    assert.ok(PAGE_FLAT.includes("we keep a record of each session you&apos;re due at: whether you came, in the room or online, arrived late or left early, or were absent or excused."));
+    assert.ok(PAGE_FLAT.includes(`which records you as excused. ${NEW_IN_ADVANCE}`));
     assert.ok(V15_FLAT.includes("left early, absent or excused. You can see your own once it is submitted."));
     assert.ok(V15_FLAT.includes("(see <a href=\"#your-work\">Your work</a>), and before the first session whether you have said you are coming. Nothing else"));
   });
