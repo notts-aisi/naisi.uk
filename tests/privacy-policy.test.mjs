@@ -2460,7 +2460,9 @@ describe("the application form passage", () => {
       sourceFilesNaming(/memberConductFlags|[cC]onductFlag|conduct-flag/),
       new Map([
         ["src/lib/firestore/memberConductFlags.ts", "the collection's own shape and the one function that reads a flag"],
-        ["src/app/api/admin/members/[uid]/conduct-flag/route.ts", "the admin's route that reads, sets and clears a flag"],
+        ["src/app/api/admin/members/[uid]/conduct-flag/route.ts", "the admin's route that sets and clears a flag"],
+        ["src/app/api/admin/members/[uid]/conduct-flag/open/route.ts", "the admin's route that reads a flag, recording the opening first (v17: we record each time one is opened)"],
+        ["src/lib/firestore/recordOpenings.ts", "the record of each opening: who opened whose record and when, never what it says. It reads no flag"],
         ["src/features/admin/ConductFlagControl.tsx", "the control for it on the admin Members page"],
         ["src/features/admin/MemberItem.tsx", "the row of the admin Members page that draws that control"],
         ["src/lib/firestore/accountDeletion.ts", "removes the flag when the account is deleted"],
@@ -8953,9 +8955,11 @@ describe("the last pass before version 7 goes live, held to v15", () => {
     // CHANGED ON PURPOSE (names on a survey's own pages): three more kinds of survey
     // answers opened, names on a survey's own pages, each a row of who, whose
     // by ids, the survey and when, and never which bar or which comment.
+    // CHANGED ON PURPOSE (v17): and a conduct record opened, a row of who,
+    // whose by account id and when, held in the version 17 describe.
     assert.match(
       read("src/lib/firestore/recordOpenings.ts"),
-      /export const RECORD_OPENING_KINDS: readonly RecordOpeningKind\[\] = \["sealed-predictions", "survey-answers", "survey-bar", "survey-comment", "survey-table"\];/,
+      /export const RECORD_OPENING_KINDS: readonly RecordOpeningKind\[\] = \["sealed-predictions", "survey-answers", "survey-bar", "survey-comment", "survey-table", "conduct-flag"\];/,
     );
     const namesWriter = withoutComments(read("src/lib/firestore/recordOpenings.ts"));
     const names = namesWriter.slice(namesWriter.indexOf("export async function openSurveyNamesRecorded"));

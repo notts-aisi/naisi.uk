@@ -20,10 +20,13 @@
  * idiom. If a pin fails, the route has drifted from the rule; do not fix it by
  * loosening the pin.
  *
- * The last test drives the real GET handler, in the stubbed world
- * `tests/lib/handoverWorld.mjs` provides, because the rule it holds (the
- * person a flag describes never reads it, an admin included) is about who
- * asks, which a source pin cannot see.
+ * The last tests drive the real opening handler (`conduct-flag/open`, a
+ * POST, the only way a flag is read), in the stubbed world
+ * `tests/lib/handoverWorld.mjs` provides, because the rules they hold (the
+ * person a flag describes never reads it, an admin included; every opening is
+ * recorded before the flag is read, and a flag stays closed when the opening
+ * cannot be recorded) are about who asks and what is written, which a source
+ * pin cannot see.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -128,6 +131,14 @@ const ROUTE = readFileSync(
  *  comments in the file name the very things being asserted. */
 const ROUTE_CODE = ROUTE.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
+/** The one way a flag is read: an admin's opening, recorded first. */
+const OPEN_CODE = readFileSync(
+  join(SRC, "app", "api", "admin", "members", "[uid]", "conduct-flag", "open", "route.ts"),
+  "utf8",
+)
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .replace(/^\s*\/\/.*$/gm, "");
+
 const FLAG = normalizeMemberConductFlag("u1", {
   flagged: true,
   reason: "Shouted down another participant in week two and would not stop.",
@@ -210,10 +221,14 @@ test("MODEL: the view-as guard runs before anything else the POST does", () => {
   }
 });
 
-test("MODEL: both handlers are admin-only, and the gate is the live session", () => {
+test("MODEL: every handler is admin-only, and the gate is the live session", () => {
   assert.match(ROUTE_CODE, /getCurrentUser\(\)/);
   assert.match(ROUTE_CODE, /actor\.role !== "admin"/);
-  for (const handler of ["export async function GET", "export async function POST"]) {
+  // CHANGED ON PURPOSE (privacy v17, "we record each time one is opened"):
+  // the route has no GET, so nothing answers with a flag unrecorded. Reading
+  // one is the open route's POST, held below and run at the end of this file.
+  assert.equal(ROUTE_CODE.indexOf("export async function GET"), -1, "the route answers a GET again, which would read a flag without recording the opening");
+  for (const handler of ["export async function POST"]) {
     const body = ROUTE_CODE.slice(ROUTE_CODE.indexOf(handler));
     assert.ok(
       body.indexOf("requireAdmin()") > -1,
@@ -224,6 +239,25 @@ test("MODEL: both handlers are admin-only, and the gate is the live session", ()
       `${handler} touches the collection before checking the caller`,
     );
   }
+  // The opening: view-as, the live session, admin, not their own, then the
+  // member, then the opening recorded, and the flag read only inside it.
+  assert.deepEqual([...OPEN_CODE.matchAll(/export (?:async )?(?:function|const) (\w+)/g)].map((m) => m[1]), ["POST"], "the opening route answers something besides its POST");
+  const order = [
+    "assertNotImpersonating()",
+    "getCurrentUser()",
+    'actor.role !== "admin"',
+    "uid === actor.uid",
+    "getAdminDb()",
+    'collection("users").doc(uid).get()',
+    "openConductFlagRecorded(",
+    'collection("memberConductFlags").doc(uid).get()',
+  ].map((step) => [step, OPEN_CODE.indexOf(step)]);
+  for (const [step, at] of order) assert.ok(at > -1, `the opening route no longer does ${step}`);
+  for (let i = 1; i < order.length; i += 1) {
+    assert.ok(order[i - 1][1] < order[i][1], `the opening route does ${order[i][0]} before ${order[i - 1][0]}`);
+  }
+  assert.equal(OPEN_CODE.split('collection("memberConductFlags")').length, 2, "the opening route reads a flag somewhere besides inside the recorded opening");
+  assert.match(OPEN_CODE, /if \(!opened\.ok\) return NextResponse\.json\(\{ error: NOT_RECORDED \}, \{ status: 500 \}\);/);
 });
 
 test("MODEL: clearing DELETES the row rather than writing flagged: false", () => {
@@ -306,12 +340,15 @@ test("MODEL: the write names its author and never touches users/{uid}", () => {
 test("MODEL: neither handler answers with the reviewer projection", () => {
   // Only admins reach this route, so both handlers use the admin shape. A
   // `false` here would mean an admin control that cannot show its own state.
-  assert.match(ROUTE_CODE, /conductFlagForQueue\(flag, true\)/);
-  assert.doesNotMatch(ROUTE_CODE, /conductFlagForQueue\([^)]*, false\)/);
-  // And neither handler spreads the projection to add a sibling key. The
-  // moment a route does that, "what may this viewer see" is decided at the
-  // call site again, and the next route to copy the shape may be a reviewer's.
-  assert.doesNotMatch(ROUTE_CODE, /\.\.\.conductFlagForQueue/);
+  // The opening route is held the same way.
+  for (const code of [ROUTE_CODE, OPEN_CODE]) {
+    assert.match(code, /conductFlagForQueue\(flag, true\)/);
+    assert.doesNotMatch(code, /conductFlagForQueue\([^)]*, false\)/);
+    // And neither handler spreads the projection to add a sibling key. The
+    // moment a route does that, "what may this viewer see" is decided at the
+    // call site again, and the next route to copy the shape may be a reviewer's.
+    assert.doesNotMatch(code, /\.\.\.conductFlagForQueue/);
+  }
 });
 
 // ===========================================================================
@@ -353,11 +390,15 @@ test("WORDS: the line under the label says the same, in every state of the contr
 const FLAG_READERS = new Map([
   [
     "app/api/admin/members/[uid]/conduct-flag/route.ts",
-    "the one route that reads or writes a flag; both handlers are admin-only and answer with the admin projection",
+    "the one route that writes a flag, setting or clearing it; admin-only, and it answers with the admin projection",
+  ],
+  [
+    "app/api/admin/members/[uid]/conduct-flag/open/route.ts",
+    "the one route that reads a flag: an admin's opening, recorded first, answered with the admin projection",
   ],
   [
     "features/admin/ConductFlagControl.tsx",
-    "the control on one person's page in the admin area, which calls that route and nothing else",
+    "the control on one person's page in the admin area, which calls those two routes and nothing else",
   ],
   [
     "features/admin/MemberItem.tsx",
@@ -402,39 +443,115 @@ test("TREE: every file that names a flag is listed, and every listed file still 
 });
 
 // ===========================================================================
-// THE HANDLER: the person a flag describes never reads it, admins included.
+// THE HANDLER: the person a flag describes never reads it, admins included,
+// and every opening is recorded before the flag is read.
 // ===========================================================================
 
-test("HANDLER: an admin reads another member's flag and never the flag on their own account", async () => {
+const OPEN_ROUTE = join("app", "api", "admin", "members", "[uid]", "conduct-flag", "open", "route.ts");
+const REASON = "Talked over another member in the week two session.";
+
+async function flagWorld() {
   const { makeWorld } = await import("./lib/handoverWorld.mjs");
   const { session, userDoc } = await import("./lib/applicationsSmallTerm.mjs");
   const w = makeWorld("__conductFlag");
-  const route = await w.loadTs(join("app", "api", "admin", "members", "[uid]", "conduct-flag", "route.ts"));
-  const flag = (byUid, byName) => ({ flagged: true, reason: "Talked over another member in the week two session.", byUid, byName, at: new Date("2026-10-20T10:00:00Z") });
+  const route = await w.loadTs(OPEN_ROUTE);
+  const flag = (byUid, byName) => ({ flagged: true, reason: REASON, byUid, byName, at: new Date("2026-10-20T10:00:00Z") });
   w.reset({
     "users/zach": userDoc(session("zach", "admin", false, "Zach Levin")),
     "users/ada": userDoc(session("ada", "admin", false, "Ada Byron")),
     "users/amara": userDoc(session("amara", "member", false, "Amara Okafor")),
-    // Ada flagged Zach, and Zach flagged Amara.
+    "users/kofi": userDoc(session("kofi", "member", false, "Kofi Mensah")),
+    // Ada flagged Zach, and Zach flagged Amara. Kofi has no flag.
     "memberConductFlags/zach": flag("ada", "Ada Byron"),
     "memberConductFlags/amara": flag("zach", "Zach Levin"),
   });
+  /** Every opening recorded so far, as stored. */
+  const openings = () =>
+    w.world.db
+      .paths()
+      .filter((path) => path.startsWith("recordOpenings/"))
+      .map((path) => w.world.db.read(path));
+  return { w, route, openings };
+}
 
-  const other = await w.call("zach", route.GET, { uid: "amara" });
+test("HANDLER: an admin reads another member's flag and never the flag on their own account", async () => {
+  const { w, route, openings } = await flagWorld();
+
+  const other = await w.call("zach", route.POST, { uid: "amara" });
   assert.equal(other.status, 200);
   assert.equal(other.body.flagged, true);
+  assert.equal(other.body.reason, REASON);
 
   const before = w.everything();
-  const own = await w.call("zach", route.GET, { uid: "zach" });
+  const own = await w.call("zach", route.POST, { uid: "zach" });
   assert.equal(own.status, 400, `the subject read their own flag: ${JSON.stringify(own.body)}`);
   assert.deepEqual(Object.keys(own.body), ["error"]);
   assert.doesNotMatch(JSON.stringify(own.body), /Talked over|Ada|flagged/i, "the refusal says something about the flag");
+  // Nothing written, an opening included: the refusal comes before anything is read or recorded.
   assert.equal(w.everything(), before);
   // The same answer whether a flag is there or not, so the refusal is no answer either.
   w.world.db.poke("memberConductFlags/zach", { flagged: false });
-  assert.deepEqual((await w.call("zach", route.GET, { uid: "zach" })).body, own.body);
+  assert.deepEqual((await w.call("zach", route.POST, { uid: "zach" })).body, own.body);
 
   // Another admin still reads it.
-  const byAnother = await w.call("ada", route.GET, { uid: "amara" });
+  const byAnother = await w.call("ada", route.POST, { uid: "amara" });
   assert.equal(byAnother.status, 200);
+  assert.equal(openings().length, 2, "an opening by another admin was not recorded, or a refusal was");
+});
+
+test("HANDLER: each opening is recorded first, with who, whose and when, and nothing the flag says", async () => {
+  const { w, route, openings } = await flagWorld();
+
+  const opened = await w.call("zach", route.POST, { uid: "amara" });
+  assert.equal(opened.status, 200);
+  const rows = openings();
+  assert.equal(rows.length, 1);
+  assert.deepEqual(Object.keys(rows[0]).sort(), ["actorName", "actorUid", "kind", "openedAt", "subjectUid"]);
+  assert.equal(rows[0].kind, "conduct-flag");
+  assert.equal(rows[0].actorUid, "zach");
+  assert.equal(rows[0].actorName, "Zach Levin");
+  assert.equal(rows[0].subjectUid, "amara");
+  assert.ok(rows[0].openedAt instanceof Date, "the opening has no time");
+  assert.doesNotMatch(JSON.stringify(rows), /Talked over|week two/, "an opening keeps something the flag says");
+
+  // Opening it again is another opening.
+  await w.call("zach", route.POST, { uid: "amara" });
+  assert.equal(openings().length, 2);
+
+  // An opening of somebody with no flag is recorded too, as an opening, and answers the empty shape.
+  const none = await w.call("zach", route.POST, { uid: "kofi" });
+  assert.equal(none.status, 200);
+  assert.deepEqual(none.body, { flagged: false, reason: "", flaggedAt: null, byName: "" });
+  assert.equal(openings().length, 3);
+
+  // Nobody but an admin, and nobody in a view-as session; neither records anything.
+  const before = w.everything();
+  assert.equal((await w.call("amara", route.POST, { uid: "kofi" })).status, 403);
+  assert.equal((await w.call(null, route.POST, { uid: "amara" })).status, 401);
+  assert.equal((await w.call("zach", route.POST, { uid: "amara" }, { viewAs: true })).status, 403);
+  // A made-up id records nothing: an opening is recorded only against a member who is there.
+  assert.equal((await w.call("zach", route.POST, { uid: "nobody-here" })).status, 404);
+  assert.equal(w.everything(), before);
+});
+
+test("HANDLER: when the opening cannot be recorded, nothing of the flag is read or answered", async () => {
+  const { w, route, openings } = await flagWorld();
+  const db = w.world.db;
+  const collection = db.collection;
+  const asked = [];
+  db.collection = (name) => {
+    asked.push(name);
+    if (name !== "recordOpenings") return collection(name);
+    return { doc: () => ({ create: async () => { throw new Error("the record of openings refused the write"); } }) };
+  };
+  try {
+    const refused = await w.call("zach", route.POST, { uid: "amara" });
+    assert.equal(refused.status, 500);
+    assert.deepEqual(Object.keys(refused.body), ["error"]);
+    assert.doesNotMatch(JSON.stringify(refused.body), /Talked over|week two|Zach Levin|flagged/i, "a refused opening says something of the flag");
+    assert.ok(!asked.includes("memberConductFlags"), "the flag was read though its opening was never recorded");
+  } finally {
+    db.collection = collection;
+  }
+  assert.equal(openings().length, 0);
 });
