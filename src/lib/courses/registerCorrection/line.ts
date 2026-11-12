@@ -24,9 +24,11 @@ import { lineCorrectedDetail } from "./words";
 
 /**
  * CORRECTING LINES OF A FINISHED REGISTER, in one transaction: the admin's
- * and the lead's correction (`PATCH .../attendance`) and an approved request
- * (`POST /api/courses/requests/[requestId]/approve`) both come here, so a
- * line is corrected one way whoever asked.
+ * and the lead's correction (`PATCH .../attendance`), an approved request
+ * (`POST /api/courses/requests/[requestId]/approve`) and an approved request
+ * to be excused that finds the line Absent on a finished register
+ * (`.../excused/approve`, `ApprovalCorrection`) all come here, so a line is
+ * corrected one way whoever asked.
  *
  * WHAT ONE CORRECTION WRITES, together or not at all:
  *  - each line's mark, and whether they were in the room or online;
@@ -156,6 +158,23 @@ export async function readLineCorrection(
 export type AskedBy = { requestId: string; firstName: string; at: Date };
 
 /**
+ * A correction made by approving a request to be excused
+ * (`src/lib/courses/excused/decide.ts`): the same writes as any correction
+ * (the line, the `corrected` stamp, the figures, a history row per line with
+ * the request's id), with three differences. The line is stamped as set by
+ * the approval (`how: "approval"`); the row's sentence is the approval's own;
+ * and the row carries NO reason: the person's reason is read by admins only,
+ * and the group's history is read by the programme's lead.
+ */
+export type ApprovalCorrection = {
+  requestId: string;
+  /** The history row's sentence for one moved line. Never the reason. */
+  detail: (line: MovedLine) => string;
+  /** How many people the approval emails. */
+  emailed: number;
+};
+
+/**
  * Write what `readLineCorrection` worked out, in the same transaction. The
  * session's note may change beside it on the admin's lane (`notes`); its row
  * never holds the note's words.
@@ -176,16 +195,19 @@ export function writeLineCorrection(
     /** A changed session note: "rewritten" or "cleared". Null when it did not change. */
     notes: { value: string } | null;
     now: Date;
+    /** Made by approving a request to be excused: see `ApprovalCorrection`. */
+    approval?: ApprovalCorrection;
   },
 ): number {
   const { ref, register, moved, mirror } = plan;
-  const { actor, session, now } = input;
+  const { actor, session, now, approval } = input;
+  const how = approval ? "approval" : "correction";
   let logged = 0;
 
   if (moved.length > 0 || input.notes) {
     const records: Record<string, AttendanceStatus | FieldValue> = {};
     const where: Record<string, boolean | FieldValue> = {};
-    const stamps: Record<string, { byUid: string; at: Date; how: "correction" } | FieldValue> = {};
+    const stamps: Record<string, { byUid: string; at: Date; how: "correction" | "approval" } | FieldValue> = {};
     const corrected: Record<string, { at: Date; byUid: string } | FieldValue> = {};
     for (const line of moved) {
       const { uid, after } = line;
@@ -193,7 +215,7 @@ export function writeLineCorrection(
       if (cameBy(after.mark)) where[uid] = after.online;
       else if (Object.hasOwn(register.online, uid)) where[uid] = FieldValue.delete();
       if (after.mark !== null) {
-        stamps[uid] = { byUid: actor.uid, at: now, how: "correction" };
+        stamps[uid] = { byUid: actor.uid, at: now, how };
         corrected[uid] = { at: now, byUid: actor.uid };
       } else {
         // A cleared line is no line: it loses its stamps, as a cleared line
@@ -223,6 +245,8 @@ export function writeLineCorrection(
     tx.set(write.ref, { attendance: write.rollup }, { merge: true });
   }
 
+  // The request a row came from: an approval's own, or the asked correction's.
+  const requestId = approval?.requestId ?? input.asked?.requestId ?? null;
   // ONE HISTORY ROW PER LINE MOVED, with what it said before and after.
   for (const line of moved) {
     tx.set(db.collection(COURSE_AUDIT_COLLECTION).doc(), {
@@ -231,25 +255,28 @@ export function writeLineCorrection(
         run: input.run,
         group: input.group,
         actor,
-        detail: lineCorrectedDetail({
-          weekNumber: session.weekNumber,
-          occurrence: session.occurrence,
-          name: input.names.get(line.uid) ?? "NAISI member",
-          from: wordsOf(line.before),
-          to: wordsOf(line.after),
-          reason: input.reason,
-          asked: input.asked ? { firstName: input.asked.firstName, at: input.asked.at } : null,
-          at: now,
-        }),
+        detail: approval
+          ? approval.detail(line)
+          : lineCorrectedDetail({
+              weekNumber: session.weekNumber,
+              occurrence: session.occurrence,
+              name: input.names.get(line.uid) ?? "NAISI member",
+              from: wordsOf(line.before),
+              to: wordsOf(line.after),
+              reason: input.reason,
+              asked: input.asked ? { firstName: input.asked.firstName, at: input.asked.at } : null,
+              at: now,
+            }),
         weekId: session.weekId,
         before: beforeValues(line.before, register.setBy[line.uid]),
         after: afterValues(line.after),
-        reason: input.reason,
-        emailed: 0,
+        // An approval's row carries no reason: the person's is read by admins only.
+        reason: approval ? null : input.reason,
+        emailed: approval ? approval.emailed : 0,
         subjectUid: line.uid,
       }),
       sessionKey: session.sessionKey,
-      ...(input.asked ? { requestId: input.asked.requestId } : {}),
+      ...(requestId ? { requestId } : {}),
     });
     logged += 1;
   }

@@ -190,6 +190,13 @@ const READERS = {
       "Can't make it on a session's ticket: the caller's own seat only, read by their uid and shown to nobody else; " +
       "a seat Publish has not told them about takes no part, so its ticket offers nothing and its press is refused",
   },
+  "lib/courses/excused/ask.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "Asking to be excused from a week: the caller's own seat only, read by their uid; a seat Publish has not told " +
+      "them about takes no part, so its ask is refused as a group they are not in",
+  },
   "lib/courses/joiningOnline/seat.ts": {
     kind: "told",
     asks: 1,
@@ -432,6 +439,22 @@ const READERS = {
       "tab's Group column read each person's group as Publish told it, so a seat Publish has not told them about is " +
       "in no group, and no answer is counted under a group its person has not been told",
   },
+  "lib/courses/excused/page.ts": {
+    kind: "staff",
+    proof: ['if (actor.role !== "admin") return { status: "none" };'],
+    why:
+      "One request to be excused, for admins alone: the person's seat is read by its address only for the week they " +
+      "joined and their answer to the time question, to count how often they were excused; it shows no member a " +
+      "placement and names nobody to a facilitator",
+  },
+  "lib/courses/excused/decide.ts": {
+    kind: "staff",
+    proof: ['if (actor.role !== "admin") return fail(403, "Forbidden");'],
+    why:
+      "Approving a week of a request to be excused, for admins alone: the person's seat is read by its address only " +
+      "to check they still hold an active learner's place in the request's group before a line is written; it shows " +
+      "no member a placement and names nobody to a facilitator",
+  },
   "lib/applications/people/load.ts": {
     kind: "staff",
     proof: ['if (!opensProgrammeGroups(role)) return { status: "not-yours" };'],
@@ -556,12 +579,13 @@ const READERS = {
     kind: "writer",
     proof: [
       'if (seat.role !== "learner" || seat.groupId !== group.id || !placementIsTold(seat)) continue;',
-      "writeTakenBack(tx, { session, ref, data, state }, seat.uid);",
+      "if (writeTakenBack(tx, { session, ref, data, state }, seat.uid)) takenBack += 1;",
     ],
     told: 1,
     why:
       "a new regular time from a week onwards, behind the route's gate (admins, the programme's lead and the run's " +
-      "track leads): each told fellow's \"Most weeks, not all\" ticks on the old time are taken back on the registers, " +
+      "track leads): each told fellow's \"Most weeks, not all\" ticks on the old time are taken back on the registers " +
+      "(never a line an admin's approval of a request to be excused wrote, which the one take-back write leaves alone), " +
       "and a seat Publish has not told is left as it is, since it was never asked. It shows nobody anything",
   },
   "lib/courses/groupFacilitators.ts": {

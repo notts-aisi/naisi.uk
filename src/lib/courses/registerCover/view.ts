@@ -154,6 +154,13 @@ export async function registerCoverExtras(
     const lines: Record<string, LineSetterView> = {};
     for (const [uid, entry] of Object.entries(register.setBy)) {
       if (!rows.has(uid)) continue;
+      // A line an approval of a request to be excused set: who approved it,
+      // and when, are an admin's to read. Anybody else is told only that an
+      // approved request set it.
+      if (entry.how === "approval" && !viewer.isAdmin) {
+        lines[uid] = { name: "", at: "", how: "approval", yours: false };
+        continue;
+      }
       lines[uid] = { name: nameOf(entry.byUid), at: entry.at.toISOString(), how: entry.how, yours: entry.byUid === viewer.uid };
     }
     if (Object.keys(lines).length > 0) out.setBy[key] = lines;

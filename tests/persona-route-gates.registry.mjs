@@ -2028,6 +2028,11 @@ export const ROUTES = {
         // else gave (tests/course-register-corrections.test.mjs).
         "corrections",
         "requests",
+        // Requests to be excused, per session and person: one of two facts,
+        // waiting or excused, for everybody who reads the register. Never the
+        // reason, the reply or how often (tests/course-excused-weeks.test.mjs
+        // holds what each reader is sent).
+        "excuseRequests",
       ],
       why:
         "The register gate (gateGroupRegisterRead) collapses missing, archived and not-yours onto " +
@@ -2126,6 +2131,61 @@ export const ROUTES = {
         "Withdrawing a request: view-as first, then the request is read; only the person who asked withdraws it, " +
         "and a missing request is one 403 for everybody but an admin, who is told it is missing. Its answer is " +
         "{ ok, status }.",
+    },
+  },
+  "/api/courses/groups/[groupId]/excused": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Asking to be excused from sessions of your own group: view-as is refused first, then the session, then " +
+        "the address and the body (the sessions, a reason and what they confirmed) are checked before anything is read, so every " +
+        "signed-in persona meets the same 400 on an empty one. The caller's own place is read once a whole body " +
+        "arrives. Its answer is { ok, request }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/excused/withdraw": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Withdrawing a request to be excused: view-as first, then the request is read; only the person who asked " +
+        "withdraws it, and a missing request is one 403 for everybody but an admin, who is told it is missing. Its " +
+        "answer is { ok, status, weeks }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/excused/approve": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Approving a week of a request to be excused: view-as first, then anybody but an admin is one 403 before " +
+        "anything is read, and an admin is told a missing request is missing, before the body is read. Its answer " +
+        "is { ok, status, week, logged, emailed }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/excused/decline": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Declining a week of a request to be excused: view-as first, then anybody but an admin is one 403 before " +
+        "anything is read, and an admin is told a missing request is missing, before the reply is checked. Its " +
+        "answer is { ok, status, week, emailed }.",
+    },
+  },
+  "/api/courses/requests/emails": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "An admin's own switch for the email about new requests to be excused: view-as first, then anybody but an " +
+        "admin is one 403 before anything is read, and an admin is told a body that is not on or off is not one. " +
+        "It writes the caller's own user document alone. Its answer is { ok, on }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/excused/reply": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Replying to a request to be excused without deciding it: view-as first, then anybody but an admin is one " +
+        "403 before anything is read, and an admin is told a missing request is missing, before the reply is " +
+        "checked. Its answer is { ok, status, replied, emailed }.",
     },
   },
   "/api/courses/groups/[groupId]/cant-make-it": {
@@ -4519,7 +4579,8 @@ export const PAGES = {
     why:
       "One request's page, under the Requests page in the admissions tree: the tree's gate, then the loader's " +
       "(loadRequestPage, an admin or somebody leading the programme of the request's group, asked through the group's " +
-      "register gate). The address names no request the world writes, so everybody the tree admits is drawn the same " +
+      "register gate; and for a request to be excused loadExcusedRequestPage, an admin's alone, so a lead is drawn the " +
+      "same not-here). The address names no request the world writes, so everybody the tree admits is drawn the same " +
       "calm 'that request isn't here' with a 200, never told whether one exists; everybody else is sent to the dashboard.",
   },
   "/(app)/admin/admissions/forms": {
@@ -6297,13 +6358,39 @@ export const REAL_ROUTES = {
       },
     },
   },
+  "/api/courses/groups/[groupId]/excused": {
+    POST: {
+      realDrive: {
+        body: { sessionKeys: ["w01"], reason: "A test of who may ask." },
+        why:
+          "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the " +
+          "refused are sent it: nobody with a told place in the group, and a facilitator of it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No place in this group: there is no session of it for them to ask about."),
+        admin: c(404, "An admin holds no place in this group, so has no session of it to ask about."),
+      },
+      theirs: {
+        lead: c(404, "Leading the programme gives no place in the group: answered as a group they are not in."),
+        facilitator: c(
+          403,
+          "Holds a told place in this group but facilitates it, so keeps the instant Can't make it and is told so " +
+            "before anything is written.",
+        ),
+        participant: c(404, "Holds a place in the run's other group: answered as a group they are not in."),
+      },
+    },
+  },
   "/api/courses/groups/[groupId]/cant-make-it": {
     POST: {
       realDrive: {
         body: { sessionKey: "w01", cantMakeIt: true },
         why:
           "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the " +
-          "refused (nobody with a told seat in the group) are sent it.",
+          "refused (nobody with a told seat in the group) are sent it. Saying it on the spot is a facilitator's " +
+          "only now: somebody holding a place they do not facilitate meets a 403 telling them to ask to be " +
+          "excused instead (tests/course-session-cant-make-it.test.mjs); no persona here is one.",
       },
       another: {
         anonymous: c(401, NO_SESSION),

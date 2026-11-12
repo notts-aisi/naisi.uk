@@ -247,6 +247,9 @@ const STYLESHEETS = [
   // Home's last week and the programme page once it is over draw the survey
   // at the end with the survey cards' own stylesheet.
   "./SurveyCards.module.css",
+  // The programme page's ticket, last session card and own requests about
+  // being excused draw with their own stylesheet.
+  "./Excuse.module.css",
 ];
 
 /** A component stood in by its name and nothing else: the words around it are what a suite reads. */

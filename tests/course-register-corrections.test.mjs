@@ -39,6 +39,7 @@ import { readFileSync } from "node:fs";
 import { FIELD_VALUE_STUB } from "./lib/applicationsStore.mjs";
 import { loadJoin, makeWorld } from "./lib/handoverWorld.mjs";
 import { A, B, C, RUN, leadSeed } from "./lib/leadWorld.mjs";
+import { pressedBefore } from "./lib/saidBefore.mjs";
 
 const FIRESTORE = FIELD_VALUE_STUB.replace(
   "export class Timestamp {}",
@@ -496,8 +497,8 @@ describe("2. asking for a correction, and deciding it", () => {
     assert.deepEqual(await both(), { zach: [1, 1], claudia: [0, 0], yusuf: [0, 0] });
     // The head asks with its reader, and the list and the count ask one predicate.
     const layout = sourceOf("app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/layout.tsx");
-    assert.match(layout, /await requestsWaitingOnRun\(db, user, programme\.runId\)/);
-    assert.match(sourceOf("lib/courses/requests/home.ts"), /return waiting\.filter\(\(each\) => requestShownTo\(user, groups\.get\(each\.groupId\), runId\)\)\.length;/);
+    assert.match(layout, /await requestsWaitingOnRun\(db, user, programme\.runId, \{ excused: role === "admin" \}\)/);
+    assert.match(sourceOf("lib/courses/requests/home.ts"), /return waiting\.filter\(\(each\) => requestShownTo\(user, groups\.get\(each\.groupId\), runId\)\)\.length \+ excused;/);
     assert.match(sourceOf("lib/courses/requests/load.ts"), /requests = requests\.filter\(\(each\) => requestShownTo\(actor, ctx\.groups\.get\(each\.groupId\), each\.runId\)\);/);
   });
 
@@ -652,7 +653,7 @@ describe("3. correcting the whole column", () => {
   test("it did happen starts from each line: somebody who said in advance they couldn't make it stays Excused, and is not counted absent", async () => {
     // Dev tells us before week 2 that he can't make it; Rahul takes week 2's register and finishes it.
     at("2026-11-09T10:00:00Z");
-    const said = await call("dev", cantMakeIt.POST, { groupId: B }, { body: { sessionKey: "w02", cantMakeIt: true } });
+    const said = await pressedBefore(world.db, B, "dev", () => call("dev", cantMakeIt.POST, { groupId: B }, { body: { sessionKey: "w02", cantMakeIt: true } }));
     assert.equal(said.status, 200, JSON.stringify(said.body));
     at("2026-11-10T18:20:00Z");
     assert.equal((await mark("rahul", [{ uid: "amara", status: "present" }], { weekNumber: 2 })).status, 200);
@@ -1000,7 +1001,7 @@ describe("3. correcting the whole column", () => {
 
   test("a move that writes over somebody's own word on the other session keeps what it said in the history row", async () => {
     at("2026-11-09T10:00:00Z");
-    const said = await call("dev", cantMakeIt.POST, { groupId: B }, { body: { sessionKey: "w02", cantMakeIt: true } });
+    const said = await pressedBefore(world.db, B, "dev", () => call("dev", cantMakeIt.POST, { groupId: B }, { body: { sessionKey: "w02", cantMakeIt: true } }));
     assert.equal(said.status, 200, JSON.stringify(said.body));
     at(LATER);
     assert.deepEqual(stored(W2).records, { dev: "excused" });

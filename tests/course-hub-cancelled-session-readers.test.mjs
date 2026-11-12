@@ -227,6 +227,22 @@ const READERS = {
       "asked as Can't make it asks it (`cantMakeItState`): a session called off, or a register that says its session " +
       "did not happen, is closed, so nothing is taken back from a session that is not happening",
   },
+  "lib/courses/excused/ask.ts": {
+    kind: "asks",
+    proof: ["cancelled: session.cancelled,", "notHeld: !register.held,"],
+    why:
+      "Asking to be excused: a session called off is closed before its register's switch is asked (`askState` " +
+      "answers cancelled first), so nobody asks about a session that is not happening, and a register that says its " +
+      "session did not happen closes it too",
+  },
+  "lib/courses/excused/page.ts": {
+    kind: "asks",
+    proof: ["cancelled: !session || session.cancelled,", "notHeld: register ? !register.held : false"],
+    why:
+      "One request to be excused, for admins: what approving a week will do asks whether its session was called off " +
+      "before the register's own switch (`approvalPlan` answers not held first), so approving a cancelled session " +
+      "is never said to write a line",
+  },
   "lib/courses/cantMakeIt/seat.ts": {
     kind: "asks",
     proof: ["cancelled: session.cancelled, line, now", "notHeld: !register.held,"],

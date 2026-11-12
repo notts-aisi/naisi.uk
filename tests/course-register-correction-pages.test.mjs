@@ -538,7 +538,8 @@ describe("3. the wiring", () => {
     assert.match(home, /canAuthorAdmissionRound\(user\) \|\| \(user\.admissionsReviewer === true && holdsStanding\(user, "admissionRounds\.reviewerUids"\)\)/);
     const gate = read("src/lib/firebase/pageGates.ts");
     assert.match(gate, /canAuthorAdmissionRound\(user\) \|\| namedReviewer/, "the tree's gate changed: Home's predicate must follow it");
-    assert.match(read("src/app/(app)/dashboard/page.tsx"), /user && db && !viewingAs \? requestsWaitingFor\(db, user, now\) : 0,/);
+    assert.match(read("src/app/(app)/dashboard/page.tsx"), /user && db && !viewingAs \? requestsWaitingFor\(db, user, now\) : NO_REQUESTS_WAITING,/);
+    assert.match(read("src/lib/courses/requests/home.ts"), /export const NO_REQUESTS_WAITING: RequestsWaiting = \{ count: 0, excused: 0 \};/);
     const nav = read("src/layout/appNav.ts");
     assert.match(nav, /\{ label: "Requests", href: "\/admin\/admissions\/requests", match: under\("\/admin\/admissions\/requests"\), visible: ADMISSIONS, ownHead: true \}/);
   });

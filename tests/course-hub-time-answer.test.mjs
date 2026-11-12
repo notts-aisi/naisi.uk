@@ -88,6 +88,7 @@ import {
   textOf,
 } from "./lib/leavingWorld.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
+import { pressedBefore } from "./lib/saidBefore.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
@@ -155,9 +156,15 @@ const offerFor = (who, uid, options = {}) =>
 /** "They meant some weeks" saved for `uid`, as `who`. */
 const someWeeks = (who, uid, body, options = {}) =>
   call(who, someWeeksRoute.POST, { runId: options.runId ?? RUN.agi, uid }, { body, course: true, viewAs: options.viewAs });
-/** The ticket's "Can't make it" (or, with false, "I can make it after all"). */
-const ticket = (who, sessionKey, cantMakeIt = true, groupId = A) =>
-  call(who, ticketRoute.POST, { groupId }, { body: { sessionKey, cantMakeIt }, course: true });
+/**
+ * The ticket's "Can't make it" as an old page pressed it (saying it on the
+ * spot is a facilitator's only now, `tests/lib/saidBefore.mjs`), or, with
+ * false, "I can make it after all", which stays everybody's.
+ */
+const ticket = (who, sessionKey, cantMakeIt = true, groupId = A) => {
+  const press = () => call(who, ticketRoute.POST, { groupId }, { body: { sessionKey, cantMakeIt }, course: true });
+  return cantMakeIt ? pressedBefore(world.db, groupId, who, press) : press();
+};
 
 /** A group's campus, from the Groups tab. */
 const setCampus = (who, groupId, value, options = {}) =>
@@ -369,7 +376,8 @@ describe("9. most weeks, not all: each session ticked is recorded as excused on 
   });
 
   test("sent again, the registers follow the ticks: one unticked is taken back, and none ticked takes back every one", async () => {
-    assert.equal((await answer("amara", MOST("w05"))).status, 200);
+    // Ticked in the first answer; later answers only take ticks off.
+    assert.equal((await answer("amara", MOST("w04", "w05", "w06"))).status, 200);
     const again = await answer("amara", MOST("w06", "w04"));
     assert.equal(again.status, 200, JSON.stringify(again.body));
     assert.deepEqual(again.body.answer.sessionKeys, ["w04", "w06"]);
@@ -480,6 +488,69 @@ describe("9. most weeks, not all: each session ticked is recorded as excused on 
 // 3. The card on the programme page, and the campus at its head
 // ---------------------------------------------------------------------------
 
+describe("9b. weeks are ticked while the question is asked, and only taken off after", () => {
+  const LATER = `Thu 3 Dec: ${words.ANSWER_REFUSAL.addLater}`;
+
+  test("the first answer ticks what it likes; a later answer that adds a week is refused in one sentence, and nothing is written", async () => {
+    const first = await answer("amara", MOST("w05"));
+    assert.equal(first.status, 200, JSON.stringify(first.body));
+    assert.deepEqual(toldOn(5), ["amara"], "the first answer's tick is not written");
+    const before = w.everything();
+    const added = await answer("amara", MOST("w05", "w06"));
+    assert.deepEqual(short(added), [409, LATER]);
+    assert.equal(w.everything(), before, "a refused answer wrote something");
+    assert.deepEqual(toldOn(6), []);
+    assert.equal(
+      words.ANSWER_REFUSAL.addLater,
+      "You’ve answered this already, so no week can be added here. To miss another week, press Can’t make it on your next session’s card and ask to be excused.",
+    );
+    // From a yes or a different time, too: changing the answer is open, adding a week is not.
+    assert.equal((await answer("amara", YES)).status, 200);
+    assert.deepEqual(short(await answer("amara", MOST("w06"))), [409, LATER]);
+    // Most weeks with nothing more ticked, and unticking, are as before.
+    assert.equal((await answer("amara", MOST("w05"))).status, 200);
+    const off = await answer("amara", MOST());
+    assert.equal(off.status, 200);
+    assert.deepEqual(toldOn(5), [], "unticking did not take it back");
+    assert.deepEqual(short(await answer("amara", MOST("w05"))), [409, "Thu 26 Nov: " + words.ANSWER_REFUSAL.addLater], "a week taken off came back on");
+  });
+
+  test("somebody who answered before this rule existed has answered: they untick, and ask for anything new", async () => {
+    // An answer stored with no ticks and a moment before any asking moved: current, so answered.
+    world.db.poke(enrolmentPath("amara"), {
+      timeAnswer: { kind: "yes", reason: null, alternatives: null, forGroupId: A, at: new Date("2026-10-30T09:00:00Z") },
+    });
+    assert.deepEqual(short(await answer("amara", MOST("w06"))), [409, LATER]);
+  });
+
+  test("asked again after a new regular time: weeks may be ticked once more, then only taken off", async () => {
+    assert.equal((await answer("amara", MOST("w05"))).status, 200);
+    assert.equal((await answer("amara", MOST("w05", "w06"))).status, 409);
+    // The group's regular time changed: the question is asked again from then.
+    world.db.poke(`courseGroups/${A}`, { timeQuestionSince: new Date(NOW.getTime() + 60_000) });
+    mock.timers.setTime(NOW.getTime() + 120_000);
+    const again = await answer("amara", MOST("w05", "w06"));
+    assert.equal(again.status, 200, JSON.stringify(again.body));
+    assert.deepEqual([toldOn(5), toldOn(6)], [["amara"], ["amara"]]);
+    // Answered again: closed again.
+    assert.deepEqual(short(await answer("amara", MOST("w04", "w05", "w06"))), [409, `Thu 19 Nov: ${words.ANSWER_REFUSAL.addLater}`]);
+  });
+
+  test("the card offers every session to tick while it is asked, and only the ticked ones, to untick, once answered", () => {
+    const sessions = [
+      { sessionKey: "w04", weekNumber: 4, day: "Thu 19 Nov", told: false },
+      { sessionKey: "w05", weekNumber: 5, day: "Thu 26 Nov", told: true },
+    ];
+    assert.deepEqual(model.ticksOffered(sessions, false).map((each) => each.sessionKey), ["w04", "w05"]);
+    assert.deepEqual(model.ticksOffered(sessions, true).map((each) => each.sessionKey), ["w05"]);
+    assert.equal(words.UNTICK_ONLY, "You can untick a week here. To miss another week, press Can’t make it on your next session’s card and ask to be excused.");
+    const card = readFileSync(join(REPO_ROOT, "src/features/courses/timeAnswer/TimeAnswerCard.tsx"), "utf8");
+    assert.match(card, /const untickOnly = answer !== null;\s*const offered = ticksOffered\(sessions, untickOnly\);/);
+    assert.match(card, /\{untickOnly \? UNTICK_ONLY : sessions\.length > 0 \? MOST_WEEKS_INTRO : NONE_TO_TICK\}/);
+    assert.match(card, /\{offered\.map\(\(each\) => \(/);
+  });
+});
+
 describe("3. the card on the programme page", () => {
   const home = (who) => w.draw(w.pages.home, who, { runId: RUN.agi });
 
@@ -571,6 +642,24 @@ describe("3. the card on the programme page", () => {
 
   test("once answered, the card says what they said, and offers to change it", async () => {
     w.ui.hydrated = true;
+    // Most weeks, not all, in the first answer: the sessions still to come
+    // they can't make, by day, and where that is recorded.
+    await answer("amara", MOST("w05", "w06"));
+    const most = await runHome("amara");
+    assert.match(
+      most.text,
+      /Group A meets Thursdays, 6pm to 8pm\. You’ve told us you can make it most weeks\. You can’t make Thu 26 Nov or Thu 3 Dec, and whoever runs your sessions knows\. Change your answer/,
+    );
+    assert.ok(!most.text.includes(WHY));
+    // One unticked: one day.
+    assert.equal((await answer("amara", MOST("w05"))).status, 200);
+    assert.match(
+      (await runHome("amara")).text,
+      /You’ve told us you can make it most weeks\. You can’t make Thu 26 Nov, and whoever runs your sessions knows\. Change your answer/,
+    );
+    // None ticked: most weeks, and nothing more.
+    await answer("amara", MOST());
+    assert.match((await runHome("amara")).text, /You’ve told us you can make it most weeks\. Change your answer/);
     await answer("amara", CANT);
     const cant = await runHome("amara");
     assert.match(
@@ -588,22 +677,6 @@ describe("3. the card on the programme page", () => {
     const yes = await runHome("amara");
     assert.match(yes.text, /Group A meets Thursdays, 6pm to 8pm\. You’ve told us you can make it\. Change your answer/);
     assert.ok(!yes.text.includes(WHY));
-    // Most weeks, not all: the sessions still to come they can't make, by day, and where that is recorded.
-    await answer("amara", MOST("w05", "w06"));
-    const most = await runHome("amara");
-    assert.match(
-      most.text,
-      /Group A meets Thursdays, 6pm to 8pm\. You’ve told us you can make it most weeks\. You can’t make Thu 26 Nov or Thu 3 Dec, and whoever runs your sessions knows\. Change your answer/,
-    );
-    assert.ok(!most.text.includes(WHY));
-    await answer("amara", MOST("w04"));
-    assert.match(
-      (await runHome("amara")).text,
-      /You’ve told us you can make it most weeks\. You can’t make Thu 19 Nov, and whoever runs your sessions knows\. Change your answer/,
-    );
-    // None ticked: most weeks, and nothing more.
-    await answer("amara", MOST());
-    assert.match((await runHome("amara")).text, /You’ve told us you can make it most weeks\. Change your answer/);
   });
 
   test("an answer staff read as most weeks says so on their card, with the words they wrote", async () => {
@@ -980,6 +1053,14 @@ describe("6. the person, the programme's lead and admins read it; nobody else do
     [
       "lib/courses/cantMakeIt/seat.ts",
       "the ticket's Can't make it keeps a most weeks answer's list of sessions in step with the register, on the caller's own seat, and changes no other answer",
+    ],
+    [
+      "lib/courses/excused/own.ts",
+      "the person's own excused weeks, by their own uid: a session they ticked under most weeks reads as said when the time was set, through the stale-answer rule, and nothing is counted",
+    ],
+    [
+      "lib/courses/excused/page.ts",
+      "one request to be excused, an admin's alone: the sessions ticked under most weeks, counted apart from approved weeks and earlier lines, through the stale-answer rule",
     ],
     ["features/courses/timeAnswer/TimeAnswerCard.tsx", "the person's own card, drawing what they said"],
     ["features/courses/RunHome.tsx", "hands the person's own card what the server page worked out"],

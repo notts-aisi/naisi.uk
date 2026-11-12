@@ -74,6 +74,15 @@ const READS_WITHOUT_A_LIST = new Map([
     },
   ],
   [
+    "src/lib/courses/excused/ask.ts",
+    {
+      why:
+        "Asking to be excused reads the run's groups only for when the programme closes (`workClosesAt`, from the last " +
+        "session any live group holds), one moment, never a list of groups on any page; the excused weeks' clean-up " +
+        "job asks the same function.",
+    },
+  ],
+  [
     "src/lib/courses/feedback/send.ts",
     {
       why:

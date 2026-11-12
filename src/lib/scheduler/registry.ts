@@ -42,6 +42,7 @@ import { applicationPlaceConfirmationsJob } from "./jobs/applicationPlaceConfirm
 import { eventAnnouncementsJob } from "./jobs/eventAnnouncements";
 import { eventCheckInsTidyJob } from "./jobs/eventCheckInsTidy";
 import { eventSurveysJob } from "./jobs/eventSurveys";
+import { excusedReasonsOffJob } from "./jobs/excusedReasonsOff";
 import { heartbeatJob } from "./jobs/heartbeat";
 import { nextWeekEmailJob } from "./jobs/nextWeekEmail";
 import { registerRemindersJob } from "./jobs/registerReminders";
@@ -82,6 +83,10 @@ export const SCHEDULER_JOB_IDS = [
   "application-place-confirmations",
   "courses-unmarked-registers",
   "courses-break-return",
+  // The reason on a request to be excused from a session, deleted once the
+  // programme closes (`src/lib/courses/excused/tidy.ts`). It emails nobody,
+  // so it registers on: the privacy policy's promise rests on it running.
+  "courses-excused-reasons-off",
   // "Week N is open" on a schedule, 6 days before each session.
   // The id is the one it shipped with as next week's email. Its
   // switch is load-bearing in two places: the tick runs it, and the
@@ -281,6 +286,7 @@ export const JOBS: readonly JobRegistration[] = [
   anonymousFeedbackMoveJob,
   applicationInvitationRemindersJob,
   applicationPlaceConfirmationsJob,
+  excusedReasonsOffJob,
   nextWeekEmailJob,
   registerRemindersJob,
   unmarkedRegistersJob,

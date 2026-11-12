@@ -10,6 +10,7 @@ import MemberName from "@/components/ui/MemberName";
 import Modal from "@/components/ui/Modal";
 import Skeleton from "@/components/ui/Skeleton";
 import { TOLD_IN_ADVANCE, registerCantMakeItLine } from "@/lib/courses/cantMakeIt/words";
+import * as S from "@/lib/courses/excused/staffWords";
 import { JOINED_ONLINE, ONLINE_WORD, SAID_ONLINE_IN_ADVANCE, whereChoiceLabel } from "@/lib/courses/joiningOnline/words";
 import { londonClockLabel } from "@/lib/courses/londonLabels";
 import {
@@ -95,6 +96,16 @@ import useAttendance, {
  * session is a column yet; and beside the mark, to a screen reader, that
  * the excused mark was their own word. A facilitator who taps the cell takes
  * the mark over, and the line goes with it.
+ *
+ * ── ASKED TO BE EXCUSED ─────────────────────────────────────────────────────
+ * Somebody taking part may ask an admin to excuse them from a session. The
+ * register is sent one of two facts per person per session and nothing
+ * else (`excuseRequests`): "Asked to be excused, waiting" or "Excused".
+ * Never the reason, the reply or how often. A cell carries its fact under
+ * the mark; a session still to come lists who has asked over the table. A
+ * waiting request never holds a register up: the line is marked as any
+ * other, and the facilitator's own mark wins over an approval (they came
+ * after all, and that counts).
  *
  * ── IN THE ROOM OR ONLINE ───────────────────────────────────────────────────
  * Beside every cell marked present, late or left early, the register keeps
@@ -236,6 +247,7 @@ const NO_SET_BY: ReturnType<typeof useAttendance>["setBy"] = {};
 const NO_COVERS: ReturnType<typeof useAttendance>["covers"] = {};
 const NO_FACILITATORS: ReturnType<typeof useAttendance>["facilitators"] = [];
 const NO_CORRECTIONS: ReturnType<typeof useAttendance>["corrections"] = {};
+const NO_EXCUSE_FACTS: ReturnType<typeof useAttendance>["excuseRequests"] = {};
 const NO_REQUESTS: ReturnType<typeof useAttendance>["requests"] = {};
 
 const STATUS_CLASS: Record<AttendanceStatus, string> = {
@@ -425,6 +437,7 @@ export default function AttendanceGrid({
     caller: givenCaller,
     corrections: givenCorrections,
     requests: givenRequests,
+    excuseRequests: givenExcuseRequests,
     loading,
     error,
     reload,
@@ -447,6 +460,8 @@ export default function AttendanceGrid({
   // Corrected lines and the asks about lines: none from a payload that did not send them.
   const corrections = givenCorrections ?? NO_CORRECTIONS;
   const requests = givenRequests ?? NO_REQUESTS;
+  // Requests to be excused, as one of two facts: none from a payload that did not send them.
+  const excuseFacts = givenExcuseRequests ?? NO_EXCUSE_FACTS;
   // WHO DOES WHAT ON A FINISHED REGISTER. Admins and the people leading the
   // programme correct it, a line or a whole column, with a reason. A
   // facilitator of the group asks for a correction from the line. Nobody
@@ -858,10 +873,24 @@ export default function AttendanceGrid({
       const names = members
         .filter((member) => entry.uids.includes(member.uid))
         .filter((member) => !columnKeys.has(entry.sessionKey) || toldUs(entry.sessionKey, member.uid))
+        // Excused by an approved request: the list of who asked says so.
+        .filter((member) => !excuseFacts[entry.sessionKey]?.[member.uid])
         .map((member) => member.displayName);
       return { key: entry.sessionKey, words: names.length > 0 ? registerCantMakeItLine(dateLabel(entry.dateKey), names) : "" };
     })
     .filter((line) => line.words !== "");
+
+  // Who has asked to be excused from a session still to come (not a column
+  // yet): one row each, with the one fact, soonest first.
+  const excuseRows = Object.keys(excuseFacts)
+    .filter((key) => !columnKeys.has(key))
+    .sort()
+    .flatMap((key) =>
+      members
+        .filter((member) => excuseFacts[key]?.[member.uid])
+        .map((member) => ({ key: `${key}-${member.uid}`, label: S.excuseRowWords(key, member.displayName), fact: excuseFacts[key][member.uid] })),
+    );
+  const anyWaitingAhead = excuseRows.some((row) => row.fact === "waiting");
 
   const pushTally = pushSession
     ? (tallies.get(pushSession.sessionKey) ?? { marked: 0, eligible: 0 })
@@ -1014,6 +1043,23 @@ export default function AttendanceGrid({
               {line.words}
             </p>
           ))}
+        </div>
+      )}
+
+      {/* Who has asked to be excused from a session still to come: one of
+          two facts each, never why. */}
+      {excuseRows.length > 0 && (
+        <div className={styles.cantMakeIt} data-testid="attendance-excuse-list">
+          <p className={styles.cantMakeItLine}>{S.ASKED_TITLE}</p>
+          <ul className={styles.excuseList} role="list">
+            {excuseRows.map((row) => (
+              <li key={row.key} className={styles.excuseRow}>
+                <span>{row.label}</span>
+                <span className={`${styles.lineChip} ${row.fact === "waiting" ? styles.lineChipWaiting : ""}`}>{S.factWords(row.fact)}</span>
+              </li>
+            ))}
+          </ul>
+          {anyWaitingAhead && <p className={styles.excuseNote}>{S.IF_APPROVED}</p>}
         </div>
       )}
 
@@ -1261,9 +1307,21 @@ export default function AttendanceGrid({
                   // before lines were stamped says nothing here.
                   const stamp = setBy[session.sessionKey]?.[member.uid] ?? null;
                   const stampWords = stamp ? setByWords(stamp) : "";
-                  const besides = `${toldUs(session.sessionKey, member.uid) ? ` ${TOLD_IN_ADVANCE}` : ""}${
+                  // A request to be excused: one of two facts, never why. An
+                  // approved one beside a mark that says they came: their
+                  // facilitator's entry counts.
+                  const excuse = excuseFacts[session.sessionKey]?.[member.uid] ?? null;
+                  const cameAnyway = excuse === "excused" && came && status !== null;
+                  const excuseNote = cameAnyway && status
+                    ? S.cameAfterAllWords(member.displayName.split(" ")[0] ?? "", status, isOnline)
+                    : excuse === "waiting" && !finished
+                      ? S.IF_APPROVED
+                      : "";
+                  const besides = `${toldUs(session.sessionKey, member.uid) && !excuse ? ` ${TOLD_IN_ADVANCE}` : ""}${
                     isOnline ? ` ${JOINED_ONLINE}` : ""
-                  }${said && !came ? ` ${SAID_ONLINE_IN_ADVANCE}` : ""}`;
+                  }${said && !came ? ` ${SAID_ONLINE_IN_ADVANCE}` : ""}${excuse ? ` ${S.factForScreenReader(excuse)}` : ""}${
+                    excuseNote ? ` ${excuseNote}` : ""
+                  }`;
                   return (
                     <td key={key} className={styles.cell}>
                       <div className={styles.cellStack}>
@@ -1378,6 +1436,15 @@ export default function AttendanceGrid({
                       {chip && (
                         <span className={`${styles.lineChip} ${chip === P.ASKED ? styles.lineChipWaiting : ""}`} data-testid="attendance-line-chip">
                           {chip}
+                        </span>
+                      )}
+                      {excuse && (
+                        <span
+                          className={`${styles.lineChip} ${excuse === "waiting" ? styles.lineChipWaiting : ""}`}
+                          data-testid="attendance-excuse-chip"
+                          title={excuseNote || undefined}
+                        >
+                          {S.factWords(excuse)}
                         </span>
                       )}
                     </td>

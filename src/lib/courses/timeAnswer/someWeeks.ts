@@ -9,6 +9,7 @@ import {
   writeExcusedInAdvance,
   type SessionLine,
 } from "@/lib/courses/cantMakeIt/seat";
+import { excuseHoldsIn } from "@/lib/courses/excused/standing";
 import { resolveSessions } from "@/lib/courses/sessions";
 import type { SessionUser } from "@/lib/firebase/session";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
@@ -43,6 +44,11 @@ import { CARD_TITLE, SOME_WEEKS_REFUSAL, sessionRefusalWords, someWeeksAuditDeta
  * (`src/lib/courses/cantMakeIt/seat.ts`), dated when they gave the answer;
  * and one `courseAudit` row says who did it, to whom, and which sessions,
  * without the person's words. Nobody is emailed.
+ *
+ * NOR A SESSION AN ADMIN HAS A REQUEST ABOUT. A session whose request to be
+ * excused waits, or was declined, is an admin's to decide (`excuseHoldsIn`,
+ * as the person's own two doors ask it): ticking it here would excuse them
+ * past a decision staff cannot make, so the press is refused.
  *
  * WHAT IT NEVER DOES. It adds and never takes away: a session the person
  * already told us about is kept, and listed; nothing they said themselves is
@@ -167,6 +173,7 @@ export async function recordSomeWeeks(
     if (!input.sessionKeys.every((key) => known.has(key))) return refuse(400, SOME_WEEKS_REFUSAL.noSession);
     const lines = await readSessionLines(tx, db, { run, group, uid: seat.uid, sessions, now: input.now });
     const chosen = new Set(input.sessionKeys);
+    const holdOf = chosen.size > 0 ? await excuseHoldsIn(tx, db, seat.uid, run.id) : () => null;
 
     // Everything decided before anything is written.
     for (const line of lines) {
@@ -174,6 +181,9 @@ export async function recordSomeWeeks(
       const day = sessionDay(line.session);
       if (line.state.kind === "closed") return refuse(409, sessionRefusalWords(day, CLOSED_FOR_STAFF[line.state.why]));
       if (line.state.kind === "marked") return refuse(409, sessionRefusalWords(day, SOME_WEEKS_REFUSAL.marked));
+      if (line.state.kind === "open" && holdOf(line.session.sessionKey) !== null) {
+        return refuse(409, sessionRefusalWords(day, SOME_WEEKS_REFUSAL.withAnAdmin));
+      }
       if (line.state.kind === "open" && !registerHasRoom(line)) return refuse(409, sessionRefusalWords(day, SOME_WEEKS_REFUSAL.full));
     }
 

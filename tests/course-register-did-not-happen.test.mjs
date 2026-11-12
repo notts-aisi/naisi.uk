@@ -35,6 +35,7 @@
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { GROUP, RUN, jobContext, makeWorld, registerPath, seedWorld } from "./lib/registerWorld.mjs";
+import { pressedBefore } from "./lib/saidBefore.mjs";
 
 const made = makeWorld("__didNotHappen");
 const { world, reset, call, courseRoute, lib, loadTs } = made;
@@ -82,7 +83,7 @@ const sessionsOfB = () => resolveSessions(normalizeCourseRun(RUN, read(`courseRu
 /** Farah said in advance she can't make it; Rahul marked Amara present online and Chloe absent during the session. */
 async function aDraft() {
   at(BEFORE);
-  const said = await call("farah", cantMakeIt.POST, { groupId: GROUP.b }, { body: { sessionKey: "w01", cantMakeIt: true } });
+  const said = await pressedBefore(world.db, GROUP.b, "farah", () => call("farah", cantMakeIt.POST, { groupId: GROUP.b }, { body: { sessionKey: "w01", cantMakeIt: true } }));
   assert.equal(said.status, 200, JSON.stringify(said.body));
   at(DURING);
   const marked = await mark("rahul", [

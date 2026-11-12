@@ -7,6 +7,7 @@ import { slotDays } from "@/lib/courses/sessionChange/model";
 import { updateEmailAudience } from "@/lib/courses/updates/audience";
 import { addDaysToKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { loadGroupHistory } from "@/lib/courses/groupHistory/load";
+import { excuseFactsForGroup, type ExcuseFacts } from "@/lib/courses/excused/facts";
 import { groupWeekWorkView, readGroupWeekWork } from "@/lib/courses/groupWeekWork/load";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { coverIsLive, startedByFacilitator } from "@/lib/courses/registerCover/model";
@@ -198,7 +199,20 @@ export async function loadGroupPage(
       return null;
     });
 
-  const [naming, registerSnaps, weekSnaps, seats, audience, history, withRecords, lead, names, worked] = await Promise.all([
+  // Requests to be excused: one of two facts per person per session, for
+  // the page's staff only (the facilitator's cut lists no people).
+  const excuseRead: Promise<ExcuseFacts> = staff
+    ? seatsRead.then((placed) =>
+        excuseFactsForGroup(db, {
+          runId: run.id,
+          groupId: group.id,
+          uids: new Set(placed.filter((seat) => !facilitatorSet.has(seat.uid)).map((seat) => seat.uid)),
+          sessionKeys: sessions.map((session) => session.sessionKey),
+        }),
+      )
+    : Promise.resolve<ExcuseFacts>({});
+
+  const [naming, registerSnaps, weekSnaps, seats, audience, history, withRecords, lead, names, worked, excuseFacts] = await Promise.all([
     namingRead,
     registerRead,
     weekRefs.length ? db.getAll(...weekRefs) : Promise.resolve([]),
@@ -213,6 +227,7 @@ export async function loadGroupPage(
     namingRead.then((found) => readRunLead(db, run.id, found)),
     namesRead,
     workRead,
+    excuseRead,
   ]);
 
   const fellows = seats.filter((seat) => !facilitatorSet.has(seat.uid));
@@ -280,7 +295,10 @@ export async function loadGroupPage(
       cantMakeIt: staff ? everyone.filter((uid) => cantUids.has(uid)).map(nameOf).filter(Boolean) : [],
       people: staff
         ? fellows
-            .map((seat) => ({ uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: saidOf(seat.uid) }))
+            .map((seat) => {
+              const excuse = excuseFacts[session.sessionKey]?.[seat.uid];
+              return { uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: saidOf(seat.uid), ...(excuse ? { excuse } : {}) };
+            })
             .sort((a, b) => a.name.localeCompare(b.name))
         : [],
       finished: Boolean(stored?.pushedAt),

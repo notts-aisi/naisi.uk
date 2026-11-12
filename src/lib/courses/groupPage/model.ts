@@ -13,6 +13,7 @@
  */
 
 import type { GroupCampus } from "../campus";
+import type { ExcuseFact } from "../excused/words";
 import { londonClockLabel, londonDayLabel } from "../londonLabels";
 import { CAMPUS_LABEL } from "../campusWords";
 import { clockWords, dayWords, hoursWords, namesWords, peopleWords } from "../sessionChange/words";
@@ -69,8 +70,14 @@ export type GroupPageWeek = {
   /** Who said they are joining this session online, and who said they can't make it: names. */
   joiningOnline: string[];
   cantMakeIt: string[];
-  /** The group's people for this session and what each has said. Empty on the facilitator's page. */
-  people: { uid: string; name: string; said: WeekSaid }[];
+  /**
+   * The group's people for this session and what each has said. Empty on
+   * the facilitator's page. `excuse` is a request to be excused for this
+   * session, one of two facts and nothing else (asked and waiting, or
+   * excused by an approved request; `src/lib/courses/excused/facts.ts`), and
+   * absent with none.
+   */
+  people: { uid: string; name: string; said: WeekSaid; excuse?: ExcuseFact }[];
   /** Its register is finished. */
   finished: boolean;
   /** Its register says the session did not happen (the old switch). */

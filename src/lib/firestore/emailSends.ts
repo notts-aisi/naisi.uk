@@ -46,6 +46,11 @@ export type EmailSendKind =
   // left get their confirmation" is a question the deliverability tab has to
   // answer without reading subject lines.
   | "course-enrolment"
+  // A request to be excused has arrived: one email to each admin who decides
+  // them and has not switched it off on the Requests page. Its own kind so
+  // "were the admins told about Tuesday's request" is answerable without
+  // reading subject lines. Its `referenceId` is the RUN id. Never the reason.
+  | "course-request"
   // The "you have feedback" email: an admin's batch tells each person that
   // feedback a facilitator, the programme's lead or an admin saved on their
   // week is on the site, one message a person however many pieces it

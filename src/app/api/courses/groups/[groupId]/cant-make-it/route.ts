@@ -10,7 +10,11 @@ import { getCurrentUser } from "@/lib/firebase/session";
 /**
  * "CAN'T MAKE IT", FOR ONE SESSION: somebody taking part in the group tells
  * us, before a session starts, that they can't make it, from the ticket on
- * their programme page; or takes it back.
+ * their programme page; or takes it back. Saying it is now a facilitator's
+ * only, on their own place in a group they facilitate: anybody else taking
+ * part is refused in one sentence an old open page can show (ask to be
+ * excused from the programme page, where an admin decides). Taking a line
+ * back stays open to everybody who wrote one.
  *
  * The body is `{ sessionKey, cantMakeIt }`: the session, by its register's
  * key ("w03"), and true for "Can't make it", false for "I can make it after

@@ -117,10 +117,13 @@ export function setterHow(facilitates: boolean): LineSetterHow {
  * the session (`self`: "Can't make it", "Joining online") never counts,
  * whoever said it: a facilitator who also holds a place in the group and
  * says they can't make it has not started the register, and is exactly the
- * person somebody may need to cover for.
+ * person somebody may need to cover for. A line an admin's approval of a
+ * request to be excused wrote (`approval`) is the same: it is the person's
+ * own request, decided, and never a facilitator taking the register up,
+ * even when the admin who approved it also facilitates the group.
  */
-function stampStartsIt(entry: { byUid: string; how: LineSetterHow }, facilitators: ReadonlySet<string>): boolean {
-  if (entry.how === "self") return false;
+export function stampStartsIt(entry: { byUid: string; how: LineSetterHow }, facilitators: ReadonlySet<string>): boolean {
+  if (entry.how === "self" || entry.how === "approval") return false;
   return entry.how === "facilitator" || facilitators.has(entry.byUid);
 }
 

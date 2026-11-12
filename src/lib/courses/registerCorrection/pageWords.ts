@@ -165,6 +165,12 @@ export function correctGoesWords(name: string): string {
 export function setByChip(entry: { name: string; at: string; how?: string; yours?: boolean } | null): string {
   if (!entry) return "";
   if (entry.how === "self") return "Set before the session";
+  // An approved request to be excused: its approver and time are an admin's alone.
+  if (entry.how === "approval") {
+    if (!entry.name) return "Set by an approved request";
+    const at = dayAndClock(entry.at);
+    return at ? `Set by ${firstOf(entry.name)}’s approval, ${at}` : `Set by ${firstOf(entry.name)}’s approval`;
+  }
   const who = entry.yours ? "you" : firstOf(entry.name) || "somebody";
   const when = dayAndClock(entry.at);
   return when ? `Set by ${who}, ${when}` : `Set by ${who}`;
@@ -190,9 +196,12 @@ export type RequestView = {
 export type StoryView = {
   kind: "line" | "held-online" | "moved" | "did-happen";
   before: string | null;
-  beforeSetBy: { name: string; at: string } | null;
+  /** `byApproval`: set by an approved request to be excused, named and dated for an admin alone. */
+  beforeSetBy: { name: string; at: string; byApproval?: boolean } | null;
   correctedBy: { name: string };
   correctedAt: string;
+  /** Corrected by an approved request to be excused: who and when are an admin's alone. */
+  byApproval?: boolean;
   reason?: string;
   movedFrom: string | null;
   asked: { name: string; at: string; yours: boolean } | null;
@@ -240,14 +249,28 @@ export function storyWords(story: StoryView, sessionLabelOf: (key: string) => st
   } else if (story.kind === "did-happen") {
     parts.push("Put back when the session was said to have happened.");
   } else if (story.before) {
-    const setBy = story.beforeSetBy ? `, set by ${firstOf(story.beforeSetBy.name) || "somebody"}, ${dayAndClock(story.beforeSetBy.at)}` : "";
+    const by = story.beforeSetBy;
+    const approver = by ? firstOf(by.name) : "";
+    const setBy = !by
+      ? ""
+      : by.byApproval
+        ? approver
+          ? `, set by ${approver}’s approval, ${dayAndClock(by.at)}`
+          : ", set by an approved request to be excused"
+        : `, set by ${approver || "somebody"}, ${dayAndClock(by.at)}`;
     parts.push(`Was ${story.before}${setBy}.`);
   }
   if (story.kind === "held-online") parts.push("The whole column was corrected: it was held online.");
   if (story.asked) {
     parts.push(`${story.asked.yours ? "You" : firstOf(story.asked.name) || "Somebody"} asked, ${dayAndClock(story.asked.at)}.`);
   }
-  parts.push(`Corrected by ${firstOf(story.correctedBy.name) || "somebody"}, ${dayAndClock(story.correctedAt)}.`);
+  if (story.byApproval) {
+    const who = firstOf(story.correctedBy.name);
+    const at = dayAndClock(story.correctedAt);
+    parts.push(`Corrected by ${who ? `${who}’s approval` : "an approved request to be excused"}${at ? `, ${at}` : ""}.`);
+  } else {
+    parts.push(`Corrected by ${firstOf(story.correctedBy.name) || "somebody"}, ${dayAndClock(story.correctedAt)}.`);
+  }
   if (story.reason) parts.push(`Why: ${quoted(story.reason)}`);
   return parts.join(" ");
 }
@@ -745,8 +768,14 @@ export function requestsWaitingTitle(count: number): string {
   return count === 1 ? "Request waiting" : "Requests waiting";
 }
 
-export function requestsWaitingLine(count: number): string {
-  return count === 1 ? "A facilitator has asked for a line of a register to be corrected." : `Facilitators have asked for ${count} lines of registers to be corrected.`;
+export function requestsWaitingLine(count: number, excused = 0): string {
+  const asked = Math.min(Math.max(excused, 0), count);
+  const corrections = count - asked;
+  const correctionsLine =
+    corrections === 1 ? "A facilitator has asked for a line of a register to be corrected." : `Facilitators have asked for ${corrections} lines of registers to be corrected.`;
+  const excusedLine = asked === 1 ? "Somebody has asked to be excused from a week." : `${asked} requests to be excused are waiting.`;
+  if (asked === 0) return correctionsLine;
+  return corrections === 0 ? excusedLine : `${excusedLine} ${correctionsLine}`;
 }
 
 /** The programme's head: "2 requests waiting" */

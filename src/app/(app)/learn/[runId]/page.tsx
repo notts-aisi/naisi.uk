@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { homeEvents } from "@/app/(app)/dashboard/homeData";
 import { cantMakeItFor } from "@/lib/courses/cantMakeIt/seat";
+import { excusedFor } from "@/lib/courses/excused/own";
 import { joiningOnlineFor } from "@/lib/courses/joiningOnline/seat";
 import { readOwnCertificates } from "@/lib/courses/certificates/own";
 import { liveGroupsOf, runEndOf } from "@/lib/courses/finishing/runEnd";
@@ -167,6 +168,18 @@ export default async function RunHomePage({
           () => null,
         )
       : null;
+  // Being excused, for somebody taking part in the group: each of their
+  // sessions as their card needs it, and their own requests, read by their
+  // own uid (`excusedFor`). It decides the ticket's way in: a request an
+  // admin decides, or, for somebody who facilitates the group they hold a
+  // place in, today's instant "Can't make it". Never a count. A read that
+  // fails offers neither.
+  const excused =
+    access.isEnrolled && db
+      ? await excusedFor(db, { user: access.user, run: access.run, enrolment: access.enrolment, groups: access.groups, now: new Date() }).catch(
+          () => null,
+        )
+      : null;
   // Where "Email the group" and "Email the whole cohort" open Messages, set
   // to that audience (`messagesEntriesFor`), for somebody who staffs the run
   // or facilitates one of its groups; read for nobody else. A link with no
@@ -216,6 +229,7 @@ export default async function RunHomePage({
       timeQuestion={timeQuestion}
       cantMakeIt={cantMakeIt}
       joiningOnline={joiningOnline}
+      excused={excused}
       viewAs={viewAs}
       uid={access.user.uid}
       {...(guide ? { guide } : {})}

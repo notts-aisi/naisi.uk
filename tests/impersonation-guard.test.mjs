@@ -141,6 +141,21 @@ const MUST_GUARD = [
   ],
   ["src/app/api/courses/requests/[requestId]/decline/route.ts", "declines a request with a reply to the person who asked, in the decider's name"],
   ["src/app/api/courses/requests/[requestId]/take/route.ts", "says who is dealing with a request, in their name"],
+  [
+    "src/app/api/courses/groups/[groupId]/excused/route.ts",
+    "asks to be excused from sessions of the caller's own group, with a reason only admins read, in the asker's name, and emails the admins that it has arrived",
+  ],
+  ["src/app/api/courses/requests/emails/route.ts", "switches the caller's own email about new requests to be excused on or off, on their own user document"],
+  ["src/app/api/courses/requests/[requestId]/excused/withdraw/route.ts", "withdraws a request to be excused, or a week of it, in the asker's name"],
+  [
+    "src/app/api/courses/requests/[requestId]/excused/approve/route.ts",
+    "approves a week of a request to be excused, writing or correcting the register line and everybody's attendance and emailing the person and the group's facilitators, in the approver's name",
+  ],
+  [
+    "src/app/api/courses/requests/[requestId]/excused/decline/route.ts",
+    "declines a week of a request to be excused and emails the person the reply, in the decider's name",
+  ],
+  ["src/app/api/courses/requests/[requestId]/excused/reply/route.ts", "replies to a request to be excused and emails the person, in the replier's name"],
   ["src/app/api/courses/groups/[groupId]/attendance/push/route.ts", "locks a register, rewrites every member's attendance record and mails the group"],
   [
     "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts",

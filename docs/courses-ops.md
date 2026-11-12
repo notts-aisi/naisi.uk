@@ -512,6 +512,31 @@ safe. The heartbeat is somewhere in the middle now; a tick that runs out of
 budget before reaching it still writes a receipt with its row on it, marked
 skipped, so "is the scheduler running" is still answered by the panel.
 
+#### `courses-excused-reasons-off`
+
+Deletes the reason on every request to be excused from a session of a run once
+that run has closed (the moment every week of it shuts: `workClosesAt` in
+`src/lib/courses/weekWork/closes.ts`, the end of the London day 14 days after
+its last session unless the run says otherwise), as privacy policy v17 promises
+("until your programme closes. After that we keep only that you were
+excused"). The weeks, what was decided, by whom, when and the reply stay.
+
+| | |
+| --- | --- |
+| Handler | [`src/lib/scheduler/jobs/excusedReasonsOff.ts`](../src/lib/scheduler/jobs/excusedReasonsOff.ts), the work in `src/lib/courses/excused/tidy.ts` |
+| Reads | `courseRequests` where `reasonHeld == true` (one equality), then each of their runs and its groups |
+| Marker | none: a request whose reason is gone no longer matches the read, so twice is once |
+| Stale after | never: whatever is due goes whenever the tick next runs it |
+
+**Ships switched ON**, because it emails nobody and a promise to delete must not
+wait on a switch. It deletes the reason of a request still waiting too: the
+promise has no exception, and the request can still be decided without it. A
+run with no session to date has no close moment and keeps its reasons. It logs
+counts, never a reason. Each run closes on its own: a fellowship whose groups
+last meet in the week of Mon 7 Dec 2026 closes at midnight at the end of the
+fourteenth day after its latest session (Sun 13 Dec gives the start of Mon 28
+Dec, London), and an incubator only after its weeks after the winter break.
+
 #### `courses-next-week-email`
 
 "Week N is open" (its label on Site status): emails everybody holding a place
@@ -1254,6 +1279,109 @@ is refused, as it is for any mark on that register: ask the person to take it
 back first. "Most weeks, not all" can record weeks well ahead, so this refusal
 is likelier after people answer it: the register's line over the grid names
 who told us, for each session still to come.
+
+### Excused weeks: asking, and an admin deciding
+
+"Can't make it" above records somebody as excused on the spot, with nobody
+deciding. Its replacement is a request an admin approves or declines, with a
+short reason only admins read. The code is `src/lib/courses/excused/`; the
+record is the `excused` kind of `courseRequests`, read by its own normaliser
+(`src/lib/firestore/courseExcusedRequests.ts`), so no correction reader sees
+one.
+
+- **Who asks** (`POST /api/courses/groups/[groupId]/excused`, body
+  `{ sessionKeys, reason, inPerson, ownOnline, otherOnline }`): somebody holding a told place in the group, for
+  sessions of it from the week they joined, one or several in one request.
+  Before a session; or after it, once its register is finished and says
+  Absent. Never twice for a week that waits or was approved, never for a line
+  that already says excused or that they came, and not once the programme has
+  closed. A facilitator of the group is refused and keeps "Can't make it".
+  The reason is one line, no link, at most 200 characters. Before it, the form
+  asks them to confirm, in order and about the weeks still to come, that they
+  can't go to another group's session in person, can't join their own group's
+  session online (only where it is held in a room, `onlineOfferedFor`;
+  elsewhere the form says so and asks nothing) and can't join another group's
+  session online. A session already past (asked about after it) is confirmed
+  nothing about, so a request about one alone asks none. The three are plain
+  booleans; the route works out which apply from the same rule
+  (`confirmationsNeeded`) and refuses in one sentence when one is missing.
+  Ticks stand for the weeks they were given for (`confirmationsFor`): changing
+  the weeks clears them. The request stores `confirmed: { at, inPerson,
+  ownOnline, otherOnline }`, `ownOnline` null where it was no choice, and
+  none when nothing was asked; a request made before has none and reads as
+  before. Only an admin's page of the request
+  shows it, as one line. Asking writes the request and nothing on a register:
+  a waiting request never holds a register up. It emails the admins, never the
+  reason (see docs/notifications.md); nobody else.
+- **Withdraw** (`.../requests/[requestId]/excused/withdraw`, `{ sessionKey? }`):
+  the asker, one week or every week still waiting. Nobody is emailed.
+- **Approve one week** (`.../excused/approve`, `{ sessionKey, reply? }`):
+  admins only, never the person who asked, and only while the person still
+  holds an active learner's place in the request's group and the group is not
+  archived (otherwise a 409, and the request's page says so before the press).
+  In the same transaction the
+  register follows: before the session an empty line is written exactly as
+  "Can't make it" writes it (`writeExcusedInAdvance`, dated when they asked),
+  with `setBy.<uid>.how` `approval`; after it, on a register still being
+  taken, an empty or Absent line says excused, set by the approval; on a
+  finished register, Absent becomes Excused as a correction made by the
+  approval (`registerCorrection/line.ts`'s `ApprovalCorrection`: the
+  `corrected` stamp, the figures, one `attendance-edit` history row with the
+  request's id and NO reason). A line that says they came, or already says
+  excused, a session that did not happen, and a finished register with no
+  line for them are left alone, and the week is approved all the same. A
+  facilitator's own entry afterwards wins: it is their register. Emails the
+  person, with the reply, and, while the register says excused, each of the
+  group's facilitators with standing, without the reason.
+- **Decline one week** (`.../excused/decline`, `{ sessionKey, reply }`):
+  admins only, a reply needed. Nothing on a register changes. Emails the
+  person, with the reply.
+- **Reply without deciding** (`.../excused/reply`, `{ reply }`): admins only,
+  kept on the request and emailed to the person.
+
+Each week is decided on its own, with its own status, who decided, when and
+the reply; the request's own `status` follows its weeks (waiting while any
+waits, then approved, declined or withdrawn).
+
+**Who is sent what.** The reason, and how often somebody has been excused
+this term, reach admins only: one request's page (`loadExcusedRequestPage` in
+`excused/page.ts`) and the Requests page, where excused rows are an admin's
+alone. A facilitator, the programme's lead and a track lead are sent one of
+two facts per person per session and nothing else, on the register's GET
+(`excuseRequests`) and the group's page (`people[].excuse`): `waiting` or
+`excused` (`excused/facts.ts`). Who approved a line, and when, reach admins
+alone; anybody else reads that an approved request set it. The person reads
+their own (`excusedFor` in `excused/own.ts`): each session's state, their own
+reason while it is kept, who approved and the reply, what a finished register
+says when it says Absent over an approval, and never a count.
+
+**Ticks under "Most weeks, not all"** are taken only in a person's first
+answer to the group's current asking (`timeQuestionSince`): once they have
+answered it (`currentTimeAnswer` is not null), they may untick a week there
+and nothing more, and a week to miss later is asked for on the session's card.
+A tick never excuses a session whose request waits or was declined. Ticked
+weeks read "Said when the time was set". A line said in advance with no
+request reads "Said in advance, before requests" only when it was said before
+requests began: `REQUESTS_BEGAN` in `excused/model.ts`, the start of
+12 November 2026, London time. Set it to the day requests go live or earlier,
+never later: a later day would label lines said once requests were open as
+said before them, while an earlier one only gives a line the plainer words,
+which are still true. One said since, or a tick kept from an earlier asking,
+reads "Said in advance".
+
+**The old button** records somebody as excused on the spot only for a
+facilitator, on their own place in a group they facilitate (who cannot ask:
+the ask route refuses them), and not from a session whose request waits or
+was declined. Anybody else taking part, an old page still open included, is
+refused in one sentence that says to ask to be excused from the programme
+page. "I can make it after all" stays open to everybody, so a line somebody
+said before requests can always be taken back by them.
+
+**Deleting an account** deletes the requests the person asked and those about
+them, the excused kind with the rest. **Reverting**: every field is optional
+and new; older code reads an approved line before the session as a word in
+advance, an approved correction as a correction, and skips the requests.
+Decide any waiting request first: it would have no page.
 
 ## Placing a term's accepted people on a course run
 
