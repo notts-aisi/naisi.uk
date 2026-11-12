@@ -22,15 +22,19 @@ import {
 import { firstWrittenFor } from "@/lib/legal/courseworkUseStamp";
 import { instantOf } from "@/lib/courses/writtenAnswers/model";
 import {
-  WeekShutError,
+  WorkClosedError,
   assertWeekTakesWork,
   logSave,
   logWork,
-  ownLockSource,
-  readRunForLock,
+  ownSessionSource,
+  readRunForWork,
+  storedEarlierVersions,
+  versionsToKeep,
   weekStateIn,
 } from "@/lib/courses/weekWork/own";
-import { WEEK_SHUT } from "@/lib/courses/weekWork/words";
+import { workClosesAt } from "@/lib/courses/weekWork/closes";
+import { readPieceFacts } from "@/lib/courses/weekWork/versions";
+import { closedWords } from "@/lib/courses/weekWork/words";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 
 /**
@@ -71,11 +75,15 @@ import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exerci
  * transaction.
  *
  * AN EMPTIED BOX deletes the row: nothing written is nothing stored, and the
- * count ("every box has something in it") reads the same either way.
+ * count ("every box has something in it") reads the same either way. Unless
+ * an earlier version is kept on the row: then the row stays, empty, with
+ * `emptiedAt`, and reads as nothing written (`boxIsWritten`).
  *
- * A WEEK SUBMITTED OR LOCKED takes no writing (`src/lib/courses/weekWork/`),
- * asked inside the transaction that writes, as the reflection route asks it.
- * The first save of a writing spell, and an emptied box, go in the work log.
+ * THE WEEK STAYS OPEN (`src/lib/courses/weekWork/`), as the reflection route
+ * says: refused only once the programme has closed, asked inside the
+ * transaction that writes; the first change after the session keeps the
+ * words it replaces on the row. The first save of a writing spell, and an
+ * emptied box, go in the work log.
  *
  * What a person writes is plain text, stored as typed (ends trimmed) and
  * drawn as text nodes only.
@@ -147,7 +155,7 @@ export async function PUT(
   const [enrolSnap, groupSnap, run] = await Promise.all([
     db.collection("courseEnrolments").doc(courseEnrolmentId(runId, actor.uid)).get(),
     db.collection("courseGroups").where("runId", "==", runId).limit(MAX_GROUPS).get(),
-    readRunForLock(db, runId),
+    readRunForWork(db, runId),
   ]);
   const enrolment = enrolSnap.exists ? normalizeCourseEnrolment(enrolSnap.id, enrolSnap.data() ?? {}) : null;
   const takesPart =
@@ -183,7 +191,8 @@ export async function PUT(
   const id = exerciseResponseId(runId, actor.uid, weekId, boxId);
   const ref = db.collection("courseExerciseResponses").doc(id);
   // Whose sessions lock this week for them: their own placement's group, or the groups they facilitate.
-  const source = ownLockSource(run, liveGroups, actor.uid, takesPart ? enrolment : null);
+  const source = ownSessionSource(run, liveGroups, actor.uid, takesPart ? enrolment : null);
+  const closesAt = run ? workClosesAt(run, liveGroups) : null;
   const now = new Date();
   const logged = { runId, uid: actor.uid, weekId, weekNumber, itemKind: "fillIn" as const, itemId: boxId };
 
@@ -191,22 +200,43 @@ export async function PUT(
     await db.runTransaction(async (tx) => {
       const [snap, week] = await Promise.all([
         tx.get(ref),
-        weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source, now }),
+        weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source, closesAt, now }),
       ]);
-      // A week submitted or locked takes nothing more until it is reopened.
+      // Only a closed programme refuses: nothing closes at the session.
       assertWeekTakesWork(week.state);
       // A row of any other kind is never written over, whatever its id says.
       if (snap.exists && !isFillInResponse(snap.data() ?? {})) {
         throw new FillInError("That box holds something else, not what you fill in here.", 409);
       }
+      const prior = snap.exists ? ((snap.data() ?? {}) as Record<string, unknown>) : null;
+      const priorFacts = prior ? readPieceFacts(prior) : null;
+      // A save that changes nothing writes nothing: the words' last save stays their version's mark.
+      if (prior && (typeof prior.text === "string" ? prior.text : "") === text) return;
+      // The first change after the session keeps the words it replaces.
+      const kept = versionsToKeep({ prior: priorFacts, itemId: boxId, standing: week, now });
+      const keptList = kept?.list ?? priorFacts?.earlierVersions ?? [];
       if (!text) {
-        if (snap.exists) {
+        if (!prior) return;
+        logWork(tx, db, { ...logged, kind: "cleared" });
+        // Nothing written is nothing stored, unless an earlier version is kept on the row: then the
+        // row stays, empty, and reads as nothing written (`boxIsWritten`).
+        if (keptList.length === 0) {
           tx.delete(ref);
-          logWork(tx, db, { ...logged, kind: "cleared" });
+          return;
         }
+        tx.set(
+          ref,
+          {
+            text: "",
+            emptiedAt: FieldValue.serverTimestamp(),
+            earlierVersions: storedEarlierVersions(keptList),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
         return;
       }
-      logSave(tx, db, { ...logged, lastSavedAt: snap.exists ? instantOf((snap.data() ?? {}).updatedAt) : null, now });
+      logSave(tx, db, { ...logged, lastSavedAt: prior ? instantOf(prior.updatedAt) : null, now });
       tx.set(ref, {
         runId,
         uid: actor.uid,
@@ -222,6 +252,8 @@ export async function PUT(
         submittedAt: null,
         reviewStatus: "unreviewed",
         updatedAt: FieldValue.serverTimestamp(),
+        // The earlier versions kept on the row go on with it (a whole write would drop them).
+        ...(keptList.length > 0 ? { earlierVersions: storedEarlierVersions(keptList) } : {}),
         // When the row was first written, kept across every write after: a
         // box counts outside its programme only when it was written entirely
         // after its writer agreed to privacy v13 (courseworkUse.ts).
@@ -230,7 +262,7 @@ export async function PUT(
     });
   } catch (err) {
     if (err instanceof FillInError) return NextResponse.json({ error: err.message }, { status: err.status });
-    if (err instanceof WeekShutError) return NextResponse.json({ error: WEEK_SHUT }, { status: 409 });
+    if (err instanceof WorkClosedError) return NextResponse.json({ error: closedWords(err.at) }, { status: 409 });
     console.error("[courses fill-in box] write failed", runId, weekId, boxId, err);
     return NextResponse.json({ error: "Couldn’t save that just now. It tries again as you type." }, { status: 500 });
   }

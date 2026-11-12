@@ -1,122 +1,124 @@
 import { allBlocks, partsOf, type ChooseOneBlock, type WeekBlock } from "../weekBlocks/model";
 import { isCounted, taskDone, type DoneState, type TaskNeeds } from "../weekBlocks/progress";
+import type { DueBy, WeekDue } from "./sessionDue";
+
+export type { DueBy, WeekDue };
 
 /**
- * THE WEEK YOU SUBMIT: where one person's week of a course written as blocks
- * stands, whether the people who read their work may read their written
- * answer, and what "done" means, in one place for every page and route.
+ * THE WEEK STAYS OPEN: where one person's week of a course written as blocks
+ * stands, what the people who read their work are told about it, and what
+ * "done" means, in one place for every page and route.
  *
- * ONE WEEK, FOUR STATES (`WeekWorkState`):
- *  - `open`: the week saves as they go, and takes every tick and every word;
- *  - `submitted`: they pressed Submit. Everything in the week (ticks, packs,
- *    reflections, boxes, the written answer, a talk's ready mark) is read
- *    only until somebody running the group reopens it;
- *  - `locked`: the group's session that week started before they submitted,
- *    and the week locked with it, as read only as a submitted one;
- *  - `reopened`: somebody running the group reopened it for them. It takes
- *    writing again until they submit it, or the group's next session that
- *    meets after the reopen starts, whichever comes first.
+ * NOTHING CLOSES AT THE SESSION. A week takes ticks, words, picks and sends
+ * until the programme closes (`./closes.ts`: the end of the London day N days
+ * after the run's last session, 14 unless the run says otherwise), and is read
+ * only for everybody after that. Pressing Send closes nothing either. Two
+ * states (`WeekWorkState`): `open`, and `closed` with when.
  *
- * WHEN A WEEK LOCKS (`WeekLock`, worked out from the group's own calendar by
- * `./lock.ts`): when the group's session that week starts, or, when that
- * session is cancelled, the group's next session that meets (`dueMoment`'s
- * rule for work due "before" the session, the one pack picks keep). With no
- * moment to lock at (the group's time is not set, its plan does not teach the
- * week, nobody has been told their group yet, or the session started before
- * they were told it) the week locks only when they submit it.
+ * THE SESSION THEY ARE DUE AT (`WeekDue`, `./sessionDue.ts`) is the one moment
+ * everything else is told against:
+ *  - LATE is worked out when read, never stored: the time of a change
+ *    against the start of that session (`lateBy`; its words, "40 minutes",
+ *    "5 hours", "3 days", are `lateWords` in `./words.ts`). With no moment
+ *    (joined late, no group, no time set) nothing is late.
+ *  - WHO READS AN UNSENT WRITTEN ANSWER (privacy v17, "Changing your work"):
+ *    before that session only words they have sent, as last sent; once it has
+ *    started everything saved, sent or not (`readableAnswer`, `./versions.ts`,
+ *    the one answer). Reflections and fill-in boxes are read as they are
+ *    typed, as v17 says, and are not asked about.
+ *  - EARLIER VERSIONS are kept at the first change after the session, after a
+ *    send before it, and after feedback or a rating (`./versions.ts`).
  *
- * READING A WRITTEN ANSWER (privacy v15, "Changing your work"): its words are
- * the writer's until they submit the week; the people who read their work see
- * only that they have started it. Once the week is submitted, or locks first,
- * they may read it. A week reopened is unsent again. An answer sent before
- * weeks were submitted (`firstSentAt` on a week nobody has submitted or
- * reopened) stays readable: it was sent. `workIsReadable` is the one answer,
- * and `tests/course-written-answer-readers.test.mjs` walks the tree for every
- * reader of an answer's words that does not ask it. Reflections and fill-in
- * boxes are read as they are typed, as v15 says, and are not asked about.
+ * DONE (`weekDone`): every tick This week's tasks count is ticked, the
+ * person's own pack among them, and either the week was submitted under the
+ * old Submit button (`courseWeekWork.submittedAt`, ever), or every reflection
+ * box and fill-in box its tasks count holds something and every written
+ * answer its tasks count has been sent. So nobody done under the old rule is
+ * ever not done under this one. A week with only things to tick is done once
+ * they are ticked; a talk's ready mark counts towards "N of M done"
+ * (`progress.ts`) and not towards done. `weekDoneAt` says when it became
+ * done, the latest of the moments its needed things were done, for "done on
+ * time" and "done late" against the session.
  *
- * DONE (`weekDone`): the week is submitted, when it asks for anything
- * written, and every tick it counts is ticked: the readings and checklist
- * steps This week's tasks cover, and the person's own pack. A talk's ready
- * mark counts towards "N of M done" (`progress.ts`) and not towards done. A
- * week with only things to tick has no Submit, and is done once they are
- * ticked; a week with nothing to count is never "not done".
+ * REOPEN IS GONE: nothing is locked, so nothing is reopened. The stored
+ * reopen facts (`reopenedAt` and the rest) are left as they are and change
+ * nothing.
  *
  * Pure: no reads, no clock. The pages in the browser import it.
  */
 
-/** Why a week locks when it does, or why it does not lock by the clock. */
-export type LockBy =
-  /** The group's session that week starts. */
-  | "session"
-  /** The week's own session is cancelled: the group's next session that meets. */
-  | "next-session"
-  /** No moment to lock at: the group's time is not set, or there is no session to date. */
-  | "undated"
-  /** The session started before they were told their group: it locks only when they submit. */
-  | "joined-late"
-  /** No group yet (week 1 before groups go out): it locks only when they submit. */
-  | "no-group";
+// ---------------------------------------------------------------------------
+// Where a week stands
+// ---------------------------------------------------------------------------
 
-/** When a week locks for one person: the moment, or null with the reason there is none. */
-export type WeekLock = { at: Date | null; by: LockBy };
+/** Where one person's week stands: open until the programme closes, then closed. */
+export type WeekWorkState =
+  | {
+      kind: "open";
+      /** The session they are due at this week. */
+      due: WeekDue;
+      /** When the programme closes, or null when it never closes by the clock. */
+      closesAt: Date | null;
+      /** When they first pressed the week's old Submit, or null. */
+      submittedAt: Date | null;
+    }
+  | { kind: "closed"; at: Date; due: WeekDue; submittedAt: Date | null };
 
-/** The stored half of a week's state (`courseWeekWork`), read. */
+/** The stored half (`courseWeekWork`), read: when the week was submitted under the old button, if ever. */
 export type WeekWorkFacts = {
   submittedAt: Date | null;
-  reopenedAt: Date | null;
-  reopenedByUid: string;
+  firstSubmittedAt: Date | null;
 };
 
-export type WeekWorkState =
-  | { kind: "open"; locksAt: Date | null; by: LockBy }
-  | { kind: "submitted"; at: Date }
-  | { kind: "locked"; at: Date }
-  | { kind: "reopened"; at: Date; byUid: string; locksAt: Date | null };
+/** When they pressed the week's old Submit, the first time (a reopen since changes nothing), or null. */
+export function submittedOnce(facts: WeekWorkFacts | null): Date | null {
+  return facts?.firstSubmittedAt ?? facts?.submittedAt ?? null;
+}
 
-/**
- * Where a week stands for one person at `now`. `relockAfter` answers when
- * the group's next session that meets after an instant starts (null with
- * none to date), which is when a reopened week locks again.
- */
-export function weekWorkState(input: {
-  facts: WeekWorkFacts | null;
-  lock: WeekLock;
-  relockAfter: (instant: Date) => Date | null;
-  now: Date;
-}): WeekWorkState {
-  const { facts, lock, relockAfter, now } = input;
-  if (facts?.submittedAt) return { kind: "submitted", at: facts.submittedAt };
-  if (facts?.reopenedAt) {
-    const locksAt = relockAfter(facts.reopenedAt);
-    if (locksAt && now.getTime() >= locksAt.getTime()) return { kind: "locked", at: locksAt };
-    return { kind: "reopened", at: facts.reopenedAt, byUid: facts.reopenedByUid, locksAt };
+/** Whether the programme has closed for work by `now`. A programme with no close never has. */
+export function workIsClosed(closesAt: Date | null, now: Date): boolean {
+  return closesAt !== null && now.getTime() >= closesAt.getTime();
+}
+
+/** Where a week stands for one person at `now`. */
+export function weekWorkState(input: { due: WeekDue; closesAt: Date | null; facts: WeekWorkFacts | null; now: Date }): WeekWorkState {
+  const submittedAt = submittedOnce(input.facts);
+  if (input.closesAt && workIsClosed(input.closesAt, input.now)) {
+    return { kind: "closed", at: input.closesAt, due: input.due, submittedAt };
   }
-  if (lock.at && now.getTime() >= lock.at.getTime()) return { kind: "locked", at: lock.at };
-  return { kind: "open", locksAt: lock.at, by: lock.by };
+  return { kind: "open", due: input.due, closesAt: input.closesAt, submittedAt };
 }
 
-/** Whether the week takes writing and ticks: open, or reopened. Submitted and locked weeks are read only. */
+/** Whether the week takes ticks, words, picks and sends: until the programme closes. */
 export function weekTakesWork(state: WeekWorkState): boolean {
-  return state.kind === "open" || state.kind === "reopened";
+  return state.kind === "open";
 }
 
-/** Whether the week is shut: submitted, or locked. Somebody running the group may reopen it. */
-export function weekIsShut(state: WeekWorkState): boolean {
-  return state.kind === "submitted" || state.kind === "locked";
+/** Whether the session they are due at has started by `now`; never, with no session. */
+export function sessionHasStarted(due: WeekDue, now: Date): boolean {
+  return due.at !== null && now.getTime() >= due.at.getTime();
 }
 
 /**
- * WHETHER THE PEOPLE WHO READ SOMEBODY'S WORK MAY READ THEIR WRITTEN ANSWER'S
- * WORDS (privacy v15): the week is submitted or locked; or the answer was
- * sent before weeks were submitted and the week has been neither submitted
- * nor reopened since. Never while the week is open or reopened otherwise:
- * then they see only that it is started. The one answer; every reader of an
- * answer's words asks it.
+ * HOW LATE SOMETHING DONE AT `at` WAS: milliseconds after the start of the
+ * session they were due at, or null when it was not after it (or there is no
+ * such session, or nothing was done). Worked out when read, never stored.
  */
-export function workIsReadable(state: WeekWorkState, answer: { firstSentAt: Date | null } | null): boolean {
-  if (state.kind === "submitted" || state.kind === "locked") return true;
-  return state.kind === "open" && answer?.firstSentAt != null;
+export function lateBy(at: Date | null, due: WeekDue): number | null {
+  if (!at || due.at === null) return null;
+  const after = at.getTime() - due.at.getTime();
+  return after > 0 ? after : null;
+}
+
+/**
+ * "AFTER ITS DEADLINE" (staff only): a written answer first sent after its
+ * block's own deadline (`dueMoment` with the block's rule: often the end of
+ * the day before the session), but before the session itself. Sent after the
+ * session, it is late instead; with no session moment, it is neither.
+ */
+export function afterItsDeadline(firstSentAt: Date | null, deadline: Date | null, due: WeekDue): boolean {
+  if (!firstSentAt || !deadline || due.at === null) return false;
+  return firstSentAt.getTime() > deadline.getTime() && firstSentAt.getTime() < due.at.getTime();
 }
 
 // ---------------------------------------------------------------------------
@@ -130,43 +132,100 @@ export function weekAsksForWriting(blocks: readonly WeekBlock[]): boolean {
   );
 }
 
-/** Every tick This week's tasks count: readings and checklist steps, by id, each once. */
-function countedTickIds(tasks: readonly TaskNeeds[]): string[] {
-  return [...new Set(tasks.filter(isCounted).flatMap((needs) => needs.tickIds))];
-}
-
-/** Every Choose one This week's tasks count, by id, each once. */
-function countedChooseOnes(tasks: readonly TaskNeeds[]): string[] {
-  return [...new Set(tasks.filter(isCounted).flatMap((needs) => needs.chooseOneIds))];
+/** Every id of one kind This week's tasks count, each once. */
+function counted(tasks: readonly TaskNeeds[], kind: "tickIds" | "chooseOneIds" | "promptIds" | "fillInIds" | "answerIds"): string[] {
+  return [...new Set(tasks.filter(isCounted).flatMap((needs) => needs[kind]))];
 }
 
 /**
- * THE WEEK IS DONE: submitted, when it asks for anything written, and every
- * tick its tasks count ticked, the person's own pack among them. A week with
- * nothing to count reads as done, so it is never "not done".
+ * THE WEEK IS DONE: every tick its tasks count ticked, the person's own pack
+ * among them, and either it was submitted under the old Submit button
+ * (`submitted`, ever: a reopen since changes nothing) or every reflection box
+ * and fill-in box its tasks count holds something and every written answer
+ * its tasks count has been sent. A week with nothing written to count needs
+ * only its ticks; a week with nothing to count reads as done, so it is never
+ * "not done". Nobody done under the old rule (submitted, where the week asked
+ * for anything written, and every counted tick ticked) is not done under this
+ * one.
  */
 export function weekDone(input: {
   tasks: readonly TaskNeeds[];
-  state: Pick<DoneState, "isTicked" | "packOf">;
-  writes: boolean;
+  state: Pick<DoneState, "isTicked" | "packOf" | "isWritten" | "isSent">;
   submitted: boolean;
 }): boolean {
-  const { tasks, state, writes, submitted } = input;
-  if (writes && !submitted) return false;
+  const { tasks, state, submitted } = input;
   const packOf = state.packOf ?? (() => null);
-  return (
-    countedTickIds(tasks).every((id) => state.isTicked(id)) &&
-    countedChooseOnes(tasks).every((id) => {
+  const ticked =
+    counted(tasks, "tickIds").every((id) => state.isTicked(id)) &&
+    counted(tasks, "chooseOneIds").every((id) => {
       const pack = packOf(id);
       return pack !== null && state.isTicked(pack);
-    })
+    });
+  if (!ticked) return false;
+  if (submitted) return true;
+  return (
+    counted(tasks, "promptIds").every((id) => state.isWritten(id)) &&
+    counted(tasks, "fillInIds").every((id) => state.isWritten(id)) &&
+    counted(tasks, "answerIds").every((id) => state.isSent(id))
   );
+}
+
+/** When each thing a week counts was done, for `weekDoneAt`: null for not done. */
+export type DoneTimes = {
+  /** When this reading or step was ticked (its tick's own time). */
+  tickedAt: (itemId: string) => Date | null;
+  /** When this reflection box or fill-in box first held something. */
+  writtenAt: (boxId: string) => Date | null;
+  /** When this written answer was first sent. */
+  sentAt: (answerId: string) => Date | null;
+  /** The person's pack in this Choose one, or null. */
+  packOf?: (chooseOneId: string) => string | null;
+};
+
+function latest(times: ReadonlyArray<Date | null>): { all: boolean; at: number | null } {
+  let at: number | null = null;
+  for (const time of times) {
+    if (!time) return { all: false, at: null };
+    at = at === null ? time.getTime() : Math.max(at, time.getTime());
+  }
+  return { all: true, at };
+}
+
+/**
+ * WHEN THE WEEK BECAME DONE: the latest of the moments its needed things were
+ * done (each tick, the pack's reading, and either the old Submit or each box
+ * written and each answer sent, whichever made it done first). Null while it
+ * is not done, and for a week with nothing to count. Against the session they
+ * were due at, it says done on time or done late.
+ */
+export function weekDoneAt(input: { tasks: readonly TaskNeeds[]; times: DoneTimes; submittedAt: Date | null }): Date | null {
+  const { tasks, times, submittedAt } = input;
+  const packOf = times.packOf ?? (() => null);
+  const ticks = latest([
+    ...counted(tasks, "tickIds").map((id) => times.tickedAt(id)),
+    ...counted(tasks, "chooseOneIds").map((id) => {
+      const pack = packOf(id);
+      return pack === null ? null : times.tickedAt(pack);
+    }),
+  ]);
+  if (!ticks.all) return null;
+  const written = latest([
+    ...counted(tasks, "promptIds").map((id) => times.writtenAt(id)),
+    ...counted(tasks, "fillInIds").map((id) => times.writtenAt(id)),
+    ...counted(tasks, "answerIds").map((id) => times.sentAt(id)),
+  ]);
+  const ways = [submittedAt?.getTime() ?? null, written.all ? written.at : null].filter((at): at is number => at !== null);
+  const writtenNeedsNothing = written.all && written.at === null;
+  if (ways.length === 0 && !writtenNeedsNothing) return null;
+  const by = ways.length > 0 && !writtenNeedsNothing ? Math.min(...ways) : null;
+  const at = [ticks.at, by].filter((value): value is number => value !== null);
+  return at.length > 0 ? new Date(Math.max(...at)) : null;
 }
 
 /**
  * ONE PERSON'S WEEK, AS EVERY PAGE THAT LISTS PEOPLE SAYS IT (the group's
- * This week's work, the Coursework tab): submitted, done or not, how many of
- * This week's tasks are done, and whether they have started anything.
+ * This week's work, the Coursework tab): done or not and since when, how many
+ * of This week's tasks are done, and whether they have started anything.
  */
 export type PersonWeekProgress = {
   /** "N of M done", as the person's own page counts it. */
@@ -174,6 +233,8 @@ export type PersonWeekProgress = {
   of: number;
   /** `weekDone`. */
   weekDone: boolean;
+  /** When it became done (`weekDoneAt`), or null: not done, or no times to tell it by. */
+  doneAt: Date | null;
   /** Something ticked, written or picked this week. */
   started: boolean;
 };
@@ -182,17 +243,21 @@ export type PersonWeekProgress = {
 export function personWeekProgress(input: {
   tasks: readonly TaskNeeds[];
   state: DoneState;
-  writes: boolean;
-  submitted: boolean;
+  /** When each thing was done, for `doneAt`; left out, `doneAt` is null. */
+  times?: DoneTimes;
+  /** When they first pressed the week's old Submit, or null. */
+  submittedAt: Date | null;
   /** Anything of theirs on the week: a tick, a word, a pack picked. */
   touched: boolean;
 }): PersonWeekProgress {
-  const counted = input.tasks.filter(isCounted);
-  const done = counted.filter((needs) => taskDone(needs, input.state)).length;
+  const countedTasks = input.tasks.filter(isCounted);
+  const done = countedTasks.filter((needs) => taskDone(needs, input.state)).length;
+  const isDone = weekDone({ tasks: input.tasks, state: input.state, submitted: input.submittedAt !== null });
   return {
     done,
-    of: counted.length,
-    weekDone: weekDone({ tasks: input.tasks, state: input.state, writes: input.writes, submitted: input.submitted }),
+    of: countedTasks.length,
+    weekDone: isDone,
+    doneAt: isDone && input.times ? weekDoneAt({ tasks: input.tasks, times: input.times, submittedAt: input.submittedAt }) : null,
     started: input.touched || done > 0,
   };
 }
@@ -293,56 +358,65 @@ export function checkStopsSubmit(notDone: readonly NotDone[]): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * ONE PERSON'S WEEK AS IT TRAVELS TO THEM (the overview payload, the Submit
- * route's answer): its state, when it locks or locked, and who reopened it,
- * by the first name they go by. Instants are ISO 8601.
+ * ONE PERSON'S WEEK AS IT TRAVELS TO THEM (the overview payload, the Send and
+ * Submit routes' answers): the session they are due at, when the programme
+ * closes and whether it has, and when they pressed the week's old Submit.
+ * Instants are ISO 8601.
  */
 export type WeekWorkWire = {
-  state: WeekWorkState["kind"];
-  /** When it was submitted (state `submitted`). */
+  /** The start of the session they are due at this week, or null with none; `dueBy` says why. */
+  dueAt: string | null;
+  dueBy: DueBy;
+  /** That session had started when the wire was made: anything added or changed now shows as late. */
+  sessionStarted: boolean;
+  /** When the programme closes for work, or null when it never closes by the clock. */
+  closesAt: string | null;
+  /** It has closed: nothing of the week changes any more, for anybody. */
+  closed: boolean;
+  /** When they first pressed the week's old Submit, or null. Nothing presses it on the page now. */
   submittedAt: string | null;
-  /** When it locked (state `locked`). */
+  /**
+   * THE PAGE AS IT WAS BEFORE THE WEEK STAYED OPEN, until it is redrawn: "open"
+   * while the programme takes work and "locked" once it has closed. Never
+   * "submitted" or "reopened" any more.
+   */
+  state: "open" | "submitted" | "locked" | "reopened";
+  /** When it closed, once closed (the page as it was). */
   lockedAt: string | null;
-  /** When it will lock, while it is open or reopened; null when only Submit locks it. */
+  /** When it closes, while open (the page as it was). */
   locksAt: string | null;
-  /** Why it locks when it does, while it is open. */
-  by: LockBy | null;
-  /** Who reopened it and when, while it is reopened. */
+  /** `dueBy` while open (the page as it was). */
+  by: DueBy | null;
+  /** Always null: nothing is reopened (the page as it was). */
   reopened: { at: string; byName: string } | null;
 };
 
-/** A state back from its wire, for the page's words; `byUid` is not on the wire and reads as "". */
-export function weekWorkStateOf(wire: WeekWorkWire): WeekWorkState {
-  const at = (iso: string | null) => (iso ? new Date(iso) : null);
-  switch (wire.state) {
-    case "submitted":
-      return { kind: "submitted", at: at(wire.submittedAt) ?? new Date(0) };
-    case "locked":
-      return { kind: "locked", at: at(wire.lockedAt) ?? new Date(0) };
-    case "reopened":
-      return { kind: "reopened", at: at(wire.reopened?.at ?? null) ?? new Date(0), byUid: "", locksAt: at(wire.locksAt) };
-    case "open":
-      return { kind: "open", locksAt: at(wire.locksAt), by: wire.by ?? "undated" };
-  }
+/** The wire for one state at `now`. */
+export function weekWorkWire(state: WeekWorkState, now: Date): WeekWorkWire {
+  const iso = (at: Date | null) => (at ? at.toISOString() : null);
+  const closedAt = state.kind === "closed" ? state.at : null;
+  const closesAt = state.kind === "closed" ? state.at : state.closesAt;
+  return {
+    dueAt: iso(state.due.at),
+    dueBy: state.due.by,
+    sessionStarted: sessionHasStarted(state.due, now),
+    closesAt: iso(closesAt),
+    closed: state.kind === "closed",
+    submittedAt: iso(state.submittedAt),
+    state: state.kind === "closed" ? "locked" : "open",
+    lockedAt: iso(closedAt),
+    locksAt: state.kind === "open" ? iso(state.closesAt) : null,
+    by: state.kind === "open" ? state.due.by : null,
+    reopened: null,
+  };
 }
 
-/** The wire for one state. `nameOf` gives the first name a uid goes by. */
-export function weekWorkWire(state: WeekWorkState, nameOf: (uid: string) => string): WeekWorkWire {
-  switch (state.kind) {
-    case "submitted":
-      return { state: "submitted", submittedAt: state.at.toISOString(), lockedAt: null, locksAt: null, by: null, reopened: null };
-    case "locked":
-      return { state: "locked", submittedAt: null, lockedAt: state.at.toISOString(), locksAt: null, by: null, reopened: null };
-    case "reopened":
-      return {
-        state: "reopened",
-        submittedAt: null,
-        lockedAt: null,
-        locksAt: state.locksAt ? state.locksAt.toISOString() : null,
-        by: null,
-        reopened: { at: state.at.toISOString(), byName: nameOf(state.byUid) },
-      };
-    case "open":
-      return { state: "open", submittedAt: null, lockedAt: null, locksAt: state.locksAt ? state.locksAt.toISOString() : null, by: state.by, reopened: null };
-  }
+/** A state back from its wire, for the page's words. */
+export function weekWorkStateOf(wire: WeekWorkWire): WeekWorkState {
+  const at = (iso: string | null) => (iso ? new Date(iso) : null);
+  const due: WeekDue = { at: at(wire.dueAt), by: wire.dueBy };
+  const submittedAt = at(wire.submittedAt);
+  const closesAt = at(wire.closesAt);
+  if (wire.closed && closesAt) return { kind: "closed", at: closesAt, due, submittedAt };
+  return { kind: "open", due, closesAt, submittedAt };
 }

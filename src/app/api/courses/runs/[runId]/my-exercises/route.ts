@@ -260,6 +260,8 @@ export async function GET(
       // Own rows only, so a reflection or a fill-in box travels here to the
       // one person it is for, marked as what it is.
       ...(doc.kind === "reflection" ? { kind: "reflection" as const } : doc.kind === "fillIn" ? { kind: "fillIn" as const } : {}),
+      // When a box's words were last saved, for the page to tell against their session.
+      ...(doc.kind === "reflection" || doc.kind === "fillIn" ? { savedAt: iso(doc.updatedAt) } : {}),
       responseType: doc.responseType,
       text: doc.text ?? null,
       linkUrl: doc.linkUrl ?? null,

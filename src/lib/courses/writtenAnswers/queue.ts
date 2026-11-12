@@ -7,9 +7,9 @@ import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { liveGroupsOf, reviewableIn, reviewerFactsOf, type OwnerFacts } from "./access";
-import { instantOf, isWordCountedAnswer, readWrittenAnswer } from "./model";
-import { workIsReadable } from "../weekWork/model";
+import { answerPiece, instantOf, isWordCountedAnswer, readWrittenAnswer } from "./model";
 import { loadRunWeekStates } from "../weekWork/readers";
+import { readableAnswer } from "../weekWork/versions";
 import { readRunFeedback } from "../feedback/readers";
 
 /**
@@ -17,11 +17,11 @@ import { readRunFeedback } from "../feedback/readers";
  * week 2 answers", each person with when they submitted it and Write
  * feedback; Home's line beside it; the lead's line per group): the written
  * answers of the group's people that the reader may give feedback on by the
- * one gate (`reviewableIn`), whose readers may read them (`workIsReadable`,
- * privacy v15: the week submitted, or locked before it was, or the answer
- * sent before weeks were submitted), that hold words and have no feedback
- * from anyone yet (a piece on the answer, or feedback given before pieces
- * existed), and whose week's session started in the last seven days.
+ * one gate (`reviewableIn`), whose readers may read them (`readableAnswer`,
+ * privacy v17: sent, as last sent, or anything saved once the session the
+ * person is due at has started), whose words as read hold some, that have no
+ * feedback from anyone yet (a piece on the answer, or feedback given before
+ * pieces existed), and whose week's session started in the last seven days.
  *
  * FEEDBACK IS OPTIONAL, so a count of every answer with none would never
  * reach zero: the week's session (the group's, `sessionOf`) bounds it. An
@@ -54,9 +54,9 @@ export type WrittenQueueRow = {
    */
   name: string;
   weekNumber: number;
-  /** ISO 8601: when it was first sent, or when its week locked before it was. */
+  /** ISO 8601: when it was first sent, or, never sent, when the session it was due at started. */
   firstSentAt: string;
-  /** Never sent: its week locked at the session before it was submitted, and `firstSentAt` is that lock. */
+  /** Never sent: read since the session it was due at started, and `firstSentAt` is that start. */
   locked: boolean;
 };
 
@@ -129,15 +129,16 @@ export async function loadWrittenQueues(
     if (isReflectionResponse(data) || !isWordCountedAnswer(data)) continue;
     const record = readWrittenAnswer(data);
     const weekNumber = weekNumberOf(data);
-    if (weekNumber < 1 || record.feedback || record.words === 0) continue;
+    if (weekNumber < 1 || record.feedback) continue;
     if (given.has(`${uid} ${String(data.weekId ?? "")} ${String(data.exerciseId ?? "")}`)) continue;
-    // Waiting only once its readers may read it, and from its week's session for a week.
-    const standing = states.stateOf(uid, weekNumber);
-    if (!workIsReadable(standing, record)) continue;
+    // Waiting only once its readers may read it, with words in what they read, and from its week's session for a week.
+    const due = states.dueOf(uid, weekNumber);
+    const read = readableAnswer(answerPiece(record), due.at, now);
+    if (!read || read.words === 0) continue;
     const session = states.sessionOf(uid, weekNumber);
     if (!session || session.getTime() > now.getTime() || now.getTime() - session.getTime() > TO_WRITE_WINDOW_MS) continue;
     const firstSentAt = instantOf(data.firstSentAt);
-    const sentAt = firstSentAt ?? (standing.kind === "locked" ? standing.at : null);
+    const sentAt = firstSentAt ?? due.at;
     if (!sentAt) continue;
     waiting.push({ uid, weekNumber, sentAt, locked: firstSentAt === null });
   }

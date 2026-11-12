@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
-import { feedbackRefusalFor, feedbackStandingIn, feedbackWeekOf } from "@/lib/courses/feedback/access";
+import { feedbackRefusalFor, feedbackStandingIn, feedbackWeekOf, stampReviewed } from "@/lib/courses/feedback/access";
 import { workRatingGate } from "@/lib/courses/workRatings/access";
 import {
   ANSWER_EMPTY,
@@ -155,9 +155,19 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string }
         }),
         tx.get(ref),
       ]);
-      const refusal = feedbackRefusalFor("writtenAnswer", standing.state, standing.answer, { notReadable: NOT_READABLE_YET, answerEmpty: ANSWER_EMPTY });
+      const refusal = feedbackRefusalFor("writtenAnswer", standing, { notReadable: NOT_READABLE_YET, answerEmpty: ANSWER_EMPTY });
       if (refusal) throw new RatingError(refusal, 409);
-      const said = { itemId, rating, comment: comment.comment, raterRole: gate.raterRole, updatedAt: FieldValue.serverTimestamp() };
+      // Which version it is about, kept by the answer's next change.
+      const about = standing.read;
+      if (about) stampReviewed(tx, db, { runId, uid: week.uid, weekId: week.weekId, weekNumber: week.weekNumber, itemId, read: about });
+      const said = {
+        itemId,
+        rating,
+        comment: comment.comment,
+        raterRole: gate.raterRole,
+        ...(about?.savedAt ? { aboutSavedAt: about.savedAt } : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
       if (snap.exists) {
         tx.update(ref, said);
       } else {

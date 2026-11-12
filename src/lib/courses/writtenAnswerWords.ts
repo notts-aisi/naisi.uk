@@ -52,8 +52,8 @@ export function dayAndClockWords(at: Date): string {
 export const ANSWER_NOT_HERE = "That answer isn’t on this week any more. Reload the page.";
 export const ANSWER_LOCKED =
   "This answer has been opened, so it can’t change now. Ask whoever opened it to reopen it if you need to.";
-/** A body that still asks to send: the page was opened before sending became submitting the week. */
-export const ANSWER_SEND_RELOAD = "Your written answer is sent when you submit the week now. Reload the page.";
+/** A save that still asks to send: the page was opened before an answer had its own Send. */
+export const ANSWER_SEND_RELOAD = "Reload the page to send your written answer.";
 export const ANSWER_SENT_CANNOT_EMPTY = "A sent answer can’t be empty. Write it again, or leave it as it was.";
 export const ANSWER_TOO_LONG_TO_STORE = "That’s longer than an answer can be. Cut it down and try again.";
 export const ANSWER_NOT_SAVED = "Couldn’t save that just now. It tries again as you type.";

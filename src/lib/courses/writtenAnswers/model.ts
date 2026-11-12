@@ -1,5 +1,6 @@
 import { countWords } from "@/lib/firestore/worksheets";
 import { normalizeGivenLevels, type GivenLevel } from "../rubric";
+import { readEarlierVersions, type EarlierVersion, type PieceFacts } from "../weekWork/versions";
 
 /**
  * A WEEK'S WRITTEN ANSWER, AS ONE PERSON'S ROW.
@@ -23,25 +24,32 @@ import { normalizeGivenLevels, type GivenLevel } from "../rubric";
  *  - `boxes`: an answer of labelled boxes (a one-page plan), box id to
  *    words; `text` holds an answer of one box. Never both.
  *  - `words`: the count of everything it holds.
- *  - `firstSentAt`: when it was FIRST sent, stored once and never moved:
- *    since weeks are submitted, the first time its week was submitted with
- *    words in it. `submittedAt` is stamped with it, as every reader of
- *    answers sent already reads (who finished counts it).
+ *  - `firstSentAt`: when it was FIRST sent, stored once and never moved: by
+ *    its own Send (`.../written-answers/[answerId]/send`), or by the week's
+ *    old Submit. `submittedAt` is stamped with it, as every reader of answers
+ *    sent already reads (who finished counts it).
+ *  - `sentAt`: when it was LAST sent, by its own Send, every time (the week
+ *    stays open: an answer may be changed and sent again). Missing on an
+ *    answer sent only by the old Submit, whose one send is `firstSentAt`.
  *  - `editedAt`: the latest change after it was first sent.
+ *  - `earlierVersions`: the words it held before a change that crossed a
+ *    line (the session, a send, feedback or a rating), oldest first
+ *    (`src/lib/courses/weekWork/versions.ts`). Missing: one version.
  *  - `openedAt`, `openedByUid`: the lock an answer kept before weeks were
- *    submitted: set when one of its own reviewers first opened it on
- *    the review page, after which its writer could not change it. Nothing
- *    writes them now; reopening the week (`src/lib/courses/weekWork/`)
- *    clears both.
+ *    submitted: set when one of its own reviewers first opened it on the
+ *    review page, after which its writer could not change it. Nothing writes
+ *    them now, and since the week stays open they lock nothing.
  *  - `reopenedAt`, `reopenedByUid`: the last time that lock was cleared,
- *    which the writer is told.
+ *    which the writer is told. Nothing writes them now.
  *  - `feedback`: `{ levels, comment, byUid, sentAt }`. A level for each row
  *    of the course's rubric (with its descriptor, as given) and a short
  *    comment. Never a mark, a score or a total.
  *
- * "LATE" is never stored: it is worked out for staff from the first-sent
- * time and the group's own due moment (`isLate`, `due.ts`), and travels on
- * staff pages only.
+ * "LATE" is never stored: it is worked out when read, from the time of a
+ * change or a send against the session the person was due at
+ * (`src/lib/courses/weekWork/model.ts`). "After its deadline" (first sent
+ * after the block's own deadline, before the session) travels on staff pages
+ * only.
  *
  * Pure: no reads, no clock.
  */
@@ -86,7 +94,11 @@ export type WrittenAnswerRecord = {
   boxes: Record<string, string> | null;
   words: number;
   firstSentAt: Date | null;
+  /** When it was last sent by its own Send, or null (sent only by the old Submit, or never). */
+  sentAt: Date | null;
   editedAt: Date | null;
+  /** Its earlier versions, oldest first; empty for an answer with one version. */
+  earlierVersions: EarlierVersion[];
   openedAt: Date | null;
   openedByUid: string;
   /** When its writer last saved it (the row's `updatedAt`), or null. */
@@ -123,13 +135,28 @@ export function readWrittenAnswer(data: Record<string, unknown>): WrittenAnswerR
     boxes,
     words: typeof data.words === "number" && Number.isFinite(data.words) && data.words >= 0 ? Math.floor(data.words) : 0,
     firstSentAt: instantOf(data.firstSentAt),
+    sentAt: instantOf(data.sentAt),
     editedAt: instantOf(data.editedAt),
+    earlierVersions: readEarlierVersions(data.earlierVersions),
     openedAt: instantOf(data.openedAt),
     openedByUid: str(data.openedByUid),
     savedAt: instantOf(data.updatedAt),
     reopenedAt: instantOf(data.reopenedAt),
     reopenedByUid: str(data.reopenedByUid),
     feedback: feedback && (feedback.levels.length > 0 || feedback.comment.trim()) ? feedback : null,
+  };
+}
+
+/** A written answer as the rules of versions and reading read it (`src/lib/courses/weekWork/versions.ts`). */
+export function answerPiece(record: WrittenAnswerRecord): PieceFacts {
+  return {
+    text: record.boxes ? "" : record.text,
+    boxes: record.boxes,
+    words: record.words,
+    savedAt: record.savedAt,
+    firstSentAt: record.firstSentAt,
+    sentAt: record.sentAt,
+    earlierVersions: record.earlierVersions,
   };
 }
 
