@@ -968,6 +968,12 @@ const USERS = new Map([
       "one piece of arithmetic, so it is a multi-module graph rather than one leaf file",
   ],
   [
+    "pin-met-sessions.test.mjs",
+    "it holds the plain-JavaScript planner behind `scripts/pin-met-sessions.mjs` to the site's own resolver, so its " +
+      "graph is `sessions.ts` with the calendar, the group and run normalisers and `courseAttendance.ts` beside it; " +
+      "`server-only` is its only stub, because a dating checked against a copy of the resolver would prove nothing",
+  ],
+  [
     "account-deletion-worksheets.test.mjs",
     "it executes the whole account cascade to prove what that cascade KEEPS, so its graph is " +
       "`accountDeletion.ts` plus every collection helper it imports, `memberRecords.ts` among " +

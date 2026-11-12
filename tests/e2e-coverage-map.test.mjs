@@ -987,6 +987,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
+  "/api/courses/groups/[groupId]/session/regular": {
+    reason:
+      "Course hub: a group's new regular time from a week onwards, with its preview. tests/course-group-time-change.test.mjs executes it as every kind of caller, with the weeks it pins, the answers it asks again and the notice it sends; the group's page that presses it is built in the same change.",
+    coverWhen:
+      "When the group's page with Change and From a week onwards is on the branch, its browser spec presses it there.",
+  },
   "/api/courses/groups/[groupId]/session": {
     reason:
       "Courses: /api/courses/groups/[groupId]/session is staff-facing, taken deliberately, and answered on the screen that called it.",

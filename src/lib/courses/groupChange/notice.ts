@@ -1,7 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import ApplicationEmail from "@/emails/ApplicationEmail";
-import { programmePageUrl } from "@/lib/courses/allocationPublish";
 import { timeQuestionHtml } from "@/lib/courses/timeAnswer/emailSection";
 import { updateEmailAudience, type UpdateRecipient } from "@/lib/courses/updates/audience";
 import { UPDATE_REPLY_TO } from "@/lib/courses/updates/words";
@@ -42,6 +41,16 @@ import type { Block } from "@/lib/firestore/newsletterBlocks";
  * before anything changes; no hourly window, because a room set an hour
  * after the time changed is one evening's work, not a burst.
  */
+
+/**
+ * The run's page in the member area, where the time question's card is, or
+ * null when the site does not know its own address. Built here rather than
+ * taken from Publish's module, which is a far larger graph than a link needs.
+ */
+function programmePageUrl(runId: string): string | null {
+  const base = (process.env.NEXT_PUBLIC_APP_URL ?? "").trim().replace(/\/+$/, "");
+  return base ? `${base}/learn/${encodeURIComponent(runId)}` : null;
+}
 
 /** The audience, for the presser: the group's told people and its facilitators. */
 export async function groupNoticeAudience(

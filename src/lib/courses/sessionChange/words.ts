@@ -286,14 +286,23 @@ export function currentlyWords(kind: "online" | "moved" | "cancelled"): string {
 export const REASON_LABEL = "Reason (the group sees this)";
 
 export const TELL_LABEL = "Tell the group";
-/** "Emails the 7 people in Group B and puts an update on their programme page." */
-export function tellLine(groupName: string, people: number, emails: number): string {
+/**
+ * "Emails the 7 people in Group B and puts an update on their programme
+ * page." `emails` is every email the update sends, the group's facilitators
+ * with standing among them (never the presser); `members` is how many of
+ * those are the group's people. Facilitators beyond them are named as such:
+ * "Emails 2 of the 3 people in Group B and 2 facilitators, and puts ...".
+ */
+export function tellLine(groupName: string, people: number, emails: number, members: number = emails): string {
+  const facilitators = Math.max(0, emails - members);
+  const also = facilitators === 0 ? "" : ` and ${facilitators === 1 ? "1 facilitator" : `${facilitators} facilitators`},`;
+  // With nobody in the group the dialog offers no telling at all.
   if (people === 0) return `Nobody is in ${groupName} yet, so there is nobody to tell.`;
   if (emails === 0) return `Puts an update on ${groupName}’s programme page. Nobody in it can be emailed yet.`;
-  if (emails >= people) {
-    return `Emails the ${peopleWords(people)} in ${groupName} and puts an update on their programme page.`;
+  if (members >= people) {
+    return `Emails the ${peopleWords(people)} in ${groupName}${also} and puts an update on their programme page.`;
   }
-  return `Emails ${emails} of the ${peopleWords(people)} in ${groupName} and puts an update on their programme page.`;
+  return `Emails ${members} of the ${peopleWords(people)} in ${groupName}${also} and puts an update on their programme page.`;
 }
 /** Over what one send can take. */
 export const TOO_MANY_TO_TELL = "Too many people to email in one send. Tell them with an update from Messages.";
@@ -416,8 +425,8 @@ export const REFUSAL = {
 // ---------------------------------------------------------------------------
 
 /**
- * The end of a session on the wall clock, from its start and length: "5pm"
- * from "15:00" and 120. "" with no length.
+ * The end of a session on the wall clock, given its start and length: "5pm"
+ * for a start of "15:00" and 120 minutes. "" with no length.
  */
 export function endClockWords(hhmm: string, minutes: number): string {
   const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm);

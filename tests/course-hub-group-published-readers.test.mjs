@@ -519,6 +519,31 @@ const READERS = {
       "the notes admins keep, an admin's alone: a person's seats are read only for the runs they are on, to offer the " +
       "programme a note is written from. No group or placement is shown",
   },
+  "lib/courses/groupChange/facts.ts": {
+    kind: "staff",
+    proof: [
+      '.filter((seat) => seat.role === "learner" && placementIsTold(seat))',
+      "people: uids.length,",
+    ],
+    told: 1,
+    why:
+      "what a change to a group's sessions would do, for the preview of the people who may change it (the routes " +
+      "admit a group's live facilitators, the programme's lead, the run's track leads and admins first): the group's " +
+      "told places are read only to count whose reminders before a session have gone, and the preview answers with " +
+      "counts. A placement nobody has told is no reminder and is not counted; nobody's group is shown",
+  },
+  "lib/courses/regularTime/apply.ts": {
+    kind: "writer",
+    proof: [
+      'if (seat.role !== "learner" || seat.groupId !== group.id || !placementIsTold(seat)) continue;',
+      "writeTakenBack(tx, { session, ref, data, state }, seat.uid);",
+    ],
+    told: 1,
+    why:
+      "a new regular time from a week onwards, behind the route's gate (admins, the programme's lead and the run's " +
+      "track leads): each told fellow's \"Most weeks, not all\" ticks on the old time are taken back on the registers, " +
+      "and a seat Publish has not told is left as it is, since it was never asked. It shows nobody anything",
+  },
   "lib/courses/groupFacilitators.ts": {
     kind: "writer",
     proof: [

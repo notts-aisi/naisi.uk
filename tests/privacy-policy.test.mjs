@@ -10909,11 +10909,26 @@ describe("v15 says you may tell us in advance that you can't make a session, whi
     );
   });
 
-  test("taking it back is yours alone: staff never take back what you said", () => {
-    assert.deepEqual(callersOf("writeTakenBack"), [["src/lib/courses/timeAnswer/seat.ts", 1]]);
+  test("taking it back is yours, or the group's time changing under it: staff never take back what you said otherwise", () => {
+    // Two callers and no more: you, and a new regular time for your group, whose
+    // "Most weeks, not all" ticks were about the old time.
+    assert.deepEqual(callersOf("writeTakenBack"), [
+      ["src/lib/courses/regularTime/apply.ts", 1],
+      ["src/lib/courses/timeAnswer/seat.ts", 1],
+    ]);
     assert.match(card, /writeTakenBack\(tx, line, user\.uid\);/);
     assert.match(seat, /if \(state\.kind === "told"\) writeTakenBack\(tx, line, user\.uid\);/);
     assert.doesNotMatch(staff, /writeTakenBack|FieldValue\.delete\(\)/, "staff's reading of an answer takes something back");
+    // The new regular time takes back only: when the day or the start changed,
+    // a told fellow's current "Most weeks, not all" answer, a session they
+    // ticked, on a line that is still their own word, never anything else.
+    const regular = withoutComments(read("src/lib/courses/regularTime/apply.ts"));
+    assert.match(regular, /if \(plan\.dayOrTimeChanged\) \{/);
+    assert.match(regular, /if \(seat\.role !== "learner" \|\| seat\.groupId !== group\.id \|\| !placementIsTold\(seat\)\) continue;/);
+    assert.match(regular, /const answer = currentTimeAnswer\(seat, since\);\s*if \(answer\?\.kind !== "mostWeeks"\) continue;\s*for \(const key of answer\.sessionKeys\) \{/);
+    assert.match(regular, /if \(state\.kind !== "told"\) continue;\s*writeTakenBack\(tx, \{ session, ref, data, state \}, seat\.uid\);/);
+    assert.doesNotMatch(regular, /writeExcusedInAdvance|records: \{/, "a new regular time records somebody as excused");
+    assert.doesNotMatch(regular, /sendEmail|sendNotice|dispatchSends/, "taking a word back emails somebody");
   });
 
   test("in advance, for every caller: only a session not started, on a line that is still nobody else's", () => {

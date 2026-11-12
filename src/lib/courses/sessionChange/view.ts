@@ -174,7 +174,7 @@ type Context = {
   names: Awaited<ReturnType<typeof namesOf>>;
   leadFirst: string;
   trackLeadFirsts: string[];
-  counts: Map<string, { people: number; emails: number; refused: boolean }>;
+  counts: Map<string, { people: number; emails: number; members: number; refused: boolean }>;
   now: Date;
   todayKey: string;
 };
@@ -187,19 +187,26 @@ async function contextFor(
   viewerUid: string | null,
 ): Promise<Context> {
   const trackLeadUids = Array.isArray(run.trackLeadUids) ? run.trackLeadUids.filter((uid) => typeof uid === "string") : [];
-  const [names, lead, counted] = await Promise.all([
+  const only = { groupIds: groups.map((group) => group.id) };
+  const [names, lead, counted, members] = await Promise.all([
     namesOf(db, [...groups.flatMap((group) => group.facilitatorUids), ...trackLeadUids]),
     readRunLead(db, run.id),
-    groups.length
-      ? updateAudienceCounts(db, run, groups, { groupIds: groups.map((group) => group.id) }, viewerUid, {
-          // A change's update is emailed to the group's facilitators too.
-          withFacilitators: true,
-        })
-      : Promise.resolve([]),
+    // A change's update is emailed to the group's facilitators too: every
+    // email it sends, and, apart, how many of them are the group's people.
+    groups.length ? updateAudienceCounts(db, run, groups, only, viewerUid, { withFacilitators: true }) : Promise.resolve([]),
+    groups.length ? updateAudienceCounts(db, run, groups, only, viewerUid) : Promise.resolve([]),
   ]);
-  const counts = new Map<string, { people: number; emails: number; refused: boolean }>();
+  const membersOf = new Map(members.map((count) => [count.groupId, count.emails] as const));
+  const counts = new Map<string, { people: number; emails: number; members: number; refused: boolean }>();
   for (const count of counted) {
-    if (count.groupId) counts.set(count.groupId, { people: count.people, emails: count.emails, refused: count.refused });
+    if (count.groupId) {
+      counts.set(count.groupId, {
+        people: count.people,
+        emails: count.emails,
+        members: membersOf.get(count.groupId) ?? count.emails,
+        refused: count.refused,
+      });
+    }
   }
   // A track lead counts as somebody who can change a session only while they
   // still meet the bar they were named behind.
@@ -256,7 +263,8 @@ function dialogFor(group: CourseGroupDoc, session: ResolvedSession, context: Con
   const current = stateOf(group, session);
   const keepPace = keepPaceOutcome(run, group, session.weekNumber);
   const pushed = pushBackOutcome(run, group, session.weekNumber);
-  const count = context.counts.get(group.id) ?? { people: 0, emails: 0, refused: false };
+  const counted = context.counts.get(group.id) ?? { people: 0, emails: 0, members: 0, refused: false };
+  const count = { people: counted.people, emails: counted.emails, refused: counted.refused };
   const mode = sessionModeForWeek(group, session.weekId);
   const where = mode === "virtual" ? "Online" : session.session.location;
   const days = slotDays(session.slotStartKey)
@@ -305,7 +313,7 @@ function dialogFor(group: CourseGroupDoc, session: ResolvedSession, context: Con
       change && change.kind !== "pushed"
         ? { hint: restoreHint(standing, group.session.location) }
         : null,
-    tell: { ...count, line: tellLine(name, count.people, count.emails) },
+    tell: { ...count, line: tellLine(name, count.people, count.emails, counted.members) },
     whoCan: whoCanLine([
       ...facilitators.map((person) => person.first),
       context.leadFirst,

@@ -18,7 +18,7 @@ import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { ChangeRefusal, checkPress, type CheckedPress } from "@/lib/courses/sessionChange/check";
 import { sessionOfWeek } from "@/lib/courses/sessionChange/model";
-import { oneWeekHistoryDetail, oneWeekNoticeFor, sessionAfter } from "@/lib/courses/sessionChange/notice";
+import { oneWeekHistoryDetail, oneWeekNoticeFor, weekSessionAfter } from "@/lib/courses/sessionChange/notice";
 import { parseChangePress, type ChangePress } from "@/lib/courses/sessionChange/parse";
 import { REFUSAL, countChangedWords } from "@/lib/courses/sessionChange/words";
 import { updateEmailAudience } from "@/lib/courses/updates/audience";
@@ -174,7 +174,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       const after = resolveSessions(run, first.after);
       const switches = await readJobSwitches(db);
       const [reminders, said, told] = await Promise.all([
-        reminderFacts(db, { run, group: found, before: first.session, after: sessionAfter(run, first, press.weekNumber), switches }),
+        reminderFacts(db, { run, group: found, before: first.session, after: weekSessionAfter(run, first, press.weekNumber), switches }),
         saidFacts(db, register),
         toldFacts(db, run, found, actor.uid),
       ]);
@@ -305,7 +305,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       });
 
       const emailed = press.tell ? press.emailCount : 0;
-      const afterSession = sessionAfter(run, checked, press.weekNumber);
+      const afterSession = weekSessionAfter(run, checked, press.weekNumber);
       tx.set(
         db.collection(COURSE_AUDIT_COLLECTION).doc(),
         groupHistoryRow({

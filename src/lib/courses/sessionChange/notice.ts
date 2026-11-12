@@ -24,7 +24,7 @@ import { oneWeekNoticeWords, type OneWeekNotice } from "./words";
  */
 
 /** The week's session as it will read once the press is written, or null with none. */
-export function sessionAfter(run: CourseRunDoc, checked: CheckedPress, weekNumber: number): ResolvedSession | null {
+export function weekSessionAfter(run: CourseRunDoc, checked: CheckedPress, weekNumber: number): ResolvedSession | null {
   return sessionOfWeek(resolveSessions(run, checked.after), weekNumber);
 }
 
@@ -32,7 +32,7 @@ export function sessionAfter(run: CourseRunDoc, checked: CheckedPress, weekNumbe
 export function oneWeekNoticeOf(run: CourseRunDoc, checked: CheckedPress, press: ChangePress): OneWeekNotice {
   const n = press.weekNumber;
   const before = checked.session;
-  const after = sessionAfter(run, checked, n);
+  const after = weekSessionAfter(run, checked, n);
   switch (press.kind) {
     case "move": {
       const moved = after ?? before;
@@ -102,7 +102,7 @@ export function oneWeekHistoryDetail(
     hhmm: before.session.startTimeLocal,
     room: before.session.location.trim(),
   };
-  const after = sessionAfter(run, checked, n);
+  const after = weekSessionAfter(run, checked, n);
   const now = after
     ? { dateKey: after.dateKey, hhmm: after.session.startTimeLocal, room: after.session.location.trim() }
     : was;

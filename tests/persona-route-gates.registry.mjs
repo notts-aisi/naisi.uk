@@ -2159,16 +2159,19 @@ export const ROUTES = {
     POST: {
       expect: adminOnly(404),
       why:
-        "A session's meeting link, from the facilitators' box: group staff only, collapsed onto one 403 for a " +
-        "non-admin before the body is read; an admin is told the group is missing.",
+        "A session's meeting link, from the facilitators' box: group staff (its live facilitators, the lead of " +
+        "the programme naming its run, the run's track leads) only, collapsed onto one 403 for a non-admin " +
+        "before the body is read, since an id that addresses nothing has no run to staff; an admin is told the " +
+        "group is missing.",
     },
   },
   "/api/courses/groups/[groupId]/session": {
     PATCH: {
       expect: adminOnly(404),
       why:
-        "Group staff only, collapsed onto one 403 for a non-admin; an admin is told the group " +
-        "is missing.",
+        "Group staff only (its live facilitators, the lead of the programme naming its run, the run's track " +
+        "leads), collapsed onto one 403 for a non-admin, since an id that addresses nothing has no run to " +
+        "staff; an admin is told the group is missing.",
     },
   },
   "/api/courses/groups/[groupId]/session/change": {
@@ -2179,6 +2182,17 @@ export const ROUTES = {
         "so every signed-in persona meets the same 400 on an empty one. Who may change a session of the " +
         "group (its live facilitators, the lead of the programme naming its run, the run's track leads, " +
         "admins) is asked once a valid body arrives.",
+    },
+  },
+  "/api/courses/groups/[groupId]/session/regular": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "A group's new regular time from a week onwards: view-as is refused first, then the session, then the " +
+        "body is checked before anything is read, so every signed-in persona meets the same 400 on an empty " +
+        "one. Who may (admins, the lead of the programme naming its run, the run's track leads, never a plain " +
+        "facilitator) is asked once a valid body arrives. Its answer is { ok, change, email }, or { ok, preview } " +
+        "for a preview.",
     },
   },
   "/api/courses/groups/[groupId]/session-report": {
@@ -6076,10 +6090,32 @@ export const REAL_ROUTES = {
     },
   },
   "/api/courses/groups/[groupId]/meeting-link": {
-    POST: groupStaff("A session's meeting link", c(400, "Admitted, then the body is checked: an empty one names no session.")),
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither facilitates the group, leads its programme nor is one of its run's track leads: refused in one 403 before anything else is read."),
+        admin: c(400, "Admitted, then the body is checked: an empty one names no session."),
+      },
+      theirs: {
+        lead: c(400, "Leads the programme that names the group's run, so admitted, then the body is checked: an empty one names no session."),
+        facilitator: c(400, "A live facilitator of the group, so admitted, then the body is checked: an empty one names no session."),
+        participant: c(403, "Holds a place in the run's other group and staffs nothing: refused before the body is read."),
+      },
+    },
   },
   "/api/courses/groups/[groupId]/session": {
-    PATCH: groupStaff("A session's mode", c(400, "Admitted, then the body is checked: an empty one names no week.")),
+    PATCH: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither facilitates the group, leads its programme nor is one of its run's track leads: refused in one 403 before anything else is read."),
+        admin: c(400, "Admitted, then the body is checked: an empty one names no week."),
+      },
+      theirs: {
+        lead: c(400, "Leads the programme that names the group's run, so admitted, then the body is checked: an empty one names no week."),
+        facilitator: c(400, "A live facilitator of the group, so admitted, then the body is checked: an empty one names no week."),
+        participant: c(403, "Holds a place in the run's other group and staffs nothing: refused before the body is read."),
+      },
+    },
   },
   "/api/courses/groups/[groupId]/session/change": {
     POST: {
@@ -6096,6 +6132,24 @@ export const REAL_ROUTES = {
         lead: c(ACTS, "Leads the programme that names the run, which staffs it, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
         facilitator: c(ACTS, "A live facilitator of the group, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
         participant: c(403, "Holds a place in the run's other group and staffs nothing: one 403 before any session changes."),
+      },
+    },
+  },
+  "/api/courses/groups/[groupId]/session/regular": {
+    POST: {
+      realDrive: {
+        body: { fromWeek: 1, weekday: 2, time: "6pm", length: 120, room: "Room E2E", tell: false },
+        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither an admin nor anybody who runs the group's programme (its lead, the run's track leads): one 403 before anything changes."),
+        admin: c(ACTS, "An admin changes any group's regular time, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "Leads the programme that names the run, which runs it, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(403, "Facilitating the group changes one week, never its regular time: refused before anything changes."),
+        participant: c(403, "Holds a place in the run's other group and runs nothing: one 403 before anything changes."),
       },
     },
   },

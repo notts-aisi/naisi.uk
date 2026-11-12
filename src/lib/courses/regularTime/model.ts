@@ -132,22 +132,22 @@ export function planRegularChange(input: {
     if (registerIsTaken(registers.get(later.weekNumber))) return refuse(409, laterMetWords(later.weekNumber));
   }
 
-  const old = group.session;
+  const standing = group.session;
   const campus = slot.campus;
   const next: GroupSession = {
-    ...old,
+    ...standing,
     weekday: slot.weekday,
     startTimeLocal: slot.startTimeLocal,
     durationMinutes: slot.durationMinutes,
     location: slot.location,
   };
-  const dayOrTimeChanged = old.weekday !== next.weekday || old.startTimeLocal !== next.startTimeLocal;
+  const dayOrTimeChanged = standing.weekday !== next.weekday || standing.startTimeLocal !== next.startTimeLocal;
   const campusChanged = campus !== null && campus !== group.campus;
   if (
     !dayOrTimeChanged &&
     !campusChanged &&
-    old.durationMinutes === next.durationMinutes &&
-    old.location.trim() === next.location.trim()
+    standing.durationMinutes === next.durationMinutes &&
+    standing.location.trim() === next.location.trim()
   ) {
     return refuse(400, REGULAR_REFUSAL.same);
   }
@@ -162,10 +162,10 @@ export function planRegularChange(input: {
       if (Object.hasOwn(own, field) || was === becomes) return;
       pin[field] = was;
     };
-    keep("weekday", old.weekday, next.weekday);
-    keep("startTimeLocal", old.startTimeLocal, next.startTimeLocal);
-    keep("durationMinutes", old.durationMinutes, next.durationMinutes);
-    keep("location", old.location, next.location);
+    keep("weekday", standing.weekday, next.weekday);
+    keep("startTimeLocal", standing.startTimeLocal, next.startTimeLocal);
+    keep("durationMinutes", standing.durationMinutes, next.durationMinutes);
+    keep("location", standing.location, next.location);
     // A campus can only be pinned when the group had one: "not chosen" is no
     // value an override can hold, and such a week reads the group's either way.
     if (campusChanged && group.campus) keep("campus", group.campus, campus ?? group.campus);

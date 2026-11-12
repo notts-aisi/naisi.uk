@@ -171,6 +171,14 @@ const READERS = {
       "asked (`joiningOnlineState` answers cancelled first), so nobody is offered it or keeps a word for a session " +
       "that is not happening, and a register that says its session did not happen closes it too",
   },
+  "lib/courses/regularTime/apply.ts": {
+    kind: "asks",
+    proof: ["cancelled: session.cancelled,", "notHeld: !register.held,"],
+    why:
+      "A new regular time takes back a \"Most weeks, not all\" tick only on a line that is still the person's own word, " +
+      "asked as Can't make it asks it (`cantMakeItState`): a session called off, or a register that says its session " +
+      "did not happen, is closed, so nothing is taken back from a session that is not happening",
+  },
   "lib/courses/cantMakeIt/seat.ts": {
     kind: "asks",
     proof: ["cancelled: session.cancelled, line, now", "notHeld: !register.held,"],
