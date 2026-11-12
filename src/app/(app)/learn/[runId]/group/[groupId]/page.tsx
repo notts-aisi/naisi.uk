@@ -645,7 +645,6 @@ export default async function GroupHomePage({
         <FacilitatorMeets
           view={meets}
           eyebrow={[programme?.shortName ?? access.run.courseTitle, groupName].filter(Boolean).join(" · ")}
-          canChange={!viewAs}
         />
       )}
 

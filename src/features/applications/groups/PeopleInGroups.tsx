@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { groupPagePath, openGroupPageLabel } from "@/lib/courses/groupPage/words";
+import { groupPagePath } from "@/lib/courses/groupPage/words";
 import { useCallback, useMemo, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import {
   DndContext,
@@ -743,7 +743,6 @@ export default function PeopleInGroups({ view, views }: Props) {
                                   <Link
                                     href={groupPagePath(view.roundId, view.programmeId, group.id)}
                                     className={styles.columnTitleLink}
-                                    aria-label={openGroupPageLabel(group.name)}
                                   >
                                     {group.name}
                                   </Link>

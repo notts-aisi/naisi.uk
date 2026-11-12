@@ -371,6 +371,7 @@ export default function GroupPage({ view, links }: { view: GroupPageView; links:
                     type="button"
                     className={each.weekNumber === shown ? `${styles.pill} ${styles.pillOn}` : styles.pill}
                     aria-pressed={each.weekNumber === shown}
+                    aria-label={`${W.weekWords(each.weekNumber)}, ${W.weekPillLine(each.dateKey, each.state)}`}
                     onClick={() => setShown(each.weekNumber)}
                   >
                     <span className={styles.pillWeek}>{W.weekWords(each.weekNumber)}</span>
@@ -470,7 +471,14 @@ export default function GroupPage({ view, links }: { view: GroupPageView; links:
         </div>
       )}
 
-      <Modal open={panel !== null} onClose={() => setPanel(null)} ariaLabel={view.groupName} side>
+      <Modal
+        open={panel !== null}
+        onClose={() => setPanel(null)}
+        ariaLabel={
+          panel?.kind === "link" ? W.SET_THE_LINK : panel?.kind === "room" ? W.roomPanelTitle(view.groupName) : W.changePanelTitle(view.groupName)
+        }
+        side
+      >
         {(dismiss) =>
           panel === null ? null : panel.kind === "change" ? (
             <ChangePanel

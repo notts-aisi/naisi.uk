@@ -7,6 +7,7 @@ import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
 import GroupPage from "@/features/courses/groupPage/GroupPage";
 import { isAddressableId } from "@/lib/addressableId";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
+import { own } from "@/lib/applications/keys";
 import { loadGroupPage } from "@/lib/courses/groupPage/load";
 import { GO_TO_GROUPS, GROUP_NOT_HERE_LINE, GROUP_NOT_HERE_TITLE } from "@/lib/courses/groupPage/words";
 import { messagesEntriesFor } from "@/lib/messages/handover";
@@ -97,7 +98,7 @@ export default async function ProgrammeGroupPage({
           programme: `${base}/overview`,
           groups: tabPath,
           register: takesRegister ? `/learn/${encodeURIComponent(run.id)}/group/${encodeURIComponent(group.id)}/register` : null,
-          write: messages?.groups[group.id] ?? null,
+          write: messages ? (own(messages.groups, group.id) ?? null) : null,
           facilitators: groupsViewPath(view.roundId, view.programmeId, "facilitators"),
           times: groupsViewPath(view.roundId, view.programmeId, "times"),
           people: tabPath,

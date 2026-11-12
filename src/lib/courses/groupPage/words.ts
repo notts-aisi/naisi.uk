@@ -28,11 +28,6 @@ export function groupPagePath(roundId: string, programmeId: string, groupId: str
 /** The way back, beside the programme's name. */
 export const GROUPS = "Groups";
 
-/** The link the Groups tab's views put on a group's name or time, for a screen reader: "Open Group C’s page". */
-export function openGroupPageLabel(groupName: string): string {
-  return `Open ${groupName}’s page`;
-}
-
 /** Where a told group's time used to be a control: "Change it on Group C’s page". */
 export function changeOnGroupPageWords(groupName: string): string {
   return `Change it on ${groupName}’s page`;

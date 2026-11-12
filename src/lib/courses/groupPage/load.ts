@@ -14,7 +14,7 @@ import {
   attendanceDocId,
   registerIsTaken,
 } from "@/lib/firestore/courseAttendance";
-import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
+import { normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
 import {
   campusForWeek,
   sessionChangeForWeek,
@@ -120,9 +120,13 @@ export async function loadGroupPage(
   const lead = await readRunLead(db, run.id, naming);
 
   // The group's people: fellows holding a place, and its facilitators apart.
+  // Admins and the programme's lead are shown every place, told or not, as
+  // the Groups tab shows them; a facilitator never learns of a place Publish
+  // has not told its owner about.
   const seats = seatSnap.docs
     .map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}))
-    .filter((seat) => seat.runId === run.id && seat.groupId === group.id && seat.role === "learner");
+    .filter((seat) => seat.runId === run.id && seat.groupId === group.id && seat.role === "learner")
+    .filter((seat) => staff || placementIsTold(seat));
   const facilitatorSet = new Set(group.facilitatorUids);
   const fellows = seats.filter((seat) => !facilitatorSet.has(seat.uid));
   const placedFacilitators = seats.filter((seat) => facilitatorSet.has(seat.uid));
@@ -183,8 +187,9 @@ export async function loadGroupPage(
       taken,
       hasLink: Boolean(session.session.meetingUrl),
       slotDays: slotDays(session.slotStartKey),
-      joiningOnline: everyone.filter((uid) => onlineUids.has(uid) && !cantUids.has(uid)).map(nameOf).filter(Boolean),
-      cantMakeIt: everyone.filter((uid) => cantUids.has(uid)).map(nameOf).filter(Boolean),
+      // Names for the pages that draw them; the facilitator's cut draws none.
+      joiningOnline: staff ? everyone.filter((uid) => onlineUids.has(uid) && !cantUids.has(uid)).map(nameOf).filter(Boolean) : [],
+      cantMakeIt: staff ? everyone.filter((uid) => cantUids.has(uid)).map(nameOf).filter(Boolean) : [],
       people: staff
         ? fellows
             .map((seat) => ({ uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: saidOf(seat.uid) }))

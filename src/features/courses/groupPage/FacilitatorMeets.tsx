@@ -20,18 +20,17 @@ import styles from "./GroupPage.module.css";
  *
  * Drawn from `loadGroupPage` with the facilitator's view: no people and no
  * history, no address and no link. The routes behind both buttons admit the
- * group's facilitators and ask again.
+ * group's facilitators and ask again. In a view-as session the page is drawn
+ * exactly as the facilitator sees it, buttons and all: the routes refuse
+ * every press made from it, in their own words.
  */
 export default function FacilitatorMeets({
   view,
   eyebrow,
-  canChange,
 }: {
   view: GroupPageView;
   /** "AGI Strategy · Group C". */
   eyebrow: string;
-  /** Nothing is offered to press in a view-as session, where nothing is written. */
-  canChange: boolean;
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -60,7 +59,7 @@ export default function FacilitatorMeets({
         {timeSet ? W.dayAndTimeWords(view.meets.weekday, view.meets.hhmm, view.meets.minutes) : W.howMeetsTitle(view.groupName)}
       </h2>
       <p className={styles.weekWhere}>{timeSet ? W.roomLine(view.meets.room, campus) : W.NOT_SET_YET}</p>
-      {canChange && (
+      {(changeable || view.linkSessionKey) && (
         <div className={styles.facActions}>
           {changeable && (
             <button type="button" className={styles.button} disabled={!hydrated} onClick={() => open("change")}>
@@ -90,7 +89,7 @@ export default function FacilitatorMeets({
           ))}
         </ul>
       )}
-      <Modal open={panel !== null} onClose={() => setPanel(null)} ariaLabel={view.groupName} side>
+      <Modal open={panel !== null} onClose={() => setPanel(null)} ariaLabel={panel === "link" ? W.SET_THE_LINK : W.CHANGE_ONE_WEEK} side>
         {(dismiss) =>
           panel === "change" ? (
             <ChangePanel

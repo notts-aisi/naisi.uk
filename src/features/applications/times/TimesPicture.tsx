@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { groupPagePath, openGroupPageLabel } from "@/lib/courses/groupPage/words";
+import { groupPagePath } from "@/lib/courses/groupPage/words";
 import type { CSSProperties, ReactNode } from "react";
 import { ArrowRightIcon } from "@/features/applications/editor/Icons";
 import shared from "@/features/applications/editor/editor.module.css";
@@ -300,7 +300,6 @@ function YourGroups({ view, picture, acts }: { view: TimesView; picture: Picture
                   <Link
                     href={groupPagePath(view.roundId, view.programmeId, group.id)}
                     className={styles.groupLink}
-                    aria-label={openGroupPageLabel(group.name)}
                   >
                     {group.name}
                   </Link>

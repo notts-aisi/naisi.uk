@@ -121,6 +121,10 @@ const READERS = {
     does: "asks",
     why: "Joining online asks whether the session has a link, to tell the person it is on their ticket or will be; the answer never carries it",
   },
+  "lib/courses/groupPage/load.ts": {
+    does: "asks",
+    why: "a group's page says whether the group, and each week, has a meeting link (Set the link, Hold it online); it never hands the link back",
+  },
   "lib/courses/meetingLink/box.ts": {
     does: "asks",
     why: "the facilitators' box asks whether a session somebody is joining online has a link yet, to ask for one or not; it never hands it back",

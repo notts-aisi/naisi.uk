@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { groupPagePath, openGroupPageLabel } from "@/lib/courses/groupPage/words";
+import { groupPagePath } from "@/lib/courses/groupPage/words";
 
 import { Fragment, useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { RunFacilitatorsPayload } from "@/app/api/courses/runs/[runId]/facilitators/route";
@@ -626,7 +626,6 @@ export default function GroupFacilitators({ runId }: Props) {
             <Link
               href={groupPagePath(model.roundId, model.programmeId, each.id)}
               className={styles.groupLink}
-              aria-label={openGroupPageLabel(each.name || "Untitled group")}
             >
               {each.name || "Untitled group"}
             </Link>
