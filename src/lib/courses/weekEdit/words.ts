@@ -311,10 +311,19 @@ export const NOTICE_LETTERS = {
     subject: `A change to week ${weekNumber}`,
     lines: [`Something in ${weekPart(weekNumber, partNumber)} has been reworded. Anything you’ve ticked or written is kept.`],
   }),
-  /** A paste of the whole week, or a restore of an earlier version. */
-  whole: (weekNumber: number): NoticeLetter => ({
+  /**
+   * A paste of the whole week, or a restore of an earlier version. "Kept" is
+   * said whole only when the save's own record shows it took out nothing
+   * anybody had ticked or answered (`takenOut`); otherwise what is true: the
+   * work is kept, and what was on anything taken out no longer shows.
+   */
+  whole: (weekNumber: number, takenOut: number): NoticeLetter => ({
     subject: `A change to week ${weekNumber}`,
-    lines: [`Week ${weekNumber} has been updated. What you’ve already ticked or written is kept.`],
+    lines: [
+      takenOut > 0
+        ? `Week ${weekNumber} has been updated, and some of it has been taken out. Everything you’ve ticked or written is kept, but anything you did on what was taken out no longer shows on the week.`
+        : `Week ${weekNumber} has been updated. What you’ve already ticked or written is kept.`,
+    ],
   }),
 } as const;
 

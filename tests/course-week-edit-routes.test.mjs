@@ -549,6 +549,41 @@ describe("5. telling people about a change", () => {
     });
   });
 
+  test("after a paste or a restore, the email says the work is kept whole only when the save took nothing out", async () => {
+    const letterAfter = async (save) => (await ask("zach", R.tell.GET, AT, { query: `?save=${save}` })).body.letter;
+    seedWeek();
+    // A paste that takes out nothing anybody ticked or answered: the week copied out, with a new title.
+    const copied = await ask("zach", R.paste.GET, AT);
+    assert.equal(copied.status, 200, JSON.stringify(copied.body));
+    const markdown = copied.body.markdown.replace(/^# Week 3: .*$/m, "# Week 3: How sure are you, now?");
+    assert.notEqual(markdown, copied.body.markdown);
+    const check = await ask("zach", R.paste.POST, AT, { body: { markdown } });
+    assert.equal(check.body.answers, 0, "this paste takes out nothing answered");
+    const pasted = await ask("zach", R.paste.PUT, AT, { body: { markdown, confirmAnswers: 0 } });
+    assert.equal(pasted.status, 200, JSON.stringify(pasted.body));
+    assert.equal(saves().find((row) => row.id === pasted.body.saveId).work.takenOut, 0);
+    assert.deepEqual(await letterAfter(pasted.body.saveId), {
+      subject: "A change to week 3",
+      lines: ["Week 3 has been updated. What you’ve already ticked or written is kept."],
+    });
+
+    // A restore that takes out a reflection Kofi has answered.
+    const added = structuredClone(stored());
+    added.blocks[5].blocks.push({ id: "rs-9", type: "reflection", prompts: [{ id: "rp-9", text: "A new question?" }] });
+    world.db.seed(W3, added);
+    world.db.seed(`courseExerciseResponses/${RUN.agi}__kofi__w03__rp-9`, { runId: RUN.agi, uid: "kofi", weekId: "w03", exerciseId: "rp-9", kind: "reflection", text: "Yes." });
+    const compared = await ask("zach", R.save.GET, { ...AT, saveId: "s000001" });
+    const restored = await ask("zach", R.restore.POST, { ...AT, saveId: "s000001" }, { body: { base: compared.body.restore.base, confirmAnswers: 1 } });
+    assert.equal(restored.status, 200, JSON.stringify(restored.body));
+    assert.equal(saves().find((row) => row.id === restored.body.saveId).work.takenOut, 1);
+    const letter = await letterAfter(restored.body.saveId);
+    assert.equal(letter.subject, "A change to week 3");
+    assert.deepEqual(letter.lines, [
+      "Week 3 has been updated, and some of it has been taken out. Everything you’ve ticked or written is kept, but anything you did on what was taken out no longer shows on the week.",
+    ]);
+    assert.ok(!letter.lines.join(" ").includes("What you’ve already ticked or written is kept."), "never the whole promise after a save that took something out");
+  });
+
   test("only the newest save can be told about", async () => {
     const saveId = await savedLink();
     await change("zach", "tx-before", { body: "Rest first." });
