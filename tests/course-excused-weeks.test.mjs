@@ -79,6 +79,7 @@ const requestsLib = await loadTs("lib/firestore/courseRequests.ts");
 const attendanceLib = await loadTs("lib/firestore/courseAttendance.ts");
 const cantModel = await loadTs("lib/courses/cantMakeIt/model.ts");
 const cantWords = await loadTs("lib/courses/cantMakeIt/words.ts");
+const coverModel = await loadTs("lib/courses/registerCover/model.ts");
 const own = await loadTs("lib/courses/excused/own.ts");
 const page = await loadTs("lib/courses/excused/page.ts");
 const tidy = await loadTs("lib/courses/excused/tidy.ts");
@@ -943,6 +944,23 @@ describe("a line an approval wrote is taken back by nothing but a correction", (
     assert.deepEqual([week3.excuse.kind, week3.excuse.by.firstName], ["approved", "Zach"]);
     assert.equal((await readRegister("rahul")).body.excuseRequests.w03.amara, "excused");
     assert.equal(requestDocs()[0].change.weeks[0].status, "approved");
+  });
+
+  test("an approval's line never starts the register for its facilitators, even when the admin who approved it facilitates the group", async () => {
+    await approvedWeek3();
+    const line = world.db.read(W3);
+    const register = attendanceLib.normalizeCourseAttendance("x", line);
+    // Zach approved it; were Zach one of Group B's facilitators, the line is still Amara's own request.
+    for (const facilitators of [["rahul", "sofia"], ["rahul", "sofia", "zach"]]) {
+      assert.equal(coverModel.startedByFacilitator(register, facilitators), false, facilitators.join(","));
+      assert.equal(
+        coverModel.saveTakesCover({ changedLines: 1, cover: null, markedByUid: "", setBy: register.setBy, facilitatorUids: facilitators }),
+        true,
+        facilitators.join(","),
+      );
+    }
+    assert.equal(coverModel.stampStartsIt({ byUid: "zach", how: "approval" }, new Set(["zach"])), false);
+    assert.equal(coverModel.stampStartsIt({ byUid: "zach", how: "facilitator" }, new Set(["zach"])), true, "a facilitator's own mark stopped starting it");
   });
 
   test("a facilitator's own mark still wins over it on the day, as over any line", async () => {
