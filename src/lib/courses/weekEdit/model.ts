@@ -5,6 +5,7 @@ import { WEEK_BLOCK_LIMITS as L } from "../weekBlocks/limits";
 import {
   SOURCE_KINDS,
   WHENS,
+  allBlocks,
   sanitizeWeekBlocks,
   weekBlocksProblems,
   type PartBlock,
@@ -762,6 +763,83 @@ export function applyBlockEdit(blocks: readonly WeekBlock[], blockId: string, bo
   const saved = locateBlock(week, blockId);
   if (!saved) return { ok: false, status: 400, error: EDIT_REFUSAL.wouldNotRead(where) };
   return { ok: true, blocks: week, block: saved.block, change, noChange: sameJson(week, blocks) };
+}
+
+// ---------------------------------------------------------------------------
+// Every block, saved back unchanged
+// ---------------------------------------------------------------------------
+
+/** One block that does not come back identical when its own fields are saved back unchanged. */
+export type RoundTripProblem = {
+  blockId: string;
+  type: EditableType;
+  /** The field that, saved back as the side panel loaded it, did not come back the same. */
+  field: string;
+  /** The save's refusal, or, for a save that went through, that the block came back different. */
+  problem: string;
+};
+
+/** The fields the side panel loads for a block, each as a save would send it alone. */
+function loadedFields(editor: EditorFields): Array<[string, unknown]> {
+  switch (editor.type) {
+    case "source":
+      return (["kind", "title", "url", "by", "date", "time", "note"] as const).map((key) => [key, editor.fields[key]]);
+    case "text": {
+      const out: Array<[string, unknown]> = [["body", editor.fields.body]];
+      if (editor.fields.headingAllowed) out.push(["heading", editor.fields.heading]);
+      if (editor.fields.timeAllowed) out.push(["time", editor.fields.time]);
+      return out;
+    }
+    case "reflection":
+      return [["prompts", editor.fields.prompts]];
+    case "writtenAnswer": {
+      const out: Array<[string, unknown]> = [
+        ["question", editor.fields.question],
+        ["guidance", editor.fields.guidance],
+        ["due", editor.fields.due],
+      ];
+      if (editor.fields.heading !== null) out.push(["heading", editor.fields.heading]);
+      if (editor.fields.boxes.length === 0) out.push(["words", editor.fields.words]);
+      return out;
+    }
+  }
+}
+
+/**
+ * EVERY BLOCK OF A WEEK THAT CAN BE CHANGED IN PLACE, SAVED BACK UNCHANGED:
+ * for each source, text, reflection and written answer, each field the side
+ * panel would load (`editorFieldsOf`) is sent back as it was loaded, alone,
+ * through the same code a save goes through (`parseEditBody`, then
+ * `applyBlockEdit`), and any block that does not come back identical is
+ * reported with its id and the field: a refusal, or a save that would change
+ * what is stored. An empty list means opening any of them and pressing Save
+ * changes nothing. Pure: reads nothing, writes nothing, so it can be run over
+ * stored weeks to check them before anybody edits one.
+ */
+export function roundTripProblems(blocks: readonly WeekBlock[]): RoundTripProblem[] {
+  const problems: RoundTripProblem[] = [];
+  for (const block of allBlocks(blocks)) {
+    if (!isEditableType(block.type)) continue;
+    const located = locateBlock(blocks, block.id);
+    const editor = located ? editorFieldsOf(located) : null;
+    if (!located || !editor) continue;
+    for (const [field, value] of loadedFields(editor)) {
+      const raw = {
+        base: blockFingerprint(located.block),
+        fields: { [field]: value },
+        ...(editor.type === "source" ? { reading: "same" } : {}),
+      };
+      const parsed = parseEditBody(JSON.parse(JSON.stringify(raw)), editor.type);
+      if ("error" in parsed) {
+        problems.push({ blockId: block.id, type: editor.type, field, problem: parsed.error });
+        continue;
+      }
+      const applied = applyBlockEdit(blocks, block.id, parsed);
+      if (!applied.ok) problems.push({ blockId: block.id, type: editor.type, field, problem: applied.error });
+      else if (!applied.noChange) problems.push({ blockId: block.id, type: editor.type, field, problem: "The block came back different." });
+    }
+  }
+  return problems;
 }
 
 /** The question of a written answer in plain words, for a list or an email. */

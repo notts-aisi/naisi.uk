@@ -276,3 +276,92 @@ describe("5. the words then", () => {
     assert.equal(wordsInForce(versions, "nothing", null), null);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 6. Every block saved back unchanged comes back identical
+// ---------------------------------------------------------------------------
+
+describe("6. every block that can be changed in place, saved back unchanged, comes back identical", () => {
+  /** Prose read from Markdown exactly as a save reads it. */
+  const prose = (markdown) => {
+    const read = edit.proseFromMarkdown("A test", markdown);
+    assert.ok(read.ok, JSON.stringify(read));
+    return read.value;
+  };
+  const runs = (markdown) => {
+    const read = edit.runsFromMarkdown("A test", markdown);
+    assert.ok(read.ok, JSON.stringify(read));
+    return read.value;
+  };
+  /** Every kind of Markdown the reader keeps: paragraphs, bold, italics, links (https and mailto), both lists, a table and code. */
+  const EVERY_KIND = [
+    "A paragraph with **bold**, *italics*, ***both***, a [link](https://example.com/a?b=1) and [an address](mailto:someone@example.com).",
+    "- A point\n- A point with **bold** and a [link](https://example.org/x)",
+    "1. First\n2. Second, *in italics*",
+    "| When | What |\n| --- | --- |\n| Monday | **Read** the [diary](https://example.com/d) |\n| Tuesday | Write |",
+    "```python\nprint('hello')\n```",
+    "A last paragraph.",
+  ].join("\n\n");
+
+  test("the synthetic week, every kind of block in it: no problem", () => {
+    assert.deepEqual(edit.roundTripProblems(blocks()), []);
+  });
+
+  test("a text, a source, a reflection and a written answer holding every kind of Markdown the reader keeps: no problem", () => {
+    const week = weekBlocks.sanitizeWeekBlocks([
+      { id: "tx-every", type: "text", role: "plain", heading: "", time: "", body: prose(EVERY_KIND) },
+      { id: "tx-section", type: "text", role: "section", heading: "A section", time: "", body: prose(EVERY_KIND) },
+      { id: "tx-before", type: "text", role: "before", heading: "Before the session", time: "About 10 minutes", body: prose(EVERY_KIND) },
+      {
+        id: "pt-every",
+        type: "part",
+        title: "Every kind of Markdown",
+        time: "About 20 minutes",
+        framing: prose("Framing with **bold** and *italics*."),
+        blocks: [
+          {
+            id: "src-every",
+            type: "source",
+            kind: "read",
+            lead: "",
+            title: "A field guide",
+            url: "https://example.com/guide",
+            by: "Ada Example",
+            date: "2024",
+            time: "20 minutes",
+            compute: "",
+            note: runs("Read **sections 1 and 2**, *slowly*, then [the appendix](https://example.com/appendix)."),
+          },
+          { id: "tx-in-part", type: "text", role: "plain", heading: "A text in a part", time: "", body: prose(EVERY_KIND) },
+          { id: "rs-every", type: "reflection", prompts: [{ id: "rp-every-1", text: "What did you notice?" }, { id: "rp-every-2", text: "What would you change?" }] },
+          {
+            id: "wa-every",
+            type: "writtenAnswer",
+            prompt: prose(EVERY_KIND),
+            boxes: [],
+            guidance: prose("A strong answer is **specific**.\n\n- Names its source\n- Says what would change it"),
+            words: { min: 200, max: 300 },
+            due: "dayBefore",
+          },
+        ],
+      },
+    ]);
+    assert.equal(weekBlocks.allBlocks(week).length, 8, "the reader kept every block");
+    const kinds = new Set(find(week, "tx-every").body.map((paragraph) => paragraph.type));
+    assert.deepEqual([...kinds].sort(), ["code", "ol", "p", "table", "ul"], "every kind of Markdown is in the block");
+    assert.deepEqual(edit.roundTripProblems(week), []);
+  });
+
+  test("a block that does not come back identical is named, with the field", () => {
+    // A source stored with spaces a save trims, alone in its week: saving it back as loaded changes it.
+    const source = structuredClone(find(blocks(), "src-1"));
+    source.title = "  A field guide to base rates  ";
+    const problems = edit.roundTripProblems([source]);
+    assert.ok(problems.length > 0, "nothing reported");
+    assert.ok(problems.every((problem) => problem.blockId === "src-1" && problem.type === "source"), JSON.stringify(problems));
+    assert.ok(problems.some((problem) => problem.field === "title"), JSON.stringify(problems));
+    for (const problem of problems) assert.ok(typeof problem.problem === "string" && problem.problem.length > 0);
+    // Read as the reader of weeks reads it, the same source comes back identical.
+    assert.deepEqual(edit.roundTripProblems(weekBlocks.sanitizeWeekBlocks([source])), []);
+  });
+});
