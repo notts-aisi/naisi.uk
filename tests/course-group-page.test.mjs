@@ -444,6 +444,34 @@ describe("1. the arithmetic of a group's page", () => {
     assert.equal(by.Told, "6 people by email: Group A’s 5 and Ella. Programme pages and Home show the new time straight away.");
   });
 
+  test("a later week that keeps its own one-week change is said to keep its change, not its time, which may move", () => {
+    const lines = model.regularPreviewLines({
+      preview: {
+        fromWeek: 2,
+        dayOrTimeChanged: true,
+        askedAgain: true,
+        regular: {
+          before: { weekday: 1, startTimeLocal: "16:00", durationMinutes: 120, room: "Monica Partridge C10", campus: null },
+          after: { weekday: 2, startTimeLocal: "17:30", durationMinutes: 120, room: "Monica Partridge C10", campus: null },
+        },
+        moves: [],
+        kept: [],
+        ownTimes: [
+          { weekNumber: 3, kind: "online", session: moment({ weekNumber: 3, dateKey: "2026-11-17", startTimeLocal: "17:30" }), campus: null },
+        ],
+        reminders: [],
+        told: { emails: 6, refused: false, people: 5, facilitatorNames: ["Ella"] },
+        notice: { subject: "Group A now meets on Tuesdays, 5:30pm", before: [], after: [], asks: true },
+        at: null,
+      },
+      groupName: "Group A",
+      incubator: false,
+      todayKey: "2026-11-10",
+    });
+    const own = lines.find((line) => line.label === "Keeps its own");
+    assert.equal(own?.text, "Week 3 keeps its own change (held online): Tue 17 Nov, 5:30pm.");
+  });
+
   test("the start times and lengths a panel offers keep the session's own", () => {
     assert.ok(model.startTimeOptions("18:15").includes("18:15"));
     assert.equal(model.startTimeOptions("18:00").filter((each) => each === "18:00").length, 1);

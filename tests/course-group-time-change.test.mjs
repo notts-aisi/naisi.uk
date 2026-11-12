@@ -39,6 +39,10 @@
  *     weeks nobody took a register for goes through.
  *  9. A SECOND PRESS of a cancel or of holding it online (the first went
  *     through, its answer lost) changes nothing and tells nobody again.
+ * 10. THE PLAN OF A NEW REGULAR TIME (`planRegularChange`), as arithmetic: a
+ *     week that met is pinned to its register's start, not the slot's; a
+ *     week's own partial override wins; weeks either side of a clock change,
+ *     a group's own plan, a cancelled earlier week and the cap.
  */
 import { beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -49,6 +53,8 @@ const w = await makeSessionsWorld("__groupTimeChange");
 const { world, ask, group, sessionsOf, reset, at, loadTs, everything } = w;
 const regular = await w.courseRoute("groups", "[groupId]", "session", "regular");
 const pace = await w.courseRoute("groups", "[groupId]", "pace");
+const plans = await loadTs("lib/courses/regularTime/model.ts");
+const regularWords = await loadTs("lib/courses/regularTime/words.ts");
 const roomRoute = await w.formRoute("programmes", "[programmeId]", "groups", "[groupId]", "room");
 const timeAnswer = await loadTs("lib/courses/timeAnswer/model.ts");
 const groupsLib = await loadTs("lib/firestore/courseGroups.ts");
@@ -778,5 +784,127 @@ describe("9. a second press of a change that went through tells nobody again", (
     assert.equal(second.told, null, "a refused press posted an update");
     assert.equal(world.mail.length, sent);
     assert.equal(everything(), before);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. The plan of a new regular time, as arithmetic
+// ---------------------------------------------------------------------------
+
+describe("10. planRegularChange: which earlier weeks are pinned, and to what", () => {
+  /** Wednesdays 7pm from week 4, as WEDNESDAYS above, on the group as stored. */
+  const plan = (over = {}) =>
+    plans.planRegularChange({
+      run: w.run(),
+      group: group(),
+      fromWeek: 4,
+      slot: { weekday: 3, startTimeLocal: "19:00", durationMinutes: 120, location: "Portland A13", campus: null },
+      registers: new Map(),
+      storedOverrideWeekIds: Object.keys(world.db.read(`courseGroups/${B}`).sessionOverrides ?? {}),
+      now: new Date(),
+      ...over,
+    });
+  const iso = (session) => w.sessionsLib.sessionInstants(session).startsAt?.toISOString() ?? null;
+  const keptOf = (planned, n) => planned.plan.kept.find((week) => week.weekNumber === n);
+  const finished = (n, sessionAt) => ({
+    runId: RUN.agi, groupId: B, weekNumber: n, occurrence: 1, pushedAt: new Date(sessionAt.getTime() + 2 * 3_600_000), sessionAt,
+  });
+
+  test("a week that met on another day than its slot now says is pinned to its register: Monday 6pm, not Tuesday 5:30pm", () => {
+    // The slot was changed by hand to Tuesdays 5:30pm after week 2 met on Monday 9 Nov at 6pm.
+    world.db.poke(`courseGroups/${B}`, { "session.startTimeLocal": "17:30" });
+    const planned = plan({ registers: new Map([[2, finished(2, new Date("2026-11-09T18:00:00Z"))]]) });
+    assert.equal(planned.ok, true, JSON.stringify(planned));
+    assert.deepEqual(planned.plan.pins.w02, { weekday: 1, startTimeLocal: "18:00", location: "Hallward B12" });
+    assert.deepEqual([keptOf(planned, 2).session.dateKey, iso(keptOf(planned, 2).session)], ["2026-11-09", "2026-11-09T18:00:00.000Z"]);
+    assert.equal(keptOf(planned, 2).pinned, true);
+    // A week with no register keeps its slot, as before.
+    assert.deepEqual(planned.plan.pins.w01, { weekday: 2, startTimeLocal: "17:30", location: "Hallward B12" });
+  });
+
+  test("the route's preview shows such a week kept on its register's date, and the write pins it there", async () => {
+    world.db.poke(`courseGroups/${B}`, { "session.startTimeLocal": "17:30" });
+    world.db.seed(registerPath(2), finished(2, new Date("2026-11-09T18:00:00Z")));
+    const preview = await askRegular("claudia", { ...WEDNESDAYS, preview: true });
+    assert.equal(preview.status, 200, JSON.stringify(preview.body));
+    const two = preview.body.preview.kept.find((week) => week.weekNumber === 2);
+    assert.deepEqual([two.session.dateKey, two.session.startTimeLocal], ["2026-11-09", "18:00"]);
+    const response = await askRegular("claudia", WEDNESDAYS);
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.equal(startOf(2), "2026-11-09T18:00:00.000Z");
+  });
+
+  test("a register that agrees with its slot pins as before, and a week with no register pins its slot", () => {
+    const planned = plan({ registers: new Map([[2, finished(2, new Date("2026-11-10T18:00:00Z"))]]) });
+    assert.equal(planned.ok, true, JSON.stringify(planned));
+    for (const weekId of ["w01", "w02", "w03"]) {
+      assert.deepEqual(planned.plan.pins[weekId], { weekday: 2, startTimeLocal: "18:00", location: "Hallward B12" }, weekId);
+    }
+    // A register that names a time outside its own week cannot be said by an override: the slot's is kept.
+    const outside = plan({ registers: new Map([[2, finished(2, new Date("2026-11-13T18:00:00Z"))]]) });
+    assert.deepEqual(outside.plan.pins.w02, { weekday: 2, startTimeLocal: "18:00", location: "Hallward B12" });
+    // A register that holds only words in advance has not met: the slot's is kept.
+    const inAdvance = plan({ registers: new Map([[2, { runId: RUN.agi, groupId: B, weekNumber: 2, sessionAt: new Date("2026-11-09T18:00:00Z") }]]) });
+    assert.deepEqual(inAdvance.plan.pins.w02, { weekday: 2, startTimeLocal: "18:00", location: "Hallward B12" });
+  });
+
+  test("an earlier week's own partial override wins, and only what it lacks is pinned", () => {
+    world.db.poke(`courseGroups/${B}`, { "sessionOverrides.w02": { startTimeLocal: "19:30", notes: "Bring the reading." } });
+    const before = iso(weekOf(2));
+    const planned = plan({ registers: new Map([[2, finished(2, new Date("2026-11-09T18:00:00Z"))]]) });
+    assert.equal(planned.ok, true, JSON.stringify(planned));
+    assert.deepEqual(planned.plan.pins.w02, { weekday: 1, location: "Hallward B12" }, "its own start stays its own");
+    const two = keptOf(planned, 2).session;
+    assert.deepEqual([two.dateKey, two.session.startTimeLocal, two.session.notes], ["2026-11-09", "19:30", "Bring the reading."]);
+    assert.notEqual(iso(two), before);
+  });
+
+  test("weeks either side of the clocks going back keep their own instants", () => {
+    // The group's own start, Thu 15 Oct: week 1 meets Tue 20 Oct in summer time, week 2 Tue 27 Oct in winter time.
+    world.db.poke(`courseGroups/${B}`, { paceStartDate: "2026-10-15" });
+    const before = [1, 2, 3].map((n) => iso(weekOf(n)));
+    assert.deepEqual(before.slice(0, 2), ["2026-10-20T17:00:00.000Z", "2026-10-27T18:00:00.000Z"]);
+    const planned = plan({ now: new Date("2026-10-30T10:00:00Z") });
+    assert.equal(planned.ok, true, JSON.stringify(planned));
+    assert.deepEqual([1, 2, 3].map((n) => iso(keptOf(planned, n).session)), before);
+    assert.equal(iso(planned.plan.moves[0].after), "2026-11-11T19:00:00.000Z");
+  });
+
+  test("a group with its own plan: the weeks are dated by its plan, before and after", () => {
+    const weeks = w.run().weekPlan;
+    world.db.poke(`courseGroups/${B}`, { paceWeekPlan: [...weeks.slice(0, 2), { kind: "break", label: "Reading week" }, ...weeks.slice(2)] });
+    const planned = plan();
+    assert.equal(planned.ok, true, JSON.stringify(planned));
+    assert.deepEqual(planned.plan.kept.map((week) => [week.weekNumber, week.session.dateKey]), [
+      [1, "2026-11-03"],
+      [2, "2026-11-10"],
+      [3, "2026-11-24"],
+    ]);
+    assert.deepEqual(planned.plan.moves.map((move) => [move.weekNumber, move.before.dateKey, move.after.dateKey]), [
+      [4, "2026-12-01", "2026-12-02"],
+      [5, "2026-12-08", "2026-12-09"],
+      [6, "2026-12-15", "2026-12-16"],
+    ]);
+  });
+
+  test("a cancelled earlier week is pinned and stays cancelled on its evening; only later cancellations move", () => {
+    world.db.poke(`courseGroups/${B}`, {
+      "sessionChanges.w02": { kind: "cancelled", reason: AWAY, dateKey: "2026-11-10", byUid: "rahul", at: new Date("2026-11-09T10:00:00Z") },
+    });
+    const planned = plan();
+    assert.equal(planned.ok, true, JSON.stringify(planned));
+    assert.deepEqual(planned.plan.pins.w02, { weekday: 2, startTimeLocal: "18:00", location: "Hallward B12" });
+    const two = keptOf(planned, 2).session;
+    assert.deepEqual([two.dateKey, two.cancelled], ["2026-11-10", true]);
+    assert.deepEqual(planned.plan.cancelledMoves, {});
+  });
+
+  test("the cap: weeks set apart, stored and pinned, may not pass 20", () => {
+    const stored = (n) => Array.from({ length: n }, (_, i) => `w${String(i + 7).padStart(2, "0")}`);
+    // Weeks 1 to 3 are pinned: 17 stored and 3 pinned is 20, which fits; 18 and 3 does not.
+    assert.equal(plan({ storedOverrideWeekIds: stored(17) }).ok, true);
+    assert.deepEqual(plan({ storedOverrideWeekIds: stored(18) }), { ok: false, status: 409, error: regularWords.REGULAR_REFUSAL.full });
+    // A week already stored is not counted twice when it is pinned.
+    assert.equal(plan({ storedOverrideWeekIds: [...stored(17), "w01"] }).ok, true);
   });
 });

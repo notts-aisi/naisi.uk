@@ -1,6 +1,7 @@
 import type { GroupCampus } from "../campus";
 import { resolveSessions, sessionInstants, type ResolvedSession, type SessionGroup } from "../sessions";
 import { CHANGE_FIELDS } from "../sessionChange/check";
+import { addDaysToKey, londonWallClockOf } from "../weekPlan";
 import { registerIsTaken } from "@/lib/firestore/courseAttendance";
 import {
   GROUP_FIELD_LIMITS,
@@ -26,7 +27,13 @@ import { REGULAR_REFUSAL, laterMetWords, startMetWords, startsInPastWords } from
  * PINNED: for each of day, start, length, room and campus, when the week's
  * own override does not already carry it and the old standing value differs
  * from the new one, the old value is written into the week's override. An
- * existing override value always wins. A pinned week has no change record:
+ * existing override value always wins. For a week whose register was taken
+ * and holds when the session started (`sessionAt`), the day and the start to
+ * keep are that instant's in London, not the slot's: where a week already
+ * resolves to another time than it met (the slot was changed by hand), the
+ * register is right, and pinning the slot would keep the wrong time for good.
+ * Only when that instant falls inside the week's own seven days, the rule
+ * `scripts/lib/pinMetSessions.mjs` keeps. A pinned week has no change record:
  * it is not a change, and there is nothing to put back. The code from before
  * this existed already reads overrides, so the dates stay right if this is
  * ever reverted.
@@ -93,6 +100,33 @@ function ownTimeOf(change: SessionChange | null, override: GroupSessionOverride 
   if (change) return change.kind === "cancelled" ? "cancelled" : change.kind;
   if (override?.mode === "virtual") return "online";
   return hasOwnTime(override) ? "set" : null;
+}
+
+/** When a taken register says its session started (`sessionAt`, a Date or a stored timestamp), or null. */
+function metAtOf(register: Readonly<Record<string, unknown>> | undefined): Date | null {
+  if (!registerIsTaken(register)) return null;
+  const value = register?.sessionAt;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (value && typeof (value as { toDate?: unknown }).toDate === "function") {
+    const at = (value as { toDate(): Date }).toDate();
+    return at instanceof Date && !Number.isNaN(at.getTime()) ? at : null;
+  }
+  return null;
+}
+
+/**
+ * The day and start an earlier week met at, by its register, when it says
+ * one inside the week's own seven days; null to keep the slot's.
+ */
+function metDayAndStart(
+  week: ResolvedSession,
+  register: Readonly<Record<string, unknown>> | undefined,
+): { weekday: number; startTimeLocal: string } | null {
+  const met = metAtOf(register);
+  if (!met || !week.slotStartKey) return null;
+  const london = londonWallClockOf(met);
+  if (london.dateKey < week.slotStartKey || london.dateKey > addDaysToKey(week.slotStartKey, 6)) return null;
+  return { weekday: london.weekday, startTimeLocal: london.hhmm };
 }
 
 /** Whether a week's session is the same before and after: its start, length, room and campus. */
@@ -162,8 +196,9 @@ export function planRegularChange(input: {
       if (Object.hasOwn(own, field) || was === becomes) return;
       pin[field] = was;
     };
-    keep("weekday", standing.weekday, next.weekday);
-    keep("startTimeLocal", standing.startTimeLocal, next.startTimeLocal);
+    const met = metDayAndStart(week, registers.get(week.weekNumber));
+    keep("weekday", met?.weekday ?? standing.weekday, next.weekday);
+    keep("startTimeLocal", met?.startTimeLocal ?? standing.startTimeLocal, next.startTimeLocal);
     keep("durationMinutes", standing.durationMinutes, next.durationMinutes);
     keep("location", standing.location, next.location);
     // A campus can only be pinned when the group had one: "not chosen" is no

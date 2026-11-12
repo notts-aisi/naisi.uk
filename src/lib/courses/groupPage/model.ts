@@ -634,7 +634,7 @@ export function regularPreviewLines(input: {
     const when = own.session ? `${dayWords(own.session.dateKey)}, ${clockWords(own.session.startTimeLocal)}` : "";
     lines.push({
       label: "Keeps its own",
-      text: `Week ${own.weekNumber} keeps its own time (${OWN_TIME_WORDS[own.kind]})${when ? `: ${when}` : ""}.`,
+      text: `Week ${own.weekNumber} keeps its own change (${OWN_TIME_WORDS[own.kind]})${when ? `: ${when}` : ""}.`,
     });
   }
 
