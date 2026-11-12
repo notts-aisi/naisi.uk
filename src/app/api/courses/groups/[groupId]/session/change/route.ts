@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { FieldValue, type DocumentReference, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, type DocumentReference, type DocumentSnapshot, type Firestore } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
 import {
   groupHistoryRow,
@@ -17,10 +17,11 @@ import { readNamingProgramme } from "@/lib/courses/programmeLead";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { ChangeRefusal, checkPress, type CheckedPress } from "@/lib/courses/sessionChange/check";
+import { startMoves, takenStartMoves } from "@/lib/courses/sessionChange/metSessions";
 import { sessionOfWeek } from "@/lib/courses/sessionChange/model";
 import { oneWeekHistoryDetail, oneWeekNoticeFor, weekSessionAfter } from "@/lib/courses/sessionChange/notice";
 import { parseChangePress, type ChangePress } from "@/lib/courses/sessionChange/parse";
-import { REFUSAL, countChangedWords } from "@/lib/courses/sessionChange/words";
+import { REFUSAL, countChangedWords, movesMetWords } from "@/lib/courses/sessionChange/words";
 import { updateEmailAudience } from "@/lib/courses/updates/audience";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
@@ -57,7 +58,10 @@ import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
  * Every refusal comes before the write: the session must be the one the
  * dialog showed (its week and date), must not have started, and must be
  * changeable the way asked (a link to hold it online, a day in its own week to
- * move it to, a plan to push it back in). When the press will tell the group
+ * move it to, a plan to push it back in). Whatever the kind, it must not move
+ * the start of any session whose register was taken (`takenStartMoves`: a
+ * push back moves every later week, ones that met included), and the preview
+ * is refused in the same words. When the press will tell the group
  * with an email, the number on its button is checked here first, so a count
  * that no longer holds refuses the whole press (409, with the new count) and
  * nothing changes. The write is one transaction that reads the group again.
@@ -117,6 +121,39 @@ function movedSessions(before: readonly ResolvedSession[], after: readonly Resol
   return out;
 }
 
+/** The register of every session whose start the change moves, any occurrence: what the one rule is asked of. */
+function moveRegisterRefs(
+  db: Firestore,
+  run: CourseRunDoc,
+  groupId: string,
+  before: readonly ResolvedSession[],
+  after: readonly ResolvedSession[],
+): DocumentReference[] {
+  return startMoves(before, after).map((move) =>
+    db.collection("courseAttendance").doc(attendanceDocId(run.id, groupId, move.before.weekNumber, move.before.occurrence)),
+  );
+}
+
+/**
+ * NOTHING MAY MOVE THE START OF A SESSION WHOSE REGISTER IS TAKEN, for every
+ * kind of change (a push back moves every later week): refused, in one
+ * sentence naming the week that met, before anything is written. `snaps` are
+ * the registers of `moveRegisterRefs`, in its order.
+ */
+function refuseMovingMet(
+  before: readonly ResolvedSession[],
+  after: readonly ResolvedSession[],
+  snaps: ReadonlyArray<DocumentSnapshot | undefined>,
+): void {
+  const registers = new Map<string, Record<string, unknown>>();
+  startMoves(before, after).forEach((move, index) => {
+    const snap = snaps[index];
+    if (snap?.exists) registers.set(move.before.sessionKey, snap.data() ?? {});
+  });
+  const [met] = takenStartMoves(before, after, registers);
+  if (met) throw new ChangeRefusal(movesMetWords(met.before.weekNumber, met.before.occurrence), 409);
+}
+
 export async function POST(req: Request, ctx: { params: Promise<{ groupId: string }> }) {
   const blocked = await assertNotImpersonating();
   if (blocked) return blocked;
@@ -172,6 +209,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
     if (press.preview) {
       const before = resolveSessions(run, found);
       const after = resolveSessions(run, first.after);
+      // The press would be refused for moving a session that met: so is its preview, in the same words.
+      const metRefs = moveRegisterRefs(db, run, found.id, before, after);
+      refuseMovingMet(before, after, metRefs.length ? await db.getAll(...metRefs) : []);
       const switches = await readJobSwitches(db);
       const [reminders, said, told] = await Promise.all([
         reminderFacts(db, { run, group: found, before: first.session, after: weekSessionAfter(run, first, press.weekNumber), switches }),
@@ -228,7 +268,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
 
       // Every session whose start moves, and its register: read before anything is written.
       const before = resolveSessions(run, group);
-      const moved = movedSessions(before, resolveSessions(run, checked.after));
+      const after = resolveSessions(run, checked.after);
+      const metRefs = moveRegisterRefs(db, run, group.id, before, after);
+      refuseMovingMet(before, after, metRefs.length ? await tx.getAll(...metRefs) : []);
+      const moved = movedSessions(before, after);
       const movedRefs = moved.map((session) => registerRefOf(db, run, group.id, session.weekNumber));
       const movedSnaps = movedRefs.length ? await tx.getAll(...movedRefs) : [];
 

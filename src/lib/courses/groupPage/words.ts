@@ -355,6 +355,8 @@ export function keepPaceHintWords(next: { weekNumber: number; dateKey: string } 
 }
 export const CANCEL_PUSH_BACK = "Cancel and push the rest back a week";
 export const PUSH_BACK_HINT = "This week’s session meets a week later, and each later week follows.";
+/** Why Cancel and push the rest back is not offered: a later week's register was taken. */
+export const PUSH_BACK_LATER_MET = "A later week has already met, so the rest can’t be pushed back.";
 export const PUT_BACK_HINT = "Back to the group’s usual day, time and room for this week.";
 
 export const MET_AT_ANOTHER_TIME = "It met at another time";

@@ -378,9 +378,16 @@ export default async function GroupHomePage({
     getImpersonator().then((marker) => markerIsLive(marker, access.user.uid)),
     // How the group meets and its weeks, the facilitator's cut of the group's
     // page: no people, no history, no address and no link. A live group only.
+    // A read that fails draws nothing: it never takes down the page a
+    // facilitator opens at every session.
     group.archived
       ? Promise.resolve(null)
-      : loadGroupPage(db, { run: access.run, group, viewer: "facilitator", viewerUid: access.user.uid, now }),
+      : loadGroupPage(db, { run: access.run, group, viewer: "facilitator", viewerUid: access.user.uid, now }).catch(
+          (err: unknown) => {
+            console.error("[facilitator group page] how the group meets failed", groupId, err);
+            return null;
+          },
+        ),
   ]);
   const writtenHref = (row: { uid: string; weekNumber: number }) =>
     `${groupPath}/written?week=${row.weekNumber}&person=${encodeURIComponent(row.uid)}`;

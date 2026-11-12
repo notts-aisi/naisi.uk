@@ -33,6 +33,12 @@
  *     meeting link.
  *  7. HISTORY: every press writes one row, with what changed, what it was,
  *     the reason and how many were emailed.
+ *  8. NOTHING MOVES A SESSION THAT MET, through any door: a push back that
+ *     would move a later week whose register was taken is refused in the
+ *     press and in its preview, and so is a group's own pace; what moves only
+ *     weeks nobody took a register for goes through.
+ *  9. A SECOND PRESS of a cancel or of holding it online (the first went
+ *     through, its answer lost) changes nothing and tells nobody again.
  */
 import { beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -42,6 +48,7 @@ import { AGI, AWAY, B, LINK, ROUND, RUN, TUE_24, makeSessionsWorld } from "./lib
 const w = await makeSessionsWorld("__groupTimeChange");
 const { world, ask, group, sessionsOf, reset, at, loadTs, everything } = w;
 const regular = await w.courseRoute("groups", "[groupId]", "session", "regular");
+const pace = await w.courseRoute("groups", "[groupId]", "pace");
 const roomRoute = await w.formRoute("programmes", "[programmeId]", "groups", "[groupId]", "room");
 const timeAnswer = await loadTs("lib/courses/timeAnswer/model.ts");
 const groupsLib = await loadTs("lib/firestore/courseGroups.ts");
@@ -455,6 +462,31 @@ describe("5. a new regular time from a week onwards", () => {
     assert.equal(new Date(six.sessionAt).toISOString(), "2026-12-09T19:00:00.000Z", "its stored start follows the session");
   });
 
+  test("most weeks, not all: only weeks whose time changes lose a tick; a week pinned to its old time keeps it", async () => {
+    // Made in week 2, from week 5: weeks 3 and 4 are still to come and keep Tuesdays, 6pm.
+    at("2026-11-06T10:00:00Z");
+    world.db.poke(`courseEnrolments/${RUN.agi}__ines`, {
+      timeAnswer: { kind: "mostWeeks", sessionKeys: ["w03", "w05"], forGroupId: B, at: new Date("2026-11-01T09:00:00Z") },
+    });
+    for (const n of [3, 5]) {
+      world.db.seed(registerPath(n), {
+        runId: RUN.agi, groupId: B, weekNumber: n, occurrence: 1,
+        records: { ines: "excused" }, excusedInAdvance: { ines: new Date("2026-11-01T09:00:00Z") },
+      });
+    }
+    const threeBefore = startOf(3);
+    const response = await askRegular("claudia", { ...WEDNESDAYS, fromWeek: 5 });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.deepEqual(response.body.change.movedWeeks, [5, 6]);
+    assert.equal(response.body.change.takenBack, 1);
+    assert.equal(startOf(3), threeBefore, "week 3 keeps its time");
+    const three = world.db.read(registerPath(3));
+    assert.equal(three.records.ines, "excused", "week 3 is still at the time Ines can't make: her word stays");
+    assert.ok(three.excusedInAdvance.ines);
+    const five = world.db.read(registerPath(5));
+    assert.equal(five.records?.ines, undefined, "week 5 moved: the tick about its old time is taken back");
+  });
+
   test("a later week's own change is kept, and a cancelled evening stays cancelled on the week's new date", async () => {
     const moved = await ask.change(
       "rahul",
@@ -618,5 +650,133 @@ describe("7. a group's history, newest first, one group's rows only", () => {
     assert.deepEqual([old.weekId, old.before, old.after, old.reason, old.emailed], [null, null, null, null, null]);
     const cancel = rows.find((row) => row.kind === "session-cancelled");
     assert.deepEqual([cancel.weekId, cancel.reason, cancel.emailed, cancel.actorName.length > 0], ["w04", AWAY, 0, true]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. Nothing moves a session that met
+// ---------------------------------------------------------------------------
+
+describe("8. nothing moves the start of a session whose register was taken", () => {
+  /** Wed 25 Nov: week 3 (Tue 17 Nov) passed and nobody took its register; week 4 (Tue 24 Nov) met and was finished. */
+  function weekFourMet() {
+    at("2026-11-25T10:00:00Z");
+    world.db.seed(registerPath(4), {
+      runId: RUN.agi,
+      groupId: B,
+      weekNumber: 4,
+      occurrence: 1,
+      pushedAt: new Date("2026-11-24T20:30:00Z"),
+      sessionAt: new Date("2026-11-24T18:00:00Z"),
+    });
+  }
+
+  test("pushing week 3 back would move week 4, which met: refused in the preview and the press, and nothing changes", async () => {
+    weekFourMet();
+    const before = everything();
+    const startFour = startOf(4);
+    const preview = await ask.change("claudia", B, { ...WEEK3, kind: "push", reason: AWAY, preview: true });
+    assert.deepEqual([preview.status, preview.body.error], [409, words.movesMetWords(4)]);
+    assert.equal(words.movesMetWords(4), "This would move week 4’s session, which has met: its register has been taken.");
+    const pressed = await ask.change("claudia", B, {
+      ...WEEK3,
+      kind: "push",
+      reason: AWAY,
+      tell: true,
+      emailCount: await w.changeEmailsFor(B, "claudia"),
+    });
+    assert.deepEqual([pressed.status, pressed.body.error], [409, words.movesMetWords(4)]);
+    assert.equal(everything(), before, "a refused push wrote something");
+    assert.equal(startOf(4), startFour);
+    assert.equal(auditRows().length, 0);
+  });
+
+  test("cancelling week 3 and keeping pace moves nothing, so it goes through", async () => {
+    weekFourMet();
+    const startFour = startOf(4);
+    const preview = await ask.change("claudia", B, { ...WEEK3, kind: "cancel", reason: AWAY, preview: true });
+    assert.equal(preview.status, 200, JSON.stringify(preview.body));
+    const response = await ask.change("claudia", B, silently({ ...WEEK3, kind: "cancel" }));
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.equal(weekOf(3).cancelled, true);
+    assert.equal(startOf(4), startFour);
+  });
+
+  test("a push that moves only weeks nobody took a register for goes through as before", async () => {
+    world.db.seed(registerPath(3), { runId: RUN.agi, groupId: B, weekNumber: 3, occurrence: 1, pushedAt: new Date("2026-11-17T20:30:00Z") });
+    const response = await ask.change("claudia", B, silently({ week: 4, dateKey: TUE_24, kind: "push" }));
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.equal(weekOf(4).dateKey, "2026-12-01");
+  });
+
+  test("a group's own pace that would move week 2, which met, is refused, plan or start date, and nothing changes", async () => {
+    world.db.seed(registerPath(2), { runId: RUN.agi, groupId: B, weekNumber: 2, occurrence: 1, pushedAt: new Date("2026-11-10T20:30:00Z") });
+    const weeks = w.run().weekPlan;
+    const before = everything();
+    for (const [who, body] of [
+      ["rahul", { paceWeekPlan: [weeks[0], { kind: "break", label: "Reading week" }, ...weeks.slice(1)] }],
+      ["zach", { paceWeekPlan: [weeks[0], { kind: "break", label: "Reading week" }, ...weeks.slice(1)] }],
+      ["rahul", { paceStartDate: "2026-11-05" }],
+    ]) {
+      const response = await w.call(who, pace.PATCH, { groupId: B }, { body, course: true });
+      assert.deepEqual([response.status, response.body.error], [409, words.movesMetWords(2)], `${who}: ${JSON.stringify(body)}`);
+    }
+    assert.equal(everything(), before, "a refused pace wrote something");
+  });
+
+  test("a group's own pace that moves only weeks nobody took a register for goes through", async () => {
+    world.db.seed(registerPath(2), { runId: RUN.agi, groupId: B, weekNumber: 2, occurrence: 1, pushedAt: new Date("2026-11-10T20:30:00Z") });
+    world.db.seed(registerPath(5), {
+      runId: RUN.agi, groupId: B, weekNumber: 5, occurrence: 1,
+      records: { amara: "excused" }, excusedInAdvance: { amara: new Date("2026-11-18T09:00:00Z") },
+    });
+    const weeks = w.run().weekPlan;
+    const earlier = [1, 2, 3, 4].map(startOf);
+    const response = await w.call(
+      "rahul",
+      pace.PATCH,
+      { groupId: B },
+      { body: { paceWeekPlan: [...weeks.slice(0, 4), { kind: "break", label: "Reading week" }, ...weeks.slice(4)] }, course: true },
+    );
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.deepEqual([1, 2, 3, 4].map(startOf), earlier);
+    assert.equal(weekOf(5).dateKey, "2026-12-08", "week 5, with only words in advance, moved a week later");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. A second press
+// ---------------------------------------------------------------------------
+
+describe("9. a second press of a change that went through tells nobody again", () => {
+  test("cancel: the second press is refused as already so, and the group is emailed once", async () => {
+    const first = await w.press("rahul", B, { week: 5, dateKey: "2026-12-01", kind: "cancel" });
+    assert.equal(first.changed.status, 200, JSON.stringify(first.changed.body));
+    assert.equal(first.told.status, 200, JSON.stringify(first.told.body));
+    const sent = world.mail.length;
+    assert.ok(sent > 0);
+    const before = everything();
+    const second = await w.press("rahul", B, { week: 5, dateKey: "2026-12-01", kind: "cancel" });
+    assert.deepEqual([second.changed.status, second.changed.body.error], [409, words.REFUSAL.alreadyCancelled]);
+    assert.equal(second.told, null, "a refused press posted an update");
+    assert.equal(world.mail.length, sent);
+    assert.equal(everything(), before);
+    const preview = await ask.change("rahul", B, { week: 5, dateKey: "2026-12-01", kind: "cancel", reason: AWAY, preview: true });
+    assert.deepEqual([preview.status, preview.body.error], [409, words.REFUSAL.alreadyCancelled]);
+  });
+
+  test("hold it online: the second press is refused as already so, and the group is emailed once", async () => {
+    world.db.poke(`courseGroups/${B}`, { "session.meetingUrl": LINK });
+    const first = await w.press("sofia", B, { week: 6, dateKey: "2026-12-08", kind: "online" });
+    assert.equal(first.changed.status, 200, JSON.stringify(first.changed.body));
+    assert.equal(first.told.status, 200, JSON.stringify(first.told.body));
+    const sent = world.mail.length;
+    assert.ok(sent > 0);
+    const before = everything();
+    const second = await w.press("sofia", B, { week: 6, dateKey: "2026-12-08", kind: "online" });
+    assert.deepEqual([second.changed.status, second.changed.body.error], [409, words.REFUSAL.alreadyOnline]);
+    assert.equal(second.told, null, "a refused press posted an update");
+    assert.equal(world.mail.length, sent);
+    assert.equal(everything(), before);
   });
 });

@@ -21,7 +21,7 @@
  *   4. What a preview answers, read through the panel's own lines, for one
  *      week's move and for a new regular time from a week onwards.
  */
-import { beforeEach, describe, test } from "node:test";
+import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -222,12 +222,25 @@ describe("1. the arithmetic of a group's page", () => {
   });
 
   test("which one-week choices a week offers: a passed week with no register is put right; a week that met offers none", () => {
-    assert.deepEqual(model.oneWeekChoicesOf(week({ hasLink: true })), { putRight: false, met: false, online: true, restore: false });
-    assert.deepEqual(model.oneWeekChoicesOf(week({ started: true })), { putRight: true, met: false, online: false, restore: false });
-    assert.deepEqual(model.oneWeekChoicesOf(week({ started: true, taken: true })), { putRight: false, met: true, online: false, restore: false });
-    assert.equal(model.oneWeekChoicesOf(week({ change: "moved" })).restore, true);
-    assert.equal(model.oneWeekChoicesOf(week({ change: "pushed" })).restore, false, "a push moved the weeks, not this one");
-    assert.equal(model.oneWeekChoicesOf(week({ hasLink: false })).online, false, "no link, no holding it online");
+    const alone = (each) => model.oneWeekChoicesOf(each, [each]);
+    assert.deepEqual(alone(week({ hasLink: true })), { putRight: false, met: false, online: true, restore: false, push: true });
+    assert.deepEqual(alone(week({ started: true })), { putRight: true, met: false, online: false, restore: false, push: true });
+    assert.deepEqual(alone(week({ started: true, taken: true })), { putRight: false, met: true, online: false, restore: false, push: false });
+    assert.equal(alone(week({ change: "moved" })).restore, true);
+    assert.equal(alone(week({ change: "pushed" })).restore, false, "a push moved the weeks, not this one");
+    assert.equal(alone(week({ hasLink: false })).online, false, "no link, no holding it online");
+  });
+
+  test("cancel and push the rest back is not offered once a later week has met; cancel and keep pace still is", () => {
+    // Week 3 passed with no register; week 4 met. Pushing week 3 back would move week 4.
+    const three = week({ weekNumber: 3, weekId: "w03", sessionKey: "w03", dateKey: "2026-11-17", started: true, ended: true });
+    const four = week({ weekNumber: 4, weekId: "w04", sessionKey: "w04", dateKey: "2026-11-24", started: true, ended: true, taken: true });
+    const five = week({ weekNumber: 5, weekId: "w05", sessionKey: "w05", dateKey: "2026-12-01" });
+    const weeks = [three, four, five];
+    assert.deepEqual(model.oneWeekChoicesOf(three, weeks), { putRight: true, met: false, online: false, restore: false, push: false });
+    assert.equal(model.oneWeekChoicesOf(five, weeks).push, true, "an earlier week that met moves nowhere");
+    assert.equal(model.oneWeekChoicesOf(four, weeks).met, true);
+    assert.equal(words.PUSH_BACK_LATER_MET, "A later week has already met, so the rest can’t be pushed back.");
   });
 
   test("a move lands on today or later; it met at another time lands on today or earlier, in the week's own days", () => {
@@ -581,6 +594,53 @@ describe("3. the group's page, and the facilitator's cut", () => {
     assert.ok(cut);
     assert.equal(cut.props.view.history, null);
     assert.ok(cut.props.view.weeks.every((each) => each.people.length === 0));
+  });
+
+  test("the change panel greys out Cancel and push the rest back once a later week has met, and says why", async () => {
+    const { default: ChangePanel } = await loadTs(join("features", "courses", "groupPage", "ChangePanel.tsx"));
+    // Wed 25 Nov: week 3 passed with no register, week 4 met and was finished.
+    at("2026-11-25T10:00:00Z");
+    world.db.seed(`courseAttendance/${RUN.agi}__${B}__w04`, {
+      runId: RUN.agi, groupId: B, weekNumber: 4, occurrence: 1, pushedAt: new Date("2026-11-24T20:30:00Z"),
+    });
+    const view = await read();
+    const panel = (weekNumber) =>
+      renderToStaticMarkup(
+        createElement(ChangePanel, { view, start: { choice: "one", weekNumber }, oneWeekOnly: false, onClose() {}, onDone() {} }),
+      );
+    // Before hydration every control is off, so an option that is not offered is told by its label's class.
+    const optionClass = (html, value) => new RegExp(`<label class="([^"]*)"><input(?=[^>]*value="${value}")`).exec(html)?.[1] ?? null;
+    const three = panel(3);
+    assert.ok(text(three).includes(words.PUSH_BACK_LATER_MET), text(three).slice(0, 600));
+    assert.match(optionClass(three, "push") ?? "", /optionOff/, "push is offered although week 4 met");
+    assert.equal(optionClass(three, "cancel"), "option", "cancel and keep pace is still offered");
+    const five = panel(5);
+    assert.equal(optionClass(five, "push"), "option", "an earlier week that met moves nowhere");
+    assert.ok(!text(five).includes(words.PUSH_BACK_LATER_MET));
+  });
+
+  test("the facilitator's page still opens when how the group meets can't be read: the cut is left out, and the failure logged", async () => {
+    const real = world.courseDb;
+    const failing = Object.create(real);
+    failing.getAll = async (...refs) => {
+      if (refs.some((ref) => /^courseRuns\/[^/]+\/weeks\//.test(ref.path))) throw new Error("the weeks could not be read");
+      return real.getAll(...refs);
+    };
+    world.courseDb = failing;
+    const logged = mock.method(console, "error", () => {});
+    try {
+      const drawn = await draw(FacilitatorGroupPage, "rahul", { runId: RUN.agi, groupId: B });
+      assert.equal(drawn.to, null, drawn.to);
+      assert.ok(drawn.html.length > 0, "the page drew nothing");
+      assert.equal(find(drawn.element, "FacilitatorMeets").length, 0, "a cut drawn from a read that failed");
+      assert.ok(
+        logged.mock.calls.some((call) => String(call.arguments[0]).includes("[facilitator group page]")),
+        "the failure was not logged",
+      );
+    } finally {
+      logged.mock.restore();
+      world.courseDb = real;
+    }
   });
 });
 

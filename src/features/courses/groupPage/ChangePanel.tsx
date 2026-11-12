@@ -134,7 +134,7 @@ export default function ChangePanel({
       : defaultRegularStart(weeks),
   );
   const week = weeks.find((each) => each.weekNumber === weekNumber) ?? null;
-  const choices = week ? oneWeekChoicesOf(week) : null;
+  const choices = week ? oneWeekChoicesOf(week, weeks) : null;
 
   const [kind, setKind] = useState<OneWeekKind | null>(choices?.putRight ? "move" : null);
   const [met, setMet] = useState<boolean>(Boolean(choices?.putRight));
@@ -160,7 +160,7 @@ export default function ChangePanel({
   function chooseWeek(next: number) {
     const chosen = weeks.find((each) => each.weekNumber === next) ?? null;
     const fields = fieldsOf(chosen, view);
-    const its = chosen ? oneWeekChoicesOf(chosen) : null;
+    const its = chosen ? oneWeekChoicesOf(chosen, weeks) : null;
     setWeekNumber(next);
     setKind(its?.putRight ? "move" : null);
     setMet(Boolean(its?.putRight));
@@ -605,10 +605,19 @@ export default function ChangePanel({
                 setKind("cancel");
                 setMet(false);
               }, W.CANCEL_KEEP_PACE, choices.putRight ? "" : W.keepPaceHintWords(nextWeek))}
-              {radio(`${ids}-kind`, "push", kind === "push", () => {
-                setKind("push");
-                setMet(false);
-              }, W.CANCEL_PUSH_BACK, choices.putRight ? "" : W.PUSH_BACK_HINT)}
+              {radio(
+                `${ids}-kind`,
+                "push",
+                kind === "push",
+                () => {
+                  setKind("push");
+                  setMet(false);
+                },
+                W.CANCEL_PUSH_BACK,
+                // Once a later week has met, the rest can't move: the reason, in place of the hint.
+                !choices.push ? W.PUSH_BACK_LATER_MET : choices.putRight ? "" : W.PUSH_BACK_HINT,
+                !choices.push,
+              )}
               {choices.restore &&
                 radio(`${ids}-kind`, "restore", kind === "restore", () => {
                   setKind("restore");

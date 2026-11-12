@@ -83,7 +83,7 @@ export default function GroupPage({ view, links }: { view: GroupPageView; links:
   const rows = history ? filterHistory(history.rows, filter) : [];
 
   const weekCard = (each: GroupPageWeek) => {
-    const choices = oneWeekChoicesOf(each);
+    const choices = oneWeekChoicesOf(each, view.weeks);
     const linkable = !each.ended && !each.cancelled;
     return (
       <section className={styles.card} aria-label={W.weekWords(each.weekNumber)}>
@@ -145,7 +145,7 @@ export default function GroupPage({ view, links }: { view: GroupPageView; links:
   };
 
   const putRightLine = (each: GroupPageWeek) =>
-    oneWeekChoicesOf(each).putRight ? (
+    oneWeekChoicesOf(each, view.weeks).putRight ? (
       <div className={styles.putRight}>
         <p>{W.noRegisterLine(each.weekNumber, each.dateKey, each.hhmm)}</p>
         <button
@@ -334,7 +334,7 @@ export default function GroupPage({ view, links }: { view: GroupPageView; links:
             <section className={styles.card} aria-label={W.WEEK_BY_WEEK}>
               <ul className={styles.rows}>
                 {view.weeks.map((each) => {
-                  const choices = oneWeekChoicesOf(each);
+                  const choices = oneWeekChoicesOf(each, view.weeks);
                   return (
                     <li key={each.weekNumber} className={styles.row}>
                       <span className={styles.rowWeek}>{each.weekNumber}</span>

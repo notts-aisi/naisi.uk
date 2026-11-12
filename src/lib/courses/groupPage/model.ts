@@ -184,22 +184,35 @@ export function weekAfter(weeks: readonly GroupPageWeek[], weekNumber: number): 
   return later ? { weekNumber: later.weekNumber, dateKey: later.dateKey } : null;
 }
 
-/** What one-week choices a week offers, from the page's own facts; the route decides again. */
-export function oneWeekChoicesOf(week: GroupPageWeek): {
+/**
+ * What one-week choices a week offers, from the page's own facts (the week,
+ * and the group's weeks in plan order); the route decides again. "Cancel and
+ * push the rest back" moves every later week, so it is not offered once a
+ * later week's register was taken: nothing may move a session that met.
+ */
+export function oneWeekChoicesOf(
+  week: GroupPageWeek,
+  weeks: readonly GroupPageWeek[],
+): {
   /** A week that passed with no register: the four choices of putting it right. */
   putRight: boolean;
   /** The week met: nothing to change. */
   met: boolean;
   online: boolean;
   restore: boolean;
+  /** Cancel and push the rest back a week: no later week has met. */
+  push: boolean;
 } {
   const met = week.taken;
   const putRight = !met && week.started;
+  const index = weeks.findIndex((each) => each.weekNumber === week.weekNumber);
+  const laterMet = index >= 0 && weeks.slice(index + 1).some((each) => each.taken);
   return {
     putRight,
     met,
     online: !met && !week.started && week.hasLink && !week.online,
     restore: !met && !week.started && week.change !== null && week.change !== "pushed",
+    push: !met && !laterMet,
   };
 }
 

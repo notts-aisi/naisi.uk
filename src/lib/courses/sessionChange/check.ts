@@ -143,6 +143,8 @@ export function checkPress(
 
   switch (press.kind) {
     case "online": {
+      // A second press of one that went through (its answer lost on the way) must not tell the group twice.
+      if (sessionModeForWeek(group, weekId) === "virtual") throw new ChangeRefusal(REFUSAL.alreadyOnline, 409);
       if (!session.session.meetingUrl) throw new ChangeRefusal(REFUSAL.noLink, 400);
       overrides[weekId] = { ...overrides[weekId], mode: "virtual" };
       changes[weekId] = change("online", session.dateKey);
@@ -212,6 +214,8 @@ export function checkPress(
       };
     }
     case "cancel":
+      // As for online: that is how it is now, so nothing changes and nobody is told again.
+      if (session.cancelled) throw new ChangeRefusal(REFUSAL.alreadyCancelled, 409);
       changes[weekId] = change("cancelled", session.dateKey);
       return { ...base, after: { ...group, sessionChanges: changes }, auditKind: "session-cancelled" };
     case "push": {
