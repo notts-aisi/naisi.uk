@@ -1802,6 +1802,35 @@ describe("a bypass is visible in the send log", () => {
     assert.match(dashboard, /kindBadge\(s\.kind, s\.surface\)/);
   });
 
+  test("every surface the log can hold is labelled on the dashboard and has the marker's reason", () => {
+    // The union as written, its comments taken out first. Messages' sent list is
+    // held to the same union in tests/messages.test.mjs.
+    const sends = src("lib", "firestore", "emailSends.ts").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    const surfaces = [...(/export type EmailSendSurface =([\s\S]*?);/.exec(sends)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]).sort();
+    assert.ok(surfaces.length > 10, "could not read the union");
+    const keysOf = (source, name) => {
+      const body = new RegExp(`const ${name}[^\\n]*?= \\{\\n([\\s\\S]*?)\\n\\};`).exec(source)?.[1] ?? "";
+      return [...body.matchAll(/^\s*(?:"([^"]+)"|([a-z][\w]*)):/gm)].map((m) => m[1] ?? m[2]).sort();
+    };
+    const dashboard = src("features", "admin", "DeliverabilityDashboard.tsx").replace(/\/\/[^\n]*/g, "");
+    const marker = src("emails", "NoticeMarker.tsx").replace(/\/\/[^\n]*/g, "");
+    assert.deepEqual(keysOf(dashboard, "SURFACE_LABELS"), surfaces, "a surface the Deliverability tab shows by its code name");
+    assert.deepEqual(keysOf(marker, "NOTICE_REASON"), surfaces, "a surface whose notice says no reason of its own");
+  });
+
+  test("a reminder by hand says which week, and is labelled as by hand wherever a surface is", async () => {
+    const { default: NoticeMarker } = await doorLoader.loadTs("emails/NoticeMarker.tsx");
+    const text = (await render(NoticeMarker({ surface: "course-week-remind-by-hand", weekNumber: 1 }), { plainText: true })).replace(/\s+/g, " ");
+    assert.match(text, /You are getting this because our records show week 1 isn’t done, so it reaches you whatever your notification settings say/);
+    assert.doesNotMatch(text, /this week’s work isn’t finished/);
+    const before = (await render(NoticeMarker({ surface: "course-week-reminder" }), { plainText: true })).replace(/\s+/g, " ");
+    assert.match(before, /our records show this week’s work isn’t finished/, "the automatic reminders keep their own line");
+    assert.match(src("features", "admin", "DeliverabilityDashboard.tsx"), /"course-week-remind-by-hand": "reminder by hand about a week",/);
+    assert.match(src("lib", "messages", "sentSenders.ts"), /"course-week-remind-by-hand": \{ listed: \{ label: "Reminder by hand about a week", byPerson: true \} \},/);
+    const table = readFileSync(join(REPO_ROOT, "docs", "notifications.md"), "utf8");
+    assert.match(table, /^\| `course-week-remind-by-hand` \| Remind, by hand: /m, "docs/notifications.md's surfaces table does not list it");
+  });
+
   test("a withheld notice keeps its surface too", () => {
     // A suppression row is the trace of a message that was never sent. If it
     // dropped the surface, "what bypassed the grid" would answer only for the

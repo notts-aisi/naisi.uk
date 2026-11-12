@@ -2032,8 +2032,10 @@ word, the count). The press carries the count it showed and is refused with
 a 409 and the new count when that changed.
 
 It is built on the reminders before a session: the same list of what is left
-(`weekLeft`), the same template and the same notice surface
-(`course-week-reminder`), under the notice lane's caps (3 an hour per presser
+(`weekLeft`) and the same template, on a notice surface of its own
+(`course-week-remind-by-hand`, whose line says "our records show week 1 isn't
+done", labelled "reminder by hand about a week" on the Deliverability tab and
+in Messages' sent list), under the notice lane's caps (3 an hour per presser
 and audience, 10 a day per group). Before the session the email says
 "Rahul asked us to remind you: your session is Wed 11 Nov, 3pm. Still to
 do: ..."; after it, "Group C met for week 1 on Wed 4 Nov, and week 1 is still

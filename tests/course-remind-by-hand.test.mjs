@@ -22,8 +22,9 @@
  *     reminder, whether in the last day, the email word for word, the count.
  *  4. THE PRESS: the count it carries, refused with a 409 and the new count
  *     when it changed; then one notice per person (surface
- *     `course-week-reminder`, no meeting link, no unsubscribe), each
- *     recorded, and one row in the group's history naming nobody.
+ *     `course-week-remind-by-hand`, whose line names the week; no meeting
+ *     link, no unsubscribe), each recorded, and one row in the group's
+ *     history naming nobody.
  *  5. A RETRY OF THE SAME PRESS sends nothing more; a later press goes, and
  *     the warning says who was reminded in the last day.
  *  6. THE CAPS: three an hour per presser and audience, ten a day per group.
@@ -197,7 +198,8 @@ describe("4. the press", () => {
     const [message] = mailTo("ines");
     assert.equal(message.subject, "Week 3 isn’t done yet");
     assert.equal(message.kind, "notice");
-    assert.equal(message.surface, "course-week-reminder");
+    // A surface of its own: its line names the week, and its labels say it was by hand.
+    assert.equal(message.surface, "course-week-remind-by-hand");
     assert.equal(message.actorUid, "rahul");
     assert.equal(message.listUnsubscribe, undefined);
     const html = await render(message.react);
@@ -205,6 +207,8 @@ describe("4. the press", () => {
     const text = await textOf(message);
     assert.match(text, /Hi Ines, .*Group B met for week 3 on Tue 17 Nov, and week 3 is still open\. Still to do: two readings, your reflection and your written answer\./);
     assert.match(text, /Rahul and the AGI Strategy team/);
+    assert.match(text, /You are getting this because our records show week 3 isn’t done, so it reaches you whatever your notification settings say/);
+    assert.doesNotMatch(text, /this week’s work isn’t finished/, "the automatic reminders' line, which says this week");
     assert.doesNotMatch(text, /unsubscribe/i);
     for (const uid of ["amara", "rahul", "sofia", "dev", "omar", "nina"]) assert.equal(mailTo(uid).length, 0, uid);
 

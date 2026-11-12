@@ -356,7 +356,8 @@ test("course hub: who has done a week, and Remind by hand, as the group's facili
       assert.ok(said.includes(`Hi ${ben.first},`), `the greeting: ${said}`);
       assert.ok(said.includes(WORDS.met(group.name, REMIND_WEEK, session.startsAt)), `the first paragraph: ${said}`);
       assert.ok(said.includes(WORDS.addedNow), `the line about late work: ${said}`);
-      assert.ok(said.includes("our records show this week’s work isn’t finished"), "the notice line is missing");
+      assert.ok(said.includes(`our records show week ${REMIND_WEEK} isn’t done`), "the notice line does not name the week it is about");
+      assert.ok(!said.includes("this week’s work isn’t finished"), "it carries the automatic reminders' line");
       assert.ok(said.includes(`${fern.first} and the`), "it does not say who it is from");
       for (const [part, text] of [["HTML", email.html], ["text", email.text]]) {
         assert.ok(!text.includes(group.meetingUrl) && !text.includes(new URL(group.meetingUrl).host), `the ${part} part carries the meeting link`);

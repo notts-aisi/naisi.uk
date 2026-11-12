@@ -28,14 +28,16 @@ import { handReminderEmailWords, peopleCountWords, stillToDoItems, type HandRemi
  * [groupId]/remind/route.ts`).
  *
  * ONE WAY TO REMIND ABOUT A WEEK. Built on the automatic reminders, not beside
- * them: what is left of a week is theirs (`weekLeft`), the email is drawn by
- * their template (`WeekEmail`), and it goes through the notice lane's door on
- * their surface, `course-week-reminder` (the line above the words: "our
- * records show this week's work isn't finished"). Programme delivery, so it
- * reaches the person whatever their settings say (privacy v17, "Reminders":
- * "After that session, the people running your group may remind you about a
- * week that isn't done"). One message per address, never a Cc, never a
- * meeting link: the only link is the week's own page.
+ * them: what is left of a week is theirs (`weekLeft`) and the email is drawn
+ * by their template (`WeekEmail`). It goes through the notice lane's door on
+ * a surface of its own, `course-week-remind-by-hand`, because it is neither
+ * before a session nor about this week alone: the line above the words names
+ * the week ("our records show week 1 isn't done"), and the Deliverability
+ * tab and Messages' sent list call it a reminder by hand. Programme
+ * delivery, so it reaches the person whatever their settings say (privacy
+ * v17, "Reminders": "After that session, the people running your group may
+ * remind you about a week that isn't done"). One message per address, never
+ * a Cc, never a meeting link: the only link is the week's own page.
  *
  * THE CAPS (docs/notifications.md, "The caps"): 3 an hour per presser and
  * audience (the group's week, everybody not done or one person), 10 a day per
@@ -199,7 +201,8 @@ export async function sendHandReminders(
       const result = await sendNotice({
         to: person.address,
         subject: words.subject,
-        surface: "course-week-reminder",
+        surface: "course-week-remind-by-hand",
+        weekNumber: read.weekNumber,
         actorUid: actor.uid,
         referenceId: group.id,
         render: (marker) => WeekEmail({ words, notice: marker }),
