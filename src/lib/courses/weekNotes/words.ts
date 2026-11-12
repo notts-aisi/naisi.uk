@@ -1,8 +1,9 @@
 /**
  * THE WORDS OF A WEEK'S NOTES ABOUT PEOPLE (privacy v15, "AI-assisted
- * review"), the page's and the routes' alike. Admins draft and save; the
- * programme's leads read the saved notes kept for them. Nothing here reaches
- * a member or a facilitator. Plain, British, sentence case, no dashes, no
+ * review", and v18 for what a draft uses: a week once the person's session
+ * has ended, their work as it stands, sent or not), the page's and the
+ * routes' alike. Admins draft and save; the programme's leads read the saved
+ * notes kept for them. Nothing here reaches a member or a facilitator. Plain, British, sentence case, no dashes, no
  * pronoun for a person.
  *
  * Pure: safe anywhere.
@@ -35,15 +36,15 @@ export const WEEK_NOTES_WORDS = {
       ? "This week’s notes can be drafted once every group has met, and no group meets it yet."
       : `This week’s notes can be drafted once every group has met: ${met} of ${of} have.`,
   notSetUp: "Claude isn’t set up on this site yet.",
-  noSubmission: "No submission, no note: their week isn’t submitted.",
+  noSession: "Their session for this week hasn’t ended yet, has no length set, or they have none, so there’s nothing of theirs to note.",
+  wroteNothing: "They haven’t written anything in this week yet, so there’s nothing to note.",
   noWork: "This week asks for no written work, so there are no notes to draft from it.",
   nothingToSend: `Nothing of their week can be sent: only work written after they agreed to version ${V} of the privacy policy is.`,
   draftedAlready: "There’s a draft for them already. Use Draft again on its card to replace it.",
   keptAlready: "A note from this week is already on their record.",
   slip: "Claude’s draft named somebody it wasn’t sent, so it wasn’t kept. Draft again.",
   noDraft: "There’s no draft for them now. Reload the page.",
-  // The week page has no Submit now (each written answer has its own Send), so nobody is told to wait for one.
-  notSubmittedNow: "Their week isn’t submitted now, so there’s nothing to note. Discard the draft.",
+  noSessionNow: "They have no session for this week that has ended now, so there’s nothing to note. Discard the draft.",
   failed: "Claude couldn’t draft a note just now. Try again.",
   loadFailed: "Couldn’t reach the site. Try again.",
 
@@ -59,7 +60,7 @@ export const WEEK_NOTES_WORDS = {
 
   // What Claude may use.
   usesTitle: "What Claude may use",
-  uses: ["What they submitted as written work", "Feedback people gave", "The team’s ratings and comments"],
+  uses: ["Their work on the week as it stands after their session, sent or not", "Feedback people gave", "The team’s ratings and comments"],
   neverUses: ["Not their surveys or check-ins", "Not facilitators’ session reports", "Not Claude’s own grades"],
   usesLine:
     "So a note rests on their own work and on what people on the team said about it, never on Claude grading its own work. Names never leave: Claude gets labels and numbers in their place, and the site puts the names back.",
@@ -69,14 +70,14 @@ export const WEEK_NOTES_WORDS = {
     [
       plural(people, "1 person", "{n} people"),
       plural(drafts, "1 draft", "{n} drafts"),
-      `${nothing} submitted nothing this week, so there’s no note for them`,
+      `${nothing} with nothing written this week or no session yet, so there’s no note for them`,
       `${saved} saved`,
     ].join(" · "),
   notYetAgreed: (count: number) =>
     plural(
       count,
-      `1 submitted, but nothing of theirs can be sent: only work written after they agreed to version ${V} of the privacy policy is.`,
-      `{n} submitted, but nothing of theirs can be sent: only work written after they agreed to version ${V} of the privacy policy is.`,
+      `1 wrote something, but nothing of theirs can be sent: only work written after they agreed to version ${V} of the privacy policy is.`,
+      `{n} wrote something, but nothing of theirs can be sent: only work written after they agreed to version ${V} of the privacy policy is.`,
     ),
   onlyDrafts: "Only drafts",
   onlySuggestions: "Only suggestions",
@@ -90,8 +91,8 @@ export const WEEK_NOTES_WORDS = {
   pressLine: (count: number) =>
     plural(
       count,
-      "Sends one request to Anthropic, for the 1 person who submitted and has no draft or note from this week, with labels and numbers in place of names. Nobody is emailed.",
-      "Sends one request to Anthropic for each of the {n} people who submitted and have no draft or note from this week, with labels and numbers in place of names. Nobody is emailed.",
+      "Sends one request to Anthropic, for the 1 person with work to note and no draft or note from this week, with labels and numbers in place of names. Nobody is emailed.",
+      "Sends one request to Anthropic for each of the {n} people with work to note and no draft or note from this week, with labels and numbers in place of names. Nobody is emailed.",
     ),
   drafting: (done: number, total: number) => `Drafted ${done} of ${total}…`,
   stopped: (names: string, reason: string) => `Couldn’t draft a note for ${names}: ${reason} Press again to try again.`,
@@ -99,7 +100,7 @@ export const WEEK_NOTES_WORDS = {
     of === 0
       ? "You can draft this week’s notes once every group has met, and no group meets it yet."
       : `You can draft this week’s notes once every group has met: ${met} of ${of} groups have met.`,
-  nobodyToDraft: "Everybody who submitted something that can be sent has a draft or a note from this week.",
+  nobodyToDraft: "Everybody with work that can be sent has a draft or a note from this week.",
 
   // A card.
   draft: "Draft",
@@ -120,7 +121,7 @@ export const WEEK_NOTES_WORDS = {
   newer: (what: "rating" | "feedback" | "both", when: string) =>
     `${what === "rating" ? "A rating" : what === "feedback" ? "Feedback" : "Feedback and a rating"} came in after this draft, the newest ${when}. Draft again to include it.`,
   changed: "Their week has changed since this draft. Draft again to use what’s there now.",
-  reopened: "Their week was reopened after this draft, so there’s no submission to note. Discard it.",
+  noSessionAfter: "They have no session for this week that has ended now, so there’s nothing to note. Discard it.",
   savedLine: (weekNumber: number, name: string) => `Drafted by Claude from week ${weekNumber}. Saved by ${name}.`,
   noSuggestion: "No suggestion for next term.",
   readBy: (who: string) => `Who reads it: ${who}`,
@@ -129,8 +130,9 @@ export const WEEK_NOTES_WORDS = {
   saveFailed: "Couldn’t save the note. Try again.",
   discardFailed: "Couldn’t discard the draft. Try again.",
 
-  // "Built only from", a line each.
-  work: (weekNumber: number, parts: { written: number; reflections: number; boxes: number }, day: string | null) => {
+  // "Built only from", a line each. A week's work as it stood on the day it was read, the draft's; a draft
+  // kept before version 18 says the day its week was submitted (`submitted`), which is what it was built from.
+  work: (weekNumber: number, parts: { written: number; reflections: number; boxes: number }, day: string | null, submitted = false) => {
     const what = listWords(
       [
         parts.written > 0 ? plural(parts.written, "answer", "{n} answers") : null,
@@ -138,7 +140,8 @@ export const WEEK_NOTES_WORDS = {
         parts.boxes > 0 ? plural(parts.boxes, "1 box", "{n} boxes") : null,
       ].filter((part): part is string => part !== null),
     );
-    return day ? `Week ${weekNumber} ${what}, submitted ${day}` : `Week ${weekNumber} ${what}`;
+    if (!day) return `Week ${weekNumber} ${what}`;
+    return submitted ? `Week ${weekNumber} ${what}, submitted ${day}` : `Week ${weekNumber} ${what}, as it stood on ${day}`;
   },
   levels: (weekNumber: number) => `Week ${weekNumber} feedback levels on the course’s rubric`,
   feedback: (name: string | null) => (name ? `${name}’s written feedback` : "Written feedback from someone no longer on the site"),

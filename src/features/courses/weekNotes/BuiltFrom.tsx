@@ -3,8 +3,9 @@ import styles from "./weekNotes.module.css";
 
 /**
  * "Built only from": a line for each thing a note's draft was sent (the
- * submitted week, each piece of feedback by its writer, each rating with its
- * comment), worked out on the server from what the draft keeps. Words only.
+ * week's work as it stood that day, each piece of feedback by its writer,
+ * each rating with its comment), worked out on the server from what the
+ * draft keeps. Words only.
  */
 export default function BuiltFrom({ lines }: { lines: readonly string[] }) {
   return (

@@ -13,9 +13,12 @@
  *    is seeded, and the moment her coursework counts from is that agreement:
  *    `courseworkCountsFrom` in src/lib/legal/courseworkUse.ts), so it is
  *    writing Claude may be sent. Every word of it is made up.
- *  - ADA'S WEEK 3 SUBMITTED, after she wrote it, as Submit stores it: a
- *    note's draft is built only from submitted weeks, so without it the
- *    draft is refused before anything is sent ("no week of it is submitted").
+ *  - ADA'S WEEK 3 SUBMITTED, after she wrote it, as the old Submit stored
+ *    it. Since privacy v18 a note's draft draws on a week once the session
+ *    she was due at has started, as it stands, submitted or not (her
+ *    group's week 3 session is over at this point), so the record changes
+ *    nothing for the draft: it stands for a week submitted under the old
+ *    button, which reads as its latest words like any other.
  *  - A NOTE ABOUT ADA WRITTEN BEFORE THAT AGREEMENT (a day before the seed),
  *    by the harness's admin, from no programme: the profile shows it marked,
  *    and the application screen leaves it out and says so. Written before
@@ -153,7 +156,7 @@ async function seed({ runId, suppress, onState }) {
     firstWrittenAt: new Date(now.getTime() + 1_000),
   });
 
-  // Ada submits week 3 after writing it, as Submit stores it: a note's draft is built from submitted weeks only.
+  // Ada submits week 3 after writing it, as the old Submit stored it: a note's draft reads the week as it stands.
   const submitted = new Date(now.getTime() + 2_000);
   await fixtureDoc("courseWeekWork", `${state.runId}__${subject.uid}__${COURSEWORK.weekId}`).set({
     e2eTermRunId: state.termRunId,

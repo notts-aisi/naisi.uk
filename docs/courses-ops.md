@@ -3051,7 +3051,10 @@ here.
   their group after it started: no moment for that week ("Joined late"),
   and nothing of theirs in it is ever late. It is the one moment late is
   told against, from which an unsent answer may be read, and after which
-  the first change keeps the earlier version.
+  the first change keeps the earlier version. That very session's own end
+  (`weekDueEndsAt`, `dueEndOf` on `loadRunWeekStates`; cancelled with the
+  group keeping pace, when it would have ended) is when the weekly notes may
+  draw on the week.
 - **Late is worked out when read, never stored** (`lateBy`, its words
   `lateWords`: "40 minutes", "5 hours", "3 days"): the time of a change, a
   send or a tick against that moment. "After its deadline" (staff only) is an
@@ -4401,7 +4404,7 @@ certificate was sent in error, and tell its owner.
 
 Privacy policy version 13 took back version 12's promise that nothing
 written in a course is used outside its programme, from its own agreement on,
-and the current policy (`src/content/legal/privacy/v17.tsx`) keeps those
+and the current policy (`src/content/legal/privacy/v18.tsx`) keeps those
 words. Three features rest on that, each an admin's press and never
 automatic, all built like the applications' second reader
 (`docs/applications.md`, "Claude and Pangram"): labels to Claude, names put
@@ -4435,8 +4438,9 @@ shows as out of date.
   it; a programme's pages those, and earlier notes written from that
   programme. Each place says its rule in one line. "Draft a note with Claude"
   (`draft.ts`) sends what the end-of-week notes send (below), over every
-  week of one run: the weeks that person submitted and has not had reopened
-  since, their work in them written after they agreed to privacy v15, and the
+  week of one run: the weeks whose session that person was due at has
+  ended, their work in them as it stands, sent or not, written after they
+  agreed to privacy v15, and the
   team's feedback, ratings and comments on it, with every name of everybody
   on the run swapped for a label ("the fellow", "Rater 1"); the draft is
   returned and never stored, and only Save note keeps it, with
@@ -4703,8 +4707,12 @@ Beside a week's review, a week has **Notes** (`.../weeks/[weekId]/notes`,
 "Review | Notes about people" at the head of both pages), offered from the
 week's first session on, to an admin and to the programme's lead. Privacy
 version 15 lets Claude draft, once a week, a short note on how each person is
-doing, "using only the work they submitted and the feedback, ratings and
-comments people on the team gave it". `src/lib/courses/weekNotes/` holds it.
+doing, and version 18 says what it uses: "It is drafted after your session,
+usually about a week after it, and uses your work on that week as it stands
+then, sent or not, with the feedback, ratings and comments people on the team
+gave it." (Versions 15 to 17 said "using only the work they submitted"; the
+week's old Submit counts for nothing here since 18.)
+`src/lib/courses/weekNotes/` holds it.
 
 - **The door** (`door.ts`): the coursework door, the week a taught week of
   the run's plan, and each live group's session of it. Drafting waits until
@@ -4712,15 +4720,32 @@ comments people on the team gave it". `src/lib/courses/weekNotes/` holds it.
   does not count either way). The draft, save and discard routes pass
   `adminOnly`, so the lead is turned away there and on the session before.
 - **Who**: the people holding a place, never a facilitator's own work. **No
-  submission, no note**: a draft only for somebody whose week is submitted
-  and not reopened since (`courseWeekWork.submittedAt`), and the page says
-  how many submitted nothing.
+  session, no note**: a week is drawn on for somebody once the session they
+  were due at for it has ENDED ("drafted after your session"): the same
+  "due" every reader of work asks (`weekDueOf`) and that very session's own
+  end (`weekDueEndsAt`, both through `loadRunWeekStates`), never a second
+  sum; cancelled with the group keeping pace, when it would have ended.
+  Never before or during it, so not even an answer already sent, nor what
+  is typed during the session. With no such session (no group, no time set,
+  told their group after it started) the week is not drawn on.
+  Nothing waits a number of days after the session: the press waits only
+  for every group to have met (the door, above). The page counts who has
+  nothing written this week or no session yet, and who wrote something
+  none of which may be sent.
 - **What is sent** (`noteDraftInput` in `src/lib/courses/coursework/input.ts`,
   the one builder, the profile's draft too; read by `gather.ts`): that
-  week's work, counted under version 13 and first written after the person
-  agreed to version 15; each piece of feedback on an answer that went, or on
-  the week, as a comment by its writer's role; each rating for the team of an
-  answer that went, from 1 to 10 with its comment, its rater as "Rater 1".
+  week's work AS IT STANDS when the note is drafted, read by `loadAnswers`
+  against the same sessions and clock: each reflection and box as last
+  saved, each written answer as its latest saved words, sent or not (which
+  is how its readers read it once the session has started,
+  `readableAnswer`); counted under version 13 and first written after the
+  person agreed to version 15. Claude's instructions and the message say
+  "coursework" and "work", no longer "submitted". A week submitted under
+  the old button reads as its latest words like any other. Each piece of
+  feedback on an answer
+  that went, or on the week, as a comment by its writer's role; each rating
+  for the team of an answer that went, from 1 to 10 with its comment, its
+  rater as "Rater 1".
   A writer's words go only when written after THEIR version 15 moment.
   Feedback from before pieces existed goes as its levels. NEVER a check-in
   or survey, a session report, Claude's own grades or a register: the
@@ -4731,16 +4756,19 @@ comments people on the team gave it". `src/lib/courses/weekNotes/` holds it.
   Claude's words.
 - **The press**: "Draft this week's notes" sends one request per person from
   the browser, three at a time, each kept as it returns ("Drafted 12 of
-  41…"), for everybody who submitted something that may be sent with
-  neither a draft nor a note from this week; a second press drafts only who
-  is still without one. "Draft again" on a card replaces that unsaved draft,
-  and the card says when a rating or feedback came in after it, or that the
-  week changed. A draft naming a label it was never sent is refused, never
-  kept. Nobody is emailed.
+  41…"), for everybody whose session has ended with something that may
+  be sent and neither a draft nor a note from this week; a second press
+  drafts only who is still without one. "Draft again" on a card replaces
+  that unsaved draft, and the card says when a rating or feedback came in
+  after it, or that what would be sent has changed (the work as it stands,
+  so a change since the draft, sent or not, says so). A draft naming a
+  label it was never sent is refused, never kept. Nobody is emailed.
 - **Kept** (`courseNoteDrafts/{runId}__{weekId}__{uid}`): Claude's words with
   its labels, what was sent item for item (`builtFrom`, shown as "Built only
-  from"), each "Rater N"'s account, a hash of the message, the model, when
-  and whose press. Never on anybody's profile. Deleted with the run
+  from": the week's work "as it stood on" the day it was drafted, `asOf`; a
+  draft or note kept before version 18 has no `asOf` and says the day its
+  week was submitted, `submittedAt`), each "Rater N"'s account, a hash of
+  the message, the model, when and whose press. Never on anybody's profile. Deleted with the run
   (`noteDrafts`); an account's deletion deletes the drafts about it.
 - **Saved** (`keepWeeklyNoteIn` in `src/lib/memberNotes/store.ts`, in the
   transaction that deletes the draft): the admin's own words from the box,
@@ -4748,11 +4776,12 @@ comments people on the team gave it". `src/lib/courses/weekNotes/` holds it.
   and who reads it, admins and the programme's leads unless the admin keeps
   it to admins. A `memberNotes` note with `draftedByClaude`, `kind: "weekly"`,
   its week and `builtFrom`; one per person per week. Refused while the week
-  is not submitted. The saved card says "Drafted by Claude from week 3. Saved
+  is not drawn on for them (no session of theirs that week has ended).
+  The saved card says "Drafted by Claude from week 3. Saved
   by Zach."
 - **The lead** reads the saved notes kept for leads, by the notes' one rule
   (`notesShownIn`, the lead's place), about somebody holding a place now:
-  never a draft, a count of drafts or who submitted, and never the
+  never a draft, a count of drafts or of who wrote what, and never the
   application's answer.
 - **Deleting an account** deletes the drafts about it, and takes its
   feedback and ratings out of what every draft and saved note about

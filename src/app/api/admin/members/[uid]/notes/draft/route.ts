@@ -48,7 +48,7 @@ export async function POST(req: Request, ctx: Ctx) {
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
-  const drafted = await draftNote(db, user, uid, runId);
+  const drafted = await draftNote(db, user, uid, runId, new Date());
   if (!drafted.ok) return NextResponse.json({ error: drafted.error }, { status: drafted.status });
   return NextResponse.json({ text: drafted.text, sent: drafted.sent }, { headers: { "Cache-Control": "no-store" } });
 }

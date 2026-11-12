@@ -156,6 +156,16 @@ export default async function ReConsentPage() {
           concerns; how long we keep reasons and messages; and that we tell you
           about changes to this policy on the site.
         </p>
+        {/* Version 18's line is the policy's own "What's changed in version
+            18", word for word. It follows version 15's paragraph about the
+            weekly note, which says what version 15 changed. */}
+        <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
+          <strong style={{ color: "var(--color-text)" }}>What changed in version 18.</strong>{" "}
+          The short note Claude may draft each week, or when an admin asks for
+          one, now uses your work as it stands after your session, so it may
+          use a written answer you haven&apos;t sent; and we say that the tools
+          get a number or a label in place of each name.
+        </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}
           <Link href="/privacy" target="_blank" style={{ color: "var(--color-accent-text)" }}>

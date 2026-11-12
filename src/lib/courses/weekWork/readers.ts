@@ -20,7 +20,7 @@ import { weekTaskNeeds } from "@/lib/courses/weekBlocks/progress";
 import { instantOf, isWordCountedAnswer } from "@/lib/courses/writtenAnswers/model";
 import { boxIsWritten, isOwnBoxResponse } from "@/lib/firestore/courseExercises";
 import { workClosesAt } from "./closes";
-import { NO_GROUP, groupSessionAt, weekDueOf, type SessionSource, type WeekDue } from "./sessionDue";
+import { NO_GROUP, groupSessionAt, weekDueEndsAt, weekDueOf, type SessionSource, type WeekDue } from "./sessionDue";
 import {
   personWeekProgress,
   submittedOnce,
@@ -302,6 +302,8 @@ export type RunWeekStates = {
   stateOf: (uid: string, weekNumber: number) => WeekWorkState;
   /** The session the person is due at that week (`./sessionDue.ts`). */
   dueOf: (uid: string, weekNumber: number) => WeekDue;
+  /** When that same session ends (`weekDueEndsAt`), or null with none. */
+  dueEndOf: (uid: string, weekNumber: number) => Date | null;
   recordOf: (uid: string, weekNumber: number) => CourseWeekWorkDoc | null;
   /** When they first pressed the week's old Submit, or null. */
   submittedOf: (uid: string, weekNumber: number) => Date | null;
@@ -364,6 +366,7 @@ export async function loadRunWeekStates(
     closesAt,
     stateOf: (uid, weekNumber) => weekWorkState({ due: dueOf(uid, weekNumber), closesAt, facts: recordOf(uid, weekNumber), now }),
     dueOf,
+    dueEndOf: (uid, weekNumber) => weekDueEndsAt(sourceOf(uid), weekNumber),
     recordOf,
     submittedOf: (uid, weekNumber) => submittedOnce(recordOf(uid, weekNumber)),
     sessionOf: (uid, weekNumber) => groupSessionAt(sourceOf(uid), weekNumber),

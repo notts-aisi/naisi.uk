@@ -3,34 +3,47 @@ import type { Firestore } from "firebase-admin/firestore";
 import { loadAnswers } from "@/lib/courses/coursework/gather";
 import type { CourseworkAnswer, CourseworkWeek, NoteFeedback, NoteRating, NoteWeek } from "@/lib/courses/coursework/input";
 import { readOwnFeedback, readWeekFeedback } from "@/lib/courses/feedback/readers";
-import { readRunWeekWork, readWeekWork } from "@/lib/courses/weekWork/readers";
+import { liveGroupsOfRun } from "@/lib/courses/weeksTab/load";
+import { readRunForWork } from "@/lib/courses/weekWork/own";
+import { loadRunWeekStates, type RunWeekStates } from "@/lib/courses/weekWork/readers";
 import { readPersonRatings, readWeekRatings } from "@/lib/courses/workRatings/readers";
 import type { CourseFeedbackDoc } from "@/lib/firestore/courseFeedback";
 import type { CourseWorkRatingDoc } from "@/lib/firestore/courseWorkRatings";
-import type { CourseWeekWorkDoc } from "@/lib/firestore/courseWeekWork";
 import { reviewUseFrom } from "@/lib/legal/reviewUse";
 
 /**
- * WHAT A NOTE ABOUT A PERSON IS DRAFTED FROM (privacy v15: "using only the
- * work they submitted and the feedback, ratings and comments people on the
- * team gave it"), read on the Admin SDK after each caller's own door: the
- * end-of-week notes' page and draft route (an admin's), and the profile's
- * "Draft a note with Claude" (an admin's). `noteDraftInput`
- * (`src/lib/courses/coursework/input.ts`) builds the message from what this
- * hands it, and decides what of it goes.
+ * WHAT A NOTE ABOUT A PERSON IS DRAFTED FROM (privacy v18: "It is drafted
+ * after your session, usually about a week after it, and uses your work on
+ * that week as it stands then, sent or not, with the feedback, ratings and
+ * comments people on the team gave it"), read on the Admin SDK after each
+ * caller's own door: the end-of-week notes' page and draft route (an
+ * admin's), and the profile's "Draft a note with Claude" (an admin's).
+ * `noteDraftInput` (`src/lib/courses/coursework/input.ts`) builds the message
+ * from what this hands it, and decides what of it goes.
  *
- * What it reads, and nothing else: where each week stands (the week's own
- * record: a week counts only while it is submitted, and a reopen takes that
- * away), the person's coursework through the coursework's one reader
- * (`loadAnswers`, which marks each row counted under version 13, and reads
- * each written answer as last sent: `submittedWork` below), the
- * feedback on their weeks (through feedback's own readers), the ratings for
- * the team of their written answers (through the ratings' own readers), and
- * the accounts of the person and of everybody who wrote or rated, for each
- * one's version 15 moment (`reviewUseFrom`). Never a survey
- * or check-in, a session report, Claude's own grades or a register: this
- * file imports none of their code, and `tests/week-notes.test.mjs` holds
- * that.
+ * WHICH WEEKS: a week is drawn on once the session the person was due at for
+ * it has ENDED, and never before: "drafted after your session". The session
+ * is the one every other reader of work asks (`weekDueOf`), and its end is
+ * that very session's own end instant (`weekDueEndsAt`, both read through
+ * `loadRunWeekStates`), never a second sum; cancelled with the group keeping
+ * pace, when it would have ended. So nothing typed during the session goes
+ * before it is over. A week with no such session for them (no group, no time
+ * set, joined after it started), or whose session has no length set, is not
+ * drawn on. The week's old Submit counts
+ * for nothing here: a week submitted under it is a week like any other.
+ *
+ * WHAT OF IT: the person's work as it stands at `now`, through the
+ * coursework's one reader (`loadAnswers`, handed the same sessions and clock,
+ * which marks each row counted under version 13): each reflection and each
+ * box as last saved, and each written answer as its latest saved words,
+ * sent or not, which is how its readers read it once that session has
+ * started (`readableAnswer`), as it has. Then the feedback on those weeks
+ * (through feedback's own readers), the ratings for the team of their
+ * written answers (through the ratings' own readers), and the accounts of
+ * the person and of everybody who wrote or rated, for each one's version 15
+ * moment (`reviewUseFrom`). Never a survey or check-in, a session report, Claude's
+ * own grades or a register: this file imports none of their code, and
+ * `tests/week-notes.test.mjs` holds that.
  *
  * Every query is equalities only, filtered again in memory, so nothing needs
  * a declared index.
@@ -38,7 +51,7 @@ import { reviewUseFrom } from "@/lib/legal/reviewUse";
 
 /** Everything one person's draft is built from, before `noteDraftInput` decides what goes. */
 export type PersonNoteSources = {
-  /** Their weeks that are submitted now, each with its questions and when it was submitted. */
+  /** Their weeks whose session has ended, each with its questions and when its work was read. */
   weeks: NoteWeek[];
   answers: CourseworkAnswer[];
   feedback: NoteFeedback[];
@@ -92,59 +105,56 @@ export function noteRatingOf(rating: CourseWorkRatingDoc): NoteRating | null {
   };
 }
 
-/** The weeks of `weeks` this person has submitted, from their stored week records. */
-function submittedWeeks(weeks: readonly CourseworkWeek[], recordOf: (weekId: string) => CourseWeekWorkDoc | null): NoteWeek[] {
-  const out: NoteWeek[] = [];
-  for (const week of weeks) {
-    const submittedAt = recordOf(week.weekId)?.submittedAt ?? null;
-    if (submittedAt) out.push({ week, submittedAt });
-  }
-  return out;
-}
+/** The session each person on a run is due at, by week, when it ends, and the clock it is told against. */
+type RunSessions = { dueOf: RunWeekStates["dueOf"]; dueEndOf: RunWeekStates["dueEndOf"]; now: Date };
 
 /**
- * ONLY THE WORK THEY SUBMITTED (privacy v17: "using only the work they
- * submitted"). A week stays open after its Submit, so a submitted week's
- * words can change after it. Of a week in the note, a reflection or a fill-in
- * box saved after the week's Submit was last pressed is left out, and so is
- * one with no save time to tell. A written answer goes as LAST SENT, never a
- * change not sent: `loadAnswers` reads it so (`asLastSent`), counting the
- * Submit as a send of the words then standing. Which weeks go is not changed
- * here: `noteDraftInput` takes only `weeks`.
+ * The sessions everybody on the run is due at (`loadRunWeekStates`, the one
+ * sum), at `now`; null for a run that is gone, which draws on no week.
  */
-function submittedWork(answers: readonly CourseworkAnswer[], weeks: readonly NoteWeek[]): CourseworkAnswer[] {
-  const submittedAt = new Map(weeks.map((entry) => [entry.week.weekId, entry.submittedAt]));
-  return answers.filter((answer) => {
-    if (answer.kind === "written") return true;
-    const at = submittedAt.get(answer.weekId);
-    if (!at) return true;
-    return answer.savedAt != null && answer.savedAt.getTime() <= at.getTime();
-  });
+async function sessionsOnRun(db: Firestore, runId: string, now: Date): Promise<RunSessions | null> {
+  const [run, liveGroups] = await Promise.all([readRunForWork(db, runId), liveGroupsOfRun(db, runId)]);
+  if (!run) return null;
+  const states = await loadRunWeekStates(db, { run, liveGroups, now });
+  return { dueOf: states.dueOf, dueEndOf: states.dueEndOf, now };
+}
+
+/** Whether `uid`'s week `weekNumber` is drawn on: the session they were due at for it has ended. */
+function drawnOn(sessions: RunSessions | null, uid: string, weekNumber: number): boolean {
+  const endsAt = sessions === null ? null : sessions.dueEndOf(uid, weekNumber);
+  return sessions !== null && endsAt !== null && sessions.now.getTime() >= endsAt.getTime();
 }
 
 /**
  * ONE PERSON'S SOURCES on one run, over `weeks` (one week for the end-of-week
- * draft, every week of the run for the profile's): their week records by
- * address, their coursework (one equality on `uid`), their feedback and
- * ratings on the run (equalities on `uid` and `runId`), and the accounts.
+ * draft, every week of the run for the profile's): the weeks of them whose
+ * session they were due at has ended, their work in those weeks as it
+ * stands (one equality on `uid`), their feedback and ratings on them
+ * (equalities on `uid` and `runId`), and the accounts.
  */
 export async function gatherPersonNote(
   db: Firestore,
-  input: { runId: string; uid: string; weeks: readonly CourseworkWeek[] },
+  input: { runId: string; uid: string; weeks: readonly CourseworkWeek[]; now: Date },
 ): Promise<PersonNoteSources> {
-  const { runId, uid } = input;
-  const [records, pieces, rated] = await Promise.all([
-    Promise.all(input.weeks.map((week) => readWeekWork(db, runId, uid, week.weekId))),
+  const { runId, uid, now } = input;
+  const [sessions, pieces, rated] = await Promise.all([
+    sessionsOnRun(db, runId, now),
     readOwnFeedback(db, runId, uid),
     readPersonRatings(db, { runId, uid }),
   ]);
-  const byWeek = new Map(input.weeks.map((week, index) => [week.weekId, records[index] ?? null]));
-  // Each written answer as last sent, the week's Submit counted as a send.
-  const answers = await loadAnswers(db, runId, input.weeks, new Set([uid]), {
-    asLastSent: (_, weekId) => byWeek.get(weekId)?.submittedAt ?? null,
-  });
-  const weeks = submittedWeeks(input.weeks, (weekId) => byWeek.get(weekId) ?? null);
-  const weekIds = new Set(input.weeks.map((week) => week.weekId));
+  const weeks: NoteWeek[] = input.weeks.filter((week) => drawnOn(sessions, uid, week.weekNumber)).map((week) => ({ week, asOf: now }));
+  const weekIds = new Set(weeks.map((entry) => entry.week.weekId));
+  // Each answer as it stands now, read against the same sessions and clock.
+  const answers =
+    sessions && weeks.length > 0
+      ? await loadAnswers(
+          db,
+          runId,
+          weeks.map((entry) => entry.week),
+          new Set([uid]),
+          { session: sessions },
+        )
+      : ([] as CourseworkAnswer[]);
   const feedback = pieces.filter((piece) => weekIds.has(piece.weekId)).map(noteFeedbackOf);
   const ratings = rated
     .filter((rating) => weekIds.has(rating.weekId))
@@ -153,10 +163,7 @@ export async function gatherPersonNote(
   const moments = await momentsOf(db, [uid, ...feedback.map((piece) => piece.byUid), ...ratings.map((rating) => rating.raterUid)]);
   return {
     weeks,
-    answers: submittedWork(
-      answers.filter((answer) => answer.uid === uid),
-      weeks,
-    ),
+    answers: answers.filter((answer) => answer.uid === uid && weekIds.has(answer.weekId)),
     feedback,
     ratings,
     from: moments.get(uid) ?? null,
@@ -166,40 +173,36 @@ export async function gatherPersonNote(
 
 /**
  * EVERYBODY'S SOURCES FOR ONE WEEK of a run, for the week's Notes page: the
- * run's week records (one equality on `runId`), the week's coursework by
- * `people` (one equality on `runId`), the week's feedback and ratings
- * (equalities on `runId` and `weekId`), and every account named. Built to
- * hand `noteDraftInput` exactly what `gatherPersonNote` would for each
- * person, so the page's count of what would go and its out-of-date check
- * agree with a press.
+ * sessions everybody is due at, the week's coursework by the people whose
+ * session has ended (one equality on `runId`, or on `uid` for one), the
+ * week's feedback and ratings (equalities on `runId` and `weekId`), and every
+ * account named. Built to hand `noteDraftInput` exactly what
+ * `gatherPersonNote` would for each person, so the page's count of what would
+ * go and its out-of-date check agree with a press.
  */
 export async function gatherWeekNotes(
   db: Firestore,
-  input: { runId: string; week: CourseworkWeek | null; weekId: string; people: ReadonlySet<string> },
+  input: { runId: string; week: CourseworkWeek | null; weekId: string; people: ReadonlySet<string>; now: Date },
 ): Promise<Map<string, PersonNoteSources>> {
-  const { runId, week, weekId, people } = input;
-  const [records, pieces, rated] = await Promise.all([
-    readRunWeekWork(db, runId),
+  const { runId, week, weekId, people, now } = input;
+  const [sessions, pieces, rated] = await Promise.all([
+    sessionsOnRun(db, runId, now),
     readWeekFeedback(db, runId, weekId),
     readWeekRatings(db, { runId, weekId }),
   ]);
-  // Each written answer as last sent, the week's Submit counted as a send (as `gatherPersonNote` reads them).
+  const drawn = new Set(week ? [...people].filter((uid) => drawnOn(sessions, uid, week.weekNumber)) : []);
+  // Each answer as it stands now, read against the same sessions and clock (as `gatherPersonNote` reads them).
   const answers =
-    week && people.size > 0
-      ? await loadAnswers(db, runId, [week], people, { asLastSent: (uid, id) => records.get(uid)?.get(id)?.submittedAt ?? null })
-      : ([] as CourseworkAnswer[]);
-  const feedback = pieces.filter((piece) => people.has(piece.uid));
-  const ratings = rated.filter((rating) => people.has(rating.uid));
+    week && sessions && drawn.size > 0 ? await loadAnswers(db, runId, [week], drawn, { session: sessions }) : ([] as CourseworkAnswer[]);
+  const feedback = pieces.filter((piece) => drawn.has(piece.uid));
+  const ratings = rated.filter((rating) => drawn.has(rating.uid));
   const moments = await momentsOf(db, [...people, ...feedback.map((piece) => piece.byUid), ...ratings.map((rating) => rating.raterUid)]);
   const out = new Map<string, PersonNoteSources>();
   for (const uid of people) {
-    const weeks = week ? submittedWeeks([week], (id) => records.get(uid)?.get(id) ?? null) : [];
+    const weeks: NoteWeek[] = week && drawn.has(uid) ? [{ week, asOf: now }] : [];
     out.set(uid, {
       weeks,
-      answers: submittedWork(
-        answers.filter((answer) => answer.uid === uid),
-        weeks,
-      ),
+      answers: answers.filter((answer) => answer.uid === uid && answer.weekId === weekId),
       feedback: feedback.filter((piece) => piece.uid === uid).map(noteFeedbackOf),
       ratings: ratings
         .filter((rating) => rating.uid === uid)
@@ -212,7 +215,7 @@ export async function gatherWeekNotes(
   return out;
 }
 
-/** Whether a person's week is submitted now: their week record says so, and nothing has reopened it since. */
-export async function weekIsSubmitted(db: Firestore, input: { runId: string; uid: string; weekId: string }): Promise<boolean> {
-  return (await readWeekWork(db, input.runId, input.uid, input.weekId))?.submittedAt != null;
+/** Whether a person's week is drawn on now: the session they were due at for it has ended. */
+export async function weekIsDrawnOn(db: Firestore, input: { runId: string; uid: string; weekNumber: number; now: Date }): Promise<boolean> {
+  return drawnOn(await sessionsOnRun(db, input.runId, input.now), input.uid, input.weekNumber);
 }

@@ -8,8 +8,8 @@ import { isFillInResponse, isOwnBoxResponse, isReflectionResponse } from "@/lib/
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { courseworkCountsFrom, rowCountsFrom } from "@/lib/legal/courseworkUse";
 import { readRunForWork } from "@/lib/courses/weekWork/own";
-import { loadRunWeekStates } from "@/lib/courses/weekWork/readers";
-import { answerAsLastSent, lastSentAt, readableAnswer, type ReadVersion } from "@/lib/courses/weekWork/versions";
+import { loadRunWeekStates, type RunWeekStates } from "@/lib/courses/weekWork/readers";
+import { lastSentAt, readableAnswer, type ReadVersion } from "@/lib/courses/weekWork/versions";
 import { namesToScrubOf } from "@/lib/names/scrub";
 import { writtenAnswerWords, type CourseworkAnswer, type CourseworkQuestion, type CourseworkWeek } from "./input";
 
@@ -33,11 +33,11 @@ import { writtenAnswerWords, type CourseworkAnswer, type CourseworkQuestion, typ
  * `readableAnswer`): before the session its writer is due at, the words as
  * last sent; once it has started, the latest words, sent or not; never sent,
  * before it, not at all. The session each writer is due at is read once for
- * the run (`loadRunWeekStates`). Reflections and fill-in boxes are read as
- * typed, as v17 says, from each writer's coursework-use moment. The weekly
- * notes ask for every written answer AS LAST SENT, whatever the session
- * (`asLastSent`, privacy v17's "using only the work they submitted"), and
- * leave out themselves what was saved after a week's Submit (`savedAt`).
+ * the run (`loadRunWeekStates`), or handed in by a caller that has read it
+ * already (`session`: the weekly notes, which draw on a week only once that
+ * session has started, so every written answer of theirs is read as it
+ * stands, sent or not, privacy v18). Reflections and fill-in boxes are read
+ * as typed, as v17 says, from each writer's coursework-use moment.
  *
  * Every query is one equality on one field (`runId`, or `uid` for one
  * person), filtered in memory, so nothing needs a declared index.
@@ -169,42 +169,39 @@ function rowFits(question: CourseworkQuestion, data: Raw, readOf: (data: Raw) =>
  * equality on `runId`, or on `uid` when there is one writer), one `getAll` of
  * the writers' accounts.
  *
- * `options.asLastSent`: read every written answer as LAST SENT
- * (`answerAsLastSent`), never as its readers read it once the session has
- * started, which is the latest words, sent or not. It answers when the writer
- * last pressed the week's old Submit (null if never), which sent the words
- * then standing. The weekly notes' reader; no session is read for it.
+ * `options.session`: the session each writer is due at and the clock, from a
+ * caller that has read them already (the weekly notes, which decide from the
+ * same answer which weeks they draw on), so one sum and one clock decide
+ * both. Without it they are read here, at the moment of the call.
  */
 export async function loadAnswers(
   db: Firestore,
   runId: string,
   weeks: readonly CourseworkWeek[],
   writers: ReadonlySet<string> | null,
-  options: { asLastSent?: (uid: string, weekId: string) => Date | null } = {},
+  options: { session?: { dueOf: RunWeekStates["dueOf"]; now: Date } } = {},
 ): Promise<CourseworkAnswer[]> {
   const only = writers && writers.size === 1 ? [...writers][0] : null;
+  const given = options.session ?? null;
   const [snap, run, groupSnap] = await Promise.all([
     only
       ? db.collection("courseExerciseResponses").where("uid", "==", only).get()
       : db.collection("courseExerciseResponses").where("runId", "==", runId).get(),
-    readRunForWork(db, runId),
+    given ? null : readRunForWork(db, runId),
     // The run's groups, for whose sessions lock each writer's week: one equality on the run.
-    db.collection("courseGroups").where("runId", "==", runId).get(),
+    given ? null : db.collection("courseGroups").where("runId", "==", runId).get(),
   ]);
-  const liveGroups = groupSnap.docs
+  const liveGroups = (groupSnap?.docs ?? [])
     .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
     .filter((group) => !group.archived && group.runId === runId);
-  const asLastSent = options.asLastSent ?? null;
+  const now = given?.now ?? new Date();
   // Where each writer's week stands, for whether their written answer may be read.
-  const states = run && !asLastSent ? await loadRunWeekStates(db, { run, liveGroups, now: new Date() }) : null;
-  const now = new Date();
+  const states = given ?? (run ? await loadRunWeekStates(db, { run, liveGroups, now }) : null);
   /** The words of a written answer its readers may read (the one answer), or null. With no run, only words sent. */
   const readOf = (data: Raw): ReadVersion | null => {
     const uid = typeof data.uid === "string" ? data.uid : "";
     const weekNumber = typeof data.weekNumber === "number" ? data.weekNumber : 0;
     const piece = answerPiece(readWrittenAnswer(data));
-    // The weekly notes: as last sent, whatever the session, never a change not sent.
-    if (asLastSent) return answerAsLastSent(piece, asLastSent(uid, typeof data.weekId === "string" ? data.weekId : ""));
     if (!states) return lastSentAt(piece) !== null ? readableAnswer(piece, null, now) : null;
     return readableAnswer(piece, states.dueOf(uid, weekNumber).at, now);
   };
@@ -244,7 +241,6 @@ export async function loadAnswers(
         counted: rowCountsFrom(row.data, fromOf.get(row.uid) ?? null),
         agreed: (fromOf.get(row.uid) ?? null) !== null,
         firstWrittenAt: instantOf(row.data.firstWrittenAt),
-        savedAt: row.question.kind === "written" ? null : instantOf(row.data.updatedAt),
         levels: written?.feedback ? written.feedback.levels.map((level) => ({ row: level.row, level: level.level })) : [],
       };
     })

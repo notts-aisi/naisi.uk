@@ -96,6 +96,27 @@ describe("1. the session a person is due at, when the programme closes, and wher
     assert.deepEqual(sessionMoment.weekDueOf(source, 3), { at: at("2026-11-17T18:00:00Z"), by: "cancelled" });
   });
 
+  test("when that very session ends: its own end, moved or cancelled with the group keeping pace (when it would have ended), the earliest group's for a facilitator, and none with no moment", () => {
+    // Two hours from 6pm: the weekly notes draw on a week only once this has passed (privacy v18).
+    assert.deepEqual(sessionMoment.weekDueEndsAt({ sessionLists: [TUESDAYS], toldAt: null }, 3), at("2026-11-17T20:00:00Z"));
+    const moved = { sessionLists: [[session(2, "2026-11-10"), session(3, "2026-11-19", { time: "10:00" }), session(4, "2026-11-24")]], toldAt: null };
+    assert.deepEqual(sessionMoment.weekDueEndsAt(moved, 3), at("2026-11-19T12:00:00Z"));
+    const cancelled = { sessionLists: [[session(2, "2026-11-10"), session(3, "2026-11-17", { cancelled: true }), session(4, "2026-11-24")]], toldAt: null };
+    assert.deepEqual(sessionMoment.weekDueOf(cancelled, 3), { at: at("2026-11-17T18:00:00Z"), by: "cancelled" });
+    assert.deepEqual(sessionMoment.weekDueEndsAt(cancelled, 3), at("2026-11-17T20:00:00Z"));
+    const thursdays = [session(3, "2026-11-12"), session(4, "2026-11-19")];
+    assert.deepEqual(sessionMoment.weekDueEndsAt({ sessionLists: [TUESDAYS, thursdays], toldAt: null }, 3), at("2026-11-12T20:00:00Z"));
+    // No moment, no end: no time set, a week not taught, nobody placed, told after it started.
+    assert.equal(sessionMoment.weekDueEndsAt({ sessionLists: [[{ ...session(3, ""), dateKey: "" }]], toldAt: null }, 3), null);
+    assert.equal(sessionMoment.weekDueEndsAt({ sessionLists: [TUESDAYS], toldAt: null }, 5), null);
+    assert.equal(sessionMoment.weekDueEndsAt(sessionMoment.NO_GROUP, 1), null);
+    assert.equal(sessionMoment.weekDueEndsAt({ sessionLists: [TUESDAYS], toldAt: at("2026-11-11T09:00:00Z") }, 2), null);
+    // No length set: the session still has its start for every other reader, and no end to wait for.
+    const lengthless = [session(3, "2026-11-17")].map((each) => ({ ...each, session: { ...each.session, durationMinutes: 0 } }));
+    assert.deepEqual(sessionMoment.weekDueOf({ sessionLists: [lengthless], toldAt: null }, 3), { at: at("2026-11-17T18:00:00Z"), by: "session" });
+    assert.equal(sessionMoment.weekDueEndsAt({ sessionLists: [lengthless], toldAt: null }, 3), null);
+  });
+
   test("no session to tell against: no time set, a week the plan does not teach, nobody placed, told the group after it started", () => {
     assert.deepEqual(sessionMoment.weekDueOf({ sessionLists: [[{ ...session(3, ""), dateKey: "" }]], toldAt: null }, 3), { at: null, by: "undated" });
     assert.deepEqual(sessionMoment.weekDueOf({ sessionLists: [TUESDAYS], toldAt: null }, 5), { at: null, by: "undated" }, "a week the plan does not teach");

@@ -5,16 +5,16 @@ import type { MemberNoteDoc, NoteAudience, NoteSource, NoteSuggestion } from "@/
 import { WEEK_NOTES_WORDS } from "./words";
 
 /**
- * A WEEK'S NOTES AS ITS PAGE DRAWS THEM (privacy v15), worked out from the
- * drafts kept with the run, the end-of-week notes saved from this week, and
- * what a draft would be built from now. Names come back here: the person's
- * from who holds a place now, a rater's and a writer's from their account,
- * and Claude's labels ("the fellow", "Rater 1") are put back in a draft's
- * box. Somebody who no longer holds a place drops out.
+ * A WEEK'S NOTES AS ITS PAGE DRAWS THEM (privacy v15 and v18), worked out
+ * from the drafts kept with the run, the end-of-week notes saved from this
+ * week, and what a draft would be built from now. Names come back here: the
+ * person's from who holds a place now, a rater's and a writer's from their
+ * account, and Claude's labels ("the fellow", "Rater 1") are put back in a
+ * draft's box. Somebody who no longer holds a place drops out.
  *
  * Two views. An ADMIN'S: the drafts, the saved notes, the counts and who a
  * press would draft for. A LEAD'S: the saved notes kept for leads alone,
- * never a draft, never how many there are, never a count of who submitted.
+ * never a draft, never how many there are, never a count of who wrote what.
  *
  * Pure, and every field is plain data: the page is drawn on the server and
  * hands the cards and the press only ids and words.
@@ -43,9 +43,9 @@ export type DraftCard = Common & {
   drafted: string;
   /** A fact from their application, never Claude's words. */
   offered: boolean;
-  /** Feedback or a rating came in after the draft, or the week changed, or it is no longer submitted: one line, or null. */
+  /** Feedback or a rating came in after the draft, or the week changed, or it is no longer drawn on: one line, or null. */
   stale: string | null;
-  /** Still submitted, so it may be saved. */
+  /** Still drawn on (the session they are due at has ended), so it may be saved. */
   savable: boolean;
 };
 
@@ -73,7 +73,7 @@ export type WeekNotesAdminView = {
   notYet: string | null;
   counts: string;
   notYetAgreed: string | null;
-  /** Who a press drafts for: submitted, something to send, and neither a draft nor a saved note from this week. */
+  /** Who a press drafts for: their session has ended, something to send, and neither a draft nor a saved note from this week. */
   plan: Array<{ uid: string; name: string }>;
   only: "drafts" | "suggestions" | null;
   cards: Array<DraftCard | SavedCard>;
@@ -93,11 +93,17 @@ export type NameOf = (uid: string) => string | null;
 
 const when = (at: Date) => `${londonDayLabel(at)}, ${londonClockLabel(at)}`;
 
-/** "Built only from", a line for each thing that went. */
+/**
+ * "Built only from", a line for each thing that went. A week's work says the
+ * day it was read, as it stood then; a source kept before version 18 has no
+ * such day and says the day its week was submitted, which is what that draft
+ * was built from.
+ */
 export function builtFromLines(sources: readonly NoteSource[], nameOf: NameOf): string[] {
   return sources.map((source) => {
     if (source.kind === "work") {
-      return WEEK_NOTES_WORDS.work(source.weekNumber, source, source.submittedAt ? londonDayLabel(source.submittedAt) : null);
+      if (source.asOf) return WEEK_NOTES_WORDS.work(source.weekNumber, source, londonDayLabel(source.asOf));
+      return WEEK_NOTES_WORDS.work(source.weekNumber, source, source.submittedAt ? londonDayLabel(source.submittedAt) : null, true);
     }
     if (source.kind === "levels") return WEEK_NOTES_WORDS.levels(source.weekNumber);
     if (source.kind === "feedback") return WEEK_NOTES_WORDS.feedback(nameOf(source.byUid));
@@ -113,11 +119,12 @@ export function draftWithNames(draft: Pick<CourseNoteDraftDoc, "text" | "raters"
 
 /**
  * Why a draft may no longer say what it would now, or null: the week is no
- * longer submitted; feedback or a rating that would go came in after it; or
- * what would be sent has changed.
+ * longer drawn on for them (they have no session that week that has
+ * ended); feedback or a rating that would go came in after it; or what
+ * would be sent has changed (their work as it stands, the team's words).
  */
 export function staleLine(draft: Pick<CourseNoteDraftDoc, "at" | "fingerprint">, now: Pick<NoteDraftInput, "builtFrom" | "fingerprint"> | null): string | null {
-  if (now === null) return WEEK_NOTES_WORDS.reopened;
+  if (now === null) return WEEK_NOTES_WORDS.noSessionAfter;
   if (now.fingerprint === draft.fingerprint) return null;
   const after = (at: Date | null) => at !== null && draft.at !== null && at.getTime() > draft.at.getTime();
   const newer = now.builtFrom.filter(
@@ -168,8 +175,10 @@ export function weekNotesAdminView(input: {
   people: readonly NotesPerson[];
   /** Each live group's id to its name, in meeting order. */
   groups: ReadonlyArray<{ id: string; name: string }>;
-  /** What a draft would be built from now, by person; null for somebody whose week is not submitted. */
+  /** What a draft would be built from now, by person; null for somebody whose session this week has not ended. */
   inputs: ReadonlyMap<string, NoteDraftInput | null>;
+  /** Whose week is drawn on and holds nothing they wrote. */
+  wroteNothing: ReadonlySet<string>;
   drafts: ReadonlyMap<string, CourseNoteDraftDoc>;
   saved: ReadonlyMap<string, MemberNoteDoc>;
   offered: ReadonlySet<string>;
@@ -194,7 +203,7 @@ export function weekNotesAdminView(input: {
     const note = input.saved.get(person.uid) ?? null;
     const group = person.groupId ? (groupName.get(person.groupId) ?? "") : "";
     const href = input.hrefOf(person.uid);
-    if (now === null) nothing += 1;
+    if (now === null || input.wroteNothing.has(person.uid)) nothing += 1;
     else if (now.sent === 0 && !draft && !note) notAgreed += 1;
     if (note) {
       saved += 1;
