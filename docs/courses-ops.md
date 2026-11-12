@@ -2409,6 +2409,53 @@ the people; the facilitators' own row goes to admins and the people leading
 the programme, and whether each was there only to admins and the programme's
 lead (`readsFacilitatorRecord`). A facilitator reading it is sent neither.
 
+### The pages
+
+Nothing on any page changes a finished register without asking why.
+
+- **The register** (`AttendanceGrid`, on `/learn/[runId]/group/[groupId]/register`
+  and under the programme's group page). A finished column's lines are never
+  tapped through: each opens a sheet (`src/features/courses/registerCorrection/LineSheet.tsx`).
+  For the people who correct registers (`caller.corrects`) it is "Correct this
+  line": who set the line and when, what it should say (every line but the one
+  it says), why, "Save the correction"; nobody is emailed. For the group's
+  facilitators it is "Ask for a correction" with the same choices and why,
+  saying where it goes; a line with an ask waiting says what was asked and
+  when, with "Withdraw the correction", and a decided ask says "Corrected by
+  Zach at 10:05am, as you asked" or the decline with its reply (the reply only
+  to the person who asked). A corrected line opens to its story. Under each
+  finished line a word says "Corrected", "Asked" or "Declined". The column's
+  head carries "Correct week N's whole column" (or "Week N did happen" for a
+  column that says it didn't) for the people who correct registers, in place
+  of the old switch, which stays only on a draft for the people who do not; an
+  admin's session note on a finished register asks why. The Finish sheet says
+  a change after Finish goes through an admin or the programme's lead, asked
+  for from the line.
+- **The column's sheet** (`ColumnSheet.tsx`): the four ways it can be wrong,
+  why, and "Before you save" from the route's own preview, then one button
+  that names what it does ("Correct 5 lines"). It didn't happen asks keep pace
+  or push the rest back, and offers the group's notice with its count; the
+  notice is posted through the updates route as the group's Change panel posts
+  one, and is the only email anything here sends.
+- **The Requests page** (`/admin/admissions/requests`) and one request's page
+  (`/admin/admissions/requests/[requestId]`). In the admissions tree because
+  its gate (`requireAdmissionsPage`) admits a programme's lead, who cannot
+  open most of `/admin`; the admin strip lists it under Programmes. A run's
+  track lead who is not on a form does not reach it, and decides nothing from
+  the pages (the routes would let them; the register still lets them correct).
+  The page offers the person who asked neither Approve nor Decline. Home links
+  to it while something waits (an admin's To do; a card under the lead's
+  greeting, `requestsWaitingFor`, never in a view-as session), and so does the
+  programme's head ("2 requests waiting").
+- **Attendance, all weeks**: the group's page's third tab, handed by the page
+  only to admins and the programme's lead (never to somebody the register's
+  gate answers as the group's facilitator, a lead who runs the group
+  included). Cells in words with "Corrected", the two counts, a correction
+  from any finished cell and the column's menu, and the facilitators' own row
+  with whether each was there only when the loader sends it.
+- **A member's own sessions**: under the marks, "Week 1, Wed 4 Nov: corrected
+  on Tue 10 Nov." for each corrected line, and nothing about who or why.
+
 ### Deleting an account, and reverting
 
 `corrected.<uid>` goes with the account, key by key, as `records` does; the
