@@ -164,13 +164,13 @@ describe("2. Week N is open, word for word", () => {
     assert.deepEqual(email.lists, [{ lead: "", items: ["3 readings", "A short reflection", "A written answer"] }]);
     assert.equal(email.button, "Open week 3");
     assert.equal(email.link, OPEN.weekUrl);
-    assert.deepEqual(email.after, ["Your work saves as you go and stays open after your session: anything you add or change after it shows as late to the people who read your work, with how late."]);
+    assert.deepEqual(email.after, ["Your work saves as you go, and you can keep adding to it after your session: anything you add or change after it shows as late to the people who read your work, with how late."]);
     assert.equal(email.feedback, null, "no weekly form is set");
     assert.equal(email.preheader, email.paragraphs[0]);
 
     const text = await textOf(WeekEmail({ words: email, notice: NoticeMarker({ surface: "course-week" }) }));
     assert.match(text, /Sent as an important notice You are getting this because you are in this course group, so it reaches you whatever your notification settings say, and it is never marketing\./);
-    assert.match(text, /Hi Priya, .*Week 3 of AGI Strategy is open: Power and incentives\. Your next session is Wed 18 Nov at 3pm in Portland A21\. .*3 readings .*A short reflection .*A written answer .*Open week 3 .*Your work saves as you go and stays open after your session: anything you add or change after it shows as late to the people who read your work, with how late\./);
+    assert.match(text, /Hi Priya, .*Week 3 of AGI Strategy is open: Power and incentives\. Your next session is Wed 18 Nov at 3pm in Portland A21\. .*3 readings .*A short reflection .*A written answer .*Open week 3 .*Your work saves as you go, and you can keep adding to it after your session: anything you add or change after it shows as late to the people who read your work, with how late\./);
     // Nothing in it says the work locks or is submitted any more.
     assert.doesNotMatch(text, /\block|\bsubmit/i);
     assert.doesNotMatch(text, /unsubscribe/i, "a notice offers no unsubscribe");
@@ -205,7 +205,7 @@ describe("2. Week N is open, word for word", () => {
     const change = "Wed 18 Nov is cancelled. Rahul and Sofia are both away. Do week 3’s reading anyway. On Wed 25 Nov you’ll talk about weeks 3 and 4 together.";
     const off = words.weekOpenEmailWords({ ...OPEN, cancelled: true, change }, "Priya");
     assert.deepEqual(off.paragraphs, ["Week 3 of AGI Strategy is open: Power and incentives.", change]);
-    assert.deepEqual(off.after, ["Your work saves as you go and stays open: anything you add or change after the time this week’s session would have started shows as late to the people who read your work, with how late."]);
+    assert.deepEqual(off.after, ["Your work saves as you go, and you can keep adding to it: anything you add or change after the time this week’s session would have started shows as late to the people who read your work, with how late."]);
     // The session after it covers both weeks, and says so beside the session.
     const covers = words.weekOpenEmailWords({ ...OPEN, weekNumber: 4, change: "On Wed 25 Nov you’ll talk about weeks 3 and 4 together." }, "");
     assert.equal(covers.paragraphs.length, 2);
@@ -277,7 +277,7 @@ describe("2. the reminders, word for word", () => {
     ]);
     assert.equal(email.button, "Finish week 3");
     assert.deepEqual(email.after, [
-      "Finishing everything listed above stops these reminders. Your work stays open after the session: anything you add after it shows as late to the people who read your work, with how late.",
+      "Finishing everything listed above stops these reminders. You can keep adding to your work after the session: anything you add after it shows as late to the people who read your work, with how late.",
     ]);
     const text = await textOf(WeekEmail({ words: email, notice: NoticeMarker({ surface: "course-week-reminder" }) }));
     assert.match(text, /You are getting this because our records show this week’s work isn’t finished, so it reaches you whatever your notification settings say/);
@@ -308,7 +308,7 @@ describe("2. the reminders, word for word", () => {
     assert.deepEqual(three.lists[0].items, ["Your written answer isn’t sent yet."]);
     assert.deepEqual(three.lists[1].items, ["Your part 2 reflection is empty.", "Your written answer isn’t sent yet."]);
     assert.equal(three.button, "Finish week 3");
-    assert.match(three.after[0], /^Finishing everything listed above stops these reminders\. Your work stays open after the session/);
+    assert.match(three.after[0], /^Finishing everything listed above stops these reminders\. You can keep adding to your work after the session/);
 
     const ticks = words.weekReminderEmailWords(
       {
@@ -323,7 +323,7 @@ describe("2. the reminders, word for word", () => {
     );
     assert.deepEqual(ticks.paragraphs, ["Your AGI Strategy session is tomorrow, Wed 18 Nov at 3pm, online."]);
     assert.deepEqual(ticks.lists[0].items, ["Two steps aren’t ticked."]);
-    assert.deepEqual(ticks.after, ["Ticking everything it asks for stops these reminders. Your work stays open after the session: anything you add after it shows as late to the people who read your work, with how late."]);
+    assert.deepEqual(ticks.after, ["Ticking everything it asks for stops these reminders. You can keep adding to your work after the session: anything you add after it shows as late to the people who read your work, with how late."]);
   });
 
   test("two weeks are finished each their own way: what stops the reminders never asks a week with nothing to write to send anything", () => {
@@ -343,7 +343,7 @@ describe("2. the reminders, word for word", () => {
         },
         "",
       ).after[0];
-    const open = " Your work stays open after the session: anything you add after it shows as late to the people who read your work, with how late.";
+    const open = " You can keep adding to your work after the session: anything you add after it shows as late to the people who read your work, with how late.";
     assert.equal(reminder([true, true]), `Finishing everything listed above stops these reminders.${open}`);
     assert.equal(reminder([false, false]), `Ticking everything they ask for stops these reminders.${open}`);
     assert.equal(reminder([true, false]), `Finishing each week stops these reminders.${open}`);

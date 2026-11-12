@@ -2335,11 +2335,11 @@ here.
   session", "After its deadline" for staff alone, "Done on time", "Done late"
   and "Joined late", and stack the answer as it stood at the session under
   the latest. No page has Submit or Reopen.
-- **The emails**: "Week N is open" says the work saves as you go and stays
-  open after the session, what is added after it showing as late; the
-  reminders before a session list what is left (a written answer with words
-  and not sent among it: "Your written answer isn't sent yet.") and say the
-  same of after the session.
+- **The emails**: "Week N is open" says the work saves as you go and can
+  still be added to once the session has passed, what is added then showing
+  as late; the reminders before a session list what is left (a written
+  answer with words and not sent among it: "Your written answer isn't sent
+  yet.") and say the same.
 
 
 ## Feedback

@@ -293,7 +293,7 @@ describe("2. only the people whose week is not done", () => {
     assert.match(text, /Finish week 2 https:\/\/naisi\.invalid\/learn\/[^ ]+\/weeks\/2/);
     assert.match(
       text,
-      /Finishing everything listed above stops these reminders\. Your work stays open after the session: anything you add after it shows as late to the people who read your work, with how late\./,
+      /Finishing everything listed above stops these reminders\. You can keep adding to your work after the session: anything you add after it shows as late to the people who read your work, with how late\./,
     );
     assert.doesNotMatch(text, /unsubscribe|\b(mark|grade|score)\b|\block|submit/i);
   });

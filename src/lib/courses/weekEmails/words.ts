@@ -156,8 +156,8 @@ function weekOpenLead(facts: WeekOpenFacts): string {
  * cancelled evening, that it is off, why and when they meet next), the
  * explainer the session starts with when an admin scheduled one, what the
  * week asks for, a button to its page, and that the work saves as you go and
- * stays open after the session, with anything added or changed after it shown
- * as late to the people who read it.
+ * can still be added to after the session, with anything added or changed
+ * after it shown as late to the people who read it.
  */
 export function weekOpenEmailWords(facts: WeekOpenFacts, firstName: string): WeekEmailWords {
   const lead = weekOpenLead(facts);
@@ -183,15 +183,15 @@ export function weekOpenEmailWords(facts: WeekOpenFacts, firstName: string): Wee
 
 /**
  * The line under the button of "Week N is open" for a week written as blocks:
- * the work saves as you go and stays open after the session, and anything
+ * the work saves as you go and can be added to after the session, and anything
  * added or changed after it shows as late, with how late, to the people who
  * read it. A cancelled session (the group keeping pace) is told against when
  * it would have started.
  */
 export function staysOpenAfterWords(cancelled: boolean): string {
   return cancelled
-    ? "Your work saves as you go and stays open: anything you add or change after the time this week’s session would have started shows as late to the people who read your work, with how late."
-    : "Your work saves as you go and stays open after your session: anything you add or change after it shows as late to the people who read your work, with how late.";
+    ? "Your work saves as you go, and you can keep adding to it: anything you add or change after the time this week’s session would have started shows as late to the people who read your work, with how late."
+    : "Your work saves as you go, and you can keep adding to it after your session: anything you add or change after it shows as late to the people who read your work, with how late.";
 }
 
 /**
@@ -262,9 +262,9 @@ export function weekLeftWords(left: WeekLeft): string[] {
   return lines;
 }
 
-/** The reminders' last words: the work stays open after the session, and what is added after it shows as late. */
+/** The reminders' last words: work can be added after the session, and what is added then shows as late. */
 export const REMINDER_STAYS_OPEN =
-  "Your work stays open after the session: anything you add after it shows as late to the people who read your work, with how late.";
+  "You can keep adding to your work after the session: anything you add after it shows as late to the people who read your work, with how late.";
 
 /**
  * The line under the button: what stops these reminders, and that the work

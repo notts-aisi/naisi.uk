@@ -937,7 +937,7 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     assert.match(nextWeek[0].text, /4 readings Your pack’s reading 2 short reflections Your plan A written answer Getting ready for your talk/);
     assert.match(
       nextWeek[0].text,
-      /Your work saves as you go and stays open after your session: anything you add or change after it shows as late to the people who read your work, with how late\./,
+      /Your work saves as you go, and you can keep adding to it after your session: anything you add or change after it shows as late to the people who read your work, with how late\./,
     );
     assert.doesNotMatch(nextWeek[0].text, /\block|submit/i, "Week N is open still speaks of locking or submitting");
     assert.doesNotMatch(nextWeek[0].text, /exercise/i);
