@@ -9,7 +9,9 @@ import {
   wroteWords,
 } from "@/lib/courses/facilitatorWeek/words";
 import { AS_IT_STOOD_AT_THE_SESSION, lateAfterSessionWords } from "@/lib/courses/weekWork/words";
+import { THE_QUESTION_WHEN_WRITTEN } from "@/lib/courses/weekEdit/wordsThen";
 import EarlierVersion from "../feedback/EarlierVersion";
+import EarlierWording from "../weekBlocks/EarlierWording";
 import styles from "@/features/courses/facilitator/facilitator.module.css";
 import named from "./namedReflections.module.css";
 
@@ -23,6 +25,8 @@ import named from "./namedReflections.module.css";
  * Written after the session they were due at, "Late: 3 days after the
  * session" beside when; changed since that session started, the words as
  * they stood at it, stacked under the latest ("As it stood at the session").
+ * Where the prompt was reworded after a reflection was first written, "The
+ * question when this was written:" and its words then, under the reflection.
  *
  * The lead and admins are handed each facilitator's own reflection apart
  * (`own`), under the facilitator's name and marked as theirs, with how late.
@@ -65,6 +69,7 @@ export default function NamedReflections({
                     {answer.lateMs !== null && <span className={named.when}>{lateAfterSessionWords(answer.lateMs)}</span>}
                   </div>
                   <p className={named.text}>{answer.text}</p>
+                  <EarlierWording label={THE_QUESTION_WHEN_WRITTEN} words={answer.askedThen} />
                   {answer.atSession && <EarlierVersion label={AS_IT_STOOD_AT_THE_SESSION} text={answer.atSession} />}
                 </li>
               ))}
@@ -83,6 +88,7 @@ export default function NamedReflections({
                       {person.lateMs !== null && <span className={named.when}>{lateAfterSessionWords(person.lateMs)}</span>}
                     </p>
                     <p className={person.text ? styles.wkOwnText : `${styles.wkOwnText} ${styles.wkMuted}`}>{person.text ?? NOT_WRITTEN}</p>
+                    {person.text && <EarlierWording label={THE_QUESTION_WHEN_WRITTEN} words={person.askedThen} />}
                     {person.atSession && <EarlierVersion label={AS_IT_STOOD_AT_THE_SESSION} text={person.atSession} />}
                   </li>
                 ))}

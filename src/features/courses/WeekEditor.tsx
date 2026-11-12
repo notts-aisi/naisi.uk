@@ -13,6 +13,7 @@ import Switch from "@/components/ui/Switch";
 import { useAuth } from "@/auth/AuthProvider";
 import { getClientDb } from "@/lib/firebase/client";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
+import { OLDER_EDITORS } from "@/lib/courses/weekEdit/pageWords";
 import { READY_OPENS, weekIsReady } from "@/lib/courses/weekReady";
 import { AdminLoadingBar } from "@/features/admin/adminList";
 import BlockEditor from "@/components/blocks/BlockEditor";
@@ -50,9 +51,26 @@ import styles from "./WeekEditor.module.css";
  * doc id (`w03`) is the stable identity that progress, exercise responses and
  * attendance are keyed on; `weekNumber` is a derived label, re-synced onto the
  * doc on every header save so a plan reorder can't leave it stale.
+ *
+ * ONE PLACE FOR A WEEK'S BLOCKS. When a programme names the run, the week's
+ * blocks are changed on that programme's Weeks page, one block at a time or
+ * the whole week pasted, one editor at a time and with a history of every
+ * save (`weeksHref`). There the paste and Mark ready stand; here each is a
+ * link to it. Everything else this editor changes stays here, because the
+ * Weeks page cannot change it on its own: the title, summary, estimated
+ * minutes, Published (the Weeks page publishes by marking ready and never
+ * unpublishes), pitching week, the questions, and a week not written as
+ * blocks (guide, materials, exercises, checklist). A run no programme names
+ * keeps its paste and Mark ready here: there is nowhere else for them.
  */
 
-type Props = { courseId: string; runId: string; weekId: string };
+type Props = {
+  courseId: string;
+  runId: string;
+  weekId: string;
+  /** This week on the Weeks page of the programme that names the run, or null when none does. */
+  weeksHref: string | null;
+};
 
 type WeekLoad = {
   run: CourseRunDoc;
@@ -171,7 +189,7 @@ function buildChecklistItem(row: ChecklistRow): ChecklistItem {
   };
 }
 
-export default function WeekEditor({ courseId, runId, weekId }: Props) {
+export default function WeekEditor({ courseId, runId, weekId, weeksHref }: Props) {
   const { toast, run: runAction, dismiss } = useActionToast();
   // Loading a week as blocks is an admin's job for now; its route refuses everyone else.
   const { role } = useAuth();
@@ -497,7 +515,12 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
           <div className={styles.readyCell}>
             <p className={styles.readyTitle}>Ready</p>
             <p className={styles.hint}>{READY_OPENS}</p>
-            {role === "admin" && saved.published ? (
+            {weeksHref ? (
+              <p className={styles.muted}>
+                {weekIsReady(saved) ? "Marked ready." : "Not marked ready."} {OLDER_EDITORS.readyMoved}{" "}
+                <Link href={weeksHref}>{OLDER_EDITORS.pasteLink(weekNumber)}</Link>
+              </p>
+            ) : role === "admin" && saved.published ? (
               <MarkReady
                 runId={runId}
                 weekId={weekId}
@@ -536,11 +559,21 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
         </div>
       </Card>
 
-      {role === "admin" && (
-        <WeekBlocksLoader runId={runId} weekId={weekId} weekNumber={weekNumber} blockWeek={blockWeek} onSaved={reload} />
+      {weeksHref ? (
+        <Card padding="lg">
+          <h3 className={styles.sectionTitle}>The week’s blocks</h3>
+          <p className={styles.hint}>{OLDER_EDITORS.pasteMoved(weekNumber)}</p>
+          <div className={styles.actions}>
+            <Link href={weeksHref}>{OLDER_EDITORS.pasteLink(weekNumber)}</Link>
+          </div>
+        </Card>
+      ) : (
+        role === "admin" && (
+          <WeekBlocksLoader runId={runId} weekId={weekId} weekNumber={weekNumber} blockWeek={blockWeek} onSaved={reload} />
+        )
       )}
 
-      {blockWeek && role !== "admin" && (
+      {blockWeek && role !== "admin" && !weeksHref && (
         <p className={styles.warn}>
           This week is written as blocks, loaded by an admin. Its details and questions are edited here; what its
           people read, tick and answer is in its blocks.

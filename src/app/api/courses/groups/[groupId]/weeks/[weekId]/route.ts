@@ -5,6 +5,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { runStaffingOf } from "@/lib/courses/runStaffing";
+import { EDIT_REFUSAL } from "@/lib/courses/weekEdit/words";
 import {
   normalizeCourseGroup,
   normalizeGroupWeek,
@@ -80,11 +81,14 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * number that changes no decision an honest facilitator makes.
  *
  * ── WHO MAY EDIT ────────────────────────────────────────────────────────────
- * A facilitator of THIS group while it is LIVE, ∪ the parent run's track
- * leads and the lead of the programme that names the run (live group,
- * trusted tier, `runStaffingOf`), ∪ admins (trusted tier, archived
- * included). AUTHORIZATION BEFORE EXISTENCE: missing, archived and
- * someone-else's group collapse onto ONE indistinguishable 403.
+ * Admins (archived groups included) and the lead of the programme that names
+ * the run (a live group, `runStaffingOf`): a group's own copy of a week is
+ * made and changed only by them. A facilitator of THIS live group, or the
+ * run's track lead, is refused in one plain sentence before the body is read
+ * (an old tab is who sends it; how each week meets is the group's session
+ * route, not this one). AUTHORIZATION BEFORE EXISTENCE: missing, archived and
+ * someone-else's group collapse onto ONE indistinguishable 403 for anybody
+ * else. The facilitator lane below (`trusted`) stays as a second wall.
  *
  * All writes to group weeks are server-routed (`allow write: if false` in
  * rules) — this route and the fork POST are the only two doors.
@@ -246,6 +250,7 @@ export async function PATCH(
 
   const isAdmin = actor.role === "admin";
   let isLead = false;
+  let leadsProgramme = false;
   if (group && !group.archived && group.runId) {
     const runSnap = await db.collection("courseRuns").doc(group.runId).get();
     const run = runSnap.exists
@@ -256,6 +261,7 @@ export async function PATCH(
     if (run) {
       const staffing = await runStaffingOf(db, actor, run);
       isLead = staffing.isTrackLead || staffing.leadOf !== null;
+      leadsProgramme = staffing.leadOf !== null;
     }
   }
   const facilitatesLiveGroup = Boolean(
@@ -265,6 +271,10 @@ export async function PATCH(
   );
   if (!isAdmin && !isLead && !facilitatesLiveGroup) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  // A group's own copy is changed by the programme's lead and admins alone.
+  if (!isAdmin && !leadsProgramme) {
+    return NextResponse.json({ error: EDIT_REFUSAL.groupCopyLeadOnly }, { status: 403 });
   }
   if (!group) {
     return NextResponse.json({ error: "Group not found" }, { status: 404 });

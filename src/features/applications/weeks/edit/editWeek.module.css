@@ -1,0 +1,702 @@
+/*
+ * Editing a week where it stands, on a programme's Weeks page: the week's
+ * line, its blocks with what people have done beside each, the side panel
+ * that changes one block, the tell dialog, the lock's notice and the
+ * history. Every colour, space and radius reads a token from
+ * src/theme/tokens.css. No white text on the accent; focus is a solid 3px
+ * outline in the accent's text colour; muted text uses --color-text-muted,
+ * never --color-text-subtle, on a dark ground.
+ */
+
+.editWeek {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* --- who is editing ------------------------------------------------------ */
+
+.editingLine {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.editingChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.lockNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-accent-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.lockAvatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--color-live-soft);
+  color: var(--color-text);
+  font-weight: 600;
+}
+.lockTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.lockLine {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* --- the week's line ----------------------------------------------------- */
+
+.statusCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.statusLine {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  font-size: var(--text-ui);
+  color: var(--color-text);
+}
+.liveChip,
+.quietChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+}
+.liveChip {
+  border: 1px solid var(--color-live-line);
+  background: var(--color-live-soft);
+  color: var(--color-live);
+}
+.quietChip {
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-muted);
+}
+.statusActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.linkButton:hover {
+  background: var(--color-surface-hover);
+}
+.linkButton:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
+.note {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-ok-line);
+  border-radius: var(--radius-md);
+  background: var(--color-success-soft);
+  color: var(--color-text);
+  font-size: var(--text-ui);
+  line-height: 1.5;
+}
+.noteLine {
+  margin: 0;
+}
+.noteLine + .noteLine {
+  margin-top: var(--space-1);
+}
+.problem {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-danger-line);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-text);
+  font-size: var(--text-ui);
+  line-height: 1.5;
+}
+.quiet {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* --- the week's blocks --------------------------------------------------- */
+
+.blocksTitle {
+  margin: var(--space-2) 0 0;
+  font-size: 1.25rem;
+}
+.blocks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.block {
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+}
+.blockInPart {
+  margin-left: var(--space-4);
+}
+.blockChangeable {
+  cursor: pointer;
+}
+.blockChangeable:hover {
+  border-color: var(--color-border-strong);
+}
+.blockOpen {
+  border-color: var(--color-accent);
+}
+.blockHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+}
+.blockEyebrow {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.blockHeadEnd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+.blockCount {
+  font-family: var(--font-meta);
+  font-size: 13px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.changeButton {
+  min-height: 44px;
+}
+.blockBody {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.blockHeading {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.blockSubheading {
+  margin: var(--space-3) 0 var(--space-1);
+  font-weight: 600;
+  color: var(--color-text);
+}
+.blockMeta {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.tasks {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.task {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+  font-size: var(--text-ui);
+  line-height: 1.45;
+}
+.taskWhat {
+  color: var(--color-text);
+}
+.taskTime,
+.taskWhen {
+  color: var(--color-text-muted);
+}
+.tableScroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* --- the side panel and the tell dialog ---------------------------------- */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.panelHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.panelHeadText {
+  min-width: 0;
+}
+.panelTitle {
+  margin: 0;
+  font-size: var(--text-2xl);
+}
+.panelCount {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-meta);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.panelActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.fieldRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.fieldRow > * {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+.markdown {
+  font-family: var(--font-meta);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.was {
+  margin: calc(var(--space-2) * -1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+.callout {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: var(--text-ui);
+  line-height: 1.5;
+}
+.calloutLine {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.calloutLine + .calloutLine,
+.calloutLine + .calloutQuiet {
+  margin-top: var(--space-1);
+}
+.calloutQuiet {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.scope {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.scopeLabel {
+  margin: 0;
+  padding: 0;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.scopeCard {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+}
+.scopeTitle {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-ui);
+}
+.scopeLine {
+  margin: 2px 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.tellLine {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-height: 2.75rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.optionChosen {
+  border-color: var(--color-accent);
+}
+.radio,
+.checkbox {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 2px 0 0;
+  accent-color: var(--color-accent);
+}
+.radio:focus-visible,
+.checkbox:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+.optionText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.optionName {
+  color: var(--color-text);
+  font-size: var(--text-ui);
+}
+.optionHint {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+.letter {
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+.letterTo {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.letterSubject {
+  margin: 0 0 var(--space-2);
+  font-weight: 600;
+  color: var(--color-text);
+}
+.letterLine {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.letterLine + .letterLine {
+  margin-top: var(--space-2);
+}
+
+/* --- the history --------------------------------------------------------- */
+
+.historyHead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.weekChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+.historyTitle {
+  margin: 0;
+  font-size: var(--text-2xl);
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+.cardTitle {
+  margin: 0;
+  font-size: 1.125rem;
+}
+.saves {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.save {
+  display: grid;
+  grid-template-columns: auto minmax(0, 10rem) minmax(0, 6rem) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+}
+.saveTick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  margin: -10px 0 -10px -10px;
+  cursor: pointer;
+}
+.saveWhen {
+  padding-top: 2px;
+  font-family: var(--font-meta);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.saveWho {
+  padding-top: 2px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.saveWhat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.saveSummary {
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.saveMeta {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.saveActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.compareRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.compareRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.compareRowHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  font-size: var(--text-ui);
+  color: var(--color-text);
+}
+.compareState {
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.compareSides {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+.compareSide {
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+.compareSideBefore {
+  border-left: 3px solid var(--color-danger-line);
+}
+.compareSideAfter {
+  border-left: 3px solid var(--color-ok-line);
+}
+.compareLabel {
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.compareLine {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.compareLine + .compareLine {
+  margin-top: var(--space-1);
+}
+
+/* --- the paste's check --------------------------------------------------- */
+
+.checkCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+.checkTitle {
+  margin: 0;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.checkRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+.checkChip {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-strong);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.checkChipAnswers {
+  border-color: var(--color-warning-line);
+  color: var(--color-warning);
+}
+
+@media (max-width: 48rem) {
+  .statusCard,
+  .lockNotice,
+  .block,
+  .card {
+    padding: var(--space-3) var(--space-4);
+  }
+  .blockInPart {
+    margin-left: 0;
+  }
+  .task {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+  .save {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .saveWho,
+  .saveWhat {
+    grid-column: 2;
+  }
+  .compareSides {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .panelActions > * {
+    flex: 1 1 100%;
+  }
+}

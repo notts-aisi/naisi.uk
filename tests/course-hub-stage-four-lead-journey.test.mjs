@@ -905,7 +905,8 @@ describe("A. Before groups go out: the Weeks tab, Get ready for week 1 and Publi
       [seen.readW1.body.title, seen.readW1.body.blockCount, seen.readW1.body.minted, seen.readW1.body.answers],
       ["How sure are you?", 11, 28, 0],
     );
-    assert.deepEqual(seen.pasteW1, { status: 200, body: { saved: true, blockCount: 11, kept: 0, minted: 28, removed: 0, answers: 0 } });
+    // The week's first save is its history's first record: no week as found before a page existed.
+    assert.deepEqual(seen.pasteW1, { status: 200, body: { saved: true, saveId: "s000001", blockCount: 11, kept: 0, minted: 28, removed: 0, answers: 0 } });
     assert.ok(seen.weeksPasted.text.includes("Week 1 Draft First session Thu 29 Oct Ready by Thu 22 Oct"));
     const step = stepOf(seen.overviewPasted, "week-one");
     const item = readyItem(seen.publishPasted, "week-one");

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 import type { MyExercisesPayload } from "@/app/api/courses/runs/[runId]/my-exercises/route";
+import type { AskedWords } from "@/lib/courses/weekEdit/wordsThen";
 
 /**
  * The caller's OWN exercise answers for one week:
@@ -52,6 +53,12 @@ export type MyExercises = {
    */
   loaded: boolean;
   error: Error | null;
+  /**
+   * The words a question had when the member first answered it, by the
+   * prompt's or written answer's id, only where it has been reworded since
+   * (the route's `askedThen`). Empty until the week's rows have loaded.
+   */
+  askedThen: Readonly<Record<string, AskedWords>>;
   /** Retry the fetch for the current (run, week). */
   reload: () => void;
   /** Merge one updated/created row in place — no refetch. */
@@ -59,6 +66,7 @@ export type MyExercises = {
 };
 
 const EMPTY: ReadonlyArray<ExerciseResponseWire> = [];
+const NO_ASKED: Readonly<Record<string, AskedWords>> = {};
 
 /**
  * A separator that cannot occur in a run id or a week number, so the composite
@@ -75,8 +83,9 @@ export function useMyExercises(runId: string, weekNumber: number): MyExercises {
   const [store, setStore] = useState<{
     key: string;
     rows: ExerciseResponseWire[] | null;
+    askedThen: Readonly<Record<string, AskedWords>>;
     error: Error | null;
-  }>({ key: "", rows: null, error: null });
+  }>({ key: "", rows: null, askedThen: NO_ASKED, error: null });
   const [nonce, setNonce] = useState(0);
   // The stamp whose fetch has landed. Comparing stamps — rather than toggling a
   // boolean from inside the effect — keeps `loading` honest across a week change
@@ -102,7 +111,7 @@ export function useMyExercises(runId: string, weekNumber: number): MyExercises {
         return body;
       })
       .then((payload) => {
-        if (!cancelled) setStore({ key, rows: payload.responses, error: null });
+        if (!cancelled) setStore({ key, rows: payload.responses, askedThen: payload.askedThen ?? NO_ASKED, error: null });
       })
       .catch((e: unknown) => {
         if (cancelled) return;
@@ -114,6 +123,7 @@ export function useMyExercises(runId: string, weekNumber: number): MyExercises {
         setStore((prev) => ({
           key,
           rows: prev.key === key ? prev.rows : null,
+          askedThen: prev.key === key ? prev.askedThen : NO_ASKED,
           error: e instanceof Error ? e : new Error(String(e)),
         }));
       })
@@ -163,6 +173,7 @@ export function useMyExercises(runId: string, weekNumber: number): MyExercises {
     loading,
     loaded: !idle && !loading && rows !== null,
     error: fresh?.error ?? null,
+    askedThen: fresh?.askedThen ?? NO_ASKED,
     reload,
     apply,
   };

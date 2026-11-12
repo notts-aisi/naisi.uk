@@ -396,6 +396,13 @@ const RUN_COUNT_KEYS = [
   // `runId`, added with its stage in the same change; nothing can read a week
   // of a run that is gone, so it dies with the run.
   "checkInWeeks",
+  // Each week's `history` and `editLock` subcollections, the in-place
+  // editor's record of every save and who is editing a week now
+  // (src/lib/courses/weekEdit/). Under the week documents, so a week's delete
+  // would strand them: counted and drained week by week, added with their
+  // stages in the same change.
+  "weekHistory",
+  "weekEditLocks",
   // `schedulerMarkers`, the scheduler tick's claim-before-send markers.
   // Added with the tick itself, under the house rule that a PR adding a
   // collection adds it to the manifest AND the cascade in that same PR. Two
@@ -471,7 +478,7 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   const counts = Object.fromEntries(
     [...RUN_COUNT_KEYS, ...COURSE_COUNT_KEYS].map((k) => [k, 10]),
   );
-  // Fifty-two counters at ten rows each: forty-six that die,
+  // Fifty-four counters at ten rows each: forty-eight that die,
   // `materialNotes`, `auditRows`, `schedulerMarkers`, the V3 `coursePages`,
   // the V3 W2 `registerTasks`, the course hub's `pitches`, `updates`,
   // `groupNotes`, `groupSharedNotes`, `sessionReports`, `placementNotes`, `requests`, v13's `bestAnswers`
@@ -480,16 +487,17 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   // the end-of-week notes' `noteDrafts`, `packsAndCases`, the week you submit's `weekWork`
   // and `workLog`, feedback's `feedback` and `feedbackSends`, `pairs`, `teams`,
   // `teamEntries`, `finishing`, `facilitating`, `ratings`, `certificates`,
-  // `anonymousFeedback`, `predictions`, `recordOpenings` and `checkInWeeks`,
+  // `anonymousFeedback`, `predictions`, `recordOpenings`, `checkInWeeks`,
+  // the weeks' `weekHistory` and `weekEditLocks`,
   // and the course's `facilitatorGuide` among them, plus the six survivors
   // (`admissionSeatOffers` is released, `dataExportRows` is retained,
   // `certificatesKept` stays without its run, `workRatingsKept` stays with
   // the person rated).
-  assert.equal(sumCounts(counts), 520);
+  assert.equal(sumCounts(counts), 540);
   // The progress denominator counts only what actually dies, so a large
   // retained counter cannot inflate it into a bar that never fills. Adding a
   // survivor must not move this number; adding a DESTROYED counter must.
-  assert.equal(destroyedTotal(counts), 460);
+  assert.equal(destroyedTotal(counts), 480);
 });
 
 test("MODEL — every key the cascade can report has copy, including the ones the manifest never shows", () => {
@@ -758,6 +766,11 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     // that names no group or week document, drained with the other leaves.
     "checkInWeeks",
     "groups",
+    // Each week's history and edit lock: subcollections of the week documents,
+    // which Firestore does not delete with their parent, so drained week by
+    // week immediately before the weeks.
+    "weekHistory",
+    "weekEditLocks",
     "weeks",
   ]);
   // Every stage is drained by the SAME loop, so the table above is the order —
@@ -828,6 +841,13 @@ test("MODEL — leaf before index: every dependent stage precedes the one that n
         `${dependent} is drained after ${container}`,
       );
     }
+  }
+
+  // 2b. A week's own subcollections go before the week documents they sit
+  //     under: Firestore does not delete a subcollection with its parent, so
+  //     a week deleted first would strand its history where no drain finds it.
+  for (const sub of ["weekHistory", "weekEditLocks"]) {
+    assert.ok(stageAt(sub) < stageAt("weeks"), `${sub} is drained after the weeks it sits under`);
   }
 
   // 3. The SEAT ROWS go before the applications that point at them. The
