@@ -342,7 +342,7 @@ export async function loadGroupWeekWork(
      * empty for anybody else. One with no place in the group is listed only
      * once they have done something of the week.
      */
-    ownPeople: ReadonlyArray<{ uid: string; name: string; firstName: string; holdsPlace: boolean }>;
+    ownPeople: ReadonlyArray<{ uid: string; name: string; firstName: string; seatedHere: boolean }>;
     leadFirstName: string | null;
     now: Date;
   },
@@ -406,7 +406,7 @@ export async function loadGroupWeekWork(
 
   const ownRows: OwnWeekRow[] = ownPeople.flatMap((person) => {
     const state = stateOf(person.uid);
-    if (!person.holdsPlace && !state.progress.started && !state.progress.weekDone) return [];
+    if (!person.seatedHere && !state.progress.started && !state.progress.weekDone) return [];
     return [
       {
         uid: person.uid,

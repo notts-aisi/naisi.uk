@@ -251,7 +251,7 @@ export async function loadGroupPage(
                   uid,
                   name: names.get(uid)?.full ?? "",
                   firstName: names.get(uid)?.first ?? "",
-                  holdsPlace: placedFacilitators.some((seat) => seat.uid === uid),
+                  seatedHere: placedFacilitators.some((seat) => seat.uid === uid),
                 }))
                 .filter((person) => person.name)
             : [],
