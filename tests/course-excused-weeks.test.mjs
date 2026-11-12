@@ -283,13 +283,19 @@ describe("the arithmetic: what a press says, which sessions may be asked about, 
     assert.equal(record.excusedStatusOf([{ status: "withdrawn" }]), "withdrawn");
   });
 
-  test("three kinds of being excused, told apart: approved, said when the time was set, said in advance before requests", () => {
+  test("the kinds of being excused, told apart: approved, said when the time was set, said in advance, and before requests only when it was", () => {
     const told = new Date("2026-11-01T10:00:00Z");
     assert.equal(model.excusedKindOf({ approved: true, mark: "present", toldAt: null, ticked: false }), "approved");
     assert.equal(model.excusedKindOf({ approved: false, mark: "excused", toldAt: told, ticked: true }), "time-set");
-    assert.equal(model.excusedKindOf({ approved: false, mark: "excused", toldAt: told, ticked: false }), "in-advance");
+    // Told before requests began: before requests. Told since, or a tick kept from an earlier asking: said in advance.
+    assert.equal(model.excusedKindOf({ approved: false, mark: "excused", toldAt: told, ticked: false }), "before-requests");
+    assert.equal(model.excusedKindOf({ approved: false, mark: "excused", toldAt: model.REQUESTS_BEGAN, ticked: false }), "in-advance");
+    assert.equal(model.excusedKindOf({ approved: false, mark: "excused", toldAt: new Date("2026-11-20T10:00:00Z"), ticked: false }), "in-advance");
+    assert.equal(model.excusedKindOf({ approved: false, mark: "excused", toldAt: told, ticked: false, tickedBefore: true }), "in-advance");
+    assert.equal(model.REQUESTS_BEGAN.toISOString(), "2026-11-12T00:00:00.000Z");
     assert.equal(model.excusedKindOf({ approved: false, mark: "excused", toldAt: null, ticked: false }), null, "a facilitator's own Excused is the register's");
-    assert.equal(words.excusedKindWords("in-advance"), "Said in advance, before requests");
+    assert.equal(words.excusedKindWords("before-requests"), "Said in advance, before requests");
+    assert.equal(words.excusedKindWords("in-advance"), "Said in advance");
     assert.equal(words.excusedKindWords("time-set"), "Said when the time was set");
     assert.equal(words.timesThisTermWords(1), "Once this term.");
     assert.equal(words.timesThisTermWords(0), "Never, this term.");
@@ -881,8 +887,8 @@ describe("who is sent what: the reason and how often to admins only, one of two 
     assert.equal(view.weeks[0].approving.emails, 3);
     assert.match(view.weeks[0].approving.told, /^3 emails: .+, with your reply; and .+ and .+, without the reason\.$/);
     assert.match(view.weeks[0].approving.words, /^The register says Excused for .+, with nothing for .+ to do\.$/);
-    assert.deepEqual(view.excusedBefore.counts, { approved: 0, "time-set": 0, "in-advance": 1 });
-    assert.deepEqual(view.excusedBefore.weeks.map((week) => [week.sessionKey, week.kind]), [["w01", "in-advance"]]);
+    assert.deepEqual(view.excusedBefore.counts, { approved: 0, "time-set": 0, "in-advance": 0, "before-requests": 1 });
+    assert.deepEqual(view.excusedBefore.weeks.map((week) => [week.sessionKey, week.kind]), [["w01", "before-requests"]]);
     assert.equal(view.canDecide, true);
   });
 
@@ -931,7 +937,8 @@ describe("who is sent what: the reason and how often to admins only, one of two 
     const groupList = [A, B, C].map((gid) => groups.normalizeCourseGroup(gid, world.db.read(`courseGroups/${gid}`)));
     const seatOf = (uid) => enrolments.normalizeCourseEnrolment(`${RUN.agi}__${uid}`, world.db.read(`courseEnrolments/${RUN.agi}__${uid}`));
     const amaraView = await own.excusedFor(world.courseDb, { user: sessionOf("amara"), run, enrolment: seatOf("amara"), groups: groupList, now: new Date() });
-    assert.equal(amaraView.sessions.find((session) => session.sessionKey === "w02").excuse.kind, "in-advance");
+    // Pressed on 9 Nov, before requests began.
+    assert.equal(amaraView.sessions.find((session) => session.sessionKey === "w02").excuse.kind, "before-requests");
     const devView = await own.excusedFor(world.courseDb, { user: sessionOf("dev"), run, enrolment: seatOf("dev"), groups: groupList, now: new Date() });
     assert.equal(devView.sessions.find((session) => session.sessionKey === "w03").excuse.kind, "time-set");
     // No request record for either, and nothing migrated.
@@ -940,7 +947,7 @@ describe("who is sent what: the reason and how often to admins only, one of two 
     const asked = await ask("dev", { sessionKeys: ["w02"], reason: "Away." });
     assert.equal(asked.status, 200, JSON.stringify(asked.body));
     const view = (await page.loadExcusedRequestPage(world.courseDb, sessionOf("zach"), asked.body.request.id, new Date())).view;
-    assert.deepEqual(view.excusedBefore.counts, { approved: 0, "time-set": 1, "in-advance": 0 });
+    assert.deepEqual(view.excusedBefore.counts, { approved: 0, "time-set": 1, "in-advance": 0, "before-requests": 0 });
   });
 });
 
@@ -1083,6 +1090,44 @@ describe("a line an approval wrote is taken back by nothing but a correction", (
 // ---------------------------------------------------------------------------
 // The reason goes when the programme closes
 // ---------------------------------------------------------------------------
+
+describe("said in advance, and before requests only when it was", () => {
+  beforeEach(placed);
+
+  const ownView = async (uid) => {
+    const run = courses.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+    const groupList = [A, B, C].map((gid) => groups.normalizeCourseGroup(gid, world.db.read(`courseGroups/${gid}`)));
+    const seat = enrolments.normalizeCourseEnrolment(`${RUN.agi}__${uid}`, world.db.read(`courseEnrolments/${RUN.agi}__${uid}`));
+    return own.excusedFor(world.courseDb, { user: sessionOf(uid), run, enrolment: seat, groups: groupList, now: new Date() });
+  };
+
+  test("an instant line told since requests began, by a facilitator who holds a place, reads said in advance", async () => {
+    seatLike("rahul");
+    at(new Date("2026-11-16T09:00:00Z"));
+    assert.equal((await call("rahul", cantMakeItRoute.POST, { groupId: B }, { body: { sessionKey: "w03", cantMakeIt: true }, course: true })).status, 200);
+    const view = await ownView("rahul");
+    assert.equal(view.sessions.find((session) => session.sessionKey === "w03").excuse.kind, "in-advance");
+    assert.equal(words.excusedKindWords("in-advance"), "Said in advance");
+  });
+
+  test("a tick kept from an earlier asking, on a week a new regular time did not move, reads said in advance", async () => {
+    world.db.seed(`courseAttendance/${RUN.agi}__${B}__w03`, {
+      runId: RUN.agi,
+      groupId: B,
+      weekNumber: 3,
+      occurrence: 1,
+      records: { dev: "excused" },
+      excusedInAdvance: { dev: new Date("2026-11-01T10:00:00Z") },
+    });
+    world.db.poke(`courseEnrolments/${RUN.agi}__dev`, {
+      timeAnswer: { kind: "mostWeeks", sessionKeys: ["w03"], forGroupId: B, at: new Date("2026-11-01T10:00:00Z") },
+    });
+    assert.equal((await ownView("dev")).sessions.find((session) => session.sessionKey === "w03").excuse.kind, "time-set");
+    // The group's time was asked again since: that tick is from an earlier asking.
+    world.db.poke(`courseGroups/${B}`, { timeQuestionSince: new Date("2026-11-05T10:00:00Z") });
+    assert.equal((await ownView("dev")).sessions.find((session) => session.sessionKey === "w03").excuse.kind, "in-advance");
+  });
+});
 
 describe("the reason goes when the programme closes, and the decision stays", () => {
   beforeEach(placed);

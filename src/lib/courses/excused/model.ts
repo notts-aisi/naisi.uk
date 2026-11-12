@@ -313,11 +313,25 @@ export function excusedKindOf(input: {
   mark: AttendanceStatus | null;
   /** When they said so in advance, as the register keeps it. */
   toldAt: Date | null;
-  /** They ticked this session under "Most weeks, not all". */
+  /** They ticked this session under "Most weeks, not all", in the answer that is current. */
   ticked: boolean;
+  /** They ticked it in an answer to an earlier asking, kept on a week a new regular time did not move. */
+  tickedBefore?: boolean;
 }): ExcusedKind | null {
   if (input.approved) return "approved";
   if (input.ticked) return "time-set";
-  if (input.mark === "excused" && input.toldAt) return "in-advance";
+  if (input.mark === "excused" && input.toldAt) {
+    return input.toldAt.getTime() < REQUESTS_BEGAN.getTime() && !input.tickedBefore ? "before-requests" : "in-advance";
+  }
   return null;
 }
+
+/**
+ * When requests to be excused began: the day they were built, before any
+ * reached the site. A line told on somebody's own word before it was told
+ * when the instant "Can't make it" was the only way, so it reads "Said in
+ * advance, before requests"; one told on or after it reads "Said in
+ * advance", which is true whenever it was said. A line from a day between
+ * this and the day requests went live reads the plainer one: still true.
+ */
+export const REQUESTS_BEGAN = new Date("2026-11-12T00:00:00Z");

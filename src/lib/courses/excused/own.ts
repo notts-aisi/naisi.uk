@@ -19,7 +19,7 @@ import {
 import type { CourseRequestStatus } from "@/lib/firestore/courseRequests";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { excuseLineOf, ownRequestsIn } from "./ask";
-import { askState, requestStandingOf, standingWeek, weeksAbout, type AskClosed } from "./model";
+import { askState, excusedKindOf, requestStandingOf, standingWeek, weeksAbout, type AskClosed } from "./model";
 
 /**
  * ONE PERSON'S OWN EXCUSED WEEKS, for their programme page: for each session
@@ -56,7 +56,8 @@ export type OwnExcuse =
   | { kind: "declined"; requestId: string; by: { firstName: string } | null; at: string | null; reply: string }
   | { kind: "withdrawn"; requestId: string; at: string | null }
   | { kind: "time-set" }
-  | { kind: "in-advance"; at: string };
+  | { kind: "in-advance"; at: string }
+  | { kind: "before-requests"; at: string };
 
 export type OwnAsk = { open: true; when: "before" | "after" } | { open: false; why: AskClosed | "closed" | "facilitates" };
 
@@ -147,6 +148,10 @@ export async function excusedFor(
 
   const answer = currentTimeAnswer(seat, timeQuestionSinceOf(group));
   const ticked = new Set(answer?.kind === "mostWeeks" ? answer.sessionKeys : []);
+  // Ticks from an answer to an earlier asking of the time question, kept on
+  // a week a new regular time did not move: said in advance, not "before requests".
+  const stored = currentTimeAnswer(seat, null);
+  const tickedBefore = new Set(stored?.kind === "mostWeeks" ? stored.sessionKeys : []);
 
   const out: OwnExcusedSession[] = sessions.map((session, at) => {
     const snap = snaps[at];
@@ -159,10 +164,15 @@ export async function excusedFor(
       excuse = { kind: "waiting", requestId: standing.request.id, askedAt: iso(standing.request.askedAt), reason: standing.request.reason };
     } else if (standing?.week.status === "approved") {
       excuse = { kind: "approved", requestId: standing.request.id, by: by(standing.week.decidedByUid), at: iso(standing.week.decidedAt), reply: standing.week.reply };
-    } else if (line.mark === "excused" && line.toldAt && ticked.has(session.sessionKey)) {
-      excuse = { kind: "time-set" };
     } else if (line.mark === "excused" && line.toldAt) {
-      excuse = { kind: "in-advance", at: line.toldAt.toISOString() };
+      const kind = excusedKindOf({
+        approved: false,
+        mark: line.mark,
+        toldAt: line.toldAt,
+        ticked: ticked.has(session.sessionKey),
+        tickedBefore: tickedBefore.has(session.sessionKey),
+      });
+      excuse = kind === "time-set" ? { kind: "time-set" } : { kind: kind === "before-requests" ? "before-requests" : "in-advance", at: line.toldAt.toISOString() };
     } else if (standing?.week.status === "declined") {
       excuse = { kind: "declined", requestId: standing.request.id, by: by(standing.week.decidedByUid), at: iso(standing.week.decidedAt), reply: standing.week.reply };
     } else if (standing?.week.status === "withdrawn") {

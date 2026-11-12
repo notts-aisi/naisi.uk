@@ -167,6 +167,8 @@ export function excusedThisTermOf(input: {
   const { uid } = input;
   const answer = input.seat ? currentTimeAnswer(input.seat, timeQuestionSinceOf(input.group)) : null;
   const ticked = new Set(answer?.kind === "mostWeeks" ? answer.sessionKeys : []);
+  const stored = input.seat ? currentTimeAnswer(input.seat, null) : null;
+  const tickedBefore = new Set(stored?.kind === "mostWeeks" ? stored.sessionKeys : []);
   const approvedKeys = new Set<string>();
   const excepted = new Set<string>();
   for (const request of input.requests) {
@@ -177,7 +179,7 @@ export function excusedThisTermOf(input: {
     }
   }
   const weeks: ExcusedThisTerm["weeks"] = [];
-  const counts: Record<ExcusedKind, number> = { approved: 0, "time-set": 0, "in-advance": 0 };
+  const counts: Record<ExcusedKind, number> = { approved: 0, "time-set": 0, "in-advance": 0, "before-requests": 0 };
   for (const session of input.sessions) {
     if (excepted.has(session.sessionKey) && !approvedKeys.has(session.sessionKey)) continue;
     const register = input.registers.get(session.sessionKey);
@@ -186,6 +188,7 @@ export function excusedThisTermOf(input: {
       mark: register?.records[uid] ?? null,
       toldAt: register?.excusedInAdvance[uid] ?? null,
       ticked: ticked.has(session.sessionKey),
+      tickedBefore: tickedBefore.has(session.sessionKey),
     });
     if (!kind) continue;
     counts[kind] += 1;

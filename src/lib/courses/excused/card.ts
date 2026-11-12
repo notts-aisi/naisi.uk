@@ -38,7 +38,7 @@ export type CardState =
   | { kind: "declined"; by: string; reply: string; register: OwnExcusedSession["register"]; again: boolean }
   | { kind: "withdrawn"; at: string | null; again: boolean }
   | { kind: "time-set" }
-  | { kind: "in-advance" }
+  | { kind: "in-advance"; beforeRequests: boolean }
   /** After the session, its finished register says Absent and nothing was asked: the request is offered there. */
   | { kind: "after" }
   /** Nothing to say. */
@@ -57,7 +57,9 @@ export function cardStateOf(session: OwnExcusedSession): CardState {
     case "time-set":
       return { kind: "time-set" };
     case "in-advance":
-      return { kind: "in-advance" };
+      return { kind: "in-advance", beforeRequests: false };
+    case "before-requests":
+      return { kind: "in-advance", beforeRequests: true };
     case "declined":
       return { kind: "declined", by: excuse.by?.firstName ?? "", reply: excuse.reply, register: session.register, again: session.ask.open };
     case "withdrawn":

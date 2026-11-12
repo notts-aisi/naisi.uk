@@ -38,13 +38,17 @@ export function factWords(fact: ExcuseFact): string {
  *  - `approved`: an admin approved their request;
  *  - `time-set`: they ticked it when they answered "Can you make this time?"
  *    with "Most weeks, not all";
- *  - `in-advance`: they said so in advance, before requests existed (the
- *    instant "Can't make it").
+ *  - `before-requests`: they said so in advance, on a line told before
+ *    requests existed (the instant "Can't make it", `REQUESTS_BEGAN`);
+ *  - `in-advance`: they said so in advance on their own word, since then (a
+ *    facilitator who holds a place, an old page still open) or on a tick kept
+ *    from an earlier asking of the time question.
  */
-export type ExcusedKind = "approved" | "time-set" | "in-advance";
+export type ExcusedKind = "approved" | "time-set" | "in-advance" | "before-requests";
 
 export const SAID_WHEN_TIME_SET = "Said when the time was set";
-export const SAID_IN_ADVANCE = "Said in advance, before requests";
+export const SAID_IN_ADVANCE = "Said in advance";
+export const SAID_BEFORE_REQUESTS = "Said in advance, before requests";
 export const APPROVED = "Approved";
 
 export function excusedKindWords(kind: ExcusedKind): string {
@@ -53,6 +57,8 @@ export function excusedKindWords(kind: ExcusedKind): string {
       return APPROVED;
     case "time-set":
       return SAID_WHEN_TIME_SET;
+    case "before-requests":
+      return SAID_BEFORE_REQUESTS;
     default:
       return SAID_IN_ADVANCE;
   }

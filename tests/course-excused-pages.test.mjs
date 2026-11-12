@@ -290,7 +290,8 @@ describe("2. the card, decided: the way in, each state, the last session, the we
     assert.equal(card.cardStateOf(session({ excuse: { kind: "declined", requestId: "r", by, at: "x", reply: "no" } })).kind, "declined");
     assert.equal(card.cardStateOf(session({ excuse: { kind: "withdrawn", requestId: "r", at: "x" } })).again, true);
     assert.deepEqual(card.cardStateOf(session({ excuse: { kind: "time-set" } })), { kind: "time-set" });
-    assert.deepEqual(card.cardStateOf(session({ excuse: { kind: "in-advance", at: "x" } })), { kind: "in-advance" });
+    assert.deepEqual(card.cardStateOf(session({ excuse: { kind: "in-advance", at: "x" } })), { kind: "in-advance", beforeRequests: false });
+    assert.deepEqual(card.cardStateOf(session({ excuse: { kind: "before-requests", at: "x" } })), { kind: "in-advance", beforeRequests: true });
     assert.deepEqual(card.cardStateOf(session({ ended: true, register: "absent", ask: { open: true, when: "after" } })), { kind: "after" });
     assert.deepEqual(card.cardStateOf(session({ started: true, ask: { open: false, why: "not-finished" } })), { kind: "none" });
   });

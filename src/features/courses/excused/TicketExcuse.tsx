@@ -5,7 +5,7 @@ import { useHydrated } from "@/hooks/useHydrated";
 import { cardStateOf, weeksToChoose } from "@/lib/courses/excused/card";
 import type { ExcusedOwnView, OwnExcusedSession } from "@/lib/courses/excused/own";
 import * as O from "@/lib/courses/excused/ownWords";
-import { SAID_IN_ADVANCE, SAID_WHEN_TIME_SET } from "@/lib/courses/excused/words";
+import { SAID_BEFORE_REQUESTS, SAID_IN_ADVANCE, SAID_WHEN_TIME_SET } from "@/lib/courses/excused/words";
 import { CANT_MAKE_IT, cantMakeItLabel } from "@/lib/courses/cantMakeIt/words";
 import type { JoiningOnlineView } from "@/lib/courses/joiningOnline/model";
 import { londonClockLabel, londonDayLabel } from "@/lib/courses/londonLabels";
@@ -130,7 +130,9 @@ export default function TicketExcuse({
       block = (
         <div className={styles.state} data-state={state.kind}>
           <span className={`${styles.chip} ${styles.chipExcused}`}>{O.EXCUSED}</span>
-          <p className={styles.line}>{state.kind === "time-set" ? SAID_WHEN_TIME_SET : SAID_IN_ADVANCE}</p>
+          <p className={styles.line}>
+            {state.kind === "time-set" ? SAID_WHEN_TIME_SET : state.beforeRequests ? SAID_BEFORE_REQUESTS : SAID_IN_ADVANCE}
+          </p>
         </div>
       );
       break;
