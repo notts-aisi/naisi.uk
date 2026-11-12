@@ -98,7 +98,11 @@ function scrubFor(uid: string, people: readonly RunPerson[]): NameToLabel[] {
   }));
 }
 
-/** The message one person's draft would carry, from what was gathered for them; null when their week is not drawn on (its session has not started for them). */
+/**
+ * The message one person's draft would carry, from what was gathered for
+ * them; null when their week is not drawn on (no session of theirs that week
+ * has started).
+ */
 function inputFor(
   opened: WeekNotesDoor,
   uid: string,
@@ -181,7 +185,14 @@ export async function loadWeekNotes(
   ]);
   const inputs = new Map(people.map((person) => [person.uid, inputFor(opened, person.uid, sources.get(person.uid), scrub)]));
   // Whose week is drawn on and holds nothing they wrote: no note, and not for want of agreeing.
-  const wroteNothing = new Set(people.filter((person) => (sources.get(person.uid)?.weeks.length ?? 0) > 0 && (sources.get(person.uid)?.answers.length ?? 0) === 0).map((person) => person.uid));
+  const wroteNothing = new Set(
+    people
+      .filter((person) => {
+        const own = sources.get(person.uid);
+        return own !== undefined && own.weeks.length > 0 && own.answers.length === 0;
+      })
+      .map((person) => person.uid),
+  );
   const savedBy = new Map<string, MemberNoteDoc>();
   for (const note of saved) if (uids.has(note.uid) && !savedBy.has(note.uid)) savedBy.set(note.uid, note);
   const named = [

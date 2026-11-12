@@ -2,9 +2,8 @@
  * THE WORDS OF A WEEK'S NOTES ABOUT PEOPLE (privacy v15, "AI-assisted
  * review", and v18 for what a draft uses: a week once the person's session
  * has started, their work as it stands, sent or not), the page's and the
- * routes' alike. Admins draft and save; the
- * programme's leads read the saved notes kept for them. Nothing here reaches
- * a member or a facilitator. Plain, British, sentence case, no dashes, no
+ * routes' alike. Admins draft and save; the programme's leads read the saved
+ * notes kept for them. Nothing here reaches a member or a facilitator. Plain, British, sentence case, no dashes, no
  * pronoun for a person.
  *
  * Pure: safe anywhere.

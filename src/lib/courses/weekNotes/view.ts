@@ -7,10 +7,10 @@ import { WEEK_NOTES_WORDS } from "./words";
 /**
  * A WEEK'S NOTES AS ITS PAGE DRAWS THEM (privacy v15 and v18), worked out
  * from the drafts kept with the run, the end-of-week notes saved from this
- * week, and what a draft would be built from now. Names come back here: the person's
- * from who holds a place now, a rater's and a writer's from their account,
- * and Claude's labels ("the fellow", "Rater 1") are put back in a draft's
- * box. Somebody who no longer holds a place drops out.
+ * week, and what a draft would be built from now. Names come back here: the
+ * person's from who holds a place now, a rater's and a writer's from their
+ * account, and Claude's labels ("the fellow", "Rater 1") are put back in a
+ * draft's box. Somebody who no longer holds a place drops out.
  *
  * Two views. An ADMIN'S: the drafts, the saved notes, the counts and who a
  * press would draft for. A LEAD'S: the saved notes kept for leads alone,
