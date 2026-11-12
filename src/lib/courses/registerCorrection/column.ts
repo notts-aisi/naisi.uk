@@ -4,7 +4,7 @@ import { readMirrorPlan, type RegisterOverride } from "@/lib/courses/attendanceM
 import {
   groupHistoryRow,
   iso,
-  lockOf,
+  lateFromOf,
   momentOf,
   momentValues,
   startOf,
@@ -819,7 +819,9 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
             before: momentOf(group, first.session),
             after: momentOf(first.after, afterSession),
             lastSession: { before: lastOf(before), after: lastOf(after) },
-            lock: { before: lockOf(before, press.weekNumber), after: lockOf(after, press.weekNumber) },
+            // Nothing locks at a session any more: `lock` keeps its name for
+            // the pages, and holds from when the week's work counts as late.
+            lock: { before: lateFromOf(before, press.weekNumber), after: lateFromOf(after, press.weekNumber) },
             clearing: namedLines(register, uids, names),
             didNotHappen: facts,
             told,
@@ -1073,7 +1075,8 @@ async function didHappen(ctx: ColumnContext, press: ColumnPress): Promise<Column
             line: register ? wordsOf(lineOf(register, member.uid)) : "Not set",
           })),
           counts,
-          lock: { before: lockOf(ctx.sessions, session.weekNumber), after: lockOf(afterSessions, session.weekNumber) },
+          // From when the week's work counts as late, under the name the pages read (`lock`).
+          lock: { before: lateFromOf(ctx.sessions, session.weekNumber), after: lateFromOf(afterSessions, session.weekNumber) },
           figures: true,
           emailed: 0,
           at: iso(now),
