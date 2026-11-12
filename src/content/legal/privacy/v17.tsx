@@ -1127,9 +1127,9 @@ export default function PrivacyContentV17({
                   admin removes it.
                 </li>
                 <li>
-                  <strong>A reason for missing a session:</strong> until your
-                  programme closes. After that we keep only that you were
-                  excused.
+                  <strong>A reason you give when you ask to be excused from a
+                  session:</strong> until your programme closes. After that we
+                  keep only that you were excused.
                 </li>
                 <li>
                   <strong>Requests and messages:</strong> while your account

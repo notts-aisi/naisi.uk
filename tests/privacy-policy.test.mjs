@@ -11198,7 +11198,7 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
     [
       "how long: your conduct record, and three new lines",
       "<li> <strong>A conduct flag:</strong> until an admin removes it. </li>",
-      "<li> <strong>Your conduct record:</strong> each entry until an admin removes it. </li> <li> <strong>A reason for missing a session:</strong> until your programme closes. After that we keep only that you were excused. </li> <li> <strong>Requests and messages:</strong> while your account exists, like your other records, with our replies. </li> <li> <strong>Anonymous feedback from the second form:</strong> two years from the day it is sent. </li>",
+      "<li> <strong>Your conduct record:</strong> each entry until an admin removes it. </li> <li> <strong>A reason you give when you ask to be excused from a session:</strong> until your programme closes. After that we keep only that you were excused. </li> <li> <strong>Requests and messages:</strong> while your account exists, like your other records, with our replies. </li> <li> <strong>Anonymous feedback from the second form:</strong> two years from the day it is sent. </li>",
     ],
     [
       "deleting your account",
@@ -11293,6 +11293,15 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
     );
     // The window and the two places that draw it are run in tests/policy-update-line.test.mjs.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
+  });
+
+  test("the line on how long a reason is kept is about a reason given when asking to be excused", () => {
+    // Nothing asks for such a reason yet, and the job that removes one when a
+    // programme closes arrives with the request to be excused. The words a
+    // person gives with "No, I need a different time" are a different record,
+    // kept with their place, so the line must not read as covering them.
+    assert.ok(PAGE_FLAT.includes("<strong>A reason you give when you ask to be excused from a session:</strong> until your programme closes. After that we keep only that you were excused."));
+    assert.ok(!PAGE_FLAT.includes("A reason for missing a session"));
   });
 
   test("two sentences say 'may', because a reopened week can be changed today and nothing more is kept", () => {
