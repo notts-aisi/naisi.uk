@@ -172,12 +172,13 @@ export type SessionChange = {
   byUid: string;
   at: Date | null;
   /**
-   * For `moved` only: what the week's override held of the fields a move
-   * sets (day, start, length, room, campus) before the week was first moved,
-   * so "Put it back as usual" puts back exactly that and a week pinned to
-   * when it met returns to its pin. Empty when it held none. Absent on a
-   * record written before the field existed: putting it back then removes
-   * those fields, as it always did. Code from before it ignores it.
+   * On `online`, `moved` and `cancelled`: what the week's override held of
+   * the fields a move sets (day, start, length, room, campus) before the
+   * week's first change still on record (a later change carries it over), so
+   * "Put it back as usual" puts back exactly that and a week pinned to when
+   * it met returns to its pin. Empty when it held none. Absent on a record
+   * written before the field existed: putting it back then behaves as it
+   * always did. Code from before it ignores it.
    */
   was?: SessionChangeWas;
 };
@@ -669,7 +670,7 @@ function normalizeSessionChanges(v: unknown): Record<string, SessionChange> {
       dateKey: entry.dateKey,
       byUid: typeof entry.byUid === "string" ? entry.byUid : "",
       at: tsToDate(entry.at),
-      ...(entry.kind === "moved" && entry.was && typeof entry.was === "object" && !Array.isArray(entry.was)
+      ...(entry.kind !== "pushed" && entry.was && typeof entry.was === "object" && !Array.isArray(entry.was)
         ? { was: changeWasOf(entry.was) }
         : {}),
     };
@@ -678,7 +679,7 @@ function normalizeSessionChanges(v: unknown): Record<string, SessionChange> {
   return out;
 }
 
-/** A `moved` record's `was`, read as an override is read and kept to the fields a move sets. */
+/** A record's `was`, read as an override is read and kept to the fields a move sets. */
 function changeWasOf(v: unknown): SessionChangeWas {
   const { weekday, startTimeLocal, durationMinutes, location, campus } = normalizeSessionOverride(v);
   const out: SessionChangeWas = {};

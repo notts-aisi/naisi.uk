@@ -2476,13 +2476,14 @@ changes and the group is not told twice.
   on the group keeps its own plan, as after Add break in the pace editor.
 - **Hold it as usual** (only for a week with a change record that is online,
   moved or cancelled): back to what the week was before the change. The
-  week's own meeting link and notes stay. Held online or cancelled, the week's
-  day, start, length, room and campus were never the change's and stay as
-  they are (they may be a pin). Moved, they go back to what the move's record
-  says the override held before the week was first moved (`was` on the
-  record, empty when it held none, so an unpinned week returns to the weekly
-  slot and a pinned one to its pin); a record written before `was` existed
-  has those fields removed, as before. A week whose override has no change
+  week's own meeting link and notes stay. The week's day, start, length, room
+  and campus go back to what the change record says the override held before
+  the week's first change still on record (`was`, empty when it held none,
+  carried over when the same week is changed again), so an unpinned week
+  returns to the weekly slot, a pinned one to its pin, and a week moved and
+  then held online to where it was before the move. A record written before
+  `was` existed puts back as before: a move's fields are removed, and a week
+  held online or cancelled keeps them. A week whose override has no change
   record is a week pinned to when it met (see "A new regular time") or a link
   for that week alone: there is nothing to put back.
 

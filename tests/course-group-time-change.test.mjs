@@ -366,6 +366,23 @@ describe("3. put it back as usual", () => {
     assert.deepEqual([weekOf(4).dateKey, weekOf(4).session.startTimeLocal], [TUE_24, "18:00"]);
   });
 
+  test("a week moved and then held online goes back to where it was before the move", async () => {
+    world.db.poke(`courseGroups/${B}`, { "session.meetingUrl": LINK });
+    const moved = await ask.change(
+      "rahul",
+      B,
+      silently({ week: 4, dateKey: TUE_24, kind: "move", move: { dateKey: "2026-11-25", time: "7pm", room: "Portland A13" } }),
+    );
+    assert.equal(moved.status, 200, JSON.stringify(moved.body));
+    const online = await ask.change("rahul", B, silently({ week: 4, dateKey: "2026-11-25", kind: "online" }));
+    assert.equal(online.status, 200, JSON.stringify(online.body));
+    assert.deepEqual(world.db.read(`courseGroups/${B}`).sessionChanges.w04.was, {}, "the online record carries the move's");
+    const back = await ask.change("rahul", B, silently({ week: 4, dateKey: "2026-11-25", kind: "restore" }));
+    assert.equal(back.status, 200, JSON.stringify(back.body));
+    assert.equal(world.db.read(`courseGroups/${B}`).sessionOverrides?.w04, undefined);
+    assert.deepEqual([weekOf(4).dateKey, weekOf(4).session.startTimeLocal, weekOf(4).session.location], [TUE_24, "18:00", "Hallward B12"]);
+  });
+
   test("a move recorded before the record kept what was there is put back as before, and old code reads the new record", async () => {
     world.db.poke(`courseGroups/${B}`, {
       "sessionOverrides.w04": { weekday: 3, startTimeLocal: "19:00", location: "Portland A13" },
@@ -375,14 +392,16 @@ describe("3. put it back as usual", () => {
     const back = await ask.change("rahul", B, silently({ week: 4, dateKey: "2026-11-25", kind: "restore" }));
     assert.equal(back.status, 200, JSON.stringify(back.body));
     assert.equal(world.db.read(`courseGroups/${B}`).sessionOverrides?.w04, undefined);
-    // A stored was is read as the fields a move sets, and only those; a record of another kind carries none.
+    // A stored was is read as the fields a move sets, and only those; a push, which puts nothing back, carries none.
     const read = groupsLib.normalizeCourseGroup(B, {
       ...world.db.read(`courseGroups/${B}`),
       sessionChanges: {
+        w03: { kind: "cancelled", reason: AWAY, dateKey: "2026-11-17", byUid: "rahul", at: null, was: { durationMinutes: 90 } },
         w05: { kind: "moved", reason: AWAY, dateKey: "2026-12-01", byUid: "rahul", at: null, was: { weekday: 1, startTimeLocal: "18:00", meetingUrl: LINK, notes: "x" } },
-        w06: { kind: "cancelled", reason: AWAY, dateKey: "2026-12-08", byUid: "rahul", at: null, was: { weekday: 1 } },
+        w06: { kind: "pushed", reason: AWAY, dateKey: "2026-12-08", byUid: "rahul", at: null, was: { weekday: 1 } },
       },
     });
+    assert.deepEqual(read.sessionChanges.w03.was, { durationMinutes: 90 });
     assert.deepEqual(read.sessionChanges.w05.was, { weekday: 1, startTimeLocal: "18:00" });
     assert.equal(Object.hasOwn(read.sessionChanges.w06, "was"), false);
   });

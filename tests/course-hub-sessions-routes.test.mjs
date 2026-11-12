@@ -207,7 +207,8 @@ describe("2. cancel it, and keep pace", () => {
 
     const after = world.db.read(`courseGroups/${B}`);
     assert.deepEqual(after.sessionChanges, {
-      w04: { kind: "cancelled", reason: AWAY, dateKey: TUE_24, byUid: "claudia", at: NOW },
+      // `was`: what the week held of its own day, time, length, room and campus before the change (nothing).
+      w04: { kind: "cancelled", reason: AWAY, dateKey: TUE_24, byUid: "claudia", at: NOW, was: {} },
     });
     // Nothing else of the group moved: no override, no mode, no plan.
     for (const field of ["sessionOverrides", "sessionModes", "paceWeekPlan", "paceStartDate", "session"]) {
