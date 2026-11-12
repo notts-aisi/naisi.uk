@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/ui/Modal";
 import { useHydrated } from "@/hooks/useHydrated";
@@ -16,7 +17,9 @@ import styles from "./GroupPage.module.css";
  * group meets as words (the regular time is never a control for a
  * facilitator: one line says the lead or an admin changes it), "Change one
  * week" with the one-week choices alone and the same preview and button,
- * "Set the link", and the row of weeks with each week's date and state.
+ * "Set the link", and the row of weeks with each week's date and state. Each
+ * week leads to the same page on that week (`?week=3`), whose work the card
+ * under this one counts and Remind is about; the week shown is marked.
  *
  * Drawn from `loadGroupPage` with the facilitator's view: no people and no
  * history, no address and no link. The routes behind both buttons admit the
@@ -34,6 +37,7 @@ export default function FacilitatorMeets({
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
+  const chosen = view.workWeek ?? view.openWeek;
   const [panel, setPanel] = useState<"change" | "link" | null>(null);
   const [opened, setOpened] = useState(0);
   const [said, setSaid] = useState<string | null>(null);
@@ -82,9 +86,18 @@ export default function FacilitatorMeets({
       {view.weeks.length > 0 && (
         <ul className={styles.pills} aria-label="Weeks">
           {view.weeks.map((week) => (
-            <li key={week.weekNumber} className={week.weekNumber === view.openWeek ? `${styles.pill} ${styles.pillOn}` : styles.pill}>
-              <span className={styles.pillWeek}>{W.weekWords(week.weekNumber)}</span>
-              <span className={styles.pillLine}>{W.weekPillLine(week.dateKey, week.state)}</span>
+            <li key={week.weekNumber} className={styles.pillItem}>
+              <Link
+                href={`?week=${week.weekNumber}`}
+                scroll={false}
+                replace
+                className={week.weekNumber === chosen ? `${styles.pill} ${styles.pillOn}` : styles.pill}
+                aria-current={week.weekNumber === chosen ? "true" : undefined}
+                aria-label={`${W.weekWords(week.weekNumber)}, ${W.weekPillLine(week.dateKey, week.state)}`}
+              >
+                <span className={styles.pillWeek}>{W.weekWords(week.weekNumber)}</span>
+                <span className={styles.pillLine}>{W.weekPillLine(week.dateKey, week.state)}</span>
+              </Link>
             </li>
           ))}
         </ul>

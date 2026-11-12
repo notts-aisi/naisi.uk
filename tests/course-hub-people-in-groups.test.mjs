@@ -591,7 +591,7 @@ describe("5. Publish's own page draws Publish as the board did, under its readin
       admin: false,
       follows: {
         paused: false,
-        nextWeekEmail: { on: false, waitsForRoom: ["Group C"] },
+        nextWeekEmail: { on: false, noRoomYet: ["Group C"] },
         registerReminders: { on: false },
         placeConfirmations: null,
       },

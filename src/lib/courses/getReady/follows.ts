@@ -18,8 +18,8 @@ import { NEXT_WEEK_EMAIL_JOB, REGISTER_REMINDERS_JOB } from "@/lib/scheduler/reg
  * pause is said too: while it is on, none of them goes.
  *
  *  - NEXT WEEK'S EMAIL (`courses-next-week-email`): with it on, a group whose
- *    room is empty has its email held until it has one, so the groups with no
- *    room are named.
+ *    room is empty has its email say "Room to be confirmed" until it has one,
+ *    so the groups with no room are named.
  *  - THE FACILITATORS' REGISTER REMINDER (`courses-register-reminders`).
  *  - THE REMINDER TO CONFIRM A PLACE (`application-place-confirmations`),
  *    only while the programme's form asks people to confirm by a day.
@@ -37,7 +37,7 @@ export const PLACE_CONFIRMATIONS_ENABLED_BY_DEFAULT = false;
 export type WhatFollows = {
   /** The whole scheduler is paused on Site status. */
   paused: boolean;
-  nextWeekEmail: { on: boolean; waitsForRoom: string[] };
+  nextWeekEmail: { on: boolean; noRoomYet: string[] };
   registerReminders: { on: boolean };
   /** Null while the form asks nobody to confirm their place by a day. */
   placeConfirmations: { on: boolean } | null;
@@ -56,7 +56,7 @@ export async function readWhatFollows(
     nextWeekEmail: {
       on: on(NEXT_WEEK_EMAIL_JOB.id, NEXT_WEEK_EMAIL_JOB.enabledByDefault),
       // The weekly slot's own place, as the email says it: a room, or online.
-      waitsForRoom: groups.filter((group) => placementWhere(group.session, null) === null).map((group) => group.name),
+      noRoomYet: groups.filter((group) => placementWhere(group.session, null) === null).map((group) => group.name),
     },
     registerReminders: { on: on(REGISTER_REMINDERS_JOB.id, REGISTER_REMINDERS_JOB.enabledByDefault) },
     placeConfirmations:

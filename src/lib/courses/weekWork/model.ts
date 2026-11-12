@@ -160,6 +160,33 @@ function writingAsked(tasks: readonly TaskNeeds[], asks: TaskNeeds | undefined):
   return tasks.some(isCounted) || !asks ? tasks : [asks];
 }
 
+/** The ids `weekDone` asks about, each once: what its ticks need, and the writing it asks for. */
+export type WeekDoneNeeds = {
+  tickIds: string[];
+  chooseOneIds: string[];
+  promptIds: string[];
+  fillInIds: string[];
+  answerIds: string[];
+};
+
+/**
+ * THE IDS DONE ASKS ABOUT, as `weekDone` and `weekDoneAt` read them (the
+ * ticks This week's tasks count, and the writing it asks for: what the tasks
+ * count, or everything written in a week whose tasks count nothing). Read
+ * only by a page that splits a week into its pieces (a group's week card), so
+ * each piece is asked of exactly the things done is.
+ */
+export function weekDoneNeeds(tasks: readonly TaskNeeds[], asks?: TaskNeeds): WeekDoneNeeds {
+  const writing = writingAsked(tasks, asks);
+  return {
+    tickIds: counted(tasks, "tickIds"),
+    chooseOneIds: counted(tasks, "chooseOneIds"),
+    promptIds: counted(writing, "promptIds"),
+    fillInIds: counted(writing, "fillInIds"),
+    answerIds: counted(writing, "answerIds"),
+  };
+}
+
 /**
  * THE WEEK IS DONE: every tick its tasks count ticked, the person's own pack
  * among them, and either it was submitted under the old Submit button

@@ -11,10 +11,12 @@ import { loadWrittenReview } from "@/lib/courses/writtenAnswers/reviewPage";
 import type { ReviewPerson } from "@/lib/courses/writtenAnswers/reviewPage";
 import { liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
 import { WRITTEN_ANSWER } from "@/lib/courses/writtenAnswerWords";
-import { weekAsksForWriting } from "@/lib/courses/weekWork/model";
-import { loadPeopleWeekProgress, loadRunWeekStates } from "@/lib/courses/weekWork/readers";
+import { personWeekStateOf } from "@/lib/courses/groupWeekWork/model";
+import { weekAsksForWriting, weekWritingNeeds } from "@/lib/courses/weekWork/model";
+import { loadPeopleWeekFacts, loadRunWeekStates } from "@/lib/courses/weekWork/readers";
 import { groupSessionAt } from "@/lib/courses/weekWork/sessionDue";
-import { NOT_STARTED, STARTED, groupSessionWords, personWeekTone, personWeekWords } from "@/lib/courses/weekWork/words";
+import { NOT_STARTED, STARTED, groupSessionWords, personWeekTone } from "@/lib/courses/weekWork/words";
+import { weekTaskNeeds } from "@/lib/courses/weekBlocks/progress";
 import { resolveSessions } from "@/lib/courses/sessions";
 import { NOT_CHOSEN_YET, TO_GIVE_FEEDBACK, feedbackByWords, weekColumnWords } from "./words";
 
@@ -27,7 +29,10 @@ import { NOT_CHOSEN_YET, TO_GIVE_FEEDBACK, feedbackByWords, weekColumnWords } fr
  *  - THE WEEK (the week stays open): where each person's week stands, by the
  *    one meaning of done every page uses (`src/lib/courses/weekWork/`):
  *    "Done on time", "Done late" with how late beside it, "2 of 3 done",
- *    "Started", "Not started" or "Joined late". Nothing is reopened now, so
+ *    "Started", "Not started" or "Joined late". Each cell is worked out by
+ *    the same function the group's page counts the week with
+ *    (`personWeekStateOf`), so its "4 of 6 have done week 1" and these
+ *    cells can never disagree. Nothing is reopened now, so
  *    no cell carries a reopen. A facilitator's own row is worked out only
  *    for the programme's lead and admins, the only people who read a
  *    facilitator's own work, and so whether it was late: never for a
@@ -119,20 +124,22 @@ export async function loadWorkColumns(
     // A facilitator's own week, and so whether it was late, is the lead's and admins' alone.
     const seesOwnWork = viewer.isAdmin || viewer.leadOf !== null;
     const shown = people.filter((person) => !person.facilitates || seesOwnWork);
-    const progress = await loadPeopleWeekProgress(db, {
+    const facts = await loadPeopleWeekFacts(db, {
       runId: run.id,
       weekNumber,
       blocks: week.blocks,
       uids: shown.map((person) => person.uid),
-      submittedAt: (uid) => states.submittedOf(uid, weekNumber),
     });
+    const tasks = weekTaskNeeds(week.blocks);
+    const asks = weekWritingNeeds(week.blocks);
     const cells: Record<string, WorkCell> = {};
     for (const person of shown) {
-      const own = progress.get(person.uid);
+      const own = facts.get(person.uid);
       if (!own) continue;
-      const line = { progress: own, doneAt: own.doneAt, due: states.dueOf(person.uid, weekNumber) };
-      const words = personWeekWords(line);
-      cells[person.uid] = { text: words.text, href: null, detail: words.detail, tone: personWeekTone(line) };
+      const due = states.dueOf(person.uid, weekNumber);
+      const state = personWeekStateOf({ tasks, asks, pieces: [], facts: own, submittedAt: states.submittedOf(person.uid, weekNumber), due });
+      const line = { progress: state.progress, doneAt: state.progress.doneAt, due };
+      cells[person.uid] = { text: state.text, href: null, detail: state.detail, tone: personWeekTone(line) };
     }
     const meets = groupSessionAt({ sessionLists: [resolveSessions(run, group)], toldAt: null }, weekNumber);
     columns.push({ key: "week", label: weekColumnWords(weekNumber), cells, note: meets ? groupSessionWords(meets, now) : null });

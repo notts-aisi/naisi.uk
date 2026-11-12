@@ -18,6 +18,7 @@ import { CAMPUS_LABEL } from "../campusWords";
 import { clockWords, dayWords, hoursWords, namesWords, peopleWords } from "../sessionChange/words";
 import { weekdaysWords } from "../regularTime/words";
 import type { DidNotHappenPreview } from "../registerCover/pageWords";
+import type { GroupWeekWorkView } from "../groupWeekWork/view";
 import {
   ROOM_TO_BE_CONFIRMED,
   type HistoryFilter,
@@ -132,6 +133,14 @@ export type GroupPageView = {
   weeks: GroupPageWeek[];
   /** The week the page opens on. */
   openWeek: number | null;
+  /** The week whose work `work` is: the week asked for (`?week=`), or the week the page opens on. */
+  workWeek: number | null;
+  /**
+   * Who has done that week, and Remind: the group's fellows, never its
+   * facilitators; their own weeks for an admin or the programme's lead
+   * alone. Null for a week with nothing to count, or a group with nobody.
+   */
+  work: GroupWeekWorkView | null;
   todayKey: string;
   /** Who a notice about the group's room reaches, never the viewer: the send's own count. */
   notice: { emails: number; refused: boolean };

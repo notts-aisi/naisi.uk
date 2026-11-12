@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/ui/Modal";
 import { useHydrated } from "@/hooks/useHydrated";
@@ -21,7 +21,9 @@ import { UNKNOWN_OUTCOME } from "@/lib/courses/sessionChange/words";
 import ChangePanel, { type ChangeStart } from "./ChangePanel";
 import GivePanel from "./GivePanel";
 import LinkPanel from "./LinkPanel";
+import RemindPanel from "./RemindPanel";
 import RoomPanel from "./RoomPanel";
+import WeekWorkCard from "./WeekWorkCard";
 import styles from "./GroupPage.module.css";
 
 /**
@@ -36,6 +38,12 @@ import styles from "./GroupPage.module.css";
  * once the week has a change of its own, and, for a week whose time passed
  * with no register, the line that offers to put it right. An incubator's
  * weeks are rows, each with its own Change.
+ *
+ * THE CHOSEN WEEK'S WORK (`WeekWorkCard`): who has done it, each piece, who
+ * was late, when each person was last reminded and Remind, read on the
+ * server for the week the address names (`?week=2`). Choosing a week puts it
+ * in the address, so the server reads that week's work; until it arrives the
+ * card says it is on its way.
  *
  * Everything drawn is the server's (`loadGroupPage`); the state here is the
  * tab, the week shown, the history's filter and which panel is open. A
@@ -65,7 +73,8 @@ type Panel =
   | { kind: "change"; start: ChangeStart; didNotHappen?: boolean }
   | { kind: "link"; week: { weekNumber: number; sessionKey: string } | null }
   | { kind: "room" }
-  | { kind: "give"; weekNumber: number };
+  | { kind: "give"; weekNumber: number }
+  | { kind: "remind"; weekNumber: number; only: { uid: string; firstName: string } | null };
 
 function chipsOf(week: GroupPageWeek): string[] {
   return [week.hasLink ? W.LINK_FOR_WEEK : W.NO_LINK_YET, W.joiningOnlineChip(week.joiningOnline), W.cantMakeItChip(week.cantMakeIt)];
@@ -83,9 +92,10 @@ export default function GroupPage({
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
+  const [choosing, startChoosing] = useTransition();
   const takeWeek = take !== null && view.weeks.some((each) => each.weekNumber === take) ? take : null;
   const [tab, setTab] = useState<"weeks" | "history">("weeks");
-  const [shown, setShown] = useState<number | null>(takeWeek ?? view.openWeek);
+  const [shown, setShown] = useState<number | null>(takeWeek ?? view.workWeek ?? view.openWeek);
   const [filter, setFilter] = useState<W.HistoryFilter>("everything");
   const [panel, setPanel] = useState<Panel | null>(null);
   const [opened, setOpened] = useState(0);
@@ -528,7 +538,13 @@ export default function GroupPage({
                     className={each.weekNumber === shown ? `${styles.pill} ${styles.pillOn}` : styles.pill}
                     aria-pressed={each.weekNumber === shown}
                     aria-label={`${W.weekWords(each.weekNumber)}, ${W.weekPillLine(each.dateKey, each.state)}`}
-                    onClick={() => setShown(each.weekNumber)}
+                    onClick={() => {
+                      setShown(each.weekNumber);
+                      // The week's work is read on the server: put the week in the address.
+                      if (view.work?.weekNumber !== each.weekNumber) {
+                        startChoosing(() => router.replace(`${window.location.pathname}?week=${each.weekNumber}`, { scroll: false }));
+                      }
+                    }}
                   >
                     <span className={styles.pillWeek}>{W.weekWords(each.weekNumber)}</span>
                     <span className={styles.pillLine}>{W.weekPillLine(each.dateKey, each.state)}</span>
@@ -550,10 +566,19 @@ export default function GroupPage({
                 {W.OPEN_PEOPLE_IN_GROUPS}
               </Link>
             </section>
+          ) : week && !view.incubator && view.work && view.work.weekNumber === week.weekNumber ? (
+            <WeekWorkCard
+              groupName={view.groupName}
+              work={view.work}
+              said={new Map(week.people.map((person) => [person.uid, person.said]))}
+              facilitatorsApart={view.facilitatorsWithPlaces}
+              onRemind={(only) => open({ kind: "remind", weekNumber: week.weekNumber, only })}
+            />
           ) : (
             week &&
             !view.incubator && (
               <section className={styles.card} aria-labelledby="group-people">
+                {choosing && <p className={styles.cardLine}>{W.weekOnItsWayWords(week.weekNumber)}</p>}
                 <h2 id="group-people" className={styles.cardTitle}>
                   {W.weekPeopleTitle(view.groupName, week.weekNumber)}
                 </h2>
@@ -631,7 +656,9 @@ export default function GroupPage({
         open={panel !== null}
         onClose={() => setPanel(null)}
         ariaLabel={
-          panel?.kind === "link"
+          panel?.kind === "remind"
+            ? W.REMIND
+            : panel?.kind === "link"
             ? W.SET_THE_LINK
             : panel?.kind === "room"
               ? W.roomPanelTitle(view.groupName)
@@ -644,7 +671,20 @@ export default function GroupPage({
         side
       >
         {(dismiss) =>
-          panel === null ? null : panel.kind === "give" ? (
+          panel === null ? null : panel.kind === "remind" ? (
+            <RemindPanel
+              key={opened}
+              groupId={view.groupId}
+              weekNumber={panel.weekNumber}
+              only={panel.only}
+              onClose={dismiss}
+              onDone={(words) => {
+                dismiss();
+                setSaid(words);
+                router.refresh();
+              }}
+            />
+          ) : panel.kind === "give" ? (
             (() => {
               const given = view.weeks.find((each) => each.weekNumber === panel.weekNumber);
               return given ? (

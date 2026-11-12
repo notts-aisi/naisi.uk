@@ -386,6 +386,31 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/app/api/courses/groups/[groupId]/remind/route.ts#found.facilitatorUids",
+    {
+      reads: 1,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "The gate: whether the presser facilitates the group, held to the bar they were appointed behind. It names no " +
+        "recipient: who Remind reaches is the group's notice audience, worked out on the server (readRemindAudience), " +
+        "and the group's facilitators are taken OUT of it, never put in.",
+    },
+  ],
+  [
+    "src/lib/courses/groupWeekWork/remind.ts#input.uid",
+    {
+      reads: 2,
+      origin: "assembled",
+      sourceOutsideScan:
+        "One person of the audience the Remind route assembled on the server (readRemindAudience in " +
+        "src/lib/courses/groupWeekWork/load.ts): the group's told places through resolveNoticeAudience, less its " +
+        "facilitators, the presser, anybody done, joined late or with no group. The request names at most one uid, " +
+        "and only to narrow that audience to them; it never adds anybody.",
+      why: "Whose record a press claims before their email goes, so a retry of the same press emails nobody again.",
+    },
+  ],
+  [
     "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts#group.facilitatorUids",
     {
       reads: 3,

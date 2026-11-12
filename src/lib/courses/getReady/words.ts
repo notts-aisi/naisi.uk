@@ -612,13 +612,13 @@ export const FOLLOWS_LINE = "Scheduled emails that go without a press, as Site s
 export const SITE_STATUS = "Site status";
 export const PAUSED = "The scheduler is paused on Site status, so none of these goes until it’s switched back on.";
 
-/** Next week's email, on or off, and the groups whose email waits for a room. */
-export function nextWeekWords(on: boolean, waitsForRoom: readonly string[]): string {
+/** Next week's email, on or off, and the groups with no room yet, whose email says so and goes. */
+export function nextWeekWords(on: boolean, noRoomYet: readonly string[]): string {
   if (!on) return "Next week’s email: off. A group is sent it when its facilitator pushes the register.";
   const head = "Next week’s email: on. Each group is emailed next week’s time, room and reading before each session after its first.";
-  if (waitsForRoom.length === 0) return head;
-  const one = waitsForRoom.length === 1;
-  return `${head} ${namesInWords(waitsForRoom)} ${one ? "has" : "have"} no room yet, so ${one ? "its email waits until it has" : "their emails wait until they have"} one.`;
+  if (noRoomYet.length === 0) return head;
+  const one = noRoomYet.length === 1;
+  return `${head} ${namesInWords(noRoomYet)} ${one ? "has" : "have"} no room yet, so ${one ? "its email says" : "their emails say"} “Room to be confirmed” until ${one ? "it has" : "they have"} one.`;
 }
 
 export function registerRemindersWords(on: boolean): string {

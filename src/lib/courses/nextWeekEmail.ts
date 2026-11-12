@@ -5,6 +5,7 @@ import { unpublishedHeldWords } from "@/features/courses/registerEndingWords";
 import { memberExplainerOn } from "@/lib/courses/explainers/model";
 import { readRunExplainers } from "@/lib/courses/explainers/readers";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
+import { earlierWeeksNotDone } from "@/lib/courses/groupWeekWork/earlier";
 import { nextWeekChangeLine } from "@/lib/courses/sessionChange/model";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
@@ -30,7 +31,7 @@ import {
 import { sendNotice } from "@/lib/email/notice";
 import { firstWord } from "@/lib/firestore/applicationEmails";
 import type { CoursesConfig } from "@/lib/firestore/config";
-import { sessionModeForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import { campusForWeek, sessionModeForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 
 /**
@@ -84,9 +85,16 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
  * ── WHOLE OR NOT AT ALL ─────────────────────────────────────────────────────
  * `whole: true` (the schedule, and any resend once the schedule is on) holds
  * the group's email when a fact it carries is empty (the group's day and
- * time or its room, the week's title, what the week asks for) and says which,
- * rather than sending it without. `whole: false` is the push lane as it has
- * always been: a missing fact drops its words.
+ * time, the week's title, what the week asks for) and says which, rather
+ * than sending it without. `whole: false` is the push lane as it has always
+ * been: a missing fact drops its words. A room not booked yet holds neither:
+ * the email goes with "Room to be confirmed" in a line of its own.
+ *
+ * ── AN EARLIER WEEK NOT DONE ────────────────────────────────────────────────
+ * Each person's email adds one line for any earlier week of theirs that is
+ * not done, whose session has passed and which they had joined by then
+ * (`earlierWeeksNotDone`), read before the claim with everything else. A read
+ * of it that fails leaves the line out rather than hold the group's email.
  *
  * ── WHAT A PRESS WOULD DO, SAID BEFORE IT ───────────────────────────────────
  * The register's page says what pressing its button emails before anybody
@@ -195,12 +203,13 @@ export async function readNextWeekEmail(
   const explainers = await explainersRead;
   const sessions = resolveSessions(run, group);
   const blocks = week && isBlockWeek(week) ? week.blocks : null;
+  const where = courseNudgeSessionWhere(session.session, sessionModeForWeek(group, session.weekId));
   const facts: WeekOpenFacts = {
     courseTitle: run.courseTitle,
     weekNumber: session.weekNumber,
     weekTitle: week?.title ?? "",
     sessionAt: sessionInstants(session).startsAt,
-    where: courseNudgeSessionWhere(session.session, sessionModeForWeek(group, session.weekId)),
+    where,
     first: sessions[0]?.sessionKey === session.sessionKey,
     // A cancelled session's email says it is off, why, and when the group
     // meets next, in place of when and where it meets; the session after one
@@ -212,6 +221,10 @@ export async function readNextWeekEmail(
     feedbackUrl: args.feedbackUrl,
     staysOpen: blocks !== null,
     explainer: memberExplainerOn(explainers, group.id, session.sessionKey),
+    // In a room, with none booked yet: the email goes and says so. Not for a
+    // session held online, nor a group that meets online.
+    roomToBeConfirmed:
+      !session.cancelled && where === "" && !session.session.location.trim() && campusForWeek(group, session.weekId) !== "online",
   };
   const missing = week ? missingWeekOpenValues(facts) : [];
   return { published: Boolean(week?.published), missing, facts, week };
@@ -429,6 +442,18 @@ export async function sendNextWeekEmail(args: {
   const { markerId, reading } = prepared;
   const recipients: CohortRecipient[] = prepared.members;
   let skipped = prepared.skipped;
+  // Each person's earlier weeks not done, read BEFORE the claim; a read that
+  // fails leaves the line out of everybody's email rather than hold it.
+  const earlier = await earlierWeeksNotDone(db, {
+    run,
+    group,
+    weekNumber: session.weekNumber,
+    uids: recipients.map((recipient) => recipient.uid),
+    now: args.now,
+  }).catch((err: unknown) => {
+    console.error("[courses week open email] earlier weeks could not be read", group.id, err);
+    return new Map<string, number[]>();
+  });
 
   // ── THE CLAIM ────────────────────────────────────────────────────────────
   const markerRef = db.collection("courseNudges").doc(markerId);
@@ -499,7 +524,9 @@ export async function sendNextWeekEmail(args: {
   await dispatchSends(recipients, async (recipient) => {
     // The placeholder-free name: "" drops the greeting rather than addressing
     // somebody as "NAISI member".
-    const words = weekOpenEmailWords(reading.facts, firstWord(recipient.ownName));
+    const words = weekOpenEmailWords(reading.facts, firstWord(recipient.ownName), {
+      earlierNotDone: earlier.get(recipient.uid) ?? [],
+    });
     try {
       // ONE address. One message. Never an array, never a Cc.
       await sendNotice({

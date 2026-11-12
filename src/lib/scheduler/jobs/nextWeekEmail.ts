@@ -41,11 +41,12 @@ import type { JobContext, JobRegistration, JobResult } from "../registry";
  *    tick after it is published sends it, if the session is still ahead;
  *  - a week published only after its session has started is never sent
  *    about: the window has closed;
- *  - a fact the email carries that is EMPTY (the group's room, the week's
- *    title, what the week asks for) holds the email whole rather than sending
- *    it without, and puts one card on the boards of the programme's lead and
- *    the admins saying what is missing. Filling it in sends the email on the
- *    next tick and archives the card.
+ *  - a fact the email carries that is EMPTY (the group's day and time, the
+ *    week's title, what the week asks for) holds the email whole rather than
+ *    sending it without, and puts one card on the boards of the programme's
+ *    lead and the admins saying what is missing. Filling it in sends the
+ *    email on the next tick and archives the card. A room not booked yet
+ *    holds nothing: the email goes, saying "Room to be confirmed".
  *
  * The group's FIRST session is mailed about like every other: "Week 1 is
  * open" goes 6 days before it, to the people told their group by then.

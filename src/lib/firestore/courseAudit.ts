@@ -150,7 +150,14 @@ export type CourseAuditKind =
    * A session that had started was called off after the fact, and the lines
    * its register held were cleared; `before` keeps what each line said.
    */
-  | "session-did-not-happen";
+  | "session-did-not-happen"
+  /**
+   * Somebody running the group pressed Remind about one week's work: one row
+   * for the press, saying how many it was for and how many were emailed,
+   * naming nobody. Each person's own "Last reminded" is their record in
+   * `courseNudges` (`src/lib/firestore/courseHandReminders.ts`).
+   */
+  | "week-reminded";
 
 export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "attendance-edit",
@@ -183,6 +190,7 @@ export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "register-given",
   "facilitator-record-changed",
   "session-did-not-happen",
+  "week-reminded",
 ];
 
 /** The label for a kind this build does not know. See `courseAuditKindLabel`. */
@@ -219,6 +227,7 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "register-given": "Session given to somebody covering",
   "facilitator-record-changed": "Whether a facilitator was there changed",
   "session-did-not-happen": "Session didn’t happen, register cleared",
+  "week-reminded": "Reminded about a week’s work",
 };
 
 /**
@@ -249,6 +258,7 @@ const COURSE_AUDIT_CATEGORY: Partial<Record<CourseAuditKind, CourseAuditCategory
   "register-given": "registers",
   "facilitator-record-changed": "registers",
   "session-did-not-happen": "registers",
+  "week-reminded": "people",
 };
 
 /**

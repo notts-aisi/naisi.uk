@@ -7,6 +7,7 @@ import { slotDays } from "@/lib/courses/sessionChange/model";
 import { updateEmailAudience } from "@/lib/courses/updates/audience";
 import { addDaysToKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { loadGroupHistory } from "@/lib/courses/groupHistory/load";
+import { loadGroupWeekWork } from "@/lib/courses/groupWeekWork/load";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { coverIsLive, startedByFacilitator } from "@/lib/courses/registerCover/model";
 import { startedAgoWords } from "@/lib/courses/registerCover/pageWords";
@@ -53,6 +54,14 @@ import { termChipWords, type WeekSaid } from "./words";
  *    meets and the weeks, with no people and no history (the facilitator's
  *    page already draws its people its own way).
  *
+ * THE CHOSEN WEEK'S WORK (`work`, `loadGroupWeekWork`): who has done the
+ * week, each piece of it, who was late, when each person was last reminded,
+ * and how many a Remind would email, for the week asked for (`week`, the
+ * page's `?week=`) or the week the page opens on. The group's fellows only,
+ * never its facilitators; a facilitator's own week, and so whether it was
+ * late, only for an admin or the programme's lead. A read of it that fails
+ * draws no card rather than no page.
+ *
  * NAMES ONLY. No address, no account field, no meeting link: whether a week
  * has a link is a yes or no. The counts on the buttons that email are the
  * send's own (`updateEmailAudience` with the group's facilitators), never
@@ -91,6 +100,8 @@ export async function loadGroupPage(
     /** Who is looking: never counted among who a notice reaches. */
     viewerUid: string;
     now: Date;
+    /** The week whose work the page shows (`?week=`); the week it opens on when missing or not one of the plan's. */
+    week?: number | null;
   },
 ): Promise<GroupPageView> {
   const { run, group, viewer, viewerUid, now } = input;
@@ -221,6 +232,29 @@ export async function loadGroupPage(
   });
 
   const chip = termChipOf(weeks, fellows.length, todayKey, tomorrowKey);
+  const openWeek = openingWeek(weeks);
+  const workWeek = input.week !== undefined && input.week !== null && weeks.some((week) => week.weekNumber === input.week) ? input.week : openWeek;
+  const work =
+    workWeek !== null && fellows.length > 0
+      ? await loadGroupWeekWork(db, {
+          run,
+          group,
+          weekNumber: workWeek,
+          viewerUid,
+          people: fellows
+            .map((seat) => ({ uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", firstName: names.get(seat.uid)?.first ?? "", told: placementIsTold(seat) }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+          // A facilitator's own week is the programme's lead's and admins' alone.
+          ownPeople: staff
+            ? standingFacilitators.map((uid) => ({ uid, name: names.get(uid)?.full ?? "", firstName: names.get(uid)?.first ?? "" })).filter((person) => person.name)
+            : [],
+          leadFirstName: lead?.firstName || null,
+          now,
+        }).catch((err: unknown) => {
+          console.error("[group page] the week's work could not be read", group.id, workWeek, err);
+          return null;
+        })
+      : null;
   // "Set the link" for every week saves on the next session still to end, as the link route asks.
   const linkWeek = weeks.find((week) => !week.ended && !week.cancelled && week.dateKey) ?? null;
 
@@ -247,7 +281,9 @@ export async function loadGroupPage(
     canChangeRegular: staff,
     leadFirstName: lead?.firstName || null,
     weeks,
-    openWeek: openingWeek(weeks),
+    openWeek,
+    workWeek,
+    work,
     todayKey,
     notice: { emails: audience.refused ? 0 : audience.recipients.length, refused: audience.refused },
     linkSessionKey: linkWeek?.sessionKey ?? null,

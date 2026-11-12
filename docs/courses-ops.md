@@ -546,15 +546,27 @@ start asks again, so:
   week being ready), and the first tick after it is published sends it, if the
   session is still ahead;
 - a week published only after its session has started is never sent about;
-- an email with an **empty fact** (the group's day and time or its room, the
-  week's title, what the week asks for) is held whole rather than sent without
-  it, and one card goes on the boards of the programme's lead and the admins
+- an email with an **empty fact** (the group's day and time, the week's
+  title, what the week asks for) is held whole rather than sent without it,
+  and one card goes on the boards of the programme's lead and the admins
   saying what is missing ("Week 4's email held: Group B"). Filling it in sends
   the email on the next tick and archives the card. The weekly feedback form
-  and a recipient's name are the two values it may go without.
+  and a recipient's name are values it may go without, and so is the room:
+  a session in a room not booked yet goes with its own line, "Room to be
+  confirmed: we'll email you as soon as it's booked, and it'll be on your
+  programme page." (since November 2026; it used to be held for one).
+
+**Each person's own line about an earlier week.** Somebody whose earlier
+week is not done (its session has passed, they had joined the group by then,
+and the week is written as blocks and published) gets one more line in their
+email: "Week 1 isn't done yet either: it's still open on your programme
+page.", or "Weeks 1 and 2 aren't done yet either: ...". Read before the claim
+with the rest (`earlierWeeksNotDone`); a read of it that fails leaves the line
+out of everybody's email rather than hold it. The same holds for the push
+lane, which builds the email in the same place.
 
 **Never a meeting link.** An online week says "online"; a room with a link in
-it is not printed, which holds the email until the room is a room.
+it is not printed, and the email goes without a room.
 
 **It may only be switched on where the scheduler is running**, because
 switching it on also stops the push from sending. Prove it on dev with **Run
@@ -1119,6 +1131,7 @@ the transport itself.
 | "Week N is open", while the schedule is off | the group's facilitator, by pushing the register | after every session, about the next one |
 | "Week N is open", while the schedule is on | the `courses-next-week-email` job | 6 days before each session at 9am, the first included |
 | The reminders before a session | the `courses-week-reminders` job | 3 days and 1 day before each session at 9am, to the people whose week is not done |
+| Remind, by hand | the group's facilitators, the programme's lead, the run's track leads, admins, on the group's page | any week whose work is open, before its session or after it, to the people whose week is not done |
 | Resend the week's email | an admin, on a finished register | recovery |
 
 **Week 1 is open goes only on the schedule.** No register is finished before a
@@ -1961,6 +1974,65 @@ Once every session is over, the ticket's place says there are no more.
 
 Not drawn, though the board draws them: who can't make it tonight (2.4 is
 not built) and a facilitator guide (no record holds one).
+
+### Who has done the week, and Remind
+
+On both of a group's pages (the programme's Groups tab, for admins and the
+lead, and the facilitator's group page) the row of weeks chooses a week, and
+the address carries it (`?week=2`), so the server reads that week's work
+(`loadGroupWeekWork`, `src/lib/courses/groupWeekWork/`). Nothing new is
+stored about the work: every number is worked out when the page is read, by
+the one meaning of done and of late ("The week stays open").
+
+- **The facilitator's page** draws "4 of 6 have done week 1", the week's bar,
+  Remind as a sheet, and what is true of the automatic reminders. Who each
+  person is and where their week stands stays This week's work's, which now
+  reads each cell through the same function the count does
+  (`personWeekStateOf`), so the two cannot disagree.
+- **The programme's page** draws the same count with a bar for the week and
+  one for each of its pieces (readings, steps, the reflection, fill-in boxes,
+  the written answer), chips that filter the people table (Everyone, Week not
+  done, a piece not done, Late), the table itself with when each person was
+  last reminded and a Remind of their own, "Late in week 1", and the
+  facilitators' own weeks.
+- **A facilitator's own week is never the group's business.** The rows are the
+  group's fellows only, whoever is looking. The facilitators' own weeks, and
+  whether they were late, are read for admins and the programme's lead alone,
+  and counted in no number.
+- **Somebody told their group after a week's session** reads "Joined late"
+  for it, whatever they have done, and is never late for it.
+
+**Remind** (`POST /api/courses/groups/[groupId]/remind`) is for the group's
+live facilitators, the programme's lead, the run's track leads and admins,
+and refuses a view-as session. It reaches people holding a told place in the
+group whose week is not done at the press, never somebody who facilitates the
+group, never the presser, never somebody who joined after the week's session,
+and nobody once the programme has closed; everybody not done, or one person.
+The panel previews it first (`preview: true`: the names, each one's last
+reminder, a warning for anybody reminded in the last day, the email word for
+word, the count). The press carries the count it showed and is refused with
+a 409 and the new count when that changed.
+
+It is built on the reminders before a session: the same list of what is left
+(`weekLeft`), the same template and the same notice surface
+(`course-week-reminder`), under the notice lane's caps (3 an hour per presser
+and audience, 10 a day per group). Before the session the email says
+"Rahul asked us to remind you: your session is Wed 11 Nov, 3pm. Still to
+do: ..."; after it, "Group C met for week 1 on Wed 4 Nov, and week 1 is still
+open. Still to do: ... Anything you add now shows as late, with how late, to
+the people who read your work." It is signed "Rahul and the AGI Strategy
+team". Never a meeting link.
+
+Each person reminded has one record per week,
+`courseNudges/handremind__{runId}__{uid}__{weekId}` (kind
+`week-remind-by-hand`: when the latest went, who pressed, how many), which
+browsers cannot read or write, and which "Last reminded" reads beside the
+automatic reminders' markers. A press claims each person's record before their
+email goes, so a retry of the same press (or anybody's press within two
+minutes) emails nobody again; the claim is let go when the email did not go.
+The press writes one row in the group's history, `week-reminded`, with how
+many it was for and how many were emailed, naming nobody. A person's records
+go with their account.
 
 ### The register, `/learn/[runId]/group/[groupId]/register`
 

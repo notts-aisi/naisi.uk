@@ -18,6 +18,7 @@ import PairsCard from "@/features/courses/pairs/PairsCard";
 import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
 import ThisWeeksWork, { ReflectionsQueueCard, workColumnsOf } from "@/features/courses/facilitatorWeek/ThisWeeksWork";
 import FacilitatorMeets from "@/features/courses/groupPage/FacilitatorMeets";
+import FacilitatorWeekWork from "@/features/courses/groupPage/FacilitatorWeekWork";
 import { ticketFacts } from "@/features/courses/sessionChange/cardFacts";
 import SessionNotice from "@/features/courses/sessionChange/SessionNotice";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
@@ -111,6 +112,13 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * NOT DRAWN HERE: who can't make it tonight. The register says it, from the
  * moment somebody tells us, and the ticket's Take the register leads there.
  *
+ * WHO HAS DONE THE WEEK, under how the group meets: "4 of 6 have done week
+ * 1", its bar and Remind as a sheet, for the week the row of weeks chose
+ * (`?week=1`) or the week the page opens on (`FacilitatorWeekWork`, from the
+ * group's page's own reader). The group's fellows only, never a
+ * facilitator's own work. Each person's week is This week's work's, which
+ * reads it through the same function.
+ *
  * JOINING ONLINE, at the top: for each session still to end where somebody
  * has said they are joining online, who, and while the session has no
  * meeting link, the field to add one for that week or for every week
@@ -187,10 +195,15 @@ function sessionLabel(session: GroupSession): string {
 
 export default async function GroupHomePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ runId: string; groupId: string }>;
+  searchParams?: Promise<{ week?: string | string[] }>;
 }) {
   const { runId, groupId } = await params;
+  // The week whose work the card counts, chosen on the row of weeks.
+  const weekParam = (await (searchParams ?? Promise.resolve({} as { week?: string | string[] }))).week;
+  const chosenWeek = typeof weekParam === "string" && /^\d{1,2}$/.test(weekParam) ? Number(weekParam) : null;
 
   const access = await getRunAccess(runId);
   if (!access) {
@@ -382,7 +395,7 @@ export default async function GroupHomePage({
     // facilitator opens at every session.
     group.archived
       ? Promise.resolve(null)
-      : loadGroupPage(db, { run: access.run, group, viewer: "facilitator", viewerUid: access.user.uid, now }).catch(
+      : loadGroupPage(db, { run: access.run, group, viewer: "facilitator", viewerUid: access.user.uid, now, week: chosenWeek }).catch(
           (err: unknown) => {
             console.error("[facilitator group page] how the group meets failed", groupId, err);
             return null;
@@ -654,6 +667,9 @@ export default async function GroupHomePage({
           eyebrow={[programme?.shortName ?? access.run.courseTitle, groupName].filter(Boolean).join(" · ")}
         />
       )}
+
+      {/* Who has done the week the row above chose, and Remind: added under it. */}
+      {meets?.work && <FacilitatorWeekWork groupId={groupId} work={meets.work} />}
 
       {/* Who is joining a session online, and the field for its link. */}
       <JoiningOnlineBox groupId={groupId} sessions={joiningOnline} canAdd={!viewAs} />

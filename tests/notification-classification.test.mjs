@@ -770,6 +770,14 @@ const REGISTRY = {
   "src/lib/scheduler/jobs/weekReminders.ts#sendNotice": N(
     "The reminders 3 days and 1 day before a session (`courses-week-reminders`): one email to each person holding a place in the group whose week is not done, listing what is left of it, whatever their courses row says or which list they left (privacy v15, \"Reminders\": part of running the programme, and they stop once the week is done), with the marker (surface course-week-reminder). One per person per reminder, by a scheduler marker; nobody whose week is done is sent one. Email only: no push leg.",
   ),
+  "src/lib/courses/groupWeekWork/remind.ts#sendNotice": N(
+    "Remind by hand (`POST /api/courses/groups/[groupId]/remind`): somebody running the group (its facilitators, the programme's lead, the run's track leads, admins) reminding each person holding a told place whose week is not done, before its session or after it (privacy v17, \"Reminders\": \"the people running your group may remind you about a week that isn't done\"), whatever their settings, with the marker (surface course-week-reminder, the automatic reminders' own). Never a facilitator of the group, never the presser, never anybody whose week is done or who joined after its session. The lane's caps (3 an hour per presser and audience, 10 a day per group), the count on the button checked first, and a retry of the same press sending nothing more. Never a meeting link. Email only: no push leg.",
+  ),
+  "src/app/api/courses/groups/[groupId]/remind/route.ts#sendHandReminders": N(
+    "Remind by hand, pressed on a group's page or its facilitators' page: the reminders the route has counted, capped and checked, sent as the notice they are.",
+    1,
+    "src/lib/courses/groupWeekWork/remind.ts",
+  ),
   "src/lib/surveys/sending.ts#sendNotice": N(
     "A programme survey and its reminder (docs/surveys.md): an admin writing to everybody holding a place on the programme the survey is about, each with their own link, whatever their courses row says, with the marker and the lane's caps. Email only: no push leg.",
   ),

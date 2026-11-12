@@ -270,7 +270,7 @@ function SendsPanel({ preview, follows, admin }: { preview: PublishPreview; foll
           </p>
           <ul className={styles.sends}>
             {follows.paused ? <li className={styles.sendsWarn}>{PAUSED}</li> : null}
-            <li>{nextWeekWords(follows.nextWeekEmail.on, follows.nextWeekEmail.waitsForRoom)}</li>
+            <li>{nextWeekWords(follows.nextWeekEmail.on, follows.nextWeekEmail.noRoomYet)}</li>
             <li>{registerRemindersWords(follows.registerReminders.on)}</li>
             {follows.placeConfirmations ? <li>{placeConfirmationsWords(follows.placeConfirmations.on)}</li> : null}
           </ul>

@@ -256,6 +256,14 @@ export function weekPeopleTitle(groupName: string, weekNumber: number): string {
   return `${groupName}’s people for week ${weekNumber}`;
 }
 
+/** While a week chosen on the page is read: its work is on its way. */
+export function weekOnItsWayWords(weekNumber: number): string {
+  return `Reading week ${weekNumber}’s work…`;
+}
+
+/** Remind's panel, as the page's dialog names it. */
+export const REMIND = "Remind";
+
 export const PERSON = "Person";
 export const THIS_SESSION = "This session";
 
