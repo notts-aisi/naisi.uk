@@ -2330,10 +2330,54 @@ the weeks (Firestore keeps a subcollection when its parent is deleted), and
 the manifest counts both (`weekHistory`, `weekEditLocks`). Archiving deletes
 nothing. A run being destroyed refuses every save.
 
-**Other editors of a week.** The run's week editor in Courses and a group's
-own copy still write today; they are to become read-only links to the Weeks
-tab. Neither writes the history, so a week they change is found again ("as it
-stood") before the next save here.
+**The pages** (`src/features/applications/weeks/edit/`, on a programme's
+Weeks tab, for its lead and admins). A week written as blocks is drawn on its
+week's page as it reads, block by block, with the member's own renderers and
+nobody's ticks or words, and beside each block people tick or answer the
+count the editor's loader gives ("7 ticked", "3 answers", "2 sent"; numbers
+only). Above it: whether the week is live, for how many groups, how many
+people have started it, "Paste the week" (the paste further down the page)
+and "History". A source, a text, a reflection or a written answer carries a
+Change button (the card opens it on a click too); any other block carries
+nothing pressable. Change takes the week's lock, then opens the block's
+fields in the side panel (a sheet on a phone): a save sends only the fields
+whose boxes changed, with the block's fingerprint as the panel opened it
+(`changesOf`, `src/lib/courses/weekEdit/pageModel.ts`), and a changed link
+always as the same reading, saying so with the count of ticks it keeps. The
+route's refusals are shown as they come: a block changed since it opened
+reads the week again and offers the block as it is now, keeping what was
+typed until then; a holder named turns every editing control off. A due rule
+is shown and cannot change once anybody has sent the answer. "Save for"
+names every group, and the groups reading their own copy, which a save does
+not reach. A save to a live week opens "Saved. Tell people about it?",
+Nobody chosen, with each choice's live count, the email as it would go,
+"Send me a test first" and "Don't tell anyone"; the same dialog is on the
+newest row of the history while that save has told nobody. The lock is kept
+alive while a panel or a paste is open and given back on a save, on cancel,
+on emptying the paste and on leaving the page; while somebody else holds it
+the page names them and since when, reads the lock again on a timer and on
+focus, and every Change and the paste are off. The history is a page of its
+own under the week (`weeks/[weekId]/history`), because a comparison sets two
+versions side by side: tick one save to compare it with now, or two to
+compare them, and restore one against now as a new save, asked first with the
+count when it takes out answered items. The paste's check also says what the
+pasted week holds by kind, what each changed block keeps and what each
+removed one takes out, and its press says for how many groups ("Replace week
+3 for every group (11)").
+
+**Other editors of a week.** The run's week editor in Courses links to the
+programme's Weeks page for the week's blocks and for Mark ready when a
+programme names the run, and keeps both when none does; everything else it
+changes stays there (the title, summary, estimated minutes, Published,
+pitching week, the questions, and a week written before blocks), because the
+Weeks page cannot change any of it on its own. A group's own editor no
+longer makes or edits a group's copy of a week, until a later phase: it says
+the programme's weeks are edited by the programme's lead, keeps how each week
+meets, and shows a copy a group already has, read only; the group keeps
+reading it. The Weeks page's own "Week 3 for one group" paste stays, for the
+lead and admins. Neither the run's editor nor a group's routes write the history,
+so a week they change is found again ("as it stood") before the next save
+here.
 
 ## The week you submit
 
