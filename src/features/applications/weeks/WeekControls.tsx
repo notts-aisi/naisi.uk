@@ -63,6 +63,7 @@ export function WeekPaste(props: {
         countsOf: (blockId) => edit.view.items.find((item) => item.blockId === blockId)?.counts ?? null,
         reach: edit.view.reach,
         reload: () => void edit.reload(),
+        refusedBy: edit.lock.refusedBy,
       }
     : undefined;
   return <WeekBlocksLoader {...props} weekEdit={weekEdit} onSaved={() => router.refresh()} />;

@@ -66,8 +66,10 @@ export type PasteWeekEdit = {
   /** Each block's counts as the page read them, for what a changed block keeps. */
   countsOf: (blockId: string) => Counts | null;
   reach: Pick<Reach, "groups" | "reading">;
-  /** Read the week again after a save. */
+  /** Read the week again after a save, or after a save refused because the week changed. */
   reload: () => void;
+  /** A save refused because somebody else holds the week: name them on the page. */
+  refusedBy: (holder: { name: string; since: string }, line: string) => void;
 };
 
 const STATE: Record<FoundRow["state"], { word: string; tone: ChipTone }> = {
@@ -194,6 +196,15 @@ export default function WeekBlocksLoader({
       }
       onSaved();
       return;
+    }
+    // Somebody else is editing the week: the page names them and turns the paste off.
+    const holder = (answer.body as { holder?: { name?: unknown; since?: unknown } }).holder;
+    if (weekEdit && answer.status === 409 && holder && typeof holder.name === "string") {
+      setHolding(false);
+      weekEdit.refusedBy({ name: holder.name, since: typeof holder.since === "string" ? holder.since : "" }, answer.body.error ?? "");
+    } else if (weekEdit && answer.status === 409 && !answer.body.found) {
+      // The week changed since it was read: what the page shows of it is read again too.
+      weekEdit.reload();
     }
     // A refused save answers with the read as it stands now: show that instead.
     if (answer.body.found) {
