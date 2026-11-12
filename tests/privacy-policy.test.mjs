@@ -4284,8 +4284,20 @@ describe("the course hub passage", () => {
     assert.deepEqual(VIEWERS.map(week.readsFacilitatorsPrivateNotes), [false, false, true], "who reads a facilitator's own private note moved");
     const people = [{ uid: "fellow", name: "A Fellow" }, { uid: "facilitator", name: "A Facilitator" }];
     const facilitators = [{ uid: "facilitator", name: "A Facilitator", firstName: "A" }];
-    assert.deepEqual(week.peopleShown("facilitator", people, facilitators).map((person) => person.uid), ["fellow"]);
-    assert.deepEqual(week.peopleShown("lead", people, facilitators).map((person) => [person.uid, person.own]), [["fellow", false], ["facilitator", true]]);
+    const onRun = new Set(["facilitator"]);
+    assert.deepEqual(week.peopleShown("facilitator", people, facilitators, onRun).map((person) => person.uid), ["fellow"]);
+    assert.deepEqual(week.peopleShown("lead", people, facilitators, onRun).map((person) => [person.uid, person.own]), [["fellow", false], ["facilitator", true]]);
+    // "If you facilitate a group, your own work is read by the lead and admins
+    // only": somebody holding a place here who facilitates another group of
+    // the run is no fellow here either, and the lead and admins read their
+    // work apart, as a facilitator's own.
+    const placed = [...people, { uid: "elsewhere", name: "An Elsewhere" }];
+    const elsewhere = new Set(["facilitator", "elsewhere"]);
+    assert.deepEqual(week.peopleShown("facilitator", placed, facilitators, elsewhere).map((person) => person.uid), ["fellow"]);
+    assert.deepEqual(
+      week.peopleShown("admin", placed, facilitators, elsewhere).map((person) => [person.uid, person.own]),
+      [["fellow", false], ["facilitator", true], ["elsewhere", true]],
+    );
     // "Without saying whose it is": the page where a facilitator chooses a
     // line shows them the words with no name beside them (v14's words), a
     // card being its words and a key naming nothing but its place, in the
