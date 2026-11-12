@@ -34,6 +34,7 @@ const identities = await lib("scheduler", "registerJobs.ts");
 const { nextWeekEmailJob } = await lib("scheduler", "jobs", "nextWeekEmail.ts");
 const { registerRemindersJob } = await lib("scheduler", "jobs", "registerReminders.ts");
 const { unmarkedRegistersJob } = await lib("scheduler", "jobs", "unmarkedRegisters.ts");
+const { weekRemindersJob } = await lib("scheduler", "jobs", "weekReminders.ts");
 const { JOBS, SCHEDULER_JOB_IDS, jobDefaultEnabled } = await lib("scheduler", "registry.ts");
 const { nextWeekEmailSendAt, nextWeekEmailTiming } = await lib("courses", "registerChase.ts");
 const { londonClockLabel, londonDayAndClock, sessionLine } = await lib("courses", "londonLabels.ts");
@@ -58,6 +59,9 @@ describe("the three jobs a register's ending depends on", () => {
       [identities.NEXT_WEEK_EMAIL_JOB, nextWeekEmailJob],
       [identities.REGISTER_REMINDERS_JOB, registerRemindersJob],
       [identities.UNMARKED_REGISTERS_JOB, unmarkedRegistersJob],
+      // Not a register's, restated for changing a session (its preview says
+      // whether the reminders go): held to its registration the same way.
+      [identities.WEEK_REMINDERS_JOB, weekRemindersJob],
     ]) {
       assert.equal(identity.id, job.id);
       assert.equal(identity.enabledByDefault, jobDefaultEnabled(job), `${job.id}'s default`);

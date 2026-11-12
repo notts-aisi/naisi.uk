@@ -736,6 +736,19 @@ const REGISTRY = {
   "src/app/api/courses/runs/[runId]/email/route.ts#sendNoticePush": N(
     "The notification beside that notice. The ordinary announcement lane has no push leg at all, deliberately: a scheduled cohort mail that also buzzed every phone is how people turn notifications off for good.",
   ),
+  "src/lib/courses/groupChange/notice.ts#sendNotice": N(
+    "A change to a group's regular time or room, told by the person who made it (an admin, the programme's lead, or a run's track lead for the time): one message to each of the group's told people and its facilitators with standing, never the presser, whatever their settings, with the marker (surface course-group), the count on the button checked and a group's ten-a-day counter claimed before anything changes. Never a meeting link. Email only: no push leg.",
+  ),
+  "src/app/api/courses/groups/[groupId]/session/regular/route.ts#sendGroupChangeNotice": N(
+    "A new regular time from a week onwards, told to the group with \"Can you make this time?\" for the people holding a place: the people running the programme telling the people on it something they need in order to take part.",
+    1,
+    "src/lib/courses/groupChange/notice.ts",
+  ),
+  "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room/route.ts#sendGroupChangeNotice": N(
+    "A room set or changed, told to the group only when the press asks: where they meet, from the programme's lead or an admin.",
+    1,
+    "src/lib/courses/groupChange/notice.ts",
+  ),
   "src/lib/courses/nextWeekEmail.ts#sendNotice": N(
     "\"Week N is open\" to one group, the one send both of its lanes go through: the register's push while it is not on its schedule (and an admin's resend), and the `courses-next-week-email` job 6 days before each session while it is. It was next week's email, a grid send that honoured the courses row and the cohort list's unsubscribe; it is now the people running the programme telling everybody holding a place in the group (`resolveNoticeAudience`) what this week is, whatever they unsubscribed from, with the marker (surface course-week). Once per group per session, by the group's claim. Email only: no push leg. An explainer an admin scheduled at the start of the session is a line in it, read when it is built, so it rides this notice and never sends one of its own: a group whose email has gone is told on its tickets alone.",
   ),

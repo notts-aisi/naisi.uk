@@ -16,7 +16,13 @@ import {
   placementIsTold,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
-import { GROUP_FIELD_LIMITS, normalizeCourseGroup, sessionModeForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import {
+  GROUP_FIELD_LIMITS,
+  campusForWeek,
+  normalizeCourseGroup,
+  sessionModeForWeek,
+  type CourseGroupDoc,
+} from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, validateSubmissionUrl, type CourseRunDoc } from "@/lib/firestore/courses";
 import {
   EMPTY_ONLINE_LINE,
@@ -83,7 +89,8 @@ function sessionHeldOnline(group: CourseGroupDoc, session: ResolvedSession): boo
   // The week's mode is kept for the week's first session only (the override
   // maps have no occurrence dimension; `src/lib/courses/sessions.ts`).
   const mode = session.occurrence === 1 ? sessionModeForWeek(group, session.weekId) : null;
-  return heldOnline({ mode, campus: group.campus, room: session.session.location });
+  const campus = session.occurrence === 1 ? campusForWeek(group, session.weekId) : group.campus;
+  return heldOnline({ mode, campus, room: session.session.location });
 }
 
 /** Where one person stands on one session of their group, from its register. */

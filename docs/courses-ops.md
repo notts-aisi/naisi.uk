@@ -2518,16 +2518,58 @@ The code is `src/lib/courses/sessionChange/` and one route,
   lists the group's sessions from today.
 - **A run's track leads** may change a session through the same route; the
   Sessions view is the lead's and admins', as the tab's other views are.
-- Nobody else. A session that has started cannot be changed: it is the
-  register's.
+- Nobody else.
+
+### A session whose time has passed
+
+A session whose start has passed may still be put right while its register
+has not been taken. Taken means the register exists and is finished
+(`pushedAt`), somebody marked it (`markedByUid`), or it says the session did
+not happen (`held: false`): `registerIsTaken` in
+`src/lib/firestore/courseAttendance.ts`. A register that exists only because
+somebody said in advance they can't make it, or are joining online, is not
+taken. For such a session:
+
+- **It met at another time**: a move to when it really met, which may itself be
+  in the past (`metAtAnotherTime` on the press). Telling the group is off by
+  default: it has already happened.
+- **It hasn't met yet: move it**: a move to a time still to come.
+- **Cancel it**, either way.
+
+Holding it online and putting it back as usual are for a session still to
+come. A session whose register was taken met, and its time cannot change: the
+register is corrected instead. A move always stays inside the week's own
+seven days.
+
+### Nothing moves a session that met
+
+Whatever the change, it must not move the start of any session whose register
+was taken (`takenStartMoves` in `src/lib/courses/sessionChange/metSessions.ts`):
+"Cancel it, and push the rest back a week" moves every later week, so it is
+refused (409, "This would move week 4's session, which has met: its register
+has been taken.") once a later week met, in the press and in its preview, and
+the group's page greys it out with "A later week has already met, so the rest
+can't be pushed back." Cancel and keep pace moves nothing and stays open. The
+group's own pace (`/api/courses/groups/[groupId]/pace`) asks the same rule: a
+plan or a start date that would move a session that met is refused in the same
+sentence; one that moves only weeks nobody took a register for goes through.
+
+A second press of a cancel, or of holding a week online, that already went
+through (its answer lost on the way) is refused (409, "That session is already
+cancelled." / "That session is already being held online."), so nothing
+changes and the group is not told twice.
 
 ### What each one does
 
 - **Hold it online**: same day and time, the week switched online. Only for a
   group with a join link; the link is on the group's programme page, never in
   an email.
-- **Move it**: that week's day (within its week), time and room. A moved
-  session meets in its room, so an online switch for that week goes.
+- **Move it**: that week's day (within its week), time and room, and when the
+  press says them its length and its campus (`sessionOverrides.wNN.durationMinutes`
+  and `.campus`; `campusForWeek` reads the week's campus, else the group's).
+  "Room to be confirmed" is an empty room, accepted only when the press says
+  so. A moved session meets in its room, so an online switch for that week
+  goes.
 - **Cancel it, and keep pace**: nobody meets that evening, the week's reading
   stays open, the next session covers both weeks, and the group finishes when
   it would have (or a week sooner, when the cancelled session was its last).
@@ -2535,8 +2577,18 @@ The code is `src/lib/courses/sessionChange/` and one route,
   goes into the group's own plan where the week was, so it and every week
   after it move back one week, and the group finishes a week later. From then
   on the group keeps its own plan, as after Add break in the pace editor.
-- **Hold it as usual** (for a session changed one of the first three ways):
-  back to the group's weekly slot and room.
+- **Hold it as usual** (only for a week with a change record that is online,
+  moved or cancelled): back to what the week was before the change. The
+  week's own meeting link and notes stay. The week's day, start, length, room
+  and campus go back to what the change record says the override held before
+  the week's first change still on record (`was`, empty when it held none,
+  carried over when the same week is changed again), so an unpinned week
+  returns to the weekly slot, a pinned one to its pin, and a week moved and
+  then held online to where it was before the move. A record written before
+  `was` existed puts back as before: a move's fields are removed, and a week
+  held online or cancelled keeps them. A week whose override has no change
+  record is a week pinned to when it met (see "A new regular time") or a link
+  for that week alone: there is nothing to put back.
 
 A cancellation is of one evening: if the run is re-dated, or the group
 re-paced, so that the week's session falls on another date, the week is held
@@ -2545,11 +2597,23 @@ on its new date.
 ### Telling the group
 
 With "Tell the group" on (as it opens), the button says how many people it
-emails, and the press posts an update to the group through the updates route,
-emailed to them as any update to a group is (see Updates on a run): the reason
-the group was given and what is now true. If the change went through and the
-update did not, the dialog says so and offers to tell the group again. The
-reason and a moved room are refused if they hold a link.
+emails, and the press posts an update to the group through the updates route
+with `withFacilitators`, emailed as any update to a group is (see Updates on a
+run) and to the group's facilitators with standing too, never to the person
+pressing. The words are the change's own: "Week 2 moves to Thu 12 Nov, 3pm",
+"Week 4 is online: Wed 25 Nov, 3pm", "No session for week 2", "Week 2 moves
+to next week, and the rest follow", "Week 2 is back to its usual time"
+(`oneWeekNoticeWords`), with the reason as "Why: ..." and, for a move, "Can't
+make the new time? Tell us on your programme page." If the change went
+through and the update did not, the dialog says so and offers to tell the
+group again. The reason and a moved room are refused if they hold a link.
+
+The press may first be asked with `preview: true`, which changes nothing and
+answers with what it would do: the session before and after, when the week's
+work locks before and after, whether "Week N is open" and the reminders
+before a session are switched on and whether this session's have already
+gone, who said they are joining online or can't make it, who would be told,
+and the notice.
 
 The group's programme page shows a cancelled evening as "No session tonight"
 (before the day, "No session on Tue 24 Nov"), with the reason and when the
@@ -2571,11 +2635,136 @@ group meets next, until that evening has passed.
   each person's row and their own marks, and Home's attendance reads the week
   as no session.
 
+- **The register's stored start**: a register nobody has taken (words in
+  advance only) has its `sessionAt` moved with its session, in the same
+  transaction.
+- **The group's history**: every press writes one `courseAudit` row
+  (`session-moved`, `session-online`, `session-cancelled`, `session-pushed`,
+  `session-restored`, `session-put-right`), with the week, what it was, what
+  it became, the reason and how many the button said it would email.
+
 ### Rules
 
 `courseGroups.sessionChanges` is server-owned like `sessionModes`: only the
 change route writes it, and no client lane may set it, change it or create a
 group carrying it.
+
+## A new regular time, from a week onwards
+
+`POST /api/courses/groups/[groupId]/session/regular`: a group's regular day,
+start, length and room (or "Room to be confirmed"), and its campus when
+given, from one taught week on. Admins, the lead of the programme that names
+the run and the run's track leads; a plain facilitator changes one week. The
+code is `src/lib/courses/regularTime/`.
+
+### Why it pins earlier weeks
+
+A week has no stored date. Every session is dated from the group's standing
+slot plus that week's override (`resolveSessions`), so changing the slot
+alone re-dates every week, the ones that met included. That happened on
+production when a group's regular day was changed by hand. So before the slot
+changes, every earlier taught week is pinned: for each of day, start, length,
+room and campus, when the week's override does not already carry it and the
+old value differs from the new one, the old value is written into the week's
+override. An existing override value always wins. For a week whose register
+was taken and holds `sessionAt`, the day and start kept are that instant's in
+London (when it falls inside the week's own seven days), not the slot's: a
+week already re-dated by hand is pinned to when it met, and its kept date in
+the preview is the register's. An earlier week that carries its own one-week
+change (held online, moved, cancelled) also has the same old values written
+into that change's `was`, for each field it holds none of, so putting the
+change back later returns the week to its pin and not to the new slot. A
+pinned week gets no change
+record: it is not a change, and there is nothing to put back. It is done with
+overrides rather than a new "regular from week N" field on purpose: the code
+from before this already reads overrides, so the dates stay right even if the
+change is reverted.
+
+### What else it does, in the same transaction
+
+- Refuses a week the group does not teach, a starting week whose register was
+  taken ("take that register first and start from the next week"), a later
+  week whose register was taken, a starting session that would land on a time
+  that has passed, nothing changed, and more than the 20 weeks a group can set
+  apart.
+- Later weeks keep their own one-week change. A cancelled evening's record
+  moves to its week's new date, so it stays cancelled.
+- When the day or the start changed, stamps `timeQuestionSince` on the group.
+  Every answer to "Can you make this time?" given before it stops being the
+  person's answer (`currentTimeAnswer`): they are asked again, on the people
+  in groups board, Circles, Arrange, the allocation board and their own card.
+  The stored answer is kept. A group without the stamp counts every answer, as
+  before.
+- For each active fellow whose answer is "Most weeks, not all", each ticked
+  session whose start this change moves, that has not started on the new dates
+  and whose register line is still their own word, is taken back, through the
+  writer "I can make it after all" uses. A week that keeps its time (pinned, or
+  keeping its own change) keeps the word. A one-off "can't make it" or
+  "joining online" stays.
+- Moves `sessionAt` on every register nobody has taken, and writes one
+  `group-time-changed` row of the group's history.
+
+With "Tell the group" on, one notice ("Group A now meets on Tuesdays, 5:30pm")
+goes to the group's told people and its facilitators with standing, never the
+presser, once the change is written, with the count on the button checked and
+the group's notice for the day claimed before anything changes. It says from
+when, the room or "Room to be confirmed: we'll email you as soon as it's
+booked, and it'll show on your programme page.", the reason, "Can you make
+this time?" with its three answers (the site-written section of the "Your
+group" email) when the day or start changed, for the people holding a place
+and never a facilitator, and that earlier weeks stay as they were. It never
+carries a meeting link. `preview: true` answers with the weeks that move and
+to when, the weeks kept and their dates, the weeks keeping their own change,
+the lock moments, the member email jobs for the first two weeks that move,
+whether the time question is asked again, who would be told, and the notice.
+
+## A room, a link, facilitators: telling and history
+
+- **The regular room** (`PUT .../programmes/[programmeId]/groups/[groupId]/room`)
+  takes an optional `tell` with the count on the button, and then sends "Room
+  for Group A: Monica Partridge C10" to the group's told people and its
+  facilitators once the room is saved and only when it changed. Without it,
+  nobody is emailed, as before. A change writes a `group-room-changed` row
+  either way.
+- **The meeting link** (`POST .../groups/[groupId]/meeting-link`) and a week's
+  mode (`PATCH .../groups/[groupId]/session`) also admit the programme's lead
+  and the run's track leads. A link saved writes a `group-link-set` row saying
+  which weeks and whether there was a link before. The row never holds the
+  link.
+- **Facilitators by hand** (`POST .../groups/[groupId]/facilitators`): each
+  person added or taken off writes a `facilitator-appointed` or
+  `facilitator-removed` row.
+
+Group notices from the regular-time and room routes take ten a day per group
+on a counter of their own (`groupchangeday__{groupId}`), no hourly window.
+
+## A group's history
+
+`loadGroupHistory` (`src/lib/courses/groupHistory/load.ts`) reads the run's
+`courseAudit` rows newest first with the index that exists (`runId`, `at`
+descending), keeps the group's, and gives each its label and a category for
+the page's filters: time and room, people, link, registers, or other. Rows
+carry their one sentence (`detail`) and, from the day this shipped, the optional
+`weekId`, `before`, `after`, `reason` and `emailed`; an older row, and a kind
+this build does not know, read as they were written. History of times, rooms
+and links starts the day this shipped; the register finishes logged before it
+show too. It is server-only and for staff pages.
+
+## Pinning weeks that met: `scripts/pin-met-sessions.mjs`
+
+Finds every week whose register was taken and holds a `sessionAt` that is not
+the start the week resolves to today, and pins it back: the week's override
+gets the weekday and the start of `sessionAt` in London time, keeping what
+else it carries. A week whose override already has its own day or start (a
+one-week change made through the site), or whose `sessionAt` falls outside its
+own seven days, is reported and never written. It needs
+`--project naisi-uk-dev` or `--project naisi-uk` and refuses anything else,
+changes nothing without `--write` (it prints each week, the two times, the
+override and a count), uses application default credentials, re-reads inside
+a transaction for each write, and plans nothing on a second run. The plan is
+`scripts/lib/pinMetSessions.mjs`, held to the site's own resolver by
+`tests/pin-met-sessions.test.mjs`, across a clock change. Run it on dev, show
+a production dry run, and write to production only on the owner's yes.
 
 ## Add to calendar
 

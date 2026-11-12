@@ -6,6 +6,9 @@ import type { SessionUser } from "@/lib/firebase/session";
 import { GROUP_FIELD_LIMITS, normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, validateSubmissionUrl } from "@/lib/firestore/courses";
 import { MEETING_LINK_REFUSAL } from "@/lib/courses/joiningOnline/words";
+import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
+import { historyDetail, linkBeforeWords, linkHeadline } from "@/lib/courses/groupChange/words";
+import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 
 /**
  * A SESSION'S MEETING LINK, AS ITS FACILITATORS GIVE IT from the box at the
@@ -22,9 +25,14 @@ import { MEETING_LINK_REFUSAL } from "@/lib/courses/joiningOnline/words";
  * (`seesSessionLink`), and nobody is emailed: no email and no calendar feed
  * ever carries a meeting link.
  *
- * WHO: a live facilitator of the group, or an admin, asked again inside the
- * transaction that writes, so a group archived or a facilitator taken off it
- * in between is refused. The link is checked as a web address
+ * WHO: a live facilitator of the group, the lead of the programme that names
+ * its run or one of the run's track leads (decided by the route, which reads
+ * the forms, and passed in as the run they staff), or an admin, asked again
+ * inside the transaction that writes, so a group archived or a facilitator
+ * taken off it in between is refused.
+ *
+ * HISTORY: every link saved writes one row of the group's history saying
+ * which weeks it is for and whether a link was there before. NEVER THE LINK. The link is checked as a web address
  * (`validateSubmissionUrl`, with the group's own cap) before anything is
  * read. Only a session the group holds, still to end, not cancelled, and
  * the week's first session (no week can set a second one apart).
@@ -70,6 +78,8 @@ export async function saveSessionLink(
   groupId: string,
   request: MeetingLinkRequest,
   now: Date,
+  /** The run the presser staffs (its lead or a track lead), as the route decided; null for none. */
+  staffsRunId: string | null = null,
 ): Promise<MeetingLinkOutcome> {
   const groupRef = db.collection("courseGroups").doc(groupId);
   return db.runTransaction(async (tx) => {
@@ -79,7 +89,8 @@ export async function saveSessionLink(
     const facilitates = Boolean(
       group && !group.archived && isNamedWithStanding(actor, "courseGroups.facilitatorUids", group.facilitatorUids),
     );
-    if (!isAdmin && !facilitates) return { ok: false, status: 403, error: "Forbidden" };
+    const staffs = Boolean(group && !group.archived && staffsRunId && group.runId === staffsRunId);
+    if (!isAdmin && !facilitates && !staffs) return { ok: false, status: 403, error: "Forbidden" };
     if (!group) return { ok: false, status: 404, error: "Group not found" };
     if (!group.runId || group.runId.includes("/")) return { ok: false, status: 404, error: "Group not found" };
     const runSnap = await tx.get(db.collection("courseRuns").doc(group.runId));
@@ -100,6 +111,8 @@ export async function saveSessionLink(
     // which is kept in a map of its own and is no week set apart.
     const stored = groupSnap.data()?.sessionOverrides;
     const storedWeeks: Record<string, unknown> = stored && typeof stored === "object" ? (stored as Record<string, unknown>) : {};
+    // Whether the week had a link before, its own or the group's: the history says so, never what it was.
+    const hadLink = Boolean(session.session.meetingUrl);
     if (request.everyWeek) {
       // The week's own link, when it has one, would hide the standing link
       // that week; a week without one is not given an empty entry.
@@ -119,6 +132,22 @@ export async function saveSessionLink(
       }
       tx.update(groupRef, { [weekLink]: request.url, updatedAt: FieldValue.serverTimestamp() });
     }
+    tx.set(
+      db.collection(COURSE_AUDIT_COLLECTION).doc(),
+      groupHistoryRow({
+        kind: "group-link-set",
+        run,
+        group,
+        actor,
+        weekId: session.weekId,
+        detail: historyDetail({
+          headline: linkHeadline(session.weekNumber, request.everyWeek),
+          before: linkBeforeWords(hadLink),
+        }),
+        before: { link: hadLink },
+        after: { link: true, everyWeek: request.everyWeek },
+      }),
+    );
     return { ok: true, sessionKey: session.sessionKey, everyWeek: request.everyWeek };
   });
 }

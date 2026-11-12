@@ -107,6 +107,12 @@ async function facilitatorsOf(
 /**
  * WHO THIS UPDATE'S EMAIL REACHES, for the writer who will press: never the
  * writer. The press calls it, and so does every count the composer shows.
+ *
+ * `withFacilitators`, for an update to one group only: the group's
+ * facilitators who still meet their bar are emailed it too, each once (by
+ * account and by address), never the writer. It is how a change to a group's
+ * sessions, its regular time or its room reaches the people who run it as
+ * well as the people in it (`src/lib/courses/groupChange/`).
  */
 export async function updateEmailAudience(
   db: Firestore,
@@ -115,6 +121,7 @@ export async function updateEmailAudience(
   to: CourseUpdateTo,
   groupId: string | null,
   writerUid: string | null,
+  options: { withFacilitators?: boolean } = {},
 ): Promise<UpdateEmailAudience> {
   if (to === "facilitators") {
     const { recipients } = await facilitatorsOf(db, groups, writerUid);
@@ -124,12 +131,36 @@ export async function updateEmailAudience(
     groupId: to === "group" ? groupId : null,
   });
   if (audience.refusal) return { recipients: [], refused: true };
-  return {
-    recipients: audience.members
-      .filter((member) => member.uid !== writerUid)
-      .map((member) => ({ uid: member.uid, address: member.address })),
-    refused: false,
-  };
+  const recipients: UpdateRecipient[] = audience.members
+    .filter((member) => member.uid !== writerUid)
+    .map((member) => ({ uid: member.uid, address: member.address }));
+  if (to === "group" && options.withFacilitators) {
+    const group = groups.filter((each) => each.id === groupId);
+    const { recipients: facilitators } = await facilitatorsOf(db, group, writerUid);
+    const uids = new Set(recipients.map((recipient) => recipient.uid));
+    const addresses = new Set(recipients.map((recipient) => recipient.address.toLowerCase()));
+    for (const facilitator of facilitators) {
+      if (uids.has(facilitator.uid) || addresses.has(facilitator.address.toLowerCase())) continue;
+      uids.add(facilitator.uid);
+      addresses.add(facilitator.address.toLowerCase());
+      recipients.push(facilitator);
+    }
+  }
+  return { recipients, refused: false };
+}
+
+/**
+ * The group's facilitators who still meet their bar, by uid, never the
+ * writer: who a change to the group tells beside the people in it, for the
+ * preview's "Group C’s 6 and Rahul".
+ */
+export async function standingFacilitatorUidsOf(
+  db: Firestore,
+  group: CourseGroupDoc,
+  writerUid: string | null,
+): Promise<string[]> {
+  const { uids } = await facilitatorsOf(db, [group], writerUid);
+  return uids.filter((uid) => uid !== writerUid);
 }
 
 /** One choice in the composer's To, with its two numbers. */
@@ -164,6 +195,8 @@ export async function updateAudienceCounts(
   groups: readonly CourseGroupDoc[],
   only: { groupIds: readonly string[] } | null,
   writerUid: string | null,
+  /** Count each group's email with its facilitators in it, as a change to the group's sessions sends it. */
+  options: { withFacilitators?: boolean } = {},
 ): Promise<UpdateAudienceCount[]> {
   const live = groups.filter((group) => !group.archived && group.runId === run.id);
 
@@ -192,7 +225,9 @@ export async function updateAudienceCounts(
 
   const counts: UpdateAudienceCount[] = [];
   const add = async (to: "everyone" | "group", group: CourseGroupDoc | null, people: number, notYetTold: number) => {
-    const email = await updateEmailAudience(db, run, groups, to, group?.id ?? null, writerUid);
+    const email = await updateEmailAudience(db, run, groups, to, group?.id ?? null, writerUid, {
+      withFacilitators: to === "group" && options.withFacilitators === true,
+    });
     counts.push({
       to,
       groupId: group?.id ?? null,

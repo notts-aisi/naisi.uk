@@ -338,6 +338,68 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/app/api/courses/groups/[groupId]/session/regular/route.ts#audience.recipients",
+    {
+      reads: 5,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by groupNoticeAudience (src/lib/courses/groupChange/notice.ts), which is updateEmailAudience " +
+        "(src/lib/courses/updates/audience.ts) for the one group with `withFacilitators`: the group's own active, " +
+        "told enrolment rows through the shared cohort-audience helper, and the group's facilitatorUids (written " +
+        "by src/lib/courses/groupFacilitators.ts) each held to their bar, never the presser. Nothing in the " +
+        "request names a recipient.",
+      why:
+        "A new regular time's notice: who it reaches, counted by the same function the preview's number comes from; the request " +
+        "carries only that number.",
+    },
+  ],
+  [
+    "src/app/api/courses/groups/[groupId]/session/regular/route.ts#local:recipients",
+    {
+      reads: 1,
+      origin: "derived",
+      derivedFrom: ["src/app/api/courses/groups/[groupId]/session/regular/route.ts#audience.recipients"],
+      why: "The same audience, kept for the notice once every refusal has passed and the change is written.",
+    },
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room/route.ts#audience.recipients",
+    {
+      reads: 5,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by groupNoticeAudience (src/lib/courses/groupChange/notice.ts), which is updateEmailAudience " +
+        "(src/lib/courses/updates/audience.ts) for the one group with `withFacilitators`: the group's own active, " +
+        "told enrolment rows through the shared cohort-audience helper, and the group's facilitatorUids (written " +
+        "by src/lib/courses/groupFacilitators.ts) each held to their bar, never the presser. Nothing in the " +
+        "request names a recipient.",
+      why:
+        "A room's notice: who it reaches, counted by the same function the preview's number comes from; the request " +
+        "carries only that number.",
+    },
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room/route.ts#local:recipients",
+    {
+      reads: 1,
+      origin: "derived",
+      derivedFrom: ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room/route.ts#audience.recipients"],
+      why: "The same audience, kept for the notice once every refusal has passed and the change is written.",
+    },
+  ],
+  [
+    "src/lib/courses/groupChange/notice.ts#group.facilitatorUids",
+    {
+      reads: 1,
+      origin: "roster",
+      writtenBy: "src/lib/courses/groupFacilitators.ts",
+      why:
+        "Which of a change's recipients are the group's facilitators, so they are not asked \"Can you make " +
+        "this time?\". It adds nobody: the recipients are the audience `updateEmailAudience` works out on the " +
+        "server, the group's told people and its facilitators with standing, never the presser.",
+    },
+  ],
+  [
     "src/lib/courses/facilitatorAsks/act.ts#group.facilitatorUids",
     {
       reads: 1,

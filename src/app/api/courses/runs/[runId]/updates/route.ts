@@ -238,7 +238,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ runId: string 
   let recipients: UpdateRecipient[] = [];
   if (post.email) {
     // Counted for this writer, as the composer counted it: never to themselves.
-    const audience = await updateEmailAudience(db, run, groups, post.to, group?.id ?? null, actor.uid);
+    const audience = await updateEmailAudience(db, run, groups, post.to, group?.id ?? null, actor.uid, {
+      withFacilitators: post.withFacilitators,
+    });
     if (audience.refused) return NextResponse.json({ error: REFUSAL.overCap }, { status: 400 });
     if (audience.recipients.length === 0) {
       return NextResponse.json({ error: REFUSAL.nobodyToEmail }, { status: 400 });

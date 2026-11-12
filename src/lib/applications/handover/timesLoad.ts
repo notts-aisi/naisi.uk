@@ -122,14 +122,21 @@ export type LiveGroup = TimesGroup & {
   location: string;
 };
 
-/** The run's groups that are not archived, reduced to what the picture and its controls read. */
-export async function groupsOf(db: Firestore, runId: string): Promise<LiveGroup[]> {
+/**
+ * The run's groups that are not archived, reduced to what the picture and its
+ * controls read. `sinceById`, when given, is filled with each live group's
+ * `timeQuestionSince` (the moment answers to "Can you make this time?" count
+ * from, for a group whose regular time changed), kept off `LiveGroup` so it
+ * never rides into a picture a browser is handed.
+ */
+export async function groupsOf(db: Firestore, runId: string, sinceById?: Map<string, Date>): Promise<LiveGroup[]> {
   // One equality on one field, so no declared index.
   const snap = await db.collection(GROUPS_COLLECTION).where("runId", "==", runId).get();
   const groups: LiveGroup[] = [];
   for (const doc of snap.docs) {
     const group = normalizeCourseGroup(doc.id, doc.data() ?? {});
     if (group.archived) continue;
+    if (sinceById && group.timeQuestionSince) sinceById.set(group.id, group.timeQuestionSince);
     groups.push({
       id: group.id,
       name: group.name.trim() || "Untitled group",

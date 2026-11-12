@@ -455,6 +455,24 @@
   overflow-wrap: anywhere;
 }
 
+/* A group's name, as the way to the group's own page. */
+.groupLink {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--color-border-strong);
+  text-underline-offset: 3px;
+}
+
+.groupLink:hover {
+  text-decoration-color: currentColor;
+}
+
+.groupLink:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 @media (max-width: 48rem) { /* --bp-md */
   .side {
     flex: 1 1 100%;

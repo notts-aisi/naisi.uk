@@ -14,7 +14,7 @@ import {
 import type { GroupCampus } from "@/lib/courses/campus";
 import { shortSlotWords } from "@/lib/courses/facilitatorAsks/words";
 import { sessionLabelOf } from "@/lib/courses/outsideTheirTimes";
-import { currentTimeAnswer, type TimeAnswerView } from "@/lib/courses/timeAnswer/model";
+import { currentTimeAnswer, timeQuestionSinceOf, type TimeAnswerView } from "@/lib/courses/timeAnswer/model";
 import { groupTagOf } from "@/lib/courses/programmeAttendance";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { doesTrackLeadWork, readsTimeAnswers, runStaffingOf } from "@/lib/courses/runStaffing";
@@ -547,7 +547,10 @@ export async function GET(
       ...(told ? { told } : {}),
       // And moved since: the next Publish emails them "You’ve moved".
       ...(told && enrolment && movedSinceTold(enrolment) ? { moved: { from: told.groupName } } : {}),
-      timeAnswer: readsAnswers && enrolment ? currentTimeAnswer(enrolment) : null,
+      timeAnswer:
+        readsAnswers && enrolment
+          ? currentTimeAnswer(enrolment, timeQuestionSinceOf(groups.find((g) => g.id === enrolment.groupId)))
+          : null,
     };
   });
   // Unplaced first (the work), then alphabetical — the board reads as a queue.

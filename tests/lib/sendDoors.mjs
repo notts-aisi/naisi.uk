@@ -47,6 +47,7 @@ export const SEND_DOOR_NAMES = [
   "sendSurveyAfter",
   "sendFacilitatorReminder",
   "sendCheckInReminder",
+  "sendGroupChangeNotice",
 ];
 
 /** Any of the doors, as a call. */

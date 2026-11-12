@@ -21,7 +21,7 @@ import {
 } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
-import { currentTimeAnswer, type TimeAnswerView } from "./model";
+import { currentTimeAnswer, timeQuestionSinceOf, type TimeAnswerView } from "./model";
 import { CARD_TITLE, SOME_WEEKS_REFUSAL, sessionRefusalWords, someWeeksAuditDetail } from "./words";
 
 /**
@@ -88,7 +88,7 @@ function whoseAnswer(
   }
   if (!placementIsTold(seat)) return refuse(404, SOME_WEEKS_REFUSAL.noSeat);
   if (!group || group.id !== seat.groupId || group.runId !== runId || group.archived) return refuse(404, SOME_WEEKS_REFUSAL.noSeat);
-  const answer = currentTimeAnswer(seat);
+  const answer = currentTimeAnswer(seat, timeQuestionSinceOf(group));
   if (answer?.kind !== "cant") return refuse(409, SOME_WEEKS_REFUSAL.notCant);
   return { ok: true, answer };
 }

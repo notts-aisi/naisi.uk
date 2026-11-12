@@ -46,6 +46,21 @@ export async function makeSessionsWorld(key, extraStubs = []) {
   const change = await courseRoute("groups", "[groupId]", "session", "change");
   const sessions = await loadTs("lib/courses/sessions.ts");
   const groups = await loadTs("lib/firestore/courseGroups.ts");
+  const audience = await loadTs("lib/courses/updates/audience.ts");
+  const readers = await loadTs("lib/courses/updates/readers.ts");
+
+  /**
+   * How many a change's notice emails, for the presser, as the dialog puts it
+   * on its button: the group's told people and its facilitators with
+   * standing, never the presser (`withFacilitators`).
+   */
+  async function changeEmailsFor(groupId, who) {
+    const runGroups = await readers.loadRunGroups(world.courseDb, made.run().id);
+    const found = await audience.updateEmailAudience(world.courseDb, made.run(), runGroups, "group", groupId, who ?? null, {
+      withFacilitators: true,
+    });
+    return found.refused ? 0 : found.recipients.length;
+  }
 
   /** Start again from a seed, at `NOW`. */
   const reset = (seed = updatesSeed()) => {
@@ -73,12 +88,13 @@ export async function makeSessionsWorld(key, extraStubs = []) {
 
   /**
    * A press made the way the dialog makes one: the count on its button read
-   * first, the change, and then, with "Tell the group" on, the update posted
-   * to the group through the updates route with the words the change
-   * answered.
+   * first (the group's told people and its facilitators, never the
+   * presser), the change, and then, with "Tell the group" on, the update
+   * posted to the group through the updates route with the words the change
+   * answered, its facilitators in its email too.
    */
   async function press(who, groupId, body, { tell = true } = {}) {
-    const emailCount = tell ? await made.emailsFor("group", groupId) : 0;
+    const emailCount = tell ? await changeEmailsFor(groupId, who) : 0;
     const changed = await ask(who, groupId, { reason: AWAY, ...body, tell, ...(tell ? { emailCount } : {}) });
     let told = null;
     if (changed.status === 200 && changed.body.update) {
@@ -90,10 +106,22 @@ export async function makeSessionsWorld(key, extraStubs = []) {
         message: update.message,
         email: update.emailCount > 0,
         ...(update.emailCount > 0 ? { emailCount: update.emailCount } : {}),
+        ...(update.withFacilitators ? { withFacilitators: true } : {}),
       });
     }
     return { changed, told };
   }
 
-  return { ...made, reset, at, change, ask: { ...made.ask, change: ask }, group, sessionsOf, press, sessionsLib: sessions };
+  return {
+    ...made,
+    reset,
+    at,
+    change,
+    ask: { ...made.ask, change: ask },
+    group,
+    sessionsOf,
+    press,
+    changeEmailsFor,
+    sessionsLib: sessions,
+  };
 }
