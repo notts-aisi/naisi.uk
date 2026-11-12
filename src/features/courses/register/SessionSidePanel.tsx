@@ -151,7 +151,6 @@ export default function SessionSidePanel({
                   {started && editing !== person.uid && (
                     <Button
                       variant="secondary"
-                     
                       onClick={() => startEditing(person.uid, person.entry)}
                       aria-label={`${CHANGE}: ${person.name}`}
                     >

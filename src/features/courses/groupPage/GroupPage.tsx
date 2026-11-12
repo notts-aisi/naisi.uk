@@ -752,7 +752,9 @@ export default function GroupPage({
                           className={styles.way}
                           disabled={!hydrated}
                           onClick={() => {
-                            dismiss();
+                            // Closed straight away rather than through history, so the
+                            // panel opened next is not closed by the sheet's own back step.
+                            setSheet(null);
                             open({ kind: "give", weekNumber: sheetWeek.weekNumber });
                           }}
                         >
@@ -768,7 +770,9 @@ export default function GroupPage({
                           className={styles.way}
                           disabled={!hydrated}
                           onClick={() => {
-                            dismiss();
+                            // Closed straight away rather than through history, so the
+                            // panel opened next is not closed by the sheet's own back step.
+                            setSheet(null);
                             open({ kind: "change", start: { choice: "one", weekNumber: sheetWeek.weekNumber }, didNotHappen: true });
                           }}
                         >
