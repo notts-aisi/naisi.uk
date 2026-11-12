@@ -74,6 +74,7 @@ const requestsLib = await loadTs("lib/firestore/courseRequests.ts");
 const auditLib = await loadTs("lib/firestore/courseAudit.ts");
 const history = await loadTs("lib/courses/groupHistory/load.ts");
 const loaders = await loadTs("lib/courses/requests/load.ts");
+const requestsHome = await loadTs("lib/courses/requests/home.ts");
 const attendanceLoader = await loadTs("lib/courses/groupAttendance/load.ts");
 const changeWords = await loadTs("lib/courses/sessionChange/words.ts");
 const groupPageWords = await loadTs("lib/courses/groupPage/words.ts");
@@ -472,6 +473,32 @@ describe("2. asking for a correction, and deciding it", () => {
     assert.equal((await loaders.loadRequestsPage(world.courseDb, sessionOf("yusuf"), LATER)).view.rows.length, 0);
     assert.equal((await loaders.loadRequestPage(world.courseDb, sessionOf("yusuf"), id)).status, "none");
     assert.equal((await loaders.loadRequestsPage(world.courseDb, sessionOf("zach"), LATER)).view.rows.length, 1);
+  });
+
+  test("the count beside Requests in a programme's head is what the list shows its reader: a lead who also facilitates the group counts none of its", async () => {
+    await askDev();
+    /** For each reader, the head's count and the list's waiting rows. */
+    const both = async () => {
+      const out = {};
+      for (const who of ["zach", "claudia", "yusuf"]) {
+        const list = await loaders.loadRequestsPage(world.courseDb, sessionOf(who), LATER);
+        const listed = list.status === "ok" ? list.view.counts.waiting + list.view.counts.handling : 0;
+        out[who] = [await requestsHome.requestsWaitingOnRun(world.courseDb, sessionOf(who), RUN.agi), listed];
+      }
+      return out;
+    };
+    assert.deepEqual(await both(), { zach: [1, 1], claudia: [1, 1], yusuf: [1, 1] });
+    // Claudia, the programme's lead, also facilitates Group B: its request is not hers to open, so it is not counted.
+    world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia", "claudia"] });
+    assert.deepEqual(await both(), { zach: [1, 1], claudia: [0, 0], yusuf: [1, 1] });
+    // An archived group's: an admin's alone.
+    world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia"], archived: true });
+    assert.deepEqual(await both(), { zach: [1, 1], claudia: [0, 0], yusuf: [0, 0] });
+    // The head asks with its reader, and the list and the count ask one predicate.
+    const layout = sourceOf("app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/layout.tsx");
+    assert.match(layout, /await requestsWaitingOnRun\(db, user, programme\.runId\)/);
+    assert.match(sourceOf("lib/courses/requests/home.ts"), /return waiting\.filter\(\(each\) => requestShownTo\(user, groups\.get\(each\.groupId\), runId\)\)\.length;/);
+    assert.match(sourceOf("lib/courses/requests/load.ts"), /requests = requests\.filter\(\(each\) => requestShownTo\(actor, ctx\.groups\.get\(each\.groupId\), each\.runId\)\);/);
   });
 
   test("one request's page: the line now, why, who finished it, what approving does, its history; for the people who decide only", async () => {
