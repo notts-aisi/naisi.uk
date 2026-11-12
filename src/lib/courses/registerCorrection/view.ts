@@ -185,8 +185,6 @@ export async function registerCorrectionExtras(
     if (request.decidedByUid) uids.add(request.decidedByUid);
     if (request.handlingUid) uids.add(request.handlingUid);
   }
-  // A request an approved row names may be outside the page's sessions only
-  // if the register moved; it is read with the rest of the group's.
   const wanted = [...uids].filter((uid) => uid && !uid.includes("/"));
   const accounts = wanted.length ? await db.getAll(...wanted.map((uid) => db.collection("users").doc(uid))) : [];
   const names = new Map<string, string>();

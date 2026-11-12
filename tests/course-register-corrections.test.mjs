@@ -390,6 +390,29 @@ describe("2. asking for a correction, and deciding it", () => {
     assert.equal((await act("zach", "decline", id, { reply: "Again." })).body.error, words.REQUEST_REFUSAL.decided);
   });
 
+  test("a run's track lead decides too; the person a request is about must be on the register", async () => {
+    const { id } = (await askDev()).body.request;
+    const answer = await act("yusuf", "approve", id);
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.equal(world.db.read(`courseRequests/${id}`).decidedByUid, "yusuf");
+    const stranger = await ask("rahul", { uid: "bea", to: { status: "present" }, reason: REASON });
+    assert.equal(stranger.status, 400, "a line of somebody in another group");
+  });
+
+  test("an ask is only about a session that happened, and its words and shape are checked before anything is read", async () => {
+    const before = everything();
+    for (const [body, error] of [
+      [{ uid: "dev", to: { status: "absent", online: true }, reason: REASON }, words.REQUEST_REFUSAL.to],
+      [{ uid: "dev", to: { status: "maybe" }, reason: REASON }, words.REQUEST_REFUSAL.to],
+      [{ uid: "dev", to: { status: "present" }, reason: "x".repeat(301) }, "The reason must be 300 characters or fewer."],
+      [{ uid: "dev", to: { status: "present" }, reason: REASON, extra: true }, words.REQUEST_REFUSAL.body],
+    ]) {
+      const answer = await ask("rahul", body);
+      assert.deepEqual([answer.status, answer.body.error], [400, error], JSON.stringify(body));
+    }
+    assert.equal(everything(), before);
+  });
+
   test("a missing request is one 403 for everybody but an admin, who is told it is missing", async () => {
     for (const action of ["withdraw", "approve", "decline", "take"]) {
       assert.equal((await act("zach", action, "nope")).status, 404, action);
@@ -459,7 +482,8 @@ describe("3. correcting the whole column", () => {
     assert.equal(stored().corrected.dev, undefined);
     assert.equal(rollup("amara").online, 1);
     const [row] = rows("register-held-online");
-    assert.deepEqual([row.before.amara, row.after.amara, row.sessionKey], ["In the room", "Online", "w01"]);
+    assert.deepEqual([row.before.amara, row.after.amara, row.sessionKey, row.lines], ["In the room", "Online", "w01", 1]);
+    assert.equal(auditLib.normalizeCourseAudit("x", row).lines, 1);
     assert.equal((await column("claudia", { kind: "online", reason: "Again." })).status, 409);
     assert.equal((await read("claudia")).body.corrections.w01.amara.kind, "held-online");
     assert.deepEqual(world.mail, []);

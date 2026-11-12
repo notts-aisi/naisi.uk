@@ -11,7 +11,6 @@ import { gateGroupRegister, readsFacilitatorRecord } from "@/lib/courses/registe
 import { resolveSessions } from "@/lib/courses/sessions";
 import type { SessionUser } from "@/lib/firebase/session";
 import {
-  registerIsTaken,
   type AttendanceStatus,
   type CourseAttendanceDoc,
   type FacilitatorPresenceState,
@@ -198,7 +197,9 @@ export async function loadGroupAttendance(
       held: facts?.held ?? true,
       started: facts?.started ?? false,
       ended: facts?.ended ?? false,
-      taken: registerIsTaken(register ? { pushedAt: register.pushedAt, markedByUid: register.markedByUid, held: register.held } : undefined),
+      // Taken as `registerIsTaken` says it: finished, marked, or saying it did
+      // not happen (not held, and not because the session was called off).
+      taken: Boolean(register?.pushedAt) || Boolean(register?.markedByUid) || Boolean(register && facts && !facts.held && !facts.session.cancelled),
       finished: register?.pushedAt ? { name: register.pushedByUid ? nameOf(register.pushedByUid) : "", at: register.pushedAt.toISOString() } : null,
       cover: register?.cover
         ? { kind: register.cover.kind, name: nameOf(register.cover.byUid), covering: register.cover.covering.map(nameOf) }

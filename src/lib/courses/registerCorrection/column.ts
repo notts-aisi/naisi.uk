@@ -328,6 +328,8 @@ function columnRow(
     }),
     sessionKey: input.session.sessionKey,
     ...(input.toSessionKey ? { toSessionKey: input.toSessionKey } : {}),
+    // How many lines it changed: the keys of `after`, said once more as a number.
+    lines: Object.keys(input.after ?? {}).length,
   };
 }
 

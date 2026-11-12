@@ -114,6 +114,39 @@ const READERS = {
       "a cancelled session not held",
   },
 
+  // ── Correcting a finished register (November 2026) ──────────────────────
+  "lib/courses/registerCorrection/line.ts": {
+    kind: "asks",
+    proof: ["if (session.cancelled || !register.held) throw new CorrectionNotHeldError();"],
+    why:
+      "a line of a finished register corrected, by a lead or an admin or an approved request: a session that did not " +
+      "happen, called off or said so on its register, has no line to correct",
+  },
+  "lib/courses/registerCorrection/column.ts": {
+    kind: "asks",
+    proof: [
+      "if (session.cancelled) return CORRECTION_REFUSAL.alreadyNotHeld;",
+      'if (session.cancelled) return record?.kind === "cancelled" ? null : CORRECTION_REFUSAL.changed;',
+    ],
+    why:
+      "a finished register's whole column corrected: every kind but It did happen is refused for a session that did " +
+      "not happen, and It did happen is only for a session called off keeping pace or a register that says so",
+  },
+  "lib/courses/requests/decide.ts": {
+    kind: "asks",
+    proof: ["if (session.cancelled) return fail(409, REQUEST_REFUSAL.notHeld);", "if (!session || session.cancelled) return fail(409, REQUEST_REFUSAL.gone);"],
+    why:
+      "asking for a correction and approving one: a session that did not happen has no line to ask about, and an " +
+      "approval of a line on one is refused",
+  },
+  "lib/courses/groupAttendance/load.ts": {
+    kind: "told",
+    from: ["lib/courses/programmeAttendance.ts"],
+    via: ["facts"],
+    proof: ["const facts = listed.sessions.get(weekNumber);"],
+    why: "a group's attendance across every week: each column's facts are the lead's grid's own, which says a cancelled session was not held",
+  },
+
   // ── Every other reader of a stored register's switch ─────────────────────
   "app/api/courses/groups/[groupId]/attendance/push/route.ts": {
     kind: "asks",

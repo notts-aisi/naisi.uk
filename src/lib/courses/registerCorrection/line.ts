@@ -105,7 +105,9 @@ export async function readLineCorrection(
   const data = snap.data() ?? {};
   const register = normalizeCourseAttendance(snap.id, data);
   if (!register.pushedAt) throw new CorrectionUnfinishedError();
-  if (!register.held) throw new CorrectionNotHeldError();
+  // A session that did not happen, called off or said so on its register,
+  // has no line to correct: whether it happened is the column's.
+  if (session.cancelled || !register.held) throw new CorrectionNotHeldError();
 
   const moved: MovedLine[] = [];
   for (const [uid, want] of input.wanted) {

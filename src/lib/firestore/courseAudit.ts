@@ -388,6 +388,8 @@ export type CourseAuditCorrection = {
   toSessionKey: string | null;
   /** The `courseRequests` id an approved correction came from. */
   requestId: string | null;
+  /** For a whole column's correction: how many lines it changed. */
+  lines: number | null;
 };
 
 export type CourseAuditDoc = {
@@ -504,6 +506,7 @@ export function courseAuditCorrectionOf(data: Raw): CourseAuditCorrection {
     sessionKey: key(data.sessionKey),
     toSessionKey: key(data.toSessionKey),
     requestId: idOrNull(data.requestId),
+    lines: typeof data.lines === "number" && Number.isInteger(data.lines) && data.lines >= 0 ? data.lines : null,
   };
 }
 
