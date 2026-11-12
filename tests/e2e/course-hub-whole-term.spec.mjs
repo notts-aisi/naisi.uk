@@ -85,6 +85,7 @@ import {
   courseworkItemId,
   dayLabel,
   londonDateKey,
+  londonDayLabel,
   sessionOf,
   shiftDateKey,
   weekDocId,
@@ -273,6 +274,16 @@ async function waitFor(what, predicate, { timeout = WAIT_MS } = {}) {
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const flat = (text) => text.replace(/\s+/g, " ").trim();
 const textOf = async (locator) => flat((await locator.textContent()) ?? "");
+/** What an element says, as written: every text node in it, a space between each. */
+const wordsIn = async (locator) =>
+  flat(
+    await locator.evaluate((element) => {
+      const out = [];
+      const walker = element.ownerDocument.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) out.push(node.nodeValue ?? "");
+      return out.join(" ");
+    }),
+  );
 
 /** The week of a run a civil day falls in, by the run's own calendar. */
 function runWeekOn(startDate, dateKey) {
@@ -565,6 +576,39 @@ test(
       return new Date(Math.max(...times.map((at) => at.getTime())));
     }
 
+    /** When a person's written answer of a week was first sent, as stored. */
+    async function firstSentOf(person, week) {
+      const answer = (await fixtureDoc("courseExerciseResponses", `${state.runId}__${person.uid}__${weekDocId(week)}__${courseworkItemId(week, "wa")}`).get()).data();
+      const at = answer?.firstSentAt?.toDate?.() ?? null;
+      assert.ok(at, `${person.first}'s week ${week} answer was never sent`);
+      return at;
+    }
+
+    /**
+     * The group's week card on the facilitator's page, on one week: its
+     * heading ("2 of 4 have done week 2") and the counts its bar draws.
+     */
+    async function weekCardOf(pg, week) {
+      await pg.goto(`${origin}${learnGroupPath(groupA)}?week=${week}`, { waitUntil: "domcontentloaded" });
+      const card = pg.getByTestId("week-work-count");
+      await card.getByRole("heading").first().waitFor({ timeout: WAIT_MS });
+      const said = await wordsIn(card);
+      const buckets = {};
+      for (const found of said.matchAll(/(Done on time|Done late|Not started|Started|Joined late|Done) (\d+)/g)) buckets[found[1]] = Number(found[2]);
+      return { heading: await textOf(card.getByRole("heading").first()), buckets, said };
+    }
+
+    /** Feedback to write, on the facilitator's page: one line per answer sent and not reviewed, as written. */
+    async function reviewQueueOf(pg) {
+      const items = pg.locator('section[aria-labelledby="group-review-queue"] li');
+      await items.first().waitFor({ timeout: WAIT_MS });
+      const out = [];
+      for (let i = 0; i < (await items.count()); i += 1) out.push(await wordsIn(items.nth(i)));
+      return out;
+    }
+    /** The line of the review queue for one person's answer, by the day it was sent. */
+    const queueLineOf = (lines, person, sentAt) => lines.find((line) => line.includes(`${person.first} Sent ${londonDayLabel(sentAt)},`)) ?? null;
+
     // ---- The story's own record, which the books are held to -------------
     /** Who did which week, when, by the presses and the seed: [person, week] -> "on time" | "late". */
     const work = new Map();
@@ -751,9 +795,9 @@ test(
         for (const person of told) {
           const [email] = fresh[person.key];
           assert.equal(email.Subject, `${groupA.name} now meets on ${WEEKDAYS[newWeekday]}s, ${clockWords(groupA.startTimeLocal)}`, `${person.first}'s subject`);
-          // Asked "Can you make this time?" when holding a place, and never as a facilitator.
-          const asks = (email.Text ?? "").includes("Can you make this time?");
-          if (person !== ivo) assert.equal(asks, person !== fern, `${person.first} ${asks ? "is" : "is not"} asked whether they can make the time`);
+          // Asked "Can you make this time most weeks?" when holding a place, and never as a facilitator (Ivo is both).
+          const asks = `${email.Text ?? ""} ${email.HTML ?? ""}`.includes(WORDS.timeCard);
+          assert.equal(asks, person !== fern && person !== ivo, `${person.first} ${asks ? "is" : "is not"} asked whether they can make the time`);
         }
 
         // The weeks that met keep their day and time: on the group's page ...
@@ -1040,17 +1084,19 @@ test(
         work.set(workKey(ada, ON_TIME_WEEK), { on: "time" });
         work.set(workKey(ben, LATE_WEEK), { on: "late", lateMs: benLate });
 
-        // The facilitator: week 2's card on her group's page.
+        // The facilitator: week 2's card on her group's page counts one on time and one late ...
         const fernPage = await as(fern);
-        await fernPage.goto(`${origin}${learnGroupPath(groupA)}?week=${LATE_WEEK}`, { waitUntil: "domcontentloaded" });
-        const card = fernPage.getByTestId("week-work-count");
-        await card.getByRole("heading", { name: WORDS.haveDone(2, fellowsA.length, LATE_WEEK), exact: true }).waitFor({ timeout: WAIT_MS });
-        const table = fernPage.getByRole("region", { name: "This week’s work" }).first();
-        await table.waitFor({ timeout: WAIT_MS });
-        const benRow = await textOf(table.getByRole("row").filter({ hasText: ben.first }).first());
-        assert.ok(benRow.includes(WORDS.doneLate) && benRow.includes(`Late: ${lateWords(benLate)} after the session`), `the facilitator does not read Ben's week 2 as late: ${benRow}`);
-        const danRow = await textOf(table.getByRole("row").filter({ hasText: dan.first }).first());
-        assert.ok(danRow.includes(WORDS.doneOnTime), `the facilitator does not read Dan's week 2 as on time: ${danRow}`);
+        const card = await weekCardOf(fernPage, LATE_WEEK);
+        assert.equal(card.heading, WORDS.haveDone(2, fellowsA.length, LATE_WEEK), card.said);
+        assert.deepEqual([card.buckets[WORDS.doneOnTime], card.buckets[WORDS.doneLate]], [1, 1], `week 2's bar: ${card.said}`);
+        // ... and her Feedback to write says Ben's answer came late, and how late, and Dan's not.
+        const queue = await reviewQueueOf(fernPage);
+        const benSent = await firstSentOf(ben, LATE_WEEK);
+        const benLine = queueLineOf(queue, ben, benSent);
+        const benSentLate = benSent.getTime() - original(groupA, LATE_WEEK).startsAt.getTime();
+        assert.ok(benLine?.includes(`Late: ${lateWords(benSentLate)} after the session`), `the facilitator does not read Ben's week 2 as late: ${JSON.stringify(queue)}`);
+        const danLine = queueLineOf(queue, dan, await firstSentOf(dan, LATE_WEEK));
+        assert.ok(danLine && !danLine.includes("Late:"), `the facilitator does not read Dan's week 2 as on time: ${JSON.stringify(queue)}`);
 
         // The lead: the Coursework tab.
         const pg = await as(gus);
@@ -1345,13 +1391,13 @@ test(
         await waitFor("Ada's reflection to load into its box", async () => (await box.inputValue()) === WRITES.ada.rp1);
         const own = adaPage.getByText(WORDS.ownEarlier, { exact: true });
         await own.waitFor({ timeout: WAIT_MS });
-        assert.equal(await textOf(own.locator("xpath=..")), `${WORDS.ownEarlier} ${REFLECTION.label}`);
+        assert.equal(await wordsIn(own.locator("xpath=..")), `${WORDS.ownEarlier} ${REFLECTION.label}`);
 
         const fernPage = await as(fern);
         await fernPage.goto(`${origin}${learnGroupPath(groupA)}/reflections/names?week=${EDITED_WEEK}`, { waitUntil: "domcontentloaded" });
         const answer = fernPage.locator("li").filter({ hasText: WRITES.ada.rp1 });
         await answer.first().waitFor({ timeout: WAIT_MS });
-        const said = await textOf(answer.first());
+        const said = await wordsIn(answer.first());
         assert.ok(said.includes(`${WORDS.staffEarlier} ${REFLECTION.label}`), `the facilitator does not read the question when it was written: ${said}`);
       });
 
@@ -1532,9 +1578,18 @@ test(
         await adminPg.goto(`${formBase}/attendance`, { waitUntil: "domcontentloaded" });
         const grid = adminPg.getByRole("region", { name: "Attendance grid" });
         await grid.waitFor({ timeout: WAIT_MS });
+        // A group's rows past its first few are behind "+2 more": everybody, shown.
+        for (const group of [groupA, groupB]) {
+          const more = grid.getByRole("button", { name: new RegExp(`^Show \\d+ more in ${escapeRegExp(group.name)}$`) });
+          if ((await more.count()) > 0) await more.click();
+        }
         for (const person of [...fellows, ivo]) {
           const row = grid.getByRole("row").filter({ has: adminPg.getByRole("rowheader", { name: new RegExp(`^${escapeRegExp(person.displayName)}(?![A-Za-z0-9])`) }) });
-          await row.waitFor({ timeout: WAIT_MS });
+          const shown = await row.waitFor({ timeout: 15_000 }).then(() => true, () => false);
+          if (!shown) {
+            problems.push(`the Attendance tab has no row for ${person.first}`);
+            continue;
+          }
           const marks = row.getByRole("img");
           const said = [];
           for (let i = 0; i < (await marks.count()); i += 1) said.push((await marks.nth(i).getAttribute("aria-label")) ?? "");
@@ -1594,25 +1649,42 @@ test(
           return null;
         };
 
-        // 1. The group's week card, on the facilitator's page, week by week.
+        // 1. The group's week card, on the facilitator's page, week by week:
+        // its count and the bar's own counts; This week's work under it, on the
+        // week the group is getting ready for; and Feedback to write, which
+        // says of each answer whether it came late, and how late.
+        const BUCKET = { "on time": WORDS.doneOnTime, late: WORDS.doneLate, "joined late": WORDS.joinedLate, "not done": "Not started" };
+        const sorted = (object) => JSON.stringify(Object.fromEntries(Object.entries(object).sort(([a], [b]) => a.localeCompare(b))));
         const fernPage = await as(fern);
         for (const week of [1, 2, 3]) {
-          await fernPage.goto(`${origin}${learnGroupPath(groupA)}?week=${week}`, { waitUntil: "domcontentloaded" });
+          const card = await weekCardOf(fernPage, week);
           const done = fellowsA.filter((person) => ["on time", "late"].includes(stateOf(person, week))).length;
-          await fernPage.getByTestId("week-work-count").getByRole("heading", { name: WORDS.haveDone(done, fellowsA.length, week), exact: true }).waitFor({ timeout: WAIT_MS }).catch(async () => {
-            problems.push(`the group's week card, week ${week}: says ${JSON.stringify(await textOf(fernPage.getByTestId("week-work-count")))}, the story says ${WORDS.haveDone(done, fellowsA.length, week)}`);
-          });
-          const table = fernPage.getByRole("region", { name: "This week’s work" }).first();
-          for (const person of fellowsA) {
-            const word = staffWord(person, week);
-            if (!word) continue;
-            const row = await textOf(table.getByRole("row").filter({ hasText: person.first }).first()).catch(() => "");
-            expectEqual(row.includes(word), true, `the group's week card, ${person.first} week ${week} (${row})`);
-            const did = work.get(workKey(person, week));
-            if (did?.on === "late") expectEqual(row.includes(`Late: ${lateWords(did.lateMs)} after the session`), true, `the group's week card, how late ${person.first} was in week ${week} (${row})`);
-          }
-          expectEqual(await table.getByRole("row").filter({ hasText: ivo.first }).count(), 0, `the group's week card, week ${week}, has no row for Ivo`);
+          expectEqual(card.heading, WORDS.haveDone(done, fellowsA.length, week), `the group's week card, week ${week}`);
+          const want = {};
+          for (const person of fellowsA) want[BUCKET[stateOf(person, week)]] = (want[BUCKET[stateOf(person, week)]] ?? 0) + 1;
+          expectEqual(sorted(card.buckets), sorted(want), `the group's week card, week ${week}'s bar (${card.said})`);
+          expectEqual(card.said.includes(ivo.first), false, `the group's week card, week ${week}, names Ivo`);
         }
+        const table = fernPage.getByRole("region", { name: "This week’s work" }).first();
+        await table.waitFor({ timeout: WAIT_MS });
+        for (const person of fellowsA) {
+          const row = await textOf(table.getByRole("row").filter({ hasText: person.first }).first()).catch(() => "");
+          const said = stateOf(person, ON_TIME_WEEK);
+          expectEqual(row.includes(said === "on time" ? WORDS.doneOnTime : "Not started"), true, `This week's work, ${person.first}'s week ${ON_TIME_WEEK} (${row})`);
+        }
+        expectEqual(await table.getByRole("row").filter({ hasText: ivo.first }).count(), 0, "This week's work has a row for Ivo");
+        const queue = await reviewQueueOf(fernPage);
+        for (const [person, week] of [
+          [ben, LATE_WEEK],
+          [dan, LATE_WEEK],
+        ]) {
+          const sentAt = await firstSentOf(person, week);
+          const line = queueLineOf(queue, person, sentAt);
+          const late = sentAt.getTime() - original(groupA, week).startsAt.getTime();
+          const want = stateOf(person, week) === "late" ? `Late: ${lateWords(late)} after the session` : null;
+          expectEqual(line === null ? "no line" : want ? line.includes(want) : !line.includes("Late:"), true, `Feedback to write, ${person.first}'s week ${week} answer (${line})`);
+        }
+        expectEqual(queue.some((line) => line.includes(ivo.first)), false, "Feedback to write lists Ivo's own answer");
 
         // 2. The page of the week's work, the lead's: the week the group is getting ready for.
         const pg = await as(gus);
@@ -1660,8 +1732,13 @@ test(
           const own = await as(person);
           await own.goto(weekPageUrl(week), { waitUntil: "domcontentloaded" });
           await own.getByRole("region", { name: WORDS.writtenAnswer, exact: true }).waitFor({ timeout: WAIT_MS });
-          const page = await textOf(own.locator("main"));
-          expectEqual(page.includes("3 of 3 done"), true, `${person.first}'s own week ${week} page says it is done`);
+          // The count is worked out once the page has read the person's work: give it the time it takes.
+          const counted = await waitFor(`${person.first}'s own week ${week} to count what is done`, async () => {
+            const said = await textOf(own.locator("main"));
+            return said.includes("3 of 3 done") ? said : null;
+          }, { timeout: 20_000 }).catch(() => null);
+          const page = counted ?? (await textOf(own.locator("main")));
+          expectEqual(/\d of 3 done/.exec(page)?.[0] ?? null, "3 of 3 done", `${person.first}'s own week ${week} page, what is done`);
           const did = work.get(workKey(person, week));
           if (did?.on === "late") expectEqual(page.includes("after your session"), true, `${person.first}'s own week ${week} page says it was after the session`);
           else expectEqual(page.includes("after your session"), false, `${person.first}'s own week ${week} page says it was late`);
