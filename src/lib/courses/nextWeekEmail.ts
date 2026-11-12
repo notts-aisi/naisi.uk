@@ -203,13 +203,12 @@ export async function readNextWeekEmail(
   const explainers = await explainersRead;
   const sessions = resolveSessions(run, group);
   const blocks = week && isBlockWeek(week) ? week.blocks : null;
-  const where = courseNudgeSessionWhere(session.session, sessionModeForWeek(group, session.weekId));
   const facts: WeekOpenFacts = {
     courseTitle: run.courseTitle,
     weekNumber: session.weekNumber,
     weekTitle: week?.title ?? "",
     sessionAt: sessionInstants(session).startsAt,
-    where,
+    where: courseNudgeSessionWhere(session.session, sessionModeForWeek(group, session.weekId)),
     first: sessions[0]?.sessionKey === session.sessionKey,
     // A cancelled session's email says it is off, why, and when the group
     // meets next, in place of when and where it meets; the session after one
@@ -221,11 +220,11 @@ export async function readNextWeekEmail(
     feedbackUrl: args.feedbackUrl,
     staysOpen: blocks !== null,
     explainer: memberExplainerOn(explainers, group.id, session.sessionKey),
-    // In a room, with none booked yet: the email goes and says so. Not for a
-    // session held online, nor a group that meets online.
-    roomToBeConfirmed:
-      !session.cancelled && where === "" && !session.session.location.trim() && campusForWeek(group, session.weekId) !== "online",
   };
+  // In a room, with none booked yet: the email goes and says so. Not for a
+  // session held online, nor a group that meets online.
+  facts.roomToBeConfirmed =
+    !session.cancelled && facts.where === "" && !session.session.location.trim() && campusForWeek(group, session.weekId) !== "online";
   const missing = week ? missingWeekOpenValues(facts) : [];
   return { published: Boolean(week?.published), missing, facts, week };
 }
