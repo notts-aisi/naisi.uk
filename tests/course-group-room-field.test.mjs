@@ -68,6 +68,8 @@ describe("a group's room, from the Groups tab", () => {
         groupName: "Group A",
         room,
         message: words.roomSavedWords("Group A", room),
+        // Nobody was told: the press did not ask to tell the group.
+        email: null,
       });
       const after = read(`courseGroups/${A}`);
       assert.equal(after.session.location, room);
@@ -84,6 +86,20 @@ describe("a group's room, from the Groups tab", () => {
     assert.deepEqual([same.status, same.body.changed], [200, false]);
     assert.equal(w.everything(), unchanged);
     assert.deepEqual(world.mail, []);
+    // Each change wrote one row of the group's history, the room it had and the one it has.
+    const rows = world.db
+      .paths()
+      .filter((path) => path.startsWith("courseAudit/"))
+      .map((path) => world.db.read(path))
+      .filter((row) => row.kind === "group-room-changed");
+    assert.deepEqual(
+      rows.map((row) => [row.groupId, row.before.room, row.after.room, row.emailed]),
+      [
+        [A, before.session.location, "Portland A21", 0],
+        [A, "Portland A21", "Hallward B12", 0],
+        [A, "Hallward B12", "", 0],
+      ],
+    );
   });
 
   for (const [who, expected, why] of [

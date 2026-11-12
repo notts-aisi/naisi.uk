@@ -133,9 +133,9 @@ const READERS = {
     does: "asks",
     why: "refuses holding a whole week online while a group that would go online has no link to put on its programme page",
   },
-  "app/api/courses/groups/[groupId]/session/change/route.ts": {
+  "lib/courses/sessionChange/check.ts": {
     does: "asks",
-    why: "refuses Hold it online for a group with no link to put on its programme page",
+    why: "the change route's checks (moved out of the route itself): refuses Hold it online for a group with no link to put on its programme page",
   },
   "lib/courses/placementEmail.ts": {
     does: "asks",

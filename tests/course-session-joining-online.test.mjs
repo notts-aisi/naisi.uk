@@ -393,9 +393,27 @@ describe("3. the box asks the facilitators for a link, and the link route saves 
     assert.equal((await giveLink("zach", { sessionKey: "w03", url: LINK })).status, 200, "an admin may");
   });
 
-  test("everybody but the group's live facilitators and admins is refused before the body is read, and nothing is written", async () => {
+  test("the programme's lead sets a link too, and the group's history says which weeks, never the link", async () => {
+    // Claudia leads the programme that names the run: admitted, then the body is checked.
+    assert.equal((await giveLink("claudia", {})).status, 400, "the lead, with an empty body");
+    assert.equal((await giveLink("claudia", { sessionKey: "w03", url: LINK })).status, 200, "the lead may");
+    const rows = world.db
+      .paths()
+      .filter((path) => path.startsWith("courseAudit/"))
+      .map((path) => world.db.read(path))
+      .filter((row) => row.kind === "group-link-set");
+    assert.equal(rows.length, 1);
+    assert.deepEqual(
+      [rows[0].groupId, rows[0].weekId, rows[0].actorUid, rows[0].before, rows[0].after],
+      [B, "w03", "claudia", { link: false }, { link: true, everyWeek: false }],
+    );
+    assert.equal(rows[0].detail, "Set the meeting link for week 3 only. Before: no link.");
+    assert.ok(!JSON.stringify(rows[0]).includes("meet.example"), "the history holds the link");
+  });
+
+  test("everybody but the group's live facilitators, its programme's lead and admins is refused before the body is read, and nothing is written", async () => {
     const before = w.everything();
-    for (const [who, status] of [[null, 401], ["chloe", 403], ["claudia", 403], ["amara", 403], ["tom", 403], ["nobody", 403]]) {
+    for (const [who, status] of [[null, 401], ["chloe", 403], ["amara", 403], ["tom", 403], ["nobody", 403]]) {
       assert.equal((await giveLink(who, { sessionKey: "w03", url: LINK })).status, status, String(who));
       assert.equal((await giveLink(who, {})).status, status, `${who}, with an empty body`);
     }
