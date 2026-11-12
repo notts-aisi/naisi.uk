@@ -418,7 +418,7 @@ const RAW_SITES = {
   "src/lib/courses/excused/ask.ts": {
     role: "not-a-gate",
     matches: { facilitatorUids: 1 },
-    provedBy: ['if (!takesPartIn(user, seat, group, run.id) || !isNamedWithStanding(user, "courseEnrolments.uid", seat.uid)) {'],
+    provedBy: ['if (!takesPartIn(user, seat, group, run.id) || !placementIsTold(seat) || !isNamedWithStanding(user, "courseEnrolments.uid", seat.uid)) {'],
     why:
       "Not a gate: being named one of the group's facilitators REFUSES asking to be excused (a facilitator keeps " +
       "the instant Can't make it); it grants nothing. Who may ask is decided first, by the caller's own place held " +

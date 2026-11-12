@@ -190,6 +190,13 @@ const READERS = {
       "Can't make it on a session's ticket: the caller's own seat only, read by their uid and shown to nobody else; " +
       "a seat Publish has not told them about takes no part, so its ticket offers nothing and its press is refused",
   },
+  "lib/courses/excused/ask.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "Asking to be excused from a week: the caller's own seat only, read by their uid; a seat Publish has not told " +
+      "them about takes no part, so its ask is refused as a group they are not in",
+  },
   "lib/courses/joiningOnline/seat.ts": {
     kind: "told",
     asks: 1,
@@ -426,6 +433,14 @@ const READERS = {
       "a programme's survey results by group, for admins: the Who filter, the people behind its bars and the Answers " +
       "tab's Group column read each person's group as Publish told it, so a seat Publish has not told them about is " +
       "in no group, and no answer is counted under a group its person has not been told",
+  },
+  "lib/courses/excused/page.ts": {
+    kind: "staff",
+    proof: ['if (actor.role !== "admin") return { status: "none" };'],
+    why:
+      "One request to be excused, for admins alone: the person's seat is read by its address only for the week they " +
+      "joined and their answer to the time question, to count how often they were excused; it shows no member a " +
+      "placement and names nobody to a facilitator",
   },
   "lib/applications/people/load.ts": {
     kind: "staff",

@@ -8,7 +8,7 @@ import { workClosesAt } from "@/lib/courses/weekWork/closes";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
-import { courseEnrolmentId, normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
+import { courseEnrolmentId, normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
 import {
   EXCUSED_KIND,
   normalizeExcusedRequest,
@@ -145,8 +145,9 @@ export async function askToBeExcused(
     if (!runSnap.exists || runSnap.data()?.destroying === true || !seatSnap.exists) return refuse(404, EXCUSED_REFUSAL.notYours);
     const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
     const seat = normalizeCourseEnrolment(seatSnap.id, seatSnap.data() ?? {});
-    // Their own place, held to the live bar here as `takesPartIn` holds it.
-    if (!takesPartIn(user, seat, group, run.id) || !isNamedWithStanding(user, "courseEnrolments.uid", seat.uid)) {
+    // Their own place, told them by Publish and held to the live bar, here as
+    // `takesPartIn` holds it.
+    if (!takesPartIn(user, seat, group, run.id) || !placementIsTold(seat) || !isNamedWithStanding(user, "courseEnrolments.uid", seat.uid)) {
       return refuse(404, EXCUSED_REFUSAL.notYours);
     }
     // Somebody who facilitates the group keeps today's "Can't make it".

@@ -406,6 +406,14 @@ const READERS = new Map([
     proof: ['for (const snap of userSnaps) if (snap.exists) names.set(snap.id, nameForViewer(viewer, accountNamesOf(snap.data() ?? {}), "NAISI member"));'],
     why: "the Requests page and one request's page, for admins and the people leading the programme: who asked, about whom, who has it and who decided, named for the reader",
   }],
+  ["src/lib/courses/excused/page.ts", {
+    who: "rule",
+    proof: [
+      'names.set(user.id, nameForViewer(actor, accountNamesOf(data), "NAISI member"));',
+      'for (const snap of userSnaps) if (snap.exists) names.set(snap.id, nameForViewer(viewer, accountNamesOf(snap.data() ?? {}), "NAISI member"));',
+    ],
+    why: "a request to be excused, for admins alone: the person, who decided, replied and acted on it, and the register's setters, named for the reader",
+  }],
   ["src/lib/courses/groupAttendance/load.ts", {
     who: "rule",
     proof: ['const nameOf = (uid: string) => nameForViewer(viewer, accountNamesOf(accounts.get(uid) ?? {}), "NAISI member");'],
