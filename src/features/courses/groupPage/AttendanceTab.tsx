@@ -243,10 +243,12 @@ export default function AttendanceTab({
 
       {view.facilitators && view.facilitators.length > 0 && shownColumns.length > 0 && (
         <section className={styles.facilitators} aria-labelledby="group-attendance-facilitators">
-          <h3 id="group-attendance-facilitators" className={styles.subTitle}>
-            {P.FACILITATORS_ROW}
-          </h3>
-          {presenceShown && <p className={styles.note}>{P.FACILITATORS_ROW_NOTE}</p>}
+          <div className={styles.subHead}>
+            <h3 id="group-attendance-facilitators" className={styles.subTitle}>
+              {P.FACILITATORS_ROW}
+            </h3>
+            {presenceShown && <span className={styles.chip}>{P.FACILITATORS_ROW_CHIP}</span>}
+          </div>
           <div className={styles.scroll}>
             <table className={styles.table}>
               <thead>
@@ -282,6 +284,7 @@ export default function AttendanceTab({
               </tbody>
             </table>
           </div>
+          {presenceShown && <p className={styles.note}>{P.FACILITATORS_ROW_NOTE}</p>}
         </section>
       )}
 

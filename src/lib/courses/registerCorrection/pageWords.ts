@@ -629,7 +629,8 @@ export const ATTENDANCE_TAB = "Attendance, all weeks";
 export const CORRECT_ANY_LINE =
   "Leads and admins can correct any line of a finished week: click it. Every correction asks why, and the group’s history keeps who, when, from and to.";
 export const FACILITATORS_ROW = "Facilitators";
-export const FACILITATORS_ROW_NOTE = "Admins and the programme’s lead only. Facilitators don’t see this, and nor does anyone in the group.";
+export const FACILITATORS_ROW_CHIP = "Admins and the programme’s lead only";
+export const FACILITATORS_ROW_NOTE = "Facilitators don’t see this, and nor does anyone in the group.";
 export const IN_THE_ROOM_COUNT = "In the room";
 export const ONLINE_COUNT = "Online";
 

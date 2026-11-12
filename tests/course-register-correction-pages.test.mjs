@@ -372,7 +372,8 @@ describe("2. the pages, drawn", () => {
       "Facilitators",
       "There",
       "Arrived 4:40pm",
-      "Admins and the programme’s lead only. Facilitators don’t see this, and nor does anyone in the group.",
+      "Admins and the programme’s lead only",
+      "Facilitators don’t see this, and nor does anyone in the group.",
     ]) {
       assert.ok(drawn.text.includes(said), `the tab does not say "${said}": ${drawn.text}`);
     }
@@ -382,7 +383,7 @@ describe("2. the pages, drawn", () => {
   test("a track lead is sent the facilitators without the record, and the tab says nothing about it", () => {
     const facilitators = ATTENDANCE.facilitators.map(({ presence: _gone, ...rest }) => rest);
     const drawn = draw(AttendanceTab, { view: { ...ATTENDANCE, facilitators }, runId: "run1", requestsBase: null });
-    assert.ok(!drawn.text.includes("Arrived 4:40pm") && !drawn.text.includes("Admins and the programme’s lead only"), drawn.text);
+    assert.ok(!drawn.text.includes("Arrived 4:40pm") && !drawn.text.includes("Admins and the programme’s lead only") && !drawn.text.includes("Facilitators don’t see this"), drawn.text);
     const none = draw(AttendanceTab, { view: { ...ATTENDANCE, facilitators: null }, runId: "run1", requestsBase: null });
     assert.ok(!none.html.includes('id="group-attendance-facilitators"'), "a reader sent no facilitators is drawn their row");
   });
