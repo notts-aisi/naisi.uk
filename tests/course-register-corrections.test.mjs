@@ -780,9 +780,41 @@ describe("3. correcting the whole column", () => {
       ...[...pushCase.matchAll(/ChangeRefusal\((REFUSAL\.\w+)/g)].map((m) => m[1]),
     ].sort();
     assert.ok(own.includes("if (err instanceof ChangeRefusal) return"), "the route no longer passes the one-week change's own push refusals on");
-    // Only through pushRefusalOf does the route refuse a push that keep pace would not meet.
-    const door = column_.slice(column_.indexOf("async function didNotHappen("));
-    assert.equal((door.match(/press\.pace === "push"/g) ?? []).length, 1, "the route refuses a push back some other way");
+    // EVERY REFUSAL the route's own door makes, read from its source line by
+    // line: each is met whatever the pace, or by a push alone, and a push's
+    // alone is one this walk drives or one known never to be met. A new
+    // refusal, in any spelling, fails here until it is one or the other.
+    const doorAt = column_.indexOf("async function didNotHappen(");
+    const door = column_.slice(doorAt, column_.indexOf("\n}\n", doorAt));
+    const EVERY_PACE = {
+      "if (session.occurrence !== 1) return refuse(400, secondSessionWords(session.weekNumber));": "a week's second session is never called off here",
+      "if (why || !register) return refuse(409, why ?? CORRECTION_REFUSAL.noRegister);": "a register that is not finished, or none",
+      "if (audience.refused) return refuse(400, REFUSAL.overCap);": "the optional notice, for either pace",
+      "if (audience.recipients.length === 0) return refuse(400, REFUSAL.nobodyToEmail);": "the optional notice, for either pace",
+      "return refuse(409, countChangedWords(audience.recipients.length), { emails: audience.recipients.length });": "the notice's count, for either pace",
+      "if (err instanceof ChangeRefusal) return refuse(err.status, err.message, err.detail);":
+        "passes on checkPress and refuseMovingMet: a push's own refusals in them are the push case and the later week met, walked here",
+      "if (!groupSnap.exists) throw new ChangeRefusal(REFUSAL.gone, 400);": "the group is gone, for either pace",
+      "if (fresh.archived || fresh.runId !== run.id) throw new ChangeRefusal(REFUSAL.gone, 400);": "the group is gone, for either pace",
+      "if (again || !stored) throw new Refused(409, again ?? CORRECTION_REFUSAL.noRegister);": "the register stopped being finished, for either pace",
+    };
+    const PUSH_ONLY = {
+      "if (press.pace === \"push\" && pushRefused) return refuse(pushRefused.status, pushRefused.error, pushRefused.detail);": "pushRefusalOf",
+      "if (!checked.pushed) throw new ChangeRefusal(REFUSAL.noPlan, 400);": "REFUSAL.noPlan",
+    };
+    const sites = [...door.matchAll(/^.*(?:\breturn refuse\(|\bthrow new \w+\().*$/gm)].map((m) => m[0].trim()).sort();
+    assert.deepEqual(sites, [...Object.keys(EVERY_PACE), ...Object.keys(PUSH_ONLY)].sort(), "the route refuses something this walk has not classified");
+    // Every branch the door takes on which pace or which change it is, in either spelling.
+    const PACE_BRANCHES = {
+      "if (press.pace === \"push\" && pushRefused) return refuse(pushRefused.status, pushRefused.error, pushRefused.detail);": "the push's refusal, through pushRefusalOf",
+      "if (change.kind === \"push\") {": "the push's write; its one refusal is REFUSAL.noPlan, known unreachable",
+      "newDateKey: change.kind === \"push\" ? (checked.pushed?.newDateKey ?? null) : null,": "the answer's new date: no refusal",
+    };
+    const branches = [...door.matchAll(/^.*(?:[=!]== "(?:push|keep|cancel)"|"(?:push|keep|cancel)" [=!]==).*$/gm)].map((m) => m[0].trim()).sort();
+    assert.deepEqual(branches, Object.keys(PACE_BRANCHES).sort(), "the door branches on the pace somewhere this walk has not read");
+    // The two calls that throw on its behalf: the one-week change's check and the met session's.
+    assert.equal((door.match(/\bcheckPress\(/g) ?? []).length, 2, "the door checks a press some other way");
+    assert.equal((door.match(/\brefuseMovingMet\(/g) ?? []).length, 2, "the door refuses moving a met session some other way");
 
     /** A world in which a push back is refused for one reason. */
     const reasons = {
@@ -814,9 +846,15 @@ describe("3. correcting the whole column", () => {
         why: changeWords.REFUSAL.planFull,
       },
     };
-    // Never met on this route: a session it reached is in the group's plan, which is what the session was resolved from.
+    // Never met on this route: a session it reached is in the group's plan, which is what the session was resolved from;
+    // and in the press's transaction, checkPress throws it a line before the door's own `if (!checked.pushed)`.
     const UNREACHABLE = { "REFUSAL.noPlan": "a session the route reached is a week of the group's plan" };
     assert.deepEqual(sources, [...Object.keys(reasons), ...Object.keys(UNREACHABLE)].sort(), "a push back has a refusal this walk does not cover");
+    for (const source of Object.values(PUSH_ONLY)) {
+      assert.ok(source === "pushRefusalOf" || source in reasons || source in UNREACHABLE, `${source}: a push's own refusal neither driven nor known unreachable`);
+    }
+    const transaction = door.slice(door.indexOf("const checked = checkPress(run, fresh, change, now, undefined);"));
+    assert.ok(transaction.indexOf("const checked = checkPress(") < transaction.indexOf("if (!checked.pushed) throw"), "checkPress no longer comes first in the press's transaction");
     const plan = world.db.read(`courseRuns/${RUN.agi}`).weekPlan;
     for (const entry of plan.filter((each) => each.kind === "week")) {
       assert.ok(changeModel.planWithBreakBefore(plan, entry.weekNumber), `week ${entry.weekNumber} has a session and no place in the plan`);
