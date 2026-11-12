@@ -337,8 +337,12 @@ export async function loadGroupWeekWork(
     viewerUid: string;
     /** The group's fellows the page lists, named as the page names them. */
     people: ReadonlyArray<{ uid: string; name: string; firstName: string }>;
-    /** The group's facilitators, for the programme's lead and admins only; empty for anybody else. */
-    ownPeople: ReadonlyArray<{ uid: string; name: string; firstName: string }>;
+    /**
+     * The group's facilitators, for the programme's lead and admins only;
+     * empty for anybody else. One with no place in the group is listed only
+     * once they have done something of the week.
+     */
+    ownPeople: ReadonlyArray<{ uid: string; name: string; firstName: string; holdsPlace: boolean }>;
     leadFirstName: string | null;
     now: Date;
   },
@@ -400,19 +404,21 @@ export async function loadGroupWeekWork(
     };
   });
 
-  const own: OwnWeekRow[] | null =
-    ownPeople.length > 0
-      ? ownPeople.map((person) => {
-          const state = stateOf(person.uid);
-          return {
-            uid: person.uid,
-            name: facilitatorRowName(person.name),
-            line: ownWeekLine({ firstName: person.firstName, weekNumber, text: state.text, leadFirstName }),
-            bucket: state.bucket,
-            late: lateDetail(state.lateMs),
-          };
-        })
-      : null;
+  const ownRows: OwnWeekRow[] = ownPeople.flatMap((person) => {
+    const state = stateOf(person.uid);
+    if (!person.holdsPlace && !state.progress.started && !state.progress.weekDone) return [];
+    return [
+      {
+        uid: person.uid,
+        name: facilitatorRowName(person.name),
+        line: ownWeekLine({ firstName: person.firstName, weekNumber, text: state.text, leadFirstName }),
+        bucket: state.bucket,
+        late: lateDetail(state.lateMs),
+      },
+    ];
+  });
+  // Null for anybody but the lead and admins; an empty list for them when no facilitator has a week to show.
+  const own: OwnWeekRow[] | null = ownPeople.length > 0 ? ownRows : null;
 
   return {
     weekNumber,

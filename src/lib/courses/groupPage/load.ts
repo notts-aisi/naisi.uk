@@ -246,7 +246,14 @@ export async function loadGroupPage(
             .sort((a, b) => a.name.localeCompare(b.name)),
           // A facilitator's own week is the programme's lead's and admins' alone.
           ownPeople: staff
-            ? standingFacilitators.map((uid) => ({ uid, name: names.get(uid)?.full ?? "", firstName: names.get(uid)?.first ?? "" })).filter((person) => person.name)
+            ? standingFacilitators
+                .map((uid) => ({
+                  uid,
+                  name: names.get(uid)?.full ?? "",
+                  firstName: names.get(uid)?.first ?? "",
+                  holdsPlace: placedFacilitators.some((seat) => seat.uid === uid),
+                }))
+                .filter((person) => person.name)
             : [],
           leadFirstName: lead?.firstName || null,
           now,

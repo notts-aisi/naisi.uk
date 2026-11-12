@@ -318,8 +318,12 @@ describe("8. the week's card on the group's page", () => {
     world.db.seed(...tickRow("rahul", 3, "r3-s2", BEFORE_WEEK3));
     const view = await page("lead", "claudia", 3);
     assert.deepEqual(view.work.rows.map((row) => row.uid), ["amara", "dev", "ines", "omar"], "every place, told or not, never a facilitator");
-    assert.deepEqual(view.work.own.map((row) => row.uid).sort(), ["rahul", "sofia"]);
+    // Rahul holds a place; Sofia holds none and has done nothing of the week, so she has no week to show.
+    assert.deepEqual(view.work.own.map((row) => row.uid), ["rahul"]);
     assert.match(view.work.own.find((row) => row.uid === "rahul").line, /^Rahul’s own week 3: .*\. Claudia and admins only\.$/);
+    world.db.seed(...tickRow("sofia", 3, "r3-s1", BEFORE_WEEK3));
+    const later = await page("admin", "zach", 3);
+    assert.deepEqual(later.work.own.map((row) => row.uid).sort(), ["rahul", "sofia"], "a facilitator with no place who did some of the week is shown");
   });
 
   test("late in the week, and last reminded", async () => {

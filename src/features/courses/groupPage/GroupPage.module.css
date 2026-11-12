@@ -899,8 +899,11 @@ a.pill {
   border-radius: 2px;
 }
 
-/* A wide table keeps its own scroll, never the page's. */
+/* A wide table keeps its own scroll, never the page's. Positioned, so a
+   heading hidden for screen readers (absolutely placed) is clipped with the
+   table rather than widening the page. */
 .tableScroll {
+  position: relative;
   overflow-x: auto;
   min-width: 0;
 }
