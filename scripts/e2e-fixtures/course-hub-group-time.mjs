@@ -76,11 +76,16 @@ export const SPEC = {
     ],
   },
   /**
-   * NOT VERIFIED YET: written on 12 Nov 2026 against the patterns of the
-   * facilitator's week, and not yet run. It turns "verified" once it has
-   * passed against the harness's loopback server with a manifest of zero.
+   * VERIFIED on 12 Nov 2026 against the harness's loopback server on a laptop
+   * (a production build of the branch): all seven steps ran, 54 rows existed
+   * before teardown (the form and its question set, 3 applications and 3
+   * decisions, the course, the run and its 3 published weeks, 2 groups, 3 rows
+   * on the run's list, 3 enrolments, 4 audit rows, 6 registers, 3 updates,
+   * 3 send counters, 6 sends, 3 cohort subscriptions, 4 accounts and their
+   * documents), and the manifest read zero afterwards. The pull request's
+   * end-to-end job is its first CI run.
    */
-  status: "unverified",
+  status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three" }),
   countRows: countTerm,
   teardown: teardownTerm,

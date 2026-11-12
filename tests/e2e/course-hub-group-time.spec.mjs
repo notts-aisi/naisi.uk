@@ -296,7 +296,8 @@ test(
           assert.equal(pills.length, state.weekCount, "the row of weeks is not every week of the plan");
           for (let n = 1; n <= state.weekCount; n += 1) {
             const dateKey = sessionOf(group, n).dateKey;
-            const expected = n < thisWeek + 0 && n <= 3 ? `Week ${n}, ${dayLabel(dateKey)} · met` : `Week ${n}, ${dayLabel(dateKey)}`;
+            // Weeks 1 to 3 met: every register of them is finished at this point.
+            const expected = n <= thisWeek ? `Week ${n}, ${dayLabel(dateKey)} · met` : `Week ${n}, ${dayLabel(dateKey)}`;
             assert.equal(pills[n - 1], expected, `week ${n}'s pill`);
           }
           // The group's people for the week shown: names only, each with what they said.
@@ -327,11 +328,17 @@ test(
         assert.ok(told?.[1].startsWith(`${peopleWords(people.length)} by email`), `the Told line: ${told?.[1]}`);
         const button = panel().getByRole("button", { name: `Move week ${MOVED_WEEK} and email ${peopleWords(people.length)}`, exact: true });
         await button.waitFor({ timeout: WAIT_MS });
-        const [changed] = await Promise.all([responseTo(`/groups/${group.id}/session/change`, "POST"), button.click()]);
+        // The change, then the update that tells the group, posted with the group's facilitators in its email.
+        const [changed, posted] = await Promise.all([
+          responseTo(`/groups/${group.id}/session/change`, "POST"),
+          responseTo(`/runs/${state.runId}/updates`, "POST"),
+          button.click(),
+        ]);
         const body = await okBody(changed, "The move");
         assert.equal(body.update?.withFacilitators, true, "the move's update does not reach the group's facilitators too");
-        const [posted] = await Promise.all([responseTo(`/runs/${state.runId}/updates`, "POST")]).catch(() => [null]);
-        if (posted) await okBody(posted, "Telling the group");
+        const sent = await okBody(posted, "Telling the group");
+        assert.equal(JSON.parse(posted.request().postData() ?? "{}").withFacilitators, true, "the update was posted without withFacilitators");
+        assert.equal(sent.email?.sent ?? 0, people.length, "the update did not email the group's people");
         await page.getByRole("status").filter({ hasText: "session has moved" }).waitFor({ timeout: WAIT_MS });
         const group4 = (await fixtureDoc("courseGroups", group.id).get()).data();
         assert.equal(group4?.sessionChanges?.[`w0${MOVED_WEEK}`]?.kind, "moved", "week 4 carries no move");
@@ -352,8 +359,13 @@ test(
         await readPreview();
         const button = panel().getByRole("button", { name: `Put week ${MOVED_WEEK} back and email ${peopleWords(people.length)}`, exact: true });
         await button.waitFor({ timeout: WAIT_MS });
-        const [changed] = await Promise.all([responseTo(`/groups/${group.id}/session/change`, "POST"), button.click()]);
+        const [changed, posted] = await Promise.all([
+          responseTo(`/groups/${group.id}/session/change`, "POST"),
+          responseTo(`/runs/${state.runId}/updates`, "POST"),
+          button.click(),
+        ]);
         await okBody(changed, "Putting it back");
+        await okBody(posted, "Telling the group");
         await page.getByRole("status").filter({ hasText: "back to usual" }).waitFor({ timeout: WAIT_MS });
         for (const { person, email } of await newestTo(2)) {
           assert.equal(email.subject, `Week ${MOVED_WEEK} is back to its usual time`, `${person.first}'s subject`);
@@ -371,14 +383,17 @@ test(
           await panel().getByLabel("From which week?", { exact: true }).selectOption(String(FROM_WEEK));
           await panel().getByLabel("Day", { exact: true }).selectOption(String(newWeekday));
           const lines = await readPreview();
+          // "Weeks 5 and 6", "Weeks 5 to 7": the panel's way of naming a run of weeks (`weekSpanWords`).
+          const span = (from, to) => (to - from >= 2 ? `Weeks ${from} to ${to}` : to > from ? `Weeks ${from} and ${to}` : `Week ${from}`);
           const sessions = lines.find(([label]) => label === "Sessions");
+          const later = Array.from({ length: state.weekCount - FROM_WEEK + 1 }, (_, i) => dayLabel(onNewDay(FROM_WEEK + i)));
           assert.ok(
-            sessions?.[1].startsWith(`Weeks ${FROM_WEEK} to ${state.weekCount} move to ${WEEKDAYS[newWeekday]}s`) ||
-              sessions?.[1].startsWith(`Week ${FROM_WEEK} move`),
+            sessions?.[1].startsWith(`${span(FROM_WEEK, state.weekCount)} move to ${WEEKDAYS[newWeekday]}s, ${clockWords(group.startTimeLocal)}`),
             `the Sessions line: ${sessions?.[1]}`,
           );
+          for (const day of later) assert.ok(sessions[1].includes(day), `the Sessions line does not name ${day}: ${sessions[1]}`);
           const kept = lines.find(([label]) => label === "Kept");
-          assert.ok(kept?.[1].startsWith(`Weeks 1 to ${FROM_WEEK - 1} keep their dates`), `the Kept line: ${kept?.[1]}`);
+          assert.ok(kept?.[1].startsWith(`${span(1, FROM_WEEK - 1)} keep their dates`), `the Kept line: ${kept?.[1]}`);
           const button = panel().getByRole("button", {
             name: `Change ${group.name}’s time and email ${peopleWords(people.length)}`,
             exact: true,
