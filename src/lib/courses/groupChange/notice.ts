@@ -7,7 +7,7 @@ import { UPDATE_REPLY_TO } from "@/lib/courses/updates/words";
 import { displayNameOf, staffMessageBlocks, staffPreheader } from "@/lib/email/courseFacilitatorEmails";
 import { dispatchSends } from "@/lib/email/dispatch";
 import { sendNotice } from "@/lib/email/notice";
-import { DAY_MS, NOTICES_PER_DAY, reserveNoticeSlots } from "@/lib/email/noticeCaps";
+import { DAY_MS, NOTICES_PER_DAY, reserveNoticeSlots, type NoticeWindow } from "@/lib/email/noticeCaps";
 import type { SessionUser } from "@/lib/firebase/session";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
@@ -62,13 +62,18 @@ export async function groupNoticeAudience(
   return updateEmailAudience(db, run, [group], "group", group.id, writerUid, { withFacilitators: true });
 }
 
+/** The group's ten notices a day, as a window to claim: one counter, whichever press sends the notice. */
+export function groupNoticeWindow(groupId: string): NoticeWindow {
+  return { key: `groupchangeday__${groupId}`, limit: NOTICES_PER_DAY, windowMs: DAY_MS };
+}
+
 /** Claim one of the group's notices for today, before anything changes. Null when claimed; the refusal otherwise. */
 export async function claimGroupNotice(
   db: Firestore,
   groupId: string,
 ): Promise<{ message: string; retryAfterSeconds: number } | null> {
   const slot = await reserveNoticeSlots(db, {
-    day: { key: `groupchangeday__${groupId}`, limit: NOTICES_PER_DAY, windowMs: DAY_MS },
+    day: groupNoticeWindow(groupId),
     noun: "notices",
   });
   return slot.ok ? null : { message: slot.refusal ?? "That notice was refused.", retryAfterSeconds: slot.retryAfterSeconds };

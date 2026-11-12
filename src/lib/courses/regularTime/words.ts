@@ -1,3 +1,4 @@
+import { couldBeFollowed } from "../followable";
 import { clockWords, dayWords, hoursWords, roomAndCampusWords, ROOM_TO_BE_CONFIRMED_LINE } from "../sessionChange/words";
 
 /**
@@ -122,9 +123,9 @@ export function regularNoticeWords(input: {
   const when = input.incubator
     ? `${from}, your sessions are on ${days}, ${hoursWords(input.hhmm, input.minutes)}.`
     : `${from}, ${input.groupName} meets on ${days}, ${hoursWords(input.hhmm, input.minutes)}.`;
-  const where = input.room.trim()
-    ? `It meets in ${roomAndCampusWords(input.room, input.campusLabel)}.`
-    : ROOM_TO_BE_CONFIRMED_LINE;
+  // A room a reader could follow (`couldBeFollowed`) is said as a room not booked.
+  const room = couldBeFollowed(input.room) ? "" : input.room.trim();
+  const where = room ? `It meets in ${roomAndCampusWords(room, input.campusLabel)}.` : ROOM_TO_BE_CONFIRMED_LINE;
   const reason = input.reason.trim();
   const said = reason ? (/[.!?]$/.test(reason) ? reason : `${reason}.`) : "";
   return {
@@ -151,7 +152,8 @@ export function roomNoticeWords(input: {
   campusLabel: string;
   next: { dateKey: string; hhmm: string } | null;
 }): { subject: string; lines: string[] } {
-  const room = input.room.trim();
+  // A room a reader could follow (`couldBeFollowed`) is said as a room not booked.
+  const room = couldBeFollowed(input.room) ? "" : input.room.trim();
   const owner = input.incubator ? "Your sessions’" : `${input.groupName}’s`;
   const from = input.next ? ` from ${dayWords(input.next.dateKey)}, ${clockWords(input.next.hhmm)}` : "";
   if (!room) {

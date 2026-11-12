@@ -36,8 +36,10 @@ import { getCurrentUser } from "@/lib/firebase/session";
  * the week says now), only once per save, never to the person pressing and
  * never with a meeting link. A notice (docs/notifications.md): the
  * `course-run` surface's marker and receipt, no unsubscribe link, under the
- * lane's caps (3 an hour per presser and choice, 10 a day per week) on
- * counters of its own; a test is not a notice and has its own hourly limit.
+ * lane's caps (3 an hour per presser and choice, 10 a day per week, and 10 a
+ * day for the run across every week for the two choices that reach everyone
+ * the week is open for or the whole programme) on counters of their own; a
+ * test is not a notice and has its own hourly limit.
  *
  * WHO: an admin or the lead of the programme that names the run
  * (`weekEditGate`); a view-as session is refused the POST first.
@@ -47,6 +49,9 @@ type Params = { params: Promise<{ runId: string; weekId: string }> };
 
 /** "Send me a test first", per presser and run, an hour. */
 const TEST_SENDS_PER_HOUR = 10;
+
+/** The choices that reach the whole programme, or everyone a week is open for: ten a day for the run, whichever week. */
+const WIDE_AUDIENCES: readonly TellAudience[] = ["open", "programme"];
 
 /** The save a telling is about: the week's newest, published, never the week as the server found it. */
 async function saveToTell(
@@ -190,12 +195,16 @@ export async function POST(req: Request, ctx: Params) {
     return NextResponse.json({ error: TELL_REFUSAL.countChanged(recipients.length), count: recipients.length }, { status: 409 });
   }
 
-  // The caps, claimed before anything is written or sent.
+  // The caps, claimed before anything is written or sent: the week's own,
+  // and, for a choice that reaches the whole programme or everyone the week
+  // is open for, the run's ten a day across every week, as the updates lane
+  // allows the same audience.
   let claim;
   try {
     claim = await reserveNoticeSlots(db, {
       hour: { key: `weekedit__${body.audience}__${runId}__${weekId}__${actor.uid}`, limit: NOTICES_PER_HOUR, windowMs: HOUR_MS },
       day: { key: `weekeditday__${runId}__${weekId}`, limit: NOTICES_PER_DAY, windowMs: DAY_MS },
+      also: WIDE_AUDIENCES.includes(body.audience) ? [{ key: `weekeditwideday__${runId}`, limit: NOTICES_PER_DAY, windowMs: DAY_MS }] : [],
       noun: "notices",
     });
   } catch (err) {

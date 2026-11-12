@@ -682,7 +682,7 @@ export default function GroupPage({
               <ol className={styles.history}>
                 {rows.map((row) => (
                   <li key={row.id} className={styles.historyRow}>
-                    <span className={styles.historyWhen}>{historyWhenWords(row.at)}</span>
+                    <span className={styles.historyWhen}>{historyWhenWords(row.at, row.day)}</span>
                     <span className={styles.historyWho}>{row.actorName}</span>
                     <span className={styles.historyWhat}>
                       <span>{row.headline}</span>

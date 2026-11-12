@@ -403,11 +403,21 @@ describe("2. asking for a correction, and deciding it", () => {
     assert.equal((await act("zach", "decline", id, { reply: "Again." })).body.error, words.REQUEST_REFUSAL.decided);
   });
 
-  test("a run's track lead decides too; the person a request is about must be on the register", async () => {
+  test("a run's track lead who is neither an admin nor the programme's lead decides nothing; the person a request is about must be on the register", async () => {
     const { id } = (await askDev()).body.request;
-    const answer = await act("yusuf", "approve", id);
+    const before = everything();
+    for (const action of ["approve", "decline", "take"]) {
+      const answer = await act("yusuf", action, id, action === "decline" ? { reply: "No." } : undefined);
+      assert.deepEqual([answer.status, answer.body.error], [403, "Forbidden"], action);
+    }
+    assert.equal(everything(), before, "a track lead's press wrote something");
+    // Its page, and the asker's reason on it, are not theirs; the lead decides.
+    assert.equal((await loaders.loadRequestPage(world.courseDb, sessionOf("yusuf"), id)).status, "none");
+    assert.equal((await loaders.loadRequestPage(world.courseDb, sessionOf("claudia"), id)).view.canDecide, true);
+    const answer = await act("claudia", "approve", id);
     assert.equal(answer.status, 200, JSON.stringify(answer.body));
-    assert.equal(world.db.read(`courseRequests/${id}`).decidedByUid, "yusuf");
+    assert.equal(world.db.read(`courseRequests/${id}`).decidedByUid, "claudia");
+    // A track lead corrects a finished register directly, with a reason (above).
     const stranger = await ask("rahul", { uid: "bea", to: { status: "present" }, reason: REASON });
     assert.equal(stranger.status, 400, "a line of somebody in another group");
   });
@@ -445,7 +455,7 @@ describe("2. asking for a correction, and deciding it", () => {
     const asLead = await loaders.loadRequestsPage(world.courseDb, sessionOf("claudia"), LATER);
     assert.deepEqual([asLead.status, asLead.view.viewer, asLead.view.rows.length], ["ok", "lead", 1]);
     assert.equal(asLead.view.rows[0].mine, true);
-    assert.equal((await loaders.loadRequestsPage(world.courseDb, sessionOf("yusuf"), LATER)).view.rows.length, 1, "a track lead reads their run's");
+    assert.equal((await loaders.loadRequestsPage(world.courseDb, sessionOf("yusuf"), LATER)).status, "none", "a track lead who decides nothing reads the list");
     // The lead of another programme reads their own programme's, which has none.
     const otherLead = await loaders.loadRequestsPage(world.courseDb, sessionOf("tess"), LATER);
     assert.deepEqual([otherLead.status, otherLead.view.rows.length], ["ok", 0]);
@@ -465,14 +475,14 @@ describe("2. asking for a correction, and deciding it", () => {
     const listed = await loaders.loadRequestsPage(world.courseDb, sessionOf("claudia"), LATER);
     assert.deepEqual([listed.status, listed.view.rows.length, listed.view.counts.waiting], ["ok", 0, 0]);
     assert.equal((await loaders.loadRequestPage(world.courseDb, sessionOf("claudia"), id)).status, "none", "the list offers what the page does not open");
-    // An admin, and the run's track lead who does not facilitate it, still list it.
+    // An admin lists it; the run's track lead, who decides nothing, neither lists nor opens it.
     assert.equal((await loaders.loadRequestsPage(world.courseDb, sessionOf("zach"), LATER)).view.rows.length, 1);
-    assert.equal((await loaders.loadRequestsPage(world.courseDb, sessionOf("yusuf"), LATER)).view.rows.length, 1);
-    assert.equal((await loaders.loadRequestPage(world.courseDb, sessionOf("yusuf"), id)).status, "ok");
+    assert.equal((await loaders.loadRequestsPage(world.courseDb, sessionOf("yusuf"), LATER)).status, "none");
+    assert.equal((await loaders.loadRequestPage(world.courseDb, sessionOf("yusuf"), id)).status, "none");
     // An archived group's requests open for an admin only, so they are listed for an admin only.
     world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia"], archived: true });
-    assert.equal((await loaders.loadRequestsPage(world.courseDb, sessionOf("yusuf"), LATER)).view.rows.length, 0);
-    assert.equal((await loaders.loadRequestPage(world.courseDb, sessionOf("yusuf"), id)).status, "none");
+    assert.equal((await loaders.loadRequestsPage(world.courseDb, sessionOf("claudia"), LATER)).view.rows.length, 0);
+    assert.equal((await loaders.loadRequestPage(world.courseDb, sessionOf("claudia"), id)).status, "none");
     assert.equal((await loaders.loadRequestsPage(world.courseDb, sessionOf("zach"), LATER)).view.rows.length, 1);
   });
 
@@ -488,18 +498,21 @@ describe("2. asking for a correction, and deciding it", () => {
       }
       return out;
     };
-    assert.deepEqual(await both(), { zach: [1, 1], claudia: [1, 1], yusuf: [1, 1] });
+    // A run's track lead decides none, so counts none and lists none.
+    assert.deepEqual(await both(), { zach: [1, 1], claudia: [1, 1], yusuf: [0, 0] });
     // Claudia, the programme's lead, also facilitates Group B: its request is not hers to open, so it is not counted.
     world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia", "claudia"] });
-    assert.deepEqual(await both(), { zach: [1, 1], claudia: [0, 0], yusuf: [1, 1] });
+    assert.deepEqual(await both(), { zach: [1, 1], claudia: [0, 0], yusuf: [0, 0] });
     // An archived group's: an admin's alone.
     world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia"], archived: true });
     assert.deepEqual(await both(), { zach: [1, 1], claudia: [0, 0], yusuf: [0, 0] });
+    // Home's count for the track lead is the list's: none.
+    assert.equal((await requestsHome.requestsWaitingFor(world.courseDb, sessionOf("yusuf"), LATER)).count, 0);
     // The head asks with its reader, and the list and the count ask one predicate.
     const layout = sourceOf("app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/layout.tsx");
     assert.match(layout, /await requestsWaitingOnRun\(db, user, programme\.runId, \{ excused: role === "admin" \}\)/);
-    assert.match(sourceOf("lib/courses/requests/home.ts"), /return waiting\.filter\(\(each\) => requestShownTo\(user, groups\.get\(each\.groupId\), runId\)\)\.length \+ excused;/);
-    assert.match(sourceOf("lib/courses/requests/load.ts"), /requests = requests\.filter\(\(each\) => requestShownTo\(actor, ctx\.groups\.get\(each\.groupId\), each\.runId\)\);/);
+    assert.match(sourceOf("lib/courses/requests/home.ts"), /return waiting\.filter\(\(each\) => requestShownTo\(user, groups\.get\(each\.groupId\), runId, leadsRun\)\)\.length \+ excused;/);
+    assert.match(sourceOf("lib/courses/requests/load.ts"), /requests = requests\.filter\(\(each\) => requestShownTo\(actor, ctx\.groups\.get\(each\.groupId\), each\.runId, led\.runIds\.includes\(each\.runId\)\)\);/);
   });
 
   test("one request's page: the line now, why, who finished it, what approving does, its history; for the people who decide only", async () => {
@@ -514,6 +527,15 @@ describe("2. asking for a correction, and deciding it", () => {
     assert.deepEqual([view.canDecide, view.canTake, view.yours], [true, true, false]);
     for (const who of ["rahul", "sofia", "amara", "tess"]) {
       assert.equal((await loaders.loadRequestPage(world.courseDb, sessionOf(who), id)).status, "none", who);
+    }
+    // An admin who asked it reads the page and is offered no press: the routes refuse the asker all three.
+    world.db.poke(`courseRequests/${id}`, { askedByUid: "zach" });
+    const asked = await loaders.loadRequestPage(world.courseDb, sessionOf("zach"), id);
+    assert.equal(asked.status, "ok");
+    assert.deepEqual([asked.view.canDecide, asked.view.canTake, asked.view.yours], [false, false, true]);
+    for (const action of ["approve", "decline", "take"]) {
+      const answer = await act("zach", action, id, action === "decline" ? { reply: "No." } : undefined);
+      assert.deepEqual([answer.status, answer.body.error], [403, words.REQUEST_REFUSAL.ownRequest], action);
     }
   });
 });

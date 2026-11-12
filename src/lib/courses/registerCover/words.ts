@@ -1,3 +1,5 @@
+import { couldBeFollowed } from "@/lib/courses/followable";
+import { ROOM_TO_BE_CONFIRMED } from "@/lib/courses/groupPage/words";
 import { clockWords, dayWords, endClockWords, namesWords } from "@/lib/courses/sessionChange/words";
 import type { FinishCounts } from "./model";
 
@@ -49,7 +51,25 @@ export const COVER_REFUSAL = {
   /** The session is already given to that person, and the grant still holds: nothing is written or sent again. */
   alreadyGiven: "That session is already theirs, so nothing was changed and nobody was emailed again.",
   overCap: "Too many people to email in one send. Untick Tell the group.",
+  /** The give's limits could not be read: nothing is given, so nobody is emailed. */
+  limitsUnread: "That didn’t go through, so the session wasn’t given and nobody was emailed. Try again.",
   nobodyToEmail: "Nobody in the group can be emailed yet. Untick Tell the group.",
+} as const;
+
+/**
+ * A give past one of its limits (`GIVE_LIMITS`): one sentence, saying the
+ * session was not given and nobody was emailed.
+ */
+export const GIVE_LIMIT_WORDS = {
+  giverHour: (limit: number) =>
+    `You’ve given ${limit} of this group’s sessions in the last hour, so this one wasn’t given and nobody was emailed: try again later.`,
+  groupDay: (limit: number) =>
+    `This group’s sessions have been given ${limit} times in the last day, so this one wasn’t given and nobody was emailed: try again tomorrow, or ask an admin.`,
+  personDay: (firstName: string, limit: number) =>
+    `${firstName.trim() || "They"} ${firstName.trim() ? "has" : "have"} been given ${limit} sessions in the last day, so this one wasn’t given and nobody was emailed: try again tomorrow, or ask an admin.`,
+  /** The group's own notices, with Tell the group ticked: the give goes without the tick. */
+  groupNotices: (limit: number) =>
+    `This group has had ${limit} notices in the last day, so this session wasn’t given and nobody was emailed: untick Tell the group to give it without telling them.`,
 } as const;
 
 /** The count on the button no longer holds: what it would email now. */
@@ -109,7 +129,7 @@ export type CoverSessionFacts = {
   durationMinutes: number;
   /** "Monica Partridge E05", or "" with none. */
   room: string;
-  /** Held online that week. */
+  /** Held online for everybody that week (`heldOnline`: the week's mode, its campus and the room). */
   online: boolean;
   /** The session falls on today's London date. */
   today: boolean;
@@ -125,10 +145,15 @@ function whenWords(facts: CoverSessionFacts): string {
   return facts.today ? `today, ${date}` : `on ${date}`;
 }
 
-/** Where it meets, never a link: the room, "online", or nothing. */
+/**
+ * Where it meets, never a link: "online", the room, or the words for a room
+ * not booked yet. A room a reader could follow (`couldBeFollowed`, the
+ * function every email that prints a stored room asks) is a room not booked.
+ */
 function whereWords(facts: CoverSessionFacts): string {
   if (facts.online) return "online";
-  return facts.room.trim();
+  const room = facts.room.trim();
+  return room && !couldBeFollowed(room) ? room : ROOM_TO_BE_CONFIRMED.toLowerCase();
 }
 
 // ---------------------------------------------------------------------------
@@ -181,7 +206,8 @@ export function coverNoticeWords(
   const where = whereWords(facts);
   const who = person.committee ? `${full} from the committee` : full;
   const at = start ? ` at ${start}` : "";
-  const place = where === "online" ? ", online as planned" : where ? `, as usual in ${where}` : "";
+  const tbc = where === ROOM_TO_BE_CONFIRMED.toLowerCase();
+  const place = where === "online" ? ", online as planned" : tbc ? `, ${where}` : `, as usual in ${where}`;
   const away = coveringFirstNames.length > 0 ? `${namesWords(coveringFirstNames)} can’t make it ${day}, so ` : "";
   const sentence = away
     ? `${away}${who} is running ${group}’s session${at}${place}.`

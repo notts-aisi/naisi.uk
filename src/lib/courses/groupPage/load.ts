@@ -221,7 +221,10 @@ export async function loadGroupPage(
     // Rows about whether a facilitator was at a session are loaded only for
     // an admin or the programme's lead who does not facilitate the group:
     // that record is sent to nobody else.
-    staff ? loadGroupHistory(db, run.id, group.id, { facilitatorRecord: !group.facilitatorUids.includes(viewerUid) }) : Promise.resolve(null),
+    // Who approved a request to be excused is an admin's alone, here as on the register.
+    staff
+      ? loadGroupHistory(db, run.id, group.id, { facilitatorRecord: !group.facilitatorUids.includes(viewerUid), isAdmin: viewer === "admin" })
+      : Promise.resolve(null),
     // Which sessions have a check-in or a session report: push back is not offered for them.
     sessionsWithCheckInOrReport(db, run.id, group.id, sessions.map((session) => session.sessionKey)),
     namingRead.then((found) => readRunLead(db, run.id, found)),
@@ -381,7 +384,7 @@ export async function loadGroupPage(
       ? {
           rows: history.rows.map((row) => {
             const { headline, rest } = historyLines(row.detail);
-            return { id: row.id, at: row.at, actorName: row.actorName, headline, rest, category: row.category };
+            return { id: row.id, at: row.at, ...(row.day ? { day: row.day } : {}), actorName: row.actorName, headline, rest, category: row.category };
           }),
           more: history.more,
         }

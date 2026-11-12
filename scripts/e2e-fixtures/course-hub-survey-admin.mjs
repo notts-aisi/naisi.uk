@@ -500,11 +500,22 @@ async function countRows(state) {
   return { ...counts, ...mine, total: counts.total + mine.checkInWeeks + mine.questionSet };
 }
 
+/** Remove every week of the run the scheduler could have fixed, by its constructed id. */
+async function deleteCheckInWeeks(state) {
+  if (!state.runId) return;
+  for (let week = 1; week <= WEEK_COUNT; week += 1) {
+    await fixtureDoc("checkInWeeks", checkInWeekId(state.runId, week)).delete();
+  }
+}
+
 /**
  * The question set first, put back exactly as the seed found it, whatever
  * became of the spec; then the scheduler's weeks; then the term, whose
  * teardown checks every address it holds before it deletes anything and
- * removes the surveys this fixture wrote with every row under them.
+ * removes the surveys this fixture wrote with every row under them; then the
+ * scheduler's weeks AGAIN, because a tick that lands while the term is being
+ * torn down still finds the run and writes them back. Once the run is gone
+ * the job has nothing to write them for, so only then are they counted.
  */
 async function teardown(state) {
   const held = state.questionSet;
@@ -519,12 +530,9 @@ async function teardown(state) {
       log("The end of a programme's question set differs from before the run, and this ledger has lost what it was.");
     }
   }
-  if (state.runId) {
-    for (let week = 1; week <= WEEK_COUNT; week += 1) {
-      await fixtureDoc("checkInWeeks", checkInWeekId(state.runId, week)).delete();
-    }
-  }
+  await deleteCheckInWeeks(state);
   const counts = await teardownTerm(state);
+  await deleteCheckInWeeks(state);
   const mine = { checkInWeeks: await checkInWeeksLeft(state), questionSet: await questionSetLeft(state) };
   return { ...counts, ...mine, total: counts.total + mine.checkInWeeks + mine.questionSet };
 }

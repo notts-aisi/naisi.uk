@@ -86,6 +86,7 @@ const push = await courseRoute("groups", "[groupId]", "attendance", "push");
 const cover = await courseRoute("groups", "[groupId]", "attendance", "cover");
 const record = await courseRoute("groups", "[groupId]", "attendance", "facilitators");
 const checkIn = await courseRoute("groups", "[groupId]", "check-in");
+const checkInClose = await courseRoute("groups", "[groupId]", "check-in", "close");
 const report = await courseRoute("groups", "[groupId]", "session-report");
 const participantNotes = await courseRoute("groups", "[groupId]", "participant-notes");
 const model = await loadTs("lib/courses/registerCover/model.ts");
@@ -95,6 +96,8 @@ const reminders = await loadTs("lib/scheduler/jobs/registerReminders.ts");
 const remind = await loadTs("lib/courses/registerRemind.ts");
 const reminderEmail = await loadTs("lib/email/registerReminderEmail.ts");
 const history = await loadTs("lib/courses/groupHistory/load.ts");
+const registerAccessLib = await loadTs("lib/courses/registerAccess.ts");
+const pageWords = await loadTs("lib/courses/registerCover/pageWords.ts");
 
 const PLACED_ON = new Date("2026-10-27T17:38:00Z");
 /** Group B's week 1 session: Tue 3 Nov, 6pm to 8pm in London (GMT). */
@@ -366,6 +369,109 @@ describe("3. one session given to somebody else", () => {
     assert.equal(everything(), before);
   });
 
+  test("where the session meets, in both emails: online for a group that meets online with no room; room to be confirmed for one in a room with none", async () => {
+    world.db.poke(`courseGroups/${B}`, { campus: "online", "session.location": "" });
+    const online = (await take("claudia", { person: "tom", preview: true })).body.preview;
+    assert.match(online.email.lines[0], /^Claudia has given you Group B’s session today, Tue 3 Nov, 6pm to 8pm, online\. /);
+    assert.match(online.notice.lines[0], /, online as planned\.$/);
+    assert.doesNotMatch(JSON.stringify([online.email, online.notice]), /to be confirmed/);
+
+    world.db.poke(`courseGroups/${B}`, { campus: "university-park", "session.location": "" });
+    const inARoom = (await take("claudia", { person: "tom", preview: true })).body.preview;
+    assert.match(inARoom.email.lines[0], /^Claudia has given you Group B’s session today, Tue 3 Nov, 6pm to 8pm, room to be confirmed\. /);
+    assert.match(inARoom.notice.lines[0], /, room to be confirmed\.$/);
+    assert.doesNotMatch(JSON.stringify([inARoom.email, inARoom.notice]), /online/);
+  });
+
+  test("a give is held to its limits on stored counters: an ordinary give claims one of each", async () => {
+    assert.deepEqual(model.GIVE_LIMITS, { perGiverHour: 12, perGroupDay: 20, perPersonDay: 12 });
+    assert.equal((await take("claudia", { person: "tom" })).status, 200);
+    for (const id of [`covergive__${B}__claudia`, `covergiveday__${B}`, "covergiven__tom"]) {
+      assert.equal(world.db.read(`courseNudges/emailrate__${id}`)?.count, 1, id);
+    }
+    // A preview, and I'm covering it, claim nothing and email nobody.
+    assert.equal((await take("claudia", { person: "nadia", preview: true })).status, 200);
+    assert.equal((await take("claudia", {})).status, 200);
+    assert.equal(world.db.read(`courseNudges/emailrate__covergiveday__${B}`).count, 1);
+    assert.equal(world.db.read("courseNudges/emailrate__covergiven__nadia"), undefined);
+  });
+
+  test("alternating I'm covering it with a give stops at the hourly limit: the refused give writes, claims and sends nothing", async () => {
+    for (let i = 1; i <= model.GIVE_LIMITS.perGiverHour; i += 1) {
+      assert.equal((await take("claudia", { person: "tom" })).status, 200, `give ${i}`);
+      assert.equal((await take("claudia", {})).status, 200, `I'm covering it ${i}`);
+    }
+    assert.equal(world.mail.length, model.GIVE_LIMITS.perGiverHour, "one email to Tom for each give");
+    const before = everything();
+    const refused = await take("claudia", { person: "tom" });
+    assert.deepEqual([refused.status, refused.body.error], [429, words.GIVE_LIMIT_WORDS.giverHour(model.GIVE_LIMITS.perGiverHour)]);
+    assert.ok(refused.body.retryAfterSeconds > 0, "the refusal says when to try again");
+    assert.equal(everything(), before, "a refused give wrote something");
+    assert.equal(world.mail.length, model.GIVE_LIMITS.perGiverHour, "a refused give emailed somebody");
+    assert.equal(stored().cover.kind, "self", "the register says it was given");
+    // An hour on, the same person may give again (to somebody not given a day's worth already).
+    at(new Date(DURING.getTime() + 61 * 60 * 1000));
+    assert.equal((await take("claudia", { person: "nadia" })).status, 200);
+  });
+
+  test("two people giving one group's sessions stop at the group's daily limit", async () => {
+    let gives = 0;
+    for (const giver of ["claudia", "yusuf"]) {
+      for (let i = 0; i < model.GIVE_LIMITS.perGiverHour && gives < model.GIVE_LIMITS.perGroupDay; i += 1) {
+        const answer = await take(giver, { person: gives % 2 === 0 ? "tom" : "nadia" });
+        assert.equal(answer.status, 200, `${giver} ${i}: ${JSON.stringify(answer.body)}`);
+        gives += 1;
+      }
+    }
+    assert.equal(gives, model.GIVE_LIMITS.perGroupDay);
+    const before = everything();
+    const mailed = world.mail.length;
+    const refused = await take("zach", { person: "tom" });
+    assert.deepEqual([refused.status, refused.body.error], [429, words.GIVE_LIMIT_WORDS.groupDay(model.GIVE_LIMITS.perGroupDay)]);
+    assert.equal(everything(), before);
+    assert.equal(world.mail.length, mailed);
+  });
+
+  test("one person handed the rest of a term of two groups in one sitting is never refused; one give more is", async () => {
+    const give = (who, groupId, weekNumber, person = "tom") =>
+      call(who, cover.POST, { groupId }, { body: { weekNumber, person }, course: true });
+    // Every session of Group B and Group A, all six weeks of each, to Tom.
+    for (const groupId of [B, A]) {
+      for (let weekNumber = 1; weekNumber <= 6; weekNumber += 1) {
+        const answer = await give("claudia", groupId, weekNumber);
+        assert.equal(answer.status, 200, `${groupId} week ${weekNumber}: ${JSON.stringify(answer.body)}`);
+      }
+    }
+    assert.equal(model.GIVE_LIMITS.perPersonDay, 12);
+    // Week 1 to Nadia, then back to Tom: the thirteenth session given to Tom today.
+    assert.equal((await give("yusuf", B, 1, "nadia")).status, 200);
+    const before = everything();
+    const mailed = world.mail.length;
+    const refused = await give("yusuf", B, 1);
+    assert.deepEqual([refused.status, refused.body.error], [429, words.GIVE_LIMIT_WORDS.personDay("Tom", model.GIVE_LIMITS.perPersonDay)]);
+    assert.equal(everything(), before);
+    assert.equal(world.mail.length, mailed);
+  });
+
+  test("past the group's notices, a give with Tell the group ticked is refused whole, and the same give unticked goes", async () => {
+    world.db.seed(`courseNudges/emailrate__groupchangeday__${B}`, {
+      kind: "staff-email-throttle",
+      key: `groupchangeday__${B}`,
+      windowStartAt: new Date(),
+      count: 10,
+      updatedAt: new Date(),
+    });
+    const before = everything();
+    const refused = await take("claudia", { person: "tom", tell: true, emailCount: 2 });
+    assert.deepEqual([refused.status, refused.body.error], [429, words.GIVE_LIMIT_WORDS.groupNotices(10)]);
+    assert.match(refused.body.error, /this session wasn’t given and nobody was emailed: untick Tell the group/);
+    assert.equal(everything(), before, "a refused give wrote or claimed something");
+    assert.deepEqual(world.mail, []);
+    const given = await take("claudia", { person: "tom" });
+    assert.equal(given.status, 200, JSON.stringify(given.body));
+    assert.equal(world.mail.length, 1, "the give alone emails the person given it");
+  });
+
   test("a new grant replaces the old one; I'm covering it replaces a grant, leaving nothing of it behind", async () => {
     assert.equal((await take("claudia", { person: "tom" })).status, 200);
     assert.equal((await take("zach", { person: "nadia" })).status, 200);
@@ -449,6 +555,142 @@ describe("4. somebody given a session takes that one register, names only", () =
     assert.equal((await mark("tom", [{ uid: "amara", status: "present" }])).status, 403);
     assert.equal((await finish("tom")).status, 403);
     assert.equal(stored().pushedAt, undefined);
+  });
+});
+
+describe("4a. who took a register, and whose place it was, by reader", () => {
+  test("who took it and when reach every reader; whose place, who gave it and until when, admins and the programme's lead; a facilitator their own place alone", async () => {
+    assert.equal((await take("claudia", { person: "tom" })).status, 200);
+    const seen = {};
+    for (const who of ["zach", "claudia", "yusuf", "rahul", "sofia", "tom"]) {
+      const answer = await read(who);
+      assert.equal(answer.status, 200, `${who}: ${JSON.stringify(answer.body)}`);
+      const cover = answer.body.covers.w01;
+      assert.equal(cover.by.uid, "tom", `${who} is not told who has it`);
+      assert.equal(typeof cover.at, "string", `${who} is not told when`);
+      seen[who] = {
+        covering: cover.covering.map((each) => each.uid),
+        givenBy: cover.givenBy?.uid ?? null,
+        until: cover.until === null ? null : "set",
+      };
+    }
+    assert.deepEqual(seen, {
+      zach: { covering: ["rahul", "sofia"], givenBy: "claudia", until: "set" },
+      claudia: { covering: ["rahul", "sofia"], givenBy: "claudia", until: "set" },
+      yusuf: { covering: [], givenBy: null, until: null },
+      rahul: { covering: ["rahul"], givenBy: null, until: null },
+      sofia: { covering: ["sofia"], givenBy: null, until: null },
+      tom: { covering: [], givenBy: null, until: null },
+    });
+    // The facilitator's line says it was their place, and never a co-facilitator's.
+    const asRahul = (await read("rahul")).body;
+    const line = pageWords.placeLine({
+      cover: asRahul.covers.w01,
+      facilitators: asRahul.facilitators,
+      readerFacilitates: true,
+      facilitatorStarted: false,
+      finished: false,
+    });
+    assert.match(line, /was given this session, covering for you\./);
+    assert.doesNotMatch(line, /Sofia/);
+  });
+});
+
+describe("4b. a given session is held to the bar it was given behind, at every use", () => {
+  /** Every door the grant opened, as Tom, for week 1. */
+  async function doors() {
+    return {
+      read: (await read("tom")).status,
+      mark: (await mark("tom", [{ uid: "amara", status: "present" }])).status,
+      checkIn: (await card("tom", "w01")).status,
+      close: (await call("tom", checkInClose.POST, { groupId: B }, { body: { session: "w01" }, course: true })).status,
+      report: (await call("tom", report.PUT, { groupId: B }, { body: { sessionKey: "w01", answers: { how: 4 } }, course: true })).status,
+      finish: (await finish("tom")).status,
+    };
+  }
+  const tomAt = () => world.db.read("users/tom");
+  const lapsed = (uid) =>
+    registerAccessLib.givenSessionLapsed(world.courseDb ?? world.db, { runId: RUN.agi, groupId: B, sessionKey: "w01" }, { ...tomAt(), uid, role: world.db.read(`users/${uid}`).role }, new Date());
+
+  test("given, then taken off their only group: every door the grant opened refuses, the page says why, and it can be given again", async () => {
+    assert.equal((await take("claudia", { person: "tom" })).status, 200);
+    assert.equal((await read("tom")).status, 200, "the grant opens the register while Tom runs a group");
+    // Tom stops facilitating Group C, the one thing he ran on the programme.
+    world.db.poke(`courseGroups/${C}`, { facilitatorUids: [] });
+    const before = everything();
+    const refused = await doors();
+    assert.deepEqual(refused, { read: 403, mark: 403, checkIn: 403, close: 403, report: 403, finish: 403 });
+    assert.equal(everything(), before, "a refused door wrote something");
+    assert.equal(stored().cover.byUid, "tom", "the grant itself is left as it was");
+    // The register's page tells Tom in a sentence; the lead is told it does not stand.
+    assert.equal(await lapsed("tom"), true);
+    assert.match(pageWords.GIVEN_NO_LONGER_YOURS, /no longer run anything on this programme/);
+    const asLead = await read("claudia");
+    assert.equal(asLead.body.covers.w01.stands, false);
+    const line = pageWords.placeLine({
+      cover: asLead.body.covers.w01,
+      facilitators: [],
+      readerFacilitates: false,
+      facilitatorStarted: false,
+      finished: false,
+    });
+    assert.equal(line, pageWords.givenNoLongerStandsLine(asLead.body.covers.w01.by.name));
+    // The session can be given again.
+    assert.equal((await take("claudia", { person: "nadia" })).status, 200);
+    assert.equal(stored().cover.byUid, "nadia");
+  });
+
+  test("whether a given session stands is sent to an admin, the programme's lead and the person holding it; a track lead and the facilitators read the usual line", async () => {
+    assert.equal((await take("claudia", { person: "tom" })).status, 200);
+    const standsFor = async (who) => {
+      const cover = (await read(who)).body.covers.w01;
+      return "stands" in cover ? cover.stands : "not sent";
+    };
+    const before = {};
+    for (const who of ["zach", "claudia", "yusuf", "rahul", "sofia", "tom"]) before[who] = await standsFor(who);
+    assert.deepEqual(before, { zach: true, claudia: true, yusuf: "not sent", rahul: "not sent", sofia: "not sent", tom: true });
+
+    world.db.poke(`courseGroups/${C}`, { facilitatorUids: [] });
+    const after = {};
+    for (const who of ["zach", "claudia", "yusuf", "rahul", "sofia"]) after[who] = await standsFor(who);
+    assert.deepEqual(after, { zach: false, claudia: false, yusuf: "not sent", rahul: "not sent", sofia: "not sent" });
+    assert.equal((await read("tom")).status, 403, "the person it was given to reads nothing of the register");
+    for (const who of ["rahul", "sofia"]) {
+      const body = (await read(who)).body;
+      const line = pageWords.placeLine({
+        cover: body.covers.w01,
+        facilitators: body.facilitators,
+        readerFacilitates: true,
+        facilitatorStarted: false,
+        finished: false,
+      });
+      assert.equal(line, `${body.covers.w01.by.name} was given this session, covering for you. Carry on from here: each line says who set it.`, who);
+    }
+    const asTrackLead = (await read("yusuf")).body.covers.w01;
+    const trackLine = pageWords.placeLine({ cover: asTrackLead, facilitators: [], readerFacilitates: false, facilitatorStarted: false, finished: false });
+    assert.equal(trackLine, `${asTrackLead.by.name} has this session until midnight.`);
+  });
+
+  test("a grant to somebody who runs something on the run stands: moved to another group, the committee, an admin", async () => {
+    assert.equal((await take("claudia", { person: "tom" })).status, 200);
+    // Tom leaves Group C and facilitates Group A: he runs a group of the run.
+    world.db.poke(`courseGroups/${C}`, { facilitatorUids: [] });
+    world.db.poke(`courseGroups/${A}`, { facilitatorUids: ["sofia", "tom"] });
+    assert.deepEqual(await doors().then(({ finish: _f, report: _r, close: _c, ...rest }) => rest), { read: 200, mark: 200, checkIn: 200 });
+    assert.equal(await lapsed("tom"), false);
+    assert.equal((await read("claudia")).body.covers.w01.stands, true);
+
+    // Nadia is on the committee and runs nothing named: her grant stands.
+    await told();
+    assert.equal((await take("claudia", { person: "nadia" })).status, 200);
+    assert.equal((await read("nadia")).status, 200);
+    assert.equal((await mark("nadia", [{ uid: "amara", status: "present" }])).status, 200);
+    assert.equal((await read("claudia")).body.covers.w01.stands, true);
+
+    // An admin given a session stands too, as an admin.
+    await told();
+    assert.equal((await take("claudia", { person: "zach" })).status, 200);
+    assert.equal((await read("claudia")).body.covers.w01.stands, true);
   });
 });
 

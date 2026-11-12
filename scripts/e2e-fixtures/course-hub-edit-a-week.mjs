@@ -116,13 +116,14 @@ async function seed({ runId, suppress, onState }) {
 /**
  * The send counters the week's notice and its test leave, by the ids the
  * tell route builds (`reserveNoticeSlots` and `reserveSendSlot` keep them in
- * `courseNudges` as `emailrate__<key>`): one a day for the week, one an hour
- * per presser and choice, and one an hour per presser for the tests. The
- * pressers are the lead and the admin.
+ * `courseNudges` as `emailrate__<key>`): one a day for the week, one a day
+ * for the run for the two choices that reach everyone the week is open for or
+ * the whole programme, one an hour per presser and choice, and one an hour
+ * per presser for the tests. The pressers are the lead and the admin.
  */
 function tellCounterIdsOf(state) {
   const { weekId } = EDIT_WEEK;
-  const ids = [`emailrate__weekeditday__${state.runId}__${weekId}`];
+  const ids = [`emailrate__weekeditday__${state.runId}__${weekId}`, `emailrate__weekeditwideday__${state.runId}`];
   for (const uid of [state.lead?.uid, state.adminUid].filter(Boolean)) {
     ids.push(`emailrate__weekedittest__${state.runId}__${uid}`);
     for (const audience of ["started", "open", "programme"]) ids.push(`emailrate__weekedit__${audience}__${state.runId}__${weekId}__${uid}`);

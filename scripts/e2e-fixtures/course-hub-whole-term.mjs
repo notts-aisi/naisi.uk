@@ -137,9 +137,13 @@ async function seed({ runId, suppress, onState }) {
  *  - Remind's: each group's daily cap and each presser's hourly one for a
  *    group's week and who it was for (`claimRemindSlot` in
  *    src/lib/courses/groupWeekWork/remind.ts);
- *  - the week notice's: one a day for the week, one an hour per presser and
- *    choice, and one an hour per presser for a test (the tell route).
- * The pressers are the lead, the facilitator and the admin.
+ *  - the week notice's: one a day for the week, one a day for the run for the
+ *    two choices that reach everyone the week is open for or the whole
+ *    programme, one an hour per presser and choice, and one an hour per
+ *    presser for a test (the tell route).
+ * The pressers are the lead, the facilitator and the admin. Giving a session
+ * (per giver and group, per group, per person given it) is the term's own
+ * count (`sendCounterIdsOf` in worlds/course-hub-term.mjs).
  */
 function ownCounterIdsOf(state) {
   const ids = [];
@@ -161,6 +165,7 @@ function ownCounterIdsOf(state) {
       for (const audience of ["started", "open", "programme"]) ids.push(`emailrate__weekedit__${audience}__${state.runId}__${weekId}__${uid}`);
     }
   }
+  ids.push(`emailrate__weekeditwideday__${state.runId}`);
   for (const uid of pressers) ids.push(`emailrate__weekedittest__${state.runId}__${uid}`);
   return [...new Set(ids)];
 }

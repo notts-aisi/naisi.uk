@@ -404,6 +404,9 @@ describe("2. the pages, drawn", () => {
     const asker = draw(RequestPage, { view: { ...view, canDecide: false, yours: true } });
     assert.ok(!asker.text.includes("Approve and correct") && !asker.html.includes('data-testid="request-decline"'), "the person who asked is offered a decision");
     assert.ok(asker.text.includes("You asked for this, so somebody else decides it."));
+    // A reader who did not ask it is never told they did.
+    const notTheirs = draw(RequestPage, { view: { ...view, canDecide: false, yours: false } });
+    assert.ok(!notTheirs.text.includes("You asked for this"), "a reader who did not ask it is told they did");
     const changed = draw(RequestPage, { view: { ...view, line: { ...view.line, now: "Excused", asAsked: false } } });
     assert.ok(changed.text.includes("The line says Excused now, not Absent as it did when this was asked."), changed.text);
   });

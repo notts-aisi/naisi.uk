@@ -67,7 +67,7 @@ const NOT_A_RUN_GATE = {
     "the change dialog's line naming who can change a session: it asks which of the run's named track leads still stand, to name them on the line, and grants nothing. The change route asks runStaffingOf",
   "features/courses/runAccess.ts":
     "the learning space's page gate under /learn, the cohort's own doors: a programme's lead reaches their run from the programme's page, and the routes behind both doors admit them",
-  "lib/courses/registerCover/people.ts":
+  "lib/courses/registerCover/runsThings.ts":
     "who may be GIVEN one session (`runsThingsOn`), asked about the person named in the press and never the caller: it admits a run's track lead and the programme's lead alike (`programmeLedBy`), as well as admins, the committee and the run's facilitators. The caller's own gate is the register's",
   "lib/scheduler/jobs/registerReminders.ts":
     "which register page a covered register's reminder links its reader to (`coverersPage`): a run's track lead is sent to the run's own page, which admits them, and the programme's lead to the programme's page. It grants nothing and adds nobody to who is emailed",

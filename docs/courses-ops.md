@@ -2302,7 +2302,7 @@ people leading the programme who are not facilitators of the group:
   A register that holds only a cover is NOT taken (`registerIsTaken`):
   covering it says who will take it, not that anybody has.
 - **Someone else is covering** (`person`): somebody who runs things on the
-  programme (`runsThingsOn` in `src/lib/courses/registerCover/people.ts`): an
+  programme (`runsThingsOn` in `src/lib/courses/registerCover/runsThings.ts`): an
   admin, a committee member, the programme's lead, one of the run's track
   leads, or a facilitator of one of the run's groups that still meets, each
   held to the bar they were appointed behind. Never the presser, never a
@@ -2322,6 +2322,26 @@ people leading the programme who are not facilitators of the group:
   a day claimed. The notice never carries the reason.
 - `preview: true` changes nothing: whose place, until when, both emails'
   words and the count.
+- **Limits.** Each give emails the person given it, so it claims stored
+  counters before anything is written (`GIVE_LIMITS` in
+  `src/lib/courses/registerCover/model.ts`): twelve by one giver on one group
+  in an hour, twenty on one group in a day, twelve to one person in a day
+  across every group, so that handing one person the rest of a ten-week term
+  in one sitting is not refused, and with `tell` the group's ten notices a day, all
+  in one transaction. Past any of them the give is refused in one sentence
+  (429) that says the session was not given, and nothing is written, claimed
+  or sent; past the group's notices, the sentence says to untick Tell the
+  group, and the give goes without it.
+
+THE BAR IS ASKED AT EVERY USE. The register's gate admits somebody given a
+session only while the grant holds AND they run things on the
+programme, through the same `runsThingsOn` (`givenSessionStands` in
+`registerAccess.ts`; `courseAttendance.cover.byUid` is in the authority
+registry). Somebody taken off the only group they facilitated keeps nothing:
+the register, its check-in, Finish and the report all refuse them. The
+register's page tells them in a sentence that the session is not theirs, and
+tells admins and the programme's lead that it does not stand; the session
+can be given again.
 
 A new grant for the same session replaces the old one, and "I'm covering it"
 replaces a grant; nothing of the old grant is left behind. Refused: a session
@@ -2540,8 +2560,11 @@ the reason); a push back sends the cancelled and pushed back words.
   register page shows that one session's column, names only, with no notes
   and no way into the group's page, and that session's meeting link while the
   grant holds (through `seesSessionLink`, never in an email); every other page
-  under the run refuses them. The register says whose place is taken, who set each line and when,
-  and to a facilitator who arrives late, who started it. Finish shows the
+  under the run refuses them. The register says who took it and when, and who
+  set each line and when, to everybody who reads it; whose place was taken,
+  who gave a session and until when, to admins and the programme's lead, and
+  to a facilitator when it was their own place; and to a facilitator who
+  arrives late, who started it. Finish shows the
   marks before the lock and, in a group with more than one facilitator, asks
   the finishing facilitator who was here. Admins and the programme's lead get
   a panel about the session: who took it, the facilitator record with its
@@ -2680,8 +2703,9 @@ a range on `decidedAt`), so no index is declared.
   a request for that line is waiting.
 - **Withdraw**, **approve**, **decline** (`{ reply }`, needed) and **take
   it**: `POST /api/courses/requests/[requestId]/<action>`. Withdraw is the
-  asker's while it waits; the others are admins' and the people leading the
-  programme's, never the asker's. Approve corrects the line in the same
+  asker's while it waits; the others are admins' and the programme's lead's
+  (a run's track lead by that alone is refused as anybody else is), never the
+  asker's. Approve corrects the line in the same
   transaction as the decision, with the request's reason and id, and is
   refused (the request still waiting) when the line no longer says what the
   request says it did.
@@ -2693,10 +2717,12 @@ a range on `decidedAt`), so no index is declared.
 
 ### The Requests page, and one request's page
 
-`loadRequestsPage` (`src/lib/courses/requests/load.ts`): admins read every
-programme's; a programme's lead and a run's track lead the requests of the
-runs they lead (`runStaffingOf`), less what one request's page would not open
-for them (a group they facilitate, or an archived one); anybody else `none`.
+`loadRequestsPage` (`src/lib/courses/requests/load.ts`): the people who
+decide requests. Admins read every programme's; a programme's lead the
+requests of the runs it names (`programmeLedBy`), less what one request's page
+would not open for them (a group they facilitate, or an archived one); anybody
+else, a run's track lead who is neither among them, `none`. Home's count and
+the programme's head count the same.
 Counts for waiting,
 being handled and done this week (since Monday in London), and each row with
 who asked, about whom, what, when and who has it. `loadRequestPage`, for the
@@ -2749,8 +2775,9 @@ Nothing on any page changes a finished register without asking why.
   (`/admin/admissions/requests/[requestId]`). In the admissions tree because
   its gate (`requireAdmissionsPage`) admits a programme's lead, who cannot
   open most of `/admin`; the admin strip lists it under Programmes. A run's
-  track lead who is not on a form does not reach it, and decides nothing from
-  the pages (the routes would let them; the register still lets them correct).
+  track lead decides nothing: the list, its count and one request's page are
+  not theirs, and the routes refuse them (the register lets them correct,
+  with a reason).
   The page offers the person who asked neither Approve nor Decline. Home links
   to it while something waits (an admin's To do; a card under the lead's
   greeting, `requestsWaitingFor`, never in a view-as session), and so does the
@@ -3084,8 +3111,9 @@ the email's words; `POST` sends only with the count it was shown (409 with the
 new count otherwise), only about the newest save, once per save, recorded on
 that save's record. It is a notice on the `course-run` surface, never to the
 person pressing and never with a meeting link, under the lane's caps (3 an
-hour per presser and choice, 10 a day per week); "Send me a test first" goes
-to the presser alone, marked [TEST].
+hour per presser and choice, 10 a day per week, and for everyone it is open
+for or everyone on the programme 10 a day for the run across every week);
+"Send me a test first" goes to the presser alone, marked [TEST].
 
 **Paste the week, then check it.** The paste's check (`POST blocks`) also says
 what the pasted week holds by kind (`kinds`) and how it differs from the live

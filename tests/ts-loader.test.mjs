@@ -1091,6 +1091,13 @@ const USERS = new Map([
       "reaches courses.ts for the shared link validator, so nothing is stubbed",
   ],
   [
+    "stored-room-in-messages.test.mjs",
+    "it executes the words of the emails written from a group's stored room (the cover emails, a new " +
+      "regular time's and a room's notice) with a room that holds a link, because the promise is what " +
+      "those shipping functions print and a copy would prove nothing; only `server-only` is stubbed, " +
+      "and the graph is pure word modules",
+  ],
+  [
     "links-page-content.test.mjs",
     "it executes the /links fetcher, because the promise is that the page most printed codes land on " +
       "cannot be emptied or have a hostile address put on it by whatever is stored, and only running " +

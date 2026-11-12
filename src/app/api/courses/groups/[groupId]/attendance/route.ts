@@ -720,6 +720,17 @@ function cancelledSessionRefusal(ctx: WriteContext): NextResponse | null {
 // GET
 // ---------------------------------------------------------------------------
 
+/** The facts with every "waiting" taken out: what somebody given one session is sent. */
+function excusedOnly(facts: ExcuseFacts): ExcuseFacts {
+  const out: ExcuseFacts = {};
+  for (const [sessionKey, people] of Object.entries(facts)) {
+    for (const [uid, fact] of Object.entries(people)) {
+      if (fact === "excused") (out[sessionKey] ??= {})[uid] = fact;
+    }
+  }
+  return out;
+}
+
 export async function GET(
   req: Request,
   ctx: { params: Promise<{ groupId: string }> },
@@ -974,6 +985,7 @@ export async function GET(
       rows: memberUids,
       viewer: { uid: actor.uid, isAdmin: gated.isAdmin, role: actor.role },
       readsFacilitatorRecord,
+      run,
       now,
     }),
     standingFacilitators(db, group, { isAdmin: gated.isAdmin, role: actor.role }),
@@ -987,14 +999,17 @@ export async function GET(
       corrects,
       onlyGiven,
     }),
-    // Requests to be excused: one of two facts per row per session, for
-    // everybody who reads the register (`src/lib/courses/excused/facts.ts`).
+    // Requests to be excused: one of two facts per row per session, for the
+    // group's facilitators, the people leading the programme and admins
+    // (`src/lib/courses/excused/facts.ts`). Somebody admitted only through a
+    // session given to them is sent "excused" for that session's column, which
+    // they need to take its register, and never "waiting".
     excuseFactsForGroup(db, {
       runId,
       groupId,
       uids: memberUids,
       sessionKeys: [...columns, ...ahead].map((session) => session.sessionKey),
-    }),
+    }).then((facts) => (onlyGiven ? excusedOnly(facts) : facts)),
   ]);
   const caller: AttendanceCaller = {
     standing: gated.isAdmin ? "admin" : gated.facilitates ? "facilitator" : gated.leads ? "lead" : "given",
