@@ -240,4 +240,40 @@ export function replaceLabel(weekNumber: number, reach: Pick<Reach, "groups" | "
 }
 
 /** "Group K and Group L": names as a sentence lists them. */
+/** How long a page holds a week with nobody typing, clicking or scrolling before it gives the hold back. */
+export const LOCK_IDLE_MS = 10 * 60_000;
+
+/** What a page holding a week for an open edit does on a beat of its keep-alive. */
+export type LockBeat = "keep" | "letGo" | "takeAgain" | "wait";
+
+/**
+ * ONE BEAT OF A PAGE'S HOLD ON A WEEK, decided from what the page knows.
+ *
+ *  - The tab is hidden: the hold is given back (`letGo`), as the admin
+ *    pages' own lock does, and never kept alive or taken again from a
+ *    hidden tab (`wait`).
+ *  - Nobody has typed, clicked or scrolled on the page for `idleMs` (ten
+ *    minutes): the hold is given back, so a panel left open does not keep
+ *    the week from everybody else for hours.
+ *  - Given back by this page (`letGoAt`): the page says the hold ended and
+ *    keeps what was typed (the same path as a hold that lapsed), and takes
+ *    it again once the person is back: input after the let go, or the tab
+ *    shown again (which the page counts as input).
+ *  - Lost to somebody else (no `letGoAt`): tried again on every beat.
+ *  - Otherwise, kept alive.
+ */
+export function lockBeat(input: {
+  visible: boolean;
+  lost: boolean;
+  now: number;
+  lastInputAt: number;
+  letGoAt: number | null;
+  idleMs?: number;
+}): LockBeat {
+  if (!input.visible) return input.lost ? "wait" : "letGo";
+  if (input.lost) return input.letGoAt !== null && input.lastInputAt <= input.letGoAt ? "wait" : "takeAgain";
+  if (input.now - input.lastInputAt >= (input.idleMs ?? LOCK_IDLE_MS)) return "letGo";
+  return "keep";
+}
+
 export { listWords };

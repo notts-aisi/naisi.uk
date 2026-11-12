@@ -256,6 +256,44 @@ describe("3. the words around a save, the history and the paste", () => {
 // 3b. The side panel's boxes, each labelled by its own label
 // ---------------------------------------------------------------------------
 
+describe("3a. a page's hold on a week: never from a hidden tab, never for hours", () => {
+  const T0 = Date.UTC(2026, 10, 17, 12, 0, 0);
+  const MIN = 60_000;
+  const beat = (over) => page.lockBeat({ visible: true, lost: false, now: T0, lastInputAt: T0, letGoAt: null, ...over });
+
+  test("a hidden tab gives the hold back at once, is never kept alive or taken again while hidden, and takes it again when shown", () => {
+    assert.equal(beat({}), "keep", "here and busy: kept alive");
+    assert.equal(beat({ visible: false }), "letGo", "hidden: given back");
+    // Given back from the hidden tab: the page says so and keeps what was typed (`lost`), and waits while hidden.
+    const letGoAt = T0 + 1_000;
+    assert.equal(beat({ visible: false, lost: true, letGoAt, now: T0 + 30 * MIN }), "wait");
+    // Shown again: the page counts that as input, and the hold is taken again.
+    assert.equal(beat({ lost: true, letGoAt, now: T0 + 31 * MIN, lastInputAt: T0 + 31 * MIN }), "takeAgain");
+  });
+
+  test("about ten minutes with no input gives the hold back, and the person's next input takes it again", () => {
+    assert.equal(page.LOCK_IDLE_MS, 10 * MIN);
+    assert.equal(beat({ now: T0 + 9 * MIN }), "keep", "nine minutes idle: still held");
+    assert.equal(beat({ now: T0 + 10 * MIN }), "letGo", "ten minutes idle: given back");
+    const letGoAt = T0 + 10 * MIN;
+    assert.equal(beat({ lost: true, letGoAt, now: T0 + 3 * 60 * MIN }), "wait", "nobody back: the week stays free for hours, never taken again by the beat alone");
+    assert.equal(beat({ lost: true, letGoAt, now: T0 + 3 * 60 * MIN, lastInputAt: T0 + 3 * 60 * MIN }), "takeAgain", "back at the keyboard: taken again");
+  });
+
+  test("a hold lost to somebody else is tried again on every beat, as before", () => {
+    assert.equal(beat({ lost: true, letGoAt: null, lastInputAt: T0 - 60 * MIN }), "takeAgain");
+  });
+
+  test("the hook drives its keep-alive by that decision: it lets go on a hidden tab, counts input, and gives back what it let go", () => {
+    const source = readFileSync(join(process.cwd(), "src", "features", "applications", "weeks", "edit", "useWeekLock.ts"), "utf8");
+    assert.match(source, /lockBeat\(\{/, "the beat asks the one decision");
+    assert.match(source, /addEventListener\("visibilitychange", onVisibility\)/, "a hidden tab is acted on at once, not at the next beat");
+    for (const name of ["pointerdown", "keydown", "input", "wheel", "touchstart"]) assert.ok(source.includes(`"${name}"`), `input: ${name}`);
+    assert.match(source, /const letGo = \(\) => \{[\s\S]*?setLost\(true\);[\s\S]*?call\("DELETE", true\)/, "letting go says the hold ended and gives it back");
+    assert.doesNotMatch(source, /if \(lostRef\.current\) \{\s*const again = await call\("POST"\)/, "no beat takes the week again without asking the decision");
+  });
+});
+
 describe("3b. the side panel: every box has its own label, and no id is used twice", () => {
   for (const id of ["src-1", "tx-before", "rs-1", "wa-1"]) {
     test(`the panel for ${id}`, () => {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WeekLockState } from "@/lib/courses/weekEdit/lock";
+import { lockBeat } from "@/lib/courses/weekEdit/pageModel";
 
 /**
  * ONE EDITOR AT A TIME, FROM THE PAGE: the week's lock routes
@@ -14,6 +15,13 @@ import type { WeekLockState } from "@/lib/courses/weekEdit/lock";
  *    gave. Refused (409) once the hold has lapsed and somebody else has it:
  *    the page says so (`lost`) and keeps what was typed, and the next beat
  *    tries to take it again.
+ *  - NEVER HELD FROM A HIDDEN TAB OR AN IDLE PAGE (`lockBeat`): the hold is
+ *    given back the moment the tab is hidden, as the admin pages' own lock
+ *    does, and after ten minutes with no typing, clicking or scrolling, so a
+ *    panel left open does not keep the week from everybody else for hours.
+ *    The person comes back to the same path as a lapsed hold: the page says
+ *    the hold ended, keeps what was typed, and takes it again as soon as
+ *    they are back (the tab shown again, or any input).
  *  - `give` on a save, on cancel and on leaving the page: DELETE (sent with
  *    `keepalive` on the way out, so a closed tab gives it back too).
  *  - While somebody else holds it, the lock is read again on a timer and
@@ -57,6 +65,10 @@ export function useWeekLock(runId: string, weekId: string, initial: WeekLockStat
   const [lost, setLost] = useState(false);
   const holdingRef = useRef(false);
   const lostRef = useRef(false);
+  // When the person last typed, clicked or scrolled; when this page last gave its hold back itself.
+  const lastInputRef = useRef(0);
+  const letGoAtRef = useRef<number | null>(null);
+  const retakingRef = useRef(false);
 
   const call = useCallback(
     async (method: "GET" | "POST" | "PUT" | "DELETE", keepalive = false): Promise<{ status: number; body: Record<string, unknown> } | null> => {
@@ -90,6 +102,8 @@ export function useWeekLock(runId: string, weekId: string, initial: WeekLockStat
       settle(answer.body);
       holdingRef.current = true;
       lostRef.current = false;
+      lastInputRef.current = Date.now();
+      letGoAtRef.current = null;
       setHolding(true);
       setLost(false);
       return { ok: true };
@@ -102,6 +116,7 @@ export function useWeekLock(runId: string, weekId: string, initial: WeekLockStat
     if (!holdingRef.current) return;
     holdingRef.current = false;
     lostRef.current = false;
+    letGoAtRef.current = null;
     setHolding(false);
     setLost(false);
     void call("DELETE", true).then((answer) => {
@@ -113,22 +128,47 @@ export function useWeekLock(runId: string, weekId: string, initial: WeekLockStat
     setLock({ state: "held", name: holder.name, since: holder.since, line });
   }, []);
 
-  // Keep the hold alive while an edit is open; after a loss, try to take it again.
+  // Keep the hold alive while an edit is open and the person is here; give it
+  // back from a hidden tab or an idle page; after a loss, take it again.
   const keepAliveMs = lock.state === "yours" ? lock.keepAliveMs : DEFAULT_KEEP_ALIVE_MS;
   useEffect(() => {
     if (!holding) return;
-    const beat = window.setInterval(() => {
-      void (async () => {
-        if (!holdingRef.current) return;
-        if (lostRef.current) {
-          const again = await call("POST");
-          if (again?.status === 200 && holdingRef.current) {
-            settle(again.body);
-            lostRef.current = false;
-            setLost(false);
-          } else if (again?.status === 409) heldFrom(again.body);
-          return;
-        }
+    const visible = () => document.visibilityState !== "hidden";
+    /** The page gives its own hold back: the edit stays open, and says the hold ended. */
+    const letGo = () => {
+      if (!holdingRef.current || lostRef.current) return;
+      lostRef.current = true;
+      letGoAtRef.current = Date.now();
+      setLost(true);
+      void call("DELETE", true);
+    };
+    const takeAgain = async () => {
+      if (retakingRef.current || !holdingRef.current) return;
+      retakingRef.current = true;
+      try {
+        const again = await call("POST");
+        if (again?.status === 200 && holdingRef.current) {
+          settle(again.body);
+          lostRef.current = false;
+          letGoAtRef.current = null;
+          setLost(false);
+        } else if (again?.status === 409) heldFrom(again.body);
+      } finally {
+        retakingRef.current = false;
+      }
+    };
+    const act = async () => {
+      if (!holdingRef.current) return;
+      const next = lockBeat({
+        visible: visible(),
+        lost: lostRef.current,
+        now: Date.now(),
+        lastInputAt: lastInputRef.current,
+        letGoAt: letGoAtRef.current,
+      });
+      if (next === "letGo") letGo();
+      else if (next === "takeAgain") await takeAgain();
+      else if (next === "keep") {
         const kept = await call("PUT");
         if (!holdingRef.current || !kept) return;
         if (kept.status === 200) settle(kept.body);
@@ -136,9 +176,26 @@ export function useWeekLock(runId: string, weekId: string, initial: WeekLockStat
           lostRef.current = true;
           setLost(true);
         }
-      })();
-    }, Math.max(5_000, keepAliveMs));
-    return () => window.clearInterval(beat);
+      }
+    };
+    // Any input is the person being here; back after a let go, the hold is taken again at once.
+    const onInput = () => {
+      lastInputRef.current = Date.now();
+      if (lostRef.current && letGoAtRef.current !== null && visible()) void act();
+    };
+    const onVisibility = () => {
+      if (visible()) onInput();
+      else void act();
+    };
+    const inputs = ["pointerdown", "keydown", "input", "wheel", "touchstart"] as const;
+    for (const name of inputs) window.addEventListener(name, onInput, { capture: true, passive: true });
+    document.addEventListener("visibilitychange", onVisibility);
+    const beat = window.setInterval(() => void act(), Math.max(5_000, keepAliveMs));
+    return () => {
+      for (const name of inputs) window.removeEventListener(name, onInput, { capture: true });
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.clearInterval(beat);
+    };
   }, [holding, keepAliveMs, call, settle, heldFrom]);
 
   // While somebody else holds it: ask again on a timer and on focus.

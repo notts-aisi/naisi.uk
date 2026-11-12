@@ -2827,7 +2827,12 @@ paste and a restore of that week are refused with their name; reading the
 week never is, and other weeks stay free. A save does not need the hold. It
 is stored server-only at `editLock/current` under the week, apart from the
 admin console's page lock (`adminLocks`), which admits admins alone and whose
-messages are written from the browser, so this lock has no messages.
+messages are written from the browser, so this lock has no messages. The
+page never holds a week from a hidden tab or an idle page (`lockBeat` in
+`pageModel.ts`): it gives the hold back the moment the tab is hidden, as the
+admin console's lock does, and after ten minutes with no input, then says
+the hold ended, keeps what was typed and takes it again once the person is
+back.
 
 **Telling people** (`tell`, `src/lib/courses/weekEdit/notice.ts`). After a
 save to a published week, a notice is a choice and never automatic: nobody
