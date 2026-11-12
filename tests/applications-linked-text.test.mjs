@@ -1287,7 +1287,9 @@ const BUILT = new Map([
   ],
   [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/layout.tsx",
-    { built: ["home"], from: "the term's own page, from the form's id" },
+    // ADDED (November 2026), with correcting a register: the way to the
+    // Requests page while something waits, a fixed address.
+    { built: ["REQUESTS_PATH", "home"], from: "the term's own page, from the form's id; and the Requests page, a fixed address in the code (`REQUESTS_PATH`)" },
   ],
   [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/messages/page.tsx",

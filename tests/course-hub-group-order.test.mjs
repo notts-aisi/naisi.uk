@@ -237,6 +237,14 @@ const FETCHES_IT_CANNOT_READ = new Map([
       "then pressed), and the run's list of approved accounts to pick from (`/runs/[runId]/facilitators`, the " +
       "Facilitators view's own picker list): one group's register, never a run's groups listed.",
   ],
+  // ADDED (November 2026), with correcting a register.
+  [
+    "src/features/courses/registerCorrection/api.ts",
+    "The presses of correcting a register: the attendance routes of the one group a sheet is open on (a line's " +
+      "correction, an ask, a column's correction and its preview), one request's own routes by its id, and It " +
+      "didn't happen's notice to that one group through the run's updates route: one group's register, never a " +
+      "run's groups listed.",
+  ],
   [
     "src/features/courses/register/CheckInCard.tsx",
     "The register's check-in card, now drawn under the register under the programme's group page too: the check-in " +
