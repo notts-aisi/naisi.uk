@@ -240,7 +240,8 @@ export function approvalPlan(input: {
   const { startsAt, cancelled, line, now } = input;
   const before = startsAt !== null && startsAt.getTime() > now.getTime();
   if (cancelled || line.notHeld) return { write: "keep", outcome: "kept", say: "not-held", tellsFacilitators: false, kept: "not-held" };
-  if (cameBy(line.mark)) return { write: "keep", outcome: "kept", say: "came", tellsFacilitators: false, kept: "came" };
+  // They came: said only once the register is finished, never a draft's mark.
+  if (cameBy(line.mark)) return { write: "keep", outcome: "kept", say: line.finished ? "came" : "being-taken", tellsFacilitators: false, kept: "came" };
   if (line.mark === "excused") {
     return { write: "keep", outcome: "kept", say: before ? "before" : "excused-now", tellsFacilitators: true, kept: "excused" };
   }
@@ -248,7 +249,7 @@ export function approvalPlan(input: {
     if (line.mark === "absent") return { write: "correct", outcome: "corrected", say: "excused-now", tellsFacilitators: true };
     // A finished register with no line for them: nothing a correction could
     // truthfully change into Excused.
-    return { write: "keep", outcome: "kept", say: "excused-now", tellsFacilitators: false, kept: "no-line" };
+    return { write: "keep", outcome: "kept", say: "no-line", tellsFacilitators: false, kept: "no-line" };
   }
   if (before && line.mark === null) return { write: "in-advance", outcome: "written", say: "before", tellsFacilitators: true };
   return { write: "draft", outcome: "written", say: before ? "before" : "excused-now", tellsFacilitators: true };

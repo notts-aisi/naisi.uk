@@ -248,6 +248,25 @@ describe("the arithmetic: what a press says, which sessions may be asked about, 
     assert.equal(plan(after, { finished: true }).kept, "no-line");
     assert.equal(plan(before, {}, true).kept, "not-held");
     assert.equal(plan(after, { finished: true, notHeld: true, mark: "absent" }).kept, "not-held");
+    // What the email may say: "you were there" only from a finished register,
+    // and a finished register with no line for them says so, never Excused.
+    assert.equal(plan(after, { mark: "present" }).say, "being-taken", "a draft's mark is told to the member");
+    assert.equal(plan(after, { finished: true }).say, "no-line");
+  });
+
+  test("the approval email never says something untrue about the register: no line, a full register, a register still being taken", () => {
+    const words_ = (outcome) =>
+      words.approvedEmailWords({ weekNumber: 2, occurrence: 1, groupName: "Group B", when: "Tue 10 Nov, 6pm", deciderFirstName: "Zach", reply: "", outcome, facilitatorFirstNames: [] }).after[0];
+    assert.equal(words_("no-line"), "That session’s register was finished without a line for you, so it stays as it is. Week 2’s work is still open on your programme page.");
+    assert.equal(words_("full"), "That session’s register has no room for another line, so it stays as it is. Week 2’s work is still open on your programme page.");
+    assert.equal(
+      words_("being-taken"),
+      "Your facilitators are still taking that session’s register, and what they put there stands. Week 2’s work is still open on your programme page.",
+    );
+    for (const outcome of ["no-line", "full", "being-taken"]) {
+      assert.doesNotMatch(words_(outcome), /says Excused|you were there/, outcome);
+    }
+    assert.match(words_("came"), /^Your register says you were there/);
   });
 
   test("the one fact: waiting, else excused, else nothing; a request's status follows its weeks", () => {

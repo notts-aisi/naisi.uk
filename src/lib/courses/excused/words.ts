@@ -212,8 +212,15 @@ export type ExcusedEmailWords = {
   footnote: string | null;
 };
 
-/** What approving did, for the person's email. */
-export type ApprovedFor = "before" | "excused-now" | "came" | "not-held";
+/**
+ * What approving did, for the person's email: the line will say excused
+ * (`before`), says Excused now (`excused-now`), a finished register says they
+ * came (`came`), a register still being taken keeps what its facilitators put
+ * there (`being-taken`: a member is never told a draft's marks), the session
+ * did not happen (`not-held`), a finished register has no line for them
+ * (`no-line`), or the register has no room for another line (`full`).
+ */
+export type ApprovedFor = "before" | "excused-now" | "came" | "being-taken" | "not-held" | "no-line" | "full";
 
 /**
  * "You’re excused from week 2": to the person, with the reply.
@@ -243,6 +250,15 @@ export function approvedEmailWords(input: {
       break;
     case "came":
       after.push(`Your register says you were there, so it stays as it is. ${Week}’s work is still open on your programme page.`);
+      break;
+    case "being-taken":
+      after.push(`Your facilitators are still taking that session’s register, and what they put there stands. ${Week}’s work is still open on your programme page.`);
+      break;
+    case "no-line":
+      after.push(`That session’s register was finished without a line for you, so it stays as it is. ${Week}’s work is still open on your programme page.`);
+      break;
+    case "full":
+      after.push(`That session’s register has no room for another line, so it stays as it is. ${Week}’s work is still open on your programme page.`);
       break;
     default:
       after.push(`That session didn’t happen, so there’s nothing on the register to change.`);

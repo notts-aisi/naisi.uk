@@ -352,7 +352,7 @@ export async function approveExcusedWeek(
         !keys.includes(fresh.subjectUid) &&
         keys.length + 1 > ATTENDANCE_LIMITS.maxRecords
       ) {
-        plan = { write: "keep", outcome: "kept", say: plan.say, tellsFacilitators: false, kept: "full" };
+        plan = { write: "keep", outcome: "kept", say: "full", tellsFacilitators: false, kept: "full" };
       }
 
       // Every read before any write: a finished register's correction reads
