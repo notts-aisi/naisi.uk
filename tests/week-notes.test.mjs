@@ -1,9 +1,10 @@
 /**
- * END-OF-WEEK NOTES ABOUT PEOPLE (privacy v15, "AI-assisted review": "Once a
- * week Claude may also draft a short note on how each person is doing, using
- * only the work they submitted and the feedback, ratings and comments people
- * on the team gave it"), driven through the real page and routes on AGI
- * Strategy's run in its third week.
+ * END-OF-WEEK NOTES ABOUT PEOPLE (privacy v18, "AI-assisted review": "Once a
+ * week Claude may also draft a short note on how each person is doing. It is
+ * drafted after your session, usually about a week after it, and uses your
+ * work on that week as it stands then, sent or not, with the feedback,
+ * ratings and comments people on the team gave it"), driven through the real
+ * page and routes on AGI Strategy's run in its third week.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -16,10 +17,12 @@
  *
  *  - A WRITTEN ANSWER in week 3. Amara's (naming Claudia and Dev Patel and
  *    typing an address) and her first reflection were first written on Tue
- *    10 Nov, her week SUBMITTED on Wed 11 Nov; her second reflection carries
- *    no first-written time and never counts. Bea wrote and submitted too,
- *    but only ever agreed to version 14. Dev wrote and never submitted.
- *    Tariq wrote nothing.
+ *    10 Nov, her week SUBMITTED under the old button on Wed 11 Nov; her
+ *    second reflection carries no first-written time and never counts. Bea
+ *    wrote and submitted too, but only ever agreed to version 14. Dev wrote
+ *    and never sent or submitted. Tariq wrote nothing. Group A met for week 3
+ *    on Thu 12 Nov at 6pm, so from then on each of their weeks is drawn on,
+ *    as it stands.
  *  - THE TEAM'S WORDS on Amara's week: Sofia's feedback on the answer
  *    (naming Amara and Rahul), Claudia's rating of it (8, "Takes a side and
  *    defends it") and her feedback on the week as a whole, and Zach's rating
@@ -38,16 +41,18 @@
  * Every name, address and word is made up.
  *
  * What is held, by section:
- *  1. The message: only a submitted week, and of it only the work as
- *     submitted (a written answer as last sent, never a reflection saved
- *     after the week's Submit), from the person's moment; the
+ *  1. The message: only a week whose session the person was due at has
+ *     started, never one before it (not even an answer already sent), and
+ *     of it the work as it stands (a written answer sent or not, a
+ *     reflection as last saved, the old Submit counting for nothing), from
+ *     the person's moment; nobody with no group; the
  *     team's words scrubbed, writers by what they are and raters by number;
  *     nothing of a check-in, a report, a review grade or a private note;
  *     "Built only from" is what went, item for item; the profile's draft
  *     sends through the same function.
  *  2. The draft press: every caller, view-as, no key, not every group met,
- *     no submission, nothing that may go, a label slip, a second press and
- *     Draft again.
+ *     no session, nothing written, nothing that may go, a label slip, a
+ *     second press and Draft again.
  *  3. The page: an admin's drafts, counts and press; the boxes unticked;
  *     what came in after a draft; the lead's saved notes only, never a draft
  *     or a count; everybody else turned away.
@@ -93,6 +98,7 @@ const reviewPage = (await w.loadTs(join(TABS, "weeks", "[weekId]", "review", "pa
 const weeksTabPage = (await w.loadTs(join(TABS, "weeks", "page.tsx"))).default;
 const input = await w.loadTs(join("lib", "courses", "coursework", "input.ts"));
 const words = await w.loadTs(join("lib", "courses", "weekNotes", "words.ts"));
+const notesWords = await w.loadTs(join("lib", "memberNotes", "words.ts"));
 const notesModel = await w.loadTs(join("lib", "memberNotes", "model.ts"));
 
 const V13 = new Date("2026-11-01T09:00:00Z");
@@ -308,8 +314,8 @@ function assertClean(text, what) {
 // 1. The message
 // ---------------------------------------------------------------------------
 
-describe("1. what a note's draft is sent: a submitted week and the team's words on it, and nothing else", () => {
-  test("Amara's submitted week, her counted work, the team's words scrubbed, and no name, address, check-in, report or grade", async () => {
+describe("1. what a note's draft is sent: a week whose session has started, its work as it stands, and the team's words on it, and nothing else", () => {
+  test("Amara's week after its session, her counted work, the team's words scrubbed, and no name, address, check-in, report or grade", async () => {
     reset();
     globalThis.__wnClaudeAnswer = ok(DRAFTED);
     const drafted = await draft("zach", { uid: "amara" });
@@ -350,7 +356,8 @@ describe("1. what a note's draft is sent: a submitted week and the team's words 
         ["feedback", "claudia", null],
       ],
     );
-    assert.deepEqual(kept.builtFrom[0], { kind: "work", weekNumber: 3, submittedAt: SUBMITTED, written: 1, reflections: 1, boxes: 0 });
+    // The week's work as it stood when it was drafted: the old Submit is no part of it.
+    assert.deepEqual(kept.builtFrom[0], { kind: "work", weekNumber: 3, submittedAt: null, asOf: new Date(THURSDAY), written: 1, reflections: 1, boxes: 0 });
     assert.deepEqual(kept.raters, { "Rater 1": "claudia" });
     assert.deepEqual(kept.sourceUids, ["claudia", "sofia"]);
     assert.equal(kept.askedByUid, "zach");
@@ -374,7 +381,7 @@ describe("1. what a note's draft is sent: a submitted week and the team's words 
     const answer = (questionKey, text, written, counted = true, levels = []) => ({ rowId: `r-${questionKey}`, uid: "u-ada", questionKey, weekId: "w02", kind: questionKey.split(":")[0], text, counted, agreed: true, firstWrittenAt: written, levels });
     const built = input.noteDraftInput({
       programme: "AGI Strategy",
-      weeks: [{ week, submittedAt: at("12") }],
+      weeks: [{ week, asOf: at("12") }],
       answers: [answer("reflection:p1", "WRITTEN BEFORE THE MOMENT", at("01")), answer("written:a1", "My plan names Grace Hopper.", at("10"), true, [{ row: "Clarity", level: "Strong" }])],
       feedback: [
         { id: "f1", weekId: "w02", itemId: "a1", byUid: "u-zoe", role: "facilitator", text: "Ada should cite Zoë Ångström.", at: at("13") },
@@ -409,81 +416,121 @@ describe("1. what a note's draft is sent: a submitted week and the team's words 
       built.builtFrom.map((source) => source.kind),
       ["work", "levels", "feedback", "rating"],
     );
-    // A week that is not handed over (not submitted) gives nothing at all.
+    // A week that is not handed over (its session not started) gives nothing at all.
     const none = input.noteDraftInput({ programme: "AGI Strategy", weeks: [], answers: [answer("written:a1", "x", at("10"))], feedback: [], ratings: [], people: [], from, writerFrom: new Map() });
     assert.equal(none.sent, 0);
     assert.deepEqual(none.builtFrom, []);
     // Nobody with no moment is sent anything.
-    const noMoment = input.noteDraftInput({ programme: "P", weeks: [{ week, submittedAt: at("12") }], answers: [answer("written:a1", "x", at("10"))], feedback: [], ratings: [], people: [], from: null, writerFrom: new Map() });
+    const noMoment = input.noteDraftInput({ programme: "P", weeks: [{ week, asOf: at("12") }], answers: [answer("written:a1", "x", at("10"))], feedback: [], ratings: [], people: [], from: null, writerFrom: new Map() });
     assert.equal(noMoment.sent, 0);
   });
 
-  test("only the work submitted: a reflection saved after the week's Submit is left out, a written answer goes as last sent, and work untouched since goes", async () => {
-    // The week stays open after Submit (Wed 11 Nov, 8pm). On Thu 12 Nov Amara rewrote her reflection and
-    // changed her answer without sending it again; the change kept the answer as sent.
-    const CHANGED = new Date("2026-11-12T09:00:00Z");
-    const REWRITTEN = "Rewritten on Thursday, after the week was submitted.";
-    const UNSENT = "Changed on Thursday and never sent.";
-    const kept = { text: ANSWER, words: ANSWER.split(/\s+/).length, savedAt: WRITTEN, replacedAt: CHANGED, sentAt: SUBMITTED, reasons: ["sent"] };
+  test("after the session, the work as it stands: an unsent change and a reflection changed yesterday both go, and the old Submit counts for nothing", async () => {
+    // CHANGED ON PURPOSE (privacy v18): this test held "only the work submitted", a reflection saved after the
+    // week's Submit left out and a written answer read as last sent. Now the week is drawn on once Group A's
+    // session (Thu 12 Nov, 6pm) has started, and of it the work goes as it stands: on Wed 18 Nov, after the
+    // session and after her week's old Submit, Amara rewrote her reflection and changed her answer without
+    // sending it; the change kept the answer as sent.
+    const CHANGED = new Date("2026-11-18T09:00:00Z");
+    const REWRITTEN = "Rewritten on Wednesday, long after the week was submitted.";
+    const UNSENT = "Changed on Wednesday and never sent.";
+    const kept = { text: ANSWER, words: ANSWER.split(/\s+/).length, savedAt: WRITTEN, replacedAt: CHANGED, sentAt: SUBMITTED, reasons: ["sent", "session"] };
     const changedAnswer = { ...sentBySubmit(writtenAnswer("amara", UNSENT, WRITTEN)), updatedAt: CHANGED, editedAt: CHANGED, earlierVersions: [kept] };
     reset({
       [PATH("amara", "w03", "k3-wa")]: changedAnswer,
       [PATH("amara", "w03", "k3-rp1")]: { ...reflection("amara", "k3-rp1", REWRITTEN), firstWrittenAt: WRITTEN, updatedAt: CHANGED },
     });
     globalThis.__wnClaudeAnswer = ok(DRAFTED);
-    // The page counts what a press would send from the same reading.
+    // The page counts what a press would send from the same reading: Amara, and Dev, whose answer was never sent.
     const [press] = findProps((await page("zach")).element, "DraftAll");
-    assert.deepEqual(press.plan, [{ uid: "amara", name: "Amara Okafor" }]);
+    assert.deepEqual(press.plan, [
+      { uid: "amara", name: "Amara Okafor" },
+      { uid: "dev", name: "Dev Patel" },
+    ]);
     assert.equal((await draft("zach", { uid: "amara" })).status, 200);
     const [{ message }] = globalThis.__wnClaudeAsked;
-    assert.ok(message.includes("someone running the programme was right that the keepers need the town."), "the answer as sent did not go");
-    assert.ok(!message.includes(UNSENT), "an answer's change not sent went");
-    assert.ok(!message.includes(REWRITTEN), "a reflection saved after Submit went");
-    assert.deepEqual(w.world.db.read(draftPath("amara")).builtFrom[0], { kind: "work", weekNumber: 3, submittedAt: SUBMITTED, written: 1, reflections: 0, boxes: 0 });
+    assertClean(message, "the note's message");
+    assert.ok(message.includes(UNSENT), "her answer did not go as it stands, unsent change and all");
+    assert.ok(message.includes(REWRITTEN), "her reflection changed yesterday did not go as it stands");
+    assert.ok(!message.includes("the keepers need the town"), "the answer as last sent went beside, or instead of, the words standing now");
+    assert.ok(!message.includes(SAID.amara["k3-rp1"]), "the reflection's earlier words went");
+    assert.deepEqual(w.world.db.read(draftPath("amara")).builtFrom[0], { kind: "work", weekNumber: 3, submittedAt: null, asOf: new Date(THURSDAY), written: 1, reflections: 1, boxes: 0 });
+    // Dev never sent his answer, and never pressed Submit: after the session it goes as it stands.
+    globalThis.__wnClaudeAsked = [];
+    globalThis.__wnClaudeAnswer = ok("The fellow writes plainly.");
+    assert.equal((await draft("zach", { uid: "dev" })).status, 200);
+    assert.ok(globalThis.__wnClaudeAsked[0].message.includes("Split it by tonnage, as the board does."), "an answer never sent did not go after the session");
+    assertClean(globalThis.__wnClaudeAsked[0].message, "Dev's message");
     // The profile's draft reads the same.
     globalThis.__wnClaudeAsked = [];
     globalThis.__wnClaudeAnswer = ok("The fellow writes with care.");
     assert.equal((await ask("zach", routes.profileDraft, "POST", { runId: RUN.agi }, { ctx: { uid: "amara" } })).status, 200);
-    assert.ok(!globalThis.__wnClaudeAsked[0].message.includes(UNSENT));
-    assert.ok(!globalThis.__wnClaudeAsked[0].message.includes(REWRITTEN));
+    assert.ok(globalThis.__wnClaudeAsked[0].message.includes(UNSENT));
+    assert.ok(globalThis.__wnClaudeAsked[0].message.includes(REWRITTEN));
   });
 
-  test("a written answer changed after its send with no words kept as sent is left out; one changed before the week's Submit goes as submitted", async () => {
-    // Changed on Thursday after the Submit, from before versions were kept: nothing of it can be shown to be
-    // sent, so only her reflection, untouched since Submit, goes.
-    const UNSENT = "Changed on Thursday and never sent.";
-    reset({ [PATH("amara", "w03", "k3-wa")]: { ...sentBySubmit(writtenAnswer("amara", UNSENT, WRITTEN)), updatedAt: new Date("2026-11-12T09:00:00Z") } });
-    // No answer goes, so no rating of it does, and a draft naming a rater would be a slip.
-    globalThis.__wnClaudeAnswer = ok("The fellow reflects with care.");
-    assert.equal((await draft("zach", { uid: "amara" })).status, 200);
-    let [{ message }] = globalThis.__wnClaudeAsked;
-    assert.ok(!message.includes(UNSENT));
-    assert.doesNotMatch(message, /Rater 1/, "a rating went without the answer it rates");
-    assert.ok(message.includes(SAID.amara["k3-rp1"]), "her reflection, untouched since Submit, did not go");
-    assert.deepEqual(w.world.db.read(draftPath("amara")).builtFrom[0], { kind: "work", weekNumber: 3, submittedAt: SUBMITTED, written: 0, reflections: 1, boxes: 0 });
-    // Sent on Tuesday, changed on Wednesday morning (a week reopened, when weeks locked) and submitted again
-    // that evening: the Submit sent the words then standing, and they go.
-    const RESUBMITTED = "Changed on Wednesday morning, then submitted again.";
-    reset({
-      [PATH("amara", "w03", "k3-wa")]: {
-        ...sentBySubmit(writtenAnswer("amara", RESUBMITTED, WRITTEN), new Date("2026-11-10T12:00:00Z")),
-        updatedAt: new Date("2026-11-11T10:00:00Z"),
-      },
-    });
+  test("a week before its session gives nothing, even an answer already sent and a week already submitted", async () => {
+    // Wed 11 Nov at 9pm: Amara's answer is sent and her week submitted (8pm), and Group A meets on Thursday.
+    const BEFORE = "2026-11-11T21:00:00Z";
+    reset({}, BEFORE);
+    globalThis.__wnClaudeAnswer = ok("The fellow writes with care.");
+    const gather = await w.loadTs(join("lib", "courses", "weekNotes", "gather.ts"));
+    const coursework = await w.loadTs(join("lib", "courses", "coursework", "gather.ts"));
+    const weeks = await coursework.loadRunWeeks(w.world.db, RUN.agi, [A]);
+    const before = await gather.gatherPersonNote(w.world.db, { runId: RUN.agi, uid: "amara", weeks, now: new Date(BEFORE) });
+    assert.deepEqual(before.weeks, [], "a week was drawn on before its session");
+    assert.deepEqual(before.answers, [], "an answer was read before its session");
+    assert.deepEqual([before.feedback, before.ratings], [[], []], "the team's words went without a week");
+    const page = await gather.gatherWeekNotes(w.world.db, { runId: RUN.agi, week: weeks.find((each) => each.weekId === "w03"), weekId: "w03", people: new Set(["amara", "dev"]), now: new Date(BEFORE) });
+    for (const uid of ["amara", "dev"]) assert.deepEqual([page.get(uid).weeks, page.get(uid).answers], [[], []], `${uid}'s week was drawn on before its session`);
+    // The profile's draft, which waits for no group, sends nothing and says why.
+    const refused = await ask("zach", routes.profileDraft, "POST", { runId: RUN.agi }, { ctx: { uid: "amara" } });
+    assert.deepEqual([refused.status, refused.body.error], [409, notesWords.DRAFT_WORDS.noSessionYet]);
+    assert.equal(globalThis.__wnClaudeAsked.length, 0, "something was sent to Claude before the session");
+    // The minute the session starts, the week is drawn on.
+    const at = new Date("2026-11-12T18:00:00Z");
+    const after = await gather.gatherPersonNote(w.world.db, { runId: RUN.agi, uid: "amara", weeks, now: at });
+    assert.deepEqual(after.weeks.map((entry) => [entry.week.weekId, entry.asOf]), [["w03", at]]);
+    assert.ok(after.answers.some((answer) => answer.kind === "written"), "the sent answer is not read once the session has started");
+    const late = await gather.gatherPersonNote(w.world.db, { runId: RUN.agi, uid: "amara", weeks, now: new Date(at.getTime() - 1) });
+    assert.deepEqual(late.weeks, [], "a week was drawn on a moment before its session");
+  });
+
+  test("somebody with no group has no session, so no week of theirs is drawn on; the version 13 rule still holds after the session", async () => {
+    // Dev, with an answer never sent, taken out of his group: no session to be due at, so nothing of his goes.
+    reset({ [`courseEnrolments/${RUN.agi}__dev`]: { ...seed()[`courseEnrolments/${RUN.agi}__dev`], groupId: null } });
     globalThis.__wnClaudeAnswer = ok(DRAFTED);
-    assert.equal((await draft("zach", { uid: "amara" })).status, 200);
-    [{ message }] = globalThis.__wnClaudeAsked;
-    assert.ok(message.includes(RESUBMITTED));
-    // Nothing of the week left once both are out: nothing to send, and the page plans no press.
-    reset({
-      [PATH("amara", "w03", "k3-wa")]: { ...sentBySubmit(writtenAnswer("amara", UNSENT, WRITTEN)), updatedAt: new Date("2026-11-12T09:00:00Z") },
-      [PATH("amara", "w03", "k3-rp1")]: { ...reflection("amara", "k3-rp1", SAID.amara["k3-rp1"]), firstWrittenAt: WRITTEN, updatedAt: new Date("2026-11-12T09:00:00Z") },
-    });
-    globalThis.__wnClaudeAnswer = ok(DRAFTED);
-    const refused = await draft("zach", { uid: "amara" });
-    assert.deepEqual([refused.status, refused.body.error], [409, words.WEEK_NOTES_WORDS.nothingToSend]);
+    const refused = await draft("zach", { uid: "dev" });
+    assert.deepEqual([refused.status, refused.body.error], [409, words.WEEK_NOTES_WORDS.noSession]);
+    const profile = await ask("zach", routes.profileDraft, "POST", { runId: RUN.agi }, { ctx: { uid: "dev" } });
+    assert.deepEqual([profile.status, profile.body.error], [409, notesWords.DRAFT_WORDS.noSessionYet]);
     assert.equal(globalThis.__wnClaudeAsked.length, 0);
-    assert.deepEqual(findProps((await page("zach")).element, "DraftAll")[0]?.plan ?? [], []);
+    const drawn = await page("zach");
+    assert.ok(!findProps(drawn.element, "DraftAll").flatMap((props) => props.plan).some((person) => person.uid === "dev"), "the press drafts for somebody with no group");
+    // Tariq wrote an answer after the session, but first wrote it before he agreed to version 13: it never goes.
+    reset({ [PATH("tariq", "w03", "k3-wa")]: writtenAnswer("tariq", "Written before agreeing, never to be sent.", new Date("2026-10-30T09:00:00Z")) });
+    globalThis.__wnClaudeAnswer = ok(DRAFTED);
+    const early = await draft("zach", { uid: "tariq" });
+    assert.deepEqual([early.status, early.body.error], [409, words.WEEK_NOTES_WORDS.nothingToSend]);
+    assert.equal(globalThis.__wnClaudeAsked.length, 0);
+    // Nothing of his to send, so the page plans no press for him, and counts him with Bea as not agreed.
+    const after = await page("zach");
+    assert.ok(!findProps(after.element, "DraftAll").flatMap((props) => props.plan).some((person) => person.uid === "tariq"), "the press drafts for somebody with nothing that may go");
+    assert.match(after.text, /2 wrote something, but nothing of theirs can be sent: only work written after they agreed to version 15 of the privacy policy is\./);
+  });
+
+  test("what would be sent has changed since the draft: a change to the work as it stands says so on the card", async () => {
+    reset();
+    globalThis.__wnClaudeAnswer = ok(DRAFTED);
+    await draft("zach", { uid: "amara" });
+    const cardOf = async () => findProps((await page("zach")).element, "NoteDraftCard").map((props) => props.card).find((card) => card.uid === "amara");
+    assert.equal((await cardOf()).stale, null);
+    // An hour later she changes her answer and sends nothing: what a draft would carry now is not what it carried.
+    w.at("2026-11-19T11:00:00Z");
+    w.world.db.poke(PATH("amara", "w03", "k3-wa"), { text: "A new answer, typed today and not sent.", updatedAt: new Date("2026-11-19T10:30:00Z") });
+    const card = await cardOf();
+    assert.equal(card.stale, words.WEEK_NOTES_WORDS.changed);
+    assert.equal(card.savable, true);
   });
 
   test("names come back on the site, and a label Claude was never sent is a slip", () => {
@@ -492,7 +539,7 @@ describe("1. what a note's draft is sent: a submitted week and the team's words 
     assert.deepEqual(input.noteLabelSlips("The fellow writes well; another fellow agrees.", {}), []);
   });
 
-  test("the profile's Draft a note with Claude sends through the same builder: the submitted week and the team's words", async () => {
+  test("the profile's Draft a note with Claude sends through the same builder: the week after its session and the team's words", async () => {
     reset();
     globalThis.__wnClaudeAnswer = ok("The fellow writes with care; Rater 1 agrees.");
     const answer = await ask("zach", routes.profileDraft, "POST", { runId: RUN.agi }, { ctx: { uid: "amara" } });
@@ -504,10 +551,17 @@ describe("1. what a note's draft is sent: a submitted week and the team's words 
     assert.ok(message.includes("Feedback from their facilitator:"));
     // Nothing kept: the profile's draft is returned, never stored.
     assert.equal(w.world.db.paths().filter((path) => path.startsWith("courseNoteDrafts/")).length, 0);
-    // Dev never submitted, so there is nothing to draft from.
+    // CHANGED ON PURPOSE (privacy v18): Dev never submitted, and was refused here. His answer, never sent,
+    // now goes as it stands once his session has started; Tariq, who wrote nothing, is refused and says why.
+    globalThis.__wnClaudeAsked = [];
+    globalThis.__wnClaudeAnswer = ok("The fellow writes plainly.");
     const dev = await ask("zach", routes.profileDraft, "POST", { runId: RUN.agi }, { ctx: { uid: "dev" } });
-    assert.equal(dev.status, 409);
-    assert.match(dev.body.error, /No submission, no note/);
+    assert.equal(dev.status, 200, JSON.stringify(dev.body));
+    assert.ok(globalThis.__wnClaudeAsked[0].message.includes("Split it by tonnage, as the board does."));
+    globalThis.__wnClaudeAsked = [];
+    const tariq = await ask("zach", routes.profileDraft, "POST", { runId: RUN.agi }, { ctx: { uid: "tariq" } });
+    assert.deepEqual([tariq.status, tariq.body.error], [409, notesWords.DRAFT_WORDS.wroteNothing]);
+    assert.equal(globalThis.__wnClaudeAsked.length, 0);
   });
 });
 
@@ -515,7 +569,7 @@ describe("1. what a note's draft is sent: a submitted week and the team's words 
 // 2. The draft press
 // ---------------------------------------------------------------------------
 
-describe("2. drafting a person's note: an admin's, once every group has met, from a submitted week", () => {
+describe("2. drafting a person's note: an admin's, once every group has met, from a week whose session has started", () => {
   test("everybody but an admin is refused on the session before anything is read, and a view-as session first of all", async () => {
     reset();
     globalThis.__wnClaudeAnswer = ok(DRAFTED);
@@ -586,18 +640,30 @@ describe("2. drafting a person's note: an admin's, once every group has met, fro
     assert.equal(globalThis.__wnClaudeAsked.length, 0);
   });
 
-  test("no submission, no note: Dev never submitted, Tariq wrote nothing, and a week reopened since gives nothing", async () => {
+  test("nothing written, no note: Tariq wrote nothing; a week with no session for them gives nothing; a stored reopen changes nothing", async () => {
+    // CHANGED ON PURPOSE (privacy v18): "no submission, no note" is gone. Tariq wrote nothing, and is
+    // refused in words that say so; Dev, who never sent or submitted, is drafted for once his session has
+    // started (section 1); and a week stored as reopened, from when weeks locked, is a week like any other.
     reset();
     globalThis.__wnClaudeAnswer = ok(DRAFTED);
-    for (const uid of ["dev", "tariq"]) {
-      const refused = await draft("zach", { uid });
-      assert.equal(refused.status, 409, uid);
-      assert.equal(refused.body.error, "No submission, no note: their week isn’t submitted.");
-    }
+    const tariq = await draft("zach", { uid: "tariq" });
+    assert.equal(tariq.status, 409);
+    assert.equal(tariq.body.error, "They haven’t written anything in this week yet, so there’s nothing to note.");
+    assert.equal(globalThis.__wnClaudeAsked.length, 0);
+    // Amara's place names a group that is not on the run: no session of hers to be due at.
+    const moved = seed()[`courseEnrolments/${RUN.agi}__amara`];
+    reset({ [`courseEnrolments/${RUN.agi}__amara`]: { ...moved, groupId: "a-group-no-longer-there" } });
+    globalThis.__wnClaudeAnswer = ok(DRAFTED);
+    const none = await draft("zach", { uid: "amara" });
+    assert.equal(none.status, 409);
+    assert.equal(none.body.error, "Their session for this week hasn’t started yet, or they have none, so there’s nothing of theirs to note.");
+    assert.equal(globalThis.__wnClaudeAsked.length, 0);
+    reset();
+    globalThis.__wnClaudeAnswer = ok(DRAFTED);
     w.world.db.poke(`courseWeekWork/${RUN.agi}__amara__w03`, { submittedAt: null, reopenedAt: new Date("2026-11-13T10:00:00Z"), reopenedByUid: "sofia" });
     const reopened = await draft("zach", { uid: "amara" });
-    assert.equal(reopened.status, 409);
-    assert.equal(globalThis.__wnClaudeAsked.length, 0);
+    assert.equal(reopened.status, 200, JSON.stringify(reopened.body));
+    assert.ok(globalThis.__wnClaudeAsked[0].message.includes("someone running the programme was right that the keepers need the town."));
   });
 
   test("Bea submitted but never agreed to version 15: nothing of hers may go", async () => {
@@ -657,12 +723,17 @@ describe("3. the page: an admin's drafts and counts; the lead's saved notes alon
     assert.equal(drawn.wrote, false, "drawing the page wrote something");
     assert.equal(globalThis.__wnClaudeAsked.length, 0, "drawing the page asked Claude");
     assert.match(drawn.text, /Week 3 notes Admins draft and save Leads read them for their programme/);
-    assert.match(drawn.text, /What Claude may use What they submitted as written work Feedback people gave The team’s ratings and comments Not their surveys or check-ins Not facilitators’ session reports Not Claude’s own grades/);
-    assert.match(drawn.text, /4 people · 0 drafts · 2 submitted nothing this week, so there’s no note for them · 0 saved/);
-    assert.match(drawn.text, /1 submitted, but nothing of theirs can be sent: only work written after they agreed to version 15 of the privacy policy is\./);
-    assert.match(drawn.text, /Sends one request to Anthropic, for the 1 person who submitted and has no draft or note from this week/);
+    assert.match(drawn.text, /What Claude may use Their work on the week as it stands after their session, sent or not Feedback people gave The team’s ratings and comments Not their surveys or check-ins Not facilitators’ session reports Not Claude’s own grades/);
+    // Tariq wrote nothing; Bea wrote, but never agreed to version 15; Amara and Dev have work to note.
+    assert.match(drawn.text, /4 people · 0 drafts · 1 with nothing written this week or no session yet, so there’s no note for them · 0 saved/);
+    assert.match(drawn.text, /1 wrote something, but nothing of theirs can be sent: only work written after they agreed to version 15 of the privacy policy is\./);
+    assert.match(drawn.text, /Sends one request to Anthropic for each of the 2 people with work to note and no draft or note from this week/);
+    assert.doesNotMatch(drawn.text, /submitted/, "the page still speaks of a submitted week");
     const [press] = findProps(drawn.element, "DraftAll");
-    assert.deepEqual(press.plan, [{ uid: "amara", name: "Amara Okafor" }]);
+    assert.deepEqual(press.plan, [
+      { uid: "amara", name: "Amara Okafor" },
+      { uid: "dev", name: "Dev Patel" },
+    ]);
     assert.match(drawn.text, /Nothing goes on their profile until an admin saves it\. A saved note says it was drafted by Claude from week 3 and who checked it\./);
   });
 
@@ -698,7 +769,7 @@ describe("3. the page: an admin's drafts and counts; the lead's saved notes alon
     assert.equal(card.name, "Amara Okafor");
     assert.equal(card.group, "Group A");
     assert.deepEqual(card.builtFrom, [
-      "Week 3 answer and 1 reflection, submitted Wed 11 Nov",
+      "Week 3 answer and 1 reflection, as it stood on Thu 19 Nov",
       "Sofia’s written feedback",
       "Claudia: 8, “Takes a side and defends it”",
       "Claudia’s written feedback",
@@ -711,10 +782,35 @@ describe("3. the page: an admin's drafts and counts; the lead's saved notes alon
     // The boxes start unticked and the card is handed nothing that could tick one.
     assert.equal("suggest" in card, false);
     assert.ok(!/checked=""/.test(drawn.html.slice(drawn.html.indexOf("Suggest for next term"), drawn.html.indexOf("Who reads it"))), "a suggestion box is ticked");
-    assert.match(drawn.text, /4 people · 1 draft · 2 submitted nothing this week/);
-    assert.equal(findProps(drawn.element, "DraftAll").length, 0, "a press with nobody left to draft");
+    assert.match(drawn.text, /4 people · 1 draft · 1 with nothing written this week or no session yet/);
+    // Dev is the one left to draft for; once he has a draft too, there is no press.
+    assert.deepEqual(findProps(drawn.element, "DraftAll")[0]?.plan, [{ uid: "dev", name: "Dev Patel" }]);
+    await draft("zach", { uid: "dev" });
+    assert.equal(findProps((await page("zach")).element, "DraftAll").length, 0, "a press with nobody left to draft");
     // Never a check-in, a report or a review grade on the page either.
     for (const said of Object.values(NEVER_SENT)) assert.ok(!drawn.text.includes(said), `the page shows ${said}`);
+  });
+
+  test("a draft kept before version 18 still says the day its week was submitted, which is what it was built from", async () => {
+    reset({
+      [draftPath("amara")]: {
+        runId: RUN.agi,
+        weekId: "w03",
+        weekNumber: 3,
+        uid: "amara",
+        text: "The fellow argues well.",
+        builtFrom: [{ kind: "work", weekNumber: 3, submittedAt: SUBMITTED, written: 1, reflections: 1, boxes: 0 }],
+        raters: {},
+        sourceUids: [],
+        fingerprint: "kept-before",
+        model: "claude-opus-5-5",
+        at: new Date(WEDNESDAY),
+        askedByUid: "zach",
+      },
+    });
+    const [card] = findProps((await page("zach")).element, "NoteDraftCard").map((props) => props.card);
+    assert.deepEqual(card.builtFrom, ["Week 3 answer and 1 reflection, submitted Wed 11 Nov"]);
+    assert.deepEqual(notesModel.noteSourcesOf(w.world.db.read(draftPath("amara")).builtFrom)[0], { kind: "work", weekNumber: 3, submittedAt: SUBMITTED, asOf: null, written: 1, reflections: 1, boxes: 0 });
   });
 
   test("a rating given after the draft is said on the card, with when", async () => {
@@ -841,21 +937,26 @@ describe("4. save keeps the admin's words as an end-of-week note; discard drops 
     assert.equal(w.world.db.paths().filter((path) => path.startsWith("memberNotes/")).length, 1);
   });
 
-  test("save is refused with no words, nobody chosen to read it, a suggestion that is not one, or a week reopened since", async () => {
+  test("save is refused with no words, nobody chosen to read it, a suggestion that is not one, or a week no longer drawn on", async () => {
     reset();
     globalThis.__wnClaudeAnswer = ok(DRAFTED);
     await draft("zach", { uid: "amara" });
     assert.equal((await save("zach", "amara", { text: "", audience: "leads" })).status, 400);
     assert.equal((await save("zach", "amara", { text: "Words.", audience: "everybody" })).status, 400);
     assert.equal((await save("zach", "amara", { text: "Words.", audience: "leads", suggest: ["mentoring"] })).status, 400);
+    // CHANGED ON PURPOSE (privacy v18): a week reopened since refused the save. A stored reopen changes
+    // nothing now; a week no longer drawn on does: taken out of her group, Amara has no session that week.
     w.world.db.poke(`courseWeekWork/${RUN.agi}__amara__w03`, { submittedAt: null, reopenedAt: new Date("2026-11-19T09:00:00Z"), reopenedByUid: "sofia" });
-    const reopened = await save("zach", "amara", { text: "Words.", audience: "leads", suggest: [] });
-    assert.equal(reopened.status, 409);
-    assert.equal(reopened.body.error, words.WEEK_NOTES_WORDS.notSubmittedNow);
+    const stillDrawn = await page("zach");
+    assert.equal(findProps(stillDrawn.element, "NoteDraftCard").map((props) => props.card)[0].savable, true, "a stored reopen stops a save");
+    w.world.db.poke(`courseEnrolments/${RUN.agi}__amara`, { groupId: null });
+    const gone = await save("zach", "amara", { text: "Words.", audience: "leads", suggest: [] });
+    assert.equal(gone.status, 409);
+    assert.equal(gone.body.error, words.WEEK_NOTES_WORDS.noSessionNow);
     assert.ok(w.world.db.read(draftPath("amara")), "a refused save took the draft");
     const drawn = await page("zach");
     const [card] = findProps(drawn.element, "NoteDraftCard").map((props) => props.card);
-    assert.equal(card.stale, words.WEEK_NOTES_WORDS.reopened);
+    assert.equal(card.stale, words.WEEK_NOTES_WORDS.noSessionAfter);
     assert.equal(card.savable, false);
   });
 

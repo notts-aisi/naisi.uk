@@ -9,17 +9,19 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
- * CLAUDE DRAFTS ONE PERSON'S END-OF-WEEK NOTE (privacy v15: "Once a week
- * Claude may also draft a short note on how each person is doing, using only
- * the work they submitted and the feedback, ratings and comments people on
- * the team gave it"), FOR AN ADMIN ALONE: what Claude returns is seen by
+ * CLAUDE DRAFTS ONE PERSON'S END-OF-WEEK NOTE (privacy v18: "Once a week
+ * Claude may also draft a short note on how each person is doing. It is
+ * drafted after your session, usually about a week after it, and uses your
+ * work on that week as it stands then, sent or not, with the feedback,
+ * ratings and comments people on the team gave it"), FOR AN ADMIN ALONE: what Claude returns is seen by
  * admins only. Decided on the session before the body, the params or the
  * database are read, so the programme's lead, a reviewer and everybody else
  * stop here; the week's door (`openWeekNotes`, `adminOnly`) refuses them
  * again before the run is read. A view-as session is turned away first.
  *
  * POST `{ uid, again? }`: one person, once every group has met the week,
- * whose week is submitted and not reopened since. Sends one request to
+ * whose session that week has started, with something written in it that
+ * may be sent. Sends one request to
  * Anthropic, with labels and numbers in place of names, and keeps the draft
  * with the run. Refused when a note from this week is already saved, or a
  * draft is already there and `again` is not true; with `again`, an unsaved

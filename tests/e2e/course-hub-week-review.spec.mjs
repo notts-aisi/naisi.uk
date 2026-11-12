@@ -5,8 +5,8 @@
  * three weeks into a running run whose weeks are written as blocks, Ada and
  * Ben in Group A, Cleo in Group B and Dan in no group, week 3's sessions
  * over, Ada's week 3 written answer and first reflection and Cleo's first
- * reflection written after they agreed to the policy, both weeks submitted,
- * and a waiting draft of a note about each. The admin approves Fern and
+ * reflection written after they agreed to the policy, both weeks submitted
+ * under the old button, and a waiting draft of a note about each. The admin approves Fern and
  * Group A's two people, names the run on the programme's Settings tab and
  * appoints Fern to Group A. Then:
  *
@@ -26,9 +26,9 @@
  *    and the page shows its draft grade, its theme and its one hand, on one
  *    of the two people whose writing was sent;
  *    against a deployed target, the review or one of the site's reasons;
- *  - the week's Notes, beside its review, say who submitted and show both
- *    drafts, Ada's built only from her submitted week, with its boxes for
- *    next term unticked, and the fake asked nothing more;
+ *  - the week's Notes, beside its review, say who has nothing to note and
+ *    show both drafts, Ada's built only from her week as it stood, with its
+ *    boxes for next term unticked, and the fake asked nothing more;
  *  - the admin edits Ada's and saves it to her notes: one note, drafted by
  *    Claude and in the admin's words, and the draft gone;
  *  - the admin discards Cleo's, and Cleo is the one person left to draft for;
@@ -124,7 +124,7 @@ const WORDS = {
   discard: "Discard",
   draftNotes: "Draft this week’s notes",
   pressLineOne:
-    "Sends one request to Anthropic, for the 1 person who submitted and has no draft or note from this week, with labels and numbers in place of names. Nobody is emailed.",
+    "Sends one request to Anthropic, for the 1 person with work to note and no draft or note from this week, with labels and numbers in place of names. Nobody is emailed.",
   nextTermTitle: "Next term: who to ask",
   nextTermChip: "Admins only",
   facilitating: "Facilitating",
@@ -477,20 +477,20 @@ test(
         }
       });
 
-      await step("the week's notes, beside its review: who submitted, and a waiting draft built only from a submitted week", async () => {
+      await step("the week's notes, beside its review: who has work to note, and a waiting draft built only from the week as it stood", async () => {
         activePage = adminPage;
         await adminPage.getByRole("navigation", { name: "This week" }).getByRole("link", { name: WORDS.notesTab }).click();
         await adminPage.getByRole("heading", { level: 2, name: WORDS.notesTitle }).waitFor({ timeout: WAIT_MS });
         const main = adminPage.locator("main");
         const said = await wordsIn(main);
-        // Ada and Cleo submitted week 3, and the two seeded drafts are theirs; Ben, in Ada's group, did not submit.
-        assert.match(said, /\b\d+ people · 2 drafts · [1-9]\d* submitted nothing this week, so there’s no note for them · 0 saved\b/, `the counts: ${said}`);
+        // Ada and Cleo wrote in week 3, and the two seeded drafts are theirs; Ben, in Ada's group, wrote nothing, and Dan has no group.
+        assert.match(said, /\b\d+ people · 2 drafts · [1-9]\d* with nothing written this week or no session yet, so there’s no note for them · 0 saved\b/, `the counts: ${said}`);
         if (!deployed) assert.ok(!said.includes(WORDS.claudeNotSetUp), "the notes say Claude is not set up where the fake is");
         const card = main.locator("article").filter({ hasText: ada.displayName }).first();
         await card.waitFor({ timeout: WAIT_MS });
         const onCard = await wordsIn(card);
         assert.ok(onCard.includes(WORDS.builtOnlyFrom), `the draft does not say what it was built from: ${onCard}`);
-        assert.match(onCard, /Week 3 answer and 1 reflection, submitted \w{3} \d{1,2} \w{3}/, `the draft's sources: ${onCard}`);
+        assert.match(onCard, /Week 3 answer and 1 reflection, as it stood on \w{3} \d{1,2} \w{3}/, `the draft's sources: ${onCard}`);
         // The seeded words, with the person's name put back where Claude wrote "the fellow".
         const box = card.getByRole("textbox", { name: "Draft note" });
         assert.match(await box.inputValue(), new RegExp(`^${escapeRegExp(ada.first)}\\b`), "the draft's box does not name the person");
@@ -498,7 +498,7 @@ test(
         const suggest = card.getByRole("group", { name: WORDS.suggestTitle });
         assert.equal(await suggest.getByRole("checkbox", { checked: true }).count(), 0, "a suggestion is ticked before anybody ticked it");
         assert.equal(pressed.length, pressedAfterReview, "opening the notes pressed something");
-        // Everybody who submitted has a draft, so nobody is left for Draft this week's notes.
+        // Everybody with work that can be sent has a draft, so nobody is left for Draft this week's notes.
         assert.equal(await main.getByRole("button", { name: WORDS.draftNotes }).count(), 0, "Draft this week's notes is offered with nobody to draft for");
         if (!deployed) {
           assert.ok(askedAfterReview !== null, "the review step did not reach the fake, so there is nothing to compare with");

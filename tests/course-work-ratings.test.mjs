@@ -512,9 +512,11 @@ describe("4. never to the person or a facilitator, and never to Kairos", () => {
   });
 
   test("the readers for a note's draft are called by what a note is drafted from alone, and that only for an admin", () => {
-    // Privacy v15: "Once a week Claude may also draft a short note on how
-    // each person is doing, using only the work they submitted and the
-    // feedback, ratings and comments people on the team gave it."
+    // Privacy v18: "Once a week Claude may also draft a short note on how
+    // each person is doing. It is drafted after your session, usually about
+    // a week after it, and uses your work on that week as it stands then,
+    // sent or not, with the feedback, ratings and comments people on the
+    // team gave it."
     const callers = filesMatching(/\b(?:readPersonRatings|readWeekRatings)\(/);
     assert.deepEqual(callers, ["src/lib/courses/weekNotes/gather.ts", "src/lib/courses/workRatings/readers.ts"]);
     // The gatherer is called by the end-of-week notes' store and the

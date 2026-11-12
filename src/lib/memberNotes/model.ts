@@ -73,7 +73,8 @@ export const NOTE_SUGGESTIONS: readonly NoteSuggestion[] = ["facilitating", "inc
 
 /**
  * A note written by a person, or an end-of-week note: Claude's draft from one
- * submitted week, read, edited and saved by an admin on the week's Notes page.
+ * week once its session has happened, read, edited and saved by an admin on
+ * the week's Notes page.
  */
 export type NoteKind = "note" | "weekly";
 
@@ -82,12 +83,16 @@ export type NoteSourceRole = "facilitator" | "lead" | "admin";
 
 /**
  * ONE THING AN END-OF-WEEK NOTE WAS BUILT FROM, exactly as Claude was sent it
- * (privacy v15: "using only the work they submitted and the feedback, ratings
- * and comments people on the team gave it"). A draft keeps the list, and a
- * saved note keeps it as its "Built only from":
+ * (privacy v18: "uses your work on that week as it stands then, sent or not,
+ * with the feedback, ratings and comments people on the team gave it"). A
+ * draft keeps the list, and a saved note keeps it as its "Built only from":
  *
- *  - `work`: a submitted week's own work, how many written answers,
- *    reflections and boxes went, and when the week was submitted;
+ *  - `work`: a week's own work, how many written answers, reflections and
+ *    boxes went, and `asOf`, when it was read: the draft's own moment, the
+ *    work as it stood then. A source kept before version 18 has no `asOf`
+ *    and keeps `submittedAt`, when the week was submitted under the old
+ *    Submit, which is what that draft was built from; every source since
+ *    keeps `submittedAt` null;
  *  - `levels`: feedback given before pieces existed, sent as its levels on
  *    the course's rubric and never its comment;
  *  - `feedback`: one piece of feedback, by its writer and as what they wrote;
@@ -100,7 +105,7 @@ export type NoteSourceRole = "facilitator" | "lead" | "admin";
  * a rating it gave.
  */
 export type NoteSource =
-  | { kind: "work"; weekNumber: number; submittedAt: Date | null; written: number; reflections: number; boxes: number }
+  | { kind: "work"; weekNumber: number; submittedAt: Date | null; asOf: Date | null; written: number; reflections: number; boxes: number }
   | { kind: "levels"; weekNumber: number }
   | { kind: "feedback"; weekNumber: number; byUid: string; role: NoteSourceRole; on: "writtenAnswer" | "week"; at: Date | null }
   | {
@@ -227,6 +232,7 @@ function sourceOf(value: unknown): NoteSource | null {
       kind: "work",
       weekNumber,
       submittedAt: instantOf(raw.submittedAt),
+      asOf: instantOf(raw.asOf),
       written: count(raw.written),
       reflections: count(raw.reflections),
       boxes: count(raw.boxes),

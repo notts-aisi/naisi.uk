@@ -21,14 +21,15 @@ import { keptFromWeek, notesShownIn, type MemberNoteDoc } from "@/lib/memberNote
 import { authorNames, checkedNote, keepWeeklyNoteIn, listNotes, listWeekNotes, loadSubject, weekNoteKeptIn } from "@/lib/memberNotes/store";
 import { NOTES_WORDS, programmeLabelOf } from "@/lib/memberNotes/words";
 import { openWeekNotes, type WeekNotesDoor } from "./door";
-import { gatherPersonNote, gatherWeekNotes, weekIsSubmitted, type PersonNoteSources } from "./gather";
+import { gatherPersonNote, gatherWeekNotes, weekIsDrawnOn, type PersonNoteSources } from "./gather";
 import { weekNotesAdminView, weekNotesLeadView, type NotesPerson, type WeekNotesAdminView, type WeekNotesLeadView } from "./view";
 import { WEEK_NOTES_WORDS } from "./words";
 
 /**
- * A WEEK'S NOTES ABOUT PEOPLE, KEPT AND READ (privacy v15). Claude drafts one
- * note per person whose week is submitted and not reopened since, from that
- * week's work and the team's words on it (`noteDraftInput`); an admin reads,
+ * A WEEK'S NOTES ABOUT PEOPLE, KEPT AND READ (privacy v15, and v18 for what
+ * a draft uses). Claude drafts one note per person whose session for the
+ * week has started, from their work on that week as it stands, sent or not,
+ * and the team's words on it (`gather.ts`, `noteDraftInput`); an admin reads,
  * edits and saves it to the person's notes, or discards it.
  *
  * `loadWeekNotes` is the page's, for an admin or the programme's lead,
@@ -97,7 +98,7 @@ function scrubFor(uid: string, people: readonly RunPerson[]): NameToLabel[] {
   }));
 }
 
-/** The message one person's draft would carry, from what was gathered for them; null when their week is not submitted. */
+/** The message one person's draft would carry, from what was gathered for them; null when their week is not drawn on (its session has not started for them). */
 function inputFor(
   opened: WeekNotesDoor,
   uid: string,
@@ -172,13 +173,15 @@ export async function loadWeekNotes(
 
   const uids = new Set(people.map((person) => person.uid));
   const [sources, scrub, drafts, saved, offered] = await Promise.all([
-    gatherWeekNotes(db, { runId, week: opened.week, weekId: opened.weekId, people: uids }),
+    gatherWeekNotes(db, { runId, week: opened.week, weekId: opened.weekId, people: uids, now }),
     runPeopleToScrub(db, opened.door),
     readWeekDrafts(db, runId, opened.weekId),
     listWeekNotes(db, runId, opened.weekId),
     offeredToFacilitate(db, opened.roundId, uids),
   ]);
   const inputs = new Map(people.map((person) => [person.uid, inputFor(opened, person.uid, sources.get(person.uid), scrub)]));
+  // Whose week is drawn on and holds nothing they wrote: no note, and not for want of agreeing.
+  const wroteNothing = new Set(people.filter((person) => (sources.get(person.uid)?.weeks.length ?? 0) > 0 && (sources.get(person.uid)?.answers.length ?? 0) === 0).map((person) => person.uid));
   const savedBy = new Map<string, MemberNoteDoc>();
   for (const note of saved) if (uids.has(note.uid) && !savedBy.has(note.uid)) savedBy.set(note.uid, note);
   const named = [
@@ -200,6 +203,7 @@ export async function loadWeekNotes(
     people,
     groups,
     inputs,
+    wroteNothing,
     drafts,
     saved: savedBy,
     offered,
@@ -257,11 +261,12 @@ export async function draftWeekNote(
   if (existing.exists && !input.again) return refuse(409, WEEK_NOTES_WORDS.draftedAlready);
 
   const [sources, scrub] = await Promise.all([
-    gatherPersonNote(db, { runId, uid: input.uid, weeks: [opened.week] }),
+    gatherPersonNote(db, { runId, uid: input.uid, weeks: [opened.week], now }),
     runPeopleToScrub(db, opened.door),
   ]);
   const built = inputFor(opened, input.uid, sources, scrub);
-  if (built === null) return refuse(409, WEEK_NOTES_WORDS.noSubmission);
+  if (built === null) return refuse(409, WEEK_NOTES_WORDS.noSession);
+  if (sources.answers.length === 0) return refuse(409, WEEK_NOTES_WORDS.wroteNothing);
   if (built.sent === 0) return refuse(409, WEEK_NOTES_WORDS.nothingToSend);
 
   const answer = await askForNoteDraft(built.message);
@@ -304,7 +309,7 @@ export async function saveWeekNote(
   const checked = checkedNote({ text: input.text, audience: input.audience, suggest: input.suggest, draftedByClaude: true }, "admin");
   if (!checked.ok) return checked;
   const runId = opened.run.id;
-  if (!(await weekIsSubmitted(db, { runId, uid: input.uid, weekId: opened.weekId }))) return refuse(409, WEEK_NOTES_WORDS.notSubmittedNow);
+  if (!(await weekIsDrawnOn(db, { runId, uid: input.uid, weekNumber: opened.weekNumber, now }))) return refuse(409, WEEK_NOTES_WORDS.noSessionNow);
   const subject = await loadSubject(db, input.uid);
   if (!subject) return refuse(404, WEEK_NOTES_WORDS.notFellow);
   const programmeLabel = programmeLabelOf(opened.run) || opened.door.programmeName;

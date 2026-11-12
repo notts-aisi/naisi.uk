@@ -10833,7 +10833,7 @@ describe("v15 lets Claude draft a short note on how each person is doing, from t
     ]);
   });
 
-  test("\"using only the work they submitted and the feedback, ratings and comments people on the team gave it\": the one builder sends a submitted week and the team's words, and nothing else", () => {
+  test("\"uses your work on that week as it stands then, sent or not, with the feedback, ratings and comments people on the team gave it\": the one builder sends a week handed over and the team's words, and nothing else", () => {
     const from = new Date("2026-11-05T09:00:00Z");
     const at = (day) => new Date(`2026-11-${day}T09:00:00Z`);
     const week = {
@@ -10860,12 +10860,12 @@ describe("v15 lets Claude draft a short note on how each person is doing, from t
         from,
         writerFrom: new Map([["w", from], ["r", from]]),
       });
-    const sent = built([{ week, submittedAt: at("11") }]);
+    const sent = built([{ week, asOf: at("19") }]);
     for (const said of ["SUBMITTED ANSWER", "Feedback from their facilitator: THE TEAM'S FEEDBACK", "Rater 1 (the programme's lead) rated it 8 of 10: THE TEAM'S COMMENT"]) {
       assert.ok(sent.message.includes(said), `the note's message does not carry ${said}`);
     }
     assert.ok(!sent.message.includes("BEFORE THE MOMENT"), "work from before the person's moment is sent");
-    // No submission, no note: a week not handed over sends nothing at all, not even the team's words.
+    // A week not handed over (its session not started) sends nothing at all, not even the team's words.
     const none = built([]);
     assert.equal(none.sent, 0);
     assert.ok(!none.message.includes("THE TEAM'S"), "the team's words go without the work they are about");
@@ -10876,22 +10876,36 @@ describe("v15 lets Claude draft a short note on how each person is doing, from t
     for (const [, specifier] of gather.matchAll(/from\s+"([^"]+)"/g)) {
       assert.doesNotMatch(specifier, /surveys|checkIns|sessionReports|weekReview|courseWeekReviews/, `what a note is built from imports ${specifier}`);
     }
-    assert.match(strip(gather), /if \(submittedAt\) out\.push\(\{ week, submittedAt \}\);/, "a week is handed over without its submission");
-    // "Only the work they submitted": the week stays open after its Submit, so a written answer goes as last
-    // sent (never a change not sent) and a reflection or a box saved after the week's Submit is left out.
-    assert.equal((strip(gather).match(/asLastSent: \(/g) ?? []).length, 2, "a note reads a written answer as its readers do, latest words and all");
-    assert.equal((strip(gather).match(/answers: submittedWork\(/g) ?? []).length, 2, "a note takes work saved after the week's Submit");
-    assert.match(strip(gather), /return answer\.savedAt != null && answer\.savedAt\.getTime\(\) <= at\.getTime\(\);/);
-    assert.match(strip(read("src/lib/courses/coursework/gather.ts")), /if \(asLastSent\) return answerAsLastSent\(piece, asLastSent\(uid,/);
+    // CHANGED ON PURPOSE (v18): "only the work they submitted" held a week to its old Submit, a written
+    // answer to what was last sent and a reflection to what was saved before the Submit. Now: "It is
+    // drafted after your session ... and uses your work on that week as it stands then, sent or not".
+    // A week is handed over once the session the person was due at has started, and never before; by the
+    // one "due" every reader of work asks (`loadRunWeekStates`, `weekDueOf`), never a second sum.
+    const code = strip(gather);
+    assert.match(code, /return sessions !== null && sessionHasStarted\(sessions\.dueOf\(uid, weekNumber\), sessions\.now\);/, "a week is drawn on before its session, or by another sum");
+    assert.match(code, /const states = await loadRunWeekStates\(db, \{ run, liveGroups, now \}\);\s*return \{ dueOf: states\.dueOf, now \};/);
+    assert.match(code, /input\.weeks\.filter\(\(week\) => drawnOn\(sessions, uid, week\.weekNumber\)\)/, "the profile's and a press's gatherer hands over a week before its session");
+    assert.match(code, /\[\.\.\.people\]\.filter\(\(uid\) => drawnOn\(sessions, uid, week\.weekNumber\)\)/, "the page's gatherer hands over a week before its session");
+    // Its work as it stands: read by the coursework's one reader against the same sessions and clock,
+    // which, once that session has started, reads a written answer's latest words, sent or not.
+    assert.equal((code.match(/\{ session: sessions \}/g) ?? []).length, 2, "a note reads its work against another clock or another sum");
+    const coursework = strip(read("src/lib/courses/coursework/gather.ts"));
+    assert.match(coursework, /const states = given \?\? \(run \? await loadRunWeekStates\(db, \{ run, liveGroups, now \}\) : null\);/);
+    assert.match(coursework, /return readableAnswer\(piece, states\.dueOf\(uid, weekNumber\)\.at, now\);/);
+    // Nothing of the old rule is left: no Submit, no "as last sent", no save time held against a Submit.
+    assert.doesNotMatch(code, /submittedAt|asLastSent|savedAt|readWeekWork|readRunWeekWork/, "a note's gatherer still reads the old Submit");
+    assert.doesNotMatch(coursework, /asLastSent|answerAsLastSent/, "the coursework's reader still reads a note's answers as last sent");
+    // tests/week-notes.test.mjs runs it: nothing before the session, even an answer sent; after it, the work as it stands.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "week-notes.test.mjs")));
   });
 
   test("the profile's \"Draft a note with Claude\" sends through the same builder and gatherer as the end-of-week notes", () => {
     const profile = strip(read("src/lib/memberNotes/draft.ts"));
-    assert.match(profile, /const sources = await gatherPersonNote\(db, \{ runId, uid: subjectUid, weeks \}\);/);
+    assert.match(profile, /const sources = await gatherPersonNote\(db, \{ runId, uid: subjectUid, weeks, now \}\);/);
     assert.match(profile, /const input = noteDraftInput\(\{\s*programme: run\.programme,\s*weeks: sources\.weeks,/);
     const weekly = strip(read("src/lib/courses/weekNotes/store.ts"));
     assert.match(weekly, /return noteDraftInput\(\{\s*programme: opened\.door\.programmeName,\s*weeks: sources\.weeks,/);
-    assert.match(weekly, /gatherPersonNote\(db, \{ runId, uid: input\.uid, weeks: \[opened\.week\] \}\)/);
+    assert.match(weekly, /gatherPersonNote\(db, \{ runId, uid: input\.uid, weeks: \[opened\.week\], now \}\)/);
     // tests/week-notes.test.mjs and tests/coursework-claude.test.mjs read every message that would go.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "week-notes.test.mjs")), "the end-of-week notes' suite is gone");
   });
