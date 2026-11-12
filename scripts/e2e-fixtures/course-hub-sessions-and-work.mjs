@@ -13,14 +13,18 @@
  * days ahead.
  *
  * The spec (`tests/e2e/course-hub-sessions-and-work.spec.mjs`) is Ada and
- * Fern, Group A's facilitator, in that week. Ada presses Can't make it on
- * her next session's ticket, then answers "Can you make this time most
- * weeks?" with "Most weeks, not all", ticking week 5 beside the week 4 her
- * press already ticked, and Fern's register says so. Fern's register
+ * Fern, Group A's facilitator, in that week. Ada opens Can't make it on
+ * her next session's ticket (a request an admin decides) and closes it
+ * having sent nothing, then answers "Can you make this time most weeks?"
+ * with "Most weeks, not all", ticking weeks 4 and 5 in her first answer,
+ * and Fern's register says so. Fern's register
  * leads to week 3's session report before it is finished; Fern marks it,
  * puts Ada down as having joined it online, finishes it, follows its link to
- * the session report and sends one. Ada can make week 4 after all and says
- * Ada is joining it online instead, one thing at a time on Ada's ticket; the
+ * the session report and sends one. Ada can make week 4 after all and
+ * unticks it, which is all her answer takes now that she has given it; week
+ * 6 is asked about on Can't make it instead (the request offers it; nothing
+ * is sent). Then she says she is joining week 4 online, one thing at a time
+ * on her ticket; the
  * box at the top of Fern's group page asks for a meeting link for week 4
  * (Group A has none at this point), Fern adds one, and the box and the
  * register say Ada is joining online; Ada's ticket, on Ada's programme page
@@ -74,11 +78,11 @@ export const SESSIONS_AND_WORK_STEPS = [
   "the admin approves the facilitator and the member of the group who signs in",
   "the admin names the running course run on the programme's Settings tab",
   "the admin appoints the facilitator to the group whose register nobody has marked",
-  "the member's next session's ticket offers Can't make it as a request an admin decides, joining online first, never the instant button, and opening it writes nothing",
+  "the member's next session's ticket offers Can't make it as a request an admin decides, joining online beside what it asks them to confirm, never the instant button, and opening it writes nothing",
   "the member answers Can you make this time most weeks? with Most weeks, not all, ticking the next session and a later one, and their registers record them as excused",
   "the facilitator's register says who can't make next week's session, leads to this week's session report before it is finished, and the facilitator marks this week's, puts the member down as having joined it online, and finishes it",
   "the facilitator follows the finished register's link to the session report and sends one",
-  "the member can make next week's session after all, unticks it, and says they are joining it online instead, one thing at a time on the ticket",
+  "the member can make next week's session after all and unticks it, all an answer takes once given, asks about another week on Can't make it instead, and says they are joining online, one thing at a time",
   "the box at the top of the facilitator's group page asks for a link for the week the member is joining online, the facilitator adds one, and the box and the register say who is joining online",
   "the member's ticket carries the week's link for anybody joining online, beside Add to calendar, on the programme page and on Home",
   "the member writes the week's written answer and sends it with its own Send, and the week stays open, saying when it was sent",

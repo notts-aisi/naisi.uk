@@ -8,16 +8,20 @@
  *
  * -> the admin approves Ada and Fern -> names the running run -> appoints
  * Fern to Group A -> Ada's next session's ticket offers Can't make it as a
- * request an admin decides (joining online first), never the instant button,
- * and opening it writes nothing -> Ada answers Can you make this time most
- * weeks? with Most weeks, not all, ticking weeks 4 and 5, and their registers
- * record her as excused, after a reload too -> Fern's
+ * request an admin decides (joining online beside what it asks her to
+ * confirm), never the instant button, and opening it writes nothing -> Ada
+ * answers Can you make this time most weeks? with Most weeks, not all,
+ * ticking weeks 4 and 5 (her first answer, so ticks are taken), and their
+ * registers record her as excused, after a reload too -> Fern's
  * register says Ada can't make week 4, and leads to week 3's
  * session report before it is finished; Fern marks week 3, puts Ada down as
  * having joined it online, and finishes it -> Fern follows "Next: two
  * minutes on how it went." to the session report and sends one -> Ada can
- * make week 4 after all, unticks it, and says Ada is joining it online
- * instead, one thing at a time on the ticket -> the box at the top of Fern's group page asks
+ * make week 4 after all and unticks it: having answered, unticking is all
+ * the card offers, a week added is refused, and week 6 is asked about on
+ * Can't make it instead (the sheet offers it; nothing is sent, because
+ * asking emails the admins and this spec runs where mail is real); then she
+ * says she is joining week 4 online, one thing at a time on the ticket -> the box at the top of Fern's group page asks
  * for a meeting link for week 4, Fern adds one, and the box and the register
  * say Ada is joining online -> Ada's ticket, on the programme page and on
  * Home, carries the link for anybody joining online, beside Add to calendar
@@ -115,7 +119,13 @@ const WORDS = Object.freeze({
   cantMakeIt: (day) => `Can’t make it on ${day}`,
   // The request behind Can't make it (src/lib/courses/excused/ownWords.ts).
   cantMakeDay: (day) => `Can’t make ${day}?`,
-  askToBeExcused: "Ask to be excused",
+  // What the request asks them to confirm (src/lib/courses/excused/ownWords.ts).
+  confirmOwnOnline: "I can’t join my own group’s session online.",
+  weekChoice: (week, day) => `Week ${week} · ${day}`,
+  // Once answered, unticking is all the card takes (src/lib/courses/timeAnswer/words.ts).
+  untickOnly: "You can untick a week here. To miss another week, press Can’t make it on your next session’s card and ask to be excused.",
+  addLater:
+    "You’ve answered this already, so no week can be added here. To miss another week, press Can’t make it on your next session’s card and ask to be excused.",
   excused: "Excused",
   saidWhenTimeSet: "Said when the time was set",
   // The instant button's own words, which a member taking part is never shown now.
@@ -425,7 +435,7 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
     });
 
     await step(
-      "the member's next session's ticket offers Can't make it as a request an admin decides, joining online first, never the instant button, and opening it writes nothing",
+      "the member's next session's ticket offers Can't make it as a request an admin decides, joining online beside what it asks them to confirm, never the instant button, and opening it writes nothing",
       async () => {
         activePage = adaPage;
         await signIn(adaPage, ada);
@@ -442,9 +452,11 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
         await press.click();
         const sheet = adaPage.getByTestId("excuse-sheet");
         await sheet.getByRole("heading", { name: WORDS.cantMakeDay(day), exact: true }).waitFor({ timeout: WAIT_MS });
-        // Week 4 is in a room: joining online is offered first, the request after it.
-        await sheet.getByRole("button", { name: WORDS.joiningOnline(day), exact: true }).waitFor({ timeout: WAIT_MS });
-        await sheet.getByRole("button", { name: WORDS.askToBeExcused, exact: true }).waitFor({ timeout: WAIT_MS });
+        // Week 4 is in a room: the request asks her to confirm she can't join
+        // it online, with today's Joining online beside that line.
+        const form = sheet.getByTestId("excuse-ask-form");
+        await form.getByRole("button", { name: WORDS.joiningOnline(day), exact: true }).waitFor({ timeout: WAIT_MS });
+        await form.getByRole("checkbox", { name: WORDS.confirmOwnOnline, exact: true }).waitFor({ state: "attached", timeout: WAIT_MS });
         await sheet.getByRole("button", { name: "Close", exact: true }).click();
         await sheet.waitFor({ state: "detached", timeout: WAIT_MS });
 
@@ -647,7 +659,7 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
     });
 
     await step(
-      "the member can make next week's session after all, unticks it, and says they are joining it online instead, one thing at a time on the ticket",
+      "the member can make next week's session after all and unticks it, all an answer takes once given, asks about another week on Can't make it instead, and says they are joining online, one thing at a time",
       async () => {
         activePage = adaPage;
         const day = dayLabel(nextSession.dateKey);
@@ -668,6 +680,11 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
         const laterBox = card.getByRole("checkbox", { name: WORDS.sessionOption(laterWeek, laterDay), exact: true });
         await nextBox.waitFor({ state: "attached", timeout: WAIT_MS });
         assert.equal(await nextBox.isChecked(), true, "week 4, which she gave, is not ticked");
+        // She has answered this asking: the card offers the weeks she ticked, to untick, and says where to ask instead.
+        await card.getByText(WORDS.untickOnly, { exact: true }).waitFor({ timeout: WAIT_MS });
+        const lastWeek = laterWeek + 1;
+        const lastDay = dayLabel(sessionOf(group, lastWeek).dateKey);
+        assert.equal(await card.getByRole("checkbox", { name: WORDS.sessionOption(lastWeek, lastDay), exact: true }).count(), 0, "a week she did not tick is offered");
         await card.getByText(WORDS.sessionOption(nextWeek, day), { exact: true }).click();
         await waitFor("week 4 to be unticked", async () => !(await nextBox.isChecked()));
         assert.equal(await laterBox.isChecked(), true, "week 5 lost its tick");
@@ -681,12 +698,34 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
           const doc = (await fixtureDoc("courseAttendance", `${state.runId}__${group.id}__${nextKey}`).get()).data();
           return doc?.records?.[ada.uid] === undefined;
         });
+        // A week added to the answer now, by an old page or by hand, is refused, and says where to ask.
+        const lastKey = weekDocId(lastWeek);
+        const added = await adaPage.evaluate(
+          async ({ path, body }) => {
+            const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+            return { status: res.status, body: await res.json().catch(() => null) };
+          },
+          { path: `/api/courses/runs/${enc(state.runId)}/time-answer`, body: { groupId: group.id, kind: "mostWeeks", sessionKeys: [laterKey, lastKey] } },
+        );
+        assert.equal(added.status, 409, `adding a week answered ${added.status}: ${JSON.stringify(added.body)}`);
+        assert.ok(String(added.body?.error ?? "").endsWith(WORDS.addLater), JSON.stringify(added.body));
+        const lastRegister = (await fixtureDoc("courseAttendance", `${state.runId}__${group.id}__${lastKey}`).get()).data();
+        assert.equal(lastRegister?.records?.[ada.uid], undefined, "a refused tick wrote a line");
 
         // The ticket, read again, offers Joining online and Can't make it, one at a time.
         await adaPage.reload({ waitUntil: "domcontentloaded" });
         const join = ticket.getByRole("button", { name: WORDS.joiningOnline(day), exact: true });
         await join.waitFor({ timeout: WAIT_MS });
-        await ticket.getByRole("button", { name: WORDS.cantMakeIt(day), exact: true }).waitFor({ timeout: WAIT_MS });
+        const cant = ticket.getByRole("button", { name: WORDS.cantMakeIt(day), exact: true });
+        await cant.waitFor({ timeout: WAIT_MS });
+        // Week 6 is asked about here instead: the request offers it beside week 4. Nothing is sent:
+        // asking emails the admins, and this journey runs where mail is real.
+        await waitFor("Can't make it to be live once the page has hydrated", async () => cant.isEnabled());
+        await cant.click();
+        const sheet = adaPage.getByTestId("excuse-sheet");
+        await sheet.getByRole("checkbox", { name: WORDS.weekChoice(lastWeek, lastDay), exact: true }).waitFor({ state: "attached", timeout: WAIT_MS });
+        await sheet.getByRole("button", { name: "Close", exact: true }).click();
+        await sheet.waitFor({ state: "detached", timeout: WAIT_MS });
         await waitFor("Joining online to be live once the page has hydrated", async () => join.isEnabled());
         const [said] = await Promise.all([responseTo(adaPage, `/groups/${group.id}/joining-online`, "POST"), join.click()]);
         assert.deepEqual(said.request().postDataJSON(), { sessionKey: nextKey, online: true }, "the press named another session");
