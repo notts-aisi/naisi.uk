@@ -6,9 +6,11 @@ import { sendEmail } from "./send";
 /**
  * THE EMAILS OF A REQUEST TO BE EXCUSED, behind one door: approved (to the
  * person, with the reply; and to each of the group's facilitators, never
- * the reason), declined (to the person, with the reply), and a reply
- * without a decision (to the person). Asking, withdrawing and waiting email
- * nobody.
+ * the reason), declined (to the person, with the reply), a reply without a
+ * decision (to the person), and a new request (to each admin who decides
+ * them and has not switched it off, never the reason). Withdrawing and
+ * waiting email nobody, and asking emails no facilitator, no lead and never
+ * the person.
  *
  * TRANSACTIONAL: each is about a request the person made, or about a line of
  * a register the facilitator takes, so no setting of theirs switches it off;
@@ -33,6 +35,12 @@ export function excusedPersonUrl(appUrl: string, runId: string): string {
   return root ? `${root}/learn/${encodeURIComponent(runId)}` : "";
 }
 
+/** One request's page, for the admins who decide it, or "" when the site does not know its own address. */
+export function excusedRequestUrl(appUrl: string, requestId: string): string {
+  const root = base(appUrl);
+  return root ? `${root}/admin/admissions/requests/${encodeURIComponent(requestId)}` : "";
+}
+
 /** The facilitators' group page, or "" when the site does not know its own address. */
 export function excusedGroupUrl(appUrl: string, runId: string, groupId: string): string {
   const root = base(appUrl);
@@ -46,8 +54,8 @@ export async function sendExcusedEmail(opts: {
   /** Who decided or replied: the send's actor in the log. */
   actorUid: string;
   runId: string;
-  /** The person's own email, or a facilitator's. */
-  audience: "person" | "facilitator";
+  /** The person's own email, a facilitator's, or an admin's about a new request. */
+  audience: "person" | "facilitator" | "admin";
   link: string;
   words: ExcusedEmailWords;
 }): Promise<ExcusedEmailOutcome> {
@@ -55,7 +63,7 @@ export async function sendExcusedEmail(opts: {
     const result = await sendEmail({
       to: opts.to,
       subject: opts.words.subject,
-      kind: opts.audience === "facilitator" ? "course-facilitator" : "course-enrolment",
+      kind: opts.audience === "facilitator" ? "course-facilitator" : opts.audience === "admin" ? "course-request" : "course-enrolment",
       actorUid: opts.actorUid,
       referenceId: opts.runId,
       react: ExcusedEmail({

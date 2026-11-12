@@ -2165,6 +2165,15 @@ export const ROUTES = {
         "answer is { ok, status, week, emailed }.",
     },
   },
+  "/api/courses/requests/emails": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "An admin's own switch for the email about new requests to be excused: view-as first, then anybody but an " +
+        "admin is one 403 before anything is read, and an admin is told a body that is not on or off is not one. " +
+        "It writes the caller's own user document alone. Its answer is { ok, on }.",
+    },
+  },
   "/api/courses/requests/[requestId]/excused/reply": {
     POST: {
       expect: adminOnly(404),

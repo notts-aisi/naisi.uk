@@ -512,6 +512,18 @@ describe("5. the Requests page and one request's page: an admin's alone", () => 
     assert.equal(asLead.view.counts.waiting, 0, "a lead's count includes a request to be excused");
   });
 
+  test("the switch for the email about new requests is drawn for an admin alone, on unless they switched it off", async () => {
+    const requestsPage = (await loadTs(join("app", "(app)", "admin", "admissions", "requests", "page.tsx"))).default;
+    const asAdmin = await draw(requestsPage, "zach", {});
+    assert.match(asAdmin.html, /data-testid="requests-email-me"/);
+    assert.match(asAdmin.text, /Email me about new requests When somebody asks to be excused: who, which weeks and when, never their reason\./);
+    assert.match(asAdmin.html, /type="checkbox"[^>]*checked=""/);
+    world.db.poke("users/zach", { requestEmails: { excused: false } });
+    assert.doesNotMatch((await draw(requestsPage, "zach", {})).html, /type="checkbox"[^>]*checked=""/, "a switched-off admin reads it on");
+    const asLead = await draw(requestsPage, "claudia", {});
+    assert.doesNotMatch(asLead.html, /requests-email-me|Email me about new requests/, "a lead is offered the switch");
+  });
+
   test("one request's page: the reason, each week, what approving will do and who it emails, how often before, for an admin; nobody else", async () => {
     // Amara's week 2 line was excused the instant way, before requests.
     world.db.poke(registerPath(A, 2), { records: { amara: "excused" }, excusedInAdvance: { amara: new Date("2026-11-01T10:00:00Z") } });

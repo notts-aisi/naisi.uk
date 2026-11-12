@@ -65,6 +65,7 @@ const push = await courseRoute("groups", "[groupId]", "attendance", "push");
 const cantMakeItRoute = await courseRoute("groups", "[groupId]", "cant-make-it");
 const regularRoute = await courseRoute("groups", "[groupId]", "session", "regular");
 const timeAnswerRoute = await courseRoute("runs", "[runId]", "time-answer");
+const emailsRoute = await courseRoute("requests", "emails");
 const actions = {
   withdraw: await courseRoute("requests", "[requestId]", "excused", "withdraw"),
   approve: await courseRoute("requests", "[requestId]", "excused", "approve"),
@@ -158,10 +159,27 @@ async function placed() {
 }
 
 /** Amara asks to be excused from week 2, before it. */
-async function amaraAsks(keys = ["w02"]) {
+async function amaraAsks(keys = ["w02"], { keepMail = false } = {}) {
   const answer = await ask("amara", { sessionKeys: keys, reason: REASON });
   assert.equal(answer.status, 200, JSON.stringify(answer.body));
+  // Asking emails the admins alone, never the reason; the decisions' own
+  // emails are what the tests after it count.
+  assertOnlyAdminsTold();
+  if (!keepMail) world.mail.length = 0;
   return answer.body.request.id;
+}
+
+/** Every message so far is the admins' "a request has arrived", to an admin, without the reason. */
+function assertOnlyAdminsTold() {
+  for (const message of world.mail) {
+    assert.equal(message.kind, "course-request", `asking sent a ${message.kind}`);
+    const to = world.db
+      .paths()
+      .filter((path) => path.startsWith("users/"))
+      .map((path) => world.db.read(path))
+      .find((user) => user?.email === message.to);
+    assert.equal(to?.role, "admin", `asking emailed ${message.to}, who is not an admin`);
+  }
 }
 
 /** A seat like Amara's, for somebody else, in a group: a facilitator who holds a place, or an admin who does. */
@@ -377,7 +395,7 @@ describe("the arithmetic: what a press says, which sessions may be asked about, 
 describe("asking: somebody holding a told place, for their own group's sessions, and nothing on a register", () => {
   beforeEach(placed);
 
-  test("Amara asks about week 2: one request, waiting, nothing on the register, nobody emailed", async () => {
+  test("Amara asks about week 2: one request, waiting, nothing on the register, the admins alone emailed", async () => {
     const answer = await ask("amara", { sessionKeys: ["w02"], reason: REASON });
     assert.equal(answer.status, 200, JSON.stringify(answer.body));
     assert.deepEqual(Object.keys(answer.body).sort(), ["ok", "request"]);
@@ -392,7 +410,8 @@ describe("asking: somebody holding a told place, for their own group's sessions,
     assert.equal(doc.reasonHeld, true);
     assert.equal(doc.change.weeks[0].offered.online, true, "joining online was open to her first");
     assert.equal(stored(), null, "a waiting request holds no register up");
-    assert.deepEqual(world.mail, []);
+    // The admins are told, and nobody else: not Amara, not her facilitators.
+    assert.deepEqual(world.mail.map((message) => [message.to, message.kind]), [[world.db.read("users/zach").email, "course-request"]]);
   });
 
   test("several weeks in one request, each waiting on its own", async () => {
@@ -983,6 +1002,93 @@ describe("who is sent what: the reason and how often to admins only, one of two 
     // Week 3 is still ahead: listed as coming up, apart, and not counted yet.
     assert.deepEqual(view.excusedBefore.counts, { approved: 0, "time-set": 0, "in-advance": 0, "before-requests": 0 });
     assert.deepEqual(view.excusedBefore.comingUp.map((week) => [week.sessionKey, week.kind]), [["w03", "time-set"]]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The admins are told a request has arrived
+// ---------------------------------------------------------------------------
+
+describe("the admins are told a request has arrived: one email each, never the reason", () => {
+  beforeEach(placed);
+
+  /** A second admin, Adele, beside Zach. */
+  function secondAdmin() {
+    const zach = structuredClone(world.db.read("users/zach"));
+    world.db.seed("users/adele", { ...zach, uid: "adele", email: "adele@example.com", displayName: "Adele Moss", profile: { ...zach.profile, preferredName: "Adele" } });
+  }
+  const sent = () => world.mail.map((message) => ({ to: message.to, kind: message.kind, subject: message.subject }));
+  const switchAs = (who, body, opts = {}) => call(who, emailsRoute.POST, {}, { body, course: true, ...opts });
+
+  test("asking emails every admin, once, and nobody else: not the person, a facilitator, the lead or a track lead", async () => {
+    secondAdmin();
+    const id = await amaraAsks(["w02", "w03"], { keepMail: true });
+    const mail = await mailText();
+    assert.deepEqual(mail.map((each) => each.to).sort(), [world.db.read("users/zach").email, "adele@example.com"].sort());
+    for (const each of mail) {
+      assert.equal(each.kind, "course-request");
+      assert.match(each.subject, / asked to be excused from weeks 2 and 3$/);
+      assert.ok(!each.html.includes("appointment on Tuesday"), `${each.to} was sent the reason`);
+      assert.doesNotMatch(each.html, /meet\.|zoom|teams\.microsoft/i, "an email carries a meeting link");
+      assert.match(each.html, /Week 2: Tue 10 Nov, 6pm/);
+      assert.match(each.html, /Week 3: Tue 17 Nov, 6pm/);
+      assert.match(each.html, new RegExp(`/admin/admissions/requests/${id}`));
+      assert.match(each.html, /isn’t in this email/);
+    }
+    // Withdrawing emails nobody.
+    world.mail.length = 0;
+    assert.equal((await act("amara", "withdraw", id, {})).status, 200);
+    assert.deepEqual(world.mail, []);
+    // A second ask is a second email.
+    await amaraAsks(["w02"], { keepMail: true });
+    assert.equal(world.mail.length, 2);
+  });
+
+  test("a request for a session within 24 hours says for today or for tomorrow, by the London day", async () => {
+    at(new Date("2026-11-09T20:00:00Z"));
+    await amaraAsks(["w02"], { keepMail: true });
+    assert.match(sent()[0].subject, /asked to be excused from week 2, for tomorrow$/);
+    world.mail.length = 0;
+    at(new Date("2026-11-10T08:00:00Z"));
+    await ask("dev", { sessionKeys: ["w02"], reason: REASON });
+    assert.match(sent()[0].subject, /asked to be excused from week 2, for today$/);
+  });
+
+  test("an admin who asks is not emailed about their own request, and an admin who switched it off is not emailed", async () => {
+    secondAdmin();
+    seatLike("zach");
+    assert.equal((await ask("zach", { sessionKeys: ["w02"], reason: REASON })).status, 200);
+    assert.deepEqual(sent().map((each) => each.to), ["adele@example.com"]);
+    world.mail.length = 0;
+    const off = await switchAs("adele", { on: false });
+    assert.deepEqual([off.status, off.body], [200, { ok: true, on: false }]);
+    assert.deepEqual(world.db.read("users/adele").requestEmails, { excused: false });
+    await amaraAsks(["w03"], { keepMail: true });
+    assert.deepEqual(sent().map((each) => each.to), [world.db.read("users/zach").email]);
+    // On again.
+    assert.equal((await switchAs("adele", { on: true })).status, 200);
+    world.mail.length = 0;
+    await ask("dev", { sessionKeys: ["w03"], reason: REASON });
+    assert.equal(sent().length, 2);
+  });
+
+  test("a failed send never fails the ask", async () => {
+    world.mailFate = () => "fail";
+    const answer = await ask("amara", { sessionKeys: ["w02"], reason: REASON });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.equal(requestDocs().length, 1);
+  });
+
+  test("the switch is an admin's own: anybody else is refused, and the body is on or off", async () => {
+    for (const who of ["claudia", "yusuf", "rahul", "amara"]) {
+      assert.equal((await switchAs(who, { on: false })).status, 403, who);
+      assert.equal(world.db.read(`users/${who}`).requestEmails, undefined, who);
+    }
+    assert.equal((await switchAs(null, { on: false })).status, 401);
+    assert.equal((await switchAs("zach", { on: false }, { viewAs: true })).status, 403);
+    for (const body of [{}, { on: "no" }, { on: false, uid: "adele" }]) {
+      assert.deepEqual((await switchAs("zach", body)).body, { error: words.REQUEST_EMAILS_REFUSAL.body }, JSON.stringify(body));
+    }
   });
 });
 

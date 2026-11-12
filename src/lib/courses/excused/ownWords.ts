@@ -119,7 +119,7 @@ export { sendTheRequestWords, NO_MEDICAL_DETAILS, WHY_A_LINE, ASK_TO_BE_EXCUSED,
 export const SENDING = "Sending…";
 
 /** Said once the request is sent: nobody is emailed until it is decided. */
-export const SENT = "Sent. Nobody is emailed until an admin decides, and then you get an email.";
+export const SENT = "Sent. The admins are told it’s waiting; your facilitators aren’t emailed. You get an email when it’s decided.";
 
 /** A press that never reached the server, or an answer with no sentence of its own. */
 export const DIDNT_SEND = "That didn’t send. Try again.";

@@ -750,10 +750,13 @@ const REGISTRY = {
     "Giving one session to somebody covering: the one email they are sent, to them alone, about the session handed to them, through its door (`src/lib/email/coverGivenEmail.ts`). Never the presser, never the group.",
   ),
   "src/lib/email/excusedEmail.ts#sendEmail": T(
-    "The door of the emails of a request to be excused: approved, to the person with the reply and to each of the group's facilitators without the reason; declined, to the person with the reply; and a reply without a decision, to the person. Each is about a request the person made, or a line of a register the facilitator takes, so no setting switches it off; the suppression list still holds it back. Never the reason, never a meeting link.",
+    "The door of the emails of a request to be excused: approved, to the person with the reply and to each of the group's facilitators without the reason; declined, to the person with the reply; a reply without a decision, to the person; and a new request, to each admin who decides them and has not switched it off on the Requests page. Each is about a request the person made, a line of a register the facilitator takes, or a request the admin decides, so no row of the grid switches it off; the suppression list still holds it back. Never the reason, never a meeting link.",
+  ),
+  "src/lib/courses/excused/alert.ts#sendExcusedEmail": T(
+    "A request to be excused has arrived: one email to each admin who decides them, once the request is written, through its door (`src/lib/email/excusedEmail.ts`). It is owed to the admins who decide these, as the reminder to a group's facilitators is owed to them, so no row of the profile grid gates it; the admin's own switch on the Requests page does (`users/{uid}.requestEmails.excused`, on unless a stored false), and the suppression list still holds it back. Never the person asking, a facilitator or the lead; never the reason, never a meeting link.",
   ),
   "src/lib/courses/excused/decide.ts#sendExcusedEmail": T(
-    "An admin deciding or replying to a request to be excused, through its door (`src/lib/email/excusedEmail.ts`): approving one week emails the person, with the reply, and, while the register says excused, each of the group's facilitators with standing, never the reason and never the presser; declining one week emails the person, with the reply; a reply without deciding emails the person. Asking, withdrawing and waiting email nobody.",
+    "An admin deciding or replying to a request to be excused, through its door (`src/lib/email/excusedEmail.ts`): approving one week emails the person, with the reply, and, while the register says excused, each of the group's facilitators with standing, never the reason and never the presser; declining one week emails the person, with the reply; a reply without deciding emails the person. Withdrawing and waiting email nobody; asking emails the admins (`alert.ts`).",
     4,
   ),
   "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts#sendGroupChangeNotice": N(

@@ -66,7 +66,7 @@ export function excusedRowWeeksWords(weeks: readonly { weekNumber: number; occur
 
 /** Under the list, for an admin: who reads these, and who is emailed. */
 export const EXCUSED_WHO_SEES =
-  "Requests to be excused are for admins only: the programme’s lead and the group’s facilitators never see them or the reason. Asking emails nobody. Each decision emails the person, and approving emails the group’s facilitators too, without the reason.";
+  "Requests to be excused are for admins only: the programme’s lead and the group’s facilitators never see them or the reason. Asking emails the admins, never the reason, unless they switch it off above. Each decision emails the person, and approving emails the group’s facilitators too, without the reason.";
 
 // ---------------------------------------------------------------------------
 // One request's page

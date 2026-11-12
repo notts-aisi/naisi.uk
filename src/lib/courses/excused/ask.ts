@@ -31,7 +31,8 @@ import {
   type AskPress,
   type ExcuseLine,
 } from "./model";
-import { EXCUSED_REFUSAL, askClosedWords } from "./words";
+import { emailAdminsAboutRequest } from "./alert";
+import { EXCUSED_REFUSAL, askClosedWords, type NewRequestWeek } from "./words";
 
 /**
  * ASKING TO BE EXCUSED FROM ONE WEEK OR SEVERAL: the ask route's work.
@@ -131,7 +132,10 @@ export async function askToBeExcused(
   ]);
 
   const requestRef = db.collection(COURSE_REQUESTS_COLLECTION).doc();
-  return db.runTransaction(async (tx): Promise<AskOutcome> => {
+  // What the admins' email names, kept from inside the transaction that wrote the request.
+  let told: { runId: string; groupName: string; weeks: NewRequestWeek[] } | null = null;
+  const outcome = await db.runTransaction(async (tx): Promise<AskOutcome> => {
+    told = null;
     const groupSnap = await tx.get(groupRef);
     // A group that is not there is answered as one that is not theirs, so
     // probing ids says nothing about which groups exist.
@@ -244,6 +248,32 @@ export async function askToBeExcused(
       history: [{ what: "asked", byUid: user.uid, at: now, sessionKey: null }],
       updatedAt: now,
     });
+    told = {
+      runId: run.id,
+      groupName: group.name,
+      weeks: sessions.map((session) => ({
+        weekNumber: session.weekNumber,
+        occurrence: session.occurrence,
+        dateKey: session.dateKey,
+        startTimeLocal: session.session.startTimeLocal,
+        startsAt: sessionInstants(session).startsAt,
+      })),
+    };
     return { ok: true, request: { id: requestRef.id, askedAt: now.toISOString(), weeks: answer } };
   });
+  // The admins who decide these are told, once the request is written and
+  // outside its transaction: a failed send never fails the ask.
+  const written = told as { runId: string; groupName: string; weeks: NewRequestWeek[] } | null;
+  if (outcome.ok && written) {
+    await emailAdminsAboutRequest(db, {
+      requestId: outcome.request.id,
+      runId: written.runId,
+      askerUid: user.uid,
+      groupName: written.groupName,
+      weeks: written.weeks,
+      askedAt: now,
+      now,
+    });
+  }
+  return outcome;
 }

@@ -2,6 +2,7 @@ import { Refusal } from "@/features/applications/editor/Refusals";
 import RequestsList from "@/features/courses/requests/RequestsList";
 import { NO_REQUESTS_HERE, NO_REQUESTS_HERE_LINE } from "@/lib/courses/registerCorrection/pageWords";
 import { loadRequestsPage } from "@/lib/courses/requests/load";
+import { wantsRequestEmails } from "@/lib/courses/excused/alert";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
@@ -37,5 +38,11 @@ export default async function RequestsPage() {
       </Refusal>
     );
   }
-  return <RequestsList view={loaded.view} />;
+  // An admin's own switch for the email about new requests to be excused:
+  // drawn for admins alone, who are the only people emailed about one.
+  const emailMe =
+    loaded.view.viewer === "admin" && db
+      ? wantsRequestEmails((await db.collection("users").doc(user.uid).get()).data() ?? {})
+      : null;
+  return <RequestsList view={loaded.view} emailMe={emailMe} />;
 }

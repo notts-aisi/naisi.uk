@@ -339,6 +339,71 @@ export function declinedEmailWords(input: {
   };
 }
 
+/** One week of a new request, as the admins' email names it. */
+export type NewRequestWeek = { weekNumber: number; occurrence: number; dateKey: string; startTimeLocal: string; startsAt: Date | null };
+
+/**
+ * "for today" or "for tomorrow": a request whose first session starts within
+ * the next 24 hours, by the London day it starts on (the house clock); "" for
+ * anything later or already started.
+ */
+export function soonWords(weeks: readonly NewRequestWeek[], now: Date, todayKey: string, tomorrowKey: string, keyOf: (at: Date) => string): string {
+  const soon = weeks
+    .map((week) => week.startsAt)
+    .filter((at): at is Date => at !== null && at.getTime() > now.getTime() && at.getTime() - now.getTime() <= 24 * 60 * 60 * 1000)
+    .sort((a, b) => a.getTime() - b.getTime())[0];
+  if (!soon) return "";
+  const key = keyOf(soon);
+  return key === todayKey ? "for today" : key === tomorrowKey ? "for tomorrow" : "";
+}
+
+/**
+ * "Grace Chen asked to be excused from week 2": to each admin who decides
+ * requests to be excused and has not switched it off. Who asked, for which
+ * group and week or weeks with each session's day and time, when, and the
+ * way to the request's page. NEVER the reason, which is deleted from the site
+ * when the programme closes and must not live on in an inbox; never a
+ * meeting link.
+ */
+export function newRequestEmailWords(input: {
+  personName: string;
+  groupName: string;
+  weeks: readonly NewRequestWeek[];
+  askedAt: Date;
+  now: Date;
+  /** "for today" or "for tomorrow" (`soonWords`), or "". */
+  soon: string;
+}): ExcusedEmailWords {
+  const person = input.personName.trim() || "Somebody";
+  const group = input.groupName.trim() || "their group";
+  const label = input.weeks.length === 1 ? weekLabelLower(input.weeks[0].weekNumber, input.weeks[0].occurrence) : weeksWords([...new Set(input.weeks.map((week) => week.weekNumber))]);
+  const asked =
+    londonDayLabel(input.askedAt) === londonDayLabel(input.now)
+      ? `today at ${londonClockLabel(input.askedAt)}`
+      : `on ${londonDayLabel(input.askedAt)} at ${londonClockLabel(input.askedAt)}`;
+  return {
+    subject: `${person} asked to be excused from ${label}${input.soon ? `, ${input.soon}` : ""}`,
+    before: [
+      `${person} asked ${asked} to be excused from ${group}’s ${label}${input.soon ? `, ${input.soon}` : ""}.`,
+      ...input.weeks.map((week) => {
+        const when = sessionWhenWords(week.dateKey, week.startTimeLocal);
+        return `${weekLabel(week.weekNumber, week.occurrence)}${when ? `: ${when}` : ""}`;
+      }),
+    ],
+    quote: null,
+    after: ["Their reason is on the request’s page, for admins only, and isn’t in this email."],
+    button: "Open the request",
+    footnote: "You get this because you decide requests to be excused. You can switch it off on the Requests page.",
+  };
+}
+
+/** The switch route's refusal of a body that is not on or off. */
+export const REQUEST_EMAILS_REFUSAL = { body: "Say on or off: { on: true } or { on: false }." } as const;
+
+/** Under the switch on the Requests page. */
+export const EMAIL_ME_ABOUT_REQUESTS = "Email me about new requests";
+export const EMAIL_ME_LINE = "When somebody asks to be excused: who, which weeks and when, never their reason.";
+
 /** A reply without a decision, to the person. */
 export function replyEmailWords(input: {
   weekNumbers: readonly number[];

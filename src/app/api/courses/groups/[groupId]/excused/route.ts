@@ -18,7 +18,9 @@ import { getCurrentUser } from "@/lib/firebase/session";
  * keys ("w03"), and one short line of why, which admins read and nobody
  * else, and which is deleted when the programme closes (privacy v17). It
  * writes one request and NOTHING ON A REGISTER: an admin decides each week.
- * Nobody is emailed.
+ * Once it is written, the admins who decide these are emailed that it has
+ * arrived, never the reason (`src/lib/courses/excused/alert.ts`); no
+ * facilitator, no lead and never the person.
  *
  * ORDER: a view-as session is refused first, then somebody signed out, then
  * an address that names no group and a body that is not an ask, before any

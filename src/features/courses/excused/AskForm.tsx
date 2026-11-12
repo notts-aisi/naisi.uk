@@ -15,7 +15,8 @@ export type AskWeek = { sessionKey: string; weekNumber: number; occurrence: numb
  * ASKING TO BE EXCUSED: the weeks, one short line of why under the line
  * about medical details, who reads it, what will happen, and one button
  * (`POST /api/courses/groups/[groupId]/excused`, which decides everything
- * again). Asking emails nobody; once sent, the page reloads its own data and
+ * again). Asking emails the admins who decide these, never the person or a
+ * facilitator, and never the reason; once sent, the page reloads its own data and
  * the card says what happens next.
  *
  * BEFORE A SESSION the person ticks the weeks: the session the card is about

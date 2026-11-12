@@ -5,6 +5,9 @@ import { useState } from "react";
 import Chip, { type ChipTone } from "@/components/ui/Chip";
 import PageHead from "@/components/ui/PageHead";
 import Select from "@/components/ui/Select";
+import Switch from "@/components/ui/Switch";
+import { useHydrated } from "@/hooks/useHydrated";
+import { EMAIL_ME_ABOUT_REQUESTS, EMAIL_ME_LINE } from "@/lib/courses/excused/words";
 import * as R from "@/lib/courses/excused/requestWords";
 import * as P from "@/lib/courses/registerCorrection/pageWords";
 import type { RequestRow, RequestsPageView } from "@/lib/courses/requests/load";
@@ -43,8 +46,32 @@ function programmeKey(row: RequestRow): string {
   return `${row.programme.roundId ?? ""} ${row.programme.programmeId ?? ""} ${row.runId}`;
 }
 
-export default function RequestsList({ view }: { view: RequestsPageView }) {
+export default function RequestsList({ view, emailMe = null }: { view: RequestsPageView; emailMe?: boolean | null }) {
   const [tab, setTab] = useState<Tab>(view.counts.waiting > 0 || view.counts.handling === 0 ? "waiting" : "handling");
+  const hydrated = useHydrated();
+  // An admin's own switch for the email about new requests to be excused; null draws none.
+  const [emails, setEmails] = useState<boolean | null>(emailMe);
+  const [emailsBusy, setEmailsBusy] = useState(false);
+  const [emailsProblem, setEmailsProblem] = useState<string | null>(null);
+
+  async function switchEmails(next: boolean) {
+    setEmailsBusy(true);
+    setEmailsProblem(null);
+    try {
+      const res = await fetch("/api/courses/requests/emails", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ on: next }),
+      });
+      const body = (await res.json().catch(() => null)) as { ok?: boolean; on?: boolean; error?: string } | null;
+      if (!res.ok || body?.ok !== true) setEmailsProblem(body?.error ?? "That didn’t save. Try again.");
+      else setEmails(body.on === true);
+    } catch {
+      setEmailsProblem("That didn’t save. Try again.");
+    } finally {
+      setEmailsBusy(false);
+    }
+  }
   const [programme, setProgramme] = useState<string>("all");
 
   const programmes = new Map<string, string>();
@@ -194,6 +221,23 @@ export default function RequestsList({ view }: { view: RequestsPageView }) {
                 );
               })}
             </ul>
+          )}
+        </section>
+      )}
+
+      {emails !== null && (
+        <section className={styles.card} aria-label={EMAIL_ME_ABOUT_REQUESTS} data-testid="requests-email-me">
+          <Switch
+            checked={emails}
+            onChange={(next) => void switchEmails(next)}
+            disabled={!hydrated || emailsBusy}
+            label={EMAIL_ME_ABOUT_REQUESTS}
+            description={EMAIL_ME_LINE}
+          />
+          {emailsProblem && (
+            <p className={styles.problem} role="status">
+              {emailsProblem}
+            </p>
           )}
         </section>
       )}

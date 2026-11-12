@@ -993,6 +993,11 @@ const NOT_COVERED = {
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
+  "/api/courses/requests/emails": {
+    reason:
+      "Course hub: an admin's own switch for the email that a request to be excused has arrived. tests/course-excused-weeks.test.mjs executes it as every kind of caller, with the field it writes and who is then emailed; the excused weeks spec reads the switch on the Requests page and leaves it alone, because pressing it would change the setting of the harness's one admin account for every spec after it.",
+    coverWhen: "When the harness has an admin account of its own to spare, so a spec can switch it off and back on without touching another spec's mail.",
+  },
   "/api/courses/groups/[groupId]/cant-make-it": {
     reason:
       "Course hub: the instant Can't make it, which records somebody as excused on the spot. Somebody taking part now asks an admin instead (the excused weeks spec drives that), so only a facilitator who holds a place in the group they run is offered it, and an old page still open may press it. tests/course-session-cant-make-it.test.mjs executes it as every kind of caller, with the line it writes, its take-back and the line an approval wrote that it leaves alone.",
