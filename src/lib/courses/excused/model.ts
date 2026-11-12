@@ -379,5 +379,10 @@ export function excusedKindOf(input: {
  * advance, before requests"; one told on or after it reads "Said in
  * advance", which is true whenever it was said. A line from a day between
  * this and the day requests went live reads the plainer one: still true.
+ *
+ * THE RULE FOR SETTING IT: the day requests go live, or earlier; never
+ * later, which would label lines said once requests were open as said before
+ * them. docs/courses-ops.md states the same day, and a test holds the two
+ * together.
  */
 export const REQUESTS_BEGAN = new Date("2026-11-12T00:00:00Z");

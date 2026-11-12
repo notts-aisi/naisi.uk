@@ -1510,6 +1510,18 @@ describe("said in advance, and before requests only when it was", () => {
     return own.excusedFor(world.courseDb, { user: sessionOf(uid), run, enrolment: seat, groups: groupList, now: new Date() });
   };
 
+  test("the day requests began is the same in the code and in the ops doc, with the rule for setting it", () => {
+    const began = model.REQUESTS_BEGAN;
+    // The start of a London day, so a line is before it or not by the day it was said.
+    assert.equal(began.toISOString(), "2026-11-12T00:00:00.000Z");
+    const londonDay = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", day: "numeric", month: "long", year: "numeric" }).format(began);
+    const londonClock = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(began);
+    assert.equal(londonClock, "00:00", "REQUESTS_BEGAN is not the start of a London day");
+    const ops = readFileSync(join(SRC, "..", "docs", "courses-ops.md"), "utf8").replace(/\s+/g, " ");
+    assert.ok(ops.includes(`\`REQUESTS_BEGAN\` in \`excused/model.ts\`, the start of ${londonDay}, London time.`), `the ops doc does not give ${londonDay}`);
+    assert.ok(ops.includes("Set it to the day requests go live or earlier, never later"), "the ops doc does not give the rule for setting it");
+  });
+
   test("an instant line told since requests began, by a facilitator who holds a place, reads said in advance", async () => {
     seatLike("rahul");
     at(new Date("2026-11-16T09:00:00Z"));

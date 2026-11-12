@@ -1343,9 +1343,12 @@ and nothing more, and a week to miss later is asked for on the session's card.
 A tick never excuses a session whose request waits or was declined. Ticked
 weeks read "Said when the time was set". A line said in advance with no
 request reads "Said in advance, before requests" only when it was said before
-requests began (`REQUESTS_BEGAN`, 12 November 2026, in `excused/model.ts`);
-one said since, or a tick kept from an earlier asking, reads "Said in
-advance".
+requests began: `REQUESTS_BEGAN` in `excused/model.ts`, the start of
+12 November 2026, London time. Set it to the day requests go live or earlier,
+never later: a later day would label lines said once requests were open as
+said before them, while an earlier one only gives a line the plainer words,
+which are still true. One said since, or a tick kept from an earlier asking,
+reads "Said in advance".
 
 **The old button** records somebody as excused on the spot only for a
 facilitator, on their own place in a group they facilitate (who cannot ask:
