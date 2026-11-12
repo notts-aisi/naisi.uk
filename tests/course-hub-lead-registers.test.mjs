@@ -123,11 +123,13 @@ describe("1. the lead reads every register of their run", () => {
         assert.equal(member.displayName, account(member.uid).profile.preferredName, `${groupId}: the facilitator's name for ${member.uid}`);
       }
       assert.deepEqual(asLead.body.sessions.map((session) => session.sessionKey), asFacilitator.body.sessions.map((session) => session.sessionKey));
-      // CHANGED ON PURPOSE (November 2026): the lead now corrects a finished
-      // register, with a reason (tests/course-register-corrections.test.mjs);
-      // a facilitator of the group still does not, and asks instead.
-      assert.equal(asLead.body.canEditPushed, true, "the lead corrects a finished register");
-      assert.equal(asFacilitator.body.canEditPushed, false, "a facilitator asks for a correction instead");
+      // The grid's own lane on a finished column stays an admin's. ADDED
+      // (November 2026): the lead now corrects a finished register with a
+      // reason (`caller.corrects`, tests/course-register-corrections.test.mjs);
+      // a facilitator of the group does not, and asks instead.
+      assert.equal(asLead.body.canEditPushed, false, "the grid's own correction lane is an admin's");
+      assert.equal(asLead.body.caller.corrects, true, "the lead corrects a finished register");
+      assert.equal(asFacilitator.body.caller.corrects, false, "a facilitator asks for a correction instead");
     }
   });
 

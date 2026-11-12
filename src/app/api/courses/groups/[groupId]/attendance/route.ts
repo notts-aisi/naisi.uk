@@ -238,9 +238,10 @@ export type AttendancePayload = {
    */
   participantNotes: Record<string, Record<string, string>>;
   /**
-   * True when the caller may correct a finished register: an admin, or
-   * somebody leading the programme while the group is not archived. A
-   * facilitator of the group asks for a correction instead.
+   * True for an admin: the grid's own lane on a finished column (its cells,
+   * and the resend of the week's email). Who corrects a finished register
+   * with a reason is `caller.corrects`, which adds the people leading the
+   * programme.
    */
   canEditPushed: boolean;
   /**
@@ -299,6 +300,12 @@ export type AttendanceCaller = {
   standing: "admin" | "facilitator" | "lead" | "given";
   readsNotes: boolean;
   readsFacilitatorRecord: boolean;
+  /**
+   * Corrects a finished register, a line or a whole column, with a reason:
+   * an admin, or somebody leading the programme while the group is not
+   * archived. A facilitator of the group asks for a correction instead.
+   */
+  corrects: boolean;
   /** By session key, for each column. */
   sessions: Record<string, { writes: boolean; checksIn: boolean; readsCheckInTotals: boolean; reports: boolean; holdsCover: boolean }>;
 };
@@ -960,6 +967,7 @@ export async function GET(
     standing: gated.isAdmin ? "admin" : gated.facilitates ? "facilitator" : gated.leads ? "lead" : "given",
     readsNotes: gated.readsNotes,
     readsFacilitatorRecord,
+    corrects,
     sessions: Object.fromEntries(
       columns.map((column) => {
         const access = registerSessionAccess(gated, {
@@ -1001,7 +1009,7 @@ export async function GET(
     online,
     onlineSaid,
     participantNotes,
-    canEditPushed: corrects,
+    canEditPushed: gated.isAdmin,
     ending,
     cantMakeIt,
     setBy: extras.setBy,

@@ -248,12 +248,12 @@ describe("1. correcting a line of a finished register", () => {
     assert.equal(story.beforeSetBy.name.length > 0, true);
     assert.equal(story.reason, REASON);
     assert.equal(story.asked, null);
-    assert.equal(asLead.body.canEditPushed, true);
+    assert.deepEqual([asLead.body.caller.corrects, asLead.body.canEditPushed], [true, false]);
     const asFacilitator = await read("rahul");
     assert.equal(asFacilitator.body.corrections.w01.dev.before, "Absent");
     assert.equal("reason" in asFacilitator.body.corrections.w01.dev, false, "a facilitator read the lead's reason");
     assert.ok(!JSON.stringify(asFacilitator.body).includes(REASON));
-    assert.equal(asFacilitator.body.canEditPushed, false);
+    assert.deepEqual([asFacilitator.body.caller.corrects, asFacilitator.body.canEditPushed], [false, false]);
   });
 
   test("the correction is in the group's history, under registers, with no further change", async () => {
