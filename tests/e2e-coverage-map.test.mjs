@@ -1226,48 +1226,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
-  "/api/courses/runs/[runId]/weeks/[weekId]/blocks/[blockId]": {
-    reason:
-      "Course hub: changing one block of a run's week in place (a source, a text, a reflection, a written answer), the server half built before its page; every caller, every kind of block, the ids kept, the refusals and the history it writes are executed by tests/course-week-edit-routes.test.mjs and tests/course-week-edit-model.test.mjs.",
-    coverWhen:
-      "When the pages for editing a week in place land on the programme's Weeks tab, with their browser spec in the same pull request.",
-  },
-  "/api/courses/runs/[runId]/weeks/[weekId]/editor": {
-    reason:
-      "Course hub: the week as the in-place editor reads it (each block's fields and counts, who it reaches, the lock), the server half built before its page; every caller and the counts are executed by tests/course-week-edit-routes.test.mjs.",
-    coverWhen:
-      "When the pages for editing a week in place land on the programme's Weeks tab, with their browser spec in the same pull request.",
-  },
-  "/api/courses/runs/[runId]/weeks/[weekId]/history": {
-    reason:
-      "Course hub: a week's list of saves, the server half built before its page; every caller and every kind of save are executed by tests/course-week-edit-routes.test.mjs.",
-    coverWhen:
-      "When the pages for editing a week in place land on the programme's Weeks tab, with their browser spec in the same pull request.",
-  },
-  "/api/courses/runs/[runId]/weeks/[weekId]/history/[saveId]": {
-    reason:
-      "Course hub: one save of a week compared with now or another, the server half built before its page; executed by tests/course-week-edit-routes.test.mjs, and the comparison itself by tests/course-week-edit-model.test.mjs.",
-    coverWhen:
-      "When the pages for editing a week in place land on the programme's Weeks tab, with their browser spec in the same pull request.",
-  },
-  "/api/courses/runs/[runId]/weeks/[weekId]/history/[saveId]/restore": {
-    reason:
-      "Course hub: an earlier version of a week brought back as a new save, the server half built before its page; the base it checks, the count of answers it asks for and the record it writes are executed by tests/course-week-edit-routes.test.mjs.",
-    coverWhen:
-      "When the pages for editing a week in place land on the programme's Weeks tab, with their browser spec in the same pull request.",
-  },
-  "/api/courses/runs/[runId]/weeks/[weekId]/lock": {
-    reason:
-      "Course hub: one editor at a time on a week (take, keep alive, give back, lapse), the server half built before its page; every method, the holder's name on a refused save and the lapse are executed by tests/course-week-edit-routes.test.mjs.",
-    coverWhen:
-      "When the pages for editing a week in place land on the programme's Weeks tab, with their browser spec in the same pull request.",
-  },
-  "/api/courses/runs/[runId]/weeks/[weekId]/tell": {
-    reason:
-      "Course hub: telling people about a change to a live week, a notice with a count and a test first, the server half built before its page; the counts, the 409 on a changed count, the notice's words and receipt and the one telling per save are executed by tests/course-week-edit-routes.test.mjs.",
-    coverWhen:
-      "When the pages for editing a week in place land on the programme's Weeks tab, with their browser spec in the same pull request.",
-  },
   "/api/courses/runs/[runId]/weeks/[weekId]/owner": {
     reason:
       "Course hub: a week's owner on the Weeks tab, the programme's lead's and admins'; every caller, every refusal and what it stores are executed by tests/course-hub-weeks-tab-week.test.mjs.",
@@ -1781,12 +1739,6 @@ const NOT_COVERED = {
       "Course hub: Publish's own page, its readiness check, the two emails and Publish's own buttons, for a programme's lead and admins; its every caller, what it blocks and what it only warns, each against a real press, are executed by tests/course-hub-get-ready.test.mjs, and it was checked by hand at 1440 and 390.",
     coverWhen:
       "When the groups-go-out spec presses Publish from the programme's own Groups tab rather than the run editor's board.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/history": {
-    reason:
-      "Course hub: a week's history on the Weeks tab (every save, compare, restore, tell from the newest), built in the same pull request as its spec; its callers are the persona battery's, and the list it reads is executed by tests/course-week-edit-routes.test.mjs.",
-    coverWhen:
-      "When the spec for editing a week in place passes locally with nothing left behind, which lists this page under its covers.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/copy": {
     reason:
