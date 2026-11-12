@@ -148,7 +148,7 @@ export async function loadGroupPage(
   });
   const nameOf = (uid: string) => names.get(uid)?.goesBy ?? "";
   // Who took a register in a facilitator's place, or was given a session,
-  // may be anybody with an account: named for the page's staff only.
+  // may be somebody outside the group: named for the page's staff only.
   const coverUids = staff
     ? [...new Set(registerSnaps.map((snap) => (snap?.exists ? normalizeCourseAttendance(snap.id, snap.data() ?? {}).cover?.byUid ?? "" : "")).filter(Boolean))]
     : [];

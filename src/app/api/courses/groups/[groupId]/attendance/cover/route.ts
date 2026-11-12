@@ -50,9 +50,12 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  *  - No `person`: "I'm covering it". The caller takes this one session's
  *    register (`cover.kind = "self"`), before any line is set.
  *  - `person`: "Someone else is covering". This one session's register, its
- *    check-in and its report go to that person (`cover.kind = "given"`), any
- *    approved account but the caller's own, until the end of the London day
- *    on which the later of now and the session's start falls. They are
+ *    check-in and its report go to that person (`cover.kind = "given"`),
+ *    somebody who runs things on the programme (`runsThingsOn`: an admin, a
+ *    committee member, the programme's lead, one of the run's track leads, a
+ *    facilitator of one of the run's groups) but never the caller, until the
+ *    end of the London day on which the later of now and the session's start
+ *    falls. They are
  *    emailed (transactional, to them alone). With `tell`, the group's told
  *    people are sent a notice that they are running it, the count on the tick
  *    checked again first (409 with the new count); never the caller, never
@@ -61,11 +64,13 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  *    when, both emails' words and how many the notice would reach.
  *
  * A new grant for the same session replaces the old one, and "I'm covering
- * it" replaces a grant. The facilitators whose place is taken are the
- * group's facilitators with standing when it is first taken (a replacement
- * keeps them), and each is recorded as not there unless they already have an
- * entry. One history row, in the registers category. Neither email carries a
- * meeting link.
+ * it" replaces a grant; the same session given to the same person again,
+ * while it holds, is a 409 that writes and sends nothing. The facilitators
+ * whose place is taken are the group's facilitators with standing when it is
+ * first taken (a replacement keeps them), and each is recorded as not there
+ * unless they already have an entry, when it is taken or given before the
+ * session ends; taken after it ended, nobody is recorded. One history row,
+ * in the registers category. Neither email carries a meeting link.
  *
  * WHO: admins and the people leading the programme that names the run (its
  * lead, the run's track leads), who are not facilitators of the group: a
@@ -75,7 +80,7 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * REFUSED: a session the group does not hold; one called off; a finished
  * register; one that one of the group's facilitators has started; a session
  * given with no day to give it until; a person who is the caller, has no
- * approved account, or facilitates the group.
+ * approved account, runs nothing on the programme, or facilitates the group.
  */
 
 type Answer = {
