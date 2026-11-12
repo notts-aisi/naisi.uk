@@ -48,7 +48,8 @@ import styles from "./workRatings.module.css";
  * for the team, both needed before it saves, changed by saving again and
  * cleared with a confirm. "What the team said" lists every rating on the
  * answer, oldest first, the reader's own among them, each saying when the
- * answer has changed since it, or says the reader has not rated it yet. Nothing is emailed, and the person never sees any of it.
+ * answer has changed since it, or says the reader has not rated it yet.
+ * Nothing is emailed, and the person never sees any of it.
  *
  * Every write goes through `/api/courses/runs/[runId]/work-ratings`, which
  * asks the gate again. Nothing here takes a press until React has the page;
