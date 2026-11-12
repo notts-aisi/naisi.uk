@@ -46,6 +46,7 @@ import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { walkSource } from "./lib/functionScan.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
+import { createLoader } from "./lib/tsLoader.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(REPO_ROOT, "src");
@@ -184,10 +185,16 @@ test("the one answer: as last sent before the session, the latest once it has st
   const versions = codeOf(join(SRC, "lib", "courses", "weekWork", "versions.ts"));
   assert.match(
     versions,
-    /export function readableAnswer\(piece: PieceFacts \| null, dueAt: Date \| null, now: Date\): ReadVersion \| null \{\s*if \(!piece\) return null;\s*if \(sessionStartedAt\(dueAt, now\)\) return latestOf\(piece\);\s*const sent = lastSentAt\(piece\);\s*if \(sent === null\) return null;/,
+    /export function readableAnswer\(piece: PieceFacts \| null, dueAt: Date \| null, now: Date\): ReadVersion \| null \{\s*if \(!piece\) return null;\s*if \(sessionStartedAt\(dueAt, now\)\) return latestOf\(piece\);\s*return answerAsLastSent\(piece\);\s*\}/,
   );
-  // Before the session, a change since the last send is not read: the version kept as sent is.
-  assert.match(versions, /if \(keptAsSent && keptAsSent\.replacedAt\.getTime\(\) > sent\.getTime\(\)\) return readOf\(keptAsSent\);/);
+  // Before the session: never sent, nothing; changed since the last send (by the database's own times,
+  // never a kept version's route clock), the newest version kept as sent, or nothing at all.
+  assert.match(versions, /const recorded = lastSentAt\(piece\);\s*if \(recorded === null\) return null;/);
+  assert.match(
+    versions,
+    /const changedSinceSent =\s*\(piece\.savedAt !== null && piece\.savedAt\.getTime\(\) > sent\.getTime\(\)\) \|\|\s*\(keptAsSent !== null && keptAsSent\.sentAt\.getTime\(\) >= sent\.getTime\(\)\);\s*if \(!changedSinceSent\) return latestOf\(piece\);\s*return keptAsSent \? readOf\(keptAsSent\) : null;/,
+  );
+  assert.doesNotMatch(versions, /replacedAt\.getTime\(\) > sent/, "which words are read goes by a kept version's route clock again");
   // The words leave the person's page only as they may be read: the gated readers hand on nothing else.
   const readers = codeOf(join(SRC, "lib", "courses", "facilitatorWeek", "readers.ts"));
   assert.match(readers, /const read = readableAnswer\(piece, due\.at, on\.now\);/);
@@ -204,4 +211,108 @@ test("the one answer: as last sent before the session, the latest once it has st
   // Claude and Pangram are handed the words as read, never the row's own.
   const gather = codeOf(join(SRC, "lib", "courses", "coursework", "gather.ts"));
   assert.match(gather, /rows\.push\(\{ id: doc\.id, uid, question, data: read \? \{ \.\.\.data, text: read\.text, boxes: read\.boxes \?\? undefined \} : data \}\);/);
+});
+
+// ---------------------------------------------------------------------------
+// The stored answer behind a person's Coursework page stays on the server
+// ---------------------------------------------------------------------------
+
+/**
+ * A PERSON'S PAGE ON THE COURSEWORK TAB reads each written answer through
+ * `readRunCoursework` (`lib/courses/facilitatorWeek/readers.ts`), which hands
+ * its loader the stored answer whole, `PersonAnswerWrite.piece`: the latest
+ * words and every kept version, so the loader can tell which version each
+ * piece of feedback was about. Before the session that holds words its
+ * readers may not read, and a kept version can hold words a feedback card
+ * never shows. It is for the server alone: no route answers with it and no
+ * client component is handed it.
+ *
+ * Every file that names its types, its map or its reader is listed here,
+ * both ways. None may be a route handler or a client component; a file that
+ * reads `.piece` must be server-only; and `personWeeks`, the one builder of
+ * what the page is handed from it, is run with a piece full of words that
+ * must not leave.
+ */
+const HOLDS_PIECE = /\bPersonAnswerWrite\b|\bPersonWrites\b|\bwrites\.answers\b|\breadRunCoursework\(/;
+const PIECE_HOLDERS = {
+  "lib/courses/facilitatorWeek/readers.ts": "builds it: `readRunCoursework`, server-only, asked by each caller after its own gate",
+  "lib/courses/coursework/load.ts": "server-only: reads `.piece` for the version each feedback card was about and whether the week takes feedback; hands the page `personWeeks`' answers, never the stored one",
+  "lib/courses/coursework/model.ts": "pure: `personWeeks` copies an answer's named fields into what the page is handed, and never `piece` (run below)",
+};
+
+test("the stored answer behind a person's Coursework page (PersonAnswerWrite.piece) is held only by the files listed, both ways", () => {
+  const found = [];
+  for (const file of walkSource(SRC)) {
+    if (!/\.(ts|tsx)$/.test(file)) continue;
+    if (HOLDS_PIECE.test(codeOf(file))) found.push(inSrc(file));
+  }
+  assert.ok(found.includes("lib/courses/facilitatorWeek/readers.ts"), "the scan missed the reader that builds it, so it is not reading the tree");
+  assert.deepEqual(found.sort(), Object.keys(PIECE_HOLDERS).sort());
+  for (const [file, why] of Object.entries(PIECE_HOLDERS)) {
+    assert.ok(why.length > 30, `${file}: say why`);
+    const source = readFileSync(join(SRC, file), "utf8");
+    assert.doesNotMatch(source, /^\s*["']use client["']/m, `${file} is a client component and holds the stored answer`);
+    assert.ok(!/(^|\/)route\.tsx?$/.test(file), `${file} is a route handler and holds the stored answer`);
+    if (/\.piece\b/.test(codeOf(join(SRC, file)))) {
+      assert.match(source, /^import "server-only";/m, `${file} reads the stored answer and is not server-only`);
+    }
+  }
+});
+
+test("no route and no client component imports what carries the stored answer", () => {
+  for (const file of walkSource(SRC)) {
+    if (!/\.(ts|tsx)$/.test(file)) continue;
+    const rel = inSrc(file);
+    const source = readFileSync(file, "utf8");
+    const client = /^\s*["']use client["']/m.test(source);
+    const route = /(^|\/)route\.tsx?$/.test(rel);
+    if (!client && !route) continue;
+    assert.doesNotMatch(codeOf(file), /\bPersonAnswerWrite\b|\bPersonWrites\b|\breadRunCoursework\b/, `${rel} is handed the stored answer`);
+  }
+});
+
+test("personWeeks hands the page an answer's named fields, never the stored answer or a word kept in it", async () => {
+  const { loadTs } = createLoader({ stubs: [["server-only", "export {};"]] });
+  const model = await loadTs("lib/courses/coursework/model.ts");
+  const KEPT = "AKEPTVERSIONNOREADERSEES";
+  const LATEST = "ALATESTCHANGENOTSENT";
+  const at = new Date("2026-11-16T10:00:00Z");
+  const piece = {
+    text: LATEST,
+    boxes: null,
+    words: 1,
+    savedAt: at,
+    firstSentAt: at,
+    sentAt: at,
+    earlierVersions: [{ text: KEPT, boxes: null, words: 1, savedAt: at, replacedAt: at, sentAt: at, reasons: ["sent"] }],
+  };
+  const week = { weekNumber: 3, title: "Week 3", parts: [], sources: [], answer: { id: "wa", prompt: "Write a plan.", boxes: [] }, boxes: [], tasks: [], writes: true };
+  const write = {
+    state: "sent",
+    words: 1,
+    text: "The words sent.",
+    boxes: null,
+    sentAt: at,
+    lastSentAt: at,
+    changedAt: at,
+    changedLateMs: null,
+    sentLateMs: null,
+    atSession: null,
+    piece,
+    feedback: null,
+  };
+  const weeks = model.personWeeks({
+    columns: [{ weekNumber: 3, title: "Week 3" }],
+    weekOf: () => week,
+    writes: { reflections: new Map(), boxes: new Map(), answers: new Map([[model.workKey(3, "wa"), write]]), ticked: new Set() },
+    boxesRead: true,
+    notes: null,
+    writtenHref: () => null,
+    feedbackOf: () => ({ cards: [], own: null, open: false }),
+  });
+  const handed = JSON.stringify(weeks);
+  assert.ok(handed.includes("The words sent."), "the fixture did not reach the page, so this proves nothing");
+  for (const never of [KEPT, LATEST, "earlierVersions", '"piece"', "replacedAt"]) {
+    assert.ok(!handed.includes(never), `what the page is handed carries ${never}`);
+  }
 });

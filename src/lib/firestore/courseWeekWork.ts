@@ -2,8 +2,8 @@
  * `courseWeekWork/{runId}__{uid}__{weekId}`: what is kept of one person's
  * week of a course beside their work: when they pressed the week's old
  * Submit, the reopens of the time when weeks locked, and which version of
- * each written answer feedback or a rating was last about. One document per
- * person per week, made the first time any of those is written.
+ * each written answer feedback was last about. One document per person per
+ * week, made the first time any of those is written.
  *
  * THE FIELDS, each written by one route:
  *  - `submittedAt`: when they last submitted the week, or null while it is
@@ -17,12 +17,15 @@
  *    (`/api/courses/runs/[runId]/weeks/[weekId]/reopen`).
  *  - `reopenCount`: how many times it has been reopened.
  *  - `reviewedVersions`: written answer block id to the mark (`savedAt`) of
- *    the version of it that feedback or a rating was last about, written by
- *    the feedback and ratings routes (`src/lib/courses/weekWork/versions.ts`).
- *    The routes that save the answer read it in their own transaction, so the
- *    first change after a review keeps the reviewed words with no query. Kept
- *    here, on a record no browser reads, and never on the answer's own row,
- *    which its writer can read: a rating's existence never reaches them.
+ *    the version of it that feedback was last about, written by the feedback
+ *    route (`src/lib/courses/weekWork/versions.ts`). The routes that save the
+ *    answer read it in their own transaction, so the first change after
+ *    feedback keeps the words it was about, with no query. The ratings route
+ *    writes nothing here: what the mark makes a save keep lands on the
+ *    answer's own row, which its writer can read, and a version kept for a
+ *    rating would tell them a rating exists. A rating keeps its own pointer
+ *    (the rating's `aboutSavedAt`), and the review page tells staff
+ *    when the answer has changed since it.
  *
  * WEEKS NO LONGER LOCK (the week stays open): nothing reopens a week now, and
  * `submittedAt` is written only by the old Submit route, kept for a page open
@@ -63,7 +66,7 @@ export type CourseWeekWorkDoc = {
   reopenedAt: Date | null;
   reopenedByUid: string;
   reopenCount: number;
-  /** Written answer block id to the mark of the version feedback or a rating was last about. */
+  /** Written answer block id to the mark of the version feedback was last about. */
   reviewedVersions: Record<string, Date>;
   updatedAt: Date | null;
 };

@@ -5876,6 +5876,18 @@ describe("the course hub passage", () => {
     assert.equal(weekWorkVersions.readableAnswer(piece({ firstSentAt: new Date("2026-11-17T11:00:00Z") }), wed, before).text, "Words.", "sent, before the session");
     assert.equal(weekWorkVersions.readableAnswer(piece(), wed, wed).text, "Words.", "a draft, once the session has started");
     assert.equal(weekWorkVersions.readableAnswer(piece(), null, new Date("2030-01-01T00:00:00Z")), null, "a draft with no session: never");
+    // "...until you send it": a change since the last send is never read before the session, told by the
+    // database's own times. Sent at 11:00, changed at 11:02 by a save whose clock (10:59) dates its kept
+    // version before the send: the words sent are read. With no version kept as sent: nothing.
+    const sentThenChanged = {
+      text: "Changed.",
+      savedAt: new Date("2026-11-17T11:02:00Z"),
+      firstSentAt: new Date("2026-11-17T11:00:00Z"),
+      sentAt: new Date("2026-11-17T11:00:00Z"),
+    };
+    const keptAsSent = { text: "Words.", boxes: null, words: 1, savedAt: new Date("2026-11-17T10:00:00Z"), replacedAt: new Date("2026-11-17T10:59:00Z"), sentAt: new Date("2026-11-17T11:00:00Z"), reasons: ["sent"] };
+    assert.equal(weekWorkVersions.readableAnswer(piece({ ...sentThenChanged, earlierVersions: [keptAsSent] }), wed, before).text, "Words.", "a change not sent, before the session");
+    assert.equal(weekWorkVersions.readableAnswer(piece(sentThenChanged), wed, before), null, "a change not sent, with nothing kept as sent");
     assert.ok(existsSync(join(REPO_ROOT, "tests", "course-written-answer-readers.test.mjs")), "the guard on every reader of a written answer's words is gone");
     for (const reader of [
       "src/lib/courses/writtenAnswers/reviewPage.ts",
@@ -10450,11 +10462,11 @@ describe("v15 lets the people running a programme rate written work for each oth
       route.includes('const refusal = feedbackRefusalFor("writtenAnswer", standing, { notReadable: NOT_READABLE_YET, answerEmpty: ANSWER_EMPTY });'),
       "a rating is no longer asked whether its work may be read, inside the save",
     );
-    // A rating says which version of the answer it was about, and the answer's next change keeps those words.
-    assert.ok(
-      route.includes("if (about) stampReviewed(tx, db, { runId, uid: week.uid, weekId: week.weekId, weekNumber: week.weekNumber, itemId, read: about });"),
-      "the first change after a rating would not keep the words it was about",
-    );
+    // "You are never shown these ratings": a rating says which version of the answer it was about and
+    // stamps nothing on the person's week, so the answer's next change keeps no version for it on the
+    // row its writer reads (a version kept for a rating would say one exists).
+    assert.ok(route.includes("...(about?.savedAt ? { aboutSavedAt: about.savedAt } : {}),"), "a rating no longer says which version it was about");
+    assert.doesNotMatch(route, /stampReviewed|reviewedVersions|weekWorkRef/, "a rating stamps the person's week, so their own row would keep a version for it");
   });
 
   test("\"and comment on it for each other\": a whole number from 1 to 10 and a comment, both needed, stored with who gave it and as what", () => {
@@ -10779,6 +10791,12 @@ describe("v15 lets Claude draft a short note on how each person is doing, from t
       assert.doesNotMatch(specifier, /surveys|checkIns|sessionReports|weekReview|courseWeekReviews/, `what a note is built from imports ${specifier}`);
     }
     assert.match(strip(gather), /if \(submittedAt\) out\.push\(\{ week, submittedAt \}\);/, "a week is handed over without its submission");
+    // "Only the work they submitted": the week stays open after its Submit, so a written answer goes as last
+    // sent (never a change not sent) and a reflection or a box saved after the week's Submit is left out.
+    assert.equal((strip(gather).match(/asLastSent: \(/g) ?? []).length, 2, "a note reads a written answer as its readers do, latest words and all");
+    assert.equal((strip(gather).match(/answers: submittedWork\(/g) ?? []).length, 2, "a note takes work saved after the week's Submit");
+    assert.match(strip(gather), /return answer\.savedAt != null && answer\.savedAt\.getTime\(\) <= at\.getTime\(\);/);
+    assert.match(strip(read("src/lib/courses/coursework/gather.ts")), /if \(asLastSent\) return answerAsLastSent\(piece, asLastSent\(uid,/);
   });
 
   test("the profile's \"Draft a note with Claude\" sends through the same builder and gatherer as the end-of-week notes", () => {
@@ -11408,7 +11426,8 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
     assert.match(model, /export function lateBy\(at: Date \| null, due: WeekDue\): number \| null \{/);
     // "If you change something after it's been read or given feedback, we may keep the earlier version,
     // with its feedback, beside the new one": kept at the first change after the session (when its readers
-    // read everything), after a send before it (what they read), and after feedback or a rating.
+    // read everything), after a send before it (what they read), and after feedback. A rating keeps its
+    // own pointer and no version: the row is its writer's to read, and they are never shown ratings.
     assert.ok(PAGE_FLAT.includes("If you change something after it&apos;s been read or given feedback, we may keep the earlier version, with its feedback, beside the new one."));
     assert.ok(!PAGE_FLAT.includes("we keep the earlier version"), "version 17 promises an earlier version is always kept, which the code does not do: only at those lines, and under a cap");
     const versions = withoutComments(read("src/lib/courses/weekWork/versions.ts"));
@@ -11422,7 +11441,8 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
     ]) {
       assert.match(withoutComments(read(file)), /versionsToKeep\(\{ prior:/, `${file} no longer keeps the earlier version`);
     }
-    // "...with its feedback": a piece and a rating say which version they were about, and the cards carry it.
+    // "...with its feedback": a piece and a rating say which version they were about, and the cards carry it;
+    // staff are told when the answer has changed since a rating.
     assert.match(withoutComments(read("src/lib/courses/feedback/model.ts")), /const version = versionAbout\(answer, piece\.aboutSavedAt, piece\.createdAt\);/);
     // The mark the save routes read is kept where the person cannot read it: a rating's existence never reaches them.
     assert.match(withoutComments(read("src/lib/courses/feedback/access.ts")), /reviewedVersions: \{ \[input\.itemId\]: input\.read\.savedAt \},/);

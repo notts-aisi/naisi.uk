@@ -244,9 +244,89 @@ describe("1. the session a person is due at, when the programme closes, and wher
     assert.deepEqual([versions.readableAnswer(changed, due, after).text, versions.readableAnswer(changed, due, after).latest], ["Changed words.", true]);
     // With no session (joined late): as last sent, for good.
     assert.equal(versions.readableAnswer(changed, null, at("2030-01-01T00:00:00Z")).text, "Sent words.");
-    // Sent by the old Submit and changed before versions were kept: its latest words, as always.
+    // Sent by the old Submit and changed since, with no version kept as sent: nothing beyond started, never the change.
     const legacy = piece({ text: "Edited after.", words: 2, savedAt: at("2026-11-16T09:00:00Z"), firstSentAt: at("2026-11-15T11:00:00Z") });
-    assert.equal(versions.readableAnswer(legacy, due, before).text, "Edited after.");
+    assert.equal(versions.readableAnswer(legacy, due, before), null, "a change after the send, with nothing kept as sent");
+    assert.equal(versions.readableAnswer(legacy, null, at("2030-01-01T00:00:00Z")), null, "nor with no session");
+    // Once the session has started its readers read everything saved, as before.
+    assert.equal(versions.readableAnswer(legacy, due, after).text, "Edited after.");
+  });
+
+  test("before the session only words that were sent, decided by the database's times whatever a kept version's route clock says", () => {
+    const due = at("2026-11-17T18:00:00Z");
+    const before = at("2026-11-17T12:00:00Z");
+    const after = at("2026-11-17T18:00:00Z");
+    const piece = (over) => ({ text: "", boxes: null, words: 0, savedAt: null, firstSentAt: null, sentAt: null, earlierVersions: [], ...over });
+    const version = (text, over) => ({ text, boxes: null, words: text.split(" ").length, reasons: ["sent"], ...over });
+    // Send pressed on a slow connection and typing kept on: the save took its clock (10:00) before the Send
+    // committed (10:01) and wrote after it (10:02). Its kept version is dated before the send it was kept for.
+    const raced = piece({
+      text: "Typed after Send.",
+      words: 3,
+      savedAt: at("2026-11-16T10:02:00Z"),
+      firstSentAt: at("2026-11-16T10:01:00Z"),
+      sentAt: at("2026-11-16T10:01:00Z"),
+      earlierVersions: [version("The words sent.", { savedAt: at("2026-11-16T09:50:00Z"), replacedAt: at("2026-11-16T10:00:00Z"), sentAt: at("2026-11-16T10:01:00Z") })],
+    });
+    const read = versions.readableAnswer(raced, due, before);
+    assert.deepEqual([read.text, read.latest, read.savedAt, read.sentAt], ["The words sent.", false, at("2026-11-16T09:50:00Z"), at("2026-11-16T10:01:00Z")]);
+    assert.equal(versions.answerAsLastSent(raced).text, "The words sent.");
+    assert.equal(versions.readableAnswer(raced, due, after).text, "Typed after Send.", "once the session has started, the latest");
+    // Two saves around one send: the first committed before the Send (its words were sent), the second raced it,
+    // and a third came later still. Whatever the clocks of the routes, the words sent are read.
+    const around = piece({
+      text: "Third save.",
+      words: 2,
+      savedAt: at("2026-11-16T10:05:00Z"),
+      firstSentAt: at("2026-11-16T10:01:00Z"),
+      sentAt: at("2026-11-16T10:01:00Z"),
+      earlierVersions: [version("First save.", { savedAt: at("2026-11-16T10:00:00Z"), replacedAt: at("2026-11-16T09:59:59Z"), sentAt: at("2026-11-16T10:01:00Z") })],
+    });
+    assert.equal(versions.readableAnswer(around, due, before).text, "First save.");
+    // A send, a change and a second send: the latest, sent. Then a change that raced the second send: the
+    // words of the second send, never the first's and never the change.
+    const first = version("First sent.", { savedAt: at("2026-11-15T09:00:00Z"), replacedAt: at("2026-11-15T10:00:00Z"), sentAt: at("2026-11-15T09:30:00Z") });
+    const sentTwice = piece({ text: "Second sent.", words: 2, savedAt: at("2026-11-15T10:00:00Z"), firstSentAt: at("2026-11-15T09:30:00Z"), sentAt: at("2026-11-15T11:00:00Z"), earlierVersions: [first] });
+    assert.deepEqual([versions.readableAnswer(sentTwice, due, before).text, versions.readableAnswer(sentTwice, due, before).latest], ["Second sent.", true]);
+    const changedAgain = {
+      ...sentTwice,
+      text: "Not sent.",
+      savedAt: at("2026-11-15T11:02:00Z"),
+      earlierVersions: [first, version("Second sent.", { savedAt: at("2026-11-15T10:00:00Z"), replacedAt: at("2026-11-15T10:59:00Z"), sentAt: at("2026-11-15T11:00:00Z") })],
+    };
+    assert.equal(versions.readableAnswer(changedAgain, due, before).text, "Second sent.");
+    // The kept versions in the order a clock would never give them: still the newest send's words.
+    assert.equal(versions.readableAnswer({ ...changedAgain, earlierVersions: [...changedAgain.earlierVersions].reverse() }, due, before).text, "Second sent.");
+    // A change saved in the same millisecond as the send it followed: the version that change kept says so.
+    const sameMs = { ...raced, savedAt: at("2026-11-16T10:01:00Z") };
+    assert.equal(versions.readableAnswer(sameMs, due, before).text, "The words sent.");
+    // Changed since its send with no version kept as sent: nothing of it, before the session, whatever is kept for other lines.
+    const noneKept = piece({
+      text: "Changed, never sent.",
+      words: 3,
+      savedAt: at("2026-11-16T12:00:00Z"),
+      sentAt: at("2026-11-16T10:00:00Z"),
+      firstSentAt: at("2026-11-16T10:00:00Z"),
+      earlierVersions: [version("Never sent either.", { savedAt: at("2026-11-16T11:00:00Z"), replacedAt: at("2026-11-16T12:00:00Z"), sentAt: null, reasons: ["reviewed"] })],
+    });
+    assert.equal(versions.readableAnswer(noneKept, due, before), null);
+    assert.equal(versions.answerAsLastSent(noneKept), null);
+    // The week's old Submit, pressed after a change the row never recorded as sent, counts as a send for those who pass it.
+    const resubmitted = piece({ text: "Changed, then submitted.", words: 3, savedAt: at("2026-11-16T09:00:00Z"), firstSentAt: at("2026-11-15T09:00:00Z") });
+    assert.equal(versions.answerAsLastSent(resubmitted), null);
+    assert.equal(versions.answerAsLastSent(resubmitted, at("2026-11-16T10:00:00Z")).text, "Changed, then submitted.");
+    assert.equal(versions.answerAsLastSent(resubmitted, at("2026-11-16T08:00:00Z")), null, "a Submit before the change sent none of it");
+    assert.equal(versions.answerAsLastSent(piece({ text: "A draft.", words: 2, savedAt: at("2026-11-16T09:00:00Z") }), at("2026-11-16T10:00:00Z")), null, "never sent by its own row: nothing");
+  });
+
+  test("the same words are the same in any order: an answer's boxes are compared box by box", () => {
+    const words = (text, boxes) => ({ text, boxes, words: 0 });
+    assert.equal(versions.sameWords(words("", { b1: "One.", b2: "Two." }), words("", { b2: "Two.", b1: "One." })), true);
+    assert.equal(versions.sameWords(words("", { b1: "One.", b2: "" }), words("", { b1: "One." })), true, "an empty box is no box");
+    assert.equal(versions.sameWords(words("", { b1: "One.", b2: "Two." }), words("", { b1: "One.", b2: "Two!" })), false);
+    assert.equal(versions.sameWords(words("", { b1: "One." }), words("", { b2: "One." })), false, "the same words in another box");
+    assert.equal(versions.sameWords(words("Text.", null), words("Text.", null)), true);
+    assert.equal(versions.sameWords(words("Text.", null), words("", {})), false, "text and an empty answer in boxes");
   });
 });
 
@@ -587,7 +667,7 @@ describe("3. the words", () => {
       words.sessionMetWords({ due, weekNumber: 1, groupName: "Group C", done: false, now: later }),
       words.ownWorkWords({ ...own, due, now: later }),
     ]) {
-      assert.doesNotMatch(line, /\block|submit|reopen|warning|[–—]/i, line);
+      assert.doesNotMatch(line, /\block|submit|reopen|warning|[\u2013\u2014]/i, line);
     }
   });
 
@@ -677,7 +757,7 @@ describe("3. the words", () => {
       words.doneOnceSentWords(2, "ticks"),
       words.staffChangedSinceSentWords("Amara"),
     ]) {
-      assert.doesNotMatch(line, /\b(?:marks?|marked|grades?|scores?)\b|[–—]/i, line);
+      assert.doesNotMatch(line, /\b(?:marks?|marked|grades?|scores?)\b|[\u2013\u2014]/i, line);
     }
   });
 });
@@ -826,6 +906,66 @@ describe("4. Send, the old Submit, versions, a closed programme, and the old Reo
     assert.deepEqual([kofiAfter.person.uid, kofiAfter.text, kofiAfter.person.readable], ["kofi", `${ENOUGH} unsentword`, true]);
   });
 
+  test("a save that takes its clock before a Send commits and writes after it keeps the words sent, and its readers read those, never the change", async () => {
+    w.at(BEFORE_WEEK_TWO);
+    await w.write("chloe", 2, { text: ENOUGH });
+    // Chloe presses Send on a slow connection and keeps typing. The save takes its clock at 09:10; before it
+    // commits, the Send commits at 09:10:30 (as the send route writes it), and the save is retried and commits at 09:11.
+    w.at("2026-11-09T09:10:00Z");
+    let raced = false;
+    w.world.db.beforeCommit = () => {
+      raced = true;
+      w.at("2026-11-09T09:10:30Z");
+      const sentAt = new Date();
+      w.world.db.poke(w.rowPath("chloe", 2), { firstSentAt: sentAt, submittedAt: sentAt, sentAt });
+      w.at("2026-11-09T09:11:00Z");
+    };
+    assert.equal((await w.write("chloe", 2, { text: `${ENOUGH} typedaftersend` })).status, 200);
+    assert.ok(raced, "the Send never landed inside the save");
+    // The save kept the words it replaced as the words sent, judged by the stored times: its own clock dates
+    // the version before the send it was kept for, which the readers must never go by.
+    const row = w.world.db.read(w.rowPath("chloe", 2));
+    assert.equal(row.earlierVersions.length, 1);
+    const kept = row.earlierVersions[0];
+    assert.deepEqual([kept.text, kept.reasons], [ENOUGH, ["sent"]]);
+    assert.deepEqual(
+      [kept.replacedAt, kept.sentAt, row.updatedAt].map((value) => new Date(value).toISOString()),
+      ["2026-11-09T09:10:00.000Z", "2026-11-09T09:10:30.000Z", "2026-11-09T09:11:00.000Z"],
+      "replacedAt before sentAt before the row's own save",
+    );
+    // Before the session: the review page reads the words sent, says it has changed since, and carries nothing typed after Send.
+    w.at("2026-11-09T12:00:00Z");
+    const review = await reviewOf("rahul", 2, "chloe");
+    assert.deepEqual([review.selected.text, review.selected.shown.latest, review.selected.person.changedSinceSent], [ENOUGH, false, true]);
+    assert.ok(!JSON.stringify(review).includes("typedaftersend"), "the review page carries words never sent");
+    // So does what is gathered for Claude and Pangram, read through the same answer.
+    const gather = await w.loadTs("lib/courses/coursework/gather.ts");
+    const weeks = await gather.loadRunWeeks(w.world.db, RUN.agi, [B]);
+    const gathered = await gather.loadAnswers(w.world.db, RUN.agi, weeks, new Set(["chloe"]));
+    assert.ok(gathered.some((answer) => answer.kind === "written" && answer.text === ENOUGH), "the words sent are not gathered");
+    assert.ok(!JSON.stringify(gathered).includes("typedaftersend"), "words never sent are gathered");
+    // Once the session has started its readers read everything saved.
+    w.at(WEEK_TWO_SESSION);
+    assert.equal((await reviewOf("rahul", 2, "chloe")).selected.text, `${ENOUGH} typedaftersend`);
+  });
+
+  test("a save of the same boxes in another order writes nothing: no new save time, no version kept, nothing to send again", async () => {
+    w.at("2026-11-16T09:00:00Z");
+    const ordered = { "wb-what": "Lamps for the harbour.", "wb-who": "The keepers." };
+    assert.equal((await w.write("chloe", 3, { boxes: ordered })).status, 200);
+    assert.equal((await w.sendAnswer("chloe", 3)).status, 200);
+    const sent = w.world.db.read(w.rowPath("chloe", 3));
+    w.at("2026-11-16T10:00:00Z");
+    assert.equal((await w.write("chloe", 3, { boxes: { "wb-who": "The keepers.", "wb-what": "Lamps for the harbour." } })).status, 200);
+    const after = w.world.db.read(w.rowPath("chloe", 3));
+    assert.deepEqual(after.updatedAt, sent.updatedAt, "an unchanged answer was saved again");
+    assert.equal(after.earlierVersions, undefined, "a version was kept of the same words");
+    assert.equal(after.editedAt, undefined);
+    // Its readers read it as sent and unchanged.
+    const review = await reviewOf("rahul", 3, "chloe");
+    assert.deepEqual([review.selected.shown.latest, review.selected.person.changedSinceSent], [true, false]);
+  });
+
   test("the first change after the session keeps the words as they stood at it, once; late is told from the session", async () => {
     w.at(BEFORE_WEEK_TWO);
     await w.write("chloe", 2, { text: ENOUGH });
@@ -876,7 +1016,7 @@ describe("4. Send, the old Submit, versions, a closed programme, and the old Reo
     assert.doesNotMatch(JSON.stringify(own.body), /deadline|afterDeadline|\blate\b/i);
   });
 
-  test("feedback and a rating say which version they were about; the first change after either keeps it, and the cards carry it", async () => {
+  test("feedback and a rating say which version they were about; the first change after feedback keeps it, and the cards carry it", async () => {
     w.at(BEFORE_WEEK_TWO);
     await w.write("chloe", 2, { text: ENOUGH });
     await w.sendAnswer("chloe", 2);
@@ -889,11 +1029,13 @@ describe("4. Send, the old Submit, versions, a closed programme, and the old Reo
     const stamp = w.weekWorkOf("chloe", 2).reviewedVersions[ONE_BOX.id];
     assert.deepEqual(new Date(stamp), new Date(sentRow.updatedAt), "the person's week record carries the reviewed mark, never their own row");
     assert.equal(w.world.db.read(w.rowPath("chloe", 2)).reviewedVersions, undefined);
-    // A rating, read by nobody the person is: the same mark.
+    // A rating, read by nobody the person is: its own pointer, and nothing stamped on the week.
+    const weekBefore = JSON.stringify(w.weekWorkOf("chloe", 2));
     const rated = await w.rate("claudia", "chloe", 2, 7, "Names a keeper.");
     assert.equal(rated.status, 200, JSON.stringify(rated.body));
     assert.deepEqual(new Date(w.workRatings()[0].aboutSavedAt), new Date(sentRow.updatedAt));
-    // The change: one version kept, for both lines at once (sent before the session, and reviewed).
+    assert.equal(JSON.stringify(w.weekWorkOf("chloe", 2)), weekBefore, "a rating stamped the person's week");
+    // The change: one version kept, for both lines at once (sent before the session, and the feedback).
     w.at("2026-11-09T10:00:00Z");
     await w.write("chloe", 2, { text: `${ENOUGH} changed` });
     const row = w.world.db.read(w.rowPath("chloe", 2));
@@ -911,6 +1053,34 @@ describe("4. Send, the old Submit, versions, a closed programme, and the old Reo
     const overview = await w.call("chloe", w.routes.overview.GET, { runId: RUN.agi }, { course: true });
     const own = overview.body.weeks.find((week) => week.weekNumber === 2).feedback.find((each) => each.text === "Clear.");
     assert.equal(own.about.text, ENOUGH);
+  });
+
+  test("a rating keeps no version of its own: the next change keeps nothing for it, the writer's row never shows one, and staff are told the answer has changed since", async () => {
+    // Chloe writes week 2 after Group B met for it (Tue 10 Nov, 6pm), so neither the session nor a send keeps a version.
+    w.at("2026-11-11T10:00:00Z");
+    await w.write("chloe", 2, { text: ENOUGH });
+    w.at("2026-11-11T11:00:00Z");
+    const rated = await w.rate("zach", "chloe", 2, 6, "Names a keeper, late.");
+    assert.equal(rated.status, 200, JSON.stringify(rated.body));
+    assert.deepEqual(new Date(w.workRatings()[0].aboutSavedAt), new Date("2026-11-11T10:00:00Z"), "the rating points at the words it was about");
+    assert.equal(w.weekWorkOf("chloe", 2), undefined, "a rating stamped the person's week");
+    // Unchanged since: nothing said.
+    let team = (await reviewOf("zach", 2, "chloe")).selected.team;
+    assert.deepEqual(team.said.map((row) => [row.raterUid, row.changedSince]), [["zach", false]]);
+    w.at("2026-11-11T12:00:00Z");
+    assert.equal((await w.write("chloe", 2, { text: `${ENOUGH} changed` })).status, 200);
+    const row = w.world.db.read(w.rowPath("chloe", 2));
+    assert.equal(row.earlierVersions, undefined, "a version was kept for a rating, on a row its writer reads");
+    // Her own reads say nothing of it.
+    const own = await w.ownRowsOf("chloe", 2);
+    assert.doesNotMatch(JSON.stringify(own.body), /"reviewed"|earlierVersions|rating|rated/i);
+    // Staff: the version it was about is no longer kept, so the row says the answer has changed since.
+    team = (await reviewOf("zach", 2, "chloe")).selected.team;
+    assert.deepEqual(team.said.map((row) => [row.raterUid, row.changedSince]), [["zach", true]]);
+    const page = await w.writtenPage("zach", { week: "2", person: "chloe" });
+    assert.match(page.text, /“Names a keeper, late\.” Chloe’s answer has changed since this rating\./);
+    // A facilitator's page draws none of it.
+    assert.doesNotMatch((await w.writtenPage("rahul", { week: "2", person: "chloe" })).text, /since this rating/);
   });
 
   test("feedback on words that have not changed carries no version; feedback before versions were kept reads as the version that stood then", async () => {

@@ -33,7 +33,7 @@ import { readEarlierVersions, type EarlierVersion, type PieceFacts } from "../we
  *    answer sent only by the old Submit, whose one send is `firstSentAt`.
  *  - `editedAt`: the latest change after it was first sent.
  *  - `earlierVersions`: the words it held before a change that crossed a
- *    line (the session, a send, feedback or a rating), oldest first
+ *    line (the session, a send, feedback), oldest first
  *    (`src/lib/courses/weekWork/versions.ts`). Missing: one version.
  *  - `openedAt`, `openedByUid`: the lock an answer kept before weeks were
  *    submitted: set when one of its own reviewers first opened it on the

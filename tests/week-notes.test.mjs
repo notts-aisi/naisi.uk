@@ -38,7 +38,9 @@
  * Every name, address and word is made up.
  *
  * What is held, by section:
- *  1. The message: only a submitted week, from the person's moment; the
+ *  1. The message: only a submitted week, and of it only the work as
+ *     submitted (a written answer as last sent, never a reflection saved
+ *     after the week's Submit), from the person's moment; the
  *     team's words scrubbed, writers by what they are and raters by number;
  *     nothing of a check-in, a report, a review grade or a private note;
  *     "Built only from" is what went, item for item; the profile's draft
@@ -153,6 +155,11 @@ function writtenAnswer(uid, text, firstWrittenAt) {
   };
 }
 
+/** A written answer as the week's Submit leaves it: stamped as sent then. */
+function sentBySubmit(row, at = SUBMITTED) {
+  return { ...row, firstSentAt: at, submittedAt: at };
+}
+
 function submitted(uid, at = SUBMITTED) {
   return { runId: RUN.agi, uid, weekId: "w03", weekNumber: 3, submittedAt: at, firstSubmittedAt: at, submitCount: 1, updatedAt: at };
 }
@@ -179,9 +186,10 @@ function seed(over = {}) {
   agree("zach", new Date("2026-11-18T12:00:00Z"));
   s["users/bea"] = { ...s["users/bea"], courseworkUseAgreedAt: V13, policyVersion: "terms.1+privacy.14", policyAgreedAt: V13 };
 
-  s[PATH("amara", "w03", "k3-wa")] = writtenAnswer("amara", ANSWER, WRITTEN);
-  s[PATH("amara", "w03", "k3-rp1")] = { ...reflection("amara", "k3-rp1", SAID.amara["k3-rp1"]), firstWrittenAt: WRITTEN };
-  s[PATH("bea", "w03", "k3-wa")] = writtenAnswer("bea", "I am not sure who should pay. The reading lost me.", WRITTEN);
+  // As her week's Submit stored them: the written answer stamped as sent by it, the reflection last saved before it.
+  s[PATH("amara", "w03", "k3-wa")] = sentBySubmit(writtenAnswer("amara", ANSWER, WRITTEN));
+  s[PATH("amara", "w03", "k3-rp1")] = { ...reflection("amara", "k3-rp1", SAID.amara["k3-rp1"]), firstWrittenAt: WRITTEN, updatedAt: WRITTEN };
+  s[PATH("bea", "w03", "k3-wa")] = sentBySubmit(writtenAnswer("bea", "I am not sure who should pay. The reading lost me.", WRITTEN));
   s[PATH("dev", "w03", "k3-wa")] = writtenAnswer("dev", "Split it by tonnage, as the board does.", WRITTEN);
   s[`courseWeekWork/${RUN.agi}__amara__w03`] = submitted("amara");
   s[`courseWeekWork/${RUN.agi}__bea__w03`] = submitted("bea");
@@ -408,6 +416,74 @@ describe("1. what a note's draft is sent: a submitted week and the team's words 
     // Nobody with no moment is sent anything.
     const noMoment = input.noteDraftInput({ programme: "P", weeks: [{ week, submittedAt: at("12") }], answers: [answer("written:a1", "x", at("10"))], feedback: [], ratings: [], people: [], from: null, writerFrom: new Map() });
     assert.equal(noMoment.sent, 0);
+  });
+
+  test("only the work submitted: a reflection saved after the week's Submit is left out, a written answer goes as last sent, and work untouched since goes", async () => {
+    // The week stays open after Submit (Wed 11 Nov, 8pm). On Thu 12 Nov Amara rewrote her reflection and
+    // changed her answer without sending it again; the change kept the answer as sent.
+    const CHANGED = new Date("2026-11-12T09:00:00Z");
+    const REWRITTEN = "Rewritten on Thursday, after the week was submitted.";
+    const UNSENT = "Changed on Thursday and never sent.";
+    const kept = { text: ANSWER, words: ANSWER.split(/\s+/).length, savedAt: WRITTEN, replacedAt: CHANGED, sentAt: SUBMITTED, reasons: ["sent"] };
+    const changedAnswer = { ...sentBySubmit(writtenAnswer("amara", UNSENT, WRITTEN)), updatedAt: CHANGED, editedAt: CHANGED, earlierVersions: [kept] };
+    reset({
+      [PATH("amara", "w03", "k3-wa")]: changedAnswer,
+      [PATH("amara", "w03", "k3-rp1")]: { ...reflection("amara", "k3-rp1", REWRITTEN), firstWrittenAt: WRITTEN, updatedAt: CHANGED },
+    });
+    globalThis.__wnClaudeAnswer = ok(DRAFTED);
+    // The page counts what a press would send from the same reading.
+    const [press] = findProps((await page("zach")).element, "DraftAll");
+    assert.deepEqual(press.plan, [{ uid: "amara", name: "Amara Okafor" }]);
+    assert.equal((await draft("zach", { uid: "amara" })).status, 200);
+    const [{ message }] = globalThis.__wnClaudeAsked;
+    assert.ok(message.includes("someone running the programme was right that the keepers need the town."), "the answer as sent did not go");
+    assert.ok(!message.includes(UNSENT), "an answer's change not sent went");
+    assert.ok(!message.includes(REWRITTEN), "a reflection saved after Submit went");
+    assert.deepEqual(w.world.db.read(draftPath("amara")).builtFrom[0], { kind: "work", weekNumber: 3, submittedAt: SUBMITTED, written: 1, reflections: 0, boxes: 0 });
+    // The profile's draft reads the same.
+    globalThis.__wnClaudeAsked = [];
+    globalThis.__wnClaudeAnswer = ok("The fellow writes with care.");
+    assert.equal((await ask("zach", routes.profileDraft, "POST", { runId: RUN.agi }, { ctx: { uid: "amara" } })).status, 200);
+    assert.ok(!globalThis.__wnClaudeAsked[0].message.includes(UNSENT));
+    assert.ok(!globalThis.__wnClaudeAsked[0].message.includes(REWRITTEN));
+  });
+
+  test("a written answer changed after its send with no words kept as sent is left out; one changed before the week's Submit goes as submitted", async () => {
+    // Changed on Thursday after the Submit, from before versions were kept: nothing of it can be shown to be
+    // sent, so only her reflection, untouched since Submit, goes.
+    const UNSENT = "Changed on Thursday and never sent.";
+    reset({ [PATH("amara", "w03", "k3-wa")]: { ...sentBySubmit(writtenAnswer("amara", UNSENT, WRITTEN)), updatedAt: new Date("2026-11-12T09:00:00Z") } });
+    // No answer goes, so no rating of it does, and a draft naming a rater would be a slip.
+    globalThis.__wnClaudeAnswer = ok("The fellow reflects with care.");
+    assert.equal((await draft("zach", { uid: "amara" })).status, 200);
+    let [{ message }] = globalThis.__wnClaudeAsked;
+    assert.ok(!message.includes(UNSENT));
+    assert.doesNotMatch(message, /Rater 1/, "a rating went without the answer it rates");
+    assert.ok(message.includes(SAID.amara["k3-rp1"]), "her reflection, untouched since Submit, did not go");
+    assert.deepEqual(w.world.db.read(draftPath("amara")).builtFrom[0], { kind: "work", weekNumber: 3, submittedAt: SUBMITTED, written: 0, reflections: 1, boxes: 0 });
+    // Sent on Tuesday, changed on Wednesday morning (a week reopened, when weeks locked) and submitted again
+    // that evening: the Submit sent the words then standing, and they go.
+    const RESUBMITTED = "Changed on Wednesday morning, then submitted again.";
+    reset({
+      [PATH("amara", "w03", "k3-wa")]: {
+        ...sentBySubmit(writtenAnswer("amara", RESUBMITTED, WRITTEN), new Date("2026-11-10T12:00:00Z")),
+        updatedAt: new Date("2026-11-11T10:00:00Z"),
+      },
+    });
+    globalThis.__wnClaudeAnswer = ok(DRAFTED);
+    assert.equal((await draft("zach", { uid: "amara" })).status, 200);
+    [{ message }] = globalThis.__wnClaudeAsked;
+    assert.ok(message.includes(RESUBMITTED));
+    // Nothing of the week left once both are out: nothing to send, and the page plans no press.
+    reset({
+      [PATH("amara", "w03", "k3-wa")]: { ...sentBySubmit(writtenAnswer("amara", UNSENT, WRITTEN)), updatedAt: new Date("2026-11-12T09:00:00Z") },
+      [PATH("amara", "w03", "k3-rp1")]: { ...reflection("amara", "k3-rp1", SAID.amara["k3-rp1"]), firstWrittenAt: WRITTEN, updatedAt: new Date("2026-11-12T09:00:00Z") },
+    });
+    globalThis.__wnClaudeAnswer = ok(DRAFTED);
+    const refused = await draft("zach", { uid: "amara" });
+    assert.deepEqual([refused.status, refused.body.error], [409, words.WEEK_NOTES_WORDS.nothingToSend]);
+    assert.equal(globalThis.__wnClaudeAsked.length, 0);
+    assert.deepEqual(findProps((await page("zach")).element, "DraftAll")[0]?.plan ?? [], []);
   });
 
   test("names come back on the site, and a label Claude was never sent is a slip", () => {

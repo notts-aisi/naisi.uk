@@ -21,11 +21,14 @@
  *  - `sent`: a written answer was sent and that session has not started (the
  *    version as last sent, which its readers go on reading until it is sent
  *    again);
- *  - `reviewed`: somebody gave feedback on it or rated it (the version the
- *    feedback or the rating was about: the person's `courseWeekWork` record
- *    carries the mark of the version last reviewed, so a save asks no query).
- *    One word for both, on a row its writer can read: it never says whether
- *    a rating, which they are never shown, was among them.
+ *  - `reviewed`: somebody gave feedback on it (the version the feedback was
+ *    about: the person's `courseWeekWork` record carries the mark of the
+ *    version feedback was last about, so a save asks no query). A rating for
+ *    the team stamps nothing there and keeps no version: the row is its
+ *    writer's to read, and a version kept for a rating would tell them a
+ *    rating exists, which they are never shown. A rating keeps its own
+ *    pointer (`aboutSavedAt`), and staff are told when the answer has changed
+ *    since it.
  * One change that crosses several lines keeps one version with every reason.
  *
  * THE CAP: at most `MAX_EARLIER_VERSIONS` versions, and at most
@@ -38,8 +41,10 @@
  * WHICH WORDS ARE READ (`readableAnswer`, privacy v17, "Changing your work"):
  *  - a reflection or a fill-in box: its latest words, as they are typed;
  *  - a written answer, before the session the person is due at starts, or
- *    with no such session: only words they have SENT, as last sent. Never
- *    sent, it is not read at all (its readers see only that it is started);
+ *    with no such session: only words they have SENT, as last sent, told by
+ *    the database's own times (`answerAsLastSent`). Never sent, or changed
+ *    since with no sent version kept, it is not read at all (its readers see
+ *    only that it is started);
  *  - a written answer once that session has started: its latest words, sent
  *    or not.
  *
@@ -171,17 +176,23 @@ export function lastSentAt(piece: Pick<PieceFacts, "firstSentAt" | "sentAt">): D
   return piece.sentAt ?? piece.firstSentAt;
 }
 
-/** Whether two versions hold the same words. */
+/**
+ * Whether two versions hold the same words: the same text, and, for an answer
+ * in labelled boxes, the same words in each box, box by box (the order a map
+ * was written or read in says nothing; a box left out holds nothing).
+ */
 export function sameWords(a: PieceWords, b: PieceWords): boolean {
-  if (a.boxes || b.boxes) return JSON.stringify(a.boxes ?? {}) === JSON.stringify(b.boxes ?? {});
-  return a.text === b.text;
+  if ((a.boxes ? "" : a.text) !== (b.boxes ? "" : b.text)) return false;
+  const one = a.boxes ?? {};
+  const other = b.boxes ?? {};
+  return [...new Set([...Object.keys(one), ...Object.keys(other)])].every((id) => (one[id] ?? "") === (other[id] ?? ""));
 }
 
 /**
  * THE LINES A CHANGE AT `now` CROSSES: what an earlier version is kept for,
  * or nothing. `dueAt` is the start of the session the person is due at that
  * week (null with none); `reviewedSavedAt` the mark of the version feedback
- * or a rating was last about (from their `courseWeekWork` record), or null.
+ * was last about (from their `courseWeekWork` record), or null.
  * Only a piece with words saved before has anything to keep.
  */
 export function versionOwed(input: {
@@ -202,7 +213,7 @@ export function versionOwed(input: {
   // The first change after a send, before the session: the version as last sent.
   const sent = lastSentAt(prior);
   if (!started && sent !== null && saved <= sent.getTime()) reasons.push("sent");
-  // The first change after feedback or a rating on these very words.
+  // The first change after feedback on these very words.
   if (reviewedSavedAt !== null && reviewedSavedAt.getTime() >= saved) reasons.push("reviewed");
   return reasons;
 }
@@ -263,6 +274,59 @@ export function sessionStartedAt(dueAt: Date | null, now: Date): boolean {
 }
 
 /**
+ * The kept version whose words were sent most recently, by the send's own
+ * time (`sentAt`, the database's), the later in the list on a tie; null when
+ * no kept version was ever sent.
+ */
+function newestSentVersion(piece: PieceFacts): (EarlierVersion & { sentAt: Date }) | null {
+  let found: (EarlierVersion & { sentAt: Date }) | null = null;
+  for (const version of piece.earlierVersions) {
+    if (version.sentAt === null) continue;
+    if (found === null || version.sentAt.getTime() >= found.sentAt.getTime()) found = version as EarlierVersion & { sentAt: Date };
+  }
+  return found;
+}
+
+/**
+ * A WRITTEN ANSWER'S WORDS AS LAST SENT, or null when no words of it can be
+ * shown to have been sent. Decided only by the database's own times: when the
+ * words were saved (`savedAt`, the row's `updatedAt`) and when they were sent
+ * (`sentAt`, `firstSentAt`, and a kept version's `sentAt`). Never by a kept
+ * version's `replacedAt`, which is the clock of the route that kept it, read
+ * before its transaction: a save started before a Send that commits first
+ * writes after it, so its kept version can be dated before the send it was
+ * kept for.
+ *
+ *  - Never sent: null.
+ *  - Changed since the last send (saved after it, or the words sent then kept
+ *    as an earlier version, which only a change does): the newest kept
+ *    version that was sent. The first change after a send keeps it.
+ *  - Nothing changed since the last send: the latest words.
+ *  - Changed since, and no kept version was ever sent (a row changed after its
+ *    send before earlier versions were kept, or whose version gave way at the
+ *    cap): null. Its readers see only that it is started, and never words that
+ *    were not sent.
+ *
+ * `alsoSentAt` is a send the row does not record: the week's old Submit,
+ * which before the week stayed open sent the words standing when it was
+ * pressed and stamped only an answer's first send (the weekly notes pass when
+ * it was last pressed). It counts only for an answer the row says was sent.
+ */
+export function answerAsLastSent(piece: PieceFacts | null, alsoSentAt: Date | null = null): ReadVersion | null {
+  if (!piece) return null;
+  const recorded = lastSentAt(piece);
+  if (recorded === null) return null;
+  const sent = alsoSentAt !== null && alsoSentAt.getTime() > recorded.getTime() ? alsoSentAt : recorded;
+  const keptAsSent = newestSentVersion(piece);
+  const changedSinceSent =
+    (piece.savedAt !== null && piece.savedAt.getTime() > sent.getTime()) ||
+    (keptAsSent !== null && keptAsSent.sentAt.getTime() >= sent.getTime());
+  if (!changedSinceSent) return latestOf(piece);
+  // Never the latest words here: they were saved after the last send.
+  return keptAsSent ? readOf(keptAsSent) : null;
+}
+
+/**
  * THE ONE ANSWER TO WHICH OF A WRITTEN ANSWER'S WORDS ITS READERS MAY READ
  * (privacy v17, "Changing your work": "A written answer is yours until you
  * send it ... Once the session it's due at has started, they may read what
@@ -271,22 +335,17 @@ export function sessionStartedAt(dueAt: Date | null, now: Date): boolean {
  * answer asks it (`tests/course-written-answer-readers.test.mjs`).
  *
  *  - Once the session the person is due at has started: the latest words.
- *  - Before it, or with no such session: the words as LAST SENT. A send keeps
- *    them current; the first change after it keeps them as an earlier
- *    version (`sent`), which is read until the answer is sent again. An
- *    answer sent and changed before earlier versions were kept has no such
- *    version, and its latest words are read, as they always were.
+ *  - Before it, or with no such session: the words as LAST SENT
+ *    (`answerAsLastSent`). A send keeps them current; the first change after
+ *    it keeps them as an earlier version (`sent`), which is read until the
+ *    answer is sent again. An answer changed since its send with no version
+ *    kept as sent is read as not sent: only that it is started.
  *  - Never sent, before the session: nothing.
  */
 export function readableAnswer(piece: PieceFacts | null, dueAt: Date | null, now: Date): ReadVersion | null {
   if (!piece) return null;
   if (sessionStartedAt(dueAt, now)) return latestOf(piece);
-  const sent = lastSentAt(piece);
-  if (sent === null) return null;
-  // The newest version kept as sent, when it was replaced after the last send: the words as last sent.
-  const keptAsSent = [...piece.earlierVersions].reverse().find((version) => version.reasons.includes("sent")) ?? null;
-  if (keptAsSent && keptAsSent.replacedAt.getTime() > sent.getTime()) return readOf(keptAsSent);
-  return latestOf(piece);
+  return answerAsLastSent(piece);
 }
 
 /**

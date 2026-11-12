@@ -24,6 +24,7 @@ import {
   WHAT_THE_TEAM_SAID,
   WHO_READS_RATINGS,
   YOUR_RATING,
+  changedSinceRatingWords,
   clearConfirmWords,
   neverShownWords,
   outOfTenWords,
@@ -46,8 +47,8 @@ import styles from "./workRatings.module.css";
  * number from 1 to 10 (ten radio buttons, each a 44px target) and a comment
  * for the team, both needed before it saves, changed by saving again and
  * cleared with a confirm. "What the team said" lists every rating on the
- * answer, oldest first, the reader's own among them, or says the reader has
- * not rated it yet. Nothing is emailed, and the person never sees any of it.
+ * answer, oldest first, the reader's own among them, each saying when the
+ * answer has changed since it, or says the reader has not rated it yet. Nothing is emailed, and the person never sees any of it.
  *
  * Every write goes through `/api/courses/runs/[runId]/work-ratings`, which
  * asks the gate again. Nothing here takes a press until React has the page;
@@ -71,7 +72,7 @@ export default function RatingForTheTeam({
   return (
     <>
       <YourRating runId={runId} uid={uid} firstName={firstName} weekNumber={weekNumber} team={team} />
-      <WhatTheTeamSaid team={team} />
+      <WhatTheTeamSaid team={team} firstName={firstName} />
     </>
   );
 }
@@ -232,7 +233,7 @@ function YourRating({ runId, uid, firstName, weekNumber, team }: { runId: string
 }
 
 /** Every rating on the answer, oldest first, or that the reader has not rated it yet. */
-function WhatTheTeamSaid({ team }: { team: TeamRatingsView }) {
+function WhatTheTeamSaid({ team, firstName }: { team: TeamRatingsView; firstName: string }) {
   const id = useId();
   return (
     <section className={styles.card} aria-labelledby={`${id}-said`}>
@@ -241,7 +242,7 @@ function WhatTheTeamSaid({ team }: { team: TeamRatingsView }) {
       </h2>
       <ul className={styles.said} role="list">
         {team.said.map((row) => (
-          <SaidRow key={row.raterUid} row={row} />
+          <SaidRow key={row.raterUid} row={row} firstName={firstName} />
         ))}
         {!team.mine && (
           <li className={styles.saidRow}>
@@ -257,7 +258,7 @@ function WhatTheTeamSaid({ team }: { team: TeamRatingsView }) {
   );
 }
 
-function SaidRow({ row }: { row: TeamRatingRow }) {
+function SaidRow({ row, firstName }: { row: TeamRatingRow; firstName: string }) {
   const day = saidDayWords(row.at, row.changedAt);
   return (
     <li className={styles.saidRow}>
@@ -268,6 +269,7 @@ function SaidRow({ row }: { row: TeamRatingRow }) {
         {day && <span className={styles.saidDay}>{day}</span>}
       </p>
       <p className={styles.saidComment}>“{row.comment}”</p>
+      {row.changedSince && <p className={styles.meta}>{changedSinceRatingWords(firstName)}</p>}
     </li>
   );
 }

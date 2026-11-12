@@ -27,7 +27,7 @@ export type { DueBy, WeekDue };
  *    the one answer). Reflections and fill-in boxes are read as they are
  *    typed, as v17 says, and are not asked about.
  *  - EARLIER VERSIONS are kept at the first change after the session, after a
- *    send before it, and after feedback or a rating (`./versions.ts`).
+ *    send before it, and after feedback (`./versions.ts`).
  *
  * DONE (`weekDone`): every tick This week's tasks count is ticked, the
  * person's own pack among them, and either the week was submitted under the

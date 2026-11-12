@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
-import { feedbackRefusalFor, feedbackStandingIn, feedbackWeekOf, stampReviewed } from "@/lib/courses/feedback/access";
+import { feedbackRefusalFor, feedbackStandingIn, feedbackWeekOf } from "@/lib/courses/feedback/access";
 import { workRatingGate } from "@/lib/courses/workRatings/access";
 import {
   ANSWER_EMPTY,
@@ -45,6 +45,13 @@ import { programmeLabelOf } from "@/lib/memberNotes/words";
  * Only the week's written answer, only once its readers may read it, and only
  * with words in it, asked inside the save's transaction with where the week
  * stands. A rating is kept when its week is reopened, as feedback is.
+ *
+ * WHICH VERSION: a rating stores the mark of the version its readers read
+ * when it was saved (`aboutSavedAt`), and nothing else: unlike feedback it
+ * stamps nothing on the person's week, so the answer's next change keeps no
+ * version for it. That version would sit on the answer's own row, which its
+ * writer reads, and tell them a rating exists. When the answer has changed
+ * since, the review page tells staff so (`teamRatingsOf`).
  *
  * View-as is refused first, so a view-as session never rates in the member's
  * name. Every refusal before the gate has passed says nothing about whose
@@ -157,9 +164,10 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string }
       ]);
       const refusal = feedbackRefusalFor("writtenAnswer", standing, { notReadable: NOT_READABLE_YET, answerEmpty: ANSWER_EMPTY });
       if (refusal) throw new RatingError(refusal, 409);
-      // Which version it is about, kept by the answer's next change.
+      // Which version it is about. Nothing is stamped on the week: a version
+      // kept for a rating would sit on the answer's own row, which its writer
+      // reads, and say a rating exists. Staff are told when it has changed since.
       const about = standing.read;
-      if (about) stampReviewed(tx, db, { runId, uid: week.uid, weekId: week.weekId, weekNumber: week.weekNumber, itemId, read: about });
       const said = {
         itemId,
         rating,

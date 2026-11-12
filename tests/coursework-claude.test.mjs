@@ -298,14 +298,16 @@ describe("Claude drafts a note from the weeks somebody submitted, with no name, 
   // v15): only weeks submitted and not reopened since, only work written after
   // the person agreed to version 15. Amara agrees to it on Thu 5 Nov.
   const agreeToV15 = (uid) => w.world.db.poke(`users/${uid}`, { policyVersion: "terms.1+privacy.15", policyAgreedAt: new Date("2026-11-05T09:00:00Z") });
+  // Submitted after the week's reflections were last saved (Sun 15 Nov), as a Submit always was before the
+  // week stayed open: a note leaves out anything saved after the week's Submit.
   const submitWeek3 = (uid) =>
     w.world.db.seed(`courseWeekWork/${RUN.agi}__${uid}__w03`, {
       runId: RUN.agi,
       uid,
       weekId: "w03",
       weekNumber: 3,
-      submittedAt: new Date("2026-11-11T20:00:00Z"),
-      firstSubmittedAt: new Date("2026-11-11T20:00:00Z"),
+      submittedAt: new Date("2026-11-16T20:00:00Z"),
+      firstSubmittedAt: new Date("2026-11-16T20:00:00Z"),
       submitCount: 1,
     });
 

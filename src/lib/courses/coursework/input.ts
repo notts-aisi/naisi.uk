@@ -75,6 +75,12 @@ export type CourseworkAnswer = {
    * the week review sends work only from its writer's version 15 moment.
    */
   firstWrittenAt?: Date | null;
+  /**
+   * A reflection's or a fill-in box's last save (its row's `updatedAt`), for
+   * the weekly notes, which leave out one saved after the week's Submit; null
+   * for a written answer, whose words are the version `loadAnswers` read.
+   */
+  savedAt?: Date | null;
   /** A written answer's feedback, as levels only. */
   levels: Array<{ row: string; level: string }>;
 };

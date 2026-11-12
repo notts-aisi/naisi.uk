@@ -173,7 +173,7 @@ export function assertWeekTakesWork(state: WeekWorkState): void {
  * WHAT A CHANGE TO A PIECE KEEPS (`./versions.ts`): the row's list of earlier
  * versions with the version this change replaces added, when the change is
  * the first after the session started, after a send before it, or after
- * feedback or a rating on these words (`reviewed`); null when it keeps nothing new. Asked
+ * feedback on these words (`reviewed`); null when it keeps nothing new. Asked
  * inside the save's transaction with the row as it stood and the week's
  * record (`reviewedVersions`).
  */

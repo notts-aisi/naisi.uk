@@ -90,8 +90,9 @@ import { readReportLinesAbout } from "../sessionReports/readers";
  *
  * RATINGS FOR THE TEAM (`src/lib/courses/workRatings/`, privacy v15): the
  * person open on the page carries every rating on their answer, and the
- * reader's own, only for a reader who gives and reads them (an admin, or the
- * programme's lead: `mayRateWorkOf`). For anybody else, a facilitator above
+ * reader's own, each saying whether the answer has changed since it, only
+ * for a reader who gives and reads them (an admin, or the programme's lead:
+ * `mayRateWorkOf`). For anybody else, a facilitator above
  * all, `team` is null and no rating is read. Pangram's last reading of the
  * answer is read for an admin alone (`pangram`), never for the lead.
  *
@@ -170,7 +171,6 @@ export type ReviewSelected = {
   text: string;
   /** An answer in labelled boxes, box id to words, or null, as its readers read it. */
   boxes: Record<string, string> | null;
-  editedAt: string | null;
   /** ISO 8601: when the words shown were last saved; `latest` when they are the answer's latest words. */
   shown: { savedAt: string | null; latest: boolean };
   /** The answer as it stood when the session started, when that differs from the words shown; null otherwise. */
@@ -455,6 +455,8 @@ export async function loadWrittenReview(
             weekId,
             itemId: answer.id,
             viewer: { uid: actor.uid, role: workRatingRoleOf(facts) },
+            // For whether the answer has changed since each rating.
+            answer: piece,
           })
         : Promise.resolve(null),
       facts.isAdmin && record
@@ -475,7 +477,6 @@ export async function loadWrittenReview(
       person: chosen,
       text: shown?.text ?? "",
       boxes: shown?.boxes ?? null,
-      editedAt: record?.editedAt ? record.editedAt.toISOString() : null,
       shown: { savedAt: shown?.savedAt ? shown.savedAt.toISOString() : null, latest: shown?.latest ?? false },
       atSession:
         atSession && shown && !sameWords(atSession, shown)

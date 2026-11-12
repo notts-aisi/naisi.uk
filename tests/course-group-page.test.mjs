@@ -302,7 +302,7 @@ describe("1. the arithmetic of a group's page", () => {
     assert.equal(model.lateFromLine(2, { before: null, after: null }), "");
     assert.equal(model.LATE_FROM, "Late from");
     for (const line of [model.lateFromLine(2, { before: "2026-11-11T15:00:00Z", after: "2026-11-12T15:00:00Z" }), model.LATE_FROM]) {
-      assert.doesNotMatch(line, /\block|[–—]/i, line);
+      assert.doesNotMatch(line, /\block|[\u2013\u2014]/i, line);
     }
   });
 

@@ -1240,7 +1240,7 @@ describe("6. finishing's column, the rubric's setting, the email", () => {
     );
     // An answer never sent, read because the session it was due at started before it was sent.
     assert.equal(said.listReadSinceWords(at), "Not sent, read since the session, Mon 16 Nov, 10:42pm");
-    assert.doesNotMatch(said.listReadSinceWords(at), /Locked|exercise|[–—]/i);
+    assert.doesNotMatch(said.listReadSinceWords(at), /Locked|exercise|[\u2013\u2014]/i);
     // Nothing the written answer says is submitted, locked or reopened any more.
     assert.equal(said.NOBODY_SENT_YET, "Nobody has sent this week’s written answer yet.");
     for (const value of Object.values(said)) {

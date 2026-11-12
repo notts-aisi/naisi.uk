@@ -77,6 +77,11 @@ export function saidDayWords(at: string | null, changedAt: string | null): strin
   return when ? londonDayLabel(new Date(when)) : "";
 }
 
+/** Under a rating whose answer has changed since: "Sofia’s answer has changed since this rating." */
+export function changedSinceRatingWords(firstName: string): string {
+  return `${firstName ? `${firstName}’s answer` : "The answer"} has changed since this rating.`;
+}
+
 // ---------------------------------------------------------------------------
 // The Pangram chip beside the answer, for an admin alone
 // ---------------------------------------------------------------------------

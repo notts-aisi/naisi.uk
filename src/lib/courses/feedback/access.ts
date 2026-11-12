@@ -52,7 +52,9 @@ import { answerPiece, isWordCountedAnswer, readWrittenAnswer, type WrittenAnswer
  * a piece on the written answer stores the mark of the version its readers
  * read when it was saved (`aboutSavedAt`), and the save stamps that mark on
  * the person's week record (`reviewedVersions`), so the first change after it
- * keeps those words. Ratings for the team do the same.
+ * keeps those words. A rating for the team stores its own pointer the same
+ * way and stamps nothing: a version kept for it would land on the answer's
+ * own row, which its writer can read.
  */
 
 /** Why the gate refused: one answer each, so a refusal never says whose work exists. */
@@ -197,10 +199,10 @@ export function feedbackRefusalFor(
 }
 
 /**
- * THE MARK A REVIEW STAMPS (feedback on a written answer, or a rating): on
- * the person's week record, the version of the answer `itemId` that was read
- * when it was saved, so the first change after it keeps those words. Inside
- * the save's transaction, after its reads.
+ * THE MARK FEEDBACK ON A WRITTEN ANSWER STAMPS: on the person's week record,
+ * the version of the answer `itemId` that was read when it was saved, so the
+ * first change after it keeps those words. Inside the save's transaction,
+ * after its reads. Never a rating's: its writer would see the version kept.
  */
 export function stampReviewed(
   tx: Transaction,

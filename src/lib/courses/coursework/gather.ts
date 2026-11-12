@@ -9,7 +9,7 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { courseworkCountsFrom, rowCountsFrom } from "@/lib/legal/courseworkUse";
 import { readRunForWork } from "@/lib/courses/weekWork/own";
 import { loadRunWeekStates } from "@/lib/courses/weekWork/readers";
-import { lastSentAt, readableAnswer, type ReadVersion } from "@/lib/courses/weekWork/versions";
+import { answerAsLastSent, lastSentAt, readableAnswer, type ReadVersion } from "@/lib/courses/weekWork/versions";
 import { namesToScrubOf } from "@/lib/names/scrub";
 import { writtenAnswerWords, type CourseworkAnswer, type CourseworkQuestion, type CourseworkWeek } from "./input";
 
@@ -34,7 +34,10 @@ import { writtenAnswerWords, type CourseworkAnswer, type CourseworkQuestion, typ
  * last sent; once it has started, the latest words, sent or not; never sent,
  * before it, not at all. The session each writer is due at is read once for
  * the run (`loadRunWeekStates`). Reflections and fill-in boxes are read as
- * typed, as v17 says, from each writer's coursework-use moment.
+ * typed, as v17 says, from each writer's coursework-use moment. The weekly
+ * notes ask for every written answer AS LAST SENT, whatever the session
+ * (`asLastSent`, privacy v17's "using only the work they submitted"), and
+ * leave out themselves what was saved after a week's Submit (`savedAt`).
  *
  * Every query is one equality on one field (`runId`, or `uid` for one
  * person), filtered in memory, so nothing needs a declared index.
@@ -165,12 +168,19 @@ function rowFits(question: CourseworkQuestion, data: Raw, readOf: (data: Raw) =>
  * row is there), each marked whether it counts. One read of the rows (one
  * equality on `runId`, or on `uid` when there is one writer), one `getAll` of
  * the writers' accounts.
+ *
+ * `options.asLastSent`: read every written answer as LAST SENT
+ * (`answerAsLastSent`), never as its readers read it once the session has
+ * started, which is the latest words, sent or not. It answers when the writer
+ * last pressed the week's old Submit (null if never), which sent the words
+ * then standing. The weekly notes' reader; no session is read for it.
  */
 export async function loadAnswers(
   db: Firestore,
   runId: string,
   weeks: readonly CourseworkWeek[],
   writers: ReadonlySet<string> | null,
+  options: { asLastSent?: (uid: string, weekId: string) => Date | null } = {},
 ): Promise<CourseworkAnswer[]> {
   const only = writers && writers.size === 1 ? [...writers][0] : null;
   const [snap, run, groupSnap] = await Promise.all([
@@ -184,14 +194,17 @@ export async function loadAnswers(
   const liveGroups = groupSnap.docs
     .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
     .filter((group) => !group.archived && group.runId === runId);
+  const asLastSent = options.asLastSent ?? null;
   // Where each writer's week stands, for whether their written answer may be read.
-  const states = run ? await loadRunWeekStates(db, { run, liveGroups, now: new Date() }) : null;
+  const states = run && !asLastSent ? await loadRunWeekStates(db, { run, liveGroups, now: new Date() }) : null;
   const now = new Date();
   /** The words of a written answer its readers may read (the one answer), or null. With no run, only words sent. */
   const readOf = (data: Raw): ReadVersion | null => {
     const uid = typeof data.uid === "string" ? data.uid : "";
     const weekNumber = typeof data.weekNumber === "number" ? data.weekNumber : 0;
     const piece = answerPiece(readWrittenAnswer(data));
+    // The weekly notes: as last sent, whatever the session, never a change not sent.
+    if (asLastSent) return answerAsLastSent(piece, asLastSent(uid, typeof data.weekId === "string" ? data.weekId : ""));
     if (!states) return lastSentAt(piece) !== null ? readableAnswer(piece, null, now) : null;
     return readableAnswer(piece, states.dueOf(uid, weekNumber).at, now);
   };
@@ -231,6 +244,7 @@ export async function loadAnswers(
         counted: rowCountsFrom(row.data, fromOf.get(row.uid) ?? null),
         agreed: (fromOf.get(row.uid) ?? null) !== null,
         firstWrittenAt: instantOf(row.data.firstWrittenAt),
+        savedAt: row.question.kind === "written" ? null : instantOf(row.data.updatedAt),
         levels: written?.feedback ? written.feedback.levels.map((level) => ({ row: level.row, level: level.level })) : [],
       };
     })
