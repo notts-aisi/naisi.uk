@@ -2854,7 +2854,10 @@ the week changed after it was read.
 
 **Destroying a run** drains each week's history and lock week by week before
 the weeks (Firestore keeps a subcollection when its parent is deleted), and
-the manifest counts both (`weekHistory`, `weekEditLocks`). Archiving deletes
+the manifest counts both (`weekHistory`, `weekEditLocks`). It walks every
+week id a plan can have (w01 to w60) as well as the week documents, because a
+lock is taken on a planned week nobody has opened and renumbering a run's
+weeks deletes week documents and leaves their history. Archiving deletes
 nothing. A run being destroyed refuses every save.
 
 **The pages** (`src/features/applications/weeks/edit/`, on a programme's

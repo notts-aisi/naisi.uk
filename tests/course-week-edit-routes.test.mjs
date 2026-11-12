@@ -647,6 +647,33 @@ describe("6. a run's destroy counts and deletes each week's history and lock", (
     assert.deepEqual(world.db.paths().filter((path) => path.startsWith(`courseRuns/${RUN.agi}/`)), []);
   });
 
+  test("history and a lock under a week with no document are counted and drained too", async () => {
+    seedWeek();
+    // A lock taken on a planned week nobody has opened (no document), and the
+    // history left under a week whose document a renumbering deleted.
+    await world.db.collection("courseRuns").doc(RUN.agi).collection("weeks").doc("w05").delete();
+    const hold = await ask("claudia", R.lock.POST, { runId: RUN.agi, weekId: "w05" });
+    assert.equal(hold.status, 200, JSON.stringify(hold.body));
+    assert.equal(world.db.read(`courseRuns/${RUN.agi}/weeks/w05`) ?? null, null, "week 5 has no document");
+    await change("zach", "src-1", { title: "Base rates, a field guide" });
+    for (const path of world.db.paths().filter((p) => p.startsWith(`${W3}/history/`))) {
+      world.db.seed(path.replace("/weeks/w03/", "/weeks/w12/"), world.db.read(path));
+    }
+    world.db.seed(`courseRuns/${RUN.agi}/weeks/w12/editLock/current`, { holderUid: "zach", since: NOW, keptAt: NOW, runId: RUN.agi, weekId: "w12" });
+    assert.equal(world.db.read(`courseRuns/${RUN.agi}/weeks/w12`) ?? null, null, "week 12 has no document");
+    world.db.poke(`courseRuns/${RUN.agi}`, { status: "completed" });
+    const courseDeletion = await loadTs(join("lib", "firestore", "courseDeletion.ts"));
+    const { normalizeCourseRun } = await loadTs(join("lib", "firestore", "courses.ts"));
+    const db = counting(world.courseDb);
+    const counts = await courseDeletion.countRunDestroyTargets(db, normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`)));
+    assert.equal(counts.weekHistory, 4, "week 3's two saves and week 12's two");
+    assert.equal(counts.weekEditLocks, 2, "week 5's hold and week 12's");
+    const result = await courseDeletion.destroyRunCascade(db, null, RUN.agi, { actorUid: "zach", actorName: "Zach Levin" });
+    assert.equal(result.deleted.weekHistory, 4, JSON.stringify(result));
+    assert.equal(result.deleted.weekEditLocks, 2);
+    assert.deepEqual(world.db.paths().filter((path) => path.startsWith(`courseRuns/${RUN.agi}/`)), []);
+  });
+
   test("a run being destroyed is no run to edit: nothing is written behind the cascade", async () => {
     seedWeek();
     const item = await itemOf("zach", "src-1");

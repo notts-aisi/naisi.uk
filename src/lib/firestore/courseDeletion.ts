@@ -8,9 +8,11 @@ import {
 } from "firebase-admin/firestore";
 import type { Storage } from "firebase-admin/storage";
 import {
+  COURSE_FIELD_LIMITS,
   courseRunChannel,
   normalizeCourse,
   normalizeCourseRun,
+  weekDocId,
   type CourseDoc,
   type CourseRunDoc,
 } from "./courses";
@@ -1230,10 +1232,21 @@ async function releaseAdmissionSeats(
  * filters served by automatic single-field indexes / index merging — no
  * composite indexes were needed.
  */
-/** The ids of a run's week documents: the parents of the history and lock records. */
+/**
+ * Every week id a history or lock record can sit under, WHETHER OR NOT ITS
+ * DOCUMENT EXISTS: the run's week documents, and every id a week of a plan
+ * can have (`weekDocId(1)` to `weekDocId(60)`, a plan's most). A lock is taken
+ * on a planned week nobody has opened yet, and renumbering a run's weeks
+ * deletes week documents and leaves the records under them, so a walk of the
+ * documents alone would leave those records behind. The editing routes write
+ * only under a week that exists or is in the plan, so nothing sits anywhere
+ * else.
+ */
 async function runWeekIds(db: Firestore, runId: string): Promise<string[]> {
   const snap = await db.collection("courseRuns").doc(runId).collection("weeks").select().get();
-  return snap.docs.map((doc) => doc.id);
+  const ids = new Set(snap.docs.map((doc) => doc.id));
+  for (let n = 1; n <= COURSE_FIELD_LIMITS.maxWeekPlanEntries; n += 1) ids.add(weekDocId(n));
+  return [...ids].sort();
 }
 
 /**
