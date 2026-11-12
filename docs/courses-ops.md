@@ -2422,7 +2422,7 @@ Nothing on any page changes a finished register without asking why.
   facilitators it is "Ask for a correction" with the same choices and why,
   saying where it goes; a line with an ask waiting says what was asked and
   when, with "Withdraw the correction", and a decided ask says "Corrected by
-  Zach at 10:05am, as you asked" or the decline with its reply (the reply only
+  Sam at 10:05am, as you asked" or the decline with its reply (the reply only
   to the person who asked). A corrected line opens to its story. Under each
   finished line a word says "Corrected", "Asked" or "Declined". The column's
   head carries "Correct week N's whole column" (or "Week N did happen" for a

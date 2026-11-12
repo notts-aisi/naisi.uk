@@ -109,12 +109,12 @@ describe("1. the words", () => {
       P.requestLine({ ...waiting, yours: false, handling: { name: "Claudia Ward" } }, SAME_DAY),
       "Rahul asked for In the room at 9:40am. Waiting for an admin or the programme’s lead. Claudia has it.",
     );
-    const approved = { ...waiting, state: "approved", decidedBy: { name: "Zach Levin" }, decidedAt: DECIDED };
-    assert.equal(P.requestLine(approved, SAME_DAY), "Corrected by Zach at 10:05am, as you asked.");
-    const declined = { ...waiting, state: "declined", decidedBy: { name: "Zach Levin" }, decidedAt: DECIDED, reply: "Daniel left at 3pm." };
-    assert.equal(P.requestLine(declined, SAME_DAY), "Your ask for In the room was declined by Zach at 10:05am: “Daniel left at 3pm.”");
+    const approved = { ...waiting, state: "approved", decidedBy: { name: "Sam Okafor" }, decidedAt: DECIDED };
+    assert.equal(P.requestLine(approved, SAME_DAY), "Corrected by Sam at 10:05am, as you asked.");
+    const declined = { ...waiting, state: "declined", decidedBy: { name: "Sam Okafor" }, decidedAt: DECIDED, reply: "Daniel left at 3pm." };
+    assert.equal(P.requestLine(declined, SAME_DAY), "Your ask for In the room was declined by Sam at 10:05am: “Daniel left at 3pm.”");
     // Another facilitator is never sent the reply, so the line says none.
-    assert.equal(P.requestLine({ ...declined, yours: false, reply: undefined }, SAME_DAY), "Rahul’s ask for In the room was declined by Zach at 10:05am.");
+    assert.equal(P.requestLine({ ...declined, yours: false, reply: undefined }, SAME_DAY), "Rahul’s ask for In the room was declined by Sam at 10:05am.");
     assert.equal(P.cellChip({ corrected: false, request: waiting }), "Asked");
     assert.equal(P.cellChip({ corrected: true, request: approved }), "Corrected");
     assert.equal(P.cellChip({ corrected: false, request: declined }), "Declined");
@@ -126,7 +126,7 @@ describe("1. the words", () => {
       kind: "line",
       before: "Absent",
       beforeSetBy: { name: "Rahul Mehta", at: "2026-11-04T15:06:00.000Z" },
-      correctedBy: { name: "Zach Levin" },
+      correctedBy: { name: "Sam Okafor" },
       correctedAt: DECIDED,
       reason: "Daniel was there all session.",
       movedFrom: null,
@@ -134,7 +134,7 @@ describe("1. the words", () => {
     };
     assert.equal(
       P.storyWords(story),
-      "Was Absent, set by Rahul, Wed 4 Nov, 3:06pm. Rahul asked, Tue 10 Nov, 9:40am. Corrected by Zach, Tue 10 Nov, 10:05am. Why: “Daniel was there all session.”",
+      "Was Absent, set by Rahul, Wed 4 Nov, 3:06pm. Rahul asked, Tue 10 Nov, 9:40am. Corrected by Sam, Tue 10 Nov, 10:05am. Why: “Daniel was there all session.”",
     );
     const { reason: _gone, ...unsent } = story;
     assert.doesNotMatch(P.storyWords(unsent), /Why/, "a story says why with no reason sent");
@@ -182,8 +182,8 @@ describe("1. the words", () => {
     const row = { group: { name: "Group F" }, weekNumber: 1, occurrence: 1, subject: { name: "Kwame Asante" }, from: "Arrived late, in the room", to: "In the room" };
     assert.equal(P.requestAbout(row), "Group F, week 1: Kwame Asante, Arrived late, in the room to In the room");
     assert.equal(P.handlingWords(null, false), "Nobody has it yet");
-    assert.equal(P.handlingWords({ name: "Zach Levin" }, false), "Zach has it");
-    assert.equal(P.handlingWords({ name: "Zach Levin" }, true), "You have it");
+    assert.equal(P.handlingWords({ name: "Sam Okafor" }, false), "Sam has it");
+    assert.equal(P.handlingWords({ name: "Sam Okafor" }, true), "You have it");
     assert.deepEqual(
       ["waiting", "handling", "approved", "declined", "withdrawn"].map(P.stateChip),
       ["Waiting", "Being handled", "Approved", "Declined", "Withdrawn"],
@@ -258,7 +258,7 @@ describe("2. the pages, drawn", () => {
     const view = {
       viewer: "admin",
       counts: { waiting: 1, handling: 1, doneThisWeek: 0 },
-      rows: [ROW, { ...ROW, id: "req2", state: "handling", handling: { uid: "zach", name: "Zach Levin", at: DECIDED }, programme: { roundId: "r1", programmeId: "tas", name: "Technical AI Safety" }, runId: "run2" }],
+      rows: [ROW, { ...ROW, id: "req2", state: "handling", handling: { uid: "zach", name: "Sam Okafor", at: DECIDED }, programme: { roundId: "r1", programmeId: "tas", name: "Technical AI Safety" }, runId: "run2" }],
       weekStartsAt: "2026-11-09T00:00:00.000Z",
     };
     const drawn = draw(RequestsList, { view });
@@ -267,7 +267,7 @@ describe("2. the pages, drawn", () => {
     }
     assert.ok(drawn.html.includes('href="/admin/admissions/requests/req1"'), "a row does not open its request");
     // Being handled is its own view: not drawn in Waiting.
-    assert.ok(!drawn.text.includes("Zach has it"), "a request being handled is listed under Waiting");
+    assert.ok(!drawn.text.includes("Sam has it"), "a request being handled is listed under Waiting");
     assert.doesNotMatch(drawn.text, /email me|access needs/i, "the page offers something that is not built");
 
     // A lead: their own programme's, no filter by programme.

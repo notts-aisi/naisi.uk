@@ -200,8 +200,8 @@ export type StoryView = {
 /**
  * The line beside a line with an ask on it.
  *  - waiting: "You asked for In the room at 9:40am. Waiting for an admin or the programme’s lead."
- *  - approved: "Corrected by Zach at 10:05am, as you asked."
- *  - declined: "Declined by Zach at 10:05am: “Daniel left at 3pm.”" (the reply only when the reader is sent it)
+ *  - approved: "Corrected by Sam at 10:05am, as you asked."
+ *  - declined: "Declined by Sam at 10:05am: “Daniel left at 3pm.”" (the reply only when the reader is sent it)
  */
 export function requestLine(request: RequestView, now: Date): string {
   const asker = request.yours ? "You" : firstOf(request.askedBy.name) || "Somebody";
@@ -229,7 +229,7 @@ export function cellChip(input: { corrected: boolean; request: RequestView | nul
 /**
  * A corrected line's story, in the order it happened:
  * "Was Absent, set by Rahul, Wed 4 Nov, 3:06pm. Rahul asked on Tue 10 Nov at
- * 9:40am. Corrected by Zach, Tue 10 Nov, 10:05am. Why: “...”"
+ * 9:40am. Corrected by Sam, Tue 10 Nov, 10:05am. Why: “...”"
  * The reason only when the reader is sent it.
  */
 export function storyWords(story: StoryView, sessionLabelOf: (key: string) => string = (key) => key): string {
@@ -517,7 +517,7 @@ export function requestAbout(row: { group: { name: string }; weekNumber: number;
   return `${row.group.name}, ${week}: ${row.subject.name}, ${row.from} to ${row.to}`;
 }
 
-/** Who has a request: "Nobody has it yet", "You have it", "Zach has it". */
+/** Who has a request: "Nobody has it yet", "You have it", "Sam has it". */
 export function handlingWords(handling: { name: string } | null, mine: boolean): string {
   if (!handling) return NOBODY_HAS_IT;
   return mine ? "You have it" : `${firstOf(handling.name) || "Somebody"} has it`;
