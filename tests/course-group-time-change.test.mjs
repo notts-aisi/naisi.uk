@@ -1057,3 +1057,85 @@ describe("10. planRegularChange: which earlier weeks are pinned, and to what", (
     assert.equal(plan({ storedOverrideWeekIds: [...stored(17), "w01"] }).ok, true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 11. A cover does not ride along when its session moves
+// ---------------------------------------------------------------------------
+
+describe("11. a cover does not ride along when its session moves", () => {
+  const AT = new Date("2026-11-19T09:00:00Z");
+  /** Week n's register holds only a cover: Claudia was given it by Zach, and Rahul is recorded not there. */
+  const givenOn = (n) =>
+    world.db.seed(registerPath(n), {
+      runId: RUN.agi,
+      groupId: B,
+      weekNumber: n,
+      occurrence: 1,
+      records: { amara: "excused" },
+      excusedInAdvance: { amara: AT },
+      setBy: { amara: { byUid: "amara", at: AT, how: "self" } },
+      cover: { kind: "given", byUid: "claudia", at: AT, covering: ["rahul", "sofia"], grantedByUid: "zach", grantedAt: AT, until: new Date("2026-11-25T00:00:00Z") },
+      facilitatorRecord: {
+        rahul: { state: "not-there", byUid: "zach", at: AT, how: "cover" },
+        sofia: { state: "there", byUid: "zach", at: AT, how: "changed" },
+      },
+    });
+  const coverGone = (n) => {
+    const doc = world.db.read(registerPath(n));
+    assert.equal(doc.cover, undefined, `week ${n}'s cover rode along`);
+    assert.equal(doc.facilitatorRecord?.rahul, undefined, `week ${n}'s cover's entry rode along`);
+    assert.equal(doc.facilitatorRecord?.sofia?.how, "changed", "an entry the cover did not write went too");
+    assert.deepEqual(doc.records, { amara: "excused" }, "what somebody said in advance went");
+  };
+  const SAID = "Claudia was covering week 4 at its old time, so that cover is taken off.";
+
+  test("moved for one week: the cover and its entries go in the same write, and the history row says who was covering", async () => {
+    givenOn(4);
+    const response = await ask.change("claudia", B, silently({ week: 4, dateKey: TUE_24, kind: "move", move: { dateKey: "2026-11-25", time: "6pm", room: "Hallward B12" } }));
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    coverGone(4);
+    const [row] = auditRows("session-moved");
+    assert.ok(row.detail.endsWith(SAID), row.detail);
+  });
+
+  test("pushed back: every later week's cover goes, named in the row", async () => {
+    givenOn(5);
+    const response = await ask.change("claudia", B, silently({ week: 4, dateKey: TUE_24, kind: "push" }));
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    coverGone(5);
+    assert.ok(auditRows("session-pushed")[0].detail.endsWith("Claudia was covering week 5 at its old time, so that cover is taken off."));
+  });
+
+  test("cancelled, keeping pace: nothing moves, so the cover stays", async () => {
+    givenOn(4);
+    const response = await ask.change("claudia", B, silently({ week: 4, dateKey: TUE_24, kind: "cancel" }));
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.equal(world.db.read(registerPath(4)).cover.byUid, "claudia");
+    assert.equal(world.db.read(registerPath(4)).facilitatorRecord.rahul.state, "not-there");
+    assert.doesNotMatch(auditRows("session-cancelled")[0].detail, /covering/);
+  });
+
+  test("a new regular time: the cover goes from every week whose start moves, named in the row", async () => {
+    givenOn(4);
+    const response = await askRegular("claudia", { ...WEDNESDAYS, fromWeek: 4 });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    coverGone(4);
+    assert.ok(auditRows("group-time-changed")[0].detail.endsWith(SAID), auditRows("group-time-changed")[0].detail);
+  });
+
+  test("a group's own pace: the cover goes, with one history row of its own", async () => {
+    givenOn(5);
+    const weeks = w.run().weekPlan;
+    const response = await w.call(
+      "rahul",
+      pace.PATCH,
+      { groupId: B },
+      { body: { paceWeekPlan: [...weeks.slice(0, 4), { kind: "break", label: "Reading week" }, ...weeks.slice(4)] }, course: true },
+    );
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    coverGone(5);
+    const [row] = auditRows("register-cover-removed");
+    assert.equal(row.detail, "Changed Group B’s pace. Claudia was covering week 5 at its old time, so that cover is taken off.");
+    assert.equal(row.weekId, "w05");
+  });
+});

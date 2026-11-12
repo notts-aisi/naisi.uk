@@ -4,10 +4,16 @@ import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
 import { claimGroupNotice, sendGroupChangeNotice, type NoticeTally } from "@/lib/courses/groupChange/notice";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { didNotHappenLine } from "@/lib/courses/programmeAttendance";
-import { gateGroupRegister, isAddressableId } from "@/lib/courses/registerAccess";
-import { coverUntil, startedByFacilitator } from "@/lib/courses/registerCover/model";
+import { displayNameOf, gateGroupRegister, isAddressableId } from "@/lib/courses/registerAccess";
+import {
+  coverIsLive,
+  coverUntil,
+  holdsGivenCover,
+  sessionHasEnded,
+  startedByFacilitator,
+} from "@/lib/courses/registerCover/model";
 import { parseCoverPress } from "@/lib/courses/registerCover/parse";
-import { approvedPerson, facilitatorsByFirstName, type CoverPerson } from "@/lib/courses/registerCover/people";
+import { approvedPerson, facilitatorsByFirstName, runsThingsOn, type CoverPerson } from "@/lib/courses/registerCover/people";
 import { sessionInTransaction } from "@/lib/courses/registerCover/sessionInTransaction";
 import {
   COVER_REFUSAL,
@@ -148,6 +154,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       person = await approvedPerson(db, press.person);
       if (!person) throw new CoverRefusal(COVER_REFUSAL.noAccount, 400);
       if (person.facilitates(group.facilitatorUids)) throw new CoverRefusal(COVER_REFUSAL.theyFacilitate, 400);
+      // Somebody who runs things on the programme, never any account.
+      if (!(await runsThingsOn(db, run, person))) throw new CoverRefusal(COVER_REFUSAL.notRunning, 400);
       address = person.address;
       if (!startsAt) throw new CoverRefusal(COVER_REFUSAL.undated, 400);
     }
@@ -157,6 +165,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
     const before = snap.exists ? normalizeCourseAttendance(snap.id, snap.data() ?? {}) : null;
     if (before?.pushedAt) throw new CoverRefusal(COVER_REFUSAL.finished, 409);
     if (startedByFacilitator(before, group.facilitatorUids)) throw new CoverRefusal(COVER_REFUSAL.started, 409);
+    // The same session given to the same person again (a retry after a lost
+    // answer, or the same pick twice): nothing is written, claimed or sent.
+    if (!press.preview && person && holdsGivenCover(before?.cover ?? null, person.uid, now)) {
+      throw new CoverRefusal(COVER_REFUSAL.alreadyGiven, 409);
+    }
 
     // Whose place is taken: kept from a cover being replaced, else the
     // group's facilitators with standing now.
@@ -195,6 +208,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
     }
 
     if (press.preview) {
+      // Who has the session now, by the name they go by, so the panel can say
+      // so before anybody presses: the same name the group's page shows.
+      const holder = before?.cover ? (await db.collection("users").doc(before.cover.byUid).get()).data() : undefined;
       return NextResponse.json({
         ok: true,
         preview: {
@@ -204,7 +220,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
           dateKey: session.dateKey,
           startTimeLocal: session.session.startTimeLocal,
           covering: covering.map((each) => ({ uid: each.uid, name: each.name })),
-          replaces: before?.cover ? { kind: before.cover.kind, byUid: before.cover.byUid } : null,
+          replaces: before?.cover
+            ? {
+                kind: before.cover.kind,
+                byUid: before.cover.byUid,
+                name: holder ? displayNameOf(holder) : "NAISI member",
+                live: coverIsLive(before.cover, now),
+              }
+            : null,
           until: until ? until.toISOString() : null,
           person: person ? { uid: person.uid, name: person.name, emailed: address ? 1 : 0 } : null,
           email,
@@ -244,6 +267,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       const register = fresh.exists ? normalizeCourseAttendance(fresh.id, fresh.data() ?? {}) : null;
       if (register?.pushedAt) throw new CoverRefusal(COVER_REFUSAL.finished, 409);
       if (startedByFacilitator(register, group.facilitatorUids)) throw new CoverRefusal(COVER_REFUSAL.started, 409);
+      // Asked again on the register as it is now: two presses at once write one grant and one email.
+      if (person && holdsGivenCover(register?.cover ?? null, person.uid, now)) throw new CoverRefusal(COVER_REFUSAL.alreadyGiven, 409);
       const covers = register?.cover ? register.cover.covering : coveringUids;
       // A replacement writes the whole cover: what the old one held and this
       // one does not is taken away, never left behind by the merge.
@@ -264,8 +289,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
         if (value !== null) cover[field] = value;
         else if (old && old[field] !== undefined) cover[field] = FieldValue.delete();
       }
+      // Taken or given before the session ends, its facilitators are recorded
+      // not there. Taken after it ended (catching up an old register), nobody
+      // knows that, so nothing is recorded: an admin or the programme's lead
+      // can say who was there.
       const presence: Record<string, unknown> = {};
-      if (!register?.cover) {
+      if (!register?.cover && !sessionHasEnded(current.endsAt, now)) {
         for (const uid of covers) {
           if (register?.facilitatorRecord[uid]) continue;
           presence[uid] = { state: "not-there", byUid: actor.uid, at: now, how: "cover" };

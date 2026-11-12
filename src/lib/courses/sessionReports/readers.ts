@@ -91,6 +91,16 @@ export async function countSessionReports(db: Firestore, runId: string, groupId:
 }
 
 /**
+ * WHICH SESSIONS OF ONE GROUP HAVE A REPORT: their keys, and nothing of what
+ * any says or who wrote it. For the group's page, which does not offer to
+ * push the rest back a week once a session has a report (a report is kept by
+ * the week, so the session a week later would open with it).
+ */
+export async function sessionKeysWithReports(db: Firestore, runId: string, groupId: string): Promise<Set<string>> {
+  return new Set((await reportsOfRun(db, runId)).filter((report) => report.groupId === groupId).map((report) => report.sessionKey));
+}
+
+/**
  * EVERY REPORT ON ONE WEEK OF A RUN, AS STORED (people by account, never by
  * name), for the admins' week review (`src/lib/courses/weekReview/`), which
  * holds each to its writer's and each named person's version 15 moment and
