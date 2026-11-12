@@ -474,7 +474,15 @@ export type NamedReflection = {
  * their name, or not written yet, with how late (the lead and admins alone
  * read a facilitator's own work, and so whether it was late).
  */
-export type OwnNamedReflection = { name: string; text: string | null; at: Date | null; lateMs: number | null; atSession: string | null };
+export type OwnNamedReflection = {
+  name: string;
+  text: string | null;
+  at: Date | null;
+  lateMs: number | null;
+  atSession: string | null;
+  /** The prompt's words when it was first written, ONLY where the prompt has been reworded since; else null. */
+  askedThen: string | null;
+};
 
 /** One prompt, with the group's fellows' answers to it under their names. */
 export type NamedPrompt = {
@@ -588,7 +596,13 @@ export async function loadNamedReflections(
           withOwn && seesFacilitatorsOwnWork(viewer)
             ? own.map((person) => {
                 const written = reflections.get(person.uid)?.get(prompt.id);
-                return { name: person.name, text: written?.text ?? null, at: written?.at ?? null, ...labels(person.uid, written) };
+                return {
+                  name: person.name,
+                  text: written?.text ?? null,
+                  at: written?.at ?? null,
+                  askedThen: written ? askedThen(person.uid, prompt.id) : null,
+                  ...labels(person.uid, written),
+                };
               })
             : null,
       });

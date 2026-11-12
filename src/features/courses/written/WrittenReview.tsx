@@ -41,9 +41,12 @@ import {
   staffSentWords,
 } from "@/lib/courses/weekWork/words";
 import { pangramChipWords } from "@/lib/courses/workRatings/words";
+import { proseText } from "@/lib/courses/weekBlocks/prose";
+import { THE_QUESTION_WHEN_WRITTEN, earlierQuestionWords } from "@/lib/courses/weekEdit/wordsThen";
 import EarlierVersion, { versionBoxes } from "../feedback/EarlierVersion";
 import FeedbackWriter from "../feedback/FeedbackWriter";
 import StaffFeedbackCards from "../feedback/StaffFeedbackCards";
+import EarlierWording from "../weekBlocks/EarlierWording";
 import Prose from "../weekBlocks/Prose";
 import RatingForTheTeam from "./RatingForTheTeam";
 import SessionReportLines from "./SessionReportLines";
@@ -62,7 +65,9 @@ import styles from "./written.module.css";
  * under it when the words have changed since, "Your feedback" (a signed
  * comment, saved to the person's week page straight away and emailed later
  * in an admin's batch), and every other piece of feedback on their week,
- * each with the version it was about when the answer has changed since. No
+ * each with the version it was about when the answer has changed since.
+ * Where the question was reworded after the answer was first written, "The
+ * question when this was written:" and its words then, under the answer. No
  * rubric level is given here: the rubric stays on Start here, as guidance
  * for writing. Nothing is reopened: the week stays open until the programme
  * closes.
@@ -449,6 +454,7 @@ function Review({ model }: { model: ReviewPageModel }) {
               ))
             : paragraphs(selected.text).map((line, index) => <p key={index}>{line}</p>)}
         </div>
+        <EarlierWording label={THE_QUESTION_WHEN_WRITTEN} words={earlierQuestionWords(selected.askedThen, proseText(answer.prompt))} />
         {atSession && (
           <EarlierVersion
             label={AS_IT_STOOD_AT_THE_SESSION}

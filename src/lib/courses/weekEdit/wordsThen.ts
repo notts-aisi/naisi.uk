@@ -90,3 +90,26 @@ export function earlierWords(
   if (!then || !current || then.kind !== current.kind) return null;
   return sameWords(then, current) ? null : then;
 }
+
+// ---------------------------------------------------------------------------
+// What the pages say beside an answer
+// ---------------------------------------------------------------------------
+
+/** Under the person's own words, on their week page. */
+export const YOU_ANSWERED_AN_EARLIER_WORDING = "You answered an earlier wording:";
+
+/** Under the answer, on the pages of the people who read it. */
+export const THE_QUESTION_WHEN_WRITTEN = "The question when this was written:";
+
+/**
+ * The earlier words a page shows under an answer: the prompt's or the
+ * question's words when the answer was first written, ONLY when they differ
+ * from the words it is asked with now (`now`, the question as the page draws
+ * it). A written answer whose range or due rule changed and whose words did
+ * not shows nothing: the question reads as it did.
+ */
+export function earlierQuestionWords(then: AskedWords | null | undefined, now: string): string | null {
+  if (!then) return null;
+  const words = (then.kind === "prompt" ? then.text : then.question).trim();
+  return words && words !== now.trim() ? words : null;
+}

@@ -2812,7 +2812,12 @@ reflections with names, a person's coursework page) also hand the words the
 question had when the answer was first written, only where they differ
 (`src/lib/courses/weekEdit/askedThen.ts`). Nothing is stored on any answer.
 The page to read reflections out, which carries nothing beside an answer, is
-left as it is.
+left as it is. The pages draw them under the answer (`EarlierWording`), only
+where the question's own words differ (a range or due rule changed alone
+shows nothing): "You answered an earlier wording:" on the person's week
+page, "The question when this was written:" for the people who read it. A
+person's coursework page is handed them only for words it shows, so never
+beside a written answer that is only started.
 
 **One editor at a time** (`lock`, `src/lib/courses/weekEdit/lock.ts`). A hold
 on one week while somebody has an edit open: `POST` takes it, `PUT` keeps it

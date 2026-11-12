@@ -108,7 +108,7 @@ export const PANEL_WORDS = {
   sentLine: (sent: number, range: string) =>
     sent === 0
       ? "Nobody has sent this answer yet."
-      : `${sent === 1 ? "1 person has" : `${sent} people have`} sent ${sent === 1 ? "an answer" : "answers"}${range ? `, written to ${range}` : ""}. ${sent === 1 ? "It stays" : "Their answers stay"} as ${sent === 1 ? "it is" : "they are"}, and nothing is flagged for being outside a new range. Change the question’s words, and answers already sent keep the question as it was when they were written.`,
+      : `${sent === 1 ? "1 person has" : `${sent} people have`} sent ${sent === 1 ? "an answer" : "answers"}${range ? `, written to ${range}` : ""}. ${sent === 1 ? "It stays" : "Their answers stay"} as ${sent === 1 ? "it is" : "they are"}, and nothing is flagged for being outside a new range. Change the question’s words, and answers already sent keep the question as it was when they were written; the people who read them see both wordings.`,
   followRange: (partNumber: number | null) =>
     partNumber ? `This week’s line for Part ${partNumber} updates to match a new word range.` : "This week’s line for the written answer updates to match a new word range.",
   // Who the save is for
