@@ -1,6 +1,6 @@
 /**
  * The lead of the programme that names a course run reads every register of
- * that run, and marks nothing.
+ * that run, and takes one in a facilitator's place, marks only.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -17,12 +17,18 @@
  *     as the group's facilitators do; corrections stay an admin's. The
  *     register's notes, on a person or on a session, are the group's
  *     facilitators' and admins': the lead reads the marks and no note.
- *  2. MARKING STAYS THE GROUP'S FACILITATORS' AND ADMINS'. The lead is
- *     refused every write to a register, and nothing is written.
+ *  2. THE LEAD TAKES A REGISTER, MARKS ONLY (CHANGED ON PURPOSE, November
+ *     2026: until then the lead was refused every write). The lead marks a
+ *     register and finishes it, which records that they took it in the
+ *     facilitators' place; a note on the session or on a person, and an
+ *     admin's correction after Finish, stay the group's facilitators' and
+ *     admins', and are refused with nothing written.
  *  3. NOBODY ELSE READS MORE. The lead of another programme, the programme's
- *     reviewer, the run's track lead, a facilitator of another group, a
- *     member and somebody signed out are refused as before, and the lead of
- *     another programme reads their own run's registers and no others.
+ *     reviewer, a facilitator of another group, a member and somebody signed
+ *     out are refused as before, and the lead of another programme reads
+ *     their own run's registers and no others. The run's track lead reads
+ *     the marks as the lead does (CHANGED ON PURPOSE with item 2: whoever
+ *     may take a register reads it).
  *  4. WORKED OUT WHEN USED. A lead who no longer meets the bar, who is
  *     replaced or whose programme stops naming the run reads nothing.
  *
@@ -195,18 +201,40 @@ describe("1. the lead reads every register of their run", () => {
 // 2. Marking stays the facilitators' and admins'
 // ---------------------------------------------------------------------------
 
-describe("2. the lead marks nothing", () => {
-  test("every write to a register is refused, and nothing is written or sent", async () => {
+describe("2. the lead takes a register, marks only", () => {
+  // CHANGED ON PURPOSE (November 2026). This test asserted that every write
+  // by the lead was refused. The lead now takes a register in the
+  // facilitators' place: the notes, the note drawer and an admin's
+  // correction are still refused, each with nothing written or sent, and
+  // the marks the lead saves record that the lead took the register.
+  test("a note on the session, a note on a person and a correction are refused, and nothing is written or sent", async () => {
     const before = everything();
     const answers = [
-      await mark("claudia", B, "amara"),
+      await call("claudia", register.POST, { groupId: B }, {
+        body: { weekNumber: 1, marks: [{ uid: "amara", status: "present" }], notes: "A note." },
+        course: true,
+      }),
       await call("claudia", register.PATCH, { groupId: B }, { body: { weekNumber: 1, marks: [{ uid: "amara", status: "absent" }] }, course: true }),
-      await call("claudia", push.POST, { groupId: B }, { body: { weekNumber: 1 }, course: true }),
       await call("claudia", participantNotes.POST, { groupId: B }, { body: { weekNumber: 1, uid: "amara", note: "x" }, course: true }),
     ];
-    assert.deepEqual(answers.map((answer) => answer.status), [403, 403, 403, 403]);
+    assert.deepEqual(answers.map((answer) => answer.status), [403, 403, 403]);
     assert.equal(everything(), before);
     assert.deepEqual(world.mail, []);
+  });
+
+  test("the lead's marks are saved in the facilitators' place, and the lead finishes the register", async () => {
+    const marked = await mark("claudia", B, "amara");
+    assert.equal(marked.status, 200, JSON.stringify(marked.body));
+    const stored = world.db.read(`courseAttendance/${RUN.agi}__${B}__w01`);
+    assert.equal(stored.records.amara, "present");
+    assert.equal(stored.setBy.amara.byUid, "claudia");
+    assert.equal(stored.setBy.amara.how, "cover");
+    assert.equal(stored.cover.kind, "self");
+    assert.equal(stored.cover.byUid, "claudia");
+    assert.deepEqual(stored.cover.covering, ["rahul", "sofia"]);
+    const pushed = await call("claudia", push.POST, { groupId: B }, { body: { weekNumber: 1 }, course: true });
+    assert.equal(pushed.status, 200, JSON.stringify(pushed.body));
+    assert.ok(world.db.read(`courseAttendance/${RUN.agi}__${B}__w01`).pushedAt, "the lead finished it");
   });
 
   test("the group's facilitator and an admin still mark", async () => {
@@ -228,7 +256,9 @@ describe("3. who reads a register, as every kind of caller", () => {
       claudia: 200,
       tess: 403,
       lloyd: 403,
-      yusuf: 403,
+      // CHANGED ON PURPOSE (November 2026): the run's track lead takes a
+      // register in a facilitator's place, so reads it, as the lead does.
+      yusuf: 200,
       rahul: 200,
       amara: 403,
       nobody: 403,
@@ -317,7 +347,9 @@ describe("5. the register's notes are the group's facilitators' and admins'", ()
       claudia: { mark: "late", onDev: null, onSession: "" },
       tess: 403,
       lloyd: 403,
-      yusuf: 403,
+      // The run's track lead (CHANGED ON PURPOSE, November 2026: refused
+      // until then): the marks, and no note of either kind, as the lead.
+      yusuf: { mark: "late", onDev: null, onSession: "" },
       // Another group's facilitator, a member of the group, a member of another group.
       tom: 403,
       amara: 403,

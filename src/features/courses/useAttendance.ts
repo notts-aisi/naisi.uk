@@ -79,6 +79,12 @@ export type AttendanceCantMakeIt = AttendancePayload["cantMakeIt"][number];
 /** What one save is changing about one session, beyond its marks. */
 export type SessionPatch = { held?: boolean; notes?: string };
 
+export type AttendanceSetBy = AttendancePayload["setBy"];
+export type AttendanceCovers = AttendancePayload["covers"];
+export type AttendanceFacilitatorRecord = NonNullable<AttendancePayload["facilitatorRecord"]>;
+export type AttendanceFacilitator = AttendancePayload["facilitators"][number];
+export type AttendanceCaller = AttendancePayload["caller"];
+
 export type AttendanceState = {
   group: AttendancePayload["group"] | null;
   /** The grid's columns: sessions up to and including the current week. */
@@ -106,6 +112,16 @@ export type AttendanceState = {
   ending: RegisterEnding | null;
   /** Who told us in advance they can't make a session, soonest session first. */
   cantMakeIt: AttendanceCantMakeIt[];
+  /** `sessionKey -> uid -> who set the line and when`. Empty for a register written before lines were stamped. */
+  setBy: AttendanceSetBy;
+  /** Who took each session's register in a facilitator's place, by session key. */
+  covers: AttendanceCovers;
+  /** Whether each facilitator was there: only for a reader the route sends it to, else null. */
+  facilitatorRecord: AttendanceFacilitatorRecord | null;
+  /** The group's facilitators, by name. */
+  facilitators: AttendanceFacilitator[];
+  /** What the reader may do on each session; null until the first payload. */
+  caller: AttendanceCaller | null;
   /** True on the first load of a group AND on a manual refresh. */
   loading: boolean;
   /** A fetch for the CURRENT group has landed, so the grid is real. */
@@ -140,7 +156,7 @@ export type AttendanceState = {
    */
   push: (
     session: AttendanceSession,
-    opts?: { force?: boolean },
+    opts?: { force?: boolean; facilitatorsHere?: string[] },
   ) => Promise<AttendancePushResult>;
   /** Write or clear one private note about one member for one session. */
   saveNote: (
@@ -158,6 +174,9 @@ const NO_ONLINE: AttendanceOnline = {};
 const NO_ONLINE_SAID: AttendanceOnlineSaid = {};
 const NO_NOTES: AttendanceNotes = {};
 const NO_CANT_MAKE_IT: AttendanceCantMakeIt[] = [];
+const NO_SET_BY: AttendanceSetBy = {};
+const NO_COVERS: AttendanceCovers = {};
+const NO_FACILITATORS: AttendanceFacilitator[] = [];
 
 /**
  * A separator that cannot occur in a group id, so the composite stamp can
@@ -217,6 +236,30 @@ function withOnline(
   return next;
 }
 
+/**
+ * `setBy` with the reader's own save applied to one session: each line it
+ * moved is theirs from now, and a line it cleared shows nobody, as the route
+ * stamps them. Lines it did not move keep their stamp. Undone with the marks
+ * when the save is refused, by putting back what was there.
+ */
+function withSetBy(
+  setBy: AttendanceSetBy,
+  sessionKey: string,
+  marks: AttendanceMark[],
+  how: "facilitator" | "cover",
+  at: string,
+): AttendanceSetBy {
+  const week = { ...(setBy[sessionKey] ?? {}) };
+  for (const mark of marks) {
+    if (mark.status === null) delete week[mark.uid];
+    else week[mark.uid] = { name: "", at, how, yours: true };
+  }
+  const next = { ...setBy };
+  if (Object.keys(week).length === 0) delete next[sessionKey];
+  else next[sessionKey] = week;
+  return next;
+}
+
 /** The route's own sentence where it gave one, a status where it did not. */
 function errorFrom(
   body: { error?: string } | null,
@@ -226,9 +269,12 @@ function errorFrom(
   return body?.error ?? `${fallback} (${res.status}).`;
 }
 
-export function useAttendance(groupId: string): AttendanceState {
+export function useAttendance(groupId: string, options: { week?: number | null } = {}): AttendanceState {
   const idle = !groupId;
-  const key = idle ? "" : groupId;
+  // A week named in the address (`?session=w02` on the register's page) is
+  // asked for too, so its column is there even before the cohort's week reaches it.
+  const week = options.week ?? null;
+  const key = idle ? "" : `${groupId}${week ? `?week=${week}` : ""}`;
 
   const [store, setStore] = useState<Store>({ key: "", data: null, error: null });
   const [nonce, setNonce] = useState(0);
@@ -244,7 +290,7 @@ export function useAttendance(groupId: string): AttendanceState {
     if (idle) return;
     let cancelled = false;
     // Same-origin default carries the session cookie; no `credentials` needed.
-    fetch(`/api/courses/groups/${encodeURIComponent(groupId)}/attendance`)
+    fetch(`/api/courses/groups/${encodeURIComponent(groupId)}/attendance${week ? `?week=${week}` : ""}`)
       .then(async (res) => {
         const body = (await res.json().catch(() => null)) as
           | (AttendancePayload & { error?: string })
@@ -276,7 +322,7 @@ export function useAttendance(groupId: string): AttendanceState {
     return () => {
       cancelled = true;
     };
-  }, [idle, groupId, key, stamp, nonce]);
+  }, [idle, groupId, key, stamp, nonce, week]);
 
   const fresh = store.key === key ? store : null;
   const data = fresh?.data ?? null;
@@ -292,6 +338,10 @@ export function useAttendance(groupId: string): AttendanceState {
       const current = data?.records[sessionKey] ?? {};
       for (const m of marks) before.set(m.uid, current[m.uid] ?? null);
       const whereBefore = data?.online?.[sessionKey] ?? {};
+      const setByBefore = data?.setBy?.[sessionKey] ?? {};
+      // Who sets the line, as the route will stamp it: the group's facilitator, or somebody who is not.
+      const how = data?.caller ? (data.caller.facilitates ? "facilitator" : "cover") : "facilitator";
+      const at = new Date().toISOString();
 
       // OPTIMISTIC: the cells move now. Key-guarded like every other write
       // here. The session patch is NOT applied optimistically; it lands on the
@@ -306,6 +356,7 @@ export function useAttendance(groupId: string): AttendanceState {
                   ...prev.data,
                   records: withMarks(prev.data.records, sessionKey, marks),
                   online: withOnline(prev.data.online ?? NO_ONLINE, sessionKey, marks),
+                  setBy: withSetBy(prev.data.setBy ?? NO_SET_BY, sessionKey, marks, how, at),
                 },
               }
             : prev,
@@ -353,10 +404,20 @@ export function useAttendance(groupId: string): AttendanceState {
               status: before.get(m.uid) ?? null,
               ...(typeof whereBefore[m.uid] === "boolean" ? { online: whereBefore[m.uid] } : {}),
             }));
+            // Who set each line goes back with it: the stamp it had, or none.
+            const setByWeek = { ...(prev.data.setBy?.[sessionKey] ?? {}) };
+            for (const m of restore) {
+              if (setByBefore[m.uid]) setByWeek[m.uid] = setByBefore[m.uid];
+              else delete setByWeek[m.uid];
+            }
+            const setBy = { ...(prev.data.setBy ?? NO_SET_BY) };
+            if (Object.keys(setByWeek).length === 0) delete setBy[sessionKey];
+            else setBy[sessionKey] = setByWeek;
             return {
               ...prev,
               data: {
                 ...prev.data,
+                setBy,
                 records: withMarks(prev.data.records, sessionKey, back),
                 // Where they were goes back with the mark: what it was, or no
                 // entry where there was none.
@@ -405,7 +466,7 @@ export function useAttendance(groupId: string): AttendanceState {
   );
 
   const push = useCallback(
-    async (session: AttendanceSession, opts?: { force?: boolean }) => {
+    async (session: AttendanceSession, opts?: { force?: boolean; facilitatorsHere?: string[] }) => {
       const res = await fetch(`${endpoint}/push`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -413,6 +474,7 @@ export function useAttendance(groupId: string): AttendanceState {
           weekNumber: session.weekNumber,
           occurrence: session.occurrence,
           ...(opts?.force ? { force: true } : {}),
+          ...(opts?.facilitatorsHere ? { facilitatorsHere: opts.facilitatorsHere } : {}),
         }),
       });
       const body = (await res.json().catch(() => null)) as
@@ -486,6 +548,11 @@ export function useAttendance(groupId: string): AttendanceState {
     canEditPushed: data?.canEditPushed ?? false,
     ending: data?.ending ?? null,
     cantMakeIt: data?.cantMakeIt ?? NO_CANT_MAKE_IT,
+    setBy: data?.setBy ?? NO_SET_BY,
+    covers: data?.covers ?? NO_COVERS,
+    facilitatorRecord: data?.facilitatorRecord ?? null,
+    facilitators: data?.facilitators ?? NO_FACILITATORS,
+    caller: data?.caller ?? null,
     loading,
     loaded: !idle && !loading && data !== null,
     error: fresh?.error ?? null,

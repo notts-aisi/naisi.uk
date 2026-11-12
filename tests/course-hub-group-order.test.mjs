@@ -230,6 +230,23 @@ const READS_WITHOUT_A_LIST = new Map([
 
 /** Modules the walk reaches that fetch an address it cannot read, each with what they fetch and why it lists no run's groups. */
 const FETCHES_IT_CANNOT_READ = new Map([
+  // ADDED (November 2026), with covering a register.
+  [
+    "src/features/courses/groupPage/GivePanel.tsx",
+    "Giving one session to somebody, from a group's page: the cover route of the one group it is handed (previewed, " +
+      "then pressed), and the run's list of approved accounts to pick from (`/runs/[runId]/facilitators`, the " +
+      "Facilitators view's own picker list): one group's register, never a run's groups listed.",
+  ],
+  [
+    "src/features/courses/register/CheckInCard.tsx",
+    "The register's check-in card, now drawn under the register under the programme's group page too: the check-in " +
+      "route of the one group it is handed, for one session: one group's check-in, never a run's groups.",
+  ],
+  [
+    "src/features/courses/useAttendance.ts",
+    "The register's own reads and writes, now drawn under the programme's group page too: the attendance route of the " +
+      "one group it is handed, and its push and notes beside it: one group's register, never a run's groups.",
+  ],
   [
     "src/features/courses/groupPage/ChangePanel.tsx",
     "A group's page's Change panel: the one-week change route and the regular time route of the one group it is " +

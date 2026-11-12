@@ -386,7 +386,10 @@ describe("3. needs attention", () => {
     assert.equal(detail(EVERY_ITEM[2]).link, null, "the lead has no week editor to open");
     // The reminder ships off; the task is on, 60 hours after the session ended.
     assert.equal(detail(EVERY_ITEM[3]).detail, "If it’s still not pushed on Thu 19 Nov at 8am, you and admins get a task.");
-    assert.deepEqual(detail(EVERY_ITEM[3]).link, { href: `${PAGE_PATH}/attendance?group=${encodeURIComponent(D)}`, label: "See it" });
+    // CHANGED ON PURPOSE (November 2026), with covering a register: the line
+    // for a register not finished leads to the ways to take it, on the
+    // group's page, open on that week.
+    assert.deepEqual(detail(EVERY_ITEM[3]).link, { href: `${PAGE_PATH}/groups/${encodeURIComponent(D)}?take=3`, label: "Take the register" });
     assert.equal(detail(EVERY_ITEM[4]).detail, `Sam said: “${SAM_SAID}” Sam’s off Group A’s register from week 3.`);
     assert.equal(detail(EVERY_ITEM[5]).detail, "Omar’s off Group B’s register.");
     assert.match(said, /Needs attention 6 /);

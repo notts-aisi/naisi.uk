@@ -546,8 +546,14 @@ describe("4. a facilitator who holds a place is on their group's register, and m
     const byThemselves = await mark("amara", A, [{ uid: "amara", status: "left-early" }]);
     assert.equal(byThemselves.status, 200, JSON.stringify(byThemselves.body));
     assert.deepEqual(registerFor(A)?.records, { amara: "left-early", bea: "late" });
-    // The lead reads every register and marks none.
-    assert.equal((await mark("claudia", A, [{ uid: "amara", status: "absent" }])).status, 403);
+    // CHANGED ON PURPOSE (November 2026): the lead used to mark none. The
+    // lead now takes a register in a facilitator's place, marks only; here
+    // its facilitators have started it, so the lead's line says somebody who
+    // is not one of them set it, and nobody is recorded as covered.
+    const byTheLead = await mark("claudia", A, [{ uid: "amara", status: "absent" }]);
+    assert.equal(byTheLead.status, 200, JSON.stringify(byTheLead.body));
+    assert.equal(registerFor(A)?.setBy?.amara?.how, "cover");
+    assert.equal(registerFor(A)?.cover, undefined);
   });
 });
 

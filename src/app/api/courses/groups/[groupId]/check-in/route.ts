@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
-import { gateGroupRegister, isAddressableId } from "@/lib/courses/registerAccess";
+import {
+  coveredSessionsOf,
+  gateGroupRegister,
+  isAddressableId,
+  readSessionRegister,
+  registerSessionAccess,
+} from "@/lib/courses/registerAccess";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
@@ -28,13 +34,34 @@ type Ctx = { params: Promise<{ groupId: string }> };
  *    (the programme's Surveys tab, its Check-ins view): anybody else sending it
  *    is refused in a sentence before anything is read.
  *
- * WHO: the register's own gate (`gateGroupRegister`), the group's live
- * facilitators and admins, asked before anything else is read: a missing
- * group, an archived one and somebody else's collapse onto one 403. Not the
- * programme's lead, who reads the register's marks and runs no session. The
- * POST refuses a view-as session first. Answers carry counts, never an
- * address or a uid of anybody it emails.
+ * WHO: the register's own gate (`gateGroupRegister`), asked before anything
+ * else is read: a missing group, an archived one and somebody else's
+ * collapse onto one 403. Then the session's own door
+ * (`registerSessionAccess`): the group's live facilitators and admins, and
+ * whoever took THAT session's register in a facilitator's place (a lead
+ * covering it, or somebody given it while it holds). A lead who has not
+ * taken it is refused, as before: the lead reads the register and runs no
+ * session. Somebody only given the session is never sent the totals, of this
+ * session's check-in or of the group's last: those are the group's
+ * facilitators', the lead's and admins'. The POST refuses a view-as session
+ * first. Answers carry counts, never an address or a uid of anybody it
+ * emails.
  */
+
+/**
+ * Before the body: whether the caller could open any check-in of the group
+ * at all. The group's facilitators and admins always; anybody else only
+ * while they hold a session they covered.
+ */
+async function mayCheckInHere(
+  db: Parameters<typeof coveredSessionsOf>[0],
+  gated: Extract<Awaited<ReturnType<typeof gateGroupRegister>>, { ok: true }>,
+  uid: string,
+  now: Date,
+): Promise<string[] | "staff"> {
+  if (gated.isAdmin || gated.facilitates) return "staff";
+  return coveredSessionsOf(db, gated.group, uid, now);
+}
 
 export async function GET(req: Request, ctx: Ctx) {
   const { groupId } = await ctx.params;
@@ -49,12 +76,23 @@ export async function GET(req: Request, ctx: Ctx) {
   const gated = await gateGroupRegister(groupId, actor, db);
   if (!gated.ok) return NextResponse.json({ error: gated.error }, { status: gated.status });
 
+  const now = new Date();
+  const may = await mayCheckInHere(db, gated, actor.uid, now);
+  if (may !== "staff" && may.length === 0) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
   const key = new URL(req.url).searchParams.get("session");
   if (!isSessionKey(key)) return NextResponse.json({ error: CHECK_IN_REFUSAL.noSession }, { status: 400 });
+  const register = may === "staff" ? null : await readSessionRegister(db, gated.runId, gated.group.id, key);
+  const access = registerSessionAccess(gated, { uid: actor.uid, sessionKey: key, cover: register?.cover ?? null, now });
+  if (!access.checksIn) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const view = await checkInRegisterView(db, { runId: gated.runId, group: gated.group, sessionKey: key, now: new Date() });
+  const view = await checkInRegisterView(db, { runId: gated.runId, group: gated.group, sessionKey: key, now });
   if (!view) return NextResponse.json({ error: CHECK_IN_REFUSAL.noSession }, { status: 400 });
-  return NextResponse.json({ sessionKey: view.sessionKey, card: view.card, last: view.last });
+  if (access.readsCheckInTotals) return NextResponse.json({ sessionKey: view.sessionKey, card: view.card, last: view.last });
+  // Somebody only given the session: whether it is open, how many have sent
+  // it and when it closes, and never a total, of this check-in or another.
+  const card = view.card?.state === "closed" ? { ...view.card, totals: null, tooFew: null } : view.card;
+  return NextResponse.json({ sessionKey: view.sessionKey, card, last: null });
 }
 
 export async function POST(req: Request, ctx: Ctx) {
@@ -72,6 +110,9 @@ export async function POST(req: Request, ctx: Ctx) {
 
   const gated = await gateGroupRegister(groupId, actor, db);
   if (!gated.ok) return NextResponse.json({ error: gated.error }, { status: gated.status });
+  const now = new Date();
+  const may = await mayCheckInHere(db, gated, actor.uid, now);
+  if (may !== "staff" && may.length === 0) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   let raw: unknown = null;
   try {
@@ -93,6 +134,12 @@ export async function POST(req: Request, ctx: Ctx) {
   }
   const late = body.late === true;
   if (late && !gated.isAdmin) return NextResponse.json({ error: CHECK_IN_REFUSAL.lateAdminOnly }, { status: 403 });
+  if (may !== "staff") {
+    const register = await readSessionRegister(db, gated.runId, gated.group.id, body.session);
+    if (!registerSessionAccess(gated, { uid: actor.uid, sessionKey: body.session, cover: register?.cover ?? null, now }).checksIn) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
 
   const outcome = await openCheckIn(db, {
     opener: { uid: actor.uid },
@@ -102,7 +149,7 @@ export async function POST(req: Request, ctx: Ctx) {
     runId: gated.runId,
     sessionKey: body.session,
     people,
-    now: new Date(),
+    now,
   });
   if (!outcome.ok) {
     const headers = outcome.retryAfterSeconds ? { "Retry-After": String(outcome.retryAfterSeconds) } : undefined;

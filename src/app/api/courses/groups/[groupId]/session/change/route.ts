@@ -17,6 +17,13 @@ import { readNamingProgramme } from "@/lib/courses/programmeLead";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { CHANGE_FIELDS, ChangeRefusal, checkPress, putBackSetsChangeFields, type CheckedPress } from "@/lib/courses/sessionChange/check";
+import {
+  callsOffDraft,
+  clearedNames,
+  closeCalledOffFollowUp,
+  didNotHappenFacts,
+  writeDidNotHappen,
+} from "@/lib/courses/sessionChange/didNotHappen";
 import { startMoves, takenStartMoves } from "@/lib/courses/sessionChange/metSessions";
 import { sessionOfWeek } from "@/lib/courses/sessionChange/model";
 import { oneWeekHistoryDetail, oneWeekNoticeFor, weekSessionAfter } from "@/lib/courses/sessionChange/notice";
@@ -140,16 +147,25 @@ function moveRegisterRefs(
  * kind of change (a push back moves every later week): refused, in one
  * sentence naming the week that met, before anything is written. `snaps` are
  * the registers of `moveRegisterRefs`, in its order.
+ *
+ * ONE SESSION IS LEFT OUT: the pressed session itself when this press calls
+ * it off as a session that did not happen (`calledOffKey`, from
+ * `callsOffDraft` on a session that has started). Its draft's lines are
+ * cleared in the same transaction, so its register is not taken once the
+ * press is done, and it moves as a register nobody took. Every OTHER session
+ * the press moves is still asked: a push back is refused when a later week
+ * has met.
  */
 function refuseMovingMet(
   before: readonly ResolvedSession[],
   after: readonly ResolvedSession[],
   snaps: ReadonlyArray<DocumentSnapshot | undefined>,
+  calledOffKey: string | null = null,
 ): void {
   const registers = new Map<string, Record<string, unknown>>();
   startMoves(before, after).forEach((move, index) => {
     const snap = snaps[index];
-    if (snap?.exists) registers.set(move.before.sessionKey, snap.data() ?? {});
+    if (snap?.exists && move.before.sessionKey !== calledOffKey) registers.set(move.before.sessionKey, snap.data() ?? {});
   });
   const [met] = takenStartMoves(before, after, registers);
   if (met) throw new ChangeRefusal(movesMetWords(met.before.weekNumber, met.before.occurrence), 409);
@@ -212,7 +228,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       const after = resolveSessions(run, first.after);
       // The press would be refused for moving a session that met: so is its preview, in the same words.
       const metRefs = moveRegisterRefs(db, run, found.id, before, after);
-      refuseMovingMet(before, after, metRefs.length ? await db.getAll(...metRefs) : []);
+      refuseMovingMet(
+        before,
+        after,
+        metRefs.length ? await db.getAll(...metRefs) : [],
+        first.started && callsOffDraft(press, register, first.session) ? first.session.sessionKey : null,
+      );
       const switches = await readJobSwitches(db);
       const [reminders, said, told] = await Promise.all([
         reminderFacts(db, { run, group: found, before: first.session, after: weekSessionAfter(run, first, press.weekNumber), switches }),
@@ -236,6 +257,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
           said,
           told,
           register: { exists: register !== undefined, taken: registerIsTaken(register) },
+          // Called off after it passed: what else follows (`./didNotHappen`).
+          didNotHappen:
+            first.started && (press.kind === "cancel" || press.kind === "push")
+              ? await didNotHappenFacts(db, { run, group: found, session: first.session, register })
+              : null,
           notice: oneWeekNoticeFor(run, first, press, { groupName, incubator }),
           at: iso(now),
         },
@@ -259,19 +285,28 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
     }
 
     // ── The write, on the group as it stands now ───────────────────────────
+    // Who the lines of a draft called off after the fact belonged to, for the
+    // history's sentence: read before the transaction.
+    const names = callsOffDraft(press, register, first.session) ? await clearedNames(db, register) : new Map<string, string>();
     outcome = await db.runTransaction(async (tx) => {
       const freshSnap = await tx.get(groupRef);
       if (!freshSnap.exists) throw new ChangeRefusal(REFUSAL.gone, 400);
       const group = normalizeCourseGroup(freshSnap.id, freshSnap.data() ?? {});
       if (group.archived || group.runId !== run.id) throw new ChangeRefusal(REFUSAL.gone, 400);
       const freshRegister = await tx.get(registerRef);
-      const checked = checkPress(run, group, press, now, freshRegister.exists ? (freshRegister.data() ?? {}) : undefined);
+      const freshData = freshRegister.exists ? (freshRegister.data() ?? {}) : undefined;
+      const checked = checkPress(run, group, press, now, freshData);
 
       // Every session whose start moves, and its register: read before anything is written.
       const before = resolveSessions(run, group);
       const after = resolveSessions(run, checked.after);
       const metRefs = moveRegisterRefs(db, run, group.id, before, after);
-      refuseMovingMet(before, after, metRefs.length ? await tx.getAll(...metRefs) : []);
+      refuseMovingMet(
+        before,
+        after,
+        metRefs.length ? await tx.getAll(...metRefs) : [],
+        checked.started && callsOffDraft(press, freshData, checked.session) ? checked.session.sessionKey : null,
+      );
       const moved = movedSessions(before, after);
       const movedRefs = moved.map((session) => registerRefOf(db, run, group.id, session.weekNumber));
       const movedSnaps = movedRefs.length ? await tx.getAll(...movedRefs) : [];
@@ -356,6 +391,23 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
 
       const emailed = press.tell ? press.emailCount : 0;
       const afterSession = weekSessionAfter(run, checked, press.weekNumber);
+      // It didn't happen, on a draft somebody marked: its lines go, in this write.
+      if (checked.started && freshData && callsOffDraft(press, freshData, checked.session)) {
+        writeDidNotHappen(tx, db, {
+          ref: registerRef,
+          register: freshData,
+          kind: press.kind as "cancel" | "push",
+          run,
+          group,
+          actor,
+          weekNumber: press.weekNumber,
+          weekId,
+          after: afterSession,
+          reason: press.reason,
+          emailed,
+          names,
+        });
+      }
       tx.set(
         db.collection(COURSE_AUDIT_COLLECTION).doc(),
         groupHistoryRow({
@@ -388,6 +440,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
         },
       };
     });
+
+    // A session called off after it passed has no register left to finish.
+    if (outcome.checked.started && (press.kind === "cancel" || press.kind === "push")) {
+      await closeCalledOffFollowUp(db, { runId: run.id, groupId: found.id, sessionKey: outcome.checked.session.sessionKey });
+    }
 
     const answer: Answer = {
       ok: true,

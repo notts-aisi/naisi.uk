@@ -3445,17 +3445,26 @@ describe("the course hub passage", () => {
 
     // Admitted to read every register of the run: the read gate asks the
     // form whether the caller leads the programme that names the run.
+    // MOVED (November 2026), with the line it pins: the gate now asks the one
+    // run-staffing question (`runStaffingOf`, which asks `programmeLedBy`),
+    // because the people leading a programme also take a register in a
+    // facilitator's place, marks only.
     const gate = read("src/lib/courses/registerAccess.ts");
+    // MOVED again (November 2026), with the line it pins: the run-staffing
+    // answer is kept, because whether each facilitator was there goes to the
+    // programme's lead alone (`leadsProgramme`), never a run's track lead.
     assert.match(
       gate,
-      /\(await programmeLedBy\(db, actor, group\.runId\)\) !== null;/,
+      /const staffing = await runStaffingOf\(db, actor, \{ id: group\.runId, trackLeadUids \}\);\n\s*leads = doesTrackLeadWork\(staffing\);/,
       "the register's read gate no longer admits the programme's lead, so the " +
         "policy says the lead reads registers the lead cannot open.",
     );
     // And not one of the readers of its notes.
-    assert.match(
-      gate,
-      /return \{ ok: true, group, runId: group\.runId, isAdmin, readsNotes: isAdmin \|\| facilitatesLiveGroup \};/,
+    // MOVED with the gate's answer, which now carries more fields: the same
+    // rule, in both gates (writing and reading).
+    assert.equal(
+      [...gate.matchAll(/^ {4}readsNotes: isAdmin \|\| facilitates,$/gm)].length,
+      2,
       "the register's read gate no longer says that its notes are for an " +
         "admin and the group's live facilitators alone, so a caller admitted " +
         "only as the programme's lead may be sent them. The policy says the " +
@@ -3474,11 +3483,16 @@ describe("the course hub passage", () => {
       "the register's GET sends a session's own note to every caller its gate " +
         "admits, the programme's lead included.",
     );
-    // The drawer that writes a note is the register's own gate, which admits
-    // the group's live facilitators and admins and no lead.
+    // The drawer that writes a note is the register's own gate, then its
+    // notes' readers (`readsNotes`): the group's live facilitators and admins
+    // and no lead.
     assert.match(
       read("src/app/api/courses/groups/[groupId]/participant-notes/route.ts"),
       /const gated = await gateGroupRegister\(groupId, actor, db\);/,
+    );
+    assert.match(
+      read("src/app/api/courses/groups/[groupId]/participant-notes/route.ts"),
+      /if \(!gated\.readsNotes\) \{/,
     );
     // Every file that names the notes about named people, and why it may.
     // The register's GET is the one door that hands them to a reader.
@@ -4993,7 +5007,15 @@ describe("the course hub passage", () => {
         ["src/lib/courses/sessionReports/readers.ts", "the lead's and admins' reader and the Overview's counts, which ask nobody who is reading, so each caller decides that first"],
         ["src/lib/courses/sessionReports/context.ts", "the writer's own report, read by the id that names the writer"],
         ["src/lib/courses/sessionReports/page.ts", "the facilitator's page, after the writer's own gate: only the caller's own report"],
-        [ownPage, "the facilitator's page, which sends everybody but the group's live facilitators away first"],
+        [ownPage, "the facilitator's page, which sends everybody but the group's live facilitators, and whoever took the session's register in their place, away first: only the caller's own report"],
+        // ADDED (November 2026), with covering a register: the same page
+        // under the programme's group page, for the programme's lead or an
+        // admin who took a session's register (loadProgrammeRun, then
+        // loadReportPage's own gate): only the caller's own report.
+        [
+          "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/report/page.tsx",
+          "the report page under the programme's group page, for whoever took the session's register in a facilitator's place: only the caller's own report",
+        ],
         [leadPage, "the programme's session reports, for its lead and admins (loadProgrammeRun)"],
         // CHANGED ON PURPOSE: was the Surveys tab's page, which counted the run's reports for its row.
         ["src/lib/surveys/leadOverview.ts", "the Surveys tab's Overview, made only by its page after the tab's gate (loadProgrammeRun): each week's count, how it went on average and the parts named, never what a report says"],
@@ -6241,6 +6263,8 @@ describe("the course hub passage", () => {
         ],
         ["src/features/courses/register/CheckInCard.tsx", "the register's check-in card: draws what the check-in route hands it, a count while it is open and totals once closed, never a comment, an answer or a name"],
         ["src/app/api/courses/groups/[groupId]/attendance/route.ts", "the register's marking route: somebody marked at a session while its check-in is open gets their own row on it (reachLateMarks), with no email, and no answer is read"],
+        // ADDED (November 2026), with It didn't happen.
+        ["src/lib/courses/sessionChange/didNotHappen.ts", "the preview of calling off a session after it passed, behind the change route's own gate: whether its check-in was ever opened (checkInWasOpened), and no answer is read"],
       ]),
       "reaching survey code from outside it",
       "The policy says only admins see who said what; the programme's lead " +
@@ -6613,6 +6637,13 @@ describe("the course hub passage", () => {
       [
         "src/app/api/courses/groups/[groupId]/attendance/route.ts",
         ["after a mark is kept, gives somebody marked there their own row on the session's open check-in, reading no answer; the mark is decided before it, and nothing of a check-in changes it", ["@/lib/surveys/checkIns/lateMark"]],
+      ],
+      // ADDED (November 2026): calling off a session after it passed says,
+      // in its preview, whether the session's check-in was opened. Nothing
+      // of the check-in is read, and nothing it says decides anything.
+      [
+        "src/lib/courses/sessionChange/didNotHappen.ts",
+        ["the preview of a session called off after it passed: whether its check-in was ever opened, reading no answer and deciding nothing", ["@/lib/surveys/checkIns/facilitatorView"]],
       ],
       // CHANGED ON PURPOSE (v15, admins may ask Claude to help review survey
       // answers): the week review reads a week's check-ins pooled by group,
@@ -11104,6 +11135,8 @@ describe("v16 says a register records the room or online, and you may tell us in
       sourceFilesNaming(/\[ONLINE\]:|FieldPath\(ONLINE,/),
       new Map([
         ["src/app/api/courses/groups/[groupId]/attendance/route.ts", "the register's marking and an admin's correction: where somebody marked as having come was, beside that mark"],
+        // ADDED (November 2026): It didn't happen clears it with the mark it sat beside, and nothing else.
+        ["src/lib/courses/sessionChange/didNotHappen.ts", "a session called off after it passed (It didn't happen): where somebody marked as having come was goes with the mark it sat beside, both kept in the history row"],
         ["src/lib/firestore/accountDeletion.ts", "account deletion clears the person's own entry, key by key, and nobody else's"],
       ]),
       "writing where somebody who came was",
@@ -11136,7 +11169,10 @@ describe("v16 says a register records the room or online, and you may tell us in
       sourceFilesNaming(/\bjoiningOnlineBox\(/).filter((file) => file !== "src/lib/courses/meetingLink/box.ts"),
       new Map([
         ["src/app/(app)/learn/[runId]/group/[groupId]/page.tsx", "a facilitator's group page, which asks for the session's link"],
-        ["src/app/(app)/learn/[runId]/group/[groupId]/register/page.tsx", "the register a facilitator takes, with the same box at its top"],
+        // MOVED (November 2026), with covering a register: both register
+        // pages draw one body. The box is never drawn for somebody given one
+        // session; the programme's lead sees "everything a facilitator sees".
+        ["src/features/courses/register/RegisterPageBody.tsx", "the register a facilitator takes (and the one under the programme's group page), with the same box at its top, never for somebody given one session"],
       ]),
       "showing facilitators who is joining online",
       "The policy says your facilitators see it. A new reader needs the policy's readers to grow first.",
@@ -11250,12 +11286,21 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
   test("a register records who took it, and a correction who made it, when and what it said before", () => {
     // "Your group's facilitators usually take the register. If they can't,
     // someone else running the programme may take it, and the register
-    // records who did." The register's gate admits its facilitators and
-    // admins, and every save of the marks keeps who saved them.
+    // records who did." MOVED (November 2026), with covering a register:
+    // the register's gate admits its facilitators, admins, the people
+    // leading the programme and somebody given one session, and nobody
+    // else; every save of the marks keeps who saved it, who set each line,
+    // and, taken in a facilitator's place, the cover.
     const access = withoutComments(read("src/lib/courses/registerAccess.ts"));
-    assert.match(access, /if \(!isAdmin && !facilitatesLiveGroup\) \{/);
+    assert.equal(
+      [...access.matchAll(/if \(!isAdmin && !facilitates && !leads && givenSessions\.length === 0\) \{\n\s*return \{ ok: false, status: 403, error: "Forbidden" \};/g)].length,
+      2,
+      "both register gates (writing and reading) refuse everybody else",
+    );
     const marking = withoutComments(read("src/app/api/courses/groups/[groupId]/attendance/route.ts"));
     assert.match(marking, /markedByUid: actor\.uid,/);
+    assert.match(marking, /stamps\[uid\] = \{ byUid: actor\.uid, at: now, how: setterHow\(facilitates\) \};/);
+    assert.match(marking, /\? \{ \[COVER\]: \{ kind: "self", byUid: actor\.uid, at: now, covering: coverable\.map\(\(each\) => each\.uid\) \} \}/);
     // "If a register is wrong, the people running the programme may correct
     // it, and we record who changed it, when and what it said before": an
     // admin's correction of a finished register writes one audit row per mark
@@ -11264,6 +11309,30 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
     assert.match(row, /const from = before\.get\(uid\) \?\? null;/);
     assert.match(row, /kind: "attendance-edit",[\s\S]*?actorUid: actor\.uid,[\s\S]*?at: FieldValue\.serverTimestamp\(\),/);
     assert.match(row, /: `\$\{markLabel\(from, wasOnline\)\} to \$\{markLabel\(status, isOnline\)\}`;/);
+  });
+
+  test("whether a facilitator was there: the programme's lead and admins see this, and nobody else", () => {
+    // "If you facilitate, we may also record whether you were at each session
+    // you run, and who took the register if you weren't. The programme's lead
+    // and admins see this." ADDED (November 2026), with covering a register.
+    // One function decides it, from the gate's answer: an admin or the
+    // programme's lead (`leadsProgramme`, never a run's track lead by that
+    // alone), who does not facilitate the group.
+    const access = withoutComments(read("src/lib/courses/registerAccess.ts"));
+    assert.match(access, /return \(gated\.isAdmin \|\| gated\.leadsProgramme\) && !gated\.facilitates;/);
+    assert.match(access, /leadsProgramme = staffing\.leadOf !== null;/);
+    assert.match(access, /readsFacilitatorRecord: readsFacilitatorRecord\(gated\),/);
+    // The programme's lead "sees the totals" of a check-in; a run's track
+    // lead who takes a register opens its check-in and is sent no totals.
+    assert.match(access, /readsCheckInTotals: staff \|\| \(gated\.leadsProgramme && took\),/);
+    // Every door that hands the record out, or changes it, asks that one function.
+    const marking = withoutComments(read("src/app/api/courses/groups/[groupId]/attendance/route.ts"));
+    assert.match(marking, /const readsFacilitatorRecord = readsFacilitatorRecordOf\(gated\);/);
+    const change = withoutComments(read("src/app/api/courses/groups/[groupId]/attendance/facilitators/route.ts"));
+    assert.match(change, /if \(!readsFacilitatorRecord\(gated\)\) return NextResponse\.json\(\{ error: "Forbidden" \}, \{ status: 403 \}\);/);
+    // The group's history drops the rows about it unless the page is drawn for one of them.
+    const history = withoutComments(read("src/lib/courses/groupHistory/load.ts"));
+    assert.match(history, /if \(!options\.facilitatorRecord && \(LEAD_ONLY_AUDIT_KINDS as readonly string\[\]\)\.includes\(row\.kind\)\) continue;/);
   });
 
   test("we record each time a conduct record is opened, first, and it stays closed when we cannot", () => {

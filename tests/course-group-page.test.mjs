@@ -284,7 +284,10 @@ describe("1. the arithmetic of a group's page", () => {
     assert.deepEqual(model.filterHistory(rows, "time-and-room").map((row) => row.id), ["1"]);
     assert.deepEqual(model.filterHistory(rows, "people").map((row) => row.id), ["2"]);
     assert.deepEqual(model.filterHistory(rows, "link").map((row) => row.id), ["3"]);
-    assert.deepEqual(words.HISTORY_FILTERS.map((each) => each.label), ["Everything", "Time and room", "People", "Link"]);
+    // ADDED (November 2026): the Registers filter, now registers log there
+    // (taking one in a facilitator's place, giving a session, didn't happen).
+    assert.deepEqual(model.filterHistory(rows, "registers").map((row) => row.id), ["4"]);
+    assert.deepEqual(words.HISTORY_FILTERS.map((each) => each.label), ["Everything", "Time and room", "People", "Link", "Registers"]);
     assert.equal(model.historyWhenWords("2026-11-10T12:20:00Z"), "Tue 10 Nov, 12:20pm");
   });
 
@@ -588,17 +591,24 @@ describe("3. the group's page, and the facilitator's cut", () => {
     ]) {
       assert.ok(drawn.text.includes(said), `missing "${said}" in: ${drawn.text.slice(0, 600)}`);
     }
-    assert.ok(drawn.html.includes(`href="/learn/${RUN.agi}/group/${B}/register"`), "Take the register is today's register page");
+    // CHANGED ON PURPOSE (November 2026), with covering a register: Take the
+    // register is the group's register under this page, which admins and
+    // the programme's lead take.
+    const registerPath = `/admin/admissions/forms/${ROUND}/programmes/${AGI}/groups/${B}/register`;
+    assert.ok(drawn.html.includes(`href="${registerPath}"`), "Take the register is the group's register under this page");
     assert.doesNotMatch(drawn.text, /Attendance, all weeks/, "no tab for something that does not exist yet");
     assert.doesNotMatch(drawn.text, /Remind/, "Remind comes with a later step");
     const [body] = find(drawn.element, "GroupPage");
     assert.ok(body, "the page hands its body the server's view");
   });
 
-  test("the programme's lead reads it too, and is not offered a register they cannot take", async () => {
+  test("the programme's lead reads it too, and takes the register from it", async () => {
+    // CHANGED ON PURPOSE (November 2026): leads write registers now, so the
+    // lead is offered the group's register under this page, as an admin is.
     const drawn = await groupPage("claudia");
     assert.ok(drawn.text.includes("How Group B meets"), drawn.text.slice(0, 400));
-    assert.doesNotMatch(drawn.text, /Take the register/);
+    assert.ok(drawn.html.includes(`href="/admin/admissions/forms/${ROUND}/programmes/${AGI}/groups/${B}/register"`), "the lead is not offered the register");
+    assert.ok(!drawn.html.includes(`/learn/${RUN.agi}/group/${B}/register`), "the lead is sent to a register the run's pages refuse them");
   });
 
   test("a reviewer is told the tab is the lead's and an admin's; a group of another run is not here", async () => {
