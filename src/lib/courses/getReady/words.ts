@@ -612,13 +612,28 @@ export const FOLLOWS_LINE = "Scheduled emails that go without a press, as Site s
 export const SITE_STATUS = "Site status";
 export const PAUSED = "The scheduler is paused on Site status, so none of these goes until it’s switched back on.";
 
-/** Next week's email, on or off, and the groups with no room yet, whose email says so and goes. */
-export function nextWeekWords(on: boolean, noRoomYet: readonly string[]): string {
+/**
+ * Next week's email, on or off; the groups with no room yet, whose email says
+ * so and goes; and the groups set to meet online with no link yet, whose
+ * email gives the day and time and nothing of where.
+ */
+export function nextWeekWords(on: boolean, noRoomYet: readonly string[], onlineNoLink: readonly string[] = []): string {
   if (!on) return "Next week’s email: off. A group is sent it when its facilitator pushes the register.";
   const head = "Next week’s email: on. Each group is emailed next week’s time, room and reading before each session after its first.";
-  if (noRoomYet.length === 0) return head;
-  const one = noRoomYet.length === 1;
-  return `${head} ${namesInWords(noRoomYet)} ${one ? "has" : "have"} no room yet, so ${one ? "its email says" : "their emails say"} “Room to be confirmed” until ${one ? "it has" : "they have"} one.`;
+  const parts = [head];
+  if (noRoomYet.length > 0) {
+    const one = noRoomYet.length === 1;
+    parts.push(
+      `${namesInWords(noRoomYet)} ${one ? "has" : "have"} no room yet, so ${one ? "its email says" : "their emails say"} “Room to be confirmed” until ${one ? "it has" : "they have"} one.`,
+    );
+  }
+  if (onlineNoLink.length > 0) {
+    const one = onlineNoLink.length === 1;
+    parts.push(
+      `${namesInWords(onlineNoLink)} ${one ? "meets" : "meet"} online with no link yet, so ${one ? "its email gives" : "their emails give"} the day and time and nothing about where.`,
+    );
+  }
+  return parts.join(" ");
 }
 
 export function registerRemindersWords(on: boolean): string {

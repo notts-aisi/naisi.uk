@@ -566,7 +566,13 @@ out of everybody's email rather than hold it. The same holds for the push
 lane, which builds the email in the same place.
 
 **Never a meeting link.** An online week says "online"; a room with a link in
-it is not printed, and the email goes without a room.
+it is not printed. It goes as a room not booked yet, saying "Room to be
+confirmed", and since it is a mistake rather than a room still to book, the
+schedule puts one card on the boards of the programme's lead and the admins
+("Week 2's room holds a link: Group B"), as it did while such an email was
+held. A group set to meet online with no link yet is told the day and time
+and nothing of where; Publish's "What can follow by itself" says which groups
+are which, by the email's own `weekOpenPlace`.
 
 **It may only be switched on where the scheduler is running**, because
 switching it on also stops the push from sending. Prove it on dev with **Run

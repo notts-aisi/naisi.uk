@@ -24,9 +24,9 @@ import {
   type CohortRecipient,
 } from "@/lib/email/courseFacilitatorEmails";
 import {
-  courseNudgeSessionWhere,
   courseWeekUrl,
   groupNudgeMarkerId,
+  weekOpenPlace,
 } from "@/lib/email/courseNudgeEmail";
 import { sendNotice } from "@/lib/email/notice";
 import { firstWord } from "@/lib/firestore/applicationEmails";
@@ -88,7 +88,10 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
  * time, the week's title, what the week asks for) and says which, rather
  * than sending it without. `whole: false` is the push lane as it has always
  * been: a missing fact drops its words. A room not booked yet holds neither:
- * the email goes with "Room to be confirmed" in a line of its own.
+ * the email goes with "Room to be confirmed" in a line of its own, and so
+ * does a room that holds a link, which is never printed as one; then the
+ * outcome says so (`roomHoldsLink`), and the schedule puts a card on the
+ * boards of the programme's lead and the admins to put it right.
  *
  * ── AN EARLIER WEEK NOT DONE ────────────────────────────────────────────────
  * Each person's email adds one line for any earlier week of theirs that is
@@ -131,6 +134,12 @@ export type NextWeekEmailOutcome = {
     | null;
   /** The empty values that held a whole email. Empty otherwise. */
   missing: WeekOpenValue[];
+  /**
+   * Present, and true, when mail went for a session whose room holds a link:
+   * it said "Room to be confirmed", and the schedule tells the programme's
+   * lead and the admins, who used to be told by holding it.
+   */
+  roomHoldsLink?: true;
 };
 
 /**
@@ -170,6 +179,8 @@ export type NextWeekEmailReading = {
   /** Everything it says, but the greeting. */
   facts: WeekOpenFacts;
   week: Awaited<ReturnType<typeof resolveWeekDoc>>["week"];
+  /** The session is in a room and its room holds a link: the email says "Room to be confirmed". */
+  roomHoldsLink: boolean;
 };
 
 /**
@@ -203,12 +214,13 @@ export async function readNextWeekEmail(
   const explainers = await explainersRead;
   const sessions = resolveSessions(run, group);
   const blocks = week && isBlockWeek(week) ? week.blocks : null;
+  const place = weekOpenPlace(session.session, sessionModeForWeek(group, session.weekId), campusForWeek(group, session.weekId));
   const facts: WeekOpenFacts = {
     courseTitle: run.courseTitle,
     weekNumber: session.weekNumber,
     weekTitle: week?.title ?? "",
     sessionAt: sessionInstants(session).startsAt,
-    where: courseNudgeSessionWhere(session.session, sessionModeForWeek(group, session.weekId)),
+    where: place.where,
     first: sessions[0]?.sessionKey === session.sessionKey,
     // A cancelled session's email says it is off, why, and when the group
     // meets next, in place of when and where it meets; the session after one
@@ -221,12 +233,12 @@ export async function readNextWeekEmail(
     staysOpen: blocks !== null,
     explainer: memberExplainerOn(explainers, group.id, session.sessionKey),
   };
-  // In a room, with none booked yet: the email goes and says so. Not for a
-  // session held online, nor a group that meets online.
-  facts.roomToBeConfirmed =
-    !session.cancelled && facts.where === "" && !session.session.location.trim() && campusForWeek(group, session.weekId) !== "online";
+  // In a room, with none booked yet (its room empty, or holding a link that
+  // is never printed as one): the email goes and says so. Not for a session
+  // held online, nor a group that meets online.
+  facts.roomToBeConfirmed = !session.cancelled && place.roomToBeConfirmed;
   const missing = week ? missingWeekOpenValues(facts) : [];
-  return { published: Boolean(week?.published), missing, facts, week };
+  return { published: Boolean(week?.published), missing, facts, week, roomHoldsLink: !session.cancelled && place.roomHoldsLink };
 }
 
 /** An outcome in which nothing went, and why. */
@@ -544,5 +556,5 @@ export async function sendNextWeekEmail(args: {
     }
   });
 
-  return { sent, skipped, forced, reason: null, held: null, missing: [] };
+  return { sent, skipped, forced, reason: null, held: null, missing: [], ...(reading.roomHoldsLink ? { roomHoldsLink: true as const } : {}) };
 }

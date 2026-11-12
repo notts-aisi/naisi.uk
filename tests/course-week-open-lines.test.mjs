@@ -17,7 +17,12 @@
  *     it: not somebody whose week 1 is done, not somebody told their group
  *     after week 1's session.
  *  3. NOTHING ELSE about when or to whom it goes changes: once per group per
- *     session, to everybody holding a place in the group.
+ *     session, to everybody holding a place in the group; and a read behind
+ *     the earlier week's line that fails leaves the line out and holds
+ *     nothing, through either sender.
+ *  4. A ROOM HOLDING A LINK goes as a room not booked, never printing the
+ *     link; and the Publish page promises "Room to be confirmed" only for
+ *     the groups whose email carries it (`weekOpenPlace`, the email's own).
  *
  * Mail goes to the register world's stand-in door (`tests/lib/registerWorld.mjs`),
  * and every message is rendered with the real template before its words are
@@ -35,6 +40,8 @@ const register = await courseRoute("groups", "[groupId]", "attendance");
 const push = await courseRoute("groups", "[groupId]", "attendance", "push");
 const { nextWeekEmailJob } = await lib("scheduler", "jobs", "nextWeekEmail.ts");
 const { heldEmailTaskId } = await lib("courses", "heldEmailTask.ts");
+const { weekOpenPlace } = await lib("email", "courseNudgeEmail.ts");
+const getReadyWords = await lib("courses", "getReady", "words.ts");
 
 mock.timers.enable({ apis: ["Date"], now: AT.week1Evening });
 const at = (instant) => mock.timers.setTime(instant.getTime());
@@ -126,6 +133,75 @@ describe("through the register's push, while the email is not on its schedule", 
   });
 });
 
+describe("through the register's push: a room holding a link, and an earlier week that cannot be read", () => {
+  beforeEach(() => reset(seedLines()));
+  const MORNING_AFTER = new Date("2026-10-21T06:30:00Z");
+
+  test("a room holding a link goes as a room not booked: the line, and never the link", async () => {
+    at(MORNING_AFTER);
+    world.db.poke(`courseGroups/${GROUP.b}`, { "session.location": "https://zoom.example.com/j/123456789" });
+    const done = await finishWeekOne();
+    assert.equal(done.body.sent, MEMBERS_B.length);
+    const text = await textOf(weekTwo("amara")[0]);
+    assert.ok(text.includes(ROOM_LINE), text);
+    assert.doesNotMatch(text, /zoom\.example\.com/);
+  });
+
+  test("when the read behind the earlier week's line fails, the email still goes to everybody, without that line", async (t) => {
+    const logged = t.mock.method(console, "error", () => {});
+    at(MORNING_AFTER);
+    // The earlier week's facts are read from the answers store and the ticks; the email reads neither.
+    const real = world.db.collection.bind(world.db);
+    world.db.collection = (path) => {
+      if (path === "courseProgress") throw new Error("the read failed");
+      return real(path);
+    };
+    let done;
+    try {
+      done = await finishWeekOne();
+    } finally {
+      world.db.collection = real;
+    }
+    assert.equal(done.status, 200, JSON.stringify(done.body));
+    assert.equal(done.body.sent, MEMBERS_B.length, "everybody holding a place, as before");
+    for (const uid of MEMBERS_B) {
+      assert.equal(weekTwo(uid).length, 1, uid);
+      assert.doesNotMatch(await textOf(weekTwo(uid)[0]), /isn’t done yet either/, `${uid}: a line from a read that failed`);
+    }
+    assert.ok(
+      logged.mock.calls.some((call) => String(call.arguments[0]).includes("earlier weeks could not be read")),
+      "the read behind the line never failed, so this proves nothing",
+    );
+  });
+});
+
+describe("what the Publish page says of it, worked out by the email's own place", () => {
+  const session = (over = {}) => ({ weekday: 2, startTimeLocal: "18:00", durationMinutes: 120, location: "", meetingUrl: "", ...over });
+
+  test("a room, a room not set, a room holding a link, a group online with a link, and one online with none", () => {
+    assert.deepEqual(weekOpenPlace(session({ location: "Room C20" }), null, "jubilee"), { where: "Room C20", roomToBeConfirmed: false, roomHoldsLink: false, onlineNoLink: false });
+    assert.deepEqual(weekOpenPlace(session(), null, "jubilee"), { where: "", roomToBeConfirmed: true, roomHoldsLink: false, onlineNoLink: false });
+    assert.deepEqual(weekOpenPlace(session({ location: "https://zoom.example.com/j/1" }), null, null), { where: "", roomToBeConfirmed: true, roomHoldsLink: true, onlineNoLink: false });
+    assert.deepEqual(weekOpenPlace(session({ meetingUrl: "https://meet.example.com/x" }), null, "online"), { where: "Online", roomToBeConfirmed: false, roomHoldsLink: false, onlineNoLink: false });
+    assert.deepEqual(weekOpenPlace(session(), null, "online"), { where: "", roomToBeConfirmed: false, roomHoldsLink: false, onlineNoLink: true });
+  });
+
+  test("it promises Room to be confirmed only for the groups whose email carries it, and says what an online group's says", () => {
+    assert.equal(
+      getReadyWords.nextWeekWords(true, ["Group C"], ["Group D"]),
+      "Next week’s email: on. Each group is emailed next week’s time, room and reading before each session after its first. " +
+        "Group C has no room yet, so its email says “Room to be confirmed” until it has one. " +
+        "Group D meets online with no link yet, so its email gives the day and time and nothing about where.",
+    );
+    assert.equal(
+      getReadyWords.nextWeekWords(true, [], ["Group D", "Group E"]),
+      "Next week’s email: on. Each group is emailed next week’s time, room and reading before each session after its first. " +
+        "Group D and Group E meet online with no link yet, so their emails give the day and time and nothing about where.",
+    );
+    assert.doesNotMatch(getReadyWords.nextWeekWords(true, [], ["Group D"]), /Room to be confirmed/);
+  });
+});
+
 describe("through the job, on its schedule", () => {
   beforeEach(() => reset(seedLines({ scheduled: true })));
 
@@ -154,6 +230,25 @@ describe("through the job, on its schedule", () => {
     assert.match(text, /Your next session is Tue 27 Oct at 6pm, online\./);
     assert.doesNotMatch(text, /Room to be confirmed/);
     assert.doesNotMatch(text, /meet\.example\.com/);
+  });
+
+  test("when the read behind the earlier week's line fails, the job still sends it to everybody, without that line", async (t) => {
+    const logged = t.mock.method(console, "error", () => {});
+    const real = world.db.collection.bind(world.db);
+    world.db.collection = (path) => {
+      if (path === "courseProgress") throw new Error("the read failed");
+      return real(path);
+    };
+    try {
+      await runJob(AT.groupBDue);
+    } finally {
+      world.db.collection = real;
+    }
+    for (const uid of MEMBERS_B) {
+      assert.equal(weekTwo(uid).length, 1, uid);
+      assert.doesNotMatch(await textOf(weekTwo(uid)[0]), /isn’t done yet either/, uid);
+    }
+    assert.ok(logged.mock.calls.some((call) => String(call.arguments[0]).includes("earlier weeks could not be read")));
   });
 
   test("an earlier week not written as blocks has no line, and the email goes", async () => {

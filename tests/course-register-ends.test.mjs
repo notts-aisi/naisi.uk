@@ -49,7 +49,7 @@ const { nextWeekEmailJob } = await lib("scheduler", "jobs", "nextWeekEmail.ts");
 const { registerRemindersJob } = await lib("scheduler", "jobs", "registerReminders.ts");
 const { unmarkedRegistersJob } = await lib("scheduler", "jobs", "unmarkedRegisters.ts");
 const { SCHEDULER_JOB_IDS } = await lib("scheduler", "registry.ts");
-const { heldEmailTaskId } = await lib("courses", "heldEmailTask.ts");
+const { heldEmailTaskId, roomLinkTaskId } = await lib("courses", "heldEmailTask.ts");
 const { registerFollowUpTaskId } = await lib("courses", "unmarkedRegisters.ts");
 const { registerEndingWords } = await loadTs("features/courses/registerEndingWords.ts");
 
@@ -397,7 +397,7 @@ describe("Week N is open on its schedule", () => {
     assert.equal(read(cardPath).archived, true, "and the card has done its job");
   });
 
-  test("a week that asks for nothing or one with no title holds it too; a room not booked yet, or holding a link, does not", async () => {
+  test("a week that asks for nothing or one with no title holds it too; a room not booked yet does not, and a room holding a link goes as one and tells the lead and the admins", async () => {
     world.db.poke(`courseRuns/${RUN}/weeks/w02`, { materials: [], estimatedMinutes: null });
     await runJob(nextWeekEmailJob, AT.groupBDue);
     assert.equal(mailTo("amara").length, 0);
@@ -414,10 +414,29 @@ describe("Week N is open on its schedule", () => {
       "session.location": "https://zoom.example.com/j/123456789",
     });
     await runJob(nextWeekEmailJob, AT.groupBDue);
-    assert.equal(mailTo("amara").length, 1, "a room holding a link no longer holds the email");
+    for (const uid of MEMBERS_B) assert.equal(mailTo(uid).length, 1, `${uid}: a room holding a link goes as a room not booked`);
     const linked = await textOf(mailTo("amara")[0]);
     assert.doesNotMatch(linked, /zoom\.example\.com/, "a link is never printed as a room");
-    assert.match(linked, /Your next session is Tue 27 Oct at 6pm\./);
+    assert.match(
+      linked,
+      /Your next session is Tue 27 Oct at 6pm\. Room to be confirmed: we’ll email you as soon as it’s booked, and it’ll be on your programme page\./,
+      "it says where it is as a room not booked does",
+    );
+    // What told the lead and the admins while it was held still tells them: one card on their boards, once.
+    assert.equal(read(`tasks/${heldEmailTaskId(RUN, GROUP.b, "w02")}`), undefined, "no card says it was held: it went");
+    await runJob(nextWeekEmailJob, new Date(AT.groupBDue.getTime() + 15 * 60_000));
+    const roomCards = world.db
+      .paths()
+      .filter((path) => path.startsWith("tasks/") && path.endsWith("__room"));
+    assert.deepEqual(roomCards, [`tasks/${roomLinkTaskId(RUN, GROUP.b, "w02")}`], "one card, once");
+    const roomCard = read(roomCards[0]);
+    assert.deepEqual(roomCard.completerUids, ["claudia", "zach"], "the lead, then the admins");
+    assert.equal(roomCard.visibility, "committee");
+    assert.equal(roomCard.title, "Week 2’s room holds a link: Group B");
+    assert.match(roomCard.description, /was sent “Week 2 is open”, about week 2 on .*, saying “Room to be confirmed”: the group’s room holds a link/);
+    assert.doesNotMatch(roomCard.description, /zoom\.example\.com/, "the card names no link either");
+    assert.ok(roomCard.initialNotifyAt instanceof Date, "born notified, so it emails nobody");
+    for (const uid of ["claudia", "zach"]) assert.equal(mailTo(uid).length, 0, `${uid} is told on the board, not by email`);
 
     reset(seedWorld({ scheduled: true }));
     world.db.poke(`courseGroups/${GROUP.b}`, { "session.location": "" });
