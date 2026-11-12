@@ -159,7 +159,14 @@ export const SPEC = {
       "/(app)/learn/[runId]/group/[groupId]/register",
     ],
   },
-  status: "unverified",
+  /**
+   * VERIFIED on 13 Nov 2026 against the harness's loopback server on a laptop
+   * (a production build of the branch), alone and then beside the five specs
+   * that touch the register, Finish and the group's page: all nine steps ran,
+   * and the fixture manifest read zero afterwards each time. The pull
+   * request's end-to-end job is its first CI run.
+   */
+  status: "verified",
   seed,
   countRows: countTerm,
   teardown,

@@ -1134,12 +1134,16 @@ test(
           assert.equal(head.includes(ending.scheduled ? "Finished" : "Pushed"), done, `week ${weekNumber}'s column and its badge`);
           for (const person of inGroup) {
             if (done) {
-              const cell = cellOf(person, weekNumber, "img");
+              // CHANGED ON PURPOSE (November 2026), with correcting a register:
+              // a finished line no longer takes a tap from its facilitator; it
+              // opens Ask for a correction, which changes nothing by itself.
+              const cell = cellOf(person, weekNumber);
               assert.equal(
                 await cell.getAttribute("aria-label"),
-                `${person.first}, week ${weekNumber}: ${labelOf(markOf(person, weekNumber))}. This register is finished and locked.`,
-                `${person.first}'s week ${weekNumber} is not locked against the facilitator`,
+                `${person.first}, week ${weekNumber}: ${labelOf(markOf(person, weekNumber))}. Ask for a correction.`,
+                `${person.first}'s week ${weekNumber} does not offer the facilitator only a correction to ask for`,
               );
+              assert.equal(await cellOf(person, weekNumber, "img").count(), 0, `${person.first}'s week ${weekNumber} is drawn as a plain mark`);
             } else {
               assert.equal(
                 await cellOf(person, weekNumber).getAttribute("aria-label"),

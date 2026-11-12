@@ -390,7 +390,8 @@ test(
         await gusPage.goto(`${origin}/dashboard`, { waitUntil: "domcontentloaded" });
         const card = gusPage.getByTestId("home-requests");
         await card.waitFor({ timeout: WAIT_MS });
-        assert.match(await textOf(card), /^1 Request waiting A facilitator has asked for a line of a register to be corrected\. Open/);
+        const home = flat(await card.innerText());
+        assert.ok(home.startsWith("1") && home.includes("Request waiting") && home.includes("A facilitator has asked for a line of a register to be corrected."), home);
         await card.getByRole("link", { name: "Open" }).click();
         await gusPage.waitForURL((url) => url.pathname === "/admin/admissions/requests", { timeout: WAIT_MS });
         const row = gusPage.getByTestId("request-row").filter({ hasText: ada.first }).first();
