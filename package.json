@@ -29,7 +29,7 @@
     "@tiptap/suggestion": "^3.31.3",
     "browser-image-compression": "^2.0.2",
     "firebase": "^12.19.0",
-    "firebase-admin": "^13.8.0",
+    "firebase-admin": "^14.5.0",
     "google-auth-library": "^10.9.1",
     "marked": "^15.0.12",
     "motion": "^13.4.6",
