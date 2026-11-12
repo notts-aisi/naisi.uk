@@ -446,7 +446,9 @@ describe("4. the preview changes nothing", () => {
       [preview.before.dateKey, preview.before.startTimeLocal, preview.after.dateKey, preview.after.startTimeLocal, preview.after.room],
       [TUE_24, "18:00", "2026-11-25", "19:00", "Portland A13"],
     );
-    assert.deepEqual(preview.lock, { before: "2026-11-24T18:00:00.000Z", after: "2026-11-25T19:00:00.000Z" });
+    // From when the week's work counts as late: the session its people are due at, before and after the move.
+    assert.deepEqual(preview.lateFrom, { before: "2026-11-24T18:00:00.000Z", after: "2026-11-25T19:00:00.000Z" });
+    assert.equal("lock" in preview, false, "the preview still says when the week's work locks");
     assert.deepEqual([preview.reminders.weekOpen.scheduled, preview.reminders.reminders.on], [false, false]);
     assert.deepEqual([preview.said.joiningOnline.count, preview.said.cantMakeIt.count], [1, 1]);
     assert.deepEqual(preview.told, { emails: 4, refused: false, people: 2, facilitatorNames: ["Rahul", "Sofia"] });
@@ -844,6 +846,9 @@ describe("8. nothing moves the start of a session whose register was taken", () 
     const startFour = startOf(4);
     const preview = await ask.change("claudia", B, { ...WEEK3, kind: "cancel", reason: AWAY, preview: true });
     assert.equal(preview.status, 200, JSON.stringify(preview.body));
+    // Cancelled with the group keeping pace, week 3's work counts as late from when its session would have
+    // started (Tue 17 Nov, 6pm), never from the next session that meets: unchanged by the cancel.
+    assert.deepEqual(preview.body.preview.lateFrom, { before: "2026-11-17T18:00:00.000Z", after: "2026-11-17T18:00:00.000Z" });
     const response = await ask.change("claudia", B, silently({ ...WEEK3, kind: "cancel" }));
     assert.equal(response.status, 200, JSON.stringify(response.body));
     assert.equal(weekOf(3).cancelled, true);

@@ -372,7 +372,7 @@ function AnswerForm({
 
       {timeLine}
       {changedSinceSent && <p className={own.line}>{changedSinceSentWords(sessionStarted)}</p>}
-      {!sent && (
+      {!sent && canWrite && (
         <p className={own.line}>
           {dueLineWords(block.due, dueDay, { todayKey, dayBeforeTime, first })} {readersFeedbackWords(readers)}
         </p>

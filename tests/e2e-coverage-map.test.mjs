@@ -1160,11 +1160,17 @@ const NOT_COVERED = {
     coverWhen:
       "When the page that shows a facilitator or a lead somebody's action plan exists and a browser spec opens it.",
   },
-  "/api/courses/runs/[runId]/written-answers/[answerId]/send": {
+  "/api/courses/runs/[runId]/weeks/[weekId]/submit": {
     reason:
-      "Course hub: a written answer's own Send (the week stays open), sent again after a change; who sends, what each send stamps, the words its readers read before and after the session, and the programme's close are executed by tests/course-week-work.test.mjs, against the real routes and the review page's loader. No page presses it yet: the week page that draws Send my answer is the next change.",
+      "Course hub: the week's old Submit, kept only for a week page opened before each written answer had its own Send: it sends every written answer of the week that has words and is within its limit, stamps the press, and closes nothing. No page in this tree presses it any more. Who may press it, what it sends and that it shuts nothing are executed by tests/course-week-work.test.mjs and tests/course-hub-written-answers.test.mjs against the real route.",
     coverWhen:
-      "When the week page draws Send my answer: a browser spec signs in a member of a group Publish has told, writes the week's answer, sends it, changes it, sends it again and reads the page's own line back.",
+      "Never by a browser: no page draws it. When the route is removed, its entry goes with it.",
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/reopen": {
+    reason:
+      "Course hub: the old Reopen, kept only for a page opened before weeks stayed open: it asks its one gate, writes nothing and answers that weeks no longer lock. No page in this tree draws a Reopen any more. Its gate and that it writes nothing are executed by tests/course-week-work.test.mjs and pinned in tests/privacy-policy.test.mjs.",
+    coverWhen:
+      "Never by a browser: no page draws it. When the route is removed, its entry goes with it.",
   },
   "/api/courses/runs/[runId]/fill-in-boxes/[boxId]": {
     reason:

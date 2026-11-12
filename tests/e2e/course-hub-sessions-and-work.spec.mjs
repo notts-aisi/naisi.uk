@@ -21,21 +21,30 @@
  * for a meeting link for week 4, Fern adds one, and the box and the register
  * say Ada is joining online -> Ada's ticket, on the programme page and on
  * Home, carries the link for anybody joining online, beside Add to calendar
- * -> Ada writes week 4's written answer, presses
- * Submit week 4, reads the check (two reflections empty) and presses Submit
- * anyway: the week reads submitted and locked, the box read only, after a
- * reload too -> Fern presses "Reopen week 4 for Ada" on This week's work ->
- * Ada's week page says Fern reopened it and until when; Ada changes the
- * answer and submits again -> the programme's lead (the admin) opens the
- * Surveys tab from the programme's head, follows the Overview's "Read the
- * report" to the session reports, and reads Fern's report with names -> the
- * lead's Attendance tab says Ada came to one session online.
+ * -> Ada writes week 4's written answer and presses Send my answer: the page
+ * says when it was sent, with Change my answer, and the week stays open,
+ * after a reload too -> Ada changes it before the session, and the page says
+ * the people who read her work still see the version she sent -> Fern's
+ * review page shows the answer as sent, never the change -> the programme's
+ * lead (the admin) opens the Surveys tab from the programme's head, follows
+ * the Overview's "Read the report" to the session reports, and reads Fern's
+ * report with names -> the lead's Attendance tab says Ada came to one session
+ * online -> Group A's week 4 session starts (the fixture moves Group A's own
+ * calendar so it started minutes ago): Ada's page says Group A met and that
+ * she can still finish it; she writes a reflection, changes her answer and
+ * sends it, and each says how many minutes after her session -> Fern's review
+ * page says "Late" with how late and shows the answer as it stood at the
+ * session; her reflections page and This week's work say how late too -> Ben,
+ * another fellow of Group A, reads none of Ada's work on any of those pages.
  *
  * ## How to run it
  *
  *   npm run e2e:browser -- --local --spec course-hub-sessions-and-work
  *
- * It reads no mail, so it runs against a deployed target too. CHROMIUM ONLY:
+ * It reads no mail, so it runs against a deployed target too. Every account
+ * it signs in as is the harness's own, and the only email it can cause (the
+ * approvals, the week 4 email the finished register may send) goes to the
+ * fixture's own addresses. CHROMIUM ONLY:
  * a green run is a regression net, never a substitute for the manual Safari
  * pass.
  */
@@ -61,9 +70,10 @@ import {
   stateDir,
   statePath,
 } from "../../scripts/e2e-fixtures/core.mjs";
-import { RECAPTCHA_DEPENDENT_STEPS, SPEC } from "../../scripts/e2e-fixtures/course-hub-sessions-and-work.mjs";
+import { RECAPTCHA_DEPENDENT_STEPS, SPEC, startGroupSession } from "../../scripts/e2e-fixtures/course-hub-sessions-and-work.mjs";
 import {
   COURSEWORK_ANSWER_PROMPT,
+  COURSEWORK_PROMPTS,
   WEEK_THREE_WORK,
   courseworkItemId,
   dayLabel,
@@ -152,22 +162,27 @@ const WORDS = Object.freeze({
   writtenAnswer: "Written answer",
   yourAnswer: "Your answer",
   saved: "Saved",
-  submitWeek: (week) => `Submit week ${week}`,
-  checkTitle: (week) => `Before you submit week ${week}`,
-  twoNotDone: "Two things aren’t done yet:",
-  reflectionEmpty: (part) => `Your part ${part} reflection is empty.`,
-  checkLockLine:
-    "Submitting locks your work for this week, and your facilitator and the programme team can then read your written answer.",
-  submitAnyway: "Submit anyway",
-  goBackAndFinish: "Go back and finish",
-  submittedLine: (at) => `Submitted ${londonDayLabel(at)}, ${londonClockLabel(at)}. Your work for this week is locked.`,
-  openLine: /This week locks when it starts\.$/,
-  reopenWeek: (week, first) => `Reopen week ${week} for ${first}`,
-  reopen: "Reopen",
-  reopenedDone: (week, first) => `Week ${week} is open again for ${first}.`,
-  reopenedNotAgain: "Reopened, not submitted again",
-  reopenedLine: (by, at) =>
-    `${by} reopened this week for you. It locks again when you submit it, or at your next session, ${londonDayLabel(at)}, ${londonClockLabel(at)}.`,
+  // The week stays open (src/lib/courses/weekWork/words.ts).
+  sendMyAnswer: "Send my answer",
+  changeMyAnswer: "Change my answer",
+  untilLine: (session, room) =>
+    new RegExp(
+      `^Your session: ${escapeRegExp(`${londonDayLabel(session)}, ${londonClockLabel(session)}, ${room}`)}\\. ` +
+        "Your work stays open after it: anything you add or change after it shows as late to the people who read your work, with how late\\. " +
+        "This week stays open until the programme closes, at the end of [A-Z][a-z]{2} \\d{1,2} [A-Z][a-z]{2}\\.$",
+    ),
+  staysOpen: /^This week stays open until the programme closes, at the end of [A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}\.$/,
+  doneOnceSent: (week) => `Week ${week} is done once it’s sent and everything else it asks for is done.`,
+  sentLine: (at) => `Sent ${londonDayLabel(at)}, ${londonClockLabel(at)}.`,
+  changedBefore: "You’ve changed it since you sent it. The people who read your work still see the version you sent until you send it again.",
+  changedAfter: "You’ve changed it since you sent it. Your session has started, so the people who read your work see your latest words.",
+  staffChangedBefore: (first) => `${first} has changed it since sending it. You read it as sent until it’s sent again or the session starts.`,
+  met: (group, week, at) =>
+    `${group} met for week ${week} on ${londonDayLabel(at)}. You can still finish it. Anything you add or change now shows as late to the people who read your work, with how late.`,
+  savedLate: /^Saved [A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}, \d{1,2}(?::\d{2})?[ap]m: \d+ minutes? after your session$/,
+  sentLate: /^Sent [A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}, \d{1,2}(?::\d{2})?[ap]m: \d+ minutes? after your session$/,
+  staffLate: /Late: \d+ minutes? after the session/,
+  atSession: "As it stood at the session",
 });
 
 /** The link Fern gives week 4, at a reserved domain nothing answers on. */
@@ -186,7 +201,10 @@ const REPORT = Object.freeze({
 const ANSWER = Object.freeze({
   first: "The harbour board should keep the lamps lit, because the ships it charges are the ones that need them.",
   added: " The parish could share the cost of the oil in winter.",
+  more: " Volunteers could take the dark months in turns.",
 });
+/** What Ada writes in week 4's first reflection, once the session has started. */
+const REFLECTION = "Three of the five lamps on the point still burn every night.";
 
 let skipReasonFor = () => null;
 
@@ -233,7 +251,7 @@ function escapeRegExp(text) {
 const flat = (text) => text.replace(/\s+/g, " ").trim();
 const textOf = async (locator) => flat((await locator.textContent()) ?? "");
 
-test("course hub: a group's sessions and a week's work, from Can't make it to a reopened week", { skip: skipReason ?? false }, async (t) => {
+test("course hub: a group's sessions and a week's work, from Can't make it to work added after the session", { skip: skipReason ?? false }, async (t) => {
   const origin = baseUrl();
   const secrets = loadSecrets();
   const enc = encodeURIComponent;
@@ -276,8 +294,8 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
 
   const { browser, context, page: adminPage } = await openBrowser();
   const identities = [];
-  for (let i = 0; i < 2; i += 1) identities.push(await newIdentityPage(browser));
-  const [fernPage, adaPage] = identities.map((each) => each.page);
+  for (let i = 0; i < 3; i += 1) identities.push(await newIdentityPage(browser));
+  const [fernPage, adaPage, benPage] = identities.map((each) => each.page);
 
   let activePage = adminPage;
   const recorder = createStepRecorder({
@@ -295,7 +313,7 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
   const step = (name, fn) => recorder.step(name, fn);
 
   const recaptchaStubbed = await stubRecaptchaOnLoopback(adminPage, origin);
-  for (const pg of [fernPage, adaPage]) await stubRecaptchaOnLoopback(pg, origin);
+  for (const pg of [fernPage, adaPage, benPage]) await stubRecaptchaOnLoopback(pg, origin);
   if (!recaptchaStubbed) skipReasonFor = (name) => (RECAPTCHA_DEPENDENT_STEPS.includes(name) ? RECAPTCHA_SKIP_REASON : null);
 
   const signIn = (pg, credentials) => signInWithPassword(pg, origin, credentials, { timeout: WAIT_MS });
@@ -318,12 +336,14 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
       .find((doc) => doc.uid === ada.uid && doc.exerciseId === answerId) ?? null;
   const asDate = (value) => (value && typeof value.toDate === "function" ? value.toDate() : value ? new Date(value) : null);
 
-  /** The week page's line under its title. */
-  const lockLineOf = (pg) => pg.locator("main header").getByText(/locks|locked|reopened this week/).first();
+  /** The week page's line under its title: until when the work can change. */
+  const untilLineOf = (pg) => pg.locator("main header").getByText(/This week stays open until the programme closes|The programme closed/).first();
 
   /** The written answer's card on the week page, and its box. */
   const answerCard = (pg) => pg.getByRole("region", { name: WORDS.writtenAnswer, exact: true });
   const answerBox = (pg) => answerCard(pg).getByLabel(WORDS.yourAnswer, { exact: true });
+  const sendButton = (pg) => answerCard(pg).getByRole("button", { name: WORDS.sendMyAnswer, exact: true });
+  const changeButton = (pg) => answerCard(pg).getByRole("button", { name: WORDS.changeMyAnswer, exact: true });
 
   /** Opens week 4's page and waits for the box to hold what the server stored. */
   async function openWeek(pg) {
@@ -341,33 +361,23 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
     await answerCard(pg).getByText(WORDS.saved, { exact: true }).waitFor({ timeout: WAIT_MS });
   }
 
-  /** Submit week 4, the check before it, and Submit anyway; returns the route's answer. */
-  async function submitThroughTheCheck(pg) {
-    await pg.getByRole("button", { name: WORDS.submitWeek(nextWeek), exact: true }).click();
-    const check = pg.getByRole("dialog", { name: WORDS.checkTitle(nextWeek) });
-    await check.getByRole("heading", { name: WORDS.checkTitle(nextWeek), exact: true }).waitFor({ timeout: WAIT_MS });
-    await check.getByText(WORDS.twoNotDone, { exact: true }).waitFor({ timeout: WAIT_MS });
-    const items = (await check.getByRole("listitem").allTextContents()).map(flat);
-    assert.deepEqual(items, [WORDS.reflectionEmpty(1), WORDS.reflectionEmpty(2)], "the check names something else as not done");
-    await check.getByText(WORDS.checkLockLine, { exact: true }).waitFor({ timeout: WAIT_MS });
-    await check.getByRole("button", { name: WORDS.goBackAndFinish, exact: true }).waitFor({ timeout: WAIT_MS });
-    const [submitted] = await Promise.all([
-      responseTo(pg, `/weeks/${nextKey}/submit`, "POST"),
-      check.getByRole("button", { name: WORDS.submitAnyway, exact: true }).click(),
-    ]);
-    assert.deepEqual(submitted.request().postDataJSON(), { submit: true }, "Submit anyway did not ask to submit the week");
-    const body = await okBody(submitted, "Submitting the week");
-    assert.equal(body.work?.state, "submitted", "the week is not submitted");
-    await check.waitFor({ state: "hidden", timeout: WAIT_MS });
+  /** Send my answer, and the route's answer: the answer as sent, and the week, still open. */
+  async function sendAnswer(pg) {
+    const press = sendButton(pg);
+    await press.waitFor({ timeout: WAIT_MS });
+    await waitFor("Send my answer to be live once the page has hydrated", async () => press.isEnabled());
+    const [sent] = await Promise.all([responseTo(pg, `/written-answers/${answerId}/send`, "POST"), press.click()]);
+    assert.deepEqual(sent.request().postDataJSON(), { weekId: nextKey }, "Send my answer sent somebody else's week");
+    const body = await okBody(sent, "Sending the written answer");
+    assert.ok(body.written?.firstSentAt, "the send stamped no first send");
+    assert.equal(body.work?.closed, false, "a send closed the week");
+    await press.waitFor({ state: "detached", timeout: WAIT_MS });
     return body;
   }
 
-  /** The week as Ada reads it once it is submitted: the line, a box that takes nothing, no Submit. */
-  async function assertSubmitted(pg, at) {
-    await pg.locator("main header").getByText(WORDS.submittedLine(at), { exact: true }).waitFor({ timeout: WAIT_MS });
-    assert.equal(await answerBox(pg).isEditable(), false, "the answer box still takes writing once the week is submitted");
-    assert.equal(await pg.getByRole("button", { name: WORDS.submitWeek(nextWeek), exact: true }).count(), 0, "a submitted week still offers Submit");
-  }
+  /** The review page on Ada's week 4, as `pg`'s reader opens it. */
+  const reviewUrl = `${origin}${groupPath}/written?week=${nextWeek}&person=${enc(ada.uid)}`;
+  const namesUrl = `${origin}${groupPath}/reflections/names?week=${nextWeek}`;
 
   try {
     await step("the admin approves the facilitator and the member of the group who signs in", async () => {
@@ -713,93 +723,65 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
     });
 
     await step(
-      "the member writes the week's written answer, goes through the check and submits anyway, and the week reads submitted and locked",
+      "the member writes the week's written answer and sends it with its own Send, and the week stays open, saying when it was sent",
       async () => {
         activePage = adaPage;
         await openWeek(adaPage);
-        await lockLineOf(adaPage).waitFor({ timeout: WAIT_MS });
-        assert.match(await textOf(lockLineOf(adaPage)), WORDS.openLine, "the week does not say it locks at the session");
+        // Before the session: when it is, that the work stays open after it, and when the programme closes.
+        await untilLineOf(adaPage).waitFor({ timeout: WAIT_MS });
+        assert.match(await textOf(untilLineOf(adaPage)), WORDS.untilLine(nextSession.startsAt, group.room), "the week does not say its session and that it stays open");
+        // Nothing to send yet, and nothing on the page submits, locks or reopens.
+        assert.equal(await sendButton(adaPage).count(), 0, "an empty answer offers Send");
+        assert.doesNotMatch(flat(await adaPage.locator("main").innerText()), /\bSubmit|\block|reopen/i, "the week page still speaks of submitting or locking");
         await writeAnswer(adaPage, ANSWER.first);
-        const body = await submitThroughTheCheck(adaPage);
-        assert.deepEqual(body.sent.map((each) => each.id), [answerId], "submitting did not send the written answer");
-        const submittedAt = new Date(body.work.submittedAt);
-        await assertSubmitted(adaPage, submittedAt);
+        await answerCard(adaPage).getByText(WORDS.doneOnceSent(nextWeek), { exact: true }).waitFor({ timeout: WAIT_MS });
+        const body = await sendAnswer(adaPage);
+        const sentAt = new Date(body.written.sentAt);
+        await answerCard(adaPage).getByText(WORDS.sentLine(sentAt), { exact: true }).waitFor({ timeout: WAIT_MS });
+        await changeButton(adaPage).waitFor({ timeout: WAIT_MS });
+        assert.equal(await answerBox(adaPage).isEditable(), false, "a sent answer takes writing before Change my answer");
 
-        // Stored, and drawn the same from the server after a reload.
-        const work = await adasWeek();
-        assert.ok(work?.submittedAt, "the week has no submit stamp");
-        assert.equal(work.submitCount, 1, "the week was submitted more than once");
+        // Stored, and drawn the same from the server after a reload: sent once, and the old Submit never pressed.
         const row = await adasAnswer();
         assert.equal(row?.text, ANSWER.first, "the stored answer is not what Ada wrote");
-        assert.ok(row?.firstSentAt, "the answer was not sent");
+        assert.ok(row?.firstSentAt && row?.sentAt, "the answer was not sent");
+        assert.equal((await adasWeek())?.submittedAt ?? null, null, "Send pressed the old Submit");
         await openWeek(adaPage);
-        await assertSubmitted(adaPage, asDate(work.submittedAt));
+        await answerCard(adaPage).getByText(WORDS.sentLine(asDate(row.sentAt)), { exact: true }).waitFor({ timeout: WAIT_MS });
         assert.equal(await answerBox(adaPage).inputValue(), ANSWER.first, "the answer read back is not what Ada wrote");
+        await changeButton(adaPage).waitFor({ timeout: WAIT_MS });
       },
     );
 
-    await step("the facilitator reopens the member's week from This week's work", async () => {
-      activePage = fernPage;
-      await fernPage.goto(`${origin}${groupPath}`, { waitUntil: "domcontentloaded" });
-      await fernPage.getByRole("heading", { name: group.name, level: 1 }).waitFor({ timeout: WAIT_MS });
-      const press = fernPage.getByRole("button", { name: WORDS.reopenWeek(nextWeek, ada.first), exact: true });
-      await press.waitFor({ timeout: WAIT_MS });
-      await waitFor("Reopen to be live once the page has hydrated", async () => press.isEnabled());
-      // Nobody else's week is submitted, so only Ada's offers a reopen.
-      assert.equal(
-        await fernPage.getByRole("button", { name: WORDS.reopenWeek(nextWeek, ben.first), exact: true }).count(),
-        0,
-        "Ben's week, never submitted and not locked, offers a reopen",
-      );
-      await press.click();
-      const dialog = fernPage.getByRole("dialog", { name: WORDS.reopenWeek(nextWeek, ada.first) });
-      await dialog.getByRole("heading", { name: `${WORDS.reopenWeek(nextWeek, ada.first)}?`, exact: true }).waitFor({ timeout: WAIT_MS });
-      const [reopened] = await Promise.all([
-        responseTo(fernPage, `/weeks/${nextKey}/reopen`, "POST"),
-        dialog.getByRole("button", { name: WORDS.reopen, exact: true }).click(),
-      ]);
-      assert.deepEqual(reopened.request().postDataJSON(), { uid: ada.uid }, "the press reopened somebody else's week");
-      const body = await okBody(reopened, "Reopening the week");
-      assert.equal(body.work?.state, "reopened", "the week is not reopened");
-      assert.equal(body.work?.reopened?.byName, fern.first, "the reopen does not name Fern");
-      // The press says so, and then the page is drawn again from the server,
-      // where Ada's week is open again: no reopen to offer, and her line says
-      // where it stands. (The press's own line goes with its button.)
-      await fernPage
-        .getByText(new RegExp(`^(${escapeRegExp(WORDS.reopenedDone(nextWeek, ada.first))}|${escapeRegExp(WORDS.reopenedNotAgain)})$`))
-        .first()
-        .waitFor({ timeout: WAIT_MS });
-      await fernPage.getByText(WORDS.reopenedNotAgain, { exact: true }).first().waitFor({ timeout: WAIT_MS });
-      await press.waitFor({ state: "detached", timeout: WAIT_MS });
-
-      const work = await adasWeek();
-      assert.equal(work?.submittedAt, null, "the reopen left the submit stamp");
-      assert.equal(work?.reopenedByUid, fern.uid, "the reopen does not name Fern");
-      assert.equal(work?.reopenCount, 1);
-    });
-
-    await step("the member's week page says who reopened it, and the member changes the answer and submits it again", async () => {
+    await step("the member changes the answer before the session, and the page says the people who read it still see the version sent", async () => {
       activePage = adaPage;
       await openWeek(adaPage);
-      await adaPage
-        .locator("main header")
-        .getByText(WORDS.reopenedLine(fern.first, nextSession.startsAt), { exact: true })
-        .waitFor({ timeout: WAIT_MS });
-      const firstSentAt = asDate((await adasAnswer())?.firstSentAt);
+      const sentAt = asDate((await adasAnswer())?.sentAt);
+      await changeButton(adaPage).click();
       await writeAnswer(adaPage, `${ANSWER.first}${ANSWER.added}`);
-      const body = await submitThroughTheCheck(adaPage);
-      // Sent the first time: the answer is not sent again, and keeps when it first was.
-      assert.deepEqual(body.sent, [], "submitting again sent the answer a second time");
-      await assertSubmitted(adaPage, new Date(body.work.submittedAt));
-
-      const work = await adasWeek();
-      assert.equal(work?.submitCount, 2, "the week was not submitted twice");
-      assert.equal(work?.reopenCount, 1);
+      await answerCard(adaPage).getByText(WORDS.changedBefore, { exact: true }).waitFor({ timeout: WAIT_MS });
+      await sendButton(adaPage).waitFor({ timeout: WAIT_MS });
+      // Changed, not sent again: the send is where it was, and the version sent is kept on the row.
       const row = await adasAnswer();
       assert.equal(row?.text, `${ANSWER.first}${ANSWER.added}`, "the stored answer is not the changed one");
-      assert.equal(asDate(row?.firstSentAt)?.getTime(), firstSentAt?.getTime(), "submitting again moved when the answer was first sent");
+      assert.equal(asDate(row?.sentAt)?.getTime(), sentAt?.getTime(), "a change moved when the answer was sent");
+      const kept = Array.isArray(row?.earlierVersions) ? row.earlierVersions : [];
+      assert.deepEqual(kept.map((version) => [version.text, version.reasons]), [[ANSWER.first, ["sent"]]], "the version sent is not kept");
+      // After a reload, the same.
       await openWeek(adaPage);
-      await assertSubmitted(adaPage, asDate(work.submittedAt));
+      await answerCard(adaPage).getByText(WORDS.changedBefore, { exact: true }).waitFor({ timeout: WAIT_MS });
+      assert.equal(await answerBox(adaPage).inputValue(), `${ANSWER.first}${ANSWER.added}`);
+    });
+
+    await step("the facilitator's review page shows the answer as it was sent, never the change", async () => {
+      activePage = fernPage;
+      await fernPage.goto(reviewUrl, { waitUntil: "domcontentloaded" });
+      await fernPage.getByRole("heading", { name: `${ada.first}’s answer`, level: 2 }).waitFor({ timeout: WAIT_MS });
+      await fernPage.getByText(WORDS.staffChangedBefore(ada.first), { exact: true }).waitFor({ timeout: WAIT_MS });
+      const said = flat(await fernPage.locator("main").innerText());
+      assert.ok(said.includes(ANSWER.first), `the review page does not show the answer as sent: ${said}`);
+      assert.ok(!said.includes(ANSWER.added.trim()), "the review page shows a change Ada has not sent, before the session");
+      assert.doesNotMatch(said, /Late|After its deadline|Reopen/, "the review page calls an answer sent before the session late, or offers a reopen");
     });
 
     await step("the programme's lead follows the Surveys tab's link to the session reports and reads the facilitator's report, with names", async () => {
@@ -854,6 +836,87 @@ test("course hub: a group's sessions and a week's work, from Can't make it to a 
           .innerText(),
       );
       assert.ok(!/online|in the room/.test(benCame), `Ben's Came speaks of where Ben was, always in the room: ${benCame}`);
+    });
+
+    await step(
+      "once the group's session has started, the member's page says the group met, and what the member adds, changes and sends now says how late",
+      async () => {
+        // The clock moves, as the term's points move it: Group A's week 4 session started a few minutes ago.
+        const session = await startGroupSession(group, nextWeek);
+        activePage = adaPage;
+        await openWeek(adaPage);
+        await adaPage.getByText(WORDS.met(group.name, nextWeek, session.startsAt), { exact: true }).waitFor({ timeout: WAIT_MS });
+        assert.match(await textOf(untilLineOf(adaPage)), WORDS.staysOpen, "after the session the line no longer says until when");
+        // Her change before the session is what her readers read now.
+        await answerCard(adaPage).getByText(WORDS.changedAfter, { exact: true }).waitFor({ timeout: WAIT_MS });
+
+        // A reflection written now says how many minutes after her session.
+        const prompt = adaPage.getByLabel(COURSEWORK_PROMPTS.rp1, { exact: true });
+        await waitFor("the reflection box to take writing", async () => prompt.isEditable());
+        const [reflected] = await Promise.all([responseTo(adaPage, `/reflections/${courseworkItemId(nextWeek, "rp1")}`, "PUT"), prompt.fill(REFLECTION)]);
+        await okBody(reflected, "Saving the reflection");
+        await adaPage.locator("main").getByText(WORDS.savedLate).first().waitFor({ timeout: WAIT_MS });
+
+        // The answer changed again and sent: late, with how late.
+        await writeAnswer(adaPage, `${ANSWER.first}${ANSWER.added}${ANSWER.more}`);
+        await sendAnswer(adaPage);
+        await answerCard(adaPage).getByText(WORDS.sentLate).waitFor({ timeout: WAIT_MS });
+        await changeButton(adaPage).waitFor({ timeout: WAIT_MS });
+        const row = await adasAnswer();
+        assert.ok(asDate(row?.sentAt).getTime() > session.startsAt.getTime(), "the send is not after the session");
+        // The answer as it stood at the session is kept, once, beside the version sent before it.
+        const kept = (Array.isArray(row?.earlierVersions) ? row.earlierVersions : []).map((version) => [version.text, version.reasons]);
+        assert.deepEqual(kept, [[ANSWER.first, ["sent"]], [`${ANSWER.first}${ANSWER.added}`, ["session"]]], "the version at the session is not kept");
+      },
+    );
+
+    await step("the facilitator's pages say late with how late, and show the answer as it stood at the session", async () => {
+      activePage = fernPage;
+      await fernPage.goto(reviewUrl, { waitUntil: "domcontentloaded" });
+      await fernPage.getByRole("heading", { name: `${ada.first}’s answer`, level: 2 }).waitFor({ timeout: WAIT_MS });
+      await fernPage.getByText(WORDS.atSession, { exact: true }).waitFor({ timeout: WAIT_MS });
+      const said = flat(await fernPage.locator("main").innerText());
+      assert.match(said, WORDS.staffLate, `the review page does not say how late the answer was sent: ${said}`);
+      const latest = said.indexOf(ANSWER.more.trim());
+      const atSession = said.indexOf(WORDS.atSession);
+      assert.ok(latest >= 0 && atSession > latest, "the latest words are not shown above the answer as it stood at the session");
+      assert.ok(said.slice(atSession).includes(`${ANSWER.first}${ANSWER.added}`), "the answer as it stood at the session is not shown");
+      assert.ok(!said.slice(atSession).includes(ANSWER.more.trim()), "the version at the session holds a change made after it");
+
+      // The reflections page, with names: Ada's reflection, said late with how late.
+      await fernPage.goto(namesUrl, { waitUntil: "domcontentloaded" });
+      const answer = fernPage.getByRole("listitem").filter({ hasText: REFLECTION });
+      await answer.first().waitFor({ timeout: WAIT_MS });
+      assert.match(flat(await answer.first().innerText()), WORDS.staffLate, "the reflections page does not say how late Ada's reflection was");
+
+      // This week's work on the group page: the written answer's cell says how late it was sent.
+      await fernPage.goto(`${origin}${groupPath}`, { waitUntil: "domcontentloaded" });
+      await fernPage.getByRole("heading", { name: group.name, level: 1 }).waitFor({ timeout: WAIT_MS });
+      const row = fernPage.getByRole("row").filter({ hasText: ada.first });
+      await row.first().waitFor({ timeout: WAIT_MS });
+      assert.match(flat(await row.first().innerText()), WORDS.staffLate, "This week's work does not say how late Ada's answer was sent");
+    });
+
+    await step("another fellow of the group reads none of the member's work", async () => {
+      activePage = adminPage;
+      await approvePendingApplicant(adminPage, origin, { email: ben.email });
+      await waitFor("Ben's account to say member", async () => (await readUserDoc(ben.uid))?.role === "member");
+      activePage = benPage;
+      await signIn(benPage, ben);
+      const adasWords = [ANSWER.first, ANSWER.added.trim(), ANSWER.more.trim(), REFLECTION];
+      // Ben's own week 4: his own box, and nothing of Ada's.
+      await openWeek(benPage);
+      const own = flat(await benPage.locator("main").innerText());
+      for (const words of adasWords) assert.ok(!own.includes(words), `Ben's week page shows Ada's "${words}"`);
+      // The facilitators' pages refuse a fellow: no answer, no reflection, no lateness of Ada's.
+      for (const url of [reviewUrl, namesUrl, `${origin}${groupPath}`]) {
+        await benPage.goto(url, { waitUntil: "domcontentloaded" });
+        await benPage.waitForLoadState("networkidle", { timeout: WAIT_MS }).catch(() => {});
+        const html = await benPage.content();
+        for (const words of adasWords) assert.ok(!html.includes(words), `${url} shows Ben Ada's "${words}"`);
+        assert.equal(await benPage.getByRole("heading", { name: `${ada.first}’s answer` }).count(), 0, `${url} draws Ada's answer for Ben`);
+        assert.doesNotMatch(flat(await benPage.locator("body").innerText()), WORDS.staffLate, `${url} tells Ben how late somebody's work was`);
+      }
     });
   } finally {
     await Promise.allSettled([context, ...identities.map((each) => each.context)].map((each) => each.close()));
