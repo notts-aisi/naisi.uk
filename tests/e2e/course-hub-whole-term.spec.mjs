@@ -1861,8 +1861,10 @@ test(
         }
         for (const person of [ben, ada]) {
           await pg.goto(`${formBase}/coursework/${enc(person.uid)}`, { waitUntil: "domcontentloaded" });
-          const page = await textOf(pg.locator("main"));
           const week = person === ben ? LATE_WEEK : ON_TIME_WEEK;
+          // The person's page draws each week in a section of its own: wait for the one being read.
+          await pg.locator(`#week-${week}`).waitFor({ timeout: WAIT_MS });
+          const page = await textOf(pg.locator("main"));
           const did = work.get(workKey(person, week));
           expectEqual(page.includes(WRITES[person.key].rp2), true, `${person.first}'s page has their week ${week} reflection`);
           if (did?.on === "late") expectEqual(page.includes(`Late: ${lateWords(did.lateMs)} after the session`), true, `${person.first}'s page says how late week ${week} was`);
