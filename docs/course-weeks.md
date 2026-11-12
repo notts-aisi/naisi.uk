@@ -102,7 +102,7 @@ group's next session. Work first sent after the moment, but before the
 session, shows as "After its deadline" to the group's facilitators, the lead
 and admins, and to nobody else.
 
-A week STAYS OPEN after its session, and after a send: it takes work until
+Nothing closes a week at its session, or at a send: it takes work until
 the programme closes (14 days after the run's last session, unless the run
 says otherwise), and what is added or changed after the session shows as late
 to its readers, with how late. "Late" is from the session; an answer first

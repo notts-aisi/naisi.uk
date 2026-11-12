@@ -206,14 +206,14 @@ export async function gatherWeekReview(db: Firestore, opened: WeekReviewDoor, no
   /**
    * Not finished by the session they were due at, once it has started (what
    * a week that locked before it was submitted used to say): "locked" to the
-   * facts, "open" otherwise. Pressing the old Submit before the session
-   * counts as finished, as it always did; otherwise the week done by then.
+   * facts, "open" otherwise. A week the old Submit was pressed for counts as
+   * finished, as a submitted week always did; otherwise the week done by then.
    */
   const standingOf = (uid: string): "open" | "locked" => {
     const due = states.dueOf(uid, weekNumber);
     if (!sessionHasStarted(due, now) || !due.at) return "open";
     const submittedAt = states.submittedOf(uid, weekNumber);
-    if (submittedAt && submittedAt.getTime() <= due.at.getTime()) return "open";
+    if (submittedAt) return "open";
     const own = started.get(uid);
     if (!own) return "locked";
     const progress = personWeekProgress({ tasks, state: own.state, times: own.times, submittedAt, touched: own.touched, asks });
