@@ -263,6 +263,21 @@ consults no row and carries no notice marker; the button names how many it
 emails, and it goes at most once a session a day. Its rows in the log carry
 `kind: "course-facilitator"`, as the register reminder's do.
 
+**A new request to be excused, to the admins, is transactional with a switch
+of its own.** When somebody asks to be excused from a week
+(`src/lib/courses/excused/alert.ts`), each admin is emailed that it has
+arrived: who asked, the group, each week's day and time, when, "for today" or
+"for tomorrow" when its first session starts within a day, and the way to the
+request's page. Never the reason, never a meeting link, never the person
+asking, a facilitator or the lead. It is owed to the admins who decide these,
+as the reminder above is owed to facilitators, so no row of the grid gates
+it; the admin's own "Email me about new requests" on the Requests page does,
+stored as `users/{uid}.requestEmails.excused` (on unless a stored `false`) by
+`POST /api/courses/requests/emails`, outside `profile.notifications`, whose
+whole map `/profile` rewrites on Save. Its rows in the log carry
+`kind: "course-request"`. It goes once the request is written, outside its
+transaction, and a failed send never fails the ask.
+
 **Invitation reminders (`application-invitation-reminders`).** Once a day, from
 10:00 London and never after 18:00, to everybody invited on decision day who
 has not replied, from the day after they were told up to their own reply-by
