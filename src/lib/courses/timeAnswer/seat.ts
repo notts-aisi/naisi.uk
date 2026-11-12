@@ -215,7 +215,8 @@ export async function recordTimeAnswer(
       if (ticked.has(line.session.sessionKey)) {
         if (line.state.kind === "open") writeExcusedInAdvance(tx, line, { run, group, uid: user.uid, told: FieldValue.serverTimestamp() });
       } else if (line.state.kind === "told") {
-        // Told before and unticked now: their own word, taken back.
+        // Told before and unticked now: their own word, taken back. A line an
+        // approval wrote is not their word, and stays (`setByApproval`).
         writeTakenBack(tx, line, user.uid);
       }
     }

@@ -241,11 +241,29 @@ export function writeExcusedInAdvance(
 }
 
 /**
+ * Whether an approval wrote `uid`'s line: an admin approved their request to
+ * be excused from this session (`setBy.<uid>.how` is `approval`). Such a line
+ * is not the person's own word, so nothing that takes a word back touches it:
+ * not an old page's "I can make it after all", not unticking "Most weeks, not
+ * all", not a new regular time. Only somebody correcting the register changes
+ * it, and a facilitator's own mark on the day wins over it, as over any line.
+ */
+export function setByApproval(line: Pick<SessionLine, "data">, uid: string): boolean {
+  const stamps = (line.data?.[SET_BY] ?? {}) as Record<string, unknown>;
+  const stamp = Object.hasOwn(stamps, uid) ? stamps[uid] : null;
+  return Boolean(stamp && typeof stamp === "object" && (stamp as { how?: unknown }).how === "approval");
+}
+
+/**
  * Taking a word in advance back: both keys of `uid`'s line, only on a line
  * whose state is `told`, and the stamp saying who set it, when it has one:
  * the line is empty again.
+ *
+ * A line an approval wrote is left as it is (`setByApproval`), whoever calls:
+ * the answer is whether anything was taken back.
  */
-export function writeTakenBack(tx: Transaction, line: SessionLine, uid: string): void {
+export function writeTakenBack(tx: Transaction, line: SessionLine, uid: string): boolean {
+  if (setByApproval(line, uid)) return false;
   const stamped = Object.hasOwn((line.data?.[SET_BY] ?? {}) as Record<string, unknown>, uid);
   tx.set(
     line.ref,
@@ -256,6 +274,7 @@ export function writeTakenBack(tx: Transaction, line: SessionLine, uid: string):
     },
     { merge: true },
   );
+  return true;
 }
 
 /**
@@ -380,8 +399,11 @@ export async function recordCantMakeIt(
       return { ok: true, told: true };
     }
 
-    // Taking it back: only their own word, while it still stands.
+    // Taking it back: only their own word, while it still stands. A line an
+    // approval wrote is not their word: an old page still offering "I can
+    // make it after all" is told they are excused, and that coming is enough.
     if (state.kind === "marked") return refuse(409, CANT_MAKE_IT_REFUSAL.marked);
+    if (state.kind === "told" && setByApproval(line, user.uid)) return refuse(409, CANT_MAKE_IT_REFUSAL.approved);
     if (state.kind === "told") writeTakenBack(tx, line, user.uid);
     keepListInStep(tx, seatSnap.ref, seat, session.sessionKey, false);
     return { ok: true, told: false };

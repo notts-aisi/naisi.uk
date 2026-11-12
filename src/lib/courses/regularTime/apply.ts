@@ -218,8 +218,8 @@ export async function applyRegularChange(
             now,
           });
           if (state.kind !== "told") continue;
-          writeTakenBack(tx, { session, ref, data, state }, seat.uid);
-          takenBack += 1;
+          // A line an approval wrote is not a tick: it stays (`setByApproval`).
+          if (writeTakenBack(tx, { session, ref, data, state }, seat.uid)) takenBack += 1;
         }
       }
     }

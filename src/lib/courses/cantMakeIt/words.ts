@@ -45,6 +45,11 @@ export const CANT_MAKE_IT_REFUSAL = {
   /** A facilitator has put them on the register already: theirs to change, not the person's. */
   marked: "Your facilitators have already filled in that session’s register for you, so tell them yourself.",
   full: "That session’s register is full. Tell your facilitators yourself.",
+  /**
+   * An old page's "I can make it after all" on a line an admin's approval
+   * wrote: it stays, and coming is enough.
+   */
+  approved: "You’re excused from this session. If you can come after all, just come along: your facilitators’ register will show you there.",
   failed: "That didn’t save. Try again.",
 } as const;
 

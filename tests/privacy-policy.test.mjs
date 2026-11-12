@@ -11165,6 +11165,15 @@ describe("v15 says you may tell us in advance that you can't make a session, whi
     ]);
     assert.match(card, /writeTakenBack\(tx, line, user\.uid\);/);
     assert.match(seat, /if \(state\.kind === "told"\) writeTakenBack\(tx, line, user\.uid\);/);
+    // A line an admin's approval wrote is not your word, so nothing that takes
+    // a word back touches it, whoever calls: the one write refuses it, and the
+    // ticket's own take-back answers an old page in a sentence first.
+    assert.match(seat, /export function writeTakenBack\(tx: Transaction, line: SessionLine, uid: string\): boolean \{\s*if \(setByApproval\(line, uid\)\) return false;/);
+    assert.match(seat, /return Boolean\(stamp && typeof stamp === "object" && \(stamp as \{ how\?: unknown \}\)\.how === "approval"\);/);
+    assert.match(
+      seat,
+      /if \(state\.kind === "told" && setByApproval\(line, user\.uid\)\) return refuse\(409, CANT_MAKE_IT_REFUSAL\.approved\);\s*if \(state\.kind === "told"\) writeTakenBack\(tx, line, user\.uid\);/,
+    );
     assert.doesNotMatch(staff, /writeTakenBack|FieldValue\.delete\(\)/, "staff's reading of an answer takes something back");
     // The new regular time takes back only: when the day or the start changed,
     // a told fellow's current "Most weeks, not all" answer, a session they
@@ -11173,7 +11182,7 @@ describe("v15 says you may tell us in advance that you can't make a session, whi
     assert.match(regular, /if \(plan\.dayOrTimeChanged\) \{/);
     assert.match(regular, /if \(seat\.role !== "learner" \|\| seat\.groupId !== group\.id \|\| !placementIsTold\(seat\)\) continue;/);
     assert.match(regular, /const answer = currentTimeAnswer\(seat, since\);\s*if \(answer\?\.kind !== "mostWeeks"\) continue;\s*for \(const key of answer\.sessionKeys\) \{/);
-    assert.match(regular, /if \(state\.kind !== "told"\) continue;\s*writeTakenBack\(tx, \{ session, ref, data, state \}, seat\.uid\);/);
+    assert.match(regular, /if \(state\.kind !== "told"\) continue;\s*if \(writeTakenBack\(tx, \{ session, ref, data, state \}, seat\.uid\)\) takenBack \+= 1;/);
     assert.doesNotMatch(regular, /writeExcusedInAdvance|records: \{/, "a new regular time records somebody as excused");
     assert.doesNotMatch(regular, /sendEmail|sendNotice|dispatchSends/, "taking a word back emails somebody");
   });

@@ -63,6 +63,8 @@ const askRoute = await courseRoute("groups", "[groupId]", "excused");
 const register = await courseRoute("groups", "[groupId]", "attendance");
 const push = await courseRoute("groups", "[groupId]", "attendance", "push");
 const cantMakeItRoute = await courseRoute("groups", "[groupId]", "cant-make-it");
+const regularRoute = await courseRoute("groups", "[groupId]", "session", "regular");
+const timeAnswerRoute = await courseRoute("runs", "[runId]", "time-answer");
 const actions = {
   withdraw: await courseRoute("requests", "[requestId]", "excused", "withdraw"),
   approve: await courseRoute("requests", "[requestId]", "excused", "approve"),
@@ -76,6 +78,7 @@ const record = await loadTs("lib/firestore/courseExcusedRequests.ts");
 const requestsLib = await loadTs("lib/firestore/courseRequests.ts");
 const attendanceLib = await loadTs("lib/firestore/courseAttendance.ts");
 const cantModel = await loadTs("lib/courses/cantMakeIt/model.ts");
+const cantWords = await loadTs("lib/courses/cantMakeIt/words.ts");
 const own = await loadTs("lib/courses/excused/own.ts");
 const page = await loadTs("lib/courses/excused/page.ts");
 const tidy = await loadTs("lib/courses/excused/tidy.ts");
@@ -855,6 +858,101 @@ describe("who is sent what: the reason and how often to admins only, one of two 
     assert.equal(asked.status, 200, JSON.stringify(asked.body));
     const view = (await page.loadExcusedRequestPage(world.courseDb, sessionOf("zach"), asked.body.request.id, new Date())).view;
     assert.deepEqual(view.excusedBefore.counts, { approved: 0, "time-set": 1, "in-advance": 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A line an approval wrote stays
+// ---------------------------------------------------------------------------
+
+describe("a line an approval wrote is taken back by nothing but a correction", () => {
+  beforeEach(placed);
+
+  const W3 = `courseAttendance/${RUN.agi}__${B}__w03`;
+  const W4 = `courseAttendance/${RUN.agi}__${B}__w04`;
+
+  /** Amara's own view of week 3, as her programme page reads it. */
+  async function amaraWeek3() {
+    const run = courses.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+    const groupList = [A, B, C].map((gid) => groups.normalizeCourseGroup(gid, world.db.read(`courseGroups/${gid}`)));
+    const seat = enrolments.normalizeCourseEnrolment(`${RUN.agi}__amara`, world.db.read(`courseEnrolments/${RUN.agi}__amara`));
+    const view = await own.excusedFor(world.courseDb, { user: sessionOf("amara"), run, enrolment: seat, groups: groupList, now: new Date() });
+    return view.sessions.find((session) => session.sessionKey === "w03");
+  }
+
+  /** Amara asks about week 3 and Zach approves it, before the session. */
+  async function approvedWeek3() {
+    const id = await amaraAsks(["w03"]);
+    assert.equal((await act("zach", "approve", id, { sessionKey: "w03", reply: REPLY })).status, 200);
+    const line = world.db.read(W3);
+    assert.deepEqual([line.records.amara, line.setBy.amara.how], ["excused", "approval"]);
+    world.mail.length = 0;
+    return { id, line: structuredClone(line) };
+  }
+
+  test("an old page's I can make it after all: refused in one plain sentence, and the line and the request stay", async () => {
+    const { line } = await approvedWeek3();
+    const answer = await call("amara", cantMakeItRoute.POST, { groupId: B }, { body: { sessionKey: "w03", cantMakeIt: false }, course: true });
+    assert.deepEqual([answer.status, answer.body.error], [409, cantWords.CANT_MAKE_IT_REFUSAL.approved]);
+    assert.equal(
+      answer.body.error,
+      "You’re excused from this session. If you can come after all, just come along: your facilitators’ register will show you there.",
+    );
+    assert.deepEqual(world.db.read(W3), line, "the take-back touched the approval's line");
+    assert.equal(requestDocs()[0].change.weeks[0].status, "approved");
+    assert.deepEqual(world.mail, [], "a refused take-back emailed somebody");
+    // What each reader says afterwards: Amara's card, approved by Zach; the
+    // facilitator's register, Excused.
+    const week3 = await amaraWeek3();
+    assert.deepEqual([week3.excuse.kind, week3.excuse.by.firstName, week3.excuse.reply], ["approved", "Zach", REPLY]);
+    assert.equal((await readRegister("rahul")).body.excuseRequests.w03.amara, "excused");
+    // A line on her own word is still hers to take back, as before.
+    assert.equal((await call("amara", cantMakeItRoute.POST, { groupId: B }, { body: { sessionKey: "w04", cantMakeIt: true }, course: true })).status, 200);
+    const back = await call("amara", cantMakeItRoute.POST, { groupId: B }, { body: { sessionKey: "w04", cantMakeIt: false }, course: true });
+    assert.deepEqual([back.status, back.body.told], [200, false]);
+    assert.equal(world.db.read(W4).records?.amara, undefined);
+  });
+
+  test("unticking Most weeks, not all keeps it: it was never a tick", async () => {
+    const { line } = await approvedWeek3();
+    const ticked = await call("amara", timeAnswerRoute.POST, { runId: RUN.agi }, { body: { groupId: B, kind: "mostWeeks", sessionKeys: ["w04"] }, course: true });
+    assert.equal(ticked.status, 200, JSON.stringify(ticked.body));
+    assert.deepEqual(world.db.read(W3), line, "unticking took back the approval's line");
+    assert.equal(world.db.read(W4).records.amara, "excused", "the tick she gave is written as before");
+    assert.equal((await amaraWeek3()).excuse.kind, "approved");
+  });
+
+  test("a new regular time keeps it, and takes back only the ticks given on the old time", async () => {
+    const { line } = await approvedWeek3();
+    // Week 3 is ticked too (it already says excused, so nothing is written for
+    // it), and week 4 is a tick of her own.
+    const ticked = await call("amara", timeAnswerRoute.POST, { runId: RUN.agi }, { body: { groupId: B, kind: "mostWeeks", sessionKeys: ["w03", "w04"] }, course: true });
+    assert.equal(ticked.status, 200, JSON.stringify(ticked.body));
+    assert.equal(world.db.read(W4).setBy.amara.how, "self");
+    const moved = await call("zach", regularRoute.POST, { groupId: B }, {
+      body: { fromWeek: 3, weekday: 3, time: "7pm", length: 120, room: "Portland A13", tell: false },
+      course: true,
+    });
+    assert.equal(moved.status, 200, JSON.stringify(moved.body));
+    assert.equal(moved.body.change.takenBack, 1, "only her own tick on week 4 is taken back");
+    const after = world.db.read(W3);
+    assert.deepEqual([after.records.amara, after.setBy.amara, after.excusedInAdvance.amara], [line.records.amara, line.setBy.amara, line.excusedInAdvance.amara]);
+    assert.equal(world.db.read(W4).records?.amara, undefined, "her tick about the old time is taken back");
+    // What each reader says afterwards.
+    const week3 = await amaraWeek3();
+    assert.deepEqual([week3.excuse.kind, week3.excuse.by.firstName], ["approved", "Zach"]);
+    assert.equal((await readRegister("rahul")).body.excuseRequests.w03.amara, "excused");
+    assert.equal(requestDocs()[0].change.weeks[0].status, "approved");
+  });
+
+  test("a facilitator's own mark still wins over it on the day, as over any line", async () => {
+    await approvedWeek3();
+    at(new Date("2026-11-17T18:20:00Z"));
+    assert.equal((await mark("rahul", 3, [{ uid: "amara", status: "present" }])).status, 200);
+    const line = world.db.read(W3);
+    assert.equal(line.records.amara, "present");
+    assert.equal(line.excusedInAdvance?.amara, undefined);
+    assert.equal(requestDocs()[0].change.weeks[0].status, "approved", "the request stays approved");
   });
 });
 
