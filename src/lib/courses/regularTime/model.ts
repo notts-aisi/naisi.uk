@@ -33,7 +33,11 @@ import { REGULAR_REFUSAL, laterMetWords, startMetWords, startsInPastWords } from
  * resolves to another time than it met (the slot was changed by hand), the
  * register is right, and pinning the slot would keep the wrong time for good.
  * Only when that instant falls inside the week's own seven days, the rule
- * `scripts/lib/pinMetSessions.mjs` keeps. A pinned week has no change record:
+ * `scripts/lib/pinMetSessions.mjs` keeps. An earlier week that carries its
+ * own one-week change keeps, on that change's record, what it held before
+ * the change (`was`): the same old values go there too, for each field it
+ * does not hold yet, so putting the change back returns the week to its pin.
+ * A pin on its own has no change record:
  * it is not a change, and there is nothing to put back. The code from before
  * this existed already reads overrides, so the dates stay right if this is
  * ever reverted.
@@ -67,6 +71,13 @@ export type RegularPlan = {
   fromWeek: number;
   /** The override fields to write, by week id, for the earlier weeks. */
   pins: Record<string, Pin>;
+  /**
+   * For an earlier week whose own change record keeps what the week held
+   * before the change (`was`): the same old values, for each field `was`
+   * does not hold yet, to add to it, so putting that change back later
+   * returns the week to its pin and not to the new slot. By week id.
+   */
+  wasPins: Record<string, Pin>;
   /** The earlier taught weeks, each staying where it is; `pinned` when it needed a pin to. */
   kept: Array<{ weekNumber: number; weekId: string; session: ResolvedSession; pinned: boolean }>;
   /** The weeks from the starting week on whose session moves: before and after. */
@@ -188,13 +199,20 @@ export function planRegularChange(input: {
 
   // ── Pin every earlier taught week ────────────────────────────────────────
   const pins: Record<string, Pin> = {};
+  const wasPins: Record<string, Pin> = {};
   const overrides: Record<string, GroupSessionOverride> = { ...group.sessionOverrides };
   for (const week of firsts.slice(0, startIndex)) {
     const own = overrides[week.weekId] ?? {};
+    // What the week's own change (held online, moved, cancelled) says it held before it.
+    const before = sessionChangeForWeek(group, week.weekId)?.was;
     const pin: Pin = {};
+    const wasPin: Pin = {};
     const keep = <K extends keyof Pin>(field: K, was: Pin[K], becomes: Pin[K]) => {
-      if (Object.hasOwn(own, field) || was === becomes) return;
-      pin[field] = was;
+      if (was === becomes) return;
+      if (!Object.hasOwn(own, field)) pin[field] = was;
+      // The change's own record is pinned too, where it holds nothing of the
+      // field, so putting the change back returns the week here.
+      if (before && !Object.hasOwn(before, field)) wasPin[field] = was;
     };
     const met = metDayAndStart(week, registers.get(week.weekNumber));
     keep("weekday", met?.weekday ?? standing.weekday, next.weekday);
@@ -208,6 +226,7 @@ export function planRegularChange(input: {
       pins[week.weekId] = pin;
       overrides[week.weekId] = { ...own, ...pin };
     }
+    if (Object.keys(wasPin).length > 0) wasPins[week.weekId] = wasPin;
   }
   const storedWeeks = new Set(input.storedOverrideWeekIds);
   for (const weekId of Object.keys(pins)) storedWeeks.add(weekId);
@@ -215,6 +234,10 @@ export function planRegularChange(input: {
 
   // ── The cancelled evenings that move with their week ─────────────────────
   const changed = { ...(group.sessionChanges ?? {}) };
+  for (const [weekId, wasPin] of Object.entries(wasPins)) {
+    const record = changed[weekId];
+    if (record) changed[weekId] = { ...record, was: { ...record.was, ...wasPin } };
+  }
   const provisional: SessionGroup = {
     ...group,
     session: next,
@@ -267,6 +290,7 @@ export function planRegularChange(input: {
     plan: {
       fromWeek,
       pins,
+      wasPins,
       kept,
       moves,
       ownTimes,

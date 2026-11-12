@@ -589,6 +589,52 @@ describe("5. a new regular time from a week onwards", () => {
     assert.equal(five.records?.ines, undefined, "week 5 moved: the tick about its old time is taken back");
   });
 
+  for (const [what, change, changedDateKey] of [
+    ["held online", { week: 5, dateKey: "2026-12-01", kind: "online" }, "2026-12-01"],
+    ["moved", { week: 5, dateKey: "2026-12-01", kind: "move", move: { dateKey: "2026-11-30", time: "5pm", room: "Portland A13" } }, "2026-11-30"],
+  ]) {
+    test(`a week ${what}, then pinned by a new regular time from a later week, is put back on its pin, not the new slot`, async () => {
+      world.db.poke(`courseGroups/${B}`, { "session.meetingUrl": LINK });
+      const first = await ask.change("rahul", B, silently(change));
+      assert.equal(first.status, 200, JSON.stringify(first.body));
+      assert.deepEqual(world.db.read(`courseGroups/${B}`).sessionChanges.w05.was, {});
+      // From week 6, Wednesdays at 7pm: week 5 is earlier, so it is pinned to Tuesdays at 6pm in Hallward B12.
+      const response = await askRegular("claudia", { ...WEDNESDAYS, fromWeek: 6 });
+      assert.equal(response.status, 200, JSON.stringify(response.body));
+      const pin = { weekday: 2, startTimeLocal: "18:00", location: "Hallward B12" };
+      assert.deepEqual(world.db.read(`courseGroups/${B}`).sessionChanges.w05.was, pin, "the change's record holds the pin");
+      const back = await ask.change("rahul", B, silently({ week: 5, dateKey: changedDateKey, kind: "restore" }));
+      assert.equal(back.status, 200, JSON.stringify(back.body));
+      const stored = world.db.read(`courseGroups/${B}`);
+      assert.equal(stored.sessionChanges.w05, undefined);
+      assert.deepEqual(
+        [weekOf(5).dateKey, weekOf(5).session.startTimeLocal, weekOf(5).session.location],
+        ["2026-12-01", "18:00", "Hallward B12"],
+        "put back on the new slot, Wed 2 Dec 7pm, instead of its pin",
+      );
+      assert.equal(startOf(6), "2026-12-09T19:00:00.000Z", "the later week keeps the new time");
+    });
+  }
+
+  test("a value a week's record already holds of what was there is left alone by a new regular time", () => {
+    world.db.poke(`courseGroups/${B}`, {
+      "sessionChanges.w05": { kind: "cancelled", reason: AWAY, dateKey: "2026-12-01", byUid: "rahul", at: null, was: { startTimeLocal: "17:00" } },
+    });
+    const planned = plans.planRegularChange({
+      run: w.run(),
+      group: group(),
+      fromWeek: 6,
+      slot: { weekday: 3, startTimeLocal: "19:00", durationMinutes: 120, location: "Portland A13", campus: null },
+      registers: new Map(),
+      storedOverrideWeekIds: [],
+      now: new Date(),
+    });
+    assert.equal(planned.ok, true, JSON.stringify(planned));
+    assert.deepEqual(planned.plan.wasPins.w05, { weekday: 2, location: "Hallward B12" });
+    assert.deepEqual(planned.plan.after.sessionChanges.w05.was, { startTimeLocal: "17:00", weekday: 2, location: "Hallward B12" });
+    assert.equal(planned.plan.wasPins.w04, undefined, "a week with no change record has no record to pin");
+  });
+
   test("a later week's own change is kept, and a cancelled evening stays cancelled on the week's new date", async () => {
     const moved = await ask.change(
       "rahul",

@@ -2567,7 +2567,11 @@ override. An existing override value always wins. For a week whose register
 was taken and holds `sessionAt`, the day and start kept are that instant's in
 London (when it falls inside the week's own seven days), not the slot's: a
 week already re-dated by hand is pinned to when it met, and its kept date in
-the preview is the register's. A pinned week gets no change
+the preview is the register's. An earlier week that carries its own one-week
+change (held online, moved, cancelled) also has the same old values written
+into that change's `was`, for each field it holds none of, so putting the
+change back later returns the week to its pin and not to the new slot. A
+pinned week gets no change
 record: it is not a change, and there is nothing to put back. It is done with
 overrides rather than a new "regular from week N" field on purpose: the code
 from before this already reads overrides, so the dates stay right even if the

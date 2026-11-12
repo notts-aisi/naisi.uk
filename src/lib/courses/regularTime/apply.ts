@@ -23,7 +23,9 @@ import { REGULAR_REFUSAL } from "./words";
  * the change on what it read (`planRegularChange`) and writes:
  *
  *  1. the pins on every earlier taught week (no change record: a pin is not
- *     a change);
+ *     a change), and the same values into the `was` of an earlier week's own
+ *     change record, where it holds none of them, so putting that change back
+ *     lands on the pin;
  *  2. the group's standing `session` (day, start, length, room) and, when the
  *     press set one, its `campus`;
  *  3. a cancelled evening's record moved to its week's new date, so it stays
@@ -139,6 +141,10 @@ export async function applyRegularChange(
     if (plan.campus) update.campus = plan.campus;
     for (const [weekId, pin] of Object.entries(plan.pins)) {
       for (const [field, value] of Object.entries(pin)) update[`sessionOverrides.${weekId}.${field}`] = value;
+    }
+    // A pinned week's own change keeps the pin as what it held before, so putting that change back lands on it.
+    for (const [weekId, wasPin] of Object.entries(plan.wasPins)) {
+      for (const [field, value] of Object.entries(wasPin)) update[`sessionChanges.${weekId}.was.${field}`] = value;
     }
     for (const [weekId, dateKey] of Object.entries(plan.cancelledMoves)) {
       update[`sessionChanges.${weekId}.dateKey`] = dateKey;
