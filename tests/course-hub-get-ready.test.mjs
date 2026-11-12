@@ -727,7 +727,7 @@ describe("4. Publish's readiness check: what Publish refuses for is needed, the 
       admin: false,
       follows: {
         paused: false,
-        nextWeekEmail: { on: false, waitsForRoom: [] },
+        nextWeekEmail: { on: false, noRoomYet: [], onlineNoLink: [] },
         registerReminders: { on: false },
         placeConfirmations: null,
       },

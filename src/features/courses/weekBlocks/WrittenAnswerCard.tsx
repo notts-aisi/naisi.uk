@@ -9,6 +9,8 @@ import { SAVED } from "@/lib/courses/memberPageWords";
 import type { OwnFeedbackCard } from "@/lib/courses/feedback/model";
 import { feedbackLinkWords } from "@/lib/courses/feedback/words";
 import type { WrittenAnswerBlock } from "@/lib/courses/weekBlocks/model";
+import { proseText } from "@/lib/courses/weekBlocks/prose";
+import { YOU_ANSWERED_AN_EARLIER_WORDING, earlierQuestionWords, type AskedWords } from "@/lib/courses/weekEdit/wordsThen";
 import { answerWords, countWords } from "@/lib/courses/writtenAnswers/model";
 import {
   ANSWER_NOT_SAVED,
@@ -34,6 +36,7 @@ import {
   type RestOfWeek,
 } from "@/lib/courses/weekWork/words";
 import { useRegisterFlush } from "./weekSaves";
+import EarlierWording from "./EarlierWording";
 import Prose from "./Prose";
 import styles from "./blockWeek.module.css";
 import own from "./writtenAnswer.module.css";
@@ -74,6 +77,11 @@ import own from "./writtenAnswer.module.css";
  * NEVER A WRITABLE BOX OVER WHAT WE DO NOT KNOW: until the person's own rows
  * have loaded, the card says so instead, as the reflection boxes do.
  *
+ * AN EARLIER WORDING. Where the question has been reworded since the person
+ * first wrote their answer (`askedThen`), "You answered an earlier wording:"
+ * and the question as it was then sit under their answer. A change to the
+ * range or the due rule alone shows nothing: the question reads as it did.
+ *
  * THE WRITE is `PUT /api/courses/runs/[runId]/written-answers/[answerId]`
  * through `useDebouncedWrite` (one writer, newest value wins, flushed on
  * blur, on leaving and on the page being hidden); Send writes what is waiting
@@ -111,6 +119,8 @@ type Props = {
   due: WeekDue;
   /** What the rest of the week needs, for the line under Send; null when it says nothing (the week is done already). */
   rest: RestOfWeek | null;
+  /** The question's words when the person first wrote their answer, only where reworded since; else null. */
+  askedThen?: AskedWords | null;
   onSaved: (row: ExerciseResponseWire) => void;
 };
 
@@ -203,6 +213,7 @@ function AnswerForm({
   todayKey,
   due,
   rest,
+  askedThen = null,
   onSaved,
 }: Props) {
   const fieldId = useId();
@@ -369,6 +380,9 @@ function AnswerForm({
         {status}
         <p className={over ? own.countOver : own.count}>{wordCountWords(words, block.words)}</p>
       </div>
+      {("text" in stored ? countWords(stored.text) : answerWords("", stored.boxes)) > 0 && (
+        <EarlierWording label={YOU_ANSWERED_AN_EARLIER_WORDING} words={earlierQuestionWords(askedThen, proseText(block.prompt))} />
+      )}
 
       {timeLine}
       {changedSinceSent && <p className={own.line}>{changedSinceSentWords(sessionStarted)}</p>}

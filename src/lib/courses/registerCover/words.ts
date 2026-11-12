@@ -231,6 +231,17 @@ export function coverTakenOffDetail(holderName: string, weekNumber: number, occu
   return `${holderName.trim() || "Somebody"} was covering ${which} at its old time, so that cover is taken off.`;
 }
 
+/**
+ * "Ola Nowak’s cover of week 4’s session ends: the session moves. Give it
+ * again if they can still take it.": what a change's preview says about a
+ * cover its press would take off (`coverTakenOffDetail` is what the press's
+ * history row then says).
+ */
+export function coverEndsWords(holderName: string, weekNumber: number, occurrence = 1): string {
+  const which = occurrence > 1 ? `week ${weekNumber}’s session ${occurrence}` : `week ${weekNumber}’s session`;
+  return `${holderName.trim() || "Somebody"}’s cover of ${which} ends: the session moves. Give it again if they can still take it.`;
+}
+
 /** "Ola Nowak was covering it.": the cover a push back clears from a draft, in that press's row. */
 export function coverClearedDetail(holderName: string): string {
   return `${holderName.trim() || "Somebody"} was covering it.`;

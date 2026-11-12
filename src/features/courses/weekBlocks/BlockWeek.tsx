@@ -34,6 +34,7 @@ import {
 } from "@/lib/courses/memberPageWords";
 import { CANCELLED_CARD, ONLINE_NOTICE_LINK_LINE, dayRangeWords } from "@/lib/courses/sessionChange/words";
 import type { WeekSharedNotes } from "@/lib/courses/sharedNotes/views";
+import type { AskedWords } from "@/lib/courses/weekEdit/wordsThen";
 import type { GuideLinks } from "@/lib/courses/guide/model";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
 import {
@@ -241,6 +242,8 @@ type Props = {
     loading: boolean;
     reload: () => void;
     apply: (row: ExerciseResponseWire) => void;
+    /** The words a question had when the reader first answered it, by item id, only where reworded since. */
+    askedThen?: Readonly<Record<string, AskedWords>>;
   };
   sharedNotes: WeekSharedNotes;
   /** The programme's lead's first name, for who reads a reflection; null when no programme names the run. */
@@ -1189,6 +1192,7 @@ function renderPartChild(child: PartChild, rest: PartChild[], ctx: ChildContext)
             readers={child.id === ctx.firstStopId ? ctx.readers : null}
             due={ctx.due}
             now={ctx.now}
+            askedThen={ctx.ownRows.askedThen}
             onSaved={ctx.ownRows.apply}
           />
         ),
@@ -1229,6 +1233,7 @@ function renderPartChild(child: PartChild, rest: PartChild[], ctx: ChildContext)
             todayKey={ctx.answer.todayKey}
             due={ctx.due}
             rest={ctx.answer.restOf(child.id)}
+            askedThen={ctx.ownRows.askedThen?.[child.id] ?? null}
             onSaved={ctx.ownRows.apply}
           />
         ),

@@ -89,6 +89,8 @@ export const SENT_SURFACES: Record<EmailSendSurface, SentEntry> = {
   // whose id is no account: Sent names whichever is an account.
   "course-week": { listed: { label: "The week’s email", byPerson: true } },
   "course-week-reminder": { listed: { label: "Reminder before a session", byPerson: false } },
+  // Pressed by somebody who reads the group's work, whose account is the actor on the row.
+  "course-week-remind-by-hand": { listed: { label: "Reminder by hand about a week", byPerson: true } },
   // The same invitation, to the people holding a place on the event's programme.
   "event-invitation": { listed: { label: "Event invitation", byPerson: true } },
   messages: { notListed: "A message from Messages that went as a notice: Sent lists it from its own record." },

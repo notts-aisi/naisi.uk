@@ -571,15 +571,33 @@ start asks again, so:
   week being ready), and the first tick after it is published sends it, if the
   session is still ahead;
 - a week published only after its session has started is never sent about;
-- an email with an **empty fact** (the group's day and time or its room, the
-  week's title, what the week asks for) is held whole rather than sent without
-  it, and one card goes on the boards of the programme's lead and the admins
+- an email with an **empty fact** (the group's day and time, the week's
+  title, what the week asks for) is held whole rather than sent without it,
+  and one card goes on the boards of the programme's lead and the admins
   saying what is missing ("Week 4's email held: Group B"). Filling it in sends
   the email on the next tick and archives the card. The weekly feedback form
-  and a recipient's name are the two values it may go without.
+  and a recipient's name are values it may go without, and so is the room:
+  a session in a room not booked yet goes with its own line, "Room to be
+  confirmed: we'll email you as soon as it's booked, and it'll be on your
+  programme page." (since November 2026; it used to be held for one).
+
+**Each person's own line about an earlier week.** Somebody whose earlier
+week is not done (its session has passed, they had joined the group by then,
+and the week is written as blocks and published) gets one more line in their
+email: "Week 1 isn't done yet either: it's still open on your programme
+page.", or "Weeks 1 and 2 aren't done yet either: ...". Read before the claim
+with the rest (`earlierWeeksNotDone`); a read of it that fails leaves the line
+out of everybody's email rather than hold it. The same holds for the push
+lane, which builds the email in the same place.
 
 **Never a meeting link.** An online week says "online"; a room with a link in
-it is not printed, which holds the email until the room is a room.
+it is not printed. It goes as a room not booked yet, saying "Room to be
+confirmed", and since it is a mistake rather than a room still to book, the
+schedule puts one card on the boards of the programme's lead and the admins
+("Week 2's room holds a link: Group B"), as it did while such an email was
+held. A group set to meet online with no link yet is told the day and time
+and nothing of where; Publish's "What can follow by itself" says which groups
+are which, by the email's own `weekOpenPlace`.
 
 **It may only be switched on where the scheduler is running**, because
 switching it on also stops the push from sending. Prove it on dev with **Run
@@ -1144,6 +1162,7 @@ the transport itself.
 | "Week N is open", while the schedule is off | the group's facilitator, by pushing the register | after every session, about the next one |
 | "Week N is open", while the schedule is on | the `courses-next-week-email` job | 6 days before each session at 9am, the first included |
 | The reminders before a session | the `courses-week-reminders` job | 3 days and 1 day before each session at 9am, to the people whose week is not done |
+| Remind, by hand | the group's facilitators, the programme's lead, admins, on the group's page | any week whose work is open, before its session or after it, to the people whose week is not done |
 | Resend the week's email | an admin, on a finished register | recovery |
 
 **Week 1 is open goes only on the schedule.** No register is finished before a
@@ -2090,6 +2109,89 @@ Once every session is over, the ticket's place says there are no more.
 Not drawn, though the board draws them: who can't make it tonight (2.4 is
 not built) and a facilitator guide (no record holds one).
 
+### Who has done the week, and Remind
+
+On both of a group's pages (the programme's Groups tab, for admins and the
+lead, and the facilitator's group page) the row of weeks chooses a week, and
+the address carries it (`?week=2`), so the server reads that week's work
+(`readGroupWeekWork` and `groupWeekWorkView`,
+`src/lib/courses/groupWeekWork/`). Nothing new is stored about the work:
+every number is worked out when the page is read, by the one meaning of done
+and of late ("The week stays open").
+
+- **The facilitator's page** draws "4 of 6 have done week 1", the week's bar,
+  Remind as a sheet, and what is true of the automatic reminders. Who each
+  person is and where their week stands stays This week's work's, which now
+  reads each cell through the same function the count does
+  (`personWeekStateOf`), so the two cannot disagree.
+- **The programme's page** draws the same count with a bar for the week and
+  one for each of its pieces (readings, steps, the reflection, fill-in boxes,
+  the written answer), chips that filter the people table (Everyone, Week not
+  done, a piece not done, Late), the table itself with when each person was
+  last reminded and a Remind of their own, "Late in week 1", and the
+  facilitators' own weeks.
+- **A facilitator's own week is never the group's business.** The rows are the
+  group's fellows only, whoever is looking: never anybody who facilitates a
+  live group of the run, this one or another, wherever they hold a place (the
+  rule the written answers' review page keeps, `facilitatesOnRun`; This week's
+  work's week column keeps it too). The facilitators' own weeks, and whether
+  they were late, are read for admins and the programme's lead alone, and
+  counted in no number.
+- **The count on Remind's button comes from the rows**, so a visit reads no
+  subscription list and no address: told, not done, not joined late, not a
+  facilitator. Somebody whose week isn't done and who has no Remind is named
+  under the button, with why. The preview reads the addresses when it is
+  opened, and says who it emails. No week card for an incubator's group, on
+  either page.
+- **A visit asks every read at once**, each waiting only for what it needs
+  (`loadGroupPage`): the group's places, the registers, the weeks, the
+  programme and the group's history together; the names, the programme's lead
+  and the week's card as soon as what each needs has arrived; inside the card,
+  the week with the run's live groups, then everybody's place with what each
+  person did, then each fellow's last reminder with the jobs' switches.
+- **Somebody told their group after a week's session** reads "Joined late"
+  for it, whatever they have done, and is never late for it.
+
+**Remind** (`POST /api/courses/groups/[groupId]/remind`) is for the people
+who read the group's work (privacy v17, "Who reads it"), since its preview
+names whose week is not done: the group's live facilitators, the programme's
+lead and admins; a run's track lead who is none of those is refused. It
+refuses a view-as session. It reaches people holding a told place in the
+group whose week is not done at the press, never anybody who facilitates a
+live group of the run, never the presser, never somebody who joined after the
+week's session, and nobody once the programme has closed; everybody not done,
+or one person.
+The panel previews it first (`preview: true`: the names, each one's last
+reminder, a warning for anybody reminded in the last day, the email word for
+word, the count). Before the person's session the preview says an answer
+over its word limit as "sending your written answer", since the people who
+read their work may see only that it is started until then; the email they
+are sent says it in full. The press carries the count it showed and is refused with
+a 409 and the new count when that changed.
+
+It is built on the reminders before a session: the same list of what is left
+(`weekLeft`) and the same template, on a notice surface of its own
+(`course-week-remind-by-hand`, whose line says "our records show week 1 isn't
+done", labelled "reminder by hand about a week" on the Deliverability tab and
+in Messages' sent list), under the notice lane's caps (3 an hour per presser
+and audience, 10 a day per group). Before the session the email says
+"Rahul asked us to remind you: your session is Wed 11 Nov, 3pm. Still to
+do: ..."; after it, "Group C met for week 1 on Wed 4 Nov, and week 1 is still
+open. Still to do: ... Anything you add now shows as late, with how late, to
+the people who read your work." It is signed "Rahul and the AGI Strategy
+team". Never a meeting link.
+
+Each person reminded has one record per week,
+`courseNudges/handremind__{runId}__{uid}__{weekId}` (kind
+`week-remind-by-hand`: when the latest went, who pressed, how many), which
+browsers cannot read or write, and which "Last reminded" reads beside the
+automatic reminders' markers. A press claims each person's record before their
+email goes, so a retry of the same press (or anybody's press within two
+minutes) emails nobody again; the claim is let go when the email did not go.
+The press writes one row in the group's history, `week-reminded`, with how
+many it was for and how many were emailed, naming nobody. A person's records
+go with their account.
+
 ### The register, `/learn/[runId]/group/[groupId]/register`
 
 The register is a page of its own, behind the register's
@@ -2232,12 +2334,19 @@ need to cover for.
 
 A COVER DOES NOT RIDE ALONG. When a change moves the start of a session whose
 register nobody has taken but somebody holds the cover of (a one-week move or
-push back, a new regular time, a group's own pace), the same transaction takes
+push back, a new regular time, a group's own pace, It didn't happen on a
+finished column pushing the rest back), the same transaction takes
 the cover off, with the facilitator record's entries it wrote (`how: cover`),
 and the change's history row says who had been covering; a pace change, which
 writes no row of its own, writes a `register-cover-removed` row
 (`src/lib/courses/registerCover/moves.ts`). Cancelling and keeping pace moves
-nothing, so the cover stays.
+nothing, so the cover stays. The preview of a one-week change, of a new
+regular time and of It didn't happen on a finished column says so first, in
+one Cover line holding a sentence for each ("Ola Example's cover of week 4's
+session ends: the session moves. Give it again if they can still take it."),
+from `coversEndLines`, which asks the press's own `coversOffOf` of the same
+registers, so the person pressing knows to tell whoever was given the
+session. A group's own pace has no preview.
 
 An admin's or a lead's FIRST LINE on a register nobody covered and none of its
 facilitators has started stamps the same cover in the same write, so a
@@ -2877,6 +2986,174 @@ pack in the pathways their weeks count, by id (`readPackCaseRecords`), for
 whether a week is done; never the ready box for a talk. No query needs a
 composite index. Nothing on either page writes.
 
+## Editing a week in place
+
+A run's week written as blocks can be changed one block at a time where it
+stands, as well as by pasting the whole week again. Both are for admins and
+the lead of the programme that names the run, the people the paste has always
+admitted (`weekEditGate`, `src/lib/courses/weekEdit/gate.ts`), and both go
+through one save (`saveWeekBlocks`, `src/lib/courses/weekEdit/save.ts`): one
+transaction, the same checks, the same lock and the same history. The routes
+are under `/api/courses/runs/[runId]/weeks/[weekId]/`. An edit and a restore
+write the whole week back as the reader of weeks returns it, and that reader
+cuts what is over today's caps, so both are refused (409) when the item ids
+as read differ from the item ids as stored (`readDropsItems`): a tightened
+cap never drops items and detaches their ticks.
+
+**One block, in place** (`PATCH blocks/[blockId]`). Four kinds: a source
+(kind, title, link, author, date, time, note), a text (its heading, time and
+words), a reflection (the words of its one or two prompts) and a written
+answer (its heading, which is its part's title, its question, guidance, word
+range and due rule). Every other kind is refused with one sentence; the paste
+still changes anything, and adding, moving or removing a block is the
+paste's. Rich fields travel as Markdown and are read by the reader a week's
+text is read with, so anything a paste would leave out (HTML, a picture, a link
+that is not https) is refused here rather than dropped, and so is anything the
+paste refuses as facilitator material. The block keeps its
+id, and so do its prompts and boxes, so every tick and answer stays with it
+with no further work. The edited week is held to `weekBlocksProblems` and must
+read back from the reader of weeks exactly as written; only a problem the edit
+brings refuses it. A save names the block's fingerprint as the editor loaded
+it, and a block changed meanwhile (somebody pasted) is refused with a 409 so
+the page loads the week again. A new word range is also put right where the
+week repeats it: the exact old words in the part's time and in This week's
+rows that cover the part or the answer.
+
+Two things are refused on purpose for now. A changed link must say it is
+**the same reading at a new address**, which keeps every tick; a different
+reading (a new id, its ticks cleared for the people still on the week) changes
+what "done" means and comes in a later change. And a written answer's due rule
+cannot change once anybody has sent it: that is the rule their answer was sent
+against.
+
+**The week's history** (`courseRuns/{runId}/weeks/{weekId}/history/{saveId}`,
+`src/lib/courses/weekEdit/history.ts`). One record for every save of a week,
+by an edit in place, a paste or a restore: who, when, its one line ("Part 2:
+new link for Ada Example's reading", "Pasted the week: 16 blocks"), who it is
+for (every group reading the run's week, less any group with its own copy,
+which a save does not reach), what it did to people's work (ticks and answers
+kept, and answers on whatever a paste or a restore took out, still kept with
+the people who wrote them), whether people were told and how many, and the
+week's title and blocks after it. Before a save, when the newest record is
+not what the week holds (its first save here, or a change made somewhere that
+keeps no history), the week as found is stored first, so every week has a
+before and there is nothing to backfill. Records are numbered (`s000001`)
+and only ever added. Server-only, shut to every browser in `firestore.rules`;
+`GET history` lists them, `GET history/[saveId]` compares one with now or with
+another, block by block in words (`compareWeeks`), and `POST
+history/[saveId]/restore` brings it back as a new save with its ids as they
+were: anything removed since comes back with its answers, and a restore that
+takes out answered items asks for the count first, as a paste does.
+
+**The words a question had when it was answered.** Each record also keeps the
+words of every prompt and written answer after that save (`asked`). The
+loaders that hand an answer to a page beside its question (a person's own
+week page through `my-exercises`, the written answer's review page, the
+reflections with names, a person's coursework page) also hand the words the
+question had when the answer was first written, only where they differ
+(`src/lib/courses/weekEdit/askedThen.ts`). Nothing is stored on any answer.
+The page to read reflections out, which carries nothing beside an answer, is
+left as it is. The pages draw them under the answer (`EarlierWording`), only
+where the question's own words differ (a range or due rule changed alone
+shows nothing): "You answered an earlier wording:" on the person's week
+page, "The question when this was written:" for the people who read it. A
+person's coursework page is handed them only for words it shows, so never
+beside a written answer that is only started.
+
+**One editor at a time** (`lock`, `src/lib/courses/weekEdit/lock.ts`). A hold
+on one week while somebody has an edit open: `POST` takes it, `PUT` keeps it
+alive (every 30 seconds), `DELETE` gives it back, and a hold not kept alive
+for 90 seconds lapses by itself. While somebody else holds it, an edit, a
+paste and a restore of that week are refused with their name; reading the
+week never is, and other weeks stay free. A save does not need the hold. It
+is stored server-only at `editLock/current` under the week, apart from the
+admin console's page lock (`adminLocks`), which admits admins alone and whose
+messages are written from the browser, so this lock has no messages. The
+page never holds a week from a hidden tab or an idle page (`lockBeat` in
+`pageModel.ts`): it gives the hold back the moment the tab is hidden, as the
+admin console's lock does, and after ten minutes with no input, then says
+the hold ended, keeps what was typed and takes it again once the person is
+back.
+
+**Telling people** (`tell`, `src/lib/courses/weekEdit/notice.ts`). After a
+save to a published week, a notice is a choice and never automatic: nobody
+(the default), the people who have started the week (a tick, a word or a pick
+on it), everyone it is open for (whose group reads the run's week), or
+everyone on the programme. `GET tell?save=` gives each choice's live count and
+the email's words; `POST` sends only with the count it was shown (409 with the
+new count otherwise), only about the newest save, once per save, recorded on
+that save's record. It is a notice on the `course-run` surface, never to the
+person pressing and never with a meeting link, under the lane's caps (3 an
+hour per presser and choice, 10 a day per week); "Send me a test first" goes
+to the presser alone, marked [TEST].
+
+**Paste the week, then check it.** The paste's check (`POST blocks`) also says
+what the pasted week holds by kind (`kinds`) and how it differs from the live
+week (`comparison`, `comparisonLine`). Its save (`PUT blocks`) is the
+transaction above: it is refused while somebody else holds the week, and when
+the week changed after it was read.
+
+**Destroying a run** drains each week's history and lock week by week before
+the weeks (Firestore keeps a subcollection when its parent is deleted), and
+the manifest counts both (`weekHistory`, `weekEditLocks`). It walks every
+week id a plan can have (w01 to w60) as well as the week documents, because a
+lock is taken on a planned week nobody has opened and renumbering a run's
+weeks deletes week documents and leaves their history. Archiving deletes
+nothing. A run being destroyed refuses every save.
+
+**The pages** (`src/features/applications/weeks/edit/`, on a programme's
+Weeks tab, for its lead and admins). A week written as blocks is drawn on its
+week's page as it reads, block by block, with the member's own renderers and
+nobody's ticks or words, and beside each block people tick or answer the
+count the editor's loader gives ("7 ticked", "3 answers", "2 sent"; numbers
+only). Above it: whether the week is live, for how many groups, how many
+people have started it, "Paste the week" (the paste further down the page)
+and "History". A source, a text, a reflection or a written answer carries a
+Change button (the card opens it on a click too); any other block carries
+nothing pressable. Change takes the week's lock, then opens the block's
+fields in the side panel (a sheet on a phone): a save sends only the fields
+whose boxes changed, with the block's fingerprint as the panel opened it
+(`changesOf`, `src/lib/courses/weekEdit/pageModel.ts`), and a changed link
+always as the same reading, saying so with the count of ticks it keeps. The
+route's refusals are shown as they come: a block changed since it opened
+reads the week again and offers the block as it is now, keeping what was
+typed until then; a holder named turns every editing control off. A due rule
+is shown and cannot change once anybody has sent the answer. "Save for"
+names every group, and the groups reading their own copy, which a save does
+not reach. A save to a live week opens "Saved. Tell people about it?",
+Nobody chosen, with each choice's live count, the email as it would go,
+"Send me a test first" and "Don't tell anyone"; the same dialog is on the
+newest row of the history while that save has told nobody. The lock is kept
+alive while a panel or a paste is open and given back on a save, on cancel,
+on emptying the paste and on leaving the page; while somebody else holds it
+the page names them and since when, reads the lock again on a timer and on
+focus, and every Change and the paste are off. The history is a page of its
+own under the week (`weeks/[weekId]/history`), because a comparison sets two
+versions side by side: tick one save to compare it with now, or two to
+compare them, and restore one against now as a new save, asked first with the
+count when it takes out answered items. The paste's check also says what the
+pasted week holds by kind, what each changed block keeps and what each
+removed one takes out, and its press says for how many groups ("Replace week
+3 for every group (11)").
+
+**Other editors of a week.** The run's week editor in Courses links to the
+programme's Weeks page for the week's blocks and for Mark ready when a
+programme names the run, and keeps both when none does; everything else it
+changes stays there (the title, summary, estimated minutes, Published,
+pitching week, the questions, and a week written before blocks), because the
+Weeks page cannot change any of it on its own. A group's own editor no
+longer makes or edits a group's copy of a week, until a later phase: it says
+the programme's weeks are edited by the programme's lead, keeps how each week
+meets, and shows a copy a group already has, read only; the group keeps
+reading it. The Weeks page's own "Week 3 for one group" paste stays, for the
+lead and admins. The routes hold the same line: making a group's copy (the
+fork), changing its content (the group week's edit) and saving a group's
+paste refuse a facilitator, and the run's track lead at the edit, in one
+plain sentence, for an old tab; how each week meets is the group's session
+route and is untouched. Neither the run's editor nor a group's routes write the history,
+so a week they change is found again ("as it stood") before the next save
+here.
+
 ## The week stays open
 
 A week written as blocks saves as its person goes, and NOTHING CLOSES AT THE
@@ -2902,7 +3179,10 @@ here.
   their group after it started: no moment for that week ("Joined late"),
   and nothing of theirs in it is ever late. It is the one moment late is
   told against, from which an unsent answer may be read, and after which
-  the first change keeps the earlier version.
+  the first change keeps the earlier version. That very session's own end
+  (`weekDueEndsAt`, `dueEndOf` on `loadRunWeekStates`; cancelled with the
+  group keeping pace, when it would have ended) is when the weekly notes may
+  draw on the week.
 - **Late is worked out when read, never stored** (`lateBy`, its words
   `lateWords`: "40 minutes", "5 hours", "3 days"): the time of a change, a
   send or a tick against that moment. "After its deadline" (staff only) is an
@@ -4252,7 +4532,7 @@ certificate was sent in error, and tell its owner.
 
 Privacy policy version 13 took back version 12's promise that nothing
 written in a course is used outside its programme, from its own agreement on,
-and the current policy (`src/content/legal/privacy/v17.tsx`) keeps those
+and the current policy (`src/content/legal/privacy/v18.tsx`) keeps those
 words. Three features rest on that, each an admin's press and never
 automatic, all built like the applications' second reader
 (`docs/applications.md`, "Claude and Pangram"): labels to Claude, names put
@@ -4286,8 +4566,9 @@ shows as out of date.
   it; a programme's pages those, and earlier notes written from that
   programme. Each place says its rule in one line. "Draft a note with Claude"
   (`draft.ts`) sends what the end-of-week notes send (below), over every
-  week of one run: the weeks that person submitted and has not had reopened
-  since, their work in them written after they agreed to privacy v15, and the
+  week of one run: the weeks whose session that person was due at has
+  ended, their work in them as it stands, sent or not, written after they
+  agreed to privacy v15, and the
   team's feedback, ratings and comments on it, with every name of everybody
   on the run swapped for a label ("the fellow", "Rater 1"); the draft is
   returned and never stored, and only Save note keeps it, with
@@ -4554,8 +4835,12 @@ Beside a week's review, a week has **Notes** (`.../weeks/[weekId]/notes`,
 "Review | Notes about people" at the head of both pages), offered from the
 week's first session on, to an admin and to the programme's lead. Privacy
 version 15 lets Claude draft, once a week, a short note on how each person is
-doing, "using only the work they submitted and the feedback, ratings and
-comments people on the team gave it". `src/lib/courses/weekNotes/` holds it.
+doing, and version 18 says what it uses: "It is drafted after your session,
+usually about a week after it, and uses your work on that week as it stands
+then, sent or not, with the feedback, ratings and comments people on the team
+gave it." (Versions 15 to 17 said "using only the work they submitted"; the
+week's old Submit counts for nothing here since 18.)
+`src/lib/courses/weekNotes/` holds it.
 
 - **The door** (`door.ts`): the coursework door, the week a taught week of
   the run's plan, and each live group's session of it. Drafting waits until
@@ -4563,15 +4848,32 @@ comments people on the team gave it". `src/lib/courses/weekNotes/` holds it.
   does not count either way). The draft, save and discard routes pass
   `adminOnly`, so the lead is turned away there and on the session before.
 - **Who**: the people holding a place, never a facilitator's own work. **No
-  submission, no note**: a draft only for somebody whose week is submitted
-  and not reopened since (`courseWeekWork.submittedAt`), and the page says
-  how many submitted nothing.
+  session, no note**: a week is drawn on for somebody once the session they
+  were due at for it has ENDED ("drafted after your session"): the same
+  "due" every reader of work asks (`weekDueOf`) and that very session's own
+  end (`weekDueEndsAt`, both through `loadRunWeekStates`), never a second
+  sum; cancelled with the group keeping pace, when it would have ended.
+  Never before or during it, so not even an answer already sent, nor what
+  is typed during the session. With no such session (no group, no time set,
+  told their group after it started) the week is not drawn on.
+  Nothing waits a number of days after the session: the press waits only
+  for every group to have met (the door, above). The page counts who has
+  nothing written this week or no session yet, and who wrote something
+  none of which may be sent.
 - **What is sent** (`noteDraftInput` in `src/lib/courses/coursework/input.ts`,
   the one builder, the profile's draft too; read by `gather.ts`): that
-  week's work, counted under version 13 and first written after the person
-  agreed to version 15; each piece of feedback on an answer that went, or on
-  the week, as a comment by its writer's role; each rating for the team of an
-  answer that went, from 1 to 10 with its comment, its rater as "Rater 1".
+  week's work AS IT STANDS when the note is drafted, read by `loadAnswers`
+  against the same sessions and clock: each reflection and box as last
+  saved, each written answer as its latest saved words, sent or not (which
+  is how its readers read it once the session has started,
+  `readableAnswer`); counted under version 13 and first written after the
+  person agreed to version 15. Claude's instructions and the message say
+  "coursework" and "work", no longer "submitted". A week submitted under
+  the old button reads as its latest words like any other. Each piece of
+  feedback on an answer
+  that went, or on the week, as a comment by its writer's role; each rating
+  for the team of an answer that went, from 1 to 10 with its comment, its
+  rater as "Rater 1".
   A writer's words go only when written after THEIR version 15 moment.
   Feedback from before pieces existed goes as its levels. NEVER a check-in
   or survey, a session report, Claude's own grades or a register: the
@@ -4582,16 +4884,19 @@ comments people on the team gave it". `src/lib/courses/weekNotes/` holds it.
   Claude's words.
 - **The press**: "Draft this week's notes" sends one request per person from
   the browser, three at a time, each kept as it returns ("Drafted 12 of
-  41…"), for everybody who submitted something that may be sent with
-  neither a draft nor a note from this week; a second press drafts only who
-  is still without one. "Draft again" on a card replaces that unsaved draft,
-  and the card says when a rating or feedback came in after it, or that the
-  week changed. A draft naming a label it was never sent is refused, never
-  kept. Nobody is emailed.
+  41…"), for everybody whose session has ended with something that may
+  be sent and neither a draft nor a note from this week; a second press
+  drafts only who is still without one. "Draft again" on a card replaces
+  that unsaved draft, and the card says when a rating or feedback came in
+  after it, or that what would be sent has changed (the work as it stands,
+  so a change since the draft, sent or not, says so). A draft naming a
+  label it was never sent is refused, never kept. Nobody is emailed.
 - **Kept** (`courseNoteDrafts/{runId}__{weekId}__{uid}`): Claude's words with
   its labels, what was sent item for item (`builtFrom`, shown as "Built only
-  from"), each "Rater N"'s account, a hash of the message, the model, when
-  and whose press. Never on anybody's profile. Deleted with the run
+  from": the week's work "as it stood on" the day it was drafted, `asOf`; a
+  draft or note kept before version 18 has no `asOf` and says the day its
+  week was submitted, `submittedAt`), each "Rater N"'s account, a hash of
+  the message, the model, when and whose press. Never on anybody's profile. Deleted with the run
   (`noteDrafts`); an account's deletion deletes the drafts about it.
 - **Saved** (`keepWeeklyNoteIn` in `src/lib/memberNotes/store.ts`, in the
   transaction that deletes the draft): the admin's own words from the box,
@@ -4599,11 +4904,12 @@ comments people on the team gave it". `src/lib/courses/weekNotes/` holds it.
   and who reads it, admins and the programme's leads unless the admin keeps
   it to admins. A `memberNotes` note with `draftedByClaude`, `kind: "weekly"`,
   its week and `builtFrom`; one per person per week. Refused while the week
-  is not submitted. The saved card says "Drafted by Claude from week 3. Saved
+  is not drawn on for them (no session of theirs that week has ended).
+  The saved card says "Drafted by Claude from week 3. Saved
   by Zach."
 - **The lead** reads the saved notes kept for leads, by the notes' one rule
   (`notesShownIn`, the lead's place), about somebody holding a place now:
-  never a draft, a count of drafts or who submitted, and never the
+  never a draft, a count of drafts or of who wrote what, and never the
   application's answer.
 - **Deleting an account** deletes the drafts about it, and takes its
   feedback and ratings out of what every draft and saved note about

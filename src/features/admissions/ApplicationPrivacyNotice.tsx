@@ -26,8 +26,8 @@
  *
  * The wording is the owner's: it must stay consistent with the "Applying to a
  * programme" section of the CURRENT privacy policy
- * (src/content/legal/privacy/v17.tsx). If one changes, change both, and move
- * this pointer the day a newer version supersedes v17. A published version is
+ * (src/content/legal/privacy/v18.tsx). If one changes, change both, and move
+ * this pointer the day a newer version supersedes v18. A published version is
  * frozen text, so a pointer left aimed at an old one sends the next engineer
  * to edit a policy members have already accepted, which changes what an
  * archive URL shows without moving CURRENT_POLICY_VERSION and so without

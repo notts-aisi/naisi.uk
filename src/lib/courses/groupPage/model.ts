@@ -19,6 +19,7 @@ import { CAMPUS_LABEL } from "../campusWords";
 import { clockWords, dayWords, hoursWords, namesWords, peopleWords } from "../sessionChange/words";
 import { weekdaysWords } from "../regularTime/words";
 import type { DidNotHappenPreview } from "../registerCover/pageWords";
+import type { GroupWeekWorkView } from "../groupWeekWork/view";
 import {
   ROOM_TO_BE_CONFIRMED,
   type HistoryFilter,
@@ -145,6 +146,14 @@ export type GroupPageView = {
   weeks: GroupPageWeek[];
   /** The week the page opens on. */
   openWeek: number | null;
+  /** The week whose work `work` is: the week asked for (`?week=`), or the week the page opens on. */
+  workWeek: number | null;
+  /**
+   * Who has done that week, and Remind: the group's fellows, never its
+   * facilitators; their own weeks for an admin or the programme's lead
+   * alone. Null for a week with nothing to count, or a group with nobody.
+   */
+  work: GroupWeekWorkView | null;
   todayKey: string;
   /** Who a notice about the group's room reaches, never the viewer: the send's own count. */
   notice: { emails: number; refused: boolean };
@@ -219,8 +228,12 @@ export function weekStateOf(input: {
   return "upcoming";
 }
 
-/** The week the page opens on: the first whose session has not ended and is not cancelled, else the last. */
-export function openingWeek(weeks: readonly GroupPageWeek[]): number | null {
+/**
+ * The week the page opens on: the first whose session has not ended and is
+ * not cancelled, else the last. Asked of the plan's sessions before anything
+ * is read, so it takes only what it reads of a week.
+ */
+export function openingWeek(weeks: ReadonlyArray<Pick<GroupPageWeek, "weekNumber" | "ended" | "cancelled" | "dateKey">>): number | null {
   const next = weeks.find((week) => !week.ended && !week.cancelled && week.dateKey);
   return next?.weekNumber ?? weeks[weeks.length - 1]?.weekNumber ?? null;
 }
@@ -480,6 +493,8 @@ export type OneWeekPreview = {
   said: { joiningOnline: { count: number; names: string[] }; cantMakeIt: { count: number; names: string[] } };
   told: PreviewTold;
   register: { exists: boolean; taken: boolean };
+  /** One line for each cover the press would take off (`coversEndLines`); absent from an older answer. */
+  coversEnd?: string[];
   /** A session called off after it started: what else follows (attendance, its lines, its check-in and report, the chase); null otherwise. */
   didNotHappen?: DidNotHappenPreview | null;
   notice: { title: string; message: string };
@@ -499,12 +514,26 @@ export type RegularPreview = {
   ownTimes: { weekNumber: number; kind: "online" | "moved" | "cancelled" | "pushed" | "set"; session: PreviewMoment | null; campus: GroupCampus | null }[];
   reminders: ({ weekNumber: number } & PreviewReminders)[];
   told: PreviewTold;
+  /** One line for each cover the press would take off (`coversEndLines`); absent from an older answer. */
+  coversEnd?: string[];
   notice: { subject: string; before: string[]; after: string[]; asks: boolean };
   at: string | null;
 };
 
 /** One line of "What will happen": its label and its sentence. */
 export type PreviewLine = { label: string; text: string };
+
+/** The label of the line saying which covers end, as the route wrote each. */
+export const COVER_ENDS = "Cover";
+
+/**
+ * One Cover line saying each cover the press would take off, in the route's
+ * own sentences, or none: one line, because the panel keys its lines by label.
+ */
+function coverLines(coversEnd: readonly string[] | undefined): PreviewLine[] {
+  const said = (coversEnd ?? []).filter((text) => text.trim());
+  return said.length > 0 ? [{ label: COVER_ENDS, text: said.join(" ") }] : [];
+}
 
 // ---------------------------------------------------------------------------
 // The lines of "What will happen"
@@ -683,6 +712,7 @@ export function oneWeekPreviewLines(input: {
   }
   lines.push({ label: "Reminders", text: remindersLine(preview.weekNumber, preview.reminders) });
   lines.push({ label: "Answers", text: saidLine(preview.said, preview.kind) });
+  lines.push(...coverLines(preview.coversEnd));
   lines.push({ label: "Told", text: toldLine({ told: preview.told, tell, groupName, incubator, correction: metAtAnotherTime }) });
   return lines;
 }
@@ -787,6 +817,7 @@ export function regularPreviewLines(input: {
       ? "The email asks Can you make this time? with the same three answers. Answers given before stop counting."
       : "Nobody is asked Can you make this time? again: the day and the start stay the same.",
   });
+  lines.push(...coverLines(preview.coversEnd));
   lines.push({ label: "Told", text: toldLine({ told: preview.told, tell: true, groupName, incubator, correction: false }) });
   return lines;
 }

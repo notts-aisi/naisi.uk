@@ -2548,6 +2548,21 @@ service cloud.firestore {
         // Destroying authored content outranks editing it: a drafter or
         // track lead can blank a week's fields but not remove the doc.
         allow delete: if isAdmin() || canApproveCourse();
+
+        // A week's history, one record per save (who, when, and the week
+        // after it), and its edit lock (who is editing it now): server-only,
+        // for every browser, admins included. Written and read through the
+        // editing routes under /api/courses/runs/[runId]/weeks/[weekId]/
+        // after their gate (src/lib/courses/weekEdit/), because a history
+        // names who edited and when, which is for admins and the programme's
+        // lead alone. Nothing above matches below a week, so these were shut
+        // before these blocks existed; the blocks keep them shut on purpose.
+        match /history/{saveId} {
+          allow read, write: if false;
+        }
+        match /editLock/{lockId} {
+          allow read, write: if false;
+        }
       }
     }
 

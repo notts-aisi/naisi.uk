@@ -6,6 +6,8 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { Field, Textarea } from "@/components/ui/Input";
 import type { ChipTone } from "@/components/ui/Chip";
+import { kindsLine, pasteRows, replaceLabel, type Counts, type Reach } from "@/lib/courses/weekEdit/pageModel";
+import { HISTORY_PAGE, PASTE_CHECK } from "@/lib/courses/weekEdit/pageWords";
 import styles from "./WeekBlocksLoader.module.css";
 
 /**
@@ -21,6 +23,15 @@ import styles from "./WeekBlocksLoader.module.css";
  * `/api/courses/runs/[runId]/weeks/[weekId]/blocks`), which decides who may
  * and reads the paste against the week as stored, so what is saved is what
  * was read.
+ *
+ * ON A PROGRAMME'S WEEKS PAGE (`weekEdit`), the run's own week: the paste
+ * takes the week's one lock when something is first typed into it, and
+ * gives it back on a save, on emptying the box and on leaving; while
+ * somebody else holds it the box is off. The check also says what the
+ * pasted week holds by kind and how it differs from the week now, block by
+ * block, with what that does to people's ticks and answers, and the replace
+ * says for how many groups. The route's refusals (somebody else editing, the
+ * week changed since it was read) are shown as they come.
  */
 
 type FoundRow = { state: "found" | "missing" | "check"; label: string; detail: string; indent: boolean };
@@ -34,6 +45,31 @@ type ReadAnswer = {
   answers: number;
   due: string;
   error?: string;
+  /** The run's route only: what the pasted week holds by kind. */
+  kinds?: Array<{ type: string; label: string; count: number }>;
+  /** The run's route only: how it differs from the week now, block by block. */
+  comparison?: {
+    rows: Array<{ state: "changed" | "added" | "removed"; blockId: string; place: string; fields: string; itemsTakenOut: string[] }>;
+    same: boolean;
+    moved: number;
+    title: { before: string; after: string } | null;
+  };
+  comparisonLine?: string;
+};
+
+/** The paste on a programme's Weeks page: the week's lock, and what its check reads beside the paste. */
+export type PasteWeekEdit = {
+  /** Somebody else is editing the week, by name: the paste is off. */
+  lockedBy: string | null;
+  take: () => Promise<{ ok: true } | { ok: false; error: string }>;
+  give: () => void;
+  /** Each block's counts as the page read them, for what a changed block keeps. */
+  countsOf: (blockId: string) => Counts | null;
+  reach: Pick<Reach, "groups" | "reading">;
+  /** Read the week again after a save, or after a save refused because the week changed. */
+  reload: () => void;
+  /** A save refused because somebody else holds the week: name them on the page. */
+  refusedBy: (holder: { name: string; since: string }, line: string) => void;
 };
 
 const STATE: Record<FoundRow["state"], { word: string; tone: ChipTone }> = {
@@ -60,6 +96,8 @@ type Props = {
   lede?: string;
   /** Names the box apart when two cards for one week are on a page. */
   idSuffix?: string;
+  /** On a programme's Weeks page, for the run's own week: the lock and the check's comparison. */
+  weekEdit?: PasteWeekEdit;
 };
 
 export default function WeekBlocksLoader({
@@ -73,6 +111,7 @@ export default function WeekBlocksLoader({
   title = "Paste the week, then check it",
   lede,
   idSuffix = "",
+  weekEdit,
 }: Props) {
   const url = endpoint ?? `/api/courses/runs/${encodeURIComponent(runId)}/weeks/${encodeURIComponent(weekId)}/blocks`;
   const boxId = `week-markdown-${weekId}${idSuffix}`;
@@ -84,8 +123,29 @@ export default function WeekBlocksLoader({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "error" | "done"; text: string } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  /** This paste holds the week's lock (the Weeks page only). */
+  const [holding, setHolding] = useState(false);
 
   const current = read !== null && readFor === markdown;
+  const lockedOut = weekEdit?.lockedBy && !holding ? weekEdit.lockedBy : null;
+
+  /** The box changed: the first words typed take the week; an emptied box gives it back. */
+  function type(next: string) {
+    setMarkdown(next);
+    if (!weekEdit) return;
+    if (next.trim() !== "" && !holding) {
+      setHolding(true);
+      void weekEdit.take().then((taken) => {
+        if (!taken.ok) {
+          setHolding(false);
+          setMessage({ tone: "error", text: taken.error });
+        }
+      });
+    } else if (next.trim() === "" && holding) {
+      setHolding(false);
+      weekEdit.give();
+    }
+  }
 
   async function send(method: "POST" | "PUT", confirmAnswers?: number): Promise<{ status: number; body: ReadAnswer & { saved?: boolean } } | null> {
     try {
@@ -129,8 +189,22 @@ export default function WeekBlocksLoader({
       setRead(null);
       setReadFor(null);
       setMarkdown("");
+      if (weekEdit) {
+        setHolding(false);
+        weekEdit.give();
+        weekEdit.reload();
+      }
       onSaved();
       return;
+    }
+    // Somebody else is editing the week: the page names them and turns the paste off.
+    const holder = (answer.body as { holder?: { name?: unknown; since?: unknown } }).holder;
+    if (weekEdit && answer.status === 409 && holder && typeof holder.name === "string") {
+      setHolding(false);
+      weekEdit.refusedBy({ name: holder.name, since: typeof holder.since === "string" ? holder.since : "" }, answer.body.error ?? "");
+    } else if (weekEdit && answer.status === 409 && !answer.body.found) {
+      // The week changed since it was read: what the page shows of it is read again too.
+      weekEdit.reload();
     }
     // A refused save answers with the read as it stands now: show that instead.
     if (answer.body.found) {
@@ -166,6 +240,15 @@ export default function WeekBlocksLoader({
   }
 
   const answered = read ? read.removed.filter((item) => item.answers > 0) : [];
+  // On the Weeks page: each block the paste changes or takes out, and what it does to people's work.
+  const rows = read?.comparison && weekEdit ? pasteRows(read.comparison.rows, weekEdit.countsOf, read.removed) : [];
+  const blockCount = read?.kinds ? read.kinds.reduce((sum, kind) => sum + kind.count, 0) : 0;
+  const pressLabel =
+    weekEdit && blockWeek && read
+      ? replaceLabel(weekNumber, weekEdit.reach, read.answers)
+      : read && read.answers > 0
+        ? `${saveLabel} and take out ${read.answers === 1 ? "1 answer" : `${read.answers} answers`}`
+        : saveLabel;
 
   return (
     <Card padding="lg">
@@ -184,19 +267,20 @@ export default function WeekBlocksLoader({
           id={boxId}
           className={styles.markdown}
           value={markdown}
-          onChange={(e) => setMarkdown(e.target.value)}
+          onChange={(e) => type(e.target.value)}
           rows={12}
           spellCheck={false}
-          disabled={busy}
+          disabled={busy || lockedOut !== null}
         />
       </Field>
+      {lockedOut && <p className={styles.muted}>{PASTE_CHECK.lockedOut(lockedOut)}</p>}
       <p className={styles.muted}>
         Pasting again replaces the week. Answers stay with their blocks; if a block that has answers would go, it says
         how many first.
       </p>
 
       <div className={styles.actions}>
-        <Button type="button" onClick={readIt} disabled={busy || markdown.trim() === ""}>
+        <Button type="button" onClick={readIt} disabled={busy || markdown.trim() === "" || lockedOut !== null}>
           Read it
         </Button>
         {blockWeek && (
@@ -271,13 +355,46 @@ export default function WeekBlocksLoader({
             </div>
           )}
 
+          {weekEdit && read.kinds && (
+            <div className={styles.check}>
+              <h4 className={styles.checkTitle}>{PASTE_CHECK.found(blockCount)}</h4>
+              <p className={styles.muted}>{kindsLine(read.kinds)}</p>
+            </div>
+          )}
+
+          {weekEdit && read.comparison && (
+            <div className={styles.check}>
+              <h4 className={styles.checkTitle}>{PASTE_CHECK.compared(weekNumber)}</h4>
+              <p className={styles.checkLine}>{read.comparison.same ? PASTE_CHECK.same : read.comparisonLine}</p>
+              {read.comparison.title && (
+                <div className={styles.checkRow}>
+                  <span className={styles.checkPlace}>{HISTORY_PAGE.titleRow}</span>
+                  <span className={styles.muted}>
+                    “{read.comparison.title.before}” to “{read.comparison.title.after}”
+                  </span>
+                </div>
+              )}
+              {rows.map((row, i) => (
+                <div key={`${row.state}-${row.place}-${i}`} className={styles.checkRow}>
+                  <span className={styles.checkPlace}>
+                    {HISTORY_PAGE.state[row.state]}: {row.place}
+                  </span>
+                  {row.fields && <span className={styles.muted}>{HISTORY_PAGE.fields(row.fields)}</span>}
+                  {row.keeps && <span className={styles.checkChip}>{row.keeps}</span>}
+                  {row.answers > 0 && <span className={`${styles.checkChip} ${styles.checkChipAnswers}`}>{PASTE_CHECK.takesOut(row.answers)}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+
           <p className={styles.muted}>Due dates come from each group’s day: the written answer {read.due} its session.</p>
 
           <div className={styles.actions}>
-            <Button type="button" onClick={save} disabled={busy || read.problems.length > 0}>
-              {read.answers > 0 ? `${saveLabel} and take out ${read.answers === 1 ? "1 answer" : `${read.answers} answers`}` : saveLabel}
+            <Button type="button" onClick={save} disabled={busy || read.problems.length > 0 || lockedOut !== null}>
+              {pressLabel}
             </Button>
           </div>
+          {weekEdit && <p className={styles.muted}>{PASTE_CHECK.footnote}</p>}
         </div>
       )}
     </Card>

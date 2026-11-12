@@ -12,7 +12,8 @@ import {
 } from "@/lib/courses/groupChange/facts";
 import { claimGroupNotice, groupNoticeAudience, sendGroupChangeNotice } from "@/lib/courses/groupChange/notice";
 import { readNamingProgramme } from "@/lib/courses/programmeLead";
-import { applyRegularChange, registerRefsOf, storedOverrideWeekIds } from "@/lib/courses/regularTime/apply";
+import { applyRegularChange, movedRegistersOf, registerRefsOf, storedOverrideWeekIds } from "@/lib/courses/regularTime/apply";
+import { coversEndLines } from "@/lib/courses/registerCover/moves";
 import { planRegularChange, type RegularPlan } from "@/lib/courses/regularTime/model";
 import { parseRegularPress, type RegularPress } from "@/lib/courses/regularTime/parse";
 import { REGULAR_REFUSAL, countChangedWords, regularNoticeWords } from "@/lib/courses/regularTime/words";
@@ -172,6 +173,8 @@ export async function POST(req: Request, ctx: Ctx) {
 
   if (press.preview) {
     const switches = await readJobSwitches(db);
+    // Whose cover the press would take off, by the press's own rule (`registerCover/moves`).
+    const coversEnd = await coversEndLines(db, movedRegistersOf(plan, refs, snaps));
     const [told, ...reminders] = await Promise.all([
       toldFacts(db, run, found, actor.uid),
       ...plan.moves.slice(0, 2).map((move) =>
@@ -225,6 +228,7 @@ export async function POST(req: Request, ctx: Ctx) {
         })),
         reminders,
         told,
+        coversEnd,
         notice,
         at: iso(now),
       },

@@ -26,6 +26,14 @@ export type PolicyVersion = {
    * who saw it. Absent on a version that was not announced this way.
    */
   updateLine?: string;
+  /**
+   * What this version adds to the line of the version before it, while that
+   * version's own 14 days still run: a clause that takes the place of its
+   * closing full stop, after a comma ("and the short note ..."), so the line
+   * says both changes. After that, the line is this version's `updateLine`
+   * alone. Absent: never joined to an earlier line.
+   */
+  updateLineAdds?: string;
 };
 
 export const POLICIES: Record<
@@ -170,12 +178,31 @@ export const POLICIES: Record<
     // from its date, Home and /privacy carry its `updateLine`. Its date is the
     // day it goes live, set when it is promoted.
     //
+    // v18 is the short note Claude may draft each week: it is drafted after
+    // the person's session and uses their work on that week as it stands
+    // then, sent or not, no longer only the work they submitted; "Changing
+    // your work" says an unsent answer may be used in it from the session on,
+    // and the tools are said to get a number or a label for each name.
+    // "What's changed" keeps v17's line under v18's.
+    // Told, not asked: `LAST_PRIVACY_VERSION_ASKED` stays 15. For 14 days
+    // from its date, Home and /privacy carry its `updateLine`, and while
+    // v17's own 14 days still run, v17's line with `updateLineAdds` in place
+    // of its full stop; before its date, v17's own line. Its date is the day
+    // it goes live, set when it is promoted.
+    //
     // Keep this comment ABOVE `versions:`, never between the `[` and the first
     // `{`: tests/funnel-harness-guards.test.mjs reads the current version out
     // of this file with a regex that allows only whitespace across that gap,
     // so a comment sitting there leaves the guard unable to read the very
     // number it exists to pin. Anywhere else in the file is fine.
     versions: [
+      {
+        version: 18,
+        lastUpdated: "13 November 2026",
+        updateLine:
+          "We've updated our privacy policy. The short note Claude may draft each week now uses your work as it stands after your session, sent or not.",
+        updateLineAdds: "and the short note Claude may draft each week now uses your work as it stands after your session, sent or not.",
+      },
       {
         version: 17,
         lastUpdated: "12 November 2026",

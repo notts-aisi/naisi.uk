@@ -179,6 +179,19 @@ const READERS = {
       "a term's Next term page: each written answer a rating for the team rates, read by its id only for when it was " +
       "first written, never a word of it; a reflection's or a fill-in box's row reads as no answer, so its rating counts for nothing",
   },
+  "lib/courses/weekEdit/counts.ts": {
+    treats: "every-row",
+    why:
+      "the in-place editor's counts beside each block (answers in a reflection's prompts and fill-in boxes, written " +
+      "answers written and sent) and who has started a week: every row of the week by the item it names, each read only " +
+      "for whether it holds something, handed to the lead or an admin as numbers, never a row or a word",
+  },
+  "lib/courses/weekEdit/askedThen.ts": {
+    treats: "every-row",
+    why:
+      "the words a question had when it was answered: each of one person's rows read only for which question it " +
+      "answers and when it was first written, reflections and written answers alike, never its words",
+  },
   "lib/firestore/accountDeletion.ts": {
     treats: "every-row",
     why: "deleting an account deletes every answer and every reflection its owner wrote",

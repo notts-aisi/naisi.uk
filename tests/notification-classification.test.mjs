@@ -727,6 +727,12 @@ const REGISTRY = {
   "src/app/api/courses/runs/[runId]/updates/route.ts#sendEmail": T(
     "\"Send a test to me\" on the update composer: the update's own email, marked [TEST], to the address on the presser's own account and nobody else. Nobody's preference is passed over and nothing is posted, so it is no notice.",
   ),
+  "src/app/api/courses/runs/[runId]/weeks/[weekId]/tell/route.ts#sendNotice": N(
+    "Telling people about a change to a live week, a choice the editor makes after a save and never automatic: the programme's lead or an admin telling the people who have started the week, everyone it is open for, or everyone on the programme, about the programme they are on. It goes to those of the run's people holding a place whose group has gone out (`resolveNoticeAudience`), whatever they unsubscribed from and whatever the courses row says, never to the presser and never with a meeting link, with the marker (surface course-run), under the lane's caps. Email only: no push leg.",
+  ),
+  "src/app/api/courses/runs/[runId]/weeks/[weekId]/tell/route.ts#sendEmail": T(
+    "\"Send me a test first\" beside that notice: the notice's own email, marked [TEST], to the address on the presser's own account and nobody else. Nobody's preference is passed over and nobody is told, so it is no notice.",
+  ),
   "src/app/api/courses/runs/[runId]/email/route.ts#sendNoticePush": N(
     "The notification beside that notice. The ordinary announcement lane has no push leg at all, deliberately: a scheduled cohort mail that also buzzed every phone is how people turn notifications off for good.",
   ),
@@ -779,6 +785,14 @@ const REGISTRY = {
   ),
   "src/lib/scheduler/jobs/weekReminders.ts#sendNotice": N(
     "The reminders 3 days and 1 day before a session (`courses-week-reminders`): one email to each person holding a place in the group whose week is not done, listing what is left of it, whatever their courses row says or which list they left (privacy v15, \"Reminders\": part of running the programme, and they stop once the week is done), with the marker (surface course-week-reminder). One per person per reminder, by a scheduler marker; nobody whose week is done is sent one. Email only: no push leg.",
+  ),
+  "src/lib/courses/groupWeekWork/remind.ts#sendNotice": N(
+    "Remind by hand (`POST /api/courses/groups/[groupId]/remind`): somebody who reads the group's work (its facilitators, the programme's lead, admins; never a run's track lead by that alone) reminding each person holding a told place whose week is not done, before its session or after it (privacy v17, \"Reminders\": \"the people running your group may remind you about a week that isn't done\"), whatever their settings, with the marker (surface course-week-remind-by-hand, its own: its line names the week, \"our records show week 1 isn't done\", and its labels say it was by hand). Never anybody who facilitates a live group of the run, never the presser, never anybody whose week is done or who joined after its session. The lane's caps (3 an hour per presser and audience, 10 a day per group), the count on the button checked first, and a retry of the same press sending nothing more. Never a meeting link. Email only: no push leg.",
+  ),
+  "src/app/api/courses/groups/[groupId]/remind/route.ts#sendHandReminders": N(
+    "Remind by hand, pressed on a group's page or its facilitators' page: the reminders the route has counted, capped and checked, sent as the notice they are.",
+    1,
+    "src/lib/courses/groupWeekWork/remind.ts",
   ),
   "src/lib/surveys/sending.ts#sendNotice": N(
     "A programme survey and its reminder (docs/surveys.md): an admin writing to everybody holding a place on the programme the survey is about, each with their own link, whatever their courses row says, with the marker and the lane's caps. Email only: no push leg.",

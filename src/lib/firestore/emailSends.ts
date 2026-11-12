@@ -180,6 +180,10 @@ export type EmailSendSurface =
   // The reminders 3 days and 1 day before a group's session, to each person
   // in it whose week is not done (`courses-week-reminders`).
   | "course-week-reminder"
+  // Remind, by hand: somebody who reads a group's work reminding the people
+  // whose week is not done, about any week, before its session or after it
+  // (`src/lib/courses/groupWeekWork/remind.ts`).
+  | "course-week-remind-by-hand"
   // An event for chosen people that is part of a programme: its invitation, to
   // the people holding a place on that programme (src/lib/events/invitations.ts).
   | "event-invitation"

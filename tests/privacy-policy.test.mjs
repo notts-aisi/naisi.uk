@@ -4,17 +4,29 @@
  *
  * Run with `npm test`.
  *
- * The current version is v17: v16 with "What's changed in version 17" at the
+ * The current version is v18: v17 with the sentence about the short note
+ * Claude may draft each week changed (each week or when an admin asks,
+ * drafted after the person's session, from their work on that week as it
+ * stands then, sent or not, no longer "only the work they submitted"), a
+ * sentence added to "Changing your work" saying so of an unsent answer, the
+ * names sentence made exact ("a number or a label"), and "What's changed in
+ * version 18" at the top with version 17's line kept under it, dated. Told, not asked. Every
+ * other word is v17's, so the sections below that name v15, v16 or v17 hold
+ * v18's text, the describe for version 18 holds its change to the code, and
+ * each replaced sentence's pin moved to the sentence that replaced it, with
+ * the old sentence held in frozen v17.
+ *
+ * v17 is v16 with "What's changed in version 17" at the
  * top, and new words for taking part (who takes and corrects a register,
  * requests and messages to the team, visiting another group's session, a
  * facilitator's own attendance), work added after a session and reminders
  * after it, a second anonymous form, conduct records (each opening recorded
  * first), how long the new records are kept, two lawful bases, and changes
  * to the policy told on the site rather than by email. Told, not asked, like
- * v16. Every other word is v16's, so the sections below that name v15 or v16
- * hold v17's text, the describe for version 17 holds its new passages to the
- * code, and where a v16 sentence was replaced, its pin moved to the sentence
- * that replaced it and the old sentence is held in frozen v16.
+ * v16. Every other word is v16's; the describe for version 17 holds its new
+ * passages to the code, and where a v16 sentence was replaced, its pin moved
+ * to the sentence that replaced it and the old sentence is held in frozen
+ * v16.
  *
  * v16 is v15 with two passages about joining a session online (a register
  * keeps whether somebody was in the room or joined online, and somebody may
@@ -43,7 +55,7 @@
  * promise, held in the frozen files themselves.
  *
  * Every version behind the current one is frozen byte for byte (§1b): v1 to
- * v16. Editing an accepted version changes what somebody sees at the archive
+ * v17. Editing an accepted version changes what somebody sees at the archive
  * URL for the wording they agreed to, without anybody being asked, so new
  * wording goes in a new file, every time. From v15 a new version is told,
  * not asked (`needsPolicyAcceptance`, §3), which makes the freeze matter
@@ -169,15 +181,17 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v17.tsx");
+const CURRENT = read("src/content/legal/privacy/v18.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
  * no pattern written as a sentence would ever match the raw source. Every
- * content check below runs against this, because v17 is the text the site
+ * content check below runs against this, because v18 is the text the site
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v17, frozen: read by the version 17 describe, which proves v17 is v16 with its changes, and by the version 18 describe, which proves v18 is v17 with its one. */
+const V17_FLAT = read("src/content/legal/privacy/v17.tsx").replace(/\s+/g, " ");
 /** v16, frozen: read by the version 17 describe, which proves the sentences v17 replaced are still in the words v16 published, and v17's are not. */
 const V16_FLAT = read("src/content/legal/privacy/v16.tsx").replace(/\s+/g, " ");
 /** v15, frozen: read by the joining online describe, which proves v16's two passages are not in it and the words they replace are. */
@@ -229,13 +243,16 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v17 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 17);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.17");
+  test("privacy v18 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 18);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.18");
   });
 
-  test("privacy v17 is dated the day its words last changed", () => {
-    // Provisional: set again to the day v17 goes live, as v16's and v15's were.
+  test("privacy v18 is dated the day its words last changed", () => {
+    // Provisional: set again to the day v18 goes live, as v17's, v16's and v15's were.
+    const eighteen = POLICIES.privacy.versions.find((v) => v.version === 18);
+    assert.equal(eighteen?.lastUpdated, "13 November 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 18).length, 1);
     const seventeen = POLICIES.privacy.versions.find((v) => v.version === 17);
     assert.equal(seventeen?.lastUpdated, "12 November 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 17).length, 1);
@@ -388,6 +405,13 @@ describe("policy versions", () => {
  * identical. Anything that changes a word needs a new version instead.
  */
 const FROZEN_VERSIONS = new Map([
+  [
+    "privacy/v17",
+    {
+      sha256: "73f87329be7218b977134b4c109647bb1898db29b9b336605d5140d3d84c86d4",
+      why: "taking part in a programme, current from 12 November 2026 until v18 replaced it; told rather than asked, and the wording that said the weekly note used only the work somebody submitted, frozen when v18 changed that one sentence rather than editing it in place",
+    },
+  ],
   [
     "privacy/v16",
     {
@@ -985,7 +1009,10 @@ const MUST_NAME = [
   // a reading or feedback keeps the earlier version. v16's words, with the
   // people running a group reopening a week, are held in frozen v16 by the
   // version 17 describe.
-  ["changing your work, and what is read before it is sent", /<strong>Changing your work\.<\/strong> Your reflections and the boxes you fill in save as you type, and the people who read your work can read them as you write\. A written answer is yours until you send it: until then they see only that you&apos;ve started it\. Once the session it&apos;s due at has started, they may read what you&apos;ve written so far, sent or not\. The week&apos;s page says until when you can change your work\./],
+  // CHANGED ON PURPOSE (v18): from the session on, an unsent answer may also
+  // be used in the weekly note; v17's paragraph is held in frozen v17 by the
+  // version 18 describe.
+  ["changing your work, and what is read before it is sent", /<strong>Changing your work\.<\/strong> Your reflections and the boxes you fill in save as you type, and the people who read your work can read them as you write\. A written answer is yours until you send it: until then they see only that you&apos;ve started it\. Once the session it&apos;s due at has started, they may read what you&apos;ve written so far, sent or not\. From then on, it may also be used in the short note Claude may draft each week\. The week&apos;s page says until when you can change your work\./],
   ["work added after a session, and what is kept when it changes", /We may let you keep adding to a week and changing it after its session, until your programme closes\. When you do, we record when, and the people who read your work may see anything added or changed after the session as late, with how late\. If you change something after it&apos;s been read or given feedback, we may keep the earlier version, with its feedback, beside the new one\./],
   // CHANGED ON PURPOSE (v13): v12 promised that nothing written in a course
   // is used outside its programme. v13 took it back from its own agreement
@@ -4284,8 +4311,20 @@ describe("the course hub passage", () => {
     assert.deepEqual(VIEWERS.map(week.readsFacilitatorsPrivateNotes), [false, false, true], "who reads a facilitator's own private note moved");
     const people = [{ uid: "fellow", name: "A Fellow" }, { uid: "facilitator", name: "A Facilitator" }];
     const facilitators = [{ uid: "facilitator", name: "A Facilitator", firstName: "A" }];
-    assert.deepEqual(week.peopleShown("facilitator", people, facilitators).map((person) => person.uid), ["fellow"]);
-    assert.deepEqual(week.peopleShown("lead", people, facilitators).map((person) => [person.uid, person.own]), [["fellow", false], ["facilitator", true]]);
+    const onRun = new Set(["facilitator"]);
+    assert.deepEqual(week.peopleShown("facilitator", people, facilitators, onRun).map((person) => person.uid), ["fellow"]);
+    assert.deepEqual(week.peopleShown("lead", people, facilitators, onRun).map((person) => [person.uid, person.own]), [["fellow", false], ["facilitator", true]]);
+    // "If you facilitate a group, your own work is read by the lead and admins
+    // only": somebody holding a place here who facilitates another group of
+    // the run is no fellow here either, and the lead and admins read their
+    // work apart, as a facilitator's own.
+    const placed = [...people, { uid: "elsewhere", name: "An Elsewhere" }];
+    const elsewhere = new Set(["facilitator", "elsewhere"]);
+    assert.deepEqual(week.peopleShown("facilitator", placed, facilitators, elsewhere).map((person) => person.uid), ["fellow"]);
+    assert.deepEqual(
+      week.peopleShown("admin", placed, facilitators, elsewhere).map((person) => [person.uid, person.own]),
+      [["fellow", false], ["facilitator", true], ["elsewhere", true]],
+    );
     // "Without saying whose it is": the page where a facilitator chooses a
     // line shows them the words with no name beside them (v14's words), a
     // card being its words and a key naming nothing but its place, in the
@@ -5307,6 +5346,7 @@ describe("the course hub passage", () => {
         ["src/lib/courses/packsAndCases/readers.ts", "the readers, each read by id from the people a page may show it to"],
         ["src/app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts", "the person's own pick and ready box, in their own name only"],
         ["src/app/api/courses/groups/[groupId]/draw/route.ts", "the draw, typed in by the group's live facilitators, the programme's lead or an admin"],
+        ["src/lib/courses/weekEdit/counts.ts", "the week editor counts how many people have started a week, a pick among their work: a number for the programme's lead or an admin, never whose"],
         ["src/lib/firestore/courseDeletion.ts", "destroying a run deletes its records"],
         ["src/lib/firestore/accountDeletion.ts", "deleting an account deletes every record of theirs"],
       ]),
@@ -9288,8 +9328,20 @@ describe("the re-consent gate", () => {
       // Held to version 15's own text, frozen, now that the current version is a later one.
       assert.ok(V15_FLAT.includes(policy), `the accept page says v15 changed ${what}, and v15 does not say it`);
     }
-    // The weekly note is drafted from submitted work and the team's feedback.
-    assert.ok(PAGE_FLAT.includes("Once a week Claude may also draft a short note on how each person is doing, using only the work they submitted and the feedback, ratings and comments people on the team gave it."));
+    // The weekly note. CHANGED ON PURPOSE (v18): it is drafted after the
+    // session, from the work as it stands then, sent or not, and the team's
+    // feedback; the accept page says so in version 18's line (below). v17's
+    // and v15's sentence, "using only the work they submitted", is held in
+    // both, frozen.
+    assert.ok(
+      PAGE_FLAT.includes(
+        "Each week, or when an admin asks for one, Claude may also draft a short note on how each person is doing. It is drafted after your session, usually about a week after it, and uses your work on that week as it stands then, sent or not, with the feedback, ratings and comments people on the team gave it.",
+      ),
+    );
+    for (const frozen of [V17_FLAT, V15_FLAT]) {
+      assert.ok(frozen.includes("Once a week Claude may also draft a short note on how each person is doing, using only the work they submitted and the feedback, ratings and comments people on the team gave it."));
+    }
+    assert.ok(!PAGE_FLAT.includes("using only the work they submitted"), "version 18 still says the weekly note uses only submitted work");
     // "Only admins see what comes back" is the code's: Claude's best answers,
     // Pangram on coursework, the week review and its follow-up, and the
     // end-of-week notes' draft, save and discard refuse anybody but an admin
@@ -9355,8 +9407,26 @@ describe("the re-consent gate", () => {
     const CHANGED =
       "who can take and correct a register; asking to change session or group, to be excused, or to message the team; work added after a session, and reminders after it; a second form that never records who fills it in; conduct records that can note good things as well as concerns; how long we keep reasons and messages; and that we tell you about changes to this policy on the site.";
     assert.ok(said.includes(`W${CHANGED.slice(1)}`), "the accept page's line for version 17 is no longer the policy's own words");
-    assert.ok(PAGE_FLAT.includes(`<strong>What&apos;s changed in version 17:</strong> ${CHANGED}`), "the policy no longer says what changed in version 17, in those words");
+    // Version 17's own "What's changed", and version 18 keeping it under its own, dated.
+    assert.ok(V17_FLAT.includes(`<strong>What&apos;s changed in version 17:</strong> ${CHANGED}`), "v17 no longer says what changed in version 17, in those words");
+    assert.ok(PAGE_FLAT.includes(`<strong>What changed in version 17, on 12 November 2026:</strong> ${CHANGED}`), "the policy no longer keeps what changed in version 17, with its date, in those words");
     assert.ok(!V16_FLAT.includes("What&apos;s changed in version 17"));
+  });
+
+  test("the accept page says what version 18 changes, after version 17's line, in version 18's own words", () => {
+    // Asked only of an agreement older than v15, which accepts v18: so the
+    // page says each version's change, oldest first, version 18's last. Its
+    // line is the policy's own "What's changed in version 18".
+    const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
+    const seventeen = accept.indexOf("What changed in version 17.</strong>");
+    const eighteen = accept.indexOf("What changed in version 18.</strong>");
+    assert.ok(seventeen !== -1 && eighteen > seventeen && accept.indexOf("Read the full", eighteen) > eighteen, "the accept page no longer says what version 18 changed, after version 17");
+    const said = accept.slice(eighteen, accept.indexOf("Read the full", eighteen));
+    const CHANGED =
+      "the short note Claude may draft each week, or when an admin asks for one, now uses your work as it stands after your session, so it may use a written answer you haven&apos;t sent; and we say that the tools get a number or a label in place of each name.";
+    assert.ok(said.includes(`T${CHANGED.slice(1)}`), "the accept page's line for version 18 is no longer the policy's own words");
+    assert.ok(PAGE_FLAT.includes(`<p id="whats-changed"> <strong>What&apos;s changed in version 18:</strong> ${CHANGED} </p>`), "the policy no longer says what changed in version 18, in those words, at the anchor the line on Home links to");
+    assert.ok(!V17_FLAT.includes("What&apos;s changed in version 18"));
   });
 
   test("is not left behind on the dashboard layout alone", () => {
@@ -10254,7 +10324,8 @@ describe("v13 took back the coursework promise from its own agreement on, and na
     // agreement. It may send survey answers later, which v13 said it never would.
     [
       "Only what you sent after you agreed to version 13 is used, and Claude is never sent your name, your email address, your private notes, your survey answers or when you are free.",
-      [CUT_OFF[1], "The tools receive the words with a number in place of each name, and no email address."],
+      // CHANGED ON PURPOSE (v18): a number or a label, as the notes send ("the fellow"); v17's words are held in frozen v17.
+      [CUT_OFF[1], "The tools receive the words with a number or a label (such as &quot;the fellow&quot;) in place of each name, and no email address."],
     ],
     [
       "Claude&apos;s draft is shown only to the admin who asked and is not kept unless an admin saves it, and a saved note says it was drafted by Claude.",
@@ -10273,7 +10344,8 @@ describe("v13 took back the coursework promise from its own agreement on, and na
       "An admin or a programme&apos;s lead can ask Claude to pick the strongest answers to each question of a week across the programme, with a reason for each, and to say what the people on it found hard.",
       ["Admins may ask Claude to help review coursework, survey answers and session reports: to grade answers, pick out the strongest and weakest, and say what people found hard and who might need a hand."],
     ],
-    ["No name, email address or account is sent: each person is a number, and the site puts the names back.", ["The tools receive the words with a number in place of each name, and no email address."]],
+    // CHANGED ON PURPOSE (v18): a number or a label, as the notes send ("the fellow"); v17's words are held in frozen v17.
+    ["No name, email address or account is sent: each person is a number, and the site puts the names back.", ["The tools receive the words with a number or a label (such as &quot;the fellow&quot;) in place of each name, and no email address."]],
     ["What comes back is shown to admins and the programme&apos;s lead only, never to other fellows.", ["What comes back is seen by admins only,"]],
     // PANGRAM_MIN_WORDS (50) is v15's "longer answers", held in §2h.
     [
@@ -10627,7 +10699,8 @@ describe("v15 lets admins ask Claude to review a week's coursework, check-ins an
   test("v15 says it", () => {
     v15Says([
       "Admins may ask Claude to help review coursework, survey answers and session reports: to grade answers, pick out the strongest and weakest, and say what people found hard and who might need a hand.",
-      "The tools receive the words with a number in place of each name, and no email address. What comes back is seen by admins only,",
+      // CHANGED ON PURPOSE (v18): a number or a label in place of each name; v17's words are held in frozen v17.
+      "The tools receive the words with a number or a label (such as &quot;the fellow&quot;) in place of each name, and no email address. What comes back is seen by admins only,",
       "kept with what it was about (the application, or the programme&apos;s run) and deleted with it.",
       "those grades are never shown to you, are never a mark, and are never kept on your record.",
       "Only NAISI&apos;s admins can see who said what, and we record each time one of them does.",
@@ -10764,13 +10837,17 @@ describe("v15 lets notes, ratings and work from after version 13 be used when so
 /** The one builder of a note's draft, the end-of-week notes' and the profile's. Pure. */
 const noteInput = await loadTs("lib/courses/coursework/input.ts");
 
-describe("v15 lets Claude draft a short note on how each person is doing, from the work they submitted and the team's words on it, kept only when an admin saves it; the code agrees", () => {
+describe("v15 lets Claude draft a short note on how each person is doing, from the team's words on their work (v18: the work as it stands after their session, sent or not), kept only when an admin saves it; the code agrees", () => {
   const strip = (source) => source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
   const NOTES_API = "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes";
 
   test("v15 says it", () => {
+    // CHANGED ON PURPOSE (v18): "using only the work they submitted" is now
+    // the work on that week as it stands after the session, sent or not; v15's
+    // and v17's sentence is held in both, frozen, by the accept page's test and
+    // the version 18 describe.
     v15Says([
-      "Once a week Claude may also draft a short note on how each person is doing, using only the work they submitted and the feedback, ratings and comments people on the team gave it.",
+      "Each week, or when an admin asks for one, Claude may also draft a short note on how each person is doing. It is drafted after your session, usually about a week after it, and uses your work on that week as it stands then, sent or not, with the feedback, ratings and comments people on the team gave it.",
       "What comes back is seen by admins only,",
       "kept with what it was about (the application, or the programme&apos;s run) and deleted with it.",
       "Nothing of it is filed on your profile, except a note an admin has read, edited and saved, which says it was drafted by Claude.",
@@ -10778,7 +10855,7 @@ describe("v15 lets Claude draft a short note on how each person is doing, from t
     ]);
   });
 
-  test("\"using only the work they submitted and the feedback, ratings and comments people on the team gave it\": the one builder sends a submitted week and the team's words, and nothing else", () => {
+  test("\"uses your work on that week as it stands then, sent or not, with the feedback, ratings and comments people on the team gave it\": the one builder sends a week handed over and the team's words, and nothing else", () => {
     const from = new Date("2026-11-05T09:00:00Z");
     const at = (day) => new Date(`2026-11-${day}T09:00:00Z`);
     const week = {
@@ -10805,12 +10882,12 @@ describe("v15 lets Claude draft a short note on how each person is doing, from t
         from,
         writerFrom: new Map([["w", from], ["r", from]]),
       });
-    const sent = built([{ week, submittedAt: at("11") }]);
+    const sent = built([{ week, asOf: at("19") }]);
     for (const said of ["SUBMITTED ANSWER", "Feedback from their facilitator: THE TEAM'S FEEDBACK", "Rater 1 (the programme's lead) rated it 8 of 10: THE TEAM'S COMMENT"]) {
       assert.ok(sent.message.includes(said), `the note's message does not carry ${said}`);
     }
     assert.ok(!sent.message.includes("BEFORE THE MOMENT"), "work from before the person's moment is sent");
-    // No submission, no note: a week not handed over sends nothing at all, not even the team's words.
+    // A week not handed over (its session not started) sends nothing at all, not even the team's words.
     const none = built([]);
     assert.equal(none.sent, 0);
     assert.ok(!none.message.includes("THE TEAM'S"), "the team's words go without the work they are about");
@@ -10821,22 +10898,39 @@ describe("v15 lets Claude draft a short note on how each person is doing, from t
     for (const [, specifier] of gather.matchAll(/from\s+"([^"]+)"/g)) {
       assert.doesNotMatch(specifier, /surveys|checkIns|sessionReports|weekReview|courseWeekReviews/, `what a note is built from imports ${specifier}`);
     }
-    assert.match(strip(gather), /if \(submittedAt\) out\.push\(\{ week, submittedAt \}\);/, "a week is handed over without its submission");
-    // "Only the work they submitted": the week stays open after its Submit, so a written answer goes as last
-    // sent (never a change not sent) and a reflection or a box saved after the week's Submit is left out.
-    assert.equal((strip(gather).match(/asLastSent: \(/g) ?? []).length, 2, "a note reads a written answer as its readers do, latest words and all");
-    assert.equal((strip(gather).match(/answers: submittedWork\(/g) ?? []).length, 2, "a note takes work saved after the week's Submit");
-    assert.match(strip(gather), /return answer\.savedAt != null && answer\.savedAt\.getTime\(\) <= at\.getTime\(\);/);
-    assert.match(strip(read("src/lib/courses/coursework/gather.ts")), /if \(asLastSent\) return answerAsLastSent\(piece, asLastSent\(uid,/);
+    // CHANGED ON PURPOSE (v18): "only the work they submitted" held a week to its old Submit, a written
+    // answer to what was last sent and a reflection to what was saved before the Submit. Now: "It is
+    // drafted after your session ... and uses your work on that week as it stands then, sent or not".
+    // A week is handed over once the session the person was due at has ENDED ("drafted after your
+    // session"), and never before or during it; by the one "due" every reader of work asks and that very
+    // session's own end (`loadRunWeekStates`: `weekDueOf`, `weekDueEndsAt`), never a second sum.
+    const code = strip(gather);
+    assert.match(code, /const endsAt = sessions === null \? null : sessions\.dueEndOf\(uid, weekNumber\);\s*return sessions !== null && endsAt !== null && sessions\.now\.getTime\(\) >= endsAt\.getTime\(\);/, "a week is drawn on before its session ends, or by another sum");
+    assert.match(code, /const states = await loadRunWeekStates\(db, \{ run, liveGroups, now \}\);\s*return \{ dueOf: states\.dueOf, dueEndOf: states\.dueEndOf, now \};/);
+    assert.match(strip(read("src/lib/courses/weekWork/readers.ts")), /dueEndOf: \(uid, weekNumber\) => weekDueEndsAt\(sourceOf\(uid\), weekNumber\),/);
+    assert.match(strip(read("src/lib/courses/weekWork/sessionDue.ts")), /return dueSessionOf\(source, weekNumber\)\.due;[\s\S]*return dueSessionOf\(source, weekNumber\)\.endsAt;/, "the end is not that of the session the due is");
+    assert.match(code, /input\.weeks\.filter\(\(week\) => drawnOn\(sessions, uid, week\.weekNumber\)\)/, "the profile's and a press's gatherer hands over a week before its session");
+    assert.match(code, /\[\.\.\.people\]\.filter\(\(uid\) => drawnOn\(sessions, uid, week\.weekNumber\)\)/, "the page's gatherer hands over a week before its session");
+    // Its work as it stands: read by the coursework's one reader against the same sessions and clock,
+    // which, once that session has started, reads a written answer's latest words, sent or not.
+    assert.equal((code.match(/\{ session: sessions \}/g) ?? []).length, 2, "a note reads its work against another clock or another sum");
+    const coursework = strip(read("src/lib/courses/coursework/gather.ts"));
+    assert.match(coursework, /const states = given \?\? \(run \? await loadRunWeekStates\(db, \{ run, liveGroups, now \}\) : null\);/);
+    assert.match(coursework, /return readableAnswer\(piece, states\.dueOf\(uid, weekNumber\)\.at, now\);/);
+    // Nothing of the old rule is left: no Submit, no "as last sent", no save time held against a Submit.
+    assert.doesNotMatch(code, /submittedAt|asLastSent|savedAt|readWeekWork|readRunWeekWork/, "a note's gatherer still reads the old Submit");
+    assert.doesNotMatch(coursework, /asLastSent|answerAsLastSent/, "the coursework's reader still reads a note's answers as last sent");
+    // tests/week-notes.test.mjs runs it: nothing before the session, even an answer sent; after it, the work as it stands.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "week-notes.test.mjs")));
   });
 
   test("the profile's \"Draft a note with Claude\" sends through the same builder and gatherer as the end-of-week notes", () => {
     const profile = strip(read("src/lib/memberNotes/draft.ts"));
-    assert.match(profile, /const sources = await gatherPersonNote\(db, \{ runId, uid: subjectUid, weeks \}\);/);
+    assert.match(profile, /const sources = await gatherPersonNote\(db, \{ runId, uid: subjectUid, weeks, now \}\);/);
     assert.match(profile, /const input = noteDraftInput\(\{\s*programme: run\.programme,\s*weeks: sources\.weeks,/);
     const weekly = strip(read("src/lib/courses/weekNotes/store.ts"));
     assert.match(weekly, /return noteDraftInput\(\{\s*programme: opened\.door\.programmeName,\s*weeks: sources\.weeks,/);
-    assert.match(weekly, /gatherPersonNote\(db, \{ runId, uid: input\.uid, weeks: \[opened\.week\] \}\)/);
+    assert.match(weekly, /gatherPersonNote\(db, \{ runId, uid: input\.uid, weeks: \[opened\.week\], now \}\)/);
     // tests/week-notes.test.mjs and tests/coursework-claude.test.mjs read every message that would go.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "week-notes.test.mjs")), "the end-of-week notes' suite is gone");
   });
@@ -11382,13 +11476,15 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
   ];
 
   test("v17 is v16 with these changes and no others", () => {
+    // Read from frozen v17 since v18 replaced it; v18 is v17 with its own
+    // change, held by the version 18 describe.
     let text = bodyOf(V16_FLAT);
     for (const [what, before, after] of V17_CHANGES) {
       assert.equal(text.split(before).length, 2, `v16 does not say, exactly once, what v17 changes (${what}): ${before}`);
-      assert.ok(!bodyOf(CURRENT_FLAT).includes(before) || after.includes(before), `v17 still says what it was meant to replace (${what})`);
+      assert.ok(!bodyOf(V17_FLAT).includes(before) || after.includes(before), `v17 still says what it was meant to replace (${what})`);
       text = text.replace(before, after);
     }
-    assert.equal(text, bodyOf(CURRENT_FLAT), "v17 differs from v16 somewhere outside the changes listed here");
+    assert.equal(text, bodyOf(V17_FLAT), "v17 differs from v16 somewhere outside the changes listed here");
   });
 
   test("a register records who took it, and a correction who made it, when and what it said before", () => {
@@ -11571,6 +11667,98 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
     assert.match(cascade, /deleteOwnedCourseRows\(db, COURSE_REQUESTS_COLLECTION, uid, "subjectUid"\)/);
     // tests/account-deletion-attendance.test.mjs runs the sweep.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "account-deletion-attendance.test.mjs")));
+  });
+});
+
+describe("v18 changes the sentence about the weekly note, adds one to Changing your work, makes the names sentence exact, and keeps v17's What's changed under its own; every other word is v17's, and the code agrees", () => {
+  /** A version's words as served, from its component on: the header comment is notes, not policy. */
+  const bodyOf = (flat) => flat.slice(flat.indexOf("export default function "));
+  const OLD_NOTE =
+    "Once a week Claude may also draft a short note on how each person is doing, using only the work they submitted and the feedback, ratings and comments people on the team gave it.";
+  const NEW_NOTE =
+    "Each week, or when an admin asks for one, Claude may also draft a short note on how each person is doing. It is drafted after your session, usually about a week after it, and uses your work on that week as it stands then, sent or not, with the feedback, ratings and comments people on the team gave it.";
+  /** Added to "Changing your work" by v18, as the owner approved it. */
+  const UNSENT_IN_NOTE = "From then on, it may also be used in the short note Claude may draft each week.";
+  /** "What is sent, and what comes back": v17's names sentence, and v18's, as the owner approved it. */
+  const OLD_NAMES = "The tools receive the words with a number in place of each name, and no email address.";
+  const NEW_NAMES = "The tools receive the words with a number or a label (such as &quot;the fellow&quot;) in place of each name, and no email address.";
+  /**
+   * EVERY CHANGE v18 MAKES TO v17, as [what, v17's words, v18's words], each
+   * a run of the flattened text. Applied to frozen v17 in turn, each found
+   * exactly once, they give v18 exactly: so nothing else in v17 changed, and
+   * the replaced sentence is held, here, in the words that replaced it.
+   */
+  const V18_CHANGES = [
+    ["the component's name", "export default function PrivacyContentV17(", "export default function PrivacyContentV18("],
+    [
+      "what changed, at the top, with version 17's line kept under it and dated",
+      '<p id="whats-changed"> <strong>What&apos;s changed in version 17:</strong>',
+      '<p id="whats-changed"> <strong>What&apos;s changed in version 18:</strong> the short note Claude may draft each week, or when an admin asks for one, now uses your work as it stands after your session, so it may use a written answer you haven&apos;t sent; and we say that the tools get a number or a label in place of each name. </p> <p> <strong>What changed in version 17, on 12 November 2026:</strong>',
+    ],
+    [
+      "changing your work: from the session on, an unsent answer may also be used in the weekly note",
+      "they may read what you&apos;ve written so far, sent or not. The week&apos;s page says",
+      `they may read what you&apos;ve written so far, sent or not. ${UNSENT_IN_NOTE} The week&apos;s page says`,
+    ],
+    ["the weekly note, as the owner approved it", OLD_NOTE, NEW_NOTE],
+    ["what the tools receive in place of each name", OLD_NAMES, NEW_NAMES],
+  ];
+
+  test("v18 is v17 with these changes and no others", () => {
+    let text = bodyOf(V17_FLAT);
+    for (const [what, before, after] of V18_CHANGES) {
+      assert.equal(text.split(before).length, 2, `v17 does not say, exactly once, what v18 changes (${what}): ${before}`);
+      assert.ok(!bodyOf(CURRENT_FLAT).includes(before) || after.includes(before), `v18 still says what it was meant to replace (${what})`);
+      text = text.replace(before, after);
+    }
+    assert.equal(text, bodyOf(CURRENT_FLAT), "v18 differs from v17 somewhere outside the changes listed here");
+  });
+
+  test("the two sentences the owner approved beside it, word for word, and neither in v17", () => {
+    // "Changing your work": straight after the sentence about what is read once the session has started.
+    assert.ok(PAGE_FLAT.includes(`Once the session it&apos;s due at has started, they may read what you&apos;ve written so far, sent or not. ${UNSENT_IN_NOTE}`));
+    assert.ok(!V17_FLAT.includes(UNSENT_IN_NOTE));
+    // "What is sent, and what comes back": "the fellow" is the label the weekly note sends for its person.
+    assert.ok(PAGE_FLAT.includes(`<strong>What is sent, and what comes back.</strong> ${NEW_NAMES}`));
+    assert.ok(V17_FLAT.includes(`<strong>What is sent, and what comes back.</strong> ${OLD_NAMES}`));
+    assert.ok(!PAGE_FLAT.includes(OLD_NAMES));
+    assert.match(read("src/lib/courses/weekNotes/store.ts"), /label: person\.uid === uid \? "the fellow"/);
+  });
+
+  test("nothing in src quotes the weekly note's sentence as versions 15 to 17 had it, outside the frozen versions themselves", () => {
+    // A comment quoting a policy sentence quotes the one in force: the ratings readers and the notes code
+    // quoted "using only the work they submitted" and the "Once a week" opening after version 18 replaced them.
+    const stale = /using only the work they submitted|Once a week Claude may/;
+    // Words wrapped across comment lines are read as one run: each line's "*" or "//" leader goes.
+    const prose = (text) => text.replace(/\n\s*(?:\*(?!\/)|\/\/)/g, " ").replace(/\s+/g, " ");
+    assert.ok(stale.test(prose(" * the drafts (privacy v15, \"using only the work\n *    they submitted and\n")), "the walk cannot read a quote wrapped across comment lines");
+    const quoting = textFilesUnder(SRC)
+      .map((file) => file.slice(REPO_ROOT.length + 1).split(sep).join("/"))
+      .filter((relative) => !/^src\/content\/legal\/privacy\/v(?:[1-9]|1[0-7])\.tsx$/.test(relative))
+      .filter((relative) => stale.test(prose(read(relative))));
+    assert.deepEqual(quoting, [], "these files still quote the weekly note's replaced sentence");
+  });
+
+  test("the sentence after it is unchanged, and still follows it", () => {
+    const after = "Only what you wrote after you first agreed to version 13 of this policy, or after you joined if that was later, is ever sent.";
+    assert.ok(PAGE_FLAT.includes(`${NEW_NOTE} ${after}`), "the version 13 sentence no longer follows the weekly note's, word for word");
+    assert.ok(V17_FLAT.includes(`${OLD_NOTE} ${after}`));
+  });
+
+  test("told, not asked: nobody is asked to accept it, and Home and /privacy say what both versions changed while version 17's days run", async () => {
+    const acceptance = await loadTs("lib/legal/acceptance.ts");
+    assert.equal(acceptance.LAST_PRIVACY_VERSION_ASKED, 15);
+    for (const stored of ["terms.1+privacy.15", "terms.1+privacy.16", "terms.1+privacy.17", "terms.1+privacy.18"]) {
+      assert.equal(acceptance.needsPolicyAcceptance(stored), false, stored);
+    }
+    const eighteen = POLICIES.privacy.versions.find((v) => v.version === 18);
+    assert.equal(
+      eighteen?.updateLine,
+      "We've updated our privacy policy. The short note Claude may draft each week now uses your work as it stands after your session, sent or not.",
+    );
+    assert.equal(eighteen?.updateLineAdds, "and the short note Claude may draft each week now uses your work as it stands after your session, sent or not.");
+    // The three periods, worked out from the two dates, are run in tests/policy-update-line.test.mjs.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
   });
 });
 

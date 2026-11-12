@@ -13,10 +13,12 @@ import {
 } from "@/lib/courses/memberPageWords";
 import type { WeekDue } from "@/lib/courses/weekWork/model";
 import { savedLineWords } from "@/lib/courses/weekWork/words";
+import { YOU_ANSWERED_AN_EARLIER_WORDING, earlierQuestionWords, type AskedWords } from "@/lib/courses/weekEdit/wordsThen";
 import type { ReflectionBlock, ReflectionPrompt } from "@/lib/courses/weekBlocks/model";
 import { REFLECTION_MAX_CHARS } from "@/lib/firestore/courseExercises";
 import styles from "./blockWeek.module.css";
 import { putReflection } from "./boxWrites";
+import EarlierWording from "./EarlierWording";
 
 /**
  * A REFLECTION STOP: one or two
@@ -36,6 +38,11 @@ import { putReflection } from "./boxWrites";
  * would write over the stored words with the first keystroke. Until the
  * person's own rows have loaded (`loaded`), the stop says so instead, with a
  * way to try again.
+ *
+ * AN EARLIER WORDING. Where a prompt has been reworded since the person
+ * first wrote to it (`askedThen`, from their own rows' route), "You answered
+ * an earlier wording:" and the words it had then sit under their words; with
+ * nothing written, or the same words, nothing does.
  *
  * THE WRITE is `PUT /api/courses/runs/[runId]/reflections/[promptId]`
  * (`putReflection`, `./boxWrites.ts`), through `useDebouncedWrite` (one
@@ -68,6 +75,8 @@ type Props = {
   due: WeekDue;
   /** The moment the page was drawn. */
   now: Date;
+  /** The words each prompt had when the person first wrote to it, by prompt id, only where reworded since. */
+  askedThen?: Readonly<Record<string, AskedWords>>;
   /** Hands each stored row back to the page, so its counts move as the box saves. */
   onSaved: (row: ExerciseResponseWire) => void;
 };
@@ -85,6 +94,7 @@ export default function ReflectStop({
   readers,
   due,
   now,
+  askedThen,
   onSaved,
 }: Props) {
   const showBoxes = ownBoxes && loaded;
@@ -113,6 +123,7 @@ export default function ReflectStop({
             due={due}
             now={now}
             canWrite={canWrite}
+            earlier={earlierQuestionWords(askedThen?.[prompt.id], prompt.text)}
             onSaved={onSaved}
           />
         ) : (
@@ -140,6 +151,7 @@ function ReflectionBox({
   due,
   now,
   canWrite,
+  earlier,
   onSaved,
 }: {
   prompt: ReflectionPrompt;
@@ -151,6 +163,8 @@ function ReflectionBox({
   due: WeekDue;
   now: Date;
   canWrite: boolean;
+  /** The prompt's words when the person first wrote to it, where they differ from today's; else null. */
+  earlier: string | null;
   onSaved: (row: ExerciseResponseWire) => void;
 }) {
   const fieldId = useId();
@@ -235,6 +249,7 @@ function ReflectionBox({
       </p>
       {/* When it was saved, and once the session has started whether that was before it or how long after. */}
       {!pending && stored.trim() && savedAt && <p className={styles.boxWhen}>{savedLineWords(new Date(savedAt), due, now)}</p>}
+      {stored.trim() && <EarlierWording label={YOU_ANSWERED_AN_EARLIER_WORDING} words={earlier} />}
     </div>
   );
 }

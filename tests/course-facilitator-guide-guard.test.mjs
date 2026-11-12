@@ -344,7 +344,7 @@ const GUIDE_MODULES = [...FILES.keys()].filter(
 
 /** A file that writes a week's document: a run's, a course's, a template's or a group's copy. */
 function writesWeeks(code) {
-  const namesWeeks = /\.collection\(\s*["']weeks["']\s*\)|["']weeks["']\s*,\s*\w+\s*\)|\/weeks\/\$\{/.test(code);
+  const namesWeeks = /\.collection\(\s*["']weeks["']\s*\)|["']weeks["']\s*,\s*\w+\s*\)|\/weeks\/\$\{|\bweekDocRef\(/.test(code);
   const writes = /\.(?:set|update|create)\(|\bsetDoc\(|\bupdateDoc\(|\bwriteBatch\(|\.batch\(\)/.test(code);
   return namesWeeks && writes;
 }
@@ -365,11 +365,20 @@ describe("3. no week ever carries facilitator material", () => {
 
   test("the scan finds the writers of weeks", () => {
     for (const path of [
-      "app/api/courses/runs/[runId]/weeks/[weekId]/blocks/route.ts",
+      // The one save every change to a run's week's blocks goes through: the
+      // paste route, an edit in place and a restore all call it.
+      "lib/courses/weekEdit/save.ts",
       "features/courses/courseMutations.ts",
       "app/api/courses/runs/[runId]/clone-weeks/route.ts",
     ]) {
       assert.ok(writers.includes(path), `the scan no longer sees ${path} write a week`);
+    }
+    for (const route of [
+      "app/api/courses/runs/[runId]/weeks/[weekId]/blocks/route.ts",
+      "app/api/courses/runs/[runId]/weeks/[weekId]/blocks/[blockId]/route.ts",
+      "app/api/courses/runs/[runId]/weeks/[weekId]/history/[saveId]/restore/route.ts",
+    ]) {
+      assert.ok(reach(route).has("lib/courses/weekEdit/save.ts"), `${route} no longer saves through the one save`);
     }
     assert.ok(GUIDE_MODULES.includes(STORE) && GUIDE_MODULES.includes(RECORD) && !GUIDE_MODULES.includes(RECOGNISE));
   });
@@ -386,8 +395,10 @@ describe("3. no week ever carries facilitator material", () => {
       assert.doesNotMatch(FILES.get(path).code, READS, `${path} reads a guide document`);
     }
     assert.deepEqual(offenders, [], "a file that writes a week's document reaches the facilitator guide: anyone signed in can read a week");
-    // The week loader does reach the refusal, which is how it refuses.
+    // The week loader does reach the refusal, which is how it refuses, and so
+    // does the edit in place, which asks it of every field of Markdown.
     assert.ok(reach("app/api/courses/runs/[runId]/weeks/[weekId]/blocks/route.ts").has(RECOGNISE));
+    assert.ok(reach("app/api/courses/runs/[runId]/weeks/[weekId]/blocks/[blockId]/route.ts").has(RECOGNISE));
   });
 
   test("a week's document has no field for it", () => {
@@ -404,11 +415,21 @@ describe("3. no week ever carries facilitator material", () => {
     assert.match(paste, /const material = facilitatorMaterialIn\(input\.markdown\);\s*if \(material\) problems\.unshift\(material\);/);
     const route = FILES.get("app/api/courses/runs/[runId]/weeks/[weekId]/blocks/route.ts").code;
     assert.match(route, /if \(read\.problems\.length > 0\) return badRequest\(read\.problems\[0\], answer\);/);
-    // Every write the route makes (the save onto a week's page, and the first save that makes the page) comes after the refusal.
+    // The route writes nothing itself: its one write is the call to the one
+    // save (the save onto a week's page, and the first save that makes the
+    // page, both inside it), and that call comes after the refusal.
     const refusal = route.indexOf("read.problems.length > 0");
     const writes = [...route.matchAll(/\.(?:update|create|set)\(/g)].map((match) => match.index);
-    assert.ok(refusal > 0 && writes.length >= 2, "the scan no longer sees the week loader's refusal and its writes");
-    for (const at of writes) assert.ok(refusal < at, "the week loader writes before it refuses");
+    const saves = [...route.matchAll(/\bsaveWeekBlocks\(/g)].map((match) => match.index);
+    assert.deepEqual(writes, [], "the week loader writes a week itself, beside the one save");
+    assert.ok(refusal > 0 && saves.length === 1, "the scan no longer sees the week loader's refusal and its save");
+    for (const at of saves) assert.ok(refusal < at, "the week loader saves before it refuses");
+    // The save writes the week's page (an update, and a create for a week's first save) and nothing else of a week.
+    const save = FILES.get("lib/courses/weekEdit/save.ts").code;
+    assert.match(save, /if \(weekSnap\.exists\) tx\.update\(weekRef, written\);\s*else tx\.create\(weekRef, \{ \.\.\.emptyWeekFields\(input\.weekNumber\), \.\.\.written \}\);/);
+    // An edit in place asks the paste's refusal of every field of Markdown it reads.
+    const edit = FILES.get("lib/courses/weekEdit/model.ts").code;
+    assert.equal([...edit.matchAll(/const material = facilitatorMaterialIn\(markdown\);\s*if \(material\) return \{ ok: false, error: material \};/g)].length, 2);
   });
 });
 

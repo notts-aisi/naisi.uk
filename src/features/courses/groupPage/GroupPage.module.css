@@ -793,6 +793,240 @@ li.pill {
   gap: var(--space-3);
 }
 
+/* === The chosen week's work ===============================
+   "4 of 6 have done week 1", a bar for the week and one for each
+   piece, the people table with its filters, "Late in week 1",
+   the facilitators' own weeks, and Remind's panel. */
+
+.pillItem {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+a.pill {
+  text-decoration: none;
+}
+
+.workHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.workBars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.workBar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.workBarLabel {
+  margin: 0;
+  font-size: var(--text-ui);
+  font-weight: 600;
+}
+
+.workBarTrack {
+  display: flex;
+  height: 0.5rem;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.workBarSeg {
+  display: block;
+  height: 100%;
+}
+
+.workBarSeg + .workBarSeg {
+  border-left: 2px solid var(--color-bg-elevated);
+}
+
+.segDone {
+  background: var(--color-ok);
+}
+
+.segLate {
+  background: var(--color-accent-text);
+}
+
+.segStarted {
+  background: var(--color-warning);
+}
+
+.segNone {
+  background: var(--color-control-border);
+}
+
+.segJoined {
+  background: var(--color-text-faint);
+}
+
+.workLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+}
+
+.workLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.workLegendItem strong {
+  color: var(--color-text);
+}
+
+.workSwatch {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 2px;
+}
+
+/* A wide table keeps its own scroll, never the page's. Positioned, so a
+   heading hidden for screen readers (absolutely placed) is clipped with the
+   table rather than widening the page. */
+.tableScroll {
+  position: relative;
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.tableScroll .people {
+  min-width: 44rem;
+}
+
+.cellNote {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+}
+
+.weekChip {
+  display: inline-block;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-caption);
+  white-space: nowrap;
+}
+
+.toneDone {
+  background: var(--color-success-soft);
+  color: var(--color-ok);
+}
+
+.toneLate {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+
+.toneStarted {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.toneNone {
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.lateList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lateRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.lateMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lateName {
+  font-size: var(--text-ui);
+  color: var(--color-text);
+}
+
+.lateChip {
+  padding: 2px var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-warning-line);
+  background: var(--color-warning-soft);
+  color: var(--color-text);
+  font-size: var(--text-caption);
+}
+
+.remindList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.remindPerson {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.remindName {
+  font-size: var(--text-ui);
+  color: var(--color-text);
+}
+
+.remindLast {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.remindSend {
+  align-self: stretch;
+}
+
 /* === Mobile === */
 /* === Covering a register ===================================
    The notice when a session has started and nobody has started

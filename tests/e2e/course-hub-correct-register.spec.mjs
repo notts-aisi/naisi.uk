@@ -22,7 +22,9 @@
  *     line; HAL, Group B's facilitator, cannot open Group A's register and
  *     reads no reply on his own.
  *  5. THE ADMIN opens Group A's "Attendance, all weeks", corrects Ben's week
- *     2 line with why, corrects week 1's whole column as held online after
+ *     2 line with why, reads that week 1's column cannot push the rest back
+ *     because a later week has met (the choice is not offered, and the sheet
+ *     says why), corrects week 1's whole column as held online after
  *     reading "Before you save", and the group's History keeps each under
  *     Registers. Nobody is emailed.
  *
@@ -532,6 +534,21 @@ test(
         await table.getByTestId("group-attendance-column").first().click();
         const column = adminPage.getByTestId("column-sheet");
         await column.getByRole("heading", { name: "Correct week 1’s whole column", exact: true }).waitFor({ timeout: WAIT_MS });
+        // It didn't happen: weeks 2 and 3 have met, so pushing the rest back is
+        // not offered, and the sheet says why in the group page's own words.
+        const [keepPace] = await Promise.all([
+          responseTo(adminPage, `/groups/${groupA.id}/attendance/column`, "POST"),
+          column.getByRole("radio", { name: /^It didn’t happen/ }).check(),
+        ]);
+        assert.deepEqual((await okBody(keepPace, "Previewing It didn't happen")).preview?.push, {
+          offered: false,
+          why: "A later week has already met, so the rest can’t be pushed back.",
+        });
+        await waitFor("the sheet to say why push back is not offered", async () =>
+          (await textOf(column)).includes("A later week has already met, so the rest can’t be pushed back."),
+        );
+        assert.equal(await column.getByRole("radio", { name: /^Push the rest back a week/ }).isDisabled(), true, "push back is offered though a later week met");
+        assert.equal(await column.getByRole("radio", { name: /^Keep pace/ }).isDisabled(), false, "keep pace is not offered");
         const [previewed] = await Promise.all([
           responseTo(adminPage, `/groups/${groupA.id}/attendance/column`, "POST"),
           column.getByRole("radio", { name: new RegExp(`^${escapeRegExp(WORDS.heldOnline)}`) }).check(),

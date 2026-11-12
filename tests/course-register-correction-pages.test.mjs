@@ -496,17 +496,21 @@ describe("3. the wiring", () => {
     assert.match(api, /reason: input\.reason,\n\s+\}\);\n\}/, "a line's correction is sent without its reason");
   });
 
-  test("the column's sheet: It did happen starts each person from their line, push back is not offered once the session has a check-in or a report, and a week's second session is offered neither", () => {
+  test("the column's sheet: It did happen starts each person from their line, push back is offered only when the route says a push would go through, and a week's second session is offered neither", () => {
     const sheet = read("src/features/courses/registerCorrection/ColumnSheet.tsx");
     assert.match(sheet, /const chosenFor = \(person: \{ uid: string; line: string \}\): string \| null => lines\[person\.uid\] \?\? P\.choiceOfLine\(person\.line\)\?\.key \?\? null;/);
     assert.match(sheet, /\{P\.didHappenNowWords\(each\.line\)\}/, "the sheet does not show each person's line");
     assert.match(sheet, /\{P\.didHappenChoicesFor\(each\.line\)\.map\(\(choice\) =>/);
     assert.match(sheet, /checked=\{chosenFor\(each\) === choice\.key\}/, "a person does not start from their line");
     assert.doesNotMatch(sheet, /DID_HAPPEN_CHOICES\.map/);
-    // Push back: worked out from the preview's own check-in and report, disabled with the one-week change's hint.
-    assert.match(sheet, /const pushBlocked = Boolean\(made && \(made\.checkIn \|\| made\.reports > 0\)\);/);
+    // Push back: worked out from the route's own preview of every refusal a
+    // push meets (`push`), a check-in or a report among them, and disabled
+    // with the group page's own sentence for the same refusal.
+    assert.match(sheet, /const pushChoice = kind === "did-not-happen" \? P\.pushChoiceOf\(preview\) : \{ offered: false, why: "" \};/);
+    assert.match(sheet, /const pushOffered = kind === "did-not-happen" && \(pushChoice\.offered \|\| \(pace === "push" && preview === null\)\);/);
     assert.match(sheet, /disabled=\{busy \|\| \(value === "push" && !pushOffered\)\}/);
-    assert.match(sheet, /\{value === "push" && pushBlocked && <span className=\{styles\.choiceLine\}>\{pushHasRecordsHint\(session\.weekNumber\)\}<\/span>\}/);
+    assert.match(sheet, /\{value === "push" && !pushChoice\.offered && pushChoice\.why && <span className=\{styles\.choiceLine\}>\{pushChoice\.why\}<\/span>\}/);
+    assert.doesNotMatch(sheet, /pushHasRecordsHint|made\.checkIn|made\.reports/, "the sheet decides a push back by a rule of its own");
     assert.match(sheet, /pace: pace \?\? "keep", dateKey: session\.dateKey/, "the sheet does not ask before a pace is chosen");
     // A week's second session: It didn't happen is not offered, nor It did happen.
     assert.match(sheet, /P\.COLUMN_WAYS\.filter\(\(each\) => each\.way !== "did-not-happen" \|\| session\.occurrence === 1\)/);

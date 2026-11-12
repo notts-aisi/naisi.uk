@@ -2,7 +2,8 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { loadForm } from "@/lib/applications/repo";
 import { formAsksToConfirm, PLACE_CONFIRMATIONS_JOB_ID } from "@/lib/applications/status/confirming";
-import { placementWhere } from "@/lib/courses/placementEmail";
+import type { GroupCampus } from "@/lib/courses/campus";
+import { weekOpenPlace } from "@/lib/email/courseNudgeEmail";
 import { jobStateFor, readSchedulerConfig } from "@/lib/firestore/schedulerConfig";
 import type { GroupSession } from "@/lib/firestore/courseGroups";
 import { NEXT_WEEK_EMAIL_JOB, REGISTER_REMINDERS_JOB } from "@/lib/scheduler/registerJobs";
@@ -17,9 +18,12 @@ import { NEXT_WEEK_EMAIL_JOB, REGISTER_REMINDERS_JOB } from "@/lib/scheduler/reg
  * register's page read them, and nothing here changes one. The site-wide
  * pause is said too: while it is on, none of them goes.
  *
- *  - NEXT WEEK'S EMAIL (`courses-next-week-email`): with it on, a group whose
- *    room is empty has its email held until it has one, so the groups with no
- *    room are named.
+ *  - NEXT WEEK'S EMAIL (`courses-next-week-email`): with it on, the groups
+ *    whose email says "Room to be confirmed" (in a room, with none set or a
+ *    link where the room goes) are named, and apart from them the groups set
+ *    to meet online with no link yet, whose email says nothing of where.
+ *    Worked out by the email's own `weekOpenPlace`, so the line and the email
+ *    agree.
  *  - THE FACILITATORS' REGISTER REMINDER (`courses-register-reminders`).
  *  - THE REMINDER TO CONFIRM A PLACE (`application-place-confirmations`),
  *    only while the programme's form asks people to confirm by a day.
@@ -37,7 +41,7 @@ export const PLACE_CONFIRMATIONS_ENABLED_BY_DEFAULT = false;
 export type WhatFollows = {
   /** The whole scheduler is paused on Site status. */
   paused: boolean;
-  nextWeekEmail: { on: boolean; waitsForRoom: string[] };
+  nextWeekEmail: { on: boolean; noRoomYet: string[]; onlineNoLink: string[] };
   registerReminders: { on: boolean };
   /** Null while the form asks nobody to confirm their place by a day. */
   placeConfirmations: { on: boolean } | null;
@@ -46,7 +50,7 @@ export type WhatFollows = {
 export async function readWhatFollows(
   db: Firestore,
   roundId: string,
-  groups: readonly { name: string; session: GroupSession }[],
+  groups: readonly { name: string; session: GroupSession; campus: GroupCampus | null }[],
   now: Date,
 ): Promise<WhatFollows> {
   const [config, form] = await Promise.all([readSchedulerConfig(db), loadForm(db, roundId)]);
@@ -56,7 +60,8 @@ export async function readWhatFollows(
     nextWeekEmail: {
       on: on(NEXT_WEEK_EMAIL_JOB.id, NEXT_WEEK_EMAIL_JOB.enabledByDefault),
       // The weekly slot's own place, as the email says it: a room, or online.
-      waitsForRoom: groups.filter((group) => placementWhere(group.session, null) === null).map((group) => group.name),
+      noRoomYet: groups.filter((group) => weekOpenPlace(group.session, null, group.campus).roomToBeConfirmed).map((group) => group.name),
+      onlineNoLink: groups.filter((group) => weekOpenPlace(group.session, null, group.campus).onlineNoLink).map((group) => group.name),
     },
     registerReminders: { on: on(REGISTER_REMINDERS_JOB.id, REGISTER_REMINDERS_JOB.enabledByDefault) },
     placeConfirmations:

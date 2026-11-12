@@ -27,7 +27,7 @@ import {
 } from "@/lib/courses/sessionChange/didNotHappen";
 import { pushHasRecordsWords } from "@/lib/courses/registerCover/words";
 import { startMoves, takenStartMoves } from "@/lib/courses/sessionChange/metSessions";
-import { coverHolderNames, coversOffOf, coversOffWords, writeCoversOff } from "@/lib/courses/registerCover/moves";
+import { coverHolderNames, coversEndLines, coversOffOf, coversOffWords, startMovedRegisters, writeCoversOff } from "@/lib/courses/registerCover/moves";
 import { sessionOfWeek } from "@/lib/courses/sessionChange/model";
 import { oneWeekHistoryDetail, oneWeekNoticeFor, weekSessionAfter } from "@/lib/courses/sessionChange/notice";
 import { parseChangePress, type ChangePress } from "@/lib/courses/sessionChange/parse";
@@ -236,17 +236,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       const after = resolveSessions(run, first.after);
       // The press would be refused for moving a session that met: so is its preview, in the same words.
       const metRefs = moveRegisterRefs(db, run, found.id, before, after);
+      const metSnaps = metRefs.length ? await db.getAll(...metRefs) : [];
       refuseMovingMet(
         before,
         after,
-        metRefs.length ? await db.getAll(...metRefs) : [],
+        metSnaps,
         first.started && callsOffDraft(press, register, first.session) ? first.session.sessionKey : null,
       );
       const switches = await readJobSwitches(db);
-      const [reminders, said, told] = await Promise.all([
+      const [reminders, said, told, coversEnd] = await Promise.all([
         reminderFacts(db, { run, group: found, before: first.session, after: weekSessionAfter(run, first, press.weekNumber), switches }),
         saidFacts(db, register),
         toldFacts(db, run, found, actor.uid),
+        // Whose cover the press would take off, by the press's own rule (`../registerCover/moves`).
+        coversEndLines(db, startMovedRegisters(before, after, metRefs, metSnaps)),
       ]);
       const afterSession = sessionOfWeek(after, press.weekNumber);
       const lastOf = (sessions: readonly ResolvedSession[]) =>
@@ -265,6 +268,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
           said,
           told,
           register: { exists: register !== undefined, taken: registerIsTaken(register) },
+          coversEnd,
           // Called off after it passed: what else follows (`./didNotHappen`).
           didNotHappen:
             first.started && (press.kind === "cancel" || press.kind === "push")
@@ -322,14 +326,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       // A cover does not ride along to another evening: a register nobody has
       // taken loses the cover it holds when its session's start moves, and the
       // history row says who had been covering (`../registerCover/moves`).
-      const coversOff = coversOffOf(
-        startMoves(before, after).map((move, index) => ({
-          ref: metRefs[index],
-          weekNumber: move.before.weekNumber,
-          occurrence: move.before.occurrence,
-          snap: metSnaps[index],
-        })),
-      );
+      const coversOff = coversOffOf(startMovedRegisters(before, after, metRefs, metSnaps));
       const holderNames = await coverHolderNames(tx, db, coversOff);
 
       const update: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };

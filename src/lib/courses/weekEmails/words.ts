@@ -113,7 +113,31 @@ export type WeekOpenFacts = {
    * gone is never sent again for one scheduled after it.
    */
   explainer?: { minutes: number; topic: string } | null;
+  /**
+   * The session is in a room and none is booked yet: the email says "Room to
+   * be confirmed" in a line of its own, and goes. Missing reads as a room
+   * booked (or none needed), as before.
+   */
+  roomToBeConfirmed?: boolean;
 };
+
+/** "Week N is open" for a session in a room not booked yet: it goes, with this line. */
+export const WEEK_OPEN_ROOM_TO_BE_CONFIRMED =
+  "Room to be confirmed: we’ll email you as soon as it’s booked, and it’ll be on your programme page.";
+
+/**
+ * The one line "Week N is open" adds for an earlier week of the person's that
+ * is not done (its session has passed, and they had joined by then): "Week 1
+ * isn’t done yet either: it’s still open on your programme page.", or "Weeks
+ * 1 and 2 aren’t done yet either: they’re still open on your programme
+ * page." "" for none.
+ */
+export function earlierNotDoneWords(weekNumbers: readonly number[]): string {
+  const weeks = [...new Set(weekNumbers)].filter((n) => Number.isInteger(n) && n > 0).sort((a, b) => a - b);
+  if (weeks.length === 0) return "";
+  if (weeks.length === 1) return `Week ${weeks[0]} isn’t done yet either: it’s still open on your programme page.`;
+  return `Weeks ${namesAnd(weeks.map(String))} aren’t done yet either: they’re still open on your programme page.`;
+}
 
 /** "Week 3 is open: Power and incentives", or "Week 3 is open" for a week with no title. */
 export function weekOpenSubject(facts: Pick<WeekOpenFacts, "weekNumber" | "weekTitle">): string {
@@ -153,18 +177,27 @@ function weekOpenLead(facts: WeekOpenFacts): string {
 /**
  * EVERY WORD OF "WEEK N IS OPEN" for one person: the subject, a greeting by
  * the first name they go by, the week and when the group meets (or, for a
- * cancelled evening, that it is off, why and when they meet next), the
- * explainer the session starts with when an admin scheduled one, what the
- * week asks for, a button to its page, and that the work saves as you go and
- * can still be added to after the session, with anything added or changed
- * after it shown as late to the people who read it.
+ * cancelled evening, that it is off, why and when they meet next), "Room to
+ * be confirmed" when the session's room is not booked yet, the explainer the
+ * session starts with when an admin scheduled one, one line for any earlier
+ * week of theirs that is not done (`earlierNotDone`, the person's own), what
+ * the week asks for, a button to its page, and that the work saves as you go
+ * and can still be added to after the session, with anything added or
+ * changed after it shown as late to the people who read it.
  */
-export function weekOpenEmailWords(facts: WeekOpenFacts, firstName: string): WeekEmailWords {
+export function weekOpenEmailWords(
+  facts: WeekOpenFacts,
+  firstName: string,
+  own: { earlierNotDone?: readonly number[] } = {},
+): WeekEmailWords {
   const lead = weekOpenLead(facts);
   const paragraphs = [lead];
   if (oneLine(facts.change)) paragraphs.push(oneLine(facts.change));
+  if (facts.roomToBeConfirmed && !facts.cancelled && facts.sessionAt) paragraphs.push(WEEK_OPEN_ROOM_TO_BE_CONFIRMED);
   // A session that is off starts with nothing.
   if (facts.explainer && !facts.cancelled) paragraphs.push(memberLineWords(facts.explainer.minutes, facts.explainer.topic));
+  const earlier = earlierNotDoneWords(own.earlierNotDone ?? []);
+  if (earlier) paragraphs.push(earlier);
   const after: string[] = [];
   if (facts.staysOpen) after.push(staysOpenAfterWords(facts.cancelled));
   const feedbackUrl = facts.first ? "" : oneLine(facts.feedbackUrl);
@@ -197,19 +230,19 @@ export function staysOpenAfterWords(cancelled: boolean): string {
 /**
  * The values "Week N is open" goes WITHOUT on the register's push and is
  * HELD for on its schedule (`src/lib/courses/nextWeekEmail.ts`): a fact the
- * group needs, read from a record somebody can fill in.
+ * group needs, read from a record somebody can fill in. A room not booked yet
+ * holds nothing: the email goes, saying "Room to be confirmed".
  */
-export type WeekOpenValue = "sessionWhen" | "sessionWhere" | "weekTitle" | "weekAsks";
+export type WeekOpenValue = "sessionWhen" | "weekTitle" | "weekAsks";
 
 /**
  * The facts "Week N is open" carries that are empty, of the ones a whole
- * email needs. A cancelled session's email says it is off instead of when and
- * where the group meets, so it goes without those two.
+ * email needs. A cancelled session's email says it is off instead of when the
+ * group meets, so it goes without that.
  */
 export function missingWeekOpenValues(facts: WeekOpenFacts): WeekOpenValue[] {
   const missing: WeekOpenValue[] = [];
   if (!facts.cancelled && !facts.sessionAt) missing.push("sessionWhen");
-  if (!facts.cancelled && !oneLine(facts.where)) missing.push("sessionWhere");
   if (!oneLine(facts.weekTitle)) missing.push("weekTitle");
   if (facts.asks.length === 0) missing.push("weekAsks");
   return missing;
@@ -219,7 +252,6 @@ export function missingWeekOpenValues(facts: WeekOpenFacts): WeekOpenValue[] {
 export function missingWeekOpenWords(keys: readonly WeekOpenValue[], weekNumber: number): string[] {
   const words: Record<WeekOpenValue, string> = {
     sessionWhen: "the group’s day and time",
-    sessionWhere: "the group’s room",
     weekTitle: `week ${weekNumber}’s title`,
     weekAsks: `what week ${weekNumber} asks for`,
   };

@@ -518,6 +518,61 @@ describe("1. the arithmetic of a group's page", () => {
     assert.equal(own?.text, "Week 3 keeps its own change (held online): Tue 17 Nov, 5:30pm.");
   });
 
+  test("a cover the press takes off: one Cover line saying each, in the route's words, before who is told", () => {
+    const ENDS = "Ola Example’s cover of week 4’s session ends: the session moves. Give it again if they can still take it.";
+    const oneWeek = model.oneWeekPreviewLines({
+      preview: {
+        kind: "push",
+        weekNumber: 4,
+        started: false,
+        before: moment({ weekNumber: 4, dateKey: "2026-11-24", startTimeLocal: "18:00", room: "Hallward B12" }),
+        after: moment({ weekNumber: 4, dateKey: "2026-12-01", startTimeLocal: "18:00", room: "Hallward B12" }),
+        lastSession: { before: "2026-12-08", after: "2026-12-15" },
+        lateFrom: { before: null, after: null },
+        reminders: reminders(),
+        said: { joiningOnline: { count: 0, names: [] }, cantMakeIt: { count: 0, names: [] } },
+        told: { emails: 0, refused: false, people: 0, facilitatorNames: [] },
+        register: { exists: true, taken: false },
+        coversEnd: [ENDS],
+        notice: { title: "t", message: "m" },
+        at: null,
+      },
+      metAtAnotherTime: false,
+      tell: false,
+      groupName: "Group B",
+      incubator: false,
+    });
+    assert.deepEqual(oneWeek.map((line) => line.label), ["Session", "Reminders", "Answers", "Cover", "Told"]);
+    assert.equal(oneWeek[3].text, ENDS);
+    const regular = model.regularPreviewLines({
+      preview: {
+        fromWeek: 4,
+        dayOrTimeChanged: true,
+        askedAgain: true,
+        regular: {
+          before: { weekday: 2, startTimeLocal: "18:00", durationMinutes: 120, room: "Hallward B12", campus: null },
+          after: { weekday: 3, startTimeLocal: "18:00", durationMinutes: 120, room: "Hallward B12", campus: null },
+        },
+        moves: [],
+        kept: [],
+        ownTimes: [],
+        reminders: [],
+        told: { emails: 6, refused: false, people: 5, facilitatorNames: ["Ella"] },
+        coversEnd: [ENDS, ENDS.replace("week 4", "week 5")],
+        notice: { subject: "s", before: [], after: [], asks: true },
+        at: null,
+      },
+      groupName: "Group B",
+      incubator: false,
+      todayKey: "2026-11-19",
+    });
+    // Two covers, one line: the panel keys its lines by label, so no label is drawn twice.
+    assert.deepEqual(regular.filter((line) => line.label === "Cover").map((line) => line.text), [`${ENDS} ${ENDS.replace("week 4", "week 5")}`]);
+    assert.equal(new Set(regular.map((line) => line.label)).size, regular.length, "a label drawn twice");
+    assert.equal(regular.at(-1).label, "Told");
+    assert.equal(regular.at(-2).label, "Cover");
+  });
+
   test("the start times and lengths a panel offers keep the session's own", () => {
     assert.ok(model.startTimeOptions("18:15").includes("18:15"));
     assert.equal(model.startTimeOptions("18:00").filter((each) => each === "18:00").length, 1);

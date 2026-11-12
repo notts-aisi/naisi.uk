@@ -1216,11 +1216,25 @@ const USERS = new Map([
       "are decided by the code that runs. Only `server-only` is stubbed",
   ],
   [
+    "course-week-edit-model.test.mjs",
+    "executes the in-place edit of one block (src/lib/courses/weekEdit/model.ts), the comparison of two " +
+      "versions of a week and the words a question had when it was answered on the synthetic week holding " +
+      "every kind of block, against the week-blocks model and the Markdown reader the paste uses, because " +
+      "whether an edit keeps every id and passes the paste's own checks is decided by the code that runs. " +
+      "Only `server-only` is stubbed",
+  ],
+  [
     "course-week-blocks-public.test.mjs",
     "renders the public week page (a .tsx server component), its block view and the week curriculum to " +
       "HTML for a week written as blocks and for one written before them, because what a stranger is shown " +
       "of a week, and that nothing behind sign-in reaches the page, is decided by the page as it runs. The " +
       "fetcher, Next's link and navigation and the stylesheets are stubbed",
+  ],
+  [
+    "course-group-week-work.test.mjs",
+    "it renders Remind's email through the real week email template and its notice line, and reads a week's pieces " +
+      "through the blocks' own task needs and the one meaning of done, so the template's JSX and the pure modules " +
+      "under src/lib/courses are loaded together",
   ],
   [
     "course-guide-format.test.mjs",
@@ -1379,7 +1393,7 @@ const USERS = new Map([
     "it executes `needsPolicyAcceptance` (src/lib/legal/acceptance.ts) on a table of stored agreements, because " +
       "who the member area and a collaborator's space send to accept the policies is decided by comparing a stored " +
       "string with the versions the site serves, and only running it shows the answer; it runs again with " +
-      "`./policies` stubbed to a list where privacy has moved on to 18 and the terms to 2, so the promise that a " +
+      "`./policies` stubbed to a list where privacy has moved on to 19 and the terms to 2, so the promise that a " +
       "later privacy version is told rather than asked is held before a later version exists",
   ],
   [

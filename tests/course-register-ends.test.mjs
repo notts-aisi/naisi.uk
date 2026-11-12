@@ -49,7 +49,7 @@ const { nextWeekEmailJob } = await lib("scheduler", "jobs", "nextWeekEmail.ts");
 const { registerRemindersJob } = await lib("scheduler", "jobs", "registerReminders.ts");
 const { unmarkedRegistersJob } = await lib("scheduler", "jobs", "unmarkedRegisters.ts");
 const { SCHEDULER_JOB_IDS } = await lib("scheduler", "registry.ts");
-const { heldEmailTaskId } = await lib("courses", "heldEmailTask.ts");
+const { heldEmailTaskId, roomLinkTaskId } = await lib("courses", "heldEmailTask.ts");
 const { registerFollowUpTaskId } = await lib("courses", "unmarkedRegisters.ts");
 const { registerEndingWords } = await loadTs("features/courses/registerEndingWords.ts");
 
@@ -275,13 +275,13 @@ describe("Push attendance, while next week's email is not on its schedule", () =
     assert.equal(world.mail.length, MEMBERS_B.length);
   });
 
-  test("an empty room still leaves the email without it here, exactly as before", async () => {
+  test("an empty room sends the email without one, saying Room to be confirmed", async () => {
     world.db.poke(`courseGroups/${GROUP.b}`, { "session.location": "" });
     await markAll("rahul", GROUP.b, 1, MEMBERS_B);
     const done = await finish("rahul", GROUP.b, 1);
-    assert.equal(done.body.sent, MEMBERS_B.length, "the push lane keeps today's behaviour");
+    assert.equal(done.body.sent, MEMBERS_B.length, "the push lane sends it, as it always has");
     const text = await textOf(mailTo("amara")[0]);
-    assert.match(text, /Your next session is Tue 27 Oct at 6pm\./);
+    assert.match(text, /Your next session is Tue 27 Oct at 6pm\. Room to be confirmed: we’ll email you as soon as it’s booked, and it’ll be on your programme page\./);
     assert.doesNotMatch(text, /Room C20/);
   });
 });
@@ -371,34 +371,41 @@ describe("Week N is open on its schedule", () => {
   });
 
   test("a missing value holds the whole email and tells the lead and the admins, once", async () => {
-    world.db.poke(`courseGroups/${GROUP.b}`, { "session.location": "" });
+    world.db.poke(`courseRuns/${RUN}/weeks/w02`, { title: "" });
     await runJob(nextWeekEmailJob, AT.groupBDue);
     await runJob(nextWeekEmailJob, new Date(AT.groupBDue.getTime() + 15 * 60_000));
     for (const uid of MEMBERS_B) assert.equal(mailTo(uid).length, 0, "nobody gets half an email");
     assert.equal(read(gnudgeFor(GROUP.b, WEEK2_SLOT)), undefined);
 
+    // The week's title is the run's, so Group A's email (due a day before
+    // Group B's) is held for it too: one card for each group, each once.
     const cards = world.db
       .paths()
       .filter((path) => path.startsWith("tasks/") && path.endsWith("__email"));
-    assert.deepEqual(cards, [`tasks/${heldEmailTaskId(RUN, GROUP.b, "w02")}`], "one card");
-    const card = read(cards[0]);
+    assert.deepEqual(
+      cards.sort(),
+      [`tasks/${heldEmailTaskId(RUN, GROUP.a, "w02")}`, `tasks/${heldEmailTaskId(RUN, GROUP.b, "w02")}`].sort(),
+      "one card for each group",
+    );
+    const cardPath = `tasks/${heldEmailTaskId(RUN, GROUP.b, "w02")}`;
+    const card = read(cardPath);
     assert.deepEqual(card.completerUids, ["claudia", "zach"], "the lead, then the admins");
     assert.equal(card.visibility, "committee");
     assert.equal(card.title, "Week 2’s email held: Group B");
-    assert.match(card.description, /missing the group’s room/);
+    assert.match(card.description, /missing week 2’s title/);
     assert.ok(card.initialNotifyAt instanceof Date, "born notified, so it emails nobody");
     assert.equal(card.sourceRef.sessionKey, undefined, "finishing a register never closes it");
     for (const uid of ["claudia", "zach"]) {
       assert.equal(mailTo(uid).length, 0, `${uid} is told on the board, not by email`);
     }
 
-    world.db.poke(`courseGroups/${GROUP.b}`, { "session.location": "Room C20" });
+    world.db.poke(`courseRuns/${RUN}/weeks/w02`, { title: "Week 2 theme" });
     await runJob(nextWeekEmailJob, new Date(AT.groupBDue.getTime() + 30 * 60_000));
     for (const uid of MEMBERS_B) assert.equal(mailTo(uid).length, 1, "it goes once it can");
-    assert.equal(read(cards[0]).archived, true, "and the card has done its job");
+    assert.equal(read(cardPath).archived, true, "and the card has done its job");
   });
 
-  test("a week that asks for nothing, one with no title, or a room holding a link, holds it too", async () => {
+  test("a week that asks for nothing or one with no title holds it too; a room not booked yet does not, and a room holding a link goes as one and tells the lead and the admins", async () => {
     world.db.poke(`courseRuns/${RUN}/weeks/w02`, { materials: [], estimatedMinutes: null });
     await runJob(nextWeekEmailJob, AT.groupBDue);
     assert.equal(mailTo("amara").length, 0);
@@ -415,7 +422,36 @@ describe("Week N is open on its schedule", () => {
       "session.location": "https://zoom.example.com/j/123456789",
     });
     await runJob(nextWeekEmailJob, AT.groupBDue);
-    assert.equal(mailTo("amara").length, 0, "a link is never printed as a room");
+    for (const uid of MEMBERS_B) assert.equal(mailTo(uid).length, 1, `${uid}: a room holding a link goes as a room not booked`);
+    const linked = await textOf(mailTo("amara")[0]);
+    assert.doesNotMatch(linked, /zoom\.example\.com/, "a link is never printed as a room");
+    assert.match(
+      linked,
+      /Your next session is Tue 27 Oct at 6pm\. Room to be confirmed: we’ll email you as soon as it’s booked, and it’ll be on your programme page\./,
+      "it says where it is as a room not booked does",
+    );
+    // What told the lead and the admins while it was held still tells them: one card on their boards, once.
+    assert.equal(read(`tasks/${heldEmailTaskId(RUN, GROUP.b, "w02")}`), undefined, "no card says it was held: it went");
+    await runJob(nextWeekEmailJob, new Date(AT.groupBDue.getTime() + 15 * 60_000));
+    const roomCards = world.db
+      .paths()
+      .filter((path) => path.startsWith("tasks/") && path.endsWith("__room"));
+    assert.deepEqual(roomCards, [`tasks/${roomLinkTaskId(RUN, GROUP.b, "w02")}`], "one card, once");
+    const roomCard = read(roomCards[0]);
+    assert.deepEqual(roomCard.completerUids, ["claudia", "zach"], "the lead, then the admins");
+    assert.equal(roomCard.visibility, "committee");
+    assert.equal(roomCard.title, "Week 2’s room holds a link: Group B");
+    assert.match(roomCard.description, /was sent “Week 2 is open”, about week 2 on .*, saying “Room to be confirmed”: the group’s room holds a link/);
+    assert.doesNotMatch(roomCard.description, /zoom\.example\.com/, "the card names no link either");
+    assert.ok(roomCard.initialNotifyAt instanceof Date, "born notified, so it emails nobody");
+    for (const uid of ["claudia", "zach"]) assert.equal(mailTo(uid).length, 0, `${uid} is told on the board, not by email`);
+
+    reset(seedWorld({ scheduled: true }));
+    world.db.poke(`courseGroups/${GROUP.b}`, { "session.location": "" });
+    await runJob(nextWeekEmailJob, AT.groupBDue);
+    for (const uid of MEMBERS_B) assert.equal(mailTo(uid).length, 1, `${uid}: a room not booked yet holds nothing`);
+    assert.equal(read(`tasks/${heldEmailTaskId(RUN, GROUP.b, "w02")}`), undefined, "and raises no card");
+    assert.match(await textOf(mailTo("amara")[0]), /Room to be confirmed: we’ll email you as soon as it’s booked, and it’ll be on your programme page\./);
   });
 
   test("never a meeting link: an online week says Online", async () => {
@@ -777,11 +813,11 @@ describe("what the register says about how it ends", () => {
 
   test("a held email and a waiting week say why", async () => {
     reset(seedWorld({ scheduled: true }));
-    world.db.poke(`courseGroups/${GROUP.b}`, { "session.location": "" });
+    world.db.poke(`courseRuns/${RUN}/weeks/w02`, { title: "" });
     at(AT.groupBDue);
     let words = registerEndingWords(await ending());
-    assert.equal(words.notes[0], "Week 2’s email to Group B is held: it’s missing the group’s room.");
-    world.db.poke(`courseGroups/${GROUP.b}`, { "session.location": "Room C20" });
+    assert.equal(words.notes[0], "Week 2’s email to Group B is held: it’s missing week 2’s title.");
+    world.db.poke(`courseRuns/${RUN}/weeks/w02`, { title: "Week 2 theme" });
     world.db.poke(`courseRuns/${RUN}/weeks/w02`, { published: false });
     words = registerEndingWords(await ending());
     assert.equal(words.notes[0], "Week 2’s email to Group B is waiting for week 2 to be published.");

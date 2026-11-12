@@ -280,6 +280,12 @@ const FETCHES_IT_CANNOT_READ = new Map([
       "handed (each previewed, then pressed), and the updates route of its run for that group's notice, through one " +
       "helper that takes the address: one group's sessions, never a run's groups.",
   ],
+  // ADDED (November 2026), with who has done the week and Remind.
+  [
+    "src/features/courses/groupPage/RemindPanel.tsx",
+    "Remind, from a group's page or its facilitators' page: the Remind route of the one group it is handed, for one " +
+      "week (previewed, then pressed with the count it showed): the people of one group's week, never a run's groups.",
+  ],
   [
     "src/features/courses/groupPage/RoomPanel.tsx",
     "A group's page's room panel: the programme's room route for the one group it is handed (`roomPath`, built by " +
@@ -363,6 +369,16 @@ const FETCHES_IT_CANNOT_READ = new Map([
     "src/features/courses/courseworkClaude/PangramPanel.tsx",
     "An admin's Pangram on one person's page on the Coursework tab, at that person's Pangram route under the " +
       "programme address it builds: their answers with each reading, and no group.",
+  ],
+  [
+    "src/features/applications/weeks/edit/TellDialog.tsx",
+    "Telling people about a change to a live week, at the week's own tell route it builds from the run's and the " +
+      "week's ids: the choices and their counts, numbers only, and the email's words; never a run's groups.",
+  ],
+  [
+    "src/features/applications/weeks/edit/useWeekLock.ts",
+    "The week's lock, at the week's own lock route it builds from the run's and the week's ids: who is editing the " +
+      "week and since when; never a run's groups.",
   ],
   [
     "src/features/courses/WeekBlocksLoader.tsx",
