@@ -1000,7 +1000,7 @@ const NOT_COVERED = {
   },
   "/api/courses/groups/[groupId]/cant-make-it": {
     reason:
-      "Course hub: the instant Can't make it, which records somebody as excused on the spot. Somebody taking part now asks an admin instead (the excused weeks spec drives that), so only a facilitator who holds a place in the group they run is offered it, and an old page still open may press it. tests/course-session-cant-make-it.test.mjs executes it as every kind of caller, with the line it writes, its take-back and the line an approval wrote that it leaves alone.",
+      "Course hub: the instant Can't make it, which records somebody as excused on the spot. Somebody taking part now asks an admin instead (the excused weeks spec drives that), so only a facilitator who holds a place in the group they run says it; anybody else taking part is refused in one sentence, and may still take back a line they wrote before. tests/course-session-cant-make-it.test.mjs executes it as every kind of caller, with the refusal, the line it writes, its take-back and the line an approval wrote that it leaves alone.",
     coverWhen:
       "When a browser spec seats a facilitator in the group they run, or the route goes once the instant button has settled.",
   },

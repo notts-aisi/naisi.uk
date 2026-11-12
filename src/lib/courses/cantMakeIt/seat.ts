@@ -331,9 +331,9 @@ export async function cantMakeItFor(
 
 export type CantMakeItOutcome =
   | { ok: true; told: boolean }
-  | { ok: false; status: 400 | 404 | 409; error: string };
+  | { ok: false; status: 400 | 403 | 404 | 409; error: string };
 
-const refuse = (status: 400 | 404 | 409, error: string): CantMakeItOutcome => ({ ok: false, status, error });
+const refuse = (status: 400 | 403 | 404 | 409, error: string): CantMakeItOutcome => ({ ok: false, status, error });
 
 const CLOSED: Record<Extract<CantMakeItState, { kind: "closed" }>["why"], string> = {
   started: CANT_MAKE_IT_REFUSAL.started,
@@ -382,6 +382,11 @@ export async function recordCantMakeIt(
     const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
     const seat = normalizeCourseEnrolment(seatSnap.id, seatSnap.data() ?? {});
     if (!takesPartIn(user, seat, group, run.id)) return refuse(404, CANT_MAKE_IT_REFUSAL.notYours);
+    // Saying it on the spot is a facilitator's only, on their own place in a
+    // group they facilitate: anybody else taking part asks to be excused, and
+    // an admin decides. Taking a line they wrote back stays open to everybody,
+    // so nobody is left with a word they gave before requests.
+    if (request.cantMakeIt && !group.facilitatorUids.includes(user.uid)) return refuse(403, CANT_MAKE_IT_REFUSAL.askInstead);
 
     // The session is one this group holds, by the group's own calendar.
     const session = resolveSessions(run, group).find((each) => each.sessionKey === request.sessionKey);

@@ -6288,7 +6288,9 @@ export const REAL_ROUTES = {
         body: { sessionKey: "w01", cantMakeIt: true },
         why:
           "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the " +
-          "refused (nobody with a told seat in the group) are sent it.",
+          "refused (nobody with a told seat in the group) are sent it. Saying it on the spot is a facilitator's " +
+          "only now: somebody holding a place they do not facilitate meets a 403 telling them to ask to be " +
+          "excused instead (tests/course-session-cant-make-it.test.mjs); no persona here is one.",
       },
       another: {
         anonymous: c(401, NO_SESSION),

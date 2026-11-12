@@ -55,6 +55,8 @@ export const CANT_MAKE_IT_REFUSAL = {
   /** A request to be excused from it was declined: that stands. */
   askedDeclined: "Your request to be excused from that session was declined. You can ask again, or just come along.",
   failed: "That didn’t save. Try again.",
+  /** An old page's "Can't make it" from somebody taking part: that is a request now. */
+  askInstead: "To miss a session, ask to be excused from your programme page: press Can’t make it on your next session’s card, and an admin decides.",
 } as const;
 
 /** What the route answers once it has saved. */

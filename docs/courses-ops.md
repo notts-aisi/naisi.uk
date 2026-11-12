@@ -1347,9 +1347,13 @@ requests began (`REQUESTS_BEGAN`, 12 November 2026, in `excused/model.ts`);
 one said since, or a tick kept from an earlier asking, reads "Said in
 advance".
 
-**The old button** stays for a page still open: it records somebody as
-excused on the spot, as before, except from a session whose request waits or
-was declined, which it refuses in one sentence.
+**The old button** records somebody as excused on the spot only for a
+facilitator, on their own place in a group they facilitate (who cannot ask:
+the ask route refuses them), and not from a session whose request waits or
+was declined. Anybody else taking part, an old page still open included, is
+refused in one sentence that says to ask to be excused from the programme
+page. "I can make it after all" stays open to everybody, so a line somebody
+said before requests can always be taken back by them.
 
 **Deleting an account** deletes the requests the person asked and those about
 them, the excused kind with the rest. **Reverting**: every field is optional

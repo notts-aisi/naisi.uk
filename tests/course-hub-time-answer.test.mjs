@@ -88,6 +88,7 @@ import {
   textOf,
 } from "./lib/leavingWorld.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
+import { pressedBefore } from "./lib/saidBefore.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
@@ -155,9 +156,15 @@ const offerFor = (who, uid, options = {}) =>
 /** "They meant some weeks" saved for `uid`, as `who`. */
 const someWeeks = (who, uid, body, options = {}) =>
   call(who, someWeeksRoute.POST, { runId: options.runId ?? RUN.agi, uid }, { body, course: true, viewAs: options.viewAs });
-/** The ticket's "Can't make it" (or, with false, "I can make it after all"). */
-const ticket = (who, sessionKey, cantMakeIt = true, groupId = A) =>
-  call(who, ticketRoute.POST, { groupId }, { body: { sessionKey, cantMakeIt }, course: true });
+/**
+ * The ticket's "Can't make it" as an old page pressed it (saying it on the
+ * spot is a facilitator's only now, `tests/lib/saidBefore.mjs`), or, with
+ * false, "I can make it after all", which stays everybody's.
+ */
+const ticket = (who, sessionKey, cantMakeIt = true, groupId = A) => {
+  const press = () => call(who, ticketRoute.POST, { groupId }, { body: { sessionKey, cantMakeIt }, course: true });
+  return cantMakeIt ? pressedBefore(world.db, groupId, who, press) : press();
+};
 
 /** A group's campus, from the Groups tab. */
 const setCampus = (who, groupId, value, options = {}) =>

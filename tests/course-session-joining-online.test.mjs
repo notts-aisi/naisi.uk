@@ -58,6 +58,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { walkSource } from "./lib/functionScan.mjs";
 import { B, NOW, RUN, makeMemberPagesWorld, textOf } from "./lib/memberPagesWorld.mjs";
 import { A, register, registerPath } from "./lib/hubAttendanceWorld.mjs";
+import { pressedBefore } from "./lib/saidBefore.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
@@ -98,8 +99,11 @@ const tell = (who, body, { groupId = B, viewAs = false } = {}) =>
   call(who, press.POST, { groupId }, { body, course: true, viewAs });
 const online = (who, sessionKey, options) => tell(who, { sessionKey, online: true }, options);
 const inTheRoom = (who, sessionKey, options) => tell(who, { sessionKey, online: false }, options);
-const cantMake = (who, sessionKey, cantMakeIt = true) =>
-  call(who, cantRoute.POST, { groupId: B }, { body: { sessionKey, cantMakeIt }, course: true });
+/** "Can't make it" as an old page pressed it (a facilitator's only now, `tests/lib/saidBefore.mjs`), or its way back, which is everybody's. */
+const cantMake = (who, sessionKey, cantMakeIt = true) => {
+  const press = () => call(who, cantRoute.POST, { groupId: B }, { body: { sessionKey, cantMakeIt }, course: true });
+  return cantMakeIt ? pressedBefore(world.db, B, who, press) : press();
+};
 /** The box's link, as `who`. */
 const giveLink = (who, body, { groupId = B, viewAs = false } = {}) =>
   call(who, linkRoute.POST, { groupId }, { body, course: true, viewAs });
