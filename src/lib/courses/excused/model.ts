@@ -285,8 +285,11 @@ export function approvalPlan(input: {
   if (cancelled || line.notHeld) return { write: "keep", outcome: "kept", say: "not-held", tellsFacilitators: false, kept: "not-held" };
   // They came: said only once the register is finished, never a draft's mark.
   if (cameBy(line.mark)) return { write: "keep", outcome: "kept", say: line.finished ? "came" : "being-taken", tellsFacilitators: false, kept: "came" };
+  // A register still being taken is a draft, and a draft's marks are never
+  // said to the person: an Excused a facilitator has put there, or the one
+  // this approval writes on it, reads as a register still being taken.
   if (line.mark === "excused") {
-    return { write: "keep", outcome: "kept", say: before ? "before" : "excused-now", tellsFacilitators: true, kept: "excused" };
+    return { write: "keep", outcome: "kept", say: before ? "before" : line.finished ? "excused-now" : "being-taken", tellsFacilitators: true, kept: "excused" };
   }
   if (line.finished) {
     if (line.mark === "absent") return { write: "correct", outcome: "corrected", say: "excused-now", tellsFacilitators: true };
@@ -295,7 +298,7 @@ export function approvalPlan(input: {
     return { write: "keep", outcome: "kept", say: "no-line", tellsFacilitators: false, kept: "no-line" };
   }
   if (before && line.mark === null) return { write: "in-advance", outcome: "written", say: "before", tellsFacilitators: true };
-  return { write: "draft", outcome: "written", say: before ? "before" : "excused-now", tellsFacilitators: true };
+  return { write: "draft", outcome: "written", say: before ? "before" : "being-taken", tellsFacilitators: true };
 }
 
 // ---------------------------------------------------------------------------

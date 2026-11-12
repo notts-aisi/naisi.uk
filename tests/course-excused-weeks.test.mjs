@@ -270,6 +270,10 @@ describe("the arithmetic: what a press says, which sessions may be asked about, 
     assert.deepEqual(plan(before), { write: "in-advance", outcome: "written", say: "before", tellsFacilitators: true });
     assert.equal(plan(after).write, "draft");
     assert.equal(plan(after, { mark: "absent" }).write, "draft");
+    // A draft's Excused is never said to the person: the facilitator's, or the one the approval writes.
+    assert.equal(plan(after).say, "being-taken");
+    assert.equal(plan(after, { mark: "excused" }).say, "being-taken");
+    assert.equal(plan(after, { finished: true, mark: "excused" }).say, "excused-now", "a finished register's Excused is said");
     assert.deepEqual(plan(after, { finished: true, mark: "absent" }), { write: "correct", outcome: "corrected", say: "excused-now", tellsFacilitators: true });
     for (const came of ["present", "late", "left-early"]) {
       assert.deepEqual(plan(after, { finished: true, mark: came }), { write: "keep", outcome: "kept", say: "came", tellsFacilitators: false, kept: "came" });
@@ -759,7 +763,10 @@ describe("deciding: admins only, each week on its own, and the register follows 
     assert.equal((await finish("rahul", 2)).status, 200);
     assert.equal(stored().records.amara, "excused");
     const sent = await mailText();
-    assert.match(sent.find((each) => each.subject === "You’re excused from week 2").html, /Your register says Excused for that session/);
+    // A register still being taken is a draft: its Excused, the approval's own included, is never said to the person.
+    const toAmara = sent.find((each) => each.subject === "You’re excused from week 2").html;
+    assert.match(toAmara, /Your facilitators are still taking that session’s register, and what they put there stands\./);
+    assert.doesNotMatch(toAmara, /Your register says Excused/);
     assert.match(sent.find((each) => each.subject !== "You’re excused from week 2").html, /Your register now shows .+ as excused for Tue 10 Nov\./);
   });
 
