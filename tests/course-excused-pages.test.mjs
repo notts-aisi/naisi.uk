@@ -287,6 +287,8 @@ describe("2. the card, decided: the way in, each state, the last session, the we
     assert.equal(card.cardStateOf(session({ started: true, excuse: { kind: "waiting", requestId: "r", askedAt: "x", reason: "y" } })).started, true);
     assert.deepEqual(card.cardStateOf(session({ excuse: { kind: "approved", requestId: "r", by, at: "x", reply: "ok" } })), { kind: "approved", by: "Zach", at: "x", reply: "ok", came: false });
     assert.equal(card.cardStateOf(session({ register: "came", excuse: { kind: "approved", requestId: "r", by, at: "x", reply: "" } })).came, true, "came anyway");
+    // A finished register that says Absent over an approval: the card says what the register says.
+    assert.deepEqual(card.cardStateOf(session({ register: "absent", excuse: { kind: "approved", requestId: "r", by, at: "x", reply: "" } })), { kind: "approved-absent" });
     assert.equal(card.cardStateOf(session({ excuse: { kind: "declined", requestId: "r", by, at: "x", reply: "no" } })).kind, "declined");
     assert.equal(card.cardStateOf(session({ excuse: { kind: "withdrawn", requestId: "r", at: "x" } })).again, true);
     assert.deepEqual(card.cardStateOf(session({ excuse: { kind: "time-set" } })), { kind: "time-set" });

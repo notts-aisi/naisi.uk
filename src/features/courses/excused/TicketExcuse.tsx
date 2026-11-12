@@ -125,6 +125,14 @@ export default function TicketExcuse({
       );
       break;
     }
+    case "approved-absent":
+      block = (
+        <div className={styles.state}>
+          <span className={`${styles.chip} ${styles.chipPlain}`}>{O.ABSENT}</span>
+          <p className={styles.line}>{O.APPROVED_BUT_ABSENT}</p>
+        </div>
+      );
+      break;
     case "time-set":
     case "in-advance":
       block = (

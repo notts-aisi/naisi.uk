@@ -200,6 +200,10 @@ export function approvedLineWords(firstName: string, at: Date, reply: string): s
   return reply.trim() ? `${said}: “${reply.trim()}”` : `${said}.`;
 }
 
+/** Approved, but the finished register says Absent: what it says, and what they can do. */
+export const APPROVED_BUT_ABSENT =
+  "Your request to be excused was approved, but the finished register says Absent for this session. If that’s wrong, ask an admin to correct it.";
+
 /** Approved, and they came after all: the facilitator's entry stands. */
 export const CAME_AFTER_ALL = "You came after all, so your register shows you there. Being excused stays on your request; nothing else changes.";
 

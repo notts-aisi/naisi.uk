@@ -35,6 +35,8 @@ export type CardState =
   | { kind: "open" }
   | { kind: "waiting"; requestId: string; askedAt: string | null; reason: string; started: boolean }
   | { kind: "approved"; by: string; at: string | null; reply: string; came: boolean }
+  /** Approved, but the finished register says Absent: the card says what the register says. */
+  | { kind: "approved-absent" }
   | { kind: "declined"; by: string; reply: string; register: OwnExcusedSession["register"]; again: boolean }
   | { kind: "withdrawn"; at: string | null; again: boolean }
   | { kind: "time-set" }
@@ -52,7 +54,10 @@ export function cardStateOf(session: OwnExcusedSession): CardState {
     case "waiting":
       return { kind: "waiting", requestId: excuse.requestId, askedAt: excuse.askedAt, reason: excuse.reason, started: session.started };
     case "approved":
-      // The facilitator's own entry wins: they came after all.
+      // Once the register is finished, the card says what it says: a
+      // facilitator's own entry wins, so they came after all, or it says
+      // Absent though the request stands.
+      if (session.register === "absent") return { kind: "approved-absent" };
       return { kind: "approved", by: excuse.by?.firstName ?? "", at: excuse.at, reply: excuse.reply, came: session.register === "came" };
     case "time-set":
       return { kind: "time-set" };
@@ -91,7 +96,12 @@ export function lastSessionOf(view: ExcusedOwnView | null, ticketKey: string | n
   const last = ended[0];
   if (!last) return null;
   const state = cardStateOf(last);
-  return state.kind === "waiting" || state.kind === "approved" || state.kind === "declined" || state.kind === "withdrawn" || state.kind === "after"
+  return state.kind === "waiting" ||
+    state.kind === "approved" ||
+    state.kind === "approved-absent" ||
+    state.kind === "declined" ||
+    state.kind === "withdrawn" ||
+    state.kind === "after"
     ? last
     : null;
 }

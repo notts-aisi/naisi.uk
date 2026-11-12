@@ -102,6 +102,9 @@ export default function LastSessionCard({
       );
       break;
     }
+    case "approved-absent":
+      body = <p className={styles.line}>{O.APPROVED_BUT_ABSENT}</p>;
+      break;
     case "declined":
       body = (
         <>

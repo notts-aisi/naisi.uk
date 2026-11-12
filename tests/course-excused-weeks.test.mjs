@@ -1111,6 +1111,23 @@ describe("a line an approval wrote is taken back by nothing but a correction", (
     assert.equal(other.status, 200, JSON.stringify(other.body));
   });
 
+  test("a facilitator marks Absent over an approval and finishes: the person's card says what the register says, and that an admin can correct it", async () => {
+    const cardLib = await loadTs("lib/courses/excused/card.ts");
+    const ownWords = await loadTs("lib/courses/excused/ownWords.ts");
+    await approvedWeek3();
+    at(new Date("2026-11-17T18:20:00Z"));
+    assert.equal((await mark("rahul", 3, [{ uid: "amara", status: "absent" }, { uid: "dev", status: "present" }])).status, 200);
+    assert.equal((await finish("rahul", 3)).status, 200);
+    const week3 = await amaraWeek3();
+    assert.deepEqual([week3.register, week3.excuse.kind], ["absent", "approved"]);
+    assert.deepEqual(cardLib.cardStateOf(week3), { kind: "approved-absent" });
+    assert.equal(
+      ownWords.APPROVED_BUT_ABSENT,
+      "Your request to be excused was approved, but the finished register says Absent for this session. If that’s wrong, ask an admin to correct it.",
+    );
+    assert.equal(requestDocs()[0].change.weeks[0].status, "approved", "the request stays approved");
+  });
+
   test("a facilitator's own mark still wins over it on the day, as over any line", async () => {
     await approvedWeek3();
     at(new Date("2026-11-17T18:20:00Z"));
