@@ -1782,6 +1782,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the groups-go-out spec presses Publish from the programme's own Groups tab rather than the run editor's board.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/history": {
+    reason:
+      "Course hub: a week's history on the Weeks tab (every save, compare, restore, tell from the newest), built in the same pull request as its spec; its callers are the persona battery's, and the list it reads is executed by tests/course-week-edit-routes.test.mjs.",
+    coverWhen:
+      "When the spec for editing a week in place passes locally with nothing left behind, which lists this page under its covers.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/copy": {
     reason:
       "Course hub: Copy weeks from the course, a page of the Weeks tab; its every caller and the copy it sends (never an overwrite) are executed by tests/course-hub-weeks-tab.test.mjs.",

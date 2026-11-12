@@ -4795,6 +4795,15 @@ export const PAGES = {
       "200 before the week is looked at. The lead persona is admitted as an approveCourse holder is, and with an " +
       "address that names nothing is drawn the same not-here state.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/history": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "A week's history, on the Weeks tab's terms: who saved the week and when is the lead's and an admin's alone. " +
+      "A week that is no taught week of the run's plan goes back to the tab. A programme the caller has no role on, " +
+      "or one that does not exist, renders 'there is no programme here' with a 200 before the week is looked at. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
@@ -7434,6 +7443,9 @@ export const REAL_PAGES = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/notes": programmePage(
     "week 1's notes about people (an admin's drafts, or the lead's saved notes kept for leads), or the day they open from.",
+  ),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/history": programmePage(
+    "week 1's history: every save of its blocks, by first name, or a line saying there is none yet.",
   ),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview": programmePage("week 1 as a fellow sees it, with nobody's answers."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": programmePage("the programme's Settings."),

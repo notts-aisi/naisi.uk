@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Field } from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import MarkReady from "@/features/courses/MarkReady";
-import WeekBlocksLoader from "@/features/courses/WeekBlocksLoader";
+import WeekBlocksLoader, { type PasteWeekEdit } from "@/features/courses/WeekBlocksLoader";
 import { useHydrated } from "@/hooks/useHydrated";
 import type { WeekOwner } from "@/lib/courses/weeksTab/load";
 import {
@@ -24,6 +24,7 @@ import {
   previewForWords,
   saveForWords,
 } from "@/lib/courses/weeksTab/words";
+import { useWeekEdit } from "./edit/WeekEditProvider";
 import styles from "./weeks.module.css";
 
 /**
@@ -36,7 +37,11 @@ import styles from "./weeks.module.css";
  * sent.
  */
 
-/** The paste card, which reads the page again after a save. */
+/**
+ * The paste card, which reads the page again after a save. Inside a week's
+ * editing (`WeekEditProvider`) it shares the week's lock with the block
+ * list above it, and its check compares the paste with the week now.
+ */
 export function WeekPaste(props: {
   runId: string;
   weekId: string;
@@ -49,7 +54,18 @@ export function WeekPaste(props: {
   idSuffix?: string;
 }) {
   const router = useRouter();
-  return <WeekBlocksLoader {...props} onSaved={() => router.refresh()} />;
+  const edit = useWeekEdit();
+  const weekEdit: PasteWeekEdit | undefined = edit
+    ? {
+        lockedBy: edit.lock.heldBy?.name ?? null,
+        take: edit.lock.take,
+        give: edit.lock.give,
+        countsOf: (blockId) => edit.view.items.find((item) => item.blockId === blockId)?.counts ?? null,
+        reach: edit.view.reach,
+        reload: () => void edit.reload(),
+      }
+    : undefined;
+  return <WeekBlocksLoader {...props} weekEdit={weekEdit} onSaved={() => router.refresh()} />;
 }
 
 /** "Owner": the programme's lead or one of the run's helpers. */

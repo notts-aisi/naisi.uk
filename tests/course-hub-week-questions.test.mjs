@@ -8,7 +8,7 @@
  *   sanitizeWeekQuestions, normalizeCourseWeek       what a week keeps
  *   saveWeek, ensureWeekDoc (client-direct)          the run's week editor (WeekEditor)
  *   POST .../groups/[groupId]/weeks/[weekId]/fork    a group's own copy, carried from the run's week
- *   PATCH .../groups/[groupId]/weeks/[weekId]        the group's copy, edited (GroupWeekEditor)
+ *   PATCH .../groups/[groupId]/weeks/[weekId]        the group's copy, edited (no page sends it now)
  *   templateWeekFields, clone-weeks                  a template both ways, a run copied from another
  *   WeekView                                         the week's page
  *
@@ -183,12 +183,16 @@ describe("2. the run's week editor writes them, client-direct", () => {
     assert.match(html, /<button[^>]*disabled=""[^>]*><span>Add a question<\/span><\/button>/);
   });
 
-  test("both editors draw the section and save through their own door", () => {
+  test("the run's editor draws the section and saves through its own door; a group's editor no longer writes a copy's questions", () => {
     const run = readFileSync(join(SRC, "features", "courses", "WeekEditor.tsx"), "utf8");
     assert.match(run, /<WeekQuestionsEditor questions=\{saved\.questions\} onSave=\{saveQuestions\} \/>/);
     assert.match(run, /await saveWeek\(runId, weekId, \{ questions \}\);/);
+    // Making and editing a group's own copy is switched off until a later
+    // phase: the facilitator's editor draws no questions editor and sends no
+    // patch of a copy (the route stays, for the questions an old page sends).
     const group = readFileSync(join(SRC, "features", "courses", "GroupWeekEditor.tsx"), "utf8");
-    assert.match(group, /questions=\{week\.questions\}\s*onSave=\{\(questions\) => save\("questions", \{ questions \}\)\}\s*forGroup/);
+    assert.doesNotMatch(group, /WeekQuestionsEditor/);
+    assert.doesNotMatch(group, /patchGroupWeek|forkGroupWeek/);
   });
 });
 

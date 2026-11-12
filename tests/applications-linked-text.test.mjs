@@ -1045,6 +1045,20 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/features/applications/weeks/edit/EditWeekView.tsx",
+    {
+      built: ["historyHref"],
+      from: "the week's history on the Weeks tab (weekHistoryPath), handed in by the week's page, made from the form's and the programme's ids and the week's document id, each encoded",
+    },
+  ],
+  [
+    "src/features/applications/weeks/edit/WeekBlockView.tsx",
+    {
+      built: ["safeSourceUrl(item.url)"],
+      from: "a Go further item's own address in the week's stored blocks, put through safeSourceUrl (https only, or nothing), as the member's week page draws it: written by the programme's lead or an admin in the week's Markdown, never by an applicant",
+    },
+  ],
+  [
     "src/features/applications/weeks/WeekControls.tsx",
     {
       built: ["`${previewHref}?group=${encodeURIComponent(group.id)}`"],
@@ -1070,6 +1084,13 @@ const BUILT = new Map([
     {
       built: ["review", "weeksPath(view.roundId, view.programmeId)", "weeksPath(view.roundId, view.programmeId, form.weekId)"],
       from: "the way back to the week's review (`weekReviewPath`), the Weeks tab and the week's page on it, made from the form's and the programme's ids and the week's document id, each encoded",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/history/page.tsx",
+    {
+      built: ["weeksPath(view.roundId, view.programmeId, week.weekId)"],
+      from: "the way back to the week's page on the Weeks tab, made from the form's and the programme's ids and the week's document id, each encoded",
     },
   ],
   [

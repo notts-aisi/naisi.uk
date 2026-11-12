@@ -14,7 +14,11 @@ import {
   notPublishedWords,
   partlyOnlineWords,
 } from "@/lib/courses/weeksTab/words";
+import type { WeekEditorView } from "@/lib/courses/weekEdit/editor";
+import { weekHistoryPath } from "@/lib/courses/weeksTab/paths";
 import { GroupWeekPaste, WeekModeField, WeekOwnerField, WeekPaste, WeekReady } from "./WeekControls";
+import EditWeekView from "./edit/EditWeekView";
+import WeekEditProvider from "./edit/WeekEditProvider";
 import styles from "./weeks.module.css";
 
 /**
@@ -32,10 +36,15 @@ import styles from "./weeks.module.css";
  * something in it, and marking a week ready publishes it (Zach, 26 October
  * 2026).
  *
- * NOT BUILT, and written down in the build notes: the board's block-by-block
- * fields (a found row opening its block's fields to edit in place) and
- * an "Add a block" editor. A week is changed by copying it as
- * Markdown, editing that and pasting it back, as decided.
+ * A WEEK WRITTEN AS BLOCKS reads first as it reads for people, each block
+ * with what people have done beside it, and a source, a text, a reflection
+ * or a written answer is changed where it stands (`./edit/EditWeekView`),
+ * one editor at a time, with a history of every save. The paste stays below
+ * it for the whole week, sharing the same lock (`./edit/WeekEditProvider`)
+ * and showing what a paste changes before it replaces anything.
+ *
+ * NOT BUILT: adding, moving or removing a block in place, and "a different
+ * reading": both are done by pasting the week.
  */
 export default function WeekPageView({
   page,
@@ -43,6 +52,8 @@ export default function WeekPageView({
   roundId,
   programmeId,
   viewer,
+  editor,
+  programme,
 }: {
   page: WeekPage;
   runId: string;
@@ -50,6 +61,10 @@ export default function WeekPageView({
   programmeId: string;
   /** Who is looking: an admin is also shown the way to the run's week editor. */
   viewer: "admin" | "lead";
+  /** The week as the in-place editor reads it (`loadWeekEditor`), or null when it could not be read. */
+  editor: WeekEditorView | null;
+  /** The programme's short name. */
+  programme: string;
 }) {
   const { week } = page;
   const heading = page.title ? `Week ${week.weekNumber} · ${page.title}` : `Week ${week.weekNumber}`;
@@ -64,7 +79,16 @@ export default function WeekPageView({
       </header>
 
       {!page.hasPage && <p className={styles.panelNote}>{noPageWords(week.weekNumber)}</p>}
-      <WeekPaste runId={runId} weekId={week.weekId} weekNumber={week.weekNumber} blockWeek={page.blockWeek} saveLabel={SAVE_DRAFT} />
+      {editor ? (
+        <WeekEditProvider view={editor} programme={programme} roundId={roundId} programmeId={programmeId}>
+          <EditWeekView historyHref={weekHistoryPath(roundId, programmeId, week.weekId)} />
+          <div id="paste-the-week" className={styles.pasteAnchor}>
+            <WeekPaste runId={runId} weekId={week.weekId} weekNumber={week.weekNumber} blockWeek={page.blockWeek} saveLabel={SAVE_DRAFT} />
+          </div>
+        </WeekEditProvider>
+      ) : (
+        <WeekPaste runId={runId} weekId={week.weekId} weekNumber={week.weekNumber} blockWeek={page.blockWeek} saveLabel={SAVE_DRAFT} />
+      )}
 
       <section className={styles.panel} aria-labelledby="week-settings-title">
         <h3 id="week-settings-title" className={styles.subheading}>

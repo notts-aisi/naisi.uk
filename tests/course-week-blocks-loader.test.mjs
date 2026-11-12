@@ -356,7 +356,11 @@ describe("6. the card in the run's week editor", () => {
 
   test("the editor draws the card for an admin alone, and offers a block week none of the old sections", () => {
     const editor = readFileSync(join(SRC, "features", "courses", "WeekEditor.tsx"), "utf8");
-    assert.match(editor, /\{role === "admin" && \(\s*<WeekBlocksLoader /);
+    // For an admin alone, and only for a run no programme names: when one
+    // does, the week's blocks are changed on its Weeks page, and the card is
+    // a link there.
+    assert.match(editor, /\{weeksHref \? \([\s\S]*?<Link href=\{weeksHref\}>\{OLDER_EDITORS\.pasteLink\(weekNumber\)\}<\/Link>[\s\S]*?\) : \(\s*role === "admin" && \(\s*<WeekBlocksLoader /);
+    assert.equal((editor.match(/<WeekBlocksLoader /g) ?? []).length, 1, "one paste card, behind both conditions");
     assert.match(editor, /const blockWeek = isBlockWeek\(saved\);/);
     // The guide, the materials, the exercises and the checklist sit inside the two `!blockWeek` blocks.
     const guide = editor.indexOf("{/* ---- Guide ---- */}");

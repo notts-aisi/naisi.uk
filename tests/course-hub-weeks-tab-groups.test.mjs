@@ -302,17 +302,18 @@ describe("5. the lead's card on the week's page, and the facilitator's group wee
     assert.match(page.text, /Group B has its own copy of week 3, made Tue 17 Nov\. Changes to the programme’s week no longer reach it\./);
   });
 
-  test("the facilitator's editor offers a week written as blocks the paste card for their own group, and no fork or old lists", () => {
-    const canonical = normalizeCourseWeek("w03", world.db.read(RUN_W3));
-    world.groupWeek = { canonical, fork: null, forked: false, loading: false, error: null, reload() {} };
+  /** The facilitator's editor for week `n` of Group B, its copy (or none) as `copy`. */
+  function facilitatorsEditor(weekId, weekNumber, copy = null) {
+    const canonical = normalizeCourseWeek(weekId, world.db.read(`courseRuns/${RUN.agi}/weeks/${weekId}`));
+    world.groupWeek = { canonical, fork: copy ? { week: copy, forkedAt: new Date(NOW) } : null, forked: copy !== null, loading: false, error: null, reload() {} };
     const html = renderToStaticMarkup(
       createElement(GroupWeekEditor, {
         runId: RUN.agi,
         courseId: "c",
         groupId: B,
         groupName: "Group B",
-        weekId: "w03",
-        weekNumber: 3,
+        weekId,
+        weekNumber,
         from: "2026-11-12",
         to: "2026-11-18",
         mode: null,
@@ -321,38 +322,44 @@ describe("5. the lead's card on the week's page, and the facilitator's group wee
         viewerIsAdmin: false,
       }),
     );
-    const text = textOf(html);
-    assert.match(text, /Paste Group B’s week, then check it/);
-    assert.match(text, /Only Group B’s week changes: the programme’s own week and every other group’s stay as they are\./);
-    assert.match(text, /Saving makes Group B its own copy of Week 3/);
-    assert.match(text, /Copy as Markdown/);
-    assert.ok(!text.includes("Customise Week 3 for Group B"), "no fork door for a block week");
+    return { html, text: textOf(html) };
+  }
+
+  // Making and editing a group's own copy is switched off until a later phase:
+  // the programme's weeks are edited by its lead on the Weeks page, so the
+  // facilitator's editor offers no paste, no copy and no editor of the lists.
+  test("the facilitator's editor for a week written as blocks offers no paste and no copy: the programme's lead edits the weeks", () => {
+    const { html, text } = facilitatorsEditor("w03", 3);
+    assert.match(text, /The programme’s weeks are edited by the programme’s lead\./);
+    assert.ok(!text.includes("Paste Group B’s week"), "no paste for the group");
+    assert.ok(!text.includes("Copy as Markdown"), "nothing to copy out to change");
+    assert.ok(!html.includes("week-markdown-"), "no Markdown box");
+    assert.ok(!text.includes("Customise Week 3 for Group B"), "no fork door");
+    assert.ok(!text.includes("Save week details"), "no editor of the copy's details");
     assert.match(text, /How this week meets/, "the week's own way of meeting stays");
     assert.deepEqual(world.clientWrites, []);
   });
 
-  test("a week written before blocks keeps the editor of its lists", () => {
-    const canonical = normalizeCourseWeek("w02", world.db.read(`courseRuns/${RUN.agi}/weeks/w02`));
-    world.groupWeek = { canonical, fork: null, forked: false, loading: false, error: null, reload() {} };
-    const html = renderToStaticMarkup(
-      createElement(GroupWeekEditor, {
-        runId: RUN.agi,
-        courseId: "c",
-        groupId: B,
-        groupName: "Group B",
-        weekId: "w02",
-        weekNumber: 2,
-        from: "2026-11-05",
-        to: "2026-11-11",
-        mode: null,
-        location: "Hallward B12",
-        meetingUrl: null,
-        viewerIsAdmin: false,
-      }),
-    );
-    const text = textOf(html);
+  test("a week written before blocks shows its lists read only, and offers no copy", () => {
+    const { text } = facilitatorsEditor("w02", 2);
     assert.ok(!text.includes("Paste Group B’s week"));
-    assert.match(text, /Customise Week 2 for Group B/);
+    assert.ok(!text.includes("Customise Week 2 for Group B"), "no fork door");
+    assert.match(text, /What the course gives your group/);
+    assert.match(text, /This is live: when the programme’s lead changes it, your group sees the change\./);
+    assert.ok(!text.includes("Save week details") && !text.includes("Save materials") && !text.includes("Save checklist"), "nothing of the lists is edited here");
+    assert.deepEqual(world.clientWrites, []);
+  });
+
+  test("a group that already has its own copy keeps reading it, shown read only, and it can't be changed here", () => {
+    const canonical = normalizeCourseWeek("w02", world.db.read(`courseRuns/${RUN.agi}/weeks/w02`));
+    const copy = { ...canonical, summary: "Group B's own summary of week 2", published: true };
+    const { text } = facilitatorsEditor("w02", 2, copy);
+    assert.match(text, /Your group’s own copy/);
+    assert.match(text, /Group B reads its own copy of this week, made before copies were switched off\. It’s shown here as the group reads it, and it can’t be changed from here any more\./);
+    assert.match(text, /Group B’s own copy of Week 2/);
+    assert.match(text, /Group B's own summary of week 2/);
+    assert.ok(!text.includes("Save week details") && !text.includes("Customise"), "read only");
+    assert.deepEqual(world.clientWrites, []);
   });
 });
 

@@ -289,6 +289,11 @@
 .buttonPrimary:hover:not(:disabled) {
   background: var(--color-accent-hover);
 }
+/* The paste, reached from "Paste the week" at the top of a week's page. */
+.pasteAnchor {
+  min-width: 0;
+  scroll-margin-top: var(--space-6);
+}
 .problem {
   font-size: 14px;
   line-height: 1.5;
