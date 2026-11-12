@@ -247,7 +247,7 @@ describe("3. the words around a save, the history and the paste", () => {
     };
     for (const [name, value] of Object.entries(words)) if (name !== "listWords") walk(value);
     assert.ok(sentences.length > 60, `${sentences.length} sentences read`);
-    for (const said of sentences) assert.doesNotMatch(said, /[–—]/, said);
+    for (const said of sentences) assert.doesNotMatch(said, /[\u2013\u2014]/, said);
   });
 });
 
