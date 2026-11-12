@@ -161,7 +161,10 @@ describe("Finish the register, while next week's email is on its schedule", () =
     assert.deepEqual(world.mail, []);
   });
 
-  test("a finished register refuses a tap, and an admin's correction works as before", async () => {
+  // CHANGED ON PURPOSE (November 2026): every correction of a finished
+  // register now needs a reason, so the admin's correction carries one, and
+  // the same correction without one is refused first, with nothing written.
+  test("a finished register refuses a tap, and an admin's correction works as before, with a reason", async () => {
     await markAll("rahul", GROUP.b, 1, MEMBERS_B);
     await finish("rahul", GROUP.b, 1);
     const tap = await call("rahul", register.POST, { groupId: GROUP.b }, {
@@ -172,8 +175,13 @@ describe("Finish the register, while next week's email is on its schedule", () =
       body: { weekNumber: 1, marks: [{ uid: "amara", status: "late" }] },
     });
     assert.equal(refused.status, 403, "a facilitator does not correct a finished register");
-    const corrected = await call("zach", register.PATCH, { groupId: GROUP.b }, {
+    const unexplained = await call("zach", register.PATCH, { groupId: GROUP.b }, {
       body: { weekNumber: 1, marks: [{ uid: "amara", status: "late" }] },
+    });
+    assert.equal(unexplained.status, 400, "a correction with no reason was not refused");
+    assert.equal(read(registerPath(GROUP.b, 1)).records.amara, "present", "a refused correction wrote something");
+    const corrected = await call("zach", register.PATCH, { groupId: GROUP.b }, {
+      body: { weekNumber: 1, marks: [{ uid: "amara", status: "late" }], reason: "Amara came in at ten past." },
     });
     assert.equal(corrected.status, 200, JSON.stringify(corrected.body));
     assert.equal(corrected.body.marked, 1);
