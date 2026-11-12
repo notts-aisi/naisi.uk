@@ -30,7 +30,11 @@
  *     under their name, and the Attendance tab's way to each group's week.
  *  7. WHAT THE WEEK PAGE SAYS IS TRUE: the lines a fellow and a facilitator
  *     read under their boxes, their sources and their notes name exactly the
- *     people the pages show that work to, run against the pages.
+ *     people the pages show that work to, run against the pages. And (7b)
+ *     somebody who facilitates another group of the run and holds a place in
+ *     this one is a facilitator here too: no fellow on any of the three pages,
+ *     read apart by the lead and admins, by the rule the written answers'
+ *     review asks.
  *  8. NAMES NEVER REACH A PAGE A FELLOW CAN OPEN.
  *  9. THE TREE: every file that addresses the progress store, and every file
  *     that reads a private note, is listed with what it does, both ways; the
@@ -58,7 +62,11 @@ import {
   SAID,
   facilitatorWeekSeed,
   makeFacilitatorWeekWorld,
+  reflection,
+  tick,
 } from "./lib/facilitatorWeekWorld.mjs";
+import { enrolment } from "./lib/hubAttendanceWorld.mjs";
+import { C } from "./lib/facilitatorPagesWorld.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 const inSrc = (path) => relative(SRC, path).split(sep).join("/");
@@ -706,6 +714,215 @@ describe("7. the lines on a fellow's and a facilitator's week page name exactly 
 });
 
 // ---------------------------------------------------------------------------
+// 7b. Somebody who facilitates another group and holds a place in this one
+// ---------------------------------------------------------------------------
+
+describe("7b. somebody who facilitates another group of the run and holds a place in this one", () => {
+  // Tom facilitates Group C. Here he also holds a fellow's place in Group B,
+  // wrote both prompts of part 1, ticked the film and left a note on it.
+  const TOM_SAID = { "k3-rp1": "Sixty, counting the ones on the piers.", "k3-rp2": "Whoever owns the cliff it stands on." };
+  const TOM_NOTE = "The film ran long for a weeknight.";
+  const TOM_TEXTS = [...Object.values(TOM_SAID), TOM_NOTE];
+  function tomSeed() {
+    const seed = facilitatorWeekSeed();
+    seed[`courseEnrolments/${RUN.agi}__tom`] = enrolment("tom", B);
+    for (const [promptId, text] of Object.entries(TOM_SAID)) seed[`courseExerciseResponses/${RUN.agi}__tom__w03__${promptId}`] = reflection("tom", promptId, text);
+    seed[`courseProgress/${RUN.agi}__tom__k3-s2`] = tick("tom", "k3-s2", { privateNote: TOM_NOTE });
+    return seed;
+  }
+  /** Whether a drawn page holds anything of Tom's, in its markup or in what its components were handed. */
+  const holdsTom = (drawn) => {
+    const handed = `${drawn.html}\n${JSON.stringify(drawn.element ?? null)}`;
+    return TOM_TEXTS.some((text) => handed.includes(text));
+  };
+
+  test("the page of the week's work: Group B's facilitators are shown none of it and count him nowhere; the lead and admins read it apart", async () => {
+    reset(tomSeed());
+    // The model the page draws from lists him: he holds a place.
+    for (const who of ["rahul", "sofia"]) {
+      const drawn = await groupPage(who);
+      const week = weekOf(drawn);
+      assert.deepEqual(week.rows.map(said), ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"], who);
+      assert.equal(week.of, 3, who);
+      assert.deepEqual(week.counts.map((count) => [count.number, count.written, count.of]), [[1, 2, 3], [2, 1, 3], [3, 0, 3]], who);
+      assert.deepEqual(ticksOf(week), [["A keeper's diary", ["Chloe Nguyen", "Farah Hussain"], 3], ["Lamps at night", ["Farah Hussain"], 3]], who);
+      assert.deepEqual(week.sources.map((source) => source.fellowsTicked), [2, 1], who);
+      assert.deepEqual(notesOf(week), [["A keeper's diary", [["Chloe Nguyen", NOTED.chloe[1]]]], ["Lamps at night", [["Kofi Asante", NOTED.kofi[1]]]]], who);
+      assert.ok(!JSON.stringify(week).includes('"tom"'), `${who} is handed Tom's week`);
+      assert.equal(holdsTom(drawn), false, `${who} is shown Tom's work`);
+      assert.deepEqual(queueOf(drawn).counts, [{ number: 1, written: 2, of: 3 }, { number: 2, written: 1, of: 3 }, { number: 3, written: 0, of: 3 }], who);
+    }
+    const OWN_ROWS = [
+      ["Chloe Nguyen", [true, false, false]],
+      ["Farah Hussain", [true, true, false]],
+      ["Kofi Asante", [false, false, false]],
+      ["Rahul Mehta (facilitator)", [true, false, false]],
+      ["Sofia Rossi (facilitator)", [false, false, false]],
+      ["Tom Fletcher (facilitator)", [true, false, false]],
+    ];
+    for (const [who, drawn] of [
+      ["an admin on the group page", await groupPage("zach")],
+      ["an admin on the lead's page", await leadWeekPage("zach")],
+      ["the lead", await leadWeekPage("claudia")],
+    ]) {
+      const week = weekOf(drawn);
+      assert.deepEqual(week.rows.map((row) => [said(row), row.written]), OWN_ROWS, who);
+      assert.equal(week.of, 3, who);
+      assert.deepEqual(week.counts.map((count) => [count.number, count.written, count.of]), [[1, 2, 3], [2, 1, 3], [3, 0, 3]], who);
+      assert.deepEqual(ticksOf(week)[1], ["Lamps at night", ["Farah Hussain", "Sofia Rossi (facilitator)", "Tom Fletcher (facilitator)"], 3], who);
+      assert.deepEqual(week.sources.map((source) => source.fellowsTicked), [2, 1], who);
+      assert.match(drawn.text, /Every number here counts the group’s 3 fellows\./, who);
+    }
+    // His private note: an admin's alone, marked as his own; the lead reads no note.
+    assert.deepEqual(notesOf(weekOf(await groupPage("zach")))[1], ["Lamps at night", [["Kofi Asante", NOTED.kofi[1]], ["Tom Fletcher (facilitator)", TOM_NOTE]]]);
+    assert.deepEqual(notesOf(weekOf(await leadWeekPage("claudia"))).map(([, notes]) => notes), [null, null]);
+  });
+
+  test("the reflections with names: Group B's facilitators read the fellows' alone; the lead and admins read his apart, under his name", async () => {
+    reset(tomSeed());
+    const FELLOWS = [
+      [["Chloe Nguyen", "Farah Hussain"], ["Kofi Asante"], 3],
+      [["Chloe Nguyen", "Farah Hussain"], ["Kofi Asante"], 3],
+      [["Chloe Nguyen", "Farah Hussain"], ["Kofi Asante"], 3],
+      [["Farah Hussain"], ["Chloe Nguyen", "Kofi Asante"], 3],
+      [[], ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"], 3],
+      [[], ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"], 3],
+    ];
+    const fellowsOf = (props) => props.prompts.map((prompt) => [prompt.answers.map((answer) => answer.name), prompt.notYet, prompt.of]);
+    // The group's page with names: its facilitators and an admin, fellows only.
+    for (const who of ["rahul", "sofia", "zach"]) {
+      const drawn = await namedReflectionsPage(who);
+      assert.deepEqual(fellowsOf(namedOf(drawn)), FELLOWS, who);
+      for (const prompt of namedOf(drawn).prompts) assert.equal(prompt.own, null, who);
+      assert.equal(holdsTom(drawn), false, `${who} is shown Tom's work on the group's page with names`);
+    }
+    // The lead's page with names: the lead and an admin, his reflections apart, beside the group's own facilitators'.
+    for (const who of ["claudia", "zach"]) {
+      const drawn = await leadReflectionsPage(who);
+      const props = namedOf(drawn);
+      assert.deepEqual(fellowsOf(props), FELLOWS, who);
+      assert.deepEqual(
+        props.prompts.map((prompt) => prompt.own.map((person) => [person.name, person.text])),
+        [
+          [["Rahul Mehta", SAID.rahul["k3-rp1"]], ["Sofia Rossi", SAID.sofia["k3-rp1"]], ["Tom Fletcher", TOM_SAID["k3-rp1"]]],
+          [["Rahul Mehta", SAID.rahul["k3-rp2"]], ["Sofia Rossi", null], ["Tom Fletcher", TOM_SAID["k3-rp2"]]],
+          [["Rahul Mehta", null], ["Sofia Rossi", null], ["Tom Fletcher", null]],
+          [["Rahul Mehta", null], ["Sofia Rossi", null], ["Tom Fletcher", null]],
+          [["Rahul Mehta", null], ["Sofia Rossi", null], ["Tom Fletcher", null]],
+          [["Rahul Mehta", null], ["Sofia Rossi", null], ["Tom Fletcher", null]],
+        ],
+        who,
+      );
+      assert.ok(!drawn.html.includes(TOM_NOTE), `${who} is shown Tom's private note on the page with names`);
+    }
+  });
+
+  test("the page to read lines out: never his words, and he is not among those who haven't written; the lead has no such page", async () => {
+    reset(tomSeed());
+    for (const who of ["rahul", "sofia", "zach"]) {
+      const drawn = await reflectionsPage(who);
+      const props = readOutOf(drawn);
+      assert.deepEqual(
+        props.prompts.map((prompt) => [prompt.wrote, prompt.of, prompt.notYet]),
+        [
+          [2, 3, ["Kofi"]],
+          [2, 3, ["Kofi"]],
+          [2, 3, ["Kofi"]],
+          [1, 3, ["Chloe", "Kofi"]],
+          [0, 3, ["Chloe", "Farah", "Kofi"]],
+          [0, 3, ["Chloe", "Farah", "Kofi"]],
+        ],
+        who,
+      );
+      assert.equal(holdsTom(drawn), false, `${who} is handed Tom's words to read out`);
+      assert.doesNotMatch(drawn.text, /\bTom\b/, `${who} is told Tom hasn't written`);
+    }
+    assert.equal(readOutOf(await reflectionsPage("claudia")), null, "the lead is drawn the page to read lines out");
+  });
+
+  test("who is shown his work at all: the lead and admins his ticks and reflections, admins alone his note", async () => {
+    reset(tomSeed());
+    const VIEWERS = ["rahul", "sofia", "zach", "claudia", "tess", "lloyd", "yusuf", "tom", "chloe", "amara", "isaac", "nobody", null];
+    const out = { ticks: [], reflections: [], notes: [] };
+    for (const who of VIEWERS) {
+      const pages = [await groupPage(who), await reflectionsPage(who), await namedReflectionsPage(who), await leadWeekPage(who), await leadReflectionsPage(who)];
+      const seen = pages.map((drawn) => `${drawn.html}\n${JSON.stringify(drawn.element ?? null)}`).join("\n");
+      const weeks = pages.map(weekOf).filter(Boolean);
+      if (weeks.some((week) => week.sources.some((source) => source.ticked.some((person) => person.uid === "tom")))) out.ticks.push(who ?? "signed out");
+      if (Object.values(TOM_SAID).some((text) => seen.includes(text))) out.reflections.push(who ?? "signed out");
+      if (seen.includes(TOM_NOTE)) out.notes.push(who ?? "signed out");
+    }
+    assert.deepEqual(out, { ticks: ["zach", "claudia"], reflections: ["zach", "claudia"], notes: ["zach"] });
+  });
+
+  test("once the group he facilitates is archived he facilitates nothing live, and reads as one of Group B's fellows again", async () => {
+    reset(tomSeed());
+    world.db.poke(`courseGroups/${C}`, { archived: true });
+    for (const who of ["rahul", "sofia"]) {
+      const week = weekOf(await groupPage(who));
+      const tom = week.rows.find((row) => row.uid === "tom");
+      assert.ok(tom && tom.own === false, `${who} is not shown Tom as a fellow`);
+      assert.deepEqual(tom.written, [true, false, false], who);
+      assert.equal(week.of, 4, who);
+      assert.deepEqual(week.counts.map((count) => [count.number, count.written, count.of]), [[1, 3, 4], [2, 1, 4], [3, 0, 4]], who);
+      assert.ok(week.sources[1].ticked.some((person) => person.uid === "tom" && !person.own), `${who} is not shown Tom's tick`);
+      assert.ok(notesOf(week)[1][1].some(([, text]) => text === TOM_NOTE), `${who} is not shown Tom's note, a fellow's`);
+    }
+    const named = namedOf(await namedReflectionsPage("rahul"));
+    assert.ok(named.prompts[0].answers.some((answer) => answer.text === TOM_SAID["k3-rp1"]), "Tom's reflection is not among the fellows'");
+  });
+
+  test("somebody listed among Group B's facilitators without the standing the role needs, who holds a place, is still no fellow of it", async () => {
+    // Rahul is listed and holds a place; his account no longer stands, so the group's
+    // facilitators the page draws leave him out, and the run's set still names him.
+    reset(tomSeed());
+    world.db.poke("users/rahul", { role: "rejected" });
+    for (const who of ["sofia"]) {
+      const week = weekOf(await groupPage(who));
+      assert.deepEqual(week.rows.map(said), ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"], who);
+      assert.equal(week.of, 3, who);
+      for (const text of Object.values(SAID.rahul)) assert.ok(!JSON.stringify(week).includes(text), `${who} is handed Rahul's work`);
+    }
+    const asAdmin = weekOf(await groupPage("zach"));
+    // Sofia comes first as the one standing facilitator; Rahul after her, from his place, by the run's set.
+    assert.deepEqual(asAdmin.rows.map(said), [
+      "Chloe Nguyen",
+      "Farah Hussain",
+      "Kofi Asante",
+      "Sofia Rossi (facilitator)",
+      "Rahul Mehta (facilitator)",
+      "Tom Fletcher (facilitator)",
+    ]);
+    assert.equal(asAdmin.of, 3);
+  });
+
+  test("the written answers' review asks the same rule: his answer is the lead's and admins' to review, never Group B's facilitators'", async () => {
+    reset(tomSeed());
+    const access = await w.loadTs(join("lib", "courses", "writtenAnswers", "access.ts"));
+    const liveGroups = await access.liveGroupsOf(world.courseDb, RUN.agi);
+    const groupB = liveGroups.find((group) => group.id === B);
+    // The one set the week's card and the week's readers ask, and the review gate's own question, agree for everybody.
+    const onRun = access.facilitatingOnRunOf(groupB, liveGroups);
+    for (const uid of ["rahul", "sofia", "tom", "grace", "chloe", "farah", "kofi", "amara", "claudia", "zach"]) {
+      assert.equal(onRun.has(uid), access.facilitatesOnRun(uid, liveGroups), uid);
+    }
+    assert.ok(onRun.has("tom"));
+    const owner = { uid: "tom", placedGroupId: B };
+    const fellows = ["chloe", "farah", "kofi"].map((uid) => ({ uid, placedGroupId: B }));
+    const reviews = {};
+    for (const who of ["rahul", "sofia", "claudia", "zach"]) {
+      const actor = w.sessionFor(who);
+      const facts = await access.reviewerFactsOf(world.courseDb, actor, RUN.agi);
+      reviews[who] = [
+        access.writtenReviewRole(actor, facts, owner, liveGroups).mayReview,
+        access.reviewableIn(actor, facts, groupB, [...fellows, owner], liveGroups).some((each) => each.uid === "tom"),
+      ];
+    }
+    assert.deepEqual(reviews, { rahul: [false, false], sofia: [false, false], claudia: [true, true], zach: [true, true] });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 8. Names never reach a page a fellow can open
 // ---------------------------------------------------------------------------
 
@@ -874,8 +1091,14 @@ describe("9. the tree", () => {
     assert.deepEqual(["facilitator", "lead", "admin"].map(model.readsFacilitatorsPrivateNotes), [false, false, true]);
     const people = [{ uid: "chloe", name: "Chloe Nguyen" }, { uid: "rahul", name: "Rahul Mehta" }];
     const facilitators = [{ uid: "rahul", name: "Rahul Mehta", firstName: "Rahul" }, { uid: "sofia", name: "Sofia Rossi", firstName: "Sofia" }];
-    assert.deepEqual(model.peopleShown("facilitator", people, facilitators).map(said), ["Chloe Nguyen"]);
-    assert.deepEqual(model.peopleShown("lead", people, facilitators).map(said), ["Chloe Nguyen", "Rahul Mehta (facilitator)", "Sofia Rossi (facilitator)"]);
+    const onRun = new Set(["rahul", "sofia"]);
+    assert.deepEqual(model.peopleShown("facilitator", people, facilitators, onRun).map(said), ["Chloe Nguyen"]);
+    assert.deepEqual(model.peopleShown("lead", people, facilitators, onRun).map(said), ["Chloe Nguyen", "Rahul Mehta (facilitator)", "Sofia Rossi (facilitator)"]);
+    // Somebody holding a place who facilitates another group of the run: never a fellow, and the lead's and admins' apart.
+    const placed = [...people, { uid: "tom", name: "Tom Fletcher" }];
+    const withTom = new Set([...onRun, "tom"]);
+    assert.deepEqual(model.peopleShown("facilitator", placed, facilitators, withTom).map(said), ["Chloe Nguyen"]);
+    assert.deepEqual(model.peopleShown("admin", placed, facilitators, withTom).map(said), ["Chloe Nguyen", "Rahul Mehta (facilitator)", "Sofia Rossi (facilitator)", "Tom Fletcher (facilitator)"]);
     assert.deepEqual(model.readOutCards("p1", ["b", " ", "A", "c"]), [{ key: "p1-1", text: "A" }, { key: "p1-2", text: "b" }, { key: "p1-3", text: "c" }]);
   });
 });

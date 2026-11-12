@@ -245,12 +245,12 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
   );
 
   const ctx = await context(db, requests, actor);
-  // Only what the reader can open: one request's page asks the group's own
-  // register gate (`gateGroupRegisterForRead`), which answers a lead who also
-  // facilitates the group as a facilitator, and admits no lead to an
-  // archived group. The runs are led already (`ledRuns`); the rest is the
-  // group's, read once above.
-  if (!isAdmin) requests = requests.filter((each) => leadDecidesOn(actor, ctx.groups.get(each.groupId), each.runId));
+  // Only what the reader can open (`requestShownTo`): one request's page asks
+  // the group's own register gate (`gateGroupRegisterForRead`), which answers
+  // a lead who also facilitates the group as a facilitator, and admits no
+  // lead to an archived group. The runs are led already (`ledRuns`); the rest
+  // is the group's, read once above.
+  requests = requests.filter((each) => requestShownTo(actor, ctx.groups.get(each.groupId), each.runId));
   const rows = requests
     .map((each) => rowOf(each, ctx, led.naming, actor))
     .sort(
@@ -358,6 +358,17 @@ export async function loadRequestPage(db: Firestore, actor: SessionUser, request
 function leadDecidesOn(actor: SessionUser, group: CourseGroupDoc | undefined, runId: string): boolean {
   if (!group || group.archived || group.runId !== runId) return false;
   return !isNamedWithStanding(actor, "courseGroups.facilitatorUids", group.facilitatorUids);
+}
+
+/**
+ * WHETHER THE REQUESTS LIST SHOWS A REQUEST ON THIS GROUP TO THIS READER:
+ * every one to an admin, and to somebody leading the run only those
+ * `leadDecidesOn` admits. The list asks it, and so does the count beside
+ * Requests in a programme's head (`requestsWaitingOnRun`), so the number on
+ * the link is the number the list shows.
+ */
+export function requestShownTo(actor: SessionUser, group: CourseGroupDoc | undefined, runId: string): boolean {
+  return actor.role === "admin" || leadDecidesOn(actor, group, runId);
 }
 
 /** Whether the reader decides requests on this request's group: an admin, or somebody leading its programme. */

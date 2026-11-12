@@ -23,7 +23,17 @@ import {
   sessionHasCheckInOrReport,
   writeDidNotHappen,
 } from "@/lib/courses/sessionChange/didNotHappen";
-import { pushHasRecordsWords } from "@/lib/courses/registerCover/words";
+import { PUSH_BACK_LATER_MET } from "@/lib/courses/groupPage/words";
+import {
+  coverHolderNames,
+  coversEndLines,
+  coversOffOf,
+  coversOffWords,
+  startMovedRegisters,
+  writeCoversOff,
+  type MovedRegister,
+} from "@/lib/courses/registerCover/moves";
+import { pushHasRecordsHint, pushHasRecordsWords } from "@/lib/courses/registerCover/words";
 import { startMoves, takenStartMoves } from "@/lib/courses/sessionChange/metSessions";
 import { sessionOfWeek } from "@/lib/courses/sessionChange/model";
 import { oneWeekHistoryDetail, oneWeekNoticeFor, weekSessionAfter } from "@/lib/courses/sessionChange/notice";
@@ -93,9 +103,14 @@ import {
  *    history row's `before` and the register stops being finished. Push the
  *    rest back is refused once the session has a check-in or a session
  *    report, as the one-week change refuses it (both are kept by the week,
- *    so the session a week later would open with them). Pushed back, the
+ *    so the session a week later would open with them), once a later week
+ *    has met, and when the plan has no room (`pushRefusalOf`); keep pace's
+ *    preview says which, so the sheet never offers it. Pushed back, the
  *    cover and the record of whether each facilitator was there go too, each
- *    kept in the same row's `before` (`writeDidNotHappen`).
+ *    kept in the same row's `before` (`writeDidNotHappen`); and every later
+ *    register nobody has taken loses the cover it holds, as every change that
+ *    moves a session's start takes it off (`registerCover/moves`), the row
+ *    saying who had been covering and the preview saying so first.
  *  - `did-happen`: the reverse, for a session called off with the group
  *    keeping pace, or a register from before that says it did not happen:
  *    who was there, and the session comes back into every figure, finished
@@ -797,6 +812,38 @@ function moveRefs(ctx: ColumnContext, before: readonly ResolvedSession[], after:
   return startMoves(before, after).map((move) => registerRef(ctx, move.before));
 }
 
+/** The first session a change would move whose register is taken, but the one this press calls off; null when none. */
+function metMoveOf(
+  before: readonly ResolvedSession[],
+  after: readonly ResolvedSession[],
+  snaps: ReadonlyArray<DocumentSnapshot | undefined>,
+  calledOffKey: string,
+): { before: ResolvedSession } | null {
+  const registers = new Map<string, Record<string, unknown>>();
+  startMoves(before, after).forEach((move, index) => {
+    const snap = snaps[index];
+    if (snap?.exists && move.before.sessionKey !== calledOffKey) registers.set(move.before.sessionKey, snap.data() ?? {});
+  });
+  return takenStartMoves(before, after, registers)[0] ?? null;
+}
+
+/**
+ * The registers of the sessions a call-off moves, with their snapshots, but
+ * the one it calls off (whose own cover `writeDidNotHappen` keeps in the
+ * row): what the covers a push back takes off, and the lines its preview says
+ * about them, are both asked of (`registerCover/moves`).
+ */
+function laterMovedRegisters(
+  before: readonly ResolvedSession[],
+  after: readonly ResolvedSession[],
+  refs: readonly DocumentReference[],
+  snaps: ReadonlyArray<DocumentSnapshot | undefined>,
+  calledOffKey: string,
+): MovedRegister[] {
+  const keys = startMoves(before, after).map((move) => move.before.sessionKey);
+  return startMovedRegisters(before, after, refs, snaps).filter((_, index) => keys[index] !== calledOffKey);
+}
+
 /** Nothing may move the start of a session whose register is taken, but the one this press calls off. */
 function refuseMovingMet(
   before: readonly ResolvedSession[],
@@ -804,13 +851,43 @@ function refuseMovingMet(
   snaps: ReadonlyArray<DocumentSnapshot | undefined>,
   calledOffKey: string,
 ): void {
-  const registers = new Map<string, Record<string, unknown>>();
-  startMoves(before, after).forEach((move, index) => {
-    const snap = snaps[index];
-    if (snap?.exists && move.before.sessionKey !== calledOffKey) registers.set(move.before.sessionKey, snap.data() ?? {});
-  });
-  const [met] = takenStartMoves(before, after, registers);
+  const met = metMoveOf(before, after, snaps, calledOffKey);
   if (met) throw new ChangeRefusal(movesMetWords(met.before.weekNumber, met.before.occurrence), 409);
+}
+
+/** Why a push back of the session would be refused: the press's own sentence, and the one the sheet says instead of offering it. */
+export type PushRefusal = { status: number; error: string; why: string; detail?: Record<string, unknown> };
+
+/**
+ * EVERY REFUSAL A PUSH BACK MEETS AND KEEP PACE DOES NOT, in the order the
+ * press meets them, or null when a push would go through: the session has a
+ * check-in or a session report (kept by the week, so the session a week
+ * later would open with them); the one-week change's own check of a push
+ * (`checkPress`: the plan has no room for another week); and a later week
+ * whose register is taken, which a push would move. `error` is the press's
+ * sentence; `why` is the sentence the group page's own panel says when it
+ * does not offer a push for the same reason, which keep pace's preview hands
+ * the column's sheet (`push`) so the sheet never offers a push the press
+ * would refuse.
+ */
+async function pushRefusalOf(ctx: ColumnContext, press: ColumnPress): Promise<PushRefusal | null> {
+  const { db, run, group, session, now } = ctx;
+  if (await sessionHasCheckInOrReport(db, run.id, group.id, session.sessionKey)) {
+    return { status: 409, error: pushHasRecordsWords(press.weekNumber), why: pushHasRecordsHint(press.weekNumber) };
+  }
+  try {
+    const pushed = checkPress(run, group, changePressOf({ ...press, pace: "push" }), now, undefined);
+    const before = resolveSessions(run, group);
+    const after = resolveSessions(run, pushed.after);
+    const refs = moveRefs(ctx, before, after);
+    // A push moves this session and every later one: a met one is a later week.
+    const met = metMoveOf(before, after, refs.length ? await db.getAll(...refs) : [], session.sessionKey);
+    if (met) return { status: 409, error: movesMetWords(met.before.weekNumber, met.before.occurrence), why: PUSH_BACK_LATER_MET };
+  } catch (err) {
+    if (err instanceof ChangeRefusal) return { status: err.status, error: err.message, why: err.message, detail: err.detail };
+    throw err;
+  }
+  return null;
 }
 
 /** The press "Change a session" would make: cancel, keeping pace, or push the rest back. */
@@ -836,12 +913,12 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
   const register = registerOf(snap);
   const why = finishedOrWhy(register, session);
   if (why || !register) return refuse(409, why ?? CORRECTION_REFUSAL.noRegister);
-  // A check-in and a session report are kept by the week: pushed back, the
-  // session a week later would open with this one's. Refused in the preview
-  // and the press, in the one-week change's own sentence; keep pace stays.
-  if (press.pace === "push" && (await sessionHasCheckInOrReport(db, run.id, group.id, session.sessionKey))) {
-    return refuse(409, pushHasRecordsWords(press.weekNumber));
-  }
+  // Whether a push back would go through (`pushRefusalOf`): a push it would
+  // refuse is refused here, in the preview and the press alike, and keep
+  // pace's preview says so, so the sheet does not offer it. A keep pace save
+  // never asks: keep pace stays whatever a push would meet.
+  const pushRefused = press.pace === "push" || press.preview ? await pushRefusalOf(ctx, press) : null;
+  if (press.pace === "push" && pushRefused) return refuse(pushRefused.status, pushRefused.error, pushRefused.detail);
   const change = changePressOf(press);
   const naming = await readNamingProgramme(db, run.id);
   const context = { groupName: group.name.trim() || "Untitled group", incubator: naming?.kind === "incubator" };
@@ -854,14 +931,17 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
       const before = resolveSessions(run, group);
       const after = resolveSessions(run, first.after);
       const refs = moveRefs(ctx, before, after);
-      refuseMovingMet(before, after, refs.length ? await db.getAll(...refs) : [], session.sessionKey);
+      const refSnaps = refs.length ? await db.getAll(...refs) : [];
+      refuseMovingMet(before, after, refSnaps, session.sessionKey);
       const afterSession = sessionOfWeek(after, press.weekNumber);
       const lastOf = (sessions: readonly ResolvedSession[]) =>
         sessions.filter((s) => !s.cancelled && s.dateKey).reduce((last, s) => (s.dateKey > last ? s.dateKey : last), "");
-      const [facts, told, names] = await Promise.all([
+      const [facts, told, names, coversEnd] = await Promise.all([
         didNotHappenFacts(db, { run, group, session: first.session, register: snap.data() ?? {} }),
         toldFacts(db, run, group, actor.uid),
         namesForReader(ctx, Object.keys(register.records)),
+        // Whose cover of a later session the press would take off, by the press's own rule.
+        coversEndLines(db, laterMovedRegisters(before, after, refs, refSnaps, session.sessionKey)),
       ]);
       const { uids } = linesSetForSession(register);
       return {
@@ -878,6 +958,9 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
             lateFrom: { before: lateFromOf(before, press.weekNumber), after: lateFromOf(after, press.weekNumber) },
             clearing: namedLines(register, uids, names),
             didNotHappen: facts,
+            // Whether the sheet offers Push the rest back, and why not when it does not.
+            push: pushRefused ? { offered: false, why: pushRefused.why } : { offered: true, why: null },
+            coversEnd,
             told,
             notice: oneWeekNoticeFor(run, first, change, context),
             figures: true,
@@ -919,7 +1002,14 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
     const before = resolveSessions(run, fresh);
     const after = resolveSessions(run, checked.after);
     const refs = moveRefs(ctx, before, after);
-    refuseMovingMet(before, after, refs.length ? await tx.getAll(...refs) : [], session.sessionKey);
+    const refSnaps = refs.length ? await tx.getAll(...refs) : [];
+    refuseMovingMet(before, after, refSnaps, session.sessionKey);
+    // A cover does not ride along to another evening: a later register nobody
+    // has taken loses the cover it holds when the push moves its session's
+    // start, and the history row says who had been covering. Read here,
+    // before the first write.
+    const coversOff = coversOffOf(laterMovedRegisters(before, after, refs, refSnaps, session.sessionKey));
+    const holderNames = await coverHolderNames(tx, db, coversOff);
     // Every other session whose start moves keeps it on a register nobody took.
     const moved = after.filter((now_) => {
       if (now_.occurrence !== 1 || now_.sessionKey === session.sessionKey) return false;
@@ -965,6 +1055,7 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
       if (!movedSnap?.exists || !startsAt || registerIsTaken(movedSnap.data() ?? {})) return;
       tx.update(movedRefs[index], { sessionAt: startsAt });
     });
+    writeCoversOff(tx, coversOff);
 
     const emailed = press.tell ? press.emailCount : 0;
     const afterSession = weekSessionAfter(run, checked, press.weekNumber);
@@ -1005,7 +1096,7 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
           run,
           group: fresh,
           actor,
-          detail: oneWeekHistoryDetail(run, checked, change, emailed),
+          detail: [oneWeekHistoryDetail(run, checked, change, emailed), coversOffWords(coversOff, holderNames)].filter(Boolean).join(" "),
           weekId,
           before: momentValues(momentOf(fresh, checked.session)),
           after: momentValues(momentOf(checked.after, afterSession)),

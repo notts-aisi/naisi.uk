@@ -51,6 +51,7 @@ import assert from "node:assert/strict";
 import { readdirSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { duplicateKeysIn, duplicateKeysInText } from "./lib/duplicateKeys.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const APP_DIR = join(REPO_ROOT, "src", "app");
@@ -1748,21 +1749,15 @@ const NOT_COVERED = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
     reason:
-      "Course hub: Publish's own page, its readiness check, the two emails and Publish's own buttons, for a programme's lead and admins; its every caller, what it blocks and what it only warns, each against a real press, are executed by tests/course-hub-get-ready.test.mjs, and it was checked by hand at 1440 and 390.",
+      "Course hub: Publish's own page under a programme's Groups tab, reached from the Overview and from People in groups: its readiness check, the two emails and Publish's own buttons, for a programme's lead and admins. Its every caller, what it blocks and what it only warns, each against a real press, are executed by tests/course-hub-get-ready.test.mjs, the way there by tests/course-hub-people-in-groups.test.mjs, and it was checked by hand at 1440 and 390.",
     coverWhen:
-      "When the groups-go-out spec presses Publish from the programme's own Groups tab rather than the run editor's board.",
+      "When the groups-go-out spec presses Publish from a programme's Groups tab rather than from the run editor's board.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/copy": {
     reason:
       "Course hub: Copy weeks from the course, a page of the Weeks tab; its every caller and the copy it sends (never an overwrite) are executed by tests/course-hub-weeks-tab.test.mjs.",
     coverWhen:
       "When a course has two runs on dev and a browser spec copies one's weeks into the other as its programme's lead.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
-    reason:
-      "Course hub: Publish's own page under a programme's Groups tab, reached from People in groups. The Publish area on it is the allocation board's, which the groups-go-out spec presses on the run editor's board; the page's every caller is executed by tests/course-hub-people-in-groups.test.mjs.",
-    coverWhen:
-      "When the groups-go-out spec presses Publish from a programme's Groups tab rather than from the run editor's board.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/people": {
     reason:
@@ -2445,6 +2440,21 @@ test("no NOT_COVERED entry has gone stale", async () => {
     }
   }
   assert.deepEqual(stale, [], `\n${stale.join("\n")}\n`);
+});
+
+test("no key is written twice in one object of this file, read from its source", () => {
+  // An object keeps the later of two equal keys and drops the earlier
+  // without a word, so the earlier entry is dead text that can say something
+  // else (a reason, a trigger) and nothing here would read it.
+  const sample = duplicateKeysInText('const x = { "/a": { reason: "one" }, b: 1, "/a": { reason: "two" } };');
+  assert.deepEqual(sample.duplicates, [{ key: "/a", lines: [1, 1] }], "the scan is not reading");
+  const { duplicates, unresolved } = duplicateKeysIn(fileURLToPath(import.meta.url));
+  assert.deepEqual(unresolved, [], "a computed key here cannot be compared without running the file: write it as a string");
+  assert.deepEqual(
+    duplicates.map(({ key, lines }) => `${key} (lines ${lines.join(", ")})`),
+    [],
+    "a key written twice in one object: keep one entry, with what is true",
+  );
 });
 
 test("every NOT_COVERED entry carries a real reason and a real trigger", () => {

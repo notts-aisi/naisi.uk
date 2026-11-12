@@ -2206,12 +2206,19 @@ need to cover for.
 
 A COVER DOES NOT RIDE ALONG. When a change moves the start of a session whose
 register nobody has taken but somebody holds the cover of (a one-week move or
-push back, a new regular time, a group's own pace), the same transaction takes
+push back, a new regular time, a group's own pace, It didn't happen on a
+finished column pushing the rest back), the same transaction takes
 the cover off, with the facilitator record's entries it wrote (`how: cover`),
 and the change's history row says who had been covering; a pace change, which
 writes no row of its own, writes a `register-cover-removed` row
 (`src/lib/courses/registerCover/moves.ts`). Cancelling and keeping pace moves
-nothing, so the cover stays.
+nothing, so the cover stays. The preview of a one-week change, of a new
+regular time and of It didn't happen on a finished column says so first, in
+one Cover line holding a sentence for each ("Ola Example's cover of week 4's
+session ends: the session moves. Give it again if they can still take it."),
+from `coversEndLines`, which asks the press's own `coversOffOf` of the same
+registers, so the person pressing knows to tell whoever was given the
+session. A group's own pace has no preview.
 
 An admin's or a lead's FIRST LINE on a register nobody covered and none of its
 facilitators has started stamps the same cover in the same write, so a

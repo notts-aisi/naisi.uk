@@ -12,7 +12,7 @@ import { answerPiece, answerState, instantOf, isWordCountedAnswer, readWrittenAn
 import { lateBy, type WeekDue } from "@/lib/courses/weekWork/model";
 import { loadRunWeekStates, type RunWeekStates } from "@/lib/courses/weekWork/readers";
 import { lastSentAt, readPieceFacts, readableAnswer, sameWords, versionAtSession, type PieceFacts } from "@/lib/courses/weekWork/versions";
-import { liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
+import { facilitatingOnRunOf, liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
 import { workKey, type PersonAnswerWrite, type PersonWork, type PersonWrites, type WrittenBox } from "@/lib/courses/coursework/model";
 import { readRunFeedback } from "@/lib/courses/feedback/readers";
 import type { CourseFeedbackDoc } from "@/lib/firestore/courseFeedback";
@@ -52,9 +52,11 @@ import { askedThenFor, writtenAtOf } from "@/lib/courses/weekEdit/askedThen";
  *    only for a viewer who reads private notes (the group's facilitators and
  *    admins), only for the people whose notes that viewer reads.
  *
- * Every query is equalities on (runId, weekNumber), served by the declared
- * composites that start with those two fields. Nothing here writes, and no
- * row leaves here whole: the pages are handed names, words and counts.
+ * Every query of the week's rows is equalities on (runId, weekNumber), served
+ * by the declared composites that start with those two fields; the run's live
+ * groups, which say whose work is a facilitator's own (`facilitatingOnRunOf`),
+ * are one equality on the run. Nothing here writes, and no row leaves here
+ * whole: the pages are handed names, words and counts.
  */
 
 /** The week a group's facilitators are getting ready for: the week of its next session, or of its last once all are over. */
@@ -289,10 +291,10 @@ export async function loadGroupWeek(
   const { run, group, model, viewer, now } = input;
   const at = weekOfGroup(run, group, now);
   if (!at) return null;
-  const week = await blockWeekOf(db, run.id, group.id, at.weekNumber);
+  const [week, liveGroups] = await Promise.all([blockWeekOf(db, run.id, group.id, at.weekNumber), liveGroupsOf(db, run.id)]);
   if (!week) return null;
 
-  const people = peopleShown(viewer, model.people, model.facilitators);
+  const people = peopleShown(viewer, model.people, model.facilitators, facilitatingOnRunOf(group, liveGroups));
   const parts = reflectionPartsOf(week.blocks);
   const sources = tickedSourcesOf(week);
   const shown = new Set(people.map((person) => person.uid));
@@ -535,10 +537,10 @@ export async function loadNamedReflections(
 ): Promise<NamedReflectionsWeek | null> {
   const { run, group, model, viewer, weekNumber, withOwn } = input;
   const now = input.now ?? new Date();
-  const week = await blockWeekOf(db, run.id, group.id, weekNumber);
+  const [week, liveGroups] = await Promise.all([blockWeekOf(db, run.id, group.id, weekNumber), liveGroupsOf(db, run.id)]);
   if (!week) return null;
 
-  const people = peopleShown(viewer, model.people, model.facilitators);
+  const people = peopleShown(viewer, model.people, model.facilitators, facilitatingOnRunOf(group, liveGroups));
   const fellows = people.filter((person) => !person.own);
   const own = withOwn && seesFacilitatorsOwnWork(viewer) ? people.filter((person) => person.own) : [];
   const parts = reflectionPartsOf(week.blocks);
@@ -546,7 +548,7 @@ export async function loadNamedReflections(
   const [reflections, states] = await Promise.all([
     readNamedReflections(db, run.id, weekNumber, new Set([...fellows, ...own].map((person) => person.uid)), promptIds),
     // The session each person was due at, for how late and the version at it.
-    liveGroupsOf(db, run.id).then((liveGroups) => loadRunWeekStates(db, { run, liveGroups, now })),
+    loadRunWeekStates(db, { run, liveGroups, now }),
   ]);
   // Each prompt's words when each fellow first wrote to it, where it has been reworded since.
   const asked = await askedThenFor(
@@ -854,10 +856,10 @@ export async function loadReadOutWeek(
   },
 ): Promise<ReadOutWeek | null> {
   const { run, group, model, viewer, weekNumber, now } = input;
-  const week = await blockWeekOf(db, run.id, group.id, weekNumber);
+  const [week, liveGroups] = await Promise.all([blockWeekOf(db, run.id, group.id, weekNumber), liveGroupsOf(db, run.id)]);
   if (!week) return null;
 
-  const people = peopleShown(viewer, model.people, model.facilitators);
+  const people = peopleShown(viewer, model.people, model.facilitators, facilitatingOnRunOf(group, liveGroups));
   const fellows = people.filter((person) => !person.own);
   const parts = reflectionPartsOf(week.blocks);
   const promptIds = new Set(parts.flatMap((part) => part.prompts.map((prompt) => prompt.id)));
