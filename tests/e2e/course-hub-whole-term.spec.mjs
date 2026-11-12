@@ -174,6 +174,9 @@ const WORDS = Object.freeze({
   mostWeeks: "Most weeks, not all",
   sendAnswer: "Send",
   savedMostWeeks: "Thanks. You’ve told us you can make it most weeks.",
+  changeAnswer: "Change your answer",
+  untickOnly: "You can untick a week here. To miss another week, press Can’t make it on your next session’s card and ask to be excused.",
+  addLater: "You’ve answered this already, so no week can be added here. To miss another week, press Can’t make it on your next session’s card and ask to be excused.",
   // src/lib/courses/registerCover/pageWords.ts.
   someoneElse: "Someone else is covering",
   takeTheRegister: "Take the register",
@@ -463,17 +466,25 @@ test(
       (await fixtureQuery("courseAudit").where("runId", "==", state.runId).get()).docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
     // ---- The mail ledger ---------------------------------------------------
-    /** What each step said it sends, added up per person. */
-    const ledger = Object.fromEntries(everybody.map((account) => [account.key, 0]));
-    /** Every email the journey caught, read, by person. */
-    const caught = Object.fromEntries(everybody.map((account) => [account.key, []]));
-    const adminMailBefore = (await messagesTo(secrets.adminEmail)).length;
+    /**
+     * Every mailbox the ledger counts: the term's accounts, and the harness's
+     * admin, whom asking to be excused emails (every admin is; this is the one
+     * whose address the harness holds).
+     */
+    const admin = { key: "admin", email: secrets.adminEmail, first: "the admin" };
+    const mailboxes = [...everybody, admin];
+    /** What each step said it sends, added up per mailbox. */
+    const ledger = Object.fromEntries(mailboxes.map((account) => [account.key, 0]));
+    /** Every email the journey caught, read, by mailbox. */
+    const caught = Object.fromEntries(mailboxes.map((account) => [account.key, []]));
 
     async function mailCounts() {
       const out = {};
-      for (const account of everybody) out[account.key] = (await messagesTo(account.email)).length;
+      for (const account of mailboxes) out[account.key] = (await messagesTo(account.email)).length;
       return out;
     }
+    /** Each mailbox before the first press: the ledger counts from here. */
+    const mailAtStart = await mailCounts();
 
     /** Asserts nothing in an email carries the meeting link, in its words or its links. */
     function assertNoMeetingLink(message, who, what) {
@@ -496,10 +507,10 @@ test(
       for (const key of Object.keys(expected)) assert.ok(key in ledger, `${what}: nobody called ${key} is counted`);
       const before = await mailCounts();
       const result = await fn();
-      const want = Object.fromEntries(everybody.map((account) => [account.key, before[account.key] + (expected[account.key] ?? 0)]));
+      const want = Object.fromEntries(mailboxes.map((account) => [account.key, before[account.key] + (expected[account.key] ?? 0)]));
       await waitFor(`${what} to reach ${JSON.stringify(expected)}`, async () => {
         const now = await mailCounts();
-        return everybody.every((account) => now[account.key] >= want[account.key]);
+        return mailboxes.every((account) => now[account.key] >= want[account.key]);
       }).catch(async (err) => {
         throw new Error(`${err.message} Caught: ${JSON.stringify(await mailCounts())}, wanted ${JSON.stringify(want)}.`);
       });
@@ -508,7 +519,7 @@ test(
       const after = await mailCounts();
       assert.deepEqual(after, want, `${what} emailed somebody it should not have, or somebody twice`);
       const fresh = {};
-      for (const account of everybody) {
+      for (const account of mailboxes) {
         const n = after[account.key] - before[account.key];
         // Mailpit lists the newest first.
         const summaries = n > 0 ? (await messagesTo(account.email)).slice(0, n) : [];
@@ -622,6 +633,44 @@ test(
     }
     /** The line of the review queue for one person's answer, by the day it was sent. */
     const queueLineOf = (lines, person, sentAt) => lines.find((line) => line.includes(`${person.first} Sent ${londonDayLabel(sentAt)},`)) ?? null;
+
+    // ---- Asking to be excused ----------------------------------------------
+    /** Before an ask: the Requests page, with the harness admin's email about new requests switched on (on unless somebody switched it off). */
+    async function adminEmailsOn() {
+      const pg = await as("admin");
+      await pg.goto(`${origin}/admin/admissions/requests`, { waitUntil: "domcontentloaded" });
+      const card = pg.getByTestId("requests-email-me");
+      await card.waitFor({ timeout: WAIT_MS });
+      const box = card.getByRole("checkbox");
+      await waitFor("the switch to be live once the page has hydrated", async () => box.isEnabled());
+      if (!(await box.isChecked())) {
+        const [saved] = await Promise.all([responseTo(pg, "/api/courses/requests/emails", "POST"), box.check()]);
+        await okBody(saved, "Switching the email about new requests back on");
+      }
+      assert.equal(await box.isChecked(), true);
+    }
+    /**
+     * The three things a person confirms before asking about a session still
+     * to come, ticked in the order the form asks them: Send stays off until
+     * the last. The middle one is asked only where joining online is a real
+     * choice for that session, which it is for Group A (a room, and a link).
+     */
+    async function confirmInOrder(form) {
+      const send = form.getByTestId("excuse-send");
+      const ticks = [form.getByTestId("excuse-confirm-in-person"), form.getByTestId("excuse-confirm-own-online"), form.getByTestId("excuse-confirm-other-online")];
+      await waitFor("the form to be live once the page has hydrated", async () => ticks[0].isEnabled());
+      for (const tick of ticks) {
+        assert.equal(await send.isDisabled(), true, "Send works before everything is confirmed");
+        await tick.check();
+      }
+      await waitFor("Send to be live once everything is confirmed", async () => send.isEnabled());
+    }
+    /** The admins' word of one ask, as the harness's admin gets it: who and which week, never why or a meeting link, and the way to the request. */
+    function assertAboutTheAsk(message, { person, week, why, requestId }) {
+      assert.match(message.Subject ?? "", new RegExp(`^${person.first}\\b.* asked to be excused from week ${week}(, for (today|tomorrow))?$`), "the admins' email does not say who asked about which week");
+      assert.ok(!(message.HTML ?? "").includes(why) && !(message.Text ?? "").includes(why), "the admins' email carries the reason");
+      assert.ok(hrefUrls(message.HTML ?? "").some((url) => url.endsWith(requestPath(requestId))), "the admins' email does not lead to the request");
+    }
 
     // ---- The story's own record, which the books are held to -------------
     /** Who did which week, when, by the presses and the seed: [person, week] -> "on time" | "late". */
@@ -778,7 +827,7 @@ test(
         });
       });
 
-      await step("the lead changes Group A's regular time from a later week: the weeks that met keep their day and time on the group's page, the fellow's own sessions and the register, and a fellow answers most weeks, not all, naming one week", async () => {
+      await step("the lead changes Group A's regular time from a later week: the weeks that met keep their day and time on the group's page, the fellow's own sessions and the register, and a fellow answers most weeks, not all, naming one week, and later can add no other", async () => {
         const pg = await as(gus);
         const told = [...toldA, fern];
         const { fresh } = await press("Group A's new regular time", eachOf(told), async () => {
@@ -869,6 +918,32 @@ test(
         });
         const week5 = await storedRegister(groupA, MOST_WEEKS_WEEK);
         assert.equal(week5?.records?.[ada.uid], "excused", "week 5's register does not record Ada's word");
+
+        // Later, the same answer takes no week more: the card offers her own tick, to untick, and says to ask.
+        await press("Ada trying to add a week", nobody, async () => {
+          await adaPage.goto(learnUrl, { waitUntil: "domcontentloaded" });
+          const card = adaPage.getByRole("region", { name: WORDS.timeCard, exact: true });
+          const change = card.getByRole("button", { name: WORDS.changeAnswer, exact: true });
+          await change.waitFor({ timeout: WAIT_MS });
+          await waitFor("Change your answer to be live", async () => change.isEnabled());
+          await change.click();
+          await card.getByRole("button", { name: WORDS.mostWeeks, exact: true }).click();
+          await card.getByText(WORDS.untickOnly, { exact: true }).waitFor({ timeout: WAIT_MS });
+          const own = card.getByRole("checkbox", { name: `Week ${MOST_WEEKS_WEEK}, ${dayLabel(onNewDay(MOST_WEEKS_WEEK))}`, exact: true });
+          await own.waitFor({ state: "attached", timeout: WAIT_MS });
+          assert.equal(await own.isChecked(), true, "her own tick is not on the card");
+          const other = card.getByRole("checkbox", { name: `Week ${MOST_WEEKS_WEEK + 1}, ${dayLabel(onNewDay(MOST_WEEKS_WEEK + 1))}`, exact: true });
+          assert.equal(await other.count(), 0, "a week she did not tick is offered to tick");
+          // A tick by hand, as an old page would send it, is refused and says where to ask.
+          const added = await fetchAs(adaPage, `/api/courses/runs/${enc(state.runId)}/time-answer`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ groupId: groupA.id, kind: "mostWeeks", sessionKeys: [weekDocId(MOST_WEEKS_WEEK), weekDocId(MOST_WEEKS_WEEK + 1)] }),
+          });
+          assert.equal(added.status, 409, `adding a week answered ${added.status}: ${added.text.slice(0, 300)}`);
+          assert.ok(String(added.body?.error ?? "").endsWith(WORDS.addLater), JSON.stringify(added.body));
+        });
+        assert.equal((await storedRegister(groupA, MOST_WEEKS_WEEK + 1))?.records?.[ada.uid], undefined, "a refused tick wrote a line");
       });
 
       // ======================================================================
@@ -1219,10 +1294,11 @@ test(
       // D. EXCUSED
       // ======================================================================
 
-      await step("a fellow asks to be excused from their next session with a reason: the facilitator's register says they asked and nothing else, and the lead's Requests page does not list it", async () => {
+      await step("a fellow confirms they can't take part another way and asks to be excused from their next session with a reason: the admins alone are emailed, the facilitator's register says they asked and nothing else, and the lead's Requests page does not list it", async () => {
+        await adminEmailsOn();
         const benPage = await as(ben);
         const nextDay = dayLabel(movedDateKey);
-        await press("Ben asking to be excused", nobody, async () => {
+        const { fresh } = await press("Ben asking to be excused", { admin: 1 }, async () => {
           await benPage.goto(learnUrl, { waitUntil: "domcontentloaded" });
           const ticket = benPage.getByRole("region", { name: WORDS.ticket, exact: true });
           const open = ticket.getByTestId("excuse-open");
@@ -1232,18 +1308,26 @@ test(
           await open.click();
           const sheet = benPage.getByTestId("excuse-sheet");
           await sheet.waitFor({ timeout: WAIT_MS });
-          const instead = sheet.getByTestId("excuse-ask-instead");
-          if ((await instead.count()) > 0) await instead.click();
           const form = sheet.getByTestId("excuse-ask-form");
           await form.waitFor({ timeout: WAIT_MS });
           const box = form.getByRole("checkbox", { name: `Week ${MOVED_WEEK} · ${nextDay}`, exact: true });
           assert.equal(await box.isChecked(), true, "the week the card is about is not ticked");
           await form.getByTestId("excuse-reason").fill(WHY.benExcused);
+          await confirmInOrder(form);
           const [asked] = await Promise.all([responseTo(benPage, `/groups/${groupA.id}/excused`, "POST"), form.getByTestId("excuse-send").click()]);
-          assert.deepEqual(asked.request().postDataJSON(), { sessionKeys: [weekDocId(MOVED_WEEK)], reason: WHY.benExcused });
+          assert.deepEqual(asked.request().postDataJSON(), {
+            sessionKeys: [weekDocId(MOVED_WEEK)],
+            reason: WHY.benExcused,
+            inPerson: true,
+            ownOnline: true,
+            otherOnline: true,
+          });
           excusedRequestId = (await okBody(asked, "Asking to be excused")).request.id;
           await sheet.waitFor({ state: "detached", timeout: WAIT_MS });
         });
+        assertAboutTheAsk(fresh.admin[0], { person: ben, week: MOVED_WEEK, why: WHY.benExcused, requestId: excusedRequestId });
+        const stored = (await fixtureDoc("courseRequests", excusedRequestId).get()).data();
+        assert.deepEqual([stored?.confirmed?.inPerson, stored?.confirmed?.ownOnline, stored?.confirmed?.otherOnline], [true, true, true], "the request does not keep what he confirmed");
 
         // The facilitator's register: that he asked, and nothing else.
         const fernPage = await as(fern);
@@ -1305,20 +1389,24 @@ test(
         });
       });
 
-      await step("a fellow marked absent on a finished register asks about that week, and the admin approves it: absent becomes excused", async () => {
+      await step("a fellow marked absent on a finished register asks about that week, confirming nothing about a session past, the admins alone are told, and the admin approves it: absent becomes excused, which the facilitator and the lead read as set by an approved request", async () => {
         const danPage = await as(dan);
-        await press("Dan asking about week 2", nobody, async () => {
+        const { fresh: toldOfDan } = await press("Dan asking about week 2", { admin: 1 }, async () => {
           await danPage.goto(learnUrl, { waitUntil: "domcontentloaded" });
           const card = danPage.getByTestId("excuse-last-session");
           await card.waitFor({ timeout: WAIT_MS });
           const said = await textOf(card);
           assert.ok(said.includes(`Last session · week ${TAKEN_WEEK}`) && said.includes("Absent"), `the last session's card: ${said}`);
+          // A session already past: none of the three is asked.
+          assert.equal(await card.getByTestId("excuse-confirm-in-person").count(), 0, "a tick about a session already past");
           await card.getByTestId("excuse-reason").fill(WHY.danExcused);
           const send = card.getByTestId("excuse-send");
           await waitFor("Send to be live", async () => send.isEnabled());
           const [asked] = await Promise.all([responseTo(danPage, `/groups/${groupA.id}/excused`, "POST"), send.click()]);
+          assert.deepEqual(asked.request().postDataJSON(), { sessionKeys: [weekDocId(TAKEN_WEEK)], reason: WHY.danExcused, inPerson: false, ownOnline: false, otherOnline: false });
           pastRequestId = (await okBody(asked, "Asking after the session")).request.id;
         });
+        assertAboutTheAsk(toldOfDan.admin[0], { person: dan, week: TAKEN_WEEK, why: WHY.danExcused, requestId: pastRequestId });
         const pg = await as("admin");
         await press("approving Dan's week 2", eachOf([dan, fern, ivo]), async () => {
           await pg.goto(`${origin}${requestPath(pastRequestId)}`, { waitUntil: "domcontentloaded" });
@@ -1329,6 +1417,20 @@ test(
         });
         const register = await storedRegister(groupA, TAKEN_WEEK);
         assert.deepEqual([register?.records?.[dan.uid], register?.setBy?.[dan.uid]?.how, Boolean(register?.corrected?.[dan.uid])], ["excused", "approval", true]);
+
+        // Who set the line: an approved request, with no name and no time, for the facilitator and the lead; who and when for an admin.
+        for (const [reader, path] of [
+          [fern, `${learnRegisterPath(groupA)}?session=${weekDocId(TAKEN_WEEK)}`],
+          [gus, `${groupPagePath(groupA)}/register?session=${weekDocId(TAKEN_WEEK)}`],
+          ["admin", `${groupPagePath(groupA)}/register?session=${weekDocId(TAKEN_WEEK)}`],
+        ]) {
+          const readerPage = await as(reader);
+          await readerPage.goto(`${origin}${path}`, { waitUntil: "domcontentloaded" });
+          await readerPage.getByTestId("attendance-grid").waitFor({ timeout: WAIT_MS });
+          const stamp = await textOf(rowOf(readerPage, dan).getByTestId("attendance-set-by").last());
+          if (reader === "admin") assert.match(stamp, /^(Set by you|\S+’s approval), \d{1,2}(:\d{2})?(am|pm)$/, `the admin is not told who approved Dan's line, and when: ${stamp}`);
+          else assert.equal(stamp, "Set by an approved request", `${reader.first} is told more than that an approved request set Dan's line`);
+        }
       });
 
       // ======================================================================
@@ -1832,19 +1934,38 @@ test(
         assert.deepEqual([saves[2].told?.audience, saves[2].told?.count], ["started", startedWeek3.length], "the week's history does not say who was told");
       });
 
-      await step("every person's mail adds up to what each step sent, no email holds a meeting link, and nobody outside the term got anything", async () => {
+      await step("every person's mail adds up to what each step sent, no email holds a meeting link or a reason for being excused, and nobody outside the term got anything but the admins' word of each ask", async () => {
         const totals = await mailCounts();
-        assert.deepEqual(totals, ledger, `the mail caught is not what the steps sent: ${JSON.stringify(caught)}`);
-        for (const account of everybody) {
-          for (const summary of await messagesTo(account.email)) assertNoMeetingLink(await getMessage(summary.ID), account.first, summary.Subject ?? "an email");
-        }
-        assert.equal((await messagesTo(secrets.adminEmail)).length, adminMailBefore, "the admin, who is outside the term, was emailed");
+        const sinceStart = Object.fromEntries(mailboxes.map((account) => [account.key, totals[account.key] - mailAtStart[account.key]]));
+        assert.deepEqual(sinceStart, ledger, `the mail caught is not what the steps sent: ${JSON.stringify(caught)}`);
+        // Every send about the term, by the run and its groups: to the term's
+        // own addresses, or the admins' word of a request (`course-request`),
+        // which goes to every admin and to nobody else.
         const ours = new Set(everybody.map((account) => account.email.toLowerCase()));
         const about = [];
         for (const id of [state.runId, groupA.id, groupB.id]) {
           for (const doc of (await fixtureQuery("emailSends").where("referenceId", "==", id).get()).docs) about.push(doc.data());
         }
-        for (const row of about) assert.ok(ours.has(String(row.to ?? "").toLowerCase()), `a send about the term went to an address outside it (${row.kind ?? "?"})`);
+        const outside = new Set();
+        for (const row of about) {
+          const to = String(row.to ?? "").toLowerCase();
+          if (ours.has(to)) continue;
+          assert.equal(row.kind, "course-request", `a send about the term went to an address outside it (${row.kind ?? "?"})`);
+          outside.add(to);
+        }
+        assert.ok(outside.has(admin.email.toLowerCase()), "the admins' word of an ask is not in the send log for the harness's admin");
+        // Every email the run caught, the other admins' among them: no meeting
+        // link, and never the reason anybody gave for being excused.
+        const addresses = [...mailboxes.map((account) => account.email), ...[...outside]];
+        for (const address of new Set(addresses.map((each) => each.toLowerCase()))) {
+          for (const summary of await messagesTo(address)) {
+            const message = await getMessage(summary.ID);
+            assertNoMeetingLink(message, address, summary.Subject ?? "an email");
+            for (const reason of [WHY.benExcused, WHY.danExcused]) {
+              assert.ok(!(message.HTML ?? "").includes(reason) && !(message.Text ?? "").includes(reason), `an email to ${address} (${summary.Subject}) carries a reason for being excused`);
+            }
+          }
+        }
         assert.equal(WHOLE_TERM_STEPS.length, SPEC.steps.length);
       });
     } finally {

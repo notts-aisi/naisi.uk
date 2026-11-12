@@ -59,7 +59,7 @@ export const WHOLE_TERM_STEPS = [
   "the admin names the running course run and the programme's lead on the Settings tab, and hands its people over",
   "the admin appoints two facilitators to Group A, one of them holding a place in it, and one to Group B",
   "the facilitator moves one coming week from her group's page, reading the preview and its count first, with the notice on: the group alone is emailed, once each, with no meeting link, and a fellow reads the new time",
-  "the lead changes Group A's regular time from a later week: the weeks that met keep their day and time on the group's page, the fellow's own sessions and the register, and a fellow answers most weeks, not all, naming one week",
+  "the lead changes Group A's regular time from a later week: the weeks that met keep their day and time on the group's page, the fellow's own sessions and the register, and a fellow answers most weeks, not all, naming one week, and later can add no other",
   "the lead takes a passed week's register in the facilitators' place, marks every line, one of them wrongly, and finishes it, and the facilitator reads who took it",
   "the admin gives the other group's coming session to the committee member, who is emailed once, opens that one register and is refused the rest of the group; the member on no programme cannot be chosen",
   "the facilitator asks for a correction of the wrong line with a reason, the lead approves it from the Requests page, the fellow reads corrected with the day and another fellow nothing, and nobody is emailed",
@@ -67,16 +67,16 @@ export const WHOLE_TERM_STEPS = [
   "one fellow does week 3 before its session and another does week 2 after its session, and the facilitator and the lead read the second as late, with how late, and the on time ones as on time",
   "the second facilitator does their own week late: the lead and the admin read it, the facilitator of the group they sit in is shown nothing of it, and it is in no count",
   "the facilitator reads who has done week 1 and reminds by hand: only the fellows whose week is not done are emailed, once each, with no meeting link, and one of them finishes it and is offered no reminder",
-  "a fellow asks to be excused from their next session with a reason: the facilitator's register says they asked and nothing else, and the lead's Requests page does not list it",
+  "a fellow confirms they can't take part another way and asks to be excused from their next session with a reason: the admins alone are emailed, the facilitator's register says they asked and nothing else, and the lead's Requests page does not list it",
   "the admin approves it with a reply: the fellow is emailed once and the group's facilitators once each without the reason, and the register's line says excused",
-  "a fellow marked absent on a finished register asks about that week, and the admin approves it: absent becomes excused",
+  "a fellow marked absent on a finished register asks about that week, confirming nothing about a session past, the admins alone are told, and the admin approves it: absent becomes excused, which the facilitator and the lead read as set by an approved request",
   "the lead fixes the title of a reading a fellow ticked and then its link, and tells the people who have started the week: the count on the button is the emails caught, none to the lead and none with a meeting link, and the tick stays",
   "the lead rewords a question a fellow answered: the fellow reads their answer under the wording they answered, and the facilitator reads the question as it was when the answer was written",
   "the lead restores the week's first version from its history, and every tick and answer is still there",
   "every fellow's attendance reads the same on their own page, the facilitator's register, the group's page, the Attendance tab and the Overview",
   "every week's work reads the same on the fellow's own week page, the group's week card, the page of the week's work, the Coursework tab and one person's page",
   "the group's history lists every change of the time, the register and being excused in the order made, with who and when and no reason for being excused, and the week's history lists every save",
-  "every person's mail adds up to what each step sent, no email holds a meeting link, and nobody outside the term got anything",
+  "every person's mail adds up to what each step sent, no email holds a meeting link or a reason for being excused, and nobody outside the term got anything but the admins' word of each ask",
 ];
 
 /**
