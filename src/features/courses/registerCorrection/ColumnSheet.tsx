@@ -148,7 +148,9 @@ export default function ColumnSheet({
     ? P.columnButtonWords({ way: kind, weekNumber: session.weekNumber, lines: count, toWeek, tell: tell && canTell, emails })
     : P.SAVE_THE_CORRECTION;
 
-  async function press() {
+  // A press that went through closes the sheet through history (`close`, the
+  // Modal's dismiss), so it leaves no entry behind for Back to stop on.
+  async function press(close: () => void) {
     if (!session || !kind || !ready) return;
     setBusy(true);
     setProblem(null);
@@ -175,6 +177,7 @@ export default function ColumnSheet({
       return;
     }
     const done = P.columnDoneWords(kind, session.weekNumber, count, toWeek);
+    close();
     const update = pressed.body?.update as { groupId: string; title: string; message: string; emailCount: number } | null | undefined;
     if (kind === "did-not-happen" && update && runId) {
       const posted = await postGroupNotice(runId, update);
@@ -369,7 +372,7 @@ export default function ColumnSheet({
           )}
 
           <div className={styles.actions}>
-            <Button onClick={() => void press()} disabled={!ready}>
+            <Button onClick={() => void press(dismiss)} disabled={!ready}>
               {busy ? P.SAVING : button}
             </Button>
             <Button variant="secondary" onClick={dismiss} disabled={busy}>
