@@ -553,12 +553,13 @@ const READERS = {
     kind: "writer",
     proof: [
       'if (seat.role !== "learner" || seat.groupId !== group.id || !placementIsTold(seat)) continue;',
-      "writeTakenBack(tx, { session, ref, data, state }, seat.uid);",
+      "if (writeTakenBack(tx, { session, ref, data, state }, seat.uid)) takenBack += 1;",
     ],
     told: 1,
     why:
       "a new regular time from a week onwards, behind the route's gate (admins, the programme's lead and the run's " +
-      "track leads): each told fellow's \"Most weeks, not all\" ticks on the old time are taken back on the registers, " +
+      "track leads): each told fellow's \"Most weeks, not all\" ticks on the old time are taken back on the registers " +
+      "(never a line an admin's approval of a request to be excused wrote, which the one take-back write leaves alone), " +
       "and a seat Publish has not told is left as it is, since it was never asked. It shows nobody anything",
   },
   "lib/courses/groupFacilitators.ts": {
