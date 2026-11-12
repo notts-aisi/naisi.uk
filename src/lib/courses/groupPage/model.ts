@@ -287,6 +287,30 @@ export function oneWeekButtonWords(kind: OneWeekKind, weekNumber: number, emails
   }
 }
 
+/**
+ * The same button before "What will happen" has answered, when nobody yet
+ * knows how many it emails: what happens, and no count. "Move week 2",
+ * "Save the correction", "Change Group A’s time".
+ */
+export function waitingButtonWords(input: { kind: OneWeekKind | null; weekNumber: number | null; metAtAnotherTime: boolean; regular: boolean; groupName: string }): string {
+  if (input.regular) return `Change ${input.groupName}’s time`;
+  if (!input.kind || input.weekNumber === null) return "Change";
+  if (input.metAtAnotherTime) return "Save the correction";
+  const n = input.weekNumber;
+  switch (input.kind) {
+    case "move":
+      return `Move week ${n}`;
+    case "online":
+      return `Hold week ${n} online`;
+    case "cancel":
+      return `Cancel week ${n}`;
+    case "push":
+      return `Cancel week ${n} and push the rest back`;
+    case "restore":
+      return `Put week ${n} back`;
+  }
+}
+
 /** "Change Group A’s time and email 6 people". */
 export function regularButtonWords(groupName: string, emails: number): string {
   return `Change ${groupName}’s time${emailsTail(emails)}`;

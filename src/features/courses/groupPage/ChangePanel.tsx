@@ -20,6 +20,7 @@ import {
   sentWords,
   startTimeOptions,
   toldWho,
+  waitingButtonWords,
   weekAfter,
   type GroupPageView,
   type GroupPageWeek,
@@ -281,8 +282,16 @@ export default function ChangePanel({
     (preview.status === "one" || preview.status === "regular") && !(reasonNeeded && !reason.trim()) && pending === null;
   const off = !hydrated || busy;
 
-  const buttonWords =
-    choice === "regular"
+  // The count is the preview's: until it has answered, the button names what happens and no count.
+  const buttonWords = !told
+    ? waitingButtonWords({
+        kind,
+        weekNumber: week?.weekNumber ?? null,
+        metAtAnotherTime: met && kind === "move",
+        regular: choice === "regular",
+        groupName: view.groupName,
+      })
+    : choice === "regular"
       ? regularButtonWords(view.groupName, buttonEmails)
       : kind && week
         ? oneWeekButtonWords(kind, week.weekNumber, buttonEmails, met && kind === "move")
@@ -500,7 +509,7 @@ export default function ChangePanel({
         />
         <span className={styles.optionText}>
           <span className={styles.optionName}>{W.ROOM_TBC}</span>
-          <span className={styles.optionHint}>{choice === "regular" ? W.ROOM_TBC_HINT : W.OR_TICK_TBC}</span>
+          {choice === "regular" && <span className={styles.optionHint}>{W.ROOM_TBC_HINT}</span>}
         </span>
       </label>
     </>

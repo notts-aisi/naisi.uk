@@ -1498,9 +1498,19 @@ test(
           },
           "the change's answer",
         );
+        // Posted with `withFacilitators`, as the change answered: a change to the
+        // group's sessions reaches its facilitators too (never the presser).
         assert.deepEqual(
           posted.request().postDataJSON(),
-          { to: "group", groupId: facilitated.id, title: UPDATE.title, message: UPDATE.message, email: true, emailCount: inGroup.length },
+          {
+            to: "group",
+            groupId: facilitated.id,
+            title: UPDATE.title,
+            message: UPDATE.message,
+            email: true,
+            emailCount: inGroup.length,
+            withFacilitators: true,
+          },
           "the update did not go to the group with the count on the button",
         );
         const postedBody = await okBody(posted, "Telling the group");

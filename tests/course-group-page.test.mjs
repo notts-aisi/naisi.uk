@@ -212,6 +212,13 @@ describe("1. the arithmetic of a group's page", () => {
     assert.equal(model.regularButtonWords("Group A", 0), "Change Group A’s time (emails nobody)");
     assert.equal(model.roomButtonWords(6), "Save the room and email 6 people");
     assert.equal(words.tellAgainWords(7), "Tell the group and email 7 people");
+    // Before What will happen has answered, nobody knows the count: the button names what happens and no number.
+    const waiting = (over) => model.waitingButtonWords({ kind: "move", weekNumber: 2, metAtAnotherTime: false, regular: false, groupName: "Group A", ...over });
+    assert.equal(waiting({}), "Move week 2");
+    assert.equal(waiting({ metAtAnotherTime: true }), "Save the correction");
+    assert.equal(waiting({ kind: "restore" }), "Put week 2 back");
+    assert.equal(waiting({ regular: true }), "Change Group A’s time");
+    assert.equal(waiting({ kind: null }), "Change");
   });
 
   test("which one-week choices a week offers: a passed week with no register is put right; a week that met offers none", () => {

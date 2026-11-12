@@ -369,7 +369,6 @@ export const ROOM_FIELD = "Room";
 export const CAMPUS_FIELD = "Campus";
 export const ROOM_TBC = "Room to be confirmed";
 export const ROOM_TBC_HINT = "People see “Room to be confirmed” until you set it. Setting it later emails the group.";
-export const OR_TICK_TBC = "Or tick Room to be confirmed.";
 export const KEEP_GROUP_CAMPUS = "The group’s own";
 
 export const REASON_NEEDED = "Reason, shown to the group (needed)";
