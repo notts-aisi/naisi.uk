@@ -66,6 +66,7 @@ import {
   tick,
 } from "./lib/facilitatorWeekWorld.mjs";
 import { enrolment } from "./lib/hubAttendanceWorld.mjs";
+import { C } from "./lib/facilitatorPagesWorld.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 const inSrc = (path) => relative(SRC, path).split(sep).join("/");
@@ -852,6 +853,47 @@ describe("7b. somebody who facilitates another group of the run and holds a plac
       if (seen.includes(TOM_NOTE)) out.notes.push(who ?? "signed out");
     }
     assert.deepEqual(out, { ticks: ["zach", "claudia"], reflections: ["zach", "claudia"], notes: ["zach"] });
+  });
+
+  test("once the group he facilitates is archived he facilitates nothing live, and reads as one of Group B's fellows again", async () => {
+    reset(tomSeed());
+    world.db.poke(`courseGroups/${C}`, { archived: true });
+    for (const who of ["rahul", "sofia"]) {
+      const week = weekOf(await groupPage(who));
+      const tom = week.rows.find((row) => row.uid === "tom");
+      assert.ok(tom && tom.own === false, `${who} is not shown Tom as a fellow`);
+      assert.deepEqual(tom.written, [true, false, false], who);
+      assert.equal(week.of, 4, who);
+      assert.deepEqual(week.counts.map((count) => [count.number, count.written, count.of]), [[1, 3, 4], [2, 1, 4], [3, 0, 4]], who);
+      assert.ok(week.sources[1].ticked.some((person) => person.uid === "tom" && !person.own), `${who} is not shown Tom's tick`);
+      assert.ok(notesOf(week)[1][1].some(([, text]) => text === TOM_NOTE), `${who} is not shown Tom's note, a fellow's`);
+    }
+    const named = namedOf(await namedReflectionsPage("rahul"));
+    assert.ok(named.prompts[0].answers.some((answer) => answer.text === TOM_SAID["k3-rp1"]), "Tom's reflection is not among the fellows'");
+  });
+
+  test("somebody listed among Group B's facilitators without the standing the role needs, who holds a place, is still no fellow of it", async () => {
+    // Rahul is listed and holds a place; his account no longer stands, so the group's
+    // facilitators the page draws leave him out, and the run's set still names him.
+    reset(tomSeed());
+    world.db.poke("users/rahul", { role: "rejected" });
+    for (const who of ["sofia"]) {
+      const week = weekOf(await groupPage(who));
+      assert.deepEqual(week.rows.map(said), ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"], who);
+      assert.equal(week.of, 3, who);
+      for (const text of Object.values(SAID.rahul)) assert.ok(!JSON.stringify(week).includes(text), `${who} is handed Rahul's work`);
+    }
+    const asAdmin = weekOf(await groupPage("zach"));
+    // Sofia comes first as the one standing facilitator; Rahul after her, from his place, by the run's set.
+    assert.deepEqual(asAdmin.rows.map(said), [
+      "Chloe Nguyen",
+      "Farah Hussain",
+      "Kofi Asante",
+      "Sofia Rossi (facilitator)",
+      "Rahul Mehta (facilitator)",
+      "Tom Fletcher (facilitator)",
+    ]);
+    assert.equal(asAdmin.of, 3);
   });
 
   test("the written answers' review asks the same rule: his answer is the lead's and admins' to review, never Group B's facilitators'", async () => {
