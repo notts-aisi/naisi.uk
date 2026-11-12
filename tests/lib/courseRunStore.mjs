@@ -30,6 +30,9 @@ function wrapQuery(inner, max) {
     isQuery: true,
     where: (...args) => wrapQuery(inner.where(...args), max),
     select: (...args) => wrapQuery(inner.select(...args), max),
+    // The store's own ordered read (one field, as a declared index serves it),
+    // for a group's history read newest first off the run's rows.
+    orderBy: (...args) => wrapQuery(inner.orderBy(...args), max),
     limit: (n) => wrapQuery(inner, n),
     get: async () => {
       const found = await inner.get();

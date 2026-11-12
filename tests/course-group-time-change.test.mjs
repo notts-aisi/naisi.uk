@@ -1,0 +1,622 @@
+/**
+ * One way to change a group's time: one week (put right after it met, its own
+ * length and campus, a room still to book, put back as usual), a new regular
+ * time from a week onwards, a room the group is told about, and the group's
+ * history every one of them writes.
+ *
+ * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
+ *
+ *   POST /api/courses/groups/[groupId]/session/change
+ *   POST /api/courses/groups/[groupId]/session/regular
+ *   PUT  /api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room
+ *
+ * ## What this guards
+ *
+ *  1. A SESSION WHOSE TIME HAS PASSED is put right while its register has not
+ *     been taken: moved to when it met (which may be in the past), moved to a
+ *     time to come, cancelled. Held online and put back as usual are refused,
+ *     and so is anything once the register was taken (finished, marked, or
+ *     said not to have happened). A register holding only words in advance
+ *     is not taken, and its `sessionAt` follows the session.
+ *  2. A WEEK'S OWN LENGTH, CAMPUS AND A ROOM STILL TO BOOK.
+ *  3. PUT IT BACK AS USUAL only for a real one-week change, keeping the
+ *     week's own link and notes; a pinned week has nothing to put back.
+ *  4. THE PREVIEW changes nothing and says who would be told.
+ *  5. A NEW REGULAR TIME pins every earlier week to when it met, re-dates the
+ *     rest, keeps a later week's own change, asks the time question again,
+ *     takes back "Most weeks, not all" ticks on the old time and nothing else,
+ *     and is the people's who run the programme only. Earlier weeks resolve
+ *     exactly as they did, which is what keeps every record right if this is
+ *     ever reverted.
+ *  6. THE NOTICES reach the group's told people and its facilitators, never
+ *     the presser, with the count on the button checked first, and never a
+ *     meeting link.
+ *  7. HISTORY: every press writes one row, with what changed, what it was,
+ *     the reason and how many were emailed.
+ */
+import { beforeEach, describe, test } from "node:test";
+import assert from "node:assert/strict";
+import { render } from "@react-email/render";
+import { AGI, AWAY, B, LINK, NOW, ROUND, RUN, TUE_24, makeSessionsWorld } from "./lib/sessionsWorld.mjs";
+
+const w = await makeSessionsWorld("__groupTimeChange");
+const { world, ask, group, sessionsOf, reset, at, loadTs, everything } = w;
+const regular = await w.courseRoute("groups", "[groupId]", "session", "regular");
+const roomRoute = await w.formRoute("programmes", "[programmeId]", "groups", "[groupId]", "room");
+const timeAnswer = await loadTs("lib/courses/timeAnswer/model.ts");
+const groupsLib = await loadTs("lib/firestore/courseGroups.ts");
+const words = await loadTs("lib/courses/sessionChange/words.ts");
+
+beforeEach(() => reset());
+
+const silently = (body) => ({ reason: AWAY, ...body, tell: false });
+const weekOf = (n, groupId = B) => sessionsOf(groupId).find((s) => s.weekNumber === n && s.occurrence === 1);
+const startOf = (n) => w.sessionsLib.sessionInstants(weekOf(n)).startsAt?.toISOString() ?? null;
+const registerPath = (n) => `courseAttendance/${RUN.agi}__${B}__w${String(n).padStart(2, "0")}`;
+const auditRows = (kind) =>
+  world.db
+    .paths()
+    .filter((path) => path.startsWith("courseAudit/"))
+    .map((path) => world.db.read(path))
+    .filter((row) => !kind || row.kind === kind);
+const askRegular = (who, body, options = {}) =>
+  w.call(who, regular.POST, { groupId: B }, { body, course: true, ...options });
+
+/** Week 3 (Tue 17 Nov, 6pm) has passed at `NOW`; nobody took its register. */
+const WEEK3 = { week: 3, dateKey: "2026-11-17" };
+
+// ---------------------------------------------------------------------------
+// 1. A session whose time has passed
+// ---------------------------------------------------------------------------
+
+describe("1. a session whose time has passed, and nobody took its register", () => {
+  test("it met at another time: recorded in the past, nobody told, and the history keeps why", async () => {
+    const before = startOf(3);
+    const response = await ask.change(
+      "claudia",
+      B,
+      silently({
+        ...WEEK3,
+        kind: "move",
+        metAtAnotherTime: true,
+        reason: "Rahul’s train was cancelled, so the group met the next morning.",
+        move: { dateKey: "2026-11-18", time: "10am", room: "George Green A04" },
+      }),
+    );
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.equal(response.body.update, null, "nobody is told unless the press asks");
+    assert.deepEqual(world.db.read(`courseGroups/${B}`).sessionOverrides.w03, {
+      weekday: 3,
+      startTimeLocal: "10:00",
+      location: "George Green A04",
+    });
+    assert.notEqual(startOf(3), before);
+    assert.equal(startOf(3), "2026-11-18T10:00:00.000Z");
+    const [row] = auditRows("session-put-right");
+    assert.equal(row.weekId, "w03");
+    assert.equal(row.emailed, 0);
+    assert.equal(row.reason, "Rahul’s train was cancelled, so the group met the next morning.");
+    assert.equal(
+      row.detail,
+      "Recorded week 3 as met on Wed 18 Nov, 10am, George Green A04. Before: Tue 17 Nov, 6pm, Hallward B12. " +
+        "Reason: Rahul’s train was cancelled, so the group met the next morning. Nobody was emailed.",
+    );
+    assert.deepEqual([row.before.dateKey, row.before.startTimeLocal, row.after.dateKey, row.after.startTimeLocal], [
+      "2026-11-17",
+      "18:00",
+      "2026-11-18",
+      "10:00",
+    ]);
+  });
+
+  test("it met at another time refuses a time still to come, and a session still to come", async () => {
+    at("2026-11-17T19:00:00Z");
+    const before = everything();
+    const later = await ask.change(
+      "claudia",
+      B,
+      silently({ ...WEEK3, kind: "move", metAtAnotherTime: true, move: { dateKey: "2026-11-18", time: "10am", room: "Hallward B12" } }),
+    );
+    assert.deepEqual([later.status, later.body.error], [400, words.REFUSAL.metInFuture]);
+    const ahead = await ask.change(
+      "claudia",
+      B,
+      silently({ week: 4, dateKey: TUE_24, kind: "move", metAtAnotherTime: true, move: { dateKey: "2026-11-23", time: "6pm", room: "Hallward B12" } }),
+    );
+    assert.deepEqual([ahead.status, ahead.body.error], [400, words.REFUSAL.notMetYet]);
+    assert.equal(everything(), before);
+  });
+
+  test("it hasn't met yet: moved to a time to come, as a move", async () => {
+    at("2026-11-17T19:00:00Z");
+    const response = await ask.change(
+      "rahul",
+      B,
+      silently({ ...WEEK3, kind: "move", move: { dateKey: "2026-11-18", time: "6pm", room: "Hallward B12" } }),
+    );
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.equal(auditRows("session-moved").length, 1);
+  });
+
+  test("cancelled after the fact, keeping pace", async () => {
+    const response = await ask.change("claudia", B, silently({ ...WEEK3, kind: "cancel" }));
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.equal(weekOf(3).cancelled, true);
+    assert.equal(auditRows("session-cancelled").length, 1);
+  });
+
+  test("held online and put back as usual are refused once its time has passed", async () => {
+    world.db.poke(`courseGroups/${B}`, { "session.meetingUrl": LINK });
+    const before = everything();
+    const online = await ask.change("claudia", B, silently({ ...WEEK3, kind: "online" }));
+    assert.deepEqual([online.status, online.body.error], [409, words.REFUSAL.startedOnline]);
+    const back = await ask.change("claudia", B, silently({ ...WEEK3, kind: "restore" }));
+    assert.deepEqual([back.status, back.body.error], [409, words.REFUSAL.startedRestore]);
+    assert.equal(everything(), before);
+  });
+
+  for (const [what, register] of [
+    ["finished", { pushedAt: new Date("2026-11-17T21:00:00Z") }],
+    ["marked", { markedByUid: "rahul", records: { amara: "present" } }],
+    ["said not to have happened", { held: false }],
+  ]) {
+    test(`a register ${what} means it met: every kind is refused, and nothing is written`, async () => {
+      world.db.seed(registerPath(3), { runId: RUN.agi, groupId: B, weekNumber: 3, ...register });
+      const before = everything();
+      for (const body of [
+        { kind: "cancel" },
+        { kind: "push" },
+        { kind: "move", move: { dateKey: "2026-11-18", time: "10am", room: "Hallward B12" } },
+        { kind: "move", metAtAnotherTime: true, move: { dateKey: "2026-11-18", time: "10am", room: "Hallward B12" } },
+      ]) {
+        const response = await ask.change("zach", B, silently({ ...WEEK3, ...body }));
+        assert.deepEqual([response.status, response.body.error], [409, words.REFUSAL.met], JSON.stringify(body));
+      }
+      assert.equal(everything(), before);
+    });
+  }
+
+  test("a register holding only words in advance is not taken, and its stored start follows the session", async () => {
+    world.db.seed(registerPath(3), {
+      runId: RUN.agi,
+      groupId: B,
+      weekNumber: 3,
+      occurrence: 1,
+      records: { amara: "excused" },
+      excusedInAdvance: { amara: new Date("2026-11-10T09:00:00Z") },
+      onlineSaid: { ines: new Date("2026-11-10T09:00:00Z") },
+      sessionAt: new Date("2026-11-17T18:00:00Z"),
+    });
+    const response = await ask.change(
+      "claudia",
+      B,
+      silently({ ...WEEK3, kind: "move", metAtAnotherTime: true, move: { dateKey: "2026-11-16", time: "5pm", room: "Hallward B12" } }),
+    );
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    const register = world.db.read(registerPath(3));
+    assert.equal(new Date(register.sessionAt).toISOString(), "2026-11-16T17:00:00.000Z");
+    assert.deepEqual(register.records, { amara: "excused" }, "the words in advance stay");
+  });
+
+  test("a move keeps the week's seven days, in the refusal's own words", async () => {
+    const response = await ask.change(
+      "claudia",
+      B,
+      silently({ ...WEEK3, kind: "move", metAtAnotherTime: true, move: { dateKey: "2026-11-19", time: "8am", room: "Hallward B12" } }),
+    );
+    assert.deepEqual([response.status, response.body.error], [400, "Choose a day in week 3, from Thu 12 to Wed 18 Nov."]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2. A week's own length, campus, and a room still to book
+// ---------------------------------------------------------------------------
+
+describe("2. a week's own length, campus, and a room still to book", () => {
+  const MOVE = { week: 4, dateKey: TUE_24, kind: "move" };
+
+  test("the length and the campus are the week's own, and the notice names the campus", async () => {
+    const response = await ask.change("claudia", B, {
+      ...MOVE,
+      reason: AWAY,
+      tell: true,
+      emailCount: await w.changeEmailsFor(B, "claudia"),
+      move: { dateKey: "2026-11-25", time: "7pm", room: "Portland A13", length: 90, campus: "jubilee" },
+    });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.deepEqual(world.db.read(`courseGroups/${B}`).sessionOverrides.w04, {
+      weekday: 3,
+      startTimeLocal: "19:00",
+      location: "Portland A13",
+      durationMinutes: 90,
+      campus: "jubilee",
+    });
+    assert.equal(groupsLib.campusForWeek(group(), "w04"), "jubilee");
+    assert.equal(groupsLib.campusForWeek(group(), "w05"), group().campus);
+    assert.equal(weekOf(4).session.durationMinutes, 90);
+    assert.equal(
+      response.body.update.message.split("\n\n")[0],
+      "Group B’s week 4 session moves, for this week only, to Wed 25 Nov, 7pm to 8:30pm, Portland A13 (Jubilee).",
+    );
+  });
+
+  test("the same length and campus as now is no change", async () => {
+    const response = await ask.change(
+      "claudia",
+      B,
+      silently({ ...MOVE, move: { dateKey: TUE_24, time: "6pm", room: "Hallward B12", length: 120 } }),
+    );
+    assert.deepEqual([response.status, response.body.error], [400, words.REFUSAL.sameAsNow]);
+  });
+
+  test("a room still to book is an empty room, only when the press says so", async () => {
+    const refused = await ask.change("claudia", B, silently({ ...MOVE, move: { dateKey: "2026-11-25", time: "7pm", room: "" } }));
+    assert.deepEqual([refused.status, refused.body.error], [400, words.REFUSAL.room]);
+    const both = await ask.change(
+      "claudia",
+      B,
+      silently({ ...MOVE, move: { dateKey: "2026-11-25", time: "7pm", room: "Portland A13", roomToBeConfirmed: true } }),
+    );
+    assert.deepEqual([both.status, both.body.error], [400, words.REFUSAL.roomOrToBeConfirmed]);
+    const response = await ask.change("claudia", B, {
+      ...MOVE,
+      reason: AWAY,
+      tell: true,
+      emailCount: await w.changeEmailsFor(B, "claudia"),
+      move: { dateKey: "2026-11-25", time: "7pm", roomToBeConfirmed: true },
+    });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.equal(world.db.read(`courseGroups/${B}`).sessionOverrides.w04.location, "");
+    assert.ok(response.body.update.message.includes(words.ROOM_TO_BE_CONFIRMED_LINE));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. Put it back as usual
+// ---------------------------------------------------------------------------
+
+describe("3. put it back as usual", () => {
+  test("keeps the week's own link and notes, and takes away only what the change set", async () => {
+    world.db.poke(`courseGroups/${B}`, { "sessionOverrides.w04": { meetingUrl: LINK, notes: "Bring the reading." } });
+    const moved = await ask.change(
+      "rahul",
+      B,
+      silently({ week: 4, dateKey: TUE_24, kind: "move", move: { dateKey: "2026-11-25", time: "7pm", room: "Portland A13", campus: "jubilee" } }),
+    );
+    assert.equal(moved.status, 200, JSON.stringify(moved.body));
+    const back = await ask.change("rahul", B, silently({ week: 4, dateKey: "2026-11-25", kind: "restore" }));
+    assert.equal(back.status, 200, JSON.stringify(back.body));
+    const stored = world.db.read(`courseGroups/${B}`);
+    assert.deepEqual(stored.sessionOverrides.w04, { meetingUrl: LINK, notes: "Bring the reading." });
+    assert.equal(stored.sessionChanges.w04, undefined);
+    assert.equal(weekOf(4).dateKey, TUE_24);
+    assert.equal(weekOf(4).session.meetingUrl, LINK, "the week's own link stays");
+    assert.deepEqual(
+      auditRows().map((row) => row.kind),
+      ["session-moved", "session-restored"],
+    );
+  });
+
+  test("a week pinned to its own time, with no change record, has nothing to put back", async () => {
+    world.db.poke(`courseGroups/${B}`, { "sessionOverrides.w04": { weekday: 1, startTimeLocal: "18:00" } });
+    const before = everything();
+    const response = await ask.change("rahul", B, silently({ week: 4, dateKey: "2026-11-23", kind: "restore" }));
+    assert.deepEqual([response.status, response.body.error], [400, words.REFUSAL.notChanged]);
+    assert.equal(everything(), before);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. The preview
+// ---------------------------------------------------------------------------
+
+describe("4. the preview changes nothing", () => {
+  test("says the session before and after, the lock, the jobs, who said what, and who would be told", async () => {
+    world.db.seed(registerPath(4), {
+      runId: RUN.agi,
+      groupId: B,
+      weekNumber: 4,
+      occurrence: 1,
+      records: { amara: "excused" },
+      excusedInAdvance: { amara: new Date("2026-11-18T09:00:00Z") },
+      onlineSaid: { ines: new Date("2026-11-18T09:00:00Z") },
+    });
+    const before = everything();
+    const response = await ask.change("claudia", B, {
+      week: 4,
+      dateKey: TUE_24,
+      kind: "move",
+      preview: true,
+      move: { dateKey: "2026-11-25", time: "7pm", room: "Portland A13" },
+    });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.equal(everything(), before, "a preview wrote something");
+    assert.deepEqual(Object.keys(response.body).sort(), ["ok", "preview"]);
+    const { preview } = response.body;
+    assert.deepEqual(
+      [preview.before.dateKey, preview.before.startTimeLocal, preview.after.dateKey, preview.after.startTimeLocal, preview.after.room],
+      [TUE_24, "18:00", "2026-11-25", "19:00", "Portland A13"],
+    );
+    assert.deepEqual(preview.lock, { before: "2026-11-24T18:00:00.000Z", after: "2026-11-25T19:00:00.000Z" });
+    assert.deepEqual([preview.reminders.weekOpen.scheduled, preview.reminders.reminders.on], [false, false]);
+    assert.deepEqual([preview.said.joiningOnline.count, preview.said.cantMakeIt.count], [1, 1]);
+    assert.deepEqual(preview.told, { emails: 4, refused: false, people: 2, facilitatorNames: ["Rahul", "Sofia"] });
+    assert.equal(preview.notice.title, "Week 4 moves to Wed 25 Nov, 7pm");
+    assert.deepEqual(preview.register, { exists: true, taken: false });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. A new regular time from a week onwards
+// ---------------------------------------------------------------------------
+
+/** Wednesdays at 7pm, two hours, in Portland A13, from week 4. */
+const WEDNESDAYS = { fromWeek: 4, weekday: 3, time: "7pm", length: 120, room: "Portland A13", tell: false };
+
+describe("5. a new regular time from a week onwards", () => {
+  test("is the people's who run the programme: admins, the lead and track leads, not a plain facilitator", async () => {
+    for (const [who, status] of [
+      ["rahul", 403],
+      ["amara", 403],
+      ["tom", 403],
+      ["nobody", 403],
+      [null, 401],
+    ]) {
+      const before = everything();
+      const response = await askRegular(who, WEDNESDAYS);
+      assert.equal(response.status, status, String(who));
+      assert.equal(everything(), before);
+    }
+    const viewAs = await askRegular("zach", WEDNESDAYS, { viewAs: true });
+    assert.equal(viewAs.status, 403);
+    for (const who of ["zach", "claudia", "yusuf"]) {
+      const preview = await askRegular(who, { ...WEDNESDAYS, preview: true });
+      assert.equal(preview.status, 200, `${who}: ${JSON.stringify(preview.body)}`);
+    }
+  });
+
+  test("the body is checked before any document is read, and unknown keys are refused", async () => {
+    const reads = world.db.stats.reads;
+    const response = await askRegular("zach", { ...WEDNESDAYS, everyWeek: true });
+    assert.equal(response.status, 400);
+    assert.equal(world.db.stats.reads, reads);
+  });
+
+  test("pins every earlier week to when it met, re-dates the rest, and asks the time question again", async () => {
+    const earlier = [1, 2, 3].map(startOf);
+    const response = await askRegular("claudia", { ...WEDNESDAYS, reason: "Rahul’s timetable changed." });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.deepEqual(response.body.change, {
+      fromWeek: 4,
+      movedWeeks: [4, 5, 6],
+      pinnedWeeks: [1, 2, 3],
+      ownTimeWeeks: [],
+      askedAgain: true,
+      takenBack: 0,
+    });
+    const stored = world.db.read(`courseGroups/${B}`);
+    for (const weekId of ["w01", "w02", "w03"]) {
+      assert.deepEqual(stored.sessionOverrides[weekId], { weekday: 2, startTimeLocal: "18:00", location: "Hallward B12" }, weekId);
+      assert.equal(stored.sessionChanges?.[weekId], undefined, `${weekId} is pinned, not changed`);
+    }
+    assert.deepEqual(
+      [stored.session.weekday, stored.session.startTimeLocal, stored.session.durationMinutes, stored.session.location],
+      [3, "19:00", 120, "Portland A13"],
+    );
+    assert.ok(stored.timeQuestionSince instanceof Date || typeof stored.timeQuestionSince === "object");
+    // Earlier weeks resolve exactly as they did; later weeks to Wednesdays.
+    assert.deepEqual([1, 2, 3].map(startOf), earlier);
+    assert.deepEqual([4, 5, 6].map(startOf), ["2026-11-25T19:00:00.000Z", "2026-12-02T19:00:00.000Z", "2026-12-09T19:00:00.000Z"]);
+    const [row] = auditRows("group-time-changed");
+    assert.equal(
+      row.detail,
+      "Changed the regular time to Wednesdays, 7pm to 9pm, Portland A13, from week 4. Weeks 1, 2 and 3 kept the times they met. " +
+        "Before: Tue 24 Nov, 6pm, Hallward B12. Reason: Rahul’s timetable changed. Nobody was emailed.",
+    );
+    assert.equal(row.weekId, "w04");
+  });
+
+  test("an answer given before the time changed is no longer anybody's answer, and is kept", async () => {
+    world.db.poke(`courseEnrolments/${RUN.agi}__amara`, {
+      timeAnswer: { kind: "yes", forGroupId: B, at: new Date("2026-11-01T09:00:00Z") },
+    });
+    const response = await askRegular("claudia", WEDNESDAYS);
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    const since = group().timeQuestionSince;
+    assert.ok(since instanceof Date);
+    const seat = { role: "learner", status: "active", groupId: B, timeAnswer: { kind: "yes", reason: null, alternatives: null, forGroupId: B, at: new Date("2026-11-01T09:00:00Z") } };
+    assert.equal(timeAnswer.currentTimeAnswer(seat, since), null, "an answer about the old time still counts");
+    assert.deepEqual(timeAnswer.currentTimeAnswer(seat, null), { kind: "yes", reason: null, alternatives: null });
+    const later = { ...seat, timeAnswer: { ...seat.timeAnswer, at: new Date(since.getTime() + 1000) } };
+    assert.deepEqual(timeAnswer.currentTimeAnswer(later, since), { kind: "yes", reason: null, alternatives: null });
+    assert.equal(world.db.read(`courseEnrolments/${RUN.agi}__amara`).timeAnswer.kind, "yes", "the stored answer is kept");
+  });
+
+  test("most weeks, not all: ticks on the old time are taken back; a one-off can't make it stays", async () => {
+    world.db.poke(`courseEnrolments/${RUN.agi}__ines`, {
+      timeAnswer: { kind: "mostWeeks", sessionKeys: ["w05"], forGroupId: B, at: new Date("2026-11-01T09:00:00Z") },
+    });
+    world.db.seed(registerPath(5), {
+      runId: RUN.agi, groupId: B, weekNumber: 5, occurrence: 1,
+      records: { ines: "excused" }, excusedInAdvance: { ines: new Date("2026-11-01T09:00:00Z") },
+    });
+    world.db.seed(registerPath(6), {
+      runId: RUN.agi, groupId: B, weekNumber: 6, occurrence: 1,
+      records: { amara: "excused" }, excusedInAdvance: { amara: new Date("2026-11-02T09:00:00Z") },
+    });
+    const response = await askRegular("claudia", WEDNESDAYS);
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.equal(response.body.change.takenBack, 1);
+    const five = world.db.read(registerPath(5));
+    assert.equal(five.records?.ines, undefined);
+    assert.equal(five.excusedInAdvance?.ines, undefined);
+    const six = world.db.read(registerPath(6));
+    assert.equal(six.records.amara, "excused", "a one-off can't make it is left as it is");
+    assert.equal(new Date(six.sessionAt).toISOString(), "2026-12-09T19:00:00.000Z", "its stored start follows the session");
+  });
+
+  test("a later week's own change is kept, and a cancelled evening stays cancelled on the week's new date", async () => {
+    const moved = await ask.change(
+      "rahul",
+      B,
+      silently({ week: 5, dateKey: "2026-12-01", kind: "move", move: { dateKey: "2026-11-30", time: "5pm", room: "Portland A13" } }),
+    );
+    assert.equal(moved.status, 200, JSON.stringify(moved.body));
+    const cancelled = await ask.change("rahul", B, silently({ week: 6, dateKey: "2026-12-08", kind: "cancel" }));
+    assert.equal(cancelled.status, 200, JSON.stringify(cancelled.body));
+    const response = await askRegular("claudia", WEDNESDAYS);
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.deepEqual(response.body.change.ownTimeWeeks, [5, 6]);
+    assert.equal(startOf(5), "2026-11-30T17:00:00.000Z", "week 5 keeps its own move");
+    assert.equal(weekOf(6).dateKey, "2026-12-09");
+    assert.equal(weekOf(6).cancelled, true, "the cancelled evening moved with its week");
+  });
+
+  test("refuses a week the group does not teach, a starting week that met, a later week that met, and no change at all", async () => {
+    const none = await askRegular("claudia", { ...WEDNESDAYS, fromWeek: 9 });
+    assert.deepEqual([none.status, none.body.error], [400, "That isn’t one of the group’s weeks. Choose a week it meets in."]);
+    world.db.seed(registerPath(4), { runId: RUN.agi, groupId: B, weekNumber: 4, markedByUid: "rahul" });
+    const met = await askRegular("claudia", WEDNESDAYS);
+    assert.deepEqual([met.status, met.body.error], [409, "Week 4 met: its register has been taken, so its time can’t change. Start from week 5."]);
+    const later = await askRegular("claudia", { ...WEDNESDAYS, fromWeek: 3 });
+    assert.deepEqual(
+      [later.status, later.body.error],
+      [409, "Week 4’s register has been taken, so it met and its time can’t change. Start from week 5."],
+    );
+    const same = await askRegular("claudia", { fromWeek: 5, weekday: 2, time: "6pm", length: 120, room: "Hallward B12", tell: false });
+    assert.deepEqual(
+      [same.status, same.body.error],
+      [400, "That’s already when and where the group meets. Change the day, the time, the length, the room or the campus."],
+    );
+    assert.equal(auditRows().length, 0, "a refusal wrote history");
+  });
+
+  test("a starting session that would land on a time that has passed is refused", async () => {
+    // From week 4 on Mondays: Mon 23 Nov, still to come. From week 3 on Mondays: Mon 16 Nov, passed.
+    const response = await askRegular("claudia", { ...WEDNESDAYS, fromWeek: 3, weekday: 1 });
+    assert.deepEqual(
+      [response.status, response.body.error],
+      [409, "Week 3 would then be on Mon 16 Nov, 7pm, which has passed. Start from week 4, or put week 3 right on its own first."],
+    );
+  });
+
+  test("the preview says which weeks move and which are kept, and writes nothing", async () => {
+    const before = everything();
+    const response = await askRegular("claudia", { ...WEDNESDAYS, preview: true });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.equal(everything(), before);
+    const { preview } = response.body;
+    assert.deepEqual(preview.moves.map((move) => [move.weekNumber, move.after.dateKey]), [
+      [4, "2026-11-25"],
+      [5, "2026-12-02"],
+      [6, "2026-12-09"],
+    ]);
+    assert.deepEqual(preview.kept.map((week) => [week.weekNumber, week.pinned, week.session.dateKey]), [
+      [1, true, "2026-11-03"],
+      [2, true, "2026-11-10"],
+      [3, true, "2026-11-17"],
+    ]);
+    assert.equal(preview.askedAgain, true);
+    assert.equal(preview.told.emails, 4);
+    assert.equal(preview.notice.subject, "Group B now meets on Wednesdays, 7pm");
+    assert.equal(preview.reminders.length, 2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. The notices
+// ---------------------------------------------------------------------------
+
+describe("6. the notices reach the group and its facilitators, never the presser, never a link", () => {
+  test("a new regular time: the count on the button, then one email each, asking the time question of the people in it", async () => {
+    world.db.poke(`courseGroups/${B}`, { "session.meetingUrl": LINK });
+    const stale = await askRegular("claudia", { ...WEDNESDAYS, tell: true, emailCount: 9 });
+    assert.deepEqual([stale.status, stale.body.emails], [409, 4]);
+    assert.equal(world.mail.length, 0);
+    const response = await askRegular("claudia", { ...WEDNESDAYS, tell: true, emailCount: 4, roomToBeConfirmed: true, room: "" });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.deepEqual(response.body.email, { sent: 4, held: 0, suppressed: 0, failed: 0 });
+    assert.deepEqual(world.mail.map((m) => m.to).sort(), ["amara@example.com", "ines@example.com", "rahul@example.com", "sofia@example.com"]);
+    for (const message of world.mail) {
+      assert.equal(message.subject, "Group B now meets on Wednesdays, 7pm");
+      const text = (await render(message.react, { plainText: true })).replace(/\s+/g, " ");
+      assert.ok(text.includes("From Wed 25 Nov, Group B meets on Wednesdays, 7pm to 9pm."), text);
+      assert.ok(text.includes(words.ROOM_TO_BE_CONFIRMED_LINE));
+      assert.ok(text.includes("Weeks 1 to 3 stay as they were."));
+      assert.ok(!text.includes("meet.example"), "a meeting link went into the notice");
+      const asked = text.includes("Most weeks, not all");
+      assert.equal(asked, ["amara@example.com", "ines@example.com"].includes(message.to), `${message.to} asked: ${asked}`);
+    }
+    const [row] = auditRows("group-time-changed");
+    assert.equal(row.emailed, 4);
+  });
+
+  test("a room set from the Groups tab tells the group when asked, and only then", async () => {
+    const quiet = await w.call("claudia", roomRoute.PUT, { roundId: ROUND, programmeId: AGI, groupId: B }, { body: { room: "Portland A21" } });
+    assert.equal(quiet.status, 200, JSON.stringify(quiet.body));
+    assert.equal(quiet.body.email, null);
+    assert.equal(world.mail.length, 0);
+    const stale = await w.call("claudia", roomRoute.PUT, { roundId: ROUND, programmeId: AGI, groupId: B }, {
+      body: { room: "Monica Partridge C10", tell: true, emailCount: 1 },
+    });
+    assert.deepEqual([stale.status, stale.body.emails], [409, 4]);
+    const told = await w.call("claudia", roomRoute.PUT, { roundId: ROUND, programmeId: AGI, groupId: B }, {
+      body: { room: "Monica Partridge C10", tell: true, emailCount: 4 },
+    });
+    assert.equal(told.status, 200, JSON.stringify(told.body));
+    assert.deepEqual(told.body.email, { sent: 4, held: 0, suppressed: 0, failed: 0 });
+    assert.deepEqual(world.mail.map((m) => m.subject), Array(4).fill("Room for Group B: Monica Partridge C10"));
+    const text = (await render(world.mail[0].react, { plainText: true })).replace(/\s+/g, " ");
+    assert.ok(text.includes("Group B’s room is booked: Monica Partridge C10 from Tue 24 Nov, 6pm."), text);
+    assert.deepEqual(
+      auditRows("group-room-changed").map((row) => [row.after.room, row.emailed]),
+      [
+        ["Portland A21", 0],
+        ["Monica Partridge C10", 4],
+      ],
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. A group's history, read back
+// ---------------------------------------------------------------------------
+
+describe("7. a group's history, newest first, one group's rows only", () => {
+  test("every change is there with its category, an older row reads as it was written, and another group's rows are not", async () => {
+    const history = await loadTs("lib/courses/groupHistory/load.ts");
+    // A row from before the optional fields existed, and one of a kind this build does not know.
+    world.db.seed("courseAudit/old-push", {
+      kind: "attendance-push", runId: RUN.agi, groupId: B, actorUid: "rahul", actorName: "Rahul",
+      targetLabel: "w01", detail: "Pushed week 1's register.", at: new Date("2026-11-04T20:00:00Z"),
+    });
+    world.db.seed("courseAudit/future-kind", {
+      kind: "something-new", runId: RUN.agi, groupId: B, actorUid: "zach", actorName: "Zach",
+      targetLabel: "", detail: "Something a later build wrote.", at: new Date("2026-11-05T20:00:00Z"),
+    });
+    world.db.seed("courseAudit/other-group", {
+      kind: "session-moved", runId: RUN.agi, groupId: "another-group", actorUid: "tom", actorName: "Tom",
+      targetLabel: "", detail: "Not Group B's.", at: new Date("2026-11-06T20:00:00Z"),
+    });
+    at("2026-11-19T10:00:00Z");
+    await ask.change("rahul", B, silently({ week: 4, dateKey: TUE_24, kind: "cancel" }));
+    at("2026-11-19T11:00:00Z");
+    await askRegular("claudia", { ...WEDNESDAYS, fromWeek: 5 });
+
+    const { rows, more } = await history.loadGroupHistory(world.courseDb, RUN.agi, B);
+    assert.equal(more, false);
+    assert.deepEqual(
+      rows.map((row) => [row.kind, row.category, row.label]),
+      [
+        ["group-time-changed", "time-and-room", "Regular time changed"],
+        ["session-cancelled", "time-and-room", "Session cancelled, keeping pace"],
+        ["something-new", "other", "Unrecognised action"],
+        ["attendance-push", "registers", "Register pushed"],
+      ],
+    );
+    const old = rows.find((row) => row.kind === "attendance-push");
+    assert.deepEqual([old.weekId, old.before, old.after, old.reason, old.emailed], [null, null, null, null, null]);
+    const cancel = rows.find((row) => row.kind === "session-cancelled");
+    assert.deepEqual([cancel.weekId, cancel.reason, cancel.emailed, cancel.actorName.length > 0], ["w04", AWAY, 0, true]);
+  });
+});
