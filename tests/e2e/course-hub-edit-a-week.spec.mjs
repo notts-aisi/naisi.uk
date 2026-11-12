@@ -33,7 +33,11 @@
  *    now and restores it as a new save; Ada's tick is still there, under the
  *    title it had;
  *  - FERN, a facilitator, and Ada, a member, are refused the week's page, its
- *    history and the editing routes.
+ *    history and the editing routes;
+ *  - Gus rewords the reflection prompt Ada answered, telling nobody: Ada's
+ *    week page says "You answered an earlier wording:" with the words she
+ *    answered under her own, and Fern's reflections with names say "The
+ *    question when this was written:" with the same words under Ada's.
  *
  * ## How to run it
  *
@@ -79,7 +83,7 @@ import {
   statePath,
 } from "../../scripts/e2e-fixtures/core.mjs";
 import { EDIT_WEEK, RECAPTCHA_DEPENDENT_STEPS, SPEC, startedKeys } from "../../scripts/e2e-fixtures/course-hub-edit-a-week.mjs";
-import { COURSEWORK_PROMPTS, COURSEWORK_SOURCES, courseworkItemId } from "../../scripts/e2e-fixtures/worlds/course-hub-term.mjs";
+import { COURSEWORK, COURSEWORK_PROMPTS, COURSEWORK_SOURCES, courseworkItemId } from "../../scripts/e2e-fixtures/worlds/course-hub-term.mjs";
 
 const RUN_STATE_DIR = stateDir();
 const STATE_PATH = statePath(SPEC.name, RUN_STATE_DIR);
@@ -106,7 +110,12 @@ const READING = Object.freeze({
 });
 
 /** The reflection the lead opens while the second admin looks: week 3's first, by its first prompt. */
-const REFLECTION = Object.freeze({ place: "Part 1’s reflection", label: COURSEWORK_PROMPTS.rp1 });
+const REFLECTION = Object.freeze({
+  id: courseworkItemId(WEEK, "rs1"),
+  place: "Part 1’s reflection",
+  label: COURSEWORK_PROMPTS.rp1,
+  newPrompt: "How many lighthouses on this coast still show a light at night?",
+});
 
 /** The words the pages say, restated from src/lib/courses/weekEdit/pageWords.ts and words.ts. */
 const WORDS = {
@@ -147,6 +156,9 @@ const WORDS = {
   restore: (day) => `Restore the ${day} version`,
   restoredSummary: "Restored the version from",
   doneItem: (title) => `Done: ${title}`,
+  firstPrompt: "Prompt 1",
+  ownEarlier: "You answered an earlier wording:",
+  staffEarlier: "The question when this was written:",
 };
 
 let skipReasonFor = () => null;
@@ -702,6 +714,49 @@ test(
         }
         assert.equal(readingIn(await storedWeek())?.title, READING.title, "a refused save changed the reading");
         assert.equal(await storedLock(), null, "a refused caller took the week");
+      });
+
+      await step("the lead rewords a prompt the member answered: her week page shows the earlier wording under her words, and the facilitator's reflections with names show the question when it was written", async () => {
+        activePage = leadPage;
+        await leadPage.goto(weekUrl, { waitUntil: "domcontentloaded" });
+        await Promise.all([responseTo(leadPage, `${api}/lock`, "POST"), (await changeReady(leadPage, REFLECTION.place, REFLECTION.label)).click()]);
+        const sheet = panel(leadPage);
+        const prompt = sheet.getByLabel(WORDS.firstPrompt, { exact: true });
+        await prompt.waitFor({ timeout: WAIT_MS });
+        assert.equal(await prompt.inputValue(), REFLECTION.label);
+        await prompt.fill(REFLECTION.newPrompt);
+        const [savedResponse] = await Promise.all([
+          responseTo(leadPage, `${api}/blocks/${REFLECTION.id}`, "PATCH"),
+          sheet.getByRole("button", { name: WORDS.save, exact: true }).click(),
+        ]);
+        const saved = await okBody(savedResponse, "Rewording the reflection");
+        assert.deepEqual([saved.saved, saved.live], [true, true]);
+        const dialog = leadPage.getByRole("dialog");
+        await dialog.getByRole("heading", { name: WORDS.tellTitle, exact: true }).waitFor({ timeout: WAIT_MS });
+        await dialog.getByRole("button", { name: WORDS.nobody, exact: true }).click();
+        await waitFor("the tell dialog to close", async () => (await leadPage.getByRole("dialog").count()) === 0);
+        await waitFor("the lead's hold to be given back", async () => (await storedLock()) === null);
+
+        // Ada, who answered the old words: under her own words, the words she answered.
+        const adasWords = COURSEWORK.coursework.reflections.find((row) => row.person === "ada" && row.weekNumber === WEEK && row.prompt === "rp1").text;
+        activePage = memberPage;
+        await memberPage.goto(memberWeekUrl, { waitUntil: "domcontentloaded" });
+        const box = memberPage.getByRole("textbox", { name: REFLECTION.newPrompt, exact: true });
+        await box.waitFor({ timeout: WAIT_MS });
+        await waitFor("Ada's reflection to load into its box", async () => (await box.inputValue()) === adasWords);
+        const own = memberPage.getByText(WORDS.ownEarlier, { exact: true });
+        await own.waitFor({ timeout: WAIT_MS });
+        assert.equal(await wordsIn(own.locator("xpath=..")), `${WORDS.ownEarlier} ${REFLECTION.label}`);
+        assert.equal(await memberPage.getByText(WORDS.ownEarlier, { exact: true }).count(), 1, "an earlier wording beside an answer whose question did not change");
+
+        // Fern, Group A's facilitator, reading the reflections with names: under Ada's, the question when she wrote it.
+        activePage = facilitatorPage;
+        await facilitatorPage.goto(`${origin}/learn/${enc(state.runId)}/group/${enc(groupA.id)}/reflections/names?week=${WEEK}`, { waitUntil: "domcontentloaded" });
+        const answer = facilitatorPage.locator("li").filter({ hasText: adasWords });
+        await answer.first().waitFor({ timeout: WAIT_MS });
+        const said = await wordsIn(answer.first());
+        assert.ok(said.includes(`${adasWords} ${WORDS.staffEarlier} ${REFLECTION.label}`), `the reflection with names does not say the question when it was written: ${said}`);
+        await facilitatorPage.getByRole("heading", { name: REFLECTION.newPrompt, exact: true }).waitFor({ timeout: WAIT_MS });
       });
     } finally {
       await facilitatorContext.close().catch(() => {});

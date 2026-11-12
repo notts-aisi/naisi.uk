@@ -20,7 +20,9 @@
  *    each on the real page, which is how a lead comes to be one.
  *
  * The spec (`tests/e2e/course-hub-edit-a-week.spec.mjs`) is the harness's
- * admin, Gus, Ada and Fern, each in a browser of their own.
+ * admin, Gus, Ada and Fern, each in a browser of their own. Last, Gus
+ * rewords the prompt Ada and Cleo answered, telling nobody, and Ada's week
+ * page and Fern's reflections with names show the words it had.
  *
  * ## What it leaves, and how it goes
  *
@@ -58,6 +60,7 @@ export const EDIT_A_WEEK_STEPS = [
   "a second admin opens week 3 while the lead has a panel open: the notice names the lead and every editing control is off",
   "the history lists every save, compares the first with now and restores it as a new save, and the member's tick is still there",
   "a facilitator and a member are refused the week's page, its history and its routes",
+  "the lead rewords a prompt the member answered: her week page shows the earlier wording under her words, and the facilitator's reflections with names show the question when it was written",
 ];
 
 /**
@@ -179,6 +182,7 @@ export const SPEC = {
       "/api/courses/runs/[runId]/weeks/[weekId]/history",
       "/api/courses/runs/[runId]/weeks/[weekId]/history/[saveId]",
       "/api/courses/runs/[runId]/weeks/[weekId]/history/[saveId]/restore",
+      "/api/courses/runs/[runId]/my-exercises",
     ],
     pages: [
       "/(auth)/login",
@@ -189,6 +193,7 @@ export const SPEC = {
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/history",
       "/(app)/learn/[runId]/weeks/[n]",
+      "/(app)/learn/[runId]/group/[groupId]/reflections/names",
     ],
   },
   /**
