@@ -91,7 +91,7 @@ export default function RequestsList({ view }: { view: RequestsPageView }) {
             </button>
           ))}
         </div>
-        {view.viewer === "admin" && programmes.size > 1 && (
+        {view.viewer === "admin" && programmes.size > 0 && (
           <label className={styles.filter}>
             <span className={styles.filterLabel}>Programme</span>
             <Select value={programme} onChange={(event) => setProgramme(event.target.value)}>
