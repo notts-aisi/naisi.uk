@@ -2377,6 +2377,10 @@ none, being no line.
   so do the source's check-in, its reports and any notes, which the preview
   says plainly (`stays`). A preview without `to` lists `targets`, each with
   whether it can take them and why not (`register-moved`, with `toSessionKey`).
+  A line already on the target is the person's own word in advance (nobody
+  took that register); the move writes over it, so the row keeps what it said
+  as `before["replaced:<uid>"]` ("Excused (said in advance)") and its sentence
+  names it, to be put back by hand.
 - **`clear`**, taken for the wrong session: back to not taken, every cleared
   line in the row's `before` (`register-cleared`). Who took it, the
   facilitator record and the notes stay on the register.
@@ -2386,20 +2390,38 @@ none, being no line.
   the change's history row and its notice), clears the lines into a
   `session-did-not-happen` row and takes the finished stamps away. With Tell
   the group ticked the answer carries `update`, which the page posts through
-  the updates route as the change dialog does.
+  the updates route as the change dialog does. `push` is refused, in its
+  preview and its press, once the session has a check-in or a session report
+  (both are kept by the week, so the session a week later would open with
+  them), in the one-week change's own sentence; the sheet does not offer it.
+  Pushed back, the register's cover and the record of whether each facilitator
+  was there go too, kept in the same row's `before` (`cover`, `coverByUid`,
+  `facilitator:<uid>`).
 - **`did-happen`** with `lines: [{ uid, status, online? }]` for every row who
   had joined by that week: for a session called off keeping pace (the week is
   put back as Hold it as usual puts it back) or a register from before that
   says it did not happen. The lines are set by the person correcting, who
   finishes it (`session-did-happen`). A week whose cancel pushed the rest back
-  is refused: the later weeks have moved, which is a change of time.
+  is refused: the later weeks have moved, which is a change of time. The
+  preview sends each person's line as it is now, and the sheet starts each
+  from it: somebody who said in advance they couldn't make it starts as
+  Excused, one of the four it offers.
+
+Whether a session happened is changed for a week's first session only, as a
+week's change of time is: `did-not-happen` and `did-happen` on a week's second
+session are refused with a sentence that says so, and no page offers them.
 
 When a register goes back to not taken (moved away, or cleared) it is chased
 again as far as the jobs allow (`registerCorrection/chase.ts`): the 36-hour
 reminder's and the 60-hour card's markers for the session are taken away, so
 each goes again in its own band; a card finishing archived is put back on the
 board. The preview's `chase` says which is true: `returns`, `passed` (its band
-for this session has gone by), or `off`.
+for this session has gone by), or `off`. While the email returns it also says
+who it goes to (`emailTo`: the job's own `chaseTargets` on the register as the
+correction leaves it, so whoever is covering a cleared register, else the
+group's facilitators with standing, named for the reader) and when its band
+opens (`emailFrom`), and Before you save's Told says so in one sentence in
+place of "Nobody is emailed".
 
 ### Asking for a correction
 
@@ -2436,7 +2458,9 @@ a range on `decidedAt`), so no index is declared.
 
 `loadRequestsPage` (`src/lib/courses/requests/load.ts`): admins read every
 programme's; a programme's lead and a run's track lead the requests of the
-runs they lead (`runStaffingOf`); anybody else `none`. Counts for waiting,
+runs they lead (`runStaffingOf`), less what one request's page would not open
+for them (a group they facilitate, or an archived one); anybody else `none`.
+Counts for waiting,
 being handled and done this week (since Monday in London), and each row with
 who asked, about whom, what, when and who has it. `loadRequestPage`, for the
 people who decide it: the line now and whether it still says what was asked,
