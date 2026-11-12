@@ -348,7 +348,12 @@ export async function loadRequestPage(db: Firestore, actor: SessionUser, request
       reason: request.reason,
       line: {
         now: wordsOf(current),
-        setBy: setter ? { name: setterName, at: setter.at.toISOString(), how: setter.how } : null,
+        // An approval of a request to be excused: who and when are an admin's alone.
+        setBy: setter
+          ? setter.how === "approval" && actor.role !== "admin"
+            ? { name: "", at: "", how: setter.how }
+            : { name: setterName, at: setter.at.toISOString(), how: setter.how }
+          : null,
         asAsked: Boolean(register?.pushedAt) && sameLine(current, request.change.from),
       },
       finished: register?.pushedAt && register.pushedByUid

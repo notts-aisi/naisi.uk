@@ -786,6 +786,43 @@ describe("who is sent what: the reason and how often to admins only, one of two 
     assert.ok(!JSON.stringify(after.body).includes(REPLY), "a facilitator was sent the reply");
   });
 
+  test("who approved a line, and when, reach admins alone: a facilitator and the lead are told only that an approved request set it", async () => {
+    const coverWords = await loadTs("lib/courses/registerCover/pageWords.ts");
+    const correctionWords = await loadTs("lib/courses/registerCorrection/pageWords.ts");
+    // Before the session: the line an approval wrote.
+    const id = await amaraAsks();
+    assert.equal((await act("zach", "approve", id, { sessionKey: "w02" })).status, 200);
+    for (const who of ["rahul", "claudia", "yusuf"]) {
+      const sent = (await readRegister(who)).body;
+      assert.deepEqual(sent.setBy.w02.amara, { name: "", at: "", how: "approval", yours: false }, who);
+      assert.ok(!JSON.stringify(sent.setBy).includes("Zach"), `${who} was sent who approved it`);
+    }
+    const asAdmin = (await readRegister("zach")).body.setBy.w02.amara;
+    assert.equal(asAdmin.how, "approval");
+    assert.ok(asAdmin.name.length > 0 && asAdmin.at.length > 0, "an admin is not sent who approved it, and when");
+    assert.equal(coverWords.setByWords({ name: "", at: "", how: "approval" }), "Set by an approved request");
+    assert.equal(correctionWords.setByChip({ name: "", at: "", how: "approval" }), "Set by an approved request");
+    assert.match(coverWords.setByWords({ name: "Zach Levin", at: "2026-11-10T21:10:00Z", how: "approval" }), /^Zach’s approval, 9:10pm$/);
+
+    // After Finish: a correction made by an approval tells its story the same way.
+    at(DURING_W2);
+    assert.equal((await mark("rahul", 2, [{ uid: "amara", status: "absent" }, { uid: "dev", status: "absent" }])).status, 200);
+    assert.equal((await finish("rahul", 2)).status, 200);
+    at(AFTER_W2);
+    const devAsked = await ask("dev", { sessionKeys: ["w02"], reason: REASON });
+    assert.equal(devAsked.status, 200, JSON.stringify(devAsked.body));
+    assert.equal((await act("zach", "approve", devAsked.body.request.id, { sessionKey: "w02" })).status, 200);
+    for (const who of ["rahul", "claudia"]) {
+      const story = (await readRegister(who)).body.corrections.w02.dev;
+      assert.deepEqual([story.byApproval, story.correctedBy.name, story.correctedAt], [true, "", ""], who);
+      assert.match(correctionWords.storyWords(story), /Corrected by an approved request to be excused\./, who);
+      assert.ok(!correctionWords.storyWords(story).includes("Zach"), who);
+    }
+    const adminStory = (await readRegister("zach")).body.corrections.w02.dev;
+    assert.equal(adminStory.byApproval, true);
+    assert.match(correctionWords.storyWords(adminStory), /Corrected by Zach’s approval, /);
+  });
+
   test("a declined or withdrawn week shows nothing", async () => {
     const id = await amaraAsks(["w02", "w03"]);
     assert.equal((await act("zach", "decline", id, { sessionKey: "w02", reply: "No." })).status, 200);

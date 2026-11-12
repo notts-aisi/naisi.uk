@@ -53,9 +53,11 @@ export type CorrectionStory = {
   before: string | null;
   /** Who set what it said before, and when; null when the register did not keep it. */
   beforeSetBy: (Named & { at: string }) | null;
-  /** Who corrected it, and when. */
+  /** Who corrected it, and when ("" for a reader who is not an admin, when an approved request to be excused corrected it). */
   correctedBy: Named;
   correctedAt: string;
+  /** An approved request to be excused corrected it. */
+  byApproval?: true;
   /** Why, for the people who correct registers and for the person who gave it; absent for anybody else. */
   reason?: string;
   /** For a register moved to this session: the session it was on ("w01"). */
@@ -148,7 +150,13 @@ export async function registerCorrectionExtras(
   const correctedLines = registers.flatMap((register) =>
     Object.entries(register.corrected)
       .filter(([uid]) => rows.has(uid))
-      .map(([uid, stamp]) => ({ sessionKey: register.sessionKey, uid, stamp })),
+      .map(([uid, stamp]) => ({
+        sessionKey: register.sessionKey,
+        uid,
+        stamp,
+        // Corrected by an approved request to be excused: the line says so.
+        byApproval: register.setBy[uid]?.how === "approval",
+      })),
   );
 
   const [auditSnap, requestSnap] = await Promise.all([
@@ -193,7 +201,7 @@ export async function registerCorrectionExtras(
   }
   const named = (uid: string, fallback = "NAISI member"): Named => ({ name: names.get(uid) ?? fallback });
 
-  for (const { sessionKey, uid, stamp } of correctedLines) {
+  for (const { sessionKey, uid, stamp, byApproval } of correctedLines) {
     const row = auditRows.find((each) => rowTouches(each, sessionKey, uid) !== null) ?? null;
     const touched = row ? rowTouches(row, sessionKey, uid) : null;
     const kind = row ? storyKind(row.kind) : null;
@@ -210,6 +218,15 @@ export async function registerCorrectionExtras(
         ? { ...named(request.askedByUid), at: (request.askedAt ?? request.updatedAt ?? stamp.at).toISOString(), yours: request.askedByUid === viewer.uid }
         : null,
     };
+    // Who approved a request to be excused, and when, are an admin's alone:
+    // anybody else reads that an approved request corrected it.
+    if (byApproval) {
+      story.byApproval = true;
+      if (!viewer.isAdmin) {
+        story.correctedBy = { name: "" };
+        story.correctedAt = "";
+      }
+    }
     // A reason goes to the people who correct registers, and to the person
     // who gave it: an approved request's reason is the asker's own.
     if (row?.reason && (corrects || (request && request.askedByUid === viewer.uid))) story.reason = row.reason;

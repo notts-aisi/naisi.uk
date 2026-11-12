@@ -165,6 +165,12 @@ export function correctGoesWords(name: string): string {
 export function setByChip(entry: { name: string; at: string; how?: string; yours?: boolean } | null): string {
   if (!entry) return "";
   if (entry.how === "self") return "Set before the session";
+  // An approved request to be excused: its approver and time are an admin's alone.
+  if (entry.how === "approval") {
+    if (!entry.name) return "Set by an approved request";
+    const at = dayAndClock(entry.at);
+    return at ? `Set by ${firstOf(entry.name)}’s approval, ${at}` : `Set by ${firstOf(entry.name)}’s approval`;
+  }
   const who = entry.yours ? "you" : firstOf(entry.name) || "somebody";
   const when = dayAndClock(entry.at);
   return when ? `Set by ${who}, ${when}` : `Set by ${who}`;
@@ -193,6 +199,8 @@ export type StoryView = {
   beforeSetBy: { name: string; at: string } | null;
   correctedBy: { name: string };
   correctedAt: string;
+  /** Corrected by an approved request to be excused: who and when are an admin's alone. */
+  byApproval?: boolean;
   reason?: string;
   movedFrom: string | null;
   asked: { name: string; at: string; yours: boolean } | null;
@@ -247,7 +255,13 @@ export function storyWords(story: StoryView, sessionLabelOf: (key: string) => st
   if (story.asked) {
     parts.push(`${story.asked.yours ? "You" : firstOf(story.asked.name) || "Somebody"} asked, ${dayAndClock(story.asked.at)}.`);
   }
-  parts.push(`Corrected by ${firstOf(story.correctedBy.name) || "somebody"}, ${dayAndClock(story.correctedAt)}.`);
+  if (story.byApproval) {
+    const who = firstOf(story.correctedBy.name);
+    const at = dayAndClock(story.correctedAt);
+    parts.push(`Corrected by ${who ? `${who}’s approval` : "an approved request to be excused"}${at ? `, ${at}` : ""}.`);
+  } else {
+    parts.push(`Corrected by ${firstOf(story.correctedBy.name) || "somebody"}, ${dayAndClock(story.correctedAt)}.`);
+  }
   if (story.reason) parts.push(`Why: ${quoted(story.reason)}`);
   return parts.join(" ");
 }
