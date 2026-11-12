@@ -19,13 +19,22 @@ const SEGMENT: Record<Bucket, string> = {
  * lists (`countBuckets`), so the bar and the table are one count. A bucket
  * with nobody in it is not drawn.
  */
-export default function WorkBar({ label, buckets }: { label: string; buckets: readonly Bucket[] }) {
+export default function WorkBar({
+  label,
+  buckets,
+  quietLabel = false,
+}: {
+  label: string;
+  buckets: readonly Bucket[];
+  /** The bar's name for screen readers alone: a card with one bar has said the week in its heading. */
+  quietLabel?: boolean;
+}) {
   const counts = countBuckets(buckets);
   const total = buckets.length;
   const shown = BUCKETS.filter((bucket) => counts[bucket] > 0);
   return (
     <div className={styles.workBar}>
-      <p className={styles.workBarLabel}>{label}</p>
+      <p className={quietLabel ? styles.srOnly : styles.workBarLabel}>{label}</p>
       <div className={styles.workBarTrack} aria-hidden="true">
         {total > 0 &&
           shown.map((bucket) => (

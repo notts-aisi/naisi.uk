@@ -38,7 +38,7 @@ export default function FacilitatorWeekWork({ groupId, work }: { groupId: string
       <h2 id="fac-week-work" className={styles.cardTitle}>
         {R.haveDoneTitle(doneCount(counts), work.rows.length, work.weekNumber)}
       </h2>
-      <WorkBar label={R.weekLabel(work.weekNumber)} buckets={buckets} />
+      <WorkBar label={R.weekLabel(work.weekNumber)} buckets={buckets} quietLabel />
       {said && (
         <p className={styles.said} role="status">
           {said}
