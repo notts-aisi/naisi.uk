@@ -16,7 +16,17 @@
  */
 export type PolicyKey = "terms" | "privacy";
 
-export type PolicyVersion = { version: number; lastUpdated: string };
+export type PolicyVersion = {
+  version: number;
+  lastUpdated: string;
+  /**
+   * What Home and /privacy say about this version for 14 days from
+   * `lastUpdated` (`policyUpdateLine` in `./updateLine.ts`), before the link
+   * to what changed. Worked out from the date alone: nothing is stored about
+   * who saw it. Absent on a version that was not announced this way.
+   */
+  updateLine?: string;
+};
 
 export const POLICIES: Record<
   PolicyKey,
@@ -150,12 +160,28 @@ export const POLICIES: Record<
     // so nobody who accepted v15 is asked again. Its date is the day it goes
     // live, set when it is promoted.
     //
+    // v17 is taking part in a programme, written for what comes next:
+    // who takes and corrects a register, requests and messages to the team,
+    // visiting another group's session, work added after a session and
+    // reminders after it, a second anonymous form, and conduct records, each
+    // opening of which is recorded first. It also says a change to how we use
+    // somebody's information is told on the site, and no longer by email. Told,
+    // not asked, like v16: `LAST_PRIVACY_VERSION_ASKED` stays 15. For 14 days
+    // from its date, Home and /privacy carry its `updateLine`. Its date is the
+    // day it goes live, set when it is promoted.
+    //
     // Keep this comment ABOVE `versions:`, never between the `[` and the first
     // `{`: tests/funnel-harness-guards.test.mjs reads the current version out
     // of this file with a regex that allows only whitespace across that gap,
     // so a comment sitting there leaves the guard unable to read the very
     // number it exists to pin. Anywhere else in the file is fine.
     versions: [
+      {
+        version: 17,
+        lastUpdated: "12 November 2026",
+        updateLine:
+          "We've updated our privacy policy. It now also covers registers and corrections, requests and messages to the team, work added after a session and reminders after it, anonymous feedback and conduct records.",
+      },
       { version: 16, lastUpdated: "6 November 2026" },
       { version: 15, lastUpdated: "2 November 2026" },
       { version: 14, lastUpdated: "30 October 2026" },
