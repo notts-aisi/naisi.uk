@@ -1986,9 +1986,10 @@ not built) and a facilitator guide (no record holds one).
 On both of a group's pages (the programme's Groups tab, for admins and the
 lead, and the facilitator's group page) the row of weeks chooses a week, and
 the address carries it (`?week=2`), so the server reads that week's work
-(`loadGroupWeekWork`, `src/lib/courses/groupWeekWork/`). Nothing new is
-stored about the work: every number is worked out when the page is read, by
-the one meaning of done and of late ("The week stays open").
+(`readGroupWeekWork` and `groupWeekWorkView`,
+`src/lib/courses/groupWeekWork/`). Nothing new is stored about the work:
+every number is worked out when the page is read, by the one meaning of done
+and of late ("The week stays open").
 
 - **The facilitator's page** draws "4 of 6 have done week 1", the week's bar,
   Remind as a sheet, and what is true of the automatic reminders. Who each

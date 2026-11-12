@@ -2,7 +2,7 @@ import type { Bucket, LastReminded, PieceKey } from "./model";
 
 /**
  * A WEEK'S CARD ON A GROUP'S PAGE, AS THE SERVER HANDS IT TO THE BROWSER
- * (`loadGroupWeekWork`): plain values and words, never a stored record. Names
+ * (`groupWeekWorkView`): plain values and words, never a stored record. Names
  * only: no address, no word anybody wrote, no meeting link. Who is in it is
  * decided on the server before anything here is made: the group's fellows,
  * never anybody who facilitates a live group of the run; a facilitator's own
