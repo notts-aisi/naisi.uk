@@ -18,6 +18,7 @@ import { CAMPUS_LABEL } from "../campusWords";
 import { clockWords, dayWords, hoursWords, namesWords, peopleWords } from "../sessionChange/words";
 import { weekdaysWords } from "../regularTime/words";
 import type { DidNotHappenPreview } from "../registerCover/pageWords";
+import type { GroupWeekWorkView } from "../groupWeekWork/view";
 import {
   ROOM_TO_BE_CONFIRMED,
   type HistoryFilter,
@@ -138,6 +139,14 @@ export type GroupPageView = {
   weeks: GroupPageWeek[];
   /** The week the page opens on. */
   openWeek: number | null;
+  /** The week whose work `work` is: the week asked for (`?week=`), or the week the page opens on. */
+  workWeek: number | null;
+  /**
+   * Who has done that week, and Remind: the group's fellows, never its
+   * facilitators; their own weeks for an admin or the programme's lead
+   * alone. Null for a week with nothing to count, or a group with nobody.
+   */
+  work: GroupWeekWorkView | null;
   todayKey: string;
   /** Who a notice about the group's room reaches, never the viewer: the send's own count. */
   notice: { emails: number; refused: boolean };
@@ -212,8 +221,12 @@ export function weekStateOf(input: {
   return "upcoming";
 }
 
-/** The week the page opens on: the first whose session has not ended and is not cancelled, else the last. */
-export function openingWeek(weeks: readonly GroupPageWeek[]): number | null {
+/**
+ * The week the page opens on: the first whose session has not ended and is
+ * not cancelled, else the last. Asked of the plan's sessions before anything
+ * is read, so it takes only what it reads of a week.
+ */
+export function openingWeek(weeks: ReadonlyArray<Pick<GroupPageWeek, "weekNumber" | "ended" | "cancelled" | "dateKey">>): number | null {
   const next = weeks.find((week) => !week.ended && !week.cancelled && week.dateKey);
   return next?.weekNumber ?? weeks[weeks.length - 1]?.weekNumber ?? null;
 }

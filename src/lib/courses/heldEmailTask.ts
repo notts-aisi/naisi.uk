@@ -10,8 +10,10 @@ import type { SourceRef, TaskDoc } from "@/lib/firestore/tasks";
  * THE CARD THAT SAYS A GROUP'S "WEEK N IS OPEN" IS HELD.
  *
  * "Week N is open" on its schedule goes out whole or not at all: when a fact
- * it carries is empty (the group's room, the week's title, what the week asks
- * for), the email is held rather than sent without it. Held silently, nobody would
+ * it carries is empty (the group's day and time, the week's title, what the
+ * week asks for), the email is held rather than sent without it. A room not
+ * booked yet is no such fact: the email goes saying "Room to be confirmed",
+ * and a room that holds a link has a card of its own (below). Held silently, nobody would
  * know a group was about to go without its email, so the job tells the
  * programme's lead and the admins with a card on their boards, the same way
  * an unfinished register is chased. Born notified: like every register card it
@@ -105,6 +107,66 @@ export function buildHeldEmailTask(args: HeldEmailTaskArgs): Omit<TaskDoc, "id">
   return registerTaskPayload({
     title: heldEmailTitle(copy).slice(0, args.limits.title),
     description: heldEmailDescription(copy).slice(0, args.limits.description),
+    creatorUid: args.creatorUid,
+    completerUids: args.completerUids,
+    dueDate: args.dueDate,
+    sourceRef,
+    now: args.now,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// A room that holds a link
+// ---------------------------------------------------------------------------
+
+/**
+ * THE CARD THAT SAYS A GROUP'S ROOM HOLDS A LINK. "Week N is open" goes for
+ * a session in a room with none booked yet, saying "Room to be confirmed",
+ * and a room field that holds a link is one of those: a link is never
+ * printed as a room. Unlike a room not booked yet, it is a mistake somebody
+ * has to put right, so the job tells the programme's lead and the admins on
+ * their boards, as it told them while such an email was held. Born notified,
+ * like every register card. One per group per session, created once; nothing
+ * archives it but the person who puts the room right.
+ */
+
+/** `course-register__{runId}__{groupId}__{sessionKey}__room`. Construct-only. */
+export function roomLinkTaskId(runId: string, groupId: string, sessionKeyValue: string): string {
+  return `${registerFollowUpTaskId(runId, groupId, sessionKeyValue)}__room`;
+}
+
+export function roomLinkTitle(args: Omit<HeldEmailCopyArgs, "missing">): string {
+  return `Week ${args.weekNumber}’s room holds a link: ${args.groupName || "a group"}`;
+}
+
+export function roomLinkDescription(args: Omit<HeldEmailCopyArgs, "missing">): string {
+  const day = sessionDateLabel(args.dateKey);
+  const session = day ? `week ${args.weekNumber} on ${day}` : `week ${args.weekNumber}`;
+  const group = args.groupName || "This group";
+  const course = args.courseTitle || "a course";
+  return [
+    `${group} on ${course} was sent “Week ${args.weekNumber} is open”, about ${session}, saying “Room to be confirmed”: the group’s room holds a link, and a link is never printed as a room.`,
+    "",
+    "What to do: on the group’s page, put the room’s name in its room. A link to join a session goes in its link instead.",
+  ].join("\n");
+}
+
+export function buildRoomLinkTask(args: Omit<HeldEmailTaskArgs, "missing">): Omit<TaskDoc, "id"> {
+  const copy = {
+    courseTitle: args.courseTitle,
+    groupName: args.groupName,
+    weekNumber: args.session.weekNumber,
+    dateKey: args.session.dateKey,
+  };
+  // No `sessionKey`, as for the held email's card: see the module header.
+  const sourceRef: SourceRef = {
+    cohortId: args.runId,
+    weekNumber: args.session.weekNumber,
+    groupId: args.groupId,
+  };
+  return registerTaskPayload({
+    title: roomLinkTitle(copy).slice(0, args.limits.title),
+    description: roomLinkDescription(copy).slice(0, args.limits.description),
     creatorUid: args.creatorUid,
     completerUids: args.completerUids,
     dueDate: args.dueDate,

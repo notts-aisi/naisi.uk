@@ -57,6 +57,11 @@ export type SendNoticeArgs = {
   subject: string;
   /** Which lane this is, for the receipt and for the marker's sentence. */
   surface: NoticeSurface;
+  /**
+   * The week the notice is about, for a surface whose sentence names it
+   * (Remind, by hand). A fact for the marker, never its words.
+   */
+  weekNumber?: number;
   /** The uid of the person who chose to send it. The receipt's actor. */
   actorUid: string;
   /** The event, group or run this is about. The receipt's reference. */
@@ -75,6 +80,7 @@ export async function sendNotice({
   to,
   subject,
   surface,
+  weekNumber,
   actorUid,
   referenceId,
   render,
@@ -84,7 +90,7 @@ export async function sendNotice({
   return sendEmail({
     to,
     subject,
-    react: render(NoticeMarker({ surface })),
+    react: render(NoticeMarker({ surface, weekNumber })),
     fromName,
     replyTo,
     kind: "notice",

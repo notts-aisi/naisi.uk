@@ -16,7 +16,9 @@ import type { EmailSendSurface } from "@/lib/firestore/emailSends";
  * a template decides WHERE it sits (directly under the greeting in every one of
  * them today) and never what it says. That split is why the copy cannot drift
  * per surface while the class stays the same: a new notice surface writes one
- * line in {@link NOTICE_REASON} and inherits the rest.
+ * line in {@link NOTICE_REASON} and inherits the rest. A surface whose reason
+ * names the week it is about is handed the week's number, a fact and never
+ * words: the words stay here.
  *
  * It is deliberately NOT an unsubscribe affordance and must never grow into
  * one. There is nothing here to switch off, which is the whole claim the line
@@ -31,7 +33,7 @@ import type { EmailSendSurface } from "@/lib/firestore/emailSends";
  * half of one sentence. Written from the RECIPIENT'S side: "you have a place at
  * this event", never "you are on the attendee list".
  */
-const NOTICE_REASON: Record<EmailSendSurface, string> = {
+const NOTICE_REASON: Record<EmailSendSurface, string | ((facts: NoticeFacts) => string)> = {
   "event-broadcast": "you have a place at this event",
   // Past tense: by the time this lands the event is off, and "you have a place"
   // would be contradicted by the message it sits above.
@@ -54,6 +56,11 @@ const NOTICE_REASON: Record<EmailSendSurface, string> = {
   "course-week": "you are in this course group",
   // A reminder goes only to somebody whose week is not done, and says so.
   "course-week-reminder": "our records show this week’s work isn’t finished",
+  // Remind, by hand: pressed about any week, before its session or after it,
+  // only for somebody whose week that is and who hasn't done it. It names the
+  // week, which need not be this one.
+  "course-week-remind-by-hand": ({ weekNumber }) =>
+    weekNumber ? `our records show week ${weekNumber} isn’t done` : "our records show a week of your programme isn’t done",
   // Messages goes as a notice only to people its writer runs a programme for:
   // somebody holding a place on it, in one of its groups, or helping to run it.
   messages: "you hold a place on a programme or help run one",
@@ -61,12 +68,19 @@ const NOTICE_REASON: Record<EmailSendSurface, string> = {
   "event-invitation": "you are on the programme this event is part of",
 };
 
-type Props = {
-  surface: EmailSendSurface;
+/** The facts a surface's reason may name. */
+export type NoticeFacts = {
+  /** The week a reminder by hand is about. */
+  weekNumber?: number | null;
 };
 
-export default function NoticeMarker({ surface }: Props) {
-  const reason = NOTICE_REASON[surface] ?? "you signed up for the thing it is about";
+type Props = {
+  surface: EmailSendSurface;
+} & NoticeFacts;
+
+export default function NoticeMarker({ surface, weekNumber = null }: Props) {
+  const said = NOTICE_REASON[surface];
+  const reason = typeof said === "function" ? said({ weekNumber }) : (said ?? "you signed up for the thing it is about");
   return (
     <Section style={style.wrap}>
       <Text style={style.eyebrow}>Sent as an important notice</Text>

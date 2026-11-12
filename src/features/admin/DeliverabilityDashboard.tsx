@@ -126,6 +126,7 @@ const SURFACE_LABELS: Record<string, string> = {
   "course-check-in-reminder": "check-in reminder",
   "course-week": "week is open",
   "course-week-reminder": "reminder before a session",
+  "course-week-remind-by-hand": "reminder by hand about a week",
   messages: "a message from Messages",
   "event-invitation": "invitation to a programme's event",
 };

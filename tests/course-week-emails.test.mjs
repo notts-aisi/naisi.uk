@@ -358,7 +358,7 @@ describe("2. the reminders, word for word", () => {
 // ===========================================================================
 
 describe("2b. no combination of missing facts sends a broken email", () => {
-  const FLAGS = ["title", "time", "room", "online", "cancelled", "change", "asks", "feedback", "first", "name", "link", "staysOpen"];
+  const FLAGS = ["title", "time", "room", "online", "cancelled", "change", "asks", "feedback", "first", "name", "link", "staysOpen", "roomToBeConfirmed", "earlier"];
 
   function factsFor(mask) {
     const on = (flag) => (mask & (1 << FLAGS.indexOf(flag))) !== 0;
@@ -375,15 +375,17 @@ describe("2b. no combination of missing facts sends a broken email", () => {
         first: on("first"),
         weekUrl: on("link") ? OPEN.weekUrl : "",
         staysOpen: on("staysOpen"),
+        roomToBeConfirmed: on("roomToBeConfirmed"),
       },
       name: on("name") ? "Priya" : "",
+      earlier: on("earlier") ? [1, 2] : [],
     };
   }
 
   test(`all ${2 ** FLAGS.length} of them read whole`, async () => {
     for (let mask = 0; mask < 2 ** FLAGS.length; mask += 1) {
-      const { facts, name } = factsFor(mask);
-      const email = words.weekOpenEmailWords(facts, name);
+      const { facts, name, earlier } = factsFor(mask);
+      const email = words.weekOpenEmailWords(facts, name, { earlierNotDone: earlier });
       const label = `combination ${mask.toString(2).padStart(FLAGS.length, "0")}`;
       assert.ok(email.subject.length > 0 && !/[\r\n]/.test(email.subject), `${label}: subject`);
       const all = [email.subject, email.greeting, ...email.paragraphs, ...email.lists.flatMap((l) => [l.lead, ...l.items]), email.button, ...email.after];
@@ -394,8 +396,8 @@ describe("2b. no combination of missing facts sends a broken email", () => {
       }
       for (const list of email.lists) for (const item of list.items) assert.ok(item.trim().length > 0, `${label}: an empty line in a list`);
       if (!facts.weekUrl) assert.equal(email.link, "", `${label}: a button with nowhere to go`);
-      // Rendered only one in 64, to keep the suite quick: the template is one shape.
-      if (mask % 64 === 0) {
+      // Rendered only one in 256, to keep the suite quick: the template is one shape.
+      if (mask % 256 === 0) {
         const html = await render(WeekEmail({ words: email, notice: null }));
         assert.doesNotMatch(html, /href=""/, `${label}: a dead link`);
         if (!facts.weekUrl) assert.doesNotMatch(html, new RegExp(`Open week ${facts.weekNumber}`), `${label}: a button with no link`);
@@ -529,15 +531,24 @@ describe("5. on the schedule, a fact the email carries that is empty holds it wh
     assert.deepEqual(words.missingWeekOpenValues({ ...OPEN, feedbackUrl: "" }), []);
   });
 
-  test("the group's day and time, its room, the week's title and what the week asks for each hold it", () => {
+  test("the group's day and time, the week's title and what the week asks for each hold it", () => {
     assert.deepEqual(words.missingWeekOpenValues({ ...OPEN, sessionAt: null }), ["sessionWhen"]);
-    assert.deepEqual(words.missingWeekOpenValues({ ...OPEN, where: " " }), ["sessionWhere"]);
     assert.deepEqual(words.missingWeekOpenValues({ ...OPEN, weekTitle: "" }), ["weekTitle"]);
     assert.deepEqual(words.missingWeekOpenValues({ ...OPEN, asks: [] }), ["weekAsks"]);
     assert.deepEqual(
-      words.missingWeekOpenWords(["sessionWhen", "sessionWhere", "weekTitle", "weekAsks"], 4),
-      ["the group’s day and time", "the group’s room", "week 4’s title", "what week 4 asks for"],
+      words.missingWeekOpenWords(["sessionWhen", "weekTitle", "weekAsks"], 4),
+      ["the group’s day and time", "week 4’s title", "what week 4 asks for"],
     );
+  });
+
+  test("a room not booked yet holds nothing: the email goes, saying Room to be confirmed", () => {
+    assert.deepEqual(words.missingWeekOpenValues({ ...OPEN, where: " " }), []);
+    assert.deepEqual(words.missingWeekOpenValues({ ...OPEN, where: "", roomToBeConfirmed: true }), []);
+    const email = words.weekOpenEmailWords({ ...OPEN, where: "", roomToBeConfirmed: true }, "Priya");
+    assert.deepEqual(email.paragraphs, [
+      "Week 3 of AGI Strategy is open: Power and incentives. Your next session is Wed 18 Nov at 3pm.",
+      "Room to be confirmed: we’ll email you as soon as it’s booked, and it’ll be on your programme page.",
+    ]);
   });
 
   test("a cancelled evening goes without its day and room, which it says are off", () => {
@@ -626,7 +637,7 @@ describe("7. the send", () => {
     }
   });
 
-  test("the template has two senders, and nothing else in src renders it", () => {
+  test("the template has three senders, and nothing else in src renders it", () => {
     const senders = [];
     for (const file of walk(SRC)) {
       const path = relative(REPO_ROOT, file).split(sep).join("/");
@@ -635,7 +646,12 @@ describe("7. the send", () => {
       const code = stripSource(readFileSync(file, "utf8"));
       if (/\bWeekEmail\(/.test(code)) senders.push(path);
     }
-    assert.deepEqual(senders.sort(), ["src/lib/courses/nextWeekEmail.ts", "src/lib/scheduler/jobs/weekReminders.ts"]);
+    // Remind by hand is built on the reminders: their template, their words of what is left.
+    assert.deepEqual(senders.sort(), [
+      "src/lib/courses/groupWeekWork/remind.ts",
+      "src/lib/courses/nextWeekEmail.ts",
+      "src/lib/scheduler/jobs/weekReminders.ts",
+    ]);
   });
 
   test("every word of both emails is written in one file", () => {

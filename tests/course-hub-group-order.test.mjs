@@ -271,6 +271,12 @@ const FETCHES_IT_CANNOT_READ = new Map([
       "handed (each previewed, then pressed), and the updates route of its run for that group's notice, through one " +
       "helper that takes the address: one group's sessions, never a run's groups.",
   ],
+  // ADDED (November 2026), with who has done the week and Remind.
+  [
+    "src/features/courses/groupPage/RemindPanel.tsx",
+    "Remind, from a group's page or its facilitators' page: the Remind route of the one group it is handed, for one " +
+      "week (previewed, then pressed with the count it showed): the people of one group's week, never a run's groups.",
+  ],
   [
     "src/features/courses/groupPage/RoomPanel.tsx",
     "A group's page's room panel: the programme's room route for the one group it is handed (`roomPath`, built by " +

@@ -685,6 +685,9 @@ describe("8. the start a register keeps is read from the group inside the write"
       "lib/courses/nextWeekEmail.ts": "the email's facts, never stored on a register",
       "lib/courses/sessionReports/readers.ts": "a report's view, read only",
       "lib/courses/weekEmails/words.ts": "an email's words",
+      "lib/courses/groupWeekWork/load.ts": "a week's card on the group's page, read only",
+      "lib/courses/groupWeekWork/remind.ts": "Remind's email facts, never stored on a register",
+      "lib/courses/groupWeekWork/words.ts": "Remind's email words",
       "lib/scheduler/jobs/weekReminders.ts": "a reminder's facts, never stored on a register",
     };
     const naming = files

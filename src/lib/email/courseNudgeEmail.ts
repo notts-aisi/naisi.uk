@@ -1,5 +1,6 @@
 import "server-only";
 import { couldBeFollowed } from "@/lib/courses/followable";
+import type { GroupCampus } from "@/lib/courses/campus";
 import type { GroupSession, GroupSessionMode } from "@/lib/firestore/courseGroups";
 
 /**
@@ -85,6 +86,37 @@ export function courseNudgeSessionWhere(
   if (mode === "in-person") return room;
   if (location) return room;
   return session.meetingUrl ? "Online" : "";
+}
+
+/**
+ * WHERE "WEEK N IS OPEN" SAYS A SESSION IS, worked out once for the email
+ * (`src/lib/courses/nextWeekEmail.ts`) and for the Publish page's line about
+ * it (`src/lib/courses/getReady/follows.ts`), so the two cannot disagree:
+ *
+ *  - `where`: what `courseNudgeSessionWhere` prints, a room or "Online";
+ *  - `roomToBeConfirmed`: printed nothing, in a group not set to meet online,
+ *    so a room is owed: none is set, or the room holds a link, which is never
+ *    printed as one. The email says "Room to be confirmed" and goes;
+ *  - `roomHoldsLink`: the second of those, which somebody has to put right,
+ *    so the people running the programme are told;
+ *  - `onlineNoLink`: printed nothing, in a group set to meet online, which
+ *    has no link yet. The email says when it meets and nothing of where.
+ */
+export function weekOpenPlace(
+  session: GroupSession,
+  mode: GroupSessionMode | null,
+  campus: GroupCampus | null,
+): { where: string; roomToBeConfirmed: boolean; roomHoldsLink: boolean; onlineNoLink: boolean } {
+  const where = courseNudgeSessionWhere(session, mode);
+  const location = session.location.trim();
+  const online = campus === "online";
+  const roomToBeConfirmed = where === "" && !online;
+  return {
+    where,
+    roomToBeConfirmed,
+    roomHoldsLink: roomToBeConfirmed && location !== "" && couldBeFollowed(location),
+    onlineNoLink: where === "" && online,
+  };
 }
 
 /** The week's page on the site for this run, or "" when a part of it is missing. */
