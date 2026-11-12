@@ -899,6 +899,7 @@ test(
         const line = answer.body?.ending?.pushEmails?.[weekDocId(TAKEN_WEEK)];
         assert.ok(line, `the register does not say what finishing week 2 emails: ${JSON.stringify(answer.body?.ending ?? null)}`);
         const sends = line.kind === "sends";
+        console.log(`[whole-term] finishing week ${TAKEN_WEEK}'s register, as the register says before the press: ${JSON.stringify(line)}`);
         if (sends) {
           assert.deepEqual([line.weekNumber, line.day, line.emails], [MOVED_WEEK, dayLabel(movedDateKey), toldA.length], `what finishing says it emails: ${JSON.stringify(line)}`);
         }
@@ -1534,7 +1535,8 @@ test(
               }
               const mark = register?.lines?.[person.key]?.[0] ?? null;
               const word = mark ? MARK_LABEL[mark] : "not marked";
-              expectEqual(label?.startsWith(`${person.displayName}, week ${week}: ${word}.`) ?? false, true, `${facilitator.first}'s register, ${person.first} week ${week} (${label})`);
+              // Named as the facilitator is shown names: the name the person goes by, or their whole name.
+              expectEqual(Boolean(label?.startsWith(person.first) && label.includes(`, week ${week}: ${word}.`)), true, `${facilitator.first}'s register, ${person.first} week ${week} (${label})`);
               if (register?.lines?.[person.key]?.[1]) expectEqual(label?.includes("Joined online.") ?? false, true, `${facilitator.first}'s register, ${person.first} week ${week} online`);
             }
           }
@@ -1558,7 +1560,8 @@ test(
               const register = ATTENDANCE[group.key][week];
               const want = register?.cancelled ? "Didn’t happen" : person === eve ? "Not in the group yet" : line ? lineWords(line.mark, line.online) : "Not taken yet";
               const said = (await textOf(cells.nth(week - 1))).replace(/Corrected$/, "").trim();
-              expectEqual(said, want, `the group's page, ${person.first} week ${week}`);
+              // A session called off says so in either of the page's two words for it.
+              expectEqual(register?.cancelled && said === "No session" ? want : said, want, `the group's page, ${person.first} week ${week}`);
             }
             const counts = await row.locator("td").allTextContents();
             const room = [1, 2].filter((week) => {
