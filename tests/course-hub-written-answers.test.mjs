@@ -322,7 +322,7 @@ describe("2. the gate: who gives feedback, who presses the old Reopen, and the w
     const changed = await w.write("farah", 2, { text: words(23) });
     assert.equal(changed.status, 200, JSON.stringify(changed.body));
     assert.equal(stored("farah", 2).words, 23);
-    assert.deepEqual(stored("farah", 2).earlierVersions.map((version) => [version.words, version.reasons.sort()]), [[22, ["feedback", "sent"]]]);
+    assert.deepEqual(stored("farah", 2).earlierVersions.map((version) => [version.words, version.reasons.sort()]), [[22, ["reviewed", "sent"]]]);
     // Before the session, its readers go on reading it as sent.
     const piece = piecesOn("farah", 2)[0];
     assert.equal(iso(piece.aboutSavedAt), "2026-11-06T10:00:00.000Z");
@@ -340,7 +340,7 @@ describe("2. the gate: who gives feedback, who presses the old Reopen, and the w
     assert.equal(iso(stored("farah", 2).updatedAt), iso(LATE_2));
     // Farah's week still takes a change: the words the feedback was on are kept with it.
     assert.equal((await w.write("farah", 2, { text: words(31) })).status, 200);
-    assert.deepEqual(stored("farah", 2).earlierVersions.map((version) => [version.words, version.reasons.sort()]), [[30, ["feedback", "session"]]]);
+    assert.deepEqual(stored("farah", 2).earlierVersions.map((version) => [version.words, version.reasons.sort()]), [[30, ["reviewed", "session"]]]);
     // An admin may give feedback too, on another answer.
     assert.equal((await feedback("zach", "chloe", 2, "From an admin.")).status, 200);
     assert.equal(piecesOn("chloe", 2)[0].byUid, "zach");

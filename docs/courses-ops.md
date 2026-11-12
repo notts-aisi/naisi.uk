@@ -2281,9 +2281,10 @@ here.
 - **Earlier versions** (`versions.ts`): an optional `earlierVersions` list
   on the answer's, reflection's or fill-in box's own row, written by the save
   that changes the words, in the same transaction, only at the first change
-  after the session started, after a send before it, or after feedback or a
-  rating on these very words; one change crossing several lines keeps one
-  version with every reason. At most 12 versions and 120,000 characters
+  after the session started (`session`), after a send before it (`sent`), or
+  after feedback or a rating on these very words (`reviewed`, one word for
+  both, so the writer's own row never says a rating was given); one change
+  crossing several lines keeps one version with every reason. At most 12 versions and 120,000 characters
   between them: at the cap the oldest that is not the one at the session
   gives way. A box emptied when a version is owed keeps its row, empty, with
   `emptiedAt`, which reads as nothing written (`boxIsWritten`). A save that

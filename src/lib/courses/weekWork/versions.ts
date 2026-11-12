@@ -21,9 +21,11 @@
  *  - `sent`: a written answer was sent and that session has not started (the
  *    version as last sent, which its readers go on reading until it is sent
  *    again);
- *  - `feedback`: somebody gave feedback on it or rated it (the version the
+ *  - `reviewed`: somebody gave feedback on it or rated it (the version the
  *    feedback or the rating was about: the person's `courseWeekWork` record
  *    carries the mark of the version last reviewed, so a save asks no query).
+ *    One word for both, on a row its writer can read: it never says whether
+ *    a rating, which they are never shown, was among them.
  * One change that crosses several lines keeps one version with every reason.
  *
  * THE CAP: at most `MAX_EARLIER_VERSIONS` versions, and at most
@@ -44,7 +46,7 @@
  * Pure: no reads, no clock. The pages in the browser import it.
  */
 
-export const VERSION_REASONS = ["session", "sent", "feedback"] as const;
+export const VERSION_REASONS = ["session", "sent", "reviewed"] as const;
 export type VersionReason = (typeof VERSION_REASONS)[number];
 
 /** The most earlier versions a piece keeps. */
@@ -201,7 +203,7 @@ export function versionOwed(input: {
   const sent = lastSentAt(prior);
   if (!started && sent !== null && saved <= sent.getTime()) reasons.push("sent");
   // The first change after feedback or a rating on these very words.
-  if (reviewedSavedAt !== null && reviewedSavedAt.getTime() >= saved) reasons.push("feedback");
+  if (reviewedSavedAt !== null && reviewedSavedAt.getTime() >= saved) reasons.push("reviewed");
   return reasons;
 }
 

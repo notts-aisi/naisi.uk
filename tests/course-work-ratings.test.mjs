@@ -188,7 +188,9 @@ describe("1. rating an answer: admins and the programme's lead, on readable work
     const row = w.world.db.read(w.rowPath("chloe", 2));
     const kept = row.earlierVersions.find((version) => new Date(version.savedAt).getTime() === rated.aboutSavedAt.getTime());
     assert.ok(kept, "the rated words are kept");
-    assert.ok(kept.reasons.includes("feedback"));
+    assert.ok(kept.reasons.includes("reviewed"));
+    // The row its writer can read never says a rating was among the reasons.
+    assert.doesNotMatch(JSON.stringify(row), /rating|rated/i);
     assert.equal(w.world.db.read(ratingPath("chloe", 2, "zach")).rating, 8, "a change keeps the rating given");
   });
 

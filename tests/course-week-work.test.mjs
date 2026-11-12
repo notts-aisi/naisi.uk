@@ -684,6 +684,9 @@ describe("4. Send, the old Submit, versions, a closed programme, and the old Reo
     assert.equal(review.selected.person.uid, "chloe");
     assert.equal(review.selected.text, ENOUGH, "the words as last sent");
     assert.deepEqual([review.selected.shown.latest, review.selected.person.changedSinceSent], [false, true]);
+    // When the words shown were saved: never when the change not sent yet was.
+    assert.equal(review.selected.person.changedAt, new Date(BEFORE_WEEK_TWO).toISOString());
+    assert.equal(review.selected.person.words, 21);
     const kofi = [...review.toGive, ...review.feedbackSent, ...review.notSent].find((person) => person.uid === "kofi");
     assert.deepEqual([kofi.readable, kofi.words, kofi.changedAt], [false, 0, null], "never sent: nothing of it");
     assert.ok(!JSON.stringify(review).includes("unsentword"), "no unsent word reaches the reader");
@@ -768,7 +771,9 @@ describe("4. Send, the old Submit, versions, a closed programme, and the old Reo
     await w.write("chloe", 2, { text: `${ENOUGH} changed` });
     const row = w.world.db.read(w.rowPath("chloe", 2));
     assert.equal(row.earlierVersions.length, 1);
-    assert.deepEqual(row.earlierVersions[0].reasons.sort(), ["feedback", "sent"]);
+    assert.deepEqual(row.earlierVersions[0].reasons.sort(), ["reviewed", "sent"]);
+    // One word for feedback and a rating alike, on a row the writer can read: never "rating".
+    assert.doesNotMatch(JSON.stringify(row), /rating|rated/i);
     // Once the session has started, the reviewers read the latest, and the card carries the version it was about.
     w.at(WEEK_TWO_SESSION);
     const review = await reviewOf("rahul", 2, "chloe");

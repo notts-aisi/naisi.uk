@@ -388,8 +388,9 @@ export async function loadWrittenReview(
       firstSentAt: record?.firstSentAt ? record.firstSentAt.toISOString() : null,
       sentAt: sent ? sent.toISOString() : null,
       changedSinceSent: Boolean(sent && record?.savedAt && record.savedAt.getTime() > sent.getTime()),
-      changedAt: readable && record?.savedAt ? record.savedAt.toISOString() : null,
-      changedLateMs: readable ? lateBy(record?.savedAt ?? null, due) : null,
+      // Of the words its readers read: never when a change not sent yet was saved.
+      changedAt: read?.savedAt ? read.savedAt.toISOString() : null,
+      changedLateMs: read ? lateBy(read.savedAt, due) : null,
       sentLateMs: lateBy(sent, due),
       late: lateBy(record?.firstSentAt ?? null, due) !== null,
       afterDeadline: afterItsDeadline(record?.firstSentAt ?? null, deadline?.at ?? null, due),

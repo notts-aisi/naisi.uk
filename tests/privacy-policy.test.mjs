@@ -5904,7 +5904,9 @@ describe("the course hub passage", () => {
     const reviewCode = withoutComments(read("src/lib/courses/writtenAnswers/reviewPage.ts"));
     assert.match(reviewCode, /afterDeadline: afterItsDeadline\(record\?\.firstSentAt \?\? null, deadline\?\.at \?\? null, due\),/);
     // "...may see anything added or changed after the session as late, with how late": worked out when read.
-    assert.match(reviewCode, /changedLateMs: readable \? lateBy\(record\?\.savedAt \?\? null, due\) : null,/);
+    assert.match(reviewCode, /changedLateMs: read \? lateBy\(read\.savedAt, due\) : null,/);
+    // ...and only of the words they may read: never when a change not sent yet was saved.
+    assert.match(reviewCode, /changedAt: read\?\.savedAt \? read\.savedAt\.toISOString\(\) : null,/);
 
     // Feedback is a comment, never a number or a level (v14: "never a mark";
     // and no level goes back to the person). A piece stores its words, who
@@ -11378,7 +11380,7 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
     const versions = withoutComments(read("src/lib/courses/weekWork/versions.ts"));
     assert.match(versions, /if \(started && saved < \(dueAt as Date\)\.getTime\(\)\) reasons\.push\("session"\);/);
     assert.match(versions, /if \(!started && sent !== null && saved <= sent\.getTime\(\)\) reasons\.push\("sent"\);/);
-    assert.match(versions, /if \(reviewedSavedAt !== null && reviewedSavedAt\.getTime\(\) >= saved\) reasons\.push\("feedback"\);/);
+    assert.match(versions, /if \(reviewedSavedAt !== null && reviewedSavedAt\.getTime\(\) >= saved\) reasons\.push\("reviewed"\);/);
     for (const file of [
       "src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts",
       "src/app/api/courses/runs/[runId]/reflections/[promptId]/route.ts",
