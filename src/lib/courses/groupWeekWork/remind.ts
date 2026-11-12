@@ -48,8 +48,9 @@ import { handReminderEmailWords, peopleCountWords, stillToDoItems, type HandRemi
  * is claimed in a transaction before their email goes: somebody claimed in
  * the last `SAME_PRESS_MS` is skipped, whoever pressed, so a retry (a lost
  * answer, a double tap) emails nobody again. The claim is let go when their
- * email did not go, so a later press can try. A deliberate second reminder
- * later is the panel's warning to make, not this file's.
+ * email did not go, so a later press can try, and never after an email that
+ * went, even when its record then cannot be written. A deliberate second
+ * reminder later is the panel's warning to make, not this file's.
  *
  * THE RECORD. After each email that went, the person's record says when and
  * who pressed ("Last reminded" reads it), and the press writes one row in
@@ -191,7 +192,9 @@ export async function sendHandReminders(
       return;
     }
     attempted += 1;
+    // Only ever for an email that did not go.
     const letGo = () => recordRef.update({ claimedAt: null }).catch(() => {});
+    let result: Awaited<ReturnType<typeof sendNotice>>;
     try {
       const words = handReminderEmailWords(
         reminderFactsFor({
@@ -206,7 +209,7 @@ export async function sendHandReminders(
         firstWord(person.ownName),
       );
       // ONE address. One message. Never an array, never a Cc.
-      const result = await sendNotice({
+      result = await sendNotice({
         to: person.address,
         subject: words.subject,
         surface: "course-week-remind-by-hand",
@@ -215,23 +218,32 @@ export async function sendHandReminders(
         referenceId: group.id,
         render: (marker) => WeekEmail({ words, notice: marker }),
       });
-      if (result.held.length > 0) {
-        tally.held += 1;
-        await letGo();
-        return;
-      }
-      if (result.suppressed.length > 0) {
-        tally.suppressed += 1;
-        await letGo();
-        return;
-      }
-      await recordRef.update({ at: Timestamp.fromDate(now), byUid: actor.uid, count: FieldValue.increment(1) });
-      tally.sent += 1;
     } catch (err) {
       // A uid, never an address.
       console.error("[courses remind] send failed", group.id, person.uid, err);
       tally.failed += 1;
       await letGo();
+      return;
+    }
+    if (result.held.length > 0) {
+      tally.held += 1;
+      await letGo();
+      return;
+    }
+    if (result.suppressed.length > 0) {
+      tally.suppressed += 1;
+      await letGo();
+      return;
+    }
+    // The email went: it is counted as sent and its claim is kept, whatever
+    // happens to the record below, so a retry of the press never emails them
+    // again. A record that cannot be written only leaves "Last reminded"
+    // short of this one.
+    tally.sent += 1;
+    try {
+      await recordRef.update({ at: Timestamp.fromDate(now), byUid: actor.uid, count: FieldValue.increment(1) });
+    } catch (err) {
+      console.error("[courses remind] the record of a reminder that went could not be written", group.id, person.uid, err);
     }
   });
 

@@ -285,6 +285,42 @@ describe("5. the same press twice", () => {
     assert.equal(historyRows("week-reminded").length, 2);
   });
 
+  test("a send that went is never sent again, even when its record then cannot be written", async (t) => {
+    t.mock.method(console, "error", () => {});
+    // Writing when the reminder went fails, once the email is out; the claim stands.
+    const real = world.courseDb.collection.bind(world.courseDb);
+    world.courseDb.collection = (path) => {
+      const collection = real(path);
+      if (path !== "courseNudges") return collection;
+      return {
+        ...collection,
+        doc: (id) => {
+          const ref = collection.doc(id);
+          if (!id.startsWith("handremind__")) return ref;
+          return {
+            ...ref,
+            update: (patch) => (Object.hasOwn(patch, "at") ? Promise.reject(new Error("the write failed")) : ref.update(patch)),
+          };
+        },
+      };
+    };
+    try {
+      const first = await press("rahul", 3);
+      assert.equal(first.status, 200, JSON.stringify(first.body));
+      assert.deepEqual(first.body.sent, { sent: 1, justReminded: 0, suppressed: 0, held: 0, failed: 0 }, "the email that went is counted as sent");
+      assert.equal(mailTo("ines").length, 1);
+      const record = world.db.read(recordPath("ines", 3));
+      assert.ok(record.claimedAt, "the claim of a send that went was let go");
+      assert.equal(record.at, undefined, "the stand-in let the record through");
+      const retry = await ask("rahul", { week: 3, count: 1 });
+      assert.equal(retry.status, 200);
+      assert.deepEqual(retry.body.sent, { sent: 0, justReminded: 1, suppressed: 0, held: 0, failed: 0 });
+      assert.equal(mailTo("ines").length, 1, "a retry of the press emailed her again");
+    } finally {
+      world.courseDb.collection = real;
+    }
+  });
+
   test("an automatic reminder that went is a last reminder too; one stamped as skipped is not", async () => {
     world.db.seed(`schedulerMarkers/weekremind__${B}__w03__ines__1`, { sentAt: new Date("2026-11-16T09:00:00Z") });
     world.db.seed(`schedulerMarkers/weekremind__${B}__w03__ines__3`, { skippedReason: "done", sentAt: null });
