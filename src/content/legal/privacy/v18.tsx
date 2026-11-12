@@ -97,13 +97,13 @@ export default function PrivacyContentV18({
               after your session, sent or not.
             </p>
             <p>
-              <strong>What changed in version 17, on 12 November 2026:</strong> who can take
-              and correct a register; asking to change session or group, to
-              be excused, or to message the team; work added after a session,
-              and reminders after it; a second form that never records who
-              fills it in; conduct records that can note good things as well
-              as concerns; how long we keep reasons and messages; and that we
-              tell you about changes to this policy on the site.
+              <strong>What changed in version 17, on 12 November 2026:</strong> who
+              can take and correct a register; asking to change session or
+              group, to be excused, or to message the team; work added after a
+              session, and reminders after it; a second form that never records
+              who fills it in; conduct records that can note good things as
+              well as concerns; how long we keep reasons and messages; and that
+              we tell you about changes to this policy on the site.
             </p>
             <h2 id="in-short">In short</h2>
             <ul>
@@ -821,9 +821,9 @@ export default function PrivacyContentV18({
                 on how each person is doing. It is drafted after your session,
                 usually about a week after it, and uses your work on that week
                 as it stands then, sent or not, with the feedback, ratings and
-                comments people on the team gave it. Only what you wrote after you first agreed to version 13 of
-                this policy, or after you joined if that was later, is ever
-                sent.
+                comments people on the team gave it. Only what you wrote after
+                you first agreed to version 13 of this policy, or after you
+                joined if that was later, is ever sent.
               </p>
               <p>
                 <strong>What is sent, and what comes back.</strong> The tools
