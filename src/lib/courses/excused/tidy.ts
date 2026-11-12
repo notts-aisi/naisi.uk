@@ -2,8 +2,9 @@ import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { normalizeExcusedRequest, type ExcusedRequestDoc } from "@/lib/firestore/courseExcusedRequests";
 import { COURSE_REQUESTS_COLLECTION } from "@/lib/firestore/courseRequests";
+import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
-import { runClosesAt } from "./ask";
+import { workClosedForReasons } from "@/lib/courses/weekWork/closes";
 
 /**
  * THE PRIVACY POLICY'S PROMISE ABOUT A REASON TO BE EXCUSED (version 17, "How
@@ -12,7 +13,7 @@ import { runClosesAt } from "./ask";
  * were excused."
  *
  * WHAT IT DELETES. Once a run has closed (`workClosesAt`, the one moment
- * every week of the run shuts, asked through `runClosesAt`), the `reason` of
+ * every week of the run shuts, asked through `workClosedForReasons`), the `reason` of
  * every excused request of that run: decided, withdrawn, and one still
  * waiting too, because the promise has no exception. Everything else stays:
  * the weeks, what was decided, by whom, when and the reply, and what
@@ -26,13 +27,18 @@ import { runClosesAt } from "./ask";
  *
  * SAFE TWICE. A request whose reason is gone no longer matches the read, so a
  * second run finds nothing. A run with no close moment (no session to date)
- * is left alone, as is a run that is gone.
+ * is left alone, as is a run that is gone. A run whose groups are all
+ * archived closes from those groups' own calendars (`workClosedForReasons`,
+ * used by this job alone), so its reasons still go.
  *
  * It returns counts, and its caller logs counts: never a reason.
  */
 
 /** Most requests one pass reads: a term holds tens of these. */
 const MAX_PER_PASS = 500;
+
+/** Most groups of one run read. */
+const MAX_GROUPS = 100;
 
 export type ReasonsOff = { deleted: number; runsClosed: number; runsOpen: number };
 
@@ -49,7 +55,13 @@ export async function deleteClosedReasons(db: Firestore, now: Date): Promise<Rea
     if (runId.includes("/")) continue;
     const runSnap = await db.collection("courseRuns").doc(runId).get();
     if (!runSnap.exists) continue;
-    const closesAt = await runClosesAt(db, normalizeCourseRun(runSnap.id, runSnap.data() ?? {}));
+    const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
+    // Every group of the run, archived ones too: one equality on `runId`.
+    const groupSnap = await db.collection("courseGroups").where("runId", "==", run.id).limit(MAX_GROUPS).get();
+    const closesAt = workClosedForReasons(
+      run,
+      groupSnap.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})),
+    );
     if (!closesAt || now.getTime() < closesAt.getTime()) {
       done.runsOpen += 1;
       continue;

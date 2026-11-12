@@ -33,3 +33,24 @@ export function workClosesAfter(lastDateKey: string | null, days: number | null)
 export function workClosesAt(run: CourseRunDoc, groups: readonly CourseGroupDoc[]): Date | null {
   return workClosesAfter(runEndOf(run, groups, new Date(0)).lastDateKey, run.workClosesAfterDays);
 }
+
+/**
+ * WHEN A RUN CLOSED, FOR THE JOB THAT DELETES REASONS TO BE EXCUSED, and for
+ * nothing else: as `workClosesAt`, except that a run whose groups are ALL
+ * archived closes from those groups' own calendars. Without this such a run
+ * has no live group, so no close moment, and the reasons given on it would
+ * be kept for ever, which the privacy policy does not allow ("until your
+ * programme closes"). Archiving a group never brings its last session
+ * forward, so this moment is never earlier than the one the groups' own
+ * calendars said: a reason is never deleted before its programme closed. A
+ * run with no group at all, or no session to date, still has none.
+ */
+export function workClosedForReasons(run: CourseRunDoc, groups: readonly CourseGroupDoc[]): Date | null {
+  const own = groups.filter((group) => group.runId === run.id);
+  const live = own.filter((group) => !group.archived);
+  if (live.length > 0) return workClosesAt(run, live);
+  return workClosesAt(
+    run,
+    own.map((group) => ({ ...group, archived: false })),
+  );
+}

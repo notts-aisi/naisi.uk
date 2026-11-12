@@ -1216,6 +1216,25 @@ describe("the reason goes when the programme closes, and the decision stays", ()
     assert.equal(view.weeks[0].status, "approved");
   });
 
+  test("a run whose groups are all archived still closes, from their own calendars, and its reasons go then and not before", async () => {
+    await amaraAsks();
+    for (const gid of [A, B, C]) world.db.poke(`courseGroups/${gid}`, { archived: true });
+    // Before the close its groups' calendars say, nothing goes.
+    assert.deepEqual(await tidy.deleteClosedReasons(world.courseDb, AFTER_W2), { deleted: 0, runsClosed: 0, runsOpen: 1 });
+    assert.equal(requestDocs()[0].reason, REASON);
+    const done = await tidy.deleteClosedReasons(world.courseDb, CLOSED);
+    assert.deepEqual(done, { deleted: 1, runsClosed: 1, runsOpen: 0 });
+    assert.equal(requestDocs()[0].reason, undefined);
+    assert.equal(requestDocs()[0].change.weeks[0].status, "waiting", "the decision went with the reason");
+    // The live calendars answer as before; the archived ones only when nothing is live.
+    const closes = await loadTs("lib/courses/weekWork/closes.ts");
+    const run = courses.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+    const groupList = [A, B, C].map((gid) => groups.normalizeCourseGroup(gid, world.db.read(`courseGroups/${gid}`)));
+    assert.equal(closes.workClosesAt(run, groupList), null, "the one close function changed for every other reader");
+    assert.ok(closes.workClosedForReasons(run, groupList) instanceof Date);
+    assert.equal(closes.workClosedForReasons(run, []), null, "a run with no group closed");
+  });
+
   test("a run with no close moment keeps its reasons", async () => {
     await amaraAsks();
     world.db.poke(`courseRuns/${RUN.agi}`, { weekPlan: [] });
