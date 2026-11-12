@@ -762,3 +762,24 @@ describe("4. the routes' previews, through the panel's lines", () => {
     at("2026-11-19T10:00:00Z");
   });
 });
+
+describe("5. a save refused because the groups went out after its page opened", () => {
+  test("a permission refusal of a save that changes the time reads one sentence; every other error is as it was", () => {
+    assert.equal(
+      words.GONE_OUT_SINCE_OPENED,
+      "The groups have gone out since this page opened, so this can’t change here. Reload the page.",
+    );
+    const refused = Object.assign(new Error("Missing or insufficient permissions."), { code: "permission-denied" });
+    const said = words.goneOutSinceOpened(refused, true);
+    assert.ok(said instanceof Error);
+    assert.equal(said.message, words.GONE_OUT_SINCE_OPENED);
+    // A save that changed none of what the rules keep: its refusal is something else, kept as it was.
+    assert.equal(words.goneOutSinceOpened(refused, false), refused);
+    // Any other error, whatever the save changed.
+    const offline = Object.assign(new Error("Failed to get document because the client is offline."), { code: "unavailable" });
+    assert.equal(words.goneOutSinceOpened(offline, true), offline);
+    const plain = new Error("Run label required");
+    assert.equal(words.goneOutSinceOpened(plain, true), plain);
+    assert.equal(words.goneOutSinceOpened(null, true), null);
+  });
+});
