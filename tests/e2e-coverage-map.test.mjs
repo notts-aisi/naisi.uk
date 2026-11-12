@@ -993,6 +993,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
+  "/api/courses/groups/[groupId]/cant-make-it": {
+    reason:
+      "Course hub: the instant Can't make it, which records somebody as excused on the spot. Somebody taking part now asks an admin instead (the excused weeks spec drives that), so only a facilitator who holds a place in the group they run is offered it, and an old page still open may press it. tests/course-session-cant-make-it.test.mjs executes it as every kind of caller, with the line it writes, its take-back and the line an approval wrote that it leaves alone.",
+    coverWhen:
+      "When a browser spec seats a facilitator in the group they run, or the route goes once the instant button has settled.",
+  },
   "/api/courses/groups/[groupId]/excused": {
     reason:
       "Course hub: somebody holding a place asking to be excused from sessions of their group, with a short reason. tests/course-excused-weeks.test.mjs executes it as every kind of caller, before a session and after it, with each refusal and the request it writes (and nothing on a register); the programme page that presses it is built in the next change.",

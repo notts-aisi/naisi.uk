@@ -7,17 +7,17 @@
  * Group A's week 4 session days ahead.
  *
  * -> the admin approves Ada and Fern -> names the running run -> appoints
- * Fern to Group A -> Ada presses Can't make it on her next session's ticket,
- * which says the register records her as excused, and still does after a
- * reload -> Ada answers Can you make this time most weeks? with Most weeks,
- * not all: week 4 is ticked already, she ticks week 5, and its register
- * records her as excused as the ticket's does, after a reload too -> Fern's
+ * Fern to Group A -> Ada's next session's ticket offers Can't make it as a
+ * request an admin decides (joining online first), never the instant button,
+ * and opening it writes nothing -> Ada answers Can you make this time most
+ * weeks? with Most weeks, not all, ticking weeks 4 and 5, and their registers
+ * record her as excused, after a reload too -> Fern's
  * register says Ada can't make week 4, and leads to week 3's
  * session report before it is finished; Fern marks week 3, puts Ada down as
  * having joined it online, and finishes it -> Fern follows "Next: two
  * minutes on how it went." to the session report and sends one -> Ada can
- * make week 4 after all and says Ada is joining it online instead, one thing
- * at a time on the ticket -> the box at the top of Fern's group page asks
+ * make week 4 after all, unticks it, and says Ada is joining it online
+ * instead, one thing at a time on the ticket -> the box at the top of Fern's group page asks
  * for a meeting link for week 4, Fern adds one, and the box and the register
  * say Ada is joining online -> Ada's ticket, on the programme page and on
  * Home, carries the link for anybody joining online, beside Add to calendar
@@ -107,15 +107,21 @@ const WORDS = Object.freeze({
   mostWeeks: "Most weeks, not all",
   sessionOption: (week, day) => `Week ${week}, ${day}`,
   sendAnswer: "Send",
+  changeAnswer: "Change your answer",
   savedMostWeeks: "Thanks. You’ve told us you can make it most weeks.",
   saidMostWeeks: "You’ve told us you can make it most weeks.",
   missing: (days) => `You can’t make ${days.join(" or ")}, and whoever runs your sessions knows.`,
   ticket: "Your next session",
   cantMakeIt: (day) => `Can’t make it on ${day}`,
+  // The request behind Can't make it (src/lib/courses/excused/ownWords.ts).
+  cantMakeDay: (day) => `Can’t make ${day}?`,
+  askToBeExcused: "Ask to be excused",
+  excused: "Excused",
+  saidWhenTimeSet: "Said when the time was set",
+  // The instant button's own words, which a member taking part is never shown now.
   toldUs:
     "You’ve told us you can’t make this session, so the register records you as excused. Your facilitators see it there.",
   canMakeItAfterAll: "I can make it after all",
-  canMakeItBack: "You’ve told us you can make it after all.",
   joiningOnline: (day) => `Joining online on ${day}`,
   saidOnline:
     "You’ve said you’re joining online, and your facilitators can see that. The link to join will be on this ticket, not in your emails.",
@@ -419,38 +425,42 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
     });
 
     await step(
-      "the member presses Can't make it on their next session's ticket, and the ticket says the register records them as excused",
+      "the member's next session's ticket offers Can't make it as a request an admin decides, joining online first, never the instant button, and opening it writes nothing",
       async () => {
         activePage = adaPage;
         await signIn(adaPage, ada);
         await adaPage.goto(learnUrl, { waitUntil: "domcontentloaded" });
         const ticket = adaPage.getByRole("region", { name: WORDS.ticket, exact: true });
-        const press = ticket.getByRole("button", { name: WORDS.cantMakeIt(dayLabel(nextSession.dateKey)), exact: true });
+        const day = dayLabel(nextSession.dateKey);
+        const press = ticket.getByRole("button", { name: WORDS.cantMakeIt(day), exact: true });
         await press.waitFor({ timeout: WAIT_MS });
+        // The way in to a request, not the instant button: no take-back, no line saying the register records her.
+        assert.equal(await press.getAttribute("data-testid"), "excuse-open", "the ticket offers the instant Can't make it");
+        assert.equal(await ticket.getByRole("button", { name: WORDS.canMakeItAfterAll, exact: true }).count(), 0, "the instant button's take-back is drawn");
+        assert.ok(!(await textOf(ticket)).includes(WORDS.toldUs), "the instant button's line is drawn");
         await waitFor("Can't make it to be live once the page has hydrated", async () => press.isEnabled());
-        const [said] = await Promise.all([responseTo(adaPage, `/groups/${group.id}/cant-make-it`, "POST"), press.click()]);
-        assert.deepEqual(said.request().postDataJSON(), { sessionKey: nextKey, cantMakeIt: true }, "the press named another session");
-        assert.deepEqual(await okBody(said, "Can't make it"), { ok: true, told: true, message: WORDS.toldUs });
-        await ticket.getByRole("status").filter({ hasText: WORDS.toldUs }).waitFor({ timeout: WAIT_MS });
-        await ticket.getByRole("button", { name: WORDS.canMakeItAfterAll, exact: true }).waitFor({ timeout: WAIT_MS });
+        await press.click();
+        const sheet = adaPage.getByTestId("excuse-sheet");
+        await sheet.getByRole("heading", { name: WORDS.cantMakeDay(day), exact: true }).waitFor({ timeout: WAIT_MS });
+        // Week 4 is in a room: joining online is offered first, the request after it.
+        await sheet.getByRole("button", { name: WORDS.joiningOnline(day), exact: true }).waitFor({ timeout: WAIT_MS });
+        await sheet.getByRole("button", { name: WORDS.askToBeExcused, exact: true }).waitFor({ timeout: WAIT_MS });
+        await sheet.getByRole("button", { name: "Close", exact: true }).click();
+        await sheet.waitFor({ state: "detached", timeout: WAIT_MS });
 
-        // Kept by the register, so a reload still says so.
+        // Opening it wrote nothing: no line on the register, no request.
         const register = (await fixtureDoc("courseAttendance", `${state.runId}__${group.id}__${nextKey}`).get()).data();
-        assert.equal(register?.records?.[ada.uid], "excused", "the register does not record Ada as excused");
-        assert.ok(register?.excusedInAdvance?.[ada.uid], "the register does not say Ada told us in advance");
-        assert.equal(register?.records?.[ben.uid], undefined, "Ada's press wrote somebody else's line");
-        assert.ok(!register?.pushedAt, "saying Can't make it finished a register");
-        await adaPage.reload({ waitUntil: "domcontentloaded" });
-        await ticket.getByRole("status").filter({ hasText: WORDS.toldUs }).waitFor({ timeout: WAIT_MS });
-        await ticket.getByRole("button", { name: WORDS.canMakeItAfterAll, exact: true }).waitFor({ timeout: WAIT_MS });
+        assert.equal(register?.records?.[ada.uid], undefined, "opening Can't make it wrote a line");
+        const requests = await fixtureQuery("courseRequests").where("runId", "==", state.runId).get();
+        assert.equal(requests.size, 0, "opening Can't make it made a request");
       },
     );
 
     await step(
-      "the member answers Can you make this time most weeks? with Most weeks, not all, ticking a later session, and its register records them as excused as the ticket's does",
+      "the member answers Can you make this time most weeks? with Most weeks, not all, ticking the next session and a later one, and their registers record them as excused",
       async () => {
         activePage = adaPage;
-        // Still on her programme page from the press before.
+        // Still on her programme page from the step before.
         const card = adaPage.getByRole("region", { name: WORDS.timeCard, exact: true });
         const most = card.getByRole("button", { name: WORDS.mostWeeks, exact: true });
         await most.waitFor({ timeout: WAIT_MS });
@@ -458,13 +468,15 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
         await most.click();
         const nextDay = dayLabel(nextSession.dateKey);
         const laterDay = dayLabel(laterSession.dateKey);
-        // The group's sessions still to come: week 4, which she told the ticket about, already ticked.
-        const toldBox = card.getByRole("checkbox", { name: WORDS.sessionOption(nextWeek, nextDay), exact: true });
+        // The group's sessions still to come, none ticked: she has told nobody anything yet.
+        const nextBox = card.getByRole("checkbox", { name: WORDS.sessionOption(nextWeek, nextDay), exact: true });
         const laterBox = card.getByRole("checkbox", { name: WORDS.sessionOption(laterWeek, laterDay), exact: true });
-        await toldBox.waitFor({ state: "attached", timeout: WAIT_MS });
-        assert.equal(await toldBox.isChecked(), true, "the session she told the ticket about is not ticked");
+        await nextBox.waitFor({ state: "attached", timeout: WAIT_MS });
+        assert.equal(await nextBox.isChecked(), false, "a session she said nothing about is ticked");
         assert.equal(await laterBox.isChecked(), false, "a session she said nothing about is ticked");
         // The row is the box's label: pressing it ticks the box.
+        await card.getByText(WORDS.sessionOption(nextWeek, nextDay), { exact: true }).click();
+        await waitFor("week 4 to be ticked", async () => nextBox.isChecked());
         await card.getByText(WORDS.sessionOption(laterWeek, laterDay), { exact: true }).click();
         await waitFor("week 5 to be ticked", async () => laterBox.isChecked());
         const [sent] = await Promise.all([
@@ -484,14 +496,14 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
         await card.getByRole("status").filter({ hasText: WORDS.savedMostWeeks }).waitFor({ timeout: WAIT_MS });
         await card.getByText(WORDS.missing([nextDay, laterDay]), { exact: true }).waitFor({ timeout: WAIT_MS });
 
-        // Week 5's register, as the ticket writes week 4's: her line alone, excused on her word, not finished.
-        const later = (await fixtureDoc("courseAttendance", `${state.runId}__${group.id}__${laterKey}`).get()).data();
-        assert.equal(later?.records?.[ada.uid], "excused", "week 5's register does not record Ada as excused");
-        assert.ok(later?.excusedInAdvance?.[ada.uid], "week 5's register does not say Ada told us in advance");
-        assert.deepEqual(Object.keys(later?.records ?? {}), [ada.uid], "her answer wrote somebody else's line");
-        assert.ok(!later?.pushedAt, "her answer finished a register");
-        const next = (await fixtureDoc("courseAttendance", `${state.runId}__${group.id}__${nextKey}`).get()).data();
-        assert.equal(next?.records?.[ada.uid], "excused", "week 4's line, from the ticket, is gone");
+        // Weeks 4 and 5's registers: her line alone on each, excused on her word, not finished.
+        for (const key of [nextKey, laterKey]) {
+          const doc = (await fixtureDoc("courseAttendance", `${state.runId}__${group.id}__${key}`).get()).data();
+          assert.equal(doc?.records?.[ada.uid], "excused", `${key}'s register does not record Ada as excused`);
+          assert.ok(doc?.excusedInAdvance?.[ada.uid], `${key}'s register does not say Ada told us in advance`);
+          assert.deepEqual(Object.keys(doc?.records ?? {}), [ada.uid], "her answer wrote somebody else's line");
+          assert.ok(!doc?.pushedAt, "her answer finished a register");
+        }
         const seat = (await fixtureDoc("courseEnrolments", `${state.runId}__${ada.uid}`).get()).data();
         assert.equal(seat?.timeAnswer?.kind, "mostWeeks");
         assert.deepEqual(seat?.timeAnswer?.sessionKeys, [nextKey, laterKey]);
@@ -501,6 +513,11 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
         await adaPage.reload({ waitUntil: "domcontentloaded" });
         await card.getByText(WORDS.saidMostWeeks, { exact: true }).waitFor({ timeout: WAIT_MS });
         await card.getByText(WORDS.missing([nextDay, laterDay]), { exact: true }).waitFor({ timeout: WAIT_MS });
+        // The ticket says she is excused, said when the time was set, and offers nothing to take back.
+        const ticket = adaPage.getByRole("region", { name: WORDS.ticket, exact: true });
+        await ticket.getByText(WORDS.saidWhenTimeSet, { exact: true }).waitFor({ timeout: WAIT_MS });
+        assert.equal(await ticket.getByRole("button", { name: WORDS.canMakeItAfterAll, exact: true }).count(), 0, "the instant button's take-back is drawn");
+        assert.equal(await ticket.getByRole("button", { name: WORDS.cantMakeIt(nextDay), exact: true }).count(), 0, "Can't make it is offered on a session she is excused from");
       },
     );
 
@@ -630,24 +647,47 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
     });
 
     await step(
-      "the member can make next week's session after all and says they are joining it online instead, one thing at a time on the ticket",
+      "the member can make next week's session after all, unticks it, and says they are joining it online instead, one thing at a time on the ticket",
       async () => {
         activePage = adaPage;
         const day = dayLabel(nextSession.dateKey);
+        const laterDay = dayLabel(laterSession.dateKey);
         await adaPage.goto(learnUrl, { waitUntil: "domcontentloaded" });
         const ticket = adaPage.getByRole("region", { name: WORDS.ticket, exact: true });
-        await ticket.getByRole("status").filter({ hasText: WORDS.toldUs }).waitFor({ timeout: WAIT_MS });
-        // While Ada can't make it, Joining online is not offered.
-        assert.equal(await ticket.getByRole("button", { name: WORDS.joiningOnline(day), exact: true }).count(), 0, "Joining online is offered beside Can't make it");
-        const back = ticket.getByRole("button", { name: WORDS.canMakeItAfterAll, exact: true });
-        await waitFor("I can make it after all to be live once the page has hydrated", async () => back.isEnabled());
-        const [undone] = await Promise.all([responseTo(adaPage, `/groups/${group.id}/cant-make-it`, "POST"), back.click()]);
-        assert.deepEqual(undone.request().postDataJSON(), { sessionKey: nextKey, cantMakeIt: false }, "the press named another session");
-        await okBody(undone, "I can make it after all");
-        await ticket.getByRole("status").filter({ hasText: WORDS.canMakeItBack }).waitFor({ timeout: WAIT_MS });
+        await ticket.getByText(WORDS.saidWhenTimeSet, { exact: true }).waitFor({ timeout: WAIT_MS });
+        // While Ada is excused from it, Joining online is not offered.
+        assert.equal(await ticket.getByRole("button", { name: WORDS.joiningOnline(day), exact: true }).count(), 0, "Joining online is offered on a session she is excused from");
 
+        // Her way back is the answer she gave: week 4 unticked, week 5 kept.
+        const card = adaPage.getByRole("region", { name: WORDS.timeCard, exact: true });
+        const change = card.getByRole("button", { name: WORDS.changeAnswer, exact: true });
+        await waitFor("Change your answer to be live once the page has hydrated", async () => change.isEnabled());
+        await change.click();
+        await card.getByRole("button", { name: WORDS.mostWeeks, exact: true }).click();
+        const nextBox = card.getByRole("checkbox", { name: WORDS.sessionOption(nextWeek, day), exact: true });
+        const laterBox = card.getByRole("checkbox", { name: WORDS.sessionOption(laterWeek, laterDay), exact: true });
+        await nextBox.waitFor({ state: "attached", timeout: WAIT_MS });
+        assert.equal(await nextBox.isChecked(), true, "week 4, which she gave, is not ticked");
+        await card.getByText(WORDS.sessionOption(nextWeek, day), { exact: true }).click();
+        await waitFor("week 4 to be unticked", async () => !(await nextBox.isChecked()));
+        assert.equal(await laterBox.isChecked(), true, "week 5 lost its tick");
+        const [undone] = await Promise.all([
+          responseTo(adaPage, `/runs/${enc(state.runId)}/time-answer`, "POST"),
+          card.getByRole("button", { name: WORDS.sendAnswer, exact: true }).click(),
+        ]);
+        assert.deepEqual(undone.request().postDataJSON(), { groupId: group.id, kind: "mostWeeks", sessionKeys: [laterKey] }, "the answer named other sessions than the ticks");
+        await okBody(undone, "Most weeks, not all, without week 4");
+        await waitFor("week 4's line to be taken back", async () => {
+          const doc = (await fixtureDoc("courseAttendance", `${state.runId}__${group.id}__${nextKey}`).get()).data();
+          return doc?.records?.[ada.uid] === undefined;
+        });
+
+        // The ticket, read again, offers Joining online and Can't make it, one at a time.
+        await adaPage.reload({ waitUntil: "domcontentloaded" });
         const join = ticket.getByRole("button", { name: WORDS.joiningOnline(day), exact: true });
         await join.waitFor({ timeout: WAIT_MS });
+        await ticket.getByRole("button", { name: WORDS.cantMakeIt(day), exact: true }).waitFor({ timeout: WAIT_MS });
+        await waitFor("Joining online to be live once the page has hydrated", async () => join.isEnabled());
         const [said] = await Promise.all([responseTo(adaPage, `/groups/${group.id}/joining-online`, "POST"), join.click()]);
         assert.deepEqual(said.request().postDataJSON(), { sessionKey: nextKey, online: true }, "the press named another session");
         assert.deepEqual(await okBody(said, "Joining online"), { ok: true, online: true, message: WORDS.saidOnline });
