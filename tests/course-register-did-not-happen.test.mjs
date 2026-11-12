@@ -27,7 +27,9 @@
  *  5. CALLED OFF AFTER THE FACT, the session is out of every figure, is not
  *     chased (the 36-hour email, the 60-hour card, and a card already made is
  *     archived), and its check-in and report are refused.
- *  6. THE NOTICE: "No session for week 1", and the push's own words.
+ *  6. THE NOTICE: "No session for week 1", and the push's own words. Where
+ *     the next session meets, in this notice and in a put back's: online for
+ *     a session held online (`heldOnline`), never a room for it.
  *
  * Real: the routes, the jobs and every library under them. Stubbed: the
  * session, the Admin SDK handle, the view-as guard and the mail door.
@@ -323,6 +325,38 @@ describe("6. what the group is told", () => {
       "Group B didn’t meet on Tue 20 Oct. Week 2 is still Tue 27 Oct, 6pm, Room C20, and week 1’s work is still on your programme page.\n\n" +
         "Why: Rahul was ill and nobody could cover.",
     );
+  });
+
+  /** The keep pace notice, with where week 2 meets. */
+  const keptPace = (where) =>
+    `Group B didn’t meet on Tue 20 Oct. Week 2 is still Tue 27 Oct, 6pm, ${where}, and week 1’s work is still on your programme page.\n\n` +
+    "Why: Rahul was ill and nobody could cover.";
+
+  test("keep pace, the next session held online for that week: said to be online, never its room", async () => {
+    world.db.poke(`courseGroups/${GROUP.b}`, { sessionModes: { w02: "virtual" } });
+    at(AFTER);
+    const answer = await press("rahul", { kind: "cancel", preview: true });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.equal(answer.body.preview.notice.message, keptPace("online"));
+  });
+
+  test("keep pace, a group whose campus is Online: the next session is said to be online, never the room it has stored", async () => {
+    world.db.poke(`courseGroups/${GROUP.b}`, { campus: "online" });
+    at(AFTER);
+    const answer = await press("rahul", { kind: "cancel", preview: true });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.equal(answer.body.preview.notice.message, keptPace("online"));
+  });
+
+  test("put back as usual, for a group whose campus is Online: online, never the room it has stored", async () => {
+    world.db.poke(`courseGroups/${GROUP.b}`, { campus: "online" });
+    at(BEFORE);
+    const moved = await press("rahul", { kind: "move", move: { dateKey: "2026-10-21", time: "6pm", room: "Room C20" } });
+    assert.equal(moved.status, 200, JSON.stringify(moved.body));
+    const back = await press("rahul", { kind: "restore", dateKey: "2026-10-21", reason: "Sofia can make it after all.", preview: true });
+    assert.equal(back.status, 200, JSON.stringify(back.body));
+    assert.equal(back.body.preview.notice.title, "Week 1 is back to its usual time");
+    assert.equal(back.body.preview.notice.message, "Group B’s week 1 session is back to Tue 20 Oct, 6pm, online, as usual.\n\nWhy: Sofia can make it after all.");
   });
 
   test("push back: the cancelled and pushed back words", async () => {

@@ -1,7 +1,8 @@
 import { campusLabel } from "../campus";
 import { couldBeFollowed } from "../followable";
-import { resolveSessions, type ResolvedSession } from "../sessions";
-import { campusForWeek } from "@/lib/firestore/courseGroups";
+import { heldOnline } from "../joiningOnline/model";
+import { resolveSessions, type ResolvedSession, type SessionGroup } from "../sessions";
+import { campusForWeek, sessionModeForWeek } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import {
   cancelledHeadline,
@@ -32,6 +33,22 @@ import { oneWeekNoticeWords, type OneWeekNotice } from "./words";
 function roomToPrint(room: string): string {
   const text = room.trim();
   return couldBeFollowed(text) ? "" : text;
+}
+
+/**
+ * Where a session meets, as a notice may print it: `online` when it is held
+ * online for everybody, asked the way the rest of the site asks it
+ * (`heldOnline`: the week's own mode and campus, and the room), and then no
+ * room; otherwise the room as `roomToPrint` gives it.
+ */
+function whereToPrint(group: SessionGroup, session: ResolvedSession): { room: string; online: boolean } {
+  const first = session.occurrence === 1;
+  const online = heldOnline({
+    mode: first ? sessionModeForWeek(group, session.weekId) : null,
+    campus: first ? campusForWeek(group, session.weekId) : (group.campus ?? null),
+    room: session.session.location,
+  });
+  return { room: online ? "" : roomToPrint(session.session.location), online };
 }
 
 /** The week's session as it will read once the press is written, or null with none. */
@@ -74,7 +91,7 @@ export function oneWeekNoticeOf(run: CourseRunDoc, checked: CheckedPress, press:
           weekNumber: n,
           dateKey: before.dateKey,
           next: next
-            ? { weekNumber: next.weekNumber, dateKey: next.dateKey, hhmm: next.session.startTimeLocal, room: roomToPrint(next.session.location) }
+            ? { weekNumber: next.weekNumber, dateKey: next.dateKey, hhmm: next.session.startTimeLocal, ...whereToPrint(checked.after, next) }
             : null,
         };
       }
@@ -95,7 +112,7 @@ export function oneWeekNoticeOf(run: CourseRunDoc, checked: CheckedPress, press:
         weekNumber: n,
         dateKey: back.dateKey,
         hhmm: back.session.startTimeLocal,
-        room: roomToPrint(back.session.location),
+        ...whereToPrint(checked.after, back),
       };
     }
   }
