@@ -9,6 +9,9 @@ import { EXCUSED_LIMITS } from "@/lib/firestore/courseExcusedRequests";
 import { askToBeExcused } from "./api";
 import styles from "./Excuse.module.css";
 
+/** Nothing ticked yet: where the confirmations start, and where they go back to when the weeks change. */
+const NOTHING_CONFIRMED: AskConfirmed = { inPerson: false, ownOnline: false, otherOnline: false };
+
 /** One session the request may cover, and whether joining it online is a real choice (`onlineOfferedFor`). */
 export type AskWeek = { sessionKey: string; weekNumber: number; occurrence: number; dateKey: string; onlineOffered: boolean; heldOnline: boolean };
 
@@ -67,7 +70,7 @@ export default function AskForm({
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const [confirmed, setConfirmed] = useState<AskConfirmed>({ inPerson: false, ownOnline: false, otherOnline: false });
+  const [confirmed, setConfirmed] = useState<AskConfirmed>(NOTHING_CONFIRMED);
 
   const shown = more || weeks.length <= O.WEEKS_SHOWN_FIRST ? weeks : weeks.slice(0, O.WEEKS_SHOWN_FIRST);
   const chosen = weeks.filter((week) => ticked.has(week.sessionKey));
@@ -88,6 +91,8 @@ export default function AskForm({
       else next.add(key);
       return next;
     });
+    // What they confirmed was about the weeks ticked then: other weeks are confirmed again.
+    setConfirmed(NOTHING_CONFIRMED);
   }
 
   async function send() {
