@@ -39,6 +39,9 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * `(tabs)` route group beside it, so it is drawn with no programme head and
  * no tabs, and carries its own way back to the programme and its Groups tab.
  *
+ * The chosen week's work (who has done it, who was late, and Remind) is read
+ * for the week in the address (`?week=2`), or the week the page opens on.
+ *
  * "Take the register" is the group's register under this page, which takes
  * an admin and the programme's lead; each week's ways to take a register in
  * a facilitator's place open from the week, and from the notice when a
@@ -54,12 +57,16 @@ export default async function ProgrammeGroupPage({
   searchParams,
 }: {
   params: Promise<{ roundId: string; programmeId: string; groupId: string }>;
-  searchParams?: Promise<{ take?: string | string[] }>;
+  searchParams?: Promise<{ take?: string | string[]; week?: string | string[] }>;
 }) {
   const [{ roundId, programmeId, groupId }, user] = await Promise.all([params, requireAdmissionsPage()]);
+  const search = await (searchParams ?? Promise.resolve({} as { take?: string | string[]; week?: string | string[] }));
   // "Take the register" on Overview's Needs attention: open on that week, with its ways to take it shown.
-  const takeParam = (await (searchParams ?? Promise.resolve({} as { take?: string | string[] }))).take;
+  const takeParam = search.take;
   const take = typeof takeParam === "string" && /^\d{1,2}$/.test(takeParam) ? Number(takeParam) : null;
+  // The week whose work the page shows: chosen on the page, or opened from a link.
+  const weekParam = search.week;
+  const week = typeof weekParam === "string" && /^\d{1,2}$/.test(weekParam) ? Number(weekParam) : take;
   const db = getAdminDb();
   const outcome = db ? await loadProgrammeRun(db, user, roundId, programmeId) : null;
   if (!db || !outcome || outcome.status === "none") return <NoProgrammeHere roundId={roundId} />;
@@ -91,7 +98,7 @@ export default async function ProgrammeGroupPage({
 
   const now = new Date();
   const [page, messages, attendance] = await Promise.all([
-    loadGroupPage(db, { run, group, viewer: view.viewer, viewerUid: user.uid, now }),
+    loadGroupPage(db, { run, group, viewer: view.viewer, viewerUid: user.uid, now, week }),
     messagesEntriesFor(db, user, run.id, now).catch(() => null),
     // Attendance, all weeks: the register's own gate decides what it holds.
     // An admin or the programme's lead is given the tab; somebody here who

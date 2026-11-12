@@ -33,6 +33,7 @@ import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import { COURSE_WEEK_WORK_COLLECTION } from "./courseWeekWork";
 import { COURSE_WORK_LOG_COLLECTION } from "./courseWorkLog";
+import { HAND_REMINDERS_COLLECTION, HAND_REMINDER_KIND } from "./courseHandReminders";
 import { COURSE_FEEDBACK_COLLECTION, COURSE_FEEDBACK_SENDS_COLLECTION } from "./courseFeedback";
 import { COURSE_WORK_RATINGS_COLLECTION } from "./courseWorkRatings";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
@@ -209,6 +210,13 @@ export type AccountDeletionSummary = {
    */
   courseWeekWorkDeleted: number;
   courseWorkLogDeleted: number;
+  /**
+   * When this account was last reminded by hand about each of its weeks, and
+   * who pressed (`courseNudges`, kind `week-remind-by-hand`). Deleted: each
+   * record is about this account's week alone, as the automatic reminders'
+   * markers are.
+   */
+  courseHandRemindersDeleted: number;
   /**
    * Feedback (`courseFeedback`): every piece on this account's work, and
    * every piece it wrote on somebody else's, deleted (a piece is shown signed
@@ -1046,6 +1054,25 @@ export async function deleteCourseWeekWork(db: Firestore, uid: string): Promise<
 }
 
 /**
+ * Delete the records of this account's reminders by hand (`courseNudges`,
+ * kind `week-remind-by-hand`, described in `courseHandReminders.ts`), on
+ * every run. Found by the one equality on `uid` and told apart by their kind:
+ * the other records in the collection that carry a `uid` are not this
+ * sweep's. A reminder this account pressed for somebody else keeps its record,
+ * which is about that person's week; the name it shows was never stored.
+ */
+export async function deleteCourseHandReminders(db: Firestore, uid: string): Promise<number> {
+  const snap = await db.collection(HAND_REMINDERS_COLLECTION).where("uid", "==", uid).get();
+  const mine = snap.docs.filter((doc) => (doc.data() ?? {}).kind === HAND_REMINDER_KIND);
+  for (let at = 0; at < mine.length; at += 400) {
+    const batch = db.batch();
+    for (const doc of mine.slice(at, at + 400)) batch.delete(doc.ref);
+    await batch.commit();
+  }
+  return mine.length;
+}
+
+/**
  * Take one account out of feedback (`courseFeedback` and the batch's own
  * record, `courseFeedbackSends`, described in `courseFeedback.ts`).
  *
@@ -1826,6 +1853,7 @@ export async function deleteAccountCascade(
     coursePacksAndCasesDeleted: 0,
     courseWeekWorkDeleted: 0,
     courseWorkLogDeleted: 0,
+    courseHandRemindersDeleted: 0,
     courseFeedbackDeleted: 0,
     courseFeedbackCleared: 0,
     courseWorkRatingsDeleted: 0,
@@ -2315,6 +2343,16 @@ export async function deleteAccountCascade(
     summary.courseWorkLogDeleted = removed.log;
   } catch (err) {
     console.error("[deleteAccount] courseWeekWork delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c. REMINDERS BY HAND. When this account was last reminded about each of
+  //      its weeks is about its weeks alone, and goes with it (see
+  //      courseHandReminders.ts), as the automatic reminders' markers do.
+  try {
+    summary.courseHandRemindersDeleted = await deleteCourseHandReminders(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] course hand reminders delete failed:", uid, err);
     partialFailure = true;
   }
 

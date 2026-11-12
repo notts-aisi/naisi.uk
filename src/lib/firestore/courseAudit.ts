@@ -181,7 +181,14 @@ export type CourseAuditKind =
    * the old evening. (A one-week change and a new regular time say the same
    * in their own row.)
    */
-  | "register-cover-removed";
+  | "register-cover-removed"
+  /**
+   * Somebody running the group pressed Remind about one week's work: one row
+   * for the press, saying how many it was for and how many were emailed,
+   * naming nobody. Each person's own "Last reminded" is their record in
+   * `courseNudges` (`src/lib/firestore/courseHandReminders.ts`).
+   */
+  | "week-reminded";
 
 export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "attendance-edit",
@@ -219,6 +226,7 @@ export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "register-cleared",
   "session-did-happen",
   "register-cover-removed",
+  "week-reminded",
 ];
 
 /** The label for a kind this build does not know. See `courseAuditKindLabel`. */
@@ -260,6 +268,7 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "register-cleared": "Register cleared: taken for the wrong session",
   "session-did-happen": "Session did happen, register finished",
   "register-cover-removed": "Cover taken off a session that moved",
+  "week-reminded": "Reminded about a week’s work",
 };
 
 /**
@@ -295,6 +304,7 @@ const COURSE_AUDIT_CATEGORY: Partial<Record<CourseAuditKind, CourseAuditCategory
   "register-cleared": "registers",
   "session-did-happen": "registers",
   "register-cover-removed": "registers",
+  "week-reminded": "people",
 };
 
 /**

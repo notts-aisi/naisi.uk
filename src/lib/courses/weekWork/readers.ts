@@ -143,7 +143,18 @@ export async function ownWeekWires(
  * the answers store by who, which item and when (never a word), its ticks by
  * who, which item and when, and each person's pack and ready mark by address.
  */
-export type PersonWeekFacts = { state: CheckState; times: DoneTimes; touched: boolean };
+export type PersonWeekFacts = {
+  state: CheckState;
+  times: DoneTimes;
+  touched: boolean;
+  /**
+   * When a reflection box or fill-in box holding something was last saved,
+   * for a staff page's "Started, saved Tue 3 Nov"; null for one empty or not
+   * saying. Never asked of a written answer: before the session its readers
+   * see only that it was started (privacy v17).
+   */
+  savedAt: (boxId: string) => Date | null;
+};
 
 export async function loadPeopleWeekFacts(
   db: Firestore,
@@ -182,6 +193,7 @@ export async function loadPeopleWeekFacts(
   ]);
   type Facts = {
     written: Map<string, Date | null>;
+    saved: Map<string, Date | null>;
     sent: Map<string, Date>;
     words: Map<string, number>;
     ticked: Map<string, Date | null>;
@@ -191,7 +203,7 @@ export async function loadPeopleWeekFacts(
   const of = (uid: string) => {
     let found = facts.get(uid);
     if (!found) {
-      found = { written: new Map(), sent: new Map(), words: new Map(), ticked: new Map(), touched: false };
+      found = { written: new Map(), saved: new Map(), sent: new Map(), words: new Map(), ticked: new Map(), touched: false };
       facts.set(uid, found);
     }
     return found;
@@ -205,6 +217,7 @@ export async function loadPeopleWeekFacts(
       // A box holds something while its row does, unless the row is kept only for an earlier version.
       if (!boxIsWritten(data)) continue;
       of(uid).written.set(id, instantOf(data.firstWrittenAt) ?? instantOf(data.updatedAt));
+      of(uid).saved.set(id, instantOf(data.updatedAt) ?? instantOf(data.firstWrittenAt));
       of(uid).touched = true;
     } else if (isWordCountedAnswer(data)) {
       const sentAt = instantOf(data.firstSentAt);
@@ -246,6 +259,7 @@ export async function loadPeopleWeekFacts(
         packOf,
       },
       touched: own.touched,
+      savedAt: (id) => own.saved.get(id) ?? null,
     });
   }
   return out;

@@ -164,6 +164,10 @@ const MUST_GUARD = [
   ["src/app/api/courses/groups/[groupId]/shared-notes/[noteId]/route.ts", "deletes a note shared with a group, for the person who wrote it"],
   ["src/app/api/courses/groups/[groupId]/pace/route.ts", "changes a group's pacing, moving every learner's dates"],
   ["src/app/api/courses/groups/[groupId]/session/route.ts", "changes a group's meeting details"],
+  [
+    "src/app/api/courses/groups/[groupId]/remind/route.ts",
+    "emails the people whose week isn't done a reminder from the presser by name, and records who pressed, in the presser's name",
+  ],
   ["src/app/api/courses/groups/[groupId]/session/change/route.ts", "changes or cancels one week's session of a group, in the presser's name"],
   [
     "src/app/api/courses/groups/[groupId]/session/regular/route.ts",

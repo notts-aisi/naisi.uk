@@ -366,6 +366,7 @@ preference at all.
 | `course-check-in-reminder` | the `surveys-check-in-reminders` job, at 9am the day after a session (docs/surveys.md) | the job | each person an open check-in reached who has not sent it and whose seat on the run is still live and told, with their own link, for a check-in opened on its session's own day; once each, by a scheduler marker |
 | `course-week` | "Week N is open", 6 days before each of a group's sessions at 9am: the `courses-next-week-email` job, or, while that job is off, `POST /api/courses/groups/[groupId]/attendance/push` (finishing the register before it) and an admin's Resend on a finished register | the job; the group's facilitator or an admin pressing the register; an admin resending | everybody holding a place in the group whose group has gone out, whatever they unsubscribed from; once per group per session, by the group's claim |
 | `course-week-reminder` | the reminders 3 days and 1 day before each of a group's sessions at 9am: the `courses-week-reminders` job | the job | each person holding a place in the group whose week (written as blocks, and published) is not done, listing what is left of it; one per person per reminder, by a scheduler marker; a week done, submitted or locked is never reminded about |
+| `course-week-remind-by-hand` | Remind, by hand: `POST /api/courses/groups/[groupId]/remind`, from a group's page or its facilitators' page | the people who read the group's work: its live facilitators, the programme's lead and admins (never a run's track lead by that alone) | each person holding a told place in the group whose week (written as blocks, and published) is not done at the press, or one of them; never anybody who facilitates a live group of the run, never the presser, never somebody who joined after the week's session, nobody once the programme has closed; any week whose work is open, before its session or after it; the count the preview showed checked again at the press; a retry of the same press sends nothing more; never a meeting link. Its line names the week ("our records show week 1 isn't done"); the Deliverability tab calls it "reminder by hand about a week" and Messages' sent list "Reminder by hand about a week" |
 | `messages` | `POST /api/messages`, a message written in Messages that goes as a programme notice ([messages.md](messages.md)) | admins, a programme's lead and a group's facilitator, each to the tags the picker gives them | the people the writer chose, when every tag is about running a programme and the writer runs everybody it reaches: holding a place on a programme they run, facilitating or leading it, or in a group they facilitate; each at their account's own address (or a university address they verified), the writer too when they are in the tags. Otherwise the message goes by their settings, not as a notice. A notice to one group, or to one programme's people (its everyone, or its people holding a place), also pushes, as the group email and the cohort email's important notice it took over did: each person it reached with an account and each whose every address bounced, never the writer (`pushTargetOf`); nothing else in Messages pushes |
 | `event-invitation` | `POST /api/events/[id]/publish` and `POST /api/events/[id]/invitations` ("Invite the N new since"), for an event for chosen people that is part of a programme (see below) | publishing: admins and `approveEvent` holders; inviting more: those and the event's author and collaborators while they stand | the people holding a place on that programme among the people chosen, at their account's own address (else a university address it verified), whatever their events row says; never the event's author; email only |
 
@@ -391,7 +392,13 @@ notices: the line above the words says why each reached them ("you are in
 this course group"; "our records show this week's work isn't finished"),
 there is no unsubscribe link, and nothing is pushed. They take no slot under
 the caps below: each is sent by a claim, once per group per session or once
-per person per reminder, and that claim is their bound. Their words are fixed
+per person per reminder, and that claim is their bound. Remind, by hand, is a
+person's press with the same template and the same list of what is left, on
+a surface of its own (`course-week-remind-by-hand`), since a reminder about
+week 1 pressed in week 3 is neither before a session nor about this week: its
+line says "our records show week 1 isn't done". It takes slots under the caps
+(see "The caps"), and each person it reaches is claimed for two minutes so a
+retry of the press emails nobody twice. Their words are fixed
 in `src/lib/courses/weekEmails/words.ts` and drawn by `src/emails/WeekEmail.tsx`;
 "Week N is open" was next week's email, a grid send that honoured the courses
 row and the run's list, until November 2026, and the weekly nudge beside it
@@ -516,6 +523,7 @@ to be rationed like any other send.
 | course update | 3, per (writer, audience) | 10, its own counter | 200 recipients, refused |
 | course check-in | **none** | 2, per group, its own counter | 40 people, refused |
 | Messages | 3, per (writer, audience) | 10, per audience, its own counter | 300 emails, refused |
+| Remind, by hand | 3, per (presser, the group's week and who: everybody or one person) | 10, per group, its own counter | the notice audience's 200 people, refused |
 | event invitation | 3, per (presser, event) | 10, per event | 300 people and 200 messages, refused |
 
 **Messages claims both windows for every send**, a message by their settings

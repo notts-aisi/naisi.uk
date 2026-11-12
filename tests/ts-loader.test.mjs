@@ -1223,6 +1223,12 @@ const USERS = new Map([
       "fetcher, Next's link and navigation and the stylesheets are stubbed",
   ],
   [
+    "course-group-week-work.test.mjs",
+    "it renders Remind's email through the real week email template and its notice line, and reads a week's pieces " +
+      "through the blocks' own task needs and the one meaning of done, so the template's JSX and the pure modules " +
+      "under src/lib/courses are loaded together",
+  ],
+  [
     "course-guide-format.test.mjs",
     "executes a programme's Start here and Glossary model, its Markdown reader and writer (src/lib/courses/guide/) " +
       "and the week reader's own reading of text on a synthetic Start here and Glossary in the fellow guide's " +
