@@ -11412,6 +11412,16 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
     assert.ok(!PAGE_FLAT.includes("we keep the earlier version"), "version 17 promises an earlier version is always kept, which the code does not do yet");
     assert.match(read("src/app/api/courses/runs/[runId]/weeks/[weekId]/reopen/route.ts"), /Feedback already given stays, with its date\./);
   });
+
+  test("requests are kept 'while your account exists': deleting an account deletes the requests it asked and the requests about it", () => {
+    assert.ok(PAGE_FLAT.includes("<strong>Requests and messages:</strong> while your account exists, like your other records, with our replies."));
+    const cascade = read("src/lib/firestore/accountDeletion.ts");
+    assert.match(cascade, /summary\.courseRequestsDeleted = await deleteCourseRequestsOf\(db, uid\);/);
+    assert.match(cascade, /deleteOwnedCourseRows\(db, COURSE_REQUESTS_COLLECTION, uid, "askedByUid"\)/);
+    assert.match(cascade, /deleteOwnedCourseRows\(db, COURSE_REQUESTS_COLLECTION, uid, "subjectUid"\)/);
+    // tests/account-deletion-attendance.test.mjs runs the sweep.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "account-deletion-attendance.test.mjs")));
+  });
 });
 
 describe("the services we use", () => {

@@ -37,6 +37,7 @@ import { COURSE_FEEDBACK_COLLECTION, COURSE_FEEDBACK_SENDS_COLLECTION } from "./
 import { COURSE_WORK_RATINGS_COLLECTION } from "./courseWorkRatings";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
+import { COURSE_REQUESTS_COLLECTION } from "./courseRequests";
 import {
   COURSE_SESSION_REPORTS_COLLECTION,
   aboutUidsOf,
@@ -354,6 +355,16 @@ export type AccountDeletionSummary = {
    * facilitators to have a word with this person by name, so each goes.
    */
   reviewFollowUpsDeleted: number;
+  /**
+   * Requests (`courseRequests`) this account made of the people running a
+   * programme, and requests ABOUT this account (a facilitator asking for its
+   * line of a register to be corrected). Deleted, as the privacy policy says
+   * of requests: kept "while your account exists, like your other records".
+   * A correction a request led to stays in the group's history, as every
+   * `courseAudit` row does; its `requestId` then names nothing. Counted once
+   * per document.
+   */
+  courseRequestsDeleted: number;
   /**
    * Explainers (`courseExplainers`) this account gave, scheduled or
    * cancelled: each is the run's, opening its groups' sessions, so it stays,
@@ -923,6 +934,22 @@ export async function deleteReviewFollowUpsAbout(db: Firestore, uid: string): Pr
     deleted += 1;
   }
   return deleted;
+}
+
+/**
+ * Delete every request this account made (`courseRequests.askedByUid`) and
+ * every request about it (`courseRequests.subjectUid`), on every run, a page
+ * at a time: one equality per field, so no declared index. A request names
+ * who asked and whose line it is about, and the privacy policy keeps
+ * requests "while your account exists". A request this account only took
+ * or decided stays, naming it by an id that no longer resolves, as the
+ * group's history does. Rows are deleted as they are read, so a request both
+ * made by and about this account is counted once.
+ */
+export async function deleteCourseRequestsOf(db: Firestore, uid: string): Promise<number> {
+  const asked = await deleteOwnedCourseRows(db, COURSE_REQUESTS_COLLECTION, uid, "askedByUid");
+  const about = await deleteOwnedCourseRows(db, COURSE_REQUESTS_COLLECTION, uid, "subjectUid");
+  return asked + about;
 }
 
 /**
@@ -1826,6 +1853,7 @@ export async function deleteAccountCascade(
     courseNoteDraftsDeleted: 0,
     noteSourcesCleared: 0,
     reviewFollowUpsDeleted: 0,
+    courseRequestsDeleted: 0,
     courseExplainersCleared: 0,
     authDeleted: false,
   };
@@ -2395,6 +2423,13 @@ export async function deleteAccountCascade(
     summary.reviewFollowUpsDeleted = await deleteReviewFollowUpsAbout(db, uid);
   } catch (err) {
     console.error("[deleteAccount] review follow-ups delete failed:", uid, err);
+    partialFailure = true;
+  }
+  //      A request this account made, or one about it, goes with the account.
+  try {
+    summary.courseRequestsDeleted = await deleteCourseRequestsOf(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseRequests delete failed:", uid, err);
     partialFailure = true;
   }
   //      An explainer opens a group's session and is the run's: it stays, and

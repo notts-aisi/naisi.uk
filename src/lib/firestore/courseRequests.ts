@@ -25,11 +25,13 @@ import { ATTENDANCE_STATUSES } from "./courseAttendance";
  * sorted in code: a term holds tens of these, and no list needs a declared
  * index.
  *
- * KEPT WITH THE RUN. The run's destroy cascade drains them by `runId`, as it
- * drains every other leaf of the run. Deleting an account leaves them, as it
- * leaves `courseAudit`'s rows: a request is a staff record of a change to a
- * register, naming who asked and whose line it was, and the correction it led
- * to keeps the same names in the group's history.
+ * KEPT WITH THE RUN, AND GONE WITH THE ACCOUNT. The run's destroy cascade
+ * drains them by `runId`, as it drains every other leaf of the run. Deleting
+ * an account deletes the requests it made and the requests about it
+ * (`deleteCourseRequestsOf`, one equality on `askedByUid` and one on
+ * `subjectUid`), as the privacy policy keeps requests "while your account
+ * exists". The correction a request led to stays in the group's history, as
+ * every `courseAudit` row does, with a `requestId` that then names nothing.
  */
 
 export const COURSE_REQUESTS_COLLECTION = "courseRequests";

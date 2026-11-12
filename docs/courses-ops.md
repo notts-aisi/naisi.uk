@@ -2412,10 +2412,14 @@ lead (`readsFacilitatorRecord`). A facilitator reading it is sent neither.
 ### Deleting an account, and reverting
 
 `corrected.<uid>` goes with the account, key by key, as `records` does; the
-`byUid` naming who corrected somebody else's line stays. Requests are left, as
-`courseAudit`'s rows are: a request is a staff record of a change to a
-register, and the correction it led to keeps the same names in the group's
-history. The run's destroy drains them by `runId`.
+`byUid` naming who corrected somebody else's line stays. Requests go with the
+account, as the privacy policy keeps them "while your account exists": every
+request the person asked and every request about them is deleted
+(`deleteCourseRequestsOf`, one equality on `askedByUid` and one on
+`subjectUid`, so no index). A request the person only took or decided stays,
+naming them by an id that no longer resolves. The group's history rows stay,
+as every `courseAudit` row does on deletion, and a correction's `requestId`
+then names nothing. The run's destroy drains requests by `runId`.
 
 Every field is optional and server-written. Code from before this ignores
 `corrected`, the audit rows' `sessionKey`, `toSessionKey` and `requestId`, and

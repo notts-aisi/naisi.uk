@@ -229,7 +229,7 @@ function makeDb(registers) {
   };
 }
 
-const { clearCourseAttendanceMarks } = await loadTs("lib/firestore/accountDeletion.ts");
+const { clearCourseAttendanceMarks, deleteCourseRequestsOf } = await loadTs("lib/firestore/accountDeletion.ts");
 
 function register(overrides = {}) {
   return {
@@ -437,4 +437,79 @@ test("when the person's own line was corrected goes too; who corrected somebody 
   assert.equal(first.corrected.stays.byUid, "gone", "who corrected somebody else's line stays");
   assert.deepEqual(db.raw.get("run1__grp1__w14").corrected, {}, "a register holding only their stamp is found and cleared");
   assert.deepEqual(db.deletedDocs, [], "the shared register was deleted");
+});
+
+// ---------------------------------------------------------------------------
+// Requests go with the account: the privacy policy keeps requests "while your
+// account exists, like your other records". Every request the person asked,
+// and every request about them, is deleted; one the person only took or
+// decided stays, naming them by an id that no longer resolves.
+// ---------------------------------------------------------------------------
+
+function makeRequestsDb(requests) {
+  const docs = new Map(Object.entries(requests).map(([id, data]) => [id, structuredClone(data)]));
+  const queries = [];
+  function collection(name) {
+    if (name !== "courseRequests") throw new Error(`unexpected collection ${name}`);
+    return {
+      where(field, op, value) {
+        assert.equal(op, "==", "one equality, so no declared index");
+        queries.push(field);
+        return {
+          limit(n) {
+            return {
+              async get() {
+                const hits = [...docs.entries()].filter(([, data]) => data[field] === value).slice(0, n);
+                return {
+                  empty: hits.length === 0,
+                  size: hits.length,
+                  docs: hits.map(([id]) => ({ id, ref: { id } })),
+                };
+              },
+            };
+          },
+        };
+      },
+    };
+  }
+  return {
+    collection,
+    batch() {
+      const doomed = [];
+      return {
+        delete(ref) {
+          doomed.push(ref.id);
+        },
+        async commit() {
+          for (const id of doomed) docs.delete(id);
+        },
+      };
+    },
+    docs,
+    queries,
+  };
+}
+
+test("requests the person asked and requests about them go with the account; one they only decided stays", async () => {
+  const db = makeRequestsDb({
+    asked: { askedByUid: "gone", subjectUid: "someone", handlingUid: null, decidedByUid: null },
+    about: { askedByUid: "facilitator", subjectUid: "gone", handlingUid: "lead", decidedByUid: null },
+    both: { askedByUid: "gone", subjectUid: "gone", handlingUid: null, decidedByUid: null },
+    decided: { askedByUid: "facilitator", subjectUid: "someone", handlingUid: "gone", decidedByUid: "gone" },
+    other: { askedByUid: "facilitator", subjectUid: "someone", handlingUid: null, decidedByUid: null },
+  });
+
+  assert.equal(await deleteCourseRequestsOf(db, "gone"), 3, "each request is counted once");
+  assert.deepEqual([...db.docs.keys()].sort(), ["decided", "other"]);
+  assert.deepEqual(db.queries.slice(0, 1), ["askedByUid"]);
+  assert.ok(db.queries.includes("subjectUid"), "requests about the person are read by subjectUid");
+  assert.ok(!db.queries.includes("handlingUid") && !db.queries.includes("decidedByUid"), "who acted on a request is not a reason to delete it");
+});
+
+test("the cascade calls the requests sweep, and its summary counts it", () => {
+  const cascade = readFileSync(join(SRC, "lib", "firestore", "accountDeletion.ts"), "utf8");
+  assert.match(cascade, /summary\.courseRequestsDeleted = await deleteCourseRequestsOf\(db, uid\);/);
+  assert.match(cascade, /deleteOwnedCourseRows\(db, COURSE_REQUESTS_COLLECTION, uid, "askedByUid"\)/);
+  assert.match(cascade, /deleteOwnedCourseRows\(db, COURSE_REQUESTS_COLLECTION, uid, "subjectUid"\)/);
+  assert.match(cascade, /courseRequestsDeleted: 0,/);
 });
