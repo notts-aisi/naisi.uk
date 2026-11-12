@@ -65,7 +65,7 @@ export const EDIT_REFUSAL = {
   noPage: "This week has no page yet. Paste the week to make it.",
   /** The week as stored holds items its reader leaves out (over a cap, unreadable): an edit or restore would drop them. */
   unreadable:
-    "Nothing was saved: this week as stored holds items the editor can’t read back, and saving here would drop them with their ticks and answers.",
+    "Nothing was saved: this week as stored holds items the editor can’t read back, and saving here would drop them with their ticks and answers. Paste the week instead.",
   runGone: "This run isn’t on the site any more.",
 } as const;
 

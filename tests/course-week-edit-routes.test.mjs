@@ -309,6 +309,11 @@ describe("2. one block changed in place", () => {
     const item = await itemOf("zach", "src-1");
     const edit = await ask("zach", R.block.PATCH, { ...AT, blockId: "src-1" }, { body: { base: item.fingerprint, fields: { title: "A third title" } } });
     assert.deepEqual([edit.status, edit.body.error], [409, EDIT_REFUSAL.unreadable]);
+    assert.equal(
+      edit.body.error,
+      "Nothing was saved: this week as stored holds items the editor can’t read back, and saving here would drop them with their ticks and answers. Paste the week instead.",
+      "it says what to do instead, in the paste's own words",
+    );
     const compared = await ask("zach", R.save.GET, { ...AT, saveId: "s000001" });
     const restore = await ask("zach", R.restore.POST, { ...AT, saveId: "s000001" }, { body: { base: compared.body.restore.base, confirmAnswers: compared.body.restore.answers } });
     assert.deepEqual([restore.status, restore.body.error], [409, EDIT_REFUSAL.unreadable]);
