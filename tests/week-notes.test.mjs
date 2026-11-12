@@ -481,8 +481,8 @@ describe("1. what a note's draft is sent: a week whose session has started, its 
     assert.deepEqual(before.weeks, [], "a week was drawn on before its session");
     assert.deepEqual(before.answers, [], "an answer was read before its session");
     assert.deepEqual([before.feedback, before.ratings], [[], []], "the team's words went without a week");
-    const page = await gather.gatherWeekNotes(w.world.db, { runId: RUN.agi, week: weeks.find((each) => each.weekId === "w03"), weekId: "w03", people: new Set(["amara", "dev"]), now: new Date(BEFORE) });
-    for (const uid of ["amara", "dev"]) assert.deepEqual([page.get(uid).weeks, page.get(uid).answers], [[], []], `${uid}'s week was drawn on before its session`);
+    const everybody = await gather.gatherWeekNotes(w.world.db, { runId: RUN.agi, week: weeks.find((each) => each.weekId === "w03"), weekId: "w03", people: new Set(["amara", "dev"]), now: new Date(BEFORE) });
+    for (const uid of ["amara", "dev"]) assert.deepEqual([everybody.get(uid).weeks, everybody.get(uid).answers], [[], []], `${uid}'s week was drawn on before its session`);
     // The profile's draft, which waits for no group, sends nothing and says why.
     const refused = await ask("zach", routes.profileDraft, "POST", { runId: RUN.agi }, { ctx: { uid: "amara" } });
     assert.deepEqual([refused.status, refused.body.error], [409, notesWords.DRAFT_WORDS.noSessionYet]);
