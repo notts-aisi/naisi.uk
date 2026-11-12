@@ -2756,7 +2756,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/my-exercises": {
     GET: {
       expect: signedIn(400),
-      fields: ["responses"],
+      fields: ["askedThen", "responses"],
       why:
         "Session required, then the caller's own request is validated before the document is " +
         "read, so every signed-in persona meets the same 400 on an empty one. A week " +

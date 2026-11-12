@@ -647,6 +647,25 @@ describe("7. the words a question had when it was answered, beside the answer", 
     assert.deepEqual(later.body.askedThen, {});
   });
 
+  test("every top-level field of each route's 200 is one the persona registry lists for it", async () => {
+    seedWeek();
+    await change("zach", "rs-1", { prompts: [{ id: "rp-1", text: NEW_PROMPT }, { id: "rp-2", text: "What makes your case different from the base rate?" }] });
+    const { ROUTES } = await import("./persona-route-gates.registry.mjs");
+    const asked = [
+      ["/api/courses/runs/[runId]/my-exercises", await ask("chloe", R.myExercises.GET, { runId: RUN.agi }, { query: "?week=3" })],
+      ["/api/courses/runs/[runId]/weeks/[weekId]/editor", await ask("claudia", R.editor.GET, AT)],
+      ["/api/courses/runs/[runId]/weeks/[weekId]/history", await ask("claudia", R.history.GET, AT)],
+      ["/api/courses/runs/[runId]/weeks/[weekId]/lock", await ask("claudia", R.lock.GET, AT)],
+    ];
+    for (const [key, answer] of asked) {
+      assert.equal(answer.status, 200, `${key}: ${JSON.stringify(answer.body)}`);
+      const fields = ROUTES[key]?.GET?.fields ?? [];
+      const unlisted = Object.keys(answer.body).filter((field) => !fields.includes(field));
+      assert.deepEqual(unlisted, [], `${key}: answers fields the registry does not list`);
+    }
+    assert.ok(Object.keys(asked[0][1].body.askedThen).length > 0, "the earlier words were in the answer the check read");
+  });
+
   test("the staff pages' loaders: a written answer's range when it was written, and a reflection's prompt", async () => {
     seedWeek();
     await change("zach", "wa-1", { words: { min: 250, max: 400 } });
