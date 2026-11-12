@@ -2316,6 +2316,30 @@ here.
 - **Deleting**: the week's records and the log go with an account (by `uid`)
   and with a run's destroy (by `runId`), and the destroy dialog counts them.
   Earlier versions live on the rows they belong to, and go with them.
+- **The pages** say it in the week's own words (`words.ts`). The person's
+  week page: under the title, before the session, the session and that the
+  work stays open after it, then the day the programme closes (`untilWhenWords`,
+  privacy v17's "the week's page says until when"); once it has closed, that
+  it can't change now, and every box is read only. Once the session has
+  started, one neutral line at the top says the group met, that they can
+  still finish it, and that what is added or changed now shows as late
+  (`sessionMetWords`); a facilitator's own work says who reads it and that
+  what they add after their group's session shows those people as late
+  (`ownWorkWords`). Beside each thing, when it was ticked, saved or sent, and
+  once the session has started, before it or how long after; nobody with no
+  session to be due at is ever told late. Each written answer has "Send my
+  answer" while something is unsent (with what makes the week done under it)
+  and "Change my answer" after; changed since a send, it says who sees which
+  version. Feedback on words changed since carries the version it was about.
+  Staff pages say "Sent", "Changed" or "Saved" with "Late: 3 days after the
+  session", "After its deadline" for staff alone, "Done on time", "Done late"
+  and "Joined late", and stack the answer as it stood at the session under
+  the latest. No page has Submit or Reopen.
+- **The emails**: "Week N is open" says the work saves as you go and stays
+  open after the session, what is added after it showing as late; the
+  reminders before a session list what is left (a written answer with words
+  and not sent among it: "Your written answer isn't sent yet.") and say the
+  same of after the session.
 
 
 ## Feedback
@@ -2550,8 +2574,10 @@ through and the update did not, the dialog says so and offers to tell the
 group again. The reason and a moved room are refused if they hold a link.
 
 The press may first be asked with `preview: true`, which changes nothing and
-answers with what it would do: the session before and after, when the week's
-work locks before and after, whether "Week N is open" and the reminders
+answers with what it would do: the session before and after, from when the
+week's work counts as late before and after (`lateFrom`, the session its
+people are due at, through `groupSessionAt`; the panel's "Late from"),
+whether "Week N is open" and the reminders
 before a session are switched on and whether this session's have already
 gone, who said they are joining online or can't make it, who would be told,
 and the notice.
