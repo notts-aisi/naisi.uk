@@ -494,8 +494,9 @@ test(
         assert.ok(rows.some((row) => row.kind === "session-did-not-happen" && row.groupId === groupB.id), "the history keeps nothing of what the lines said");
       });
     } finally {
-      await Promise.all([leadContext.close(), olaContext.close(), fernContext.close(), context.close()]);
-      await browser.close();
+      await Promise.all([leadContext.close(), olaContext.close(), fernContext.close(), context.close()]).catch(() => {});
+      await browser.close().catch(() => {});
+      recorder.writeMarker();
     }
   },
 );
