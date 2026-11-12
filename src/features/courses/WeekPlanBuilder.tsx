@@ -19,7 +19,7 @@ import {
   currentWeekFor,
   isValidDateKey,
 } from "@/lib/courses/weekPlan";
-import { WEEK_PLAN_READ_ONLY } from "@/lib/courses/groupPage/words";
+import { WEEK_PLAN_READ_ONLY, goneOutSinceOpened } from "@/lib/courses/groupPage/words";
 import {
   normaliseRunWeekIds,
   updateRun,
@@ -248,7 +248,8 @@ export default function WeekPlanBuilder({
   //
   // Adding at the END and inserting a break are not the same hazard (they
   // renumber nothing already taught, they only shift later dates), so they
-  // stay reachable to admins with the warning below.
+  // stay reachable to admins with the warning below, until the run's groups
+  // have gone out: the whole plan is then read only (`groupsGoneOut`).
   const status = statusProp ?? fetchedStatus;
   const locked = status !== "draft";
   const canReshape = !locked;
@@ -351,10 +352,19 @@ export default function WeekPlanBuilder({
     }
     setPlanError(null);
 
+    // A page opened before the groups went out still offers the plan, and the
+    // rules refuse a change once they have. Only for an admin is that the one
+    // refusal a plan change meets: anybody else's is also refused when the run
+    // has left draft since the page opened, and this sentence would be untrue.
+    const refusalIsGoneOut = isAdmin && dirty;
     let ok = false;
     await runAction(
       async () => {
-        await updateRun(runId, { weekPlan: plan });
+        try {
+          await updateRun(runId, { weekPlan: plan });
+        } catch (err) {
+          throw goneOutSinceOpened(err, refusalIsGoneOut);
+        }
         ok = true;
       },
       { savingMessage: "Saving week plan…", successMessage: "Week plan saved" },

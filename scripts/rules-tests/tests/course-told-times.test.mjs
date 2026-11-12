@@ -11,10 +11,15 @@
  * change, for a group of that run, the slot's day, start and length, the
  * overrides, `sessionModes`, `sessionChanges`, the pace pair,
  * `timeQuestionSince` or the run it belongs to; nor, for the run, its
- * `startDate`, `weekPlan` or `allocationPublishedAt`. Admins included.
+ * `startDate` or `weekPlan`. Admins included.
  *
- * Before the groups go out every rule stands as it was, which this file runs
- * too: the same writes, by the same people, on a run without the stamp.
+ * The stamp itself is the publish route's at any time: no browser write
+ * changes it, set or unset, and no run is created carrying it. Set from a
+ * browser it would freeze a run nothing on the site could unfreeze.
+ *
+ * Before the groups go out every other rule stands as it was, which this
+ * file runs too: the same writes, by the same people, on a run without the
+ * stamp, and every write the pages make there.
  *
  * And every write the pages still make after the groups have gone out
  * passes, in the shape the page makes it: the run editor's sections (its
@@ -377,6 +382,34 @@ describe("courseGroups: before a run's groups have gone out, every rule stands a
     }
   });
 
+  it("saves every write the pages make, from every writer", async () => {
+    await seedWorld();
+    for (const uid of GROUP_WRITERS) {
+      const db = await asUser(uid);
+      for (const [label, patch] of GROUP_KEPT_WRITES) {
+        await reseed("courseGroups/g-notyet", groupDoc("notyet"));
+        await allowed(groups(db).doc("g-notyet").update(patch()), `${uid}: ${label}`);
+      }
+      // The card before the groups go out also writes a new day, time and length.
+      await reseed("courseGroups/g-notyet", groupDoc("notyet"));
+      await allowed(
+        groups(db).doc("g-notyet").update({
+          name: "Group A",
+          capacity: 12,
+          campus: "university-park",
+          "session.weekday": 4,
+          "session.startTimeLocal": "17:30",
+          "session.durationMinutes": 60,
+          "session.location": "Portland A21",
+          "session.meetingUrl": null,
+          "session.notes": "",
+          updatedAt: serverTimestamp(),
+        }),
+        `${uid}: the card with a new slot`,
+      );
+    }
+  });
+
   it("treats a run whose stamp is stored as null as not gone out", async () => {
     await seedWorld();
     await seed(async (db) => {
@@ -471,6 +504,45 @@ describe("courseRuns: a run's dates once its groups have gone out", () => {
   });
 });
 
+describe("courseRuns: the stamp that says the groups have gone out is never a browser's", () => {
+  it("refuses setting it on a run whose groups have not gone out, for every writer", async () => {
+    await seedWorld();
+    for (const uid of [...RUN_WRITERS, "facil", "learner"]) {
+      const db = await asUser(uid);
+      await refused(runs(db).doc("notyet").update({ allocationPublishedAt: TOLD }), `${uid}: set`);
+      await refused(runs(db).doc("notyet").update({ allocationPublishedAt: serverTimestamp() }), `${uid}: set to now`);
+      await refused(
+        runs(db).doc("notyet").update({ label: "Autumn 2026 (Tuesdays)", allocationPublishedAt: TOLD, updatedAt: serverTimestamp() }),
+        `${uid}: set beside a run details save`,
+      );
+    }
+  });
+
+  it("refuses a run created carrying it, and creates one without it, as the course editor does", async () => {
+    await seedCast();
+    for (const uid of ["drafter", "admin1"]) {
+      const db = await asUser(uid);
+      const born = (id, overrides = {}) =>
+        runDoc(id, {
+          status: "draft",
+          weekPlan: [],
+          authorUid: uid,
+          trackLeadUids: [],
+          groupCount: 0,
+          enrolMode: "admissions",
+          streams: [],
+          enrolledCount: 0,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          ...overrides,
+        });
+      await refused(runs(db).doc(`born-out-${uid}`).set(born(`born-out-${uid}`, { allocationPublishedAt: TOLD })), `${uid}: born told`);
+      await allowed(runs(db).doc(`born-${uid}`).set(born(`born-${uid}`)), `${uid}: born without it`);
+      await allowed(runs(db).doc(`born-null-${uid}`).set(born(`born-null-${uid}`, { allocationPublishedAt: null })), `${uid}: born with it null`);
+    }
+  });
+});
+
 describe("courseRuns: before a run's groups have gone out, every rule stands as it was", () => {
   it("lets each writer change the start date, and an admin the plan of a running run", async () => {
     await seedWorld();
@@ -486,6 +558,29 @@ describe("courseRuns: before a run's groups have gone out, every rule stands as 
           await allowed(write, `${uid}: ${label}`);
         }
       }
+    }
+  });
+
+  it("saves every write the run editor makes, from every writer", async () => {
+    await seedWorld();
+    for (const uid of RUN_WRITERS) {
+      const db = await asUser(uid);
+      for (const [label, patch] of RUN_KEPT_WRITES) {
+        await reseed("courseRuns/notyet", runDoc("notyet"));
+        await allowed(runs(db).doc("notyet").update(patch()), `${uid}: ${label}`);
+      }
+      // Its run details save before the groups go out, with a new start date.
+      await reseed("courseRuns/notyet", runDoc("notyet"));
+      await allowed(
+        runs(db).doc("notyet").update({
+          label: "Autumn 2026",
+          academicYear: "2026/27",
+          startDate: "2026-10-12",
+          cohort: { term: "autumn", year: 2026, number: 1 },
+          updatedAt: serverTimestamp(),
+        }),
+        `${uid}: run details with a new start date`,
+      );
     }
   });
 

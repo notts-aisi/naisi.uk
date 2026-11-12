@@ -2229,22 +2229,29 @@ service cloud.firestore {
       // break for one group is "Cancel and push the rest back" on that
       // group's page, through a route that refuses to move a week that met.
       //
-      // `allocationPublishedAt` itself has no browser writer. Once set it is
-      // kept as it is, so a browser cannot clear it and then change the dates.
+      // `allocationPublishedAt` is the publish route's alone: a browser write
+      // never changes it, set or unset, for every writer, admins included (and
+      // the create rule refuses a run born carrying it). Set from a browser,
+      // it would freeze the run's dates and every group's time with nothing
+      // on the site able to undo it; cleared, it would let the dates change
+      // after the groups went out. Absent and null compare equal.
       //
-      // Before the groups go out the first disjunct holds and every other
-      // rule here stands as it was. The run's own document: no extra read.
-      // `weekPlan` is already pinned out of draft for everybody but an admin
-      // (weekPlanLockRespected), and this is what holds an admin to it too.
+      // `startDate` and `weekPlan` are held only once the stamp is set: before
+      // the groups go out every other rule here stands as it was. The run's
+      // own document: no extra read. `weekPlan` is already pinned out of draft
+      // for everybody but an admin (weekPlanLockRespected), and this is what
+      // holds an admin to it too.
       function runDatesKeptOnceGroupsOut() {
-        return resource.data.get('allocationPublishedAt', null) == null
-          || (
-            request.resource.data.get('allocationPublishedAt', null)
-              == resource.data.get('allocationPublishedAt', null)
-            && request.resource.data.get('startDate', null)
-              == resource.data.get('startDate', null)
-            && request.resource.data.get('weekPlan', [])
-              == resource.data.get('weekPlan', [])
+        return request.resource.data.get('allocationPublishedAt', null)
+            == resource.data.get('allocationPublishedAt', null)
+          && (
+            resource.data.get('allocationPublishedAt', null) == null
+            || (
+              request.resource.data.get('startDate', null)
+                == resource.data.get('startDate', null)
+              && request.resource.data.get('weekPlan', [])
+                == resource.data.get('weekPlan', [])
+            )
           );
       }
 
@@ -2424,6 +2431,11 @@ service cloud.firestore {
         && request.resource.data.get('streams', []).size() == 0
         && request.resource.data.get('enrolledCount', 0) == 0
         && request.resource.data.get('submissionExerciseRef', {}) == {}
+        // A run is born with its groups not gone out: the stamp is the
+        // publish route's, and update keeps it as it is
+        // (runDatesKeptOnceGroupsOut), so a run born carrying one would be
+        // frozen for good. Absent or null.
+        && request.resource.data.get('allocationPublishedAt', null) == null
         && runContentOk()
         && runGuideUntouched();
 
@@ -2432,8 +2444,9 @@ service cloud.firestore {
       // two-person rule as events. A track lead may adjust run content (the
       // label, the dates, the application form, and the week plan while the
       // run is still a draft) but is NOT an approver, and once the run is out
-      // of draft the plan itself is pinned by weekPlanLockRespected(). Once
-      // the run's groups have gone out its start date and plan are pinned for
+      // of draft the plan itself is pinned by weekPlanLockRespected(). The
+      // stamp that says the groups have gone out never changes from a
+      // browser, and once it is set the start date and plan are pinned for
       // every writer, admins included (runDatesKeptOnceGroupsOut).
       allow update: if runGuideUntouched() && runDatesKeptOnceGroupsOut() && (isAdmin()
         || (
@@ -2649,6 +2662,10 @@ service cloud.firestore {
       // once the groups have gone out; the slot, the overrides and
       // `timeQuestionSince` are held for every writer.
       function groupTimeUntouched() {
+        // For these keys a write that sends an empty value where there was
+        // none (`{}` or `null` for an absent field) is a change, refused once
+        // the groups have gone out, so a page must never re-send them; and a
+        // second weekly slot, if one is ever stored on the group, joins this list.
         return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
             'runId', 'sessionOverrides', 'sessionModes', 'sessionChanges',
             'paceStartDate', 'paceWeekPlan', 'timeQuestionSince'

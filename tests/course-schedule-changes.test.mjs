@@ -245,6 +245,7 @@ const COURSES_LIB = src("lib", "firestore", "courses.ts");
 const GROUP_RESOLVE = src("lib", "courses", "groupResolve.ts");
 const RUN_STATUS_LIB = src("lib", "courses", "runStatus.ts");
 const RUN_EDITOR = src("features", "courses", "RunEditor.tsx");
+const GROUP_EDITOR = src("features", "courses", "GroupEditor.tsx");
 
 const WEEK_PLAN_BUILDER = src("features", "courses", "WeekPlanBuilder.tsx");
 const WEEK_VIEW = src("features", "courses", "WeekView.tsx");
@@ -784,6 +785,23 @@ test("GUARD: once a run's groups have gone out, its dates and a group's time are
   assert.match(WEEK_PLAN_BUILDER, /async function save\(\) \{\s*\/\/[^\n]*\n\s*if \(groupsGoneOut\) return;/);
   assert.match(WEEK_PLAN_BUILDER, /\{!groupsGoneOut && \(\s*<Button type="button" onClick=\{save\}/);
   assert.match(WEEK_PLAN_BUILDER, /\{groupsGoneOut && <p className=\{styles\.warn\}>\{WEEK_PLAN_READ_ONLY\}<\/p>\}/);
+  // The stamp itself: a browser write never changes it, set or unset, and a
+  // run is never created carrying it.
+  assert.match(
+    RULES,
+    /function runDatesKeptOnceGroupsOut\(\) \{\s*return request\.resource\.data\.get\('allocationPublishedAt', null\)\s*== resource\.data\.get\('allocationPublishedAt', null\)\s*&& \(/,
+  );
+  assert.match(RULES, /&& request\.resource\.data\.get\('allocationPublishedAt', null\) == null\s*&& runContentOk\(\)\s*&& runGuideUntouched\(\);/);
+  // A page opened before the groups went out: the three saves that can then
+  // be refused read one sentence in place of Firestore's, and only when they
+  // change what the rules keep (goneOutSinceOpened, run in
+  // course-group-page.test.mjs).
+  assert.match(RUN_EDITOR, /const startDateChanged = !groupsGoneOut && startDate !== run\?\.startDate;/);
+  assert.match(RUN_EDITOR, /\} catch \(err\) \{\s*throw goneOutSinceOpened\(err, startDateChanged\);/);
+  assert.match(GROUP_EDITOR, /const slotChanged =\s*!goneOut\s*&& \(session\.weekday !== group\.session\.weekday\s*\|\| session\.startTimeLocal !== group\.session\.startTimeLocal\s*\|\| session\.durationMinutes !== group\.session\.durationMinutes\);/);
+  assert.match(GROUP_EDITOR, /\} catch \(err\) \{\s*throw goneOutSinceOpened\(err, slotChanged\);/);
+  assert.match(WEEK_PLAN_BUILDER, /const refusalIsGoneOut = isAdmin && dirty;/);
+  assert.match(WEEK_PLAN_BUILDER, /\} catch \(err\) \{\s*throw goneOutSinceOpened\(err, refusalIsGoneOut\);/);
 });
 
 /**
