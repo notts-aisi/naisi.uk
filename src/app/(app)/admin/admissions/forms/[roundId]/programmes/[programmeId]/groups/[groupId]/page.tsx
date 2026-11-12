@@ -8,11 +8,12 @@ import GroupPage from "@/features/courses/groupPage/GroupPage";
 import { isAddressableId } from "@/lib/addressableId";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { own } from "@/lib/applications/keys";
+import { loadGroupAttendance } from "@/lib/courses/groupAttendance/load";
 import { loadGroupPage } from "@/lib/courses/groupPage/load";
+import { REQUESTS_PATH } from "@/lib/courses/requests/paths";
 import { GO_TO_GROUPS, GROUP_NOT_HERE_LINE, GROUP_NOT_HERE_TITLE } from "@/lib/courses/groupPage/words";
 import { messagesEntriesFor } from "@/lib/messages/handover";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
@@ -38,9 +39,11 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * `(tabs)` route group beside it, so it is drawn with no programme head and
  * no tabs, and carries its own way back to the programme and its Groups tab.
  *
- * "Take the register" is today's register page, which takes an admin or the
- * group's own facilitator; a lead who facilitates nothing here is not
- * offered it. "Write to Group C" is Messages, set to the group, wherever
+ * "Take the register" is the group's register under this page, which takes
+ * an admin and the programme's lead; each week's ways to take a register in
+ * a facilitator's place open from the week, and from the notice when a
+ * session has started with nobody taking it (`?take=2` opens on week 2 with
+ * them shown). "Write to Group C" is Messages, set to the group, wherever
  * Messages would start with it for this person.
  */
 
@@ -48,10 +51,15 @@ export const dynamic = "force-dynamic";
 
 export default async function ProgrammeGroupPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ roundId: string; programmeId: string; groupId: string }>;
+  searchParams?: Promise<{ take?: string | string[] }>;
 }) {
   const [{ roundId, programmeId, groupId }, user] = await Promise.all([params, requireAdmissionsPage()]);
+  // "Take the register" on Overview's Needs attention: open on that week, with its ways to take it shown.
+  const takeParam = (await (searchParams ?? Promise.resolve({} as { take?: string | string[] }))).take;
+  const take = typeof takeParam === "string" && /^\d{1,2}$/.test(takeParam) ? Number(takeParam) : null;
   const db = getAdminDb();
   const outcome = db ? await loadProgrammeRun(db, user, roundId, programmeId) : null;
   if (!db || !outcome || outcome.status === "none") return <NoProgrammeHere roundId={roundId} />;
@@ -82,26 +90,35 @@ export default async function ProgrammeGroupPage({
   if (group.runId !== run.id || group.archived) return notHere;
 
   const now = new Date();
-  const [page, messages] = await Promise.all([
+  const [page, messages, attendance] = await Promise.all([
     loadGroupPage(db, { run, group, viewer: view.viewer, viewerUid: user.uid, now }),
     messagesEntriesFor(db, user, run.id, now).catch(() => null),
+    // Attendance, all weeks: the register's own gate decides what it holds.
+    // An admin or the programme's lead is given the tab; somebody here who
+    // facilitates the group (a lead who also runs it) is answered as its
+    // facilitator, and a facilitator has their own register pages, so the
+    // tab is left out for them.
+    loadGroupAttendance(db, user, group.id, now).catch(() => ({ status: "none" as const })),
   ]);
-  const takesRegister =
-    user.role === "admin" || isNamedWithStanding(user, "courseGroups.facilitatorUids", group.facilitatorUids);
   const base = `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}`;
 
   return (
     <ApplicationsRoot className={shared.page}>
       <GroupPage
         view={{ ...page, programmeName: view.programmeName || page.programmeName }}
+        take={take}
+        attendance={attendance.status === "ok" && attendance.view.viewer !== "facilitator" ? attendance.view : null}
         links={{
           programme: `${base}/overview`,
           groups: tabPath,
-          register: takesRegister ? `/learn/${encodeURIComponent(run.id)}/group/${encodeURIComponent(group.id)}/register` : null,
+          // The register under this page: an admin and the programme's lead
+          // take any session's register, in a facilitator's place or helping.
+          register: `${base}/groups/${encodeURIComponent(group.id)}/register`,
           write: messages ? (own(messages.groups, group.id) ?? null) : null,
           facilitators: groupsViewPath(view.roundId, view.programmeId, "facilitators"),
           times: groupsViewPath(view.roundId, view.programmeId, "times"),
           people: tabPath,
+          requests: REQUESTS_PATH,
           roomPath: `/api/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/${encodeURIComponent(group.id)}/room`,
         }}
       />

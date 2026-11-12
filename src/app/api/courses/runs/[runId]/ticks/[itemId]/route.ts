@@ -5,15 +5,16 @@ import { resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { weekOneDoorFor } from "@/lib/courses/weekOne/door";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { weekChecklistItems, weekSources } from "@/lib/courses/weekBlocks/reader";
+import { workClosesAt } from "@/lib/courses/weekWork/closes";
 import {
-  WeekShutError,
+  WorkClosedError,
   assertWeekTakesWork,
   logWork,
-  ownLockSource,
-  readRunForLock,
+  ownSessionSource,
+  readRunForWork,
   weekStateIn,
 } from "@/lib/courses/weekWork/own";
-import { WEEK_SHUT } from "@/lib/courses/weekWork/words";
+import { closedWords } from "@/lib/courses/weekWork/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
@@ -37,10 +38,10 @@ import {
  * Every tick there is goes through here: a reading, a pack's reading or a
  * checklist step, on any week of a run, on the week page, the programme home
  * and Home. A tick used to be written straight from the browser, which
- * `firestore.rules` could hold to the person's own row but never to a week
- * that locks when the group's session starts, and which left no record of an
- * untick. The rules now refuse a browser tick, so this is the only writer of
- * `completed` and `completedAt` on a `courseProgress` row.
+ * `firestore.rules` could hold to the person's own row but never to where
+ * the week stands, and which left no record of an untick. The rules now
+ * refuse a browser tick, so this is the only writer of `completed` and
+ * `completedAt` on a `courseProgress` row.
  *
  * WHO: somebody the browser's tick admitted (an active seat on the run, told
  * its group by Publish, on an account in standing, a facilitator's seat
@@ -56,9 +57,11 @@ import {
  * taken from the body. A rating, a comment, a private note or a moderation
  * stamp already on the row is kept exactly as stored.
  *
- * THE LOCK. On a week written as blocks, a week submitted or locked takes no
- * tick (`src/lib/courses/weekWork/`), asked inside the transaction that
- * writes. A week written before blocks never locks.
+ * THE WEEK STAYS OPEN. On a week written as blocks, a tick is refused only
+ * once the programme has closed (`src/lib/courses/weekWork/`), asked inside
+ * the transaction that writes; nothing closes at the session, and a tick
+ * after it is late, told from its own time. A week written before blocks
+ * never closes here.
  *
  * THE LOG. A tick that changes something goes in the work log, a tick or an
  * untick, at the server's time; so does the completion's own time, which the
@@ -128,7 +131,7 @@ export async function PUT(req: Request, ctx: Params) {
   const [enrolSnap, groupSnap, run] = await Promise.all([
     db.collection("courseEnrolments").doc(courseEnrolmentId(runId, actor.uid)).get(),
     db.collection("courseGroups").where("runId", "==", runId).limit(MAX_GROUPS).get(),
-    readRunForLock(db, runId),
+    readRunForWork(db, runId),
   ]);
   const enrolment = enrolSnap.exists ? normalizeCourseEnrolment(enrolSnap.id, enrolSnap.data() ?? {}) : null;
   // The browser's tick: an active seat, told, on an account that stands (the
@@ -161,7 +164,8 @@ export async function PUT(req: Request, ctx: Params) {
   }
   const kind: ProgressItemKind = itemKind;
   const locks = isBlockWeek(week);
-  const source = ownLockSource(run, liveGroups, actor.uid, learner);
+  const source = ownSessionSource(run, liveGroups, actor.uid, learner);
+  const closesAt = run ? workClosesAt(run, liveGroups) : null;
   const now = new Date();
   const rowRef = db.collection("courseProgress").doc(courseProgressId(runId, actor.uid, itemId));
 
@@ -169,9 +173,9 @@ export async function PUT(req: Request, ctx: Params) {
     await db.runTransaction(async (tx) => {
       const [rowSnap, state] = await Promise.all([
         tx.get(rowRef),
-        locks ? weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source, now }) : Promise.resolve(null),
+        locks ? weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source, closesAt, now }) : Promise.resolve(null),
       ]);
-      // A week written as blocks that is submitted or locked takes no tick until it is reopened.
+      // A week written as blocks takes ticks until the programme closes: nothing closes at the session.
       if (state) assertWeekTakesWork(state.state);
       const stored = rowSnap.exists ? (rowSnap.data() ?? {}) : null;
       const current = stored ? normalizeCourseProgress(rowSnap.id, stored) : null;
@@ -203,7 +207,7 @@ export async function PUT(req: Request, ctx: Params) {
     });
   } catch (err) {
     if (err instanceof TickRefusal) return NextResponse.json({ error: err.message }, { status: err.status });
-    if (err instanceof WeekShutError) return NextResponse.json({ error: WEEK_SHUT }, { status: 409 });
+    if (err instanceof WorkClosedError) return NextResponse.json({ error: closedWords(err.at) }, { status: 409 });
     console.error("[courses tick] write failed", runId, itemId, err);
     return NextResponse.json({ error: "That tick didn’t save. Check your connection and try again." }, { status: 500 });
   }

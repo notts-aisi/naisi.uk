@@ -1,5 +1,6 @@
 "use client";
 
+import { correctedOnWords, correctedSessionWords } from "@/lib/courses/registerCorrection/pageWords";
 import { useState } from "react";
 import Link from "next/link";
 import ProgrammeMark from "@/components/ProgrammeMark";
@@ -390,7 +391,10 @@ function YourMarks({
       // Joined online: only beside a mark that says they came, as the route
       // projects it (`ownAttendanceSessions`).
       const online = session?.online === true && (kind === "present" || kind === "late" || kind === "left-early");
-      return { week, kind, online, dateKey: week.dateKey || session?.dateKey || "" };
+      // "Corrected on Tue 10 Nov": the day their own line was corrected after
+      // the register was finished, and nothing about who or why.
+      const correctedOn = session && session.held && !week.cancelled ? (session.correctedOn ?? null) : null;
+      return { week, kind, online, dateKey: week.dateKey || session?.dateKey || "", correctedOn };
     });
   const used = new Set(rows.map((row) => row.kind));
   const anyOnline = rows.some((row) => row.online);
@@ -410,12 +414,14 @@ function YourMarks({
         <>
           {rows.length > 0 && (
             <ol className={weekly.marks} role="list">
-              {rows.map(({ week, kind, online, dateKey }) => (
+              {rows.map(({ week, kind, online, dateKey, correctedOn }) => (
                 <li key={week.weekNumber} className={weekly.markItem}>
                   <span
                     className={[weekly.markBox, MARK_CLASS[kind], online ? weekly.markOnline : ""].filter(Boolean).join(" ")}
                     role="img"
-                    aria-label={markWords(week.weekNumber, dateKey, online ? `${markWord(kind)}, ${ONLINE_WORD.toLowerCase()}` : markWord(kind))}
+                    aria-label={`${markWords(week.weekNumber, dateKey, online ? `${markWord(kind)}, ${ONLINE_WORD.toLowerCase()}` : markWord(kind))}${
+                      correctedOn ? ` ${correctedOnWords(correctedOn)}.` : ""
+                    }`}
                     title={online ? `${markWord(kind)}, ${ONLINE_WORD.toLowerCase()}` : markWord(kind)}
                   >
                     {markGlyph(kind)}
@@ -429,6 +435,17 @@ function YourMarks({
                 </li>
               ))}
             </ol>
+          )}
+          {rows.some((row) => row.correctedOn) && (
+            <ul className={weekly.correctedList} data-testid="marks-corrected">
+              {rows
+                .filter((row) => row.correctedOn)
+                .map((row) => (
+                  <li key={row.week.weekNumber} className={weekly.cardLine}>
+                    {correctedSessionWords(row.week.weekNumber, row.dateKey, row.correctedOn ?? "")}
+                  </li>
+                ))}
+            </ul>
           )}
           {used.size > 0 && (
             <ul className={weekly.legend} aria-label={MARKS_LEGEND_LABEL}>
@@ -503,9 +520,9 @@ export default function RunHome({
   const beforeStart =
     data?.currentWeek?.phase === "before" ||
     (firstNext !== null && firstNext.dateKey === data?.group?.calendar.firstSessionDate);
-  // A week 1 submitted or locked takes no tick until somebody running the group reopens it.
+  // Week 1 takes ticks until the programme closes.
   const weekOneWork = data?.weeks.find((week) => week.weekNumber === 1)?.work ?? null;
-  const weekOneTakesTicks = weekOneWork ? weekOneWork.state === "open" || weekOneWork.state === "reopened" : true;
+  const weekOneTakesTicks = weekOneWork ? !weekOneWork.closed : true;
   const ticks = useMaterialTicks(runId, uid, 1, learner?.status === "active" && weekOneTakesTicks);
 
   /*
@@ -680,7 +697,6 @@ export default function RunHome({
         slotStartKey={thisSchedule?.slotStartKey || null}
         countableIds={thisDoc?.countableIds ?? []}
         thisWeek={thisDoc?.thisWeek ?? null}
-        locked={thisDoc?.work?.state === "locked"}
         open={thisSchedule?.open ?? false}
         breakLabel={calendarWeek?.breakLabel ?? null}
         weekSource={weekSource}

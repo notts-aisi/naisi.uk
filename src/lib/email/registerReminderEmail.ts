@@ -65,7 +65,9 @@ export function registerReminderWords(facts: RegisterReminderFacts): RegisterRem
     effect: facts.scheduled
       ? "Finish the register to lock it and show everyone their mark. Nobody’s emailed."
       : "Push attendance to lock the register, show everyone their mark and email the group about next week.",
-    notHeld: `If the session didn’t happen, the register can say so, and it still needs ${facts.scheduled ? "finishing" : "pushing"}.`,
+    // The register's own switch has gone: a session that didn't happen is
+    // called off with the two cancels, which stop the chase.
+    notHeld: "If the session didn’t happen, say so with Change one week on the group’s page, and nobody is reminded about this register again.",
     next: facts.task
       ? `If it’s still not ${ended} ${facts.task.hours} hours after the session, ${taskPeople(facts.task.leadName)} get a task.`
       : "",
@@ -83,16 +85,39 @@ export type RegisterReminderOptions = {
   groupId: string;
   /** This site's own address, with no trailing slash. */
   appUrl: string;
+  /** Which register page this person can open; the run's own under /learn when left out. */
+  opens?: ReminderOpens;
   facts: RegisterReminderFacts;
 };
 
 /**
- * Where "Open the register" goes: the register's own page for the group
- * (`/learn/[runId]/group/[groupId]/register`), where the session is marked
- * and ended, as a whole address on this site. Built here, behind the one
- * door, so the job and a lead's Remind cannot come to link to two pages.
+ * WHICH REGISTER PAGE ONE PERSON'S REMINDER LINKS TO, because the reminder
+ * goes to whoever took or gave a covered register as well as to facilitators:
+ *
+ *  - `learn`: the run's own register page for the group, for its
+ *    facilitators, admins and the run's track leads, whom /learn admits;
+ *  - `programme`: the group's register under the programme's Groups tab, on
+ *    that session, for the programme's lead, whom the run's pages turn away.
  */
-function registerPageUrl(appUrl: string, runId: string, groupId: string): string {
+export type ReminderOpens =
+  | { kind: "learn" }
+  | { kind: "programme"; roundId: string; programmeId: string; sessionKey: string };
+
+/** The run's own register page: a facilitator's, an admin's and a track lead's. */
+export const LEARN: ReminderOpens = { kind: "learn" };
+
+/**
+ * Where "Open the register" goes, as a whole address on this site. Built
+ * here, behind the one door, so the job and a lead's Remind cannot come to
+ * link one person to two pages.
+ */
+export function registerReminderLink(appUrl: string, runId: string, groupId: string, opens: ReminderOpens = LEARN): string {
+  if (opens.kind === "programme") {
+    return (
+      `${appUrl}/admin/admissions/forms/${encodeURIComponent(opens.roundId)}/programmes/${encodeURIComponent(opens.programmeId)}` +
+      `/groups/${encodeURIComponent(groupId)}/register?session=${encodeURIComponent(opens.sessionKey)}`
+    );
+  }
   return `${appUrl}/learn/${encodeURIComponent(runId)}/group/${encodeURIComponent(groupId)}/register`;
 }
 
@@ -120,7 +145,7 @@ export async function sendRegisterReminderEmail(
         lead: words.lead,
         effect: words.effect,
         buttonLabel: "Open the register",
-        registerLink: registerPageUrl(opts.appUrl, opts.runId, opts.groupId),
+        registerLink: registerReminderLink(opts.appUrl, opts.runId, opts.groupId, opts.opens),
         notHeld: words.notHeld,
         next: words.next,
       }),

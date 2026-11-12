@@ -17,6 +17,7 @@ import { londonClockLabel, londonDayLabel } from "../londonLabels";
 import { CAMPUS_LABEL } from "../campusWords";
 import { clockWords, dayWords, hoursWords, namesWords, peopleWords } from "../sessionChange/words";
 import { weekdaysWords } from "../regularTime/words";
+import type { DidNotHappenPreview } from "../registerCover/pageWords";
 import {
   ROOM_TO_BE_CONFIRMED,
   type HistoryFilter,
@@ -69,6 +70,26 @@ export type GroupPageWeek = {
   cantMakeIt: string[];
   /** The group's people for this session and what each has said. Empty on the facilitator's page. */
   people: { uid: string; name: string; said: WeekSaid }[];
+  /** Its register is finished. */
+  finished: boolean;
+  /** Its register says the session did not happen (the old switch). */
+  heldFalse: boolean;
+  /** One of the group's facilitators has started its register (saved a mark or set a line). */
+  facilitatorStarted: boolean;
+  /**
+   * Who took its register in a facilitator's place, or was given the
+   * session, by name, and whether a session given still holds; null with
+   * nobody, and always on the facilitator's page.
+   */
+  cover: { kind: "self" | "given"; byName: string; live: boolean } | null;
+  /** "Started 12 minutes ago", for a session that has started; "" before. */
+  startedAgo: string;
+  /**
+   * A check-in was opened for it or a session report written: both are kept
+   * by the week, so "Push the rest back a week" is not offered for it (the
+   * session a week later would open with them). Keep pace still is.
+   */
+  checkInOrReport: boolean;
 };
 
 /** One row of the group's history, as the History tab draws it. */
@@ -125,7 +146,39 @@ export type GroupPageView = {
   linkWeekNumber: number | null;
   /** The group's history, for admins and the lead; null on the facilitator's page. */
   history: { rows: GroupPageHistoryRow[]; more: boolean } | null;
+  /**
+   * Who leads the programme the group's run belongs to, by uid: its lead and
+   * the run's track leads. With admins, the committee and the run's
+   * facilitators, the people a session may be given to (`coverCandidatesOf`).
+   * Empty on the facilitator's page.
+   */
+  coverLeadUids: string[];
 };
+
+/** A week's register, as the ways to take it in a facilitator's place ask it (`coverChoicesOf`). */
+export function weekRegisterFacts(week: GroupPageWeek): {
+  weekNumber: number;
+  started: boolean;
+  cancelled: boolean;
+  dated: boolean;
+  finished: boolean;
+  heldFalse: boolean;
+  facilitatorStarted: boolean;
+  covered: boolean;
+  taken: boolean;
+} {
+  return {
+    weekNumber: week.weekNumber,
+    started: week.started,
+    cancelled: week.cancelled,
+    dated: Boolean(week.dateKey && week.hhmm),
+    finished: week.finished,
+    heldFalse: week.heldFalse,
+    facilitatorStarted: week.facilitatorStarted,
+    covered: week.cover !== null,
+    taken: week.taken,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Which state a week is in
@@ -184,11 +237,34 @@ export function weekAfter(weeks: readonly GroupPageWeek[], weekNumber: number): 
   return later ? { weekNumber: later.weekNumber, dateKey: later.dateKey } : null;
 }
 
+/** Why "Push the rest back a week" is not offered: a later week met, or this week has a check-in or a report. */
+export type PushBlock = "later-met" | "records" | null;
+
+/** Whether pushing the rest back from this week is blocked, by LATER weeks and the week's own records only. */
+function pushBlockOf(week: GroupPageWeek, weeks: readonly GroupPageWeek[]): PushBlock {
+  const index = weeks.findIndex((each) => each.weekNumber === week.weekNumber);
+  if (index >= 0 && weeks.slice(index + 1).some((each) => each.taken)) return "later-met";
+  if (week.checkInOrReport) return "records";
+  return null;
+}
+
+/**
+ * A week whose register is a draft somebody marked, not finished and still
+ * saying the session was held, after the session started: "It didn't happen"
+ * may still call it off with the two cancels, through the one-week change
+ * route (`callsOffDraft` there decides again).
+ */
+export function callsOffMarkedDraft(week: GroupPageWeek): boolean {
+  return week.started && week.taken && !week.finished && !week.heldFalse && !week.cancelled;
+}
+
 /**
  * What one-week choices a week offers, from the page's own facts (the week,
  * and the group's weeks in plan order); the route decides again. "Cancel and
  * push the rest back" moves every later week, so it is not offered once a
- * later week's register was taken: nothing may move a session that met.
+ * later week's register was taken: nothing may move a session that met. Nor
+ * once the week has a check-in or a session report, which are kept by the
+ * week and would belong to the session a week later.
  */
 export function oneWeekChoicesOf(
   week: GroupPageWeek,
@@ -200,20 +276,40 @@ export function oneWeekChoicesOf(
   met: boolean;
   online: boolean;
   restore: boolean;
-  /** Cancel and push the rest back a week: no later week has met. */
+  /** Cancel and push the rest back a week: no later week has met, and the week has no check-in or report. */
   push: boolean;
+  /** Why push back is not offered, when it is not. */
+  pushBlock: PushBlock;
 } {
   const met = week.taken;
   const putRight = !met && week.started;
-  const index = weeks.findIndex((each) => each.weekNumber === week.weekNumber);
-  const laterMet = index >= 0 && weeks.slice(index + 1).some((each) => each.taken);
+  const pushBlock = pushBlockOf(week, weeks);
   return {
     putRight,
     met,
     online: !met && !week.started && week.hasLink && !week.online,
     restore: !met && !week.started && week.change !== null && week.change !== "pushed",
-    push: !met && !laterMet,
+    push: !met && pushBlock === null,
+    pushBlock: met ? null : pushBlock,
   };
+}
+
+/**
+ * THE TWO CANCELS "IT DIDN'T HAPPEN" OFFERS for a session that started, its
+ * register empty or a draft somebody marked: keep pace always, and push the
+ * rest back a week worked out from LATER weeks and the week's own records,
+ * never from the pressed week's own draft (its lines are cleared in the same
+ * press, which is the route's own rule). Null for a week that cannot be
+ * called off this way: not started, finished, called off already, or said
+ * not to have happened on the old switch.
+ */
+export function didNotHappenChoicesOf(
+  week: GroupPageWeek,
+  weeks: readonly GroupPageWeek[],
+): { keepPace: true; push: boolean; pushBlock: PushBlock } | null {
+  if (!week.started || week.cancelled || week.finished || week.heldFalse) return null;
+  const pushBlock = pushBlockOf(week, weeks);
+  return { keepPace: true, push: pushBlock === null, pushBlock };
 }
 
 /** The days a move can land on: today or later for a move, today or earlier for "It met at another time". */
@@ -371,11 +467,14 @@ export type OneWeekPreview = {
   before: PreviewMoment | null;
   after: PreviewMoment | null;
   lastSession: { before: string; after: string };
-  lock: { before: string | null; after: string | null };
+  /** From when the week's work counts as late (the session its people are due at), before and after; null with none. */
+  lateFrom: { before: string | null; after: string | null };
   reminders: PreviewReminders;
   said: { joiningOnline: { count: number; names: string[] }; cantMakeIt: { count: number; names: string[] } };
   told: PreviewTold;
   register: { exists: boolean; taken: boolean };
+  /** A session called off after it started: what else follows (attendance, its lines, its check-in and report, the chase); null otherwise. */
+  didNotHappen?: DidNotHappenPreview | null;
   notice: { title: string; message: string };
   at: string | null;
 };
@@ -388,7 +487,7 @@ export type RegularPreview = {
     before: { weekday: number; startTimeLocal: string; durationMinutes: number; room: string; campus: GroupCampus | null };
     after: { weekday: number; startTimeLocal: string; durationMinutes: number; room: string; campus: GroupCampus | null };
   };
-  moves: { weekNumber: number; before: PreviewMoment | null; after: PreviewMoment | null; lock: { before: string | null; after: string | null } }[];
+  moves: { weekNumber: number; before: PreviewMoment | null; after: PreviewMoment | null; lateFrom: { before: string | null; after: string | null } }[];
   kept: { weekNumber: number; pinned: boolean; session: PreviewMoment | null }[];
   ownTimes: { weekNumber: number; kind: "online" | "moved" | "cancelled" | "pushed" | "set"; session: PreviewMoment | null; campus: GroupCampus | null }[];
   reminders: ({ weekNumber: number } & PreviewReminders)[];
@@ -432,14 +531,22 @@ export function instantWords(iso: string | null): string {
   return `${londonDayLabel(at)}, ${londonClockLabel(at)}`;
 }
 
-/** "Week 2’s work locks at Thu 12 Nov, 3pm (was Wed 11 Nov, 3pm)." / "Unchanged: Wed 25 Nov, 3pm." */
-export function lockLine(weekNumber: number, lock: { before: string | null; after: string | null }): string {
-  const before = instantWords(lock.before);
-  const after = instantWords(lock.after);
-  if (!after) return before ? `Week ${weekNumber}’s work would have no session left to lock at (it locked at ${before}).` : "";
+/**
+ * From when the week's work counts as late, before and after the change (the
+ * session its people are due at): "Week 2’s work counts as late from Thu 12
+ * Nov, 3pm (was Wed 11 Nov, 3pm)." / "Unchanged: Wed 25 Nov, 3pm." Nothing
+ * locks: work added after it is shown as late, with how late.
+ */
+export function lateFromLine(weekNumber: number, lateFrom: { before: string | null; after: string | null }): string {
+  const before = instantWords(lateFrom.before);
+  const after = instantWords(lateFrom.after);
+  if (!after) return before ? `Week ${weekNumber} would have no session, so nothing added to its work would count as late (it counted from ${before}).` : "";
   if (before === after) return `Unchanged: ${after}.`;
-  return before ? `Week ${weekNumber}’s work locks at ${after} (was ${before}).` : `Week ${weekNumber}’s work locks at ${after}.`;
+  return before ? `Week ${weekNumber}’s work counts as late from ${after} (was ${before}).` : `Week ${weekNumber}’s work counts as late from ${after}.`;
 }
+
+/** The panel's label for that line. */
+export const LATE_FROM = "Late from";
 
 /** Both automatic emails before a session are off: one plain line, and nothing else. */
 export const REMINDERS_OFF = "The automatic emails before a session are switched off, so none goes out on its own.";
@@ -559,8 +666,8 @@ export function oneWeekPreviewLines(input: {
   const lines: PreviewLine[] = [];
   const session = oneWeekSessionLine(preview, metAtAnotherTime);
   if (session) lines.push({ label: "Session", text: session });
-  const lock = lockLine(preview.weekNumber, preview.lock);
-  if (lock) lines.push({ label: "Work locks", text: lock });
+  const late = lateFromLine(preview.weekNumber, preview.lateFrom);
+  if (late) lines.push({ label: LATE_FROM, text: late });
   if (metAtAnotherTime && preview.after) {
     lines.push({
       label: "Register",
@@ -625,8 +732,8 @@ export function regularPreviewLines(input: {
     const kept = preview.kept.filter((week) => week.session);
     const text =
       kept.length === 1
-        ? `Week ${kept[0].weekNumber} keeps ${dayWords(kept[0].session!.dateKey)}, ${clockWords(kept[0].session!.startTimeLocal)}. Its register and when its work locks don’t change.`
-        : `${capital(weekSpanWords(kept.map((week) => week.weekNumber)))} keep their dates (${namesWords(kept.map((week) => dayWords(week.session!.dateKey)))}). Their registers and when their work locks don’t change.`;
+        ? `Week ${kept[0].weekNumber} keeps ${dayWords(kept[0].session!.dateKey)}, ${clockWords(kept[0].session!.startTimeLocal)}. Its register and late times don’t change.`
+        : `${capital(weekSpanWords(kept.map((week) => week.weekNumber)))} keep their dates (${namesWords(kept.map((week) => dayWords(week.session!.dateKey)))}). Their registers and late times don’t change.`;
     if (kept.length > 0) lines.push({ label: "Kept", text });
   }
 
@@ -638,17 +745,17 @@ export function regularPreviewLines(input: {
     });
   }
 
-  const lockParts = preview.moves
+  const lateParts = preview.moves
     .slice(0, 2)
     .map((move) => {
-      const before = instantWords(move.lock.before);
-      const now = instantWords(move.lock.after);
+      const before = instantWords(move.lateFrom.before);
+      const now = instantWords(move.lateFrom.after);
       if (!now || before === now) return "";
       return before ? `Week ${move.weekNumber}: ${now}, not ${before}.` : `Week ${move.weekNumber}: ${now}.`;
     })
     .filter(Boolean);
-  if (preview.moves.length > 2) lockParts.push("Later weeks: at each one’s new session.");
-  if (lockParts.length > 0) lines.push({ label: "Work locks", text: lockParts.join(" ") });
+  if (preview.moves.length > 2) lateParts.push("Later weeks: at each one’s new session.");
+  if (lateParts.length > 0) lines.push({ label: LATE_FROM, text: lateParts.join(" ") });
 
   if (preview.reminders.length > 0) {
     const off = preview.reminders.every((each) => !each.weekOpen.scheduled && !each.reminders.on);

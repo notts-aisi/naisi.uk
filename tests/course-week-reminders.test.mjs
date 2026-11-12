@@ -12,10 +12,11 @@
  *     due from 9am on its day until twelve hours later and never once the
  *     session has started; either side of the clocks going back.
  *  2. ONLY THE PEOPLE WHOSE WEEK IS NOT DONE. "Done" is the one meaning
- *     (`weekDone`): submitted, and every reading its tasks count ticked.
- *     Somebody who finishes after the 3-day reminder is not sent the 1-day
- *     one. A week submitted with a reading left unticked takes no more work,
- *     and is not reminded about.
+ *     (`weekDone`): every reading its tasks count ticked, and the old Submit
+ *     pressed or everything written it counts written and sent. Somebody who
+ *     finishes after the 3-day reminder is not sent the 1-day one. A week
+ *     submitted with a reading left unticked still takes work (the week stays
+ *     open), so it is reminded about, for that reading alone.
  *  3. ONE MARKER EACH. A claim per person per reminder, stamped with why
  *     nobody was mailed when nobody was; two ticks at once send once; a
  *     reminder too late to be worth sending is stamped stale, once.
@@ -263,14 +264,18 @@ describe("2. only the people whose week is not done", () => {
     assert.equal(mailTo("farah").length, 2, "and the others still get theirs");
   });
 
-  test("a week submitted with a reading left unticked takes no more work: no reminder, stamped submitted", async () => {
+  test("a week submitted with a reading left unticked still takes work: the reminder names the reading, never that it is not submitted", async () => {
     await finishWeek("farah", 2, { tickBoth: false });
     await runJob(DUE.b2three);
-    assert.equal(mailTo("farah").length, 0);
-    assert.equal(marker("farah", 3).skippedReason, "submitted");
+    const [message] = mailTo("farah");
+    assert.ok(message, "the week stays open, and is not done");
+    assert.ok(marker("farah", 3).sentAt, "the marker says it was sent");
+    const text = await textOf(message);
+    assert.match(text, /Week 2 isn’t finished yet: \* One reading isn’t ticked: “Who keeps the lamps”\./);
+    assert.doesNotMatch(text, /Your written answer isn’t sent yet\./, "the old Submit was pressed, which sent it");
   });
 
-  test("the reminder lists what is left, the check's own lines, and that the week is not submitted", async () => {
+  test("the reminder lists what is left, the check's own lines, and that the week's work stays open after the session", async () => {
     // Chloe ticked one of the two readings and has written nothing yet.
     await finishWeek("chloe", 2, { tickBoth: false, submit: false });
     await runJob(DUE.b2one);
@@ -283,11 +288,25 @@ describe("2. only the people whose week is not done", () => {
     assert.match(text, /Your AGI Strategy Fellowship session is tomorrow, Tue 27 Oct at 6pm in Room C20\./);
     assert.match(
       text,
-      /Week 2 isn’t finished yet: \* One reading isn’t ticked: “Who keeps the lamps”\. \* Your written answer is empty\. \* Week 2 isn’t submitted\./,
+      /Week 2 isn’t finished yet: \* One reading isn’t ticked: “Who keeps the lamps”\. \* Your written answer is empty\. Finish week 2/,
     );
     assert.match(text, /Finish week 2 https:\/\/naisi\.invalid\/learn\/[^ ]+\/weeks\/2/);
-    assert.match(text, /Submitting it, with every reading ticked, stops these reminders\. Your work locks when the session starts\./);
-    assert.doesNotMatch(text, /unsubscribe|\b(mark|grade|score)\b/i);
+    assert.match(
+      text,
+      /Finishing everything listed above stops these reminders\. You can keep adding to your work after the session: anything you add after it shows as late to the people who read your work, with how late\./,
+    );
+    assert.doesNotMatch(text, /unsubscribe|\b(mark|grade|score)\b|\block|submit/i);
+  });
+
+  test("a written answer with words in it and not sent yet is named: sending it is part of finishing the week", async () => {
+    await finishWeek("chloe", 2, { tickBoth: true, submit: false });
+    const wrote = await call("chloe", writeRoute.PUT, { runId: RUN, answerId: "n2-wa" }, { body: { weekId: "w02", text: "The town should keep them." } });
+    assert.equal(wrote.status, 200, JSON.stringify(wrote.body));
+    await runJob(DUE.b2one);
+    const [message] = mailTo("chloe");
+    assert.ok(message, "a week with an answer written and not sent is not done");
+    const text = await textOf(message);
+    assert.match(text, /Week 2 isn’t finished yet: \* Your written answer isn’t sent yet\. Finish week 2/);
   });
 });
 
@@ -346,9 +365,9 @@ describe("4. the session that actually meets", () => {
     assert.equal(message.subject, "Weeks 2 and 3: your session is tomorrow");
     const text = await textOf(message);
     assert.match(text, /Your AGI Strategy Fellowship session is tomorrow, Tue 3 Nov at 6pm in Room C20\./);
-    assert.match(text, /Week 2 isn’t finished yet: .* Week 2 isn’t submitted\. Week 3 isn’t finished yet: .* Week 3 isn’t submitted\./);
+    assert.match(text, /Week 2 isn’t finished yet: .* Your written answer is empty\. Week 3 isn’t finished yet: .* Your written answer is empty\./);
     assert.match(text, /Finish week 2/);
-    assert.match(text, /Submitting each week, with every reading ticked, stops these reminders\./);
+    assert.match(text, /Finishing everything listed above stops these reminders\./);
     assert.ok(marker("amara", 1, "w03"), "claimed on the session that meets");
   });
 

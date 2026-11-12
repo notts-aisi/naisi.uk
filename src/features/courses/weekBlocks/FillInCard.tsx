@@ -11,6 +11,8 @@ import {
   withHint,
 } from "@/lib/courses/fillInWords";
 import { REFLECTION_NOT_SAVED, SAVED } from "@/lib/courses/memberPageWords";
+import type { WeekDue } from "@/lib/courses/weekWork/model";
+import { savedLineWords } from "@/lib/courses/weekWork/words";
 import type { FillInBlock, FillInBox } from "@/lib/courses/weekBlocks/model";
 import { FILL_IN_MAX_CHARS } from "@/lib/firestore/courseExercises";
 import styles from "./blockWeek.module.css";
@@ -62,13 +64,17 @@ type Props = {
   canWrite: boolean;
   /** Who reads what is written here, for the line under the card. */
   readers: string;
+  /** The session the person is due at, which when the boxes were last saved is told against. */
+  due: WeekDue;
+  /** The moment the page was drawn. */
+  now: Date;
   /** Hands each stored row back to the page, so its counts move as a box saves. */
   onSaved: (row: ExerciseResponseWire) => void;
 };
 
 type BoxStatus = { pending: boolean; failed: boolean };
 
-export default function FillInCard({ block, runId, weekId, rows, loaded, loading, onRetry, ownBoxes, canWrite, readers, onSaved }: Props) {
+export default function FillInCard({ block, runId, weekId, rows, loaded, loading, onRetry, ownBoxes, canWrite, readers, due, now, onSaved }: Props) {
   const titleId = useId();
   const showBoxes = ownBoxes && loaded;
   const boxes = block.groups.flatMap((group) => group.boxes);
@@ -89,6 +95,13 @@ export default function FillInCard({ block, runId, weekId, rows, loaded, loading
   const anyPending = [...statuses.values()].some((status) => status.pending);
   const anyFailed = [...statuses.values()].some((status) => status.failed);
   const showSaved = showBoxes && !anyPending && !anyFailed && filled > 0;
+  // The last save of any box that holds something: when, and against the session.
+  const lastSaved = boxes
+    .filter((box) => stored(box.id) !== "")
+    .map((box) => rows.get(box.id)?.savedAt ?? null)
+    .filter((at): at is string => Boolean(at))
+    .map((at) => new Date(at))
+    .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
 
   return (
     <section className={own.card} aria-labelledby={titleId}>
@@ -160,6 +173,7 @@ export default function FillInCard({ block, runId, weekId, rows, loaded, loading
           )}
         </p>
       )}
+      {showSaved && lastSaved && <p className={styles.boxWhen}>{savedLineWords(lastSaved, due, now)}</p>}
       {ownBoxes && <p className={own.readers}>{readers}</p>}
     </section>
   );
@@ -211,7 +225,7 @@ function FillInBoxField({
   // Leaving the week, or the page being hidden, with a change waiting sends
   // it: the writer's own unmount and page-hide paths, with keepalive.
   const saver = useDebouncedWrite(write);
-  // Submit writes this box's waiting save before it submits the week.
+  // Anything on the page that sends writes this box's waiting save first.
   useRegisterFlush(saver.flush);
 
   const handleChange = (next: string) => {

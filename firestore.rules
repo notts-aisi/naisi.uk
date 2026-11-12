@@ -2219,6 +2219,42 @@ service cloud.firestore {
             == resource.data.get('weekPlan', []);
       }
 
+      // A RUN'S DATES ONCE ITS GROUPS HAVE GONE OUT. Every group's weeks are
+      // dated from the run's `startDate` and `weekPlan` (with the group's own
+      // slot, overrides and pace), so once Publish has sent the groups out
+      // (`allocationPublishedAt`, stamped by the publish route on the Admin
+      // SDK) a new start date or a new plan would move every group's weeks,
+      // the ones that met included. From then on neither changes from a
+      // browser, admins included: the run editor shows both read only, and a
+      // break for one group is "Cancel and push the rest back" on that
+      // group's page, through a route that refuses to move a week that met.
+      //
+      // `allocationPublishedAt` is the publish route's alone: a browser write
+      // never changes it, set or unset, for every writer, admins included (and
+      // the create rule refuses a run born carrying it). Set from a browser,
+      // it would freeze the run's dates and every group's time with nothing
+      // on the site able to undo it; cleared, it would let the dates change
+      // after the groups went out. Absent and null compare equal.
+      //
+      // `startDate` and `weekPlan` are held only once the stamp is set: before
+      // the groups go out every other rule here stands as it was. The run's
+      // own document: no extra read. `weekPlan` is already pinned out of draft
+      // for everybody but an admin (weekPlanLockRespected), and this is what
+      // holds an admin to it too.
+      function runDatesKeptOnceGroupsOut() {
+        return request.resource.data.get('allocationPublishedAt', null)
+            == resource.data.get('allocationPublishedAt', null)
+          && (
+            resource.data.get('allocationPublishedAt', null) == null
+            || (
+              request.resource.data.get('startDate', null)
+                == resource.data.get('startDate', null)
+              && request.resource.data.get('weekPlan', [])
+                == resource.data.get('weekPlan', [])
+            )
+          );
+      }
+
       // A programme's Start here and Glossary are the server's, for every writer,
       // admins included: the guide route holds each to its check
       // (src/lib/courses/guide/model.ts), nested lists a rule cannot walk, and
@@ -2395,6 +2431,11 @@ service cloud.firestore {
         && request.resource.data.get('streams', []).size() == 0
         && request.resource.data.get('enrolledCount', 0) == 0
         && request.resource.data.get('submissionExerciseRef', {}) == {}
+        // A run is born with its groups not gone out: the stamp is the
+        // publish route's, and update keeps it as it is
+        // (runDatesKeptOnceGroupsOut), so a run born carrying one would be
+        // frozen for good. Absent or null.
+        && request.resource.data.get('allocationPublishedAt', null) == null
         && runContentOk()
         && runGuideUntouched();
 
@@ -2403,8 +2444,11 @@ service cloud.firestore {
       // two-person rule as events. A track lead may adjust run content (the
       // label, the dates, the application form, and the week plan while the
       // run is still a draft) but is NOT an approver, and once the run is out
-      // of draft the plan itself is pinned by weekPlanLockRespected().
-      allow update: if runGuideUntouched() && (isAdmin()
+      // of draft the plan itself is pinned by weekPlanLockRespected(). The
+      // stamp that says the groups have gone out never changes from a
+      // browser, and once it is set the start date and plan are pinned for
+      // every writer, admins included (runDatesKeptOnceGroupsOut).
+      allow update: if runGuideUntouched() && runDatesKeptOnceGroupsOut() && (isAdmin()
         || (
           (canApproveCourse() || isRunTrackLead()
             || (canDraftCourse() && isOwnRun()))
@@ -2613,6 +2657,52 @@ service cloud.firestore {
         return request.resource.data.get('sessionChanges', {})
           == resource.data.get('sessionChanges', {});
       }
+      // A GROUP'S TIME ONCE ITS RUN'S GROUPS HAVE GONE OUT. A week has no
+      // stored date: it is dated from the group's day, start and length
+      // (`session`), that week's override (`sessionOverrides`), the group's
+      // own plan (`paceStartDate`, `paceWeekPlan`) and its run's start date
+      // and plan (`runId` names the run). So a change to any of them can
+      // re-date a session that already met. Once Publish has sent the run's
+      // groups out, those fields, the record of each change (`sessionModes`,
+      // `sessionChanges`) and the moment answers to "Can you make this
+      // time?" count from (`timeQuestionSince`) change only through the
+      // routes, which refuse to move a session whose register was taken. No
+      // browser writes them then, admins included. The room, the meeting
+      // link, the notes, the name, the capacity and the campus stay as they
+      // were, and before the groups go out nothing here applies.
+      //
+      // For everybody but an admin, `runId`, the pace pair, `sessionModes`
+      // and `sessionChanges` are already the server's at any time (the three
+      // pins above). Listing them here is what holds an admin to the same
+      // once the groups have gone out; the slot, the overrides and
+      // `timeQuestionSince` are held for every writer.
+      function groupTimeUntouched() {
+        // For these keys a write that sends an empty value where there was
+        // none (`{}` or `null` for an absent field) is a change, refused once
+        // the groups have gone out, so a page must never re-send them; and a
+        // second weekly slot, if one is ever stored on the group, joins this list.
+        return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'runId', 'sessionOverrides', 'sessionModes', 'sessionChanges',
+            'paceStartDate', 'paceWeekPlan', 'timeQuestionSince'
+          ])
+          && request.resource.data.get(['session', 'weekday'], null)
+            == resource.data.get(['session', 'weekday'], null)
+          && request.resource.data.get(['session', 'startTimeLocal'], null)
+            == resource.data.get(['session', 'startTimeLocal'], null)
+          && request.resource.data.get(['session', 'durationMinutes'], null)
+            == resource.data.get(['session', 'durationMinutes'], null);
+      }
+      // Read only when a write touches the time: the same run document
+      // isParentRunTrackLead() and parentRunEnrolMode() read, so a request
+      // reads it once however many of them ask. A group whose run is missing
+      // has not gone out.
+      function parentRunGroupsGoneOut() {
+        let run = get(/databases/$(database)/documents/courseRuns/$(resource.data.get('runId', '')));
+        return run != null && run.data.get('allocationPublishedAt', null) != null;
+      }
+      function groupTimeKeptOnceGroupsOut() {
+        return groupTimeUntouched() || !parentRunGroupsGoneOut();
+      }
       // Caps mirror GROUP_FIELD_LIMITS (courseGroups.ts) — the session fields
       // are client-editable by facilitators, so these ARE the boundary.
       // `meetingUrl` is null when the group meets in person, hence the
@@ -2724,15 +2814,21 @@ service cloud.firestore {
       // same trust shape as an event collaborator. The `sessionModes` map
       // rides along UNCHANGED (see groupSessionModesUnchanged): flipping a
       // week virtual/in-person without the route lane's notice-and-audit
-      // step is exactly what the pin exists to stop.
-      allow update: if isAdmin()
-        || (
-          (canApproveCourse() || isParentRunTrackLead() || isGroupFacilitator())
-          && groupPinnedFieldsUnchanged()
-          && groupSessionModesUnchanged()
-          && groupSessionChangesUnchanged()
-          && groupContentOk()
-        );
+      // step is exactly what the pin exists to stop. Once the run's groups
+      // have gone out, the group's time is the routes' for every writer,
+      // admins included (groupTimeKeptOnceGroupsOut). Last, so a write the
+      // rest refuses never reads the run for it.
+      allow update: if (
+          isAdmin()
+          || (
+            (canApproveCourse() || isParentRunTrackLead() || isGroupFacilitator())
+            && groupPinnedFieldsUnchanged()
+            && groupSessionModesUnchanged()
+            && groupSessionChangesUnchanged()
+            && groupContentOk()
+          )
+        )
+        && groupTimeKeptOnceGroupsOut();
 
       // Deleting a group must re-pool its members (allocation transaction) —
       // routes only.
@@ -3357,6 +3453,20 @@ service cloud.firestore {
     // about, the programme's lead and admins included: a note may name a
     // group before Publish has told its person, which no browser may learn.
     match /coursePlacementNotes/{docId} {
+      allow read, write: if false;
+    }
+
+    // === courseRequests ===
+    // What somebody on a programme asks of the people running it, and what
+    // became of it (src/lib/firestore/courseRequests.ts): first, a
+    // facilitator asking for a line of a finished register to be corrected,
+    // with why. Written and read only by the request routes, the register's
+    // read and the pages' loaders on the Admin SDK, after their own gate. So
+    // every browser is refused, the person who asked, the person a request
+    // is about, the programme's lead and admins included: a request can
+    // carry a reason about a named person, and a reason is only ever served
+    // to the people a route decides may read it.
+    match /courseRequests/{requestId} {
       allow read, write: if false;
     }
 

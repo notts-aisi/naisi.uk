@@ -4,7 +4,7 @@ import { isAddressableId } from "@/lib/addressableId";
 import { campusLabel } from "@/lib/courses/campus";
 import {
   iso,
-  lockOf,
+  lateFromOf,
   momentOf,
   readJobSwitches,
   reminderFacts,
@@ -64,7 +64,7 @@ import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
  * ── A PREVIEW ───────────────────────────────────────────────────────────────
  * `preview: true` plans the same change and writes nothing: which weeks move
  * and to when, which weeks are kept (pinned) and their dates, the weeks that
- * keep their own one-week change, when each moved week's work locks before
+ * keep their own one-week change, from when each moved week's work counts as late before
  * and after, the member email jobs for the first two weeks that move,
  * whether the time question is asked again, who would be told, and the
  * notice.
@@ -207,9 +207,9 @@ export async function POST(req: Request, ctx: Ctx) {
           weekNumber: move.weekNumber,
           before: momentOf(found, move.before),
           after: momentOf(plan.after, move.after),
-          lock: {
-            before: lockOf(plan.sessionsBefore, move.weekNumber),
-            after: lockOf(plan.sessionsAfter, move.weekNumber),
+          lateFrom: {
+            before: lateFromOf(plan.sessionsBefore, move.weekNumber),
+            after: lateFromOf(plan.sessionsAfter, move.weekNumber),
           },
         })),
         kept: plan.kept.map((week) => ({

@@ -1334,7 +1334,7 @@ describe("neither email prints something a reader could follow from a room", () 
         asks: [{ kind: "readings", count: 2 }],
         weekUrl: "https://naisi.invalid/learn/run/weeks/1",
         feedbackUrl: "",
-        locks: true,
+        staysOpen: true,
       },
       "Amara",
     );
@@ -2451,7 +2451,7 @@ describe("every function that fills tokens is known, and held to what it does wi
         asks: [],
         weekUrl: "",
         feedbackUrl: "",
-        locks: false,
+        staysOpen: false,
       },
       "",
     );

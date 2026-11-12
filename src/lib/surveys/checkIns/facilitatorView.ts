@@ -96,6 +96,36 @@ async function lastClosed(
   return best;
 }
 
+/**
+ * Whether a check-in was ever opened for one session of a group: for the
+ * preview of calling that session off after it passed. Nothing of it is read
+ * but that it exists.
+ */
+export async function checkInWasOpened(db: Firestore, runId: string, groupId: string, sessionKey: string): Promise<boolean> {
+  const snap = await db.collection(SURVEYS_COLLECTION).doc(checkInSurveyId(runId, groupId, sessionKey)).get();
+  if (!snap.exists) return false;
+  const stored = normalizeSurvey(snap.id, snap.data() ?? {});
+  return isCheckIn(stored) && stored.audience.groupId === groupId;
+}
+
+/**
+ * Which of a group's sessions ever had a check-in opened, by key, read in one
+ * call: for the group's page, which does not offer to push the rest back a
+ * week once a session has one. Nothing of any is read but that it exists.
+ */
+export async function checkInsOpened(db: Firestore, runId: string, groupId: string, sessionKeys: readonly string[]): Promise<Set<string>> {
+  const keys = [...new Set(sessionKeys)];
+  if (keys.length === 0) return new Set();
+  const snaps = await db.getAll(...keys.map((key) => db.collection(SURVEYS_COLLECTION).doc(checkInSurveyId(runId, groupId, key))));
+  const out = new Set<string>();
+  snaps.forEach((snap, index) => {
+    if (!snap.exists) return;
+    const stored = normalizeSurvey(snap.id, snap.data() ?? {});
+    if (isCheckIn(stored) && stored.audience.groupId === groupId) out.add(keys[index]);
+  });
+  return out;
+}
+
 export async function checkInRegisterView(
   db: Firestore,
   input: { runId: string; group: CourseGroupDoc; sessionKey: string; now: Date },

@@ -250,6 +250,7 @@ export const TERM_POINTS = Object.freeze([
   "first-day",
   "week-three",
   "week-three-unmarked",
+  "week-three-covering",
   "week-three-work",
   "coursework",
   "pitching-week",
@@ -391,6 +392,29 @@ export const WEEK_THREE_UNMARKED = Object.freeze({
 });
 
 /**
+ * THE TERM THREE WEEKS IN, FOR COVERING A REGISTER: the same day of the same
+ * run as `WEEK_THREE`, the same places and the same published weeks, with
+ * both registers a cover is about. Group A's week 3 register was never
+ * opened (`WEEK_THREE_UNMARKED`'s Group A: its session has passed and nobody
+ * started its register, so its page says so and a lead takes it in its
+ * facilitator's place), and Group B's week 3 was saved and not finished
+ * (`WEEK_THREE`'s Group B: a passed session whose draft has marks, which the
+ * lead says didn't happen, pushing the rest back). Group A's week 2 was saved
+ * and not finished too: Fern, once appointed to Group A, marks a line on it
+ * and says on her own group's page that it didn't happen. Fern is appointed
+ * to Group A.
+ */
+export const WEEK_THREE_COVERING = Object.freeze({
+  daysIn: WEEK_THREE.daysIn,
+  places: WEEK_THREE.places,
+  marks: Object.freeze({ A: WEEK_THREE_UNMARKED.marks.A, B: WEEK_THREE.marks.B }),
+  unfinished: Object.freeze([WEEK_THREE.unfinished, Object.freeze({ group: "A", weekNumber: 2 })]),
+  unmarked: WEEK_THREE_UNMARKED.unmarked,
+  facilitated: "A",
+  published: WEEK_THREE.published,
+});
+
+/**
  * THE TERM THREE WEEKS IN, ITS WEEKS WRITTEN AS BLOCKS AND WEEK 4 OUT: the
  * third point (`WEEK_THREE_UNMARKED`) with weeks 1 to 4 published as blocks
  * (`courseworkWeekDoc`), so a member of Group A can write week 4, submit it
@@ -470,6 +494,7 @@ export function laterPlanOf(point) {
   if (point === "first-day") return FIRST_DAY;
   if (point === "week-three") return WEEK_THREE;
   if (point === "week-three-unmarked") return WEEK_THREE_UNMARKED;
+  if (point === "week-three-covering") return WEEK_THREE_COVERING;
   if (point === "week-three-work") return WEEK_THREE_WORK;
   if (point === "pitching-week") return PITCHING_WEEK;
   if (point === "week-four") return WEEK_FOUR;
@@ -701,9 +726,10 @@ function castOf(plan) {
   return { programme: FELLOWSHIP, groupPlan: plan?.groups ?? GROUP_PLAN, peoplePlan: PEOPLE_PLAN, facilitatorPlan: FACILITATOR_PLAN };
 }
 
-/** True for the one register of a plan that was saved and not finished. */
+/** True for a register of a plan that was saved and not finished: `unfinished` names one, or a list of them. */
 function isUnfinishedIn(plan, groupKey, weekNumber) {
-  return Boolean(plan.unfinished) && plan.unfinished.group === groupKey && plan.unfinished.weekNumber === weekNumber;
+  const unfinished = Array.isArray(plan.unfinished) ? plan.unfinished : plan.unfinished ? [plan.unfinished] : [];
+  return unfinished.some((each) => each.group === groupKey && each.weekNumber === weekNumber);
 }
 
 /** The update the run's first week carries, to everyone, posted without an email. */
@@ -2056,11 +2082,15 @@ async function seedWeekThree(state, plan, at) {
  * Every account the term made, the ones the seed never reached left out.
  * `state.lead` is an account a spec module makes beside the term for an admin
  * to make the programme's lead on the real pages
- * (`course-hub-explainers-and-lead-notes.mjs`): it is the term's to count and
- * tear down like any other, so its rows and its address are swept with them.
+ * (`course-hub-explainers-and-lead-notes.mjs`), and `state.covering` one an
+ * admin gives a session to (`course-hub-cover-register.mjs`): each is the
+ * term's to count and tear down like any other, so its rows and its address
+ * are swept with them.
  */
 export function accountsOf(state) {
-  return [...(state.people ?? []), state.facilitator, state.lead].filter(Boolean);
+  // `otherFacilitator`: the account the correcting-a-register spec appoints to
+  // the other group, made by its fixture like `lead` and `covering`.
+  return [...(state.people ?? []), state.facilitator, state.lead, state.covering, state.otherFacilitator].filter(Boolean);
 }
 
 /** Every cohort subscription id this term's people could be given, constructed. */
@@ -2429,6 +2459,8 @@ export async function countTerm(state) {
     await fixtureQuery("courseEnrolments").where("runId", "==", runId).get()
   ).size;
   counts.courseAudit = (await fixtureQuery("courseAudit").where("runId", "==", runId).get()).size;
+  // A facilitator's asks for a register to be corrected, and what became of each.
+  counts.courseRequests = (await fixtureQuery("courseRequests").where("runId", "==", runId).get()).size;
   counts.courseNudges = (await fixtureQuery("courseNudges").where("runId", "==", runId).get()).size;
   counts.courseProgress = (await fixtureQuery("courseProgress").where("runId", "==", runId).get()).size;
   counts.courseExerciseResponses = (
@@ -2574,6 +2606,7 @@ export async function teardownTerm(state) {
   await deleteQuery(fixtureQuery("subscriptions").where("channel", "==", state.channel));
   await deleteQuery(fixtureQuery("courseNudges").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseAudit").where("runId", "==", runId));
+  await deleteQuery(fixtureQuery("courseRequests").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseEnrolments").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseApplications").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseProgress").where("runId", "==", runId));

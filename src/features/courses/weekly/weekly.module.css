@@ -1664,6 +1664,16 @@ a.weekItem:focus-visible {
   margin-top: 12px;
 }
 
+/* "Week 1, Wed 4 Nov: corrected on Tue 10 Nov.", under a member's own marks. */
+.correctedList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
 .legend {
   list-style: none;
   display: flex;

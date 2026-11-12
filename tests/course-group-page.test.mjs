@@ -223,9 +223,9 @@ describe("1. the arithmetic of a group's page", () => {
 
   test("which one-week choices a week offers: a passed week with no register is put right; a week that met offers none", () => {
     const alone = (each) => model.oneWeekChoicesOf(each, [each]);
-    assert.deepEqual(alone(week({ hasLink: true })), { putRight: false, met: false, online: true, restore: false, push: true });
-    assert.deepEqual(alone(week({ started: true })), { putRight: true, met: false, online: false, restore: false, push: true });
-    assert.deepEqual(alone(week({ started: true, taken: true })), { putRight: false, met: true, online: false, restore: false, push: false });
+    assert.deepEqual(alone(week({ hasLink: true })), { putRight: false, met: false, online: true, restore: false, push: true, pushBlock: null });
+    assert.deepEqual(alone(week({ started: true })), { putRight: true, met: false, online: false, restore: false, push: true, pushBlock: null });
+    assert.deepEqual(alone(week({ started: true, taken: true })), { putRight: false, met: true, online: false, restore: false, push: false, pushBlock: null });
     assert.equal(alone(week({ change: "moved" })).restore, true);
     assert.equal(alone(week({ change: "pushed" })).restore, false, "a push moved the weeks, not this one");
     assert.equal(alone(week({ hasLink: false })).online, false, "no link, no holding it online");
@@ -237,10 +237,43 @@ describe("1. the arithmetic of a group's page", () => {
     const four = week({ weekNumber: 4, weekId: "w04", sessionKey: "w04", dateKey: "2026-11-24", started: true, ended: true, taken: true });
     const five = week({ weekNumber: 5, weekId: "w05", sessionKey: "w05", dateKey: "2026-12-01" });
     const weeks = [three, four, five];
-    assert.deepEqual(model.oneWeekChoicesOf(three, weeks), { putRight: true, met: false, online: false, restore: false, push: false });
+    assert.deepEqual(model.oneWeekChoicesOf(three, weeks), { putRight: true, met: false, online: false, restore: false, push: false, pushBlock: "later-met" });
     assert.equal(model.oneWeekChoicesOf(five, weeks).push, true, "an earlier week that met moves nowhere");
     assert.equal(model.oneWeekChoicesOf(four, weeks).met, true);
     assert.equal(words.PUSH_BACK_LATER_MET, "A later week has already met, so the rest can’t be pushed back.");
+  });
+
+  test("push back is not offered for a week with a check-in or a session report; keep pace still is", () => {
+    const three = week({ weekNumber: 3, weekId: "w03", sessionKey: "w03", started: true, ended: true, checkInOrReport: true });
+    const four = week({ weekNumber: 4, weekId: "w04", sessionKey: "w04" });
+    assert.deepEqual(
+      [model.oneWeekChoicesOf(three, [three, four]).push, model.oneWeekChoicesOf(three, [three, four]).pushBlock],
+      [false, "records"],
+    );
+    assert.deepEqual(model.didNotHappenChoicesOf(three, [three, four]), { keepPace: true, push: false, pushBlock: "records" });
+    assert.equal(model.oneWeekChoicesOf(four, [three, four]).push, true, "an earlier week's records move nothing");
+  });
+
+  test("It didn't happen works push back out from LATER weeks only: a draft with marks on the week itself does not block it", () => {
+    // Week 3 started; somebody marked a draft and did not finish it. It counts as met for every other change.
+    const draft = week({ weekNumber: 3, weekId: "w03", sessionKey: "w03", started: true, ended: true, taken: true });
+    const four = week({ weekNumber: 4, weekId: "w04", sessionKey: "w04" });
+    assert.equal(model.oneWeekChoicesOf(draft, [draft, four]).met, true);
+    assert.equal(model.callsOffMarkedDraft(draft), true);
+    assert.deepEqual(model.didNotHappenChoicesOf(draft, [draft, four]), { keepPace: true, push: true, pushBlock: null });
+    // A later week that met still blocks it.
+    const fourMet = { ...four, started: true, taken: true };
+    assert.deepEqual(model.didNotHappenChoicesOf(draft, [draft, fourMet]), { keepPace: true, push: false, pushBlock: "later-met" });
+    // Not a draft to call off: finished, said not to have happened, called off, or not started.
+    for (const over of [{ finished: true }, { heldFalse: true }, { cancelled: true }, { started: false }]) {
+      const each = { ...draft, ...over };
+      assert.equal(model.callsOffMarkedDraft(each), false, JSON.stringify(over));
+      assert.equal(model.didNotHappenChoicesOf(each, [each, four]), null, JSON.stringify(over));
+    }
+    // A week that passed with no register at all: both cancels, as ever.
+    const empty = week({ weekNumber: 3, weekId: "w03", sessionKey: "w03", started: true, ended: true });
+    assert.equal(model.callsOffMarkedDraft(empty), false);
+    assert.deepEqual(model.didNotHappenChoicesOf(empty, [empty, four]), { keepPace: true, push: true, pushBlock: null });
   });
 
   test("a move lands on today or later; it met at another time lands on today or earlier, in the week's own days", () => {
@@ -284,16 +317,29 @@ describe("1. the arithmetic of a group's page", () => {
     assert.deepEqual(model.filterHistory(rows, "time-and-room").map((row) => row.id), ["1"]);
     assert.deepEqual(model.filterHistory(rows, "people").map((row) => row.id), ["2"]);
     assert.deepEqual(model.filterHistory(rows, "link").map((row) => row.id), ["3"]);
-    assert.deepEqual(words.HISTORY_FILTERS.map((each) => each.label), ["Everything", "Time and room", "People", "Link"]);
+    // ADDED (November 2026): the Registers filter, now registers log there
+    // (taking one in a facilitator's place, giving a session, didn't happen).
+    assert.deepEqual(model.filterHistory(rows, "registers").map((row) => row.id), ["4"]);
+    assert.deepEqual(words.HISTORY_FILTERS.map((each) => each.label), ["Everything", "Time and room", "People", "Link", "Registers"]);
     assert.equal(model.historyWhenWords("2026-11-10T12:20:00Z"), "Tue 10 Nov, 12:20pm");
   });
 
-  test("when the week's work locks, before and after, through the house clock", () => {
+  test("from when the week's work counts as late, before and after, through the house clock; nothing locks", () => {
     assert.equal(
-      model.lockLine(2, { before: "2026-11-11T15:00:00Z", after: "2026-11-12T15:00:00Z" }),
-      "Week 2’s work locks at Thu 12 Nov, 3pm (was Wed 11 Nov, 3pm).",
+      model.lateFromLine(2, { before: "2026-11-11T15:00:00Z", after: "2026-11-12T15:00:00Z" }),
+      "Week 2’s work counts as late from Thu 12 Nov, 3pm (was Wed 11 Nov, 3pm).",
     );
-    assert.equal(model.lockLine(4, { before: "2026-11-25T15:00:00Z", after: "2026-11-25T15:00:00Z" }), "Unchanged: Wed 25 Nov, 3pm.");
+    assert.equal(model.lateFromLine(4, { before: "2026-11-25T15:00:00Z", after: "2026-11-25T15:00:00Z" }), "Unchanged: Wed 25 Nov, 3pm.");
+    assert.equal(model.lateFromLine(2, { before: null, after: "2026-11-12T15:00:00Z" }), "Week 2’s work counts as late from Thu 12 Nov, 3pm.");
+    assert.equal(
+      model.lateFromLine(2, { before: "2026-11-11T15:00:00Z", after: null }),
+      "Week 2 would have no session, so nothing added to its work would count as late (it counted from Wed 11 Nov, 3pm).",
+    );
+    assert.equal(model.lateFromLine(2, { before: null, after: null }), "");
+    assert.equal(model.LATE_FROM, "Late from");
+    for (const line of [model.lateFromLine(2, { before: "2026-11-11T15:00:00Z", after: "2026-11-12T15:00:00Z" }), model.LATE_FROM]) {
+      assert.doesNotMatch(line, /\block|[\u2013\u2014]/i, line);
+    }
   });
 
   const reminders = (over = {}) => ({
@@ -359,7 +405,7 @@ describe("1. the arithmetic of a group's page", () => {
         before: moment({ dateKey: "2026-11-11", startTimeLocal: "15:00", room: "Portland A21" }),
         after: moment({ dateKey: "2026-11-12", startTimeLocal: "15:00", room: "Monica Partridge E02" }),
         lastSession: { before: "2026-12-09", after: "2026-12-09" },
-        lock: { before: "2026-11-11T15:00:00Z", after: "2026-11-12T15:00:00Z" },
+        lateFrom: { before: "2026-11-11T15:00:00Z", after: "2026-11-12T15:00:00Z" },
         reminders: reminders(),
         said: { joiningOnline: { count: 1, names: ["Sofia"] }, cantMakeIt: { count: 1, names: ["Grace"] } },
         told: { emails: 7, refused: false, people: 6, facilitatorNames: ["Rahul"] },
@@ -372,7 +418,7 @@ describe("1. the arithmetic of a group's page", () => {
       groupName: "Group C",
       incubator: false,
     });
-    assert.deepEqual(lines.map((line) => line.label), ["Session", "Work locks", "Reminders", "Answers", "Told"]);
+    assert.deepEqual(lines.map((line) => line.label), ["Session", "Late from", "Reminders", "Answers", "Told"]);
     assert.equal(
       lines[0].text,
       "Week 2 moves from Wed 11 Nov, 3pm, Portland A21 to Thu 12 Nov, 3pm to 5pm, Monica Partridge E02 (University Park). Other weeks stay as they are.",
@@ -389,7 +435,7 @@ describe("1. the arithmetic of a group's page", () => {
         before: moment({ dateKey: "2026-11-09", startTimeLocal: "13:00", room: "George Green A04", campus: null }),
         after: moment({ dateKey: "2026-11-10", startTimeLocal: "10:00", room: "George Green A04", campus: null }),
         lastSession: { before: "2026-12-07", after: "2026-12-07" },
-        lock: { before: "2026-11-09T13:00:00Z", after: "2026-11-10T10:00:00Z" },
+        lateFrom: { before: "2026-11-09T13:00:00Z", after: "2026-11-10T10:00:00Z" },
         reminders: reminders(),
         said: { joiningOnline: { count: 0, names: [] }, cantMakeIt: { count: 0, names: [] } },
         told: { emails: 5, refused: false, people: 5, facilitatorNames: [] },
@@ -402,7 +448,7 @@ describe("1. the arithmetic of a group's page", () => {
       groupName: "Group J",
       incubator: false,
     });
-    assert.deepEqual(lines.map((line) => line.label), ["Session", "Work locks", "Register", "Reminders", "Answers", "Told"]);
+    assert.deepEqual(lines.map((line) => line.label), ["Session", "Late from", "Register", "Reminders", "Answers", "Told"]);
     assert.equal(lines[0].text, "Week 2 is recorded as Tue 10 Nov, 10am to 12pm, George Green A04, not Mon 9 Nov, 1pm.");
     assert.equal(lines[2].text, "Its register is for Tue 10 Nov, 10am, and can be taken now.");
     assert.equal(lines[5].text, "Nobody: the session has happened. The change shows in Group J’s history.");
@@ -422,7 +468,7 @@ describe("1. the arithmetic of a group's page", () => {
           weekNumber: n,
           before: moment({ weekNumber: n, dateKey: `2026-11-${String(9 + i * 7).padStart(2, "0")}`, startTimeLocal: "16:00", room: "Monica Partridge C10" }),
           after: moment({ weekNumber: n, dateKey: `2026-11-${String(10 + i * 7).padStart(2, "0")}`, startTimeLocal: "17:30", room: "" }),
-          lock: { before: null, after: null },
+          lateFrom: { before: null, after: null },
         })),
         kept: [{ weekNumber: 1, pinned: true, session: moment({ weekNumber: 1, dateKey: "2026-11-02", startTimeLocal: "16:00", room: "Monica Partridge C10" }) }],
         ownTimes: [],
@@ -437,7 +483,7 @@ describe("1. the arithmetic of a group's page", () => {
     });
     const by = Object.fromEntries(lines.map((line) => [line.label, line.text]));
     assert.equal(by.Sessions, "Weeks 2 to 4 move to Tuesdays, 5:30pm to 7:30pm: today, Tue 10 Nov, Tue 17 Nov and Tue 24 Nov.");
-    assert.equal(by.Kept, "Week 1 keeps Mon 2 Nov, 4pm. Its register and when its work locks don’t change.");
+    assert.equal(by.Kept, "Week 1 keeps Mon 2 Nov, 4pm. Its register and late times don’t change.");
     assert.equal(by.Reminders, model.REMINDERS_OFF);
     assert.match(by.Room, /^To be confirmed\./);
     assert.match(by["Asked again"], /^The email asks Can you make this time\? with the same three answers\./);
@@ -588,17 +634,28 @@ describe("3. the group's page, and the facilitator's cut", () => {
     ]) {
       assert.ok(drawn.text.includes(said), `missing "${said}" in: ${drawn.text.slice(0, 600)}`);
     }
-    assert.ok(drawn.html.includes(`href="/learn/${RUN.agi}/group/${B}/register"`), "Take the register is today's register page");
-    assert.doesNotMatch(drawn.text, /Attendance, all weeks/, "no tab for something that does not exist yet");
+    // CHANGED ON PURPOSE (November 2026), with covering a register: Take the
+    // register is the group's register under this page, which admins and
+    // the programme's lead take.
+    const registerPath = `/admin/admissions/forms/${ROUND}/programmes/${AGI}/groups/${B}/register`;
+    assert.ok(drawn.html.includes(`href="${registerPath}"`), "Take the register is the group's register under this page");
+    // CHANGED ON PURPOSE (November 2026), with correcting a register: the
+    // group's attendance across every week is a third tab, for admins and
+    // the programme's lead (tests/course-register-correction-pages.test.mjs
+    // holds who is given it).
+    assert.match(drawn.text, /Week by week Attendance, all weeks History/, "the Attendance tab sits between Week by week and History");
     assert.doesNotMatch(drawn.text, /Remind/, "Remind comes with a later step");
     const [body] = find(drawn.element, "GroupPage");
     assert.ok(body, "the page hands its body the server's view");
   });
 
-  test("the programme's lead reads it too, and is not offered a register they cannot take", async () => {
+  test("the programme's lead reads it too, and takes the register from it", async () => {
+    // CHANGED ON PURPOSE (November 2026): leads write registers now, so the
+    // lead is offered the group's register under this page, as an admin is.
     const drawn = await groupPage("claudia");
     assert.ok(drawn.text.includes("How Group B meets"), drawn.text.slice(0, 400));
-    assert.doesNotMatch(drawn.text, /Take the register/);
+    assert.ok(drawn.html.includes(`href="/admin/admissions/forms/${ROUND}/programmes/${AGI}/groups/${B}/register"`), "the lead is not offered the register");
+    assert.ok(!drawn.html.includes(`/learn/${RUN.agi}/group/${B}/register`), "the lead is sent to a register the run's pages refuse them");
   });
 
   test("a reviewer is told the tab is the lead's and an admin's; a group of another run is not here", async () => {
@@ -696,7 +753,7 @@ describe("4. the routes' previews, through the panel's lines", () => {
     });
     const by = Object.fromEntries(lines.map((line) => [line.label, line.text]));
     assert.match(by.Session, /^Week 4 moves from Tue 24 Nov, 6pm, .* to Wed 25 Nov, 6pm to 8pm, /);
-    assert.match(by["Work locks"], /Wed 25 Nov/);
+    assert.match(by["Late from"], /^Week 4’s work counts as late from Wed 25 Nov, 6pm \(was Tue 24 Nov, 6pm\)\.$/);
     const emails = await w.changeEmailsFor(B, "rahul");
     assert.equal(response.body.preview.told.emails, emails);
     assert.ok(by.Told.startsWith(`${emails === 1 ? "1 person" : `${emails} people`} by email`), by.Told);
@@ -717,5 +774,26 @@ describe("4. the routes' previews, through the panel's lines", () => {
     assert.match(by.Kept, /^Weeks 1 to 3 keep their dates/);
     assert.ok(by["Asked again"].startsWith("The email asks"));
     at("2026-11-19T10:00:00Z");
+  });
+});
+
+describe("5. a save refused because the groups went out after its page opened", () => {
+  test("a permission refusal of a save that changes the time reads one sentence; every other error is as it was", () => {
+    assert.equal(
+      words.GONE_OUT_SINCE_OPENED,
+      "The groups have gone out since this page opened, so this can’t change here. Reload the page.",
+    );
+    const refused = Object.assign(new Error("Missing or insufficient permissions."), { code: "permission-denied" });
+    const said = words.goneOutSinceOpened(refused, true);
+    assert.ok(said instanceof Error);
+    assert.equal(said.message, words.GONE_OUT_SINCE_OPENED);
+    // A save that changed none of what the rules keep: its refusal is something else, kept as it was.
+    assert.equal(words.goneOutSinceOpened(refused, false), refused);
+    // Any other error, whatever the save changed.
+    const offline = Object.assign(new Error("Failed to get document because the client is offline."), { code: "unavailable" });
+    assert.equal(words.goneOutSinceOpened(offline, true), offline);
+    const plain = new Error("Run label required");
+    assert.equal(words.goneOutSinceOpened(plain, true), plain);
+    assert.equal(words.goneOutSinceOpened(null, true), null);
   });
 });

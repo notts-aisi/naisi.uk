@@ -536,7 +536,7 @@
   color: var(--color-danger-text);
 }
 
-/* === Reopening a week, with a confirm === */
+/* === A confirm (clearing a rating) === */
 
 .dialog {
   display: flex;

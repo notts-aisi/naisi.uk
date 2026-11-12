@@ -35,14 +35,15 @@ import { taskNeeds, taskSubject, thisWeekOf, type TaskNeeds } from "@/lib/course
 import { taskLabelWords } from "@/lib/courses/memberPageWords";
 import { findCase, talksOf } from "@/lib/courses/packsAndCases/model";
 import { NO_PICKS, readOwnPacksAndCases, type OwnPicks } from "@/lib/courses/packsAndCases/readers";
-import { NO_GROUP } from "@/lib/courses/weekWork/lock";
+import { workClosesAt } from "@/lib/courses/weekWork/closes";
+import { NO_GROUP } from "@/lib/courses/weekWork/sessionDue";
 import type { WeekWorkWire } from "@/lib/courses/weekWork/model";
-import { lockSourceFor, ownWeekWires } from "@/lib/courses/weekWork/readers";
+import { sessionSourceFor, ownWeekWires } from "@/lib/courses/weekWork/readers";
 import { isFillInResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import { byOldest, ownCardOf, ownLegacyCardOf, type CardNames, type OwnFeedbackCard } from "@/lib/courses/feedback/model";
 import { cardNamesOf, legacyRoleOf, readOwnFeedback } from "@/lib/courses/feedback/readers";
 import type { CourseFeedbackDoc } from "@/lib/firestore/courseFeedback";
-import { isWordCountedAnswer, readWrittenAnswer, type WrittenAnswerRecord } from "@/lib/courses/writtenAnswers/model";
+import { answerPiece, isWordCountedAnswer, readWrittenAnswer, type WrittenAnswerRecord } from "@/lib/courses/writtenAnswers/model";
 import {
   ownAttendanceSessions,
   sessionsFromJoinWeek,
@@ -564,9 +565,10 @@ export type OverviewPayload = {
     picks: OverviewPicks | null;
     /**
      * A week written as blocks, for somebody taking part: where their own
-     * week stands (open, submitted, locked or reopened), when it locks or
-     * locked, and who reopened it (`src/lib/courses/weekWork/`). Null on any
-     * other week and for anybody not taking part.
+     * week stands (`src/lib/courses/weekWork/`): the session they are due at,
+     * whether it has started, when the programme closes and whether it has,
+     * and when they pressed the week's old Submit. Null on any other week and
+     * for anybody not taking part.
      */
     work: WeekWorkWire | null;
     /**
@@ -870,7 +872,12 @@ function ownFeedbackCards(work: OwnWork, weekId: string, blocks: WeekBlock[], gr
     const given = work.answers.get(`${weekId}::${answer.id}`)?.feedback ?? null;
     return given ? [ownLegacyCardOf(answer.id, given, legacyRoleOf(given.byUid, groupFacilitatorUids), work.names)] : [];
   });
-  const pieces = work.feedback.filter((piece) => piece.weekId === weekId).map((piece) => ownCardOf(piece, work.names));
+  // A piece on the written answer carries the version it was about, when the answer has changed since.
+  const answerOf = (piece: CourseFeedbackDoc) => {
+    const record = piece.on.kind === "writtenAnswer" ? (work.answers.get(`${weekId}::${piece.on.itemId}`) ?? null) : null;
+    return record ? answerPiece(record) : null;
+  };
+  const pieces = work.feedback.filter((piece) => piece.weekId === weekId).map((piece) => ownCardOf(piece, work.names, answerOf(piece)));
   return byOldest([...legacy, ...pieces]);
 }
 
@@ -989,6 +996,7 @@ async function beforeGroupsPayload(
   actor: SessionUser,
   place: PlaceBeforeGroups,
   roles: { isReviewer: boolean; isTrackLead: boolean },
+  closesAt: Date | null,
 ): Promise<OverviewPayload> {
   const weekId = weekDocId(1);
   const [weekSnap, programme, ownAnswerSnap, courseSnap, shownCrests] = await Promise.all([
@@ -1010,10 +1018,12 @@ async function beforeGroupsPayload(
   const course = thisWeekCourseOf(courseSnap?.exists ? normalizeCourse(courseSnap.id, courseSnap.data() ?? {}) : null);
   const week = weekSnap.exists ? normalizeCourseWeek(weekSnap.id, weekSnap.data() ?? {}) : null;
   const work = await ownWorkOf(db, ownAnswerSnap.docs, actor.uid, run.id, true);
-  // Where their week 1 stands: with no group there is no session to lock at, so only Submit locks it.
+  // Where their week 1 stands: with no group there is no session, and nothing of theirs is late; it closes with the programme.
   const weekWork =
     week && Array.isArray(week.blocks)
-      ? ((await ownWeekWires(db, { runId: run.id, uid: actor.uid, weeks: [{ id: week.id, weekNumber: 1 }], source: NO_GROUP, now: new Date() })).get(week.id) ?? null)
+      ? ((
+          await ownWeekWires(db, { runId: run.id, uid: actor.uid, weeks: [{ id: week.id, weekNumber: 1 }], source: NO_GROUP, closesAt, now: new Date() })
+        ).get(week.id) ?? null)
       : null;
   const taught = run.weekPlan.filter((entry) => entry.kind === "week").length;
   return {
@@ -1172,7 +1182,7 @@ export async function GET(
     // else of the run. Everybody else is refused as before.
     const door = await weekOneDoorFor(db, actor, run.id);
     if (!door.open) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    return NextResponse.json(await beforeGroupsPayload(db, run, actor, door.place, { isReviewer, isTrackLead }));
+    return NextResponse.json(await beforeGroupsPayload(db, run, actor, door.place, { isReviewer, isTrackLead }, workClosesAt(run, groups)));
   }
 
   // The caller's OWN group: their placement if they have one, otherwise the
@@ -1549,14 +1559,16 @@ export async function GET(
    * admins.
    */
   // WHERE EACH OF THE CALLER'S OWN WEEKS WRITTEN AS BLOCKS STANDS, for
-  // somebody taking part: their own records alone, by address, and their own
-  // lock (their told placement's group, or the groups they facilitate).
+  // somebody taking part: their own records alone, by address, the session
+  // they are due at (their told placement's group, or the groups they
+  // facilitate), and when the programme closes.
   const ownWork = readsOwnPicks
     ? await ownWeekWires(db, {
         runId,
         uid: actor.uid,
         weeks: weeks.filter((entry) => blocksByWeekId.has(entry.id)).map((entry) => ({ id: entry.id, weekNumber: entry.weekNumber })),
-        source: lockSourceFor(run, groups, actor.uid, liveEnrolment?.role === "learner" ? liveEnrolment : null),
+        source: sessionSourceFor(run, groups, actor.uid, liveEnrolment?.role === "learner" ? liveEnrolment : null),
+        closesAt: workClosesAt(run, groups),
         now,
       })
     : new Map<string, WeekWorkWire>();

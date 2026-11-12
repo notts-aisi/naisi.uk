@@ -749,6 +749,17 @@ const REGISTRY = {
     1,
     "src/lib/courses/groupChange/notice.ts",
   ),
+  "src/lib/email/coverGivenEmail.ts#sendEmail": T(
+    "The door of the one email to somebody an admin or a programme's lead gave one session's register, check-in and report to (\"You're covering Group E today at 4pm\"): to that person alone, about a session handed to them, so no setting of theirs switches it off. The suppression list still holds it back. Never a meeting link.",
+  ),
+  "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts#sendCoverGivenEmail": T(
+    "Giving one session to somebody covering: the one email they are sent, to them alone, about the session handed to them, through its door (`src/lib/email/coverGivenEmail.ts`). Never the presser, never the group.",
+  ),
+  "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts#sendGroupChangeNotice": N(
+    "The optional notice that somebody else is running a session (\"Ola is running today's session\"), off unless ticked: the people running the programme telling the group's told people who is running their session, never the presser and never the person given it, with the count on the tick checked first and the group's ten-a-day counter claimed. Never the reason, never a meeting link. Email only: no push leg.",
+    1,
+    "src/lib/courses/groupChange/notice.ts",
+  ),
   "src/lib/courses/nextWeekEmail.ts#sendNotice": N(
     "\"Week N is open\" to one group, the one send both of its lanes go through: the register's push while it is not on its schedule (and an admin's resend), and the `courses-next-week-email` job 6 days before each session while it is. It was next week's email, a grid send that honoured the courses row and the cohort list's unsubscribe; it is now the people running the programme telling everybody holding a place in the group (`resolveNoticeAudience`) what this week is, whatever they unsubscribed from, with the marker (surface course-week). Once per group per session, by the group's claim. Email only: no push leg. An explainer an admin scheduled at the start of the session is a line in it, read when it is built, so it rides this notice and never sends one of its own: a group whose email has gone is told on its tickets alone.",
   ),

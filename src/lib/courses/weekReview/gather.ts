@@ -6,7 +6,8 @@ import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { buildRunAttendance, readRunRecords } from "@/lib/courses/programmeAttendance";
 import { weekReportsForReview } from "@/lib/courses/sessionReports/readers";
 import { partsOf } from "@/lib/courses/weekBlocks/model";
-import { weekAsksForWriting } from "@/lib/courses/weekWork/model";
+import { weekTaskNeeds } from "@/lib/courses/weekBlocks/progress";
+import { personWeekProgress, sessionHasStarted, weekAsksForWriting, weekWritingNeeds } from "@/lib/courses/weekWork/model";
 import { loadPeopleWeekFacts, loadRunWeekStates } from "@/lib/courses/weekWork/readers";
 import { REVIEW_FOLLOW_UP_TASK_SOURCE } from "@/lib/firestore/courseTasks";
 import { SOMETHING_ELSE } from "@/lib/firestore/courseSessionReports";
@@ -200,13 +201,31 @@ export async function gatherWeekReview(db: Firestore, opened: WeekReviewDoor, no
   }
   const writes = weekAsksForWriting(opened.blocks);
   const started = await loadPeopleWeekFacts(db, { runId: run.id, weekNumber, blocks: opened.blocks, uids: [...fellows] });
+  const tasks = weekTaskNeeds(opened.blocks);
+  const asks = weekWritingNeeds(opened.blocks);
+  /**
+   * Not finished by the session they were due at, once it has started (what
+   * a week that locked before it was submitted used to say): "locked" to the
+   * facts, "open" otherwise. A week the old Submit was pressed for counts as
+   * finished, as a submitted week always did; otherwise the week done by then.
+   */
+  const standingOf = (uid: string): "open" | "locked" => {
+    const due = states.dueOf(uid, weekNumber);
+    if (!sessionHasStarted(due, now) || !due.at) return "open";
+    const submittedAt = states.submittedOf(uid, weekNumber);
+    if (submittedAt) return "open";
+    const own = started.get(uid);
+    if (!own) return "locked";
+    const progress = personWeekProgress({ tasks, state: own.state, times: own.times, submittedAt, touched: own.touched, asks });
+    return progress.weekDone && progress.doneAt !== null && progress.doneAt.getTime() <= due.at.getTime() ? "open" : "locked";
+  };
   const metGroups = new Set(opened.groups.filter((each) => each.met).map((each) => each.group.id));
   const weeks = new Map<string, PersonWeek>();
   for (const uid of fellows) {
     const groupId = door.people.groupOf.get(uid);
     weeks.set(uid, {
       started: started.get(uid)?.touched === true,
-      state: states.stateOf(uid, weekNumber).kind,
+      state: standingOf(uid),
       writes,
       groupMet: groupId !== undefined && metGroups.has(groupId),
     });

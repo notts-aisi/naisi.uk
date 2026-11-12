@@ -383,6 +383,34 @@ const READERS = new Map([
     proof: ['nameByUid.set(doc.id, nameForViewer(viewer, accountNamesOf(data), "NAISI member"));'],
     why: "a register's rows, named for the viewer each caller hands it: the register's route hands it the session; what reaches the people themselves hands it no role, and reads the name they go by",
   }],
+  ["src/lib/courses/registerCover/view.ts", {
+    who: "rule",
+    proof: [
+      'names.set(snap.id, snap.exists ? nameForViewer(viewer, accountNamesOf(snap.data() ?? {}), "NAISI member") : "NAISI member");',
+      'out.push({ uid: snap.id, name: nameForViewer(viewer, accountNamesOf(data), "NAISI member") });',
+    ],
+    why: "on a register, who set each line, who took it in whose place and the group's facilitators, each named for the viewer the register's route hands it, behind the register's own gate",
+  }],
+  ["src/lib/courses/registerCorrection/view.ts", {
+    who: "rule",
+    proof: ['if (snap.exists) names.set(snap.id, nameForViewer(viewer, accountNamesOf(snap.data() ?? {}), "NAISI member"));'],
+    why: "on a register, who corrected each line, who set what it said before, and who asked, took and decided each request, named for the viewer the register's route hands it, behind the register's own gate",
+  }],
+  ["src/lib/courses/registerCorrection/column.ts", {
+    who: "rule",
+    proof: ['for (const snap of snaps) out.set(snap.id, snap.exists ? nameForViewer(ctx.actor, accountNamesOf(snap.data() ?? {}), "NAISI member") : "NAISI member");'],
+    why: "a column correction's preview, for the admin or lead correcting it behind the register's own gate: each line's person named for them, the register's rows first",
+  }],
+  ["src/lib/courses/requests/load.ts", {
+    who: "rule",
+    proof: ['for (const snap of userSnaps) if (snap.exists) names.set(snap.id, nameForViewer(viewer, accountNamesOf(snap.data() ?? {}), "NAISI member"));'],
+    why: "the Requests page and one request's page, for admins and the people leading the programme: who asked, about whom, who has it and who decided, named for the reader",
+  }],
+  ["src/lib/courses/groupAttendance/load.ts", {
+    who: "rule",
+    proof: ['const nameOf = (uid: string) => nameForViewer(viewer, accountNamesOf(accounts.get(uid) ?? {}), "NAISI member");'],
+    why: "a group's attendance across every week, behind the register's own gate: who finished each register and who covered it, named for the reader as the lead's grid names its rows",
+  }],
   ["src/app/api/courses/groups/[groupId]/attendance/route.ts", {
     who: "rule",
     proof: [

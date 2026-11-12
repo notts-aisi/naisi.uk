@@ -363,6 +363,52 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts#audience.recipients",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by updateEmailAudience (src/lib/courses/updates/audience.ts) for the one group, without its " +
+        "facilitators: the group's own active, told enrolment rows through the shared cohort-audience helper, " +
+        "never the presser. The person given the session is then taken out. Nothing in the request names a recipient.",
+      why:
+        "The optional notice that somebody else is running a session: who it reaches, counted by the same function " +
+        "the preview's number comes from; the request carries only that number, checked again before anything changes.",
+    },
+  ],
+  [
+    "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts#local:recipients",
+    {
+      reads: 1,
+      origin: "derived",
+      derivedFrom: ["src/app/api/courses/groups/[groupId]/attendance/cover/route.ts#audience.recipients"],
+      why: "The same audience, without the person given the session, kept for the notice once every refusal has passed and the grant is written.",
+    },
+  ],
+  [
+    "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts#group.facilitatorUids",
+    {
+      reads: 3,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "Whether one of the group's facilitators has started the register (then it needs no covering), and whether the " +
+        "person a session would be given to facilitates the group. It names no recipient: the one email goes to the " +
+        "person the press names, held to an approved account.",
+    },
+  ],
+  [
+    "src/app/api/courses/groups/[groupId]/attendance/push/route.ts#group.facilitatorUids",
+    {
+      reads: 2,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "Which of the group's facilitators Finish may record as there or not there. It names no recipient: next " +
+        "week's email goes to the group's told people through the shared send.",
+    },
+  ],
+  [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room/route.ts#audience.recipients",
     {
       reads: 5,
@@ -423,14 +469,40 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/lib/scheduler/jobs/registerReminders.ts#targets.uids",
+    {
+      reads: 1,
+      origin: "record",
+      why:
+        "Who a covered register's reminder goes to instead of its facilitators (`chaseTargets`): the person who took it " +
+        "in their place, or who gave it to somebody, read off the register's own `cover` (written only by the cover " +
+        "route and the register's marking route), or the facilitator who last saved it. Each is held to an approved " +
+        "account, an address, their own switch and the do-not-email list before the email goes.",
+    },
+  ],
+  [
+    "src/lib/scheduler/jobs/registerReminders.ts#().trackLeadUids",
+    {
+      reads: 1,
+      origin: "gate",
+      why:
+        "Whether the person a covered register's reminder goes to is one of the run's track leads, held to their bar, " +
+        "which decides only which register page the email links them to (the run's own, which admits a track lead). " +
+        "It adds nobody to who is emailed.",
+    },
+  ],
+  [
     "src/lib/scheduler/jobs/registerReminders.ts#group.facilitatorUids",
     {
-      reads: 3,
+      reads: 5,
       origin: "roster",
       writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
       why:
         "The facilitators of the group whose register is unfinished, each reminded once, " +
-        "each held to the standing the role is appointed behind before the email goes.",
+        "each held to the standing the role is appointed behind before the email goes; and, " +
+        "for the chase once a register is covered or last saved by one of them (`chasedUids`, " +
+        "`resolveChased`), whether the last to save it is one of them and which door holds a " +
+        "person to their bar. The lead's Remind asks the same two functions.",
     },
   ],
   [
@@ -468,18 +540,6 @@ const RECIPIENT_SOURCES = new Map([
       origin: "derived",
       derivedFrom: ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/route.ts#plan.recipients"],
       why: "The route's own list of the group's live facilitators, handed over as it was counted; each gets one email at their own address.",
-    },
-  ],
-  [
-    "src/lib/courses/registerRemind.ts#group.facilitatorUids",
-    {
-      reads: 2,
-      origin: "roster",
-      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
-      why:
-        "The facilitators of one group of the run a programme names, for its lead's Remind: " +
-        "each held to the standing the role is appointed behind, and asked for an address and " +
-        "their own email switch, by the reminder job's resolveFacilitator before the email goes.",
     },
   ],
   [

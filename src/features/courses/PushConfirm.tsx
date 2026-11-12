@@ -1,8 +1,19 @@
 "use client";
 
+import { AFTER_FINISH } from "@/lib/courses/registerCorrection/pageWords";
+import { useState } from "react";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import type { PushEmailLine } from "@/lib/courses/pushEmail";
+import { summaryRowWords, type FinishSummaryRow } from "@/lib/courses/registerCover/pageModel";
+import {
+  CHECK_IT_BEFORE_YOU_FINISH,
+  FACILITATORS_HERE_TODAY,
+  KEEP_EDITING,
+  NOBODY_MARKED_YET,
+  ONLY_ADMINS_AND_LEAD_SEE_HERE,
+  hereTickWords,
+} from "@/lib/courses/registerCover/pageWords";
 import styles from "./PushConfirm.module.css";
 import { pushEmailSentence } from "./registerEndingWords";
 import type { AttendanceSession } from "./useAttendance";
@@ -38,12 +49,25 @@ import type { AttendanceSession } from "./useAttendance";
  * ── A SESSION THAT DID NOT HAPPEN ───────────────────────────────────────────
  * When the held switch is off the copy changes: nobody is marked absent and
  * the session leaves every denominator. Same button, a different fact.
+ *
+ * ── CHECK IT BEFORE YOU FINISH ──────────────────────────────────────────────
+ * Under the points, what the register says, so a wrong mark is caught before
+ * the lock: in the room, online, absent and excused, each with its count and
+ * names (`finishSummary`). "Keep editing" closes it and changes nothing.
+ *
+ * ── WHO WAS HERE ────────────────────────────────────────────────────────────
+ * In a group with more than one facilitator, the facilitator finishing ticks
+ * which of them were here (`hereChoices`), sent with the press as
+ * `facilitatorsHere`, with the line saying who sees it. Never offered to
+ * anybody else, and never sent when it is not offered, so a press in a
+ * group with one facilitator sends what it always has.
  */
 
 export type PushConfirmProps = {
   open: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  /** Pressed: with who was here, when the ticks were offered. */
+  onConfirm: (facilitatorsHere?: string[]) => void;
   busy: boolean;
   session: AttendanceSession | null;
   /** The group's name, for the sentence that names who is being emailed. */
@@ -62,6 +86,10 @@ export type PushConfirmProps = {
    * register" and nobody is emailed.
    */
   scheduled: boolean;
+  /** What the register says, as Finish's check lists it. */
+  summary?: FinishSummaryRow[];
+  /** The group's facilitators to tick, for a facilitator finishing in a group with more than one; null otherwise. */
+  hereChoices?: { uid: string; name: string; you: boolean }[] | null;
 };
 
 function people(n: number): string {
@@ -79,7 +107,11 @@ export default function PushConfirm({
   unmarked,
   email,
   scheduled,
+  summary = [],
+  hereChoices = null,
 }: PushConfirmProps) {
+  // Who was here, ticked: the finishing facilitator to start with, as they are.
+  const [here, setHere] = useState<string[]>(() => (hereChoices ?? []).filter((each) => each.you).map((each) => each.uid));
   if (!session) return null;
   const held = session.held;
   const which = `week ${session.weekNumber}${session.occurrence > 1 ? `, session ${session.occurrence}` : ""}`;
@@ -105,10 +137,7 @@ export default function PushConfirm({
 
         <ul className={styles.points}>
           {emailLine && <li>{emailLine}</li>}
-          <li>
-            The register locks. An admin can still correct it afterwards, and every
-            change they make is recorded.
-          </li>
+          <li>{AFTER_FINISH}</li>
           <li>
             {held
               ? "Everyone sees their mark, and everyone’s attendance figures are rebuilt from this register."
@@ -124,11 +153,56 @@ export default function PushConfirm({
           </p>
         )}
 
+        {hereChoices && hereChoices.length > 1 && (
+          <fieldset className={styles.here} data-testid="push-confirm-here">
+            <legend className={styles.subTitle}>{FACILITATORS_HERE_TODAY}</legend>
+            {hereChoices.map((each) => (
+              <label key={each.uid} className={styles.tick}>
+                <input
+                  type="checkbox"
+                  className={styles.checkbox}
+                  checked={here.includes(each.uid)}
+                  disabled={busy}
+                  onChange={(event) =>
+                    setHere((now) => (event.target.checked ? [...now, each.uid] : now.filter((uid) => uid !== each.uid)))
+                  }
+                />
+                <span>{hereTickWords(each.name, each.you)}</span>
+              </label>
+            ))}
+            <p className={styles.hint}>{ONLY_ADMINS_AND_LEAD_SEE_HERE}</p>
+          </fieldset>
+        )}
+
+        {held && (
+          <section className={styles.check} aria-labelledby="push-confirm-check" data-testid="push-confirm-check">
+            <h3 id="push-confirm-check" className={styles.subTitle}>
+              {CHECK_IT_BEFORE_YOU_FINISH}
+            </h3>
+            {summary.length === 0 ? (
+              <p className={styles.hint}>{NOBODY_MARKED_YET}</p>
+            ) : (
+              <dl className={styles.summary}>
+                {summary.map((row) => (
+                  <div key={row.key} className={styles.summaryRow}>
+                    <dt className={styles.summaryLabel}>{row.label}</dt>
+                    <dd className={styles.summaryNames}>{summaryRowWords(row)}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </section>
+        )}
+
         <div className={styles.actions}>
           <Button variant="secondary" onClick={onClose} disabled={busy}>
-            Not yet
+            {KEEP_EDITING}
           </Button>
-          <Button onClick={onConfirm} disabled={busy} data-testid="push-confirm-submit">
+          <Button
+            onClick={() => onConfirm(hereChoices && hereChoices.length > 1 ? here : undefined)}
+            disabled={busy}
+            data-testid="push-confirm-submit"
+          >
             {busy ? (scheduled ? "Finishing..." : "Pushing...") : button}
           </Button>
         </div>

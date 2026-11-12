@@ -441,7 +441,7 @@ export async function buildProgrammeOverview(
       if (facts.tag !== "not-finished") continue;
       reminderStates.set(
         `${entry.group.id}__${facts.session.sessionKey}`,
-        await readReminderState(db, entry.group, facts.session.sessionKey, now),
+        await readReminderState(db, entry.group, facts.session.sessionKey, now, viewer.uid),
       );
     }
   }
@@ -619,7 +619,13 @@ export async function buildProgrammeOverview(
         kind: "register",
         title: `${entry.group.name}’s register for ${dayLabel(facts.session.dateKey)} isn’t ${ending}`,
         detail: chaseDetail(entry, facts, state, records, config, lead, viewer, now, ending),
-        link: { href: attendanceHref(entry.group.id), label: "See it" },
+        // The ways to take it in a facilitator's place, on the group's page,
+        // open on that week (`?take=`): taking it, giving the session to
+        // somebody else, or saying it didn't happen.
+        link: {
+          href: `${place.programmePath}/groups/${encodeURIComponent(entry.group.id)}?take=${facts.session.weekNumber}`,
+          label: "Take the register",
+        },
       });
     }
   }

@@ -3,7 +3,13 @@ import type { Firestore } from "firebase-admin/firestore";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { readRunLead } from "@/lib/courses/programmeLead";
 import { isAddressableId } from "@/lib/addressableId";
-import { loadRegisterMembers } from "@/lib/courses/registerAccess";
+import {
+  gateGroupRegister,
+  loadRegisterMembers,
+  readSessionRegister,
+  registerSessionAccess,
+} from "@/lib/courses/registerAccess";
+import { holdsCover } from "@/lib/courses/registerCover/model";
 import { resolveSessions, type ResolvedSession } from "@/lib/courses/sessions";
 import { isBlockWeek, partsOf } from "@/lib/courses/weekBlocks/model";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
@@ -29,8 +35,10 @@ import { REPORT_REFUSAL } from "./words";
  *
  * ── WHO ─────────────────────────────────────────────────────────────────────
  * A live facilitator of THIS group (named in `facilitatorUids` with standing,
- * on a group that is not archived), on a run that is not being destroyed,
- * and nobody else. Each writes their own report: a co-facilitator never reads
+ * on a group that is not archived), on a run that is not being destroyed;
+ * and whoever took one session's register in a facilitator's place, for
+ * that session, while it holds (`gateCoveringReportWriter`). Each writes
+ * their own report: a co-facilitator never reads
  * another's, and the programme's lead and admins read reports on the
  * programme's own page and write none. A missing group and a group the caller
  * does not facilitate are one 403, so probing ids tells nobody which groups
@@ -58,6 +66,12 @@ export type ReportGate =
       isAdmin: boolean;
       /** The writer's role, for the name the register shows each person by (`nameForViewer`). */
       role: string;
+      /**
+       * The facilitators whose place the writer took, for a writer admitted
+       * because they took this session's register (`gateCoveringReportWriter`):
+       * the report is labelled "covering for Josh". Empty for a facilitator.
+       */
+      coveringFor: string[];
     }
   | { ok: false; status: 403 | 404; error: string };
 
@@ -94,6 +108,49 @@ export async function gateReportWriter(db: Firestore, actor: SessionUser, groupI
     run: normalizeCourseRun(runSnap.id, runSnap.data() ?? {}),
     isAdmin: actor.role === "admin",
     role: actor.role,
+    coveringFor: [],
+  };
+}
+
+/**
+ * THE SECOND WAY TO WRITE ONE SESSION'S REPORT: whoever took that session's
+ * register in a facilitator's place, while the cover holds (a lead or an
+ * admin who covered it, or somebody given it, until it ends), on a live group
+ * of a run that is not being destroyed. Asked only once `gateReportWriter`
+ * has refused somebody. Null for anybody else, who keeps the first gate's
+ * refusal. The report is theirs, one per writer per session as for any
+ * writer, and records whose place they took. An admin or a lead who did not
+ * take the register still writes none, and nor does somebody who took it but
+ * no longer passes the register's own gate (`gateGroupRegister`, asked again
+ * here): a lead replaced since, or a grant that has ended.
+ */
+export async function gateCoveringReportWriter(
+  db: Firestore,
+  actor: SessionUser,
+  groupId: string,
+  sessionKey: string,
+  now: Date,
+): Promise<ReportWriter | null> {
+  if (!isAddressableId(groupId)) return null;
+  // The register's own gate, asked at the moment they write: somebody who
+  // took a register as the programme's lead and has stopped being it, or
+  // whose grant has ended, writes nothing.
+  const registerGate = await gateGroupRegister(groupId, actor, db);
+  if (!registerGate.ok) return null;
+  const group = registerGate.group;
+  if (group.archived || !isAddressableId(group.runId)) return null;
+  const register = await readSessionRegister(db, group.runId, group.id, sessionKey);
+  if (!register || !holdsCover(register.cover, actor.uid, now)) return null;
+  if (!registerSessionAccess(registerGate, { uid: actor.uid, sessionKey, cover: register.cover, now }).writes) return null;
+  const runSnap = await db.collection("courseRuns").doc(group.runId).get();
+  if (!runSnap.exists || (runSnap.data() ?? {}).destroying === true) return null;
+  return {
+    ok: true,
+    group,
+    run: normalizeCourseRun(runSnap.id, runSnap.data() ?? {}),
+    isAdmin: actor.role === "admin",
+    role: actor.role,
+    coveringFor: register.cover?.covering ?? [],
   };
 }
 

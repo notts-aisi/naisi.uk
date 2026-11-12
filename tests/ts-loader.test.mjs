@@ -272,6 +272,11 @@ const USERS = new Map([
       "compiles, beside the written answers world that executes Submit, Reopen and the tick route",
   ],
   [
+    "course-written-answer-readers.test.mjs",
+    "runs the Coursework tab's person-page builder (`personWeeks`, a .ts module this loader compiles) with a " +
+      "stored answer full of words that must not leave the server, to prove the page is handed none of them",
+  ],
+  [
     "admissions-form-fence.test.mjs",
     "executes every older round route against a stored application form and against a round " +
       "of the older kind, with the session, the Admin SDK handle and every sending door faked, " +
@@ -440,6 +445,12 @@ const USERS = new Map([
     "renders the run's layout, its week page, its home and its progress page (.tsx server components) " +
       "as somebody holding a place before groups go out, because that week 1 opens to them and nothing " +
       "else of the run does is decided by the pages as they run",
+  ],
+  [
+    "course-register-correction-pages.test.mjs",
+    "renders the Requests page, one request's page and a group's Attendance tab (.tsx client components) for an " +
+      "admin, a lead and the person who asked, because who is offered Approve and Decline, and whether the " +
+      "facilitators' row is drawn, are decided by the pages as they render",
   ],
   [
     "course-hub-when-free.test.mjs",
@@ -1378,6 +1389,12 @@ const USERS = new Map([
       "string with the versions the site serves, and only running it shows the answer; it runs again with " +
       "`./policies` stubbed to a list where privacy has moved on to 18 and the terms to 2, so the promise that a " +
       "later privacy version is told rather than asked is held before a later version exists",
+  ],
+  [
+    "course-register-cover-pages.test.mjs",
+    "it executes the pure page model and words of covering a register (src/lib/courses/registerCover/pageModel.ts " +
+      "and pageWords.ts), because which weeks offer the ways to take a register, whose place a line names, who set " +
+      "each line in the London clock and what the check before Finish lists are worked out by running them",
   ],
   [
     "policy-update-line.test.mjs",

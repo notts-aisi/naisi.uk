@@ -53,6 +53,16 @@ const COMPARATOR_HOME = "src/lib/firestore/courseGroups.ts";
  * the groups are handed on to, which must ask the comparator.
  */
 const READS_WITHOUT_A_LIST = new Map([
+  // Giving one session to somebody: whether that person facilitates any of
+  // the run's groups that still meet.
+  [
+    "src/lib/courses/registerCover/people.ts",
+    {
+      why:
+        "Who may be given one session (`runsThingsOn`): it reads the run's groups only to ask whether the person named " +
+        "facilitates one that still meets, a yes or no, never a list of groups on any page.",
+    },
+  ],
   // Reached from the Check-ins view's table, whose Open press is the check-in's
   // own route: opening one works out the day names come off.
   [
@@ -230,6 +240,31 @@ const READS_WITHOUT_A_LIST = new Map([
 
 /** Modules the walk reaches that fetch an address it cannot read, each with what they fetch and why it lists no run's groups. */
 const FETCHES_IT_CANNOT_READ = new Map([
+  // ADDED (November 2026), with covering a register.
+  [
+    "src/features/courses/groupPage/GivePanel.tsx",
+    "Giving one session to somebody, from a group's page: the cover route of the one group it is handed (previewed, " +
+      "then pressed), and the run's list of approved accounts to pick from (`/runs/[runId]/facilitators`, the " +
+      "Facilitators view's own picker list): one group's register, never a run's groups listed.",
+  ],
+  // ADDED (November 2026), with correcting a register.
+  [
+    "src/features/courses/registerCorrection/api.ts",
+    "The presses of correcting a register: the attendance routes of the one group a sheet is open on (a line's " +
+      "correction, an ask, a column's correction and its preview), one request's own routes by its id, and It " +
+      "didn't happen's notice to that one group through the run's updates route: one group's register, never a " +
+      "run's groups listed.",
+  ],
+  [
+    "src/features/courses/register/CheckInCard.tsx",
+    "The register's check-in card, now drawn under the register under the programme's group page too: the check-in " +
+      "route of the one group it is handed, for one session: one group's check-in, never a run's groups.",
+  ],
+  [
+    "src/features/courses/useAttendance.ts",
+    "The register's own reads and writes, now drawn under the programme's group page too: the attendance route of the " +
+      "one group it is handed, and its push and notes beside it: one group's register, never a run's groups.",
+  ],
   [
     "src/features/courses/groupPage/ChangePanel.tsx",
     "A group's page's Change panel: the one-week change route and the regular time route of the one group it is " +

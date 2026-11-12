@@ -64,6 +64,20 @@ export function isOwnBoxResponse(data: { kind?: unknown } | null | undefined): b
   return isReflectionResponse(data) || isFillInResponse(data);
 }
 
+/**
+ * Whether a reflection or fill-in box's row holds something written. A row
+ * exists only while its box holds something, except one kept, emptied, only
+ * for an earlier version of its words (the week stays open,
+ * `src/lib/courses/weekWork/versions.ts`): that row stores `emptiedAt` and
+ * an empty `text`, and reads as nothing written. A reader that projects the
+ * words away is answered by `emptiedAt` alone.
+ */
+export function boxIsWritten(data: { kind?: unknown; text?: unknown; emptiedAt?: unknown } | null | undefined): boolean {
+  if (!isOwnBoxResponse(data)) return false;
+  if (data?.emptiedAt !== undefined && data?.emptiedAt !== null) return false;
+  return typeof data?.text !== "string" || data.text.trim() !== "";
+}
+
 /** The most a reflection box holds, in characters. */
 export const REFLECTION_MAX_CHARS = 4000;
 

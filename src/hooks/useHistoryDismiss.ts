@@ -109,8 +109,17 @@ export function useHistoryDismiss(active: boolean, onClose: () => void): () => v
 
 const STACK_KEY = "__naisiOverlays";
 
-/** Ids only need to be unique within one document, so a counter is enough. */
-let counter = 0;
+/**
+ * Ids must be unique ACROSS documents, not only within one. A reload keeps
+ * the history entries an earlier document pushed, and an entry left behind by
+ * a close that bypassed `dismiss` still carries that document's ids. A counter
+ * that restarted at 1 on every load collided with them: the first overlay
+ * opened after a reload pushed id 1 on top of a stale 1, its own Back left a
+ * 1 in the stack, and the popstate handler read that as "something above us
+ * was popped", so Close, Escape and the scrim all did nothing. The counter
+ * starts at a random point in each document instead.
+ */
+let counter = Math.floor(Math.random() * 1_000_000_000);
 const nextId = () => ++counter;
 
 function currentStack(): number[] {

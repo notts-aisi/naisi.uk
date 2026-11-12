@@ -251,7 +251,10 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     label: "Programmes",
     pages: [
       { label: "Application forms", href: "/admin/admissions/forms", match: under("/admin/admissions/forms"), visible: ADMISSIONS, ownHead: true },
-      { label: "Older rounds", href: "/admin/admissions", match: underBut("/admin/admissions", "/admin/admissions/forms"), visible: ADMISSIONS },
+      // The requests the people running a programme decide: in the admissions
+      // tree because its gate admits a programme's lead.
+      { label: "Requests", href: "/admin/admissions/requests", match: under("/admin/admissions/requests"), visible: ADMISSIONS, ownHead: true },
+      { label: "Older rounds", href: "/admin/admissions", match: underBut("/admin/admissions", "/admin/admissions/forms", "/admin/admissions/requests"), visible: ADMISSIONS },
       { label: "Courses", href: "/admin/courses", match: under("/admin/courses"), visible: (a) => a.isAdmin || a.canAuthorCourses, count: "courseApplications" },
     ],
   },

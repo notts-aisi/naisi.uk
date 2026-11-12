@@ -8,9 +8,11 @@ import type { WrittenAnswerRecord } from "./model";
  * answer. Its `feedback` is feedback given before it became a signed
  * comment; the week page draws every piece from the overview's own.
  *
- * NEVER "LATE": whether it was sent after the due time is shown to staff
- * only, and is not a field here. Names are the first names people go
- * by, never an address.
+ * NEVER "AFTER ITS DEADLINE": whether it was first sent after the block's
+ * own deadline is shown to staff only, and is not a field here. How long
+ * after the writer's session they changed or sent it is theirs to see, and
+ * travels on the overview's own week (`ownWorkLabels`). Names are the first
+ * names people go by, never an address.
  */
 export type WrittenAnswerWire = {
   /** An answer in labelled boxes, box id to words; null for an answer of one box (its words are `text`). */
@@ -18,6 +20,13 @@ export type WrittenAnswerWire = {
   words: number;
   /** ISO 8601: when it was first sent, never moved; null for a draft. */
   firstSentAt: string | null;
+  /**
+   * ISO 8601: when it was last sent (its own Send, every time; the old
+   * Submit's one send otherwise); null for a draft. Changed since (`savedAt`
+   * after it), its readers read it as sent until it is sent again or the
+   * session starts.
+   */
+  sentAt: string | null;
   /** ISO 8601: the latest change after it was first sent, or null. */
   editedAt: string | null;
   /** ISO 8601: when its writer last saved it, or null. */
@@ -48,6 +57,7 @@ export function writtenAnswerWire(record: WrittenAnswerRecord, firstNames: Reado
     boxes: record.boxes,
     words: record.words,
     firstSentAt: iso(record.firstSentAt),
+    sentAt: iso(record.sentAt ?? record.firstSentAt),
     editedAt: iso(record.editedAt),
     savedAt: iso(record.savedAt),
     opened: record.openedAt ? { at: record.openedAt.toISOString(), byName: nameOf(record.openedByUid) } : null,

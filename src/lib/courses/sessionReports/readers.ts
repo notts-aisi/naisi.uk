@@ -47,6 +47,12 @@ export type RunReportView = {
   groupName: string;
   /** The writer's name as the reader is shown it, or the words for a writer whose account was deleted. */
   writerName: string;
+  /**
+   * The facilitators whose place the writer took, by name, when the writer
+   * took the session's register in a facilitator's place: "covering for
+   * Josh". Empty for a facilitator's own report.
+   */
+  coveringFor: string[];
   weekNumber: number;
   occurrence: number;
   /** The session's start, for its day, or null when it cannot be dated now. */
@@ -73,6 +79,25 @@ async function reportsOfRun(db: Firestore, runId: string): Promise<CourseSession
   return snap.docs
     .map((doc) => normalizeSessionReport(doc.id, doc.data() ?? {}))
     .filter((report): report is CourseSessionReportDoc => report !== null && report.runId === runId);
+}
+
+/**
+ * HOW MANY REPORTS ONE SESSION OF ONE GROUP HAS: a count and nothing of what
+ * any says, for the preview of calling that session off after it passed
+ * ("What will happen"). Called by the change route's preview, behind its gate.
+ */
+export async function countSessionReports(db: Firestore, runId: string, groupId: string, sessionKey: string): Promise<number> {
+  return (await reportsOfRun(db, runId)).filter((report) => report.groupId === groupId && report.sessionKey === sessionKey).length;
+}
+
+/**
+ * WHICH SESSIONS OF ONE GROUP HAVE A REPORT: their keys, and nothing of what
+ * any says or who wrote it. For the group's page, which does not offer to
+ * push the rest back a week once a session has a report (a report is kept by
+ * the week, so the session a week later would open with it).
+ */
+export async function sessionKeysWithReports(db: Firestore, runId: string, groupId: string): Promise<Set<string>> {
+  return new Set((await reportsOfRun(db, runId)).filter((report) => report.groupId === groupId).map((report) => report.sessionKey));
 }
 
 /**
@@ -171,6 +196,7 @@ async function viewsOf(
   for (const report of reports) {
     if (report.writerUid) uids.add(report.writerUid);
     for (const uid of report.aboutUids) uids.add(uid);
+    for (const uid of report.coveringFor) uids.add(uid);
   }
   const addressable = [...uids].filter((uid) => uid && !uid.includes("/"));
   const accounts = new Map<string, Record<string, unknown>>();
@@ -195,6 +221,7 @@ async function viewsOf(
     groupId: report.groupId,
     groupName: groups.get(report.groupId)?.name.trim() || "Untitled group",
     writerName: report.writerUid ? nameOf(report.writerUid) : RUN_REPORTS_WORDS.writerGone,
+    coveringFor: report.coveringFor.map(nameOf),
     weekNumber: report.weekNumber,
     occurrence: report.occurrence,
     sessionAt: sessionAt(report),

@@ -1160,6 +1160,18 @@ const NOT_COVERED = {
     coverWhen:
       "When the page that shows a facilitator or a lead somebody's action plan exists and a browser spec opens it.",
   },
+  "/api/courses/runs/[runId]/weeks/[weekId]/submit": {
+    reason:
+      "Course hub: the week's old Submit, kept only for a week page opened before each written answer had its own Send: it sends every written answer of the week that has words and is within its limit, stamps the press, and closes nothing. No page in this tree presses it any more. Who may press it, what it sends and that it shuts nothing are executed by tests/course-week-work.test.mjs and tests/course-hub-written-answers.test.mjs against the real route.",
+    coverWhen:
+      "Never by a browser: no page draws it. When the route is removed, its entry goes with it.",
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/reopen": {
+    reason:
+      "Course hub: the old Reopen, kept only for a page opened before weeks stayed open: it asks its one gate, writes nothing and answers that weeks no longer lock. No page in this tree draws a Reopen any more. Its gate and that it writes nothing are executed by tests/course-week-work.test.mjs and pinned in tests/privacy-policy.test.mjs.",
+    coverWhen:
+      "Never by a browser: no page draws it. When the route is removed, its entry goes with it.",
+  },
   "/api/courses/runs/[runId]/fill-in-boxes/[boxId]": {
     reason:
       "Course hub: a fill-in box on a week written as blocks (week 6's action plan), saved as the person types; who writes, who is refused and what a box keeps are executed by tests/course-hub-week-six.test.mjs; typed in a browser on the preview kit at 390, saved, reloaded and read back.",

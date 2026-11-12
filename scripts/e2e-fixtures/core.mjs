@@ -457,6 +457,11 @@ export const FIXTURE_COLLECTIONS = [
   "courseFinishing",
   "courseCertificates",
   "courseAudit",
+  // A facilitator's asks for a line of a finished register to be corrected
+  // (`runId` on every one), and what became of each. Written by the ask route
+  // a facilitator presses and the routes that decide one, and by nothing a
+  // fixture seeds.
+  "courseRequests",
   "subscriptions",
   "subscriptionEvents",
   "tasks",

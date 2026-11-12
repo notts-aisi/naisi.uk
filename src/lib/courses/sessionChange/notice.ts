@@ -55,6 +55,18 @@ export function oneWeekNoticeOf(run: CourseRunDoc, checked: CheckedPress, press:
       const sessions = resolveSessions(run, checked.after);
       const cancelled = sessionOfWeek(sessions, n);
       const next = cancelled ? nextHeldAfter(sessions, cancelled) : null;
+      // Called off after its time had passed: "No session for week 2" says it
+      // did not happen, and when and where the group meets next.
+      if (checked.started) {
+        return {
+          kind: "didNotHappen",
+          weekNumber: n,
+          dateKey: before.dateKey,
+          next: next
+            ? { weekNumber: next.weekNumber, dateKey: next.dateKey, hhmm: next.session.startTimeLocal, room: next.session.location }
+            : null,
+        };
+      }
       return { kind: "cancel", weekNumber: n, next: next ? { weekNumber: next.weekNumber, dateKey: next.dateKey } : null };
     }
     case "push":

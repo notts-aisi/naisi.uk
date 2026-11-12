@@ -294,14 +294,7 @@ const READERS = {
   "lib/courses/weekWork/readers.ts": {
     kind: "told",
     asks: 1,
-    why: "whose sessions lock a person's week: their placement's group only once Publish has told them it, the lock being the person's own, whoever asks",
-  },
-  "app/api/courses/runs/[runId]/weeks/[weekId]/reopen/route.ts": {
-    kind: "staff",
-    proof: ['if (!run || !owner || !role?.mayReview) return NextResponse.json({ error: "Forbidden" }, { status: 403 });'],
-    why:
-      "reopening somebody's week reads their seat by its address, after the one gate on whose work a reader may act on, only to " +
-      "know whose sessions lock their week (the readers' own question, asked of the told placement), and sends back no seat",
+    why: "whose session a person is due at in a week: their placement's group only once Publish has told them it, the session being the person's own, whoever asks",
   },
   "lib/courses/feedback/access.ts": {
     kind: "staff",

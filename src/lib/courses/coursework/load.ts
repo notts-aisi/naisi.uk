@@ -13,7 +13,7 @@ import { readPackCaseRecords } from "@/lib/courses/packsAndCases/readers";
 import { liveGroupsOf, ownerFactsOf, reviewerFactsOf, writtenReviewRole } from "@/lib/courses/writtenAnswers/access";
 import { byOldest, staffCardOf, staffLegacyCardOf } from "@/lib/courses/feedback/model";
 import { cardNamesOf, legacyRoleOf } from "@/lib/courses/feedback/readers";
-import { workIsReadable } from "@/lib/courses/weekWork/model";
+import { sessionHasStarted } from "@/lib/courses/weekWork/model";
 import type { SessionUser } from "@/lib/firebase/session";
 import {
   courseEnrolmentId,
@@ -313,7 +313,7 @@ export async function loadCourseworkTab(
       weekOf,
       personHref: (uid) => `${programmePath}/coursework/${encodeURIComponent(uid)}`,
       writtenHref: (person, weekNumber) => writtenHrefOf(programmePath, person, weekNumber),
-      submittedOf: (uid, weekNumber) => coursework.states.stateOf(uid, weekNumber).kind === "submitted",
+      standingOf: (uid, weekNumber) => ({ submittedAt: coursework.states.submittedOf(uid, weekNumber), due: coursework.states.dueOf(uid, weekNumber) }),
       reachedOf: (person) => reachedOf(person.readsGroupId),
       filter: wanted,
       notInAGroupTitle: NOT_IN_A_GROUP_YET,
@@ -452,10 +452,15 @@ export async function loadPersonCoursework(
       ...(answerId && stored?.feedback
         ? [staffLegacyCardOf(answerId, stored.feedback, legacyRoleOf(stored.feedback.byUid, group?.facilitatorUids ?? []), cardNames, reader)]
         : []),
-      ...coursework.feedback.filter((piece) => piece.weekNumber === weekNumber).map((piece) => staffCardOf(piece, cardNames, reader)),
+      // Each piece on the answer with the version it was about, when the answer has changed since.
+      ...coursework.feedback.filter((piece) => piece.weekNumber === weekNumber).map((piece) => staffCardOf(piece, cardNames, reader, stored?.piece ?? null)),
     ]);
     const own = [...cards].reverse().find((card) => card.mine && card.mayChange && card.on === "week") ?? null;
-    const readable = workIsReadable(coursework.states.stateOf(uid, weekNumber), { firstSentAt: stored?.sentAt ?? null });
+    // Feedback on the week once it may be read: the session has started, the answer may be read, or the old Submit was pressed.
+    const readable =
+      sessionHasStarted(coursework.states.dueOf(uid, weekNumber), reader.now) ||
+      stored?.piece != null ||
+      coursework.states.submittedOf(uid, weekNumber) !== null;
     return { cards: cards.filter((card) => card !== own), own, open: mayWrite && readable };
   };
   return {

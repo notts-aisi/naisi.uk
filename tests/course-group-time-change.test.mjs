@@ -59,6 +59,7 @@ const roomRoute = await w.formRoute("programmes", "[programmeId]", "groups", "[g
 const timeAnswer = await loadTs("lib/courses/timeAnswer/model.ts");
 const groupsLib = await loadTs("lib/firestore/courseGroups.ts");
 const words = await loadTs("lib/courses/sessionChange/words.ts");
+const coverWords = await loadTs("lib/courses/registerCover/words.ts");
 
 beforeEach(() => reset());
 
@@ -168,22 +169,28 @@ describe("1. a session whose time has passed, and nobody took its register", () 
     assert.equal(everything(), before);
   });
 
-  for (const [what, register] of [
-    ["finished", { pushedAt: new Date("2026-11-17T21:00:00Z") }],
-    ["marked", { markedByUid: "rahul", records: { amara: "present" } }],
-    ["said not to have happened", { held: false }],
+  // CHANGED ON PURPOSE (November 2026): every kind was refused here for
+  // every taken register. "It didn't happen" now uses the two cancels: on a
+  // DRAFT with marks they clear its lines (tests/course-register-did-not-happen.test.mjs),
+  // so the marked register is asked the moves alone; on a FINISHED register
+  // they are refused as a correction, in their own sentence. Everything else
+  // is refused as before, and nothing is written.
+  const CANCELS = [{ kind: "cancel" }, { kind: "push" }];
+  const MOVES = [
+    { kind: "move", move: { dateKey: "2026-11-18", time: "10am", room: "Hallward B12" } },
+    { kind: "move", metAtAnotherTime: true, move: { dateKey: "2026-11-18", time: "10am", room: "Hallward B12" } },
+  ];
+  for (const [what, register, asked] of [
+    ["finished", { pushedAt: new Date("2026-11-17T21:00:00Z") }, [...CANCELS.map((body) => [body, coverWords.REGISTER_COVER_REFUSAL.finishedDidNotHappen]), ...MOVES.map((body) => [body, words.REFUSAL.met])]],
+    ["marked", { markedByUid: "rahul", records: { amara: "present" } }, MOVES.map((body) => [body, words.REFUSAL.met])],
+    ["said not to have happened", { held: false }, [...CANCELS, ...MOVES].map((body) => [body, words.REFUSAL.met])],
   ]) {
-    test(`a register ${what} means it met: every kind is refused, and nothing is written`, async () => {
+    test(`a register ${what} means it met: what it may not be is refused, and nothing is written`, async () => {
       world.db.seed(registerPath(3), { runId: RUN.agi, groupId: B, weekNumber: 3, ...register });
       const before = everything();
-      for (const body of [
-        { kind: "cancel" },
-        { kind: "push" },
-        { kind: "move", move: { dateKey: "2026-11-18", time: "10am", room: "Hallward B12" } },
-        { kind: "move", metAtAnotherTime: true, move: { dateKey: "2026-11-18", time: "10am", room: "Hallward B12" } },
-      ]) {
+      for (const [body, sentence] of asked) {
         const response = await ask.change("zach", B, silently({ ...WEEK3, ...body }));
-        assert.deepEqual([response.status, response.body.error], [409, words.REFUSAL.met], JSON.stringify(body));
+        assert.deepEqual([response.status, response.body.error], [409, sentence], JSON.stringify(body));
       }
       assert.equal(everything(), before);
     });
@@ -446,7 +453,9 @@ describe("4. the preview changes nothing", () => {
       [preview.before.dateKey, preview.before.startTimeLocal, preview.after.dateKey, preview.after.startTimeLocal, preview.after.room],
       [TUE_24, "18:00", "2026-11-25", "19:00", "Portland A13"],
     );
-    assert.deepEqual(preview.lock, { before: "2026-11-24T18:00:00.000Z", after: "2026-11-25T19:00:00.000Z" });
+    // From when the week's work counts as late: the session its people are due at, before and after the move.
+    assert.deepEqual(preview.lateFrom, { before: "2026-11-24T18:00:00.000Z", after: "2026-11-25T19:00:00.000Z" });
+    assert.equal("lock" in preview, false, "the preview still says when the week's work locks");
     assert.deepEqual([preview.reminders.weekOpen.scheduled, preview.reminders.reminders.on], [false, false]);
     assert.deepEqual([preview.said.joiningOnline.count, preview.said.cantMakeIt.count], [1, 1]);
     assert.deepEqual(preview.told, { emails: 4, refused: false, people: 2, facilitatorNames: ["Rahul", "Sofia"] });
@@ -844,6 +853,9 @@ describe("8. nothing moves the start of a session whose register was taken", () 
     const startFour = startOf(4);
     const preview = await ask.change("claudia", B, { ...WEEK3, kind: "cancel", reason: AWAY, preview: true });
     assert.equal(preview.status, 200, JSON.stringify(preview.body));
+    // Cancelled with the group keeping pace, week 3's work counts as late from when its session would have
+    // started (Tue 17 Nov, 6pm), never from the next session that meets: unchanged by the cancel.
+    assert.deepEqual(preview.body.preview.lateFrom, { before: "2026-11-17T18:00:00.000Z", after: "2026-11-17T18:00:00.000Z" });
     const response = await ask.change("claudia", B, silently({ ...WEEK3, kind: "cancel" }));
     assert.equal(response.status, 200, JSON.stringify(response.body));
     assert.equal(weekOf(3).cancelled, true);
@@ -1048,5 +1060,87 @@ describe("10. planRegularChange: which earlier weeks are pinned, and to what", (
     assert.deepEqual(plan({ storedOverrideWeekIds: stored(18) }), { ok: false, status: 409, error: regularWords.REGULAR_REFUSAL.full });
     // A week already stored is not counted twice when it is pinned.
     assert.equal(plan({ storedOverrideWeekIds: [...stored(17), "w01"] }).ok, true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11. A cover does not ride along when its session moves
+// ---------------------------------------------------------------------------
+
+describe("11. a cover does not ride along when its session moves", () => {
+  const AT = new Date("2026-11-19T09:00:00Z");
+  /** Week n's register holds only a cover: Claudia was given it by Zach, and Rahul is recorded not there. */
+  const givenOn = (n) =>
+    world.db.seed(registerPath(n), {
+      runId: RUN.agi,
+      groupId: B,
+      weekNumber: n,
+      occurrence: 1,
+      records: { amara: "excused" },
+      excusedInAdvance: { amara: AT },
+      setBy: { amara: { byUid: "amara", at: AT, how: "self" } },
+      cover: { kind: "given", byUid: "claudia", at: AT, covering: ["rahul", "sofia"], grantedByUid: "zach", grantedAt: AT, until: new Date("2026-11-25T00:00:00Z") },
+      facilitatorRecord: {
+        rahul: { state: "not-there", byUid: "zach", at: AT, how: "cover" },
+        sofia: { state: "there", byUid: "zach", at: AT, how: "changed" },
+      },
+    });
+  const coverGone = (n) => {
+    const doc = world.db.read(registerPath(n));
+    assert.equal(doc.cover, undefined, `week ${n}'s cover rode along`);
+    assert.equal(doc.facilitatorRecord?.rahul, undefined, `week ${n}'s cover's entry rode along`);
+    assert.equal(doc.facilitatorRecord?.sofia?.how, "changed", "an entry the cover did not write went too");
+    assert.deepEqual(doc.records, { amara: "excused" }, "what somebody said in advance went");
+  };
+  const SAID = "Claudia was covering week 4 at its old time, so that cover is taken off.";
+
+  test("moved for one week: the cover and its entries go in the same write, and the history row says who was covering", async () => {
+    givenOn(4);
+    const response = await ask.change("claudia", B, silently({ week: 4, dateKey: TUE_24, kind: "move", move: { dateKey: "2026-11-25", time: "6pm", room: "Hallward B12" } }));
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    coverGone(4);
+    const [row] = auditRows("session-moved");
+    assert.ok(row.detail.endsWith(SAID), row.detail);
+  });
+
+  test("pushed back: every later week's cover goes, named in the row", async () => {
+    givenOn(5);
+    const response = await ask.change("claudia", B, silently({ week: 4, dateKey: TUE_24, kind: "push" }));
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    coverGone(5);
+    assert.ok(auditRows("session-pushed")[0].detail.endsWith("Claudia was covering week 5 at its old time, so that cover is taken off."));
+  });
+
+  test("cancelled, keeping pace: nothing moves, so the cover stays", async () => {
+    givenOn(4);
+    const response = await ask.change("claudia", B, silently({ week: 4, dateKey: TUE_24, kind: "cancel" }));
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.equal(world.db.read(registerPath(4)).cover.byUid, "claudia");
+    assert.equal(world.db.read(registerPath(4)).facilitatorRecord.rahul.state, "not-there");
+    assert.doesNotMatch(auditRows("session-cancelled")[0].detail, /covering/);
+  });
+
+  test("a new regular time: the cover goes from every week whose start moves, named in the row", async () => {
+    givenOn(4);
+    const response = await askRegular("claudia", { ...WEDNESDAYS, fromWeek: 4 });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    coverGone(4);
+    assert.ok(auditRows("group-time-changed")[0].detail.endsWith(SAID), auditRows("group-time-changed")[0].detail);
+  });
+
+  test("a group's own pace: the cover goes, with one history row of its own", async () => {
+    givenOn(5);
+    const weeks = w.run().weekPlan;
+    const response = await w.call(
+      "rahul",
+      pace.PATCH,
+      { groupId: B },
+      { body: { paceWeekPlan: [...weeks.slice(0, 4), { kind: "break", label: "Reading week" }, ...weeks.slice(4)] }, course: true },
+    );
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    coverGone(5);
+    const [row] = auditRows("register-cover-removed");
+    assert.equal(row.detail, "Changed Group B’s pace. Claudia was covering week 5 at its old time, so that cover is taken off.");
+    assert.equal(row.weekId, "w05");
   });
 });

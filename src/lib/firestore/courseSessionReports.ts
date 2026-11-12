@@ -115,6 +115,13 @@ export type CourseSessionReportDoc = {
   aboutUids: string[];
   /** The week's parts as they read when the report was last sent. */
   parts: ReportPart[];
+  /**
+   * The facilitators whose place the writer took, when the writer took the
+   * session's register in a facilitator's place: readers label the report
+   * "covering for Josh". Empty for a facilitator's own report, and for every
+   * report written before the field existed.
+   */
+  coveringFor: string[];
   /** When it was first sent. */
   sentAt: Date | null;
   /** When it was last sent. */
@@ -255,6 +262,7 @@ export function normalizeSessionReport(id: string, data: Raw): CourseSessionRepo
     answers,
     aboutUids: aboutUidsOf(answers),
     parts: partsList(data.parts),
+    coveringFor: uids(data.coveringFor).slice(0, 5),
     sentAt: tsToDate(data.sentAt),
     updatedAt: tsToDate(data.updatedAt),
   };

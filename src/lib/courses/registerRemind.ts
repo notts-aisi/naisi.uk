@@ -3,7 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { namesInWords } from "@/lib/courses/facilitatingEmail";
 import { firstNameOfUser, readRunLead } from "@/lib/courses/programmeLead";
 import { displayNameOf } from "@/lib/courses/registerAccess";
-import { sendRegisterReminderEmail, type RegisterReminderFacts } from "@/lib/email/registerReminderEmail";
+import { sendRegisterReminderEmail, type RegisterReminderFacts, type ReminderOpens } from "@/lib/email/registerReminderEmail";
 import type { CoursesConfig } from "@/lib/firestore/config";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
@@ -17,7 +17,8 @@ import {
   stampSentOrSettle,
   type SchedulerMarkerRef,
 } from "@/lib/scheduler/markers";
-import { resolveFacilitator } from "@/lib/scheduler/jobs/registerReminders";
+import { readSessionRegister } from "@/lib/courses/registerAccess";
+import { chasedUids, resolveChased } from "@/lib/scheduler/jobs/registerReminders";
 import { REGISTER_REMINDERS_JOB } from "@/lib/scheduler/registerJobs";
 import type { RegisterSwitches } from "@/lib/scheduler/registerSwitches";
 
@@ -32,7 +33,9 @@ import type { RegisterSwitches } from "@/lib/scheduler/registerSwitches";
  * words `registerReminderWords`), to the people the job would send it to
  * (`resolveFacilitator`: an account that still stands behind the role, an
  * address, their own "Tasks and worksheets" email switch, the do-not-email
- * list), and each facilitator's send claims the job's own marker
+ * list; `chasedUids` and `resolveChased`, so a register somebody took in a
+ * facilitator's place reminds the person who took or gave it instead), and
+ * each send claims the job's own marker
  * (`regremind__{groupId}__{sessionKey}__{uid}`). So a facilitator hears
  * about one register once, whichever comes first, the press or the job, and
  * a second press finds the marker taken and emails nobody.
@@ -46,8 +49,8 @@ import type { RegisterSwitches } from "@/lib/scheduler/registerSwitches";
  * before a claimed, unsent marker is taken again; three claims in all).
  */
 
-/** A facilitator a press would email now. */
-export type SendableFacilitator = { uid: string; firstName: string; to: string };
+/** A facilitator a press would email now, and the register page their email links to (`registerReminderLink`). */
+export type SendableFacilitator = { uid: string; firstName: string; to: string; opens: ReminderOpens };
 
 /** A facilitator already reminded about this register, and when. */
 export type RemindedFacilitator = { uid: string; firstName: string; at: Date };
@@ -75,15 +78,26 @@ function firstNameFrom(data: Record<string, unknown> | undefined): string {
 /**
  * Who a press would email about one session's register, and who has been
  * reminded about it already, by the job or by an earlier press. Reads only.
+ *
+ * `presserUid` is the person who would press: never emailed by their own
+ * press (a lead who took a register and left it unfinished is the person the
+ * job would chase, and a press is not a way to email yourself), so never
+ * counted on the button either.
  */
 export async function readReminderState(
   db: Firestore,
-  group: Pick<CourseGroupDoc, "id" | "facilitatorUids">,
+  group: Pick<CourseGroupDoc, "id" | "runId" | "facilitatorUids">,
   sessionKey: string,
   now: Date,
+  presserUid: string,
 ): Promise<ReminderState> {
   const state: ReminderState = { sendable: [], reminded: [] };
-  for (const uid of [...new Set(group.facilitatorUids)]) {
+  // Who the job would chase about this register (`chasedUids`): once
+  // somebody took it in a facilitator's place, the person who took or gave
+  // it, never the facilitators whose place it took.
+  const register = await readSessionRegister(db, group.runId, group.id, sessionKey);
+  for (const uid of await chasedUids(db, group, register)) {
+    if (uid === presserUid) continue;
     const marker = markerFor(group.id, sessionKey, uid);
     if (!marker) continue;
     const snap = await db.collection(SCHEDULER_MARKERS_COLLECTION).doc(marker.id).get();
@@ -98,9 +112,9 @@ export async function readReminderState(
       continue;
     }
     if (decideMarkerClaim(existing, now).action !== "claim") continue;
-    const person = await resolveFacilitator(db, uid, group.facilitatorUids);
+    const person = await resolveChased(db, uid, group, sessionKey);
     if ("skip" in person) continue;
-    state.sendable.push({ uid, firstName: person.name, to: person.to });
+    state.sendable.push({ uid, firstName: person.name, to: person.to, opens: person.opens });
   }
   return state;
 }
@@ -147,6 +161,8 @@ export async function sendReminders(
   };
   const outcome: RemindOutcome = { emailed: 0, failed: 0, names: [] };
   for (const person of args.sendable) {
+    // Never the person pressing, whatever the list says.
+    if (person.uid === args.pressedByUid) continue;
     const marker = markerFor(args.group.id, args.sessionKey, person.uid);
     if (!marker) continue;
     const claimed = await claim(
@@ -162,6 +178,7 @@ export async function sendReminders(
       runId: args.run.id,
       groupId: args.group.id,
       appUrl: args.appUrl,
+      opens: person.opens,
       facts,
     });
     if (sent === "sent") {

@@ -285,13 +285,14 @@ export const NO_HISTORY_LINE =
 
 export const WHO_CHANGED_WHAT = "Who changed what";
 
-export type HistoryFilter = "everything" | "time-and-room" | "people" | "link";
+export type HistoryFilter = "everything" | "time-and-room" | "people" | "link" | "registers";
 
 export const HISTORY_FILTERS: readonly { value: HistoryFilter; label: string }[] = [
   { value: "everything", label: "Everything" },
   { value: "time-and-room", label: "Time and room" },
   { value: "people", label: "People" },
   { value: "link", label: "Link" },
+  { value: "registers", label: "Registers" },
 ];
 
 /** A filter that leaves nothing: "Nothing under Link yet." */
@@ -471,6 +472,29 @@ export const GO_TO_GROUPS = "Go to Groups";
 /** Under the run's start date once Publish has sent its groups out. */
 export const START_DATE_READ_ONLY =
   "The groups have gone out, so the start date can’t change here: a new one would move every group’s weeks, the ones that met included.";
+
+/** Above the run's week plan once Publish has sent its groups out: why it is read only, and what a group's break is instead. */
+export const WEEK_PLAN_READ_ONLY =
+  `The groups have gone out, so the week plan can’t change here: the groups’ weeks are dated from it. For a break in one group’s weeks, use ${CANCEL_PUSH_BACK} on that group’s page, which never moves a week that has met.`;
+
+/**
+ * A save from a page opened before the groups went out, that would have
+ * changed the start date, the week plan or a group's day, time or length, and
+ * that the database refused: in place of its "Missing or insufficient
+ * permissions.".
+ */
+export const GONE_OUT_SINCE_OPENED =
+  "The groups have gone out since this page opened, so this can’t change here. Reload the page.";
+
+/**
+ * The error a refused save shows. A permission refusal of a save that would
+ * have changed one of those becomes GONE_OUT_SINCE_OPENED; every other error,
+ * and any refusal of a save that changed none of them, is returned as it was.
+ */
+export function goneOutSinceOpened(err: unknown, changesTime: boolean): unknown {
+  const code = (err as { code?: unknown } | null)?.code;
+  return changesTime && code === "permission-denied" ? new Error(GONE_OUT_SINCE_OPENED) : err;
+}
 
 /** Above a group card's day, time and length once its run's groups have gone out. */
 export const SLOT_READ_ONLY_LABEL = "Day, time and length";

@@ -10,6 +10,10 @@
  *    (the written answer's block id), so it says what was rated.
  *  - `rating`: a whole number from 1 to 10. `comment`: words meant only for
  *    the team, never the person. Both are required.
+ *  - `aboutSavedAt`: the mark of the version of the answer it was about (when
+ *    those words were last saved, `src/lib/courses/weekWork/versions.ts`),
+ *    written each time it is saved. Missing on a rating saved before versions
+ *    were kept: it is about the version that stood when it was last saved.
  *  - `raterUid`, `raterRole`: who rated it, and as what (an `admin`, or the
  *    programme's `lead`), stored when it is saved.
  *  - `programmeLabel`: the programme's name when it was first rated ("AGI
@@ -74,6 +78,8 @@ export type CourseWorkRatingDoc = {
   /** Null for a stored value off the scale, which no reader shows. */
   rating: number | null;
   comment: string;
+  /** The mark of the version of the answer it was about, or null (saved before versions were kept). */
+  aboutSavedAt: Date | null;
   raterUid: string;
   raterRole: WorkRatingRole;
   programmeLabel: string;
@@ -104,6 +110,7 @@ export function normalizeCourseWorkRating(id: string, data: Raw): CourseWorkRati
     itemId: str(data.itemId),
     rating: isWorkRating(data.rating) ? data.rating : null,
     comment: str(data.comment),
+    aboutSavedAt: instant(data.aboutSavedAt),
     raterUid: str(data.raterUid),
     raterRole: data.raterRole === "lead" ? "lead" : "admin",
     programmeLabel: str(data.programmeLabel),

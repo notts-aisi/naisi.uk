@@ -3304,9 +3304,9 @@ const insideSurveyCode = (file) =>
 const SURVEY_STORE = /\bSURVEY_(?:ANSWERS|PEOPLE)_COLLECTION\b|["'`](?:surveyAnswers|surveyPeople)["'`]/;
 /** Whether somebody has said they are coming: the one reading, pure. */
 const comingReplies = await loadTs("lib/applications/status/coming.ts");
-/** The week you submit: who reads a written answer and from when, its other words, and its one answer to whether the answer may be read. */
+/** The week stays open: who reads a written answer and from when, its other words, and its one answer to which words may be read. */
 const weekWorkWords = await loadTs("lib/courses/weekWork/words.ts");
-const weekWorkModel = await loadTs("lib/courses/weekWork/model.ts");
+const weekWorkVersions = await loadTs("lib/courses/weekWork/versions.ts");
 const feedbackWords = await loadTs("lib/courses/feedback/words.ts");
 /** The anonymous form's records: what an answer holds, and the readers' order. Pure. */
 const anonymousRecords = await loadTs("lib/anonymousFeedback/model.ts");
@@ -3445,17 +3445,26 @@ describe("the course hub passage", () => {
 
     // Admitted to read every register of the run: the read gate asks the
     // form whether the caller leads the programme that names the run.
+    // MOVED (November 2026), with the line it pins: the gate now asks the one
+    // run-staffing question (`runStaffingOf`, which asks `programmeLedBy`),
+    // because the people leading a programme also take a register in a
+    // facilitator's place, marks only.
     const gate = read("src/lib/courses/registerAccess.ts");
+    // MOVED again (November 2026), with the line it pins: the run-staffing
+    // answer is kept, because whether each facilitator was there goes to the
+    // programme's lead alone (`leadsProgramme`), never a run's track lead.
     assert.match(
       gate,
-      /\(await programmeLedBy\(db, actor, group\.runId\)\) !== null;/,
+      /const staffing = await runStaffingOf\(db, actor, \{ id: group\.runId, trackLeadUids \}\);\n\s*leads = doesTrackLeadWork\(staffing\);/,
       "the register's read gate no longer admits the programme's lead, so the " +
         "policy says the lead reads registers the lead cannot open.",
     );
     // And not one of the readers of its notes.
-    assert.match(
-      gate,
-      /return \{ ok: true, group, runId: group\.runId, isAdmin, readsNotes: isAdmin \|\| facilitatesLiveGroup \};/,
+    // MOVED with the gate's answer, which now carries more fields: the same
+    // rule, in both gates (writing and reading).
+    assert.equal(
+      [...gate.matchAll(/^ {4}readsNotes: isAdmin \|\| facilitates,$/gm)].length,
+      2,
       "the register's read gate no longer says that its notes are for an " +
         "admin and the group's live facilitators alone, so a caller admitted " +
         "only as the programme's lead may be sent them. The policy says the " +
@@ -3474,11 +3483,16 @@ describe("the course hub passage", () => {
       "the register's GET sends a session's own note to every caller its gate " +
         "admits, the programme's lead included.",
     );
-    // The drawer that writes a note is the register's own gate, which admits
-    // the group's live facilitators and admins and no lead.
+    // The drawer that writes a note is the register's own gate, then its
+    // notes' readers (`readsNotes`): the group's live facilitators and admins
+    // and no lead.
     assert.match(
       read("src/app/api/courses/groups/[groupId]/participant-notes/route.ts"),
       /const gated = await gateGroupRegister\(groupId, actor, db\);/,
+    );
+    assert.match(
+      read("src/app/api/courses/groups/[groupId]/participant-notes/route.ts"),
+      /if \(!gated\.readsNotes\) \{/,
     );
     // Every file that names the notes about named people, and why it may.
     // The register's GET is the one door that hands them to a reader.
@@ -4993,7 +5007,15 @@ describe("the course hub passage", () => {
         ["src/lib/courses/sessionReports/readers.ts", "the lead's and admins' reader and the Overview's counts, which ask nobody who is reading, so each caller decides that first"],
         ["src/lib/courses/sessionReports/context.ts", "the writer's own report, read by the id that names the writer"],
         ["src/lib/courses/sessionReports/page.ts", "the facilitator's page, after the writer's own gate: only the caller's own report"],
-        [ownPage, "the facilitator's page, which sends everybody but the group's live facilitators away first"],
+        [ownPage, "the facilitator's page, which sends everybody but the group's live facilitators, and whoever took the session's register in their place, away first: only the caller's own report"],
+        // ADDED (November 2026), with covering a register: the same page
+        // under the programme's group page, for the programme's lead or an
+        // admin who took a session's register (loadProgrammeRun, then
+        // loadReportPage's own gate): only the caller's own report.
+        [
+          "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/report/page.tsx",
+          "the report page under the programme's group page, for whoever took the session's register in a facilitator's place: only the caller's own report",
+        ],
         [leadPage, "the programme's session reports, for its lead and admins (loadProgrammeRun)"],
         // CHANGED ON PURPOSE: was the Surveys tab's page, which counted the run's reports for its row.
         ["src/lib/surveys/leadOverview.ts", "the Surveys tab's Overview, made only by its page after the tab's gate (loadProgrammeRun): each week's count, how it went on average and the parts named, never what a report says"],
@@ -5729,7 +5751,7 @@ describe("the course hub passage", () => {
     }
   });
 
-  test("a written answer is read by its writer, their group's facilitators, the lead and admins; it locks when its week does; Late is its readers' alone; feedback is a signed comment on the week's page, with an email to say it is waiting", () => {
+  test("a written answer is read by its writer, their group's facilitators, the lead and admins; the week stays open until the programme closes; After its deadline is its readers' alone; feedback is a signed comment on the week's page, with an email to say it is waiting", () => {
     // OWNER DECISIONS, 25 and 26 October 2026: who reads it (the writer,
     // their group's facilitators, the programme's lead and admins; never other
     // fellows), when it locks (changeable after sending until a facilitator
@@ -5783,24 +5805,48 @@ describe("the course hub passage", () => {
       "<strong>Feedback.</strong> Feedback on your work is written by a person on the team running your programme, and shows their name. It appears on the week&apos;s page, and we may email you to say feedback is waiting.",
     );
     // "The week's page says until when you can change your work": under the
-    // week's title, for somebody taking part, the line that says when the
-    // week locks, or that it has, run in every state, and drawn by the week
-    // page from where the week stands (the week you submit).
-    const until = (state) => weekWorkWords.lockLineWords(state, { room: "Portland A21", reopenedBy: "Rahul" });
+    // week's title, for somebody taking part, the line that says until when
+    // (the programme's close: the week stays open after its session), run in
+    // every state, and drawn by the week page from where the week stands.
+    const until = (state, now = new Date("2026-11-17T12:00:00Z")) => weekWorkWords.untilWhenWords(state, { room: "Portland A21", now });
     const wed = new Date("2026-11-18T15:00:00Z");
-    assert.equal(until({ kind: "open", locksAt: wed, by: "session" }), "Your session: Wed 18 Nov, 3pm, Portland A21. This week locks when it starts.");
-    assert.equal(until({ kind: "open", locksAt: null, by: "undated" }), "This week locks when your group’s session starts. Your group’s time isn’t set yet.");
-    assert.equal(until({ kind: "open", locksAt: null, by: "no-group" }), "This week locks when you submit it.");
-    assert.equal(until({ kind: "locked", at: wed }), "Locked when your session started on Wed 18 Nov, 3pm.");
-    assert.match(until({ kind: "reopened", at: wed, byUid: "rahul", locksAt: wed }), /^Rahul reopened this week for you\. It locks again when you submit it, or at your next session, Wed 18 Nov, 3pm\.$/);
+    const closes = new Date("2026-12-24T00:00:00Z");
+    const open = (due) => ({ kind: "open", due, closesAt: closes, submittedAt: null });
+    assert.equal(
+      until(open({ at: wed, by: "session" })),
+      "Your session: Wed 18 Nov, 3pm, Portland A21. Your work stays open after it: anything you add or change after it shows as late to the people who read your work, with how late. This week stays open until the programme closes, at the end of Wed 23 Dec.",
+    );
+    // After the session the line still says until when: the programme's close.
+    assert.equal(until(open({ at: wed, by: "session" }), new Date("2026-11-20T12:00:00Z")), "This week stays open until the programme closes, at the end of Wed 23 Dec.");
+    assert.equal(until(open({ at: null, by: "undated" })), "Your group’s time isn’t set yet. This week stays open until the programme closes, at the end of Wed 23 Dec.");
+    assert.equal(until(open({ at: null, by: "no-group" })), "This week stays open until the programme closes, at the end of Wed 23 Dec.");
+    assert.equal(until({ kind: "closed", at: closes, due: { at: wed, by: "session" }, submittedAt: null }), "The programme closed at the end of Wed 23 Dec, so this week can’t change now.");
     const weekPage = withoutComments(read("src/features/courses/weekBlocks/BlockWeek.tsx"));
-    assert.match(weekPage, /\{work && \(\s*<p className=\{weekWorkStyles\.lockLine\}>\s*\{lockLineWords\(weekWorkStateOf\(work\)/, "the week page no longer says until when the work can change");
-    // ...and the people running the group can reopen it: the reopen route asks
-    // the one gate on whose work a reader may act on, and records who reopened it.
+    assert.match(weekPage, /\{work && <p className=\{weekWorkStyles\.untilLine\}>\{untilWhenWords\(weekWorkStateOf\(work\), \{ room: schedule\?\.location \?\? "", now \}\)\}<\/p>\}/, "the week page no longer says until when the work can change");
+    // "When you do, we record when, and the people who read your work may see
+    // anything added or changed after the session as late, with how late":
+    // the week page says so once the session has started, in one neutral line
+    // at its top, and for a facilitator's own work says who reads it ("the
+    // lead and admins only") and that they see what is added after it as late.
+    assert.equal(
+      weekWorkWords.sessionMetWords({ due: { at: wed, by: "session" }, weekNumber: 3, groupName: "Group C", done: false, now: new Date("2026-11-20T12:00:00Z") }),
+      "Group C met for week 3 on Wed 18 Nov. You can still finish it. Anything you add or change now shows as late to the people who read your work, with how late.",
+    );
+    assert.equal(
+      weekWorkWords.ownWorkWords({ due: { at: wed, by: "session" }, runs: "Group C", meets: "Group C", readers: "Claudia and admins", now: new Date("2026-11-20T12:00:00Z") }),
+      "You run Group C, so your own work is read by Claudia and admins, not by your group. Group C met on Wed 18 Nov: anything you add now shows them as late.",
+    );
+    assert.ok(weekPage.includes("readers: leadFirstName ? `${leadFirstName} and admins` : \"admins\","), "a facilitator's own week no longer names the lead and admins as its readers");
+    assert.match(weekPage, /const statusLine = !work\s*\? null\s*: ownWorkIsTheLeads\s*\? ownWorkWords\(/, "a facilitator's own week no longer says who reads it");
+    // The wire it reads carries the close, from the one reading of every live group's calendar.
+    assert.ok(withoutComments(read("src/lib/courses/weekWork/readers.ts")).includes("const closesAt = workClosesAt(run, liveGroups);"));
+    // v16's "the people running your group can reopen it" is gone from v17 with the lock: the old reopen
+    // route still asks the one gate, and writes nothing (`tests/course-week-work.test.mjs` runs it).
     const reopen = withoutComments(read("src/app/api/courses/runs/[runId]/weeks/[weekId]/reopen/route.ts"));
     assert.ok(reopen.includes("const role = owner ? writtenReviewRole(actor, facts, owner, liveGroups) : null;"), "Reopen no longer asks the one gate");
     assert.ok(reopen.includes('if (!run || !owner || !role?.mayReview) return NextResponse.json({ error: "Forbidden" }, { status: 403 });'));
-    assert.ok(reopen.includes("reopenedByUid: actor.uid,"), "Reopen no longer records who reopened the week");
+    assert.ok(reopen.includes("const answer: ReopenWeekAnswer = { ok: true, message: WEEKS_STAY_OPEN };"), "the old Reopen no longer answers that weeks stay open");
+    assert.doesNotMatch(reopen, /\.set\(|\.update\(|\.delete\(|runTransaction|logWork/, "the old Reopen writes something");
 
     // Who reads it: the one gate, its three lines that decide.
     const gate = withoutComments(read("src/lib/courses/writtenAnswers/access.ts"));
@@ -5815,34 +5861,56 @@ describe("the course hub passage", () => {
     // The page beside the box says so, and from when: the words are run, and drawn by the answer's card.
     assert.equal(
       weekWorkWords.answerReadersWords({ kind: "facilitators", names: ["Rahul", "Sofia"] }, "Claudia"),
-      "Once you submit, or your week locks, Rahul, Sofia, Claudia and admins can read your written answer.",
+      "Once you send it, or once your session has started, Rahul, Sofia, Claudia and admins can read your written answer.",
     );
     assert.equal(weekWorkWords.othersReadWords({ kind: "facilitators", names: ["Rahul"] }), "Other fellows can’t.");
     assert.match(read("src/features/courses/weekBlocks/WrittenAnswerCard.tsx"), /\{answerReadersWords\(readers, leadName\)\}/);
 
-    // "And when": an answer is sent by submitting its week, which stamps the
-    // first-sent time once, and only there; a later change has its own stamp.
+    // "And when": an answer is sent by its own Send (or the week's old Submit,
+    // for a page open since before), which stamps the first-sent time once
+    // and every send's own time; a later change has its own stamp.
     const writer = withoutComments(read("src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts"));
+    const sender = withoutComments(read("src/app/api/courses/runs/[runId]/written-answers/[answerId]/send/route.ts"));
     const submit = withoutComments(read("src/app/api/courses/runs/[runId]/weeks/[weekId]/submit/route.ts"));
-    assert.ok(submit.includes("if (written.words > 0 && !written.firstSentAt) toSend.push(index);"), "Submit no longer sends only an answer never sent");
-    assert.ok(submit.includes("tx.update(answerRefs[index], { firstSentAt: at, submittedAt: at });"));
-    assert.doesNotMatch(writer, /firstSentAt\s*=|firstSentAt:/, "the writer's route stamps the first-sent time");
-    assert.ok(writer.includes("if (changed) write.editedAt = FieldValue.serverTimestamp();"), "a change after sending no longer stores its own time");
-    // Locked once the week is submitted or locks, asked inside the write's
-    // transaction; an answer opened before weeks were submitted stays locked
-    // until the week is reopened.
-    assert.ok(writer.includes("assertWeekTakesWork(week.state);"), "the writer's route no longer refuses a locked week");
-    assert.ok(writer.includes("if (record?.openedAt) throw new AnswerError(ANSWER_LOCKED, 409);"), "the writer's route no longer refuses an answer opened before weeks were submitted");
+    assert.ok(sender.includes("tx.update(ref, first ? { firstSentAt: at, submittedAt: at, sentAt: at } : { sentAt: at });"), "Send no longer stamps the first send once and every send");
+    assert.ok(sender.includes('logWork(tx, db, { ...logged, kind: first ? "send" : "send-again" });'), "a send is no longer recorded");
+    assert.ok(submit.includes("if (written.words > 0 && unsent) toSend.push({ index, first: !written.firstSentAt });"), "the old Submit no longer sends only what is not sent as it stands");
+    assert.ok(submit.includes("tx.update(answerRefs[index], first ? { firstSentAt: at, submittedAt: at, sentAt: at } : { sentAt: at });"));
+    assert.doesNotMatch(writer, /firstSentAt\s*=|firstSentAt:|sentAt:/, "the writer's route stamps a send");
+    assert.ok(writer.includes("if (record && sameWords(record, { text, boxes, words })) return prior;"), "a save that changes nothing writes again");
+    assert.ok(writer.includes("write.editedAt = FieldValue.serverTimestamp();"), "a change after sending no longer stores its own time");
+    // Refused only once the programme has closed, asked inside the write's transaction; an answer
+    // opened by a reviewer before weeks were submitted locks nothing now.
+    assert.ok(writer.includes("assertWeekTakesWork(week.state);"), "the writer's route no longer asks whether the programme has closed");
+    assert.ok(sender.includes("assertWeekTakesWork(standing.state);"), "Send no longer asks whether the programme has closed");
+    assert.doesNotMatch(writer, /openedAt/, "the writer's route locks an opened answer again");
+    // "If you change something after it's been read or given feedback, we may keep the earlier
+    // version": the first change across a line keeps it, in the same write.
+    assert.ok(writer.includes("const kept = versionsToKeep({ prior: record ? answerPiece(record) : null, itemId: answerId, standing: week, now: clock });"));
+    assert.ok(writer.includes("if (kept) write.earlierVersions = storedEarlierVersions(kept.list);"));
 
-    // "Until then they see only that you have started it, never what it says,
-    // and if your week locks before you send it, they may then read what you
-    // wrote": the one answer, run, and asked by every reader of an answer's
-    // words (tests/course-written-answer-readers.test.mjs walks the tree).
-    const draft = { firstSentAt: null };
-    assert.equal(weekWorkModel.workIsReadable({ kind: "open", locksAt: wed, by: "session" }, draft), false);
-    assert.equal(weekWorkModel.workIsReadable({ kind: "reopened", at: wed, byUid: "rahul", locksAt: null }, { firstSentAt: wed }), false);
-    assert.equal(weekWorkModel.workIsReadable({ kind: "submitted", at: wed }, draft), true);
-    assert.equal(weekWorkModel.workIsReadable({ kind: "locked", at: wed }, draft), true);
+    // "A written answer is yours until you send it: until then they see only that you've started
+    // it. Once the session it's due at has started, they may read what you've written so far, sent
+    // or not": the one answer, run, and asked by every reader of an answer's words
+    // (tests/course-written-answer-readers.test.mjs walks the tree).
+    const piece = (over) => ({ text: "Words.", boxes: null, words: 1, savedAt: new Date("2026-11-17T10:00:00Z"), firstSentAt: null, sentAt: null, earlierVersions: [], ...over });
+    const before = new Date("2026-11-18T12:00:00Z");
+    assert.equal(weekWorkVersions.readableAnswer(piece(), wed, before), null, "a draft, before the session");
+    assert.equal(weekWorkVersions.readableAnswer(piece({ firstSentAt: new Date("2026-11-17T11:00:00Z") }), wed, before).text, "Words.", "sent, before the session");
+    assert.equal(weekWorkVersions.readableAnswer(piece(), wed, wed).text, "Words.", "a draft, once the session has started");
+    assert.equal(weekWorkVersions.readableAnswer(piece(), null, new Date("2030-01-01T00:00:00Z")), null, "a draft with no session: never");
+    // "...until you send it": a change since the last send is never read before the session, told by the
+    // database's own times. Sent at 11:00, changed at 11:02 by a save whose clock (10:59) dates its kept
+    // version before the send: the words sent are read. With no version kept as sent: nothing.
+    const sentThenChanged = {
+      text: "Changed.",
+      savedAt: new Date("2026-11-17T11:02:00Z"),
+      firstSentAt: new Date("2026-11-17T11:00:00Z"),
+      sentAt: new Date("2026-11-17T11:00:00Z"),
+    };
+    const keptAsSent = { text: "Words.", boxes: null, words: 1, savedAt: new Date("2026-11-17T10:00:00Z"), replacedAt: new Date("2026-11-17T10:59:00Z"), sentAt: new Date("2026-11-17T11:00:00Z"), reasons: ["sent"] };
+    assert.equal(weekWorkVersions.readableAnswer(piece({ ...sentThenChanged, earlierVersions: [keptAsSent] }), wed, before).text, "Words.", "a change not sent, before the session");
+    assert.equal(weekWorkVersions.readableAnswer(piece(sentThenChanged), wed, before), null, "a change not sent, with nothing kept as sent");
     assert.ok(existsSync(join(REPO_ROOT, "tests", "course-written-answer-readers.test.mjs")), "the guard on every reader of a written answer's words is gone");
     for (const reader of [
       "src/lib/courses/writtenAnswers/reviewPage.ts",
@@ -5850,7 +5918,7 @@ describe("the course hub passage", () => {
       "src/lib/courses/facilitatorWeek/readers.ts",
       "src/lib/courses/coursework/gather.ts",
     ]) {
-      assert.match(withoutComments(read(reader)), /\bworkIsReadable\(/, `${reader} reads a written answer's words without asking whether it may`);
+      assert.match(withoutComments(read(reader)), /\breadableAnswer\(/, `${reader} reads a written answer's words without asking whether it may`);
     }
 
     // Feedback is saved, changed and deleted by a POST, a PATCH and a DELETE,
@@ -5864,20 +5932,33 @@ describe("the course hub passage", () => {
     }
     assert.doesNotMatch(feedbackRoute, /export (?:async )?function GET\b|export const GET\b/, "the feedback route answers a GET, which must never write");
     assert.ok(
-      feedbackRoute.includes("const refusal = feedbackRefusalFor(on, standing.state, standing.answer, { notReadable: NOT_READABLE_YET, answerEmpty: ANSWER_EMPTY });"),
+      feedbackRoute.includes("const refusal = feedbackRefusalFor(on, standing, { notReadable: NOT_READABLE_YET, answerEmpty: ANSWER_EMPTY });"),
       "feedback is no longer asked whether its work may be read, inside the save",
     );
     const feedbackGate = withoutComments(read("src/lib/courses/feedback/access.ts"));
-    assert.ok(feedbackGate.includes("if (!workIsReadable(state, answer)) return words.notReadable;"), "feedback is saved on work its readers may not read");
+    assert.ok(
+      feedbackGate.includes("return { standing, answer, read: answer ? readableAnswer(answerPiece(answer), standing.due.at, input.now) : null, now: input.now };"),
+      "feedback no longer reads what its readers may read of the answer, inside the save",
+    );
+    assert.ok(feedbackGate.includes("if (at.read) return at.read.words === 0 ? words.answerEmpty : null;"), "feedback is saved on an answer its readers may not read");
+    assert.ok(feedbackGate.includes("return words.notReadable;"));
+    // "...we may keep the earlier version, with its feedback": each piece on the answer says which version it was about.
+    assert.ok(feedbackRoute.includes("...(about?.savedAt ? { aboutSavedAt: about.savedAt } : {}),"), "a piece no longer says which version it was about");
+    assert.ok(feedbackRoute.includes("if (about) stampReviewed(tx, db, { runId, uid, weekId, weekNumber, itemId, read: about });"), "the first change after feedback would not keep the words it was about");
     // "Written by a person on the team running your programme": the one gate on whose work a reader may act on.
     assert.ok(feedbackGate.includes("const role = owner ? writtenReviewRole(actor, facts, owner, liveGroups) : null;"), "feedback no longer asks the one gate");
     assert.ok(feedbackGate.includes('if (!run || !owner || !role?.mayReview) return { ok: false, status: 403, error: "Forbidden" };'));
 
-    // "Late" travels to its readers only (v14's words; v15 leaves them out,
-    // and the code keeps it): the writer's wire has no such field.
+    // "After its deadline" (v14's "Late" against the block's own deadline) travels to its readers
+    // only: the writer's wire has no such field. Late from the session is told when read (v17).
     const wire = withoutComments(read("src/lib/courses/writtenAnswers/wire.ts"));
-    assert.doesNotMatch(wire, /\blate\b/i, "the wire a writer reads carries whether their answer was late");
-    assert.match(withoutComments(read("src/lib/courses/writtenAnswers/reviewPage.ts")), /late: record\?\.firstSentAt \? isLate\(record\.firstSentAt, due\) : false,/);
+    assert.doesNotMatch(wire, /\blate\b|deadline/i, "the wire a writer reads carries whether their answer was after its deadline");
+    const reviewCode = withoutComments(read("src/lib/courses/writtenAnswers/reviewPage.ts"));
+    assert.match(reviewCode, /afterDeadline: afterItsDeadline\(record\?\.firstSentAt \?\? null, deadline\?\.at \?\? null, due\),/);
+    // "...may see anything added or changed after the session as late, with how late": worked out when read.
+    assert.match(reviewCode, /changedLateMs: read \? lateBy\(read\.savedAt, due\) : null,/);
+    // ...and only of the words they may read: never when a change not sent yet was saved.
+    assert.match(reviewCode, /changedAt: read\?\.savedAt \? read\.savedAt\.toISOString\(\) : null,/);
 
     // Feedback is a comment, never a number or a level (v14: "never a mark";
     // and no level goes back to the person). A piece stores its words, who
@@ -5896,7 +5977,7 @@ describe("the course hub passage", () => {
 
     // "It appears on the week's page": the week page draws the person's own
     // feedback under its status, from the overview, which reads only their own.
-    assert.match(read("src/features/courses/weekBlocks/BlockWeek.tsx"), /<WeekFeedback cards=\{feedbackCards\} programme=\{payload\.programme\?\.name \?\? ""\} \/>/);
+    assert.match(read("src/features/courses/weekBlocks/BlockWeek.tsx"), /<WeekFeedback cards=\{feedbackCards\} programme=\{payload\.programme\?\.name \?\? ""\} answerBoxes=\{answerBoxLabels\} \/>/);
     assert.ok(withoutComments(read("src/lib/courses/feedback/readers.ts")).includes('.where("uid", "==", uid).where("runId", "==", runId)'), "a person's page reads somebody else's feedback");
     // "And we may email you to say feedback is waiting": the one email, in an
     // admin's batch, one a person, never carrying the feedback.
@@ -6242,6 +6323,8 @@ describe("the course hub passage", () => {
         ],
         ["src/features/courses/register/CheckInCard.tsx", "the register's check-in card: draws what the check-in route hands it, a count while it is open and totals once closed, never a comment, an answer or a name"],
         ["src/app/api/courses/groups/[groupId]/attendance/route.ts", "the register's marking route: somebody marked at a session while its check-in is open gets their own row on it (reachLateMarks), with no email, and no answer is read"],
+        // ADDED (November 2026), with It didn't happen.
+        ["src/lib/courses/sessionChange/didNotHappen.ts", "the preview of calling off a session after it passed, behind the change route's own gate: whether its check-in was ever opened (checkInWasOpened), and no answer is read"],
       ]),
       "reaching survey code from outside it",
       "The policy says only admins see who said what; the programme's lead " +
@@ -6614,6 +6697,13 @@ describe("the course hub passage", () => {
       [
         "src/app/api/courses/groups/[groupId]/attendance/route.ts",
         ["after a mark is kept, gives somebody marked there their own row on the session's open check-in, reading no answer; the mark is decided before it, and nothing of a check-in changes it", ["@/lib/surveys/checkIns/lateMark"]],
+      ],
+      // ADDED (November 2026): calling off a session after it passed says,
+      // in its preview, whether the session's check-in was opened. Nothing
+      // of the check-in is read, and nothing it says decides anything.
+      [
+        "src/lib/courses/sessionChange/didNotHappen.ts",
+        ["the preview of a session called off after it passed: whether its check-in was ever opened, reading no answer and deciding nothing", ["@/lib/surveys/checkIns/facilitatorView"]],
       ],
       // CHANGED ON PURPOSE (v15, admins may ask Claude to help review survey
       // answers): the week review reads a week's check-ins pooled by group,
@@ -8890,10 +8980,11 @@ describe("the last pass before version 7 goes live, held to v15", () => {
   test("a written answer saves as it is typed, and until it is sent its other readers see only that it has been started", () => {
     says(DRAFT);
     // v15 takes back part of this: if the week locks before somebody sends it, its readers may read it.
-    // Built by the week you submit: `workIsReadable` (src/lib/courses/weekWork/model.ts), held above.
-    // v17 says when the week locks: once the session it is due at has
-    // started (the written answer's route refuses a write from then, until
-    // the week is reopened). v16's words stay in frozen v16.
+    // v17 says from when: once the session it is due at has started, sent or
+    // not. Built by `readableAnswer` (src/lib/courses/weekWork/versions.ts),
+    // held above, which is the same moment as the session the person is due
+    // at (`weekDueOf`); nothing refuses a write then: the week stays open
+    // until the programme closes. v16's words stay in frozen v16.
     says("Once the session it&apos;s due at has started, they may read what you&apos;ve written so far, sent or not.");
     assert.ok(V16_FLAT.includes("A written answer is yours until you send it: until then they see only that you have started it, never what it says, and if your week locks before you send it, they may then read what you wrote."));
     // Reflections and the boxes to fill in have no Send at all: each card
@@ -8908,10 +8999,18 @@ describe("the last pass before version 7 goes live, held to v15", () => {
     const groupWeek = withoutComments(read("src/lib/courses/facilitatorWeek/readers.ts"));
     assert.match(groupWeek, /if \(!isReflectionResponse\(data\) \|\| data\.runId !== runId\) continue;/);
     assert.doesNotMatch(groupWeek, /submittedAt/, "the group's page now reads only reflections that were sent, which the policy says it reads as written");
-    // Saved as it is typed: the words are written whatever the press, and only submitting the week stamps the first-sent time.
+    // Saved as it is typed: the words are written whatever the press, and only a send (its own Send, or the
+    // week's old Submit) stamps the first-sent time.
     const route = withoutComments(read("src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts"));
     assert.match(route, /\} else \{\s*write\.text = text;/);
-    assert.match(withoutComments(read("src/app/api/courses/runs/[runId]/weeks/[weekId]/submit/route.ts")), /tx\.update\(answerRefs\[index\], \{ firstSentAt: at, submittedAt: at \}\);/);
+    assert.match(
+      withoutComments(read("src/app/api/courses/runs/[runId]/written-answers/[answerId]/send/route.ts")),
+      /tx\.update\(ref, first \? \{ firstSentAt: at, submittedAt: at, sentAt: at \} : \{ sentAt: at \}\);/,
+    );
+    assert.match(
+      withoutComments(read("src/app/api/courses/runs/[runId]/weeks/[weekId]/submit/route.ts")),
+      /tx\.update\(answerRefs\[index\], first \? \{ firstSentAt: at, submittedAt: at, sentAt: at \} : \{ sentAt: at \}\);/,
+    );
     // A draft is a draft to its writer, run.
     const record = (over) => ({ text: "", boxes: null, words: 0, firstSentAt: null, editedAt: null, openedAt: null, openedByUid: "", savedAt: null, reopenedAt: null, reopenedByUid: "", feedback: null, ...over });
     assert.equal(writtenModel.answerState(record({ text: "Half a thought", words: 3 })), "draft");
@@ -8923,7 +9022,7 @@ describe("the last pass before version 7 goes live, held to v15", () => {
     assert.match(page, /\(askedPerson \? readable\.find\(\(person\) => person\.uid === askedPerson\) : undefined\) \?\? toGive\[0\] \?\? feedbackSent\[0\] \?\? null;/);
     assert.match(
       withoutComments(read("src/lib/courses/feedback/access.ts")),
-      /if \(!workIsReadable\(state, answer\)\) return words\.notReadable;\s*if \(on === "writtenAnswer" && \(!answer \|\| answer\.words === 0\)\) return words\.answerEmpty;/,
+      /if \(on === "writtenAnswer"\) \{\s*if \(at\.read\) return at\.read\.words === 0 \? words\.answerEmpty : null;\s*if \(weekReadable && \(!at\.answer \|\| at\.answer\.words === 0\)\) return words\.answerEmpty;\s*return words\.notReadable;\s*\}/,
     );
     assert.match(withoutComments(read("src/app/api/courses/runs/[runId]/feedback/route.ts")), /if \(refusal\) throw new FeedbackError\(refusal, 409\);/);
     // This week's work says only that it is started ("Started", never its length), and links nothing to it.
@@ -10392,9 +10491,14 @@ describe("v15 lets the people running a programme rate written work for each oth
     // "Your written work": the week's written answer, once its readers may read it, and with words in it.
     assert.ok(route.includes("if (!theirs || !theirs.answerIds.includes(itemId)) return NextResponse.json({ error: NOT_A_RATING_WEEK }, { status: 404 });"));
     assert.ok(
-      route.includes('const refusal = feedbackRefusalFor("writtenAnswer", standing.state, standing.answer, { notReadable: NOT_READABLE_YET, answerEmpty: ANSWER_EMPTY });'),
+      route.includes('const refusal = feedbackRefusalFor("writtenAnswer", standing, { notReadable: NOT_READABLE_YET, answerEmpty: ANSWER_EMPTY });'),
       "a rating is no longer asked whether its work may be read, inside the save",
     );
+    // "You are never shown these ratings": a rating says which version of the answer it was about and
+    // stamps nothing on the person's week, so the answer's next change keeps no version for it on the
+    // row its writer reads (a version kept for a rating would say one exists).
+    assert.ok(route.includes("...(about?.savedAt ? { aboutSavedAt: about.savedAt } : {}),"), "a rating no longer says which version it was about");
+    assert.doesNotMatch(route, /stampReviewed|reviewedVersions|weekWorkRef/, "a rating stamps the person's week, so their own row would keep a version for it");
   });
 
   test("\"and comment on it for each other\": a whole number from 1 to 10 and a comment, both needed, stored with who gave it and as what", () => {
@@ -10719,6 +10823,12 @@ describe("v15 lets Claude draft a short note on how each person is doing, from t
       assert.doesNotMatch(specifier, /surveys|checkIns|sessionReports|weekReview|courseWeekReviews/, `what a note is built from imports ${specifier}`);
     }
     assert.match(strip(gather), /if \(submittedAt\) out\.push\(\{ week, submittedAt \}\);/, "a week is handed over without its submission");
+    // "Only the work they submitted": the week stays open after its Submit, so a written answer goes as last
+    // sent (never a change not sent) and a reflection or a box saved after the week's Submit is left out.
+    assert.equal((strip(gather).match(/asLastSent: \(/g) ?? []).length, 2, "a note reads a written answer as its readers do, latest words and all");
+    assert.equal((strip(gather).match(/answers: submittedWork\(/g) ?? []).length, 2, "a note takes work saved after the week's Submit");
+    assert.match(strip(gather), /return answer\.savedAt != null && answer\.savedAt\.getTime\(\) <= at\.getTime\(\);/);
+    assert.match(strip(read("src/lib/courses/coursework/gather.ts")), /if \(asLastSent\) return answerAsLastSent\(piece, asLastSent\(uid,/);
   });
 
   test("the profile's \"Draft a note with Claude\" sends through the same builder and gatherer as the end-of-week notes", () => {
@@ -10904,9 +11014,11 @@ describe("v15 says reminders before a session are about what is left, are part o
     assert.match(job, /const sessions = resolveSessions\(runState\.run, group\);/, "the group's own sessions");
   });
 
-  test("about what is left of that week's work: the check before Submit's own lines, and nothing else", () => {
-    assert.match(job, /left: weekLeft\(\{ blocks: week\.blocks, tasks: week\.tasks, state: own\.state, writes: week\.writes, submitted: false \}\),/);
+  test("about what is left of that week's work: the check's own lines, a written answer not sent yet, and nothing else", () => {
+    assert.match(job, /left: weekLeft\(\{ blocks: week\.blocks, tasks: week\.tasks, state: own\.state \}\),/);
     assert.match(words, /const lines = left\.items\.map\(notDoneWords\);/);
+    assert.match(words, /if \(left\.notSent\) lines\.push\(ANSWER_NOT_SENT_YET\);/);
+    assert.match(words, /export const ANSWER_NOT_SENT_YET = "Your written answer isn’t sent yet\.";/);
   });
 
   test("part of running the programme, so the settings don't switch them off: a notice, to everybody holding a place", () => {
@@ -10916,7 +11028,7 @@ describe("v15 says reminders before a session are about what is left, are part o
   });
 
   test("they stop once the week is done: a week done is asked about before anything is sent", () => {
-    const done = job.indexOf("if (weekDone({ tasks: week.tasks, state: own.state, writes: week.writes, submitted })) continue;");
+    const done = job.indexOf("if (weekDone({ tasks: week.tasks, state: own.state, submitted: state.submittedAt !== null, asks: week.asks })) continue;");
     const remind = job.indexOf("remind.push({");
     assert.ok(done > 0 && remind > done, "a reminder can go to somebody whose week is done");
     assert.match(job, /await stampSkipped\(db, marker\.id, verdict\.why, ctx\.now\);/);
@@ -11105,6 +11217,14 @@ describe("v16 says a register records the room or online, and you may tell us in
       sourceFilesNaming(/\[ONLINE\]:|FieldPath\(ONLINE,/),
       new Map([
         ["src/app/api/courses/groups/[groupId]/attendance/route.ts", "the register's marking and an admin's correction: where somebody marked as having come was, beside that mark"],
+        // ADDED (November 2026): It didn't happen clears it with the mark it sat beside, and nothing else.
+        ["src/lib/courses/sessionChange/didNotHappen.ts", "a session called off after it passed (It didn't happen): where somebody marked as having come was goes with the mark it sat beside, both kept in the history row"],
+        // ADDED (November 2026), with corrections: v17 says the people running
+        // the programme may correct a register. A line's correction, and an
+        // approved request, write where somebody who came was beside the mark,
+        // and the history row keeps what it said before.
+        ["src/lib/courses/registerCorrection/line.ts", "a finished register's line corrected by an admin or somebody leading the programme, or by an approved request: where somebody marked as having come was, beside that mark, with what it said before in the history row"],
+        ["src/lib/courses/registerCorrection/column.ts", "a finished register's whole column corrected by an admin or somebody leading the programme (held online, moved to the session it belongs to, said to have happened): where somebody marked as having come was, beside that mark, with what each line said before in the history row"],
         ["src/lib/firestore/accountDeletion.ts", "account deletion clears the person's own entry, key by key, and nobody else's"],
       ]),
       "writing where somebody who came was",
@@ -11137,7 +11257,10 @@ describe("v16 says a register records the room or online, and you may tell us in
       sourceFilesNaming(/\bjoiningOnlineBox\(/).filter((file) => file !== "src/lib/courses/meetingLink/box.ts"),
       new Map([
         ["src/app/(app)/learn/[runId]/group/[groupId]/page.tsx", "a facilitator's group page, which asks for the session's link"],
-        ["src/app/(app)/learn/[runId]/group/[groupId]/register/page.tsx", "the register a facilitator takes, with the same box at its top"],
+        // MOVED (November 2026), with covering a register: both register
+        // pages draw one body. The box is never drawn for somebody given one
+        // session; the programme's lead sees "everything a facilitator sees".
+        ["src/features/courses/register/RegisterPageBody.tsx", "the register a facilitator takes (and the one under the programme's group page), with the same box at its top, never for somebody given one session"],
       ]),
       "showing facilitators who is joining online",
       "The policy says your facilitators see it. A new reader needs the policy's readers to grow first.",
@@ -11251,20 +11374,61 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
   test("a register records who took it, and a correction who made it, when and what it said before", () => {
     // "Your group's facilitators usually take the register. If they can't,
     // someone else running the programme may take it, and the register
-    // records who did." The register's gate admits its facilitators and
-    // admins, and every save of the marks keeps who saved them.
+    // records who did." MOVED (November 2026), with covering a register:
+    // the register's gate admits its facilitators, admins, the people
+    // leading the programme and somebody given one session, and nobody
+    // else; every save of the marks keeps who saved it, who set each line,
+    // and, taken in a facilitator's place, the cover.
     const access = withoutComments(read("src/lib/courses/registerAccess.ts"));
-    assert.match(access, /if \(!isAdmin && !facilitatesLiveGroup\) \{/);
+    assert.equal(
+      [...access.matchAll(/if \(!isAdmin && !facilitates && !leads && givenSessions\.length === 0\) \{\n\s*return \{ ok: false, status: 403, error: "Forbidden" \};/g)].length,
+      2,
+      "both register gates (writing and reading) refuse everybody else",
+    );
     const marking = withoutComments(read("src/app/api/courses/groups/[groupId]/attendance/route.ts"));
     assert.match(marking, /markedByUid: actor\.uid,/);
+    assert.match(marking, /stamps\[uid\] = \{ byUid: actor\.uid, at: now, how: setterHow\(facilitates\) \};/);
+    assert.match(marking, /\? \{ \[COVER\]: \{ kind: "self", byUid: actor\.uid, at: now, covering: coverable\.map\(\(each\) => each\.uid\) \} \}/);
     // "If a register is wrong, the people running the programme may correct
-    // it, and we record who changed it, when and what it said before": an
-    // admin's correction of a finished register writes one audit row per mark
-    // it moves, with who, when, and the mark before and after.
-    const row = marking.slice(marking.indexOf("for (const [uid, status] of moved) {"));
-    assert.match(row, /const from = before\.get\(uid\) \?\? null;/);
-    assert.match(row, /kind: "attendance-edit",[\s\S]*?actorUid: actor\.uid,[\s\S]*?at: FieldValue\.serverTimestamp\(\),/);
-    assert.match(row, /: `\$\{markLabel\(from, wasOnline\)\} to \$\{markLabel\(status, isOnline\)\}`;/);
+    // it, and we record who changed it, when and what it said before, and may
+    // record why": a correction of a finished register (an admin's or a
+    // lead's, or an approved request) writes one audit row per line it moves,
+    // with who, when, the line before (and who set it) and after, and why.
+    // MOVED (November 2026) with corrections: the rows are written by the one
+    // module the correction route and an approved request both call.
+    assert.match(marking, /logged = writeLineCorrection\(tx, db, plan, \{/);
+    const line = withoutComments(read("src/lib/courses/registerCorrection/line.ts"));
+    const row = line.slice(line.indexOf("for (const line of moved) {\n    tx.set(db.collection(COURSE_AUDIT_COLLECTION).doc(), {"));
+    assert.match(row, /kind: "attendance-edit",[\s\S]*?actor,[\s\S]*?before: beforeValues\(line\.before, register\.setBy\[line\.uid\]\),[\s\S]*?after: afterValues\(line\.after\),[\s\S]*?reason: input\.reason,/);
+    assert.match(row, /from: wordsOf\(line\.before\),\s*to: wordsOf\(line\.after\),/);
+    const facts = withoutComments(read("src/lib/courses/groupChange/facts.ts"));
+    assert.match(facts, /actorUid: input\.actor\.uid,[\s\S]*?at: FieldValue\.serverTimestamp\(\),/);
+    const model = withoutComments(read("src/lib/courses/registerCorrection/model.ts"));
+    assert.match(model, /setByUid: setBy\?\.byUid \?\? null,\s*setAt: setBy \? setBy\.at\.toISOString\(\) : null,/);
+  });
+
+  test("whether a facilitator was there: the programme's lead and admins see this, and nobody else", () => {
+    // "If you facilitate, we may also record whether you were at each session
+    // you run, and who took the register if you weren't. The programme's lead
+    // and admins see this." ADDED (November 2026), with covering a register.
+    // One function decides it, from the gate's answer: an admin or the
+    // programme's lead (`leadsProgramme`, never a run's track lead by that
+    // alone), who does not facilitate the group.
+    const access = withoutComments(read("src/lib/courses/registerAccess.ts"));
+    assert.match(access, /return \(gated\.isAdmin \|\| gated\.leadsProgramme\) && !gated\.facilitates;/);
+    assert.match(access, /leadsProgramme = staffing\.leadOf !== null;/);
+    assert.match(access, /readsFacilitatorRecord: readsFacilitatorRecord\(gated\),/);
+    // The programme's lead "sees the totals" of a check-in; a run's track
+    // lead who takes a register opens its check-in and is sent no totals.
+    assert.match(access, /readsCheckInTotals: staff \|\| \(gated\.leadsProgramme && took\),/);
+    // Every door that hands the record out, or changes it, asks that one function.
+    const marking = withoutComments(read("src/app/api/courses/groups/[groupId]/attendance/route.ts"));
+    assert.match(marking, /const readsFacilitatorRecord = readsFacilitatorRecordOf\(gated\);/);
+    const change = withoutComments(read("src/app/api/courses/groups/[groupId]/attendance/facilitators/route.ts"));
+    assert.match(change, /if \(!readsFacilitatorRecord\(gated\)\) return NextResponse\.json\(\{ error: "Forbidden" \}, \{ status: 403 \}\);/);
+    // The group's history drops the rows about it unless the page is drawn for one of them.
+    const history = withoutComments(read("src/lib/courses/groupHistory/load.ts"));
+    assert.match(history, /if \(!options\.facilitatorRecord && \(LEAD_ONLY_AUDIT_KINDS as readonly string\[\]\)\.includes\(row\.kind\)\) continue;/);
   });
 
   test("we record each time a conduct record is opened, first, and it stays closed when we cannot", () => {
@@ -11320,15 +11484,63 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
     assert.ok(!PAGE_FLAT.includes("A reason for missing a session"));
   });
 
-  test("two sentences say 'may', because a reopened week can be changed today and nothing more is kept", () => {
-    // Work added after a session is shown as late, and an earlier version is
-    // kept beside a changed one, only once weeks stay open after their
-    // session. Until then a week reopened by the people running a group takes
-    // changes again with neither, so both sentences say "may".
+  test("the week stays open: work after the session is recorded with when and told as late, and an earlier version is kept at the lines the 'may' sentences cover", () => {
+    // "We may let you keep adding to a week and changing it after its session, until your programme
+    // closes": every write to a week asks only whether the programme has closed.
+    assert.ok(PAGE_FLAT.includes("We may let you keep adding to a week and changing it after its session, until your programme closes."));
+    const closes = withoutComments(read("src/lib/courses/weekWork/closes.ts"));
+    assert.match(closes, /return londonWallClockToInstant\(addDaysToKey\(lastDateKey, after \+ 1\), "00:00"\);/);
+    const own = withoutComments(read("src/lib/courses/weekWork/own.ts"));
+    assert.match(own, /if \(!weekTakesWork\(state\) && state\.kind === "closed"\) throw new WorkClosedError\(state\.at\);/);
+    // "When you do, we record when": each change stores its own time on its row, and each send and
+    // the first save of each spell of writing goes in the work log.
+    for (const file of [
+      "src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts",
+      "src/app/api/courses/runs/[runId]/reflections/[promptId]/route.ts",
+      "src/app/api/courses/runs/[runId]/fill-in-boxes/[boxId]/route.ts",
+    ]) {
+      const code = withoutComments(read(file));
+      assert.match(code, /updatedAt: FieldValue\.serverTimestamp\(\),/, `${file} no longer records when a change was made`);
+      assert.match(code, /logSave\(tx, db, \{ \.\.\.logged, lastSavedAt: prior \? instantOf\(prior\.updatedAt\) : null, now(?:: clock)? \}\);/, `${file} no longer logs a spell of writing`);
+    }
+    // "...and the people who read your work may see anything added or changed after the session as late,
+    // with how late": worked out when read, against the session the person was due at, never stored.
     assert.ok(PAGE_FLAT.includes("the people who read your work may see anything added or changed after the session as late, with how late."));
+    const model = withoutComments(read("src/lib/courses/weekWork/model.ts"));
+    assert.match(model, /export function lateBy\(at: Date \| null, due: WeekDue\): number \| null \{/);
+    // "If you change something after it's been read or given feedback, we may keep the earlier version,
+    // with its feedback, beside the new one": kept at the first change after the session (when its readers
+    // read everything), after a send before it (what they read), and after feedback. A rating keeps its
+    // own pointer and no version: the row is its writer's to read, and they are never shown ratings.
     assert.ok(PAGE_FLAT.includes("If you change something after it&apos;s been read or given feedback, we may keep the earlier version, with its feedback, beside the new one."));
-    assert.ok(!PAGE_FLAT.includes("we keep the earlier version"), "version 17 promises an earlier version is always kept, which the code does not do yet");
-    assert.match(read("src/app/api/courses/runs/[runId]/weeks/[weekId]/reopen/route.ts"), /Feedback already given stays, with its date\./);
+    assert.ok(!PAGE_FLAT.includes("we keep the earlier version"), "version 17 promises an earlier version is always kept, which the code does not do: only at those lines, and under a cap");
+    const versions = withoutComments(read("src/lib/courses/weekWork/versions.ts"));
+    assert.match(versions, /if \(started && saved < \(dueAt as Date\)\.getTime\(\)\) reasons\.push\("session"\);/);
+    assert.match(versions, /if \(!started && sent !== null && saved <= sent\.getTime\(\)\) reasons\.push\("sent"\);/);
+    assert.match(versions, /if \(reviewedSavedAt !== null && reviewedSavedAt\.getTime\(\) >= saved\) reasons\.push\("reviewed"\);/);
+    for (const file of [
+      "src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts",
+      "src/app/api/courses/runs/[runId]/reflections/[promptId]/route.ts",
+      "src/app/api/courses/runs/[runId]/fill-in-boxes/[boxId]/route.ts",
+    ]) {
+      assert.match(withoutComments(read(file)), /versionsToKeep\(\{ prior:/, `${file} no longer keeps the earlier version`);
+    }
+    // "...with its feedback": a piece and a rating say which version they were about, and the cards carry it;
+    // staff are told when the answer has changed since a rating.
+    assert.match(withoutComments(read("src/lib/courses/feedback/model.ts")), /const version = versionAbout\(answer, piece\.aboutSavedAt, piece\.createdAt\);/);
+    // The mark the save routes read is kept where the person cannot read it: a rating's existence never reaches them.
+    assert.match(withoutComments(read("src/lib/courses/feedback/access.ts")), /reviewedVersions: \{ \[input\.itemId\]: input\.read\.savedAt \},/);
+    assert.doesNotMatch(withoutComments(read("src/lib/courses/writtenAnswers/model.ts")), /reviewedVersions/);
+  });
+
+  test("requests are kept 'while your account exists': deleting an account deletes the requests it asked and the requests about it", () => {
+    assert.ok(PAGE_FLAT.includes("<strong>Requests and messages:</strong> while your account exists, like your other records, with our replies."));
+    const cascade = read("src/lib/firestore/accountDeletion.ts");
+    assert.match(cascade, /summary\.courseRequestsDeleted = await deleteCourseRequestsOf\(db, uid\);/);
+    assert.match(cascade, /deleteOwnedCourseRows\(db, COURSE_REQUESTS_COLLECTION, uid, "askedByUid"\)/);
+    assert.match(cascade, /deleteOwnedCourseRows\(db, COURSE_REQUESTS_COLLECTION, uid, "subjectUid"\)/);
+    // tests/account-deletion-attendance.test.mjs runs the sweep.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "account-deletion-attendance.test.mjs")));
   });
 });
 

@@ -4,7 +4,16 @@ import { londonDayLabel } from "@/lib/courses/londonLabels";
 import type { SessionUser } from "@/lib/firebase/session";
 import type { ReportPart, SessionReportAnswers } from "@/lib/firestore/courseSessionReports";
 import { sessionReportWords } from "@/lib/surveys/questionSetsStore";
-import { gateReportWriter, leadFirstName, loadReportSession, readOwnReport, sessionsOf, type ReportPerson } from "./context";
+import { firstNameOfUser } from "@/lib/courses/programmeLead";
+import {
+  gateCoveringReportWriter,
+  gateReportWriter,
+  leadFirstName,
+  loadReportSession,
+  readOwnReport,
+  sessionsOf,
+  type ReportPerson,
+} from "./context";
 import { latestStartedSession } from "./model";
 import { ownReportView, type RunReportView } from "./readers";
 import {
@@ -66,11 +75,32 @@ export type ReportFormProps = {
   questions: ReportQuestionWords;
 };
 
+/**
+ * Every view says whose report it is when the writer took the session's
+ * register in a facilitator's place: `covering` is "Written by you, covering
+ * for Josh. ...", and null for a facilitator of the group.
+ */
+type Covering = { covering: string | null };
+
 export type ReportPageView =
-  | { kind: "nothing-yet"; groupName: string }
-  | { kind: "no-report" | "not-yet"; groupName: string; title: string; line: string }
-  | { kind: "closed"; groupName: string; title: string; line: string; sent: RunReportView | null }
-  | { kind: "open"; groupName: string; title: string; intro: string; form: ReportFormProps };
+  | ({ kind: "nothing-yet"; groupName: string } & Covering)
+  | ({ kind: "no-report" | "not-yet"; groupName: string; title: string; line: string } & Covering)
+  | ({ kind: "closed"; groupName: string; title: string; line: string; sent: RunReportView | null } & Covering)
+  | ({ kind: "open"; groupName: string; title: string; intro: string; form: ReportFormProps } & Covering);
+
+/** "Written by you, covering for Josh. The programme's lead and admins read it, as with any report." */
+export function coveringReportLine(firstNames: readonly string[]): string {
+  const forWhom = firstNames.length > 0 ? `, covering for ${firstNames.length === 1 ? firstNames[0] : `${firstNames.slice(0, -1).join(", ")} and ${firstNames[firstNames.length - 1]}`}` : "";
+  return `Written by you${forWhom}. The programme’s lead and admins read it, as with any report.`;
+}
+
+/** The first names of the facilitators whose place the writer took, read once. */
+async function coveringFirstNames(db: Firestore, uids: readonly string[]): Promise<string[]> {
+  const wanted = uids.filter((uid) => uid && !uid.includes("/"));
+  if (wanted.length === 0) return [];
+  const snaps = await db.getAll(...wanted.map((uid) => db.collection("users").doc(uid)));
+  return snaps.map((snap) => (snap.exists ? firstNameOfUser(snap.data() ?? {}) : "")).filter(Boolean);
+}
 
 export async function loadReportPage(
   db: Firestore,
@@ -80,28 +110,34 @@ export async function loadReportPage(
   sessionParam: string | null,
   now: Date,
 ): Promise<ReportPageView | null> {
-  const gated = await gateReportWriter(db, user, groupId);
-  if (!gated.ok || gated.run.id !== runId) return null;
+  const first = await gateReportWriter(db, user, groupId);
+  // Whoever took the session the address names in a facilitator's place
+  // writes that session's report, and no other (`gateCoveringReportWriter`).
+  const gated = first.ok ? first : sessionParam ? await gateCoveringReportWriter(db, user, groupId, sessionParam, now) : null;
+  if (!gated || !gated.ok || gated.run.id !== runId) return null;
   const { run, group } = gated;
   const groupName = group.name.trim() || "Your group";
+  const coveringWriter = !first.ok;
+  const covering = coveringWriter ? coveringReportLine(await coveringFirstNames(db, gated.coveringFor)) : null;
 
   const sessions = sessionsOf(run, group);
   const named = sessionParam ? sessions.find((session) => session.sessionKey === sessionParam) : undefined;
+  if (coveringWriter && !named) return null;
   const chosen = named ?? latestStartedSession(sessions, now);
-  if (!chosen) return { kind: "nothing-yet", groupName };
+  if (!chosen) return { kind: "nothing-yet", groupName, covering };
   const title = reportTitle(chosen.weekNumber, chosen.occurrence);
 
   const session = await loadReportSession(db, gated, chosen.sessionKey, now, sessions);
   if (!session) {
     // Called off through "Change a session", or with no day and time to open at.
     const line = chosen.cancelled ? noReportLine(chosen.weekNumber, chosen.occurrence) : undatedLine(chosen.weekNumber, chosen.occurrence);
-    return { kind: "no-report", groupName, title, line };
+    return { kind: "no-report", groupName, title, line, covering };
   }
   const { window } = session;
   if (session.state === "not-yet") {
-    return { kind: "not-yet", groupName, title, line: opensLine(chosen.weekNumber, chosen.occurrence, window.opensAt) };
+    return { kind: "not-yet", groupName, title, line: opensLine(chosen.weekNumber, chosen.occurrence, window.opensAt), covering };
   }
-  if (!session.held) return { kind: "no-report", groupName, title, line: noReportLine(chosen.weekNumber, chosen.occurrence) };
+  if (!session.held) return { kind: "no-report", groupName, title, line: noReportLine(chosen.weekNumber, chosen.occurrence), covering };
 
   const own = await readOwnReport(db, run, group, chosen.sessionKey, user.uid);
   if (session.state === "closed") {
@@ -111,6 +147,7 @@ export async function loadReportPage(
       title,
       line: closedLine(chosen.weekNumber, chosen.occurrence, window.closesAt, window.nextWeekNumber),
       sent: own ? await ownReportView(db, run, group, own, user) : null,
+      covering,
     };
   }
 
@@ -125,6 +162,7 @@ export async function loadReportPage(
     groupName,
     title,
     intro: reportIntro(groupName, londonDayLabel(window.opensAt), lead),
+    covering,
     form: {
       groupId: group.id,
       sessionKey: chosen.sessionKey,
