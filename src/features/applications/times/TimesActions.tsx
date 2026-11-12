@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { changeOnGroupPageWords, groupPagePath } from "@/lib/courses/groupPage/words";
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useId, useMemo, useState, type ReactNode } from "react";
 import Select from "@/components/ui/Select";
@@ -61,9 +62,10 @@ import { dayLong, lengthWords, whenShort } from "./timesWords";
  * no painted week reaches the browser), the lengths a new group may last,
  * and what a new group is offered. The routes decide everything again.
  *
- * A group Publish has told the time of is not changed here: its Change
- * opens a dialog that says so and links to Change a session, and "Use for a
- * group" leaves it off its list. Nobody is emailed by any of it.
+ * A group Publish has told the time of is not changed here: in place of its
+ * Change is the way to the group's own page, where its time is changed from
+ * a week onwards, and "Use for a group" leaves it off its list. Nobody is
+ * emailed by any of it.
  *
  * After a press the page is read again from the server, so the picture,
  * the best times and every group's line show the new times, and a line in
@@ -348,6 +350,17 @@ export function ChangeTimeButton({ groupId }: { groupId: string }) {
   const group = setup.groups.find((each) => each.id === groupId);
   const [open, setOpen] = useState(false);
   if (!group) return null;
+  // A group Publish has told: its time is changed on the group's own page,
+  // from a week onwards, with what will happen shown first. Its time is the
+  // words beside this, and this is the way there in place of a control that
+  // could only refuse.
+  if (group.told) {
+    return (
+      <Link href={groupPagePath(setup.roundId, setup.programmeId, group.id)} className={styles.see}>
+        {changeOnGroupPageWords(group.name)}
+      </Link>
+    );
+  }
   return (
     <>
       <button type="button" className={styles.action} aria-label={changeLabel(group.name)} onClick={() => setOpen(true)}>

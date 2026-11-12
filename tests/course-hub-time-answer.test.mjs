@@ -974,6 +974,10 @@ describe("6. the person, the programme's lead and admins read it; nobody else do
       "They meant some weeks' route: the gate (readsTimeAnswers, an admin or the programme's lead), then the answer it changed, answered back to them",
     ],
     [
+      "lib/courses/regularTime/apply.ts",
+      "a new regular time from a week onwards, behind the route's gate (an admin, the programme's lead or a track lead): reads each fellow's answer about the group by the stale rule and takes back the ticks of a most weeks answer on the old time, never changing the stored answer",
+    ],
+    [
       "lib/courses/cantMakeIt/seat.ts",
       "the ticket's Can't make it keeps a most weeks answer's list of sessions in step with the register, on the caller's own seat, and changes no other answer",
     ],

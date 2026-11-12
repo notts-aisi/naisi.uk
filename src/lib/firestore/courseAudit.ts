@@ -104,7 +104,32 @@ export type CourseAuditKind =
    * this time" were each given an invitation. One row for each press, saying
    * how many and on which programme, and naming nobody.
    */
-  | "application-freed-places-offered";
+  | "application-freed-places-offered"
+  /**
+   * The nine below are a GROUP'S TIME, ROOM AND LINK, one row for each
+   * change, so a group's history can say who changed what, when, from what,
+   * why, and how many were emailed (`weekId`, `before`, `after`, `reason`,
+   * `emailed`). Written from the day these kinds shipped; nothing earlier was logged.
+   *
+   * One week's session moved, that week only ("Change a session", Move it).
+   */
+  | "session-moved"
+  /** One week's session held online, same day and time. */
+  | "session-online"
+  /** One week's session cancelled, the group keeping pace. */
+  | "session-cancelled"
+  /** One week's session cancelled, and it and every later week pushed back a week. */
+  | "session-pushed"
+  /** One week's session put back as usual after one of the four above. */
+  | "session-restored"
+  /** A session whose time had passed recorded at the time it really met. */
+  | "session-put-right"
+  /** The group's regular day, time, length, room or campus changed from one week onwards. */
+  | "group-time-changed"
+  /** The room the group meets in every week set or changed, from the Groups tab. */
+  | "group-room-changed"
+  /** A session's meeting link set, for one week or every week. The row never holds the link. */
+  | "group-link-set";
 
 export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "attendance-edit",
@@ -124,6 +149,15 @@ export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "application-exception",
   "application-decisions-sent",
   "application-freed-places-offered",
+  "session-moved",
+  "session-online",
+  "session-cancelled",
+  "session-pushed",
+  "session-restored",
+  "session-put-right",
+  "group-time-changed",
+  "group-room-changed",
+  "group-link-set",
 ];
 
 /** The label for a kind this build does not know. See `courseAuditKindLabel`. */
@@ -147,7 +181,46 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "application-exception": "Placement exception made",
   "application-decisions-sent": "Decisions sent",
   "application-freed-places-offered": "Freed places offered",
+  "session-moved": "Session moved for one week",
+  "session-online": "Session held online",
+  "session-cancelled": "Session cancelled, keeping pace",
+  "session-pushed": "Session cancelled, later weeks pushed back",
+  "session-restored": "Session put back as usual",
+  "session-put-right": "Session put right after it happened",
+  "group-time-changed": "Regular time changed",
+  "group-room-changed": "Room changed",
+  "group-link-set": "Meeting link set",
 };
+
+/**
+ * Which filter of a group's history a row sits under: "Time and room",
+ * "People", "Link" or "Registers". `other` is a row about the run or an
+ * application, which a group's history does not offer a filter for (it still
+ * shows under Everything). An unknown kind is `other`.
+ */
+export type CourseAuditCategory = "time-and-room" | "people" | "link" | "registers" | "other";
+
+const COURSE_AUDIT_CATEGORY: Partial<Record<CourseAuditKind, CourseAuditCategory>> = {
+  "session-moved": "time-and-room",
+  "session-online": "time-and-room",
+  "session-cancelled": "time-and-room",
+  "session-pushed": "time-and-room",
+  "session-restored": "time-and-room",
+  "session-put-right": "time-and-room",
+  "group-time-changed": "time-and-room",
+  "group-room-changed": "time-and-room",
+  "group-link-set": "link",
+  "facilitator-appointed": "people",
+  "facilitator-removed": "people",
+  "enrolment-dropout": "people",
+  "time-answer-changed": "people",
+  "attendance-push": "registers",
+  "attendance-edit": "registers",
+};
+
+export function courseAuditCategory(kind: CourseAuditKind | string): CourseAuditCategory {
+  return isCourseAuditKind(kind) ? (COURSE_AUDIT_CATEGORY[kind] ?? "other") : "other";
+}
 
 /**
  * The label for one row's `kind`, INCLUDING a kind this build has never heard
@@ -173,7 +246,34 @@ export const COURSE_AUDIT_LIMITS = {
   detail: 1000,
   actorName: 120,
   targetLabel: 200,
+  /** The reason a change was given, as the group was told it: one line. */
+  reason: 200,
+  /** Keys in a `before` or `after` map, and the length of one text value in it. */
+  changeKeys: 12,
+  changeValue: 200,
 } as const;
+
+/** One value of a `before` or `after` map: plain, never a nested object. */
+export type CourseAuditValue = string | number | boolean | null;
+
+/**
+ * The OPTIONAL fields a row may carry beside its sentence, written by the
+ * kinds about a group's time, room, link and facilitators. A row written
+ * before them, or by a kind that has none, reads null for each: the sentence
+ * is still the whole record.
+ */
+export type CourseAuditChange = {
+  /** The week a one-week change, or the first week of a regular one, is about ("w03"). */
+  weekId: string | null;
+  /** What it was, as small plain values ("weekday", "startTimeLocal", "room", ...). */
+  before: Record<string, CourseAuditValue> | null;
+  /** What it became, the same keys. */
+  after: Record<string, CourseAuditValue> | null;
+  /** The reason given, when one was. */
+  reason: string | null;
+  /** How many people the change emailed; 0 for nobody, null when the row predates the field. */
+  emailed: number | null;
+};
 
 export type CourseAuditDoc = {
   /** Firestore auto-id. Rows are never addressed individually. */
@@ -212,7 +312,7 @@ export type CourseAuditDoc = {
   /** One human sentence: what changed, and from what to what. */
   detail: string;
   at: Date | null;
-};
+} & CourseAuditChange;
 
 type Raw = Record<string, unknown>;
 
@@ -229,6 +329,48 @@ function str(v: unknown, max: number): string {
 
 function strOrNull(v: unknown): string | null {
   return typeof v === "string" && v ? v : null;
+}
+
+/** A week id as every week map keys it: "w03". */
+const WEEK_ID = /^w\d{2}$/;
+
+/**
+ * A `before` or `after` map as a reader may trust it: plain values only
+ * (text capped, finite numbers, true or false, null), at most so many keys,
+ * taken in key order so a hand-edited row truncates the same way every time.
+ * Anything else, a nested map included, is left out; a map with nothing left
+ * reads null.
+ */
+function changeMap(v: unknown): Record<string, CourseAuditValue> | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const out: Record<string, CourseAuditValue> = {};
+  let count = 0;
+  for (const key of Object.keys(v as Raw).sort()) {
+    if (count >= COURSE_AUDIT_LIMITS.changeKeys) break;
+    const value = (v as Raw)[key];
+    if (typeof value === "string") out[key] = value.slice(0, COURSE_AUDIT_LIMITS.changeValue);
+    else if (typeof value === "number" && Number.isFinite(value)) out[key] = value;
+    else if (typeof value === "boolean" || value === null) out[key] = value;
+    else continue;
+    count += 1;
+  }
+  return count > 0 ? out : null;
+}
+
+/**
+ * The optional change fields of a stored row, each null when the row does not
+ * carry it (every row written before they existed). Exported for the history
+ * reader's tests, which hold a row with none of them to today's reading.
+ */
+export function courseAuditChangeOf(data: Raw): CourseAuditChange {
+  const emailed = data.emailed;
+  return {
+    weekId: typeof data.weekId === "string" && WEEK_ID.test(data.weekId) ? data.weekId : null,
+    before: changeMap(data.before),
+    after: changeMap(data.after),
+    reason: strOrNull(str(data.reason, COURSE_AUDIT_LIMITS.reason).replace(/\s+/g, " ").trim()),
+    emailed: typeof emailed === "number" && Number.isInteger(emailed) && emailed >= 0 ? emailed : null,
+  };
 }
 
 export function normalizeCourseAudit(id: string, data: Raw): CourseAuditDoc {
@@ -251,5 +393,6 @@ export function normalizeCourseAudit(id: string, data: Raw): CourseAuditDoc {
     targetLabel: str(data.targetLabel, COURSE_AUDIT_LIMITS.targetLabel),
     detail: str(data.detail, COURSE_AUDIT_LIMITS.detail),
     at: tsToDate(data.at),
+    ...courseAuditChangeOf(data),
   };
 }

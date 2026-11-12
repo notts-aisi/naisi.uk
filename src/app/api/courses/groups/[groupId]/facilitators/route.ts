@@ -17,6 +17,9 @@ import {
   type SeatProblem,
 } from "@/lib/courses/groupFacilitators";
 import { byHandElsewhereWords, byHandFullWords, byHandNotYoursWords } from "@/lib/courses/facilitatorAsks/words";
+import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
+import { facilitatorAddedHeadline, facilitatorRemovedHeadline, historyDetail } from "@/lib/courses/groupChange/words";
+import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import type { Firestore } from "firebase-admin/firestore";
 
 /**
@@ -39,6 +42,10 @@ import type { Firestore } from "firebase-admin/firestore";
  * wrote is the business of an admin and of the lead of the programme that
  * names the run (`rowIsServedTo`), so anybody else adding that person saves
  * nothing either.
+ *
+ * HISTORY: each person added or taken off writes one row of the group's
+ * history (`facilitator-appointed`, `facilitator-removed`), in the same
+ * transaction, naming them and the presser.
  */
 
 const ELIGIBLE_ROLES = ["member", "committee", "admin"] as const;
@@ -174,6 +181,14 @@ export async function POST(
       joinedWeekNumber: joinedWeekFor(normalizeCourseRun(runSnap.id, run), stored),
     });
     if (!places.ok) return { kind: "seat", problem: places.problem, groupName: stored.name.trim() || "This group" };
+    // The names the history rows give, read before anything is written.
+    const accounts = touched.length ? await tx.getAll(...touched.map((uid) => db.collection("users").doc(uid))) : [];
+    const nameOfTouched = new Map(
+      accounts.map((account) => {
+        const name = account.exists ? account.data()?.displayName : null;
+        return [account.id, typeof name === "string" && name.trim() ? name.trim() : "That person"] as const;
+      }),
+    );
 
     writeFacilitatorChange(tx, db, {
       groupRef,
@@ -185,6 +200,25 @@ export async function POST(
       recorded: new Set(Object.keys(stored.facilitatorAppointments)),
       placing: places.placing,
     });
+    for (const [uid, kind] of [
+      ...added.map((each) => [each, "facilitator-appointed"] as const),
+      ...removed.map((each) => [each, "facilitator-removed"] as const),
+    ]) {
+      const name = nameOfTouched.get(uid) ?? "That person";
+      tx.set(
+        db.collection(COURSE_AUDIT_COLLECTION).doc(),
+        groupHistoryRow({
+          kind,
+          run: { id: runId },
+          group: stored,
+          actor,
+          subjectUid: uid,
+          detail: historyDetail({
+            headline: kind === "facilitator-appointed" ? facilitatorAddedHeadline(name) : facilitatorRemovedHeadline(name),
+          }),
+        }),
+      );
+    }
     return { kind: "saved", placed: [...places.placing.keys()] };
   });
 

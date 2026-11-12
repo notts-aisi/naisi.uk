@@ -231,6 +231,17 @@ const READS_WITHOUT_A_LIST = new Map([
 /** Modules the walk reaches that fetch an address it cannot read, each with what they fetch and why it lists no run's groups. */
 const FETCHES_IT_CANNOT_READ = new Map([
   [
+    "src/features/courses/groupPage/ChangePanel.tsx",
+    "A group's page's Change panel: the one-week change route and the regular time route of the one group it is " +
+      "handed (each previewed, then pressed), and the updates route of its run for that group's notice, through one " +
+      "helper that takes the address: one group's sessions, never a run's groups.",
+  ],
+  [
+    "src/features/courses/groupPage/RoomPanel.tsx",
+    "A group's page's room panel: the programme's room route for the one group it is handed (`roomPath`, built by " +
+      "the page from the form's, the programme's and the group's ids): one group's room, never a run's groups.",
+  ],
+  [
     "src/features/courses/feedback/FeedbackToSend.tsx",
     "Feedback to send's two presses (its test and its send), at the address built from the run id it is handed " +
       "(`base`): feedback and its emails, never a run's groups.",

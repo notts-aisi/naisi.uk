@@ -59,6 +59,7 @@ import {
   type CourseEnrolmentStatus,
 } from "@/lib/firestore/courseEnrolments";
 import {
+  campusForWeek,
   normalizeCourseGroup,
   sessionForWeek,
   sessionModesOf,
@@ -203,6 +204,13 @@ export type OverviewNextSession = {
   weekNumbers: number[];
   /** Its room, resolved for its own week (a one-week move included). */
   location: string;
+  /**
+   * The campus it meets on, resolved for its own week (`campusForWeek`: the
+   * week's own when it was moved to another campus, else the group's), or
+   * null when neither has one. Optional so a card built before the field
+   * reads the group's campus, as it always did.
+   */
+  campus?: GroupCampus | null;
   /**
    * Its joining link, resolved for its own week, under the same gate as the
    * group's `meetingUrl`: null for anybody that one is null for. The link is
@@ -1466,6 +1474,7 @@ export async function GET(
               durationMinutes: range.next.session.durationMinutes,
               weekNumbers: changes.next?.weekNumbers ?? [range.next.weekNumber],
               location: changes.next?.location ?? "",
+              campus: range.next.occurrence === 1 ? campusForWeek(source, range.next.weekId) : source.campus,
               // The same gate as the group's own link, below.
               meetingUrl: canSeeMeetingUrlFor(source) ? (changes.next?.meetingUrl ?? null) : null,
               explainer: memberExplainerOn(explainers, source.id, range.next.sessionKey),

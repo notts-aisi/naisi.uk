@@ -1,6 +1,11 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
-import { GROUP_FIELD_LIMITS, normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import type { SessionUser } from "@/lib/firebase/session";
+import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
+import { GROUP_FIELD_LIMITS, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import { couldBeFollowed } from "./followable";
+import { groupHistoryRow } from "./groupChange/facts";
+import { historyDetail, roomHeadline, ROOM_TO_BE_CONFIRMED } from "./groupChange/words";
 import { ROOM_REFUSAL, roomSavedWords } from "./roomWords";
 
 /**
@@ -14,9 +19,13 @@ import { ROOM_REFUSAL, roomSavedWords } from "./roomWords";
  * transaction that reads what it decides on.
  *
  * A room may change after Publish has told people their group, as in the run
- * editor. NOBODY IS EMAILED: people see it on their programme page, and the
- * group's `updatedAt` moves so a calendar takes the new place on its next
- * fetch. One week's room is "Change a session"'s, never this.
+ * editor. People see it on their programme page, and the group's `updatedAt`
+ * moves so a calendar takes the new place on its next fetch. NOBODY IS
+ * EMAILED unless the press asks to tell the group (`parseRoomTell`): then the
+ * route sends "A room set or changed" to the group's told people and its
+ * facilitators, with the count on the button checked first. Either way a
+ * change writes one row of the group's history in the same transaction. One
+ * week's room is "Change a session"'s, never this.
  */
 
 export type RoomRefusal = { ok: false; status: 404 | 409; error: string };
@@ -42,12 +51,39 @@ export function parseRoomBody(raw: unknown): { ok: true; value: string } | { ok:
   return { ok: true, value };
 }
 
+/** The words a press may add to `{ room }`: whether to tell the group, and the count its button showed. */
+export type RoomTell = { tell: boolean; emailCount: number };
+
+/**
+ * `tell` (optional, false when missing) and `emailCount` (needed with
+ * `tell`): the room route's way to tell the group. A room a reader could
+ * follow is refused only when the group is to be told, since the room then
+ * goes into an email.
+ */
+export function parseRoomTell(raw: unknown, room: string): { ok: true; value: RoomTell } | { ok: false; error: string } {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, error: ROOM_REFUSAL.body };
+  const body = raw as Record<string, unknown>;
+  for (const key of Object.keys(body)) {
+    if (key !== "room" && key !== "tell" && key !== "emailCount") return { ok: false, error: ROOM_REFUSAL.body };
+  }
+  if (body.tell !== undefined && typeof body.tell !== "boolean") return { ok: false, error: ROOM_REFUSAL.tell };
+  const tell = body.tell === true;
+  if (!tell) return { ok: true, value: { tell: false, emailCount: 0 } };
+  if (typeof body.emailCount !== "number" || !Number.isInteger(body.emailCount) || body.emailCount < 0) {
+    return { ok: false, error: ROOM_REFUSAL.emailCount };
+  }
+  if (couldBeFollowed(room)) return { ok: false, error: ROOM_REFUSAL.roomLink };
+  return { ok: true, value: { tell, emailCount: body.emailCount } };
+}
+
 export async function setGroupRoom(
   db: Firestore,
   runId: string,
   groupId: string,
   room: string,
-): Promise<RoomSet | RoomRefusal> {
+  /** Who pressed, and how many the button said it would email: the history row's. */
+  history?: { actor: Pick<SessionUser, "uid" | "displayName">; emailed: number },
+): Promise<(RoomSet & { group: CourseGroupDoc }) | RoomRefusal> {
   const ref = db.collection("courseGroups").doc(groupId);
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -58,9 +94,33 @@ export async function setGroupRoom(
     const name = group.name.trim() || "This group";
     const message = roomSavedWords(name, room);
     if (group.session.location.trim() === room) {
-      return { ok: true, changed: false, groupId: group.id, groupName: name, room, message };
+      return { ok: true, changed: false, groupId: group.id, groupName: name, room, message, group };
     }
     tx.update(ref, { "session.location": room, updatedAt: FieldValue.serverTimestamp() });
-    return { ok: true, changed: true, groupId: group.id, groupName: name, room, message };
+    if (history) {
+      const was = group.session.location.trim();
+      tx.set(
+        db.collection(COURSE_AUDIT_COLLECTION).doc(),
+        groupHistoryRow({
+          kind: "group-room-changed",
+          run: { id: runId },
+          group,
+          actor: history.actor,
+          detail: historyDetail({ headline: roomHeadline(room), before: was || ROOM_TO_BE_CONFIRMED, emailed: history.emailed }),
+          before: { room: was },
+          after: { room },
+          emailed: history.emailed,
+        }),
+      );
+    }
+    return {
+      ok: true,
+      changed: true,
+      groupId: group.id,
+      groupName: name,
+      room,
+      message,
+      group: { ...group, session: { ...group.session, location: room } },
+    };
   });
 }
