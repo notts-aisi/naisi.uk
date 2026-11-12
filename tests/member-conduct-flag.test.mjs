@@ -378,6 +378,20 @@ test("WORDS: the line under the label says the same, in every state of the contr
   assert.doesNotMatch(CONTROL, /Reviewers will see|yes or no chip|neither will the member/);
 });
 
+test("WORDS: above the box for a reason, the line asking for no medical details and no alleged crime", () => {
+  // Privacy policy version 17: "Conduct records aren't for health information
+  // or allegations of crimes, and we ask anyone adding to one to leave them
+  // out." This line is that asking, above the box whether an admin is flagging
+  // or rewording a reason.
+  const flat = CONTROL.replace(/\s+/g, " ");
+  const LINE =
+    "<p className={styles.muted}> Don&apos;t include medical details or describe an alleged crime. Take anything that might be a crime to the head admin instead. </p> <CountedTextarea";
+  assert.ok(flat.includes(LINE), "the line above the reason box has drifted from its words, or is no longer above the box");
+  assert.equal(flat.split("<CountedTextarea").length, 2, "there is a second box for a reason without the line above it");
+  const compose = flat.slice(flat.indexOf("{state !== null && composing && ("));
+  assert.ok(compose.indexOf("Don&apos;t include medical details") < compose.indexOf("<CountedTextarea"), "the line is not in the box's own block");
+});
+
 /**
  * WHO READS A FLAG. The control tells an admin that reviewers and the person
  * flagged never see a flag on the site, and that is true only while nothing a

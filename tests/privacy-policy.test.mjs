@@ -11127,6 +11127,185 @@ describe("v16 says a register records the room or online, and you may tell us in
   });
 });
 
+describe("v17 rewrites taking part, work after a session, reminders and conduct, and tells changes on the site; every other word is v16's, and the code agrees", () => {
+  /** A version's words as served, from its component on: the header comment is notes, not policy. */
+  const bodyOf = (flat) => flat.slice(flat.indexOf("export default function "));
+  /**
+   * EVERY CHANGE v17 MAKES TO v16, as [what, v16's words, v17's words], each
+   * a run of the flattened text. Applied to frozen v16 in turn, each found
+   * exactly once, they give v17 exactly: so nothing else in v16 changed, and
+   * each replaced sentence is held, here, in the words that replaced it.
+   */
+  const V17_CHANGES = [
+    [
+      "the component's name",
+      "export default function PrivacyContentV16(",
+      "export default function PrivacyContentV17(",
+    ],
+    [
+      "what changed, at the top",
+      "<div className={styles.lede}> <h2 id=\"in-short\">",
+      "<div className={styles.lede}> <p id=\"whats-changed\"> <strong>What&apos;s changed in version 17:</strong> who can take and correct a register; asking to change session or group, to be excused, or to message the team; work added after a session, and reminders after it; a second form that never records who fills it in; conduct records that can note good things as well as concerns; how long we keep reasons and messages; and that we tell you about changes to this policy on the site. </p> <h2 id=\"in-short\">",
+    ],
+    [
+      "the Registers paragraph, now who takes and corrects a register",
+      "<strong>Registers.</strong> Your group&apos;s facilitators take the register at each session: present, arrived late, left early, absent or excused, and whether you were in the room or joined online. You can see your own once it is submitted. We may let",
+      "Your group meets at set sessions, and we keep a record of each session you&apos;re due at: whether you came, in the room or online, arrived late or left early, or were absent or excused. We may also record that you went to another group&apos;s session instead. Your group&apos;s facilitators usually take the register. If they can&apos;t, someone else running the programme may take it, and the register records who did. If a register is wrong, the people running the programme may correct it, and we record who changed it, when and what it said before, and may record why. You can see your own register, with any corrections. </p> <p> We may let",
+    ],
+    [
+      "requests and messages, visits and a facilitator's attendance, added after telling us in advance",
+      "to your programme page. </p> <p> <strong>Your calendar link.</strong>",
+      "to your programme page. </p> <p> We may let you ask for changes to how you take part, such as going to another group&apos;s session for a week, moving to another group, or being excused from a week you can&apos;t make, and we may let you send the team a message through the site. We keep what you send, our replies, who dealt with it and what was decided. Admins read these, and the people running your programme may too, apart from anything about access needs, which only admins read. If you ask to be excused, your facilitators see only that you&apos;ve asked or that you&apos;re excused, never your reason. Please don&apos;t put medical details or anything about your health in a reason. </p> <p> If you go to another group&apos;s session, that group&apos;s facilitators see your name, your work for that week and that session&apos;s register. </p> <p> If you facilitate, we may also record whether you were at each session you run, and who took the register if you weren&apos;t. The programme&apos;s lead and admins see this. </p> <p> <strong>Your calendar link.</strong>",
+    ],
+    [
+      "who reads your work, with a visit's facilitators",
+      "admins, and nobody else taking part;",
+      "admins, and, for a week you spend at another group&apos;s session, that group&apos;s facilitators. Nobody else taking part;",
+    ],
+    [
+      "changing your work, after the session too",
+      "until then they see only that you have started it, never what it says, and if your week locks before you send it, they may then read what you wrote. The week&apos;s page says until when you can change your work, and the people running your group can reopen it for you.",
+      "until then they see only that you&apos;ve started it. Once the session it&apos;s due at has started, they may read what you&apos;ve written so far, sent or not. The week&apos;s page says until when you can change your work. We may let you keep adding to a week and changing it after its session, until your programme closes. When you do, we record when, and the people who read your work see anything added or changed after the session as late, with how late. If you change something after it&apos;s been read or given feedback, we keep the earlier version, with its feedback, beside the new one.",
+    ],
+    [
+      "reminders, after the session too",
+      "<strong>Reminders.</strong> Before your group&apos;s session we may email you about what is left of that week&apos;s work. These reminders",
+      "<strong>Reminders.</strong> Before the session a week&apos;s work is due at, we may email you about what&apos;s left of it. After that session, the people running your group may remind you about a week that isn&apos;t done, and our emails about later weeks may mention it. These reminders",
+    ],
+    [
+      "a second anonymous form, after v16's",
+      "in an order unrelated to when each came in. </p> </section>",
+      "in an order unrelated to when each came in. </p> <p> We may also open a second form that never records who fills it in: an anonymous feedback form that any member can use at any time. It would not ask who you are, and we would keep what you write, the day, and any programme, session or role you choose to name. Only admins would read it, from the next day. Nobody can reply to it, so if you&apos;d like an answer, ask us directly instead. </p> </section>",
+    ],
+    [
+      "conduct records",
+      "<h2>Conduct</h2> <p> If there has been a conduct concern, an admin may flag an account and must record a reason: what happened, and when. Only admins can read the reason for a conduct flag. Where decisions about you are made, such as reading applications or deciding event sign-ups, other people may see only a marker asking them to talk to an admin first. A flag and its reason are personal data about you, and you can ask us for them. </p>",
+      "<h2>Conduct</h2> <p> We may record how someone has behaved at NAISI, good or bad: a concern, or something done well, such as helping at an event or looking out for someone. Each entry says who recorded it, when and why. Only admins can add to a conduct record or read it, and we record each time one is opened. Where decisions about you are made, such as reading applications, deciding event sign-ups or approving a request, other people may see only a marker asking them to talk to an admin first. Only a concern adds that marker. </p> <p> Conduct records aren&apos;t for health information or allegations of crimes, and we ask anyone adding to one to leave them out. If a decision goes against you because of a concern, we&apos;ll tell you, and you can reply; we keep your reply with it. Your conduct record is personal data about you, and you can ask us for it. </p>",
+    ],
+    [
+      "requests and messages under the contract",
+      "reminders, check-ins, session reports and its notices",
+      "reminders, requests and messages to the team, check-ins, session reports and its notices",
+    ],
+    [
+      "conduct records under legitimate interests",
+      "keeping the site secure; assessing applications",
+      "keeping the site secure; keeping the society safe and fair, including conduct records; assessing applications",
+    ],
+    [
+      "how long: your conduct record, and three new lines",
+      "<li> <strong>A conduct flag:</strong> until an admin removes it. </li>",
+      "<li> <strong>Your conduct record:</strong> each entry until an admin removes it. </li> <li> <strong>A reason for missing a session:</strong> until your programme closes. After that we keep only that you were excused. </li> <li> <strong>Requests and messages:</strong> while your account exists, like your other records, with our replies. </li> <li> <strong>Anonymous feedback from the second form:</strong> two years from the day it is sent. </li>",
+    ],
+    [
+      "deleting your account",
+      "the notes you shared with a group, a conduct flag, your survey links",
+      "the notes you shared with a group, your conduct record, your survey links",
+    ],
+    [
+      "a copy of your data",
+      "ratings, and the reason for a conduct flag. Where a record",
+      "ratings, and your conduct record. Where a record",
+    ],
+    [
+      "changes told on the site",
+      "we tell you on the site and by email before it takes effect, saying what changed.",
+      "we tell you on the site, saying what changed.",
+    ],
+  ];
+
+  test("v17 is v16 with these changes and no others", () => {
+    let text = bodyOf(V16_FLAT);
+    for (const [what, before, after] of V17_CHANGES) {
+      assert.equal(text.split(before).length, 2, `v16 does not say, exactly once, what v17 changes (${what}): ${before}`);
+      assert.ok(!bodyOf(CURRENT_FLAT).includes(before) || after.includes(before), `v17 still says what it was meant to replace (${what})`);
+      text = text.replace(before, after);
+    }
+    assert.equal(text, bodyOf(CURRENT_FLAT), "v17 differs from v16 somewhere outside the changes listed here");
+  });
+
+  test("a register records who took it, and a correction who made it, when and what it said before", () => {
+    // "Your group's facilitators usually take the register. If they can't,
+    // someone else running the programme may take it, and the register
+    // records who did." The register's gate admits its facilitators and
+    // admins, and every save of the marks keeps who saved them.
+    const access = withoutComments(read("src/lib/courses/registerAccess.ts"));
+    assert.match(access, /if \(!isAdmin && !facilitatesLiveGroup\) \{/);
+    const marking = withoutComments(read("src/app/api/courses/groups/[groupId]/attendance/route.ts"));
+    assert.match(marking, /markedByUid: actor\.uid,/);
+    // "If a register is wrong, the people running the programme may correct
+    // it, and we record who changed it, when and what it said before": an
+    // admin's correction of a finished register writes one audit row per mark
+    // it moves, with who, when, and the mark before and after.
+    const row = marking.slice(marking.indexOf("for (const [uid, status] of moved) {"));
+    assert.match(row, /const from = before\.get\(uid\) \?\? null;/);
+    assert.match(row, /kind: "attendance-edit",[\s\S]*?actorUid: actor\.uid,[\s\S]*?at: FieldValue\.serverTimestamp\(\),/);
+    assert.match(row, /: `\$\{markLabel\(from, wasOnline\)\} to \$\{markLabel\(status, isOnline\)\}`;/);
+  });
+
+  test("we record each time a conduct record is opened, first, and it stays closed when we cannot", () => {
+    // The one reader of a flag is the opening route, which records before it
+    // reads (run in tests/member-conduct-flag.test.mjs); the route that sets
+    // and clears a flag has no GET.
+    const open = withoutComments(read("src/app/api/admin/members/[uid]/conduct-flag/open/route.ts"));
+    const recorded = open.indexOf("openConductFlagRecorded(");
+    assert.ok(recorded > -1 && open.indexOf('collection("memberConductFlags")') > recorded, "a flag is read before its opening is recorded");
+    assert.match(open, /if \(!opened\.ok\) return NextResponse\.json\(\{ error: NOT_RECORDED \}, \{ status: 500 \}\);/);
+    assert.doesNotMatch(withoutComments(read("src/app/api/admin/members/[uid]/conduct-flag/route.ts")), /export async function GET/);
+    // The row: who, whose by account id, and when; nothing the flag says, and no run, so no run's destroy takes it.
+    const log = withoutComments(read("src/lib/firestore/recordOpenings.ts"));
+    const writer = log.slice(log.indexOf("export async function openConductFlagRecorded"));
+    const created = writer.indexOf(".create({");
+    assert.ok(created > -1 && writer.indexOf("return { ok: true, value: await read() };") > created, "a conduct record is read before its opening is recorded");
+    const fields = writer.slice(created, writer.indexOf("});", created));
+    assert.deepEqual([...fields.matchAll(/^\s*(\w+)(?=[:,])/gm)].map((m) => m[1]), ["kind", "actorUid", "actorName", "subjectUid", "openedAt"]);
+    assert.match(fields, /kind: "conduct-flag",/);
+    // Clearing a flag and deleting an account leave the openings, as every other opening is left.
+    assert.doesNotMatch(withoutComments(read("src/app/api/admin/members/[uid]/conduct-flag/route.ts")), /recordOpenings|RECORD_OPENINGS_COLLECTION/);
+    assert.doesNotMatch(withoutComments(read("src/lib/firestore/accountDeletion.ts")), /RECORD_OPENINGS_COLLECTION|["'`]recordOpenings["'`]/);
+    // The readers of survey openings keep their own kinds, so a conduct record's opening is never listed as one.
+    assert.match(log, /if \(data\.kind !== "survey-answers"\) continue;/);
+    assert.match(log, /if \(!isSurveyOpeningKind\(data\.kind\)\) return null;/);
+  });
+
+  test("we ask anyone adding to a conduct record to leave out health information and allegations of crimes", () => {
+    const control = read("src/features/admin/ConductFlagControl.tsx").replace(/\s+/g, " ");
+    assert.ok(control.includes("Don&apos;t include medical details or describe an alleged crime. Take anything that might be a crime to the head admin instead."));
+  });
+
+  test("changes are told on the site: a line on Home and /privacy for 14 days from the date, and nobody is asked to accept", async () => {
+    const acceptance = await loadTs("lib/legal/acceptance.ts");
+    assert.equal(acceptance.LAST_PRIVACY_VERSION_ASKED, 15);
+    assert.equal(acceptance.needsPolicyAcceptance("terms.1+privacy.15"), false);
+    assert.equal(acceptance.needsPolicyAcceptance("terms.1+privacy.16"), false);
+    const updated = POLICIES.privacy.versions.find((v) => v.version === 17);
+    assert.equal(
+      updated?.updateLine,
+      "We've updated our privacy policy. It now also covers registers and corrections, requests and messages to the team, work added after a session and reminders after it, anonymous feedback and conduct records.",
+    );
+    // The window and the two places that draw it are run in tests/policy-update-line.test.mjs.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
+  });
+
+  test("REPORTED, not changed: two sentences of v17 that the code does not yet make true", () => {
+    // The owner approved v17's words; these two are pinned as written and
+    // reported, as the head of this file says a sentence the code does not
+    // match is.
+    //
+    // 1. The summary at the top still says changes are told "on the site and
+    //    by email before the change takes effect", v16's words, beside the
+    //    reworded Changes to this policy, which says on the site alone.
+    assert.ok(PAGE_FLAT.includes("<strong>Changes.</strong> If we change how we use your information, we tell you on the site and by email before the change takes effect."));
+    // 2. "If you change something after it's been read or given feedback, we
+    //    keep the earlier version, with its feedback, beside the new one."
+    //    Today a week reopened by the people running a group takes changes
+    //    again, feedback already given stays beside the new words, and no
+    //    earlier version is kept.
+    assert.ok(PAGE_FLAT.includes("If you change something after it&apos;s been read or given feedback, we keep the earlier version, with its feedback, beside the new one."));
+    assert.match(read("src/app/api/courses/runs/[runId]/weeks/[weekId]/reopen/route.ts"), /Feedback already given stays, with its date\./);
+  });
+});
+
 describe("the services we use", () => {
   const SERVICES_PAGE = "src/app/(public)/privacy/services/page.tsx";
   /** Each listed service, with the line of code or configuration that calls it. */

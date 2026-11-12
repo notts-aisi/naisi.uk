@@ -186,6 +186,10 @@ const { loadTs } = createLoader({
         "export async function forYouEvents() { return []; }",
     ],
     ["./FullNameCard", MARK("FullNameCard")],
+    // The line saying the privacy policy changed: worked out from the date
+    // and held by tests/policy-update-line.test.mjs. A mark here, as the
+    // install card is, so where it sits is pinned whatever day this runs.
+    ["./PolicyUpdate", MARK("PolicyUpdate")],
     ["./ForYou", "export default function ForYou() { return null; }"],
     [
       // Applications are open, which is when Home says "Nothing yet" to a member who has not applied.
@@ -368,11 +372,11 @@ const WAY_TO_APPLICATIONS = "Your applications View all → Everything you have 
 
 const HOME = {
   /** A member the page knows holds no place: as Home has always read. */
-  noPlace: `Hi Amara. ${NOT_ON_A_PROGRAMME} [install] [term] [events] ${APPLICATIONS_CARD} [profile] [MyWorkSummary]`,
+  noPlace: `Hi Amara. ${NOT_ON_A_PROGRAMME} [PolicyUpdate] [install] [term] [events] ${APPLICATIONS_CARD} [profile] [MyWorkSummary]`,
   /** Everybody else: the sentence is left out, and nothing is put in its place. */
-  other: `Hi Amara. [install] [term] [events] ${APPLICATIONS_CARD} [profile] [MyWorkSummary]`,
+  other: `Hi Amara. [PolicyUpdate] [install] [term] [events] ${APPLICATIONS_CARD} [profile] [MyWorkSummary]`,
   /** The applications could not be read at all: the card names nothing. */
-  unread: `Hi Amara. [install] [term] [events] ${WAY_TO_APPLICATIONS} [profile] [MyWorkSummary]`,
+  unread: `Hi Amara. [PolicyUpdate] [install] [term] [events] ${WAY_TO_APPLICATIONS} [profile] [MyWorkSummary]`,
 };
 
 // The hub is "My programmes", the sidebar's name for it, and its line never says "exercise" (v20). Until
@@ -584,7 +588,7 @@ describe("neither page states an outcome, however the application stands", () =>
     term(null);
     signedIn("nina");
     const pages = await drawn();
-    assert.equal(pages.homeText, `Hi Nina. ${NOT_ON_A_PROGRAMME} [install] [term] [events] [nothing yet] [profile] [MyWorkSummary]`);
+    assert.equal(pages.homeText, `Hi Nina. ${NOT_ON_A_PROGRAMME} [PolicyUpdate] [install] [term] [events] [nothing yet] [profile] [MyWorkSummary]`);
     assert.equal(pages.learnText, LEARN.noPlace);
   });
 
@@ -1058,7 +1062,7 @@ describe("7. what Home and My programmes may show for a place the person holds",
     as("amara");
     const pages = await drawn();
     // On Home, under the greeting, then the page as it always reads for a place.
-    assert.ok(pages.homeText.startsWith(`Hi Amara. [install] ${CARD} ${CHECK} [term]`), pages.homeText);
+    assert.ok(pages.homeText.startsWith(`Hi Amara. [PolicyUpdate] [install] ${CARD} ${CHECK} [term]`), pages.homeText);
     // And the same card at the top of My programmes.
     assert.ok(pages.learnText.startsWith(`${HUB_HEAD} ${CARD} ${CHECK}`), pages.learnText);
     const hrefs = [...pages.home.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
@@ -1078,7 +1082,7 @@ describe("7. what Home and My programmes may show for a place the person holds",
     heldTerm({ ready: true });
     as("amara");
     const pages = await drawn();
-    assert.ok(pages.homeText.startsWith(`Hi Amara. [install] ${CARD} ${WEEK_ONE} ${CHECK} [term]`), pages.homeText);
+    assert.ok(pages.homeText.startsWith(`Hi Amara. [PolicyUpdate] [install] ${CARD} ${WEEK_ONE} ${CHECK} [term]`), pages.homeText);
     assert.ok(pages.learnText.startsWith(`${HUB_HEAD} ${CARD} ${WEEK_ONE} ${CHECK}`), pages.learnText);
     assert.ok(pages.home.includes(`href="/learn/${HANDOVER_RUN.agi}/weeks/1"`));
     // Not ready: the card, and no way to week 1.
@@ -1211,7 +1215,7 @@ describe("7. what Home and My programmes may show for a place the person holds",
     as("amara");
     const pages = await drawn();
     // On Home, first under the greeting, above the card for a place; and the same at the top of My programmes.
-    assert.ok(pages.homeText.startsWith(`Hi Amara. [install] ${SURVEY_CARD} ${CARD} ${CHECK} [term]`), pages.homeText);
+    assert.ok(pages.homeText.startsWith(`Hi Amara. [PolicyUpdate] [install] ${SURVEY_CARD} ${CARD} ${CHECK} [term]`), pages.homeText);
     assert.ok(pages.learnText.startsWith(`${HUB_HEAD} ${SURVEY_CARD} ${CARD} ${CHECK}`), pages.learnText);
     // "Answer" opens Amara's own link, and nobody else's.
     for (const html of [pages.home, pages.learn]) {
