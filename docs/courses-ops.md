@@ -2211,7 +2211,12 @@ the cover off, with the facilitator record's entries it wrote (`how: cover`),
 and the change's history row says who had been covering; a pace change, which
 writes no row of its own, writes a `register-cover-removed` row
 (`src/lib/courses/registerCover/moves.ts`). Cancelling and keeping pace moves
-nothing, so the cover stays.
+nothing, so the cover stays. The preview of a one-week change and of a new
+regular time says so first, one Cover line each ("Ola Example's cover of week
+4's session ends: the session moves. Give it again if they can still take
+it."), from `coversEndLines`, which asks the press's own `coversOffOf` of the
+same registers, so the person pressing knows to tell whoever was given the
+session. A group's own pace has no preview.
 
 An admin's or a lead's FIRST LINE on a register nobody covered and none of its
 facilitators has started stamps the same cover in the same write, so a

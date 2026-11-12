@@ -1,5 +1,5 @@
 import "server-only";
-import { FieldValue, type DocumentReference, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, type DocumentReference, type DocumentSnapshot, type Firestore } from "firebase-admin/firestore";
 import { campusLabel } from "@/lib/courses/campus";
 import { cantMakeItState } from "@/lib/courses/cantMakeIt/model";
 import { coverHolderNames, coversOffOf, coversOffWords, writeCoversOff } from "@/lib/courses/registerCover/moves";
@@ -64,6 +64,27 @@ export function registerRefsOf(
   return sessions
     .filter((session) => session.occurrence === 1)
     .map((session) => ({ weekNumber: session.weekNumber, ref: registerRef(db, run, group.id, session.weekNumber) }));
+}
+
+/**
+ * The registers of the weeks whose start the plan moves, with their
+ * snapshots (`refs` and `snaps` in `registerRefsOf`'s order): what the covers
+ * the press takes off, and the lines the preview says about them, are both
+ * asked of.
+ */
+export function movedRegistersOf(
+  plan: Pick<RegularPlan, "moves">,
+  refs: ReadonlyArray<{ weekNumber: number; ref: DocumentReference }>,
+  snaps: ReadonlyArray<DocumentSnapshot | undefined>,
+): Array<{ ref: DocumentReference; weekNumber: number; occurrence: number; snap: DocumentSnapshot | undefined }> {
+  const startOfSession = (session: ResolvedSession | null) => (session ? (sessionInstants(session).startsAt?.getTime() ?? null) : null);
+  const refByWeek = new Map(refs.map((each, index) => [each.weekNumber, { ref: each.ref, snap: snaps[index] }] as const));
+  return plan.moves
+    .filter((move) => startOfSession(move.before) !== startOfSession(move.after))
+    .flatMap((move) => {
+      const found = refByWeek.get(move.weekNumber);
+      return found ? [{ ref: found.ref, weekNumber: move.weekNumber, occurrence: 1, snap: found.snap }] : [];
+    });
 }
 
 /** The week ids the group's overrides hold AS STORED: what the cap counts. */
@@ -137,16 +158,7 @@ export async function applyRegularChange(
     // taken loses the cover it holds when this change moves its session's
     // start, and the history row says who had been covering. Read here,
     // before the first write.
-    const startOfSession = (session: ResolvedSession) => sessionInstants(session).startsAt?.getTime() ?? null;
-    const refByWeek = new Map(refs.map((each, index) => [each.weekNumber, { ref: each.ref, snap: registerSnaps[index] }] as const));
-    const coversOff = coversOffOf(
-      plan.moves
-        .filter((move) => startOfSession(move.before) !== startOfSession(move.after))
-        .flatMap((move) => {
-          const found = refByWeek.get(move.weekNumber);
-          return found ? [{ ref: found.ref, weekNumber: move.weekNumber, occurrence: 1, snap: found.snap }] : [];
-        }),
-    );
+    const coversOff = coversOffOf(movedRegistersOf(plan, refs, registerSnaps));
     const holderNames = await coverHolderNames(tx, db, coversOff);
 
     // ── 1 to 4: the group ────────────────────────────────────────────────────

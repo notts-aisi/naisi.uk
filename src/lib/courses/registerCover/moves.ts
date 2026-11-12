@@ -9,7 +9,7 @@ import {
 import { displayNameOf } from "@/lib/courses/registerAccess";
 import { COVER, FACILITATOR_RECORD, normalizeCourseAttendance, registerIsTaken } from "@/lib/firestore/courseAttendance";
 import { coverOffOnMove } from "./model";
-import { coverTakenOffDetail } from "./words";
+import { coverEndsWords, coverTakenOffDetail } from "./words";
 
 /**
  * A COVER DOES NOT RIDE ALONG WHEN ITS SESSION MOVES. Every change that can
@@ -25,6 +25,11 @@ import { coverTakenOffDetail } from "./words";
  *  3. `writeCoversOff`: the cover and the entries it wrote in the facilitator
  *     record go, in the same transaction as the change;
  *  4. `coversOffWords`: what the change's own history row says about it.
+ *
+ * A CHANGE'S PREVIEW asks the same question of the same registers before
+ * anything is pressed (`coversEndLines`): one line for each cover its press
+ * would take off, naming the person and the session, so whoever presses
+ * knows to tell the person who was given it.
  *
  * A register that is taken never moves (the change is refused), and one with
  * no cover is left as it is.
@@ -55,14 +60,23 @@ export function coversOffOf(
   return out;
 }
 
-/** Who was covering each, by the name they go by. A read: asked in the transaction before its first write. */
-export async function coverHolderNames(tx: Transaction, db: Firestore, offs: readonly CoverOff[]): Promise<Map<string, string>> {
+/** Who was covering each, by the name they go by, through `getAll` (a transaction's, or the database's). */
+async function holderNamesThrough(
+  getAll: (refs: DocumentReference[]) => Promise<DocumentSnapshot[]>,
+  db: Firestore,
+  offs: readonly CoverOff[],
+): Promise<Map<string, string>> {
   const uids = [...new Set(offs.map((off) => off.byUid))].filter((uid) => uid && !uid.includes("/"));
   const names = new Map<string, string>();
   if (uids.length === 0) return names;
-  const snaps = await tx.getAll(...uids.map((uid) => db.collection("users").doc(uid)));
+  const snaps = await getAll(uids.map((uid) => db.collection("users").doc(uid)));
   for (const snap of snaps) names.set(snap.id, snap.exists ? displayNameOf(snap.data() ?? {}) : "NAISI member");
   return names;
+}
+
+/** Who was covering each, by the name they go by. A read: asked in the transaction before its first write. */
+export async function coverHolderNames(tx: Transaction, db: Firestore, offs: readonly CoverOff[]): Promise<Map<string, string>> {
+  return holderNamesThrough((refs) => tx.getAll(...refs), db, offs);
 }
 
 /** The cover and the entries it wrote go, merged key by key so nothing else of the register is touched. */
@@ -84,4 +98,22 @@ export function writeCoversOff(tx: Transaction, offs: readonly CoverOff[]): void
 /** "Ola Nowak was covering week 4 at its old time, so that cover is taken off.", one sentence each, or "". */
 export function coversOffWords(offs: readonly CoverOff[], names: ReadonlyMap<string, string>): string {
   return offs.map((off) => coverTakenOffDetail(names.get(off.byUid) ?? "NAISI member", off.weekNumber, off.occurrence)).join(" ");
+}
+
+/**
+ * WHAT A CHANGE'S PREVIEW SAYS ABOUT COVERS: one line for each cover its
+ * press would take off, "Ola Example’s cover of week 4’s session ends: the
+ * session moves. Give it again if they can still take it.", from the same
+ * `coversOffOf` the press asks, of the same registers, read here outside any
+ * transaction because a preview writes nothing. Empty when no cover ends,
+ * which is always so for a change that moves no session's start (keep pace).
+ */
+export async function coversEndLines(
+  db: Firestore,
+  moved: ReadonlyArray<{ ref: DocumentReference; weekNumber: number; occurrence: number; snap: DocumentSnapshot | undefined }>,
+): Promise<string[]> {
+  const offs = coversOffOf(moved);
+  if (offs.length === 0) return [];
+  const names = await holderNamesThrough((refs) => db.getAll(...refs), db, offs);
+  return offs.map((off) => coverEndsWords(names.get(off.byUid) ?? "NAISI member", off.weekNumber, off.occurrence));
 }
