@@ -498,7 +498,7 @@ describe("2. asking for a correction, and deciding it", () => {
     // The head asks with its reader, and the list and the count ask one predicate.
     const layout = sourceOf("app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/layout.tsx");
     assert.match(layout, /await requestsWaitingOnRun\(db, user, programme\.runId, \{ excused: role === "admin" \}\)/);
-    assert.match(sourceOf("lib/courses/requests/home.ts"), /return waiting\.filter\(\(each\) => requestShownTo\(user, groups\.get\(each\.groupId\), runId\)\)\.length;/);
+    assert.match(sourceOf("lib/courses/requests/home.ts"), /return waiting\.filter\(\(each\) => requestShownTo\(user, groups\.get\(each\.groupId\), runId\)\)\.length \+ excused;/);
     assert.match(sourceOf("lib/courses/requests/load.ts"), /requests = requests\.filter\(\(each\) => requestShownTo\(actor, ctx\.groups\.get\(each\.groupId\), each\.runId\)\);/);
   });
 
