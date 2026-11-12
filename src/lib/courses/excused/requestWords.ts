@@ -164,6 +164,11 @@ export function replyEmailsWords(firstName: string): string {
 
 export const SAVING = "Saving…";
 
+/** Said over the decision when the person left the group, was moved, or the group was archived. */
+export function leftGroupWords(firstName: string): string {
+  return `${firstName.trim() || "They"} isn’t in this group any more, so approving would change nothing and is refused. Decline it, with a reply, to close it.`;
+}
+
 /** What a decision did, from the route's answer. */
 export function decidedSaidWords(input: {
   action: "approve" | "decline" | "reply";

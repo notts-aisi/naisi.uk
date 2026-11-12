@@ -77,14 +77,17 @@ export default function ExcusedRequestPage({ view }: { view: ExcusedRequestPageV
     const approveWords = approveButtonWords(week.approving.emails, week.approving.emails === 1 && week.approving.person ? first : "");
     return (
       <>
-        <Button
-          onClick={() => void act("approve", week.sessionKey)}
-          disabled={off}
-          data-testid="excused-approve"
-          aria-label={onlyWaiting ? undefined : `${approveWords}, ${label}`}
-        >
-          {busy === `approve-${week.sessionKey}` ? R.SAVING : approveWords}
-        </Button>
+        {/* Somebody no longer in the group: approving is refused, so it is not offered. */}
+        {view.belongs && (
+          <Button
+            onClick={() => void act("approve", week.sessionKey)}
+            disabled={off}
+            data-testid="excused-approve"
+            aria-label={onlyWaiting ? undefined : `${approveWords}, ${label}`}
+          >
+            {busy === `approve-${week.sessionKey}` ? R.SAVING : approveWords}
+          </Button>
+        )}
         <Button
           variant="secondary"
           onClick={() => void act("decline", week.sessionKey)}
@@ -159,6 +162,11 @@ export default function ExcusedRequestPage({ view }: { view: ExcusedRequestPageV
         <h2 id="excused-reply" className={styles.cardTitle}>
           {R.replyToWords(first)}
         </h2>
+        {!view.belongs && (
+          <p className={styles.warn} data-testid="excused-left">
+            {R.leftGroupWords(first)}
+          </p>
+        )}
         <label className={styles.field}>
           <span className={styles.fieldLabel}>{R.REPLY}</span>
           <textarea

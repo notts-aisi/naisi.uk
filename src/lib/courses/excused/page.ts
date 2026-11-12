@@ -22,7 +22,7 @@ import { COURSE_REQUESTS_COLLECTION, type CourseRequestStatus } from "@/lib/fire
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { ownRequestsIn } from "./ask";
-import { facilitatorsToTell } from "./decide";
+import { facilitatorsToTell, stillBelongs } from "./decide";
 import { approvalPlan, excusedKindOf, type ApprovalWrite } from "./model";
 import { approvingWords, toldWords, type ExcusedKind } from "./words";
 
@@ -109,6 +109,8 @@ export type ExcusedRequestPageView = {
   history: { what: ExcusedEvent; by: Named; at: string; sessionKey: string | null }[];
   /** A week of it waits, and the reader did not ask it. */
   canDecide: boolean;
+  /** The person still holds an active place in the group, and the group is not archived: approving is refused otherwise. */
+  belongs: boolean;
   yours: boolean;
 };
 
@@ -333,6 +335,7 @@ export async function loadExcusedRequestPage(
       }),
       history: request.history.map((entry) => ({ what: entry.what, by: named(entry.byUid), at: entry.at.toISOString(), sessionKey: entry.sessionKey })),
       canDecide: request.status === "waiting" && request.askedByUid !== actor.uid,
+      belongs: stillBelongs(seat, group),
       yours: request.askedByUid === actor.uid,
     },
   };

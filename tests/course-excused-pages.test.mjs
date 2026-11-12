@@ -559,6 +559,16 @@ describe("5. the Requests page and one request's page: an admin's alone", () => 
     assert.match(several.text, /Each week is decided on its own, and each decision is one email to the person\./);
   });
 
+  test("somebody no longer in the group: the page says approving is refused, before the press, and offers only decline and reply", async () => {
+    const id = await amaraAsks();
+    world.db.poke(`courseEnrolments/${RUN.agi}__amara`, { groupId: B });
+    const loaded = await excusedPage.loadExcusedRequestPage(world.courseDb, w.sessionOf("zach"), id, NOW);
+    const drawn = draws(ExcusedRequestPage, { view: loaded.view });
+    assert.match(drawn.text, /Amara isn’t in this group any more, so approving would change nothing and is refused\. Decline it, with a reply, to close it\./);
+    assert.doesNotMatch(drawn.html, /data-testid="excused-approve"/, "approving is offered for somebody who left");
+    assert.match(drawn.html, /data-testid="excused-decline"/);
+  });
+
   test("decided weeks stay with who decided, when and the reply; once the programme closes the reason is said to be gone", async () => {
     const id = await amaraAsks();
     assert.equal((await decide("zach", "approve", id, { sessionKey: "w04", reply: REPLY })).status, 200);

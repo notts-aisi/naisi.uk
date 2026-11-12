@@ -679,6 +679,32 @@ describe("deciding: admins only, each week on its own, and the register follows 
     assert.equal(asRahul.body.excuseRequests.w02.amara, "excused");
   });
 
+  test("approving asks again that the person still belongs: left, moved, or the group archived is refused, and nothing is written or sent", async () => {
+    for (const [why, change] of [
+      ["left", () => world.db.poke(`courseEnrolments/${RUN.agi}__amara`, { status: "withdrawn" })],
+      ["moved", () => world.db.poke(`courseEnrolments/${RUN.agi}__amara`, { groupId: A })],
+      ["archived", () => world.db.poke(`courseGroups/${B}`, { archived: true })],
+    ]) {
+      await placed();
+      const id = await amaraAsks();
+      change();
+      const page_ = await page.loadExcusedRequestPage(world.courseDb, sessionOf("zach"), id, BEFORE_W2);
+      assert.equal(page_.view.belongs, false, `${why}: the request's page does not say so before the press`);
+      const before = everything();
+      const answer = await act("zach", "approve", id, { sessionKey: "w02", reply: REPLY });
+      assert.deepEqual([answer.status, answer.body.error], [409, words.EXCUSED_REFUSAL.left], why);
+      assert.equal(everything(), before, `${why}: a refused approval wrote something`);
+      assert.deepEqual(world.mail, [], `${why}: a refused approval emailed somebody`);
+      assert.equal(requestDocs()[0].change.weeks[0].status, "waiting", why);
+      // Declining it, with a reply, closes it.
+      assert.equal((await act("zach", "decline", id, { sessionKey: "w02", reply: "You have left the group." })).status, 200, why);
+    }
+    assert.equal(words.EXCUSED_REFUSAL.left, "They’ve left that group, so nothing was changed. Decline it, with a reply, to close it.");
+    await placed();
+    const id = await amaraAsks();
+    assert.equal((await page.loadExcusedRequestPage(world.courseDb, sessionOf("zach"), id, BEFORE_W2)).view.belongs, true);
+  });
+
   test("declining needs a reply, changes nothing on a register and emails the person alone", async () => {
     const id = await amaraAsks(["w02", "w03"]);
     const bare = await act("zach", "decline", id, { sessionKey: "w02" });

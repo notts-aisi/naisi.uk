@@ -26,6 +26,7 @@ import {
   type ExcusedRequestDoc,
   type ExcusedWeek,
 } from "@/lib/firestore/courseExcusedRequests";
+import { courseEnrolmentId, normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { COURSE_REQUESTS_COLLECTION, type CourseRequestStatus } from "@/lib/firestore/courseRequests";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
@@ -225,6 +226,14 @@ async function readRunAndGroup(db: Firestore, request: ExcusedRequestDoc): Promi
 
 const appUrl = (): string => process.env.NEXT_PUBLIC_APP_URL ?? "";
 
+/** Whether the person holds an active learner's place in this group, and the group is not archived. */
+export function stillBelongs(
+  seat: { role: string; status: string; groupId: string | null } | null,
+  group: { id: string; archived: boolean },
+): boolean {
+  return Boolean(seat && seat.role === "learner" && seat.status === "active" && seat.groupId === group.id && !group.archived);
+}
+
 // ---------------------------------------------------------------------------
 // Withdraw
 // ---------------------------------------------------------------------------
@@ -320,6 +329,12 @@ export async function approveExcusedWeek(
       const groupSnap = await tx.get(db.collection("courseGroups").doc(fresh.groupId));
       if (!groupSnap.exists) throw new Refused(409, EXCUSED_REFUSAL.gone);
       const group = normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {});
+      // The person still belongs: an active place in this group, which is
+      // still a group. Somebody who left, was moved or whose group was
+      // archived is nobody on its register, and nothing is written or sent.
+      const seatSnap = await tx.get(db.collection("courseEnrolments").doc(courseEnrolmentId(run.id, fresh.subjectUid)));
+      const seat = seatSnap.exists ? normalizeCourseEnrolment(seatSnap.id, seatSnap.data() ?? {}) : null;
+      if (!stillBelongs(seat, group)) throw new Refused(409, EXCUSED_REFUSAL.left);
       const sessions = resolveSessions(run, group);
       const session = sessions.find((each) => each.sessionKey === week.sessionKey) ?? null;
       const registerRef = db
