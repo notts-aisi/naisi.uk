@@ -442,6 +442,14 @@ const READERS = {
       "joined and their answer to the time question, to count how often they were excused; it shows no member a " +
       "placement and names nobody to a facilitator",
   },
+  "lib/courses/excused/decide.ts": {
+    kind: "staff",
+    proof: ['if (actor.role !== "admin") return fail(403, "Forbidden");'],
+    why:
+      "Approving a week of a request to be excused, for admins alone: the person's seat is read by its address only " +
+      "to check they still hold an active learner's place in the request's group before a line is written; it shows " +
+      "no member a placement and names nobody to a facilitator",
+  },
   "lib/applications/people/load.ts": {
     kind: "staff",
     proof: ['if (!opensProgrammeGroups(role)) return { status: "not-yours" };'],
