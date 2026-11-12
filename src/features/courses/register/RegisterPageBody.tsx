@@ -88,7 +88,7 @@ export default async function RegisterPageBody({
               <span>{groupName}</span>
             </Link>
           ) : (
-            <span className={weekly.back}>{groupName}</span>
+            <span className={weekly.barTitle}>{groupName}</span>
           )}
         </div>
         <div className={weekly.barEnd} />

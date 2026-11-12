@@ -329,8 +329,8 @@ test(
         await confirm.waitFor({ timeout: WAIT_MS });
         const check = await textOf(confirm.getByTestId("push-confirm-check"));
         assert.ok(check.startsWith(WORDS.check), check);
-        assert.match(check, new RegExp(`In the room 1: ${escapeRegExp(ada.first)}`));
-        assert.match(check, new RegExp(`Absent 1: ${escapeRegExp(ben.first)}`));
+        assert.match(check, new RegExp(`In the room\\s*1: ${escapeRegExp(ada.first)}`));
+        assert.match(check, new RegExp(`Absent\\s*1: ${escapeRegExp(ben.first)}`));
         await confirm.getByRole("button", { name: WORDS.keepEditing, exact: true }).waitFor({ timeout: WAIT_MS });
         assert.equal(await confirm.getByTestId("push-confirm-here").count(), 0, "a lead is asked which facilitators were here");
         const [pushed] = await Promise.all([responseTo(leadPage, `/groups/${groupA.id}/attendance/push`, "POST"), confirm.getByTestId("push-confirm-submit").click()]);
@@ -339,7 +339,7 @@ test(
 
         const side = leadPage.getByTestId("register-side");
         await side.waitFor({ timeout: WAIT_MS });
-        assert.match(await textOf(side), new RegExp(`Taken by ${escapeRegExp(gus.first)}.*, from .*, covering for ${escapeRegExp(fern.first)}`));
+        assert.match(await textOf(side), new RegExp(`Taken by\\s*${escapeRegExp(gus.first)}.*, from .*, covering for ${escapeRegExp(fern.first)}`));
         await side.getByRole("link", { name: "Write the session report", exact: true }).click();
         await leadPage.waitForURL((url) => url.pathname === `${groupPagePath(groupA)}/report` && url.searchParams.get("session") === "w03", { timeout: WAIT_MS });
         const covering = leadPage.getByTestId("report-covering");
