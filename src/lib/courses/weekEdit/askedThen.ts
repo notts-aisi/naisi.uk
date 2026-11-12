@@ -67,22 +67,27 @@ export async function askedThenFor(
  * One person's answers on a run, each weekly question's earlier words where
  * they differ, keyed as the coursework pages key a person's work
  * ("3 rp-1": the week's number, then the item's id). `groupId` is the group
- * whose copy of a week they read, or null. One read of their own rows (two
- * equalities, no declared index), then one history read per week they wrote in.
+ * whose copy of a week they read, or null. `shown` is the keys of the work
+ * whose words the reader's page shows: nothing is handed for anything else
+ * (a written answer its readers may not read yet, which the page says only
+ * is started). One read of their own rows (two equalities, no declared
+ * index), then one history read per week they wrote in.
  */
 export async function personAskedThen(
   db: Firestore,
   runId: string,
   uid: string,
   groupId: string | null,
+  shown: ReadonlySet<string>,
 ): Promise<Record<string, AskedWords>> {
+  if (shown.size === 0) return {};
   const snap = await db.collection("courseExerciseResponses").where("runId", "==", runId).where("uid", "==", uid).get();
   const byWeek = new Map<number, AskedThenRequest[]>();
   for (const doc of snap.docs) {
     const row = (doc.data() ?? {}) as Record<string, unknown>;
     const weekNumber = typeof row.weekNumber === "number" ? row.weekNumber : 0;
     const itemId = typeof row.exerciseId === "string" ? row.exerciseId : "";
-    if (row.uid !== uid || weekNumber < 1 || !itemId) continue;
+    if (row.uid !== uid || weekNumber < 1 || !itemId || !shown.has(`${weekNumber} ${itemId}`)) continue;
     const asks = byWeek.get(weekNumber) ?? [];
     asks.push({ key: `${weekNumber} ${itemId}`, itemId, writtenAt: writtenAtOf(row) });
     byWeek.set(weekNumber, asks);

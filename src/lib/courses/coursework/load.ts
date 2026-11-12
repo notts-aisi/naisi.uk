@@ -31,6 +31,7 @@ import {
   courseworkWeekOf,
   personWeeks,
   readFilter,
+  shownWorkKeys,
   workKey,
   type CourseworkFilter,
   type CourseworkPerson,
@@ -463,6 +464,15 @@ export async function loadPersonCoursework(
       coursework.states.submittedOf(uid, weekNumber) !== null;
     return { cards: cards.filter((card) => card !== own), own, open: mayWrite && readable };
   };
+  const personWeekList = personWeeks({
+    columns,
+    weekOf,
+    writes: coursework.writes,
+    boxesRead: boxesReader !== null,
+    notes,
+    writtenHref: (weekNumber) => writtenHrefOf(programmePath, person, weekNumber),
+    feedbackOf,
+  });
   return {
     status: "ok",
     view: {
@@ -479,18 +489,11 @@ export async function loadPersonCoursework(
         groupName: group ? group.name.trim() || "Untitled group" : null,
         notToldYet: person.notToldYet,
       },
-      weeks: personWeeks({
-        columns,
-        weekOf,
-        writes: coursework.writes,
-        boxesRead: boxesReader !== null,
-        notes,
-        writtenHref: (weekNumber) => writtenHrefOf(programmePath, person, weekNumber),
-        feedbackOf,
-      }),
+      weeks: personWeekList,
       notesShown: notes !== null,
       viewerFirstName: cardNames.firstName(actor.uid),
-      askedThen: await personAskedThen(db, run.id, uid, person.readsGroupId),
+      // Only beside words this page shows: never a written answer its readers may not read yet.
+      askedThen: await personAskedThen(db, run.id, uid, person.readsGroupId, shownWorkKeys(personWeekList)),
     },
   };
 }

@@ -430,6 +430,8 @@ export type PersonPrompt = { id: string; text: string; answer: WrittenBox | null
 
 /** A written answer on a person's page. */
 export type PersonAnswer = {
+  /** The written answer's id in the week, which its work is keyed by (`workKey`). */
+  id: string;
   prompt: string;
   state: CellAnswerState;
   words: number;
@@ -504,6 +506,22 @@ export type PersonWrites = {
 };
 
 /**
+ * The keys (`workKey`) of the person's reflections and written answers whose
+ * words their page shows: a reflection they wrote, and a written answer whose
+ * words its readers may read (`words` is 0 for one they may not read yet,
+ * when the page says only that it is started). The earlier words of a
+ * question are read and shown beside these alone.
+ */
+export function shownWorkKeys(weeks: readonly PersonWeek[]): Set<string> {
+  const out = new Set<string>();
+  for (const week of weeks) {
+    for (const part of week.parts) for (const prompt of part.prompts) if (prompt.answer?.text.trim()) out.add(workKey(week.weekNumber, prompt.id));
+    if (week.answer && week.answer.words > 0) out.add(workKey(week.weekNumber, week.answer.id));
+  }
+  return out;
+}
+
+/**
  * A person's weeks, NEWEST FIRST: each reflection under its prompt, the
  * written answer, the boxes (only when `boxesRead`: the boxes' own gate
  * answered), which sources they ticked, the private note on each (only when
@@ -532,6 +550,7 @@ export function personWeeks(input: {
       const stored = week.answer ? (writes.answers.get(workKey(n, week.answer.id)) ?? null) : null;
       const answer: PersonAnswer | null = week.answer
         ? {
+            id: week.answer.id,
             prompt: week.answer.prompt,
             state: cellAnswerState(stored?.state ?? "not-started"),
             words: stored?.words ?? 0,

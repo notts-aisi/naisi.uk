@@ -653,8 +653,11 @@ describe("7. the words a question had when it was answered, beside the answer", 
     const { askedThenFor, personAskedThen } = await loadTs(join("lib", "courses", "weekEdit", "askedThen.ts"));
     const found = await askedThenFor(world.courseDb, RUN.agi, "w03", null, [{ key: "farah", itemId: "wa-1", writtenAt: T_WROTE }]);
     assert.deepEqual(found.get("farah").words, { min: 200, max: 300 });
-    const person = await personAskedThen(world.courseDb, RUN.agi, "farah", null);
+    const person = await personAskedThen(world.courseDb, RUN.agi, "farah", null, new Set(["3 wa-1"]));
     assert.deepEqual(Object.keys(person), ["3 wa-1"]);
     assert.equal(person["3 wa-1"].kind, "writtenAnswer");
+    // Only beside words the page shows: an answer the page says only is started is handed nothing.
+    assert.deepEqual(await personAskedThen(world.courseDb, RUN.agi, "farah", null, new Set()), {});
+    assert.deepEqual(await personAskedThen(world.courseDb, RUN.agi, "farah", null, new Set(["3 rp-1"])), {});
   });
 });
