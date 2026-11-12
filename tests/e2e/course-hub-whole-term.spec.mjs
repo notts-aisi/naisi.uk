@@ -375,7 +375,7 @@ test(
 
     // ---- One browser, a context each ---------------------------------------
     const { browser, context: adminContext, page: adminPage } = await openBrowser();
-    const contexts = [adminContext];
+    /** Each open person's context and page, by key, in the order they were last used. */
     const pages = new Map();
     let activePage = adminPage;
     const recorder = createStepRecorder({
@@ -396,23 +396,37 @@ test(
 
     const signIn = (pg, credentials) => signInWithPassword(pg, origin, credentials, { timeout: WAIT_MS });
 
-    /** The page of one person, in a context of their own, signed in the first time it is asked for; and made the page a failed step photographs. */
+    /**
+     * The page of one person, in a context of their own, signed in the first
+     * time it is asked for, and made the page a failed step photographs. At
+     * most `OPEN_IDENTITIES` people are open at once besides the admin: the
+     * one used longest ago is closed, and signs in again when next asked for,
+     * so a run of a dozen people never holds a dozen renderers on a laptop.
+     */
+    const OPEN_IDENTITIES = 5;
     async function as(account) {
       if (account === "admin") {
         activePage = adminPage;
         return adminPage;
       }
-      let pg = pages.get(account.key);
-      if (!pg) {
+      let open = pages.get(account.key);
+      if (open) {
+        pages.delete(account.key);
+      } else {
+        if (pages.size >= OPEN_IDENTITIES) {
+          const [oldest, held] = pages.entries().next().value;
+          pages.delete(oldest);
+          await held.context.close().catch(() => {});
+        }
         const opened = await newIdentityPage(browser);
-        contexts.push(opened.context);
-        pg = opened.page;
-        await stubRecaptchaOnLoopback(pg, origin);
-        await signIn(pg, { email: account.email, password: account.password });
-        pages.set(account.key, pg);
+        open = opened;
+        await stubRecaptchaOnLoopback(open.page, origin);
+        await signIn(open.page, { email: account.email, password: account.password });
       }
-      activePage = pg;
-      return pg;
+      // Kept in the order of use, the most recent last.
+      pages.set(account.key, open);
+      activePage = open.page;
+      return open.page;
     }
 
     /** The answer to the next request whose path ends `suffix`, by `method`. */
@@ -1834,7 +1848,7 @@ test(
         assert.equal(WHOLE_TERM_STEPS.length, SPEC.steps.length);
       });
     } finally {
-      await Promise.all(contexts.map((context) => context.close().catch(() => {})));
+      await Promise.all([adminContext, ...[...pages.values()].map((open) => open.context)].map((context) => context.close().catch(() => {})));
       await browser.close().catch(() => {});
       recorder.writeMarker();
     }
