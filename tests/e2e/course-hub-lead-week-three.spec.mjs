@@ -956,7 +956,7 @@ test(
               : "Push attendance to lock the register, show everyone their mark and email the group about next week.",
             "Open the register",
             `Or paste this into your browser: ${link}`,
-            `If the session didn’t happen, the register can say so, and it still needs ${ending.scheduled ? "finishing" : "pushing"}.`,
+            "If the session didn’t happen, say so with Change one week on the group’s page, and nobody is reminded about this register again.",
             ...(ending.task
               ? [`If it’s still not ${word()} ${ending.task.hours} hours after the session, ${TASK_PEOPLE} get a task.`]
               : []),

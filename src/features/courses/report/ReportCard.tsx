@@ -4,6 +4,13 @@ import type { RunReportView } from "@/lib/courses/sessionReports/readers";
 import { RUN_REPORTS_WORDS, howWords, sentWords } from "@/lib/courses/sessionReports/words";
 import styles from "./sessionReport.module.css";
 
+/** "covering for Josh", "covering for Priya and Sam", by the first word of each name. */
+function coveringForWords(names: readonly string[]): string {
+  const first = names.map((name) => name.trim().split(/\s+/)[0] ?? "").filter(Boolean);
+  const joined = first.length <= 1 ? (first[0] ?? "") : `${first.slice(0, -1).join(", ")} and ${first[first.length - 1]}`;
+  return `covering for ${joined}`;
+}
+
 /**
  * ONE SESSION REPORT, READ: its group and writer, the day of its session and
  * when it was sent, then each answer that says something, in the form's
@@ -20,10 +27,15 @@ export default function ReportCard({ report, headingLevel = 3 }: { report: RunRe
     .filter(Boolean)
     .join(" · ");
   return (
-    <article className={styles.card} aria-label={`${report.groupName}, ${report.writerName}`}>
+    <article
+      className={styles.card}
+      aria-label={`${report.groupName}, ${report.writerName}${report.coveringFor.length > 0 ? `, ${coveringForWords(report.coveringFor)}` : ""}`}
+    >
       <div className={styles.cardHead}>
         <Heading className={styles.cardTitle}>
           {report.groupName} · {report.writerName}
+          {/* Written by whoever took the session's register in a facilitator's place. */}
+          {report.coveringFor.length > 0 && `, ${coveringForWords(report.coveringFor)}`}
         </Heading>
         {meta && <p className={styles.cardMeta}>{meta}</p>}
       </div>

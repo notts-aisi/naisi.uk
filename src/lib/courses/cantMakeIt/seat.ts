@@ -13,6 +13,7 @@ import type { SessionUser } from "@/lib/firebase/session";
 import {
   ATTENDANCE_LIMITS,
   EXCUSED_IN_ADVANCE,
+  SET_BY,
   attendanceDocId,
   normalizeCourseAttendance,
 } from "@/lib/firestore/courseAttendance";
@@ -209,17 +210,28 @@ export function writeExcusedInAdvance(
       occurrence: line.session.occurrence,
       records: { [uid]: "excused" },
       [EXCUSED_IN_ADVANCE]: { [uid]: told },
+      // The line says who set it: the person's own word, before the session.
+      [SET_BY]: { [uid]: { byUid: uid, at: told, how: "self" } },
       ...(startsAt ? { sessionAt: startsAt } : {}),
     },
     { merge: true },
   );
 }
 
-/** Taking a word in advance back: both keys of `uid`'s line, only on a line whose state is `told`. */
+/**
+ * Taking a word in advance back: both keys of `uid`'s line, only on a line
+ * whose state is `told`, and the stamp saying who set it, when it has one:
+ * the line is empty again.
+ */
 export function writeTakenBack(tx: Transaction, line: SessionLine, uid: string): void {
+  const stamped = Object.hasOwn((line.data?.[SET_BY] ?? {}) as Record<string, unknown>, uid);
   tx.set(
     line.ref,
-    { records: { [uid]: FieldValue.delete() }, [EXCUSED_IN_ADVANCE]: { [uid]: FieldValue.delete() } },
+    {
+      records: { [uid]: FieldValue.delete() },
+      [EXCUSED_IN_ADVANCE]: { [uid]: FieldValue.delete() },
+      ...(stamped ? { [SET_BY]: { [uid]: FieldValue.delete() } } : {}),
+    },
     { merge: true },
   );
 }

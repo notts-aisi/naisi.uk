@@ -65,7 +65,9 @@ export function registerReminderWords(facts: RegisterReminderFacts): RegisterRem
     effect: facts.scheduled
       ? "Finish the register to lock it and show everyone their mark. Nobody’s emailed."
       : "Push attendance to lock the register, show everyone their mark and email the group about next week.",
-    notHeld: `If the session didn’t happen, the register can say so, and it still needs ${facts.scheduled ? "finishing" : "pushing"}.`,
+    // The register's own switch has gone: a session that didn't happen is
+    // called off with the two cancels, which stop the chase.
+    notHeld: "If the session didn’t happen, say so with Change one week on the group’s page, and nobody is reminded about this register again.",
     next: facts.task
       ? `If it’s still not ${ended} ${facts.task.hours} hours after the session, ${taskPeople(facts.task.leadName)} get a task.`
       : "",

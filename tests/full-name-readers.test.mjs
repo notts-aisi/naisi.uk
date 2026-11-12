@@ -383,6 +383,14 @@ const READERS = new Map([
     proof: ['nameByUid.set(doc.id, nameForViewer(viewer, accountNamesOf(data), "NAISI member"));'],
     why: "a register's rows, named for the viewer each caller hands it: the register's route hands it the session; what reaches the people themselves hands it no role, and reads the name they go by",
   }],
+  ["src/lib/courses/registerCover/view.ts", {
+    who: "rule",
+    proof: [
+      'names.set(snap.id, snap.exists ? nameForViewer(viewer, accountNamesOf(snap.data() ?? {}), "NAISI member") : "NAISI member");',
+      'out.push({ uid: snap.id, name: nameForViewer(viewer, accountNamesOf(data), "NAISI member") });',
+    ],
+    why: "on a register, who set each line, who took it in whose place and the group's facilitators, each named for the viewer the register's route hands it, behind the register's own gate",
+  }],
   ["src/app/api/courses/groups/[groupId]/attendance/route.ts", {
     who: "rule",
     proof: [

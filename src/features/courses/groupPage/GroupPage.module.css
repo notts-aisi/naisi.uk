@@ -794,6 +794,133 @@ li.pill {
 }
 
 /* === Mobile === */
+/* === Covering a register ===================================
+   The notice when a session has started and nobody has started
+   its register (the three ways forward at a computer, one button
+   opening them as a sheet on a phone), and the sheet itself: a
+   list of ways, each with a line under it. */
+
+.coverNotice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-warning-line);
+  background: var(--color-warning-soft);
+  color: var(--color-text);
+  min-width: 0;
+}
+
+.coverChips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.coverChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-warning-soft);
+  border: 1px solid var(--color-warning-line);
+  color: var(--color-text);
+}
+
+.coverQuiet {
+  color: var(--color-text-muted);
+}
+
+.coverActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.coverNarrow {
+  display: none;
+}
+
+.coverFoot {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.ways {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.way {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.way:hover:not(:disabled) {
+  border-color: var(--color-accent-text);
+}
+
+.way:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
+.way:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.wayName {
+  font-weight: 600;
+  font-size: var(--text-ui);
+}
+
+.wayLine {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 36rem) { /* --bp-sm */
+  .coverWide {
+    display: none;
+  }
+
+  .coverNarrow {
+    display: flex;
+  }
+
+  .coverNarrow > * {
+    flex: 1 1 auto;
+  }
+
+  .coverNotice {
+    padding: var(--space-4);
+  }
+}
+
 @media (max-width: 48rem) { /* --bp-md */
   .title {
     font-size: var(--text-3xl);

@@ -472,8 +472,16 @@ describe("4. every refusal comes before the write", () => {
       records: { amara: "present" },
       markedByUid: "rahul",
     });
+    // CHANGED ON PURPOSE (November 2026): this asked a cancel. "It didn't
+    // happen" now cancels a draft somebody marked, clearing its lines
+    // (tests/course-register-did-not-happen.test.mjs), so a session that met
+    // is asked to MOVE, which its register still refuses.
     const before = everything();
-    const response = await ask.change("claudia", B, silently({ week: 3, dateKey: "2026-11-17", kind: "cancel" }));
+    const response = await ask.change(
+      "claudia",
+      B,
+      silently({ week: 3, dateKey: "2026-11-17", kind: "move", metAtAnotherTime: true, move: { dateKey: "2026-11-18", time: "10am", room: "Hallward B12" } }),
+    );
     assert.deepEqual(
       [response.status, response.body.error],
       [409, "That session met and its register has been taken, so its time can’t change. Correct its register instead."],
@@ -490,7 +498,9 @@ describe("4. every refusal comes before the write", () => {
       records: { amara: "present" },
       markedByUid: "rahul",
     });
-    const response = await ask.change("rahul", B, silently(CANCEL));
+    // CHANGED ON PURPOSE (November 2026), as the test above: a move, which
+    // the taken register refuses; a cancel of a marked draft is It didn't happen.
+    const response = await ask.change("rahul", B, silently({ ...CANCEL, kind: "move", move: { dateKey: "2026-11-25", time: "6pm", room: "Hallward B12" } }));
     assert.equal(response.status, 409);
   });
 

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { isAddressableId } from "@/lib/addressableId";
-import { gateReportWriter, loadReportSession, sessionsOf } from "@/lib/courses/sessionReports/context";
+import {
+  gateCoveringReportWriter,
+  gateReportWriter,
+  loadReportSession,
+  sessionsOf,
+} from "@/lib/courses/sessionReports/context";
 import { parseReportBody, pickRefusal, unclearRefusal } from "@/lib/courses/sessionReports/model";
 import {
   REPORT_REFUSAL,
@@ -27,8 +32,11 @@ import {
  *   PUT { sessionKey, answers }  ->  { ok: true, sentAt, updatedAt }
  *
  * WHO WRITES: a live facilitator of THIS group, each their own report
- * (`gateReportWriter`). The programme's lead and admins read the reports on
- * the programme's page and write none; a co-facilitator never reads another
+ * (`gateReportWriter`), and whoever took this session's register in a
+ * facilitator's place while that holds (`gateCoveringReportWriter`), whose
+ * report records whose place they took (`coveringFor`). The programme's lead
+ * and admins read the reports on the programme's page and write none unless
+ * they took the register; a co-facilitator never reads another
  * facilitator's. Everybody else, and a group that is not there, is one 403.
  *
  * ORDER: view-as refused, the session, the body (a 400 with a sentence a
@@ -75,12 +83,16 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
   // ── The gate ──────────────────────────────────────────────────────────────
-  const gated = await gateReportWriter(db, actor, groupId);
+  // A facilitator of the group; or else whoever took THIS session's register
+  // in a facilitator's place while it holds, who keeps the first refusal
+  // when they did not.
+  const now = new Date();
+  const first = await gateReportWriter(db, actor, groupId);
+  const gated = first.ok ? first : ((await gateCoveringReportWriter(db, actor, groupId, parsed.sessionKey, now)) ?? first);
   if (!gated.ok) return NextResponse.json({ error: gated.error }, { status: gated.status });
   const { group, run } = gated;
 
   // ── The session, its window and its register ──────────────────────────────
-  const now = new Date();
   const sessions = sessionsOf(run, group);
   const asked = sessions.find((session) => session.sessionKey === parsed.sessionKey);
   if (!asked) return NextResponse.json({ error: REPORT_REFUSAL.session }, { status: 400 });
@@ -118,7 +130,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
   const sentAt = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const before = snap.exists ? normalizeSessionReport(snap.id, snap.data() ?? {}) : null;
-    const first = before?.sentAt ?? now;
+    const firstSent = before?.sentAt ?? now;
     tx.set(ref, {
       runId: run.id,
       groupId: group.id,
@@ -129,10 +141,12 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
       answers: parsed.answers,
       aboutUids: aboutUidsOf(parsed.answers),
       parts: session.parts,
-      sentAt: first,
+      // Whose place the writer took, when they took the register for them.
+      ...(gated.coveringFor.length > 0 ? { coveringFor: gated.coveringFor } : {}),
+      sentAt: firstSent,
       updatedAt: now,
     });
-    return first;
+    return firstSent;
   });
 
   const answer: SessionReportSent = { ok: true, sentAt: sentAt.toISOString(), updatedAt: now.toISOString() };

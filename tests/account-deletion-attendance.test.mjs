@@ -380,3 +380,33 @@ test("a register holding only their word that they were joining online still qua
   assert.deepEqual(db.raw.get("run1__grp1__w09").onlineSaid, {});
   assert.deepEqual(db.raw.get("run1__grp1__w10").online, {});
 });
+
+test("who set the person's own line, and whether they were there when they facilitated, go too; who acted stays", async () => {
+  // A line's stamp and a facilitator's entry are about the person they are
+  // keyed by, so they go with the account, as `records` does. The uids that
+  // name who acted (a stamp's byUid, a cover's byUid and covering, an
+  // entry's byUid) stay, as `markedByUid` and `pushedByUid` always have.
+  const db = makeDb({
+    run1__grp1__w11: register({
+      records: { gone: "present", stays: "absent" },
+      participantNotes: {},
+      setBy: { gone: { byUid: "lead", at: "2026-11-30T18:10:00.000Z", how: "cover" }, stays: { byUid: "gone", at: "2026-11-30T18:11:00.000Z", how: "cover" } },
+      cover: { kind: "self", byUid: "gone", at: "2026-11-30T18:05:00.000Z", covering: ["fac"] },
+      facilitatorRecord: { fac: { state: "not-there", byUid: "gone", at: "2026-11-30T18:05:00.000Z", how: "cover" } },
+    }),
+    run1__grp1__w12: register({
+      records: { stays: "present" },
+      participantNotes: {},
+      facilitatorRecord: { gone: { state: "late", arrivedAt: "2026-12-07T18:40:00.000Z", byUid: "gone", at: "2026-12-07T18:40:00.000Z", how: "arrived" } },
+    }),
+  });
+
+  assert.equal(await clearCourseAttendanceMarks(db, ["run1"], "gone"), 2);
+  const first = db.raw.get("run1__grp1__w11");
+  assert.deepEqual(Object.keys(first.setBy), ["stays"]);
+  assert.equal(first.setBy.stays.byUid, "gone", "who acted on somebody else's line stays");
+  assert.equal(first.cover.byUid, "gone", "who took the register stays, as markedByUid does");
+  assert.equal(first.facilitatorRecord.fac.byUid, "gone");
+  assert.deepEqual(db.raw.get("run1__grp1__w12").facilitatorRecord, {}, "their own entry as a facilitator goes");
+  assert.deepEqual(db.deletedDocs, [], "the shared register was deleted");
+});

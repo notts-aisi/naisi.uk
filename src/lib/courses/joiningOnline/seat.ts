@@ -7,6 +7,7 @@ import type { SessionUser } from "@/lib/firebase/session";
 import {
   ATTENDANCE_LIMITS,
   ONLINE_SAID,
+  SET_BY,
   attendanceDocId,
   normalizeCourseAttendance,
 } from "@/lib/firestore/courseAttendance";
@@ -217,6 +218,8 @@ export async function recordJoiningOnline(
           weekNumber: session.weekNumber,
           occurrence: session.occurrence,
           [ONLINE_SAID]: { [user.uid]: FieldValue.serverTimestamp() },
+          // Their line says who set it: their own word, before the session.
+          [SET_BY]: { [user.uid]: { byUid: user.uid, at: FieldValue.serverTimestamp(), how: "self" } },
           ...(startsAt ? { sessionAt: startsAt } : {}),
         },
         { merge: true },
@@ -226,6 +229,11 @@ export async function recordJoiningOnline(
 
     // Taking it back: only their own word.
     if (state.kind === "open") return { ok: true, online: false, hasLink };
+    // The line is empty again, so it says nobody set it.
+    if (Object.hasOwn((data?.[SET_BY] ?? {}) as Record<string, unknown>, user.uid)) {
+      tx.set(ref, { [ONLINE_SAID]: { [user.uid]: FieldValue.delete() }, [SET_BY]: { [user.uid]: FieldValue.delete() } }, { merge: true });
+      return { ok: true, online: false, hasLink };
+    }
     tx.set(ref, { [ONLINE_SAID]: { [user.uid]: FieldValue.delete() } }, { merge: true });
     return { ok: true, online: false, hasLink };
   });

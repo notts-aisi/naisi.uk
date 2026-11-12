@@ -127,6 +127,14 @@ const MUST_GUARD = [
   ["src/app/api/courses/exercise-responses/[responseId]/review/route.ts", "reviews a learner's submitted work and releases the comment"],
   ["src/app/api/courses/groups/[groupId]/attendance/route.ts", "marks a session register, and lets an admin correct a locked one"],
   ["src/app/api/courses/groups/[groupId]/attendance/push/route.ts", "locks a register, rewrites every member's attendance record and mails the group"],
+  [
+    "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts",
+    "takes a session's register in its facilitators' place, or gives one session's register, check-in and report to somebody and emails them, in the presser's name",
+  ],
+  [
+    "src/app/api/courses/groups/[groupId]/attendance/facilitators/route.ts",
+    "changes whether one of a group's facilitators was at a session, in the presser's name",
+  ],
   ["src/app/api/courses/groups/[groupId]/check-in/route.ts", "opens a session's check-in, which emails everybody the register marks there a link of their own, in the opener's name"],
   ["src/app/api/courses/groups/[groupId]/check-in/close/route.ts", "closes a session's check-in for good, so nobody can answer it any more"],
   ["src/app/api/courses/groups/[groupId]/participant-notes/route.ts", "writes a private note about a named student"],
