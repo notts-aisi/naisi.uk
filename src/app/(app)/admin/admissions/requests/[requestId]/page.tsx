@@ -1,5 +1,7 @@
 import { Refusal } from "@/features/applications/editor/Refusals";
+import ExcusedRequestPage from "@/features/courses/requests/ExcusedRequestPage";
 import RequestPage from "@/features/courses/requests/RequestPage";
+import { loadExcusedRequestPage } from "@/lib/courses/excused/page";
 import { BACK_TO_REQUESTS, REQUEST_NOT_HERE, REQUEST_NOT_HERE_LINE } from "@/lib/courses/registerCorrection/pageWords";
 import { loadRequestPage } from "@/lib/courses/requests/load";
 import { REQUESTS_PATH } from "@/lib/courses/requests/paths";
@@ -11,6 +13,10 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * admin and the people leading the programme of the request's group, who
  * decide it (`loadRequestPage`, which asks the group's register gate). The
  * tree's gate is restated here, as on the Requests page beside it.
+ *
+ * A REQUEST TO BE EXCUSED is an admin's alone (`loadExcusedRequestPage`,
+ * which answers everybody else `none`): its reason, how often the person has
+ * been excused and its decisions are never drawn for a programme's lead.
  *
  * Anybody else, and an id that names nothing, is shown the same calm "not
  * here" with a 200, never told whether such a request exists. The routes
@@ -24,6 +30,10 @@ export default async function OneRequestPage({ params }: { params: Promise<{ req
   const [{ requestId }, user] = await Promise.all([params, requireAdmissionsPage()]);
   const db = getAdminDb();
   const loaded = db ? await loadRequestPage(db, user, requestId) : null;
+  if (db && loaded?.status === "none") {
+    const excused = await loadExcusedRequestPage(db, user, requestId, new Date());
+    if (excused.status === "ok") return <ExcusedRequestPage view={excused.view} />;
+  }
   if (!loaded || loaded.status === "none") {
     return (
       <Refusal title={REQUEST_NOT_HERE} href={REQUESTS_PATH} action={BACK_TO_REQUESTS}>

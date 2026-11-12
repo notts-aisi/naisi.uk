@@ -721,8 +721,14 @@ export function requestsWaitingTitle(count: number): string {
   return count === 1 ? "Request waiting" : "Requests waiting";
 }
 
-export function requestsWaitingLine(count: number): string {
-  return count === 1 ? "A facilitator has asked for a line of a register to be corrected." : `Facilitators have asked for ${count} lines of registers to be corrected.`;
+export function requestsWaitingLine(count: number, excused = 0): string {
+  const asked = Math.min(Math.max(excused, 0), count);
+  const corrections = count - asked;
+  const correctionsLine =
+    corrections === 1 ? "A facilitator has asked for a line of a register to be corrected." : `Facilitators have asked for ${corrections} lines of registers to be corrected.`;
+  const excusedLine = asked === 1 ? "Somebody has asked to be excused from a week." : `${asked} requests to be excused are waiting.`;
+  if (asked === 0) return correctionsLine;
+  return corrections === 0 ? excusedLine : `${excusedLine} ${correctionsLine}`;
 }
 
 /** The programme's head: "2 requests waiting" */

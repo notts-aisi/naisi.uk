@@ -13,7 +13,7 @@ import { InstallCard } from "@/features/pwa/InstallCard";
 import { fetchPublicTerm } from "@/features/term/fetchPublicTerm";
 import { termCivilDay } from "@/features/term/termWords";
 import { policyUpdateLine } from "@/lib/legal/updateLine";
-import { requestsWaitingFor } from "@/lib/courses/requests/home";
+import { NO_REQUESTS_WAITING, requestsWaitingFor } from "@/lib/courses/requests/home";
 import ComingUp from "./ComingUp";
 import ForYou from "./ForYou";
 import FullNameCard from "./FullNameCard";
@@ -169,7 +169,7 @@ export default async function DashboardPage() {
     // "Requests waiting", for an admin and a programme's lead: facilitators'
     // asks for a register to be corrected, decided on the Requests page. Not
     // in a view-as session, whose admin area is closed.
-    user && db && !viewingAs ? requestsWaitingFor(db, user, now) : 0,
+    user && db && !viewingAs ? requestsWaitingFor(db, user, now) : NO_REQUESTS_WAITING,
   ]);
   const given = firstName(user?.displayName);
 
@@ -196,7 +196,7 @@ export default async function DashboardPage() {
       <ForYou events={forYou} />
       {user && askFullName && <FullNameCard uid={user.uid} suggestion={askFullName.suggestion} />}
       <InstallCard />
-      {user?.role !== "admin" && <RequestsWaiting count={requestsWaiting} />}
+      {user?.role !== "admin" && <RequestsWaiting count={requestsWaiting.count} />}
     </>
   );
 
@@ -214,7 +214,8 @@ export default async function DashboardPage() {
           weekStartsAt={events.week.startsAt}
           weekEndsAt={events.week.endsAt}
           applications={yourApplications}
-          requestsWaiting={requestsWaiting}
+          requestsWaiting={requestsWaiting.count}
+          excusedWaiting={requestsWaiting.excused}
         />
       ) : (
         <HomeMember

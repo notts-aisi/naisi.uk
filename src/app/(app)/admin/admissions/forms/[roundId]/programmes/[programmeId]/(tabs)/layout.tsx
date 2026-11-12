@@ -209,8 +209,12 @@ export default async function ProgrammeLayout({
   }
   // Facilitators' asks for a register to be corrected, waiting for the lead or
   // an admin: the way to the Requests page, for the two who decide them, and
-  // only while something waits.
-  const requestsWaiting = db && programme.runId && opensProgrammeGroups(role) ? await requestsWaitingOnRun(db, programme.runId) : 0;
+  // only while something waits. Requests to be excused are an admin's alone
+  // to decide, so they count for an admin and never for a lead.
+  const requestsWaiting =
+    db && programme.runId && opensProgrammeGroups(role)
+      ? await requestsWaitingOnRun(db, programme.runId, { excused: role === "admin" })
+      : 0;
   if (requestsWaiting > 0) {
     facts.push(
       <Link href={REQUESTS_PATH} className={styles.metaItem} key="requests">

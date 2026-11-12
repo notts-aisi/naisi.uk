@@ -5,6 +5,7 @@ import { useState } from "react";
 import Chip, { type ChipTone } from "@/components/ui/Chip";
 import PageHead from "@/components/ui/PageHead";
 import Select from "@/components/ui/Select";
+import * as R from "@/lib/courses/excused/requestWords";
 import * as P from "@/lib/courses/registerCorrection/pageWords";
 import type { RequestRow, RequestsPageView } from "@/lib/courses/requests/load";
 import { requestPath } from "@/lib/courses/requests/paths";
@@ -21,6 +22,11 @@ import styles from "./Requests.module.css";
  * `loadRequestsPage`). Each row says who asked, about what (the group, the
  * week, the person, from what to what), when, and who has it, and opens the
  * request's own page. Nothing here sends an email.
+ *
+ * REQUESTS TO BE EXCUSED are an admin's alone (the loader sends a lead
+ * none): their own card, each row with the person, the group and the weeks
+ * and where each stands, never the reason. Nobody "has" one: there is no
+ * Take it for them, so a row says nothing of handling.
  */
 
 type Tab = "waiting" | "handling" | "done";
@@ -44,9 +50,12 @@ export default function RequestsList({ view }: { view: RequestsPageView }) {
   const programmes = new Map<string, string>();
   for (const row of view.rows) programmes.set(programmeKey(row), row.programme.name || "A programme");
   const inProgramme = view.rows.filter((row) => programme === "all" || programmeKey(row) === programme);
-  const shown = inProgramme.filter((row) =>
+  const inTab = inProgramme.filter((row) =>
     tab === "waiting" ? row.state === "waiting" : tab === "handling" ? row.state === "handling" : row.state === "approved" || row.state === "declined",
   );
+  const shown = inTab.filter((row) => row.kind !== "excused");
+  const excusedShown = inTab.filter((row) => row.kind === "excused");
+  const anyExcused = view.viewer === "admin" && view.rows.some((row) => row.kind === "excused");
   const counts = {
     waiting: inProgramme.filter((row) => row.state === "waiting").length,
     handling: inProgramme.filter((row) => row.state === "handling").length,
@@ -146,12 +155,56 @@ export default function RequestsList({ view }: { view: RequestsPageView }) {
         )}
       </section>
 
+      {anyExcused && (
+        <section className={styles.card} aria-labelledby="requests-excused" data-testid="requests-excused">
+          <h2 id="requests-excused" className={styles.cardTitle}>
+            {R.EXCUSED_LIST_TITLE}
+          </h2>
+          {excusedShown.length === 0 ? (
+            <p className={styles.line}>{P.NOTHING_IN_THIS_VIEW}</p>
+          ) : (
+            <ul className={styles.rows} role="list">
+              {excusedShown.map((row) => {
+                const weeks = row.weeks ?? [{ sessionKey: "", weekNumber: row.weekNumber, occurrence: row.occurrence, dateKey: row.dateKey, state: row.status }];
+                return (
+                  <li key={row.id} className={styles.row} data-testid="request-row" data-kind="excused">
+                    <div className={styles.rowBody}>
+                      <p className={styles.rowTitle}>
+                        <strong>{row.subject.name}</strong> · {R.excusedRowKindWords(weeks)}
+                      </p>
+                      <p className={styles.line}>
+                        {[
+                          row.programme.name,
+                          R.excusedRowAboutWords(row.group.name, weeks),
+                          P.dayAndClock(row.askedAt),
+                          R.excusedRowWeeksWords(weeks),
+                          row.state === "approved" || row.state === "declined" ? P.decidedWords(row.state, row.decidedBy, row.decidedAt) : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    </div>
+                    <div className={styles.rowEnd}>
+                      <Chip tone={TONE[row.state]}>{P.stateChip(row.state)}</Chip>
+                      <Link href={requestPath(row.id)} className={styles.open} aria-label={`${P.OPEN}: ${R.requestTitleWords(row.subject.name, weeks)}`}>
+                        {P.OPEN}
+                      </Link>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
+
       <aside className={styles.aside}>
         <h2 className={styles.cardTitle}>Who sees what</h2>
         <p className={styles.line}>
-          The lead of a programme sees the requests about their own programme. Admins see every programme’s. Nobody is emailed about a
-          request, and nobody is emailed when one is decided: the facilitator who asked reads the answer on the register.
+          The lead of a programme sees the corrections asked about their own programme. Admins see every programme’s. Nobody is emailed
+          about a correction, and nobody is emailed when one is decided: the facilitator who asked reads the answer on the register.
         </p>
+        {view.viewer === "admin" && <p className={styles.line}>{R.EXCUSED_WHO_SEES}</p>}
       </aside>
     </div>
   );

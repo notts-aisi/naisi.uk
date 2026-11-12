@@ -176,6 +176,8 @@ type Facts = {
   applications: ReactNode;
   /** Requests waiting for somebody to decide them (`loadRequestsPage`'s waiting and being handled), read on the server; 0 with none. */
   requestsWaiting?: number;
+  /** How many of them are requests to be excused, so the line says what waits. */
+  excusedWaiting?: number;
 };
 
 export default function HomeAdmin({
@@ -190,6 +192,7 @@ export default function HomeAdmin({
   weekEndsAt,
   applications,
   requestsWaiting = 0,
+  excusedWaiting = 0,
 }: Facts) {
   const pending = usePendingCount();
   const bounces = useBounces();
@@ -213,13 +216,14 @@ export default function HomeAdmin({
       href: "/admin",
     });
   }
-  // A facilitator asked for a register to be corrected: the Requests page.
+  // A facilitator asked for a register to be corrected, or somebody asked to
+  // be excused: the Requests page.
   if (requestsWaiting > 0) {
     todo.push({
       key: "requests",
       figure: String(requestsWaiting),
       title: requestsWaitingTitle(requestsWaiting),
-      line: requestsWaitingLine(requestsWaiting),
+      line: requestsWaitingLine(requestsWaiting, excusedWaiting),
       action: "Open",
       href: REQUESTS_PATH,
     });
