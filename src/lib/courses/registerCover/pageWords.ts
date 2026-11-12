@@ -294,6 +294,10 @@ function clockOf(iso: string): string {
   return Number.isNaN(at.getTime()) ? "" : londonClockLabel(at);
 }
 
+/** Over the one session's meeting link, for somebody given that session (never in an email). */
+export const GIVEN_SESSION_LINK_LINE = "This session’s meeting link is here while the session is yours.";
+export const JOIN_ONLINE = "Join online";
+
 /** The line where the old "Didn't happen" switch was: where the two cancels live now. */
 export const DIDNT_HAPPEN_MOVED_FACILITATOR = "Didn’t happen? Use Change one week on the group’s page.";
 export const DIDNT_HAPPEN_MOVED_STAFF = "Didn’t happen? Use It didn’t happen on the group’s page.";

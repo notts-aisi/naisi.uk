@@ -4,26 +4,34 @@
  *
  * The term three weeks in (scripts/e2e-fixtures/worlds/course-hub-term.mjs,
  * point "week-three-covering"): Group A's week 3 session has passed and
- * nobody opened its register; Group B's week 3 was saved with a mark and not
- * finished. The admin approves Fern, Gus and Ola, makes Gus SU-recognised
- * committee, names the run and Gus as the programme's lead, hands the
- * people over and appoints Fern to Group A. Then:
+ * nobody opened its register; Group B's week 3 and Group A's week 2 were
+ * saved with marks and not finished. The admin approves Fern, Gus and Ola,
+ * makes Gus SU-recognised committee and Ola committee, names the run and Gus
+ * as the programme's lead, hands the people over and appoints Fern to Group
+ * A. Then:
  *
  *  1. GUS, THE PROGRAMME'S LEAD, opens Group A's page, which says nobody has
  *     started week 3's register, and takes it in Fern's place; sets lines,
  *     each saying it was him; reads the check before Finish and finishes;
- *     reads that the report he would write says whose place he took; changes
- *     whether Fern was there; and the group's history says who took it.
- *  2. THE ADMIN gives Group A's week 4 session to Ola, a plain member with no
- *     place on the run, with the tick to tell the group off: one email, to
- *     Ola alone, with the register's link and no meeting link.
+ *     reads that the report he would write says whose place he took; says
+ *     whether Fern was there (taken after the session ended, the register
+ *     recorded nothing about her); and the group's history says who took it.
+ *  2. THE ADMIN gives Group A's week 4 session to Ola, a committee member with
+ *     no place on the run, with the tick to tell the group off (the picker
+ *     never offers a plain member): one email, to Ola alone, with the
+ *     register's link and no meeting link.
  *  3. OLA opens the link, sets a line, and is refused the group's page and
  *     another week's register.
  *  4. FERN, Group A's facilitator, opens that register and reads who set each
  *     line, and nothing about her own record.
- *  5. GUS says Group B's week 3 didn't happen with the notice ticked: the
- *     count on the button is the emails caught, and the register's lines are
- *     gone.
+ *  5. GUS says Group B's week 3 didn't happen and pushes the rest back, its
+ *     draft's marks notwithstanding, with the notice ticked: the count on the
+ *     button is the emails caught, the register's lines are gone and week 3
+ *     meets a week later.
+ *  6. FERN marks a line on Group A's week 2 draft, then says on her own
+ *     group's page, in Change one week, that it didn't happen, keeping pace
+ *     (pushing back is not offered: week 3 has met): its lines are gone and
+ *     the history keeps what each said.
  *
  * ## How to run it
  *
@@ -80,10 +88,16 @@ const WORDS = {
   didntHappen: "It didn’t happen",
   keepPace: "Keep pace",
   takeTheRegister: "Take the register",
+  pushBack: "Push the rest back a week",
+  changeOneWeek: "Change one week",
+  whichWeek: "Which week?",
+  laterMet: "A later week has already met, so the rest can’t be pushed back.",
 };
 
 /** The reason the lead gives for the session that didn't happen. */
 const DIDNT_HAPPEN_REASON = "The room was locked and nobody could get in.";
+/** The reason the facilitator gives for hers. */
+const FERN_REASON = "The building was closed for a fire drill.";
 
 let skipReasonFor = () => null;
 
@@ -136,7 +150,7 @@ async function readEmail(summary) {
 // `skipReason ?? false`, never `skipReason`: node:test reads the PRESENCE of a
 // `skip` key, so a null there labels a fully successful run `# SKIP`.
 test(
-  "course hub: covering a register, by the lead, the admin, a member given a session and the facilitator",
+  "course hub: covering a register, by the lead, the admin, a committee member given a session and the facilitator",
   { skip: skipReason ?? false },
   async (t) => {
     const origin = baseUrl();
@@ -221,7 +235,7 @@ test(
     }
 
     try {
-      await step("the admin approves the facilitator, the account that will lead the programme and the member who will cover a session", async () => {
+      await step("the admin approves the facilitator, the account that will lead the programme and the account that will cover a session", async () => {
         activePage = adminPage;
         await signIn(adminPage, { email: secrets.adminEmail, password: secrets.adminPassword });
         for (const account of [fern, gus, ola]) {
@@ -230,7 +244,7 @@ test(
         }
       });
 
-      await step("the admin makes the lead's account SU-recognised committee on its member page", async () => {
+      await step("the admin makes the lead's account SU-recognised committee, and the covering account committee, on their member pages", async () => {
         activePage = adminPage;
         await adminPage.goto(`${origin}/admin/members/${enc(gus.uid)}`, { waitUntil: "domcontentloaded" });
         const access = adminPage.locator(`section[aria-labelledby="access-${gus.uid}"]`);
@@ -241,6 +255,13 @@ test(
         await recognised.waitFor({ state: "attached", timeout: WAIT_MS });
         await recognised.locator("xpath=ancestor::label[1]").click();
         await waitFor("Gus's account to say SU-recognised", async () => (await readUserDoc(gus.uid))?.suRecognised === true);
+
+        // A session is given only to somebody who runs things on the programme: Ola joins the committee.
+        await adminPage.goto(`${origin}/admin/members/${enc(ola.uid)}`, { waitUntil: "domcontentloaded" });
+        const olaAccess = adminPage.locator(`section[aria-labelledby="access-${ola.uid}"]`);
+        await olaAccess.waitFor({ timeout: WAIT_MS });
+        await olaAccess.getByRole("combobox", { name: "Role", exact: true }).selectOption({ label: WORDS.committee });
+        await waitFor("Ola's account to say committee", async () => (await readUserDoc(ola.uid))?.role === "committee");
       });
 
       await step("the admin names the running course run and the programme's lead on the Settings tab, and hands its people over", async () => {
@@ -352,7 +373,9 @@ test(
         await leadPage.goto(`${origin}${leadRegisterPath}?session=w03`, { waitUntil: "domcontentloaded" });
         const side = leadPage.getByTestId("register-side");
         await side.waitFor({ timeout: WAIT_MS });
-        assert.match(await textOf(side), /: not there/, "the facilitator record does not say the facilitator was not there");
+        // Taken two days after the session ended, so nobody knew who was there: nothing is recorded until the lead says.
+        assert.match(await textOf(side), /: nothing recorded yet\./, "a register caught up after its session recorded the facilitator as not there");
+        assert.deepEqual((await storedRegister(groupA, 3))?.facilitatorRecord ?? {}, {}, "the stored register records the facilitator");
         await side.getByRole("button", { name: new RegExp(`^Change: ${escapeRegExp(fern.first)}`) }).click();
         await side.getByRole("combobox").first().selectOption("there");
         const [changed] = await Promise.all([
@@ -369,13 +392,13 @@ test(
         for (const line of [
           `Took week 3’s register in ${fern.first}’s place.`,
           `Finished week 3’s register, covering for ${fern.first}. 1 in the room, 1 absent.`,
-          `Changed whether ${fern.first} was at week 3’s session: not there, now there.`,
+          `Changed whether ${fern.first} was at week 3’s session: nothing recorded, now there.`,
         ]) {
           assert.ok(history.includes(line), `the history does not say "${line}": ${history}`);
         }
       });
 
-      await step("the admin gives week 4's session to the member with the tick off, and one email reaches that member alone, with the register's link and no meeting link", async () => {
+      await step("the admin gives week 4's session to the committee member with the tick off, never offered a plain member, and one email reaches the committee member alone, with the register's link and no meeting link", async () => {
         activePage = adminPage;
         const before = {};
         for (const account of [ola, ada, ben, cleo, fern]) before[account.key] = (await messagesTo(account.email)).length;
@@ -387,6 +410,9 @@ test(
         await sheet.getByRole("button", { name: new RegExp(`^${escapeRegExp(WORDS.someoneElse)}`) }).click();
         const panel = adminPage.getByTestId("give-panel");
         await panel.waitFor({ timeout: WAIT_MS });
+        // Ada holds a place in the group and runs nothing: the picker does not list her.
+        await panel.getByPlaceholder("Search people…").fill(ada.displayName);
+        assert.equal(await panel.getByRole("checkbox", { name: new RegExp(escapeRegExp(ada.displayName)) }).count(), 0, "a plain member is offered a session");
         await panel.getByPlaceholder("Search people…").fill(ola.displayName);
         const [previewed] = await Promise.all([
           responseTo(adminPage, `/groups/${groupA.id}/attendance/cover`, "POST"),
@@ -413,7 +439,7 @@ test(
         }
       });
 
-      await step("the member opens the link, sets a line, and is refused the group's page and another week's register", async () => {
+      await step("the committee member opens the link, sets a line, and is refused the group's page and another week's register", async () => {
         activePage = olaPage;
         await signIn(olaPage, { email: ola.email, password: ola.password });
         await olaPage.goto(`${origin}${learnRegisterPath}?session=w04`, { waitUntil: "domcontentloaded" });
@@ -422,6 +448,9 @@ test(
         assert.ok((await textOf(olaPage.getByTestId("attendance-session").first())).startsWith("Week 4"));
         assert.equal(await olaPage.getByTestId("attendance-note-open").count(), 0, "somebody given a session is offered a note");
         assert.equal(await olaPage.getByRole("link", { name: groupA.name, exact: true }).count(), 0, "the register leads into the group's page");
+        // Running the session, Ola sees its meeting link here, and only here: never in the email.
+        const join = olaPage.getByTestId("given-session-link").getByRole("link", { name: "Join online", exact: true });
+        assert.equal(await join.getAttribute("href"), groupA.meetingUrl, "the session's meeting link is not on the register");
         await tap(olaPage, rowOf(olaPage, ada).getByTestId("attendance-cell").first(), 1);
         assert.match(await textOf(rowOf(olaPage, ada).getByTestId("attendance-set-by").first()), /^Set by you, /);
         const stored = await storedRegister(groupA, 4);
@@ -448,7 +477,7 @@ test(
         assert.equal(await fernPage.getByTestId("register-side").count(), 0, "the facilitator is shown the side panel");
       });
 
-      await step("the lead says the other group's week 3 didn't happen with the notice ticked: the button's count is the emails caught, and its lines are gone", async () => {
+      await step("the lead says the other group's week 3 didn't happen and pushes the rest back, with the notice ticked: the button's count is the emails caught, its lines are gone and week 3 meets a week later", async () => {
         activePage = leadPage;
         const before = (await messagesTo(cleo.email)).length;
         assert.deepEqual(Object.keys((await storedRegister(groupB, 3))?.records ?? {}), [cleo.uid], "Group B's week 3 draft has no mark to clear");
@@ -460,17 +489,23 @@ test(
         await sheet.getByRole("button", { name: new RegExp(`^${escapeRegExp(WORDS.didntHappen)}`) }).click();
         const panel = leadPage.getByRole("dialog", { name: WORDS.didntHappen, exact: true });
         await panel.getByRole("heading", { name: "Week 3 didn’t happen", exact: true }).waitFor({ timeout: WAIT_MS });
-        await panel.getByRole("radio", { name: new RegExp(`^${WORDS.keepPace}`) }).check();
+        // Its own draft has a mark, and no later week has met: pushing the rest back is offered.
+        const push = panel.getByRole("radio", { name: new RegExp(`^${WORDS.pushBack}`) });
+        assert.equal(await push.isDisabled(), false, "push back is greyed out on a draft with marks");
+        await push.check();
         await panel.getByRole("textbox").fill(DIDNT_HAPPEN_REASON);
         const lines = panel.locator("dl > div");
         await lines.first().waitFor({ timeout: WAIT_MS });
-        const preview = await textOf(panel.locator("dl"));
-        assert.ok(preview.includes("Week 3 leaves everyone’s attendance. Nobody is counted absent."), preview);
+        const preview = await waitFor("the push back's preview", async () => {
+          const said = await textOf(panel.locator("dl"));
+          return said.includes("week 3’s register is taken at its new session") ? said : null;
+        });
+        assert.ok(preview.includes("The session that didn’t happen leaves everyone’s attendance."), preview);
         assert.ok(preview.includes(`1 line set for it is cleared: ${cleo.first} (present)`), preview);
         assert.ok(!/shows as late/i.test(preview), "the panel says work shows as late");
         const tick = panel.getByRole("checkbox", { name: /^Email Group B \(/ });
         await tick.check();
-        const label = await textOf(panel.getByRole("button", { name: /^Cancel week 3/ }));
+        const label = await textOf(panel.getByRole("button", { name: /^Cancel week 3, push the rest back and email/ }));
         const count = Number(/email (\d+) (?:person|people)$/.exec(label)?.[1] ?? NaN);
         assert.ok(Number.isInteger(count) && count > 0, `the button does not say how many it emails: ${label}`);
         // The change, then the notice it hands back, posted by the panel: both answers are waited for from before the press.
@@ -484,14 +519,59 @@ test(
         const mail = await waitForMessagesTo(cleo.email, { count: before + count, timeoutMs: WAIT_MS });
         assert.equal(mail.length - before, count, "the emails caught are not the count on the button");
         const email = await readEmail(mail[0]);
-        assert.equal(email.subject, "No session for week 3");
+        assert.equal(email.subject, "Week 3 moves to next week, and the rest follow");
         const register = await waitFor("the draft's lines to go", async () => {
           const doc = await storedRegister(groupB, 3);
           return doc && Object.keys(doc.records ?? {}).length === 0 ? doc : null;
         });
         assert.equal(register.markedByUid, undefined, "the register is still taken");
         const rows = (await fixtureQuery("courseAudit").where("runId", "==", state.runId).get()).docs.map((doc) => doc.data());
-        assert.ok(rows.some((row) => row.kind === "session-did-not-happen" && row.groupId === groupB.id), "the history keeps nothing of what the lines said");
+        const row = rows.find((each) => each.kind === "session-did-not-happen" && each.groupId === groupB.id);
+        assert.ok(row, "the history keeps nothing of what the lines said");
+        assert.deepEqual(row.after, { kind: "push", cleared: 1 });
+        assert.ok(rows.some((each) => each.kind === "session-pushed" && each.groupId === groupB.id), "the push has no row of its own");
+      });
+
+      await step("the facilitator marks a line on week 2's unfinished register and says on her group's page that it didn't happen, keeping pace: its lines are gone and the history keeps what each said", async () => {
+        activePage = fernPage;
+        await fernPage.goto(`${origin}${learnRegisterPath}?session=w02`, { waitUntil: "domcontentloaded" });
+        await fernPage.getByTestId("attendance-grid").waitFor({ timeout: WAIT_MS });
+        // Week 2 is the second column: Ben's line moves on one, so the draft is hers.
+        await tap(fernPage, rowOf(fernPage, ben).getByTestId("attendance-cell").nth(1), 1);
+        assert.equal((await storedRegister(groupA, 2))?.markedByUid, fern.uid, "the draft is not the facilitator's");
+
+        await fernPage.goto(`${origin}/learn/${enc(state.runId)}/group/${enc(groupA.id)}`, { waitUntil: "domcontentloaded" });
+        await fernPage.getByRole("button", { name: WORDS.changeOneWeek, exact: true }).click();
+        const panel = fernPage.getByRole("dialog", { name: WORDS.changeOneWeek, exact: true });
+        await panel.getByLabel(WORDS.whichWeek, { exact: true }).selectOption("2");
+        await panel.getByText("Its register has lines on it and isn’t finished.", { exact: false }).waitFor({ timeout: WAIT_MS });
+        // Week 3 has met, so the rest can't move; keep pace can.
+        const push = panel.getByRole("radio", { name: new RegExp(`^${WORDS.pushBack}`) });
+        assert.equal(await push.isDisabled(), true, "push back is offered though a later week has met");
+        assert.ok((await textOf(panel)).includes(WORDS.laterMet), "the panel does not say why the rest can't be pushed back");
+        await panel.getByRole("radio", { name: new RegExp(`^${WORDS.keepPace}`) }).check();
+        await panel.getByRole("textbox").fill(FERN_REASON);
+        const preview = await waitFor("the keep pace preview", async () => {
+          const said = await textOf(panel.locator("dl"));
+          return said.includes("Week 2 leaves everyone’s attendance. Nobody is counted absent.") ? said : null;
+        });
+        assert.match(preview, /lines? set for it (is|are) cleared/);
+        const [changed] = await Promise.all([
+          responseTo(fernPage, `/groups/${groupA.id}/session/change`, "POST"),
+          panel.getByRole("button", { name: "Cancel week 2 (emails nobody)", exact: true }).click(),
+        ]);
+        await okBody(changed, "Calling week 2 off");
+        const register = await waitFor("week 2's lines to go", async () => {
+          const doc = await storedRegister(groupA, 2);
+          return doc && Object.keys(doc.records ?? {}).length === 0 ? doc : null;
+        });
+        assert.equal(register.markedByUid, undefined, "the register is still taken");
+        const rows = (await fixtureQuery("courseAudit").where("runId", "==", state.runId).get()).docs.map((doc) => doc.data());
+        const row = rows.find((each) => each.kind === "session-did-not-happen" && each.groupId === groupA.id);
+        assert.ok(row, "the history keeps nothing of what week 2's lines said");
+        assert.equal(row.actorUid, fern.uid);
+        assert.equal(row.after?.kind, "cancel");
+        assert.equal(row.reason, FERN_REASON);
       });
     } finally {
       await Promise.all([leadContext.close(), olaContext.close(), fernContext.close(), context.close()]).catch(() => {});

@@ -837,6 +837,35 @@ describe("9. after the review", () => {
     assert.equal((await write()).status, 200);
   });
 
+  test("somebody given a session sees that one session's meeting link on its register, while the grant holds, and no other", async () => {
+    const audience = await loadTs("lib/courses/meetingLink/audience.ts");
+    const given = await loadTs("lib/courses/meetingLink/givenSession.ts");
+    const access = await loadTs("lib/courses/registerAccess.ts");
+    const groupsLib = await loadTs("lib/firestore/courseGroups.ts");
+    const runsLib = await loadTs("lib/firestore/courses.ts");
+    world.db.poke(`courseGroups/${B}`, { "session.meetingUrl": "https://meet.example/group-b" });
+    assert.equal((await take("claudia", { person: "tom" })).status, 200);
+    const tom = session("tom", "member", false, "Tom Fletcher");
+    const group = groupsLib.normalizeCourseGroup(B, world.db.read(`courseGroups/${B}`));
+    const run = runsLib.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+    const gated = await access.gateGroupRegister(B, tom, world.courseDb);
+    assert.deepEqual(gated.givenSessions, ["w01"]);
+    const ask = (sessionKey) => given.givenSessionLink({ run, group, viewer: tom, sessionKey, givenSessions: gated.givenSessions });
+    assert.equal(ask("w01"), "https://meet.example/group-b");
+    assert.equal(ask("w02"), null, "another session's link");
+    assert.equal(
+      audience.seesSessionLink({ viewer: tom, isAdmin: false, seat: null, group, sessionKey: null, givenSessions: gated.givenSessions }),
+      false,
+      "the group's standing link",
+    );
+    // A fellow of another group, given nothing, sees none; nor does Tom once the grant has ended.
+    assert.equal(audience.seesSessionLink({ viewer: session("bea", "member", false, "Bea"), isAdmin: false, seat: null, group, sessionKey: "w01" }), false);
+    at("2026-11-04T00:00:00Z");
+    assert.equal((await access.gateGroupRegister(B, tom, world.courseDb)).ok, false);
+    // The email given with the session still carries no link.
+    assert.doesNotMatch(await render(world.mail[0].react), /meet\.example/);
+  });
+
   test("Remind never emails the person pressing it, and each reminder links to a page its reader can open", async () => {
     const group = world.db.read(`courseGroups/${B}`);
     const groupDoc = { id: B, runId: RUN.agi, name: "Group B", facilitatorUids: group.facilitatorUids };

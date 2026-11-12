@@ -125,6 +125,10 @@ const READERS = {
     does: "asks",
     why: "a group's page says whether the group, and each week, has a meeting link (Set the link, Hold it online); it never hands the link back",
   },
+  "lib/courses/meetingLink/givenSession.ts": {
+    does: "resolves",
+    why: "the one session's link for somebody given that session, for its register, while the grant holds, through seesSessionLink; the register page shows it as an href and no email reads it",
+  },
   "lib/courses/meetingLink/box.ts": {
     does: "asks",
     why: "the facilitators' box asks whether a session somebody is joining online has a link yet, to ask for one or not; it never hands it back",

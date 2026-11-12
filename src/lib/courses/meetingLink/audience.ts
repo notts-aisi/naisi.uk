@@ -15,12 +15,16 @@ import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
  * stand behind the role, and admins. Nobody else, and never in an email or a
  * calendar feed: the link is a door onto the group's call.
  *
+ * ONE SESSION GIVEN TO SOMEBODY. Whoever an admin or the programme's lead
+ * gave one session of the group to runs it, so they see THAT session's link,
+ * while the grant holds (`givenSessions`: the register's gate's own list of
+ * the live grants, by session key), on its register and nowhere else. Never
+ * the group's standing link, and never another session's.
+ *
  * ONE-WEEK VISITORS. Somebody who swaps into a group for one week is to see
  * that week's link too. Nothing records such a visit yet; when it does, it
  * is added here, by the session the link is for (`sessionKey`), and every
- * reader of the link follows. That is why a caller says which session it is
- * asking about (null for the group's standing link) although nothing reads
- * it today.
+ * reader of the link follows.
  */
 export function seesSessionLink(input: {
   viewer: SessionUser;
@@ -30,9 +34,12 @@ export function seesSessionLink(input: {
   group: Pick<CourseGroupDoc, "id" | "facilitatorUids">;
   /** The session the link is for (`sessionKey`), or null for the group's standing link. */
   sessionKey: string | null;
+  /** The sessions of this group given to the viewer, while each grant holds (`gateGroupRegister`'s `givenSessions`). */
+  givenSessions?: readonly string[];
 }): boolean {
-  const { viewer, isAdmin, seat, group } = input;
+  const { viewer, isAdmin, seat, group, sessionKey } = input;
   if (isAdmin) return true;
   if (seat?.status === "active" && seat.groupId === group.id) return true;
+  if (sessionKey !== null && (input.givenSessions ?? []).includes(sessionKey)) return true;
   return isNamedWithStanding(viewer, "courseGroups.facilitatorUids", group.facilitatorUids);
 }
