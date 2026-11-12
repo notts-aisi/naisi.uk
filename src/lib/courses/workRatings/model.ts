@@ -3,6 +3,7 @@ import {
   type CourseWorkRatingDoc,
   type WorkRatingRole,
 } from "@/lib/firestore/courseWorkRatings";
+import { versionAbout, type PieceFacts } from "../weekWork/versions";
 
 /**
  * RATINGS FOR THE TEAM, AS THE REVIEW PAGE DRAWS THEM (privacy v15, "Ratings
@@ -35,6 +36,12 @@ export type TeamRatingRow = {
   changedAt: string | null;
   /** The reader gave it. */
   mine: boolean;
+  /**
+   * The answer has changed since it was rated: the version it was about
+   * (`aboutSavedAt`) is no longer the latest words, whether or not that
+   * version is still kept. A rating keeps no version of its own.
+   */
+  changedSince: boolean;
 };
 
 /**
@@ -59,13 +66,16 @@ function iso(value: Date | null): string | null {
 /**
  * The view of one answer's ratings from what is stored. Only ratings on the
  * scale, by a rater on record, on this answer, are kept; oldest first.
- * `nameOf` answers the first word of the name a rater goes by.
+ * `nameOf` answers the first word of the name a rater goes by. `answer` is
+ * the stored answer, for whether it has changed since each rating; with
+ * none, nothing is said of that.
  */
 export function teamRatingsOf(
   ratings: readonly CourseWorkRatingDoc[],
   itemId: string,
   nameOf: (uid: string) => string,
   viewer: { uid: string; role: WorkRatingRole },
+  answer: PieceFacts | null = null,
 ): TeamRatingsView {
   const said = ratings
     .filter((stored) => stored.rating !== null && stored.raterUid !== "" && stored.itemId === itemId)
@@ -81,6 +91,7 @@ export function teamRatingsOf(
         changedAt:
           stored.updatedAt && stored.createdAt && stored.updatedAt.getTime() > stored.createdAt.getTime() ? iso(stored.updatedAt) : null,
         mine: stored.raterUid === viewer.uid,
+        changedSince: answer !== null && !(versionAbout(answer, stored.aboutSavedAt, stored.updatedAt ?? stored.createdAt)?.latest ?? false),
       }),
     );
   return {

@@ -1,7 +1,7 @@
 /* The week's written answer on the week page:
    a card inside the part, the question in bold, what a strong answer does,
-   "Your answer", the count against the range, the due line, Send and who
-   reads it. Every colour and space from the theme's tokens. */
+   "Your answer", the count against the range, when it was saved or sent and
+   how late, Send or Change my answer, and who reads it. Every colour and space from the theme's tokens. */
 
 .card {
   min-width: 0;
@@ -136,6 +136,14 @@
 .lineStrong {
   font-weight: 600;
   color: var(--color-text);
+}
+
+/* Send, with what makes the week done under it. */
+.sendBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
 }
 
 .sendRow {

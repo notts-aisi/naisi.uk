@@ -22,7 +22,8 @@ import { reviewUseFrom } from "@/lib/legal/reviewUse";
  * What it reads, and nothing else: where each week stands (the week's own
  * record: a week counts only while it is submitted, and a reopen takes that
  * away), the person's coursework through the coursework's one reader
- * (`loadAnswers`, which marks each row counted under version 13), the
+ * (`loadAnswers`, which marks each row counted under version 13, and reads
+ * each written answer as last sent: `submittedWork` below), the
  * feedback on their weeks (through feedback's own readers), the ratings for
  * the team of their written answers (through the ratings' own readers), and
  * the accounts of the person and of everybody who wrote or rated, for each
@@ -102,6 +103,26 @@ function submittedWeeks(weeks: readonly CourseworkWeek[], recordOf: (weekId: str
 }
 
 /**
+ * ONLY THE WORK THEY SUBMITTED (privacy v17: "using only the work they
+ * submitted"). A week stays open after its Submit, so a submitted week's
+ * words can change after it. Of a week in the note, a reflection or a fill-in
+ * box saved after the week's Submit was last pressed is left out, and so is
+ * one with no save time to tell. A written answer goes as LAST SENT, never a
+ * change not sent: `loadAnswers` reads it so (`asLastSent`), counting the
+ * Submit as a send of the words then standing. Which weeks go is not changed
+ * here: `noteDraftInput` takes only `weeks`.
+ */
+function submittedWork(answers: readonly CourseworkAnswer[], weeks: readonly NoteWeek[]): CourseworkAnswer[] {
+  const submittedAt = new Map(weeks.map((entry) => [entry.week.weekId, entry.submittedAt]));
+  return answers.filter((answer) => {
+    if (answer.kind === "written") return true;
+    const at = submittedAt.get(answer.weekId);
+    if (!at) return true;
+    return answer.savedAt != null && answer.savedAt.getTime() <= at.getTime();
+  });
+}
+
+/**
  * ONE PERSON'S SOURCES on one run, over `weeks` (one week for the end-of-week
  * draft, every week of the run for the profile's): their week records by
  * address, their coursework (one equality on `uid`), their feedback and
@@ -112,13 +133,17 @@ export async function gatherPersonNote(
   input: { runId: string; uid: string; weeks: readonly CourseworkWeek[] },
 ): Promise<PersonNoteSources> {
   const { runId, uid } = input;
-  const [records, answers, pieces, rated] = await Promise.all([
+  const [records, pieces, rated] = await Promise.all([
     Promise.all(input.weeks.map((week) => readWeekWork(db, runId, uid, week.weekId))),
-    loadAnswers(db, runId, input.weeks, new Set([uid])),
     readOwnFeedback(db, runId, uid),
     readPersonRatings(db, { runId, uid }),
   ]);
   const byWeek = new Map(input.weeks.map((week, index) => [week.weekId, records[index] ?? null]));
+  // Each written answer as last sent, the week's Submit counted as a send.
+  const answers = await loadAnswers(db, runId, input.weeks, new Set([uid]), {
+    asLastSent: (_, weekId) => byWeek.get(weekId)?.submittedAt ?? null,
+  });
+  const weeks = submittedWeeks(input.weeks, (weekId) => byWeek.get(weekId) ?? null);
   const weekIds = new Set(input.weeks.map((week) => week.weekId));
   const feedback = pieces.filter((piece) => weekIds.has(piece.weekId)).map(noteFeedbackOf);
   const ratings = rated
@@ -127,8 +152,11 @@ export async function gatherPersonNote(
     .filter((rating): rating is NoteRating => rating !== null);
   const moments = await momentsOf(db, [uid, ...feedback.map((piece) => piece.byUid), ...ratings.map((rating) => rating.raterUid)]);
   return {
-    weeks: submittedWeeks(input.weeks, (weekId) => byWeek.get(weekId) ?? null),
-    answers: answers.filter((answer) => answer.uid === uid),
+    weeks,
+    answers: submittedWork(
+      answers.filter((answer) => answer.uid === uid),
+      weeks,
+    ),
     feedback,
     ratings,
     from: moments.get(uid) ?? null,
@@ -150,20 +178,28 @@ export async function gatherWeekNotes(
   input: { runId: string; week: CourseworkWeek | null; weekId: string; people: ReadonlySet<string> },
 ): Promise<Map<string, PersonNoteSources>> {
   const { runId, week, weekId, people } = input;
-  const [records, answers, pieces, rated] = await Promise.all([
+  const [records, pieces, rated] = await Promise.all([
     readRunWeekWork(db, runId),
-    week && people.size > 0 ? loadAnswers(db, runId, [week], people) : Promise.resolve([] as CourseworkAnswer[]),
     readWeekFeedback(db, runId, weekId),
     readWeekRatings(db, { runId, weekId }),
   ]);
+  // Each written answer as last sent, the week's Submit counted as a send (as `gatherPersonNote` reads them).
+  const answers =
+    week && people.size > 0
+      ? await loadAnswers(db, runId, [week], people, { asLastSent: (uid, id) => records.get(uid)?.get(id)?.submittedAt ?? null })
+      : ([] as CourseworkAnswer[]);
   const feedback = pieces.filter((piece) => people.has(piece.uid));
   const ratings = rated.filter((rating) => people.has(rating.uid));
   const moments = await momentsOf(db, [...people, ...feedback.map((piece) => piece.byUid), ...ratings.map((rating) => rating.raterUid)]);
   const out = new Map<string, PersonNoteSources>();
   for (const uid of people) {
+    const weeks = week ? submittedWeeks([week], (id) => records.get(uid)?.get(id) ?? null) : [];
     out.set(uid, {
-      weeks: week ? submittedWeeks([week], (id) => records.get(uid)?.get(id) ?? null) : [],
-      answers: answers.filter((answer) => answer.uid === uid),
+      weeks,
+      answers: submittedWork(
+        answers.filter((answer) => answer.uid === uid),
+        weeks,
+      ),
       feedback: feedback.filter((piece) => piece.uid === uid).map(noteFeedbackOf),
       ratings: ratings
         .filter((rating) => rating.uid === uid)

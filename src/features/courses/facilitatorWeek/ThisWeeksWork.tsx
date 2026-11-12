@@ -45,8 +45,8 @@ import {
   tickedWords,
   weekMetaWords,
 } from "@/lib/courses/facilitatorWeek/words";
+import { lateAfterSessionWords } from "@/lib/courses/weekWork/words";
 import Disclosure from "./Disclosure";
-import ReopenWeekButton from "@/features/courses/written/ReopenWeekButton";
 import styles from "@/features/courses/facilitator/facilitator.module.css";
 
 /**
@@ -73,9 +73,12 @@ export type WorkColumn = { key: string; label: string; cell: (uid: string) => Re
 
 /**
  * The columns `loadWorkColumns` worked out, as the table draws them: a cell
- * with an address is a link to it; the week's column draws the count beside
- * its words and, for a week submitted or locked, "Reopen week 3 for Sofia"
- * to a reader who may.
+ * with an address is a link to it; the week's column draws its words ("Done
+ * on time", "Done late" with "Late: 3 days after the session" beside it,
+ * "2 of 3 done", "Joined late"); a written answer sent after the session says
+ * how late under its link. Nothing is reopened: the week stays open. A
+ * facilitator's own row, and so whether it was late, is worked out only for
+ * the programme's lead and admins.
  */
 export function workColumnsOf(columns: readonly WorkColumnData[]): WorkColumn[] {
   return columns.map((column) => ({
@@ -92,11 +95,11 @@ export function workColumnsOf(columns: readonly WorkColumnData[]): WorkColumn[] 
               {cell.text}
             </span>
             {cell.detail && <span className={styles.wkWeekDetail}>{cell.detail}</span>}
-            {cell.reopen && <ReopenWeekButton {...cell.reopen} quiet />}
           </span>
         );
       }
-      return cell.href ? (
+      const late = cell.lateMs !== undefined && cell.lateMs !== null ? lateAfterSessionWords(cell.lateMs) : null;
+      const body = cell.href ? (
         <Link href={cell.href} className={styles.wkCellLink}>
           <span>{cell.text}</span>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -105,6 +108,13 @@ export function workColumnsOf(columns: readonly WorkColumnData[]): WorkColumn[] 
         </Link>
       ) : (
         cell.text
+      );
+      if (!late) return body;
+      return (
+        <span className={styles.wkWeekCell}>
+          {body}
+          <span className={styles.wkWeekDetail}>{late}</span>
+        </span>
       );
     },
   }));

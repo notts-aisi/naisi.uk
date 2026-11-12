@@ -196,22 +196,30 @@ describe("1. saving a piece: a signed comment, on readable work, emailing nobody
     assert.equal(w.everything(), before);
   });
 
-  test("on readable work only: not a draft in an open week, not a week reopened; the session's lock opens a draft to its readers", async () => {
-    // Week 3 is open until Group B meets tonight: a submitted week 3 takes feedback, a draft does not.
+  test("on readable work only: not a draft before the session; a change not sent yet is not what it is on; the session opens a draft to its readers", async () => {
+    // Week 3's session is tonight: a draft never sent takes no feedback before it.
     await w.write("kofi", 3, { boxes: { "wb-what": "Light.", "wb-who": "", "wb-next": "" } });
     const draft = await w.give("rahul", "kofi", 3, "Too soon.");
     assert.deepEqual([draft.status, draft.body.error], [409, words.NOT_READABLE_YET]);
     const onTheWeek = await w.give("rahul", "kofi", 3, "Too soon.", { on: "week" });
     assert.deepEqual([onTheWeek.status, onTheWeek.body.error], [409, words.NOT_READABLE_YET]);
-    // Group B's session locks the week: Kofi's draft may now be read, and given feedback.
+    // Sent, then changed before the session: feedback is on the words as sent, and says so.
+    await w.write("chloe", 3, { boxes: { "wb-what": "Sent light.", "wb-who": "", "wb-next": "" } });
+    assert.equal((await w.sendAnswer("chloe", 3)).status, 200);
+    const sentRow = w.world.db.read(w.rowPath("chloe", 3));
+    w.at("2026-11-17T13:00:00Z");
+    await w.write("chloe", 3, { boxes: { "wb-what": "Changed light, not sent.", "wb-who": "", "wb-next": "" } });
+    const onSent = await w.give("rahul", "chloe", 3, "On what you sent.");
+    assert.equal(onSent.status, 200, JSON.stringify(onSent.body));
+    assert.deepEqual(new Date(piecesOf("chloe")[0].aboutSavedAt), new Date(sentRow.updatedAt));
+    // The session opens the week to its readers: Kofi's draft may now be read, and given feedback.
     w.at(B_MEETS_3);
     assert.equal((await w.give("rahul", "kofi", 3, "On what you had.")).status, 200);
-    // A week reopened is unsent again.
+    // The old Reopen changes nothing: a sent answer stays readable.
     w.at(NOW);
     await weekTwoWritten();
     assert.equal((await w.reopenWeek("rahul", "chloe", 2)).status, 200);
-    const reopened = await w.give("rahul", "chloe", 2, "Not yet.");
-    assert.deepEqual([reopened.status, reopened.body.error], [409, words.NOT_READABLE_YET]);
+    assert.equal((await w.give("rahul", "chloe", 2, "Still readable.")).status, 200);
   });
 
   test("a written answer with no words takes no feedback on it, and its week as a whole still does", async () => {

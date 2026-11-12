@@ -278,7 +278,7 @@ describe("2. the server-side readers, on a block week", () => {
       asks: weekEmails.blockWeekAsks(week.blocks, weekTaskNeeds(week.blocks)),
       weekUrl: `https://naisi.invalid/learn/${RUN.agi}/weeks/3`,
       feedbackUrl: "",
-      locks: true,
+      staysOpen: true,
     };
     assert.deepEqual(weekEmailWords.missingWeekOpenValues(facts), []);
   });

@@ -503,9 +503,9 @@ export default function RunHome({
   const beforeStart =
     data?.currentWeek?.phase === "before" ||
     (firstNext !== null && firstNext.dateKey === data?.group?.calendar.firstSessionDate);
-  // A week 1 submitted or locked takes no tick until somebody running the group reopens it.
+  // Week 1 takes ticks until the programme closes.
   const weekOneWork = data?.weeks.find((week) => week.weekNumber === 1)?.work ?? null;
-  const weekOneTakesTicks = weekOneWork ? weekOneWork.state === "open" || weekOneWork.state === "reopened" : true;
+  const weekOneTakesTicks = weekOneWork ? !weekOneWork.closed : true;
   const ticks = useMaterialTicks(runId, uid, 1, learner?.status === "active" && weekOneTakesTicks);
 
   /*
@@ -680,7 +680,6 @@ export default function RunHome({
         slotStartKey={thisSchedule?.slotStartKey || null}
         countableIds={thisDoc?.countableIds ?? []}
         thisWeek={thisDoc?.thisWeek ?? null}
-        locked={thisDoc?.work?.state === "locked"}
         open={thisSchedule?.open ?? false}
         breakLabel={calendarWeek?.breakLabel ?? null}
         weekSource={weekSource}

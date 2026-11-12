@@ -12,7 +12,9 @@ import { REVIEW_WORDS } from "./words";
  *    row without saying (the Attendance tab's own count; excused is not
  *    absent).
  *  - THEIR WEEK: not started when their group met; or, for a week that asks
- *    for writing, locked before they submitted it.
+ *    for writing, started and not done by the session they were due at (the
+ *    week stays open, so it may be done since, late: `state` "locked" says
+ *    not done by the session).
  *  - THIS WEEK'S REPORTS: named under "might need a hand" (with the word
  *    written about them) or "seemed not to have done the readings".
  *

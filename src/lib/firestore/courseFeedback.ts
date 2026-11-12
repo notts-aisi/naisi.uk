@@ -12,6 +12,11 @@
  *    written answer, by its block's id) or `{ kind: "week" }` (the week as a
  *    whole).
  *  - `text`: the comment. Never a level, a mark or a number.
+ *  - `aboutSavedAt`: on a piece about the written answer, the mark of the
+ *    version of the answer it was about (when those words were last saved,
+ *    `src/lib/courses/weekWork/versions.ts`), written when the piece is
+ *    saved. Missing on a piece saved before versions were kept: it is about
+ *    the version that stood when it was written.
  *  - `byUid`, `byRole`: who wrote it, and as what (`facilitator` of the
  *    person's group, the programme's `lead`, or an `admin`), stored when it
  *    is written, so the person's page signs it as it was written.
@@ -77,6 +82,8 @@ export type CourseFeedbackDoc = {
   weekNumber: number;
   on: FeedbackOn;
   text: string;
+  /** The mark of the version of the written answer it was about, or null (saved before versions were kept, or on the week). */
+  aboutSavedAt: Date | null;
   byUid: string;
   byRole: FeedbackRole;
   createdAt: Date | null;
@@ -120,6 +127,7 @@ export function normalizeCourseFeedback(id: string, data: Raw): CourseFeedbackDo
     weekNumber: typeof data.weekNumber === "number" && Number.isInteger(data.weekNumber) && data.weekNumber > 0 ? data.weekNumber : 0,
     on: onOf(data.on),
     text: str(data.text),
+    aboutSavedAt: instant(data.aboutSavedAt),
     byUid: str(data.byUid),
     byRole: role,
     createdAt: instant(data.createdAt),

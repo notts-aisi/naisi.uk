@@ -291,12 +291,22 @@ describe("1. the arithmetic of a group's page", () => {
     assert.equal(model.historyWhenWords("2026-11-10T12:20:00Z"), "Tue 10 Nov, 12:20pm");
   });
 
-  test("when the week's work locks, before and after, through the house clock", () => {
+  test("from when the week's work counts as late, before and after, through the house clock; nothing locks", () => {
     assert.equal(
-      model.lockLine(2, { before: "2026-11-11T15:00:00Z", after: "2026-11-12T15:00:00Z" }),
-      "Week 2’s work locks at Thu 12 Nov, 3pm (was Wed 11 Nov, 3pm).",
+      model.lateFromLine(2, { before: "2026-11-11T15:00:00Z", after: "2026-11-12T15:00:00Z" }),
+      "Week 2’s work counts as late from Thu 12 Nov, 3pm (was Wed 11 Nov, 3pm).",
     );
-    assert.equal(model.lockLine(4, { before: "2026-11-25T15:00:00Z", after: "2026-11-25T15:00:00Z" }), "Unchanged: Wed 25 Nov, 3pm.");
+    assert.equal(model.lateFromLine(4, { before: "2026-11-25T15:00:00Z", after: "2026-11-25T15:00:00Z" }), "Unchanged: Wed 25 Nov, 3pm.");
+    assert.equal(model.lateFromLine(2, { before: null, after: "2026-11-12T15:00:00Z" }), "Week 2’s work counts as late from Thu 12 Nov, 3pm.");
+    assert.equal(
+      model.lateFromLine(2, { before: "2026-11-11T15:00:00Z", after: null }),
+      "Week 2 would have no session, so nothing added to its work would count as late (it counted from Wed 11 Nov, 3pm).",
+    );
+    assert.equal(model.lateFromLine(2, { before: null, after: null }), "");
+    assert.equal(model.LATE_FROM, "Late from");
+    for (const line of [model.lateFromLine(2, { before: "2026-11-11T15:00:00Z", after: "2026-11-12T15:00:00Z" }), model.LATE_FROM]) {
+      assert.doesNotMatch(line, /\block|[\u2013\u2014]/i, line);
+    }
   });
 
   const reminders = (over = {}) => ({
@@ -362,7 +372,7 @@ describe("1. the arithmetic of a group's page", () => {
         before: moment({ dateKey: "2026-11-11", startTimeLocal: "15:00", room: "Portland A21" }),
         after: moment({ dateKey: "2026-11-12", startTimeLocal: "15:00", room: "Monica Partridge E02" }),
         lastSession: { before: "2026-12-09", after: "2026-12-09" },
-        lock: { before: "2026-11-11T15:00:00Z", after: "2026-11-12T15:00:00Z" },
+        lateFrom: { before: "2026-11-11T15:00:00Z", after: "2026-11-12T15:00:00Z" },
         reminders: reminders(),
         said: { joiningOnline: { count: 1, names: ["Sofia"] }, cantMakeIt: { count: 1, names: ["Grace"] } },
         told: { emails: 7, refused: false, people: 6, facilitatorNames: ["Rahul"] },
@@ -375,7 +385,7 @@ describe("1. the arithmetic of a group's page", () => {
       groupName: "Group C",
       incubator: false,
     });
-    assert.deepEqual(lines.map((line) => line.label), ["Session", "Work locks", "Reminders", "Answers", "Told"]);
+    assert.deepEqual(lines.map((line) => line.label), ["Session", "Late from", "Reminders", "Answers", "Told"]);
     assert.equal(
       lines[0].text,
       "Week 2 moves from Wed 11 Nov, 3pm, Portland A21 to Thu 12 Nov, 3pm to 5pm, Monica Partridge E02 (University Park). Other weeks stay as they are.",
@@ -392,7 +402,7 @@ describe("1. the arithmetic of a group's page", () => {
         before: moment({ dateKey: "2026-11-09", startTimeLocal: "13:00", room: "George Green A04", campus: null }),
         after: moment({ dateKey: "2026-11-10", startTimeLocal: "10:00", room: "George Green A04", campus: null }),
         lastSession: { before: "2026-12-07", after: "2026-12-07" },
-        lock: { before: "2026-11-09T13:00:00Z", after: "2026-11-10T10:00:00Z" },
+        lateFrom: { before: "2026-11-09T13:00:00Z", after: "2026-11-10T10:00:00Z" },
         reminders: reminders(),
         said: { joiningOnline: { count: 0, names: [] }, cantMakeIt: { count: 0, names: [] } },
         told: { emails: 5, refused: false, people: 5, facilitatorNames: [] },
@@ -405,7 +415,7 @@ describe("1. the arithmetic of a group's page", () => {
       groupName: "Group J",
       incubator: false,
     });
-    assert.deepEqual(lines.map((line) => line.label), ["Session", "Work locks", "Register", "Reminders", "Answers", "Told"]);
+    assert.deepEqual(lines.map((line) => line.label), ["Session", "Late from", "Register", "Reminders", "Answers", "Told"]);
     assert.equal(lines[0].text, "Week 2 is recorded as Tue 10 Nov, 10am to 12pm, George Green A04, not Mon 9 Nov, 1pm.");
     assert.equal(lines[2].text, "Its register is for Tue 10 Nov, 10am, and can be taken now.");
     assert.equal(lines[5].text, "Nobody: the session has happened. The change shows in Group J’s history.");
@@ -425,7 +435,7 @@ describe("1. the arithmetic of a group's page", () => {
           weekNumber: n,
           before: moment({ weekNumber: n, dateKey: `2026-11-${String(9 + i * 7).padStart(2, "0")}`, startTimeLocal: "16:00", room: "Monica Partridge C10" }),
           after: moment({ weekNumber: n, dateKey: `2026-11-${String(10 + i * 7).padStart(2, "0")}`, startTimeLocal: "17:30", room: "" }),
-          lock: { before: null, after: null },
+          lateFrom: { before: null, after: null },
         })),
         kept: [{ weekNumber: 1, pinned: true, session: moment({ weekNumber: 1, dateKey: "2026-11-02", startTimeLocal: "16:00", room: "Monica Partridge C10" }) }],
         ownTimes: [],
@@ -440,7 +450,7 @@ describe("1. the arithmetic of a group's page", () => {
     });
     const by = Object.fromEntries(lines.map((line) => [line.label, line.text]));
     assert.equal(by.Sessions, "Weeks 2 to 4 move to Tuesdays, 5:30pm to 7:30pm: today, Tue 10 Nov, Tue 17 Nov and Tue 24 Nov.");
-    assert.equal(by.Kept, "Week 1 keeps Mon 2 Nov, 4pm. Its register and when its work locks don’t change.");
+    assert.equal(by.Kept, "Week 1 keeps Mon 2 Nov, 4pm. Its register and late times don’t change.");
     assert.equal(by.Reminders, model.REMINDERS_OFF);
     assert.match(by.Room, /^To be confirmed\./);
     assert.match(by["Asked again"], /^The email asks Can you make this time\? with the same three answers\./);
@@ -706,7 +716,7 @@ describe("4. the routes' previews, through the panel's lines", () => {
     });
     const by = Object.fromEntries(lines.map((line) => [line.label, line.text]));
     assert.match(by.Session, /^Week 4 moves from Tue 24 Nov, 6pm, .* to Wed 25 Nov, 6pm to 8pm, /);
-    assert.match(by["Work locks"], /Wed 25 Nov/);
+    assert.match(by["Late from"], /^Week 4’s work counts as late from Wed 25 Nov, 6pm \(was Tue 24 Nov, 6pm\)\.$/);
     const emails = await w.changeEmailsFor(B, "rahul");
     assert.equal(response.body.preview.told.emails, emails);
     assert.ok(by.Told.startsWith(`${emails === 1 ? "1 person" : `${emails} people`} by email`), by.Told);

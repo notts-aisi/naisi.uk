@@ -428,6 +428,15 @@ export type CourseRunDoc = {
    * team's page. Both null until somebody sets them: there is no default.
    */
   teamHandIn: TeamHandInSettings;
+  /**
+   * HOW MANY DAYS AFTER THE RUN'S LAST SESSION ITS WORK CLOSES (the week
+   * stays open, `src/lib/courses/weekWork/closes.ts`): every week of the run
+   * takes work until the end of the London day this many days after the day
+   * of its last session, and is read only after. Optional and read only: no
+   * page sets it yet, and a run without it (every run so far) reads as null,
+   * which closes 14 days after.
+   */
+  workClosesAfterDays: number | null;
   createdAt?: Date | null;
   updatedAt?: Date | null;
 };
@@ -1463,6 +1472,14 @@ export function normalizeCourseRun(id: string, data: Raw): CourseRunDoc {
     groupsGoOutOn:
       typeof data.groupsGoOutOn === "string" && isValidDateKey(data.groupsGoOutOn) ? data.groupsGoOutOn : null,
     teamHandIn: normalizeTeamHandIn(data.teamHandIn),
+    // A whole number of days, 0 to a year; anything else reads as unset.
+    workClosesAfterDays:
+      typeof data.workClosesAfterDays === "number" &&
+      Number.isInteger(data.workClosesAfterDays) &&
+      data.workClosesAfterDays >= 0 &&
+      data.workClosesAfterDays <= 365
+        ? data.workClosesAfterDays
+        : null,
     createdAt: tsToDate(data.createdAt),
     updatedAt: tsToDate(data.updatedAt),
   };
