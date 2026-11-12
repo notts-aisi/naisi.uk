@@ -1264,7 +1264,7 @@ test("GUARD — an email with no session for its group says less rather than lyi
       asks: [{ kind: "readings", count: 2 }],
       weekUrl: "https://naisi.uk/learn/asf-autumn-2026/weeks/3",
       feedbackUrl: "",
-      locks: true,
+      staysOpen: true,
     },
     "Alex",
   );

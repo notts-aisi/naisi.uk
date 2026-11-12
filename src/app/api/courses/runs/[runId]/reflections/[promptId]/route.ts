@@ -23,15 +23,19 @@ import {
 import { firstWrittenFor } from "@/lib/legal/courseworkUseStamp";
 import { instantOf } from "@/lib/courses/writtenAnswers/model";
 import {
-  WeekShutError,
+  WorkClosedError,
   assertWeekTakesWork,
   logSave,
   logWork,
-  ownLockSource,
-  readRunForLock,
+  ownSessionSource,
+  readRunForWork,
+  storedEarlierVersions,
+  versionsToKeep,
   weekStateIn,
 } from "@/lib/courses/weekWork/own";
-import { WEEK_SHUT } from "@/lib/courses/weekWork/words";
+import { workClosesAt } from "@/lib/courses/weekWork/closes";
+import { readPieceFacts } from "@/lib/courses/weekWork/versions";
+import { closedWords } from "@/lib/courses/weekWork/words";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 
 /**
@@ -73,12 +77,16 @@ import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exerci
  *
  * AN EMPTIED BOX deletes the row: nothing written is nothing stored, and the
  * count ("every reflection box has something in it") reads the same either
- * way.
+ * way. Unless an earlier version is kept on the row: then the row stays,
+ * empty, with `emptiedAt`, and reads as nothing written (`boxIsWritten`).
  *
- * A WEEK SUBMITTED OR LOCKED takes no writing (`src/lib/courses/weekWork/`):
- * asked inside the transaction that writes, so a save racing Submit lands
- * before it or is refused (409). The first save of a writing spell, and an
- * emptied box, go in the work log.
+ * THE WEEK STAYS OPEN (`src/lib/courses/weekWork/`): nothing closes at the
+ * session. A save is refused (409) only once the programme has closed, asked
+ * inside the transaction that writes. The first change after the session
+ * keeps the words it replaces on the row (`earlierVersions`, in the same
+ * write), so the people who read it can see it as it stood at the session; a
+ * save that changes nothing writes nothing. The first save of a writing
+ * spell, and an emptied box, go in the work log.
  *
  * Member content is plain text, stored as typed (ends trimmed) and drawn as
  * text nodes only.
@@ -151,7 +159,7 @@ export async function PUT(
   const [enrolSnap, groupSnap, run] = await Promise.all([
     db.collection("courseEnrolments").doc(courseEnrolmentId(runId, actor.uid)).get(),
     db.collection("courseGroups").where("runId", "==", runId).limit(MAX_GROUPS).get(),
-    readRunForLock(db, runId),
+    readRunForWork(db, runId),
   ]);
   const enrolment = enrolSnap.exists ? normalizeCourseEnrolment(enrolSnap.id, enrolSnap.data() ?? {}) : null;
   const takesPart =
@@ -192,30 +200,57 @@ export async function PUT(
   const id = exerciseResponseId(runId, actor.uid, weekId, promptId);
   const ref = db.collection("courseExerciseResponses").doc(id);
   // Whose sessions lock this week for them: their own placement's group, or the groups they facilitate.
-  const source = ownLockSource(run, liveGroups, actor.uid, takesPart ? enrolment : null);
+  const source = ownSessionSource(run, liveGroups, actor.uid, takesPart ? enrolment : null);
+  const closesAt = run ? workClosesAt(run, liveGroups) : null;
   const now = new Date();
+  // When the words the box now holds were saved, for the writer's page: now, or, when nothing changed, their last save.
+  let savedAt: Date | null = now;
   const logged = { runId, uid: actor.uid, weekId, weekNumber, itemKind: "reflection" as const, itemId: promptId };
 
   try {
     await db.runTransaction(async (tx) => {
       const [snap, week] = await Promise.all([
         tx.get(ref),
-        weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source, now }),
+        weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source, closesAt, now }),
       ]);
-      // A week submitted or locked takes nothing more until it is reopened.
+      // Only a closed programme refuses: nothing closes at the session.
       assertWeekTakesWork(week.state);
       // An answer is never written over by a reflection, whatever its id says.
       if (snap.exists && !isReflectionResponse(snap.data() ?? {})) {
         throw new ReflectionError("That box holds an answer, not a reflection.", 409);
       }
-      if (!text) {
-        if (snap.exists) {
-          tx.delete(ref);
-          logWork(tx, db, { ...logged, kind: "cleared" });
-        }
+      const prior = snap.exists ? ((snap.data() ?? {}) as Record<string, unknown>) : null;
+      const priorFacts = prior ? readPieceFacts(prior) : null;
+      // A save that changes nothing writes nothing: the words' last save stays their version's mark.
+      if (prior && (typeof prior.text === "string" ? prior.text : "") === text) {
+        savedAt = priorFacts?.savedAt ?? null;
         return;
       }
-      logSave(tx, db, { ...logged, lastSavedAt: snap.exists ? instantOf((snap.data() ?? {}).updatedAt) : null, now });
+      // The first change after the session keeps the words it replaces.
+      const kept = versionsToKeep({ prior: priorFacts, itemId: promptId, standing: week, now });
+      const keptList = kept?.list ?? priorFacts?.earlierVersions ?? [];
+      if (!text) {
+        if (!prior) return;
+        logWork(tx, db, { ...logged, kind: "cleared" });
+        // Nothing written is nothing stored, unless an earlier version is kept on the row: then the
+        // row stays, empty, and reads as nothing written (`boxIsWritten`).
+        if (keptList.length === 0) {
+          tx.delete(ref);
+          return;
+        }
+        tx.set(
+          ref,
+          {
+            text: "",
+            emptiedAt: FieldValue.serverTimestamp(),
+            earlierVersions: storedEarlierVersions(keptList),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+        return;
+      }
+      logSave(tx, db, { ...logged, lastSavedAt: prior ? instantOf(prior.updatedAt) : null, now });
       tx.set(ref, {
         runId,
         uid: actor.uid,
@@ -231,6 +266,8 @@ export async function PUT(
         submittedAt: null,
         reviewStatus: "unreviewed",
         updatedAt: FieldValue.serverTimestamp(),
+        // The earlier versions kept on the row go on with it (a whole write would drop them).
+        ...(keptList.length > 0 ? { earlierVersions: storedEarlierVersions(keptList) } : {}),
         // When the row was first written, kept across every write after: a
         // reflection counts outside its programme only when it was written
         // entirely after its writer agreed to privacy v13 (courseworkUse.ts).
@@ -239,7 +276,7 @@ export async function PUT(
     });
   } catch (err) {
     if (err instanceof ReflectionError) return NextResponse.json({ error: err.message }, { status: err.status });
-    if (err instanceof WeekShutError) return NextResponse.json({ error: WEEK_SHUT }, { status: 409 });
+    if (err instanceof WorkClosedError) return NextResponse.json({ error: closedWords(err.at) }, { status: 409 });
     console.error("[courses reflection] write failed", runId, weekId, promptId, err);
     return NextResponse.json({ error: "Couldn’t save that just now. It tries again as you type." }, { status: 500 });
   }
@@ -251,6 +288,8 @@ export async function PUT(
     weekNumber,
     exerciseId: promptId,
     kind: "reflection",
+    // When its words were last saved, which the writer's week page tells against their session (`savedLineWords`).
+    savedAt: text && savedAt ? savedAt.toISOString() : null,
     responseType: "text",
     text: text || null,
     linkUrl: null,

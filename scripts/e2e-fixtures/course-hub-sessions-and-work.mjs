@@ -25,20 +25,35 @@
  * (Group A has none at this point), Fern adds one, and the box and the
  * register say Ada is joining online; Ada's ticket, on Ada's programme page
  * and on Home, carries the link for anybody joining online. Ada
- * writes week 4's written answer, goes through the check and
- * submits anyway, and the week locks. Fern reopens it from This week's work,
- * Ada's week page says who did, and Ada changes the answer and submits again.
- * Then the programme's lead opens the Surveys tab from the programme's
- * head and follows the Overview's link to the programme's session reports,
- * where Fern's report is, with names; last, the lead's Attendance tab says
- * Ada came to one of three sessions online.
+ * writes week 4's written answer and sends it with its own Send (the week
+ * stays open: nothing locks at a send or at the session), then changes it
+ * before the session, and Fern's review page still shows it as sent, never
+ * the change. Then the programme's lead opens the Surveys tab from the
+ * programme's head and follows the Overview's link to the programme's
+ * session reports, where Fern's report is, with names, and the lead's
+ * Attendance tab says Ada came to one of three sessions online. Last, Group
+ * A's week 4 session starts (`startGroupSession`, below): Ada's page says the
+ * group met, and what she adds and changes now says how late; Fern's pages
+ * say "Late" with how late and show the answer as it stood at the session;
+ * and Ben, another fellow of the group, reads none of it.
  *
  * ## Every grant is made on a real page, by the admin the harness is given
  *
  * The fixture makes waiting accounts and nothing above them. The admin
- * approves Ada and Fern on Approvals, names the running run on the
- * programme's Settings tab, and appoints Fern to Group A on the Groups tab's
- * Facilitators view. The programme's lead is the admin, as at every course
+ * approves Ada and Fern on Approvals (and Ben, later, for the last step),
+ * names the running run on the programme's Settings tab, and appoints Fern
+ * to Group A on the Groups tab's Facilitators view.
+ *
+ * ## The session starts, by the clock the term's points move
+ *
+ * The term is read at a point by choosing when its run began, never by
+ * waiting (`./worlds/course-hub-term.mjs`). So when the journey needs Group
+ * A's week 4 session to have started, `startGroupSession` moves Group A's
+ * own calendar, its pace start, so that week 4's slot begins today, and sets
+ * week 4's session to a few minutes ago: the two fields a facilitator's own
+ * pace and "Move it" write. It writes only Group A's own record, which the
+ * term's teardown deletes, and adds no row. The lead's pages are read before
+ * it, so the registers they read are the term's as seeded. The programme's lead is the admin, as at every course
  * hub spec: a lead must be SU-recognised committee, which the harness never
  * makes.
  *
@@ -48,7 +63,8 @@
  * finished register may send go to fixture addresses, suppressed first
  * wherever the mail is not caught, so it runs wherever the harness runs.
  */
-import { countTerm, seedTerm, teardownTerm } from "./worlds/course-hub-term.mjs";
+import { fixtureDoc } from "./core.mjs";
+import { countTerm, londonDateKey, londonWallClockToInstant, seedTerm, shiftDateKey, teardownTerm, weekDocId, weekdayOf } from "./worlds/course-hub-term.mjs";
 
 /**
  * Every step the spec must complete, in order. Shared rather than restated:
@@ -65,11 +81,14 @@ export const SESSIONS_AND_WORK_STEPS = [
   "the member can make next week's session after all and says they are joining it online instead, one thing at a time on the ticket",
   "the box at the top of the facilitator's group page asks for a link for the week the member is joining online, the facilitator adds one, and the box and the register say who is joining online",
   "the member's ticket carries the week's link for anybody joining online, beside Add to calendar, on the programme page and on Home",
-  "the member writes the week's written answer, goes through the check and submits anyway, and the week reads submitted and locked",
-  "the facilitator reopens the member's week from This week's work",
-  "the member's week page says who reopened it, and the member changes the answer and submits it again",
+  "the member writes the week's written answer and sends it with its own Send, and the week stays open, saying when it was sent",
+  "the member changes the answer before the session, and the page says the people who read it still see the version sent",
+  "the facilitator's review page shows the answer as it was sent, never the change",
   "the programme's lead follows the Surveys tab's link to the session reports and reads the facilitator's report, with names",
   "the programme's lead reads on the Attendance tab how many sessions the member came to in the room and online",
+  "once the group's session has started, the member's page says the group met, and what the member adds, changes and sends now says how late",
+  "the facilitator's pages say late with how late, and show the answer as it stood at the session",
+  "another fellow of the group reads none of the member's work",
 ];
 
 /**
@@ -112,8 +131,8 @@ export const SPEC = {
       "/api/courses/groups/[groupId]/session-report",
       "/api/courses/runs/[runId]/overview",
       "/api/courses/runs/[runId]/written-answers/[answerId]",
-      "/api/courses/runs/[runId]/weeks/[weekId]/submit",
-      "/api/courses/runs/[runId]/weeks/[weekId]/reopen",
+      "/api/courses/runs/[runId]/written-answers/[answerId]/send",
+      "/api/courses/runs/[runId]/reflections/[promptId]",
     ],
     pages: [
       "/(auth)/login",
@@ -124,6 +143,8 @@ export const SPEC = {
       "/(app)/learn/[runId]/group/[groupId]",
       "/(app)/learn/[runId]/group/[groupId]/register",
       "/(app)/learn/[runId]/group/[groupId]/report",
+      "/(app)/learn/[runId]/group/[groupId]/written",
+      "/(app)/learn/[runId]/group/[groupId]/reflections/names",
       "/(app)/learn/[runId]/weeks/[n]",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/reports",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance",
@@ -157,9 +178,59 @@ export const SPEC = {
    * run with both "Most weeks, not all" and Joining online in the journey:
    * all fifteen steps against the loopback server on a laptop, 54 rows
    * before teardown, and zero after.
+   * Verified again on 2026-11-12, once the week stays open: the member sends
+   * with the answer's own Send and changes it before the session, the
+   * fixture starts the group's session, and the member's late work is read
+   * on the member's and the facilitator's pages, with another fellow reading
+   * none of it. All eighteen steps against the loopback server on a laptop,
+   * the fixture manifest at zero after teardown.
    */
   status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three-work" }),
   countRows: countTerm,
   teardown: teardownTerm,
 };
+
+/** London's wall clock, "HH:MM", of an instant. */
+function londonClock(at) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .formatToParts(at)
+      .map((part) => [part.type, part.value]),
+  );
+  return `${parts.hour}:${parts.minute}`;
+}
+
+/**
+ * THE SESSION STARTS. Moves `group`'s week `weekNumber` session to start at
+ * the first whole London minute after `after` (the last change the journey
+ * made before it, so that change stays before the session), on today's date,
+ * and waits until that minute has come: the group's own pace start becomes
+ * the day that puts week `weekNumber`'s slot on today (the run's plan has no
+ * break), and that week's session moves to today's weekday at that minute.
+ * The two fields the group's own pace and a one-week "Move it" write, on the
+ * group's own record, which the term's teardown deletes; nothing else is
+ * written and no row is added. Its other weeks move with the pace start, all
+ * of them before week `weekNumber` still in the past. Returns when the
+ * session now starts, as the pages tell late against it.
+ */
+export async function startGroupSession(group, weekNumber, { after }) {
+  const minute = 60_000;
+  let startsAt = new Date(Math.floor(after.getTime() / minute) * minute + minute);
+  const todayKey = londonDateKey(new Date());
+  // A change made on an earlier London day: the session starts at today's first minute.
+  if (londonDateKey(startsAt) !== todayKey) startsAt = londonWallClockToInstant(todayKey, "00:00");
+  const startTimeLocal = londonClock(startsAt);
+  const weekId = weekDocId(weekNumber);
+  await fixtureDoc("courseGroups", group.id).update({
+    paceStartDate: shiftDateKey(todayKey, -7 * (weekNumber - 1)),
+    [`sessionOverrides.${weekId}.weekday`]: weekdayOf(todayKey),
+    [`sessionOverrides.${weekId}.startTimeLocal`]: startTimeLocal,
+    updatedAt: new Date(),
+  });
+  // Until that minute has come, the session has not started: wait for it, never more than a minute and
+  // a margin, so a save's time stamped by the database's clock is after it whatever this machine's says.
+  const wait = startsAt.getTime() - Date.now() + 10_000;
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  return { dateKey: todayKey, startsAt };
+}

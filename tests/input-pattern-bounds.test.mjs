@@ -238,7 +238,7 @@ describe("the course email preheader is words, so no pattern reads it", () => {
         asks: [],
         weekUrl: "https://naisi.uk/learn/run/weeks/3",
         feedbackUrl: "",
-        locks: true,
+        staysOpen: true,
       },
       "Priya",
     );

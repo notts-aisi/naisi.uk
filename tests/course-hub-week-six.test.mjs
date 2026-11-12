@@ -190,6 +190,8 @@ describe("2. a fill-in box is its writer's own", () => {
       weekNumber: 6,
       exerciseId: FB[0],
       kind: "fillIn",
+      // When its words were saved, which Chloe's week page tells against her session.
+      savedAt: new Date().toISOString(),
       responseType: "text",
       text: "Mend the north lamp.",
       linkUrl: null,

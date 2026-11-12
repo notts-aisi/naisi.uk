@@ -24,21 +24,37 @@ import {
   type WorkLogItemKind,
   type WorkLogKind,
 } from "@/lib/firestore/courseWorkLog";
-import { NO_GROUP, weekStateOf, type LockSource } from "./lock";
-import { weekTakesWork, type WeekWorkState } from "./model";
-import { lockSourceFor } from "./readers";
+import { workClosesAt } from "./closes";
+import { NO_GROUP, weekDueOf, type SessionSource, type WeekDue } from "./sessionDue";
+import { weekTakesWork, weekWorkState, type WeekWorkState } from "./model";
+import { sessionSourceFor } from "./readers";
+import {
+  earlierVersionOf,
+  storedEarlierVersion,
+  versionOwed,
+  withEarlierVersion,
+  type EarlierVersion,
+  type PieceFacts,
+  type VersionReason,
+} from "./versions";
 
 /**
- * A PERSON'S OWN WEEK, AS THE ROUTES THAT WRITE IT ASK ABOUT IT: whose
- * sessions lock it, where it stands inside the write's own transaction, and
- * the row each write adds to the work log. Every route that writes somebody's
- * week (a tick, a reflection, a fill-in box, the written answer, a pack or a
- * talk's ready mark, Submit and Reopen) asks here, so a week locked or
- * submitted refuses them all alike and every one of them is logged alike.
+ * A PERSON'S OWN WEEK, AS THE ROUTES THAT WRITE IT ASK ABOUT IT: the session
+ * they are due at, whether the programme has closed (asked inside the write's
+ * own transaction), the earlier version a change must keep, and the row each
+ * write adds to the work log. Every route that writes somebody's week (a
+ * tick, a reflection, a fill-in box, the written answer and its Send, a pack
+ * or a talk's ready mark, the old Submit) asks here, so a closed programme
+ * refuses them all alike and every one of them is logged alike. Nothing is
+ * refused at the session any more, or after a send.
  */
 
-/** Thrown out of a transaction when the week no longer takes work: the route answers 409. */
-export class WeekShutError extends Error {}
+/** Thrown out of a transaction once the programme has closed: the route answers 409 with `closedWords(at)`. */
+export class WorkClosedError extends Error {
+  constructor(public at: Date) {
+    super("programme closed");
+  }
+}
 
 /** The run's groups read for who facilitates: the overview route's own bound. */
 const MAX_GROUPS = 50;
@@ -59,14 +75,16 @@ export type OwnSeat = {
   learner: CourseEnrolmentDoc | null;
   beforeGroups: boolean;
   ownGroup: CourseGroupDoc | null;
-  source: LockSource;
+  source: SessionSource;
+  /** When the programme closes for work, or null when it never closes by the clock. */
+  closesAt: Date | null;
 };
 
 export async function ownSeatOn(db: Firestore, actor: SessionUser, runId: string, weekNumber: number): Promise<OwnSeat | null> {
   const [enrolSnap, groupSnap, run] = await Promise.all([
     db.collection("courseEnrolments").doc(courseEnrolmentId(runId, actor.uid)).get(),
     db.collection("courseGroups").where("runId", "==", runId).limit(MAX_GROUPS).get(),
-    readRunForLock(db, runId),
+    readRunForWork(db, runId),
   ]);
   const enrolment = enrolSnap.exists ? normalizeCourseEnrolment(enrolSnap.id, enrolSnap.data() ?? {}) : null;
   const takesPart =
@@ -92,32 +110,34 @@ export async function ownSeatOn(db: Firestore, actor: SessionUser, runId: string
     learner,
     beforeGroups,
     ownGroup: beforeGroups ? null : ownGroup,
-    source: ownLockSource(run, liveGroups, actor.uid, learner),
+    source: ownSessionSource(run, liveGroups, actor.uid, learner),
+    closesAt: run ? workClosesAt(run, liveGroups) : null,
   };
 }
 
 /**
- * The run, read for the lock: null when it is gone or being destroyed. One
- * addressed read.
+ * The run, read for its weeks' work: null when it is gone or being
+ * destroyed. One addressed read.
  */
-export async function readRunForLock(db: Firestore, runId: string): Promise<CourseRunDoc | null> {
+export async function readRunForWork(db: Firestore, runId: string): Promise<CourseRunDoc | null> {
   const snap = await db.collection("courseRuns").doc(runId).get();
   if (!snap.exists || (snap.data() ?? {}).destroying === true) return null;
   return normalizeCourseRun(snap.id, snap.data() ?? {});
 }
 
 /**
- * Whose sessions lock the caller's own week: their told placement's group,
- * else the groups they facilitate (`lockSourceFor`). Somebody through week
- * 1's door before groups go out has none, and nor does a run that is gone.
+ * Whose sessions the caller's own week goes by: their told placement's
+ * group, else the groups they facilitate (`sessionSourceFor`). Somebody through
+ * week 1's door before groups go out has none, and nor does a run that is
+ * gone.
  */
-export function ownLockSource(
+export function ownSessionSource(
   run: CourseRunDoc | null,
   liveGroups: readonly CourseGroupDoc[],
   uid: string,
   enrolment: CourseEnrolmentDoc | null,
-): LockSource {
-  return run ? lockSourceFor(run, liveGroups, uid, enrolment) : NO_GROUP;
+): SessionSource {
+  return run ? sessionSourceFor(run, liveGroups, uid, enrolment) : NO_GROUP;
 }
 
 /** The address of a person's week record. */
@@ -125,24 +145,58 @@ export function weekWorkRef(db: Firestore, runId: string, uid: string, weekId: s
   return db.collection(COURSE_WEEK_WORK_COLLECTION).doc(courseWeekWorkId(runId, uid, weekId));
 }
 
+/** A person's week as a write reads it: where it stands, the session they are due at, and their week record. */
+export type WeekStanding = { state: WeekWorkState; due: WeekDue; record: CourseWeekWorkDoc | null };
+
 /**
  * Where the caller's week stands, read INSIDE the write's transaction, so a
- * Submit and a save landing together are put in one order. Reads only: call
- * it with the transaction's other reads, before any write.
+ * write landing as the programme closes is put in one order with it. Reads
+ * only: call it with the transaction's other reads, before any write.
  */
 export async function weekStateIn(
   tx: Transaction,
   db: Firestore,
-  input: { runId: string; uid: string; weekId: string; weekNumber: number; source: LockSource; now: Date },
-): Promise<{ state: WeekWorkState; record: CourseWeekWorkDoc | null }> {
+  input: { runId: string; uid: string; weekId: string; weekNumber: number; source: SessionSource; closesAt: Date | null; now: Date },
+): Promise<WeekStanding> {
   const snap = await tx.get(weekWorkRef(db, input.runId, input.uid, input.weekId));
   const record = snap.exists ? normalizeCourseWeekWork(snap.id, snap.data() ?? {}) : null;
-  return { state: weekStateOf(input.source, input.weekNumber, record, input.now), record };
+  const due = weekDueOf(input.source, input.weekNumber);
+  return { state: weekWorkState({ due, closesAt: input.closesAt, facts: record, now: input.now }), due, record };
 }
 
-/** Refuses a write to a week that no longer takes work (submitted, or locked). */
+/** Refuses a write once the programme has closed. Nothing else closes a week. */
 export function assertWeekTakesWork(state: WeekWorkState): void {
-  if (!weekTakesWork(state)) throw new WeekShutError("week shut");
+  if (!weekTakesWork(state) && state.kind === "closed") throw new WorkClosedError(state.at);
+}
+
+/**
+ * WHAT A CHANGE TO A PIECE KEEPS (`./versions.ts`): the row's list of earlier
+ * versions with the version this change replaces added, when the change is
+ * the first after the session started, after a send before it, or after
+ * feedback on these words (`reviewed`); null when it keeps nothing new. Asked
+ * inside the save's transaction with the row as it stood and the week's
+ * record (`reviewedVersions`).
+ */
+export function versionsToKeep(input: {
+  prior: PieceFacts | null;
+  itemId: string;
+  standing: WeekStanding;
+  now: Date;
+}): { list: EarlierVersion[]; reasons: VersionReason[] } | null {
+  const { prior, itemId, standing, now } = input;
+  const reasons = versionOwed({
+    prior,
+    dueAt: standing.due.at,
+    reviewedSavedAt: standing.record?.reviewedVersions[itemId] ?? null,
+    now,
+  });
+  if (!prior || reasons.length === 0) return null;
+  return { list: withEarlierVersion(prior.earlierVersions, earlierVersionOf(prior, reasons, now)), reasons };
+}
+
+/** A list of earlier versions as a write stores it. */
+export function storedEarlierVersions(list: readonly EarlierVersion[]): Record<string, unknown>[] {
+  return list.map(storedEarlierVersion);
 }
 
 /** Adds one row to the work log inside the transaction, at the server's time. */

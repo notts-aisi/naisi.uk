@@ -1236,10 +1236,11 @@
   color: var(--color-text-muted);
 }
 
-/* The week's column: where each person's week stands, the count beside it,
-   and Reopen. A status colour always comes with its word. Capped, so a
-   submitted week's pill, its count and Reopen wrap inside the cell rather
-   than widen the column until the names break mid-word. */
+/* The week's column: where each person's week stands and how late beside it
+   ("Done late", "Late: 3 days after the session"); a written answer's cell
+   says how late it was sent the same way. A status colour always comes with
+   its word. Capped, so a pill and its line wrap inside the cell rather than
+   widen the column until the names break mid-word. */
 .wkWeekCell {
   display: inline-flex;
   flex-wrap: wrap;

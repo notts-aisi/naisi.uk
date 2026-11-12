@@ -10,6 +10,7 @@ import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { weekWrittenAnswers } from "@/lib/courses/weekBlocks/reader";
 import {
   WRITTEN_ANSWER_LIMITS,
+  answerPiece,
   answerWords,
   isWordCountedAnswer,
   readWrittenAnswer,
@@ -23,7 +24,6 @@ import {
 import { exerciseResponseId, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import {
-  ANSWER_LOCKED,
   ANSWER_NOT_HERE,
   ANSWER_NOT_SAVED,
   ANSWER_SEND_RELOAD,
@@ -34,25 +34,29 @@ import {
 import { firstWrittenFor } from "@/lib/legal/courseworkUseStamp";
 import { instantOf } from "@/lib/courses/writtenAnswers/model";
 import {
-  WeekShutError,
+  WorkClosedError,
   assertWeekTakesWork,
   logSave,
   logWork,
-  ownLockSource,
-  readRunForLock,
+  ownSessionSource,
+  readRunForWork,
+  storedEarlierVersions,
+  versionsToKeep,
   weekStateIn,
 } from "@/lib/courses/weekWork/own";
-import { WEEK_SHUT } from "@/lib/courses/weekWork/words";
+import { workClosesAt } from "@/lib/courses/weekWork/closes";
+import { sameWords } from "@/lib/courses/weekWork/versions";
+import { closedWords } from "@/lib/courses/weekWork/words";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 
 /**
  * A PERSON WRITING THEIR OWN WRITTEN ANSWER: `PUT /api/courses/runs/[runId]/written-answers/[answerId]` with
  * `{ weekId, text }` (an answer of one box) or `{ weekId, boxes }` (an answer
  * in labelled boxes, box id to words). The box saves as they type; this route
- * is the only writer of what they wrote. It is sent by submitting the week
- * (`../../weeks/[weekId]/submit`), never here: a body still asking to send
- * comes from a page opened before weeks were submitted, and is told to
- * reload.
+ * is the only writer of what they wrote. It is sent by its own Send
+ * (`./send`), or by the week's old Submit, never here: a body still asking
+ * to send comes from a page opened before weeks were submitted, and is told
+ * to reload.
  *
  * WHO MAY WRITE, always their OWN answer (the row's id is built from the
  * caller's own uid; nothing here can address anybody else's): somebody taking
@@ -67,16 +71,21 @@ import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exerci
  * route's choice), found by the one reader of a week's content. A week
  * written before blocks has none here: its exercises keep their own route.
  *
- * THE LOCK is the week's (`src/lib/courses/weekWork/`): once the week is
- * submitted, or its session has started, every write is refused (409) until
- * somebody running the group reopens it, asked inside the transaction that
- * writes. An answer one of its reviewers opened before weeks were submitted
- * (`openedAt`) stays locked by that until the week is reopened, which clears
- * it. An answer sent before weeks were submitted (`firstSentAt`) still saves
- * as they type, each change stamping `editedAt`, held to its word range's
- * top, which is a limit (the guides: "Word limits are limits, not targets"),
- * and can no longer be emptied. While it is a draft its length is checked
- * only when the week is submitted.
+ * THE WEEK STAYS OPEN (`src/lib/courses/weekWork/`): nothing closes at the
+ * session or at a send. A write is refused (409) only once the programme has
+ * closed, asked inside the transaction that writes, with when it closed. An
+ * answer already sent saves as they type ("Change my answer"), each change
+ * stamping `editedAt`; its readers go on reading it as last sent until it is
+ * sent again (or the session starts). It is held to its word range's top,
+ * which is a limit (the guides: "Word limits are limits, not targets"), and
+ * can no longer be emptied. While it is a draft its length is checked only
+ * when it is sent.
+ *
+ * EARLIER VERSIONS (`src/lib/courses/weekWork/versions.ts`): the first change
+ * after the session started, after a send before it, or after feedback or a
+ * rating keeps the words it replaces on the row, in the same write. An unsent
+ * answer emptied when a version is owed keeps its row, empty, for that
+ * version. A save that changes nothing writes nothing.
  *
  * THE LOG: the first save of a writing spell, and an emptied answer, go in
  * the work log (`courseWorkLog`).
@@ -168,7 +177,7 @@ export async function PUT(
   const [enrolSnap, groupSnap, run] = await Promise.all([
     db.collection("courseEnrolments").doc(courseEnrolmentId(runId, actor.uid)).get(),
     db.collection("courseGroups").where("runId", "==", runId).limit(MAX_GROUPS).get(),
-    readRunForLock(db, runId),
+    readRunForWork(db, runId),
   ]);
   const enrolment = enrolSnap.exists ? normalizeCourseEnrolment(enrolSnap.id, enrolSnap.data() ?? {}) : null;
   const takesPart =
@@ -213,7 +222,8 @@ export async function PUT(
   const id = exerciseResponseId(runId, actor.uid, weekId, answerId);
   const ref = db.collection("courseExerciseResponses").doc(id);
   // Whose sessions lock this week for them: their own placement's group, or the groups they facilitate.
-  const source = ownLockSource(run, liveGroups, actor.uid, takesPart ? enrolment : null);
+  const source = ownSessionSource(run, liveGroups, actor.uid, takesPart ? enrolment : null);
+  const closesAt = run ? workClosesAt(run, liveGroups) : null;
   const clock = new Date();
   const logged = { runId, uid: actor.uid, weekId, weekNumber, itemKind: "writtenAnswer" as const, itemId: answerId };
 
@@ -222,9 +232,9 @@ export async function PUT(
     stored = await db.runTransaction(async (tx) => {
       const [snap, week] = await Promise.all([
         tx.get(ref),
-        weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source, now: clock }),
+        weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source, closesAt, now: clock }),
       ]);
-      // THE LOCK: a week submitted or locked takes nothing more until it is reopened.
+      // Only a closed programme refuses: nothing closes at the session or at a send.
       assertWeekTakesWork(week.state);
       const prior = snap.exists ? ((snap.data() ?? {}) as Record<string, unknown>) : null;
       // A reflection's row, or an answer counted some other way, is never written
@@ -233,18 +243,31 @@ export async function PUT(
         throw new AnswerError("That box holds something else. Reload the page.", 409);
       }
       const record = prior ? readWrittenAnswer(prior) : null;
-      // Opened by one of its reviewers before weeks were submitted: locked until the week is reopened.
-      if (record?.openedAt) throw new AnswerError(ANSWER_LOCKED, 409);
       const alreadySent = record?.firstSentAt != null;
+      // A save that changes nothing writes nothing: the words' last save stays their version's mark.
+      if (record && sameWords(record, { text, boxes, words })) return prior;
+      // The first change across a line keeps the words it replaces.
+      const kept = versionsToKeep({ prior: record ? answerPiece(record) : null, itemId: answerId, standing: week, now: clock });
+      const keptList = kept?.list ?? record?.earlierVersions ?? [];
 
       if (words === 0) {
         if (alreadySent) throw new AnswerError(ANSWER_SENT_CANNOT_EMPTY, 400);
-        // Nothing written is nothing stored.
-        if (prior) {
+        if (!prior) return null;
+        logWork(tx, db, { ...logged, kind: "cleared" });
+        // Nothing written is nothing stored, unless an earlier version is kept on the row.
+        if (keptList.length === 0) {
           tx.delete(ref);
-          logWork(tx, db, { ...logged, kind: "cleared" });
+          return null;
         }
-        return null;
+        const emptied: Record<string, unknown> = {
+          words: 0,
+          earlierVersions: storedEarlierVersions(keptList),
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        if (boxes) emptied.boxes = {};
+        else emptied.text = "";
+        tx.set(ref, emptied, { merge: true });
+        return { ...prior, ...emptied, updatedAt: new Date() };
       }
       // The top of the range is a limit for what was sent, and for every change to it after.
       if (alreadySent && limit !== null && words > limit) {
@@ -274,11 +297,9 @@ export async function PUT(
         write.text = text;
         if (prior && "boxes" in prior) write.boxes = FieldValue.delete();
       }
+      if (kept) write.earlierVersions = storedEarlierVersions(kept.list);
       if (alreadySent) {
-        const changed = boxes
-          ? JSON.stringify(record?.boxes ?? {}) !== JSON.stringify(boxes)
-          : (record?.text ?? "") !== text;
-        if (changed) write.editedAt = FieldValue.serverTimestamp();
+        write.editedAt = FieldValue.serverTimestamp();
       } else if (!prior) {
         write.submittedAt = null;
       }
@@ -293,12 +314,13 @@ export async function PUT(
       if (boxes) delete after.text;
       else delete after.boxes;
       if (write.editedAt) after.editedAt = now;
+      if (kept) after.earlierVersions = kept.list;
       if (!alreadySent && !prior) after.submittedAt = null;
       return after;
     });
   } catch (err) {
     if (err instanceof AnswerError) return NextResponse.json({ error: err.message }, { status: err.status });
-    if (err instanceof WeekShutError) return NextResponse.json({ error: WEEK_SHUT }, { status: 409 });
+    if (err instanceof WorkClosedError) return NextResponse.json({ error: closedWords(err.at) }, { status: 409 });
     console.error("[courses written answer] write failed", runId, weekId, answerId, err);
     return NextResponse.json({ error: ANSWER_NOT_SAVED }, { status: 500 });
   }

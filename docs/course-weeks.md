@@ -98,14 +98,17 @@ it (`When`). The moment is each group's, from the group's own calendar
 (`CourseDoc.dayBeforeDueTime`, in the course's details): a London time on the
 day before, such as 12:00, or none, for by the end of that day. When the
 group's session is cancelled, the work is due by the same rule before the
-group's next session. Work first sent after the moment shows as Late to the
-group's facilitators, the lead and admins, and to nobody else.
+group's next session. Work first sent after the moment, but before the
+session, shows as "After its deadline" to the group's facilitators, the lead
+and admins, and to nobody else.
 
-A week LOCKS when its person submits it, or when the group's session that
-week starts (the "before" rule's moment), whichever comes first; the people
-running the group can reopen it for one person. The week page says until
-when under the title. See "The week you submit" in `docs/courses-ops.md` and
-`src/lib/courses/weekWork/`.
+Nothing closes a week at its session, or at a send: it takes work until
+the programme closes (14 days after the run's last session, unless the run
+says otherwise), and what is added or changed after the session shows as late
+to its readers, with how late. "Late" is from the session; an answer first
+sent after its own due moment but before the session is "After its deadline",
+to its readers alone. The week page says until when under the title. See "The
+week stays open" in `docs/courses-ops.md` and `src/lib/courses/weekWork/`.
 
 The loader says when the Markdown's words ("by noon the day before") and the
 course's setting disagree. The site goes by the setting.

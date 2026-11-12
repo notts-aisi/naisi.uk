@@ -6,6 +6,7 @@ import {
   type FeedbackRole,
 } from "@/lib/firestore/courseFeedback";
 import type { GivenLevel } from "../rubric";
+import { versionAbout, type PieceFacts } from "../weekWork/versions";
 
 /**
  * FEEDBACK AS A SIGNED COMMENT (privacy v15, "Feedback"), as every page and
@@ -34,8 +35,26 @@ import type { GivenLevel } from "../rubric";
  * people the same way (`fullNameOfUser`); a piece never reads one way to the
  * person and another to the people running their group.
  *
+ * WHICH VERSION A PIECE WAS ABOUT (the week stays open): a piece on the
+ * written answer stores the mark of the version of the answer it was about
+ * (`aboutSavedAt`). When the words have changed since, the card carries that
+ * version (`about`), to the people running the group and to the person
+ * alike, so nothing anyone wrote about an answer reads as if it were about
+ * words it was not about. Every version a piece can be about was read by its
+ * writer when it was saved: sent, or after the person's session.
+ *
  * Pure: no reads, no clock. The pages in the browser import it.
  */
+
+/** The version of a written answer a piece was about, when the answer has changed since. */
+export type AboutVersion = {
+  text: string;
+  /** An answer in labelled boxes, box id to words, or null. */
+  boxes: Record<string, string> | null;
+  words: number;
+  /** ISO 8601: when those words were last saved. */
+  savedAt: string | null;
+};
 
 /** Who signs a card, as the person's page says it. */
 export type CardRole = FeedbackRole;
@@ -64,6 +83,14 @@ export type OwnFeedbackCard = {
   text: string;
   /** Feedback given before pieces existed with no comment: its levels, one plain line each. */
   lines: string[];
+  /**
+   * On the written answer, when its words have changed since the piece was
+   * saved: the version it was about. Null when it is about the latest words,
+   * on the week as a whole, or no longer kept (`aboutGone`).
+   */
+  about: AboutVersion | null;
+  /** The version it was about is no longer kept: the answer has changed since, beyond what is kept. */
+  aboutGone: boolean;
 };
 
 /**
@@ -114,8 +141,30 @@ function iso(value: Date | null): string | null {
   return value ? value.toISOString() : null;
 }
 
-/** A piece as the person it is about reads it. */
-export function ownCardOf(piece: CourseFeedbackDoc, names: CardNames): OwnFeedbackCard {
+/**
+ * The version of `answer` a piece was about, as a card carries it: null for
+ * the latest words or a piece on the week, gone when no longer kept.
+ */
+export function aboutOf(
+  piece: Pick<CourseFeedbackDoc, "on" | "aboutSavedAt" | "createdAt">,
+  answer: PieceFacts | null,
+): { about: AboutVersion | null; aboutGone: boolean } {
+  if (piece.on.kind !== "writtenAnswer" || !answer) return { about: null, aboutGone: false };
+  const version = versionAbout(answer, piece.aboutSavedAt, piece.createdAt);
+  if (!version) return { about: null, aboutGone: true };
+  if (version.latest) return { about: null, aboutGone: false };
+  return {
+    about: { text: version.text, boxes: version.boxes, words: version.words, savedAt: iso(version.savedAt) },
+    aboutGone: false,
+  };
+}
+
+/**
+ * A piece as the person it is about reads it. `answer` is the written answer
+ * it may be on, for the version it was about; left out, nothing is said of
+ * versions.
+ */
+export function ownCardOf(piece: CourseFeedbackDoc, names: CardNames, answer: PieceFacts | null = null): OwnFeedbackCard {
   const facilitator = piece.byRole === "facilitator";
   return {
     id: piece.id,
@@ -127,6 +176,7 @@ export function ownCardOf(piece: CourseFeedbackDoc, names: CardNames): OwnFeedba
     at: iso(piece.createdAt),
     text: piece.text,
     lines: [],
+    ...aboutOf(piece, answer),
   };
 }
 
@@ -148,19 +198,22 @@ export function ownLegacyCardOf(answerId: string, feedback: LegacyFeedback, byRo
     at: iso(feedback.sentAt),
     text: words.text,
     lines: words.lines,
+    // Given before versions were kept, and before an answer could change after it was read.
+    about: null,
+    aboutGone: false,
   };
 }
 
 /** What the reader of a staff card is: their uid, whether they are an admin, and the time. */
 export type StaffReader = { uid: string; isAdmin: boolean; now: Date };
 
-/** A piece as the people running the group read it. */
-export function staffCardOf(piece: CourseFeedbackDoc, names: CardNames, reader: StaffReader): StaffFeedbackCard {
+/** A piece as the people running the group read it; `answer` as `ownCardOf` takes it. */
+export function staffCardOf(piece: CourseFeedbackDoc, names: CardNames, reader: StaffReader, answer: PieceFacts | null = null): StaffFeedbackCard {
   const mine = piece.byUid !== "" && piece.byUid === reader.uid;
   const emailed = piece.emailedAt ? { at: iso(piece.emailedAt), delivery: piece.emailDelivery ?? "sent" } : null;
   const sending = feedbackIsClaimed(piece, reader.now);
   return {
-    ...ownCardOf(piece, names),
+    ...ownCardOf(piece, names, answer),
     byUid: piece.byUid,
     editedAt: iso(piece.editedAt),
     emailed,

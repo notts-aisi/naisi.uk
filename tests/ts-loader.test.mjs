@@ -272,6 +272,11 @@ const USERS = new Map([
       "compiles, beside the written answers world that executes Submit, Reopen and the tick route",
   ],
   [
+    "course-written-answer-readers.test.mjs",
+    "runs the Coursework tab's person-page builder (`personWeeks`, a .ts module this loader compiles) with a " +
+      "stored answer full of words that must not leave the server, to prove the page is handed none of them",
+  ],
+  [
     "admissions-form-fence.test.mjs",
     "executes every older round route against a stored application form and against a round " +
       "of the older kind, with the session, the Admin SDK handle and every sending door faked, " +

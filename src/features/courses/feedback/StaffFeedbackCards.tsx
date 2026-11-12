@@ -19,11 +19,16 @@ import {
 } from "@/lib/courses/feedback/words";
 import styles from "./feedback.module.css";
 
+import { THE_VERSION_THIS_FEEDBACK_WAS_ABOUT, answerChangedSinceWords } from "@/lib/courses/weekWork/words";
+import EarlierVersion, { versionBoxes } from "./EarlierVersion";
 /**
  * THE FEEDBACK ON ONE PERSON'S WEEK, AS THE PEOPLE RUNNING THE GROUP READ IT
  * (the review page, the Coursework tab's person page): each piece signed as
  * the person reads it, what it is on, and whether its email has gone.
- * Feedback given before pieces existed is one of them, already emailed.
+ * Feedback given before pieces existed is one of them, already emailed. A
+ * piece on a written answer that has changed since carries the version it
+ * was about, stacked under it ("The version this feedback was about"), so it
+ * never reads as if it were about the words shown above it.
  *
  * Delete is drawn on a piece the reader may delete (`mayDelete`, worked out
  * on the server: its writer's until its email has gone, any piece for an
@@ -37,6 +42,7 @@ export default function StaffFeedbackCards({
   firstName,
   weekNumber,
   programme,
+  answerBoxes = [],
 }: {
   cards: StaffFeedbackCard[];
   runId: string;
@@ -45,6 +51,8 @@ export default function StaffFeedbackCards({
   weekNumber: number;
   /** The programme's short name, for "Claudia, who leads AGI Strategy". */
   programme: string;
+  /** The week's written answer's labelled boxes, in order, for the version a piece was about; none for one box. */
+  answerBoxes?: ReadonlyArray<{ id: string; label: string }>;
 }) {
   if (cards.length === 0) return null;
   return (
@@ -73,6 +81,14 @@ export default function StaffFeedbackCards({
               ))}
             </ul>
           )}
+          {card.about && (
+            <EarlierVersion
+              label={THE_VERSION_THIS_FEEDBACK_WAS_ABOUT}
+              text={card.about.text}
+              boxes={versionBoxes(card.about.boxes, answerBoxes)}
+            />
+          )}
+          {card.aboutGone && <p className={styles.cardBy}>{answerChangedSinceWords(firstName)}</p>}
           <div className={styles.cardFoot}>
             <p className={card.emailed || card.sending ? styles.emailState : styles.emailStateOwed}>
               {emailStateWords(firstName, card.emailed, card.sending)}
