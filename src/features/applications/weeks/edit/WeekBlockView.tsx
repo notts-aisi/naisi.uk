@@ -12,6 +12,7 @@ import { SOURCE_KIND_LABEL, type WeekBlock } from "@/lib/courses/weekBlocks/mode
 import { safeSourceUrl } from "@/lib/courses/weekBlocks/prose";
 import { rangeWords } from "@/lib/courses/weekEdit/pageModel";
 import { DUE_CHOICE } from "@/lib/courses/weekEdit/pageWords";
+import type { WeekDue } from "@/lib/courses/weekWork/model";
 import type { CourseProgressDoc } from "@/lib/firestore/courseProgress";
 import styles from "./editWeek.module.css";
 
@@ -35,6 +36,11 @@ const NO_TICK_ROWS: ReadonlyMap<string, CourseProgressDoc> = new Map();
 const NO_ROWS: ReadonlyMap<string, ExerciseResponseWire> = new Map();
 const nothing = () => {};
 const notDone = () => false;
+// The reader has no place on the week, so no session to be due at. The
+// renderers read these only beside a box of the person's own, which is never
+// drawn here.
+const NO_DUE: WeekDue = { at: null, by: "no-group" };
+const NO_MOMENT = new Date(0);
 
 const proseClasses = {
   className: blockStyles.body,
@@ -87,6 +93,8 @@ export default function WeekBlockView({
           ownBoxes={false}
           canWrite={false}
           readers={null}
+          due={NO_DUE}
+          now={NO_MOMENT}
           onSaved={nothing}
         />
       );
@@ -97,6 +105,7 @@ export default function WeekBlockView({
             block={block}
             runId={runId}
             weekId={weekId}
+            weekNumber={weekNumber}
             row={null}
             loaded
             loading={false}
@@ -106,11 +115,12 @@ export default function WeekBlockView({
             readers={{ kind: "facilitators", names: [] }}
             leadName={null}
             feedback={null}
-            due={null}
+            dueDay={null}
             dayBeforeTime={null}
             first={false}
             todayKey=""
-            work={null}
+            due={NO_DUE}
+            rest={null}
             onSaved={nothing}
           />
           <p className={styles.blockMeta}>

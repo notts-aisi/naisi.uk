@@ -14,6 +14,7 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -380,6 +381,44 @@ describe("4. the week's page: as it reads, with what people have done beside eac
     // A hold not kept alive has lapsed: nobody is named.
     world.db.seed(`${W3}/editLock/current`, { holderUid: "zach", since: new Date(NOW.getTime() - 600_000), keptAt: new Date(NOW.getTime() - 300_000), runId: RUN.agi, weekId: "w03" });
     assert.doesNotMatch((await draw("claudia", WeekPage, at("w03"))).text, /is editing week 3/);
+  });
+
+  test("the week as it reads is drawn read only: no box, no tick, no Send, and nothing it draws can write", async () => {
+    seedWork();
+    // Chloe's reflection, so there are words of somebody's on the week to keep off the page.
+    world.db.seed(`courseExerciseResponses/${RUN.agi}__chloe__w03__rp-1`, {
+      runId: RUN.agi,
+      uid: "chloe",
+      weekId: "w03",
+      weekNumber: 3,
+      exerciseId: "rp-1",
+      kind: "reflection",
+      responseType: "text",
+      text: "Base rates first, always.",
+      firstWrittenAt: T_TICKED,
+      updatedAt: T_TICKED,
+    });
+    const { html } = await draw("claudia", WeekPage, at("w03"));
+    const cards = [...html.matchAll(/<li id="edit-[^"]+"[\s\S]*?<\/li>/g)].map((m) => m[0]);
+    assert.ok(cards.length > 5, "the week's blocks are drawn");
+    for (const card of cards) {
+      assert.doesNotMatch(card, /<textarea|<input|<form|role="checkbox"|aria-pressed/, "no box and no tick on the week as it reads");
+      assert.doesNotMatch(card, /Send my answer|Change my answer|Rate it or leave a note|Saved/, "no Send and no save line");
+      assert.doesNotMatch(card, /Base rates first|Sixty percent/, "nobody's words");
+    }
+    // Every block drawn alone, by the renderers as they are now: the only
+    // buttons it may draw are none at all, so nothing on it can write.
+    const { default: WeekBlockView } = await loadTs(join("features", "applications", "weeks", "edit", "WeekBlockView.tsx"));
+    for (const block of syntheticWeekBlocks().flatMap((b) => (b.type === "part" ? [b, ...b.blocks] : [b]))) {
+      const drawn = renderToStaticMarkup(createElement(WeekBlockView, { block, runId: RUN.agi, weekId: "w03", weekNumber: 3 }));
+      assert.doesNotMatch(drawn, /<textarea|<input|<button|<form/, `${block.type} ${block.id}: nothing to press or type in`);
+    }
+    // And the module hands each renderer the switches that keep it read only, and never a writer.
+    const source = readFileSync(join(process.cwd(), "src", "features", "applications", "weeks", "edit", "WeekBlockView.tsx"), "utf8");
+    for (const off of ["showTicks={false}", "canWrite={false}", "canNote={false}", "canRate={false}", "ownBoxes={false}", "ownBox={false}"]) {
+      assert.ok(source.includes(off), off);
+    }
+    assert.doesNotMatch(source, /fetch\(|boxWrites|progressMutations|putReflection|useMaterialTicks/, "no write of any kind is reachable from the read-only week");
   });
 
   test("a week not written as blocks draws no blocks, and keeps the paste", async () => {
