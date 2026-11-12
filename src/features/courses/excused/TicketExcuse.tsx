@@ -99,7 +99,7 @@ export default function TicketExcuse({
     case "waiting": {
       const askedAt = date(state.askedAt);
       block = (
-        <div className={styles.state} data-testid="excuse-state" data-state="waiting">
+        <div className={styles.state} data-state="waiting">
           <span className={`${styles.chip} ${styles.chipWaiting}`}>{O.ASKED_TO_BE_EXCUSED}</span>
           {state.started ? (
             <>
@@ -117,7 +117,7 @@ export default function TicketExcuse({
     case "approved": {
       const at = date(state.at);
       block = (
-        <div className={styles.state} data-testid="excuse-state" data-state="approved">
+        <div className={styles.state} data-state="approved">
           <span className={`${styles.chip} ${styles.chipExcused}`}>{O.EXCUSED}</span>
           {at && <p className={styles.line}>{O.approvedLineWords(state.by, at, state.reply)}</p>}
           {state.came && <p className={styles.small}>{O.CAME_AFTER_ALL}</p>}
@@ -128,7 +128,7 @@ export default function TicketExcuse({
     case "time-set":
     case "in-advance":
       block = (
-        <div className={styles.state} data-testid="excuse-state" data-state={state.kind}>
+        <div className={styles.state} data-state={state.kind}>
           <span className={`${styles.chip} ${styles.chipExcused}`}>{O.EXCUSED}</span>
           <p className={styles.line}>{state.kind === "time-set" ? SAID_WHEN_TIME_SET : SAID_IN_ADVANCE}</p>
         </div>
@@ -136,7 +136,7 @@ export default function TicketExcuse({
       break;
     case "declined":
       block = (
-        <div className={styles.state} data-testid="excuse-state" data-state="declined">
+        <div className={styles.state} data-state="declined">
           <span className={`${styles.chip} ${styles.chipPlain}`}>{O.NOT_EXCUSED}</span>
           <p className={styles.line}>{O.declinedLineWords(session.weekNumber, session.occurrence, state.by, state.reply)}</p>
         </div>
@@ -145,7 +145,7 @@ export default function TicketExcuse({
     case "withdrawn": {
       const at = date(state.at);
       block = at ? (
-        <div className={styles.state} data-testid="excuse-state" data-state="withdrawn">
+        <div className={styles.state} data-state="withdrawn">
           <p className={styles.line}>{O.withdrewWords(at, now)}</p>
         </div>
       ) : null;

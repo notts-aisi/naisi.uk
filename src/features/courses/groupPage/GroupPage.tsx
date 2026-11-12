@@ -606,7 +606,6 @@ export default function GroupPage({
                           {person.excuse ? (
                             <span
                               className={`${styles.excuseChip} ${person.excuse === "waiting" ? styles.excuseWaiting : styles.excuseExcused}`}
-                              data-testid="group-excuse-chip"
                             >
                               {S.factWords(person.excuse)}
                             </span>

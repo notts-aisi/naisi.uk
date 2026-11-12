@@ -4470,7 +4470,8 @@ export const PAGES = {
     why:
       "One request's page, under the Requests page in the admissions tree: the tree's gate, then the loader's " +
       "(loadRequestPage, an admin or somebody leading the programme of the request's group, asked through the group's " +
-      "register gate). The address names no request the world writes, so everybody the tree admits is drawn the same " +
+      "register gate; and for a request to be excused loadExcusedRequestPage, an admin's alone, so a lead is drawn the " +
+      "same not-here). The address names no request the world writes, so everybody the tree admits is drawn the same " +
       "calm 'that request isn't here' with a 200, never told whether one exists; everybody else is sent to the dashboard.",
   },
   "/(app)/admin/admissions/forms": {

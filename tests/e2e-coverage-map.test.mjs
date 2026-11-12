@@ -999,36 +999,6 @@ const NOT_COVERED = {
     coverWhen:
       "When a browser spec seats a facilitator in the group they run, or the route goes once the instant button has settled.",
   },
-  "/api/courses/groups/[groupId]/excused": {
-    reason:
-      "Course hub: somebody holding a place asking to be excused from sessions of their group, with a short reason. tests/course-excused-weeks.test.mjs executes it as every kind of caller, before a session and after it, with each refusal and the request it writes (and nothing on a register); the programme page that presses it is built in the next change.",
-    coverWhen:
-      "When the programme page carries Ask to be excused in place of the instant Can't make it, its browser spec asks there and an admin decides it from the Requests page.",
-  },
-  "/api/courses/requests/[requestId]/excused/withdraw": {
-    reason:
-      "Course hub: the person who asked to be excused withdrawing a week, or the whole request, while it waits. tests/course-excused-weeks.test.mjs executes it as the asker, another member, staff and an admin; the programme page that presses it is built in the next change.",
-    coverWhen:
-      "When the programme page carries Withdraw the request on a waiting week, its browser spec withdraws one there.",
-  },
-  "/api/courses/requests/[requestId]/excused/approve": {
-    reason:
-      "Course hub: an admin approving one week of a request to be excused, which writes or corrects the register line in the same transaction and emails the person and the group's facilitators. tests/course-excused-weeks.test.mjs executes it as every kind of caller, before the session and after Finish, with the register, the history row and the emails each writes; the request's page that presses it is built in the next change.",
-    coverWhen:
-      "When the request's page carries Approve and email, its browser spec approves a week there and reads Excused on the register as its facilitator.",
-  },
-  "/api/courses/requests/[requestId]/excused/decline": {
-    reason:
-      "Course hub: an admin declining one week of a request to be excused, with a reply emailed to the person. tests/course-excused-weeks.test.mjs executes it as every kind of caller, the reply needed and the one email; the request's page that presses it is built in the next change.",
-    coverWhen:
-      "When the request's page carries Decline and email, its browser spec declines a week there and reads the reply on the person's programme page.",
-  },
-  "/api/courses/requests/[requestId]/excused/reply": {
-    reason:
-      "Course hub: an admin replying to a request to be excused without deciding it, kept on the request and emailed to the person. tests/course-excused-weeks.test.mjs executes it as every kind of caller; the request's page that presses it is built in the next change.",
-    coverWhen:
-      "When the request's page carries Reply without deciding, its browser spec replies there.",
-  },
   "/api/courses/groups/[groupId]/session": {
     reason:
       "Courses: /api/courses/groups/[groupId]/session is staff-facing, taken deliberately, and answered on the screen that called it.",

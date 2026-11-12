@@ -180,7 +180,7 @@ export default function ExcusedRequestPage({ view }: { view: ExcusedRequestPageV
                 {R.quoted(view.reason)}
               </blockquote>
             ) : view.reasonGoneAt ? (
-              <p className={styles.line} data-testid="excused-reason-gone">
+              <p className={styles.line}>
                 {REASON_GONE}
               </p>
             ) : null}
@@ -203,7 +203,7 @@ export default function ExcusedRequestPage({ view }: { view: ExcusedRequestPageV
           {view.weeks.map(weekCard)}
 
           {waitingWeeks.length > 0 && view.canDecide ? (
-            <section className={styles.card} aria-labelledby="excused-reply" data-testid="excused-decide">
+            <section className={styles.card} aria-labelledby="excused-reply">
               <h2 id="excused-reply" className={styles.cardTitle}>
                 {R.replyToWords(first)}
               </h2>
@@ -219,7 +219,9 @@ export default function ExcusedRequestPage({ view }: { view: ExcusedRequestPageV
                   data-testid="excused-reply-text"
                 />
               </label>
-              <p className={styles.line}>{view.weeks.length > 1 ? R.ONE_EMAIL_PER_DECISION : R.DECLINE_NEEDS_A_REPLY}</p>
+              <p className={styles.line}>
+                {R.ONE_EMAIL_PER_DECISION} {R.DECLINE_NEEDS_A_REPLY}
+              </p>
               <div className={styles.actions}>
                 <Button variant="secondary" onClick={() => void act("reply", null)} disabled={off || !reply.trim()} data-testid="excused-reply">
                   {busy === "reply-" ? R.SAVING : REPLY_WITHOUT_DECIDING}
