@@ -1035,8 +1035,8 @@ describe("who is sent what: the reason and how often to admins only, one of two 
       assert.equal((await loaders.loadRequestPage(world.courseDb, sessionOf(who), id)).status, "none", who);
       assert.equal((await page.loadExcusedRequestPage(world.courseDb, sessionOf(who), id, AFTER_W2)).status, "none", who);
     }
-    assert.equal(await home.requestsWaitingOnRun(world.courseDb, RUN.agi), 0, "a lead's count includes an excused request");
-    assert.equal(await home.requestsWaitingOnRun(world.courseDb, RUN.agi, { excused: true }), 1);
+    assert.equal(await home.requestsWaitingOnRun(world.courseDb, sessionOf("claudia"), RUN.agi), 0, "a lead's count includes an excused request");
+    assert.equal(await home.requestsWaitingOnRun(world.courseDb, sessionOf("zach"), RUN.agi, { excused: true }), 1);
   });
 
   test("one request's page for an admin: the reason, each week, what approving will do and who it emails, how often before", async () => {
