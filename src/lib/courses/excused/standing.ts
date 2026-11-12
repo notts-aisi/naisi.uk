@@ -11,15 +11,42 @@ import { weeksAbout } from "./model";
  * WAITING is an admin's to decide, and one whose request was DECLINED stays
  * declined. Neither door may excuse them from it.
  *
- * One equality on `subjectUid`, read in the caller's transaction before it
- * writes anything, filtered in code to this run.
+ * READ BY PERSON AND RUN, and only the requests that still bear on a week:
+ * `subjectUid`, `runId` and `status` in waiting, approved or declined, three
+ * equalities, which Firestore serves by merging the automatic single-field
+ * indexes, so no declared index is needed (tests/firestore-indexes.test.mjs
+ * holds that). A request whose every week was withdrawn bears on nothing and
+ * is never read; the rest each need a waiting week (one per session at most)
+ * or an admin's decision, so one person's on one run never come near the
+ * limit, however often they ask and withdraw. Read in the caller's
+ * transaction before it writes anything.
  */
 
 /** A request about one session that keeps the person's own word off it, or null. */
 export type ExcuseHold = "waiting" | "declined" | null;
 
-/** Most of a person's own requests read: a term holds a handful. */
-const MAX_OWN = 50;
+/**
+ * Most requests read that still bear on a week, for one person on one run:
+ * each is a waiting week (one per session at most) or an admin's decision.
+ */
+const MAX_BEARING = 200;
+
+/** The statuses of a request that still bears on a week. A withdrawn one bears on none. */
+const BEARING = ["waiting", "approved", "declined"];
+
+/** One person's requests on one run that still bear on a week, read in `tx` (or outside one). */
+export async function standingRequestsIn(tx: Transaction | null, db: Firestore, uid: string, runId: string): Promise<ExcusedRequestDoc[]> {
+  const query = db
+    .collection(COURSE_REQUESTS_COLLECTION)
+    .where("subjectUid", "==", uid)
+    .where("runId", "==", runId)
+    .where("status", "in", BEARING)
+    .limit(MAX_BEARING);
+  const snap = tx ? await tx.get(query) : await query.get();
+  return snap.docs
+    .map((doc) => normalizeExcusedRequest(doc.id, doc.data() ?? {}))
+    .filter((each): each is ExcusedRequestDoc => each !== null && each.runId === runId && each.subjectUid === uid);
+}
 
 /** Where a person's requests stand on one session: one waiting, else one declined (and none approved), else nothing. Pure. */
 export function excuseHoldOf(requests: readonly ExcusedRequestDoc[], uid: string, sessionKey: string): ExcuseHold {
@@ -36,9 +63,6 @@ export async function excuseHoldsIn(
   uid: string,
   runId: string,
 ): Promise<(sessionKey: string) => ExcuseHold> {
-  const snap = await tx.get(db.collection(COURSE_REQUESTS_COLLECTION).where("subjectUid", "==", uid).limit(MAX_OWN));
-  const requests = snap.docs
-    .map((doc) => normalizeExcusedRequest(doc.id, doc.data() ?? {}))
-    .filter((each): each is ExcusedRequestDoc => each !== null && each.runId === runId && each.subjectUid === uid);
+  const requests = await standingRequestsIn(tx, db, uid, runId);
   return (sessionKey) => excuseHoldOf(requests, uid, sessionKey);
 }

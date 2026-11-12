@@ -1,7 +1,8 @@
 import "server-only";
-import type { Firestore } from "firebase-admin/firestore";
+import type { Firestore, Transaction } from "firebase-admin/firestore";
 import { addDaysToKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { excusedRequestUrl, sendExcusedEmail, type ExcusedEmailOutcome } from "@/lib/email/excusedEmail";
+import { COURSE_REQUESTS_COLLECTION } from "@/lib/firestore/courseRequests";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { newRequestEmailWords, soonWords, type NewRequestWeek } from "./words";
 
@@ -25,7 +26,38 @@ import { newRequestEmailWords, soonWords, type NewRequestWeek } from "./words";
  *
  * WHEN: after the request is written, outside its transaction. It never
  * throws: a failed send never fails the ask. It returns counts.
+ *
+ * HOW OFTEN: the first `ADMIN_EMAILS_A_DAY` asks by one person on one run in
+ * one London day email the admins; later ones that day email nobody, and
+ * still wait on the Requests page as usual. The ask decides it in its own
+ * transaction, from the requests that already carry `adminsToldOn` for that
+ * day (`adminsToldTodayIn`), and marks its own request when it tells them, so
+ * the count is durable, server-only, and goes with the requests when the
+ * account or the run does. Withdrawing frees a week to be asked again, so
+ * without it a member asking and withdrawing in a loop would send every
+ * admin an email each time, out of the allowance the whole site shares.
  */
+
+/** Asks by one person on one run in one London day that email the admins. */
+export const ADMIN_EMAILS_A_DAY = 3;
+
+/**
+ * How many of this person's asks on this run on `dateKey` emailed the admins,
+ * up to the cap, read in the ask's transaction: three equalities
+ * (`subjectUid`, `runId`, `adminsToldOn`), served by merging the automatic
+ * single-field indexes, so no declared index.
+ */
+export async function adminsToldTodayIn(tx: Transaction, db: Firestore, uid: string, runId: string, dateKey: string): Promise<number> {
+  const snap = await tx.get(
+    db
+      .collection(COURSE_REQUESTS_COLLECTION)
+      .where("subjectUid", "==", uid)
+      .where("runId", "==", runId)
+      .where("adminsToldOn", "==", dateKey)
+      .limit(ADMIN_EMAILS_A_DAY),
+  );
+  return snap.size;
+}
 
 /** Who reads this email: admins alone. */
 const ADMIN_READER = { role: "admin" } as const;

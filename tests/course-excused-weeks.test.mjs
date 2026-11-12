@@ -1151,9 +1151,41 @@ describe("the admins are told a request has arrived: one email each, never the r
     world.mail.length = 0;
     assert.equal((await act("amara", "withdraw", id, {})).status, 200);
     assert.deepEqual(world.mail, []);
-    // A second ask is a second email.
-    await amaraAsks(["w02"], { keepMail: true });
-    assert.equal(world.mail.length, 2);
+  });
+
+  test("one person's first three asks on a run in a London day email the admins; the fourth does not, and still waits; the next day does again", async () => {
+    secondAdmin();
+    const ADMINS = 2;
+    const loop = async () => {
+      world.mail.length = 0;
+      const id = await amaraAsks(["w03"], { keepMail: true });
+      const emailed = world.mail.length;
+      // Withdrawing frees the week to be asked again, and emails nobody.
+      assert.equal((await act("amara", "withdraw", id, {})).status, 200);
+      return { id, emailed };
+    };
+    for (const nth of [1, 2, 3]) assert.equal((await loop()).emailed, ADMINS, `ask ${nth} did not email each admin once`);
+    world.mail.length = 0;
+    const fourth = await amaraAsks(["w03"], { keepMail: true });
+    assert.deepEqual(world.mail, [], "a fourth ask that day emailed somebody");
+    // It is a request like any other: it waits for an admin, on the Requests page.
+    const kept = requestDocs().find((doc) => doc.id === fourth);
+    assert.equal(kept.status, "waiting");
+    assert.equal("adminsToldOn" in kept, false, "the fourth ask is marked as having told the admins");
+    assert.deepEqual(
+      requestDocs().filter((doc) => doc.adminsToldOn).map((doc) => doc.adminsToldOn),
+      ["2026-11-09", "2026-11-09", "2026-11-09"],
+      "the three that told them are not marked with the London day",
+    );
+    // Somebody else's asks are counted on their own.
+    world.mail.length = 0;
+    assert.equal((await ask("dev", { sessionKeys: ["w03"], reason: REASON })).status, 200);
+    assert.equal(world.mail.length, ADMINS, "Dev's first ask was held back by Amara's");
+    // The next London day, asking emails the admins again.
+    assert.equal((await act("amara", "withdraw", fourth, {})).status, 200);
+    at(new Date("2026-11-10T09:40:00Z"));
+    assert.equal((await loop()).emailed, ADMINS, "the next day's first ask emailed nobody");
+    assert.equal((await loadTs("lib/courses/excused/alert.ts")).ADMIN_EMAILS_A_DAY, 3);
   });
 
   test("a request for a session within 24 hours says for today or for tomorrow, by the London day", async () => {
@@ -1327,6 +1359,25 @@ describe("a line an approval wrote is taken back by nothing but a correction", (
     // Another week, with no request about it, is as before for the first answer.
     const other = await call("amara", timeAnswerRoute.POST, { runId: RUN.agi }, { body: { groupId: B, kind: "mostWeeks", sessionKeys: ["w04"] }, course: true });
     assert.equal(other.status, 200, JSON.stringify(other.body));
+  });
+
+  test("the doors read the person's requests by person and run, the ones that still bear on a week: a long list of withdrawn ones hides no waiting week", async () => {
+    // Amara asks about week 3 and withdraws it, then the same is copied 250
+    // times on this run and 60 on another: none of it bears on a week.
+    const first = await amaraAsks(["w03"]);
+    assert.equal((await act("amara", "withdraw", first, {})).status, 200);
+    const withdrawn = world.db.read(`courseRequests/${first}`);
+    for (let i = 0; i < 250; i += 1) world.db.seed(`courseRequests/old-${i}`, structuredClone(withdrawn));
+    for (let i = 0; i < 60; i += 1) world.db.seed(`courseRequests/other-run-${i}`, { ...structuredClone(withdrawn), runId: "another-run", status: "waiting" });
+    await amaraAsks(["w03"]);
+    const tick = await call("amara", timeAnswerRoute.POST, { runId: RUN.agi }, { body: { groupId: B, kind: "mostWeeks", sessionKeys: ["w03"] }, course: true });
+    assert.deepEqual([tick.status, tick.body.error], [409, `Tue 17 Nov: ${cantWords.CANT_MAKE_IT_REFUSAL.askedWaiting}`]);
+    // And asking again about it says it waits, past every withdrawn copy.
+    const again = await ask("amara", { sessionKeys: ["w03"], reason: REASON });
+    assert.deepEqual([again.status, again.body.error], [409, "You’ve already asked to be excused from week 3, and it’s waiting."]);
+    // Two or three equalities each, no order: no declared index (tests/firestore-indexes.test.mjs).
+    const standing = readFileSync(join(SRC, "lib", "courses", "excused", "standing.ts"), "utf8");
+    assert.match(standing, /\.where\("subjectUid", "==", uid\)\s*\.where\("runId", "==", runId\)\s*\.where\("status", "in", BEARING\)/);
   });
 
   test("nor by staff reading their answer as some weeks: an admin and the lead are refused a week with a request waiting or declined", async () => {

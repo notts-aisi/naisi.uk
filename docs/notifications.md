@@ -276,7 +276,13 @@ stored as `users/{uid}.requestEmails.excused` (on unless a stored `false`) by
 `POST /api/courses/requests/emails`, outside `profile.notifications`, whose
 whole map `/profile` rewrites on Save. Its rows in the log carry
 `kind: "course-request"`. It goes once the request is written, outside its
-transaction, and a failed send never fails the ask.
+transaction, and a failed send never fails the ask. Only the first three asks
+by one person on one run in one London day email the admins
+(`ADMIN_EMAILS_A_DAY`); later ones that day email nobody and still wait on
+the Requests page. The ask decides it in its own transaction from the
+requests that already carry `adminsToldOn` for that day, and marks its own,
+so asking and withdrawing in a loop cannot spend the site's sending
+allowance.
 
 **Invitation reminders (`application-invitation-reminders`).** Once a day, from
 10:00 London and never after 18:00, to everybody invited on decision day who

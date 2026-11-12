@@ -5,6 +5,7 @@ import { heldOnline } from "@/lib/courses/joiningOnline/model";
 import { readNamingProgramme } from "@/lib/courses/programmeLead";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { workClosesAt } from "@/lib/courses/weekWork/closes";
+import { londonDateKey } from "@/lib/courses/weekPlan";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
@@ -35,7 +36,8 @@ import {
   type AskPress,
   type ExcuseLine,
 } from "./model";
-import { emailAdminsAboutRequest } from "./alert";
+import { ADMIN_EMAILS_A_DAY, adminsToldTodayIn, emailAdminsAboutRequest } from "./alert";
+import { standingRequestsIn } from "./standing";
 import { EXCUSED_REFUSAL, askClosedWords, type NewRequestWeek } from "./words";
 
 /**
@@ -98,9 +100,15 @@ export function excuseLineOf(data: Record<string, unknown> | undefined, id: stri
   };
 }
 
-/** Every excused request this person made on this run, read in `tx` (one equality on `subjectUid`). */
+/**
+ * This person's excused requests on this run, withdrawn ones too, for their
+ * own page: two equalities (`subjectUid`, `runId`), served by merging the
+ * automatic single-field indexes, so no declared index. Asking reads only the
+ * ones that still bear on a week (`standingRequestsIn`), so a list of
+ * withdrawn requests past this limit can hide nothing that matters.
+ */
 export async function ownRequestsIn(tx: Transaction | null, db: Firestore, uid: string, runId: string): Promise<ExcusedRequestDoc[]> {
-  const query = db.collection(COURSE_REQUESTS_COLLECTION).where("subjectUid", "==", uid).limit(MAX_OWN);
+  const query = db.collection(COURSE_REQUESTS_COLLECTION).where("subjectUid", "==", uid).where("runId", "==", runId).limit(MAX_OWN);
   const snap = tx ? await tx.get(query) : await query.get();
   return snap.docs
     .map((doc) => normalizeExcusedRequest(doc.id, doc.data() ?? {}))
@@ -136,6 +144,8 @@ export async function askToBeExcused(
   ]);
 
   const requestRef = db.collection(COURSE_REQUESTS_COLLECTION).doc();
+  // The London day the ask is made on, for the cap on the admins' email.
+  const todayKey = londonDateKey(now);
   // What the admins' email names, kept from inside the transaction that wrote the request.
   let told: { runId: string; groupName: string; weeks: NewRequestWeek[] } | null = null;
   const outcome = await db.runTransaction(async (tx): Promise<AskOutcome> => {
@@ -179,9 +189,12 @@ export async function askToBeExcused(
     const registerRefs = sessions.map((session) =>
       db.collection("courseAttendance").doc(attendanceDocId(run.id, group.id, session.weekNumber, session.occurrence)),
     );
-    const [registerSnaps, own] = await Promise.all([
+    // Their requests that still bear on a week, and how many of their asks
+    // on this run today have emailed the admins: reads, before any write.
+    const [registerSnaps, own, adminsToldToday] = await Promise.all([
       Promise.all(registerRefs.map((ref) => tx.get(ref))),
-      ownRequestsIn(tx, db, user.uid, run.id),
+      standingRequestsIn(tx, db, user.uid, run.id),
+      adminsToldTodayIn(tx, db, user.uid, run.id, todayKey),
     ]);
 
     const weeks: Record<string, unknown>[] = [];
@@ -236,6 +249,12 @@ export async function askToBeExcused(
     const missing = missingConfirmation(needed, press.confirmed);
     if (missing) return refuse(400, missing);
 
+    // The first few asks by one person on one run in one London day email the
+    // admins (`ADMIN_EMAILS_A_DAY`); later ones that day email nobody and
+    // still wait on the Requests page. Decided here, in the transaction that
+    // writes the request, and kept on it, so asking and withdrawing in a loop
+    // never sends more.
+    const tellsAdmins = adminsToldToday < ADMIN_EMAILS_A_DAY;
     const first = sessions[0];
     tx.create(requestRef, {
       kind: EXCUSED_KIND,
@@ -256,6 +275,7 @@ export async function askToBeExcused(
       ...(needed.inPerson
         ? { confirmed: { at: now, inPerson: true, ownOnline: needed.ownOnline ? true : null, otherOnline: true } }
         : {}),
+      ...(tellsAdmins ? { adminsToldOn: todayKey } : {}),
       // Kept until the programme closes: the job that deletes it reads this.
       reasonHeld: true,
       status: "waiting",
@@ -268,17 +288,19 @@ export async function askToBeExcused(
       history: [{ what: "asked", byUid: user.uid, at: now, sessionKey: null }],
       updatedAt: now,
     });
-    told = {
-      runId: run.id,
-      groupName: group.name,
-      weeks: sessions.map((session) => ({
-        weekNumber: session.weekNumber,
-        occurrence: session.occurrence,
-        dateKey: session.dateKey,
-        startTimeLocal: session.session.startTimeLocal,
-        startsAt: sessionInstants(session).startsAt,
-      })),
-    };
+    told = tellsAdmins
+      ? {
+          runId: run.id,
+          groupName: group.name,
+          weeks: sessions.map((session) => ({
+            weekNumber: session.weekNumber,
+            occurrence: session.occurrence,
+            dateKey: session.dateKey,
+            startTimeLocal: session.session.startTimeLocal,
+            startsAt: sessionInstants(session).startsAt,
+          })),
+        }
+      : null;
     return { ok: true, request: { id: requestRef.id, askedAt: now.toISOString(), weeks: answer } };
   });
   // The admins who decide these are told, once the request is written and
