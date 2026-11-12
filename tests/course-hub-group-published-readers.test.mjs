@@ -514,12 +514,17 @@ const READERS = {
   },
   "lib/courses/groupPage/load.ts": {
     kind: "staff",
-    proof: ['const staff = viewer !== "facilitator";', ".filter((seat) => staff || placementIsTold(seat));"],
-    told: 1,
+    proof: [
+      'const staff = viewer !== "facilitator";',
+      ".filter((seat) => staff || placementIsTold(seat)),",
+      "told: placementIsTold(seat),",
+    ],
+    told: 2,
     why:
       "a group's page: admins and the programme's lead are shown every place in the group, told or not, as the " +
       "Groups tab shows them (the page is behind `loadProgrammeRun`); the facilitator's cut on their own group page " +
-      "counts only the places Publish has told, and names nobody",
+      "counts only the places Publish has told, and names nobody. The second ask hands the week's card whether each " +
+      "place was told, so a place not told has no Remind of its own and is never counted on Remind's button",
   },
   "app/api/courses/groups/[groupId]/remind/route.ts": {
     kind: "staff",

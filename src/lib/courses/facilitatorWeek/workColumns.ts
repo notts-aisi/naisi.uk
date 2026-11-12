@@ -9,7 +9,7 @@ import { readGroupWeek, weekWorkOf, type DrawPerson } from "@/lib/courses/packsA
 import { CASE, NOT_GIVEN_YET, chooseOneHeadingWords } from "@/lib/courses/packsAndCases/words";
 import { loadWrittenReview } from "@/lib/courses/writtenAnswers/reviewPage";
 import type { ReviewPerson } from "@/lib/courses/writtenAnswers/reviewPage";
-import { liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
+import { facilitatesOnRun, liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
 import { WRITTEN_ANSWER } from "@/lib/courses/writtenAnswerWords";
 import { personWeekStateOf } from "@/lib/courses/groupWeekWork/model";
 import { weekAsksForWriting, weekWritingNeeds } from "@/lib/courses/weekWork/model";
@@ -36,9 +36,10 @@ import { NOT_CHOSEN_YET, TO_GIVE_FEEDBACK, feedbackByWords, weekColumnWords } fr
  *    no cell carries a reopen. A facilitator's own row is worked out only
  *    for the programme's lead and admins, the only people who read a
  *    facilitator's own work, and so whether it was late: never for a
- *    co-facilitator. The column's note is when the group meets that week
- *    ("Meets Wed 3pm", "Met Wed 3pm"). Drawn for a week that asks for
- *    something written.
+ *    co-facilitator, and never for somebody holding a place here who
+ *    facilitates another of the run's groups. The column's note is when the
+ *    group meets that week ("Meets Wed 3pm", "Met Wed 3pm"). Drawn for a
+ *    week that asks for something written.
  *  - PATHWAY AND CASE: `weekWorkOf`, the packs' reader for this table. A pack
  *    the person picked is shown to the group's facilitators, the programme's
  *    lead and admins (privacy v7, "Pathways and cases"), except a
@@ -121,9 +122,12 @@ export async function loadWorkColumns(
     // Where each person's week stands, by the one meaning of done.
     const liveGroups = await liveGroupsOf(db, run.id);
     const states = await loadRunWeekStates(db, { run, liveGroups, now });
-    // A facilitator's own week, and so whether it was late, is the lead's and admins' alone.
+    // A facilitator's own week, and so whether it was late, is the lead's and
+    // admins' alone: this group's facilitators, and anybody holding a place
+    // here who facilitates another of the run's live groups, as the card
+    // above and the written answers' review page (`facilitatesOnRun`) have it.
     const seesOwnWork = viewer.isAdmin || viewer.leadOf !== null;
-    const shown = people.filter((person) => !person.facilitates || seesOwnWork);
+    const shown = people.filter((person) => seesOwnWork || !(person.facilitates || facilitatesOnRun(person.uid, liveGroups)));
     const facts = await loadPeopleWeekFacts(db, {
       runId: run.id,
       weekNumber,

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Modal from "@/components/ui/Modal";
 import { useHydrated } from "@/hooks/useHydrated";
-import { countBuckets, doneCount } from "@/lib/courses/groupWeekWork/model";
+import { countBuckets, doneCount, filterRows } from "@/lib/courses/groupWeekWork/model";
 import type { GroupWeekWorkView } from "@/lib/courses/groupWeekWork/view";
 import * as R from "@/lib/courses/groupWeekWork/words";
 import RemindPanel from "./RemindPanel";
@@ -20,11 +21,16 @@ import styles from "./GroupPage.module.css";
  * same function this count does.
  *
  * The group's fellows only: a facilitator's own week, theirs or a
- * co-facilitator's, is never counted or shown here (`loadGroupWeekWork` is
- * handed none for this page). In a view-as session the button is drawn as
- * the facilitator sees it, and the route refuses the press in its own words.
+ * co-facilitator's or that of somebody who facilitates another group, is
+ * never counted or shown here (`groupWeekWorkView` is handed none for this
+ * page). Somebody whose week isn't done and whom Remind does not reach is
+ * named under the button, with why. After a press the page is read again,
+ * so the count and each person's last reminder are the server's. In a
+ * view-as session the button is drawn as the facilitator sees it, and the
+ * route refuses the press in its own words.
  */
 export default function FacilitatorWeekWork({ groupId, work }: { groupId: string; work: GroupWeekWorkView }) {
+  const router = useRouter();
   const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
   const [opened, setOpened] = useState(0);
@@ -32,6 +38,7 @@ export default function FacilitatorWeekWork({ groupId, work }: { groupId: string
   const buckets = work.rows.map((row) => row.week.bucket);
   const counts = countBuckets(buckets);
   const remindCount = work.remind?.count ?? 0;
+  const leftOut = filterRows(work.rows, "week").filter((row) => !row.remindable);
 
   return (
     <section className={`${styles.card} ${styles.facCard}`} aria-labelledby="fac-week-work" data-testid="week-work-count">
@@ -58,6 +65,9 @@ export default function FacilitatorWeekWork({ groupId, work }: { groupId: string
           {R.remindAllWords(remindCount)}
         </button>
       )}
+      {work.remind && leftOut.length > 0 && (
+        <p className={styles.cardLine}>{R.remindLeavesOutWords(leftOut.map((row) => row.firstName || row.name))}</p>
+      )}
       {work.automatic && <p className={styles.cardLine}>{work.automatic}</p>}
       <Modal open={open} onClose={() => setOpen(false)} ariaLabel={R.remindAllWords(remindCount)} side>
         {(dismiss) =>
@@ -73,6 +83,8 @@ export default function FacilitatorWeekWork({ groupId, work }: { groupId: string
               onDone={(words) => {
                 dismiss();
                 setSaid(words);
+                // The count and each person's last reminder, read again.
+                router.refresh();
               }}
             />
           ) : null

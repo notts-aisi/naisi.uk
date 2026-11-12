@@ -1131,7 +1131,7 @@ the transport itself.
 | "Week N is open", while the schedule is off | the group's facilitator, by pushing the register | after every session, about the next one |
 | "Week N is open", while the schedule is on | the `courses-next-week-email` job | 6 days before each session at 9am, the first included |
 | The reminders before a session | the `courses-week-reminders` job | 3 days and 1 day before each session at 9am, to the people whose week is not done |
-| Remind, by hand | the group's facilitators, the programme's lead, the run's track leads, admins, on the group's page | any week whose work is open, before its session or after it, to the people whose week is not done |
+| Remind, by hand | the group's facilitators, the programme's lead, admins, on the group's page | any week whose work is open, before its session or after it, to the people whose week is not done |
 | Resend the week's email | an admin, on a finished register | recovery |
 
 **Week 1 is open goes only on the schedule.** No register is finished before a
@@ -1996,18 +1996,36 @@ the one meaning of done and of late ("The week stays open").
   last reminded and a Remind of their own, "Late in week 1", and the
   facilitators' own weeks.
 - **A facilitator's own week is never the group's business.** The rows are the
-  group's fellows only, whoever is looking. The facilitators' own weeks, and
-  whether they were late, are read for admins and the programme's lead alone,
-  and counted in no number.
+  group's fellows only, whoever is looking: never anybody who facilitates a
+  live group of the run, this one or another, wherever they hold a place (the
+  rule the written answers' review page keeps, `facilitatesOnRun`; This week's
+  work's week column keeps it too). The facilitators' own weeks, and whether
+  they were late, are read for admins and the programme's lead alone, and
+  counted in no number.
+- **The count on Remind's button comes from the rows**, so a visit reads no
+  subscription list and no address: told, not done, not joined late, not a
+  facilitator. Somebody whose week isn't done and who has no Remind is named
+  under the button, with why. The preview reads the addresses when it is
+  opened, and says who it emails. No week card for an incubator's group, on
+  either page.
+- **A visit asks every read at once**, each waiting only for what it needs
+  (`loadGroupPage`): the group's places, the registers, the weeks, the
+  programme and the group's history together; the names, the programme's lead
+  and the week's card as soon as what each needs has arrived; inside the card,
+  the week with the run's live groups, then everybody's place with what each
+  person did, then each fellow's last reminder with the jobs' switches.
 - **Somebody told their group after a week's session** reads "Joined late"
   for it, whatever they have done, and is never late for it.
 
-**Remind** (`POST /api/courses/groups/[groupId]/remind`) is for the group's
-live facilitators, the programme's lead, the run's track leads and admins,
-and refuses a view-as session. It reaches people holding a told place in the
-group whose week is not done at the press, never somebody who facilitates the
-group, never the presser, never somebody who joined after the week's session,
-and nobody once the programme has closed; everybody not done, or one person.
+**Remind** (`POST /api/courses/groups/[groupId]/remind`) is for the people
+who read the group's work (privacy v17, "Who reads it"), since its preview
+names whose week is not done: the group's live facilitators, the programme's
+lead and admins; a run's track lead who is none of those is refused. It
+refuses a view-as session. It reaches people holding a told place in the
+group whose week is not done at the press, never anybody who facilitates a
+live group of the run, never the presser, never somebody who joined after the
+week's session, and nobody once the programme has closed; everybody not done,
+or one person.
 The panel previews it first (`preview: true`: the names, each one's last
 reminder, a warning for anybody reminded in the last day, the email word for
 word, the count). The press carries the count it showed and is refused with

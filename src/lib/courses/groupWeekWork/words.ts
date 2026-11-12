@@ -252,6 +252,16 @@ export function remindAllWords(count: number): string {
   return `Remind ${peopleCountWords(count)} whose week isn’t done`;
 }
 
+/**
+ * Under Remind, when somebody whose week isn't done has no Remind: "Not
+ * reminded: Dev and Farah. Remind emails only people told their group before
+ * the week’s session." Those are the two reasons a row of the card can have:
+ * a place not told yet, or told after the session ("Joined late").
+ */
+export function remindLeavesOutWords(names: readonly string[]): string {
+  return `Not reminded: ${namesAnd(names)}. Remind emails only people told their group before the week’s session.`;
+}
+
 /** A row's button: "Remind Daniel". */
 export function remindOneWords(firstName: string): string {
   return `Remind ${firstName || "them"}`;
@@ -330,7 +340,8 @@ export const REMIND_REFUSAL = {
   unpublished: "That week isn’t published yet, so there’s nothing to remind anybody about.",
   closed: "The programme has closed, so nothing can be added to its weeks and nobody is reminded.",
   gone: "That group isn’t running any more.",
-  person: "That person can’t be reminded about this week: their week is done, or they aren’t somebody Remind reaches.",
+  person:
+    "That person can’t be reminded about this week: their week is done, we can’t email their address, or they aren’t somebody Remind reaches.",
   nobody: "Nobody is left to remind about this week.",
   overCap: "Too many people to email in one send. Nothing was sent.",
   count: "Say how many the button showed.",

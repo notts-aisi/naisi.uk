@@ -2235,10 +2235,10 @@ export const ROUTES = {
       why:
         "Remind by hand about one week of a group's work: view-as is refused first, then the session, then the body " +
         "is checked before anything is read, so every signed-in persona meets the same 400 on an empty one. Who may (the " +
-        "group's live facilitators, the lead of the programme naming its run, the run's track leads, admins) is asked " +
-        "once a valid body arrives. Its answer is { ok, preview } for a preview, whose preview holds the week, the count, " +
-        "the people it would email by name (never a facilitator of the group, never an address) and the first one's " +
-        "email; or { ok, sent, said } for a press.",
+        "people who read the group's work: its live facilitators, the lead of the programme naming its run, admins; " +
+        "never a run's track lead by that alone) is asked once a valid body arrives. Its answer is { ok, preview } for a " +
+        "preview, whose preview holds the week, the count, the people it would email by name (never anybody who " +
+        "facilitates a group of the run, never an address) and the first one's email; or { ok, sent, said } for a press.",
     },
   },
   "/api/courses/groups/[groupId]/session/regular": {
@@ -6295,7 +6295,7 @@ export const REAL_ROUTES = {
       },
       another: {
         anonymous: c(401, NO_SESSION),
-        "*": c(403, "Neither an admin, a facilitator of the group, nor anybody who runs its programme: one 403 before the week or its people are read."),
+        "*": c(403, "Neither an admin, a facilitator of the group, nor the lead of its programme: one 403 before the week or its people are read."),
         admin: c(ACTS, "An admin reminds about any group's week, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
       },
       theirs: {

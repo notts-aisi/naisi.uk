@@ -9,10 +9,11 @@
  *
  * ## What this guards
  *
- *  1. WHO MAY: the group's facilitators (a co-facilitator too), the
- *     programme's lead, the run's track lead and admins; nobody else, nobody
- *     signed out, and nobody in a view-as session. The body is checked before
- *     anything is read.
+ *  1. WHO MAY: the people who read the group's work, its facilitators (a
+ *     co-facilitator too), the programme's lead and admins; nobody else (a
+ *     run's track lead who is none of those included), nobody signed out,
+ *     and nobody in a view-as session. The body is checked before anything
+ *     is read.
  *  2. WHO IT REACHES: told people whose week is not done; never a facilitator
  *     of the group (holding a place or not), never the presser, never
  *     somebody not told, never somebody suppressed, never somebody who joined
@@ -44,6 +45,8 @@ import { B, BEFORE_WEEK3, LINK, RUN, makeRemindWorld, remindSeed, tickRow, weekD
 const w = await makeRemindWorld("__remindByHand");
 const { world, ask, preview, press, page, mailTo, historyRows, at, everything } = w;
 const accountDeletion = await w.loadTs("lib/firestore/accountDeletion.ts");
+const coursesLib = await w.loadTs("lib/firestore/courses.ts");
+const groupsLib = await w.loadTs("lib/firestore/courseGroups.ts");
 
 beforeEach(() => w.reset());
 
@@ -58,19 +61,28 @@ async function textOf(message) {
 // ---------------------------------------------------------------------------
 
 describe("1. who may remind", () => {
-  test("the group's facilitators, a co-facilitator, the lead, the run's track lead and admins", async () => {
-    for (const who of ["rahul", "sofia", "claudia", "yusuf", "zach"]) {
+  test("the people who read the group's work: its facilitators, a co-facilitator, the lead and admins", async () => {
+    for (const who of ["rahul", "sofia", "claudia", "zach"]) {
       const response = await preview(who, 3);
       assert.equal(response.status, 200, `${who}: ${JSON.stringify(response.body)}`);
     }
   });
 
-  test("nobody else: another group's facilitator, the group's own people, another programme's lead, a reviewer", async () => {
-    for (const who of ["tom", "amara", "ines", "bea", "tess", "lloyd", "nobody"]) {
+  test("nobody else: the run's track lead, another group's facilitator, the group's own people, another programme's lead, a reviewer", async () => {
+    for (const who of ["yusuf", "tom", "amara", "ines", "bea", "tess", "lloyd", "nobody"]) {
       const response = await preview(who, 3);
       assert.equal(response.status, 403, `${who}: ${JSON.stringify(response.body)}`);
+      assert.deepEqual(Object.keys(response.body), ["error"], `${who} is told nothing but the refusal`);
     }
     assert.equal((await preview(null, 3)).status, 401);
+  });
+
+  test("a track lead who is not the programme's lead is refused a press too, and nothing is sent or written", async () => {
+    const before = everything();
+    const response = await ask("yusuf", { week: 3, count: 1 });
+    assert.equal(response.status, 403);
+    assert.equal(everything(), before);
+    assert.equal(world.mail.length, 0);
   });
 
   test("a view-as session is refused first, and an empty body before anything is read", async () => {
@@ -300,18 +312,62 @@ describe("7. which weeks", () => {
 });
 
 describe("8. the week's card on the group's page", () => {
-  test("for a facilitator: the group's fellows only, no facilitator's own week, and the press's own count", async () => {
+  test("for a facilitator: the group's fellows only, no facilitator's own week, and the button counted from the rows", async () => {
     const view = await page("facilitator", "rahul", 3);
     assert.equal(view.workWeek, 3);
     assert.deepEqual(view.work.rows.map((row) => row.uid), ["amara", "ines", "omar"]);
     assert.equal(view.work.own, null);
-    assert.equal(view.work.remind.count, (await preview("rahul", 3)).body.preview.count);
+    // The page reads no address: the button counts every told person whose week isn't done.
     assert.deepEqual(view.work.rows.map((row) => [row.uid, row.week.text, row.remindable]), [
       ["amara", "Done on time", false],
       ["ines", "Not started", true],
-      ["omar", "Not started", false],
+      ["omar", "Not started", true],
     ]);
+    assert.equal(view.work.remind.count, view.work.rows.filter((row) => row.remindable).length);
+    assert.equal(view.work.remind.count, 2);
+    // The preview reads the addresses: Omar's is on the do-not-email list, so it emails Ines alone, and says so by name.
+    const shown = await preview("rahul", 3);
+    assert.deepEqual(peopleOf(shown), ["ines"]);
+    for (const uid of peopleOf(shown)) {
+      assert.ok(view.work.rows.find((row) => row.uid === uid)?.remindable, `${uid} is in the preview and has no Remind on the page`);
+    }
+    const omar = await preview("rahul", 3, "omar");
+    assert.equal(omar.status, 409);
+    assert.match(omar.body.error, /we can’t email their address/);
     assert.doesNotMatch(JSON.stringify(view.work), /rahul|sofia/i);
+  });
+
+  test("the week's card reads no subscription list and no address: only Remind's preview does", async () => {
+    const reader = await w.loadTs("lib/courses/groupWeekWork/load.ts");
+    const asked = [];
+    const spy = Object.create(world.courseDb);
+    spy.collection = (path) => {
+      asked.push(path);
+      return world.courseDb.collection(path);
+    };
+    const worked = await reader.readGroupWeekWork(spy, {
+      run: coursesLib.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`)),
+      group: groupsLib.normalizeCourseGroup(B, world.db.read(`courseGroups/${B}`)),
+      weekNumber: 3,
+      uids: ["amara", "ines", "omar", "rahul", "sofia"],
+      now: new Date(),
+    });
+    assert.ok(worked, "the week was read");
+    assert.ok(asked.length > 0, "the spy saw nothing");
+    for (const path of ["subscriptions", "suppressedEmails"]) assert.ok(!asked.includes(path), `the card read ${path}`);
+    // The preview does read them, when it is asked for.
+    asked.length = 0;
+    const real = world.courseDb.collection.bind(world.courseDb);
+    world.courseDb.collection = (path) => {
+      asked.push(path);
+      return real(path);
+    };
+    try {
+      assert.equal((await preview("rahul", 3)).status, 200);
+    } finally {
+      world.courseDb.collection = real;
+    }
+    assert.ok(asked.includes("subscriptions"), "the preview no longer reads where to email people");
   });
 
   test("for the lead and admins: the facilitators' own weeks, apart, and counted in no number", async () => {
@@ -344,6 +400,69 @@ describe("8. the week's card on the group's page", () => {
   });
 });
 
+describe("8c. somebody who facilitates another of the run's groups and holds a place in this one", () => {
+  /** Tom facilitates Group C and holds a fellow's place in Group B, told by Publish, with nothing of week 3 done. */
+  function tomInGroupB() {
+    const seed = remindSeed();
+    seed[`courseEnrolments/${RUN.agi}__tom`] = { ...seed[`courseEnrolments/${RUN.agi}__amara`], uid: "tom", applicationId: "tom-application" };
+    return seed;
+  }
+  beforeEach(() => w.reset(tomInGroupB()));
+
+  test("a facilitator of the group, and a co-facilitator, never see his week, and Remind never reaches him", async () => {
+    for (const who of ["rahul", "sofia"]) {
+      const view = await page("facilitator", who, 3);
+      assert.deepEqual(view.work.rows.map((row) => row.uid), ["amara", "ines", "omar"], who);
+      assert.equal(view.work.own, null, who);
+      assert.doesNotMatch(JSON.stringify(view.work), /"tom"|\bTom\b|Fletcher/, `${who} is handed something of Tom's week`);
+      const shown = await preview(who, 3);
+      assert.deepEqual(peopleOf(shown), ["ines"], who);
+      assert.doesNotMatch(JSON.stringify(shown.body), /"tom"|\bTom\b|Fletcher/, who);
+      assert.equal((await preview(who, 3, "tom")).status, 409, `${who} can remind Tom by name`);
+    }
+    const pressed = await press("rahul", 3);
+    assert.equal(pressed.body.sent.sent, 1);
+    assert.equal(mailTo("tom").length, 0, "Tom was reminded");
+  });
+
+  test("the lead and admins read his week apart, with the group's own facilitators, counted in no number", async () => {
+    for (const [viewer, who] of [["lead", "claudia"], ["admin", "zach"]]) {
+      const view = await page(viewer, who, 3);
+      assert.ok(!view.work.rows.some((row) => row.uid === "tom"), `${who}: Tom is counted as a fellow`);
+      const tom = view.work.own.find((row) => row.uid === "tom");
+      assert.ok(tom, `${who}: Tom's own week is not shown apart`);
+      assert.match(tom.line, /^Tom’s own week 3: not started\. Claudia and admins only\.$/);
+      assert.match(tom.name, /^Tom.*, facilitator$/);
+      assert.equal(view.work.remind.count, view.work.rows.filter((row) => row.remindable).length);
+    }
+  });
+
+  test("This week's work agrees: its week column has no cell of his for a facilitator, and has one for an admin", async () => {
+    const workColumns = await w.loadTs("lib/courses/facilitatorWeek/workColumns.ts");
+    const packs = await w.loadTs("lib/courses/packsAndCases/readers.ts");
+    const run = coursesLib.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+    const group = groupsLib.normalizeCourseGroup(B, world.db.read(`courseGroups/${B}`));
+    const people = await packs.readDrawPeople(world.courseDb, RUN.agi, group, { isAdmin: false }, new Date());
+    assert.ok(people.some((person) => person.uid === "tom"), "the draw no longer lists Tom");
+    const columnsFor = (who, viewer) =>
+      workColumns.loadWorkColumns(world.courseDb, {
+        run,
+        group,
+        actor: w.sessionOf(who),
+        viewer,
+        weekNumber: 3,
+        people,
+        reviewHref: (uid, n) => `review?week=${n}&person=${uid}`,
+        now: new Date(),
+      });
+    const asRahul = (await columnsFor("rahul", { isAdmin: false, leadOf: null })).find((column) => column.key === "week");
+    assert.equal(asRahul.cells.tom ?? null, null, "Rahul is handed Tom's week");
+    assert.ok(asRahul.cells.ines, "Rahul is handed the fellow's");
+    const asAdmin = (await columnsFor("zach", { isAdmin: true, leadOf: null })).find((column) => column.key === "week");
+    assert.ok(asAdmin.cells.tom, "an admin reads Tom's week");
+  });
+});
+
 describe("8b. the card, drawn", () => {
   const textOf = (html) => html.replace(/<[^>]+>/g, " ").replace(/&#x27;/g, "'").replace(/\s+/g, " ").trim();
 
@@ -363,15 +482,21 @@ describe("8b. the card, drawn", () => {
     assert.match(text, /Omar .*Not started .*Mon 16 Nov, 9am · 1-day, automatic/);
     assert.match(text, /Late in week 3 Ines Readings, reflection and written answer done Wed 18 Nov, 6pm Late: 1 day after the session/);
     assert.match(text, /Facilitators’ own work/);
-    // Omar's address is suppressed and Dev is not told: neither has a Remind of their own; nobody done has one either.
-    assert.equal((html.match(/>Remind [A-Z]/g) ?? []).length, 0, "nobody here can be reminded: Ines is done");
-    assert.doesNotMatch(text, /Remind \d+ (person|people)/);
+    // Dev is not told: no Remind of his own, and said by name under the button. Nobody done has one either. Omar's
+    // address is on the do-not-email list, which the page does not read: he has his Remind, and its preview says he
+    // can't be emailed.
+    assert.deepEqual(html.match(/>Remind [A-Z][a-z]+</g) ?? [], [">Remind Omar<"], "only Omar, told and not done, has a Remind");
+    assert.match(text, /Remind 1 person whose week isn’t done/);
+    assert.match(text, /Not reminded: Dev\. Remind emails only people told their group before the week’s session\./);
+    // The chip and the button: Week not done counts Dev and Omar, the button Omar, and the line says who is left out.
+    assert.match(text, /Week not done 2 /);
   });
 
   test("for a facilitator: the count and Remind, and never a facilitator's own week", async () => {
     const view = await page("facilitator", "rahul", 3);
     const text = textOf(renderToStaticMarkup(createElement(w.parts.FacilitatorWeekWork, { groupId: B, work: view.work })));
-    assert.match(text, /^1 of 3 have done week 3 Week 3 Done on time 1 Not started 2 Remind 1 person whose week isn’t done /);
+    assert.match(text, /^1 of 3 have done week 3 Week 3 Done on time 1 Not started 2 Remind 2 people whose week isn’t done /);
+    assert.doesNotMatch(text, /Not reminded:/, "everybody here not done is somebody Remind reaches");
     assert.doesNotMatch(text, /Rahul|Sofia|own/);
     const meets = textOf(renderToStaticMarkup(createElement(w.parts.FacilitatorMeets, { view, eyebrow: "AGI Strategy · Group B", path: "/learn/run/group/b" })));
     assert.match(meets, /Week 3/);

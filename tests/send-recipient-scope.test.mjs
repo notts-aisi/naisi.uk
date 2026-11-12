@@ -404,8 +404,8 @@ const RECIPIENT_SOURCES = new Map([
       origin: "assembled",
       sourceOutsideScan:
         "One person of the audience the Remind route assembled on the server (readRemindAudience in " +
-        "src/lib/courses/groupWeekWork/load.ts): the group's told places through resolveNoticeAudience, less its " +
-        "facilitators, the presser, anybody done, joined late or with no group. The request names at most one uid, " +
+        "src/lib/courses/groupWeekWork/load.ts): the group's told places through resolveNoticeAudience, less anybody " +
+        "who facilitates a live group of the run, the presser, anybody done, joined late or with no group. The request names at most one uid, " +
         "and only to narrow that audience to them; it never adds anybody.",
       why: "Whose record a press claims before their email goes, so a retry of the same press emails nobody again.",
     },

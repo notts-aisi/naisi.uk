@@ -116,8 +116,10 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * 1", its bar and Remind as a sheet, for the week the row of weeks chose
  * (`?week=1`) or the week the page opens on (`FacilitatorWeekWork`, from the
  * group's page's own reader). The group's fellows only, never a
- * facilitator's own work. Each person's week is This week's work's, which
- * reads it through the same function.
+ * facilitator's own work, nor that of anybody who facilitates another of the
+ * run's groups. Each person's week is This week's work's, which reads it
+ * through the same function. Not for an incubator's group, whose weeks are
+ * rows: the programme's page draws none for it either.
  *
  * JOINING ONLINE, at the top: for each session still to end where somebody
  * has said they are joining online, who, and while the session has no
@@ -669,8 +671,9 @@ export default async function GroupHomePage({
         />
       )}
 
-      {/* Who has done the week the row above chose, and Remind: added under it. */}
-      {meets?.work && <FacilitatorWeekWork groupId={groupId} work={meets.work} />}
+      {/* Who has done the week the row above chose, and Remind: added under it. An
+          incubator's group has no week card, as on the programme's page. */}
+      {meets?.work && !meets.incubator && <FacilitatorWeekWork groupId={groupId} work={meets.work} />}
 
       {/* Who is joining a session online, and the field for its link. */}
       <JoiningOnlineBox groupId={groupId} sessions={joiningOnline} canAdd={!viewAs} />

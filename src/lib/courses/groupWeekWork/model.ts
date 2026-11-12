@@ -316,7 +316,7 @@ export function filterRows<R extends { week: { bucket: Bucket }; pieces: Readonl
 export type NotReminded =
   /** The person pressing Remind. */
   | "presser"
-  /** Somebody who facilitates the group: their own work is never the group's business. */
+  /** Somebody who facilitates a live group of the run, this one or another: their own work is never a group's business. */
   | "facilitator"
   /** Holding a place Publish has not told them about yet. */
   | "not-told"
@@ -331,11 +331,13 @@ export type NotReminded =
 
 /**
  * WHETHER ONE PERSON HOLDING A PLACE IN THE GROUP IS REMINDED about a week:
- * never the presser, never somebody who facilitates the group, never
- * somebody Publish has not told, never somebody whose week is done, never
- * somebody told their group after the week's session ("Joined late"), and
- * nobody at all once the programme has closed. Whether they can be emailed
- * (an address, not suppressed) is the notice audience's, asked apart.
+ * never the presser, never somebody who facilitates a live group of the run
+ * (`facilitatorUids`: this group's or another's, since their own work is read
+ * by the programme's lead and admins only), never somebody Publish has not
+ * told, never somebody whose week is done, never somebody told their group
+ * after the week's session ("Joined late"), and nobody at all once the
+ * programme has closed. Whether they can be emailed (an address, not
+ * suppressed) is the notice audience's, asked apart.
  */
 export function notRemindedBecause(input: {
   uid: string;

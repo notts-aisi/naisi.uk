@@ -14,7 +14,7 @@ import {
 } from "@/lib/courses/groupWeekWork/words";
 import { firstNameOfUser, readNamingProgramme } from "@/lib/courses/programmeLead";
 import { displayNameOf } from "@/lib/courses/registerAccess";
-import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
+import { reviewerFactsOf } from "@/lib/courses/writtenAnswers/access";
 import { courseWeekUrl } from "@/lib/email/courseNudgeEmail";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
@@ -33,13 +33,15 @@ import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
  * POST `{ week, uid?, preview?, count? }` (`parseRemindPress`).
  *
  * ── WHO ─────────────────────────────────────────────────────────────────────
- * The group's live facilitators (held to the bar they were appointed
- * behind), the lead of the programme that names the run, the run's track
- * leads and admins: the people running the group (privacy v17, "Reminders").
- * Nobody else. A missing group, an archived one and somebody else's are one
- * 403 for everybody but an admin, so a group id says nothing. View-as is
- * refused first, then the session, then the body is checked before anything
- * is read.
+ * The people who read the group's work (privacy v17, "Who reads it"), since
+ * the preview lists by name whose week is not done: the group's live
+ * facilitators (held to the bar they were appointed behind), the lead of the
+ * programme that names the run (`reviewerFactsOf`, the written answers'
+ * own question), and admins. Nobody else: a run's track lead who is none of
+ * those is refused as anybody else is. A missing group, an archived one and
+ * somebody else's are one 403 for everybody but an admin, so a group id says
+ * nothing. View-as is refused first, then the session, then the body is
+ * checked before anything is read.
  *
  * ── WHO IT REACHES ──────────────────────────────────────────────────────────
  * `readRemindAudience`, the one function the page's count is also worked out
@@ -98,7 +100,7 @@ export async function POST(req: Request, ctx: Ctx) {
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
-  // ── The gate: the people running the group ───────────────────────────────
+  // ── The gate: the people who read the group's work ───────────────────────
   const groupSnap = await db.collection("courseGroups").doc(groupId).get();
   const found = groupSnap.exists ? normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {}) : null;
   const isAdmin = actor.role === "admin";
@@ -106,8 +108,9 @@ export async function POST(req: Request, ctx: Ctx) {
     found && !found.archived && isNamedWithStanding(actor, "courseGroups.facilitatorUids", found.facilitatorUids),
   );
   const run = found ? await readRun(db, found.runId) : null;
-  const staffsRun = !isAdmin && !facilitates && run ? doesTrackLeadWork(await runStaffingOf(db, actor, run)) : false;
-  if (!isAdmin && !facilitates && !staffsRun) {
+  // The lead of the programme naming the run; never a track lead by that alone.
+  const leads = !isAdmin && !facilitates && run ? (await reviewerFactsOf(db, actor, run.id)).isLead : false;
+  if (!isAdmin && !facilitates && !leads) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   if (!found || !run) return NextResponse.json({ error: "Group not found" }, { status: 404 });

@@ -208,8 +208,12 @@ export function weekStateOf(input: {
   return "upcoming";
 }
 
-/** The week the page opens on: the first whose session has not ended and is not cancelled, else the last. */
-export function openingWeek(weeks: readonly GroupPageWeek[]): number | null {
+/**
+ * The week the page opens on: the first whose session has not ended and is
+ * not cancelled, else the last. Asked of the plan's sessions before anything
+ * is read, so it takes only what it reads of a week.
+ */
+export function openingWeek(weeks: ReadonlyArray<Pick<GroupPageWeek, "weekNumber" | "ended" | "cancelled" | "dateKey">>): number | null {
   const next = weeks.find((week) => !week.ended && !week.cancelled && week.dateKey);
   return next?.weekNumber ?? weeks[weeks.length - 1]?.weekNumber ?? null;
 }

@@ -90,6 +90,13 @@ export type GroupWeekRead = {
   /** When it starts, or null. */
   sessionAt: Date | null;
   facts: Map<string, PersonFacts>;
+  /**
+   * Everybody who facilitates a live group of the run, this one included.
+   * Their own work is the programme's lead's and admins' alone (privacy v17,
+   * "Who reads it"), wherever they hold a place: never a row of the group's,
+   * and never somebody Remind reaches.
+   */
+  runFacilitatorUids: ReadonlySet<string>;
 };
 
 /** Why a week cannot be read for its card or reminded about. */
@@ -111,14 +118,14 @@ export async function readGroupWeek(
     return { ok: false, why: "week" };
   }
   const weekId = weekDocId(weekNumber);
-  const { week } = await resolveWeekDoc(db, run.id, group.id, weekId);
+  // The week and the run's live groups are asked together: neither waits for the other.
+  const [{ week }, liveGroups] = await Promise.all([resolveWeekDoc(db, run.id, group.id, weekId), liveGroupsOf(db, run.id)]);
   if (!week || !isBlockWeek(week)) return { ok: false, why: "notBlocks" };
   if (!week.published) return { ok: false, why: "unpublished" };
   const blocks = week.blocks as WeekBlock[];
   const tasks = weekTaskNeeds(blocks);
   const asks = weekWritingNeeds(blocks);
   const uids = [...new Set(input.uids.filter(Boolean))];
-  const liveGroups = await liveGroupsOf(db, run.id);
   const [states, facts] = await Promise.all([
     loadRunWeekStates(db, { run, liveGroups, now }),
     loadPeopleWeekFacts(db, { runId: run.id, weekNumber, blocks, uids }),
@@ -138,6 +145,7 @@ export async function readGroupWeek(
       session: own,
       sessionAt: own ? sessionInstants(own).startsAt : null,
       facts: new Map([...facts].map(([uid, each]) => [uid, each as PersonFacts])),
+      runFacilitatorUids: new Set([...group.facilitatorUids, ...liveGroups.flatMap((each) => each.facilitatorUids)]),
     },
   };
 }
@@ -269,10 +277,13 @@ export type RemindPerson = {
 /**
  * WHO A REMIND ABOUT ONE WEEK REACHES NOW: the group's notice audience (its
  * told places at their addresses, deduped and unsuppressed), each held to
- * `notRemindedBecause` (never the presser, never one of the group's
- * facilitators, never somebody whose week is done or who joined it late,
- * nobody once the programme has closed), narrowed to one person when asked.
- * The page's count and the press's are this one function's.
+ * `notRemindedBecause` (never the presser, never anybody who facilitates a
+ * live group of the run, this one or another, never somebody whose week is
+ * done or who joined it late, nobody once the programme has closed),
+ * narrowed to one person when asked. The preview's count and the press's
+ * are this one function's. The page's button counts the same rule from its
+ * rows (`remindableOf`) and reads no address: the preview says who an
+ * address leaves out.
  */
 export async function readRemindAudience(
   db: Firestore,
@@ -286,21 +297,31 @@ export async function readRemindAudience(
   for (const member of audience.members) {
     if (input.onlyUid && member.uid !== input.onlyUid) continue;
     if (member.groupId !== group.id) continue;
+    // The notice audience holds only places Publish has told.
+    if (!remindableOf(read, { uid: member.uid, told: true, presserUid })) continue;
     const due = read.states.dueOf(member.uid, read.weekNumber);
-    const why = notRemindedBecause({
-      uid: member.uid,
-      presserUid,
-      facilitatorUids: group.facilitatorUids,
-      // The notice audience holds only places Publish has told.
-      told: true,
-      weekDone: isWeekDone(read, member.uid),
-      due,
-      closed: read.closed,
-    });
-    if (why) continue;
     people.push({ uid: member.uid, address: member.address, ownName: member.ownName, due, left: leftOf(read, member.uid) });
   }
   return { people, refusal: null };
+}
+
+/**
+ * Whether Remind reaches one person of the group about the week, by
+ * `notRemindedBecause`, before any address is asked: the preview's audience
+ * and the page's rows both ask this.
+ */
+export function remindableOf(read: GroupWeekRead, person: { uid: string; told: boolean; presserUid: string }): boolean {
+  return (
+    notRemindedBecause({
+      uid: person.uid,
+      presserUid: person.presserUid,
+      facilitatorUids: [...read.runFacilitatorUids],
+      told: person.told,
+      weekDone: isWeekDone(read, person.uid),
+      due: read.states.dueOf(person.uid, read.weekNumber),
+      closed: read.closed,
+    }) === null
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -308,9 +329,8 @@ export async function readRemindAudience(
 // ---------------------------------------------------------------------------
 
 /** What the card says of the automatic reminders before this week's own session. */
-async function automaticOf(db: Firestore, read: GroupWeekRead, went: RemindedRead["went"], now: Date): Promise<AutomaticReminders> {
-  const switches = await readJobSwitches(db).catch(() => ({ weekReminders: false, weekOpenEmail: false }));
-  if (!switches.weekReminders) return { kind: "off" };
+function automaticOf(weekReminders: boolean, read: GroupWeekRead, went: RemindedRead["went"], now: Date): AutomaticReminders {
+  if (!weekReminders) return { kind: "off" };
   const session = read.session;
   if (!session || session.cancelled || !session.dateKey || !read.sessionAt) return { kind: "undated" };
   if (read.sessionAt.getTime() <= now.getTime()) return { kind: "stopped" };
@@ -318,51 +338,89 @@ async function automaticOf(db: Firestore, read: GroupWeekRead, went: RemindedRea
   return { kind: "on", threeDay: { at: at(3), went: went.threeDay }, oneDay: { at: at(1), went: went.oneDay } };
 }
 
+/** Everything one week's card is worked out from, read before the names it is drawn with. */
+export type GroupWeekWorkRead = {
+  read: GroupWeekRead;
+  reminded: RemindedRead;
+  automatic: AutomaticReminders;
+};
+
 /**
- * ONE WEEK'S CARD ON A GROUP'S PAGE, as its viewer may read it, or null for a
- * week with nothing to count (not written as blocks, or not published).
+ * THE READS BEHIND ONE WEEK'S CARD, which need nothing but who holds a place
+ * (`uids`, and for the programme's lead and admins the group's facilitators
+ * too), so the group's page asks them beside its own reads and names. Null
+ * for a week with nothing to count (not written as blocks, or not
+ * published). Nothing Remind's preview alone needs is read here: no
+ * subscription list and no address.
  *
- * WHO IS IN IT: the group's fellows the page lists (`people`: never one of
- * its facilitators, whoever is looking). A facilitator's own week, and so
- * whether it was late, is read for the programme's lead and admins only
- * (`ownPeople`, empty for anybody else) and counted in no number.
+ * The week and the run's live groups together, then where everybody stands
+ * and what each person did together, then when each fellow was last
+ * reminded beside whether the automatic reminders are switched on.
  */
-export async function loadGroupWeekWork(
+export async function readGroupWeekWork(
   db: Firestore,
+  input: { run: CourseRunDoc; group: CourseGroupDoc; weekNumber: number; uids: readonly string[]; now: Date },
+): Promise<GroupWeekWorkRead | null> {
+  const { run, group, weekNumber, now } = input;
+  const got = await readGroupWeek(db, { run, group, weekNumber, uids: input.uids, now });
+  if (!got.ok) return null;
+  const { read } = got;
+  const [reminded, switches] = await Promise.all([
+    // A facilitator's own week has no "Last reminded": it is no row.
+    readLastReminded(db, { run, group, read, uids: input.uids.filter((uid) => !read.runFacilitatorUids.has(uid)) }),
+    readJobSwitches(db).catch(() => ({ weekReminders: false, weekOpenEmail: false })),
+  ]);
+  return { read, reminded, automatic: automaticOf(switches.weekReminders, read, reminded.went, now) };
+}
+
+/**
+ * ONE WEEK'S CARD ON A GROUP'S PAGE, as its viewer may read it, from
+ * `readGroupWeekWork`'s reads. Pure.
+ *
+ * WHO IS IN IT: the group's fellows the page lists (`people`), less anybody
+ * who facilitates a live group of the run, this one or another, whoever is
+ * looking. A facilitator's own week, and so whether it was late, is read for
+ * the programme's lead and admins only (`readsOwnWork`, with the group's own
+ * facilitators in `ownPeople`, and anybody in `people` who facilitates
+ * another group beside them) and counted in no number.
+ *
+ * WHO HAS A REMIND: each row Remind reaches by `remindableOf`, the rule the
+ * preview's audience keeps, worked out from the rows with no address read.
+ * The button's count is theirs; the preview then says who it emails.
+ */
+export function groupWeekWorkView(
+  worked: GroupWeekWorkRead,
   input: {
-    run: CourseRunDoc;
-    group: CourseGroupDoc;
-    weekNumber: number;
     /** Who is looking: never in Remind's count. */
     viewerUid: string;
-    /** The group's fellows the page lists, named as the page names them. */
-    people: ReadonlyArray<{ uid: string; name: string; firstName: string }>;
+    /** The group's people holding a place, named as the page names them, and whether Publish has told them. */
+    people: ReadonlyArray<{ uid: string; name: string; firstName: string; told: boolean }>;
+    /** The programme's lead and admins: a facilitator's own week is theirs to read. */
+    readsOwnWork: boolean;
     /**
-     * The group's facilitators, for the programme's lead and admins only;
-     * empty for anybody else. One with no place in the group is listed only
-     * once they have done something of the week.
+     * The group's facilitators, for `readsOwnWork` alone. One with no place
+     * in the group is listed only once they have done something of the week.
      */
     ownPeople: ReadonlyArray<{ uid: string; name: string; firstName: string; seatedHere: boolean }>;
     leadFirstName: string | null;
     now: Date;
   },
-): Promise<GroupWeekWorkView | null> {
-  const { run, group, weekNumber, viewerUid, people, ownPeople, leadFirstName, now } = input;
-  const got = await readGroupWeek(db, {
-    run,
-    group,
-    weekNumber,
-    uids: [...people.map((person) => person.uid), ...ownPeople.map((person) => person.uid)],
-    now,
-  });
-  if (!got.ok) return null;
-  const { read } = got;
-  const [reminded, audience] = await Promise.all([
-    readLastReminded(db, { run, group, read, uids: people.map((person) => person.uid) }),
-    readRemindAudience(db, { run, group, read, presserUid: viewerUid }),
-  ]);
-  const remindable = new Set(audience.people.map((person) => person.uid));
+): GroupWeekWorkView {
+  const { read, reminded, automatic } = worked;
+  const { viewerUid, readsOwnWork, leadFirstName, now } = input;
+  const weekNumber = read.weekNumber;
   const sessionStarted = Boolean(read.sessionAt && read.sessionAt.getTime() <= now.getTime());
+  const fellows = input.people.filter((person) => !read.runFacilitatorUids.has(person.uid));
+  // Somebody holding a place here who facilitates another group: apart, as the group's own facilitators are.
+  const facilitatingElsewhere = input.people.filter((person) => read.runFacilitatorUids.has(person.uid));
+  const ownPeople = readsOwnWork
+    ? [
+        ...input.ownPeople,
+        ...facilitatingElsewhere
+          .filter((person) => !input.ownPeople.some((own) => own.uid === person.uid))
+          .map((person) => ({ uid: person.uid, name: person.name, firstName: person.firstName, seatedHere: true })),
+      ]
+    : [];
 
   const stateOf = (uid: string) =>
     personWeekStateOf({
@@ -374,7 +432,7 @@ export async function loadGroupWeekWork(
       due: read.states.dueOf(uid, weekNumber),
     });
 
-  const rows: WorkRow[] = people.map((person) => {
+  const rows: WorkRow[] = fellows.map((person) => {
     const state = stateOf(person.uid);
     const latePieces = state.pieces.filter((piece) => piece.bucket === "done-late");
     return {
@@ -390,7 +448,7 @@ export async function loadGroupWeekWork(
       })),
       lastReminded: reminded.last.get(person.uid) ?? null,
       recent: remindedRecently(reminded.last.get(person.uid) ?? null, now),
-      remindable: remindable.has(person.uid),
+      remindable: remindableOf(read, { uid: person.uid, told: person.told, presserUid: viewerUid }),
       late:
         state.bucket === "done-late"
           ? {
@@ -428,7 +486,7 @@ export async function loadGroupWeekWork(
     doneMeans: doneMeansWords(read.pieces),
     rows,
     own,
-    remind: read.closed || audience.refusal ? null : { count: audience.people.length },
-    automatic: automaticRemindersWords(await automaticOf(db, read, reminded.went, now)),
+    remind: read.closed ? null : { count: rows.filter((row) => row.remindable).length },
+    automatic: automaticRemindersWords(automatic),
   };
 }

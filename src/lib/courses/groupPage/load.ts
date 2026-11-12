@@ -7,7 +7,7 @@ import { slotDays } from "@/lib/courses/sessionChange/model";
 import { updateEmailAudience } from "@/lib/courses/updates/audience";
 import { addDaysToKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { loadGroupHistory } from "@/lib/courses/groupHistory/load";
-import { loadGroupWeekWork } from "@/lib/courses/groupWeekWork/load";
+import { groupWeekWorkView, readGroupWeekWork } from "@/lib/courses/groupWeekWork/load";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { coverIsLive, startedByFacilitator } from "@/lib/courses/registerCover/model";
 import { startedAgoWords } from "@/lib/courses/registerCover/pageWords";
@@ -54,13 +54,21 @@ import { termChipWords, type WeekSaid } from "./words";
  *    meets and the weeks, with no people and no history (the facilitator's
  *    page already draws its people its own way).
  *
- * THE CHOSEN WEEK'S WORK (`work`, `loadGroupWeekWork`): who has done the
- * week, each piece of it, who was late, when each person was last reminded,
- * and how many a Remind would email, for the week asked for (`week`, the
- * page's `?week=`) or the week the page opens on. The group's fellows only,
- * never its facilitators; a facilitator's own week, and so whether it was
- * late, only for an admin or the programme's lead. A read of it that fails
- * draws no card rather than no page.
+ * THE CHOSEN WEEK'S WORK (`work`, `readGroupWeekWork` then
+ * `groupWeekWorkView`): who has done the week, each piece of it, who was
+ * late, when each person was last reminded, and how many a Remind would
+ * email, for the week asked for (`week`, the page's `?week=`) or the week
+ * the page opens on. The group's fellows only, never anybody who
+ * facilitates a live group of the run; a facilitator's own week, and so
+ * whether it was late, only for an admin or the programme's lead. None for
+ * an incubator's group, whose weeks are rows. A read of it that fails draws
+ * no card rather than no page.
+ *
+ * EVERY READ IS ASKED AT ONCE, each waiting only for what it needs (the
+ * names and the week's work wait for the group's places, the lead and the
+ * card for the programme), so a visit costs the longest chain of reads, not
+ * their sum. The week's card reads no subscription list and no address:
+ * Remind's preview reads those when it is opened.
  *
  * NAMES ONLY. No address, no account field, no meeting link: whether a week
  * has a link is a yes or no. The counts on the buttons that email are the
@@ -117,51 +125,103 @@ export async function loadGroupPage(
   );
   const weekRefs = sessions.map((session) => db.collection("courseRuns").doc(run.id).collection("weeks").doc(weekDocId(session.weekNumber)));
 
-  const [naming, registerSnaps, weekSnaps, seatSnap, audience, history] = await Promise.all([
-    readNamingProgramme(db, run.id),
-    registerRefs.length ? db.getAll(...registerRefs) : Promise.resolve([]),
-    weekRefs.length ? db.getAll(...weekRefs) : Promise.resolve([]),
-    // Three equalities, the order the declared (runId, groupId, status) index serves.
-    db
-      .collection("courseEnrolments")
-      .where("runId", "==", run.id)
-      .where("groupId", "==", group.id)
-      .where("status", "==", "active")
-      .get(),
-    updateEmailAudience(db, run, [group], "group", group.id, viewerUid, { withFacilitators: true }),
-    // Rows about whether a facilitator was at a session are loaded only for
-    // an admin or the programme's lead who does not facilitate the group:
-    // that record is sent to nobody else.
-    staff ? loadGroupHistory(db, run.id, group.id, { facilitatorRecord: !group.facilitatorUids.includes(viewerUid) }) : Promise.resolve(null),
-  ]);
-  const lead = await readRunLead(db, run.id, naming);
+  // The week whose work the card shows, known before anything is read: the
+  // week asked for when it is one of the plan's, else the week the page opens on.
+  const openWeek = openingWeek(
+    sessions.map((session) => {
+      const { endsAt } = sessionInstants(session);
+      return {
+        weekNumber: session.weekNumber,
+        dateKey: session.dateKey,
+        cancelled: session.cancelled,
+        ended: Boolean(endsAt && endsAt.getTime() <= now.getTime()),
+      };
+    }),
+  );
+  const workWeek =
+    input.week !== undefined && input.week !== null && sessions.some((session) => session.weekNumber === input.week) ? input.week : openWeek;
+
+  // EVERY READ AT ONCE, each waiting only for what it needs: the group's
+  // places for the names and the week's work, the programme for its lead and
+  // whether it is an incubator's, the registers for who covered.
+  const namingRead = readNamingProgramme(db, run.id);
+  // Three equalities, the order the declared (runId, groupId, status) index serves.
+  const seatRead = db
+    .collection("courseEnrolments")
+    .where("runId", "==", run.id)
+    .where("groupId", "==", group.id)
+    .where("status", "==", "active")
+    .get();
+  const registerRead = registerRefs.length ? db.getAll(...registerRefs) : Promise.resolve([]);
 
   // The group's people: fellows holding a place, and its facilitators apart.
   // Admins and the programme's lead are shown every place, told or not, as
   // the Groups tab shows them; a facilitator never learns of a place Publish
   // has not told its owner about.
-  const seats = seatSnap.docs
-    .map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}))
-    .filter((seat) => seat.runId === run.id && seat.groupId === group.id && seat.role === "learner")
-    .filter((seat) => staff || placementIsTold(seat));
+  const seatsRead = seatRead.then((snap) =>
+    snap.docs
+      .map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}))
+      .filter((seat) => seat.runId === run.id && seat.groupId === group.id && seat.role === "learner")
+      .filter((seat) => staff || placementIsTold(seat)),
+  );
   const facilitatorSet = new Set(group.facilitatorUids);
+
+  // Who took a register in a facilitator's place, or was given a session,
+  // may be anybody with an account: named for the page's staff only.
+  const coverUidsOf = (snaps: readonly FirebaseFirestore.DocumentSnapshot[]) =>
+    staff
+      ? [...new Set(snaps.map((snap) => (snap?.exists ? normalizeCourseAttendance(snap.id, snap.data() ?? {}).cover?.byUid ?? "" : "")).filter(Boolean))]
+      : [];
+  const namesRead = Promise.all([seatsRead, registerRead]).then(([seats, snaps]) =>
+    namesOf(db, [...group.facilitatorUids, ...seats.map((seat) => seat.uid), ...coverUidsOf(snaps)]),
+  );
+
+  // The chosen week's work, read beside the names it is drawn with. Not for
+  // an incubator's group, whose weeks are rows with no card, on either page.
+  // A read of it that fails draws no card rather than no page.
+  const workRead = Promise.all([namingRead, seatsRead])
+    .then(([naming, seats]) => {
+      const placed = seats.filter((seat) => !facilitatorSet.has(seat.uid));
+      if (workWeek === null || placed.length === 0 || naming?.kind === "incubator") return null;
+      return readGroupWeekWork(db, {
+        run,
+        group,
+        weekNumber: workWeek,
+        // A facilitator's own week is read only for the programme's lead and admins.
+        uids: [...seats.map((seat) => seat.uid), ...(staff ? group.facilitatorUids : [])],
+        now,
+      });
+    })
+    .catch((err: unknown) => {
+      console.error("[group page] the week's work could not be read", group.id, workWeek, err);
+      return null;
+    });
+
+  const [naming, registerSnaps, weekSnaps, seats, audience, history, lead, names, worked] = await Promise.all([
+    namingRead,
+    registerRead,
+    weekRefs.length ? db.getAll(...weekRefs) : Promise.resolve([]),
+    seatsRead,
+    updateEmailAudience(db, run, [group], "group", group.id, viewerUid, { withFacilitators: true }),
+    // Rows about whether a facilitator was at a session are loaded only for
+    // an admin or the programme's lead who does not facilitate the group:
+    // that record is sent to nobody else.
+    staff ? loadGroupHistory(db, run.id, group.id, { facilitatorRecord: !group.facilitatorUids.includes(viewerUid) }) : Promise.resolve(null),
+    namingRead.then((found) => readRunLead(db, run.id, found)),
+    namesRead,
+    workRead,
+  ]);
+
   const fellows = seats.filter((seat) => !facilitatorSet.has(seat.uid));
   const placedFacilitators = seats.filter((seat) => facilitatorSet.has(seat.uid));
 
-  const names = await namesOf(db, [...group.facilitatorUids, ...seats.map((seat) => seat.uid)]);
   // A facilitator is named while they still meet the bar they were appointed behind.
   const standingFacilitators = group.facilitatorUids.filter((uid) => {
     const person = names.get(uid);
     return person && isNamedWithStanding(standingUserOf(uid, person.data), "courseGroups.facilitatorUids", group.facilitatorUids);
   });
   const nameOf = (uid: string) => names.get(uid)?.goesBy ?? "";
-  // Who took a register in a facilitator's place, or was given a session,
-  // may be anybody with an account: named for the page's staff only.
-  const coverUids = staff
-    ? [...new Set(registerSnaps.map((snap) => (snap?.exists ? normalizeCourseAttendance(snap.id, snap.data() ?? {}).cover?.byUid ?? "" : "")).filter(Boolean))]
-    : [];
-  const coverNames = await namesOf(db, coverUids.filter((uid) => !names.has(uid)));
-  const anyName = (uid: string) => names.get(uid)?.full || coverNames.get(uid)?.full || "NAISI member";
+  const anyName = (uid: string) => names.get(uid)?.full || "NAISI member";
 
   const weeks: GroupPageWeek[] = sessions.map((session, index) => {
     const register = registerSnaps[index]?.exists ? (registerSnaps[index].data() ?? {}) : undefined;
@@ -232,36 +292,34 @@ export async function loadGroupPage(
   });
 
   const chip = termChipOf(weeks, fellows.length, todayKey, tomorrowKey);
-  const openWeek = openingWeek(weeks);
-  const workWeek = input.week !== undefined && input.week !== null && weeks.some((week) => week.weekNumber === input.week) ? input.week : openWeek;
-  const work =
-    workWeek !== null && fellows.length > 0
-      ? await loadGroupWeekWork(db, {
-          run,
-          group,
-          weekNumber: workWeek,
-          viewerUid,
-          people: fellows
-            .map((seat) => ({ uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", firstName: names.get(seat.uid)?.first ?? "" }))
-            .sort((a, b) => a.name.localeCompare(b.name)),
-          // A facilitator's own week is the programme's lead's and admins' alone.
-          ownPeople: staff
-            ? standingFacilitators
-                .map((uid) => ({
-                  uid,
-                  name: names.get(uid)?.full ?? "",
-                  firstName: names.get(uid)?.first ?? "",
-                  seatedHere: placedFacilitators.some((seat) => seat.uid === uid),
-                }))
-                .filter((person) => person.name)
-            : [],
-          leadFirstName: lead?.firstName || null,
-          now,
-        }).catch((err: unknown) => {
-          console.error("[group page] the week's work could not be read", group.id, workWeek, err);
-          return null;
-        })
-      : null;
+  // The week's card, from the reads made above and the names the page goes by.
+  const work = worked
+    ? groupWeekWorkView(worked, {
+        viewerUid,
+        people: fellows
+          .map((seat) => ({
+            uid: seat.uid,
+            name: nameOf(seat.uid) || "NAISI member",
+            firstName: names.get(seat.uid)?.first ?? "",
+            told: placementIsTold(seat),
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name)),
+        readsOwnWork: staff,
+        // A facilitator's own week is the programme's lead's and admins' alone.
+        ownPeople: staff
+          ? standingFacilitators
+              .map((uid) => ({
+                uid,
+                name: names.get(uid)?.full ?? "",
+                firstName: names.get(uid)?.first ?? "",
+                seatedHere: placedFacilitators.some((seat) => seat.uid === uid),
+              }))
+              .filter((person) => person.name)
+          : [],
+        leadFirstName: lead?.firstName || null,
+        now,
+      })
+    : null;
   // "Set the link" for every week saves on the next session still to end, as the link route asks.
   const linkWeek = weeks.find((week) => !week.ended && !week.cancelled && week.dateKey) ?? null;
 

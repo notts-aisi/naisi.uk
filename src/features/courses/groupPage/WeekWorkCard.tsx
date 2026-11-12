@@ -61,6 +61,8 @@ export default function WeekWorkCard({
   ];
   const shown = filterRows(rows, filter);
   const late = rows.filter((row) => row.late !== null);
+  // Counted in "Week not done" and not in Remind's button: said by name, so the two numbers never disagree unexplained.
+  const leftOut = filterRows(rows, "week").filter((row) => !row.remindable);
 
   return (
     <>
@@ -86,6 +88,9 @@ export default function WeekWorkCard({
           <button type="button" className={styles.buttonPrimary} disabled={!hydrated} onClick={() => onRemind(null)}>
             {R.remindAllWords(remindCount)}
           </button>
+        )}
+        {work.remind && leftOut.length > 0 && (
+          <p className={styles.cardLine}>{R.remindLeavesOutWords(leftOut.map((row) => row.firstName || row.name))}</p>
         )}
       </section>
 
