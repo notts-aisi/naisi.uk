@@ -545,6 +545,20 @@ describe("5. the Requests page and one request's page: an admin's alone", () => 
     }
   });
 
+  test("one week waiting: its decision sits under the reply; several: each week decides its own, under the reply", async () => {
+    const one = await amaraAsks();
+    const single = draws(ExcusedRequestPage, { view: (await excusedPage.loadExcusedRequestPage(world.courseDb, w.sessionOf("zach"), one, NOW)).view });
+    assert.equal(single.html.match(/data-testid="excused-approve"/g)?.length, 1);
+    const replyAt = single.html.indexOf('data-testid="excused-reply-text"');
+    assert.ok(replyAt > 0 && replyAt < single.html.indexOf('data-testid="excused-approve"'), "the reply is not typed before the decision");
+    assert.match(single.text, /Approve and email 2 people Decline and email Amara Reply without deciding/);
+    const two = await amaraAsks(["w05", "w06"]);
+    const several = draws(ExcusedRequestPage, { view: (await excusedPage.loadExcusedRequestPage(world.courseDb, w.sessionOf("zach"), two, NOW)).view });
+    assert.equal(several.html.match(/data-testid="excused-approve"/g)?.length, 2, "each week does not decide its own");
+    assert.ok(several.html.indexOf('data-testid="excused-reply-text"') < several.html.indexOf('data-testid="excused-approve"'), "the reply is not typed before the decisions");
+    assert.match(several.text, /Each week is decided on its own, and each decision is one email to the person\./);
+  });
+
   test("decided weeks stay with who decided, when and the reply; once the programme closes the reason is said to be gone", async () => {
     const id = await amaraAsks();
     assert.equal((await decide("zach", "approve", id, { sessionKey: "w04", reply: REPLY })).status, 200);

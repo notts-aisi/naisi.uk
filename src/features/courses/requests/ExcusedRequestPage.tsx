@@ -45,6 +45,8 @@ export default function ExcusedRequestPage({ view }: { view: ExcusedRequestPageV
   const first = R.firstOf(view.subject.name);
   const off = !hydrated || busy !== null;
   const waitingWeeks = view.weeks.filter((week) => week.status === "waiting");
+  // One week waiting: its buttons sit under the reply, as one decision.
+  const onlyWaiting = waitingWeeks.length === 1 ? waitingWeeks[0] : null;
 
   async function act(action: "approve" | "decline" | "reply", sessionKey: string | null) {
     setBusy(`${action}-${sessionKey ?? ""}`);
@@ -67,6 +69,34 @@ export default function ExcusedRequestPage({ view }: { view: ExcusedRequestPageV
     setReply("");
     router.refresh();
   }
+
+  /** Approve and Decline for one week, the reply above them going with either. */
+  const decideButtons = (week: ExcusedPageWeek) => {
+    if (!week.approving) return null;
+    const label = R.weekLineWords(week);
+    const approveWords = approveButtonWords(week.approving.emails, week.approving.emails === 1 && week.approving.person ? first : "");
+    return (
+      <>
+        <Button
+          onClick={() => void act("approve", week.sessionKey)}
+          disabled={off}
+          data-testid="excused-approve"
+          aria-label={onlyWaiting ? undefined : `${approveWords}, ${label}`}
+        >
+          {busy === `approve-${week.sessionKey}` ? R.SAVING : approveWords}
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => void act("decline", week.sessionKey)}
+          disabled={off || !reply.trim()}
+          data-testid="excused-decline"
+          aria-label={onlyWaiting ? undefined : `${declineButtonWords(first)}, ${label}`}
+        >
+          {busy === `decline-${week.sessionKey}` ? R.SAVING : declineButtonWords(first)}
+        </Button>
+      </>
+    );
+  };
 
   const weekCard = (week: ExcusedPageWeek) => {
     const label = R.weekLineWords(week);
@@ -98,27 +128,8 @@ export default function ExcusedRequestPage({ view }: { view: ExcusedRequestPageV
                 <dd>{week.approving.told}</dd>
               </div>
             </dl>
-            {view.canDecide && (
-              <div className={styles.actions}>
-                <Button
-                  onClick={() => void act("approve", week.sessionKey)}
-                  disabled={off}
-                  data-testid="excused-approve"
-                  aria-label={`${approveButtonWords(week.approving.emails, week.approving.emails === 1 && week.approving.person ? first : "")}, ${label}`}
-                >
-                  {busy === `approve-${week.sessionKey}` ? R.SAVING : approveButtonWords(week.approving.emails, week.approving.emails === 1 && week.approving.person ? first : "")}
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => void act("decline", week.sessionKey)}
-                  disabled={off || !reply.trim()}
-                  data-testid="excused-decline"
-                  aria-label={`${declineButtonWords(first)}, ${label}`}
-                >
-                  {busy === `decline-${week.sessionKey}` ? R.SAVING : declineButtonWords(first)}
-                </Button>
-              </div>
-            )}
+            {/* Several weeks waiting: each card decides its own, with the reply typed above them. */}
+            {view.canDecide && waitingWeeks.length > 1 && <div className={styles.actions}>{decideButtons(week)}</div>}
           </>
         ) : week.status !== "waiting" ? (
           <>
@@ -138,6 +149,53 @@ export default function ExcusedRequestPage({ view }: { view: ExcusedRequestPageV
       </section>
     );
   };
+
+  // The reply, and under it the decision: Approve, Decline and Reply without
+  // deciding for one week waiting, as one row; Reply without deciding alone
+  // when several weeks each carry their own.
+  const replyCard =
+    waitingWeeks.length > 0 && view.canDecide ? (
+      <section className={styles.card} aria-labelledby="excused-reply">
+        <h2 id="excused-reply" className={styles.cardTitle}>
+          {R.replyToWords(first)}
+        </h2>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>{R.REPLY}</span>
+          <textarea
+            className={styles.textarea}
+            value={reply}
+            maxLength={EXCUSED_LIMITS.reply}
+            rows={3}
+            onChange={(event) => setReply(event.target.value.replace(/[\r\n]+/g, " "))}
+            disabled={off}
+            data-testid="excused-reply-text"
+          />
+        </label>
+        <div className={styles.actions}>
+          {onlyWaiting && decideButtons(onlyWaiting)}
+          <Button variant="secondary" onClick={() => void act("reply", null)} disabled={off || !reply.trim()} data-testid="excused-reply">
+            {busy === "reply-" ? R.SAVING : REPLY_WITHOUT_DECIDING}
+          </Button>
+        </div>
+        <p className={styles.line}>
+          {R.ONE_EMAIL_PER_DECISION} {R.DECLINE_NEEDS_A_REPLY} {R.replyEmailsWords(first)}
+        </p>
+        {problem && (
+          <p className={styles.problem} role="status">
+            {problem}
+          </p>
+        )}
+      </section>
+    ) : (
+      <section className={styles.card}>
+        <p className={styles.line}>{view.yours ? R.YOURS : R.NOTHING_TO_DECIDE}</p>
+        {problem && (
+          <p className={styles.problem} role="status">
+            {problem}
+          </p>
+        )}
+      </section>
+    );
 
   const before = view.excusedBefore;
   const timeSet = before.weeks.filter((week) => week.kind === "time-set");
@@ -200,50 +258,10 @@ export default function ExcusedRequestPage({ view }: { view: ExcusedRequestPageV
             )}
           </section>
 
+          {/* Several weeks waiting: the reply first, then each week's own decision. */}
+          {waitingWeeks.length > 1 && replyCard}
           {view.weeks.map(weekCard)}
-
-          {waitingWeeks.length > 0 && view.canDecide ? (
-            <section className={styles.card} aria-labelledby="excused-reply">
-              <h2 id="excused-reply" className={styles.cardTitle}>
-                {R.replyToWords(first)}
-              </h2>
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>{R.REPLY}</span>
-                <textarea
-                  className={styles.textarea}
-                  value={reply}
-                  maxLength={EXCUSED_LIMITS.reply}
-                  rows={3}
-                  onChange={(event) => setReply(event.target.value.replace(/[\r\n]+/g, " "))}
-                  disabled={off}
-                  data-testid="excused-reply-text"
-                />
-              </label>
-              <p className={styles.line}>
-                {R.ONE_EMAIL_PER_DECISION} {R.DECLINE_NEEDS_A_REPLY}
-              </p>
-              <div className={styles.actions}>
-                <Button variant="secondary" onClick={() => void act("reply", null)} disabled={off || !reply.trim()} data-testid="excused-reply">
-                  {busy === "reply-" ? R.SAVING : REPLY_WITHOUT_DECIDING}
-                </Button>
-              </div>
-              <p className={styles.line}>{R.replyEmailsWords(first)}</p>
-              {problem && (
-                <p className={styles.problem} role="status">
-                  {problem}
-                </p>
-              )}
-            </section>
-          ) : (
-            <section className={styles.card}>
-              <p className={styles.line}>{view.yours ? R.YOURS : R.NOTHING_TO_DECIDE}</p>
-              {problem && (
-                <p className={styles.problem} role="status">
-                  {problem}
-                </p>
-              )}
-            </section>
-          )}
+          {waitingWeeks.length <= 1 && replyCard}
         </div>
 
         <div className={styles.side}>

@@ -513,7 +513,8 @@ test(
         assert.ok(what.includes(WORDS.told(ben.first, fern.first)), `the page does not say who is emailed: ${what}`);
         assert.ok((await textOf(adminPage.getByTestId("excused-before"))).includes("Never, this term."), "the page does not say how often");
         await adminPage.getByTestId("excused-reply-text").fill(WHY.reply);
-        const approve = week.getByTestId("excused-approve");
+        // One week waiting: its decision sits under the reply.
+        const approve = adminPage.getByTestId("excused-approve");
         assert.equal(await textOf(approve), WORDS.approveTwo);
         const [approved] = await Promise.all([responseTo(adminPage, `/requests/${benRequest}/excused/approve`, "POST"), approve.click()]);
         const body = await okBody(approved, "Approving the week");
@@ -592,7 +593,7 @@ test(
         assert.ok(what.includes(`${fern.first} finished the register`), what);
         const [approved] = await Promise.all([
           responseTo(adminPage, `/requests/${pastRequest}/excused/approve`, "POST"),
-          week.getByTestId("excused-approve").click(),
+          adminPage.getByTestId("excused-approve").click(),
         ]);
         const body = await okBody(approved, "Approving the past week");
         assert.deepEqual([body.week?.register, body.emailed], ["corrected", { person: "sent", facilitators: 1 }]);
