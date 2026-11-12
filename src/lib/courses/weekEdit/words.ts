@@ -304,10 +304,15 @@ export const NOTICE_LETTERS = {
       "If you’ve already sent yours, it stays as it is, with the question you answered.",
     ],
   }),
-  /** A text reworded, a paste, a restore: anything else. */
+  /** A text reworded. */
   week: (weekNumber: number, partNumber: number | null): NoticeLetter => ({
     subject: `A change to week ${weekNumber}`,
     lines: [`Something in ${weekPart(weekNumber, partNumber)} has been reworded. Anything you’ve ticked or written is kept.`],
+  }),
+  /** A paste of the whole week, or a restore of an earlier version. */
+  whole: (weekNumber: number): NoticeLetter => ({
+    subject: `A change to week ${weekNumber}`,
+    lines: [`Week ${weekNumber} has been updated. What you’ve already ticked or written is kept.`],
   }),
 } as const;
 

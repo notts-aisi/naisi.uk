@@ -522,6 +522,33 @@ describe("5. telling people about a change", () => {
     assert.equal(saves().find((row) => row.id === saveId).told, null);
   });
 
+  test("the email's words for each kind of change, in one voice", async () => {
+    const letterAfter = async (save) => (await ask("zach", R.tell.GET, AT, { query: `?save=${save}` })).body.letter;
+    seedWeek();
+    const title = await change("zach", "src-1", { title: "Base rates, a field guide" });
+    assert.deepEqual(await letterAfter(title.body.saveId), {
+      subject: "A new title for a week 3 reading",
+      lines: ["The reading in week 3’s part 1 is now called “Base rates, a field guide”, by Ada Example. It’s the same reading, and your ticks are as they were."],
+    });
+    const prompt = await change("zach", "rs-1", { prompts: [{ id: "rp-1", text: "What is the base rate, roughly?" }, { id: "rp-2", text: "What makes your case different from the base rate?" }] });
+    assert.deepEqual(await letterAfter(prompt.body.saveId), {
+      subject: "A reworded reflection in week 3",
+      lines: ["The reflection in week 3’s part 1 now asks: “What is the base rate, roughly?”", "Anything you’ve already written there is kept as you wrote it."],
+    });
+    const range = await change("zach", "wa-1", { words: { min: 250, max: 400 } });
+    assert.deepEqual(await letterAfter(range.body.saveId), {
+      subject: "A new word range for week 3’s written answer",
+      lines: ["The written answer in week 3’s part 4 now asks for 250 to 400 words.", "If you’ve already sent yours, it stays as it is."],
+    });
+    const question = await change("zach", "wa-1", { question: "Will it come true by **next year**?" });
+    assert.equal((await letterAfter(question.body.saveId)).subject, "A reworded question in week 3");
+    const text = await change("zach", "tx-2", { body: "- Write a number.\n- Write two reasons." });
+    assert.deepEqual(await letterAfter(text.body.saveId), {
+      subject: "A change to week 3",
+      lines: ["Something in week 3’s part 2 has been reworded. Anything you’ve ticked or written is kept."],
+    });
+  });
+
   test("only the newest save can be told about", async () => {
     const saveId = await savedLink();
     await change("zach", "tx-before", { body: "Rest first." });

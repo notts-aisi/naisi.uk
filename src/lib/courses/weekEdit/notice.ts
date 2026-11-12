@@ -93,8 +93,8 @@ export function tellChoices(audiences: TellAudiences, weekNumber: number, progra
 
 /**
  * What the notice about one save says: a new link, a new title, a reworded
- * reflection, a new word range, a reworded question, or, for anything else
- * (a text, a paste, a restore), that the week changed and nothing anybody
+ * reflection, a new word range, a reworded question, a reworded text, or,
+ * for a paste or a restore, that the week was updated and nothing anybody
  * ticked or wrote is lost.
  */
 export function letterFor(save: WeekSaveDoc, weekNumber: number): NoticeLetter {
@@ -117,7 +117,7 @@ export function letterFor(save: WeekSaveDoc, weekNumber: number): NoticeLetter {
         return NOTICE_LETTERS.week(weekNumber, part);
     }
   }
-  return NOTICE_LETTERS.week(weekNumber, null);
+  return NOTICE_LETTERS.whole(weekNumber);
 }
 
 /** The email's body as the composer's lanes take it: the letter's lines, then where the week is. */
