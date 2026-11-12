@@ -374,19 +374,36 @@ describe("4. excused never counts as missing", () => {
 // 5. The programme page
 // ---------------------------------------------------------------------------
 
-describe("5. the programme page offers it on the ticket of the next session", () => {
-  test("to somebody taking part, says so once they have told us, and offers it back", async () => {
+describe("5. the programme page offers it on the ticket of the next session, to a facilitator who holds a place", () => {
+  // Somebody taking part now asks an admin to excuse them instead
+  // (tests/course-excused-pages.test.mjs): the instant button is drawn only
+  // where the person's own view of being excused says they facilitate the
+  // group they hold a place in, which the ask route refuses them.
+  const facilitates = { runId: RUN.agi, groupId: B, asks: false, closesAt: null, closed: false, sessions: [], requests: [] };
+
+  test("to a facilitator who holds a place: says so once they have told us, and offers it back", async () => {
     assert.deepEqual(await ticketFor("chloe"), { groupId: B, sessionKey: "w03", day: "Tue 17 Nov", told: false });
     await w.asBrowser("chloe");
-    const before = w.programmeHome("chloe", { cantMakeIt: await ticketFor("chloe") });
+    const before = w.programmeHome("chloe", { cantMakeIt: await ticketFor("chloe"), excused: facilitates });
     assert.ok(before.text.includes("Tue 17 Nov, 6pm to 8pm Hallward B12 R S with Rahul and Sofia Add to calendar Can’t make it"), before.text);
     assert.match(before.html, /aria-label="Can’t make it on Tue 17 Nov"/);
 
     assert.equal((await cantMake("chloe", "w03")).status, 200);
     const told = await ticketFor("chloe");
     assert.deepEqual(told, { groupId: B, sessionKey: "w03", day: "Tue 17 Nov", told: true });
-    const after = w.programmeHome("chloe", { cantMakeIt: told });
+    const after = w.programmeHome("chloe", { cantMakeIt: told, excused: facilitates });
     assert.ok(after.text.includes(`${words.TOLD_US} ${words.CAN_MAKE_IT_AFTER_ALL}`), after.text);
+  });
+
+  test("never to somebody taking part, and never without their view: the instant button is gone for them", async () => {
+    await w.asBrowser("chloe");
+    const view = await ticketFor("chloe");
+    for (const excused of [{ ...facilitates, asks: true }, null, undefined]) {
+      const drawn = w.programmeHome("chloe", { cantMakeIt: view, ...(excused === undefined ? {} : { excused }) });
+      assert.ok(!drawn.text.includes(words.CAN_MAKE_IT_AFTER_ALL), JSON.stringify(excused));
+      assert.doesNotMatch(drawn.html, /<button type="button" class="calendarButton" aria-label="Can’t make it on Tue 17 Nov">/, JSON.stringify(excused));
+      assert.ok(drawn.text.includes("Add to calendar"), "the ticket lost Add to calendar");
+    }
   });
 
   test("to nobody else, and not once the session has started; then about the session after", async () => {
