@@ -67,9 +67,9 @@ export function holdIsLive(hold: StoredHold | null, now: Date): hold is StoredHo
   return hold !== null && now.getTime() - hold.keptAt.getTime() < LOCK_TTL_MS;
 }
 
-/** Whether somebody other than `uid` holds the week at `now`. */
-export function heldByAnother(hold: StoredHold | null, uid: string, now: Date): hold is StoredHold {
-  return holdIsLive(hold, now) && hold.holderUid !== uid;
+/** The live hold of somebody other than `uid` at `now`, or null when there is none. */
+export function heldByAnother(hold: StoredHold | null, uid: string, now: Date): StoredHold | null {
+  return holdIsLive(hold, now) && hold.holderUid !== uid ? hold : null;
 }
 
 /** The lock as a page reads it. Never anybody's uid but the reader's own state, and the holder's first name. */

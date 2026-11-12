@@ -103,10 +103,8 @@ export async function saveWeekBlocks(db: Firestore, input: SaveInput): Promise<S
     ]);
 
     // 1. Somebody else is editing this week.
-    const hold = readHold(lockSnap);
-    if (heldByAnother(hold, input.uid, input.now)) {
-      return { ok: false, status: 409, body: await heldRefusal(db, hold, input.weekNumber) };
-    }
+    const other = heldByAnother(readHold(lockSnap), input.uid, input.now);
+    if (other) return { ok: false, status: 409, body: await heldRefusal(db, other, input.weekNumber) };
 
     // 2. The new blocks, from the week as stored now.
     const doc = weekSnap.exists ? normalizeCourseWeek(weekSnap.id, weekSnap.data() ?? {}) : null;

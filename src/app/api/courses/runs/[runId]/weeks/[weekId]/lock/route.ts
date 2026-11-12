@@ -66,8 +66,9 @@ export async function POST(_req: Request, ctx: Params) {
   const now = new Date();
   const refused = await db.runTransaction(async (tx) => {
     const hold = readHold(await tx.get(ref));
-    if (heldByAnother(hold, opened.uid, now)) return hold;
-    const since = holdIsLive(hold, now) && hold.holderUid === opened.uid ? hold.since : now;
+    const other = heldByAnother(hold, opened.uid, now);
+    if (other) return other;
+    const since = hold && holdIsLive(hold, now) && hold.holderUid === opened.uid ? hold.since : now;
     tx.set(ref, { holderUid: opened.uid, since, keptAt: now, runId: opened.runId, weekId: opened.weekId });
     return null;
   });
