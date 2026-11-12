@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WeekLockState } from "@/lib/courses/weekEdit/lock";
-import { lockBeat } from "@/lib/courses/weekEdit/pageModel";
+import { holdOrder, lockBeat } from "@/lib/courses/weekEdit/pageModel";
 
 /**
  * ONE EDITOR AT A TIME, FROM THE PAGE: the week's lock routes
@@ -22,6 +22,9 @@ import { lockBeat } from "@/lib/courses/weekEdit/pageModel";
  *    The person comes back to the same path as a lapsed hold: the page says
  *    the hold ended, keeps what was typed, and takes it again as soon as
  *    they are back (the tab shown again, or any input).
+ *  - IN ORDER: every give-back and take go through one `holdOrder`, so a
+ *    take waits for a give-back still in flight and the server never ends
+ *    up holding nothing while the page says the week is its own.
  *  - `give` on a save, on cancel and on leaving the page: DELETE (sent with
  *    `keepalive` on the way out, so a closed tab gives it back too).
  *  - While somebody else holds it, the lock is read again on a timer and
@@ -69,6 +72,8 @@ export function useWeekLock(runId: string, weekId: string, initial: WeekLockStat
   const lastInputRef = useRef(0);
   const letGoAtRef = useRef<number | null>(null);
   const retakingRef = useRef(false);
+  // A take waits for a give-back still on its way, so the two reach the server in order.
+  const [order] = useState(holdOrder);
 
   const call = useCallback(
     async (method: "GET" | "POST" | "PUT" | "DELETE", keepalive = false): Promise<{ status: number; body: Record<string, unknown> } | null> => {
@@ -96,7 +101,7 @@ export function useWeekLock(runId: string, weekId: string, initial: WeekLockStat
   }, []);
 
   const take = useCallback(async (): Promise<{ ok: true } | { ok: false; error: string }> => {
-    const answer = await call("POST");
+    const answer = await order.take(() => call("POST"));
     if (!answer) return { ok: false, error: "Couldn’t reach the site. Check your connection and try again." };
     if (answer.status === 200) {
       settle(answer.body);
@@ -110,7 +115,7 @@ export function useWeekLock(runId: string, weekId: string, initial: WeekLockStat
     }
     if (answer.status === 409) heldFrom(answer.body);
     return { ok: false, error: typeof answer.body.error === "string" ? answer.body.error : "That didn’t work. Try again." };
-  }, [call, settle, heldFrom]);
+  }, [call, settle, heldFrom, order]);
 
   const give = useCallback(() => {
     if (!holdingRef.current) return;
@@ -119,10 +124,10 @@ export function useWeekLock(runId: string, weekId: string, initial: WeekLockStat
     letGoAtRef.current = null;
     setHolding(false);
     setLost(false);
-    void call("DELETE", true).then((answer) => {
+    void order.giveBack(() => call("DELETE", true)).then((answer) => {
       if (answer?.status === 200) settle(answer.body);
     });
-  }, [call, settle]);
+  }, [call, settle, order]);
 
   const refusedBy = useCallback((holder: LockHolder, line: string) => {
     setLock({ state: "held", name: holder.name, since: holder.since, line });
@@ -140,13 +145,13 @@ export function useWeekLock(runId: string, weekId: string, initial: WeekLockStat
       lostRef.current = true;
       letGoAtRef.current = Date.now();
       setLost(true);
-      void call("DELETE", true);
+      void order.giveBack(() => call("DELETE", true));
     };
     const takeAgain = async () => {
       if (retakingRef.current || !holdingRef.current) return;
       retakingRef.current = true;
       try {
-        const again = await call("POST");
+        const again = await order.take(() => call("POST"));
         if (again?.status === 200 && holdingRef.current) {
           settle(again.body);
           lostRef.current = false;
@@ -196,7 +201,7 @@ export function useWeekLock(runId: string, weekId: string, initial: WeekLockStat
       document.removeEventListener("visibilitychange", onVisibility);
       window.clearInterval(beat);
     };
-  }, [holding, keepAliveMs, call, settle, heldFrom]);
+  }, [holding, keepAliveMs, call, settle, heldFrom, order]);
 
   // While somebody else holds it: ask again on a timer and on focus.
   const heldByOther = lock.state === "held";
@@ -225,14 +230,14 @@ export function useWeekLock(runId: string, weekId: string, initial: WeekLockStat
     const leave = () => {
       if (!holdingRef.current) return;
       holdingRef.current = false;
-      void call("DELETE", true);
+      void order.giveBack(() => call("DELETE", true));
     };
     window.addEventListener("pagehide", leave);
     return () => {
       window.removeEventListener("pagehide", leave);
       leave();
     };
-  }, [call]);
+  }, [call, order]);
 
   return {
     lock,

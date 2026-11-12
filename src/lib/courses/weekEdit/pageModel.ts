@@ -239,8 +239,7 @@ export function replaceLabel(weekNumber: number, reach: Pick<Reach, "groups" | "
   return answers > 0 ? PASTE_CHECK.replaceTakingOut(label, answers) : label;
 }
 
-/** "Group K and Group L": names as a sentence lists them. */
-/** How long a page holds a week with nobody typing, clicking or scrolling before it gives the hold back. */
+/** How long a page holds a week with no input before it gives the hold back: ten minutes. */
 export const LOCK_IDLE_MS = 10 * 60_000;
 
 /** What a page holding a week for an open edit does on a beat of its keep-alive. */
@@ -276,4 +275,34 @@ export function lockBeat(input: {
   return "keep";
 }
 
+/**
+ * THE ORDER A PAGE'S HOLD REACHES THE SERVER IN. A give-back (DELETE) and a
+ * take (POST) sent moments apart (a tab hidden and shown again, a panel
+ * closed and opened again) can arrive out of order, leaving no hold on the
+ * server while the page says the week is its own. So a take waits for a
+ * give-back still in flight, and the two always arrive in the order sent.
+ * One per hook.
+ */
+export function holdOrder() {
+  let pending: Promise<unknown> | null = null;
+  return {
+    /** Send a give-back, remembered until it has been answered. */
+    giveBack<T>(send: () => Promise<T>): Promise<T> {
+      const sent = send();
+      pending = sent;
+      const clear = () => {
+        if (pending === sent) pending = null;
+      };
+      sent.then(clear, clear);
+      return sent;
+    },
+    /** Send a take, once any give-back still in flight has been answered. */
+    async take<T>(send: () => Promise<T>): Promise<T> {
+      if (pending) await pending.catch(() => undefined);
+      return send();
+    },
+  };
+}
+
+/** "Group K and Group L": names as a sentence lists them. */
 export { listWords };

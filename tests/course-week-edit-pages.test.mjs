@@ -284,6 +284,39 @@ describe("3a. a page's hold on a week: never from a hidden tab, never for hours"
     assert.equal(beat({ lost: true, letGoAt: null, lastInputAt: T0 - 60 * MIN }), "takeAgain");
   });
 
+  test("a tab hidden and shown again at once: the take waits for a give-back still in flight, so the server holds the week", async () => {
+    // Only Date is mocked in this file: the timers below are real.
+    {
+      const arrived = [];
+      /** A request that reaches the server after `ms`, and is answered then. */
+      const sent = (what, ms) => () => new Promise((resolve) => setTimeout(() => (arrived.push(what), resolve({ status: 200 })), ms));
+      // Without the order, a slow give-back lands after the take: the server would hold nothing.
+      await Promise.all([sent("DELETE", 30)(), sent("POST", 0)()]);
+      assert.deepEqual(arrived, ["POST", "DELETE"], "the race the order exists for");
+      arrived.length = 0;
+      const order = page.holdOrder();
+      const giveBack = order.giveBack(sent("DELETE", 30));
+      const take = order.take(sent("POST", 0));
+      await Promise.all([giveBack, take]);
+      assert.deepEqual(arrived, ["DELETE", "POST"], "the give-back first, then the take");
+      // With nothing in flight, a take goes at once; a failed give-back never holds a take back.
+      arrived.length = 0;
+      await order.take(sent("POST", 0));
+      const failing = order.giveBack(() => Promise.reject(new Error("offline")));
+      await failing.catch(() => undefined);
+      await order.take(sent("POST", 0));
+      assert.deepEqual(arrived, ["POST", "POST"]);
+    }
+  });
+
+  test("the hook sends every give-back and take of the week through that order", () => {
+    const source = readFileSync(join(process.cwd(), "src", "features", "applications", "weeks", "edit", "useWeekLock.ts"), "utf8");
+    assert.match(source, /const \[order\] = useState\(holdOrder\);/);
+    assert.equal((source.match(/call\("POST"\)/g) ?? []).length, (source.match(/order\.take\(\(\) => call\("POST"\)\)/g) ?? []).length, "a take sent around the order");
+    assert.equal((source.match(/call\("DELETE", true\)/g) ?? []).length, (source.match(/order\.giveBack\(\(\) => call\("DELETE", true\)\)/g) ?? []).length, "a give-back sent around the order");
+    assert.ok((source.match(/order\.giveBack\(/g) ?? []).length >= 3, "give, let go and leaving all go through it");
+  });
+
   test("the hook drives its keep-alive by that decision: it lets go on a hidden tab, counts input, and gives back what it let go", () => {
     const source = readFileSync(join(process.cwd(), "src", "features", "applications", "weeks", "edit", "useWeekLock.ts"), "utf8");
     assert.match(source, /lockBeat\(\{/, "the beat asks the one decision");
