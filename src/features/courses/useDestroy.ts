@@ -420,6 +420,16 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "Which check-ins each week of this run showed the programme's lead, fixed the first time the week showed. Ids only, nothing anybody wrote, so they go with the run. The check-ins themselves are surveys, and a destroy leaves surveys alone.",
   },
+  weekHistory: {
+    label: "Each week’s history of changes",
+    fate: "destroyed",
+    note: "One record for every save of a week, by editing a block, pasting the week or restoring a version: who saved it, when, and what the week said after it. They are kept under the weeks this destroy deletes, so they go with the run.",
+  },
+  weekEditLocks: {
+    label: "Who is editing a week",
+    fate: "destroyed",
+    note: "While somebody has a week open to edit, a record says so, so nobody else saves over them. At most one a week, usually none. It goes with the run.",
+  },
   schedulerMarkers: {
     label: "Scheduler send markers",
     fate: "destroyed",

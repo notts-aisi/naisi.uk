@@ -40,6 +40,7 @@ import { COURSE_WORK_RATINGS_COLLECTION } from "./courseWorkRatings";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { RECORD_OPENINGS_COLLECTION } from "./recordOpenings";
 import { CHECK_IN_WEEKS_COLLECTION } from "./checkInWeeks";
+import { WEEK_HISTORY_SUBCOLLECTION, WEEK_LOCK_SUBCOLLECTION } from "@/lib/courses/weekEdit/paths";
 import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
 import { COURSE_UPDATES_COLLECTION } from "./courseUpdates";
 import {
@@ -504,6 +505,21 @@ export type RunDestroyCounts = {
    * which a destroy leaves alone (docs/surveys.md, "Deletion").
    */
   checkInWeeks: number;
+  /**
+   * Each week's `history` subcollection (`courseRuns/{runId}/weeks/{weekId}/
+   * history`, src/lib/courses/weekEdit/history.ts): one record for every save
+   * of a week by the in-place editor, the paste or a restore, each with who
+   * saved it, when, and the week's blocks after it. Under the week documents,
+   * so deleting a week would not delete them: they are drained week by week
+   * BEFORE the weeks, and they die with the run, as the weeks do.
+   */
+  weekHistory: number;
+  /**
+   * Each week's `editLock` subcollection (src/lib/courses/weekEdit/lock.ts):
+   * who is editing the week right now, at most one record a week, usually
+   * none. Drained with the history, before the weeks.
+   */
+  weekEditLocks: number;
   /**
    * `schedulerMarkers` rows this run owns: the send-dedupe markers the
    * scheduler tick writes before it sends anything.
@@ -1203,6 +1219,43 @@ async function releaseAdmissionSeats(
  * filters served by automatic single-field indexes / index merging — no
  * composite indexes were needed.
  */
+/** The ids of a run's week documents: the parents of the history and lock records. */
+async function runWeekIds(db: Firestore, runId: string): Promise<string[]> {
+  const snap = await db.collection("courseRuns").doc(runId).collection("weeks").select().get();
+  return snap.docs.map((doc) => doc.id);
+}
+
+/**
+ * The records under each of a run's weeks, counted the way they are drained:
+ * week by week, one subcollection at a time, with no collection-group read
+ * (which would need an index this project does not declare).
+ */
+async function countWeekRecords(db: Firestore, runId: string): Promise<{ history: number; locks: number }> {
+  const weekIds = await runWeekIds(db, runId);
+  const weeks = db.collection("courseRuns").doc(runId).collection("weeks");
+  const [history, locks] = await Promise.all([
+    Promise.all(weekIds.map((id) => countAgg(weeks.doc(id).collection(WEEK_HISTORY_SUBCOLLECTION)))),
+    Promise.all(weekIds.map((id) => countAgg(weeks.doc(id).collection(WEEK_LOCK_SUBCOLLECTION)))),
+  ]);
+  return { history: history.reduce((a, b) => a + b, 0), locks: locks.reduce((a, b) => a + b, 0) };
+}
+
+/**
+ * One subcollection under every week of the run, drained week by week, in
+ * the weeks' order. Drained when every week's is.
+ */
+async function drainWeekSubcollection(
+  db: Firestore,
+  runRef: DocumentReference,
+  subcollection: string,
+  budget: Budget,
+): Promise<DrainResult> {
+  const weekIds = await runWeekIds(db, runRef.id);
+  return drainInOrder(
+    weekIds.map((id) => () => drainQuery(db, subcollection, () => runRef.collection("weeks").doc(id).collection(subcollection), budget)),
+  );
+}
+
 export async function countRunDestroyTargets(
   db: Firestore,
   run: CourseRunDoc,
@@ -1244,6 +1297,7 @@ export async function countRunDestroyTargets(
     ),
   ];
 
+  const weekRecords = await countWeekRecords(db, runId);
   const [
     weeks,
     applications,
@@ -1461,6 +1515,8 @@ export async function countRunDestroyTargets(
     predictions,
     recordOpenings,
     checkInWeeks,
+    weekHistory: weekRecords.history,
+    weekEditLocks: weekRecords.locks,
     schedulerMarkers: schedulerMarkerCounts.reduce((a, b) => a + b, 0),
     emailSendRows: emailSendCounts.reduce((a, b) => a + b, 0),
     dataExportRows: exportCounts.reduce((a, b) => a + b, 0),
@@ -2202,6 +2258,19 @@ export async function destroyRunCascade(
     {
       key: "groups",
       drain: () => drainQuery(db, "courseGroups", byRunId("courseGroups"), budget),
+    },
+    {
+      key: "weekHistory",
+      // Each week's history: under the week documents, which Firestore would
+      // not delete them with, so drained week by week BEFORE the weeks. Written
+      // only by the editing routes, which read the run first and refuse one
+      // being destroyed, so nothing recreates one behind the cascade.
+      drain: () => drainWeekSubcollection(db, runRef, WEEK_HISTORY_SUBCOLLECTION, budget),
+    },
+    {
+      key: "weekEditLocks",
+      // Each week's edit lock, the same way and for the same reason.
+      drain: () => drainWeekSubcollection(db, runRef, WEEK_LOCK_SUBCOLLECTION, budget),
     },
     {
       key: "weeks",
