@@ -229,6 +229,7 @@ import {
   fixtureId,
   fixtureQuery,
   fixtureSubcollection,
+  fixtureWeekSubcollection,
   registerReminderMarkerDoc,
   subscriptionId,
 } from "../core.mjs";
@@ -2473,6 +2474,14 @@ export async function countTerm(state) {
     await fixtureQuery("courseSessionReports").where("runId", "==", runId).get()
   ).size;
   counts.weeks = (await fixtureSubcollection("courseRuns", runId, "weeks").get()).size;
+  // Each week's history (every save of it by the paste or the in-place editor)
+  // and its edit lock, a level below the weeks, so counted week by week.
+  counts.weekHistory = 0;
+  counts.weekEditLocks = 0;
+  for (const week of (await fixtureSubcollection("courseRuns", runId, "weeks").get()).docs) {
+    counts.weekHistory += (await fixtureWeekSubcollection(runId, week.id, "history").get()).size;
+    counts.weekEditLocks += (await fixtureWeekSubcollection(runId, week.id, "editLock").get()).size;
+  }
   counts.tasks = (await fixtureQuery("tasks").where("sourceRef.cohortId", "==", runId).get()).size;
   counts.subscriptions = (
     await fixtureQuery("subscriptions").where("channel", "==", state.channel).get()
@@ -2647,6 +2656,13 @@ export async function teardownTerm(state) {
   await deleteQuery(fixtureQuery("courseGroups").where("runId", "==", runId));
   for (const group of state.groups ?? []) await fixtureDoc("courseGroups", group.id).delete();
   const weeks = await fixtureSubcollection("courseRuns", runId, "weeks").get();
+  // A week's history and edit lock first: deleting a week leaves what is under it.
+  for (const doc of weeks.docs) {
+    for (const sub of ["history", "editLock"]) {
+      const rows = await fixtureWeekSubcollection(runId, doc.id, sub).get();
+      for (const row of rows.docs) await row.ref.delete();
+    }
+  }
   for (const doc of weeks.docs) await doc.ref.delete();
   await fixtureDoc("courseRuns", runId).delete();
   await fixtureDoc("courses", state.courseId).delete();

@@ -12,7 +12,7 @@ import { answerPiece, answerState, instantOf, isWordCountedAnswer, readWrittenAn
 import { lateBy, type WeekDue } from "@/lib/courses/weekWork/model";
 import { loadRunWeekStates, type RunWeekStates } from "@/lib/courses/weekWork/readers";
 import { lastSentAt, readPieceFacts, readableAnswer, sameWords, versionAtSession, type PieceFacts } from "@/lib/courses/weekWork/versions";
-import { liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
+import { facilitatingOnRunOf, liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
 import { workKey, type PersonAnswerWrite, type PersonWork, type PersonWrites, type WrittenBox } from "@/lib/courses/coursework/model";
 import { readRunFeedback } from "@/lib/courses/feedback/readers";
 import type { CourseFeedbackDoc } from "@/lib/firestore/courseFeedback";
@@ -34,6 +34,7 @@ import {
   type WeekViewer,
 } from "./model";
 import { promptOptionWords } from "./words";
+import { askedThenFor, writtenAtOf } from "@/lib/courses/weekEdit/askedThen";
 
 /**
  * THE READS BEHIND A GROUP'S WEEK, on the server, after the page's own gate
@@ -51,9 +52,11 @@ import { promptOptionWords } from "./words";
  *    only for a viewer who reads private notes (the group's facilitators and
  *    admins), only for the people whose notes that viewer reads.
  *
- * Every query is equalities on (runId, weekNumber), served by the declared
- * composites that start with those two fields. Nothing here writes, and no
- * row leaves here whole: the pages are handed names, words and counts.
+ * Every query of the week's rows is equalities on (runId, weekNumber), served
+ * by the declared composites that start with those two fields; the run's live
+ * groups, which say whose work is a facilitator's own (`facilitatingOnRunOf`),
+ * are one equality on the run. Nothing here writes, and no row leaves here
+ * whole: the pages are handed names, words and counts.
  */
 
 /** The week a group's facilitators are getting ready for: the week of its next session, or of its last once all are over. */
@@ -288,10 +291,10 @@ export async function loadGroupWeek(
   const { run, group, model, viewer, now } = input;
   const at = weekOfGroup(run, group, now);
   if (!at) return null;
-  const week = await blockWeekOf(db, run.id, group.id, at.weekNumber);
+  const [week, liveGroups] = await Promise.all([blockWeekOf(db, run.id, group.id, at.weekNumber), liveGroupsOf(db, run.id)]);
   if (!week) return null;
 
-  const people = peopleShown(viewer, model.people, model.facilitators);
+  const people = peopleShown(viewer, model.people, model.facilitators, facilitatingOnRunOf(group, liveGroups));
   const parts = reflectionPartsOf(week.blocks);
   const sources = tickedSourcesOf(week);
   const shown = new Set(people.map((person) => person.uid));
@@ -416,6 +419,9 @@ export async function loadGroupWeekBoxes(
 // Reading a group's reflections WITH names (Zach, Fri 30 Oct)
 // ---------------------------------------------------------------------------
 
+/** One reflection as read: its words, when it was last and first written, and its earlier versions. */
+type NamedReflectionRead = { text: string; at: Date | null; writtenAt: Date | null; piece: PieceFacts };
+
 /**
  * Each person's reflections in a week, by prompt, with when each was last
  * written and its earlier versions: for the pages that read them WITH names,
@@ -428,8 +434,8 @@ async function readNamedReflections(
   weekNumber: number,
   shown: ReadonlySet<string>,
   promptIds: ReadonlySet<string>,
-): Promise<Map<string, Map<string, { text: string; at: Date | null; piece: PieceFacts }>>> {
-  const out = new Map<string, Map<string, { text: string; at: Date | null; piece: PieceFacts }>>();
+): Promise<Map<string, Map<string, NamedReflectionRead>>> {
+  const out = new Map<string, Map<string, NamedReflectionRead>>();
   if (shown.size === 0 || promptIds.size === 0) return out;
   const snap = await db
     .collection("courseExerciseResponses")
@@ -444,8 +450,8 @@ async function readNamedReflections(
     const promptId = typeof data.exerciseId === "string" ? data.exerciseId : "";
     const text = typeof data.text === "string" ? data.text.trim() : "";
     if (!shown.has(uid) || !promptIds.has(promptId) || !text) continue;
-    const own = out.get(uid) ?? new Map<string, { text: string; at: Date | null; piece: PieceFacts }>();
-    own.set(promptId, { text, at: instantOf(data.updatedAt), piece: readPieceFacts(data) });
+    const own = out.get(uid) ?? new Map<string, NamedReflectionRead>();
+    own.set(promptId, { text, at: instantOf(data.updatedAt), writtenAt: writtenAtOf(data), piece: readPieceFacts(data) });
     out.set(uid, own);
   }
   return out;
@@ -457,6 +463,8 @@ export type NamedReflection = {
   text: string;
   /** When it was last written, or null for a row that does not say. */
   at: Date | null;
+  /** The prompt's words when it was first written, ONLY where the prompt has been reworded since; else null. */
+  askedThen: string | null;
   /** How long after the session its writer was due at it was last written (ms); null when not after it, or no session. */
   lateMs: number | null;
   /** The words as they stood when that session started, when they have changed since; null otherwise. */
@@ -468,7 +476,15 @@ export type NamedReflection = {
  * their name, or not written yet, with how late (the lead and admins alone
  * read a facilitator's own work, and so whether it was late).
  */
-export type OwnNamedReflection = { name: string; text: string | null; at: Date | null; lateMs: number | null; atSession: string | null };
+export type OwnNamedReflection = {
+  name: string;
+  text: string | null;
+  at: Date | null;
+  lateMs: number | null;
+  atSession: string | null;
+  /** The prompt's words when it was first written, ONLY where the prompt has been reworded since; else null. */
+  askedThen: string | null;
+};
 
 /** One prompt, with the group's fellows' answers to it under their names. */
 export type NamedPrompt = {
@@ -521,10 +537,10 @@ export async function loadNamedReflections(
 ): Promise<NamedReflectionsWeek | null> {
   const { run, group, model, viewer, weekNumber, withOwn } = input;
   const now = input.now ?? new Date();
-  const week = await blockWeekOf(db, run.id, group.id, weekNumber);
+  const [week, liveGroups] = await Promise.all([blockWeekOf(db, run.id, group.id, weekNumber), liveGroupsOf(db, run.id)]);
   if (!week) return null;
 
-  const people = peopleShown(viewer, model.people, model.facilitators);
+  const people = peopleShown(viewer, model.people, model.facilitators, facilitatingOnRunOf(group, liveGroups));
   const fellows = people.filter((person) => !person.own);
   const own = withOwn && seesFacilitatorsOwnWork(viewer) ? people.filter((person) => person.own) : [];
   const parts = reflectionPartsOf(week.blocks);
@@ -532,8 +548,22 @@ export async function loadNamedReflections(
   const [reflections, states] = await Promise.all([
     readNamedReflections(db, run.id, weekNumber, new Set([...fellows, ...own].map((person) => person.uid)), promptIds),
     // The session each person was due at, for how late and the version at it.
-    liveGroupsOf(db, run.id).then((liveGroups) => loadRunWeekStates(db, { run, liveGroups, now })),
+    loadRunWeekStates(db, { run, liveGroups, now }),
   ]);
+  // Each prompt's words when each fellow first wrote to it, where it has been reworded since.
+  const asked = await askedThenFor(
+    db,
+    run.id,
+    weekDocId(weekNumber),
+    group.id,
+    [...reflections].flatMap(([uid, byPrompt]) =>
+      [...byPrompt].map(([promptId, written]) => ({ key: `${uid} ${promptId}`, itemId: promptId, writtenAt: written.writtenAt })),
+    ),
+  );
+  const askedThen = (uid: string, promptId: string) => {
+    const then = asked.get(`${uid} ${promptId}`);
+    return then && then.kind === "prompt" ? then.text : null;
+  };
   /** How late a reflection was last written, and its words at the session when they differ. */
   const labels = (uid: string, written: { at: Date | null; piece: PieceFacts } | undefined) => {
     if (!written) return { lateMs: null, atSession: null };
@@ -552,7 +582,7 @@ export async function loadNamedReflections(
       const notYet: string[] = [];
       for (const person of fellows) {
         const written = reflections.get(person.uid)?.get(prompt.id);
-        if (written) answers.push({ name: person.name, text: written.text, at: written.at, ...labels(person.uid, written) });
+        if (written) answers.push({ name: person.name, text: written.text, at: written.at, askedThen: askedThen(person.uid, prompt.id), ...labels(person.uid, written) });
         else notYet.push(person.name);
       }
       prompts.push({
@@ -568,7 +598,13 @@ export async function loadNamedReflections(
           withOwn && seesFacilitatorsOwnWork(viewer)
             ? own.map((person) => {
                 const written = reflections.get(person.uid)?.get(prompt.id);
-                return { name: person.name, text: written?.text ?? null, at: written?.at ?? null, ...labels(person.uid, written) };
+                return {
+                  name: person.name,
+                  text: written?.text ?? null,
+                  at: written?.at ?? null,
+                  askedThen: written ? askedThen(person.uid, prompt.id) : null,
+                  ...labels(person.uid, written),
+                };
               })
             : null,
       });
@@ -820,10 +856,10 @@ export async function loadReadOutWeek(
   },
 ): Promise<ReadOutWeek | null> {
   const { run, group, model, viewer, weekNumber, now } = input;
-  const week = await blockWeekOf(db, run.id, group.id, weekNumber);
+  const [week, liveGroups] = await Promise.all([blockWeekOf(db, run.id, group.id, weekNumber), liveGroupsOf(db, run.id)]);
   if (!week) return null;
 
-  const people = peopleShown(viewer, model.people, model.facilitators);
+  const people = peopleShown(viewer, model.people, model.facilitators, facilitatingOnRunOf(group, liveGroups));
   const fellows = people.filter((person) => !person.own);
   const parts = reflectionPartsOf(week.blocks);
   const promptIds = new Set(parts.flatMap((part) => part.prompts.map((prompt) => prompt.id)));

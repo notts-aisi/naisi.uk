@@ -5,7 +5,6 @@ import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import * as P from "@/lib/courses/registerCorrection/pageWords";
 import { secondSessionWords } from "@/lib/courses/registerCorrection/words";
-import { pushHasRecordsHint } from "@/lib/courses/registerCover/words";
 import { correctColumn, postGroupNotice, type Answer } from "./api";
 import styles from "./CorrectionSheets.module.css";
 
@@ -76,8 +75,8 @@ export default function ColumnSheet({
     !session || !kind
       ? null
       : kind === "did-not-happen"
-        ? // Before a pace is chosen, keep pace's preview: it says whether the
-          // session has a check-in or a report, which decides whether push back is offered.
+        ? // Before a pace is chosen, keep pace's preview: it says whether a push
+          // back would go through (`push`), which decides whether it is offered.
           { kind, weekNumber: session.weekNumber, occurrence: session.occurrence, preview: true, pace: pace ?? "keep", dateKey: session.dateKey }
         : kind === "move"
           ? {
@@ -139,12 +138,13 @@ export default function ColumnSheet({
 
   const counts = P.didHappenCounts(people.map(chosenFor));
 
-  // Push the rest back is not offered once the session has a check-in or a
-  // session report (the route refuses it in the same words), nor until the
-  // preview has said whether it has.
-  const made = kind === "did-not-happen" ? ((preview?.didNotHappen as { checkIn: boolean; reports: number } | undefined) ?? null) : null;
-  const pushBlocked = Boolean(made && (made.checkIn || made.reports > 0));
-  const pushOffered = kind === "did-not-happen" && !pushBlocked && (made !== null || pace === "push");
+  // Push the rest back is offered only when the route's own preview says a
+  // push would go through: never once the route would refuse it (a check-in
+  // or a session report, a later week that met, no room in the plan), which
+  // the line under it then says in the group page's own words, and not until
+  // a preview has said. Chosen, it stays chosen while its own preview loads.
+  const pushChoice = kind === "did-not-happen" ? P.pushChoiceOf(preview) : { offered: false, why: "" };
+  const pushOffered = kind === "did-not-happen" && (pushChoice.offered || (pace === "push" && preview === null));
 
   const before: P.BeforeYouSave = !preview
     ? []
@@ -290,7 +290,7 @@ export default function ColumnSheet({
                     />
                     <span className={styles.choiceText}>
                       <span>{label}</span>
-                      {value === "push" && pushBlocked && <span className={styles.choiceLine}>{pushHasRecordsHint(session.weekNumber)}</span>}
+                      {value === "push" && !pushChoice.offered && pushChoice.why && <span className={styles.choiceLine}>{pushChoice.why}</span>}
                     </span>
                   </label>
                 ))}

@@ -35,6 +35,7 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { FIELD_VALUE_STUB } from "./lib/applicationsStore.mjs";
 import { loadJoin, makeWorld } from "./lib/handoverWorld.mjs";
 import { A, B, C, RUN, leadSeed } from "./lib/leadWorld.mjs";
@@ -73,7 +74,13 @@ const requestsLib = await loadTs("lib/firestore/courseRequests.ts");
 const auditLib = await loadTs("lib/firestore/courseAudit.ts");
 const history = await loadTs("lib/courses/groupHistory/load.ts");
 const loaders = await loadTs("lib/courses/requests/load.ts");
+const requestsHome = await loadTs("lib/courses/requests/home.ts");
 const attendanceLoader = await loadTs("lib/courses/groupAttendance/load.ts");
+const changeWords = await loadTs("lib/courses/sessionChange/words.ts");
+const groupPageWords = await loadTs("lib/courses/groupPage/words.ts");
+const changeModel = await loadTs("lib/courses/sessionChange/model.ts");
+/** A file under src, as text. */
+const sourceOf = (path) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
 
 const PLACED_ON = new Date("2026-10-27T17:38:00Z");
 /** Group B's week 1 session: Tue 3 Nov, 6pm to 8pm in London (GMT). */
@@ -468,6 +475,32 @@ describe("2. asking for a correction, and deciding it", () => {
     assert.equal((await loaders.loadRequestsPage(world.courseDb, sessionOf("zach"), LATER)).view.rows.length, 1);
   });
 
+  test("the count beside Requests in a programme's head is what the list shows its reader: a lead who also facilitates the group counts none of its", async () => {
+    await askDev();
+    /** For each reader, the head's count and the list's waiting rows. */
+    const both = async () => {
+      const out = {};
+      for (const who of ["zach", "claudia", "yusuf"]) {
+        const list = await loaders.loadRequestsPage(world.courseDb, sessionOf(who), LATER);
+        const listed = list.status === "ok" ? list.view.counts.waiting + list.view.counts.handling : 0;
+        out[who] = [await requestsHome.requestsWaitingOnRun(world.courseDb, sessionOf(who), RUN.agi), listed];
+      }
+      return out;
+    };
+    assert.deepEqual(await both(), { zach: [1, 1], claudia: [1, 1], yusuf: [1, 1] });
+    // Claudia, the programme's lead, also facilitates Group B: its request is not hers to open, so it is not counted.
+    world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia", "claudia"] });
+    assert.deepEqual(await both(), { zach: [1, 1], claudia: [0, 0], yusuf: [1, 1] });
+    // An archived group's: an admin's alone.
+    world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia"], archived: true });
+    assert.deepEqual(await both(), { zach: [1, 1], claudia: [0, 0], yusuf: [0, 0] });
+    // The head asks with its reader, and the list and the count ask one predicate.
+    const layout = sourceOf("app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/layout.tsx");
+    assert.match(layout, /await requestsWaitingOnRun\(db, user, programme\.runId\)/);
+    assert.match(sourceOf("lib/courses/requests/home.ts"), /return waiting\.filter\(\(each\) => requestShownTo\(user, groups\.get\(each\.groupId\), runId\)\)\.length;/);
+    assert.match(sourceOf("lib/courses/requests/load.ts"), /requests = requests\.filter\(\(each\) => requestShownTo\(actor, ctx\.groups\.get\(each\.groupId\), each\.runId\)\);/);
+  });
+
   test("one request's page: the line now, why, who finished it, what approving does, its history; for the people who decide only", async () => {
     const { id } = (await askDev()).body.request;
     const page = await loaders.loadRequestPage(world.courseDb, sessionOf("claudia"), id);
@@ -732,6 +765,214 @@ describe("3. correcting the whole column", () => {
     );
     assert.equal((await column("claudia", { kind: "did-not-happen", pace: "keep", dateKey: "2026-11-03", tell: false, reason: "Nobody came." })).status, 200);
     assert.equal(world.db.read(`courseGroups/${B}`).sessionChanges.w01.kind, "cancelled");
+  });
+
+  test("every refusal a push back meets is one the sheet does not offer, said in the group page's own words", async () => {
+    // Every refusal of a push that keep pace does not meet, as the route has
+    // them: its own (`pushRefusalOf`) and the one-week change's check of a push
+    // (`checkPress`, its push case). The walk below covers each one, both ways.
+    const column_ = sourceOf("lib/courses/registerCorrection/column.ts");
+    const own = column_.slice(column_.indexOf("async function pushRefusalOf("), column_.indexOf("\n}\n", column_.indexOf("async function pushRefusalOf(")));
+    const check = sourceOf("lib/courses/sessionChange/check.ts");
+    const pushCase = check.slice(check.indexOf('case "push": {'), check.indexOf("return {", check.indexOf('case "push": {')));
+    const sources = [
+      ...[...own.matchAll(/error: ([A-Za-z.]+)/g)].map((m) => m[1]).filter((name) => name !== "err.message"),
+      ...[...pushCase.matchAll(/ChangeRefusal\((REFUSAL\.\w+)/g)].map((m) => m[1]),
+    ].sort();
+    assert.ok(own.includes("if (err instanceof ChangeRefusal) return"), "the route no longer passes the one-week change's own push refusals on");
+    // EVERY REFUSAL the route's own door makes, read from its source line by
+    // line: each is met whatever the pace, or by a push alone, and a push's
+    // alone is one this walk drives or one known never to be met. A new
+    // refusal, in any spelling, fails here until it is one or the other.
+    const doorAt = column_.indexOf("async function didNotHappen(");
+    const door = column_.slice(doorAt, column_.indexOf("\n}\n", doorAt));
+    const EVERY_PACE = {
+      "if (session.occurrence !== 1) return refuse(400, secondSessionWords(session.weekNumber));": "a week's second session is never called off here",
+      "if (why || !register) return refuse(409, why ?? CORRECTION_REFUSAL.noRegister);": "a register that is not finished, or none",
+      "if (audience.refused) return refuse(400, REFUSAL.overCap);": "the optional notice, for either pace",
+      "if (audience.recipients.length === 0) return refuse(400, REFUSAL.nobodyToEmail);": "the optional notice, for either pace",
+      "return refuse(409, countChangedWords(audience.recipients.length), { emails: audience.recipients.length });": "the notice's count, for either pace",
+      "if (err instanceof ChangeRefusal) return refuse(err.status, err.message, err.detail);":
+        "passes on checkPress and refuseMovingMet: a push's own refusals in them are the push case and the later week met, walked here",
+      "if (!groupSnap.exists) throw new ChangeRefusal(REFUSAL.gone, 400);": "the group is gone, for either pace",
+      "if (fresh.archived || fresh.runId !== run.id) throw new ChangeRefusal(REFUSAL.gone, 400);": "the group is gone, for either pace",
+      "if (again || !stored) throw new Refused(409, again ?? CORRECTION_REFUSAL.noRegister);": "the register stopped being finished, for either pace",
+    };
+    const PUSH_ONLY = {
+      "if (press.pace === \"push\" && pushRefused) return refuse(pushRefused.status, pushRefused.error, pushRefused.detail);": "pushRefusalOf",
+      "if (!checked.pushed) throw new ChangeRefusal(REFUSAL.noPlan, 400);": "REFUSAL.noPlan",
+    };
+    const sites = [...door.matchAll(/^.*(?:\breturn refuse\(|\bthrow new \w+\().*$/gm)].map((m) => m[0].trim()).sort();
+    assert.deepEqual(sites, [...Object.keys(EVERY_PACE), ...Object.keys(PUSH_ONLY)].sort(), "the route refuses something this walk has not classified");
+    // Every branch the door takes on which pace or which change it is, in either spelling.
+    const PACE_BRANCHES = {
+      "const pushRefused = press.pace === \"push\" || press.preview ? await pushRefusalOf(ctx, press) : null;": "asked for a push or a preview, never on a keep pace save",
+      "if (press.pace === \"push\" && pushRefused) return refuse(pushRefused.status, pushRefused.error, pushRefused.detail);": "the push's refusal, through pushRefusalOf",
+      "if (change.kind === \"push\") {": "the push's write; its one refusal is REFUSAL.noPlan, known unreachable",
+      "newDateKey: change.kind === \"push\" ? (checked.pushed?.newDateKey ?? null) : null,": "the answer's new date: no refusal",
+    };
+    const branches = [...door.matchAll(/^.*(?:[=!]== "(?:push|keep|cancel)"|"(?:push|keep|cancel)" [=!]==).*$/gm)].map((m) => m[0].trim()).sort();
+    assert.deepEqual(branches, Object.keys(PACE_BRANCHES).sort(), "the door branches on the pace somewhere this walk has not read");
+    // The two calls that throw on its behalf: the one-week change's check and the met session's.
+    assert.equal((door.match(/\bcheckPress\(/g) ?? []).length, 2, "the door checks a press some other way");
+    assert.equal((door.match(/\brefuseMovingMet\(/g) ?? []).length, 2, "the door refuses moving a met session some other way");
+
+    /** A world in which a push back is refused for one reason. */
+    const reasons = {
+      pushHasRecordsWords: {
+        set: async () => {
+          at("2026-11-04T10:00:00Z");
+          const reported = await call("rahul", reportRoute.PUT, { groupId: B }, { body: { sessionKey: "w01", answers: { how: 3 } }, course: true });
+          assert.equal(reported.status, 200, JSON.stringify(reported.body));
+        },
+        refused: [409, coverWords.pushHasRecordsWords(1)],
+        why: coverWords.pushHasRecordsHint(1),
+      },
+      movesMetWords: {
+        set: async () => {
+          at("2026-11-10T18:20:00Z");
+          assert.equal((await mark("rahul", [{ uid: "amara", status: "present" }], { weekNumber: 2 })).status, 200);
+        },
+        refused: [409, changeWords.movesMetWords(2)],
+        why: groupPageWords.PUSH_BACK_LATER_MET,
+      },
+      "REFUSAL.planFull": {
+        set: async () => {
+          // The group's own plan at the cap: a push adds a week's break, which it has no room for.
+          const weeks = world.db.read(`courseRuns/${RUN.agi}`).weekPlan;
+          const spare = Array.from({ length: 60 - weeks.length }, () => ({ kind: "break", label: "Spare" }));
+          world.db.poke(`courseGroups/${B}`, { paceWeekPlan: [...weeks, ...spare] });
+        },
+        refused: [400, changeWords.REFUSAL.planFull],
+        why: changeWords.REFUSAL.planFull,
+      },
+    };
+    // Never met on this route: a session it reached is in the group's plan, which is what the session was resolved from;
+    // and in the press's transaction, checkPress throws it a line before the door's own `if (!checked.pushed)`.
+    const UNREACHABLE = { "REFUSAL.noPlan": "a session the route reached is a week of the group's plan" };
+    assert.deepEqual(sources, [...Object.keys(reasons), ...Object.keys(UNREACHABLE)].sort(), "a push back has a refusal this walk does not cover");
+    for (const source of Object.values(PUSH_ONLY)) {
+      assert.ok(source === "pushRefusalOf" || source in reasons || source in UNREACHABLE, `${source}: a push's own refusal neither driven nor known unreachable`);
+    }
+    const transaction = door.slice(door.indexOf("const checked = checkPress(run, fresh, change, now, undefined);"));
+    assert.ok(transaction.indexOf("const checked = checkPress(") < transaction.indexOf("if (!checked.pushed) throw"), "checkPress no longer comes first in the press's transaction");
+    const plan = world.db.read(`courseRuns/${RUN.agi}`).weekPlan;
+    for (const entry of plan.filter((each) => each.kind === "week")) {
+      assert.ok(changeModel.planWithBreakBefore(plan, entry.weekNumber), `week ${entry.weekNumber} has a session and no place in the plan`);
+    }
+
+    const pushPress = { kind: "did-not-happen", pace: "push", dateKey: "2026-11-03", tell: false, reason: "Nobody came." };
+    const keepPreview = { kind: "did-not-happen", pace: "keep", dateKey: "2026-11-03", preview: true };
+    // With none of them, the sheet offers it.
+    const offered = await column("claudia", keepPreview);
+    assert.equal(offered.status, 200, JSON.stringify(offered.body));
+    assert.deepEqual(pageWords.pushChoiceOf(offered.body.preview), { offered: true, why: "" });
+    for (const [source, reason] of Object.entries(reasons)) {
+      await finishedWeekOne();
+      await reason.set();
+      at(LATER);
+      const before = everything();
+      // The press, and its preview, refuse it.
+      for (const preview of [false, true]) {
+        const refused = await column("claudia", { ...pushPress, ...(preview ? { preview: true } : {}) });
+        assert.deepEqual([refused.status, refused.body.error], reason.refused, `${source}, preview: ${preview}`);
+      }
+      assert.equal(everything(), before, `${source}: a refused push changed something`);
+      // Keep pace's preview, which the sheet asks first, says it is not offered, and why, in the group page's words.
+      const kept = await column("claudia", keepPreview);
+      assert.equal(kept.status, 200, `${source}: ${JSON.stringify(kept.body)}`);
+      assert.deepEqual(pageWords.pushChoiceOf(kept.body.preview), { offered: false, why: reason.why }, source);
+    }
+    // Until a preview has said, nothing is offered.
+    assert.deepEqual(pageWords.pushChoiceOf(null), { offered: false, why: "" });
+  });
+
+  test("a keep pace save never asks whether a push would go through; its preview and a push do", async () => {
+    // Watched by the collections asked for: a session report and a check-in are read only by the push's check.
+    const real = world.courseDb;
+    const asked = [];
+    world.courseDb = new Proxy(real, {
+      get(target, prop) {
+        if (prop === "collection") return (name) => (asked.push(name), target.collection(name));
+        const value = Reflect.get(target, prop, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const asksPush = () => asked.includes("courseSessionReports") || asked.includes("surveys");
+    try {
+      const preview = await column("claudia", { kind: "did-not-happen", pace: "keep", dateKey: "2026-11-03", preview: true });
+      assert.equal(preview.status, 200, JSON.stringify(preview.body));
+      assert.equal(asksPush(), true, "keep pace's preview does not ask whether a push would go through, so the watch reads nothing");
+      asked.length = 0;
+      const kept = await column("claudia", { kind: "did-not-happen", pace: "keep", dateKey: "2026-11-03", tell: false, reason: "Nobody came." });
+      assert.equal(kept.status, 200, JSON.stringify(kept.body));
+      assert.equal(asksPush(), false, `a keep pace save asked whether a push would go through: ${asked.join(", ")}`);
+    } finally {
+      world.courseDb = real;
+    }
+  });
+
+  test("pushed back, the Attendance line says the week meets a week later and its register is taken then; keep pace keeps its line", async () => {
+    const pushed = await column("claudia", { kind: "did-not-happen", pace: "push", dateKey: "2026-11-03", preview: true });
+    assert.equal(pushed.status, 200, JSON.stringify(pushed.body));
+    const linesOf = (preview) => Object.fromEntries(pageWords.didNotHappenPreviewLines(preview).map((row) => [row.label, row.text]));
+    const push = linesOf(pushed.body.preview);
+    assert.equal(push.Attendance, "The session that didn’t happen leaves everyone’s attendance. Nobody is counted absent, and week 1’s register is taken at its new session.");
+    assert.doesNotMatch(push.Attendance, /^Week 1 leaves everyone’s attendance/);
+    assert.match(push.Dates, /^Week 1 meets on Tue 10 Nov at 6pm instead, and every week after it a week later\.$/);
+    const kept = await column("claudia", { kind: "did-not-happen", pace: "keep", dateKey: "2026-11-03", preview: true });
+    assert.equal(linesOf(kept.body.preview).Attendance, "Week 1 leaves everyone’s attendance. Nobody is counted absent.");
+  });
+
+  describe("a later week's cover, when the rest is pushed back", () => {
+    const W3 = `courseAttendance/${RUN.agi}__${B}__w03`;
+    const GIVEN_AT = new Date("2026-11-11T09:00:00Z");
+    /** Week 3's register holds only a cover: Claudia was given it by Zach, and Rahul is recorded not there by it. */
+    const givenWeekThree = () =>
+      world.db.seed(W3, {
+        runId: RUN.agi,
+        groupId: B,
+        weekNumber: 3,
+        occurrence: 1,
+        records: {},
+        cover: { kind: "given", byUid: "claudia", at: GIVEN_AT, covering: ["rahul", "sofia"], grantedByUid: "zach", grantedAt: GIVEN_AT, until: new Date("2026-11-18T00:00:00Z") },
+        facilitatorRecord: {
+          rahul: { state: "not-there", byUid: "zach", at: GIVEN_AT, how: "cover" },
+          sofia: { state: "there", byUid: "zach", at: GIVEN_AT, how: "changed" },
+        },
+      });
+    const ENDS = "Claudia’s cover of week 3’s session ends: the session moves. Give it again if they can still take it.";
+    const linesOf = (preview) => Object.fromEntries(pageWords.didNotHappenPreviewLines(preview).map((row) => [row.label, row.text]));
+
+    test("the preview names it first and writes nothing; the press takes it off with the entries it wrote, and the row says who", async () => {
+      givenWeekThree();
+      const before = everything();
+      const preview = await column("zach", { kind: "did-not-happen", pace: "push", dateKey: "2026-11-03", preview: true });
+      assert.equal(preview.status, 200, JSON.stringify(preview.body));
+      assert.deepEqual(preview.body.preview.coversEnd, [ENDS]);
+      assert.equal(linesOf(preview.body.preview).Cover, ENDS);
+      assert.equal(everything(), before, "the preview wrote something");
+      const answer = await column("zach", { kind: "did-not-happen", pace: "push", dateKey: "2026-11-03", tell: false, reason: "Nobody came." });
+      assert.equal(answer.status, 200, JSON.stringify(answer.body));
+      const w3 = stored(W3);
+      assert.equal(w3.cover, undefined, "week 3's cover rode along to its new evening");
+      assert.equal(w3.facilitatorRecord?.rahul, undefined, "the cover's entry rode along");
+      assert.equal(w3.facilitatorRecord?.sofia?.how, "changed", "an entry the cover did not write went too");
+      const [row] = rows("session-pushed");
+      assert.ok(row.detail.endsWith("Claudia was covering week 3 at its old time, so that cover is taken off."), row.detail);
+    });
+
+    test("kept pace, nothing moves: the cover stays, and neither the preview nor the row mentions it", async () => {
+      givenWeekThree();
+      const preview = await column("zach", { kind: "did-not-happen", pace: "keep", dateKey: "2026-11-03", preview: true });
+      assert.deepEqual(preview.body.preview.coversEnd, []);
+      assert.equal(linesOf(preview.body.preview).Cover, undefined);
+      const answer = await column("zach", { kind: "did-not-happen", pace: "keep", dateKey: "2026-11-03", tell: false, reason: "Nobody came." });
+      assert.equal(answer.status, 200, JSON.stringify(answer.body));
+      assert.equal(stored(W3).cover.byUid, "claudia");
+      assert.equal(stored(W3).facilitatorRecord.rahul.state, "not-there");
+      for (const row of rows()) assert.doesNotMatch(row.detail ?? "", /was covering week 3/);
+    });
   });
 
   test("pushed back, a finished register's cover and the record of whether each facilitator was there go into the history row", async () => {

@@ -205,8 +205,12 @@ const ROUTES = [
   {
     name: "PATCH a group's week",
     ask: (who, o) => call(who, more.groupWeek.PATCH, { groupId: B, weekId: "w01" }, { body: {}, course: true, ...o }),
-    expect: "as the admin, for the admin, the lead, the track lead and the group's facilitator",
-    passes: ["zach", "claudia", "yusuf", "rahul"],
+    // CHANGED ON PURPOSE (November 2026): a group's own copy of a week is
+    // made and changed only by the programme's lead and admins, so the run's
+    // track lead and the group's facilitator are now refused (in one plain
+    // sentence) where they were admitted.
+    expect: "as the admin, for the admin and the lead",
+    passes: ["zach", "claudia"],
   },
   {
     name: "POST the run's email",

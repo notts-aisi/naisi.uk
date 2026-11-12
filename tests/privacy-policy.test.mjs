@@ -4311,8 +4311,20 @@ describe("the course hub passage", () => {
     assert.deepEqual(VIEWERS.map(week.readsFacilitatorsPrivateNotes), [false, false, true], "who reads a facilitator's own private note moved");
     const people = [{ uid: "fellow", name: "A Fellow" }, { uid: "facilitator", name: "A Facilitator" }];
     const facilitators = [{ uid: "facilitator", name: "A Facilitator", firstName: "A" }];
-    assert.deepEqual(week.peopleShown("facilitator", people, facilitators).map((person) => person.uid), ["fellow"]);
-    assert.deepEqual(week.peopleShown("lead", people, facilitators).map((person) => [person.uid, person.own]), [["fellow", false], ["facilitator", true]]);
+    const onRun = new Set(["facilitator"]);
+    assert.deepEqual(week.peopleShown("facilitator", people, facilitators, onRun).map((person) => person.uid), ["fellow"]);
+    assert.deepEqual(week.peopleShown("lead", people, facilitators, onRun).map((person) => [person.uid, person.own]), [["fellow", false], ["facilitator", true]]);
+    // "If you facilitate a group, your own work is read by the lead and admins
+    // only": somebody holding a place here who facilitates another group of
+    // the run is no fellow here either, and the lead and admins read their
+    // work apart, as a facilitator's own.
+    const placed = [...people, { uid: "elsewhere", name: "An Elsewhere" }];
+    const elsewhere = new Set(["facilitator", "elsewhere"]);
+    assert.deepEqual(week.peopleShown("facilitator", placed, facilitators, elsewhere).map((person) => person.uid), ["fellow"]);
+    assert.deepEqual(
+      week.peopleShown("admin", placed, facilitators, elsewhere).map((person) => [person.uid, person.own]),
+      [["fellow", false], ["facilitator", true], ["elsewhere", true]],
+    );
     // "Without saying whose it is": the page where a facilitator chooses a
     // line shows them the words with no name beside them (v14's words), a
     // card being its words and a key naming nothing but its place, in the
@@ -5334,6 +5346,7 @@ describe("the course hub passage", () => {
         ["src/lib/courses/packsAndCases/readers.ts", "the readers, each read by id from the people a page may show it to"],
         ["src/app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts", "the person's own pick and ready box, in their own name only"],
         ["src/app/api/courses/groups/[groupId]/draw/route.ts", "the draw, typed in by the group's live facilitators, the programme's lead or an admin"],
+        ["src/lib/courses/weekEdit/counts.ts", "the week editor counts how many people have started a week, a pick among their work: a number for the programme's lead or an admin, never whose"],
         ["src/lib/firestore/courseDeletion.ts", "destroying a run deletes its records"],
         ["src/lib/firestore/accountDeletion.ts", "deleting an account deletes every record of theirs"],
       ]),

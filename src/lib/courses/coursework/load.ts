@@ -31,6 +31,7 @@ import {
   courseworkWeekOf,
   personWeeks,
   readFilter,
+  shownWorkKeys,
   workKey,
   type CourseworkFilter,
   type CourseworkPerson,
@@ -40,6 +41,8 @@ import {
   type PersonWeek,
 } from "./model";
 import { NOT_IN_A_GROUP_YET } from "./words";
+import { personAskedThen } from "../weekEdit/askedThen";
+import type { AskedWords } from "../weekEdit/wordsThen";
 
 /**
  * A PROGRAMME'S COURSEWORK, READ (Zach, Fri 30 Oct): the Coursework tab and
@@ -366,6 +369,14 @@ export type PersonCourseworkView = {
   notesShown: boolean;
   /** The first name the person looking goes by, for "Written by Claudia". */
   viewerFirstName: string;
+  /**
+   * The words each of the person's answered questions had when they first
+   * wrote to it, keyed as their work is ("3 rp-1"), ONLY where the question
+   * has been reworded in place since (`src/lib/courses/weekEdit/askedThen.ts`):
+   * a reflection's prompt, or a written answer's question, word range and due
+   * rule. Empty when nothing they answered was changed.
+   */
+  askedThen: Record<string, AskedWords>;
 };
 
 export type PersonCourseworkOutcome =
@@ -453,6 +464,15 @@ export async function loadPersonCoursework(
       coursework.states.submittedOf(uid, weekNumber) !== null;
     return { cards: cards.filter((card) => card !== own), own, open: mayWrite && readable };
   };
+  const personWeekList = personWeeks({
+    columns,
+    weekOf,
+    writes: coursework.writes,
+    boxesRead: boxesReader !== null,
+    notes,
+    writtenHref: (weekNumber) => writtenHrefOf(programmePath, person, weekNumber),
+    feedbackOf,
+  });
   return {
     status: "ok",
     view: {
@@ -469,17 +489,11 @@ export async function loadPersonCoursework(
         groupName: group ? group.name.trim() || "Untitled group" : null,
         notToldYet: person.notToldYet,
       },
-      weeks: personWeeks({
-        columns,
-        weekOf,
-        writes: coursework.writes,
-        boxesRead: boxesReader !== null,
-        notes,
-        writtenHref: (weekNumber) => writtenHrefOf(programmePath, person, weekNumber),
-        feedbackOf,
-      }),
+      weeks: personWeekList,
       notesShown: notes !== null,
       viewerFirstName: cardNames.firstName(actor.uid),
+      // Only beside words this page shows: never a written answer its readers may not read yet.
+      askedThen: await personAskedThen(db, run.id, uid, person.readsGroupId, shownWorkKeys(personWeekList)),
     },
   };
 }

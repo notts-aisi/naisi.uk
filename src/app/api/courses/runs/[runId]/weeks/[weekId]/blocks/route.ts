@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
-import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import type { Firestore } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
 import { programmeLedBy } from "@/lib/courses/programmeLead";
 import { weekToMarkdown } from "@/lib/courses/weekBlocks/markdownWrite";
-import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
+import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
+import { compareWeeks, comparisonLine, kindsIn } from "@/lib/courses/weekEdit/compare";
+import { readWeekReach, readWeekWork, weekCounts } from "@/lib/courses/weekEdit/counts";
+import { weekFingerprint } from "@/lib/courses/weekEdit/model";
+import { saveWeekBlocks } from "@/lib/courses/weekEdit/save";
+import { HISTORY_WORDS } from "@/lib/courses/weekEdit/words";
 import {
   answersOnRemoved,
   pasteAnswer,
@@ -50,6 +55,21 @@ import { emptyWeekFields, normalizeCourse, normalizeCourseRun, normalizeCourseWe
  * paste with a problem is refused (400). A paste that takes out items with
  * answers is refused (409) until the body confirms the count it was shown,
  * so a count that has grown since "Read it" asks again.
+ *
+ * THE CHECK SAYS WHAT CHANGES. "Read it" also answers what the pasted week
+ * holds by kind (`kinds`) and how it differs from the live week, block by
+ * block (`comparison`, `comparisonLine`: "Changed: 1 · Removed: 1, 2 answers
+ * kept with the people who wrote them"), through the history's own compare
+ * (`src/lib/courses/weekEdit/compare.ts`), so the page shows what a save would
+ * do before anything is replaced.
+ *
+ * THE SAVE IS ONE TRANSACTION, AND IN THE WEEK'S HISTORY. Save goes through
+ * the one save every change to a week's blocks goes through
+ * (`saveWeekBlocks`): refused while somebody else holds the week's edit lock
+ * (409, naming them), refused when the week changed after the paste was read
+ * (409, read it again), and recorded as a save in the week's history with
+ * the week as it found it kept first, so a paste can be compared and undone
+ * by a restore.
  *
  * A WEEK WITH NO PAGE YET (Zach, 26 October 2026). A week of the run's plan
  * that nobody has opened in the run's week editor is read as an empty one,
@@ -98,7 +118,8 @@ type Loaded = { week: CourseWeekDoc; weekNumber: number; dayBeforeTime: string |
 /** The run, its course's day-before time and the week, or a 404 that says which is missing. */
 async function load(db: Firestore, runId: string, weekId: string): Promise<Loaded | NextResponse> {
   const runSnap = await db.collection("courseRuns").doc(runId).get();
-  if (!runSnap.exists) return NextResponse.json({ error: "Run not found" }, { status: 404 });
+  // A run being destroyed is no run to load: a save would put a week's history back behind the cascade.
+  if (!runSnap.exists || runSnap.data()?.destroying === true) return NextResponse.json({ error: "Run not found" }, { status: 404 });
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const slot = run.weekPlan.find((entry) => entry.kind === "week" && entry.weekId === weekId);
   const planned = slot && slot.kind === "week" ? slot.weekNumber : null;
@@ -156,7 +177,26 @@ export async function POST(req: Request, ctx: Params) {
   if (loaded instanceof NextResponse) return loaded;
   const read = readAgainst(sent.markdown, loaded);
   const counts = await answersOnRemoved(db, gated.runId, gated.weekId, read.removed);
-  return NextResponse.json(pasteAnswer(read, counts, loaded.dayBeforeTime));
+  const answer = pasteAnswer(read, counts, loaded.dayBeforeTime);
+  // What it holds by kind, and what it changes in the live week, block by block.
+  const compared = compareWeeks(
+    { title: loaded.week.title, blocks: loaded.week.blocks ?? [] },
+    { title: read.title || loaded.week.title, blocks: read.blocks },
+  );
+  // A block the paste adds has no id until it is saved (each read mints one
+  // afresh), so an added row names none.
+  const comparison = { ...compared, rows: compared.rows.map((row) => (row.state === "added" ? { ...row, blockId: "" } : row)) };
+  return NextResponse.json({
+    ...answer,
+    kinds: kindsIn(read.blocks),
+    comparison,
+    comparisonLine: comparisonLine(comparison, answer.answers),
+  });
+}
+
+/** The stored blocks a paste was read against, as one mark: a week with no blocks reads as none. */
+function blocksMark(blocks: readonly WeekBlock[] | null | undefined): string {
+  return blocks ? weekFingerprint(blocks) : "none";
 }
 
 export async function PUT(req: Request, ctx: Params) {
@@ -178,26 +218,47 @@ export async function PUT(req: Request, ctx: Params) {
   if (read.problems.length > 0) return badRequest(read.problems[0], answer);
   const unconfirmed = unconfirmedAnswers(answer, sent.confirmAnswers);
   if (unconfirmed) return NextResponse.json({ error: unconfirmed, ...answer }, { status: 409 });
-  const weekRef = db.collection("courseRuns").doc(gated.runId).collection("weeks").doc(gated.weekId);
-  const written = {
-    blocks: read.blocks,
-    ...(read.title ? { title: read.title } : {}),
-    updatedAt: FieldValue.serverTimestamp(),
-    updatedByUid: gated.uid,
-  };
-  if (loaded.exists) {
-    await weekRef.update(written);
-  } else {
-    // The week's first save makes its page, unpublished, as the week editor would.
-    try {
-      await weekRef.create({ ...emptyWeekFields(loaded.weekNumber), ...written });
-    } catch (err) {
-      if (!isAlreadyExists(err)) throw err;
-      return NextResponse.json({ error: "This week has just changed. Read it again, then save." }, { status: 409 });
-    }
+  // What the paste keeps of people's work, counted before the save, and who it reaches.
+  const [work, reach] = await Promise.all([
+    readWeekWork(db, gated.runId, gated.weekId, read.blocks),
+    readWeekReach(db, gated.runId, gated.weekId),
+  ]);
+  const kept = weekCounts(read.blocks, work);
+  const readAgainstMark = blocksMark(loaded.exists ? loaded.week.blocks : null);
+  const CHANGED = "This week has just changed. Read it again, then save.";
+  let result;
+  try {
+    result = await saveWeekBlocks(db, {
+      runId: gated.runId,
+      weekId: gated.weekId,
+      weekNumber: loaded.weekNumber,
+      uid: gated.uid,
+      kind: "paste",
+      now: new Date(),
+      reach: reach.saveReach,
+      work: { ticks: kept.ticks, answers: kept.answers, takenOut: answer.answers },
+      build: (stored) => {
+        // What is saved is what was read: a week made, or changed, since is read again.
+        if (stored.exists !== loaded.exists || blocksMark(stored.blocks) !== readAgainstMark) {
+          return { ok: false, status: 409, body: { error: CHANGED } };
+        }
+        // The week's first save makes its page, unpublished, as the week editor would.
+        return {
+          ok: true,
+          blocks: read.blocks,
+          ...(read.title ? { title: read.title } : {}),
+          summary: HISTORY_WORDS.pasted(read.blocks.length),
+        };
+      },
+    });
+  } catch (err) {
+    if (!isAlreadyExists(err)) throw err;
+    return NextResponse.json({ error: CHANGED }, { status: 409 });
   }
+  if (!result.ok) return NextResponse.json(result.body, { status: result.status });
   return NextResponse.json({
     saved: true,
+    saveId: result.saved ? result.saveId : null,
     blockCount: read.blocks.length,
     kept: read.kept,
     minted: read.minted,

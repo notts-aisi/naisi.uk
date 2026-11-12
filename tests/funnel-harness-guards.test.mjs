@@ -48,6 +48,8 @@ import {
   ARTIFACTS_DIR,
   FIXTURE_COLLECTIONS,
   FIXTURE_SUBCOLLECTIONS,
+  FIXTURE_WEEK_SUBCOLLECTIONS,
+  assertFixtureWeekSubcollection,
   HARNESS_LOCAL_ORIGIN,
   RECAPTCHA_SKIP_REASON,
   REGISTER_REMINDER_MARKERS,
@@ -424,6 +426,18 @@ test("the browser harness routes every collection access through the chokepoint"
     "a subcollection joined the list. Add it to the pin above in the same change, " +
       "so the value stays readable off the source.",
   );
+  // A week's own subcollections (its history and edit lock), reached only off
+  // a fixture run's week, through the same identifier the grep trusts.
+  assert.match(
+    codeOf(CORE),
+    /export const FIXTURE_WEEK_SUBCOLLECTIONS = \["history", "editLock"\];/,
+    "FIXTURE_WEEK_SUBCOLLECTIONS must stay a literal list, for the same reason.",
+  );
+  assert.deepEqual(FIXTURE_WEEK_SUBCOLLECTIONS, ["history", "editLock"]);
+  for (const name of ["users", "weeks", "stages", "history2", ""]) {
+    assert.throws(() => assertFixtureWeekSubcollection(name), /REFUSING/, `a week's subcollection ${JSON.stringify(name)} is let through`);
+  }
+  for (const name of FIXTURE_WEEK_SUBCOLLECTIONS) assert.equal(assertFixtureWeekSubcollection(name), name);
 });
 
 test("the scheduler's collection is reached only for a fixture group's reminder markers, one at a time", () => {

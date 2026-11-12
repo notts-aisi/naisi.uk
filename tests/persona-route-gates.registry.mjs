@@ -2768,7 +2768,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/my-exercises": {
     GET: {
       expect: signedIn(400),
-      fields: ["responses"],
+      fields: ["askedThen", "responses"],
       why:
         "Session required, then the caller's own request is validated before the document is " +
         "read, so every signed-in persona meets the same 400 on an empty one. A week " +
@@ -2998,6 +2998,89 @@ export const ROUTES = {
         "View-as is refused first, then the session, then the gate: saving a pasted week is for admins " +
         "and the programme's lead, decided before the body or any document of the run is read, and the " +
         "admin meets the week address check.",
+    },
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/blocks/[blockId]": {
+    PATCH: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: changing one block of a week in place is for admins and the lead of the programme that names the run, " +
+        "decided before anything of the run is read (only the forms, for whether the caller leads the programme that names it): every other session is forbidden, and the admin meets the week address check, which an id that is not w01 to w60 fails.",
+    },
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/editor": {
+    GET: {
+      expect: adminOnly(400),
+      fields: ["blockWeek", "blocks", "fingerprint", "hasPage", "items", "live", "lock", "reach", "runId", "title", "weekId", "weekNumber"],
+      why:
+        "The session, then the gate: reading a week as the in-place editor does is for admins and the lead of the programme that names the run, " +
+        "decided before anything of the run is read (only the forms, for whether the caller leads the programme that names it): every other session is forbidden, and the admin meets the week address check, which an id that is not w01 to w60 fails.",
+    },
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/history": {
+    GET: {
+      expect: adminOnly(400),
+      fields: ["fingerprint", "saves", "weekNumber"],
+      why:
+        "The session, then the gate: reading a week's history is for admins and the lead of the programme that names the run, " +
+        "decided before anything of the run is read (only the forms, for whether the caller leads the programme that names it): every other session is forbidden, and the admin meets the week address check, which an id that is not w01 to w60 fails.",
+    },
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/history/[saveId]": {
+    GET: {
+      expect: adminOnly(400),
+      why:
+        "The session, then the gate: comparing a save of a week is for admins and the lead of the programme that names the run, " +
+        "decided before anything of the run is read (only the forms, for whether the caller leads the programme that names it): every other session is forbidden, and the admin meets the week address check, which an id that is not w01 to w60 fails.",
+    },
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/history/[saveId]/restore": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: restoring a version of a week is for admins and the lead of the programme that names the run, " +
+        "decided before anything of the run is read (only the forms, for whether the caller leads the programme that names it): every other session is forbidden, and the admin meets the week address check, which an id that is not w01 to w60 fails.",
+    },
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/lock": {
+    GET: {
+      expect: adminOnly(400),
+      fields: ["lock"],
+      why:
+        "The session, then the gate: reading a week's edit lock is for admins and the lead of the programme that names the run, " +
+        "decided before anything of the run is read (only the forms, for whether the caller leads the programme that names it): every other session is forbidden, and the admin meets the week address check, which an id that is not w01 to w60 fails.",
+    },
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: taking a week's edit lock is for admins and the lead of the programme that names the run, " +
+        "decided before anything of the run is read (only the forms, for whether the caller leads the programme that names it): every other session is forbidden, and the admin meets the week address check, which an id that is not w01 to w60 fails.",
+    },
+    PUT: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: keeping a week's edit lock alive is for admins and the lead of the programme that names the run, " +
+        "decided before anything of the run is read (only the forms, for whether the caller leads the programme that names it): every other session is forbidden, and the admin meets the week address check, which an id that is not w01 to w60 fails.",
+    },
+    DELETE: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: giving a week's edit lock back is for admins and the lead of the programme that names the run, " +
+        "decided before anything of the run is read (only the forms, for whether the caller leads the programme that names it): every other session is forbidden, and the admin meets the week address check, which an id that is not w01 to w60 fails.",
+    },
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/tell": {
+    GET: {
+      expect: adminOnly(400),
+      why:
+        "The session, then the gate: previewing a notice about a change to a week is for admins and the lead of the programme that names the run, " +
+        "decided before anything of the run is read (only the forms, for whether the caller leads the programme that names it): every other session is forbidden, and the admin meets the week address check, which an id that is not w01 to w60 fails.",
+    },
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: telling people about a change to a week is for admins and the lead of the programme that names the run, " +
+        "decided before anything of the run is read (only the forms, for whether the caller leads the programme that names it): every other session is forbidden, and the admin meets the week address check, which an id that is not w01 to w60 fails.",
     },
   },
   "/api/courses/runs/[runId]/ticks/[itemId]": {
@@ -4622,9 +4705,9 @@ export const PAGES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
-      "The admissions tree's gate, then the programme layout's and the page's own: Publish's page is the " +
-      "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme the " +
-      "caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200. " +
+      "The admissions tree's gate, then the programme layout's and the page's own: Publish's own page is the " +
+      "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme the caller " +
+      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200. " +
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
       "and with an address that names nothing is drawn the same not-here state.",
   },
@@ -4651,15 +4734,6 @@ export const PAGES = {
       "The admissions tree's gate, then the programme layout's and the page's own: the Times view is the programme's " +
       "lead's and an admin's, so a reviewer on the form is told so once the form's settings are read, and a programme " +
       "the caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200. " +
-      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
-      "and with an address that names nothing is drawn the same not-here state.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
-    why:
-      "The admissions tree's gate, then the programme layout's and the page's own: Publish's own page is the " +
-      "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme the caller " +
-      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200. " +
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
       "and with an address that names nothing is drawn the same not-here state.",
   },
@@ -4872,6 +4946,15 @@ export const PAGES = {
       "programme the caller has no role on, or one that does not exist, renders 'there is no programme here' with a " +
       "200 before the week is looked at. The lead persona is admitted as an approveCourse holder is, and with an " +
       "address that names nothing is drawn the same not-here state.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/history": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "A week's history, on the Weeks tab's terms: who saved the week and when is the lead's and an admin's alone. " +
+      "A week that is no taught week of the run's plan goes back to the tab. A programme the caller has no role on, " +
+      "or one that does not exist, renders 'there is no programme here' with a 200 before the week is looked at. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
@@ -6522,12 +6605,12 @@ export const REAL_ROUTES = {
     PATCH: {
       another: {
         anonymous: c(401, NO_SESSION),
-        "*": c(403, "Neither an admin, a lead of the run (its track lead or its programme's lead) nor a live facilitator of the group: refused before the body."),
+        "*": c(403, "Neither an admin nor the lead of the programme that names the run: refused before the body (one 403, or for a facilitator of the group or the run's track lead, one plain sentence)."),
         admin: c(400, "Admitted, then an empty body changes nothing and is refused."),
       },
       theirs: {
         lead: c(400, "Leads the programme that names the run, so admitted, then an empty body changes nothing and is refused."),
-        facilitator: c(400, "A live facilitator of the group, so admitted, then an empty body changes nothing and is refused."),
+        facilitator: c(403, "A live facilitator of the group, refused in one plain sentence before the body: a group's own copy is changed by the programme's lead and admins alone."),
         participant: c(403, "Holds a place in the run's other group and leads nothing: refused before the body."),
       },
     },
@@ -6535,13 +6618,28 @@ export const REAL_ROUTES = {
   "/api/courses/groups/[groupId]/weeks/[weekId]/blocks": {
     GET: groupWeek("Copying the group's week out", c(404, "Admitted, and week 1 is not written as blocks here, so there is nothing to copy.")),
     POST: groupWeek("Reading a pasted week for the group", c(400, "Admitted, then the body is checked: no Markdown.")),
-    PUT: groupWeek("Saving a pasted week for the group", c(400, "Admitted, then the body is checked: no Markdown.")),
+    PUT: {
+      ...groupWeek("Saving a pasted week for the group", c(400, "Admitted, then the body is checked: no Markdown.")),
+      theirs: {
+        ...groupWeek("Saving a pasted week for the group", null).theirs,
+        lead: c(400, "Leads the programme that names the run, so admitted, then the body is checked: no Markdown."),
+        facilitator: c(403, "A live facilitator of the group may copy the week out and read a paste, and is refused Save in one plain sentence before the body: a group's own copy is made and changed by the programme's lead and admins alone."),
+      },
+    },
   },
   "/api/courses/groups/[groupId]/weeks/[weekId]/fork": {
-    POST: groupStaff(
-      "Giving the group its own copy of a week",
-      c(ACTS, "Admitted, and week 1 has canonical content: it takes no body, so it would make the group's copy."),
-    ),
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither an admin nor the lead of the programme that names the run: one 403 before anything else is read."),
+        admin: c(ACTS, "Admitted, and week 1 has canonical content: it takes no body, so it would make the group's copy."),
+      },
+      theirs: {
+        lead: c(ACTS, "Leads the programme that names the run, so admitted, and it takes no body: it would make the group's copy, so it is not sent."),
+        facilitator: c(403, "A live facilitator of the group, refused in one plain sentence: a group's own copy is made by the programme's lead and admins alone."),
+        participant: c(403, "Holds a place in the run's other group and leads nothing: one 403."),
+      },
+    },
   },
 
   // ---- A run ----------------------------------------------------------------
@@ -7052,6 +7150,34 @@ export const REAL_ROUTES = {
     GET: leadOrAdmin("Copying a week out as Markdown", c(404, "Admitted, and week 1 is not written as blocks, so there is nothing to copy.")),
     POST: leadOrAdmin("Reading a pasted week", c(400, "Admitted, then the body is checked: no Markdown.")),
     PUT: leadOrAdmin("Saving a pasted week", c(400, "Admitted, then the body is checked: no Markdown.")),
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/blocks/[blockId]": {
+    PATCH: leadOrAdmin(
+      "Changing a block of a week in place",
+      c(400, "Admitted, then week 1 is not written as blocks, so nothing in it is changed in place; nothing is written."),
+    ),
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/editor": {
+    GET: leadOrAdmin("Reading a week as the in-place editor does", c(200, "Admitted: week 1 as the editor reads it, with counts beside its blocks and never a name.")),
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/history": {
+    GET: leadOrAdmin("A week's history, which names who edited it", c(200, "Admitted: week 1's saves, of which there are none.")),
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/history/[saveId]": {
+    GET: leadOrAdmin("Comparing a save of a week", c(400, "Admitted, then the save's address is checked: the made-up one is no save of a week.")),
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/history/[saveId]/restore": {
+    POST: leadOrAdmin("Restoring a version of a week", c(400, "Admitted, then the save's address is checked: the made-up one is no save of a week, and nothing is written.")),
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/lock": {
+    GET: leadOrAdmin("A week's edit lock", c(200, "Admitted: nobody holds week 1.")),
+    POST: leadOrAdmin("Taking a week's edit lock", c(ACTS, "Admitted, and it takes no body: it would take the hold on week 1 in the caller's name, so it is not sent.")),
+    PUT: leadOrAdmin("Keeping a week's edit lock alive", c(409, "Admitted: the caller holds nothing on week 1, so there is nothing to keep alive, and nothing is written.")),
+    DELETE: leadOrAdmin("Giving a week's edit lock back", c(ACTS, "Admitted, and it takes no body: it would give back a hold of the caller's on week 1, so it is not sent.")),
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/tell": {
+    GET: leadOrAdmin("Previewing a notice about a change to a week", c(400, "Admitted, then no save is named, so there is nothing to preview.")),
+    POST: leadOrAdmin("Telling people about a change to a week", c(400, "Admitted, then the empty body names no save, and nothing is sent.")),
   },
   "/api/courses/runs/[runId]/ticks/[itemId]": {
     PUT: seatWrite("ticking a week's item", { weekId: "w01", completed: false }),
@@ -7594,6 +7720,9 @@ export const REAL_PAGES = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/notes": programmePage(
     "week 1's notes about people (an admin's drafts, or the lead's saved notes kept for leads), or the day they open from.",
+  ),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/history": programmePage(
+    "week 1's history: every save of its blocks, by first name, or a line saying there is none yet.",
   ),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview": programmePage("week 1 as a fellow sees it, with nobody's answers."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": programmePage("the programme's Settings."),

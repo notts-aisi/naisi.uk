@@ -10,7 +10,7 @@ import { weekTaskNeeds, type TaskNeeds } from "@/lib/courses/weekBlocks/progress
 import { WEEK_REMINDER_DAYS, weekEmailSendAt, weekLeft, type WeekLeft } from "@/lib/courses/weekEmails/model";
 import { weekDone, weekWritingNeeds, workIsClosed, type WeekDue } from "@/lib/courses/weekWork/model";
 import { loadPeopleWeekFacts, loadRunWeekStates, type RunWeekStates } from "@/lib/courses/weekWork/readers";
-import { liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
+import { facilitatingOnRunOf, liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
 import { resolveNoticeAudience } from "@/lib/email/courseFacilitatorEmails";
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -91,7 +91,8 @@ export type GroupWeekRead = {
   sessionAt: Date | null;
   facts: Map<string, PersonFacts>;
   /**
-   * Everybody who facilitates a live group of the run, this one included.
+   * Everybody who facilitates a live group of the run, this one included
+   * (`facilitatingOnRunOf`, which the readers of a group's week ask too).
    * Their own work is the programme's lead's and admins' alone (privacy v17,
    * "Who reads it"), wherever they hold a place: never a row of the group's,
    * and never somebody Remind reaches.
@@ -145,7 +146,7 @@ export async function readGroupWeek(
       session: own,
       sessionAt: own ? sessionInstants(own).startsAt : null,
       facts: new Map([...facts].map(([uid, each]) => [uid, each as PersonFacts])),
-      runFacilitatorUids: new Set([...group.facilitatorUids, ...liveGroups.flatMap((each) => each.facilitatorUids)]),
+      runFacilitatorUids: facilitatingOnRunOf(group, liveGroups),
     },
   };
 }

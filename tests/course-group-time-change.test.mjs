@@ -1143,4 +1143,46 @@ describe("11. a cover does not ride along when its session moves", () => {
     assert.equal(row.detail, "Changed Group B’s pace. Claudia was covering week 5 at its old time, so that cover is taken off.");
     assert.equal(row.weekId, "w05");
   });
+
+  /** What the preview says a cover's end is, for week n, in the words the route writes. */
+  const ENDS = (n) => `Claudia’s cover of week ${n}’s session ends: the session moves. Give it again if they can still take it.`;
+
+  test("the previews say whose cover of which session ends, by the press's own rule, and write nothing", async () => {
+    // Moved for one week, pushed back, and a new regular time: each preview names the cover its press takes off.
+    const cases = [
+      ["moved", 4, () => ask.change("claudia", B, { week: 4, dateKey: TUE_24, kind: "move", move: { dateKey: "2026-11-25", time: "6pm", room: "Hallward B12" }, reason: AWAY, preview: true })],
+      ["pushed back", 5, () => ask.change("claudia", B, { week: 4, dateKey: TUE_24, kind: "push", reason: AWAY, preview: true })],
+      ["a new regular time", 4, () => askRegular("claudia", { ...WEDNESDAYS, fromWeek: 4, preview: true })],
+    ];
+    for (const [what, n, preview] of cases) {
+      reset();
+      givenOn(n);
+      const before = everything();
+      const response = await preview();
+      assert.equal(response.status, 200, `${what}: ${JSON.stringify(response.body)}`);
+      assert.equal(everything(), before, `${what}: the preview wrote something`);
+      assert.deepEqual(response.body.preview.coversEnd, [ENDS(n)], what);
+      assert.equal(world.db.read(registerPath(n)).cover.byUid, "claudia", `${what}: the preview took the cover off`);
+    }
+    // Cancelled, keeping pace: nothing moves, so the preview says nothing about the cover.
+    reset();
+    givenOn(4);
+    const kept = await ask.change("claudia", B, { week: 4, dateKey: TUE_24, kind: "cancel", reason: AWAY, preview: true });
+    assert.equal(kept.status, 200, JSON.stringify(kept.body));
+    assert.deepEqual(kept.body.preview.coversEnd, []);
+    // A session nobody was given: no line.
+    reset();
+    const none = await ask.change("claudia", B, { week: 4, dateKey: TUE_24, kind: "push", reason: AWAY, preview: true });
+    assert.deepEqual(none.body.preview.coversEnd, []);
+  });
+
+  test("the preview and the press agree: every cover a preview names is the one the press takes off", async () => {
+    givenOn(5);
+    const preview = await ask.change("claudia", B, { week: 4, dateKey: TUE_24, kind: "push", reason: AWAY, preview: true });
+    assert.deepEqual(preview.body.preview.coversEnd, [ENDS(5)]);
+    const response = await ask.change("claudia", B, silently({ week: 4, dateKey: TUE_24, kind: "push" }));
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    coverGone(5);
+    assert.ok(auditRows("session-pushed")[0].detail.endsWith("Claudia was covering week 5 at its old time, so that cover is taken off."));
+  });
 });
