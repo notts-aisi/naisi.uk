@@ -9,12 +9,12 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
- * CLAUDE DRAFTS ONE PERSON'S END-OF-WEEK NOTE (privacy v18: "Once a week
- * Claude may also draft a short note on how each person is doing. It is
- * drafted after your session, usually about a week after it, and uses your
- * work on that week as it stands then, sent or not, with the feedback,
- * ratings and comments people on the team gave it"), FOR AN ADMIN ALONE: what Claude returns is seen by
- * admins only. Decided on the session before the body, the params or the
+ * CLAUDE DRAFTS ONE PERSON'S END-OF-WEEK NOTE (privacy v18: "Each week, or
+ * when an admin asks for one, Claude may also draft a short note on how each
+ * person is doing. It is drafted after your session, usually about a week
+ * after it, and uses your work on that week as it stands then, sent or not,
+ * with the feedback, ratings and comments people on the team gave it"), FOR
+ * AN ADMIN ALONE: what Claude returns is seen by admins only. Decided on the session before the body, the params or the
  * database are read, so the programme's lead, a reviewer and everybody else
  * stop here; the week's door (`openWeekNotes`, `adminOnly`) refuses them
  * again before the run is read. A view-as session is turned away first.

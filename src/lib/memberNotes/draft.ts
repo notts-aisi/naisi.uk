@@ -12,12 +12,12 @@ import { authorNames, gateNotes, loadSubject, runsOf, type NotesRefusal } from "
 import { DRAFT_WORDS, NOTES_WORDS } from "./words";
 
 /**
- * CLAUDE DRAFTS A NOTE ABOUT ONE PERSON (privacy v18: "Once a week Claude may
- * also draft a short note on how each person is doing. It is drafted after
- * your session, usually about a week after it, and uses your work on that
- * week as it stands then, sent or not, with the feedback, ratings and
- * comments people on the team gave it"), for an admin, from the profile's
- * "Draft a note with Claude".
+ * CLAUDE DRAFTS A NOTE ABOUT ONE PERSON (privacy v18: "Each week, or when an
+ * admin asks for one, Claude may also draft a short note on how each person
+ * is doing. It is drafted after your session, usually about a week after
+ * it, and uses your work on that week as it stands then, sent or not, with
+ * the feedback, ratings and comments people on the team gave it"), for an
+ * admin, from the profile's "Draft a note with Claude".
  *
  * In this order: an admin, about somebody else (`gateNotes`); Claude set up
  * on this site; the person's account; a run they are on; their agreement to

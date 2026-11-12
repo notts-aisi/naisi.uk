@@ -218,10 +218,11 @@ const byAtThen = <T>(atOf: (item: T) => Date | null, keyOf: (item: T) => string)
 
 /**
  * THE MESSAGE FOR CLAUDE'S DRAFT OF A NOTE ABOUT ONE PERSON (privacy v18:
- * "Once a week Claude may also draft a short note on how each person is
- * doing. It is drafted after your session, usually about a week after it,
- * and uses your work on that week as it stands then, sent or not, with the
- * feedback, ratings and comments people on the team gave it"). The one
+ * "Each week, or when an admin asks for one, Claude may also draft a short
+ * note on how each person is doing. It is drafted after your session,
+ * usually about a week after it, and uses your work on that week as it
+ * stands then, sent or not, with the feedback, ratings and comments people
+ * on the team gave it"). The one
  * builder for both drafts: the end-of-week notes hand it one week, and the
  * profile's "Draft a note with Claude" every week of one run.
  *
