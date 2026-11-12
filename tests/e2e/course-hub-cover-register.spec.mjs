@@ -410,10 +410,13 @@ test(
         await sheet.getByRole("button", { name: new RegExp(`^${escapeRegExp(WORDS.someoneElse)}`) }).click();
         const panel = adminPage.getByTestId("give-panel");
         await panel.waitFor({ timeout: WAIT_MS });
-        // Ada holds a place in the group and runs nothing: the picker does not list her.
-        await panel.getByPlaceholder("Search people…").fill(ada.displayName);
+        // Ada holds a place in the group and runs nothing: the picker, once it lists Ola, does not list her.
+        const search = panel.getByPlaceholder("Search people…");
+        await search.fill(ola.displayName);
+        await panel.getByRole("checkbox", { name: new RegExp(escapeRegExp(ola.displayName)) }).waitFor({ timeout: WAIT_MS });
+        await search.fill(ada.displayName);
         assert.equal(await panel.getByRole("checkbox", { name: new RegExp(escapeRegExp(ada.displayName)) }).count(), 0, "a plain member is offered a session");
-        await panel.getByPlaceholder("Search people…").fill(ola.displayName);
+        await search.fill(ola.displayName);
         const [previewed] = await Promise.all([
           responseTo(adminPage, `/groups/${groupA.id}/attendance/cover`, "POST"),
           panel.getByRole("checkbox", { name: new RegExp(escapeRegExp(ola.displayName)) }).check(),
