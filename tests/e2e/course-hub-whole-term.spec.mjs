@@ -823,10 +823,11 @@ test(
         const fernPage = await as(fern);
         await fernPage.goto(`${origin}${learnRegisterPath(groupA)}`, { waitUntil: "domcontentloaded" });
         await fernPage.getByTestId("attendance-grid").waitFor({ timeout: WAIT_MS });
+        // The register draws the sessions that have met: weeks 1 and 2, each on the day it met.
         const heads = (await fernPage.getByTestId("attendance-session").allTextContents()).map(flat);
-        for (let week = 1; week <= state.weekCount; week += 1) {
+        for (const week of [1, 2]) {
           const head = heads.find((said) => new RegExp(`^Week ${week}(?!\\d)`).test(said)) ?? "";
-          assert.ok(head.includes(dayLabel(sessionA(week).dateKey)), `the register's week ${week} is not on ${dayLabel(sessionA(week).dateKey)}: ${head}`);
+          assert.ok(head.includes(dayLabel(original(groupA, week).dateKey)), `the register's week ${week} is not on ${dayLabel(original(groupA, week).dateKey)}: ${JSON.stringify(heads)}`);
         }
         const storedA = (await fixtureDoc("courseGroups", groupA.id).get()).data();
         assert.equal(storedA?.session?.weekday, newWeekday, "the group's regular day is not the new one");
@@ -1142,9 +1143,10 @@ test(
         const table = fernPage.getByRole("region", { name: "This week’s work" }).first();
         assert.equal(await table.getByRole("row").filter({ hasText: ivo.first }).count(), 0, "the facilitator's table has a row for Ivo's own week");
         await fernPage.goto(`${origin}${learnGroupPath(groupA)}/reflections/names?week=${LATE_WEEK}`, { waitUntil: "domcontentloaded" });
-        await fernPage.locator("main").waitFor({ timeout: WAIT_MS });
-        const names = await textOf(fernPage.locator("main"));
-        assert.ok(names.includes(WRITES.ben.rp1), "the facilitator's reflections with names do not have Ben's");
+        const names = await waitFor("the facilitator's reflections with names to show Ben's", async () => {
+          const said = await textOf(fernPage.locator("main"));
+          return said.includes(WRITES.ben.rp1) ? said : null;
+        });
         for (const words of [WRITES.ivo.rp1, WRITES.ivo.rp2, WRITES.ivo.rp3]) assert.ok(!names.includes(words), "the facilitator reads Ivo's own reflections");
         // In no count on the lead's page of the group either.
         const pg = await as(gus);
@@ -1525,8 +1527,9 @@ test(
             const labels = [];
             const cells = rowOf(pg, person).getByTestId("attendance-cell");
             for (let i = 0; i < (await cells.count()); i += 1) labels.push((await cells.nth(i).getAttribute("aria-label")) ?? "");
-            for (const week of [1, 2, 3]) {
-              if (person === eve && week < 3) continue;
+            // The register draws the sessions that have met, weeks 1 and 2.
+            for (const week of [1, 2]) {
+              if (person === eve) continue;
               const register = ATTENDANCE[group.key][week];
               const label = labels.find((each) => each.includes(`, week ${week}: `)) ?? null;
               if (register?.cancelled) {
@@ -1604,8 +1607,12 @@ test(
             if (want) expectEqual(found?.startsWith(want) ?? false, true, `the Attendance tab, ${person.first} week ${week} (${found})`);
             else expectEqual(found === null || !/: (Present|Late|Left early|Absent|Excused)$/.test(found), true, `the Attendance tab, ${person.first} week ${week} (${found})`);
           }
+          // Came, and under it where the sessions they came to were, once any was online.
           const { came, of } = tally(person);
-          expectEqual(await textOf(row.locator("td").last()), of > 0 ? `${came} of ${of}` : "·", `the Attendance tab, ${person.first}'s Came`);
+          const online = [1, 2].filter((week) => finishedLine(person, week)?.online).length;
+          const room = [1, 2].filter((week) => finishedLine(person, week) && CAME.has(finishedLine(person, week).mark) && !finishedLine(person, week).online).length;
+          const wantCame = of > 0 ? `${came} of ${of}${online > 0 ? `${room} in the room, ${online} online` : ""}` : "·";
+          expectEqual(await textOf(row.locator("td").last()), wantCame, `the Attendance tab, ${person.first}'s Came`);
         }
 
         // 5. The Overview: who came, by week, from the same lines.
@@ -1703,6 +1710,7 @@ test(
 
         // 3. The Coursework tab, every fellow and every week; 4. one person's page.
         await pg.goto(`${formBase}/coursework`, { waitUntil: "domcontentloaded" });
+        await pg.getByRole("link", { name: `Week 1, done: ${ada.displayName}’s coursework`, exact: true }).waitFor({ timeout: WAIT_MS });
         for (const person of [...fellows, ivo]) {
           for (const week of [1, 2, 3]) {
             const said = stateOf(person, week);
