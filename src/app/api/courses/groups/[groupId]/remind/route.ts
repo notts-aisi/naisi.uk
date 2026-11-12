@@ -53,8 +53,10 @@ import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
  * ── A PREVIEW ───────────────────────────────────────────────────────────────
  * `preview: true` sends nothing and writes nothing: the people by name, when
  * each was last reminded and whether in the last day (the panel's warning),
- * the first person's email word for word, and the count. Names only, never
- * an address; never a facilitator's own work.
+ * the first person's email as it will read, and the count. Names only, never
+ * an address; never a facilitator's own work. Before that person's session
+ * an answer over its word limit reads "sending your written answer": its
+ * readers may see only that it is started until then.
  *
  * ── THE PRESS ───────────────────────────────────────────────────────────────
  * Carries the count the button showed; when it no longer holds, a 409 with
@@ -166,6 +168,8 @@ export async function POST(req: Request, ctx: Ctx) {
             team,
             weekUrl: courseWeekUrl(appUrl, run.id, read.weekNumber),
             now,
+            // Before their session, the pressers see only that an answer is started.
+            preview: true,
           }),
           firstWord(first.ownName),
         )

@@ -41,7 +41,7 @@ import assert from "node:assert/strict";
 import { render } from "@react-email/render";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { B, BEFORE_WEEK3, LINK, RUN, makeRemindWorld, remindSeed, tickRow, weekDone } from "./lib/remindWorld.mjs";
+import { B, BEFORE_WEEK3, LINK, RUN, answerRow, makeRemindWorld, remindSeed, tickRow, weekDone } from "./lib/remindWorld.mjs";
 
 const w = await makeRemindWorld("__remindByHand");
 const { world, ask, preview, press, page, mailTo, historyRows, at, everything } = w;
@@ -174,6 +174,30 @@ describe("3. the preview", () => {
     assert.deepEqual(peopleOf(shown).sort(), ["amara", "ines"]);
     assert.match(shown.body.preview.email.paragraphs[0], /^Rahul asked us to remind you: your session is Tue 24 Nov, 6pm\. Still to do: two readings, your reflection and your written answer\.$/);
     assert.equal(shown.body.preview.email.paragraphs.length, 1, "nothing is late before the session");
+  });
+});
+
+describe("3b. before the person's session, the preview says no more of an unsent answer than its readers may see", () => {
+  test("an answer over its word limit reads as one still to send in the preview, and in full in the person's own email", async () => {
+    // Ines has written 60 words of week 4's answer (its limit is 40) and not sent it; week 4's session is Tue 24 Nov.
+    world.db.seed(...answerRow("ines", 4, "r4-wa", 60, new Date("2026-11-19T09:00:00Z")));
+    const shown = await preview("rahul", 4, "ines");
+    assert.equal(shown.status, 200, JSON.stringify(shown.body));
+    assert.match(
+      shown.body.preview.email.paragraphs[0],
+      /^Rahul asked us to remind you: your session is Tue 24 Nov, 6pm\. Still to do: two readings, your reflection and sending your written answer\.$/,
+    );
+    assert.doesNotMatch(JSON.stringify(shown.body), /cutting|40 words/, "the preview says how long an unsent answer is");
+    const pressed = await ask("rahul", { week: 4, uid: "ines", count: 1 });
+    assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
+    const [message] = mailTo("ines");
+    assert.match(await textOf(message), /Still to do: two readings, your reflection and cutting your written answer to 40 words\./, "her own email says it in full");
+  });
+
+  test("after the session the preview says it as her email does", async () => {
+    world.db.seed(...answerRow("ines", 3, "r3-wa", 60, new Date("2026-11-19T09:00:00Z")));
+    const shown = await preview("rahul", 3, "ines");
+    assert.match(shown.body.preview.email.paragraphs[0], /Still to do: two readings, your reflection and cutting your written answer to 40 words\.$/);
   });
 });
 

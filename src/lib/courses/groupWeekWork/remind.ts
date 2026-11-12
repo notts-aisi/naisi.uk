@@ -107,7 +107,13 @@ async function claimPerson(
   });
 }
 
-/** One person's email: before the session they are due at, or after it has started. */
+/**
+ * One person's email: before the session they are due at, or after it has
+ * started. `preview` is the panel's copy, read by the person pressing: before
+ * the session it says an answer over its word limit as "sending your written
+ * answer", since its readers may see only that it is started until then
+ * (privacy v17, "Who reads it"). The email the person is sent says it in full.
+ */
 export function reminderFactsFor(input: {
   person: Pick<RemindPerson, "due" | "left">;
   weekNumber: number;
@@ -116,18 +122,20 @@ export function reminderFactsFor(input: {
   team: string;
   weekUrl: string;
   now: Date;
+  preview?: boolean;
 }): HandReminderFacts {
   const { person, now } = input;
   const at = person.due.at;
+  const form = at && at.getTime() <= now.getTime() ? "after" : "before";
   return {
     weekNumber: input.weekNumber,
     groupName: input.groupName,
     presserFirstName: input.presserFirstName,
     team: input.team,
-    form: at && at.getTime() <= now.getTime() ? "after" : "before",
+    form,
     sessionAt: at,
     cancelled: person.due.by === "cancelled",
-    stillToDo: stillToDoItems(person.left),
+    stillToDo: stillToDoItems(person.left, { overLimitSaid: !(input.preview === true && form === "before") }),
     weekUrl: input.weekUrl,
   };
 }

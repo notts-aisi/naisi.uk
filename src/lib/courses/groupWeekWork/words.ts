@@ -356,8 +356,14 @@ export const REMIND_REFUSAL = {
  * email ("one reading", "your reflection", "your written answer"), from the
  * very list the automatic reminders work out (`weekLeft`). A pack given out
  * that has not been given yet is nothing they can do, so it is left out.
+ *
+ * `overLimitSaid: false` says an answer over its word limit as "sending your
+ * written answer": for Remind's preview before the person's session, when
+ * the people who read their work may see only that an answer is started
+ * (privacy v17), never how long it is. Their own email says it in full.
  */
-export function stillToDoItems(left: WeekLeft): string[] {
+export function stillToDoItems(left: WeekLeft, options: { overLimitSaid?: boolean } = {}): string[] {
+  const overLimitSaid = options.overLimitSaid ?? true;
   const out: string[] = [];
   let reflections = 0;
   let answerEmpty = false;
@@ -393,7 +399,7 @@ export function stillToDoItems(left: WeekLeft): string[] {
   }
   if (reflections > 0) out.push(reflections === 1 ? "your reflection" : "your reflections");
   if (answerEmpty) out.push("your written answer");
-  else if (overLimit !== null) out.push(`cutting your written answer to ${overLimit} words`);
+  else if (overLimit !== null) out.push(overLimitSaid ? `cutting your written answer to ${overLimit} words` : "sending your written answer");
   else if (left.notSent) out.push("sending your written answer");
   return out;
 }

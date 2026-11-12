@@ -2028,7 +2028,10 @@ week's session, and nobody once the programme has closed; everybody not done,
 or one person.
 The panel previews it first (`preview: true`: the names, each one's last
 reminder, a warning for anybody reminded in the last day, the email word for
-word, the count). The press carries the count it showed and is refused with
+word, the count). Before the person's session the preview says an answer
+over its word limit as "sending your written answer", since the people who
+read their work may see only that it is started until then; the email they
+are sent says it in full. The press carries the count it showed and is refused with
 a 409 and the new count when that changed.
 
 It is built on the reminders before a session: the same list of what is left
