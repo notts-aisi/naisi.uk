@@ -1774,7 +1774,7 @@ test(
           const list = pg.getByRole("region", { name: "Who changed what" }).getByRole("listitem");
           await list.first().waitFor({ timeout: WAIT_MS });
           const said = [];
-          for (let i = 0; i < (await list.count()); i += 1) said.push(await textOf(list.nth(i)));
+          for (let i = 0; i < (await list.count()); i += 1) said.push(await wordsIn(list.nth(i)));
           const page = said.join("\n");
           for (const reason of [WHY.benExcused, WHY.danExcused]) assert.ok(!page.includes(reason), `${group.name}'s history carries a reason for being excused`);
           if (group === groupA) {
