@@ -406,6 +406,11 @@ const READERS = new Map([
     proof: ['for (const snap of userSnaps) if (snap.exists) names.set(snap.id, nameForViewer(viewer, accountNamesOf(snap.data() ?? {}), "NAISI member"));'],
     why: "the Requests page and one request's page, for admins and the people leading the programme: who asked, about whom, who has it and who decided, named for the reader",
   }],
+  ["src/lib/courses/excused/alert.ts", {
+    who: "rule",
+    proof: ['const personName = nameForViewer(ADMIN_READER, accountNamesOf(asker.exists ? (asker.data() ?? {}) : {}), "");'],
+    why: "the email that tells the admins somebody asked to be excused: sent to admins alone (the loop skips anybody else), so the person is named as the rule names them for an admin",
+  }],
   ["src/lib/courses/excused/page.ts", {
     who: "rule",
     proof: [

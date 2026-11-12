@@ -2,7 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { addDaysToKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { excusedRequestUrl, sendExcusedEmail, type ExcusedEmailOutcome } from "@/lib/email/excusedEmail";
-import { accountNamesOf } from "@/lib/names/staffName";
+import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { newRequestEmailWords, soonWords, type NewRequestWeek } from "./words";
 
 /**
@@ -26,6 +26,9 @@ import { newRequestEmailWords, soonWords, type NewRequestWeek } from "./words";
  * WHEN: after the request is written, outside its transaction. It never
  * throws: a failed send never fails the ask. It returns counts.
  */
+
+/** Who reads this email: admins alone. */
+const ADMIN_READER = { role: "admin" } as const;
 
 /** Most admins read: an admin's document is the most PII-dense one this platform holds. */
 const MAX_ADMINS = 50;
@@ -56,10 +59,12 @@ export async function emailAdminsAboutRequest(
       db.collection("users").where("role", "==", "admin").limit(MAX_ADMINS).get(),
       db.collection("users").doc(input.askerUid).get(),
     ]);
-    const names = accountNamesOf(asker.exists ? asker.data() : {});
     const todayKey = londonDateKey(input.now);
+    // Every reader is an admin (the loop skips anybody else), so the person is
+    // named as the rule names them for an admin.
+    const personName = nameForViewer(ADMIN_READER, accountNamesOf(asker.exists ? (asker.data() ?? {}) : {}), "");
     const words = newRequestEmailWords({
-      personName: names.full ?? names.goBy ?? "",
+      personName,
       groupName: input.groupName,
       weeks: input.weeks,
       askedAt: input.askedAt,
