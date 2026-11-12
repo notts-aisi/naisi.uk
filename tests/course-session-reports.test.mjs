@@ -877,6 +877,8 @@ describe("4. the pages", () => {
         groupId: B,
         groupName: "Group B",
         writerName: "Rahul Mehta",
+        // A facilitator's own report covers for nobody.
+        coveringFor: [],
         weekNumber: 2,
         occurrence: 1,
         sessionAt: "2026-11-10T18:00:00.000Z",

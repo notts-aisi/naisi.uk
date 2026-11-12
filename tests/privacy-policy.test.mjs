@@ -3390,17 +3390,23 @@ describe("the course hub passage", () => {
 
     // Admitted to read every register of the run: the read gate asks the
     // form whether the caller leads the programme that names the run.
+    // MOVED (November 2026), with the line it pins: the gate now asks the one
+    // run-staffing question (`runStaffingOf`, which asks `programmeLedBy`),
+    // because the people leading a programme also take a register in a
+    // facilitator's place, marks only.
     const gate = read("src/lib/courses/registerAccess.ts");
     assert.match(
       gate,
-      /\(await programmeLedBy\(db, actor, group\.runId\)\) !== null;/,
+      /leads = doesTrackLeadWork\(await runStaffingOf\(db, actor, \{ id: group\.runId, trackLeadUids \}\)\);/,
       "the register's read gate no longer admits the programme's lead, so the " +
         "policy says the lead reads registers the lead cannot open.",
     );
     // And not one of the readers of its notes.
-    assert.match(
-      gate,
-      /return \{ ok: true, group, runId: group\.runId, isAdmin, readsNotes: isAdmin \|\| facilitatesLiveGroup \};/,
+    // MOVED with the gate's answer, which now carries more fields: the same
+    // rule, in both gates (writing and reading).
+    assert.equal(
+      [...gate.matchAll(/^ {4}readsNotes: isAdmin \|\| facilitates,$/gm)].length,
+      2,
       "the register's read gate no longer says that its notes are for an " +
         "admin and the group's live facilitators alone, so a caller admitted " +
         "only as the programme's lead may be sent them. The policy says the " +
@@ -3419,11 +3425,16 @@ describe("the course hub passage", () => {
       "the register's GET sends a session's own note to every caller its gate " +
         "admits, the programme's lead included.",
     );
-    // The drawer that writes a note is the register's own gate, which admits
-    // the group's live facilitators and admins and no lead.
+    // The drawer that writes a note is the register's own gate, then its
+    // notes' readers (`readsNotes`): the group's live facilitators and admins
+    // and no lead.
     assert.match(
       read("src/app/api/courses/groups/[groupId]/participant-notes/route.ts"),
       /const gated = await gateGroupRegister\(groupId, actor, db\);/,
+    );
+    assert.match(
+      read("src/app/api/courses/groups/[groupId]/participant-notes/route.ts"),
+      /if \(!gated\.readsNotes\) \{/,
     );
     // Every file that names the notes about named people, and why it may.
     // The register's GET is the one door that hands them to a reader.

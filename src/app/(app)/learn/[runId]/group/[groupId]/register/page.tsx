@@ -61,7 +61,10 @@ export default async function GroupRegisterPage({
   // group, or an admin, the same predicate as the group page and every route
   // that marks the register. The group must be on THIS run.
   const gated = await gateGroupRegister(groupId, access.user, db);
-  if (!gated.ok || gated.runId !== runId) redirect(runHome);
+  // The gate now also admits the people leading the programme and somebody
+  // given one session; this page stays the group's facilitators' and an
+  // admin's until it is drawn for them (`readsNotes` is exactly those two).
+  if (!gated.ok || gated.runId !== runId || !gated.readsNotes) redirect(runHome);
 
   const groupName = gated.group.name || "Group";
   const groupPath = `${runHome}/group/${encodeURIComponent(groupId)}`;

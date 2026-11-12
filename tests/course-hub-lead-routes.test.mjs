@@ -276,11 +276,17 @@ describe("1 and 2. every route a track lead passes, as every kind of caller", ()
     await ready();
     const before = everything();
     const resend = (who) => call(who, more.push.POST, { groupId: B }, { body: { weekNumber: 1, force: true }, course: true });
-    for (const who of ["claudia", "yusuf", "tess"]) {
+    // CHANGED ON PURPOSE (November 2026): the lead and the run's track lead
+    // now take a register in a facilitator's place, so they pass the
+    // register's gate and are refused the resend in its own sentence, as a
+    // facilitator is; the lead of another programme is still one 403.
+    for (const who of ["claudia", "yusuf"]) {
       const answer = await resend(who);
       assert.equal(answer.status, 403, who);
-      assert.equal(answer.body.error, "Forbidden", who);
+      assert.match(answer.body.error, /Only an admin can re-send an email that has already gone\./, who);
     }
+    const another = await resend("tess");
+    assert.deepEqual([another.status, another.body.error], [403, "Forbidden"]);
     const facilitator = await resend("rahul");
     assert.equal(facilitator.status, 403);
     assert.match(facilitator.body.error, /Only an admin can re-send an email that has already gone\./);

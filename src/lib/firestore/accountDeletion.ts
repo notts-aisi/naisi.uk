@@ -26,7 +26,7 @@ import { TEAM_ENTRIES_COLLECTION } from "@/lib/courses/teamPage/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
 import { TEAMS_MARKERS, TEAMS_TEST_KIND } from "@/lib/courses/teams/told";
 import { ASSESSMENTS_COLLECTION } from "./admissionAssessments";
-import { EXCUSED_IN_ADVANCE, ONLINE, ONLINE_SAID } from "./courseAttendance";
+import { EXCUSED_IN_ADVANCE, FACILITATOR_RECORD, ONLINE, ONLINE_SAID, SET_BY } from "./courseAttendance";
 import { normalizeCourseEnrolment } from "./courseEnrolments";
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
@@ -1163,8 +1163,10 @@ export async function deleteCoursePredictions(db: Firestore, uid: string): Promi
  * equality on `writerUid` and stay for the programme's lead and admins with
  * no writer at all, as a register keeps the notes on it, which record no
  * writer: each moves to an automatic id, because its own id names its writer,
- * and `writerUid` is cleared. Names typed into a report's own words cannot be
- * found, and stay. One transaction per report; counted once per document.
+ * and `writerUid` is cleared. A report written by somebody covering for this
+ * account loses them from `coveringFor` and stays. Names typed into a
+ * report's own words cannot be found, and stay. One transaction per report;
+ * counted once per document.
  */
 export async function clearSessionReports(db: Firestore, uid: string): Promise<number> {
   const rows = db.collection(COURSE_SESSION_REPORTS_COLLECTION);
@@ -1188,6 +1190,19 @@ export async function clearSessionReports(db: Firestore, uid: string): Promise<n
       const answers = answersWithout(normalizeReportAnswers(data.answers), uid);
       tx.create(rows.doc(), { ...data, writerUid: null, answers, aboutUids: aboutUidsOf(answers) });
       tx.delete(doc.ref);
+    });
+    touched.add(doc.id);
+  }
+  // A report written by somebody covering for this account names them in
+  // `coveringFor`: they come out of it, and the report stays.
+  const coveredFor = await rows.where("coveringFor", "array-contains", uid).get();
+  for (const doc of coveredFor.docs) {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(doc.ref);
+      if (!snap.exists) return;
+      const list = (snap.data() ?? {}).coveringFor;
+      const kept = Array.isArray(list) ? list.filter((each) => each !== uid) : [];
+      tx.update(doc.ref, { coveringFor: kept });
     });
     touched.add(doc.id);
   }
@@ -1253,13 +1268,22 @@ export async function clearCourseAttendanceMarks(
         // anything: a malformed map simply has no key to clear.
         return typeof map === "object" && map !== null && uid in map;
       };
+      // And two more, kept the same way: who set the person's own line
+      // (`setBy`), and whether they were there when they facilitated the
+      // group (`facilitatorRecord`). Both keyed by the person they are about.
+      // The uids NAMING WHO ACTED (a line's `byUid`, a cover's `byUid`,
+      // `covering` and `grantedByUid`, an entry's `byUid`) are kept, exactly
+      // as `markedByUid` and `pushedByUid` always have been: they record who
+      // ran the session, not anything about the person deleted.
       const marked = snap.docs.filter(
         (d) =>
           holds(d, "records") ||
           holds(d, "participantNotes") ||
           holds(d, EXCUSED_IN_ADVANCE) ||
           holds(d, ONLINE_SAID) ||
-          holds(d, ONLINE),
+          holds(d, ONLINE) ||
+          holds(d, SET_BY) ||
+          holds(d, FACILITATOR_RECORD),
       );
       if (marked.length > 0) {
         const batch = db.batch();
@@ -1282,6 +1306,12 @@ export async function clearCourseAttendanceMarks(
           }
           if (holds(d, ONLINE)) {
             batch.update(d.ref, new FieldPath(ONLINE, uid), FieldValue.delete());
+          }
+          if (holds(d, SET_BY)) {
+            batch.update(d.ref, new FieldPath(SET_BY, uid), FieldValue.delete());
+          }
+          if (holds(d, FACILITATOR_RECORD)) {
+            batch.update(d.ref, new FieldPath(FACILITATOR_RECORD, uid), FieldValue.delete());
           }
         }
         await batch.commit();
@@ -2014,7 +2044,16 @@ export async function deleteAccountCascade(
     //     the runs to scan (see the ordering rationale).
     let attendanceSwept = false;
     try {
-      const runIds = [...new Set(enrolments.map((e) => e.runId).filter(Boolean))];
+      // The runs they hold a place on, and the runs of the groups they
+      // facilitate: a facilitator holding no place still has an entry of
+      // their own in the facilitator record of a group's registers.
+      const facilitated = await db.collection("courseGroups").where("facilitatorUids", "array-contains", uid).get();
+      const runIds = [
+        ...new Set([
+          ...enrolments.map((e) => e.runId),
+          ...facilitated.docs.map((d) => (typeof d.data().runId === "string" ? (d.data().runId as string) : "")),
+        ].filter(Boolean)),
+      ];
       summary.courseAttendanceMarksCleared = await clearCourseAttendanceMarks(
         db,
         runIds,

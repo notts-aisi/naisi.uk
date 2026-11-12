@@ -1471,12 +1471,16 @@ async function aSession(who, groupId, weekNumber, marks, label, { finish = true 
   });
   r.beforeFinish = await eachOf(Object.keys(marks), async (uid) => (await memberSees(uid)).marks);
   r.leadReadsDraft = await registerOf(lead, groupId);
-  // The lead reads and never marks, unless she runs the group herself.
+  // CHANGED ON PURPOSE (November 2026): the lead may now take a register in
+  // a facilitator's place, marks only, so her mark would land. What she is
+  // still refused while the facilitator runs it is the register's notes: a
+  // save carrying the session's note writes nothing, unless she runs the
+  // group herself.
   r.leadMarks =
     lead === who
       ? null
       : await courseCall(lead, courseRoutes.register.POST, { groupId }, {
-          body: { weekNumber, marks: [{ uid: Object.keys(marks)[0], status: "absent" }] },
+          body: { weekNumber, marks: [{ uid: Object.keys(marks)[0], status: "absent" }], notes: "The lead's note." },
         });
   if (!finish) return r;
   later(45);
@@ -2219,10 +2223,14 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       }
     });
 
-    test("the lead reads every register of her run, a draft included, and marks none", () => {
+    test("the lead reads every register of her run, a draft included, and writes none of its notes", () => {
       for (const key of ["a1", "b1", "a2", "b2", "a3", "b3"]) {
         assert.equal(r()[key].leadReadsDraft.notYetTold, false, key);
-        assert.deepEqual(short(r()[key].leadMarks), [403, "Forbidden"], key);
+        assert.deepEqual(
+          short(r()[key].leadMarks),
+          [403, "A register’s notes are its facilitators’ and admins’, so this wasn’t saved. Save the marks without them."],
+          key,
+        );
       }
     });
 
@@ -2581,7 +2589,10 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         facilitators: ["Rahul Mehta", "Sofia Rossi"],
         pill: "Register not pushed",
         line: "Saved, not pushed. 2 of 2 so far.",
-        remind: ["Remind Rahul and Sofia", 2, "Emails 2 people", "Remind Rahul and Sofia to push Group B’s register for Tue 17 Nov? This emails 2 people.", "w03"],
+        // CHANGED ON PURPOSE (November 2026): Rahul last saved the register,
+        // so the reminder about it is his alone, the job's and Remind's one
+        // answer (`chasedUids`); until then it went to both facilitators.
+        remind: ["Remind Rahul", 1, "Emails 1 person", "Remind Rahul to push Group B’s register for Tue 17 Nov? This emails 1 person.", "w03"],
         reminded: null,
       });
       assert.deepEqual(look.lead.overview.attention, [
@@ -2601,12 +2612,14 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     // goes to the register's own page: until the follow-ups to Publish of
     // October 2026 it went to the group's page, one tap from it, and both of
     // the email's links read groupPage(RUN, GROUP.B) here.
-    test("Remind emails the two of them once each, a second press is refused, and the card says who was reminded", () => {
+    // CHANGED ON PURPOSE (November 2026): Rahul last saved the register, so
+    // Remind emails him alone; it emailed Rahul and Sofia until then.
+    test("Remind emails the facilitator who last saved it once, a second press is refused, and the card says who was reminded", () => {
       const m = seen.remind;
-      assert.deepEqual(m.pressed.body, { emailed: 2, failed: 0, names: ["Rahul", "Sofia"] });
+      assert.deepEqual(m.pressed.body, { emailed: 1, failed: 0, names: ["Rahul"] });
       assert.deepEqual(
         m.mail.map((mail) => [mail.to, mail.subject, mail.kind, mail.links]),
-        ["rahul", "sofia"].map((uid) => [address(uid), "Group B’s register isn’t pushed", "course-facilitator", [registerPage(RUN, GROUP.B), registerPage(RUN, GROUP.B)]]),
+        ["rahul"].map((uid) => [address(uid), "Group B’s register isn’t pushed", "course-facilitator", [registerPage(RUN, GROUP.B), registerPage(RUN, GROUP.B)]]),
       );
       assert.equal(
         readFrom(m.mail[0], "Hi "),
@@ -2614,10 +2627,10 @@ describe("stage two of the course hub, one term from Publish to the end of week 
           `email the group about next week. Open the register Or paste this into your browser: ${registerPage(RUN, GROUP.B)} If the session didn’t ` +
           `happen, the register can say so, and it still needs pushing. If it’s still not pushed 60 hours after the session, Claudia and admins get a task. ${FOOTER}`,
       );
-      assert.doesNotMatch(`${m.mail[1].subject} ${m.mail[1].text}`, /finish/i);
+      assert.doesNotMatch(`${m.mail[0].subject} ${m.mail[0].text}`, /finish/i);
       assert.deepEqual(short(m.again), [409, "Nobody is left to remind about Group B’s register: its facilitators have been reminded already, or can’t be emailed."]);
       const b = m.overview.sessions.find((session) => session.group === "Group B");
-      assert.deepEqual([b.remind, b.reminded], [null, "Rahul and Sofia were reminded on Wed 18 Nov at 9am."]);
+      assert.deepEqual([b.remind, b.reminded], [null, "Rahul was reminded on Wed 18 Nov at 9am."]);
     });
 
     test("the reminder's words, both versions, follow the switch the register's button reads", () => {

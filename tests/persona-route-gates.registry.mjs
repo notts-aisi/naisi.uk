@@ -1995,9 +1995,31 @@ export const ROUTES = {
   "/api/courses/groups/[groupId]/attendance": {
     GET: {
       expect: adminOnly(404),
-      fields: ["group", "sessions", "members", "notYetTold", "leavers", "records", "online", "onlineSaid", "participantNotes", "canEditPushed", "ending", "cantMakeIt"],
+      // `facilitatorRecord` is sent to admins and the people leading the
+      // programme only, never to a facilitator of the group, somebody given a
+      // session or a member: the key is absent from their answer
+      // (tests/course-register-cover.test.mjs holds each persona).
+      fields: [
+        "group",
+        "sessions",
+        "members",
+        "notYetTold",
+        "leavers",
+        "records",
+        "online",
+        "onlineSaid",
+        "participantNotes",
+        "canEditPushed",
+        "ending",
+        "cantMakeIt",
+        "setBy",
+        "covers",
+        "facilitatorRecord",
+        "facilitators",
+        "caller",
+      ],
       why:
-        "The register gate (gateGroupRegister) collapses missing, archived and not-yours onto " +
+        "The register gate (gateGroupRegisterRead) collapses missing, archived and not-yours onto " +
         "one 403 for a non-admin and tells an admin the group is missing.",
     },
     POST: {
@@ -2019,6 +2041,24 @@ export const ROUTES = {
       why:
         "The register gate collapses missing, archived and not-yours onto one 403 for a " +
         "non-admin; an admin is told the group is missing.",
+    },
+  },
+  "/api/courses/groups/[groupId]/attendance/cover": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Taking a session's register in its facilitators' place, or giving one session to somebody: view-as " +
+        "first, then the register's own gate, which collapses missing, archived and not-yours onto one 403 for " +
+        "a non-admin and tells an admin the group is missing, before the body is read. Its answer is { ok, cover, " +
+        "email, notice }, or { ok, preview } for a preview.",
+    },
+  },
+  "/api/courses/groups/[groupId]/attendance/facilitators": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Changing whether one of a group's facilitators was at a session: view-as first, then the register's own " +
+        "gate, one 403 for a non-admin, and an admin is told the group is missing, before the body is read.",
     },
   },
   "/api/courses/groups/[groupId]/cant-make-it": {
@@ -5291,6 +5331,28 @@ function groupStaff(what, next) {
 }
 
 /**
+ * WHO TAKES A REGISTER: the group's live facilitators, an admin, and the
+ * people leading the programme that names its run (its lead, the run's track
+ * leads), who take it in a facilitator's place (`gateGroupRegister`).
+ * Somebody given one session is no persona here. `leadNext` is what the lead
+ * meets once admitted, when it differs from `next`.
+ */
+function registerTakers(what, next, leadNext = next) {
+  return {
+    another: {
+      anonymous: c(401, NO_SESSION),
+      "*": c(403, `Neither a facilitator of the group, nor anybody leading the programme naming its run, nor an admin: ${what} is refused in one 403 before anything else is read.`),
+      admin: next,
+    },
+    theirs: {
+      lead: leadNext,
+      facilitator: next,
+      participant: c(403, `Holds a place in the run's other group and runs nothing: ${what} is this group's facilitators', the programme's lead's and an admin's.`),
+    },
+  };
+}
+
+/**
  * An admin, a track lead of the run, or the lead of the programme that names
  * it (`doesTrackLeadWork`), decided once the run is read; `next` is what each
  * meets once admitted.
@@ -5949,11 +6011,43 @@ export const REAL_ROUTES = {
         participant: c(403, "Holds a place in another group of the run: the register is its facilitators', the lead's and an admin's."),
       },
     },
-    POST: groupStaff("Marking the register", c(400, "Admitted, then the body is checked: an empty one says no week.")),
-    PATCH: groupStaff("Changing a pushed register", c(400, "Admitted, then the body is checked: an empty one says no week.")),
+    POST: registerTakers("Marking the register", c(400, "Admitted, then the body is checked: an empty one says no week.")),
+    PATCH: registerTakers(
+      "Changing a pushed register",
+      c(400, "Admitted, then the body is checked: an empty one says no week."),
+      c(400, "Admitted to the register's gate as the programme's lead, then the body is checked: an empty one says no week. A whole one is refused, a correction being an admin's."),
+    ),
   },
   "/api/courses/groups/[groupId]/attendance/push": {
-    POST: groupStaff("Finishing a register", c(400, "Admitted, then the body is checked: an empty one says no week.")),
+    POST: registerTakers("Finishing a register", c(400, "Admitted, then the body is checked: an empty one says no week.")),
+  },
+  "/api/courses/groups/[groupId]/attendance/cover": {
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither an admin nor anybody leading the programme naming the run: one 403 before the body is read."),
+        admin: c(400, "An admin takes or gives any session's register, so admitted, then the body is checked: an empty one names no week."),
+      },
+      theirs: {
+        lead: c(400, "Leads the programme naming the run, so admitted, then the body is checked: an empty one names no week."),
+        facilitator: c(403, "Facilitates the group, so takes its register as usual: refused before the body is read."),
+        participant: c(403, "Holds a place in the run's other group and runs nothing: one 403 before the body is read."),
+      },
+    },
+  },
+  "/api/courses/groups/[groupId]/attendance/facilitators": {
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither an admin nor anybody leading the programme naming the run: one 403 before the body is read."),
+        admin: c(400, "An admin changes whether a facilitator was there, so admitted, then the body is checked: an empty one names no week."),
+      },
+      theirs: {
+        lead: c(400, "Leads the programme naming the run, so admitted, then the body is checked: an empty one names no week."),
+        facilitator: c(403, "Whether a facilitator was there is never a facilitator's to read or change, their own included: refused before the body is read."),
+        participant: c(403, "Holds a place in the run's other group and runs nothing: one 403 before the body is read."),
+      },
+    },
   },
   "/api/courses/groups/[groupId]/cant-make-it": {
     POST: {

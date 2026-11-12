@@ -129,7 +129,28 @@ export type CourseAuditKind =
   /** The room the group meets in every week set or changed, from the Groups tab. */
   | "group-room-changed"
   /** A session's meeting link set, for one week or every week. The row never holds the link. */
-  | "group-link-set";
+  | "group-link-set"
+  /**
+   * The four below are a session's REGISTER: who took it in whose place, and
+   * what was done when a session did not happen. Each carries `weekId`.
+   *
+   * An admin or somebody leading the programme took a session's register in
+   * its facilitators' place ("I'm covering it", or the first line they saved).
+   */
+  | "register-covered"
+  /** An admin or a lead gave one session's register, check-in and report to somebody, until midnight. */
+  | "register-given"
+  /**
+   * An admin or a lead changed whether one of the group's facilitators was at
+   * a session. Admins' and leads' only: a group's history drops these rows for
+   * anybody else (`loadGroupHistory`).
+   */
+  | "facilitator-record-changed"
+  /**
+   * A session that had started was called off after the fact, and the lines
+   * its register held were cleared; `before` keeps what each line said.
+   */
+  | "session-did-not-happen";
 
 export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "attendance-edit",
@@ -158,6 +179,10 @@ export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "group-time-changed",
   "group-room-changed",
   "group-link-set",
+  "register-covered",
+  "register-given",
+  "facilitator-record-changed",
+  "session-did-not-happen",
 ];
 
 /** The label for a kind this build does not know. See `courseAuditKindLabel`. */
@@ -190,6 +215,10 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "group-time-changed": "Regular time changed",
   "group-room-changed": "Room changed",
   "group-link-set": "Meeting link set",
+  "register-covered": "Register taken in a facilitator’s place",
+  "register-given": "Session given to somebody covering",
+  "facilitator-record-changed": "Whether a facilitator was there changed",
+  "session-did-not-happen": "Session didn’t happen, register cleared",
 };
 
 /**
@@ -216,7 +245,19 @@ const COURSE_AUDIT_CATEGORY: Partial<Record<CourseAuditKind, CourseAuditCategory
   "time-answer-changed": "people",
   "attendance-push": "registers",
   "attendance-edit": "registers",
+  "register-covered": "registers",
+  "register-given": "registers",
+  "facilitator-record-changed": "registers",
+  "session-did-not-happen": "registers",
 };
+
+/**
+ * The kinds a group's history shows to admins and the people leading the
+ * programme only: whether a facilitator was at a session is theirs alone
+ * (never a facilitator's, nor anybody covering), so a history drawn for
+ * anybody else drops these rows.
+ */
+export const LEAD_ONLY_AUDIT_KINDS: readonly CourseAuditKind[] = ["facilitator-record-changed"];
 
 export function courseAuditCategory(kind: CourseAuditKind | string): CourseAuditCategory {
   return isCourseAuditKind(kind) ? (COURSE_AUDIT_CATEGORY[kind] ?? "other") : "other";

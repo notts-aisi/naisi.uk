@@ -987,6 +987,18 @@ const NOT_COVERED = {
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
+  "/api/courses/groups/[groupId]/attendance/cover": {
+    reason:
+      "Course hub: an admin or a programme's lead taking a session's register in its facilitators' place, or giving one session's register, check-in and report to somebody (one email to them, an optional notice to the group), with its preview. tests/course-register-cover.test.mjs executes it as every kind of caller, with the record it writes, the email, the notice and its count; the pages that press it are built in the same change.",
+    coverWhen:
+      "When the group's page and the register carry I'm covering it and Someone else is covering, their browser spec presses both there.",
+  },
+  "/api/courses/groups/[groupId]/attendance/facilitators": {
+    reason:
+      "Course hub: an admin or a programme's lead changing whether one of a group's facilitators was at a session, with its history row. tests/course-register-cover.test.mjs executes it as every kind of caller, and that nobody else is sent the record; the page that presses it is built in the same change.",
+    coverWhen:
+      "When the register shows the facilitator record with its Change for admins and leads, its browser spec changes an entry there.",
+  },
   "/api/courses/groups/[groupId]/session/regular": {
     reason:
       "Course hub: a group's new regular time from a week onwards, with its preview. tests/course-group-time-change.test.mjs executes it as every kind of caller, with the weeks it pins, the answers it asks again and the notice it sends; the group's page that presses it is built in the same change.",

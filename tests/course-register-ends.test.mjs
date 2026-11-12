@@ -658,8 +658,16 @@ describe("the task for the lead and the admins, 60 hours after the session ends"
 // ===========================================================================
 
 describe("who may finish a register", () => {
-  test("a facilitator of another group, the lead, a member and a pending account are refused", async () => {
-    for (const who of ["amelia", "claudia", "amara", "wen", "nell"]) {
+  // CHANGED ON PURPOSE (November 2026): the lead was refused here too. The
+  // lead now takes a register in a facilitator's place (marks only), so the
+  // lead's press of an empty register meets the empty register's refusal,
+  // and nothing is written either way: tests/course-register-cover.test.mjs
+  // holds what the lead may do.
+  test("a facilitator of another group, a member and a pending account are refused; the lead's empty press writes nothing", async () => {
+    const lead = await finish("claudia", GROUP.b, 1);
+    assert.equal(lead.status, 400);
+    assert.match(lead.body.error, /^Mark the register before pushing it\./);
+    for (const who of ["amelia", "amara", "wen", "nell"]) {
       const finished = await finish(who, GROUP.b, 1);
       assert.equal(finished.status, 403, `${who} may not finish Group B's register`);
       const tapped = await call(who, register.POST, { groupId: GROUP.b }, {

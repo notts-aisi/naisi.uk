@@ -17,7 +17,8 @@ import {
   stampSentOrSettle,
   type SchedulerMarkerRef,
 } from "@/lib/scheduler/markers";
-import { resolveFacilitator } from "@/lib/scheduler/jobs/registerReminders";
+import { readSessionRegister } from "@/lib/courses/registerAccess";
+import { chasedUids, resolveChased } from "@/lib/scheduler/jobs/registerReminders";
 import { REGISTER_REMINDERS_JOB } from "@/lib/scheduler/registerJobs";
 import type { RegisterSwitches } from "@/lib/scheduler/registerSwitches";
 
@@ -32,7 +33,9 @@ import type { RegisterSwitches } from "@/lib/scheduler/registerSwitches";
  * words `registerReminderWords`), to the people the job would send it to
  * (`resolveFacilitator`: an account that still stands behind the role, an
  * address, their own "Tasks and worksheets" email switch, the do-not-email
- * list), and each facilitator's send claims the job's own marker
+ * list; `chasedUids` and `resolveChased`, so a register somebody took in a
+ * facilitator's place reminds the person who took or gave it instead), and
+ * each send claims the job's own marker
  * (`regremind__{groupId}__{sessionKey}__{uid}`). So a facilitator hears
  * about one register once, whichever comes first, the press or the job, and
  * a second press finds the marker taken and emails nobody.
@@ -78,12 +81,16 @@ function firstNameFrom(data: Record<string, unknown> | undefined): string {
  */
 export async function readReminderState(
   db: Firestore,
-  group: Pick<CourseGroupDoc, "id" | "facilitatorUids">,
+  group: Pick<CourseGroupDoc, "id" | "runId" | "facilitatorUids">,
   sessionKey: string,
   now: Date,
 ): Promise<ReminderState> {
   const state: ReminderState = { sendable: [], reminded: [] };
-  for (const uid of [...new Set(group.facilitatorUids)]) {
+  // Who the job would chase about this register (`chasedUids`): once
+  // somebody took it in a facilitator's place, the person who took or gave
+  // it, never the facilitators whose place it took.
+  const register = await readSessionRegister(db, group.runId, group.id, sessionKey);
+  for (const uid of await chasedUids(db, group, register)) {
     const marker = markerFor(group.id, sessionKey, uid);
     if (!marker) continue;
     const snap = await db.collection(SCHEDULER_MARKERS_COLLECTION).doc(marker.id).get();
@@ -98,7 +105,7 @@ export async function readReminderState(
       continue;
     }
     if (decideMarkerClaim(existing, now).action !== "claim") continue;
-    const person = await resolveFacilitator(db, uid, group.facilitatorUids);
+    const person = await resolveChased(db, uid, group);
     if ("skip" in person) continue;
     state.sendable.push({ uid, firstName: person.name, to: person.to });
   }

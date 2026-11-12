@@ -87,6 +87,13 @@ export async function POST(
   if (!gated.ok) {
     return NextResponse.json({ error: gated.error }, { status: gated.status });
   }
+  // A note about a named person is the group's facilitators' and admins'
+  // (`readsNotes`). The register's gate also admits the people leading the
+  // programme and somebody given a session, who take marks only: they are
+  // refused here exactly as before the gate admitted them.
+  if (!gated.readsNotes) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const { group, runId } = gated;
 
   let body: {

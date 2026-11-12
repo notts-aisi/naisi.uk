@@ -47,6 +47,12 @@ export type RunReportView = {
   groupName: string;
   /** The writer's name as the reader is shown it, or the words for a writer whose account was deleted. */
   writerName: string;
+  /**
+   * The facilitators whose place the writer took, by name, when the writer
+   * took the session's register in a facilitator's place: "covering for
+   * Josh". Empty for a facilitator's own report.
+   */
+  coveringFor: string[];
   weekNumber: number;
   occurrence: number;
   /** The session's start, for its day, or null when it cannot be dated now. */
@@ -171,6 +177,7 @@ async function viewsOf(
   for (const report of reports) {
     if (report.writerUid) uids.add(report.writerUid);
     for (const uid of report.aboutUids) uids.add(uid);
+    for (const uid of report.coveringFor) uids.add(uid);
   }
   const addressable = [...uids].filter((uid) => uid && !uid.includes("/"));
   const accounts = new Map<string, Record<string, unknown>>();
@@ -195,6 +202,7 @@ async function viewsOf(
     groupId: report.groupId,
     groupName: groups.get(report.groupId)?.name.trim() || "Untitled group",
     writerName: report.writerUid ? nameOf(report.writerUid) : RUN_REPORTS_WORDS.writerGone,
+    coveringFor: report.coveringFor.map(nameOf),
     weekNumber: report.weekNumber,
     occurrence: report.occurrence,
     sessionAt: sessionAt(report),

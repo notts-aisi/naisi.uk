@@ -19,14 +19,16 @@ import {
 } from "@/lib/courses/unmarkedRegisters";
 import { reserveSendSlot } from "@/lib/email/courseFacilitatorEmails";
 import { didNotHappenLine } from "@/lib/courses/programmeAttendance";
-import { readRunLead } from "@/lib/courses/programmeLead";
+import { firstNameOfUser, readRunLead } from "@/lib/courses/programmeLead";
+import { finishCounts, holdsGivenCover, presenceAtFinish } from "@/lib/courses/registerCover/model";
+import { REGISTER_COVER_REFUSAL, finishedDetail } from "@/lib/courses/registerCover/words";
 import { unpublishedPushWords, type MarksReady } from "@/features/courses/registerEndingWords";
 import { namesAnd } from "@/lib/courses/writtenAnswerWords";
 import { missingWeekOpenWords } from "@/lib/courses/weekEmails/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
-import { attendanceDocId } from "@/lib/firestore/courseAttendance";
+import { FACILITATOR_RECORD, attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import { REGISTER_FOLLOW_UP_TASK_SOURCE } from "@/lib/firestore/courseTasks";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
@@ -194,6 +196,19 @@ const WINDOW_MS = 60 * 60 * 1000;
 const PUSHES_PER_WINDOW = 8;
 
 class RegisterMissingError extends Error {}
+/** Somebody given the session pressed after the grant ended. */
+class RegisterNotYoursError extends Error {}
+
+/** First names of these accounts, in order, for "covering for Josh"; an account with none is left out. */
+async function firstNamesOf(db: Firestore, uids: readonly string[]): Promise<string[]> {
+  const wanted = uids.filter((uid) => uid && !uid.includes("/"));
+  if (wanted.length === 0) return [];
+  const snaps = await db.getAll(...wanted.map((uid) => db.collection("users").doc(uid)));
+  return snaps
+    .filter((snap) => snap.exists)
+    .map((snap) => firstNameOfUser((snap.data() ?? {}) as Record<string, unknown>))
+    .filter(Boolean);
+}
 /** A HELD session with not one mark on it. See `isEmptyHeldRegister`. */
 class RegisterEmptyError extends Error {}
 
@@ -364,7 +379,7 @@ export async function POST(
   }
   const { group, runId, isAdmin } = gated;
 
-  let body: { weekNumber?: unknown; occurrence?: unknown; force?: unknown };
+  let body: { weekNumber?: unknown; occurrence?: unknown; force?: unknown; facilitatorsHere?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -399,6 +414,23 @@ export async function POST(
     return NextResponse.json({ error: "force must be true or false." }, { status: 400 });
   }
   const force = body?.force === true;
+  // WHICH OF THE GROUP'S FACILITATORS WERE HERE, ticked at Finish in a group
+  // with more than one: optional (an older page sends none), and said only by
+  // one of the group's facilitators, about the group's facilitators.
+  let here: string[] | null = null;
+  if (body?.facilitatorsHere !== undefined) {
+    const raw = body.facilitatorsHere;
+    if (!Array.isArray(raw) || raw.length > 5 || raw.some((uid) => typeof uid !== "string")) {
+      return NextResponse.json({ error: REGISTER_COVER_REFUSAL.hereNotInGroup }, { status: 400 });
+    }
+    if (!gated.facilitates) {
+      return NextResponse.json({ error: REGISTER_COVER_REFUSAL.hereNotFacilitator }, { status: 403 });
+    }
+    if (raw.some((uid) => !group.facilitatorUids.includes(uid as string))) {
+      return NextResponse.json({ error: REGISTER_COVER_REFUSAL.hereNotInGroup }, { status: 400 });
+    }
+    here = [...new Set(raw as string[])];
+  }
   // ADMIN ONLY, and refused rather than ignored. A facilitator whose push
   // half-failed asks an admin; a facilitator who can re-send at will can mail
   // their group the same reminder every evening, and the marker that exists to
@@ -431,6 +463,12 @@ export async function POST(
     );
   }
   const session = sessions[index];
+  // Somebody given one session finishes that session's register and no
+  // other: any other is the same 403 as a group they have no part in.
+  const onlyGiven = !isAdmin && !gated.facilitates && !gated.leads;
+  if (onlyGiven && !gated.givenSessions.includes(session.sessionKey)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   // The session the week's email is about: the one after this one in the
   // group's whole schedule. The register's page asks the same function to say
   // what this press emails, so the page and the press cannot disagree.
@@ -460,6 +498,10 @@ export async function POST(
   if (!preData.pushedAt && isEmptyHeldRegister(preData)) {
     return NextResponse.json({ error: EMPTY_REGISTER_MESSAGE }, { status: 400 });
   }
+  // Whose place the register was taken in, by first name, for the history's
+  // "covering for Josh": read now, before the throttle and the transaction.
+  const preCover = normalizeCourseAttendance(preSnap.id, preData).cover;
+  const coveringNames = preCover ? await firstNamesOf(db, preCover.covering) : [];
 
   // Spent BEFORE the transaction: a throttled request must neither lock a
   // register nor send. Fail CLOSED, the one safe direction for outbound mail.
@@ -505,6 +547,31 @@ export async function POST(
       // The empty-held guard, re-read inside the transaction so a note written
       // between the pre-read and here cannot slip an unmarked room past it.
       if (isEmptyHeldRegister(data)) throw new RegisterEmptyError();
+      const stored = normalizeCourseAttendance(snap.id, data);
+      // Somebody given the session finishes it only while the grant holds.
+      if (onlyGiven && !holdsGivenCover(stored.cover, actor.uid, now)) throw new RegisterNotYoursError();
+      // WHETHER EACH FACILITATOR WAS THERE, as Finish knows it: entries it
+      // makes, never one it overwrites (`presenceAtFinish`).
+      const presence = presenceAtFinish({
+        finisherUid: actor.uid,
+        finisherFacilitates: gated.facilitates,
+        facilitatorUids: group.facilitatorUids,
+        here,
+        record: stored.facilitatorRecord,
+        cover: stored.cover,
+        now,
+        endsAt: sessionInstants(session).endsAt,
+      });
+      const presenceWrites: Record<string, unknown> = {};
+      for (const [uid, entry] of Object.entries(presence)) {
+        presenceWrites[uid] = {
+          state: entry.state,
+          ...(entry.arrivedAt ? { arrivedAt: entry.arrivedAt } : {}),
+          byUid: actor.uid,
+          at: now,
+          how: entry.state === "late" ? "arrived" : "finish",
+        };
+      }
 
       // EVERY READ BEFORE EVERY WRITE. The plan reads this group's other
       // registers and its members' enrolments; the override is how the
@@ -528,6 +595,7 @@ export async function POST(
           pushedAt: Timestamp.fromDate(now),
           pushedByUid: actor.uid,
           updatedAt: FieldValue.serverTimestamp(),
+          ...(Object.keys(presenceWrites).length > 0 ? { [FACILITATOR_RECORD]: presenceWrites } : {}),
         },
         { merge: true },
       );
@@ -544,15 +612,20 @@ export async function POST(
         actorUid: actor.uid,
         actorName: actor.displayName ?? "",
         targetLabel: `${session.sessionKey} register`,
-        detail:
-          `Pushed the week ${session.weekNumber} session ${session.occurrence} register for ${group.name || groupId}. ` +
-          `${plan.writes.length} ${plan.writes.length === 1 ? "record" : "records"} recomputed.`,
+        // What the register said, as the group's history shows it: "Finished
+        // week 1's register. 3 in the room, 1 absent, 1 excused.", and whose
+        // place it was taken in.
+        detail: finishedDetail(session.weekNumber, finishCounts(stored.records, stored.online), stored.cover ? coveringNames : []),
+        weekId: session.weekId,
         at: FieldValue.serverTimestamp(),
       });
     });
   } catch (err) {
     if (err instanceof RegisterMissingError || err instanceof RegisterEmptyError) {
       return NextResponse.json({ error: EMPTY_REGISTER_MESSAGE }, { status: 400 });
+    }
+    if (err instanceof RegisterNotYoursError) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     throw err;
   }
