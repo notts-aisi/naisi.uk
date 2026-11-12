@@ -62,6 +62,14 @@ export default async function GroupRegisterPage({
   // its address, while the grant holds, and nothing else.
   const onlyGiven = !gated.isAdmin && !gated.facilitates && !gated.leads;
   if (onlyGiven && (!session || !gated.givenSessions.includes(session))) redirect(runHome);
+  // Somebody leading the programme is drawn this page only when the run
+  // admits them, as the run layout decides it (a track lead, or somebody
+  // with a place): the programme's lead takes a register under the
+  // programme's group page, so this page restates the layout's refusal
+  // rather than lean on it.
+  const runAdmits =
+    access.canLearn || access.isReviewer || access.isTrackLead || access.hasLeft || Boolean(access.beforeGroups);
+  if (!gated.isAdmin && !gated.facilitates && gated.leads && !runAdmits) redirect(runHome);
 
   // The way back, and where "It didn't happen" lives: the group's page,
   // which takes its facilitators and admins. Nobody else is given a way

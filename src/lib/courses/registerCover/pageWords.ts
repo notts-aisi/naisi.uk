@@ -92,14 +92,25 @@ export function sheetTitle(groupName: string, dateKey: string, hhmm: string, tod
   return `${group}, ${day}${clock ? ` at ${clock}` : ""}`;
 }
 
-/** The sheet's question: "Josh Bennett hasn't started the register. What's happening?" */
-export function sheetQuestion(fullNames: readonly string[], started: boolean): string {
+/**
+ * The sheet's question: "Josh Bennett hasn't started the register. What's
+ * happening?"; for a register somebody has saved lines on and not finished,
+ * that it isn't finished.
+ */
+export function sheetQuestion(fullNames: readonly string[], started: boolean, taken = false): string {
   if (!started) {
     return fullNames.length > 0 ? `If ${namesWords(fullNames)} can’t make it, choose who takes the register.` : "Choose who takes the register.";
   }
+  if (taken) return "Its register has lines on it and isn’t finished. What’s happening?";
   if (fullNames.length === 0) return "Nobody has started the register. What’s happening?";
   return `${namesWords(fullNames)} ${fullNames.length === 1 ? "hasn’t" : "haven’t"} started the register. What’s happening?`;
 }
+
+/** Once a facilitator has started the register, there is nobody to cover for: the sheet opens the register itself. */
+export const HELPING_LINE = "One of the group’s facilitators has started this register, so it doesn’t need covering. You can still open it and help.";
+export const OPEN_THE_REGISTER = "Open the register";
+/** A register finished since the page was drawn. */
+export const FINISHED_LINE = "This register is finished.";
 
 export const IM_COVERING_IT_LINE = "You take the register, open the check-in and write the session report from it.";
 export const SOMEONE_ELSE_LINE = "Give them this session’s register, check-in and report, for this session only.";

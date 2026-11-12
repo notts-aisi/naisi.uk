@@ -119,6 +119,11 @@ describe("2. the words for whose place is taken", () => {
     assert.equal(words.sheetTitle("Group E", "2026-11-03", "16:00", "2026-11-10"), "Group E, Tue 3 Nov at 4pm");
     assert.equal(words.sheetQuestion(["Josh Bennett"], true), "Josh Bennett hasn’t started the register. What’s happening?");
     assert.equal(words.sheetQuestion(["Josh Bennett"], false), "If Josh Bennett can’t make it, choose who takes the register.");
+    assert.equal(
+      words.sheetQuestion(["Josh Bennett"], true, true),
+      "Its register has lines on it and isn’t finished. What’s happening?",
+      "a register somebody saved lines on is said to be unstarted",
+    );
     assert.equal(words.didntHappenLine(2), "Nobody ran it. You choose what happens to week 2 next.");
   });
 

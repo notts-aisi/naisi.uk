@@ -38,6 +38,7 @@
  * runner skips it anywhere but a server it started with its mail forced into
  * Mailpit.
  */
+import { isHarnessAccount } from "../e2e/lib/admin.mjs";
 import { createFixtureUser } from "./core.mjs";
 import { accountsOf, countTerm, seedTerm, teardownTerm } from "./worlds/course-hub-term.mjs";
 
@@ -103,6 +104,19 @@ async function seed({ runId, suppress, onState }) {
   return state;
 }
 
+async function teardown(state) {
+  // The namespace check FIRST, before a single delete: a tampered or stale
+  // ledger naming a real person is refused before anything runs. The term's
+  // own teardown checks again before its own, and sweeps Gus's and Ola's
+  // rows with the term's (`accountsOf`).
+  for (const account of accountsOf(state)) {
+    if (!isHarnessAccount(account.email)) {
+      throw new Error(`REFUSING to tear down ${account.email}: not a harness account. The state file is not one this harness wrote.`);
+    }
+  }
+  return teardownTerm(state);
+}
+
 export const SPEC = {
   name: "course-hub-cover-register",
   specFile: "tests/e2e/course-hub-cover-register.spec.mjs",
@@ -152,5 +166,5 @@ export const SPEC = {
   status: "unverified",
   seed,
   countRows: countTerm,
-  teardown: teardownTerm,
+  teardown,
 };

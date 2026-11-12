@@ -151,7 +151,7 @@ export default function SessionSidePanel({
                   {started && editing !== person.uid && (
                     <Button
                       variant="secondary"
-                      size="sm"
+                     
                       onClick={() => startEditing(person.uid, person.entry)}
                       aria-label={`${CHANGE}: ${person.name}`}
                     >
@@ -201,10 +201,10 @@ export default function SessionSidePanel({
                       </p>
                     )}
                     <div className={styles.actions}>
-                      <Button variant="secondary" size="sm" onClick={() => setEditing(null)} disabled={busy}>
+                      <Button variant="secondary" onClick={() => setEditing(null)} disabled={busy}>
                         Cancel
                       </Button>
-                      <Button size="sm" onClick={() => void save(person.uid)} disabled={busy}>
+                      <Button onClick={() => void save(person.uid)} disabled={busy}>
                         {busy ? "Saving…" : "Save"}
                       </Button>
                     </div>

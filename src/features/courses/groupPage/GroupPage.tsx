@@ -716,11 +716,26 @@ export default function GroupPage({
                   {W.CLOSE}
                 </button>
               </div>
-              <p className={styles.panelLede}>{C.sheetQuestion(view.facilitatorNames, sheetWeek.started)}</p>
-              {sheetWeek.cover && <p className={styles.panelNote}>{C.coveredLine(sheetWeek.cover)}</p>}
               {(() => {
                 const ways = coverChoicesOf(weekRegisterFacts(sheetWeek));
+                const href = registerOf(sheetWeek);
+                // Nobody to cover for, or nothing left to take: say so, and open the register where it can be.
+                if (!ways.offered) {
+                  return (
+                    <>
+                      <p className={styles.panelLede}>{ways.helpOnly ? C.HELPING_LINE : C.FINISHED_LINE}</p>
+                      {href && (
+                        <Link href={href} className={styles.buttonPrimary}>
+                          {C.OPEN_THE_REGISTER}
+                        </Link>
+                      )}
+                    </>
+                  );
+                }
                 return (
+                  <>
+                  <p className={styles.panelLede}>{C.sheetQuestion(view.facilitatorNames, sheetWeek.started, sheetWeek.taken)}</p>
+                  {sheetWeek.cover && <p className={styles.panelNote}>{C.coveredLine(sheetWeek.cover)}</p>}
                   <ul className={styles.ways}>
                     {ways.covering && (
                       <li>
@@ -763,6 +778,7 @@ export default function GroupPage({
                       </li>
                     )}
                   </ul>
+                  </>
                 );
               })()}
               {coverProblem && (

@@ -222,6 +222,11 @@ const NO_LEAVERS: AttendanceLeaver[] = [];
 /** A session nobody has been marked at yet. Read only by contract. */
 const NO_MARKS: Record<string, AttendanceStatus> = {};
 
+/** No stamps, no covers, no facilitators: a register read before they were sent. Read only by contract. */
+const NO_SET_BY: ReturnType<typeof useAttendance>["setBy"] = {};
+const NO_COVERS: ReturnType<typeof useAttendance>["covers"] = {};
+const NO_FACILITATORS: ReturnType<typeof useAttendance>["facilitators"] = [];
+
 const STATUS_CLASS: Record<AttendanceStatus, string> = {
   present: styles.isPresent,
   late: styles.isLate,
@@ -379,11 +384,11 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
     canEditPushed,
     ending,
     cantMakeIt,
-    setBy,
-    covers,
+    setBy: givenSetBy,
+    covers: givenCovers,
     facilitatorRecord,
-    facilitators,
-    caller,
+    facilitators: givenFacilitators,
+    caller: givenCaller,
     loading,
     error,
     reload,
@@ -396,6 +401,13 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
   // Who left the group, read only. Read as none when the data behind the
   // register does not carry the list (a stand-in for the hook may not).
   const leavers = givenLeavers ?? NO_LEAVERS;
+  // Who set each line, who covered, the facilitators and what the reader may
+  // do: read as none when the data behind the register does not carry them
+  // (a register read from before they were sent, or a stand-in for the hook).
+  const setBy = givenSetBy ?? NO_SET_BY;
+  const covers = givenCovers ?? NO_COVERS;
+  const facilitators = givenFacilitators ?? NO_FACILITATORS;
+  const caller = givenCaller ?? null;
 
   /** A save in flight, so the status can say "Saving…" while it is. */
   const [saving, setSaving] = useState(false);
@@ -1150,7 +1162,7 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
                   const stampWords = stamp ? setByWords(stamp) : "";
                   const besides = `${toldUs(session.sessionKey, member.uid) ? ` ${TOLD_IN_ADVANCE}` : ""}${
                     isOnline ? ` ${JOINED_ONLINE}` : ""
-                  }${said && !came ? ` ${SAID_ONLINE_IN_ADVANCE}` : ""}${stampWords ? ` ${stampWords}.` : ""}`;
+                  }${said && !came ? ` ${SAID_ONLINE_IN_ADVANCE}` : ""}`;
                   return (
                     <td key={key} className={styles.cell}>
                       <div className={styles.cellStack}>
@@ -1236,8 +1248,10 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
                           </button>
                         )}
                       </div>
+                      {/* Read as the cell's own text, after its control: the
+                          control's name stays the mark and what a tap sets. */}
                       {stampWords && (
-                        <span className={styles.setBy} data-testid="attendance-set-by" aria-hidden="true">
+                        <span className={styles.setBy} data-testid="attendance-set-by">
                           {stampWords}
                         </span>
                       )}
