@@ -199,10 +199,11 @@ export const SPEC = {
   /**
    * VERIFIED on Thu 12 November 2026: in local mode, against the harness's own
    * server (`npm run e2e:browser -- --local --spec course-hub-edit-a-week`),
-   * on the branch at bff4fb89: all eleven steps ran, 55 rows of the term
-   * (Gus's account, week 3's four saves in its history and six sends among
-   * them) and the notice's three send counters existed before teardown, and
-   * the fixture manifest read zero after it.
+   * on the branch at 44380792: all twelve steps ran (the last, the earlier
+   * wording read by the member and the facilitator, among them), 56 rows of
+   * the term (Gus's account, week 3's five saves in its history and six sends
+   * among them) and the notice's three send counters existed before
+   * teardown, and the fixture manifest read zero after it.
    */
   status: "verified",
   seed,
