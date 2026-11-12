@@ -59,6 +59,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stripSource } from "./lib/stripSource.mjs";
 import { exportedHandlers, walkRoutes } from "./lib/routeScan.mjs";
+import { duplicateKeysIn, duplicateKeysInText } from "./lib/duplicateKeys.mjs";
 import {
   ACTS,
   EVENT_ROLES,
@@ -129,6 +130,21 @@ const ROLE_NAMES = Object.keys(ROLE_PERSONAS);
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 describe("the registry and the tree agree in both directions", () => {
+  test("no key is written twice in one object of the registry, read from its source", () => {
+    // An object keeps the later of two equal keys and drops the earlier
+    // without a word, so the earlier entry is dead text that can say
+    // something else. Only the source can show it.
+    const sample = duplicateKeysInText('const x = { "/a": { why: "one" }, b: 1, "/a": { why: "two" } };');
+    assert.deepEqual(sample.duplicates, [{ key: "/a", lines: [1, 1] }], "the scan is not reading");
+    const { duplicates, unresolved } = duplicateKeysIn(join(REPO_ROOT, "tests", "persona-route-gates.registry.mjs"));
+    assert.deepEqual(unresolved, [], "a computed key in the registry cannot be compared without running the file: write it as a string");
+    assert.deepEqual(
+      duplicates.map(({ key, lines }) => `${key} (lines ${lines.join(", ")})`),
+      [],
+      "a key written twice in one object: keep one entry, with what is true",
+    );
+  });
+
   test("the walk found the tree", () => {
     assert.ok(routes.size > 150, `only ${routes.size} routes found`);
     assert.ok(pages.length > 50, `only ${pages.length} authed pages found`);
