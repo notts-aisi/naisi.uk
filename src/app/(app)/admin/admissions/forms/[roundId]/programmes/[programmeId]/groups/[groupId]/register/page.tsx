@@ -1,3 +1,4 @@
+import { REQUESTS_PATH } from "@/lib/courses/requests/paths";
 import { NoProgrammeHere, Refusal } from "@/features/applications/editor/Refusals";
 import NotYours from "@/features/applications/groups/NotYours";
 import RegisterPageBody, { sessionParamOf } from "@/features/courses/register/RegisterPageBody";
@@ -76,5 +77,8 @@ export default async function ProgrammeGroupRegisterPage({
     session,
     reportHref: `${groupPage}/report`,
     didntHappen: { href: groupPage, words: DIDNT_HAPPEN_MOVED_STAFF },
+    // A waiting ask on a line leads to its request, on the Requests page in
+    // this same tree: an admin and the programme's lead reach it.
+    requestsBase: REQUESTS_PATH,
   });
 }

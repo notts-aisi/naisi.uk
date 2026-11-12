@@ -18,6 +18,9 @@ import * as W from "@/lib/courses/groupPage/words";
 import { coverChoicesOf, noticeWeekOf } from "@/lib/courses/registerCover/pageModel";
 import * as C from "@/lib/courses/registerCover/pageWords";
 import { UNKNOWN_OUTCOME } from "@/lib/courses/sessionChange/words";
+import { ATTENDANCE_TAB } from "@/lib/courses/registerCorrection/pageWords";
+import type { GroupAttendanceView } from "@/lib/courses/groupAttendance/load";
+import AttendanceTab from "./AttendanceTab";
 import ChangePanel, { type ChangeStart } from "./ChangePanel";
 import GivePanel from "./GivePanel";
 import LinkPanel from "./LinkPanel";
@@ -28,7 +31,9 @@ import styles from "./GroupPage.module.css";
  * ONE GROUP'S PAGE, for admins and the programme's lead: the head (the way
  * back, the group's name, where the term is, Take the register, Write to the
  * group, its facilitators and how many people), how the group meets with a
- * Change beside each part, and two tabs, Week by week and History.
+ * Change beside each part, and its tabs: Week by week, Attendance, all
+ * weeks (for admins and the programme's lead, when the page hands it the
+ * group's attendance) and History.
  *
  * WEEK BY WEEK: every week of the group's plan, past ones too, each with its
  * date and state; the chosen week's card with what each person has said
@@ -59,6 +64,8 @@ export type GroupPageLinks = {
   people: string;
   /** The programme's room route for this group. */
   roomPath: string;
+  /** The Requests page, where a line's waiting ask is decided; null where the reader has no way there. */
+  requests?: string | null;
 };
 
 type Panel =
@@ -75,16 +82,23 @@ export default function GroupPage({
   view,
   links,
   take = null,
+  attendance = null,
 }: {
   view: GroupPageView;
   links: GroupPageLinks;
+  /**
+   * The group's attendance across every week (`loadGroupAttendance`), for
+   * admins and the programme's lead: its tab is drawn only with it. Never
+   * handed to a facilitator of the group, who has their own register pages.
+   */
+  attendance?: GroupAttendanceView | null;
   /** A week to open on with its ways to take the register shown ("Take the register" on Overview's Needs attention). */
   take?: number | null;
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
   const takeWeek = take !== null && view.weeks.some((each) => each.weekNumber === take) ? take : null;
-  const [tab, setTab] = useState<"weeks" | "history">("weeks");
+  const [tab, setTab] = useState<"weeks" | "attendance" | "history">("weeks");
   const [shown, setShown] = useState<number | null>(takeWeek ?? view.openWeek);
   const [filter, setFilter] = useState<W.HistoryFilter>("everything");
   const [panel, setPanel] = useState<Panel | null>(null);
@@ -469,6 +483,19 @@ export default function GroupPage({
         >
           {W.WEEK_BY_WEEK}
         </button>
+        {attendance && (
+          <button
+            type="button"
+            role="tab"
+            id="group-tab-attendance"
+            aria-selected={tab === "attendance"}
+            aria-controls="group-panel-attendance"
+            className={tab === "attendance" ? `${styles.tab} ${styles.tabOn}` : styles.tab}
+            onClick={() => setTab("attendance")}
+          >
+            {ATTENDANCE_TAB}
+          </button>
+        )}
         <button
           type="button"
           role="tab"
@@ -482,7 +509,11 @@ export default function GroupPage({
         </button>
       </div>
 
-      {tab === "weeks" ? (
+      {tab === "attendance" && attendance ? (
+        <div id="group-panel-attendance" role="tabpanel" aria-labelledby="group-tab-attendance" className={styles.tabPanel}>
+          <AttendanceTab view={attendance} runId={view.runId} requestsBase={links.requests ?? null} />
+        </div>
+      ) : tab === "weeks" ? (
         <div id="group-panel-weeks" role="tabpanel" aria-labelledby="group-tab-weeks" className={styles.tabPanel}>
           {view.weeks.length === 0 ? (
             <p className={styles.card}>{W.NO_WEEKS_YET}</p>

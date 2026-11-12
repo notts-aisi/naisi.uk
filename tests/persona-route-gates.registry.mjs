@@ -4399,6 +4399,23 @@ export const PAGES = {
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
       "and with an address that names nothing is drawn the same not-here state.",
   },
+  "/(app)/admin/admissions/requests": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The Requests page, in the admissions tree because its gate admits a programme's lead: requireAdmissionsPage admits " +
+      "round authors (admin or approveCourse) and named reviewers and leads, and sends everybody else to the dashboard. " +
+      "What it lists is the loader's (loadRequestsPage): an admin every programme's requests, a lead the runs they lead, " +
+      "and an approveCourse holder who leads nothing a calm 'no requests for you here', each with a 200. A facilitator and " +
+      "a member are sent to the dashboard by the tree: they ask on the register, and never read this list.",
+  },
+  "/(app)/admin/admissions/requests/[requestId]": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "One request's page, under the Requests page in the admissions tree: the tree's gate, then the loader's " +
+      "(loadRequestPage, an admin or somebody leading the programme of the request's group, asked through the group's " +
+      "register gate). The address names no request the world writes, so everybody the tree admits is drawn the same " +
+      "calm 'that request isn't here' with a 200, never told whether one exists; everybody else is sent to the dashboard.",
+  },
   "/(app)/admin/admissions/forms": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:

@@ -1260,7 +1260,9 @@ test(
                 // the confirm says why before the press, as the push's answer
                 // says it after.
                 `Nobody is emailed: week ${nextWeek} isn’t published yet, so the group won’t be sent a reminder.`,
-            "The register locks. An admin can still correct it afterwards, and every change they make is recorded.",
+            // After Finish a change goes through an admin or the programme's lead,
+            // asked for from the line (src/lib/courses/registerCorrection/pageWords.ts).
+            "The register locks. After that, a change goes through an admin or the programme’s lead, asked for from the line, and every change records who made it, when and why.",
             "Everyone sees their mark, and everyone’s attendance figures are rebuilt from this register.",
           ],
           "the confirm does not say what finishing does",

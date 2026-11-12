@@ -19,6 +19,7 @@ import {
   type AttendanceStatus,
 } from "@/lib/firestore/courseAttendance";
 import { finishSummary } from "@/lib/courses/registerCover/pageModel";
+import * as P from "@/lib/courses/registerCorrection/pageWords";
 import { OPEN_THE_GROUPS_PAGE, placeLine, setByWords } from "@/lib/courses/registerCover/pageWords";
 import styles from "./AttendanceGrid.module.css";
 import ParticipantNoteDrawer from "./ParticipantNoteDrawer";
@@ -27,6 +28,8 @@ import CoveringReportLink from "./register/CoveringReportLink";
 import SessionSidePanel from "./register/SessionSidePanel";
 import ReportLink from "./report/ReportLink";
 import PushConfirm from "./PushConfirm";
+import ColumnSheet from "./registerCorrection/ColumnSheet";
+import LineSheet, { type LineSheetTarget } from "./registerCorrection/LineSheet";
 import { registerEndingWords } from "./registerEndingWords";
 import useAttendance, {
   type AttendanceLeaver,
@@ -156,6 +159,12 @@ export type AttendanceGridProps = {
    * way into the group's page.
    */
   didntHappen?: { href: string; words: string } | null;
+  /**
+   * Where the Requests page is, for the people who decide a request, where
+   * the page drawing the register has a way there (the register under the
+   * programme's group page); null elsewhere. One request's page is beneath it.
+   */
+  requestsBase?: string | null;
 };
 
 /** "w02" or "w02-2" as its week, or null. */
@@ -226,6 +235,8 @@ const NO_MARKS: Record<string, AttendanceStatus> = {};
 const NO_SET_BY: ReturnType<typeof useAttendance>["setBy"] = {};
 const NO_COVERS: ReturnType<typeof useAttendance>["covers"] = {};
 const NO_FACILITATORS: ReturnType<typeof useAttendance>["facilitators"] = [];
+const NO_CORRECTIONS: ReturnType<typeof useAttendance>["corrections"] = {};
+const NO_REQUESTS: ReturnType<typeof useAttendance>["requests"] = {};
 
 const STATUS_CLASS: Record<AttendanceStatus, string> = {
   present: styles.isPresent,
@@ -306,22 +317,25 @@ function SessionNoteDialog({
 }: {
   session: AttendanceSession | null;
   onClose: () => void;
-  onSave: (text: string) => Promise<void>;
+  onSave: (text: string, reason: string) => Promise<void>;
 }) {
   // Seeded ONCE. The caller keys this component on the session, so pointing
   // it at a different one remounts it: no reseeding effect, and a reload
   // landing under an open dialog cannot wipe what is being typed.
   const [draft, setDraft] = useState(session?.notes ?? "");
+  // A finished register's note is a correction, and every correction says why.
+  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!session) return null;
+  const finished = session.pushedAt !== null;
 
   async function save() {
     setBusy(true);
     setError(null);
     try {
-      await onSave(draft.trim());
+      await onSave(draft.trim(), reason.trim());
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "That note didn't save.");
@@ -348,6 +362,19 @@ function SessionNoteDialog({
           onChange={(e) => setDraft(e.target.value)}
           placeholder="What a reader would need to know about this session later."
         />
+        {finished && (
+          <label className={styles.noteReason}>
+            <span>{P.WHY_NEEDED}</span>
+            <input
+              type="text"
+              className={styles.noteReasonInput}
+              value={reason}
+              maxLength={P.REASON_MAX}
+              onChange={(e) => setReason(P.oneLine(e.target.value))}
+            />
+            <span className={styles.dialogMeta}>The register is finished, so this is a correction: the group’s history says that the note changed, never what it says.</span>
+          </label>
+        )}
         {error && (
           <p className={styles.error} role="status">
             {error}
@@ -357,7 +384,7 @@ function SessionNoteDialog({
           <Button variant="secondary" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button onClick={() => void save()} disabled={busy}>
+          <Button onClick={() => void save()} disabled={busy || (finished && !reason.trim())}>
             {busy ? "Saving..." : "Save note"}
           </Button>
         </div>
@@ -370,7 +397,14 @@ function SessionNoteDialog({
 // AttendanceGrid
 // ---------------------------------------------------------------------------
 
-export default function AttendanceGrid({ groupId, reportHref, session: askedSession = null, didntHappen = null }: AttendanceGridProps) {
+export default function AttendanceGrid({
+  groupId,
+  runId = undefined,
+  reportHref,
+  session: askedSession = null,
+  didntHappen = null,
+  requestsBase = null,
+}: AttendanceGridProps) {
   const {
     group,
     sessions,
@@ -389,6 +423,8 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
     facilitatorRecord,
     facilitators: givenFacilitators,
     caller: givenCaller,
+    corrections: givenCorrections,
+    requests: givenRequests,
     loading,
     error,
     reload,
@@ -408,6 +444,15 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
   const covers = givenCovers ?? NO_COVERS;
   const facilitators = givenFacilitators ?? NO_FACILITATORS;
   const caller = givenCaller ?? null;
+  // Corrected lines and the asks about lines: none from a payload that did not send them.
+  const corrections = givenCorrections ?? NO_CORRECTIONS;
+  const requests = givenRequests ?? NO_REQUESTS;
+  // WHO DOES WHAT ON A FINISHED REGISTER. Admins and the people leading the
+  // programme correct it, a line or a whole column, with a reason. A
+  // facilitator of the group asks for a correction from the line. Nobody
+  // changes a finished register without saying why.
+  const corrects = caller?.corrects === true;
+  const asks = !corrects && caller?.standing === "facilitator";
 
   /** A save in flight, so the status can say "Saving…" while it is. */
   const [saving, setSaving] = useState(false);
@@ -507,6 +552,10 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
     null,
   );
   const [sessionNoteTarget, setSessionNoteTarget] = useState<string | null>(null);
+  /** The finished line a sheet is open on: to ask, to correct, or to read its story. */
+  const [lineTarget, setLineTarget] = useState<{ sessionKey: string; uid: string } | null>(null);
+  /** The column whose correction sheet is open. */
+  const [columnTarget, setColumnTarget] = useState<string | null>(null);
 
   const sessionByKey = useMemo(
     () => new Map(sessions.map((s) => [s.sessionKey, s])),
@@ -539,11 +588,10 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
             ...(cameBy(next) ? { online: whereFor(session.sessionKey, member.uid, current) } : {}),
           },
         ];
-        // A LOCKED register takes the admin's PATCH lane instead, which logs
-        // the change. Same gesture, a different door, and a facilitator never
-        // reaches it because their cells are not buttons.
-        if (session.pushedAt) await edit(session, marks);
-        else await mark(session, marks);
+        // A finished register is never tapped: its line opens a sheet that
+        // asks why (`LineSheet`), so this is a draft's tap and nothing else.
+        if (session.pushedAt) return;
+        await mark(session, marks);
         setSavedAt(new Date());
       } catch (e) {
         // The hook has already put the cell back; this is the sentence.
@@ -552,15 +600,15 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
         setSaving(false);
       }
     },
-    [edit, mark, pop, statusOf, whereFor],
+    [mark, pop, statusOf, whereFor],
   );
 
   // ---- In the room or online ----------------------------------------------
 
   /**
    * The other place, for somebody marked as having come: the same mark, sent
-   * with where they were turned round. A finished register takes the admin's
-   * lane, as a mark does.
+   * with where they were turned round. A draft's only: on a finished register
+   * where somebody was is corrected in the line's sheet, with a reason.
    */
   const onWhere = useCallback(
     async (session: AttendanceSession, member: AttendanceMember) => {
@@ -570,8 +618,8 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
       setSaving(true);
       try {
         const marks: AttendanceMark[] = [{ uid: member.uid, status: current, online: !onlineOf(session.sessionKey, member.uid) }];
-        if (session.pushedAt) await edit(session, marks);
-        else await mark(session, marks);
+        if (session.pushedAt) return;
+        await mark(session, marks);
         setSavedAt(new Date());
       } catch (e) {
         setCellError(e instanceof Error ? e.message : "That didn't go through.");
@@ -579,7 +627,7 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
         setSaving(false);
       }
     },
-    [edit, mark, onlineOf, statusOf],
+    [mark, onlineOf, statusOf],
   );
 
   // ---- A whole column ------------------------------------------------------
@@ -633,11 +681,10 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
       setCellError(null);
       void runAction(
         async () => {
-          // A pushed register takes the admin's PATCH lane, which logs the
-          // move and rebuilds every rollup the switch changes. Same gesture,
-          // a different door, and a facilitator never sees the button.
-          if (session.pushedAt) await edit(session, [], { held: next });
-          else await mark(session, [], { held: next });
+          // A draft's way back only: whether a finished session happened is
+          // the column's correction, which asks why.
+          if (session.pushedAt) return;
+          await mark(session, [], { held: next });
           setSavedAt(new Date());
         },
         {
@@ -648,17 +695,30 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
         },
       );
     },
-    [edit, mark, runAction],
+    [mark, runAction],
   );
 
   const onSessionNote = useCallback(
-    async (session: AttendanceSession, text: string) => {
+    async (session: AttendanceSession, text: string, reason: string) => {
       setCellError(null);
-      if (session.pushedAt) await edit(session, [], { notes: text });
+      // A finished register's note is an admin's correction, and asks why.
+      if (session.pushedAt) await edit(session, [], { notes: text }, reason);
       else await mark(session, [], { notes: text });
       setSavedAt(new Date());
     },
     [edit, mark],
+  );
+
+  /** A sheet's press went through: say so, and read the register again. */
+  const onSheetDone = useCallback(
+    (said: string) => {
+      setLineTarget(null);
+      setColumnTarget(null);
+      setCellError(null);
+      reload();
+      void runAction(async () => undefined, { savingMessage: said, successMessage: said });
+    },
+    [reload, runAction],
   );
 
   // ---- Finishing -----------------------------------------------------------
@@ -853,6 +913,28 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
   const movedLine = didntHappen && caller && caller.standing !== "given" ? didntHappen : null;
   const hasDraft = sessions.some((each) => each.pushedAt === null && each.held);
 
+  // The line a sheet is open on, with everything the register says about it.
+  const lineSheet = (() => {
+    if (!lineTarget) return null;
+    const on = sessionByKey.get(lineTarget.sessionKey);
+    const member = members.find((each) => each.uid === lineTarget.uid);
+    if (!on || !member) return null;
+    const target: LineSheetTarget = {
+      person: { uid: member.uid, name: member.displayName },
+      session: { weekNumber: on.weekNumber, occurrence: on.occurrence, dateKey: on.dateKey },
+      line: { status: statusOf(on.sessionKey, member.uid), online: onlineOf(on.sessionKey, member.uid) },
+      setBy: setBy[on.sessionKey]?.[member.uid] ?? null,
+      story: corrections[on.sessionKey]?.[member.uid] ?? null,
+      request: requests[on.sessionKey]?.[member.uid] ?? null,
+    };
+    return { sessionKey: on.sessionKey, target };
+  })();
+  const columnSession = columnTarget ? (sessionByKey.get(columnTarget) ?? null) : null;
+  const sessionLabelOf = (key: string) => {
+    const on = sessionByKey.get(key);
+    return on ? `week ${on.weekNumber}${on.occurrence > 1 ? `, session ${on.occurrence}` : ""}` : "another week";
+  };
+
   const checkIn = panelKey ? <CheckInCard groupId={groupId} sessionKey={panelKey} marks={records[panelKey] ?? NO_MARKS} /> : null;
   const report = reportFor ? (
     <div data-testid="register-report">
@@ -1040,16 +1122,24 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
                       </button>
                     )}
 
-                    {/* The held switch and the session note stay on a PUSHED
-                        column for whoever may correct one: PATCH supports both
-                        and logs both, and "the fire alarm went off" is usually
-                        written after the register has gone. */}
                     {/* "It didn't happen" lives with the two cancels on the
                         group's page now (the line under the register says
                         where). A draft that already says it did not happen
-                        keeps the way back, and a finished column keeps the
-                        admin's correction, which logs both ways. */}
-                    {((pushed && canEditPushed) || (!pushed && !session.held)) && (
+                        keeps the way back for whoever does not correct
+                        registers. For the people who do, a finished column,
+                        or one that says it didn't happen, opens the column's
+                        correction instead, which asks why. */}
+                    {corrects && (pushed || !session.held) && (
+                      <button
+                        type="button"
+                        className={styles.bulk}
+                        data-testid="attendance-column-correct"
+                        onClick={() => setColumnTarget(session.sessionKey)}
+                      >
+                        {session.held ? P.correctColumnWords(session.weekNumber) : P.didHappenWords(session.weekNumber)}
+                      </button>
+                    )}
+                    {!corrects && !pushed && !session.held && (
                       <button
                         type="button"
                         className={styles.bulk}
@@ -1064,7 +1154,8 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
                         {session.held ? "Didn't happen" : "It did happen"}
                       </button>
                     )}
-                    {/* The session note, for the people its notes are written for. */}
+                    {/* The session note, for the people its notes are written for:
+                        on a finished register an admin's, which asks why. */}
                     {(!pushed || canEditPushed) && readsNotes && (
                       <button
                         type="button"
@@ -1145,11 +1236,19 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
                     );
                   }
 
-                  // A pushed register is READ-ONLY unless the caller may
-                  // correct one. The lock is a fact about the document, so it
-                  // is rendered as a fact rather than as a disabled button
-                  // nobody can explain.
-                  const locked = session.pushedAt !== null && !canEditPushed;
+                  // A FINISHED register is never tapped through. Its line
+                  // opens a sheet: to correct it with a reason (admins and
+                  // the people leading the programme), to ask for a
+                  // correction (its facilitators), or to read what became of
+                  // it. With nothing to do or read, the lock is a fact about
+                  // the document, rendered as a fact rather than as a
+                  // disabled button nobody can explain.
+                  const finished = session.pushedAt !== null;
+                  const story = corrections[session.sessionKey]?.[member.uid] ?? null;
+                  const asked = requests[session.sessionKey]?.[member.uid] ?? null;
+                  const opens = finished && session.held && (corrects || asks || story !== null || asked !== null);
+                  const locked = finished && !opens;
+                  const chip = finished ? P.cellChip({ corrected: story !== null, request: asked }) : "";
                   const next = nextStatus(status);
                   // Where they were, beside a mark that says they came; and
                   // their own word in advance, beside a cell not marked yet.
@@ -1166,7 +1265,26 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
                   return (
                     <td key={key} className={styles.cell}>
                       <div className={styles.cellStack}>
-                        {locked ? (
+                        {opens ? (
+                          <button
+                            type="button"
+                            className={`${styles.cellButton} ${
+                              status ? STATUS_CLASS[status] : styles.isUnmarked
+                            }`}
+                            data-testid="attendance-cell"
+                            aria-haspopup="dialog"
+                            aria-label={`${member.displayName}, week ${session.weekNumber}: ${
+                              status ? ATTENDANCE_STATUS_LABEL[status] : "not marked"
+                            }.${besides}${chip ? ` ${chip}.` : ""} ${
+                              corrects ? "Correct this line." : asks && asked?.state !== "waiting" ? "Ask for a correction." : "What happened to this line."
+                            }`}
+                            onClick={() => setLineTarget({ sessionKey: session.sessionKey, uid: member.uid })}
+                          >
+                            <span className={styles.glyph} aria-hidden="true">
+                              {status ? GLYPH[status] : UNMARKED_GLYPH}
+                            </span>
+                          </button>
+                        ) : locked ? (
                           <span
                             className={`${styles.cellButton} ${styles.cellLocked} ${
                               status ? STATUS_CLASS[status] : styles.isUnmarked
@@ -1214,7 +1332,7 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
                             a control; the control only beside a mark that
                             says they came, and drawn alone, read only, on a
                             finished register for anybody who cannot correct it. */}
-                        {came && !locked ? (
+                        {came && !finished ? (
                           <button
                             type="button"
                             className={`${styles.where} ${isOnline ? styles.whereOnline : ""}`}
@@ -1253,6 +1371,11 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
                       {stampWords && (
                         <span className={styles.setBy} data-testid="attendance-set-by">
                           {stampWords}
+                        </span>
+                      )}
+                      {chip && (
+                        <span className={`${styles.lineChip} ${chip === P.ASKED ? styles.lineChipWaiting : ""}`} data-testid="attendance-line-chip">
+                          {chip}
                         </span>
                       )}
                     </td>
@@ -1459,10 +1582,50 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
         key={sessionNoteSession?.sessionKey ?? "no-session-note"}
         session={sessionNoteSession}
         onClose={() => setSessionNoteTarget(null)}
-        onSave={async (text) => {
-          if (sessionNoteSession) await onSessionNote(sessionNoteSession, text);
+        onSave={async (text, reason) => {
+          if (sessionNoteSession) await onSessionNote(sessionNoteSession, text, reason);
         }}
       />
+
+      {/* ONE LINE OF A FINISHED REGISTER: correct it, ask for a correction,
+          or read what became of it. Mounted only while open, so each line
+          starts with nothing chosen. */}
+      {lineSheet && (
+        <LineSheet
+          key={`${lineSheet.sessionKey} ${lineSheet.target.person.uid}`}
+          open
+          onClose={() => setLineTarget(null)}
+          groupId={groupId}
+          mode={corrects ? "correct" : asks ? "ask" : "read"}
+          target={lineSheet.target}
+          requestHref={requestsBase ? (id: string) => `${requestsBase}/${encodeURIComponent(id)}` : null}
+          sessionLabelOf={sessionLabelOf}
+          onDone={onSheetDone}
+        />
+      )}
+
+      {/* A WHOLE COLUMN, for the people who correct registers. */}
+      {columnSession && (
+        <ColumnSheet
+          key={columnSession.sessionKey}
+          open
+          onClose={() => setColumnTarget(null)}
+          groupId={groupId}
+          runId={runId ?? null}
+          groupName={group?.name ?? ""}
+          target={{
+            session: {
+              weekNumber: columnSession.weekNumber,
+              occurrence: columnSession.occurrence,
+              sessionKey: columnSession.sessionKey,
+              dateKey: columnSession.dateKey,
+              held: columnSession.held,
+            },
+            finished: null,
+          }}
+          onDone={onSheetDone}
+        />
+      )}
 
       <ParticipantNoteDrawer
         key={noteTarget ? `${noteTarget.sessionKey} ${noteTarget.uid}` : "no-note"}

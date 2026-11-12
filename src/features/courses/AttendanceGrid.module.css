@@ -806,6 +806,51 @@
   white-space: normal;
 }
 
+/* "Corrected", "Asked", "Declined" under a finished line: words, so the cell
+   says it without its colour. */
+.lineChip {
+  display: inline-block;
+  margin: 0 auto var(--space-1);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.lineChipWaiting {
+  border-color: var(--color-warning-line);
+  background: var(--color-warning-soft);
+  color: var(--color-text);
+}
+
+/* A finished register's session note asks why. */
+.noteReason {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.noteReasonInput {
+  min-height: 2.75rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 400;
+}
+
+.noteReasonInput:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
 .movedLine {
   margin: 0;
   font-size: var(--text-sm);

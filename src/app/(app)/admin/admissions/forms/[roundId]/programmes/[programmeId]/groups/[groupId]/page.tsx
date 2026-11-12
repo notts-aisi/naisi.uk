@@ -8,7 +8,9 @@ import GroupPage from "@/features/courses/groupPage/GroupPage";
 import { isAddressableId } from "@/lib/addressableId";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { own } from "@/lib/applications/keys";
+import { loadGroupAttendance } from "@/lib/courses/groupAttendance/load";
 import { loadGroupPage } from "@/lib/courses/groupPage/load";
+import { REQUESTS_PATH } from "@/lib/courses/requests/paths";
 import { GO_TO_GROUPS, GROUP_NOT_HERE_LINE, GROUP_NOT_HERE_TITLE } from "@/lib/courses/groupPage/words";
 import { messagesEntriesFor } from "@/lib/messages/handover";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -88,9 +90,15 @@ export default async function ProgrammeGroupPage({
   if (group.runId !== run.id || group.archived) return notHere;
 
   const now = new Date();
-  const [page, messages] = await Promise.all([
+  const [page, messages, attendance] = await Promise.all([
     loadGroupPage(db, { run, group, viewer: view.viewer, viewerUid: user.uid, now }),
     messagesEntriesFor(db, user, run.id, now).catch(() => null),
+    // Attendance, all weeks: the register's own gate decides what it holds.
+    // An admin or the programme's lead is given the tab; somebody here who
+    // facilitates the group (a lead who also runs it) is answered as its
+    // facilitator, and a facilitator has their own register pages, so the
+    // tab is left out for them.
+    loadGroupAttendance(db, user, group.id, now).catch(() => ({ status: "none" as const })),
   ]);
   const base = `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}`;
 
@@ -99,6 +107,7 @@ export default async function ProgrammeGroupPage({
       <GroupPage
         view={{ ...page, programmeName: view.programmeName || page.programmeName }}
         take={take}
+        attendance={attendance.status === "ok" && attendance.view.viewer !== "facilitator" ? attendance.view : null}
         links={{
           programme: `${base}/overview`,
           groups: tabPath,
@@ -109,6 +118,7 @@ export default async function ProgrammeGroupPage({
           facilitators: groupsViewPath(view.roundId, view.programmeId, "facilitators"),
           times: groupsViewPath(view.roundId, view.programmeId, "times"),
           people: tabPath,
+          requests: REQUESTS_PATH,
           roomPath: `/api/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/${encodeURIComponent(group.id)}/room`,
         }}
       />

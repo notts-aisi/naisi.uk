@@ -1023,6 +1023,18 @@ const NOT_COVERED = {
     coverWhen:
       "When the request's page carries Decline with its reply, its browser spec declines an ask there and reads the reply on the asker's register.",
   },
+  "/(app)/admin/admissions/requests": {
+    reason:
+      "Course hub: the Requests page, where an admin or a programme's lead reads facilitators' asks for a register to be corrected. tests/course-register-correction-pages.test.mjs draws it from the loader's answers; tests/course-register-corrections.test.mjs runs the loader as every kind of reader.",
+    coverWhen:
+      "When the browser spec of correcting a register is verified: the lead opens this page from Home and opens a request from it.",
+  },
+  "/(app)/admin/admissions/requests/[requestId]": {
+    reason:
+      "Course hub: one request's page, where an admin or a programme's lead takes, approves or declines a facilitator's ask. tests/course-register-correction-pages.test.mjs draws it for the asker and for the people who decide it.",
+    coverWhen:
+      "When the browser spec of correcting a register is verified: the lead takes, approves and declines requests here.",
+  },
   "/api/courses/requests/[requestId]/take": {
     reason:
       "Course hub: an admin or a programme's lead saying they are dealing with a request. tests/course-register-corrections.test.mjs executes it as every kind of caller; the request's page that presses it is built in the same change.",
