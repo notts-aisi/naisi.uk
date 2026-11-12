@@ -2028,6 +2028,11 @@ export const ROUTES = {
         // else gave (tests/course-register-corrections.test.mjs).
         "corrections",
         "requests",
+        // Requests to be excused, per session and person: one of two facts,
+        // waiting or excused, for everybody who reads the register. Never the
+        // reason, the reply or how often (tests/course-excused-weeks.test.mjs
+        // holds what each reader is sent).
+        "excuseRequests",
       ],
       why:
         "The register gate (gateGroupRegisterRead) collapses missing, archived and not-yours onto " +
