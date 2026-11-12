@@ -1266,6 +1266,26 @@ describe("a line an approval wrote is taken back by nothing but a correction", (
     return { id, line: structuredClone(line) };
   }
 
+  test("the time card lists their own ticks, never a week an approval excused: not to untick, and not among the days they can't make", async () => {
+    const timeSeat = await loadTs("lib/courses/timeAnswer/seat.ts");
+    const timeModel = await loadTs("lib/courses/timeAnswer/model.ts");
+    await approvedWeek3();
+    const ticked = await call("amara", timeAnswerRoute.POST, { runId: RUN.agi }, { body: { groupId: B, kind: "mostWeeks", sessionKeys: ["w04"] }, course: true });
+    assert.equal(ticked.status, 200, JSON.stringify(ticked.body));
+    const run = courses.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+    const groupList = [A, B, C].map((gid) => groups.normalizeCourseGroup(gid, world.db.read(`courseGroups/${gid}`)));
+    const seat = enrolments.normalizeCourseEnrolment(`${RUN.agi}__amara`, world.db.read(`courseEnrolments/${RUN.agi}__amara`));
+    const card = await timeSeat.timeQuestionFor(world.courseDb, { user: sessionOf("amara"), run, enrolment: seat, groups: groupList, now: new Date() });
+    assert.deepEqual(
+      card.sessions.filter((session) => ["w03", "w04"].includes(session.sessionKey)).map((session) => [session.sessionKey, session.told]),
+      [["w03", false], ["w04", true]],
+      "a week an approval excused is listed as one of hers",
+    );
+    assert.deepEqual(timeModel.ticksOffered(card.sessions, true).map((session) => session.sessionKey), ["w04"], "the approved week is offered to untick");
+    assert.equal(timeWords.missingLine(card.sessions.filter((session) => session.told).map((session) => session.day)), "You can’t make Tue 24 Nov, and whoever runs your sessions knows.");
+    assert.equal(world.db.read(W3).setBy.amara.how, "approval", "the approval's line moved");
+  });
+
   test("an old page's I can make it after all: refused in one plain sentence, and the line and the request stay", async () => {
     const { line } = await approvedWeek3();
     const answer = await call("amara", cantMakeItRoute.POST, { groupId: B }, { body: { sessionKey: "w03", cantMakeIt: false }, course: true });

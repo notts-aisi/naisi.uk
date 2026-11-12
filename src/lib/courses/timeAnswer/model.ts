@@ -47,7 +47,7 @@ export type TimeQuestionSession = {
   weekNumber: number;
   /** "Tue 17 Nov". */
   day: string;
-  /** They have told us they can't make it, and its register still records them as excused on their word. */
+  /** They have told us they can't make it, and its register still records them as excused on their word (never a line an approval wrote). */
   told: boolean;
 };
 

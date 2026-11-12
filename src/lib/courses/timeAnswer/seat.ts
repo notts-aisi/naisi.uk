@@ -6,6 +6,7 @@ import {
   readSessionLinesNow,
   registerHasRoom,
   sessionDay,
+  setByApproval,
   stillToCome,
   writeExcusedInAdvance,
   writeTakenBack,
@@ -128,7 +129,9 @@ export async function timeQuestionFor(
     sessionKey: line.session.sessionKey,
     weekNumber: line.session.weekNumber,
     day: sessionDay(line.session),
-    told: line.state.kind === "told",
+    // Their own word, not an admin's approval: a line an approval wrote is no
+    // tick of theirs to take off, and is not one of the days they said.
+    told: line.state.kind === "told" && !setByApproval(line, input.user.uid),
   }));
   return {
     groupId: group.id,
