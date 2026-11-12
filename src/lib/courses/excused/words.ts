@@ -450,6 +450,16 @@ export function approvedCorrectionDetail(input: {
   return `${decider} approved ${person}’s request to be excused for ${weekLabelLower(input.weekNumber, input.occurrence)}. The register changed from Absent to Excused.${emailed}`;
 }
 
+/**
+ * The same row as anybody but an admin reads it in the group's history,
+ * beside its day: "An approved request to be excused changed a line of week
+ * 2’s register from Absent to Excused." Names nobody.
+ */
+export function approvedCorrectionForReaders(input: { weekNumber: number | null; occurrence: number }): string {
+  const register = input.weekNumber ? `${weekLabelLower(input.weekNumber, input.occurrence)}’s register` : "the register";
+  return `An approved request to be excused changed a line of ${register} from Absent to Excused.`;
+}
+
 // ---------------------------------------------------------------------------
 // The person's own card
 // ---------------------------------------------------------------------------

@@ -145,9 +145,9 @@ export default function RequestPage({ view }: { view: RequestPageView }) {
                     </Button>
                   </div>
                 </>
-              ) : (
+              ) : view.yours ? (
                 <p className={styles.line}>{P.YOURS_TO_WAIT}</p>
-              )}
+              ) : null}
               {problem && (
                 <p className={styles.problem} role="status">
                   {problem}

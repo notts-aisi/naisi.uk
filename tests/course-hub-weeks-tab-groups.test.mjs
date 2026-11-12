@@ -75,15 +75,26 @@ describe("1. who may change one group's week", () => {
     ["zach", B, "an admin, on any group"],
     ["claudia", A, "the programme's lead, on any group of the run"],
     ["claudia", D, "the programme's lead, on any group of the run"],
-    ["rahul", B, "a facilitator, on their own group"],
-    ["sofia", B, "the co-facilitator, on their own group"],
-    ["sofia", A, "the co-facilitator, on the other group she facilitates"],
   ];
   for (const [who, group, what] of ADMITTED) {
     test(`${what}: Copy as Markdown and Read it`, async () => {
       assert.equal((await as(who, "GET", group)).status, 200, `${who} GET`);
       const read = await as(who, "POST", group, { markdown: syntheticGuideMarkdown() });
       assert.equal(read.status, 200, `${who} POST ${JSON.stringify(read.body)}`);
+    });
+  }
+  // Read it counts what a paste would take out of everybody's work, the
+  // facilitators' own included: the people's who save it.
+  const FACILITATORS = [
+    ["rahul", B, "a facilitator, on their own group"],
+    ["sofia", B, "the co-facilitator, on their own group"],
+    ["sofia", A, "the co-facilitator, on the other group she facilitates"],
+  ];
+  for (const [who, group, what] of FACILITATORS) {
+    test(`${what}: Copy as Markdown, and Read it refused in Save's sentence`, async () => {
+      assert.equal((await as(who, "GET", group)).status, 200, `${who} GET`);
+      const read = await as(who, "POST", group, { markdown: syntheticGuideMarkdown() });
+      assert.deepEqual([read.status, read.body], [403, { error: GROUP_COPY_LEAD_ONLY }], `${who} POST`);
     });
   }
 
@@ -113,11 +124,13 @@ describe("1. who may change one group's week", () => {
     assert.equal(everything(), before);
   });
 
-  test("the group's facilitators are refused Save in one plain sentence, and nothing is written", async () => {
+  test("the group's facilitators are refused Read it and Save in one plain sentence, and nothing is written", async () => {
     const before = everything();
     for (const [who, group] of [["rahul", B], ["sofia", B], ["sofia", A]]) {
-      const refused = await as(who, "PUT", group, { markdown: syntheticGuideMarkdown() });
-      assert.deepEqual([refused.status, refused.body], [403, { error: GROUP_COPY_LEAD_ONLY }], `${who} on ${group}`);
+      for (const method of ["POST", "PUT"]) {
+        const refused = await as(who, method, group, { markdown: syntheticGuideMarkdown() });
+        assert.deepEqual([refused.status, refused.body], [403, { error: GROUP_COPY_LEAD_ONLY }], `${who} ${method} on ${group}`);
+      }
     }
     assert.equal(everything(), before);
   });
@@ -206,9 +219,9 @@ describe("1b. a group's own copy is made and changed by the programme's lead and
     const session = readFileSync(join(process.cwd(), "src", "app", "api", "courses", "groups", "[groupId]", "session", "route.ts"), "utf8");
     assert.match(session, /if \(!isAdmin && !facilitatesLiveGroup && !staffsRun\)/, "the session route still admits the group's live facilitators");
     assert.doesNotMatch(session, /groupCopyLeadOnly/);
-    // Copying the week out and reading a paste write nothing, and stay open to them.
+    // Copying the week out writes nothing and counts nobody's work, and stays open to them.
     assert.equal((await as("rahul", "GET", B)).status, 200);
-    assert.equal((await as("rahul", "POST", B, { markdown: syntheticGuideMarkdown() })).status, 200);
+    assert.deepEqual(Object.keys((await as("rahul", "GET", B)).body), ["markdown"], "copying the week out sends more than the week");
   });
 });
 

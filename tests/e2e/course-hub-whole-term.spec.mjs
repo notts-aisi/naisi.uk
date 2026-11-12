@@ -1927,7 +1927,13 @@ test(
             const regular = at(/Changed the regular time to /);
             const took = at(new RegExp(`Took week ${TAKEN_WEEK}’s register in `));
             const corrected = at(new RegExp(`Corrected week ${TAKEN_WEEK}’s register: [^.]*${escapeRegExp(ada.first)}`));
-            const excusedDan = at(new RegExp(`approved [^.]*${escapeRegExp(dan.first)}[^.]*’s request to be excused for week ${TAKEN_WEEK}`));
+            // The approval of Dan's request, as the lead reads it: its day, never
+            // its time of day, and the one sentence that names nobody.
+            const excusedDan = at(
+              new RegExp(
+                `^[A-Z][a-z]{2} \\d{1,2} [A-Z][a-z]{2} ${escapeRegExp(`An approved request to be excused changed a line of week ${TAKEN_WEEK}’s register from Absent to Excused.`)}$`,
+              ),
+            );
             for (const [name, index] of Object.entries({ moved, regular, took, corrected, excusedDan })) assert.ok(index >= 0, `Group A's history has no ${name} row:\n${page}`);
             // Newest first.
             assert.ok(excusedDan < corrected && corrected < took && took < regular && regular < moved, `Group A's history is not in the order the changes were made:\n${page}`);
@@ -1936,11 +1942,14 @@ test(
               [said[regular], gus],
               [said[took], gus],
               [said[corrected], gus],
-              [said[excusedDan], null],
             ]) {
-              if (who) assert.ok(line.includes(who.first), `"${line}" does not say who`);
+              assert.ok(line.includes(who.first), `"${line}" does not say who`);
               assert.match(line, /^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}, \d{1,2}(:\d{2})?(am|pm) \S/, `"${line}" does not say when, then who`);
             }
+            for (const person of [ada, ben, cleo, dan, eve, ivo, fern, gus, hal, kit, max]) {
+              assert.ok(!said[excusedDan].includes(person.first), `the lead's row for Dan's approval names ${person.first}: "${said[excusedDan]}"`);
+            }
+            assert.doesNotMatch(said[excusedDan], /\d{1,2}(:\d{2})?(am|pm)/, `the lead's row for Dan's approval says a time of day: "${said[excusedDan]}"`);
           } else {
             const at = (pattern) => said.findIndex((line) => pattern.test(line));
             const given = at(new RegExp(`Gave week ${GIVEN_WEEK}’s session to [^.]*${escapeRegExp(kit.first)}`));
@@ -1949,6 +1958,18 @@ test(
             for (const index of [given, notHeld]) assert.match(said[index], /^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}, \d{1,2}(:\d{2})?(am|pm) \S/, `"${said[index]}" does not say when, then who`);
           }
         }
+        // The admin reads who approved Dan's request, and when, to the minute.
+        const adminPg = await as("admin");
+        await adminPg.goto(`${origin}${groupPagePath(groupA)}`, { waitUntil: "domcontentloaded" });
+        await adminPg.getByRole("tab", { name: "History", exact: true }).click();
+        const adminList = adminPg.getByRole("region", { name: "Who changed what" }).getByRole("listitem");
+        await adminList.first().waitFor({ timeout: WAIT_MS });
+        const adminSaid = [];
+        for (let i = 0; i < (await adminList.count()); i += 1) adminSaid.push(await wordsIn(adminList.nth(i)));
+        const adminDan = adminSaid.find((line) => new RegExp(`approved [^.]*${escapeRegExp(dan.first)}[^.]*’s request to be excused for week ${TAKEN_WEEK}`).test(line));
+        assert.ok(adminDan, `Group A's history, as the admin, has no row for Dan's approval:\n${adminSaid.join("\n")}`);
+        assert.match(adminDan, /^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}, \d{1,2}(:\d{2})?(am|pm) \S/, `"${adminDan}" does not say when, then who`);
+
         const saves = (await fixtureWeekSubcollection(state.runId, EDITED_WEEK_ID, "history").get()).docs.map((doc) => doc.data()).sort((a, b) => a.seq - b.seq);
         assert.deepEqual(saves.map((save) => save.kind), ["found", "edit", "edit", "edit", "restore"], "the week's history is not every save");
         assert.deepEqual([saves[2].told?.audience, saves[2].told?.count], ["started", startedWeek3.length], "the week's history does not say who was told");

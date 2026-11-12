@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
-import { claimGroupNotice, sendGroupChangeNotice, type NoticeTally } from "@/lib/courses/groupChange/notice";
+import { groupNoticeWindow, sendGroupChangeNotice, type NoticeTally } from "@/lib/courses/groupChange/notice";
+import { heldOnline } from "@/lib/courses/joiningOnline/model";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { didNotHappenLine } from "@/lib/courses/programmeAttendance";
 import { displayNameOf, gateGroupRegister, isAddressableId } from "@/lib/courses/registerAccess";
 import {
+  GIVE_LIMITS,
   coverIsLive,
   coverUntil,
   holdsGivenCover,
@@ -17,6 +19,7 @@ import { approvedPerson, facilitatorsByFirstName, runsThingsOn, type CoverPerson
 import { sessionInTransaction } from "@/lib/courses/registerCover/sessionInTransaction";
 import {
   COVER_REFUSAL,
+  GIVE_LIMIT_WORDS,
   coverCountChangedWords,
   coverEmailWords,
   coverNoticeWords,
@@ -28,6 +31,7 @@ import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
 import { updateEmailAudience, type UpdateRecipient } from "@/lib/courses/updates/audience";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { coverRegisterUrl, sendCoverGivenEmail, type CoverGivenOutcome } from "@/lib/email/coverGivenEmail";
+import { DAY_MS, HOUR_MS, reserveNoticeSlots } from "@/lib/email/noticeCaps";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
@@ -38,7 +42,7 @@ import {
   normalizeCourseAttendance,
 } from "@/lib/firestore/courseAttendance";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
-import { sessionModeForWeek } from "@/lib/firestore/courseGroups";
+import { campusForWeek, sessionModeForWeek } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 
 /**
@@ -71,6 +75,16 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * unless they already have an entry, when it is taken or given before the
  * session ends; taken after it ended, nobody is recorded. One history row,
  * in the registers category. Neither email carries a meeting link.
+ *
+ * LIMITS: a give emails the person given it, so it is held to stored
+ * counters, claimed before anything is written (`GIVE_LIMITS`): twelve by
+ * one giver on one group in an hour, twenty on one group in a day, twelve to
+ * one person in a day across every group (so handing one person the rest of
+ * a ten-week term in one sitting is not refused), and, with `tell`, the group's ten
+ * notices a day. Past any of them the give is refused in one sentence (429)
+ * that says the session was not given, and nothing is written, claimed or
+ * sent; past the group's notices, the sentence says the give goes without
+ * the tick. A preview claims nothing.
  *
  * WHO: admins and the people leading the programme that names the run (its
  * lead, the run's track leads), who are not facilitators of the group: a
@@ -196,7 +210,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       startTimeLocal: session.session.startTimeLocal,
       durationMinutes: session.session.durationMinutes,
       room: session.session.location,
-      online: session.occurrence === 1 && sessionModeForWeek(group, session.weekId) === "virtual",
+      // Held online for everybody, the way the rest of the site asks it: the
+      // week's own mode, the campus for that week, and the room.
+      online: heldOnline({
+        mode: session.occurrence === 1 ? sessionModeForWeek(group, session.weekId) : null,
+        campus: session.occurrence === 1 ? campusForWeek(group, session.weekId) : group.campus,
+        room: session.session.location,
+      }),
       today: session.dateKey === londonDateKey(now),
     };
     const email = person ? coverEmailWords(facts, giverFirst) : null;
@@ -249,8 +269,51 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       if (recipients.length !== press.emailCount) {
         throw new CoverRefusal(coverCountChangedWords(recipients.length), 409, { emails: recipients.length });
       }
-      const capped = await claimGroupNotice(db, group.id);
-      if (capped) throw new CoverRefusal(capped.message, 429, { retryAfterSeconds: capped.retryAfterSeconds });
+    }
+
+    // ── The limits, claimed on stored counters before anything is written ──
+    // A give emails the person given it, so it is held to three counts (by
+    // the giver on this group in an hour, on this group in a day, to this
+    // person in a day across every group) and, with the tick, to the group's
+    // ten notices a day: all in one transaction, so a refusal on any one
+    // claims none of them, gives nothing and emails nobody.
+    if (person) {
+      let claim;
+      try {
+        claim = await reserveNoticeSlots(db, {
+          hour: {
+            key: `covergive__${group.id}__${actor.uid}`,
+            limit: GIVE_LIMITS.perGiverHour,
+            windowMs: HOUR_MS,
+            refusal: GIVE_LIMIT_WORDS.giverHour(GIVE_LIMITS.perGiverHour),
+          },
+          day: {
+            key: `covergiveday__${group.id}`,
+            limit: GIVE_LIMITS.perGroupDay,
+            windowMs: DAY_MS,
+            refusal: GIVE_LIMIT_WORDS.groupDay(GIVE_LIMITS.perGroupDay),
+          },
+          also: [
+            {
+              key: `covergiven__${person.uid}`,
+              limit: GIVE_LIMITS.perPersonDay,
+              windowMs: DAY_MS,
+              refusal: GIVE_LIMIT_WORDS.personDay(person.firstName, GIVE_LIMITS.perPersonDay),
+            },
+            ...(press.tell
+              ? [{ ...groupNoticeWindow(group.id), refusal: GIVE_LIMIT_WORDS.groupNotices(groupNoticeWindow(group.id).limit) }]
+              : []),
+          ],
+          noun: "notices",
+        });
+      } catch (err) {
+        // Fail closed: a limit that cannot be read is no licence to email.
+        console.error("[courses register cover] limits read failed", groupId, err);
+        throw new CoverRefusal(COVER_REFUSAL.limitsUnread, 500);
+      }
+      if (!claim.ok) {
+        throw new CoverRefusal(claim.refusal ?? COVER_REFUSAL.limitsUnread, 429, { retryAfterSeconds: claim.retryAfterSeconds });
+      }
     }
 
     const emailedCount = (person && address ? 1 : 0) + (press.tell ? recipients.length : 0);

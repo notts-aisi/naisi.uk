@@ -383,6 +383,14 @@ const READERS = new Map([
     proof: ['nameByUid.set(doc.id, nameForViewer(viewer, accountNamesOf(data), "NAISI member"));'],
     why: "a register's rows, named for the viewer each caller hands it: the register's route hands it the session; what reaches the people themselves hands it no role, and reads the name they go by",
   }],
+  ["src/app/api/courses/groups/[groupId]/facilitators/route.ts", {
+    who: "rule",
+    proof: [
+      'return account.exists ? nameForViewer(viewer, accountNamesOf(account.data() ?? {}), "That person") : "That person";',
+      'accounts.map((account) => [account.id, account.exists ? nameForViewer(null, accountNamesOf(account.data() ?? {}), "That person") : "That person"] as const),',
+    ],
+    why: "staffing a group by hand: who could not be added is named to the caller for the caller's session, and the group's history keeps the name each person goes by, which anybody who reads it may be shown",
+  }],
   ["src/lib/courses/registerCover/view.ts", {
     who: "rule",
     proof: [

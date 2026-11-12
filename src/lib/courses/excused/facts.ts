@@ -12,8 +12,9 @@ import type { ExcuseFact } from "./words";
  * how often, never who decided, when or the reply: the answer's type has no
  * field that could carry one.
  *
- * Read by the register's GET (its facilitators, somebody given a session,
- * the people leading the programme and admins) and by the group's page (the
+ * Read by the register's GET (its facilitators, the people leading the
+ * programme and admins; somebody given a session is sent "excused" for that
+ * session's column alone, never "waiting") and by the group's page (the
  * programme's lead and admins). One equality on `groupId`, filtered in code
  * to this run, these people and these sessions: a term holds tens of these,
  * and no list needs a declared index.

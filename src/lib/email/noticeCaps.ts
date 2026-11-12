@@ -35,7 +35,9 @@ import { Timestamp, type Firestore } from "firebase-admin/firestore";
  * two separate transactions would spend the hour slot on a send the day cap
  * then refuses, so both are read and both are written inside ONE transaction,
  * and a refusal on either leaves both counters untouched. Firestore wants every
- * read before every write, which is what the two-phase body below is.
+ * read before every write, which is what the two-phase body below is. A press
+ * counted more ways than two passes the rest as `also`, claimed in the same
+ * transaction on the same terms.
  *
  * Either window may be omitted. The room notice omits the hourly one on
  * purpose: v2 decision 8 requires that lane to survive the evening where the
@@ -77,6 +79,12 @@ export type NoticeWindow = {
   key: string;
   limit: number;
   windowMs: number;
+  /**
+   * The sentence handed back when THIS window refuses, in place of the
+   * lane's own. For a press that does more than send, whose refusal has to
+   * say what else did not happen. Left out, the lane's sentence.
+   */
+  refusal?: string;
 };
 
 export type NoticeSlotClaim = {
@@ -131,6 +139,14 @@ export async function reserveNoticeSlots(
     hour?: NoticeWindow | null;
     day?: NoticeWindow | null;
     /**
+     * More windows, claimed in the SAME transaction as the two above, for a
+     * press counted more than one way (a day per week and a day per run; a
+     * day per group and a day per person). A refusal on any of them leaves
+     * every counter untouched. Each says "in the last hour" when it runs an
+     * hour or less, else "in the last day". Not in `remaining`.
+     */
+    also?: readonly NoticeWindow[];
+    /**
      * The noun the refusal sentences use: "notices", "emails", "announcements".
      * Named per lane because a facilitator reads the sentence in a composer
      * that has its own word for what they just wrote.
@@ -138,9 +154,10 @@ export async function reserveNoticeSlots(
     noun: string;
   },
 ): Promise<NoticeSlotClaim> {
-  const windows: Array<{ slot: "hour" | "day"; window: NoticeWindow }> = [];
+  const windows: Array<{ slot: "hour" | "day" | "also"; window: NoticeWindow }> = [];
   if (args.hour) windows.push({ slot: "hour", window: args.hour });
   if (args.day) windows.push({ slot: "day", window: args.day });
+  for (const window of args.also ?? []) windows.push({ slot: "also", window });
   if (windows.length === 0) {
     // A lane that claims nothing is a lane with no cap, which this helper must
     // not quietly grant. Callers state their windows; an empty call is a bug.
@@ -153,7 +170,7 @@ export async function reserveNoticeSlots(
     // Every read first: Firestore refuses a read after a write in the same
     // transaction, and a refusal has to be decided across BOTH windows before
     // either is incremented.
-    const states: Array<{ slot: "hour" | "day"; state: WindowState }> = [];
+    const states: Array<{ slot: "hour" | "day" | "also"; state: WindowState }> = [];
     for (const { slot, window } of windows) {
       const ref = db.collection(THROTTLE_COLLECTION).doc(`emailrate__${window.key}`);
       const snap = await tx.get(ref);
@@ -178,14 +195,15 @@ export async function reserveNoticeSlots(
         1,
         Math.ceil((state.startedAt + state.window.windowMs - now) / 1000),
       );
-      const period = slot === "hour" ? "in the last hour" : "in the last day";
-      const advice =
-        slot === "hour" ? "Try again shortly." : "Try again tomorrow, or ask an admin.";
+      const hourly = slot === "hour" || (slot === "also" && state.window.windowMs <= HOUR_MS);
+      const period = hourly ? "in the last hour" : "in the last day";
+      const advice = hourly ? "Try again shortly." : "Try again tomorrow, or ask an admin.";
       return {
         ok: false,
         refusal:
+          state.window.refusal ??
           `This audience has already had ${state.window.limit} ${args.noun} ${period}. ` +
-          `Nothing was sent. ${advice}`,
+            `Nothing was sent. ${advice}`,
         retryAfterSeconds,
         remaining: { hour: null, day: null },
       };
@@ -203,7 +221,7 @@ export async function reserveNoticeSlots(
       });
       // Floored at 0: a limit lowered between two sends can leave `claimed`
       // above it, and a negative "remaining" reads as a bug wherever it lands.
-      remaining[slot] = Math.max(0, state.window.limit - claimed);
+      if (slot !== "also") remaining[slot] = Math.max(0, state.window.limit - claimed);
     }
 
     return { ok: true, refusal: null, retryAfterSeconds: 0, remaining };

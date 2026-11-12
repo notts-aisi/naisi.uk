@@ -387,6 +387,49 @@ describe("3. the lead's power is worked out from the form on every request", () 
   });
 });
 
+describe("3b. staffing a group by hand answers nothing before it knows the caller", () => {
+  test("a missing group, a group with no run and a group whose run is gone: one 403 for everybody who does not staff, the admin told which", async () => {
+    await ready();
+    world.db.seed("courseGroups/orphan", { name: "Orphan", runId: "", facilitatorUids: [] });
+    world.db.seed("courseGroups/stray", { name: "Stray", runId: "gone-run", facilitatorUids: [] });
+    const press = (who, groupId) => call(who, more.facilitators.POST, { groupId }, { body: { uids: ["rahul"] }, course: true });
+    const before = everything();
+    for (const who of ["claudia", "yusuf", "tess", "lloyd", "rahul", "amara", "nobody"]) {
+      const answers = [];
+      for (const groupId of ["no-such-group", "orphan", "stray", "a/b"]) answers.push(await press(who, groupId));
+      assert.deepEqual(
+        answers.map((answer) => [answer.status, answer.body.error]),
+        Array(4).fill([403, "Forbidden"]),
+        `${who} is told something about a group they do not staff`,
+      );
+    }
+    const asAdmin = [];
+    for (const groupId of ["no-such-group", "orphan", "stray", "a/b"]) asAdmin.push((await press("zach", groupId)).status);
+    assert.deepEqual(asAdmin, [404, 400, 404, 404]);
+    assert.equal(everything(), before);
+    // A body that is not JSON is not read before the gate either.
+    const garbled = await call("amara", async function POST(req, ctx) {
+      return more.facilitators.POST(new Request("https://naisi.invalid/api", { method: "POST", body: "{" }), ctx);
+    }, { groupId: B }, { course: true });
+    assert.equal(garbled.status, 403);
+  });
+
+  test("the history names each person by the name they go by, never the account's display name", async () => {
+    await ready();
+    world.db.poke("users/rahul", { displayName: "R. Mehta (account)", profile: { preferredName: "Raz", fullName: "Rahul Mehta" } });
+    const answer = await call("claudia", more.facilitators.POST, { groupId: A }, { body: { uids: ["sofia", "rahul"] }, course: true });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    const rows = world.db
+      .paths()
+      .filter((path) => path.startsWith("courseAudit/"))
+      .map((path) => world.db.read(path))
+      .filter((row) => row.kind === "facilitator-appointed" && row.subjectUid === "rahul");
+    assert.equal(rows.length, 1);
+    assert.match(rows[0].detail, /^Added Raz as a facilitator\./);
+    assert.doesNotMatch(rows[0].detail, /account/);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 4. Deciding
 // ---------------------------------------------------------------------------

@@ -264,12 +264,18 @@ async function findRequest(db: Firestore, actor: SessionUser, requestId: string)
   return { ok: true, value: { request, gated: gated.ok && gated.runId === request.runId ? gated : null } };
 }
 
-/** Somebody who decides this request: an admin, or somebody leading its programme. Never the person who asked. */
+/**
+ * Somebody who decides this request: an admin, or the lead of the programme
+ * that names its run (`leadsProgramme`), as the Requests page and its words
+ * to the asker say. A run's track lead by that alone is refused as anybody
+ * else is (they correct a finished register directly, with a reason).
+ * Never the person who asked.
+ */
 async function findForDecision(db: Firestore, actor: SessionUser, requestId: string): Promise<Outcome<Found & { gated: Extract<RegisterGate, { ok: true }> }>> {
   const found = await findRequest(db, actor, requestId);
   if (!found.ok) return found;
   const { request, gated } = found.value;
-  if (!gated || (!gated.isAdmin && !gated.leads)) {
+  if (!gated || (!gated.isAdmin && !gated.leadsProgramme)) {
     return actor.role === "admin" ? fail(404, REQUEST_REFUSAL.notFound) : fail(403, "Forbidden");
   }
   if (request.askedByUid === actor.uid) return fail(403, REQUEST_REFUSAL.ownRequest);

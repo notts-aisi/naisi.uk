@@ -2,8 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { listForms } from "@/lib/applications/handover/run";
 import { own } from "@/lib/applications/keys";
-import { namingProgrammeIn, type NamingProgramme } from "@/lib/courses/programmeLead";
-import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
+import { namingProgrammeIn, programmeLedBy, type NamingProgramme } from "@/lib/courses/programmeLead";
 import { gateGroupRegister, isAddressableId } from "@/lib/courses/registerAccess";
 import { lineOf, sameLine, wordsOf } from "@/lib/courses/registerCorrection/model";
 import { resolveSessions } from "@/lib/courses/sessions";
@@ -32,11 +31,12 @@ import { sessionKeyParts } from "./decide";
  * reader looks after) and one request's page (what it asks, why, what
  * approving will do, who has it, its history).
  *
- * WHO. Admins read every programme's. The lead of a programme, and a run's
- * track leads, read the requests of the runs they lead, and nobody else's.
+ * WHO. The people who decide requests: admins read every programme's, and
+ * the lead of a programme the requests of the runs its programme names, and
+ * nobody else's. A run's track lead who is neither is anybody else here.
  * Anybody else is answered `none`, as for a page that is not there. The
  * request page also asks the request's own group's register gate, so a lead
- * whose programme no longer names the run is nobody on it, and the list
+ * whose programme does not name the run is nobody on it, and the list
  * leaves out what that page would not open: a group the lead facilitates,
  * which the gate answers them on as its facilitator, or an archived one.
  *
@@ -108,10 +108,12 @@ export function weekStartOf(now: Date): Date {
 
 /**
  * The runs a reader leads, and the programme naming each run. For an admin,
- * no list (they read every run's). For anybody else, the runs their
- * programmes name and the runs naming them as a track lead, each held to the
- * one gate (`runStaffingOf`, `doesTrackLeadWork`), so a lead who no longer
- * meets the bar, or whose programme no longer names the run, is nobody on it.
+ * no list (they read every run's). For anybody else, the runs whose naming
+ * programme names them as its lead, each held to the one gate
+ * (`programmeLedBy`, the lead's standing on every request), so a lead who
+ * does not meet the bar, or whose programme does not name the run, is
+ * nobody on it. A run's track leads decide no request, so naming somebody as
+ * one leads them to none here.
  */
 async function ledRuns(db: Firestore, actor: SessionUser): Promise<{ runIds: string[]; naming: Map<string, NamingProgramme> }> {
   const forms = await listForms(db);
@@ -127,19 +129,9 @@ async function ledRuns(db: Firestore, actor: SessionUser): Promise<{ runIds: str
     }
   }
   if (actor.role === "admin") return { runIds: [], naming };
-  // The runs naming them as a track lead: one array-contains on one field.
-  const tracked = await db.collection("courseRuns").where("trackLeadUids", "array-contains", actor.uid).limit(50).get();
-  const trackLeadUids = new Map(tracked.docs.map((doc) => [doc.id, (doc.data() ?? {}).trackLeadUids]));
-  for (const id of trackLeadUids.keys()) candidates.add(id);
   const runIds: string[] = [];
   for (const runId of [...candidates].filter((id) => isAddressableId(id)).sort()) {
-    let stored = trackLeadUids.get(runId);
-    if (stored === undefined) {
-      const snap = await db.collection("courseRuns").doc(runId).get();
-      if (!snap.exists) continue;
-      stored = (snap.data() ?? {}).trackLeadUids;
-    }
-    if (doesTrackLeadWork(await runStaffingOf(db, actor, { id: runId, trackLeadUids: stored }))) runIds.push(runId);
+    if ((await programmeLedBy(db, actor, runId)) !== null) runIds.push(runId);
   }
   return { runIds, naming };
 }
@@ -266,7 +258,7 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
   // a lead who also facilitates the group as a facilitator, and admits no
   // lead to an archived group. The runs are led already (`ledRuns`); the rest
   // is the group's, read once above. (Requests to be excused are an admin's alone.)
-  requests = requests.filter((each) => requestShownTo(actor, ctx.groups.get(each.groupId), each.runId));
+  requests = requests.filter((each) => requestShownTo(actor, ctx.groups.get(each.groupId), each.runId, led.runIds.includes(each.runId)));
   const rows: RequestRow[] = [...requests.map((each) => rowOf(each, ctx, led.naming, actor)), ...excusedRows]
     .sort(
       (a, b) =>
@@ -309,7 +301,7 @@ export type RequestPageView = RequestRow & {
   history: { what: CourseRequestEvent; by: RequestPerson; at: string }[];
   /** The reader may approve or decline it now: it waits, and they did not ask it. */
   canDecide: boolean;
-  /** The reader may take it: it waits, and they do not have it. */
+  /** The reader may take it: it waits, they do not have it, and they did not ask it. */
   canTake: boolean;
   /** The reader asked it. */
   yours: boolean;
@@ -363,7 +355,7 @@ export async function loadRequestPage(db: Firestore, actor: SessionUser, request
       reply: request.reply,
       history: request.history.map((entry) => ({ what: entry.what, by: ctx.person(entry.byUid), at: entry.at.toISOString() })),
       canDecide: waiting && request.askedByUid !== actor.uid,
-      canTake: waiting && request.handlingUid !== actor.uid,
+      canTake: waiting && request.handlingUid !== actor.uid && request.askedByUid !== actor.uid,
       yours: request.askedByUid === actor.uid,
     },
   };
@@ -382,18 +374,24 @@ function leadDecidesOn(actor: SessionUser, group: CourseGroupDoc | undefined, ru
 
 /**
  * WHETHER THE REQUESTS LIST SHOWS A REQUEST ON THIS GROUP TO THIS READER:
- * every one to an admin, and to somebody leading the run only those
- * `leadDecidesOn` admits. The list asks it, and so does the count beside
- * Requests in a programme's head (`requestsWaitingOnRun`), so the number on
- * the link is the number the list shows.
+ * every one to an admin, and to the lead of the programme that names the run
+ * (`leadsRun`, worked out by the caller with the lead's standing) only those
+ * `leadDecidesOn` admits. A run's track lead who is neither is shown none.
+ * The list asks it, and so does the count beside Requests in a programme's
+ * head (`requestsWaitingOnRun`), so the number on the link is the number the
+ * list shows.
  */
-export function requestShownTo(actor: SessionUser, group: CourseGroupDoc | undefined, runId: string): boolean {
-  return actor.role === "admin" || leadDecidesOn(actor, group, runId);
+export function requestShownTo(actor: SessionUser, group: CourseGroupDoc | undefined, runId: string, leadsRun: boolean): boolean {
+  return actor.role === "admin" || (leadsRun && leadDecidesOn(actor, group, runId));
 }
 
-/** Whether the reader decides requests on this request's group: an admin, or somebody leading its programme. */
+/**
+ * Whether the reader decides requests on this request's group, and so reads
+ * its page: an admin, or the lead of the programme that names its run, as
+ * the decide routes ask. A run's track lead who is neither reads none.
+ */
 async function gateGroupRegisterForRead(db: Firestore, actor: SessionUser, request: CourseRequestDoc): Promise<boolean> {
   const gated = await gateGroupRegister(request.groupId, actor, db);
   if (!gated.ok || gated.runId !== request.runId) return false;
-  return gated.isAdmin || gated.leads;
+  return gated.isAdmin || gated.leadsProgramme;
 }

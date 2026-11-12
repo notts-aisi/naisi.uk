@@ -232,6 +232,27 @@ export const AUTHORITY: Record<string, StandingBar> = {
       "group also upserts a facilitator enrolment, so the two must agree about who is eligible.",
   },
 
+  // ONE SESSION GIVEN TO SOMEBODY. The register's `cover.byUid`, on a cover
+  // of kind "given", lets the person it names open that session's register,
+  // its check-in and its report until the grant ends, whatever else they
+  // are. The give names only somebody who runs things on the programme
+  // (`runsThingsOn`), and that bar depends on the run, so it has two halves:
+  // this entry is the half a session can answer (an approved account), and
+  // the register's gate (`registerAccess.ts`) asks the run's half, the same
+  // `runsThingsOn`, every time a given session is used.
+  "courseAttendance.cover.byUid": {
+    field: "courseAttendance.cover.byUid",
+    appointedBy:
+      "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts, via approvedPerson and runsThingsOn",
+    test: isApprovedAccount,
+    why:
+      "The cover route gives a session only to an approved account that runs things on the programme: an admin, " +
+      "the committee, the programme's lead, a run's track lead or a facilitator of a live group of the run. The " +
+      "approved account is asked here; whether they run anything is a question about the run, asked with it " +
+      "by the register's gate at every use through the same `runsThingsOn`, so somebody who runs nothing there " +
+      "loses the session before the grant ends.",
+  },
+
   // ── Events ────────────────────────────────────────────────────────────────
   // The bar the broadcast route already chose, applied to the rest of the
   // tree. Its wording is the reason, kept verbatim in spirit: "Being named on

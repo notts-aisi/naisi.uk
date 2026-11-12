@@ -1,8 +1,14 @@
 import { redirect } from "next/navigation";
 import RegisterPageBody, { sessionParamOf } from "@/features/courses/register/RegisterPageBody";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
-import { gateGroupRegister } from "@/lib/courses/registerAccess";
-import { DIDNT_HAPPEN_MOVED_FACILITATOR } from "@/lib/courses/registerCover/pageWords";
+import facilitator from "@/features/courses/facilitator/facilitator.module.css";
+import weekly from "@/features/courses/weekly/weekly.module.css";
+import { gateGroupRegister, givenSessionLapsed } from "@/lib/courses/registerAccess";
+import {
+  DIDNT_HAPPEN_MOVED_FACILITATOR,
+  GIVEN_NO_LONGER_YOURS,
+  REGISTER_NOT_YOURS_TITLE,
+} from "@/lib/courses/registerCover/pageWords";
 import { getAdminDb } from "@/lib/firebase/admin";
 
 /**
@@ -57,11 +63,22 @@ export default async function GroupRegisterPage({
   // The register's own gate (`gateGroupRegister`), the same predicate as
   // every route that marks the register. The group must be on THIS run.
   const gated = await gateGroupRegister(groupId, access.user, db);
-  if (!gated.ok || gated.runId !== runId) redirect(runHome);
   // Somebody admitted only for a session they were given: that session, by
-  // its address, while the grant holds, and nothing else.
-  const onlyGiven = !gated.isAdmin && !gated.facilitates && !gated.leads;
-  if (onlyGiven && (!session || !gated.givenSessions.includes(session))) redirect(runHome);
+  // its address, while the grant holds and they run things on the programme,
+  // and nothing else. A grant that holds and does not stand is said so in a
+  // sentence, rather than sending them away with no word.
+  const onlyGiven = gated.ok && !gated.isAdmin && !gated.facilitates && !gated.leads;
+  if (!gated.ok || gated.runId !== runId || (onlyGiven && (!session || !gated.givenSessions.includes(session)))) {
+    if (session && (await givenSessionLapsed(db, { runId, groupId, sessionKey: session }, access.user, new Date()))) {
+      return (
+        <div className={facilitator.page}>
+          <h1 className={weekly.title}>{REGISTER_NOT_YOURS_TITLE}</h1>
+          <p className={weekly.cardLine}>{GIVEN_NO_LONGER_YOURS}</p>
+        </div>
+      );
+    }
+    redirect(runHome);
+  }
   // Somebody leading the programme is drawn this page only when the run
   // admits them, as the run layout decides it (a track lead, or somebody
   // with a place): the programme's lead takes a register under the

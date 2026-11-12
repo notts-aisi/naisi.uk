@@ -56,7 +56,7 @@ const READS_WITHOUT_A_LIST = new Map([
   // Giving one session to somebody: whether that person facilitates any of
   // the run's groups that still meet.
   [
-    "src/lib/courses/registerCover/people.ts",
+    "src/lib/courses/registerCover/runsThings.ts",
     {
       why:
         "Who may be given one session (`runsThingsOn`): it reads the run's groups only to ask whether the person named " +

@@ -543,6 +543,36 @@ describe("5. telling people about a change", () => {
     assert.deepEqual([again.status, again.body.error], [409, TELL_REFUSAL.alreadyTold]);
   });
 
+  test("the whole programme, or everyone the week is open for, is told at most ten times a day for the run, whichever week; the smaller choice is untouched", async () => {
+    const wide = `courseNudges/emailrate__weekeditwideday__${RUN.agi}`;
+    const weekDay = `courseNudges/emailrate__weekeditday__${RUN.agi}__w03`;
+    const first = await savedLink();
+    const shown = async (save) => (await ask("zach", R.tell.GET, AT, { query: `?save=${save}` })).body.choices;
+    const countOf = (choices, audience) => choices.find((choice) => choice.audience === audience).count;
+    const told = await ask("zach", R.tell.POST, AT, { body: { save: first, audience: "programme", count: countOf(await shown(first), "programme") } });
+    assert.equal(told.status, 200, JSON.stringify(told.body));
+    assert.equal(world.db.read(wide).count, 1, "a notice to the programme takes one of the run's");
+    assert.equal(world.db.read(weekDay).count, 1);
+    // Nine more about other weeks today: the run's day is spent.
+    world.db.poke(wide, { count: 10 });
+    const second = (await change("zach", "src-1", { url: "https://example.com/base-rates-moved-again" }, { reading: "same" })).body.saveId;
+    const choices = await shown(second);
+    world.mail.length = 0;
+    const before = everything();
+    for (const audience of ["programme", "open"]) {
+      const refused = await ask("zach", R.tell.POST, AT, { body: { save: second, audience, count: countOf(choices, audience) } });
+      assert.equal(refused.status, 429, `${audience}: ${JSON.stringify(refused.body)}`);
+      assert.equal(refused.body.error, "This audience has already had 10 notices in the last day. Nothing was sent. Try again tomorrow, or ask an admin.");
+    }
+    assert.equal(everything(), before, "a refused notice wrote or claimed something");
+    assert.equal(world.mail.length, 0);
+    // The people who have started the week are a smaller choice, held to the week's own limits alone.
+    const started = await ask("zach", R.tell.POST, AT, { body: { save: second, audience: "started", count: countOf(choices, "started") } });
+    assert.equal(started.status, 200, JSON.stringify(started.body));
+    assert.equal(world.db.read(wide).count, 10, "a notice to the smaller choice took one of the run's");
+    assert.equal(world.db.read(weekDay).count, 2);
+  });
+
   test("Send me a test first reaches the presser alone, marked [TEST], and tells nobody", async () => {
     const saveId = await savedLink();
     const test1 = await ask("claudia", R.tell.POST, AT, { body: { save: saveId, test: true } });

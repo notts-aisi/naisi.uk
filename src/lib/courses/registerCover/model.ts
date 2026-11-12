@@ -47,6 +47,24 @@ export function coverUntil(now: Date, startsAt: Date | null): Date {
   return londonWallClockToInstant(addDaysToKey(londonDateKey(later), 1), "00:00");
 }
 
+/**
+ * HOW OFTEN A SESSION MAY BE GIVEN, each give being one email to the person
+ * given it: by one person on one group in an hour, on one group in a day,
+ * and to one person in a day across every group. Set so that handing one
+ * person up to twelve sessions in one sitting (the rest of a ten-week term,
+ * and a change of mind or two) is not refused, while a press repeated over
+ * and over is; the cover route claims all three on stored counters before
+ * anything is written.
+ */
+export const GIVE_LIMITS = {
+  /** Gives by one person on one group, in an hour. */
+  perGiverHour: 12,
+  /** Gives on one group, by anybody, in a day. */
+  perGroupDay: 20,
+  /** Sessions given to one person, on any group, in a day. */
+  perPersonDay: 12,
+} as const;
+
 /** Whether a cover still holds at `now`: one taken by a lead or an admin always; one given, until its `until`. */
 export function coverIsLive(cover: RegisterCover | null, now: Date): boolean {
   if (!cover) return false;

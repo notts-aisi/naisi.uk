@@ -601,10 +601,12 @@ editor under `/admin/courses` stays an admin's.
   (`emptyWeekFields`, unpublished) with the pasted blocks and title.
 - **A week for one group** goes through
   `/api/courses/groups/[groupId]/weeks/[weekId]/blocks`, for admins and the
-  programme's lead on any group of the run. A group's facilitators may still
-  copy their group's week out and read a paste, and are refused Save in one
-  plain sentence, as they are at the older fork and edit routes: a group's
-  own copy is made and changed only by the programme's lead and admins. The
+  programme's lead on any group of the run. A group's facilitators may copy
+  their group's week out (its Markdown, which counts nobody's work), and are
+  refused Read it and Save in one plain sentence, as they are at the older
+  fork and edit routes: a group's own copy is made and changed only by the
+  programme's lead and admins, and Read it counts what a paste would take out
+  of everybody's work, the facilitators' own included. The
   first save makes the group's copy through `templateWeekFields`
   with the pasted blocks, so every id the paste keeps stays and ticks and
   answers stay with their blocks; later saves change the copy's blocks and

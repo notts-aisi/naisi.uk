@@ -10,6 +10,8 @@ import {
   type CourseAuditCategory,
   type CourseAuditValue,
 } from "@/lib/firestore/courseAudit";
+import { approvedCorrectionForReaders } from "@/lib/courses/excused/words";
+import { londonDayLabel } from "@/lib/courses/londonLabels";
 
 /**
  * ONE GROUP'S HISTORY: who changed its time, room, link and people, when,
@@ -47,8 +49,10 @@ export type GroupHistoryRow = {
   category: CourseAuditCategory;
   /** Who did it, by the name the row kept. */
   actorName: string;
-  /** When, as an instant, or null when the row has no time. */
+  /** When, as an instant, or null when the row has no time or is read by its day alone (`day`). */
   at: string | null;
+  /** "Tue 10 Nov": the day alone, for a row whose time of day is not the reader's to see. */
+  day?: string;
   /** The row's one sentence. */
   detail: string;
   weekId: string | null;
@@ -71,6 +75,31 @@ function withoutReason(detail: string, reason: string | null): string {
 }
 
 /**
+ * WHETHER A ROW IS THE ONE AN APPROVED REQUEST TO BE EXCUSED WROTE when it
+ * corrected a finished register: a line's correction (`attendance-edit`)
+ * that came from a request and carries no reason. A correction somebody
+ * asked for always carries the asker's reason; the approval's row never does
+ * (`writeLineCorrection`).
+ */
+function isApprovalRow(row: { kind: string; requestId: string | null; reason: string | null }): boolean {
+  return row.kind === "attendance-edit" && row.requestId !== null && row.reason === null;
+}
+
+/** "w03" or "w03-2", as its week and occurrence, or null. */
+function sessionOfKey(key: string | null): { weekNumber: number; occurrence: number } | null {
+  const match = key ? /^w(\d{2})(?:-(\d))?$/.exec(key) : null;
+  return match ? { weekNumber: Number(match[1]), occurrence: match[2] ? Number(match[2]) : 1 } : null;
+}
+
+/**
+ * `isAdmin`: who approved a request to be excused, and who was emailed about
+ * it, are an admin's to read, as on the register itself. To anybody else the
+ * row an approval wrote says that an approved request changed the line, and
+ * carries its day and never its time of day; it names nobody: no actor, no
+ * sentence naming the admin or the people emailed, and none of the row's
+ * stored values about who set the line before. It keeps its place in the
+ * list, and the row as stored is unchanged.
+ *
  * `facilitatorRecord`: true only for a page drawn for an admin or somebody
  * leading the programme who does not facilitate the group. Left out, the
  * rows about whether a facilitator was at a session are dropped
@@ -82,7 +111,7 @@ export async function loadGroupHistory(
   db: Firestore,
   runId: string,
   groupId: string,
-  options: { facilitatorRecord?: boolean } = {},
+  options: { facilitatorRecord?: boolean; isAdmin?: boolean } = {},
 ): Promise<{ rows: GroupHistoryRow[]; more: boolean }> {
   if (!runId || !groupId) return { rows: [], more: false };
   const snap = await db
@@ -100,6 +129,29 @@ export async function loadGroupHistory(
     if (rows.length >= GROUP_ROWS_SHOWN) {
       more = true;
       break;
+    }
+    // An approval's correction, to anybody but an admin: what changed and
+    // the day, naming nobody.
+    if (!options.isAdmin && isApprovalRow(row)) {
+      const session = sessionOfKey(row.sessionKey);
+      rows.push({
+        id: row.id,
+        kind: row.kind,
+        label: courseAuditKindLabel(row.kind),
+        category: courseAuditCategory(row.kind),
+        actorName: "",
+        // The day, never the time of day, as on the register itself.
+        at: null,
+        ...(row.at ? { day: londonDayLabel(row.at) } : {}),
+        detail: approvedCorrectionForReaders({ weekNumber: session?.weekNumber ?? null, occurrence: session?.occurrence ?? 1 }),
+        weekId: row.weekId,
+        before: null,
+        after: row.after,
+        reason: null,
+        emailed: null,
+        subjectUid: null,
+      });
+      continue;
     }
     // Why a facilitator's register was taken, or their session given, goes
     // with the record of who was there: the row stays, its reason does not.

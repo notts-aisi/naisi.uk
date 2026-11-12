@@ -63,6 +63,7 @@ const join_ = await loadJoin(made);
 const askRoute = await courseRoute("groups", "[groupId]", "excused");
 const register = await courseRoute("groups", "[groupId]", "attendance");
 const push = await courseRoute("groups", "[groupId]", "attendance", "push");
+const coverRoute = await courseRoute("groups", "[groupId]", "attendance", "cover");
 const cantMakeItRoute = await courseRoute("groups", "[groupId]", "cant-make-it");
 const regularRoute = await courseRoute("groups", "[groupId]", "session", "regular");
 const timeAnswerRoute = await courseRoute("runs", "[runId]", "time-answer");
@@ -92,6 +93,7 @@ const loaders = await loadTs("lib/courses/requests/load.ts");
 const home = await loadTs("lib/courses/requests/home.ts");
 const history = await loadTs("lib/courses/groupHistory/load.ts");
 const groupPage = await loadTs("lib/courses/groupPage/load.ts");
+const groupModel = await loadTs("lib/courses/groupPage/model.ts");
 const jobModule = await loadTs("lib/scheduler/jobs/excusedReasonsOff.ts");
 const courses = await loadTs("lib/firestore/courses.ts");
 const groups = await loadTs("lib/firestore/courseGroups.ts");
@@ -800,6 +802,39 @@ describe("deciding: admins only, each week on its own, and the register follows 
     assert.ok(!JSON.stringify(shown).includes(REASON), "the group's history carries the reason");
     const sent = await mailText();
     assert.equal(sent.length, 3);
+    // Who approved it and who was emailed reach admins only, in the group's
+    // history too: the lead and a track lead read what changed and the day.
+    const storedRow = JSON.stringify(row);
+    const run = courses.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+    const group = groups.normalizeCourseGroup(B, world.db.read(`courseGroups/${B}`));
+    const historyRowOf = async (viewer, viewerUid) => {
+      const view = await groupPage.loadGroupPage(world.courseDb, { run, group, viewer, viewerUid, now: new Date() });
+      return view.history.rows.find((each) => each.id === listed.id);
+    };
+    const asAdmin = await historyRowOf("admin", "zach");
+    assert.equal(asAdmin.actorName.split(" ")[0], "Zach");
+    assert.match([asAdmin.headline, asAdmin.rest].filter(Boolean).join(" "), /^Zach approved .+’s request to be excused for week 2\. The register changed from Absent to Excused\. Emailed .+\.$/);
+    assert.ok(asAdmin.at && !asAdmin.day, "an admin reads when it was approved, to the minute");
+    assert.match(groupModel.historyWhenWords(asAdmin.at, asAdmin.day), /, \d{1,2}(:\d{2})?(am|pm)$/);
+    for (const [viewer, uid] of [["lead", "claudia"], ["lead", "yusuf"]]) {
+      const shownTo = await historyRowOf(viewer, uid);
+      assert.equal(shownTo.actorName, "", `${uid} is told who approved it`);
+      assert.equal(shownTo.headline, "An approved request to be excused changed a line of week 2’s register from Absent to Excused.", uid);
+      assert.equal(shownTo.rest, "");
+      // The day, once, and never the time of day.
+      assert.equal(shownTo.at, null, `${uid} is sent the instant`);
+      assert.match(shownTo.day, /^\w{3} \d{1,2} \w{3}$/, uid);
+      assert.equal(groupModel.historyWhenWords(shownTo.at, shownTo.day), shownTo.day);
+      assert.doesNotMatch(JSON.stringify(shownTo), /\d{1,2}(:\d{2})?(am|pm)|T\d{2}:\d{2}/, `${uid} is sent a time of day`);
+      assert.doesNotMatch(JSON.stringify(shownTo), /Zach|Emailed|Amara|Rahul|Sofia/, `${uid} is told a name`);
+      // It keeps its place in the list.
+      const asLeadRows = (await groupPage.loadGroupPage(world.courseDb, { run, group, viewer, viewerUid: uid, now: new Date() })).history.rows.map((row) => row.id);
+      const asAdminRows = (await groupPage.loadGroupPage(world.courseDb, { run, group, viewer: "admin", viewerUid: "zach", now: new Date() })).history.rows.map((row) => row.id);
+      assert.equal(asLeadRows.indexOf(listed.id), asAdminRows.indexOf(listed.id), `${uid} reads the row in another place`);
+    }
+    const plain = (await history.loadGroupHistory(world.courseDb, RUN.agi, B)).rows.find((each) => each.id === listed.id);
+    assert.deepEqual([plain.actorName, plain.at, plain.before, plain.emailed, plain.subjectUid], ["", null, null, null, null]);
+    assert.equal(JSON.stringify(auditRows("attendance-edit")[0]), storedRow, "the row as stored changed");
     assert.match(sent.find((each) => each.subject === "You’re excused from week 2").html, /Your register says Excused for that session/);
     // What the facilitator reads of the corrected line: the story, never the reason or who asked.
     const asRahul = await readRegister("rahul");
@@ -932,6 +967,19 @@ describe("who is sent what: the reason and how often to admins only, one of two 
     assert.ok(!JSON.stringify(after.body).includes(REPLY), "a facilitator was sent the reply");
   });
 
+  test("somebody given one session is sent excused for its column, never waiting", async () => {
+    const id = await amaraAsks();
+    const given = await call("claudia", coverRoute.POST, { groupId: B }, { body: { weekNumber: 2, person: "tom" }, course: true });
+    assert.equal(given.status, 200, JSON.stringify(given.body));
+    world.mail.length = 0;
+    const waiting = await readRegister("tom");
+    assert.equal(waiting.status, 200, JSON.stringify(waiting.body));
+    assert.deepEqual(waiting.body.excuseRequests, {}, "somebody given the session is told a request waits");
+    assert.equal((await readRegister("rahul")).body.excuseRequests.w02.amara, "waiting", "the facilitator is told it waits");
+    assert.equal((await act("zach", "approve", id, { sessionKey: "w02" })).status, 200);
+    assert.deepEqual((await readRegister("tom")).body.excuseRequests, { w02: { amara: "excused" } });
+  });
+
   test("who approved a line, and when, reach admins alone: a facilitator and the lead are told only that an approved request set it", async () => {
     const coverWords = await loadTs("lib/courses/registerCover/pageWords.ts");
     const correctionWords = await loadTs("lib/courses/registerCorrection/pageWords.ts");
@@ -1026,11 +1074,11 @@ describe("who is sent what: the reason and how often to admins only, one of two 
     assert.deepEqual(row.weeks.map((week) => [week.sessionKey, week.state]), [["w02", "waiting"]]);
     assert.equal(asAdmin.view.counts.waiting, 1);
     assert.ok(!JSON.stringify(asAdmin).includes(REASON), "the list carries the reason");
-    for (const who of ["claudia", "yusuf"]) {
-      const asLead = await loaders.loadRequestsPage(world.courseDb, sessionOf(who), AFTER_W2);
-      assert.equal(asLead.view.rows.some((each) => each.id === id), false, who);
-      assert.equal(asLead.view.counts.waiting, 0, who);
-    }
+    const asLead = await loaders.loadRequestsPage(world.courseDb, sessionOf("claudia"), AFTER_W2);
+    assert.equal(asLead.view.rows.some((each) => each.id === id), false);
+    assert.equal(asLead.view.counts.waiting, 0);
+    // A run's track lead decides no request, so has no list at all.
+    assert.equal((await loaders.loadRequestsPage(world.courseDb, sessionOf("yusuf"), AFTER_W2)).status, "none");
     for (const who of ["claudia", "yusuf", "rahul", "amara"]) {
       assert.equal((await loaders.loadRequestPage(world.courseDb, sessionOf(who), id)).status, "none", who);
       assert.equal((await page.loadExcusedRequestPage(world.courseDb, sessionOf(who), id, AFTER_W2)).status, "none", who);

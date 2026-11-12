@@ -1,4 +1,5 @@
 import { campusLabel } from "../campus";
+import { couldBeFollowed } from "../followable";
 import { resolveSessions, type ResolvedSession } from "../sessions";
 import { campusForWeek } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
@@ -23,6 +24,16 @@ import { oneWeekNoticeWords, type OneWeekNotice } from "./words";
  * of what the press makes true (`checkPress`). Pure.
  */
 
+/**
+ * A stored room as the notice may print it: the room, or "" (a room not
+ * booked yet, which the notice says as such) when a reader could follow it
+ * (`couldBeFollowed`, the function every email that prints a room asks).
+ */
+function roomToPrint(room: string): string {
+  const text = room.trim();
+  return couldBeFollowed(text) ? "" : text;
+}
+
 /** The week's session as it will read once the press is written, or null with none. */
 export function weekSessionAfter(run: CourseRunDoc, checked: CheckedPress, weekNumber: number): ResolvedSession | null {
   return sessionOfWeek(resolveSessions(run, checked.after), weekNumber);
@@ -42,7 +53,7 @@ export function oneWeekNoticeOf(run: CourseRunDoc, checked: CheckedPress, press:
         dateKey: moved.dateKey,
         hhmm: moved.session.startTimeLocal,
         minutes: moved.session.durationMinutes,
-        room: moved.session.location,
+        room: roomToPrint(moved.session.location),
         campusLabel: campus,
       };
       return press.metAtAnotherTime
@@ -63,7 +74,7 @@ export function oneWeekNoticeOf(run: CourseRunDoc, checked: CheckedPress, press:
           weekNumber: n,
           dateKey: before.dateKey,
           next: next
-            ? { weekNumber: next.weekNumber, dateKey: next.dateKey, hhmm: next.session.startTimeLocal, room: next.session.location }
+            ? { weekNumber: next.weekNumber, dateKey: next.dateKey, hhmm: next.session.startTimeLocal, room: roomToPrint(next.session.location) }
             : null,
         };
       }
@@ -84,7 +95,7 @@ export function oneWeekNoticeOf(run: CourseRunDoc, checked: CheckedPress, press:
         weekNumber: n,
         dateKey: back.dateKey,
         hhmm: back.session.startTimeLocal,
-        room: back.session.location,
+        room: roomToPrint(back.session.location),
       };
     }
   }

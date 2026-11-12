@@ -103,8 +103,10 @@ export type GroupPageWeek = {
 /** One row of the group's history, as the History tab draws it. */
 export type GroupPageHistoryRow = {
   id: string;
-  /** An instant, or null for a row with no time. */
+  /** An instant, or null for a row with no time, or one drawn by its day alone (`day`). */
   at: string | null;
+  /** "Tue 10 Nov": the day alone, for a row whose time of day is not the reader's to see. */
+  day?: string;
   actorName: string;
   headline: string;
   rest: string;
@@ -373,8 +375,9 @@ export function filterHistory<T extends { category: string }>(rows: readonly T[]
   return filter === "everything" ? [...rows] : rows.filter((row) => row.category === filter);
 }
 
-/** "Tue 10 Nov, 12:20pm", when a row was written; "" with no time. */
-export function historyWhenWords(at: string | null): string {
+/** "Tue 10 Nov, 12:20pm", when a row was written; its day alone when that is all it carries; "" with neither. */
+export function historyWhenWords(at: string | null, day?: string): string {
+  if (day) return day;
   if (!at) return "";
   const when = new Date(at);
   if (Number.isNaN(when.getTime())) return "";

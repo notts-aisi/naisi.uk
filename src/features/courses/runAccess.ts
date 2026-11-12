@@ -292,6 +292,10 @@ const MAX_GIVEN_ON_RUN = 20;
  * approved account may be given a session, so they may hold no other role on
  * the run. Every other page under the run narrows to its own predicate
  * (`canLearn`, a facilitator of the group, a reviewer) and sends them away.
+ * The grant's bar (`givenSessionStands`: they run things on the programme)
+ * is asked by the register's gate, not here, so somebody who does not stand
+ * reaches the register's page and is told so in a sentence,
+ * while every route behind it refuses them.
  *
  * One equality query on two fields (`runId`, `cover.byUid`), which needs no
  * declared index, asked only of somebody the run admits no other way.

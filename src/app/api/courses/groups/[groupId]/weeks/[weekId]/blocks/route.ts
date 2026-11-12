@@ -39,7 +39,7 @@ import { templateWeekFields } from "@/lib/firestore/courseTemplates";
  *   POST ...  "Read it": the paste read against the group's copy, or against
  *             the run's week while the group has none (so the run's ids are
  *             kept), with what it takes out and the answers on it. Writes
- *             nothing.
+ *             nothing. The programme's lead and admins only.
  *   PUT  ...  "Save": the same read, then the group's own copy written.
  *
  * THE COPY IS THE GROUP'S OWN WEEK, `courseGroups/{groupId}/weeks/{wNN}`,
@@ -54,10 +54,11 @@ import { templateWeekFields } from "@/lib/firestore/courseTemplates";
  *
  * WHO. An admin and the lead of the programme that names the group's run (any
  * group of the run that still meets). The group's own facilitators, while it
- * meets and they still stand behind the role, may copy the week out and read
- * a paste (GET, POST: nothing is written), and are refused Save in one plain
- * sentence: a group's own copy is made and changed only by the programme's
- * lead and admins. Nobody else: not a run's track lead, a facilitator of
+ * meets and they still stand behind the role, may copy the week out (GET,
+ * the week's Markdown, which counts nobody's work), and are refused Read it
+ * and Save in one plain sentence: a group's own copy is made and changed only
+ * by the programme's lead and admins, and Read it counts what a paste would
+ * take out of everybody's work, the facilitators' own included. Nobody else: not a run's track lead, a facilitator of
  * another group, or anybody taking part. AUTHORIZATION BEFORE EXISTENCE: a
  * missing group, one that no longer meets and somebody else's are one 403 for
  * everybody but an admin.
@@ -218,7 +219,10 @@ export async function POST(req: Request, ctx: Params) {
   if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
-  const gated = await gate(db, actor, ctx.params);
+  // "Read it" counts what a paste would take out of everybody's work, the
+  // group's facilitators' own included, so it is the people's who save it:
+  // the programme's lead and admins, as for the save.
+  const gated = await gate(db, actor, ctx.params, true);
   if (gated instanceof NextResponse) return gated;
   const sent = await markdownOf(req);
   if (sent instanceof NextResponse) return sent;

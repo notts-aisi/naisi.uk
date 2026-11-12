@@ -2101,9 +2101,9 @@ export const ROUTES = {
     POST: {
       expect: adminOnly(404),
       why:
-        "Approving a request: view-as first, then the request is read and its group's register gate decides; a " +
-        "missing request is one 403 for everybody but an admin, who is told it is missing. Its answer is " +
-        "{ ok, status, logged }.",
+        "Approving a request: view-as first, then the request is read and its group's register gate decides, " +
+        "admitting an admin or the programme's lead (never a run's track lead by that alone); a missing request " +
+        "is one 403 for everybody but an admin, who is told it is missing. Its answer is { ok, status, logged }.",
     },
   },
   "/api/courses/requests/[requestId]/decline": {
@@ -2261,11 +2261,12 @@ export const ROUTES = {
   },
   "/api/courses/groups/[groupId]/facilitators": {
     POST: {
-      expect: signedIn(404),
+      expect: adminOnly(404),
       why:
-        "Session required, then the document is read and its own membership decides. The " +
-        "battery's id addresses nothing, so every signed-in persona is told that the document " +
-        "is missing. A group is staffed by admins and by the track leads of its run.",
+        "Session required, then the group and its run are read only to ask who staffs them: " +
+        "everybody who is not an admin and does not staff the run is one 403 before anything " +
+        "else, whatever is missing, and an admin is told the group the battery's id names is " +
+        "not there. A group is staffed by admins, its run's track leads and the programme's lead.",
     },
   },
   "/api/courses/groups/[groupId]/notes": {
@@ -6704,13 +6705,20 @@ export const REAL_ROUTES = {
   },
   "/api/courses/groups/[groupId]/weeks/[weekId]/blocks": {
     GET: groupWeek("Copying the group's week out", c(404, "Admitted, and week 1 is not written as blocks here, so there is nothing to copy.")),
-    POST: groupWeek("Reading a pasted week for the group", c(400, "Admitted, then the body is checked: no Markdown.")),
+    POST: {
+      ...groupWeek("Reading a pasted week for the group", c(400, "Admitted, then the body is checked: no Markdown.")),
+      theirs: {
+        ...groupWeek("Reading a pasted week for the group", null).theirs,
+        lead: c(400, "Leads the programme that names the run, so admitted, then the body is checked: no Markdown."),
+        facilitator: c(403, "A live facilitator of the group may copy the week out, and is refused Read it in Save's own plain sentence before the body: it counts what a paste takes out of everybody's work, the facilitators' own included, and a group's own copy is the programme's lead's and admins' alone."),
+      },
+    },
     PUT: {
       ...groupWeek("Saving a pasted week for the group", c(400, "Admitted, then the body is checked: no Markdown.")),
       theirs: {
         ...groupWeek("Saving a pasted week for the group", null).theirs,
         lead: c(400, "Leads the programme that names the run, so admitted, then the body is checked: no Markdown."),
-        facilitator: c(403, "A live facilitator of the group may copy the week out and read a paste, and is refused Save in one plain sentence before the body: a group's own copy is made and changed by the programme's lead and admins alone."),
+        facilitator: c(403, "A live facilitator of the group may copy the week out, and is refused Save in one plain sentence before the body: a group's own copy is made and changed by the programme's lead and admins alone."),
       },
     },
   },

@@ -1,6 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
+import { holdsStanding, isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import {
   ENROLMENT_STATUSES,
@@ -17,6 +17,7 @@ import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/cours
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { firstNameOfUser } from "./programmeLead";
 import { holdsCover, holdsGivenCover } from "./registerCover/model";
+import { runsThingsOn } from "./registerCover/runsThings";
 import { doesTrackLeadWork, runStaffingOf } from "./runStaffing";
 
 /**
@@ -35,7 +36,9 @@ import { doesTrackLeadWork, runStaffingOf } from "./runStaffing";
  * on a group that is not archived), admins, the people leading the programme
  * that names the group's run (its lead, worked out from the form when they
  * ask, and the run's track leads: `doesTrackLeadWork`), and somebody an admin
- * or a lead GAVE one session to, for that session only, while it holds.
+ * or a lead GAVE one session to, for that session only, while it holds and
+ * while they run things on the programme (`givenSessionStands`, the
+ * give's own bar asked again at every use).
  *  · ARCHIVING A GROUP UNSTAFFS IT. One rule, stated identically in
  *    `runAccess.ts`, the exercises queue, the review route and the page gates.
  *    Admins bypass it: an archived cohort is exactly what an admin is asked to
@@ -136,8 +139,9 @@ export type RegisterGate =
       leadsProgramme: boolean;
       /**
        * The sessions of this group the caller was GIVEN by an admin or a lead,
-       * by key, while each grant holds: the only registers they read or take.
-       * Empty for everybody admitted any other way.
+       * by key, while each grant holds and while they run things on the
+       * programme (`givenSessionStands`): the only registers they read or
+       * take. Empty for everybody admitted any other way.
        */
       givenSessions: string[];
     }
@@ -151,13 +155,13 @@ const APPROVED_ROLES = new Set(["member", "committee", "admin"]);
 const MAX_GIVEN_PER_GROUP = 20;
 
 /**
- * THE SESSIONS OF A GROUP SOMEBODY WAS GIVEN, while each grant holds: the
+ * THE SESSIONS OF A GROUP SOMEBODY WAS GIVEN, whose grants hold: the
  * registers whose `cover` names them as the person given it. One equality
  * query on two fields (no index is owed for equalities alone), asked only of
  * a caller nothing else admits, so the group's facilitators, its leads and
  * admins never pay for it.
  */
-async function givenSessionsOf(db: Firestore, group: CourseGroupDoc, actor: SessionUser, now: Date): Promise<string[]> {
+async function liveGrantsOf(db: Firestore, group: CourseGroupDoc, actor: SessionUser, now: Date): Promise<string[]> {
   if (!APPROVED_ROLES.has(actor.role) || !actor.uid) return [];
   const snap = await db
     .collection("courseAttendance")
@@ -172,6 +176,58 @@ async function givenSessionsOf(db: Firestore, group: CourseGroupDoc, actor: Sess
     if (holdsGivenCover(register.cover, actor.uid, now)) keys.push(register.sessionKey);
   }
   return keys.sort();
+}
+
+/**
+ * WHETHER SOMEBODY GIVEN A SESSION STILL STANDS BEHIND THE BAR IT WAS GIVEN
+ * BEHIND, asked at every use: an approved account (the authority's own
+ * bar, `courseAttendance.cover.byUid`) that runs things on the
+ * programme, through the one function the give asks (`runsThingsOn`). An
+ * admin's, a committee member's and a facilitator's who facilitates a
+ * live group of the run stand; somebody who runs nothing there does not, and
+ * the session can be given again.
+ */
+export async function givenSessionStands(db: Firestore, runId: string, actor: SessionUser): Promise<boolean> {
+  if (!holdsStanding(actor, "courseAttendance.cover.byUid")) return false;
+  if (!isAddressableId(runId)) return false;
+  const runSnap = await db.collection("courseRuns").doc(runId).get();
+  if (!runSnap.exists) return false;
+  return runsThingsOn(db, { id: runId, trackLeadUids: (runSnap.data() ?? {}).trackLeadUids }, { standing: actor });
+}
+
+/**
+ * THE SESSIONS OF A GROUP SOMEBODY WAS GIVEN, while each grant holds and
+ * while they stand behind the bar it was given behind
+ * (`givenSessionStands`): the only registers they read or take.
+ */
+async function givenSessionsOf(db: Firestore, group: CourseGroupDoc, actor: SessionUser, now: Date): Promise<string[]> {
+  const keys = await liveGrantsOf(db, group, actor, now);
+  if (keys.length === 0) return [];
+  return (await givenSessionStands(db, group.runId, actor)) ? keys : [];
+}
+
+/**
+ * WHETHER A SESSION GIVEN TO THIS PERSON DOES NOT STAND because they run
+ * nothing on the programme: the grant holds, and the bar
+ * it was given behind does not. What the register's page tells them in a
+ * sentence, rather than sending them away with no word. False for anything
+ * else: no grant, an ended one, or one that stands.
+ */
+export async function givenSessionLapsed(
+  db: Firestore,
+  input: { runId: string; groupId: string; sessionKey: string },
+  actor: SessionUser,
+  now: Date,
+): Promise<boolean> {
+  const { runId, groupId, sessionKey } = input;
+  if (!isAddressableId(groupId) || !isAddressableId(runId)) return false;
+  const snap = await db.collection("courseGroups").doc(groupId).get();
+  if (!snap.exists) return false;
+  const group = normalizeCourseGroup(snap.id, snap.data() ?? {});
+  if (group.archived || group.runId !== runId) return false;
+  const keys = await liveGrantsOf(db, group, actor, now);
+  if (!keys.includes(sessionKey)) return false;
+  return !(await givenSessionStands(db, group.runId, actor));
 }
 
 /**

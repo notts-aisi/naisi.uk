@@ -14,9 +14,13 @@
  *    where, beside its link to the week's own page.
  *
  * BOTH ASK THIS ONE FUNCTION, so the two cannot come to differ on what
- * counts. The rule is about these two emails, which the site writes from a
- * group's stored room. A facilitator's own notice to their group is theirs
- * to word, and can carry a room or a link they put in it.
+ * counts, and so does everything else the site writes from a group's stored
+ * room: the emails about a session given to somebody, one week's change, a
+ * new regular time and a room, and the calendar feed, each saying a room
+ * that could be followed as a room not booked yet.
+ * `tests/stored-room-in-messages.test.mjs` walks every sender and holds each
+ * module that reads a stored room to it. A facilitator's own notice to their
+ * group is theirs to word, and can carry a room or a link they put in it.
  *
  * True when the text holds something a mail client would make into a link,
  * or a phone would dial:

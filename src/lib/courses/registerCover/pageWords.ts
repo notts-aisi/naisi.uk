@@ -240,6 +240,11 @@ export type CoverLineView = {
   covering: CoverPersonView[];
   live: boolean;
   yours: boolean;
+  /**
+   * False for a session given to somebody who runs nothing on the programme.
+   * Sent to admins, the programme's lead and the person who holds it alone.
+   */
+  stands?: boolean;
 };
 
 /**
@@ -272,6 +277,7 @@ export function placeLine(input: {
   if (input.finished) return null;
   if (cover) {
     const firstOf = (person: CoverPersonView) => firstWordOf(person.name);
+    if (cover.kind === "given" && cover.live && cover.stands === false) return givenNoLongerStandsLine(cover.by.name);
     if (cover.yours && cover.live) {
       const took = firstOf(cover.by);
       if (cover.covering.length === 0) return `You’re taking this register. It will say ${took} took it.`;
@@ -303,6 +309,24 @@ function clockOf(iso: string): string {
 
 /** Over the one session's meeting link, for somebody given that session (never in an email). */
 export const GIVEN_SESSION_LINK_LINE = "This session’s meeting link is here while the session is yours.";
+
+/**
+ * To the person a session was given to, on the register's page, once they no
+ * run nothing on the programme: the grant does not stand.
+ */
+export const REGISTER_NOT_YOURS_TITLE = "This register isn’t yours now";
+
+export const GIVEN_NO_LONGER_YOURS =
+  "This session was given to you, but you no longer run anything on this programme, so its register isn’t yours to take now. Whoever gave it to you can give it to somebody else.";
+
+/**
+ * The register's line about a session given to somebody who runs nothing on
+ * the programme, to the people who can give it again (admins and the
+ * programme's lead): the only readers sent whether it stands.
+ */
+export function givenNoLongerStandsLine(name: string): string {
+  return `${name.trim() || "The person"} was given this session but no longer runs anything on the programme, so it isn’t theirs now. You can give it to somebody else.`;
+}
 export const JOIN_ONLINE = "Join online";
 
 /** The line where the old "Didn't happen" switch was: where the two cancels live now. */
