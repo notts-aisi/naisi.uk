@@ -116,7 +116,7 @@ export default function EditWeekView({ historyHref }: { historyHref: string }) {
           <span className={view.live ? styles.liveChip : styles.quietChip}>{view.live ? WEEK_LINE.live : WEEK_LINE.notLive}</span>
           <span>
             {view.live
-              ? WEEK_LINE.reach(view.reach.reading, view.reach.groups.length, view.reach.started)
+              ? WEEK_LINE.reach(view.reach.reading, view.reach.groups.length, view.reach.people, view.reach.started)
               : WEEK_LINE.notOpen(view.reach.groups.length)}
           </span>
         </p>

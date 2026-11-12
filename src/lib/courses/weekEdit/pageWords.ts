@@ -21,9 +21,9 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 export const WEEK_LINE = {
   live: "Live",
   notLive: "Not published",
-  /** "Open for 4 of 11 groups · 9 people have started it". */
-  reach: (reading: number, groups: number, started: number) =>
-    `${groups === 0 ? "No group meets yet" : reading === groups ? `Open for ${plural(groups, "group", "groups")}` : `Open for ${reading} of ${plural(groups, "group", "groups")}`} · ${started === 1 ? "1 person has" : `${started} people have`} started it`,
+  /** "Open for 4 of 11 groups and 21 people · 9 people have started it". */
+  reach: (reading: number, groups: number, people: number, started: number) =>
+    `${groups === 0 ? "No group meets yet" : `${reading === groups ? `Open for ${plural(groups, "group", "groups")}` : `Open for ${reading} of ${plural(groups, "group", "groups")}`} and ${plural(people, "person", "people")}`} · ${started === 1 ? "1 person has" : `${started} people have`} started it`,
   /** The same line for a week nobody reads yet. */
   notOpen: (groups: number) => (groups === 0 ? "No group meets yet. People read it once it’s marked ready." : `People in ${plural(groups, "group", "groups")} read it once it’s marked ready.`),
   paste: "Paste the week",

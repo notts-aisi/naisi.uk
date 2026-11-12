@@ -430,9 +430,13 @@ test(
         await leadPage.goto(weekUrl, { waitUntil: "domcontentloaded" });
         await leadPage.getByRole("heading", { name: WORDS.blocksTitle, exact: true }).waitFor({ timeout: WAIT_MS });
 
-        // The week's line: live, every group reads it, and who has started it.
+        // The week's line: live, every group reads it, the people in them as the editor's route counts them, and who has started it.
+        const editor = await leadPage.request.get(`${origin}${api}/editor`);
+        assert.equal(editor.status(), 200, "the lead is refused the week as the editor reads it");
+        const reach = (await editor.json()).reach;
+        assert.deepEqual([reach.reading, reach.groups.length, reach.started], [state.groups.length, state.groups.length, started.length]);
         const line = flat(await wordsIn(leadPage.locator('section[aria-labelledby="edit-week-title"]').locator("p").filter({ hasText: WORDS.live }).first()));
-        assert.equal(line, `${WORDS.live} Open for ${state.groups.length} groups · ${started.length} people have started it`);
+        assert.equal(line, `${WORDS.live} Open for ${state.groups.length} groups and ${reach.people} people · ${started.length} people have started it`);
 
         // The reading as it reads, with Ada's one tick beside it, numbers only.
         const reading = card(leadPage, READING.id);

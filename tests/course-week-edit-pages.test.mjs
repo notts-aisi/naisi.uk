@@ -288,7 +288,8 @@ describe("4. the week's page: as it reads, with what people have done beside eac
       assert.equal(drawn.to, null, who);
       const { html, text } = drawn;
       assert.match(text, /Week 3, as it reads/, who);
-      assert.match(text, /Live Open for 4 groups · 2 people have started it/, who);
+      // Ten people hold a told place in the four groups; Chloe and Farah have something of theirs on week 3.
+      assert.match(text, /Live Open for 4 groups and 10 people · 2 people have started it/, who);
       assert.match(html, new RegExp(`href="${PROGRAMME_PATH}/weeks/w03/history"`), `${who}: History`);
       assert.match(html, /href="#paste-the-week"/, `${who}: Paste the week leads to the paste`);
       assert.match(html, /id="paste-the-week"/);
