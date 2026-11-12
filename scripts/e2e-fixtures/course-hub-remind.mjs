@@ -240,7 +240,17 @@ export const SPEC = {
       "/(app)/learn/[runId]/weeks/[n]",
     ],
   },
-  status: "unverified",
+  /**
+   * VERIFIED on 12 Nov 2026 against the harness's loopback server on a laptop
+   * (a production build of the branch): all nine steps ran, 69 rows existed
+   * before teardown (the form and its question set, 4 applications and 4
+   * decisions, the course, the run and its 3 published weeks, 2 groups, 4
+   * enrolments, 2 audit rows, Ben's reminder record, 6 ticks, 14 responses,
+   * 7 log rows, 3 cohort subscriptions, 3 sends, Remind's 2 send counters, 5
+   * accounts and their documents), and the manifest read zero afterwards. The
+   * pull request's end-to-end job is its first CI run.
+   */
+  status: "verified",
   seed,
   countRows,
   teardown,
