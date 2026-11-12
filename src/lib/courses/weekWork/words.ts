@@ -273,9 +273,6 @@ export function doneOnceSentWords(weekNumber: number, rest: RestOfWeek): string 
   return `Week ${weekNumber} is done once it’s sent and everything else it asks for is done.`;
 }
 
-/** "Not sent": an answer with words, never sent. */
-export const NOT_SENT = "Not sent";
-
 // ---------------------------------------------------------------------------
 // The box at the top of the week: after the session, and a facilitator's own
 // ---------------------------------------------------------------------------
