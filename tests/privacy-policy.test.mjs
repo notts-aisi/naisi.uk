@@ -11694,6 +11694,20 @@ describe("v18 changes the sentence about the weekly note, adds one to Changing y
     assert.match(read("src/lib/courses/weekNotes/store.ts"), /label: person\.uid === uid \? "the fellow"/);
   });
 
+  test("nothing in src quotes the weekly note's sentence as versions 15 to 17 had it, outside the frozen versions themselves", () => {
+    // A comment quoting a policy sentence quotes the one in force: the ratings readers and the notes code
+    // quoted "using only the work they submitted" and the "Once a week" opening after version 18 replaced them.
+    const stale = /using only the work they submitted|Once a week Claude may/;
+    // Words wrapped across comment lines are read as one run: each line's "*" or "//" leader goes.
+    const prose = (text) => text.replace(/\n\s*(?:\*(?!\/)|\/\/)/g, " ").replace(/\s+/g, " ");
+    assert.ok(stale.test(prose(" * the drafts (privacy v15, \"using only the work\n *    they submitted and\n")), "the walk cannot read a quote wrapped across comment lines");
+    const quoting = textFilesUnder(SRC)
+      .map((file) => file.slice(REPO_ROOT.length + 1).split(sep).join("/"))
+      .filter((relative) => !/^src\/content\/legal\/privacy\/v(?:[1-9]|1[0-7])\.tsx$/.test(relative))
+      .filter((relative) => stale.test(prose(read(relative))));
+    assert.deepEqual(quoting, [], "these files still quote the weekly note's replaced sentence");
+  });
+
   test("the sentence after it is unchanged, and still follows it", () => {
     const after = "Only what you wrote after you first agreed to version 13 of this policy, or after you joined if that was later, is ever sent.";
     assert.ok(PAGE_FLAT.includes(`${NEW_NOTE} ${after}`), "the version 13 sentence no longer follows the weekly note's, word for word");
