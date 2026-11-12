@@ -586,7 +586,7 @@ test("GUARD — the fork route copies through templateWeekFields and mints NOTHI
   assert.match(FORK, /facilitatesLiveGroup\s*\?\s*NextResponse\.json\(\{ error: EDIT_REFUSAL\.groupCopyLeadOnly \}, \{ status: 403 \}\)/);
 });
 
-test("GUARD — the week PATCH changes a copy for the programme's lead and admins alone, before the body", () => {
+test("GUARD: the week PATCH changes a copy for the programme's lead and admins alone, before the body", () => {
   const gate = WEEK_PATCH.indexOf("if (!isAdmin && !leadsProgramme)");
   assert.ok(gate > 0, "the PATCH has no lead-or-admin gate");
   assert.ok(gate < WEEK_PATCH.indexOf("await req.json()"), "the gate is after the body is read");
