@@ -60,19 +60,23 @@ export default function FacilitatorWeekWork({ groupId, work }: { groupId: string
       )}
       {work.automatic && <p className={styles.cardLine}>{work.automatic}</p>}
       <Modal open={open} onClose={() => setOpen(false)} ariaLabel={R.remindAllWords(remindCount)} side>
-        {(dismiss) => (
-          <RemindPanel
-            key={opened}
-            groupId={groupId}
-            weekNumber={work.weekNumber}
-            only={null}
-            onClose={dismiss}
-            onDone={(words) => {
-              dismiss();
-              setSaid(words);
-            }}
-          />
-        )}
+        {(dismiss) =>
+          // Drawn only while open: the panel asks the route what a press would
+          // do as it mounts, which nobody wants done on every visit to the page.
+          open ? (
+            <RemindPanel
+              key={opened}
+              groupId={groupId}
+              weekNumber={work.weekNumber}
+              only={null}
+              onClose={dismiss}
+              onDone={(words) => {
+                dismiss();
+                setSaid(words);
+              }}
+            />
+          ) : null
+        }
       </Modal>
     </section>
   );
