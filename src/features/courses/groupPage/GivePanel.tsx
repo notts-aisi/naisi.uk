@@ -201,7 +201,7 @@ export default function GivePanel({
       </div>
 
       {preview?.replaces && (
-        <p className={styles.panelNote} data-testid="give-replaces">
+        <p className={styles.panelNote}>
           {givenAlreadyWords(preview.replaces, alreadyTheirs)}
         </p>
       )}

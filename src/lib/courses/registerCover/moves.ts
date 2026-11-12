@@ -7,7 +7,7 @@ import {
   type Transaction,
 } from "firebase-admin/firestore";
 import { displayNameOf } from "@/lib/courses/registerAccess";
-import { COVER, FACILITATOR_RECORD, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
+import { COVER, FACILITATOR_RECORD, normalizeCourseAttendance, registerIsTaken } from "@/lib/firestore/courseAttendance";
 import { coverOffOnMove } from "./model";
 import { coverTakenOffDetail } from "./words";
 
@@ -48,7 +48,8 @@ export function coversOffOf(
   const out: CoverOff[] = [];
   for (const each of moved) {
     if (!each.snap?.exists) continue;
-    const off = coverOffOnMove(normalizeCourseAttendance(each.snap.id, each.snap.data() ?? {}));
+    const data = each.snap.data() ?? {};
+    const off = coverOffOnMove(normalizeCourseAttendance(each.snap.id, data), registerIsTaken(data));
     if (off) out.push({ ref: each.ref, weekNumber: each.weekNumber, occurrence: each.occurrence, byUid: off.byUid, entries: off.entries });
   }
   return out;

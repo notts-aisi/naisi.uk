@@ -72,15 +72,15 @@ export function holdsGivenCover(cover: RegisterCover | null, uid: string, now: D
  * Both were about the old evening: left on, the facilitator who runs the
  * session at its new time would be recorded as not there, the reminders
  * would go to the wrong person, and a given session would end on the old
- * day. Null when the register is taken (nothing may move it) or holds no
- * cover. The person's own words before the session stay with it, as every
- * change keeps them.
+ * day. Null when the register is taken (`taken`, `registerIsTaken` of the
+ * stored register: nothing may move it) or holds no cover. The person's own
+ * words before the session stay with it, as every change keeps them.
  */
 export function coverOffOnMove(
-  register: Pick<CourseAttendanceDoc, "cover" | "facilitatorRecord" | "pushedAt" | "markedByUid" | "held"> | null,
+  register: Pick<CourseAttendanceDoc, "cover" | "facilitatorRecord"> | null,
+  taken: boolean,
 ): { byUid: string; kind: RegisterCover["kind"]; entries: string[] } | null {
-  if (!register || !register.cover) return null;
-  if (register.pushedAt !== null || register.markedByUid || !register.held) return null;
+  if (!register || !register.cover || taken) return null;
   const entries = Object.entries(register.facilitatorRecord)
     .filter(([, entry]) => entry.how === "cover")
     .map(([uid]) => uid)
