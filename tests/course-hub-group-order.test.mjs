@@ -53,6 +53,16 @@ const COMPARATOR_HOME = "src/lib/firestore/courseGroups.ts";
  * the groups are handed on to, which must ask the comparator.
  */
 const READS_WITHOUT_A_LIST = new Map([
+  // Giving one session to somebody: whether that person facilitates any of
+  // the run's groups that still meet.
+  [
+    "src/lib/courses/registerCover/people.ts",
+    {
+      why:
+        "Who may be given one session (`runsThingsOn`): it reads the run's groups only to ask whether the person named " +
+        "facilitates one that still meets, a yes or no, never a list of groups on any page.",
+    },
+  ],
   // Reached from the Check-ins view's table, whose Open press is the check-in's
   // own route: opening one works out the day names come off.
   [

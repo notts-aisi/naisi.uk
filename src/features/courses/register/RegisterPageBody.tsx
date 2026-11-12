@@ -7,6 +7,8 @@ import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
 import { registerTitle } from "@/lib/courses/facilitatorPageWords";
 import { loadRegisterMembers, type RegisterGate } from "@/lib/courses/registerAccess";
 import { joiningOnlineBox } from "@/lib/courses/meetingLink/box";
+import { givenSessionLink } from "@/lib/courses/meetingLink/givenSession";
+import { GIVEN_SESSION_LINK_LINE, JOIN_ONLINE } from "@/lib/courses/registerCover/pageWords";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -28,7 +30,10 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
  *    place the first line takes;
  *  - SOMEBODY GIVEN ONE SESSION: that session's column only (the read sends
  *    nothing else), names only, no notes, no box about joining online, and no
- *    way into the group's page: the group's name is not a link.
+ *    way into the group's page: the group's name is not a link. While the
+ *    grant holds, that one session's meeting link, when it has one
+ *    (`givenSessionLink`, through the one answer about who sees a link), so
+ *    they can run it online; never in an email.
  */
 export default async function RegisterPageBody({
   gated,
@@ -64,6 +69,11 @@ export default async function RegisterPageBody({
     ? await loadRegisterMembers(db, gated.runId, gated.group.id, { isAdmin: gated.isAdmin })
     : { members: [], notYetTold: false };
   const namesToCome = roster.members.length === 0 && roster.notYetTold;
+  // Somebody given the session in the address runs it: its link, while the grant holds.
+  const link =
+    onlyGiven && session && gated.givenSessions.includes(session)
+      ? givenSessionLink({ run, group: gated.group, viewer: user, sessionKey: session, givenSessions: gated.givenSessions })
+      : null;
   // The box at the top, named as the register names its rows for this
   // reader: never for somebody given one session. Nothing is offered to press
   // in a view-as session, where nothing is written.
@@ -110,6 +120,15 @@ export default async function RegisterPageBody({
 
       {/* Who is joining a session online, and the field for its link. */}
       {!onlyGiven && <JoiningOnlineBox groupId={gated.group.id} sessions={joiningOnline} canAdd={!viewAs} />}
+
+      {link && (
+        <p className={weekly.cardLine} data-testid="given-session-link">
+          {GIVEN_SESSION_LINK_LINE}{" "}
+          <a href={link} target="_blank" rel="noopener noreferrer" className={facilitator.button}>
+            {JOIN_ONLINE}
+          </a>
+        </p>
+      )}
 
       {namesToCome && <p className={weekly.cardLine}>{NAMES_WHEN_GROUPS_GO_OUT}</p>}
 

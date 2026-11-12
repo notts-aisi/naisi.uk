@@ -8,8 +8,9 @@
  * at its "week-three-covering" point: three weeks into a running run, Ada and
  * Ben in Group A, Cleo in Group B, Publish having told everybody. Group A's
  * week 3 session has passed and nobody opened its register; Group B's week 3
- * session has passed and its register was saved with a mark and not
- * finished. On top of it this fixture makes two more accounts, made like
+ * session and Group A's week 2 session have passed and each register was
+ * saved with marks and not finished. On top of it this fixture makes two
+ * more accounts, made like
  * every other fixture account (role `pending`, by `createFixtureUser`) and
  * kept on the term's state so the term counts them and tears them down with
  * its own (`accountsOf`):
@@ -18,16 +19,20 @@
  *    committee on Gus's member page and names Gus the programme's lead on
  *    its Settings tab, each on the real page, which is how a lead comes to be
  *    one. The fixture grants Gus nothing.
- *  - OLA, kept as `covering`: a plain member once the admin approves Ola,
- *    holding no place on the run, given one session of Group A by the admin
- *    on the group's page.
+ *  - OLA, kept as `covering`: a member once the admin approves Ola, whom the
+ *    admin then makes a committee member on Ola's member page, holding no
+ *    place on the run, given one session of Group A by the admin on the
+ *    group's page (a session is given only to somebody who runs things on the
+ *    programme, never to a plain member, whom the picker does not list).
  *
  * The spec (`tests/e2e/course-hub-cover-register.spec.mjs`) is driven by the
  * people who use it: Gus, as the programme's lead, takes Group A's week 3
  * register in Fern's place from the group's page, finishes it, and says
- * Group B's week 3 didn't happen; the admin gives Ola Group A's week 4
- * session; Ola opens it from the email and is refused everything else of the
- * group; and Fern, Group A's facilitator, opens the same register.
+ * Group B's week 3 didn't happen, pushing the rest back; the admin gives Ola
+ * Group A's week 4 session; Ola opens it from the email and is refused
+ * everything else of the group; and Fern, Group A's facilitator, opens the
+ * same register, then marks a line on week 2 and says on her own group's
+ * page that it didn't happen, keeping pace.
  *
  * ## It reads its own mail, so it runs only where the mail is caught
  *
@@ -47,17 +52,18 @@ import { accountsOf, countTerm, seedTerm, teardownTerm } from "./worlds/course-h
  * the spec records what it finished and the runner checks it against this.
  */
 export const COVER_REGISTER_STEPS = [
-  "the admin approves the facilitator, the account that will lead the programme and the member who will cover a session",
-  "the admin makes the lead's account SU-recognised committee on its member page",
+  "the admin approves the facilitator, the account that will lead the programme and the account that will cover a session",
+  "the admin makes the lead's account SU-recognised committee, and the covering account committee, on their member pages",
   "the admin names the running course run and the programme's lead on the Settings tab, and hands its people over",
   "the admin appoints the facilitator to the group whose week 3 register nobody started",
   "the lead's group page says nobody has started week 3's register, and the lead takes it in the facilitator's place",
   "the lead sets lines that each say who set them, reads the check before Finish and finishes, and the report page says whose place it is written in",
   "the lead changes whether the facilitator was there, and the group's history says who took the register and, to the lead, the change",
-  "the admin gives week 4's session to the member with the tick off, and one email reaches that member alone, with the register's link and no meeting link",
-  "the member opens the link, sets a line, and is refused the group's page and another week's register",
+  "the admin gives week 4's session to the committee member with the tick off, never offered a plain member, and one email reaches the committee member alone, with the register's link and no meeting link",
+  "the committee member opens the link, sets a line, and is refused the group's page and another week's register",
   "the facilitator opens that register and reads who set each line, and nothing about their own record",
-  "the lead says the other group's week 3 didn't happen with the notice ticked: the button's count is the emails caught, and its lines are gone",
+  "the lead says the other group's week 3 didn't happen and pushes the rest back, with the notice ticked: the button's count is the emails caught, its lines are gone and week 3 meets a week later",
+  "the facilitator marks a line on week 2's unfinished register and says on her group's page that it didn't happen, keeping pace: its lines are gone and the history keeps what each said",
 ];
 
 /**
@@ -155,6 +161,7 @@ export const SPEC = {
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/register",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/report",
+      "/(app)/learn/[runId]/group/[groupId]",
       "/(app)/learn/[runId]/group/[groupId]/register",
     ],
   },

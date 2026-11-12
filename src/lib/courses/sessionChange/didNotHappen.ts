@@ -2,7 +2,7 @@ import "server-only";
 import { FieldValue, type DocumentReference, type Firestore, type Transaction } from "firebase-admin/firestore";
 import { displayNameOf } from "@/lib/courses/registerAccess";
 import { linesSetForSession } from "@/lib/courses/registerCover/didNotHappen";
-import { countSessionReports } from "@/lib/courses/sessionReports/readers";
+import { countSessionReports, sessionKeysWithReports } from "@/lib/courses/sessionReports/readers";
 import { sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { registerFollowUpTaskId } from "@/lib/courses/unmarkedRegisters";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -12,12 +12,14 @@ import {
   ONLINE,
   SET_BY,
   normalizeCourseAttendance,
+  type CourseAttendanceDoc,
 } from "@/lib/firestore/courseAttendance";
-import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
+import { COURSE_AUDIT_COLLECTION, type CourseAuditValue } from "@/lib/firestore/courseAudit";
+import { coverClearedDetail } from "@/lib/courses/registerCover/words";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { REGISTER_FOLLOW_UP_TASK_SOURCE } from "@/lib/firestore/courseTasks";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
-import { checkInWasOpened } from "@/lib/surveys/checkIns/facilitatorView";
+import { checkInWasOpened, checkInsOpened } from "@/lib/surveys/checkIns/facilitatorView";
 import { groupHistoryRow } from "../groupChange/facts";
 
 export { callsOffDraft, takenRefusal } from "@/lib/courses/registerCover/didNotHappen";
@@ -89,16 +91,65 @@ export async function didNotHappenFacts(
   };
 }
 
+/**
+ * Whether a session already has a check-in or a session report. Both are
+ * kept by the week, so "push the rest back a week" is refused for such a
+ * session: the session a week later would open with them. Keep pace stays.
+ */
+export async function sessionHasCheckInOrReport(db: Firestore, runId: string, groupId: string, sessionKey: string): Promise<boolean> {
+  const [checkIn, reports] = await Promise.all([
+    checkInWasOpened(db, runId, groupId, sessionKey),
+    countSessionReports(db, runId, groupId, sessionKey),
+  ]);
+  return checkIn || reports > 0;
+}
+
+/** The same for every session of a group at once, by key: what its page asks before offering a push back. */
+export async function sessionsWithCheckInOrReport(
+  db: Firestore,
+  runId: string,
+  groupId: string,
+  sessionKeys: readonly string[],
+): Promise<Set<string>> {
+  const [checkIns, reports] = await Promise.all([
+    checkInsOpened(db, runId, groupId, sessionKeys),
+    sessionKeysWithReports(db, runId, groupId),
+  ]);
+  return new Set(sessionKeys.filter((key) => checkIns.has(key) || reports.has(key)));
+}
+
 /** The names the history's sentence gives the people whose lines are cleared, read before the transaction. */
 export async function clearedNames(db: Firestore, register: Readonly<Record<string, unknown>> | undefined): Promise<Map<string, string>> {
   const names = new Map<string, string>();
   if (!register) return names;
-  const { uids } = linesSetForSession(normalizeCourseAttendance("register", register));
-  const wanted = uids.filter((uid) => uid && !uid.includes("/"));
+  const stored = normalizeCourseAttendance("register", register);
+  const { uids } = linesSetForSession(stored);
+  // And who was covering it, for a push back that clears the cover with the lines.
+  const wanted = [...new Set([...uids, ...(stored.cover ? [stored.cover.byUid] : [])])].filter((uid) => uid && !uid.includes("/"));
   if (wanted.length === 0) return names;
   const snaps = await db.getAll(...wanted.map((uid) => db.collection("users").doc(uid)));
   for (const snap of snaps) names.set(snap.id, snap.exists ? displayNameOf(snap.data() ?? {}) : "NAISI member");
   return names;
+}
+
+/**
+ * A register's cover and facilitator record as a history row's `before`
+ * keeps them: plain values beside the lines' own keys. `cover` is "self" or
+ * "given", `coverByUid` who held it, `coverUntil` when a given one ended;
+ * `facilitator:<uid>` is that facilitator's entry ("not-there", "there",
+ * "late", or "late <instant>" with when they arrived).
+ */
+export function clearedCoverValues(register: Pick<CourseAttendanceDoc, "cover" | "facilitatorRecord">): Record<string, CourseAuditValue> {
+  const out: Record<string, CourseAuditValue> = {};
+  if (register.cover) {
+    out.cover = register.cover.kind;
+    out.coverByUid = register.cover.byUid;
+    if (register.cover.until) out.coverUntil = register.cover.until.toISOString();
+  }
+  for (const [uid, entry] of Object.entries(register.facilitatorRecord)) {
+    out[`facilitator:${uid}`] = entry.state === "late" && entry.arrivedAt ? `late ${entry.arrivedAt.toISOString()}` : entry.state;
+  }
+  return out;
 }
 
 /**
@@ -156,6 +207,13 @@ export function writeDidNotHappen(
   );
   const lines = uids.map((uid) => `${input.names.get(uid) ?? "NAISI member"} ${said[uid]}`);
   const what = pushed ? "the rest pushed back a week" : "the group keeping pace";
+  // Pushed back, the cover and the record of who was there go with the lines:
+  // the row keeps them beside what each line said, as plain values (a row's
+  // `before` is flat), so the evening that did not happen is not lost. Kept
+  // pace, they stay on the register.
+  const cleared = pushed ? clearedCoverValues(stored) : {};
+  const before: Record<string, CourseAuditValue> = { ...said, ...cleared };
+  const covering = pushed && stored.cover ? ` ${coverClearedDetail(input.names.get(stored.cover.byUid) ?? "NAISI member")}` : "";
   tx.set(
     db.collection(COURSE_AUDIT_COLLECTION).doc(),
     groupHistoryRow({
@@ -164,11 +222,11 @@ export function writeDidNotHappen(
       group: input.group,
       actor: input.actor,
       detail:
-        uids.length > 0
+        (uids.length > 0
           ? `Week ${input.weekNumber} didn’t happen, ${what}. Cleared ${uids.length === 1 ? "1 line" : `${uids.length} lines`} of its register: ${lines.join(", ")}.`
-          : `Week ${input.weekNumber} didn’t happen, ${what}.`,
+          : `Week ${input.weekNumber} didn’t happen, ${what}.`) + covering,
       weekId: input.weekId,
-      before: uids.length > 0 ? said : null,
+      before: Object.keys(before).length > 0 ? before : null,
       after: { kind: input.kind, cleared: uids.length },
       reason: input.reason,
       emailed: input.emailed,

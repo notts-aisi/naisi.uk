@@ -3,6 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import {
   COURSE_AUDIT_COLLECTION,
   LEAD_ONLY_AUDIT_KINDS,
+  LEAD_ONLY_REASON_KINDS,
   courseAuditCategory,
   courseAuditKindLabel,
   normalizeCourseAudit,
@@ -60,10 +61,22 @@ export type GroupHistoryRow = {
 };
 
 /**
+ * A row's sentence without its "Reason: ..." part, the reason the row was
+ * written with (`tookDetail`, `gaveDetail`). The sentence is otherwise as
+ * stored.
+ */
+function withoutReason(detail: string, reason: string | null): string {
+  if (!reason) return detail;
+  return detail.replace(` Reason: ${reason}`, "").replace(`Reason: ${reason}`, "").trim();
+}
+
+/**
  * `facilitatorRecord`: true only for a page drawn for an admin or somebody
  * leading the programme who does not facilitate the group. Left out, the
  * rows about whether a facilitator was at a session are dropped
- * (`LEAD_ONLY_AUDIT_KINDS`): that record is sent to nobody else.
+ * (`LEAD_ONLY_AUDIT_KINDS`), and a cover's reason is left out of the rows
+ * about taking a register or giving a session (`LEAD_ONLY_REASON_KINDS`):
+ * both are sent to nobody else.
  */
 export async function loadGroupHistory(
   db: Firestore,
@@ -88,6 +101,9 @@ export async function loadGroupHistory(
       more = true;
       break;
     }
+    // Why a facilitator's register was taken, or their session given, goes
+    // with the record of who was there: the row stays, its reason does not.
+    const reasonKept = options.facilitatorRecord || !(LEAD_ONLY_REASON_KINDS as readonly string[]).includes(row.kind);
     rows.push({
       id: row.id,
       kind: row.kind,
@@ -95,11 +111,11 @@ export async function loadGroupHistory(
       category: courseAuditCategory(row.kind),
       actorName: row.actorName,
       at: row.at ? row.at.toISOString() : null,
-      detail: row.detail,
+      detail: reasonKept ? row.detail : withoutReason(row.detail, row.reason),
       weekId: row.weekId,
       before: row.before,
       after: row.after,
-      reason: row.reason,
+      reason: reasonKept ? row.reason : null,
       emailed: row.emailed,
       subjectUid: row.subjectUid,
     });

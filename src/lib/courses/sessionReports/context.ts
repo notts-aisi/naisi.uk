@@ -3,7 +3,12 @@ import type { Firestore } from "firebase-admin/firestore";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { readRunLead } from "@/lib/courses/programmeLead";
 import { isAddressableId } from "@/lib/addressableId";
-import { loadRegisterMembers, readSessionRegister } from "@/lib/courses/registerAccess";
+import {
+  gateGroupRegister,
+  loadRegisterMembers,
+  readSessionRegister,
+  registerSessionAccess,
+} from "@/lib/courses/registerAccess";
 import { holdsCover } from "@/lib/courses/registerCover/model";
 import { resolveSessions, type ResolvedSession } from "@/lib/courses/sessions";
 import { isBlockWeek, partsOf } from "@/lib/courses/weekBlocks/model";
@@ -115,7 +120,9 @@ export async function gateReportWriter(db: Firestore, actor: SessionUser, groupI
  * has refused somebody. Null for anybody else, who keeps the first gate's
  * refusal. The report is theirs, one per writer per session as for any
  * writer, and records whose place they took. An admin or a lead who did not
- * take the register still writes none.
+ * take the register still writes none, and nor does somebody who took it but
+ * no longer passes the register's own gate (`gateGroupRegister`, asked again
+ * here): a lead replaced since, or a grant that has ended.
  */
 export async function gateCoveringReportWriter(
   db: Firestore,
@@ -125,11 +132,16 @@ export async function gateCoveringReportWriter(
   now: Date,
 ): Promise<ReportWriter | null> {
   if (!isAddressableId(groupId)) return null;
-  const groupSnap = await db.collection("courseGroups").doc(groupId).get();
-  const group = groupSnap.exists ? normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {}) : null;
-  if (!group || group.archived || !isAddressableId(group.runId)) return null;
+  // The register's own gate, asked at the moment they write: somebody who
+  // took a register as the programme's lead and has stopped being it, or
+  // whose grant has ended, writes nothing.
+  const registerGate = await gateGroupRegister(groupId, actor, db);
+  if (!registerGate.ok) return null;
+  const group = registerGate.group;
+  if (group.archived || !isAddressableId(group.runId)) return null;
   const register = await readSessionRegister(db, group.runId, group.id, sessionKey);
   if (!register || !holdsCover(register.cover, actor.uid, now)) return null;
+  if (!registerSessionAccess(registerGate, { uid: actor.uid, sessionKey, cover: register.cover, now }).writes) return null;
   const runSnap = await db.collection("courseRuns").doc(group.runId).get();
   if (!runSnap.exists || (runSnap.data() ?? {}).destroying === true) return null;
   return {

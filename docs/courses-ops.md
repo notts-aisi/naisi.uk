@@ -2053,7 +2053,7 @@ register records who did and in whose place. The rules are in one place,
 | The group's facilitators | Their own group's sessions, as before. Notes included. |
 | Admins | Any session, as before. Notes included. |
 | The programme's lead and the run's track leads | NEW: any session of their run, in the facilitators' place. Marks only: never the session's note or the notes about named people, which are refused in a sentence. |
-| Somebody given one session | NEW: that session's register, check-in and report, and nothing else of the group, until midnight. Names only, as a facilitator sees them; no note, no email address, no application. |
+| Somebody given one session | NEW: that session's register, check-in and report, and that session's meeting link on its register, and nothing else of the group, until midnight. Names only, as a facilitator sees them; no note, no email address, no application. |
 
 An admin's correction of a finished register (PATCH) stays an admin's. The note
 drawer (`participant-notes`) stays the facilitators' and admins'.
@@ -2066,10 +2066,22 @@ people leading the programme who are not facilitators of the group:
 - **I'm covering it** (no `person`): stamps the register's `cover` as `self`,
   before any line is set. The facilitators with standing at that moment are the
   people whose place is taken (`cover.covering`, possibly empty), and each is
-  recorded as not there. A register that holds only a cover is NOT taken
-  (`registerIsTaken`): covering it says who will take it, not that anybody has.
-- **Someone else is covering** (`person`): any approved account but the
-  presser's own, never a facilitator of the group. Stores who gave it, when,
+  recorded as not there when the cover is taken or given before the session
+  ends. Taken after it ended (catching up an old register), nobody knows who
+  was there, so nobody is recorded: an admin or the programme's lead can say.
+  A register that holds only a cover is NOT taken (`registerIsTaken`):
+  covering it says who will take it, not that anybody has.
+- **Someone else is covering** (`person`): somebody who runs things on the
+  programme (`runsThingsOn` in `src/lib/courses/registerCover/people.ts`): an
+  admin, a committee member, the programme's lead, one of the run's track
+  leads, or a facilitator of one of the run's groups that still meets, each
+  held to the bar they were appointed behind. Never the presser, never a
+  facilitator of the group, and never a plain member, who is refused in one
+  sentence; the group page's person picker lists the same people
+  (`coverCandidatesOf`). Giving the same session to the same person again while
+  the grant holds (a retry, or the same pick twice) is a 409 that writes and
+  sends nothing, and the preview's `replaces` names who has the session now.
+  Stores who gave it, when,
   an optional one-line reason (200 characters, nothing followable) and `until`:
   the end of the London day on which the later of now and the session's start
   falls. They are emailed once (transactional): "You're covering Group E today
@@ -2084,7 +2096,20 @@ people leading the programme who are not facilitators of the group:
 A new grant for the same session replaces the old one, and "I'm covering it"
 replaces a grant; nothing of the old grant is left behind. Refused: a session
 called off, a finished register, a register one of the group's facilitators
-has started (they are there), a session with no day to give it until.
+has started (they are there), a session with no day to give it until. A
+facilitator's OWN word before the session (`how: self`: "Can't make it",
+"Joining online") is not starting the register: a facilitator who also holds a
+place in the group and says they can't make it is the person somebody may
+need to cover for.
+
+A COVER DOES NOT RIDE ALONG. When a change moves the start of a session whose
+register nobody has taken but somebody holds the cover of (a one-week move or
+push back, a new regular time, a group's own pace), the same transaction takes
+the cover off, with the facilitator record's entries it wrote (`how: cover`),
+and the change's history row says who had been covering; a pace change, which
+writes no row of its own, writes a `register-cover-removed` row
+(`src/lib/courses/registerCover/moves.ts`). Cancelling and keeping pace moves
+nothing, so the cover stays.
 
 An admin's or a lead's FIRST LINE on a register nobody covered and none of its
 facilitators has started stamps the same cover in the same write, so a
@@ -2111,7 +2136,9 @@ simply stops reaching it, and the chase below takes over.
   session's register while the cover holds, whose report is stored with
   `coveringFor` (the facilitators whose place they took) so readers label it
   "covering for Josh". One report per writer per session, as before. An admin
-  or a lead who did not take the register writes none.
+  or a lead who did not take the register writes none, and nor does somebody
+  who took it but no longer passes the register's own gate when they write
+  (a lead replaced since, a grant that has ended).
 
 ### Who set each line
 
@@ -2149,14 +2176,16 @@ reads the marks. A register written before it has no stamps and shows nobody.
   changes one entry (`changed`), with a `facilitator-record-changed` history
   row holding the before and the after.
 
-**Who is sent it: admins and the people leading the programme (its lead and the
-run's track leads), and never anybody who facilitates the group, however else
-they stand, nor anybody given a session, nor a member.** The register's GET
-leaves the key out of everybody else's answer, and a group's history
+**Who is sent it: admins and the programme's lead, and never anybody who
+facilitates the group, however else they stand, nor a run's track lead by that
+alone, nor anybody given a session, nor a member.** The register's GET leaves
+the key out of everybody else's answer, and a group's history
 (`loadGroupHistory`) drops the `facilitator-record-changed` rows unless its page
 asks for them with `{ facilitatorRecord: true }`, which only a page drawn for
-an admin or a lead who does not facilitate the group may do. A cover's reason
-goes to the same people only.
+an admin or the programme's lead who does not facilitate the group may do. A
+cover's reason goes to the same people only: drawn for anybody else, the
+`register-covered` and `register-given` rows keep their sentence without its
+"Reason:" part and no `reason`.
 
 ### The chase, once somebody covered
 
@@ -2171,7 +2200,13 @@ on the Overview:
   every facilitator, as before.
 
 Somebody who is not a facilitator is held to an approved account, an address,
-their own "Tasks and worksheets" switch and the do-not-email list. Markers
+their own "Tasks and worksheets" switch and the do-not-email list. Each email's
+"Open the register" goes to a page its reader can open
+(`registerReminderLink`): the run's own register under `/learn` for the
+group's facilitators, admins and the run's track leads, and the group's
+register under the programme's Groups tab, on that session, for the
+programme's lead. A lead's Remind never emails the person pressing it, and its
+count never includes them. Markers
 stay keyed as before (`regremind__{groupId}__{sessionKey}__{uid}`), so nothing
 already sent is sent again. On the day this ships no register has a cover, so a
 reminder due that day goes to every facilitator, or to the one who last saved
@@ -2221,9 +2256,17 @@ asked with a reason, previewed, and with an optional notice:
   row (registers) keeps what each line said in its `before`, beside the
   change's own row. What people said in advance stays, as for any cancelled or
   pushed week. Pushed back, the register becomes the next session's, so its
-  cover and its facilitator record go too and its `sessionAt` follows the
-  session; kept pace, they stay as the record of a session nobody ran. The
-  session's notes are not lines and stay.
+  cover and its facilitator record go too (the row's `before` keeps them
+  beside the lines, as plain values: `cover`, `coverByUid`, `coverUntil`,
+  `facilitator:<uid>`, and its sentence says who was covering) and its
+  `sessionAt` follows the session; kept pace, they stay as the record of a
+  session nobody ran. The session's notes are not lines and stay. The pages
+  work out whether "push the rest back" is offered from LATER weeks only: the
+  pressed week's own draft is cleared in the same press.
+- **A session with a check-in or a session report**: both are kept by the
+  week, so pushed back, the session a week later would open with them. Push
+  back is refused (409, in a sentence saying why, preview and press alike) and
+  not offered on the pages; keep pace stays.
 - **A finished register**: refused in a sentence, since whether it happened is
   a correction now (an admin's).
 - A card the unfinished-register job already raised for the session is
@@ -2243,7 +2286,9 @@ the reason); a push back sends the cancelled and pushed back words.
   on its register, a notice says so with three ways forward: take the
   register in the facilitators' place (the cover is taken first, then the
   register opens), give the session to somebody else, or say it didn't
-  happen (the Change panel on that week with its two cancels alone). Every
+  happen (the Change panel on that week with its two cancels alone). The
+  group's facilitators reach the same two cancels in Change one week, for a
+  week that has started whose register is a draft with marks. Every
   week whose register is not finished offers the same from its own Take the
   register, past weeks included; once a facilitator has started a register it
   opens the register itself. Overview's Needs attention leads to the same
@@ -2256,8 +2301,9 @@ the reason); a push back sends the cancelled and pushed back words.
   layout to them would open other pages too). The run's layout lets through
   somebody holding a live given session (`holdsGivenSessionOn`), and their
   register page shows that one session's column, names only, with no notes
-  and no way into the group's page; every other page under the run refuses
-  them. The register says whose place is taken, who set each line and when,
+  and no way into the group's page, and that session's meeting link while the
+  grant holds (through `seesSessionLink`, never in an email); every other page
+  under the run refuses them. The register says whose place is taken, who set each line and when,
   and to a facilitator who arrives late, who started it. Finish shows the
   marks before the lock and, in a group with more than one facilitator, asks
   the finishing facilitator who was here. Admins and the programme's lead get

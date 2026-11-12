@@ -1,6 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { firstNameOfUser, readRunLead, standingUserOf, type RunLead } from "@/lib/courses/programmeLead";
+import { firstNameOfUser, readNamingProgramme, readRunLead, standingUserOf, type RunLead } from "@/lib/courses/programmeLead";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import {
   followUpDueAt,
@@ -9,11 +9,14 @@ import {
 } from "@/lib/courses/unmarkedRegisters";
 import { wantsEmailForProfile } from "@/lib/email/preferences";
 import {
+  LEARN,
   sendRegisterReminderEmail,
   type RegisterReminderFacts,
+  type ReminderOpens,
 } from "@/lib/email/registerReminderEmail";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
+import type { SessionUser } from "@/lib/firebase/session";
 import { readCoursesConfig, type CoursesConfig } from "@/lib/firestore/config";
 import {
   attendanceDocId,
@@ -164,7 +167,12 @@ const APPROVED_ROLES = new Set(["member", "committee", "admin"]);
  * `resolveFacilitator` but the role's own bar, which is an approved account:
  * an address, their own "Tasks and worksheets" switch, the do-not-email list.
  */
-async function resolveCoverer(db: Firestore, uid: string): Promise<{ to: string; name: string } | { skip: string }> {
+async function resolveCoverer(
+  db: Firestore,
+  uid: string,
+  group: Pick<CourseGroupDoc, "runId">,
+  sessionKey: string,
+): Promise<ChasedPerson | { skip: string }> {
   if (!uid || uid.includes("/")) return { skip: "no-account" };
   const snap = await db.collection("users").doc(uid).get();
   if (!snap.exists) return { skip: "no-account" };
@@ -178,21 +186,45 @@ async function resolveCoverer(db: Firestore, uid: string): Promise<{ to: string;
   } catch {
     return { skip: SUPPRESSION_UNREADABLE };
   }
-  return { to: email, name: firstNameOfUser(data) };
+  return { to: email, name: firstNameOfUser(data), opens: await coverersPage(db, standingUserOf(uid, data), group.runId, sessionKey) };
 }
 
 /**
+ * WHICH REGISTER PAGE SOMEBODY WHO IS NOT ONE OF THE GROUP'S FACILITATORS
+ * CAN OPEN. The run's own pages under /learn admit an admin and the run's
+ * track leads; the programme's lead works from the programme's pages, and
+ * the run's turn them away, so a lead is sent to the group's register under
+ * the programme's Groups tab, on that session. A run no programme names has
+ * no such page: /learn, as before.
+ */
+async function coverersPage(db: Firestore, person: SessionUser, runId: string, sessionKey: string): Promise<ReminderOpens> {
+  if (person.role === "admin" || !runId || runId.includes("/")) return LEARN;
+  const runSnap = await db.collection("courseRuns").doc(runId).get();
+  if (isNamedWithStanding(person, "courseRuns.trackLeadUids", runSnap.exists ? (runSnap.data() ?? {}).trackLeadUids : [])) return LEARN;
+  const naming = await readNamingProgramme(db, runId);
+  return naming ? { kind: "programme", roundId: naming.roundId, programmeId: naming.programmeId, sessionKey } : LEARN;
+}
+
+/** Somebody a reminder goes to: their address, their first name, and the register page they can open. */
+export type ChasedPerson = { to: string; name: string; opens: ReminderOpens };
+
+/**
  * One person a reminder about this register goes to: a facilitator of the
- * group through `resolveFacilitator`, anybody else (who took or gave it)
- * through `resolveCoverer`.
+ * group through `resolveFacilitator` (the register under /learn), anybody
+ * else (who took or gave it) through `resolveCoverer` (the page they can
+ * open, `coverersPage`).
  */
 export async function resolveChased(
   db: Firestore,
   uid: string,
-  group: Pick<CourseGroupDoc, "facilitatorUids">,
-): Promise<{ to: string; name: string } | { skip: string }> {
-  if (group.facilitatorUids.includes(uid)) return resolveFacilitator(db, uid, group.facilitatorUids);
-  return resolveCoverer(db, uid);
+  group: Pick<CourseGroupDoc, "facilitatorUids" | "runId">,
+  sessionKey: string,
+): Promise<ChasedPerson | { skip: string }> {
+  if (group.facilitatorUids.includes(uid)) {
+    const person = await resolveFacilitator(db, uid, group.facilitatorUids);
+    return "skip" in person ? person : { ...person, opens: LEARN };
+  }
+  return resolveCoverer(db, uid, group, sessionKey);
 }
 
 /**
@@ -256,7 +288,7 @@ async function remindForSession(
         pass.skipped += 1;
         continue;
       }
-      const person = await resolveChased(db, uid, group);
+      const person = await resolveChased(db, uid, group, session.sessionKey);
       if ("skip" in person) {
         await stampSkipped(db, marker.id, person.skip, ctx.now);
         pass.skipped += 1;
@@ -282,6 +314,7 @@ async function remindForSession(
         runId: run.id,
         groupId: group.id,
         appUrl: state.appUrl,
+        opens: person.opens,
         facts,
       });
       if (sent === "sent") {
