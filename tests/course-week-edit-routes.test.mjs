@@ -522,6 +522,16 @@ describe("5. telling people about a change", () => {
     assert.equal(saves().find((row) => row.id === saveId).told, null);
   });
 
+  test("only the newest save can be told about", async () => {
+    const saveId = await savedLink();
+    await change("zach", "tx-before", { body: "Rest first." });
+    const preview = await ask("zach", R.tell.GET, AT, { query: `?save=${saveId}` });
+    assert.equal(preview.body.canTell, false);
+    const refused = await ask("zach", R.tell.POST, AT, { body: { save: saveId, audience: "programme", count: 1 } });
+    assert.deepEqual([refused.status, refused.body.error], [409, TELL_REFUSAL.notLatest]);
+    assert.equal(world.mail.length, 0);
+  });
+
   test("a week that is not published has nobody to tell", async () => {
     seedWeek({ published: false });
     const saved = await change("zach", "src-1", { title: "Base rates" });

@@ -148,6 +148,9 @@ describe("2. what an edit refuses", () => {
     assert.match(refused("tx-before", { body: "A [link](http://example.com/x)." }).error, /isn’t an https link/);
     assert.match(refused("tx-before", { body: "<div>bold</div>\n\nText" }).error, /HTML can’t go in a week/);
     assert.match(refused("src-7", { note: "One.\n\nTwo." }).error, /is one line/);
+    // Facilitator material never goes in a week, by the paste's own refusal.
+    assert.match(refused("tx-before", { body: "## Run sheet\n\nTen minutes on the reading." }).error, /Facilitator material never goes in a week/);
+    assert.match(refused("wa-1", { guidance: "## Answer key\n\nThe base rate is ten percent." }).error, /Facilitator material never goes in a week/);
   });
 
   test("a reflection keeps its prompts: no more, no fewer, none swapped", () => {

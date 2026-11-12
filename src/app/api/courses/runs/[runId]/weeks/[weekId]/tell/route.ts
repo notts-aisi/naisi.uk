@@ -179,7 +179,7 @@ export async function POST(req: Request, ctx: Params) {
   }
 
   // ── The notice ────────────────────────────────────────────────────────────
-  if (!latest) return NextResponse.json({ error: TELL_REFUSAL.saveGone }, { status: 409 });
+  if (!latest) return NextResponse.json({ error: TELL_REFUSAL.notLatest }, { status: 409 });
   if (save.told) return NextResponse.json({ error: TELL_REFUSAL.alreadyTold }, { status: 409 });
   const weekBlocks = isBlockWeek(loaded.week) ? loaded.week.blocks : [];
   const audiences = await tellAudiences(db, runId, weekId, weekBlocks, actor.uid);

@@ -1,3 +1,4 @@
+import { facilitatorMaterialIn } from "../facilitatorGuide/recognise";
 import { proseToMarkdown, runsToMarkdown } from "../weekBlocks/markdownWrite";
 import { guideTextReader } from "../weekBlocks/markdownRead";
 import { WEEK_BLOCK_LIMITS as L } from "../weekBlocks/limits";
@@ -48,7 +49,8 @@ import { EDIT_REFUSAL, HISTORY_WORDS, sourceOwnerWords } from "./words";
  * Markdown and are read with the one reader a week's text is read with
  * (`guideTextReader`), so a field says on the page exactly what the paste
  * would make of it, and nothing the paste refuses (HTML, a picture, a link
- * that is not https) gets in this way either.
+ * that is not https) gets in this way either, and Markdown the paste would
+ * refuse as facilitator material (`facilitatorMaterialIn`) is refused here too.
  *
  * Pure: no reads and no clock. The route reads the week and its answers.
  */
@@ -153,6 +155,10 @@ function leftOutSentence(where: string, reader: ReturnType<typeof guideTextReade
 
 /** Markdown read as prose, exactly as a week's text is read; a refusal for anything the reader leaves out. */
 export function proseFromMarkdown(where: string, markdown: string): Read<Prose> {
+  // Facilitator material never goes in a week, which anyone signed in can
+  // read: the paste's own refusal, asked of every field here.
+  const material = facilitatorMaterialIn(markdown);
+  if (material) return { ok: false, error: material };
   const reader = guideTextReader();
   const prose = reader.prose(reader.tokens(markdown));
   const left = leftOutSentence(where, reader);
@@ -161,6 +167,8 @@ export function proseFromMarkdown(where: string, markdown: string): Read<Prose> 
 
 /** One line of Markdown read as runs; a refusal for more than one paragraph, or for anything the reader leaves out. */
 export function runsFromMarkdown(where: string, markdown: string): Read<Run[]> {
+  const material = facilitatorMaterialIn(markdown);
+  if (material) return { ok: false, error: material };
   const reader = guideTextReader();
   const tokens = reader.tokens(markdown).filter((token) => token.type !== "space");
   if (tokens.length === 0) return { ok: true, value: [] };

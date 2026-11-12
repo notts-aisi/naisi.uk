@@ -230,6 +230,7 @@ export const TELL_REFUSAL = {
   body: "Send the choice as JSON.",
   save: "Say which save to tell people about.",
   saveGone: "That save isn’t in this week’s history.",
+  notLatest: "The week has changed since that save, so a notice about it would describe a week people no longer see. Tell them about the newest change instead.",
   notLive: "This week isn’t published, so nobody reads it yet and there’s nobody to tell.",
   audience: "Choose who to tell: the people who’ve started the week, everyone it’s open for, or everyone on the programme.",
   count: "Send the number of people the button showed.",
