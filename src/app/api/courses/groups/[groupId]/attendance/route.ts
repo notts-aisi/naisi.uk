@@ -986,6 +986,8 @@ class RegisterFullError extends Error {}
 class RegisterLockedError extends Error {}
 /** POST by somebody given the session, met a grant that no longer holds. */
 class RegisterNotYoursError extends Error {}
+/** POST asked a session to be marked as not held, which Change this week now does. */
+class NotHeldMovedError extends Error {}
 
 /** One line's stamp as it is written. */
 type LineSetterStamp = { byUid: string; at: Date; how: LineSetterHow };
@@ -1080,6 +1082,10 @@ export async function POST(
       // rollups a reviewer reads; a later draft-lane write would leave the two
       // describing different sessions. PATCH is the admin's door.
       if (data.pushedAt) throw new RegisterLockedError();
+      // "It didn't happen" now lives with the two cancels in Change this week:
+      // a NEW not-held is refused; a register that already says it reads and
+      // saves as before.
+      if (hasHeld && body.held === false && data.held !== false) throw new NotHeldMovedError();
       const stored = normalizeCourseAttendance(snap.id, data);
       // Somebody given this session holds it only while the grant does: read
       // again here, against the register as it is now.
@@ -1231,6 +1237,9 @@ export async function POST(
   } catch (err) {
     if (err instanceof RegisterNotYoursError) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (err instanceof NotHeldMovedError) {
+      return NextResponse.json({ error: REGISTER_COVER_REFUSAL.didNotHappen }, { status: 409 });
     }
     if (err instanceof RegisterLockedError) {
       return NextResponse.json(

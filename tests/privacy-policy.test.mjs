@@ -6189,6 +6189,8 @@ describe("the course hub passage", () => {
         ],
         ["src/features/courses/register/CheckInCard.tsx", "the register's check-in card: draws what the check-in route hands it, a count while it is open and totals once closed, never a comment, an answer or a name"],
         ["src/app/api/courses/groups/[groupId]/attendance/route.ts", "the register's marking route: somebody marked at a session while its check-in is open gets their own row on it (reachLateMarks), with no email, and no answer is read"],
+        // ADDED (November 2026), with It didn't happen.
+        ["src/lib/courses/sessionChange/didNotHappen.ts", "the preview of calling off a session after it passed, behind the change route's own gate: whether its check-in was ever opened (checkInWasOpened), and no answer is read"],
       ]),
       "reaching survey code from outside it",
       "The policy says only admins see who said what; the programme's lead " +
@@ -6561,6 +6563,13 @@ describe("the course hub passage", () => {
       [
         "src/app/api/courses/groups/[groupId]/attendance/route.ts",
         ["after a mark is kept, gives somebody marked there their own row on the session's open check-in, reading no answer; the mark is decided before it, and nothing of a check-in changes it", ["@/lib/surveys/checkIns/lateMark"]],
+      ],
+      // ADDED (November 2026): calling off a session after it passed says,
+      // in its preview, whether the session's check-in was opened. Nothing
+      // of the check-in is read, and nothing it says decides anything.
+      [
+        "src/lib/courses/sessionChange/didNotHappen.ts",
+        ["the preview of a session called off after it passed: whether its check-in was ever opened, reading no answer and deciding nothing", ["@/lib/surveys/checkIns/facilitatorView"]],
       ],
       // CHANGED ON PURPOSE (v15, admins may ask Claude to help review survey
       // answers): the week review reads a week's check-ins pooled by group,
@@ -10984,6 +10993,8 @@ describe("v16 says a register records the room or online, and you may tell us in
       sourceFilesNaming(/\[ONLINE\]:|FieldPath\(ONLINE,/),
       new Map([
         ["src/app/api/courses/groups/[groupId]/attendance/route.ts", "the register's marking and an admin's correction: where somebody marked as having come was, beside that mark"],
+        // ADDED (November 2026): It didn't happen clears it with the mark it sat beside, and nothing else.
+        ["src/lib/courses/sessionChange/didNotHappen.ts", "a session called off after it passed (It didn't happen): where somebody marked as having come was goes with the mark it sat beside, both kept in the history row"],
         ["src/lib/firestore/accountDeletion.ts", "account deletion clears the person's own entry, key by key, and nobody else's"],
       ]),
       "writing where somebody who came was",

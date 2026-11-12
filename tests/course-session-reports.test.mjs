@@ -1120,11 +1120,15 @@ const READER_CALLERS = {
   // The admins' week review (privacy v15): a week's reports, held to their
   // writers' and each named person's version 15 moment, labelled before any
   // of it goes to Claude, and the site's own Might need a hand.
+  // A session called off after it passed: the change's preview says whether
+  // a report exists, with a count and nothing of what one says.
+  "lib/courses/sessionChange/didNotHappen.ts":
+    "the preview of calling off a session after it passed, behind the change route's own gate: how many reports the session has, a count, never what one says",
   "lib/courses/weekReview/gather.ts":
     "the admins' week review, after its admin-only door: a week's reports by account, held to each version 15 moment and labelled before Claude, and their picks as the site's own facts; never a note",
 };
 /** What reads a report: the readers and the own-report loaders. */
-const READERS = /\b(?:readRunSessionReports|countRunSessionReports|countRunReportsByWeek|weekReportsForReview|ownReportView|readOwnReport|loadReportPage|readReportLinesAbout)\s*\(/;
+const READERS = /\b(?:readRunSessionReports|countRunSessionReports|countRunReportsByWeek|countSessionReports|weekReportsForReview|ownReportView|readOwnReport|loadReportPage|readReportLinesAbout)\s*\(/;
 
 function sourceFiles(dir = SRC, out = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

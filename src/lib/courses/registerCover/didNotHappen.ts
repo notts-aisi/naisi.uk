@@ -1,8 +1,12 @@
+import { REFUSAL } from "@/lib/courses/sessionChange/words";
 import {
   ATTENDANCE_STATUS_LABEL,
   cameBy,
+  normalizeCourseAttendance,
+  registerIsTaken,
   type CourseAttendanceDoc,
 } from "@/lib/firestore/courseAttendance";
+import { REGISTER_COVER_REFUSAL } from "./words";
 
 /**
  * A SESSION THAT DID NOT HAPPEN, CALLED OFF AFTER THE FACT, as arithmetic:
@@ -46,4 +50,29 @@ export function linesSetForSession(register: CourseAttendanceDoc | null): Cleare
   const said: Record<string, string> = {};
   for (const uid of uids) said[uid] = lineWords(register, uid);
   return { uids, said };
+}
+
+/**
+ * Whether this press calls off a session whose register is a draft somebody
+ * marked: a cancel or a push of a session not called off already, on a
+ * register taken and not finished that does not say the session did not
+ * happen (a register that does keeps its own reading, and every change to it
+ * is refused as before).
+ */
+export function callsOffDraft(
+  press: { kind: string },
+  register: Readonly<Record<string, unknown>> | undefined,
+  session: { cancelled: boolean },
+): boolean {
+  if (press.kind !== "cancel" && press.kind !== "push") return false;
+  if (session.cancelled) return false;
+  if (!register || !registerIsTaken(register)) return false;
+  const stored = normalizeCourseAttendance("register", register);
+  return stored.pushedAt === null && stored.held;
+}
+
+/** The refusal for a session whose register was taken and which this press may not change. */
+export function takenRefusal(press: { kind: string }, register: Readonly<Record<string, unknown>> | undefined): string {
+  const finished = Boolean(register && register.pushedAt !== undefined && register.pushedAt !== null);
+  return finished && (press.kind === "cancel" || press.kind === "push") ? REGISTER_COVER_REFUSAL.finishedDidNotHappen : REFUSAL.met;
 }

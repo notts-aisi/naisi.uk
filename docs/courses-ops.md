@@ -1181,11 +1181,15 @@ slow one costs the jobs after it a quarter of an hour, never an email.
 
 ### A cancelled session
 
-Use the **Didn't happen** switch on the column, then finish as normal. A
-session marked not held leaves every denominator rather than counting as a room
-full of absences, and it is never chased. "Week N is open" goes either way:
-the push sends it while the schedule is off, and the schedule sends it on time
-while it is on.
+A session that did not happen is called off with **Change this week**, after
+the fact as before it: Cancel and keep pace, or Cancel and push the rest back a
+week, with a reason, a preview and an optional notice (see "It didn't happen"
+under "Covering a register"). The register's own **Didn't happen** switch no
+longer takes a NEW not-held: its write route answers with one sentence saying
+where It didn't happen now lives. A register that already says it did not
+happen (none on production) reads exactly as before, leaves every denominator
+and is never chased, and an admin's correction of a finished register keeps
+its switch.
 
 A session cancelled ahead of time, through "Change a session", is never chased
 either, and its own email says it is off: see Changing a session. Its column
@@ -2196,6 +2200,40 @@ uids naming who acted (a stamp's `byUid`, a cover's `byUid`, `covering` and
 groups the account facilitated, so a facilitator holding no place loses their
 own entries. A session report written for them keeps its writer and loses them
 from `coveringFor`.
+
+### It didn't happen
+
+The register's switch is replaced by the one-week change's two cancels
+(`POST /api/courses/groups/[groupId]/session/change`, `cancel` or `push`),
+asked with a reason, previewed, and with an optional notice:
+
+- **No register, or one not taken**: the one-week change does it, as for any
+  session whose time has passed. Its preview, for a session that has started,
+  adds `didNotHappen`: the week leaves everyone's attendance, whether a check-in
+  was opened and how many session reports exist (counts, never what one says),
+  the chase stops, and which lines would be cleared with what each said.
+- **A draft with marks, not finished**: allowed for the group's facilitators
+  with standing, the programme's lead, the run's track leads and admins. In the
+  same transaction the lines set for the session are cleared (marks, where each
+  person who came was, who set each), the person who last saved it is cleared,
+  so the register is no longer taken, and one `session-did-not-happen` history
+  row (registers) keeps what each line said in its `before`, beside the
+  change's own row. What people said in advance stays, as for any cancelled or
+  pushed week. Pushed back, the register becomes the next session's, so its
+  cover and its facilitator record go too and its `sessionAt` follows the
+  session; kept pace, they stay as the record of a session nobody ran. The
+  session's notes are not lines and stay.
+- **A finished register**: refused in a sentence, since whether it happened is
+  a correction now (an admin's).
+- A card the unfinished-register job already raised for the session is
+  archived after the change, best effort.
+
+Called off after the fact, a session is out of every figure, is never chased
+(neither the 36-hour reminder nor the 60-hour card), and refuses its check-in
+and its report, as any cancelled session does. Its notice is "No session for
+week 2" ("Group E didn't meet on Tue 10 Nov. Week 3 is still Tue 17 Nov, 4pm,
+Monica Partridge E05, and week 2's work is still on your programme page.", and
+the reason); a push back sends the cancelled and pushed back words.
 
 ### Reverting
 

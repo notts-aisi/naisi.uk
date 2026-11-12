@@ -1,6 +1,7 @@
 import { londonWallClockToInstant, type WeekPlanEntry } from "../weekPlan";
 import { resolveSessions, sessionInstants, type ResolvedSession, type SessionGroup } from "../sessions";
 import { registerIsTaken } from "@/lib/firestore/courseAttendance";
+import { callsOffDraft, takenRefusal } from "@/lib/courses/registerCover/didNotHappen";
 import type { CourseAuditKind } from "@/lib/firestore/courseAudit";
 import {
   campusForWeek,
@@ -121,7 +122,9 @@ export function checkPress(
 
   if (started) {
     // It met: the register says so, and the register is what is corrected.
-    if (registerIsTaken(register)) throw new ChangeRefusal(REFUSAL.met, 409);
+    // Unless it is a draft called off after the fact ("It didn't happen"),
+    // whose lines the change route clears in the same write (`./didNotHappen`).
+    if (registerIsTaken(register) && !callsOffDraft(press, register, session)) throw new ChangeRefusal(takenRefusal(press, register), 409);
     if (press.kind === "online") throw new ChangeRefusal(REFUSAL.startedOnline, 409);
     if (press.kind === "restore") throw new ChangeRefusal(REFUSAL.startedRestore, 409);
   } else if (press.metAtAnotherTime) {

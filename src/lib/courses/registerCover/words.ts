@@ -68,6 +68,9 @@ export const REGISTER_COVER_REFUSAL = {
   state: "Choose there, arrived late or not there.",
   arrivedAt: "Say when they arrived, between the session’s start and end.",
   sameAsNow: "That’s already what it says.",
+  /** Calling off a session whose register is finished: a correction now, which comes later. */
+  finishedDidNotHappen:
+    "That session’s register is finished, so whether it happened is a correction now. Ask an admin to correct the register.",
 } as const;
 
 // ---------------------------------------------------------------------------

@@ -82,6 +82,15 @@ async function reportsOfRun(db: Firestore, runId: string): Promise<CourseSession
 }
 
 /**
+ * HOW MANY REPORTS ONE SESSION OF ONE GROUP HAS: a count and nothing of what
+ * any says, for the preview of calling that session off after it passed
+ * ("What will happen"). Called by the change route's preview, behind its gate.
+ */
+export async function countSessionReports(db: Firestore, runId: string, groupId: string, sessionKey: string): Promise<number> {
+  return (await reportsOfRun(db, runId)).filter((report) => report.groupId === groupId && report.sessionKey === sessionKey).length;
+}
+
+/**
  * EVERY REPORT ON ONE WEEK OF A RUN, AS STORED (people by account, never by
  * name), for the admins' week review (`src/lib/courses/weekReview/`), which
  * holds each to its writer's and each named person's version 15 moment and

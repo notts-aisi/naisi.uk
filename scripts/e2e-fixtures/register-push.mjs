@@ -91,7 +91,7 @@ const log = (msg) => console.log(`[register-seed] ${msg}`);
 export const REGISTER_STEPS = [
   "the admin opens the group page and sees the roster and the register",
   "the register takes all five attendance states",
-  "a session flipped to not held says so in its header",
+  "the register's not-held switch is refused, says where It didn't happen lives, and changes nothing",
   "a participant note saves and survives a reload",
   "pushing the first session locks it and says who is emailed",
   "a second press answers that the register was already pushed",

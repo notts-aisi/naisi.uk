@@ -17,6 +17,13 @@ import { readNamingProgramme } from "@/lib/courses/programmeLead";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { ChangeRefusal, checkPress, type CheckedPress } from "@/lib/courses/sessionChange/check";
+import {
+  callsOffDraft,
+  clearedNames,
+  closeCalledOffFollowUp,
+  didNotHappenFacts,
+  writeDidNotHappen,
+} from "@/lib/courses/sessionChange/didNotHappen";
 import { sessionOfWeek } from "@/lib/courses/sessionChange/model";
 import { oneWeekHistoryDetail, oneWeekNoticeFor, weekSessionAfter } from "@/lib/courses/sessionChange/notice";
 import { parseChangePress, type ChangePress } from "@/lib/courses/sessionChange/parse";
@@ -195,6 +202,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
           said,
           told,
           register: { exists: register !== undefined, taken: registerIsTaken(register) },
+          // Called off after it passed: what else follows (`./didNotHappen`).
+          didNotHappen:
+            first.started && (press.kind === "cancel" || press.kind === "push")
+              ? await didNotHappenFacts(db, { run, group: found, session: first.session, register })
+              : null,
           notice: oneWeekNoticeFor(run, first, press, { groupName, incubator }),
           at: iso(now),
         },
@@ -218,6 +230,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
     }
 
     // ── The write, on the group as it stands now ───────────────────────────
+    // Who the lines of a draft called off after the fact belonged to, for the
+    // history's sentence: read before the transaction.
+    const names = callsOffDraft(press, register, first.session) ? await clearedNames(db, register) : new Map<string, string>();
     outcome = await db.runTransaction(async (tx) => {
       const freshSnap = await tx.get(groupRef);
       if (!freshSnap.exists) throw new ChangeRefusal(REFUSAL.gone, 400);
@@ -306,6 +321,24 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
 
       const emailed = press.tell ? press.emailCount : 0;
       const afterSession = weekSessionAfter(run, checked, press.weekNumber);
+      // It didn't happen, on a draft somebody marked: its lines go, in this write.
+      const freshData = freshRegister.exists ? (freshRegister.data() ?? {}) : undefined;
+      if (checked.started && freshData && callsOffDraft(press, freshData, checked.session)) {
+        writeDidNotHappen(tx, db, {
+          ref: registerRef,
+          register: freshData,
+          kind: press.kind as "cancel" | "push",
+          run,
+          group,
+          actor,
+          weekNumber: press.weekNumber,
+          weekId,
+          after: afterSession,
+          reason: press.reason,
+          emailed,
+          names,
+        });
+      }
       tx.set(
         db.collection(COURSE_AUDIT_COLLECTION).doc(),
         groupHistoryRow({
@@ -338,6 +371,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
         },
       };
     });
+
+    // A session called off after it passed has no register left to finish.
+    if (outcome.checked.started && (press.kind === "cancel" || press.kind === "push")) {
+      await closeCalledOffFollowUp(db, { runId: run.id, groupId: found.id, sessionKey: outcome.checked.session.sessionKey });
+    }
 
     const answer: Answer = {
       ok: true,

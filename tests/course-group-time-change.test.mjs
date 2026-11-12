@@ -46,6 +46,7 @@ const roomRoute = await w.formRoute("programmes", "[programmeId]", "groups", "[g
 const timeAnswer = await loadTs("lib/courses/timeAnswer/model.ts");
 const groupsLib = await loadTs("lib/firestore/courseGroups.ts");
 const words = await loadTs("lib/courses/sessionChange/words.ts");
+const coverWords = await loadTs("lib/courses/registerCover/words.ts");
 
 beforeEach(() => reset());
 
@@ -155,22 +156,28 @@ describe("1. a session whose time has passed, and nobody took its register", () 
     assert.equal(everything(), before);
   });
 
-  for (const [what, register] of [
-    ["finished", { pushedAt: new Date("2026-11-17T21:00:00Z") }],
-    ["marked", { markedByUid: "rahul", records: { amara: "present" } }],
-    ["said not to have happened", { held: false }],
+  // CHANGED ON PURPOSE (November 2026): every kind was refused here for
+  // every taken register. "It didn't happen" now uses the two cancels: on a
+  // DRAFT with marks they clear its lines (tests/course-register-did-not-happen.test.mjs),
+  // so the marked register is asked the moves alone; on a FINISHED register
+  // they are refused as a correction, in their own sentence. Everything else
+  // is refused as before, and nothing is written.
+  const CANCELS = [{ kind: "cancel" }, { kind: "push" }];
+  const MOVES = [
+    { kind: "move", move: { dateKey: "2026-11-18", time: "10am", room: "Hallward B12" } },
+    { kind: "move", metAtAnotherTime: true, move: { dateKey: "2026-11-18", time: "10am", room: "Hallward B12" } },
+  ];
+  for (const [what, register, asked] of [
+    ["finished", { pushedAt: new Date("2026-11-17T21:00:00Z") }, [...CANCELS.map((body) => [body, coverWords.REGISTER_COVER_REFUSAL.finishedDidNotHappen]), ...MOVES.map((body) => [body, words.REFUSAL.met])]],
+    ["marked", { markedByUid: "rahul", records: { amara: "present" } }, MOVES.map((body) => [body, words.REFUSAL.met])],
+    ["said not to have happened", { held: false }, [...CANCELS, ...MOVES].map((body) => [body, words.REFUSAL.met])],
   ]) {
-    test(`a register ${what} means it met: every kind is refused, and nothing is written`, async () => {
+    test(`a register ${what} means it met: what it may not be is refused, and nothing is written`, async () => {
       world.db.seed(registerPath(3), { runId: RUN.agi, groupId: B, weekNumber: 3, ...register });
       const before = everything();
-      for (const body of [
-        { kind: "cancel" },
-        { kind: "push" },
-        { kind: "move", move: { dateKey: "2026-11-18", time: "10am", room: "Hallward B12" } },
-        { kind: "move", metAtAnotherTime: true, move: { dateKey: "2026-11-18", time: "10am", room: "Hallward B12" } },
-      ]) {
+      for (const [body, sentence] of asked) {
         const response = await ask.change("zach", B, silently({ ...WEEK3, ...body }));
-        assert.deepEqual([response.status, response.body.error], [409, words.REFUSAL.met], JSON.stringify(body));
+        assert.deepEqual([response.status, response.body.error], [409, sentence], JSON.stringify(body));
       }
       assert.equal(everything(), before);
     });

@@ -289,8 +289,12 @@ export const COURSE_AUDIT_LIMITS = {
   targetLabel: 200,
   /** The reason a change was given, as the group was told it: one line. */
   reason: 200,
-  /** Keys in a `before` or `after` map, and the length of one text value in it. */
-  changeKeys: 12,
+  /**
+   * Keys in a `before` or `after` map, and the length of one text value in
+   * it. As many as a register's lines (40), because a session called off
+   * after the fact keeps what each cleared line said in its `before`.
+   */
+  changeKeys: 40,
   changeValue: 200,
 } as const;
 
