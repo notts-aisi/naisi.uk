@@ -555,7 +555,7 @@ describe("the reminder to the facilitators, 36 hours after the session ends", ()
     const text = await textOf(message);
     assert.match(text, /Group B’s register for Tue 20 Oct isn’t pushed yet\./);
     assert.match(text, /Push attendance to lock the register/);
-    assert.match(text, /If the session didn’t happen, the register can say so, and it still needs pushing\./);
+    assert.match(text, /If the session didn’t happen, say so with Change one week on the group’s page, and nobody is reminded about this register again\./);
     assert.match(text, /If it’s still not pushed 60 hours after the session, Claudia and admins get a task\./);
     assert.doesNotMatch(text, /finish/i);
     assert.match(text, /learn\/agi-strategy-fellowship-autumn-2026__run00001\/group\/autumn-2026-group-b__grp0000b/);
@@ -571,7 +571,7 @@ describe("the reminder to the facilitators, 36 hours after the session ends", ()
     const text = await textOf(message);
     assert.match(text, /Group B’s register for Tue 20 Oct isn’t finished yet\./);
     assert.match(text, /Finish the register to lock it and show everyone their mark\. Nobody’s emailed\./);
-    assert.match(text, /If the session didn’t happen, the register can say so, and it still needs finishing\./);
+    assert.match(text, /If the session didn’t happen, say so with Change one week on the group’s page, and nobody is reminded about this register again\./);
     assert.match(text, /If it’s still not finished 60 hours after the session, Claudia and admins get a task\./);
     assert.doesNotMatch(text, /push/i);
   });

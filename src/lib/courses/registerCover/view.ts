@@ -22,11 +22,18 @@ import { coverIsLive } from "./model";
  * as nobody having set anything, nobody covering, and no record.
  */
 
-/** One line's stamp, as the register's page shows it: "Zach, 4:14pm", or "Set before the session" for `self`. */
-export type LineSetterView = { name: string; at: string; how: LineSetterHow };
+/**
+ * One line's stamp, as the register's page shows it: "Zach, 4:14pm", "Set by
+ * you, 4:14pm" for the reader's own (`yours`), or "Set before the session"
+ * for `self`.
+ */
+export type LineSetterView = { name: string; at: string; how: LineSetterHow; yours: boolean };
 
 /** A person by uid and name. */
 export type NamedPerson = { uid: string; name: string };
+
+/** A facilitator whose place a cover took, by uid and name, and whether it is the reader. */
+export type CoveredPerson = NamedPerson & { you: boolean };
 
 /** Who took a session's register in whose place. */
 export type CoverView = {
@@ -35,8 +42,8 @@ export type CoverView = {
   by: NamedPerson;
   /** When it was taken, or given. */
   at: string;
-  /** The facilitators whose place was taken; empty for a group with none. */
-  covering: NamedPerson[];
+  /** The facilitators whose place was taken; empty for a group with none. `you` marks the reader. */
+  covering: CoveredPerson[];
   /** For a session given to somebody: who gave it. */
   givenBy: NamedPerson | null;
   /** For a session given to somebody: when it stops being theirs. */
@@ -147,7 +154,7 @@ export async function registerCoverExtras(
     const lines: Record<string, LineSetterView> = {};
     for (const [uid, entry] of Object.entries(register.setBy)) {
       if (!rows.has(uid)) continue;
-      lines[uid] = { name: nameOf(entry.byUid), at: entry.at.toISOString(), how: entry.how };
+      lines[uid] = { name: nameOf(entry.byUid), at: entry.at.toISOString(), how: entry.how, yours: entry.byUid === viewer.uid };
     }
     if (Object.keys(lines).length > 0) out.setBy[key] = lines;
 
@@ -157,7 +164,7 @@ export async function registerCoverExtras(
         kind: cover.kind,
         by: person(cover.byUid),
         at: cover.at.toISOString(),
-        covering: cover.covering.map(person),
+        covering: cover.covering.map((uid) => ({ ...person(uid), you: uid === viewer.uid })),
         givenBy: cover.grantedByUid ? person(cover.grantedByUid) : null,
         until: cover.until ? cover.until.toISOString() : null,
         live: coverIsLive(cover, now),

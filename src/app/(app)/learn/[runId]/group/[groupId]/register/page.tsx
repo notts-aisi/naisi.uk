@@ -1,49 +1,45 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import AttendanceGrid from "@/features/courses/AttendanceGrid";
-import JoiningOnlineBox from "@/features/courses/facilitator/JoiningOnlineBox";
-import facilitator from "@/features/courses/facilitator/facilitator.module.css";
+import RegisterPageBody, { sessionParamOf } from "@/features/courses/register/RegisterPageBody";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
-import weekly from "@/features/courses/weekly/weekly.module.css";
-import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
-import { registerTitle } from "@/lib/courses/facilitatorPageWords";
-import { gateGroupRegister, loadRegisterMembers } from "@/lib/courses/registerAccess";
-import { joiningOnlineBox } from "@/lib/courses/meetingLink/box";
+import { gateGroupRegister } from "@/lib/courses/registerAccess";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
-import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 
 /**
  * A GROUP'S REGISTER, on a page of its own (the register
  * under a way back to its group). "Take the register" on the group page and
- * on Home, and each register's "See it", lead here.
+ * on Home, each register's "See it", and the email to somebody given one
+ * session (`?session=w02`) lead here.
  *
  * The register itself is the one the group page used to hold
  * (`AttendanceGrid`): every tap saves, and the foot under it says how this
- * register ends. Whether it becomes one session per page is a question for
- * the boards' designers, so the grid is kept as it is.
- *
- * JOINING ONLINE, at the top: the group page's box (`joiningOnlineBox`), who
- * is joining a session online and, while it has no meeting link, the field
- * to add one. The register itself puts them down as online when they are
- * marked as having come.
+ * register ends. The page around it is `RegisterPageBody`, shared with the
+ * register under the programme's group page.
  *
  * THE GATE is the register's own (`gateGroupRegister`), restated here
  * because a page's only protection must not be a level above it: a live
- * facilitator of THIS group, on THIS run, or an admin. Everybody else is sent
- * to the run's home, never told whether the group exists. The register's
- * routes re-derive the same access from the same documents and are the real
- * boundary.
+ * facilitator of THIS group, an admin, a run's track lead (and the
+ * programme's lead, who reaches this page only when the run admits them some
+ * other way: they take a register from the programme's group page), and
+ * SOMEBODY GIVEN ONE SESSION, for the session the address names and while
+ * the grant holds. Given that one session they see its register and nothing
+ * else: no other week, no notes, no way into the group's page. A grant that
+ * has ended, or an address naming another session, gets the page's ordinary
+ * answer: everybody else is sent to the run's home, never told whether the
+ * group exists. The register's routes re-derive the same access from the
+ * same documents and are the real boundary.
  */
 
 export const dynamic = "force-dynamic";
 
 export default async function GroupRegisterPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ runId: string; groupId: string }>;
+  searchParams?: Promise<{ session?: string | string[] }>;
 }) {
   const { runId, groupId } = await params;
+  const session = sessionParamOf((await (searchParams ?? Promise.resolve({} as { session?: string | string[] }))).session);
 
   const access = await getRunAccess(runId);
   if (!access) {
@@ -57,69 +53,29 @@ export default async function GroupRegisterPage({
   const db = getAdminDb();
   if (!db) redirect(runHome);
 
-  // The register's own gate (`gateGroupRegister`): a live facilitator of the
-  // group, or an admin, the same predicate as the group page and every route
-  // that marks the register. The group must be on THIS run.
+  // The register's own gate (`gateGroupRegister`), the same predicate as
+  // every route that marks the register. The group must be on THIS run.
   const gated = await gateGroupRegister(groupId, access.user, db);
-  // The gate now also admits the people leading the programme and somebody
-  // given one session; this page stays the group's facilitators' and an
-  // admin's until it is drawn for them (`readsNotes` is exactly those two).
-  if (!gated.ok || gated.runId !== runId || !gated.readsNotes) redirect(runHome);
+  if (!gated.ok || gated.runId !== runId) redirect(runHome);
+  // Somebody admitted only for a session they were given: that session, by
+  // its address, while the grant holds, and nothing else.
+  const onlyGiven = !gated.isAdmin && !gated.facilitates && !gated.leads;
+  if (onlyGiven && (!session || !gated.givenSessions.includes(session))) redirect(runHome);
 
-  const groupName = gated.group.name || "Group";
+  // The way back, and where "It didn't happen" lives: the group's page,
+  // which takes its facilitators and admins. Nobody else is given a way
+  // into it from here.
   const groupPath = `${runHome}/group/${encodeURIComponent(groupId)}`;
-  // Before Publish has told anybody their group the register has no row and
-  // draws nothing, so the page says when the names come, in the boards'
-  // sentence. The rows are the register's own (`loadRegisterMembers`).
-  const roster = await loadRegisterMembers(db, gated.runId, groupId, { isAdmin: gated.isAdmin });
-  const namesToCome = roster.members.length === 0 && roster.notYetTold;
-  // Each of the group's live facilitators writes their own session report,
-  // so the register leads them on to it from the session's start, beside the
-  // check-in, finished or not; an admin writes none.
-  const writesReports =
-    !gated.group.archived && isNamedWithStanding(access.user, "courseGroups.facilitatorUids", gated.group.facilitatorUids);
-  // The box at the top, named as the register names its rows for this reader.
-  // Nothing is offered to press in a view-as session, where nothing is written.
-  const [joiningOnline, viewAs] = await Promise.all([
-    joiningOnlineBox(db, {
-      run: access.run,
-      group: gated.group,
-      people: roster.members.map((member) => ({ uid: member.uid, name: member.displayName })),
-      now: new Date(),
-    }).catch(() => []),
-    getImpersonator().then((marker) => markerIsLive(marker, access.user.uid)),
-  ]);
+  const opensGroupPage = gated.isAdmin || gated.facilitates;
 
-  return (
-    <div className={`${facilitator.page} ${facilitator.registerPage}`}>
-      <div className={`${weekly.bar} ${facilitator.phoneBar}`}>
-        <div className={weekly.barStart}>
-          <Link href={groupPath} className={weekly.back}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={weekly.icon}>
-              <path d="M15 6l-6 6 6 6" />
-            </svg>
-            <span>{groupName}</span>
-          </Link>
-        </div>
-        <div className={weekly.barEnd} />
-      </div>
-
-      <header className={facilitator.registerHead}>
-        <Link href={groupPath} className={`${facilitator.crumb} ${facilitator.crumbDesk}`}>
-          {groupName}
-        </Link>
-        <h1 className={weekly.title}>{registerTitle(groupName)}</h1>
-      </header>
-
-      {/* Who is joining a session online, and the field for its link. */}
-      <JoiningOnlineBox groupId={groupId} sessions={joiningOnline} canAdd={!viewAs} />
-
-      {namesToCome && <p className={weekly.cardLine}>{NAMES_WHEN_GROUPS_GO_OUT}</p>}
-
-      {/* The register owns its own week controls and its own horizontal
-          overflow: a wide table handles its own responsiveness rather than
-          widening the shell (the `.mainWide` rule). */}
-      <AttendanceGrid groupId={groupId} runId={runId} reportHref={writesReports ? `${groupPath}/report` : undefined} />
-    </div>
-  );
+  // Called, not mounted: the page answers with the tree the body draws.
+  return RegisterPageBody({
+    gated,
+    user: access.user,
+    run: access.run,
+    backHref: opensGroupPage ? groupPath : null,
+    session,
+    reportHref: `${groupPath}/report`,
+    groupHref: opensGroupPage ? groupPath : null,
+  });
 }

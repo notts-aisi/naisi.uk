@@ -10,11 +10,16 @@ import {
   filterHistory,
   historyWhenWords,
   oneWeekChoicesOf,
+  weekRegisterFacts,
   type GroupPageView,
   type GroupPageWeek,
 } from "@/lib/courses/groupPage/model";
 import * as W from "@/lib/courses/groupPage/words";
+import { coverChoicesOf, noticeWeekOf } from "@/lib/courses/registerCover/pageModel";
+import * as C from "@/lib/courses/registerCover/pageWords";
+import { UNKNOWN_OUTCOME } from "@/lib/courses/sessionChange/words";
 import ChangePanel, { type ChangeStart } from "./ChangePanel";
+import GivePanel from "./GivePanel";
 import LinkPanel from "./LinkPanel";
 import RoomPanel from "./RoomPanel";
 import styles from "./GroupPage.module.css";
@@ -41,7 +46,11 @@ import styles from "./GroupPage.module.css";
 export type GroupPageLinks = {
   programme: string;
   groups: string;
-  /** Today's register page, for whoever may take it; null for a lead, who cannot yet. */
+  /**
+   * The group's register under this page, for an admin and the programme's
+   * lead, who take it in a facilitator's place or help one; a session's
+   * register is this with `?session=w02`.
+   */
   register: string | null;
   /** Today's way of writing to the group, where there is one for this viewer. */
   write: string | null;
@@ -53,23 +62,70 @@ export type GroupPageLinks = {
 };
 
 type Panel =
-  | { kind: "change"; start: ChangeStart }
+  | { kind: "change"; start: ChangeStart; didNotHappen?: boolean }
   | { kind: "link"; week: { weekNumber: number; sessionKey: string } | null }
-  | { kind: "room" };
+  | { kind: "room" }
+  | { kind: "give"; weekNumber: number };
 
 function chipsOf(week: GroupPageWeek): string[] {
   return [week.hasLink ? W.LINK_FOR_WEEK : W.NO_LINK_YET, W.joiningOnlineChip(week.joiningOnline), W.cantMakeItChip(week.cantMakeIt)];
 }
 
-export default function GroupPage({ view, links }: { view: GroupPageView; links: GroupPageLinks }) {
+export default function GroupPage({
+  view,
+  links,
+  take = null,
+}: {
+  view: GroupPageView;
+  links: GroupPageLinks;
+  /** A week to open on with its ways to take the register shown ("Take the register" on Overview's Needs attention). */
+  take?: number | null;
+}) {
   const router = useRouter();
   const hydrated = useHydrated();
+  const takeWeek = take !== null && view.weeks.some((each) => each.weekNumber === take) ? take : null;
   const [tab, setTab] = useState<"weeks" | "history">("weeks");
-  const [shown, setShown] = useState<number | null>(view.openWeek);
+  const [shown, setShown] = useState<number | null>(takeWeek ?? view.openWeek);
   const [filter, setFilter] = useState<W.HistoryFilter>("everything");
   const [panel, setPanel] = useState<Panel | null>(null);
   const [opened, setOpened] = useState(0);
   const [said, setSaid] = useState<string | null>(null);
+  // The ways to take one week's register, as a sheet: open on arrival from Overview.
+  const [sheet, setSheet] = useState<number | null>(takeWeek);
+  const [covering, setCovering] = useState(false);
+  const [coverProblem, setCoverProblem] = useState<string | null>(null);
+
+  const registerOf = (each: GroupPageWeek) =>
+    links.register ? `${links.register}?session=${encodeURIComponent(each.sessionKey)}` : null;
+
+  /**
+   * "I'm covering it": the cover is taken first (`POST .../attendance/cover`,
+   * no person), so the register says who took it before a line is set, and
+   * the reminders to the facilitators stop; then the register opens.
+   */
+  async function coverIt(each: GroupPageWeek) {
+    const href = registerOf(each);
+    if (!href) return;
+    setCovering(true);
+    setCoverProblem(null);
+    try {
+      const response = await fetch(`/api/courses/groups/${encodeURIComponent(view.groupId)}/attendance/cover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weekNumber: each.weekNumber }),
+      });
+      const body = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!response.ok || body?.ok !== true) {
+        setCoverProblem(body?.error ?? UNKNOWN_OUTCOME);
+        setCovering(false);
+        return;
+      }
+      router.push(href);
+    } catch {
+      setCoverProblem(UNKNOWN_OUTCOME);
+      setCovering(false);
+    }
+  }
 
   const open = (next: Panel) => {
     setSaid(null);
@@ -77,6 +133,10 @@ export default function GroupPage({ view, links }: { view: GroupPageView; links:
     setPanel(next);
   };
   const week = view.weeks.find((each) => each.weekNumber === shown) ?? null;
+  const noticeNumber = noticeWeekOf(view.weeks.map(weekRegisterFacts));
+  const noticeWeek = view.weeks.find((each) => each.weekNumber === noticeNumber) ?? null;
+  const sheetWeek = view.weeks.find((each) => each.weekNumber === sheet) ?? null;
+  const firstNames = view.facilitatorFirstNames;
   const campus = view.meets.campus ? CAMPUS_LABEL[view.meets.campus] : "";
   const timeSet = Boolean(view.meets.hhmm);
   const history = view.history;
@@ -99,6 +159,7 @@ export default function GroupPage({ view, links }: { view: GroupPageView; links:
             )}
           </div>
           <div className={styles.weekActions}>
+            {takeButton(each)}
             {!choices.met && !choices.putRight && (
               <button
                 type="button"
@@ -140,6 +201,99 @@ export default function GroupPage({ view, links }: { view: GroupPageView; links:
         </ul>
         {choices.met && <p className={styles.weekNote}>{W.MET_LINE}</p>}
         {each.cancelled && !choices.met && <p className={styles.weekNote}>{W.CANCELLED_LINE}</p>}
+      </section>
+    );
+  };
+
+  /**
+   * "Take the register" for one week: the ways to take it in a facilitator's
+   * place, as a sheet, for any week whose register is not finished, past
+   * weeks included; once a facilitator has started it, the register itself,
+   * to help.
+   */
+  function takeButton(each: GroupPageWeek) {
+    const ways = coverChoicesOf(weekRegisterFacts(each));
+    const href = registerOf(each);
+    if (ways.helpOnly && href) {
+      return (
+        <Link href={href} className={styles.button}>
+          {C.TAKE_THE_REGISTER}
+        </Link>
+      );
+    }
+    if (!ways.offered || !href) return null;
+    return (
+      <button
+        type="button"
+        className={styles.button}
+        disabled={!hydrated}
+        aria-label={`${C.TAKE_THE_REGISTER}: ${W.weekWords(each.weekNumber)}`}
+        onClick={() => {
+          setCoverProblem(null);
+          setSheet(each.weekNumber);
+        }}
+      >
+        {C.TAKE_THE_REGISTER}
+      </button>
+    );
+  }
+
+  /** The notice for the latest session that has started with nobody taking its register. */
+  const notice = (each: GroupPageWeek) => {
+    const ways = coverChoicesOf(weekRegisterFacts(each));
+    return (
+      <section className={styles.coverNotice} aria-labelledby="group-cover-notice" data-testid="cover-notice">
+        <p className={styles.coverChips}>
+          <span className={styles.coverChip}>{each.startedAgo}</span>
+          <span className={styles.coverQuiet}>{C.NO_REGISTER_YET}</span>
+        </p>
+        <h2 id="group-cover-notice" className={styles.cardTitle}>
+          {C.notStartedTitle(firstNames, each.weekNumber)}
+        </h2>
+        <p className={styles.cardLine}>
+          {C.notStartedLine({
+            groupName: view.groupName,
+            dateKey: each.dateKey,
+            hhmm: each.hhmm,
+            room: each.online ? "" : each.room,
+            ended: each.ended,
+            firstNames,
+          })}
+        </p>
+        {/* At a computer the three ways sit here; on a phone, one button opens them as a sheet. */}
+        <div className={`${styles.coverActions} ${styles.coverWide}`}>
+          {ways.covering && (
+            <button type="button" className={styles.buttonPrimary} disabled={!hydrated || covering} onClick={() => void coverIt(each)}>
+              {C.takeInPlaceWords(firstNames)}
+            </button>
+          )}
+          {ways.someoneElse && (
+            <button type="button" className={styles.button} disabled={!hydrated} onClick={() => open({ kind: "give", weekNumber: each.weekNumber })}>
+              {C.SOMEONE_ELSE_IS_COVERING}
+            </button>
+          )}
+          {ways.didNotHappen && (
+            <button
+              type="button"
+              className={styles.button}
+              disabled={!hydrated}
+              onClick={() => open({ kind: "change", start: { choice: "one", weekNumber: each.weekNumber }, didNotHappen: true })}
+            >
+              {C.IT_DIDNT_HAPPEN}
+            </button>
+          )}
+        </div>
+        <div className={`${styles.coverActions} ${styles.coverNarrow}`}>
+          <button type="button" className={styles.buttonPrimary} disabled={!hydrated} onClick={() => setSheet(each.weekNumber)}>
+            {C.TAKE_THE_REGISTER}
+          </button>
+        </div>
+        {coverProblem && sheet === null && (
+          <p className={styles.problem} role="status">
+            {coverProblem}
+          </p>
+        )}
+        <p className={styles.coverFoot}>{C.whicheverWords(firstNames)}</p>
       </section>
     );
   };
@@ -203,6 +357,8 @@ export default function GroupPage({ view, links }: { view: GroupPageView; links:
           {said}
         </p>
       )}
+
+      {noticeWeek && links.register && notice(noticeWeek)}
 
       <section className={styles.card} aria-labelledby="group-meets">
         <div className={styles.meetsHead}>
@@ -475,17 +631,43 @@ export default function GroupPage({ view, links }: { view: GroupPageView; links:
         open={panel !== null}
         onClose={() => setPanel(null)}
         ariaLabel={
-          panel?.kind === "link" ? W.SET_THE_LINK : panel?.kind === "room" ? W.roomPanelTitle(view.groupName) : W.changePanelTitle(view.groupName)
+          panel?.kind === "link"
+            ? W.SET_THE_LINK
+            : panel?.kind === "room"
+              ? W.roomPanelTitle(view.groupName)
+              : panel?.kind === "give"
+                ? C.SOMEONE_ELSE_IS_COVERING
+                : panel?.kind === "change" && panel.didNotHappen
+                  ? C.IT_DIDNT_HAPPEN
+                  : W.changePanelTitle(view.groupName)
         }
         side
       >
         {(dismiss) =>
-          panel === null ? null : panel.kind === "change" ? (
+          panel === null ? null : panel.kind === "give" ? (
+            (() => {
+              const given = view.weeks.find((each) => each.weekNumber === panel.weekNumber);
+              return given ? (
+                <GivePanel
+                  key={opened}
+                  view={view}
+                  week={given}
+                  onClose={dismiss}
+                  onDone={(words) => {
+                    dismiss();
+                    setSaid(words);
+                    router.refresh();
+                  }}
+                />
+              ) : null;
+            })()
+          ) : panel.kind === "change" ? (
             <ChangePanel
               key={opened}
               view={view}
               start={panel.start}
-              oneWeekOnly={false}
+              oneWeekOnly={Boolean(panel.didNotHappen)}
+              didNotHappen={Boolean(panel.didNotHappen)}
               onClose={dismiss}
               onDone={(words) => {
                 dismiss();
@@ -518,6 +700,79 @@ export default function GroupPage({ view, links }: { view: GroupPageView; links:
               }}
             />
           )
+        }
+      </Modal>
+
+      {/* THE WAYS TO TAKE ONE WEEK'S REGISTER, as a sheet with a line under each. */}
+      <Modal open={sheetWeek !== null} onClose={() => setSheet(null)} ariaLabel={C.TAKE_THE_REGISTER} sheet width="sm">
+        {(dismiss) =>
+          sheetWeek ? (
+            <section className={styles.panel} aria-labelledby="group-cover-sheet" data-testid="cover-sheet">
+              <div className={styles.panelHead}>
+                <h2 id="group-cover-sheet" className={styles.panelTitle}>
+                  {C.sheetTitle(view.groupName, sheetWeek.dateKey, sheetWeek.hhmm, view.todayKey)}
+                </h2>
+                <button type="button" className={styles.button} onClick={dismiss}>
+                  {W.CLOSE}
+                </button>
+              </div>
+              <p className={styles.panelLede}>{C.sheetQuestion(view.facilitatorNames, sheetWeek.started)}</p>
+              {sheetWeek.cover && <p className={styles.panelNote}>{C.coveredLine(sheetWeek.cover)}</p>}
+              {(() => {
+                const ways = coverChoicesOf(weekRegisterFacts(sheetWeek));
+                return (
+                  <ul className={styles.ways}>
+                    {ways.covering && (
+                      <li>
+                        <button type="button" className={styles.way} disabled={!hydrated || covering} onClick={() => void coverIt(sheetWeek)}>
+                          <span className={styles.wayName}>{C.IM_COVERING_IT}</span>
+                          <span className={styles.wayLine}>{C.IM_COVERING_IT_LINE}</span>
+                        </button>
+                      </li>
+                    )}
+                    {ways.someoneElse && (
+                      <li>
+                        <button
+                          type="button"
+                          className={styles.way}
+                          disabled={!hydrated}
+                          onClick={() => {
+                            dismiss();
+                            open({ kind: "give", weekNumber: sheetWeek.weekNumber });
+                          }}
+                        >
+                          <span className={styles.wayName}>{C.SOMEONE_ELSE_IS_COVERING}</span>
+                          <span className={styles.wayLine}>{C.SOMEONE_ELSE_LINE}</span>
+                        </button>
+                      </li>
+                    )}
+                    {ways.didNotHappen && (
+                      <li>
+                        <button
+                          type="button"
+                          className={styles.way}
+                          disabled={!hydrated}
+                          onClick={() => {
+                            dismiss();
+                            open({ kind: "change", start: { choice: "one", weekNumber: sheetWeek.weekNumber }, didNotHappen: true });
+                          }}
+                        >
+                          <span className={styles.wayName}>{C.IT_DIDNT_HAPPEN}</span>
+                          <span className={styles.wayLine}>{C.didntHappenLine(sheetWeek.weekNumber)}</span>
+                        </button>
+                      </li>
+                    )}
+                  </ul>
+                );
+              })()}
+              {coverProblem && (
+                <p className={styles.problem} role="status">
+                  {coverProblem}
+                </p>
+              )}
+              <p className={styles.coverFoot}>{C.whicheverWords(firstNames)}</p>
+            </section>
+          ) : null
         }
       </Modal>
     </div>

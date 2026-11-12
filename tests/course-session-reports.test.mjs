@@ -711,14 +711,19 @@ describe("4. the pages", () => {
     const page = (await w.registerPage("rahul")).element;
     assert.equal(find(page, "AttendanceGrid")[0].props.reportHref, REPORT_PAGE);
     assert.equal(find((await w.registerPage("sofia")).element, "AttendanceGrid")[0].props.reportHref, REPORT_PAGE);
-    assert.equal(find((await w.registerPage("zach")).element, "AttendanceGrid")[0].props.reportHref, undefined);
+    // CHANGED ON PURPOSE (November 2026): every reader's page hands the grid
+    // the report's page, and the grid offers it only where the register's
+    // read says this reader writes one (a facilitator, or whoever took the
+    // session's register in a facilitator's place). An admin who did not is
+    // offered none, below, with the address in hand.
+    assert.equal(find((await w.registerPage("zach")).element, "AttendanceGrid")[0].props.reportHref, REPORT_PAGE);
 
     // Week 2 finished, week 3 not started: the foot is about week 2, and so is the way on.
     const finished = await gridAs("rahul", REPORT_PAGE);
     assert.ok(finished.includes(`href="${REPORT_PAGE}?session=w02"`), "the finished register does not lead to its report");
     assert.ok(textOf(finished).includes("Next: two minutes on how it went."));
     assert.ok(!finished.includes("?session=w03"), "the register leads to the report on a session that has not started");
-    assert.ok(!(await gridAs("zach", undefined)).includes("/report?session="), "an admin's register leads to a report");
+    assert.ok(!(await gridAs("zach", REPORT_PAGE)).includes("/report?session="), "an admin's register leads to a report");
 
     // Its place: after the grid and the check-in, before the foot, and never inside the foot.
     const linkAt = finished.indexOf('data-testid="register-report"');
@@ -748,7 +753,7 @@ describe("4. the pages", () => {
       // The foot is about tonight's register and still offers to finish it.
       assert.match(textOf(tonight), /Week 3 register Tue 17 Nov .*(Finish the register|Push attendance)/);
     }
-    assert.ok(!(await gridAs("zach", undefined)).includes("/report?session="), "an admin's register leads to a report tonight");
+    assert.ok(!(await gridAs("zach", REPORT_PAGE)).includes("/report?session="), "an admin's register leads to a report tonight");
 
     // Some of tonight's marks in, the register still a draft: no change.
     world.db.seed(registerPath(B, 3), register(B, 3, { chloe: "present", kofi: "late" }, { pushed: false }));
@@ -1108,6 +1113,12 @@ const ADDRESSERS = {
 const READER_CALLERS = {
   "lib/courses/sessionReports/page.ts": "the facilitator's page's loader, after the writer's own gate: only the caller's own report",
   "app/(app)/learn/[runId]/group/[groupId]/report/page.tsx": "the facilitator's page: a live facilitator of the group, their own report",
+  // ADDED (November 2026), with covering a register: the same page under the
+  // programme's group page, for the programme's lead or an admin who took a
+  // session's register in a facilitator's place (`loadProgrammeRun`, then
+  // the report's own gate): only the caller's own report.
+  "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/report/page.tsx":
+    "the report page under the programme's group page: whoever took the session's register, their own report",
   "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/reports/page.tsx":
     "the programme's reports: its lead and admins",
   // CHANGED ON PURPOSE: was the Surveys tab's page, which counted the run's reports for its row.

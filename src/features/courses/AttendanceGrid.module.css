@@ -762,6 +762,71 @@
    number is the column's identity), and the scroller takes more of the
    viewport since it is the only thing on the page worth seeing. */
 
+/* === Covering a register ====================================
+   Whose place is taken, over the grid; who set each line, under
+   its cell; where "It didn't happen" lives now, under the foot;
+   and, for an admin and the programme's lead, "This session"
+   beside the grid from the xl breakpoint, under it below that. */
+
+.placeLine {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.alone,
+.withSide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+@media (min-width: 80rem) { /* --bp-xl */
+  .withSide {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    align-items: start;
+  }
+}
+
+.setBy {
+  display: block;
+  max-width: 7rem;
+  margin: 0 auto;
+  padding-bottom: var(--space-1);
+  font-size: 0.7rem;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+  white-space: normal;
+}
+
+.movedLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.movedLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.movedLink:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
 @media (max-width: 48rem) { /* --bp-md */
   .toolbar {
     flex-direction: column;

@@ -111,7 +111,7 @@ describe("1. the preview says what calling it off after the fact does", () => {
       chaseStops: true,
       checkIn: false,
       reports: 0,
-      lines: { cleared: 0, said: {} },
+      lines: { cleared: 0, said: {}, names: {} },
     });
   });
 
@@ -120,7 +120,11 @@ describe("1. the preview says what calling it off after the fact does", () => {
     const before = JSON.stringify(world.db.paths().sort().map((path) => [path, read(path)]));
     const answer = await press("rahul", { kind: "push", preview: true });
     assert.equal(answer.status, 200, JSON.stringify(answer.body));
-    assert.deepEqual(answer.body.preview.didNotHappen.lines, { cleared: 2, said: { amara: "Present online", chloe: "Absent" } });
+    assert.deepEqual(answer.body.preview.didNotHappen.lines, {
+      cleared: 2,
+      said: { amara: "Present online", chloe: "Absent" },
+      names: { amara: "Amara", chloe: "Chloe" },
+    });
     assert.equal(JSON.stringify(world.db.paths().sort().map((path) => [path, read(path)])), before, "a preview changed something");
   });
 

@@ -1,0 +1,107 @@
+/* ============================================================
+   SessionSidePanel: "This session", beside the register, for an
+   admin and the programme's lead. Beside the grid from the xl
+   breakpoint (AttendanceGrid's .withSide); under it below that.
+   ============================================================ */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, var(--radius-md));
+  background: var(--color-surface);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-md, 1rem);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.label {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.value {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.itemHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.fieldLabel {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger, var(--color-text));
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+@media (max-width: 36rem) { /* --bp-sm */
+  .panel {
+    padding: var(--space-3);
+  }
+
+  .actions > * {
+    flex: 1 1 auto;
+  }
+}
