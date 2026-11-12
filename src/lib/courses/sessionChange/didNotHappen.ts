@@ -61,8 +61,12 @@ export type DidNotHappenFacts = {
   checkIn: boolean;
   /** How many session reports it has. */
   reports: number;
-  /** How many lines set for the session would be cleared, with what each said. */
-  lines: { cleared: number; said: Record<string, string> };
+  /**
+   * How many lines set for the session would be cleared, with what each said
+   * and the name each person goes by (both by uid), so the panel can say
+   * whose lines go.
+   */
+  lines: { cleared: number; said: Record<string, string>; names: Record<string, string> };
 };
 
 export async function didNotHappenFacts(
@@ -70,9 +74,10 @@ export async function didNotHappenFacts(
   input: { run: Pick<CourseRunDoc, "id">; group: Pick<CourseGroupDoc, "id">; session: ResolvedSession; register: Readonly<Record<string, unknown>> | undefined },
 ): Promise<DidNotHappenFacts> {
   const { run, group, session } = input;
-  const [checkIn, reports] = await Promise.all([
+  const [checkIn, reports, named] = await Promise.all([
     checkInWasOpened(db, run.id, group.id, session.sessionKey),
     countSessionReports(db, run.id, group.id, session.sessionKey),
+    clearedNames(db, input.register),
   ]);
   const lines = input.register ? linesSetForSession(normalizeCourseAttendance("register", input.register)) : { uids: [], said: {} };
   return {
@@ -80,7 +85,7 @@ export async function didNotHappenFacts(
     chaseStops: true,
     checkIn,
     reports,
-    lines: { cleared: lines.uids.length, said: lines.said },
+    lines: { cleared: lines.uids.length, said: lines.said, names: Object.fromEntries(lines.uids.map((uid) => [uid, named.get(uid) ?? "NAISI member"])) },
   };
 }
 

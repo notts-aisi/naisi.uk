@@ -272,7 +272,10 @@ const READERS = {
   "features/courses/AttendanceGrid.tsx": {
     kind: "told",
     from: ["app/api/courses/groups/[groupId]/attendance/route.ts"],
-    via: ["session"],
+    // ADDED (November 2026): `panelSession` (the session the address names, or
+    // the foot's) and `each` (whether any column is still a draft) are columns
+    // of the same answer, as `session` is.
+    via: ["session", "panelSession", "each"],
     proof: ["AttendanceSession"],
     why: "the register's grid draws the register route's own columns",
   },

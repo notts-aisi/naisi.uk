@@ -2,6 +2,7 @@ import { addDaysToKey, londonDateKey, londonWallClockToInstant } from "@/lib/cou
 import {
   cameBy,
   type AttendanceStatus,
+  type CourseAttendanceDoc,
   type FacilitatorPresence,
   type LineSetterHow,
   type RegisterCover,
@@ -104,6 +105,21 @@ export function saveTakesCover(input: {
   const facilitators = new Set(input.facilitatorUids);
   if (input.markedByUid && facilitators.has(input.markedByUid)) return false;
   return !Object.values(input.setBy).some((entry) => entry.how === "facilitator" || facilitators.has(entry.byUid));
+}
+
+/**
+ * WHETHER ONE OF THE GROUP'S FACILITATORS HAS STARTED THIS REGISTER: saved a
+ * mark, or set a line. Then there is nobody to cover for: the cover route
+ * refuses it, and the pages offer the register itself, to help.
+ */
+export function startedByFacilitator(
+  register: Pick<CourseAttendanceDoc, "markedByUid" | "setBy"> | null,
+  facilitatorUids: readonly string[],
+): boolean {
+  if (!register) return false;
+  const facilitators = new Set(facilitatorUids);
+  if (register.markedByUid && facilitators.has(register.markedByUid)) return true;
+  return Object.values(register.setBy).some((entry) => entry.how === "facilitator" || facilitators.has(entry.byUid));
 }
 
 // ---------------------------------------------------------------------------

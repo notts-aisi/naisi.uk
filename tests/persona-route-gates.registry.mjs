@@ -4539,6 +4539,25 @@ export const PAGES = {
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
       "and with an address that names nothing is drawn the same not-here state.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/register": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The admissions tree's gate, then the page's own (loadProgrammeRun, the gate of every Groups view, then the register's own, " +
+      "gateGroupRegister): one group's register, where an admin and the programme's lead take a session's register in a " +
+      "facilitator's place or help one, so a reviewer on the form is told the tab is theirs, a programme the caller has no role " +
+      "on renders 'there is no programme here', and a group that is not a live group of the run the programme names renders a " +
+      "calm not-here page, each with a 200. The lead persona is admitted as an approveCourse holder is, and with an address " +
+      "that names nothing is drawn the same not-here state.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/report": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The admissions tree's gate, then the page's own (loadProgrammeRun, then the report's own, loadReportPage: whoever took the " +
+      "session the address names in a facilitator's place, while it holds): one session's report written by the programme's " +
+      "lead or an admin who covered it, so a reviewer on the form is told the tab is theirs, a programme the caller has no role " +
+      "on renders 'there is no programme here', and anybody else, or an address naming nothing, renders a calm not-here page, " +
+      "each with a 200. The lead persona is admitted as an approveCourse holder is.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
@@ -5073,8 +5092,9 @@ export const PAGES = {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
     why:
       "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
-      "missing, and the page's own gate (the register's: a live facilitator of the group, or an admin) " +
-      "sends everybody else to the run's home.",
+      "missing, and the page's own gate (the register's: a live facilitator of the group, an admin, a run's " +
+      "track lead, or somebody given the one session the address names, while the grant holds) sends " +
+      "everybody else to the run's home.",
   },
   "/(app)/learn/[runId]/group/[groupId]/report": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
@@ -7447,6 +7467,12 @@ export const REAL_PAGES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": programmePage("Publish's own page."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]": programmePage(
     "one group's page, or its calm not-here for a group that is not a live group of the run the programme names.",
+  ),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/register": programmePage(
+    "one group's register (its notes never sent to the lead), or its calm not-here for a group that is not a live group of the run the programme names.",
+  ),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/report": programmePage(
+    "the report page's calm not-here: the address names no session, and nobody here took one's register in a facilitator's place.",
   ),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": programmePage("the Sessions view."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/circles": programmePage("Circles for an admin; the lead is drawn a note that Circles is an admin's."),

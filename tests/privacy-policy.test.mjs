@@ -5007,7 +5007,15 @@ describe("the course hub passage", () => {
         ["src/lib/courses/sessionReports/readers.ts", "the lead's and admins' reader and the Overview's counts, which ask nobody who is reading, so each caller decides that first"],
         ["src/lib/courses/sessionReports/context.ts", "the writer's own report, read by the id that names the writer"],
         ["src/lib/courses/sessionReports/page.ts", "the facilitator's page, after the writer's own gate: only the caller's own report"],
-        [ownPage, "the facilitator's page, which sends everybody but the group's live facilitators away first"],
+        [ownPage, "the facilitator's page, which sends everybody but the group's live facilitators, and whoever took the session's register in their place, away first: only the caller's own report"],
+        // ADDED (November 2026), with covering a register: the same page
+        // under the programme's group page, for the programme's lead or an
+        // admin who took a session's register (loadProgrammeRun, then
+        // loadReportPage's own gate): only the caller's own report.
+        [
+          "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/report/page.tsx",
+          "the report page under the programme's group page, for whoever took the session's register in a facilitator's place: only the caller's own report",
+        ],
         [leadPage, "the programme's session reports, for its lead and admins (loadProgrammeRun)"],
         // CHANGED ON PURPOSE: was the Surveys tab's page, which counted the run's reports for its row.
         ["src/lib/surveys/leadOverview.ts", "the Surveys tab's Overview, made only by its page after the tab's gate (loadProgrammeRun): each week's count, how it went on average and the parts named, never what a report says"],
@@ -11167,7 +11175,10 @@ describe("v16 says a register records the room or online, and you may tell us in
       sourceFilesNaming(/\bjoiningOnlineBox\(/).filter((file) => file !== "src/lib/courses/meetingLink/box.ts"),
       new Map([
         ["src/app/(app)/learn/[runId]/group/[groupId]/page.tsx", "a facilitator's group page, which asks for the session's link"],
-        ["src/app/(app)/learn/[runId]/group/[groupId]/register/page.tsx", "the register a facilitator takes, with the same box at its top"],
+        // MOVED (November 2026), with covering a register: both register
+        // pages draw one body. The box is never drawn for somebody given one
+        // session; the programme's lead sees "everything a facilitator sees".
+        ["src/features/courses/register/RegisterPageBody.tsx", "the register a facilitator takes (and the one under the programme's group page), with the same box at its top, never for somebody given one session"],
       ]),
       "showing facilitators who is joining online",
       "The policy says your facilitators see it. A new reader needs the policy's readers to grow first.",

@@ -2626,7 +2626,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         readFrom(m.mail[0], "Hi "),
         "Hi Rahul, Group B’s register for Tue 17 Nov isn’t pushed yet. Push attendance to lock the register, show everyone their mark and " +
           `email the group about next week. Open the register Or paste this into your browser: ${registerPage(RUN, GROUP.B)} If the session didn’t ` +
-          `happen, the register can say so, and it still needs pushing. If it’s still not pushed 60 hours after the session, Claudia and admins get a task. ${FOOTER}`,
+          `happen, say so with Change one week on the group’s page, and nobody is reminded about this register again. If it’s still not pushed 60 hours after the session, Claudia and admins get a task. ${FOOTER}`,
       );
       assert.doesNotMatch(`${m.mail[0].subject} ${m.mail[0].text}`, /finish/i);
       assert.deepEqual(short(m.again), [409, "Nobody is left to remind about Group B’s register: its facilitators have been reminded already, or can’t be emailed."]);
@@ -2646,7 +2646,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         subject: "Group B’s register isn’t pushed",
         lead: "Group B’s register for Tue 17 Nov isn’t pushed yet.",
         effect: "Push attendance to lock the register, show everyone their mark and email the group about next week.",
-        notHeld: "If the session didn’t happen, the register can say so, and it still needs pushing.",
+        notHeld: "If the session didn’t happen, say so with Change one week on the group’s page, and nobody is reminded about this register again.",
         next: "If it’s still not pushed 60 hours after the session, Claudia and admins get a task.",
       });
       // While it is: "Finish the register".
@@ -2654,7 +2654,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         subject: "Group B’s register isn’t finished",
         lead: "Group B’s register for Tue 17 Nov isn’t finished yet.",
         effect: "Finish the register to lock it and show everyone their mark. Nobody’s emailed.",
-        notHeld: "If the session didn’t happen, the register can say so, and it still needs finishing.",
+        notHeld: "If the session didn’t happen, say so with Change one week on the group’s page, and nobody is reminded about this register again.",
         next: "If it’s still not finished 60 hours after the session, Claudia and admins get a task.",
       });
       // The Overview the lead pressed Remind on read the same switch: its words are the push ones.

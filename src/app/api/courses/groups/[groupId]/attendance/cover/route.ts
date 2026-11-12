@@ -5,7 +5,7 @@ import { claimGroupNotice, sendGroupChangeNotice, type NoticeTally } from "@/lib
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { didNotHappenLine } from "@/lib/courses/programmeAttendance";
 import { gateGroupRegister, isAddressableId } from "@/lib/courses/registerAccess";
-import { coverUntil } from "@/lib/courses/registerCover/model";
+import { coverUntil, startedByFacilitator } from "@/lib/courses/registerCover/model";
 import { parseCoverPress } from "@/lib/courses/registerCover/parse";
 import { approvedPerson, facilitatorsByFirstName, type CoverPerson } from "@/lib/courses/registerCover/people";
 import { sessionInTransaction } from "@/lib/courses/registerCover/sessionInTransaction";
@@ -30,7 +30,6 @@ import {
   FACILITATOR_RECORD,
   attendanceDocId,
   normalizeCourseAttendance,
-  type CourseAttendanceDoc,
 } from "@/lib/firestore/courseAttendance";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import { sessionModeForWeek } from "@/lib/firestore/courseGroups";
@@ -90,14 +89,6 @@ class CoverRefusal extends Error {
   ) {
     super(message);
   }
-}
-
-/** Whether one of the group's facilitators has started this register: saved a mark, or set a line. */
-function startedByFacilitator(register: CourseAttendanceDoc | null, facilitatorUids: readonly string[]): boolean {
-  if (!register) return false;
-  const facilitators = new Set(facilitatorUids);
-  if (register.markedByUid && facilitators.has(register.markedByUid)) return true;
-  return Object.values(register.setBy).some((entry) => entry.how === "facilitator" || facilitators.has(entry.byUid));
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ groupId: string }> }) {

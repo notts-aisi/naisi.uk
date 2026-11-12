@@ -17,6 +17,7 @@ import { londonClockLabel, londonDayLabel } from "../londonLabels";
 import { CAMPUS_LABEL } from "../campusWords";
 import { clockWords, dayWords, hoursWords, namesWords, peopleWords } from "../sessionChange/words";
 import { weekdaysWords } from "../regularTime/words";
+import type { DidNotHappenPreview } from "../registerCover/pageWords";
 import {
   ROOM_TO_BE_CONFIRMED,
   type HistoryFilter,
@@ -69,6 +70,20 @@ export type GroupPageWeek = {
   cantMakeIt: string[];
   /** The group's people for this session and what each has said. Empty on the facilitator's page. */
   people: { uid: string; name: string; said: WeekSaid }[];
+  /** Its register is finished. */
+  finished: boolean;
+  /** Its register says the session did not happen (the old switch). */
+  heldFalse: boolean;
+  /** One of the group's facilitators has started its register (saved a mark or set a line). */
+  facilitatorStarted: boolean;
+  /**
+   * Who took its register in a facilitator's place, or was given the
+   * session, by name, and whether a session given still holds; null with
+   * nobody, and always on the facilitator's page.
+   */
+  cover: { kind: "self" | "given"; byName: string; live: boolean } | null;
+  /** "Started 12 minutes ago", for a session that has started; "" before. */
+  startedAgo: string;
 };
 
 /** One row of the group's history, as the History tab draws it. */
@@ -126,6 +141,31 @@ export type GroupPageView = {
   /** The group's history, for admins and the lead; null on the facilitator's page. */
   history: { rows: GroupPageHistoryRow[]; more: boolean } | null;
 };
+
+/** A week's register, as the ways to take it in a facilitator's place ask it (`coverChoicesOf`). */
+export function weekRegisterFacts(week: GroupPageWeek): {
+  weekNumber: number;
+  started: boolean;
+  cancelled: boolean;
+  dated: boolean;
+  finished: boolean;
+  heldFalse: boolean;
+  facilitatorStarted: boolean;
+  covered: boolean;
+  taken: boolean;
+} {
+  return {
+    weekNumber: week.weekNumber,
+    started: week.started,
+    cancelled: week.cancelled,
+    dated: Boolean(week.dateKey && week.hhmm),
+    finished: week.finished,
+    heldFalse: week.heldFalse,
+    facilitatorStarted: week.facilitatorStarted,
+    covered: week.cover !== null,
+    taken: week.taken,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Which state a week is in
@@ -376,6 +416,8 @@ export type OneWeekPreview = {
   said: { joiningOnline: { count: number; names: string[] }; cantMakeIt: { count: number; names: string[] } };
   told: PreviewTold;
   register: { exists: boolean; taken: boolean };
+  /** A session called off after it started: what else follows (attendance, its lines, its check-in and report, the chase); null otherwise. */
+  didNotHappen?: DidNotHappenPreview | null;
   notice: { title: string; message: string };
   at: string | null;
 };

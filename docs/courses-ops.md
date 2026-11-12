@@ -2235,6 +2235,36 @@ week 2" ("Group E didn't meet on Tue 10 Nov. Week 3 is still Tue 17 Nov, 4pm,
 Monica Partridge E05, and week 2's work is still on your programme page.", and
 the reason); a push back sends the cancelled and pushed back words.
 
+### Where it is done
+
+- **The group's page** (the programme's Groups tab, admins and the
+  programme's lead). When a session has started and nobody has saved a line
+  on its register, a notice says so with three ways forward: take the
+  register in the facilitators' place (the cover is taken first, then the
+  register opens), give the session to somebody else, or say it didn't
+  happen (the Change panel on that week with its two cancels alone). Every
+  week whose register is not finished offers the same from its own Take the
+  register, past weeks included; once a facilitator has started a register it
+  opens the register itself. Overview's Needs attention leads to the same
+  ways (`?take=N` on the group's page). History has a Registers filter; rows
+  about the facilitator record load only for an admin or the programme's lead
+  who does not facilitate the group.
+- **The register**. The facilitators' own page under `/learn`, and the same
+  page under the group's page for admins and the programme's lead (the run's
+  pages under `/learn` do not admit a programme's lead, and opening that
+  layout to them would open other pages too). The run's layout lets through
+  somebody holding a live given session (`holdsGivenSessionOn`), and their
+  register page shows that one session's column, names only, with no notes
+  and no way into the group's page; every other page under the run refuses
+  them. The register says whose place is taken, who set each line and when,
+  and to a facilitator who arrives late, who started it. Finish shows the
+  marks before the lock and, in a group with more than one facilitator, asks
+  the finishing facilitator who was here. Admins and the programme's lead get
+  a panel about the session: who took it, the facilitator record with its
+  Change, when the reminders stopped, the check-in and the report.
+- **The session report** of whoever took the register says whose place they
+  took, on its page and in the programme's reports list.
+
 ### Reverting
 
 Every field is optional and server-written. Code from before this ignores

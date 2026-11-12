@@ -52,6 +52,7 @@ import {
   presenceOnSave,
   saveTakesCover,
   setterHow,
+  startedByFacilitator,
 } from "@/lib/courses/registerCover/model";
 import { REGISTER_COVER_REFUSAL, tookDetail } from "@/lib/courses/registerCover/words";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
@@ -175,6 +176,15 @@ export type AttendanceSession = {
   notes: string;
   /** ISO instant of PUSH ATTENDANCE, or null while this is still a draft. */
   pushedAt: string | null;
+  /**
+   * One of the group's facilitators has started this register (saved a mark
+   * or set a line), so somebody else saving on it is helping, not covering
+   * (`startedByFacilitator`). False with no register yet.
+   */
+  facilitatorStarted: boolean;
+  /** ISO instants the session starts and ends, or null with no day and time. */
+  startsAt: string | null;
+  endsAt: string | null;
 };
 
 export type AttendancePayload = {
@@ -275,8 +285,11 @@ export type AttendancePayload = {
    * absent from every other reader's answer.
    */
   facilitatorRecord?: RegisterCoverExtras["facilitatorRecord"];
-  /** The group's facilitators who stand behind the role, by name: who Finish asks about, and whose place a cover takes. */
-  facilitators: NamedPerson[];
+  /**
+   * The group's facilitators who stand behind the role, by name: who Finish
+   * asks about, and whose place a cover takes. `you` marks the reader.
+   */
+  facilitators: (NamedPerson & { you: boolean })[];
   /** What the reader may do here, so the page offers nothing a route would refuse. */
   caller: AttendanceCaller;
   /**
@@ -298,6 +311,8 @@ export type AttendancePayload = {
 /** What the reader is on this register, and what they may do on each session of it. */
 export type AttendanceCaller = {
   standing: "admin" | "facilitator" | "lead" | "given";
+  /** A live facilitator of the group, whatever else they are: their saves are stamped as a facilitator's and take nobody's place. */
+  facilitates: boolean;
   readsNotes: boolean;
   readsFacilitatorRecord: boolean;
   /**
@@ -965,6 +980,7 @@ export async function GET(
   ]);
   const caller: AttendanceCaller = {
     standing: gated.isAdmin ? "admin" : gated.facilitates ? "facilitator" : gated.leads ? "lead" : "given",
+    facilitates: gated.facilitates,
     readsNotes: gated.readsNotes,
     readsFacilitatorRecord,
     corrects,
@@ -1000,6 +1016,9 @@ export async function GET(
         held: !c.cancelled && (state?.held ?? true),
         notes: state?.notes ?? "",
         pushedAt: state?.pushedAt ?? null,
+        facilitatorStarted: startedByFacilitator(registerBySessionKey.get(c.sessionKey) ?? null, group.facilitatorUids),
+        startsAt: sessionInstants(c).startsAt?.toISOString() ?? null,
+        endsAt: sessionInstants(c).endsAt?.toISOString() ?? null,
       };
     }),
     members,
@@ -1015,7 +1034,7 @@ export async function GET(
     setBy: extras.setBy,
     covers: extras.covers,
     ...(extras.facilitatorRecord ? { facilitatorRecord: extras.facilitatorRecord } : {}),
-    facilitators,
+    facilitators: facilitators.map((each) => ({ ...each, you: each.uid === actor.uid })),
     caller,
     corrections: corrections.corrections,
     requests: corrections.requests,
