@@ -104,6 +104,14 @@ const READERS = {
   "lib/courses/facilitatorGroup.ts": { treats: "no-words", why: "a facilitator's To review card counts the summer's answers sent" },
   "lib/courses/finishing/whoFinished.ts": { treats: "no-words", why: "who finished counts written answers sent, by their first-sent time, never their words" },
   "lib/courses/weekPaste.ts": { treats: "no-words", why: "a paste counts the rows on the items it would take out, never their words" },
+  "lib/courses/weekEdit/counts.ts": {
+    treats: "no-words",
+    why: "the in-place editor counts the written answers written and sent beside the block, reading a row only for whether it holds something: numbers, never words",
+  },
+  "lib/courses/weekEdit/askedThen.ts": {
+    treats: "no-words",
+    why: "the words a question had when it was answered: a person's rows read only for which question each answers and when it was first written",
+  },
   "lib/courses/weekWork/readers.ts": { treats: "no-words", why: "how far each person has got: which answers are sent and how many words they hold, projected so no word is read" },
   "lib/applications/nextTerm/load.ts": {
     treats: "no-words",

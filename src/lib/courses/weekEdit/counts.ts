@@ -4,6 +4,7 @@ import { groupWeekRef } from "@/lib/courses/groupResolve";
 import { liveGroupsOfRun } from "@/lib/courses/weeksTab/load";
 import { instantOf } from "@/lib/courses/writtenAnswers/model";
 import { normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
+import { COURSE_PACKS_AND_CASES_COLLECTION } from "@/lib/firestore/coursePacksAndCases";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { allBlocks, weekItems, type WeekBlock } from "../weekBlocks/model";
 import type { SaveReach } from "./history";
@@ -66,7 +67,7 @@ export async function readWeekWork(db: Firestore, runId: string, weekId: string,
   const [progress, responses, picks] = await Promise.all([
     db.collection("courseProgress").where("runId", "==", runId).get(),
     db.collection("courseExerciseResponses").where("runId", "==", runId).get(),
-    db.collection("coursePacksAndCases").where("runId", "==", runId).get(),
+    db.collection(COURSE_PACKS_AND_CASES_COLLECTION).where("runId", "==", runId).get(),
   ]);
   for (const doc of progress.docs) {
     const row = doc.data() ?? {};

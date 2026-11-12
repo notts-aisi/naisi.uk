@@ -738,6 +738,7 @@ const PROGRESS_ADDRESSERS = {
   "app/api/courses/runs/[runId]/retrospective/route.ts": ["aggregate", "ratings and finishes as totals, read through a projection with no uid"],
   "app/api/courses/runs/[runId]/ticks/[itemId]/route.ts": ["own", "every tick and untick, the one writer of a tick: a person's own row by their own uid, a holder's week 1 before groups go out among them"],
   "lib/courses/weekPaste.ts": ["count", "a paste counts the rows on items it would take out, for the run's week and a group's copy alike: a number for whoever is pasting"],
+  "lib/courses/weekEdit/counts.ts": ["count", "the in-place editor counts the people who ticked each block of a week and who has started it: numbers for the lead or an admin, never a name"],
   "features/courses/progressMutations.ts": ["own", "a person writes their own tick, rating and note, on their own row"],
   "features/courses/useRunProgress.ts": ["own", "a person's own rows, in their browser, by their own uid"],
   "lib/courses/facilitatorWeek/readers.ts": ["staff", "who ticked each source by name, for a group's facilitators, the programme's lead and admins, and the private notes, for its facilitators and admins, after each page's gate"],

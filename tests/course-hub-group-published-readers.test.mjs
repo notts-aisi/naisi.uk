@@ -204,6 +204,11 @@ const READERS = {
       "Remind on the Overview's card of who has not said when they are free: each person's own seat, by its id, " +
       "never shown. A seat Publish has told is left out, because its week is the group's now",
   },
+  "lib/courses/weekEdit/counts.ts": {
+    kind: "told",
+    asks: 1,
+    why: "how many people a save of a run's week reaches, beside the in-place editor and in the week's history: an untold seat is nobody the week is open to yet, so it is not counted",
+  },
   "lib/courses/updates/audience.ts": {
     kind: "told",
     asks: 1,

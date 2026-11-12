@@ -72,7 +72,6 @@ async function ask(who, handler, params, { body, query = "", viewAs = false } = 
 const everything = () => JSON.stringify(world.db.paths().sort().map((path) => [path, world.db.read(path)]));
 const saves = () => world.db.paths().filter((path) => path.startsWith(`${HISTORY}/`)).sort().map((path) => ({ id: path.split("/").pop(), ...world.db.read(path) }));
 const stored = () => world.db.read(W3);
-const blockOf = (id) => weekItems(stored().blocks).find((item) => item.id === id);
 
 const T_WROTE = new Date("2026-11-12T10:00:00Z");
 
@@ -586,5 +585,39 @@ describe("6. a run's destroy counts and deletes each week's history and lock", (
     assert.equal((await ask("zach", R.lock.POST, AT)).status, 404);
     assert.equal((await ask("zach", R.paste.PUT, AT, { body: { markdown: syntheticGuideMarkdown(), confirmAnswers: 3 } })).status, 404);
     assert.equal(everything(), before);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. The words a question had when it was answered
+// ---------------------------------------------------------------------------
+
+describe("7. the words a question had when it was answered, beside the answer", () => {
+  const OLD_PROMPT = "Pick a question you care about. What is its base rate?";
+  const NEW_PROMPT = "What is your question's base rate, roughly?";
+
+  test("the person's own week page is handed the words their reflection answered, and only once they changed", async () => {
+    seedWeek();
+    const before = await ask("chloe", R.myExercises.GET, { runId: RUN.agi }, { query: "?week=3" });
+    assert.equal(before.status, 200, JSON.stringify(before.body));
+    assert.deepEqual(before.body.askedThen, {}, "nothing changed in place: nothing to say");
+    await change("zach", "rs-1", { prompts: [{ id: "rp-1", text: NEW_PROMPT }, { id: "rp-2", text: "What makes your case different from the base rate?" }] });
+    const after = await ask("chloe", R.myExercises.GET, { runId: RUN.agi }, { query: "?week=3" });
+    assert.deepEqual(after.body.askedThen, { "rp-1": { kind: "prompt", text: OLD_PROMPT } });
+    // An answer first written after the change was written to today's words.
+    world.db.poke(`courseExerciseResponses/${RUN.agi}__chloe__w03__rp-1`, { firstWrittenAt: new Date(NOW.getTime() + 60_000) });
+    const later = await ask("chloe", R.myExercises.GET, { runId: RUN.agi }, { query: "?week=3" });
+    assert.deepEqual(later.body.askedThen, {});
+  });
+
+  test("the staff pages' loaders: a written answer's range when it was written, and a reflection's prompt", async () => {
+    seedWeek();
+    await change("zach", "wa-1", { words: { min: 250, max: 400 } });
+    const { askedThenFor, personAskedThen } = await loadTs(join("lib", "courses", "weekEdit", "askedThen.ts"));
+    const found = await askedThenFor(world.courseDb, RUN.agi, "w03", null, [{ key: "farah", itemId: "wa-1", writtenAt: T_WROTE }]);
+    assert.deepEqual(found.get("farah").words, { min: 200, max: 300 });
+    const person = await personAskedThen(world.courseDb, RUN.agi, "farah", null);
+    assert.deepEqual(Object.keys(person), ["3 wa-1"]);
+    assert.equal(person["3 wa-1"].kind, "writtenAnswer");
   });
 });

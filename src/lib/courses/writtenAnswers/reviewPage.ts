@@ -47,6 +47,8 @@ import { writtenAnswerWords } from "../coursework/input";
 import { readAnswerReading, type AnswerReading } from "../coursework/pangramReadings";
 import { besideScopeOf, type ReportLinesView } from "../sessionReports/beside";
 import { readReportLinesAbout } from "../sessionReports/readers";
+import { askedThenFor, writtenAtOf } from "../weekEdit/askedThen";
+import type { AskedWords } from "../weekEdit/wordsThen";
 
 /**
  * WHAT THE REVIEW PAGE SHOWS, worked
@@ -167,6 +169,13 @@ export type ReviewSelected = {
    * report; null for a reader who is handed no line.
    */
   reportLines: ReportLinesView | null;
+  /**
+   * The question as it was worded when this answer was first written (its
+   * words, word range and due rule), ONLY where it has been reworded in place
+   * since; null otherwise. So no answer is shown as if it answered words it
+   * never saw (`src/lib/courses/weekEdit/askedThen.ts`).
+   */
+  askedThen: AskedWords | null;
 };
 
 export type ReviewPageModel = {
@@ -295,6 +304,8 @@ export async function loadWrittenReview(
     (piecesOf.get(uid) ?? []).filter((piece) => answer !== null && piece.on.kind === "writtenAnswer" && piece.on.itemId === answer.id);
   // Each person's row, by its id: nobody's but theirs.
   const records = new Map<string, WrittenAnswerRecord>();
+  // When each person first wrote their answer, for the words the question had then.
+  const writtenAt = new Map<string, Date | null>();
   if (answer && people.length > 0) {
     const snaps = await db.getAll(
       ...people.map((owner) => db.collection("courseExerciseResponses").doc(exerciseResponseId(run.id, owner.uid, weekId, answer.id))),
@@ -303,6 +314,7 @@ export async function loadWrittenReview(
       const data = snap.exists ? ((snap.data() ?? {}) as Record<string, unknown>) : null;
       if (data && !isReflectionResponse(data) && isWordCountedAnswer(data) && data.uid === people[index].uid) {
         records.set(people[index].uid, readWrittenAnswer(data));
+        writtenAt.set(people[index].uid, writtenAtOf(data));
       }
     });
   }
@@ -406,7 +418,7 @@ export async function loadWrittenReview(
     // the week's session reports say about the person, as `besideScopeOf`
     // lets this reader see them.
     const beside = besideScopeOf({ uid: actor.uid, isAdmin: facts.isAdmin, isLead: facts.isLead }, chosen.uid, role.mayReview);
-    const [team, pangram, reportLines] = await Promise.all([
+    const [team, pangram, reportLines, askedThen] = await Promise.all([
       mayRateWorkOf(actor, facts, owner, liveGroups)
         ? loadTeamRatings(db, {
             runId: run.id,
@@ -425,6 +437,7 @@ export async function loadWrittenReview(
           })
         : Promise.resolve(null),
       beside ? readReportLinesAbout(db, { runId: run.id, uid: chosen.uid, weekNumber, scope: beside }) : Promise.resolve(null),
+      askedThenFor(db, run.id, weekId, group.id, [{ key: chosen.uid, itemId: answer.id, writtenAt: writtenAt.get(chosen.uid) ?? null }]),
     ]);
     selected = {
       person: chosen,
@@ -437,6 +450,7 @@ export async function loadWrittenReview(
       team,
       pangram,
       reportLines,
+      askedThen: askedThen.get(chosen.uid) ?? null,
     };
   }
 

@@ -40,6 +40,8 @@ import {
   type PersonWeek,
 } from "./model";
 import { NOT_IN_A_GROUP_YET } from "./words";
+import { personAskedThen } from "../weekEdit/askedThen";
+import type { AskedWords } from "../weekEdit/wordsThen";
 
 /**
  * A PROGRAMME'S COURSEWORK, READ (Zach, Fri 30 Oct): the Coursework tab and
@@ -366,6 +368,14 @@ export type PersonCourseworkView = {
   notesShown: boolean;
   /** The first name the person looking goes by, for "Written by Claudia". */
   viewerFirstName: string;
+  /**
+   * The words each of the person's answered questions had when they first
+   * wrote to it, keyed as their work is ("3 rp-1"), ONLY where the question
+   * has been reworded in place since (`src/lib/courses/weekEdit/askedThen.ts`):
+   * a reflection's prompt, or a written answer's question, word range and due
+   * rule. Empty when nothing they answered was changed.
+   */
+  askedThen: Record<string, AskedWords>;
 };
 
 export type PersonCourseworkOutcome =
@@ -475,6 +485,7 @@ export async function loadPersonCoursework(
       }),
       notesShown: notes !== null,
       viewerFirstName: cardNames.firstName(actor.uid),
+      askedThen: await personAskedThen(db, run.id, uid, person.readsGroupId),
     },
   };
 }
