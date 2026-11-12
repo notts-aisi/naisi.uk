@@ -95,13 +95,47 @@ function objectBody(raw: unknown, fields: readonly string[]): Record<string, unk
   return body;
 }
 
-/** What asking says: the sessions, by their registers' keys, and why. */
-export type AskPress = { sessionKeys: string[]; reason: string };
+/** What the person confirmed before asking: they can't do any of the three things that would let them take part instead. */
+export type AskConfirmed = { inPerson: boolean; ownOnline: boolean; otherOnline: boolean };
+
+/** What asking says: the sessions, by their registers' keys, why, and what they confirmed. */
+export type AskPress = { sessionKeys: string[]; reason: string; confirmed: AskConfirmed };
+
+/**
+ * Whether joining their own group's session online is a real choice for one
+ * session: asked about before it, held in a room. The form offers today's
+ * "Joining online" beside the line it asks them to confirm, and the route
+ * requires it, from this one rule.
+ */
+export function onlineOfferedFor(input: { when: "before" | "after"; heldOnline: boolean }): boolean {
+  return input.when === "before" && !input.heldOnline;
+}
+
+/**
+ * Which of the three confirmations a request needs, from its weeks: that
+ * they can't go to another group's session in person, and can't join another
+ * group's session online, always; that they can't join their own group's
+ * session online only where that is a real choice for one of its weeks.
+ */
+export function confirmationsNeeded(weeks: readonly { onlineOffered: boolean }[]): AskConfirmed {
+  return { inPerson: true, ownOnline: weeks.some((week) => week.onlineOffered), otherOnline: true };
+}
+
+/** The first confirmation needed and not given, in the form's order, as the route's sentence; null with none missing. */
+export function missingConfirmation(needed: AskConfirmed, given: AskConfirmed): string | null {
+  if (needed.inPerson && !given.inPerson) return EXCUSED_REFUSAL.confirmInPerson;
+  if (needed.ownOnline && !given.ownOnline) return EXCUSED_REFUSAL.confirmOwnOnline;
+  if (needed.otherOnline && !given.otherOnline) return EXCUSED_REFUSAL.confirmOtherOnline;
+  return null;
+}
 
 /** The body of an ask, or why it is not one. Reads nothing. */
 export function parseAsk(raw: unknown): Parsed<AskPress> {
-  const body = objectBody(raw, ["sessionKeys", "reason"]);
+  const body = objectBody(raw, ["sessionKeys", "reason", "inPerson", "ownOnline", "otherOnline"]);
   if (!body) return { ok: false, error: EXCUSED_REFUSAL.body };
+  for (const key of ["inPerson", "ownOnline", "otherOnline"] as const) {
+    if (body[key] !== undefined && typeof body[key] !== "boolean") return { ok: false, error: EXCUSED_REFUSAL.body };
+  }
   if (!Array.isArray(body.sessionKeys) || body.sessionKeys.length === 0) return { ok: false, error: EXCUSED_REFUSAL.weeks };
   if (body.sessionKeys.length > EXCUSED_LIMITS.weeks) return { ok: false, error: EXCUSED_REFUSAL.tooMany };
   const keys: string[] = [];
@@ -112,7 +146,8 @@ export function parseAsk(raw: unknown): Parsed<AskPress> {
   }
   const reason = parseExcusedReason(body.reason);
   if (!reason.ok) return reason;
-  return { ok: true, value: { sessionKeys: keys, reason: reason.value } };
+  const confirmed: AskConfirmed = { inPerson: body.inPerson === true, ownOnline: body.ownOnline === true, otherOnline: body.otherOnline === true };
+  return { ok: true, value: { sessionKeys: keys, reason: reason.value, confirmed } };
 }
 
 /** Withdrawing: one week (`sessionKey`), or every week still waiting (none named). */

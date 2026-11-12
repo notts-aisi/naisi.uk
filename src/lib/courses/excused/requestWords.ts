@@ -98,6 +98,18 @@ export function quoted(text: string): string {
 
 export const ASKS_TO_BE_EXCUSED_FROM = "Asks to be excused from";
 
+/**
+ * One quiet line: what they confirmed before asking. "Grace confirmed they
+ * can’t go to another group’s session in person, join their own group’s
+ * session online, or join another group’s session online."
+ */
+export function confirmedWords(firstName: string, ownOnline: boolean | null): string {
+  const who = firstName.trim() || "They";
+  return ownOnline
+    ? `${who} confirmed they can’t go to another group’s session in person, join their own group’s session online, or join another group’s session online.`
+    : `${who} confirmed they can’t go to another group’s session in person, or join another group’s session online.`;
+}
+
 /** "Week 2 · Wed 11 Nov, 3pm to 5pm · Portland A21". */
 export function weekLineWords(input: {
   weekNumber: number;

@@ -124,7 +124,11 @@ const auditRows = (kind) =>
     .filter((row) => !kind || row.kind === kind);
 const rollup = (uid) => world.db.read(`courseEnrolments/${RUN.agi}__${uid}`).attendance;
 
-const ask = (who, body, groupId = B, opts = {}) => call(who, askRoute.POST, { groupId }, { body, course: true, ...opts });
+/** Everything the form asks a person to confirm, ticked, as the form sends it. */
+const CONFIRMED = { inPerson: true, ownOnline: true, otherOnline: true };
+/** An ask as the form sends it: the confirmations ticked unless the test says otherwise (`raw` sends the body as it is). */
+const ask = (who, body, groupId = B, opts = {}) =>
+  call(who, askRoute.POST, { groupId }, { body: opts.raw ? body : { ...CONFIRMED, ...body }, course: true, ...opts });
 const act = (who, action, requestId, body) => call(who, actions[action].POST, { requestId }, { body: body ?? {}, course: true });
 const mark = (who, weekNumber, marks) => call(who, register.POST, { groupId: B }, { body: { weekNumber, marks }, course: true });
 const finish = (who, weekNumber) => call(who, push.POST, { groupId: B }, { body: { weekNumber }, course: true });
@@ -194,10 +198,15 @@ function seatLike(uid, groupId = B) {
 
 describe("the arithmetic: what a press says, which sessions may be asked about, what approving writes", () => {
   test("an ask is sessions and one short line, nothing else", () => {
-    assert.deepEqual(model.parseAsk({ sessionKeys: ["w02", "w03"], reason: " A few words. " }), {
+    assert.deepEqual(model.parseAsk({ sessionKeys: ["w02", "w03"], reason: " A few words. ", inPerson: true, otherOnline: true }), {
       ok: true,
-      value: { sessionKeys: ["w02", "w03"], reason: "A few words." },
+      value: { sessionKeys: ["w02", "w03"], reason: "A few words.", confirmed: { inPerson: true, ownOnline: false, otherOnline: true } },
     });
+    // The confirmations are plain booleans, missing reads as not confirmed, anything else is no ask.
+    assert.deepEqual(model.parseAsk({ sessionKeys: ["w02"], reason: "x" }).value.confirmed, { inPerson: false, ownOnline: false, otherOnline: false });
+    for (const odd of ["yes", 1, null, {}]) {
+      assert.equal(model.parseAsk({ sessionKeys: ["w02"], reason: "x", ownOnline: odd }).error, words.EXCUSED_REFUSAL.body, JSON.stringify(odd));
+    }
     assert.equal(model.parseAsk(null).error, words.EXCUSED_REFUSAL.body);
     assert.equal(model.parseAsk({ sessionKeys: [], reason: "x" }).error, words.EXCUSED_REFUSAL.weeks);
     assert.equal(model.parseAsk({ sessionKeys: ["w2"], reason: "x" }).error, words.EXCUSED_REFUSAL.weeks);
@@ -470,6 +479,79 @@ describe("asking: somebody holding a told place, for their own group's sessions,
     at(CLOSED);
     const answer = await ask("amara", { sessionKeys: ["w02"], reason: REASON });
     assert.deepEqual([answer.status, answer.body.error], [409, words.EXCUSED_REFUSAL.closed]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// What they confirm before asking
+// ---------------------------------------------------------------------------
+
+describe("confirming before asking: the route asks for what the form showed, by the form's own rule", () => {
+  beforeEach(placed);
+
+  test("the rule: in person and another group online always; their own group online only where it is a real choice", () => {
+    assert.equal(model.onlineOfferedFor({ when: "before", heldOnline: false }), true, "in a room, before it");
+    assert.equal(model.onlineOfferedFor({ when: "before", heldOnline: true }), false, "online already");
+    assert.equal(model.onlineOfferedFor({ when: "after", heldOnline: false }), false, "after it, nothing to join");
+    assert.deepEqual(model.confirmationsNeeded([{ onlineOffered: true }]), { inPerson: true, ownOnline: true, otherOnline: true });
+    assert.deepEqual(model.confirmationsNeeded([{ onlineOffered: false }]), { inPerson: true, ownOnline: false, otherOnline: true });
+    assert.deepEqual(model.confirmationsNeeded([{ onlineOffered: false }, { onlineOffered: true }]).ownOnline, true, "one week of several is enough");
+    const all = { inPerson: true, ownOnline: true, otherOnline: true };
+    assert.equal(model.missingConfirmation(all, all), null);
+    // In the form's order: the first one missing is the one said.
+    assert.equal(model.missingConfirmation(all, { inPerson: false, ownOnline: false, otherOnline: false }), words.EXCUSED_REFUSAL.confirmInPerson);
+    assert.equal(model.missingConfirmation(all, { ...all, ownOnline: false }), words.EXCUSED_REFUSAL.confirmOwnOnline);
+    assert.equal(model.missingConfirmation({ ...all, ownOnline: false }, { ...all, ownOnline: false }), null, "a line not shown is not asked for");
+  });
+
+  test("a session in a room, before it: each of the three missing is refused in one sentence, and nothing is written or sent", async () => {
+    for (const [left, sentence] of [
+      ["inPerson", words.EXCUSED_REFUSAL.confirmInPerson],
+      ["ownOnline", words.EXCUSED_REFUSAL.confirmOwnOnline],
+      ["otherOnline", words.EXCUSED_REFUSAL.confirmOtherOnline],
+    ]) {
+      const answer = await ask("amara", { sessionKeys: ["w02"], reason: REASON, [left]: false });
+      assert.deepEqual([answer.status, answer.body.error], [400, sentence], left);
+    }
+    const bare = await ask("amara", { sessionKeys: ["w02"], reason: REASON }, B, { raw: true });
+    assert.deepEqual([bare.status, bare.body.error], [400, words.EXCUSED_REFUSAL.confirmInPerson], "an old page's press, with none");
+    assert.deepEqual(requestDocs(), [], "a refused ask writes nothing");
+    assert.deepEqual(world.mail, [], "and emails nobody");
+  });
+
+  test("all three confirmed: the request stores that they were, and when, server-written", async () => {
+    const answer = await ask("amara", { sessionKeys: ["w02", "w03"], reason: REASON });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    const [doc] = requestDocs();
+    const at = doc.confirmed.at instanceof Date ? doc.confirmed.at : doc.confirmed.at.toDate();
+    assert.deepEqual({ ...doc.confirmed, at: at.toISOString() }, {
+      at: BEFORE_W2.toISOString(),
+      inPerson: true,
+      ownOnline: true,
+      otherOnline: true,
+    });
+    assert.deepEqual(Object.keys(answer.body.request).includes("confirmed"), false, "the answer does not repeat them");
+  });
+
+  test("a session held online, or one asked about after it: their own group online is not asked for, and stored as no choice", async () => {
+    world.db.poke(`courseGroups/${B}`, { campus: "online" });
+    const answer = await ask("amara", { sessionKeys: ["w02"], reason: REASON, ownOnline: false });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.equal(requestDocs()[0].confirmed.ownOnline, null, "nothing to confirm, so nothing claimed");
+    const other = await ask("amara", { sessionKeys: ["w03"], reason: REASON, otherOnline: false });
+    assert.deepEqual([other.status, other.body.error], [400, words.EXCUSED_REFUSAL.confirmOtherOnline], "the other two still are");
+  });
+
+  test("a request made before confirmations were asked reads as before: no confirmations, nothing else changed", async () => {
+    const id = await amaraAsks();
+    const raw = world.db.read(`courseRequests/${id}`);
+    delete raw.confirmed;
+    world.db.seed(`courseRequests/${id}`, raw);
+    const old = record.normalizeExcusedRequest(id, world.db.read(`courseRequests/${id}`));
+    assert.equal(old.confirmed, null);
+    assert.equal(old.status, "waiting");
+    assert.equal(old.reason, REASON);
+    assert.equal((await act("zach", "approve", id, { sessionKey: "w02" })).status, 200, "and it is decided as before");
   });
 });
 

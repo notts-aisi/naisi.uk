@@ -110,6 +110,8 @@ export type ExcusedRequestPageView = {
   facilitators: Named[];
   /** The person's words; "" once the programme closed and it was deleted. */
   reason: string;
+  /** What they confirmed before asking; null on a request made before it was asked. */
+  confirmed: { at: string | null; ownOnline: boolean | null } | null;
   reasonGoneAt: string | null;
   weeks: ExcusedPageWeek[];
   replies: { text: string; by: Named; at: string }[];
@@ -350,6 +352,9 @@ export async function loadExcusedRequestPage(
       group: { id: group.id, name: group.name.trim() || "Untitled group" },
       facilitators: standing.map((each) => ({ uid: each.uid, name: each.name })),
       reason: request.reason,
+      confirmed: request.confirmed
+        ? { at: request.confirmed.at ? request.confirmed.at.toISOString() : null, ownOnline: request.confirmed.ownOnline }
+        : null,
       reasonGoneAt: request.reasonGoneAt ? request.reasonGoneAt.toISOString() : null,
       weeks,
       replies: request.replies.map((reply) => ({ text: reply.text, by: named(reply.byUid), at: reply.at.toISOString() })),

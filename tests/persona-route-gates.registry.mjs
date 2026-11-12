@@ -2133,7 +2133,7 @@ export const ROUTES = {
       expect: signedIn(400),
       why:
         "Asking to be excused from sessions of your own group: view-as is refused first, then the session, then " +
-        "the address and the body (the sessions and a reason) are checked before anything is read, so every " +
+        "the address and the body (the sessions, a reason and what they confirmed) are checked before anything is read, so every " +
         "signed-in persona meets the same 400 on an empty one. The caller's own place is read once a whole body " +
         "arrives. Its answer is { ok, request }.",
     },

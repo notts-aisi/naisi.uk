@@ -25,6 +25,9 @@ import { COURSE_REQUESTS_COLLECTION } from "@/lib/firestore/courseRequests";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import {
   askState,
+  confirmationsNeeded,
+  missingConfirmation,
+  onlineOfferedFor,
   requestStandingOf,
   weeksAbout,
   NO_LINE,
@@ -181,6 +184,7 @@ export async function askToBeExcused(
     ]);
 
     const weeks: Record<string, unknown>[] = [];
+    const choices: { onlineOffered: boolean }[] = [];
     const answer: Extract<AskOutcome, { ok: true }>["request"]["weeks"] = [];
     for (const [at, session] of sessions.entries()) {
       const snap = registerSnaps[at];
@@ -194,9 +198,11 @@ export async function askToBeExcused(
         now,
       });
       if (!state.open) return refuse(409, askClosedWords(state.why, session.weekNumber, session.occurrence));
-      // Joining online was open to them for this session: the flow offers it
-      // first, where the session is in a room and has not started.
-      const online = state.when === "before" && !sessionHeldOnline(group, session) && line.mark === null;
+      // Joining their own session online was a real choice for this session
+      // (`onlineOfferedFor`, the form's own rule): in a room, asked before it.
+      const onlineOffered = onlineOfferedFor({ when: state.when, heldOnline: sessionHeldOnline(group, session) });
+      choices.push({ onlineOffered });
+      const online = onlineOffered && line.mark === null;
       weeks.push({
         sessionKey: session.sessionKey,
         weekId: session.weekId,
@@ -222,6 +228,12 @@ export async function askToBeExcused(
       });
     }
 
+    // What they confirmed before asking, each one the form showed them: the
+    // route works out which apply from the same rule the form does.
+    const needed = confirmationsNeeded(choices);
+    const missing = missingConfirmation(needed, press.confirmed);
+    if (missing) return refuse(400, missing);
+
     const first = sessions[0];
     tx.create(requestRef, {
       kind: EXCUSED_KIND,
@@ -236,6 +248,9 @@ export async function askToBeExcused(
       askedAt: now,
       change: { weeks, replies: [] },
       reason: press.reason,
+      // That they confirmed they can't take part another way, and when; the
+      // second is null where joining their own session online was no choice.
+      confirmed: { at: now, inPerson: true, ownOnline: needed.ownOnline ? true : null, otherOnline: true },
       // Kept until the programme closes: the job that deletes it reads this.
       reasonHeld: true,
       status: "waiting",

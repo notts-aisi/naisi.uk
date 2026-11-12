@@ -68,7 +68,16 @@ export default function LastSessionCard({
       <h3 className={styles.formTitle}>{O.askForWeekWords(session.weekNumber, session.occurrence)}</h3>
       <AskForm
         groupId={groupId}
-        weeks={[{ sessionKey: session.sessionKey, weekNumber: session.weekNumber, occurrence: session.occurrence, dateKey: session.dateKey }]}
+        weeks={[
+          {
+            sessionKey: session.sessionKey,
+            weekNumber: session.weekNumber,
+            occurrence: session.occurrence,
+            dateKey: session.dateKey,
+            onlineOffered: false,
+            heldOnline: session.heldOnline,
+          },
+        ]}
         facilitatorFirstNames={facilitatorFirstNames}
         mode="after"
         locked={locked}

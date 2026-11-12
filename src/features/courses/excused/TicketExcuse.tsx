@@ -26,8 +26,9 @@ const date = (iso: string | null): Date | null => {
  * instant "Can't make it" stood.
  *
  * Nothing asked yet: "Joining online" as today, and "Can't make it", which
- * opens the short flow (`ExcuseSheet`): joining online first where the
- * session allows it, then a request an admin decides. One at a time, as
+ * opens the short flow (`ExcuseSheet`): a request an admin decides, which
+ * asks first what else they could do, joining online beside it where the
+ * session allows it. One at a time, as
  * before: somebody who has said they are joining online is offered "Can't
  * make it" only once they will be in the room after all.
  *
@@ -91,6 +92,8 @@ export default function TicketExcuse({
         weekNumber: each.weekNumber,
         occurrence: each.occurrence,
         dateKey: each.dateKey,
+        onlineOffered: each.first.online,
+        heldOnline: each.heldOnline,
       }))
     : [];
 
@@ -178,7 +181,15 @@ export default function TicketExcuse({
           day={day}
           groupId={view.groupId}
           groupName={groupName}
-          first={{ sessionKey: session.sessionKey, weekNumber: session.weekNumber, occurrence: session.occurrence, dateKey: session.dateKey, when }}
+          first={{
+            sessionKey: session.sessionKey,
+            weekNumber: session.weekNumber,
+            occurrence: session.occurrence,
+            dateKey: session.dateKey,
+            onlineOffered: session.first.online,
+            heldOnline: session.heldOnline,
+            when,
+          }}
           weeks={weeks}
           facilitatorFirstNames={facilitatorFirstNames}
           joiningOnline={session.first.online && joiningOnline && !said ? joiningOnline : null}

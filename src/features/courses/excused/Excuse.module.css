@@ -242,6 +242,11 @@
   accent-color: var(--color-accent);
 }
 
+.mailLink {
+  color: var(--color-accent-text);
+  overflow-wrap: anywhere;
+}
+
 .medical {
   margin: 0;
   padding: 12px 16px;

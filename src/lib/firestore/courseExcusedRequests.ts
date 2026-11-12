@@ -101,6 +101,21 @@ export const EXCUSED_LIMITS = {
   history: 40,
 } as const;
 
+/** What the person confirmed before asking. */
+export type ExcusedConfirmed = { at: Date | null; inPerson: boolean; ownOnline: boolean | null; otherOnline: boolean };
+
+/** The stored confirmations, or null for a request made before they were asked. */
+function confirmedOf(raw: unknown): ExcusedConfirmed | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const data = raw as Record<string, unknown>;
+  return {
+    at: tsToDate(data.at),
+    inPerson: data.inPerson === true,
+    ownOnline: typeof data.ownOnline === "boolean" ? data.ownOnline : null,
+    otherOnline: data.otherOnline === true,
+  };
+}
+
 export type ExcusedRequestDoc = {
   id: string;
   kind: typeof EXCUSED_KIND;
@@ -121,6 +136,14 @@ export type ExcusedRequestDoc = {
   reason: string;
   reasonHeld: boolean;
   reasonGoneAt: Date | null;
+  /**
+   * What the person confirmed before asking, and when: they can't go to
+   * another group's session in person, can't join their own group's session
+   * online (null where that was no real choice) and can't join another
+   * group's online. Server-written; null on a request made before it was
+   * asked, which reads as before.
+   */
+  confirmed: ExcusedConfirmed | null;
   status: CourseRequestStatus;
   decidedByUid: string | null;
   decidedAt: Date | null;
@@ -266,6 +289,7 @@ export function normalizeExcusedRequest(id: string, data: Raw): ExcusedRequestDo
     reason,
     reasonHeld: data.reasonHeld === true && reason !== "",
     reasonGoneAt: tsToDate(data.reasonGoneAt),
+    confirmed: confirmedOf(data.confirmed),
     // The weeks are the truth; the stored status is what one equality finds.
     status: excusedStatusOf(weeks),
     decidedByUid: uidOrNull(data.decidedByUid),

@@ -1,5 +1,7 @@
 import { londonClockLabel, londonDayLabel } from "@/lib/courses/londonLabels";
 import { dayWords, hoursWords, namesWords, weeksWords } from "@/lib/courses/sessionChange/words";
+import { CONTACT_EMAIL } from "@/content/socials";
+import { confirmationsNeeded, type AskConfirmed } from "./model";
 import { approvedByWords, youAskedWords } from "./words";
 
 /**
@@ -16,7 +18,7 @@ import { approvedByWords, youAskedWords } from "./words";
  */
 
 // ---------------------------------------------------------------------------
-// The way in, and the first step
+// The way in
 // ---------------------------------------------------------------------------
 
 /** "Can’t make Wed 11 Nov?": the sheet's heading. */
@@ -26,18 +28,7 @@ export function cantMakeDayWords(day: string): string {
 
 export const CLOSE = "Close";
 
-/**
- * Over today's "Joining online", in the sheet, where the session is held in a
- * room: "Try joining online first. You stay in Group C." Going to another
- * group's session that week will be offered here too, once one-week visits
- * exist.
- */
-export function joinOnlineFirstWords(groupName: string): string {
-  const group = groupName.trim();
-  return group ? `Try joining online first. You stay in ${group}.` : "Try joining online first. You stay in your group.";
-}
-
-/** Under the first step, and under the request's heading. */
+/** Under the request's heading. */
 export const AN_ADMIN_DECIDES = "An admin decides, usually the same day.";
 
 // ---------------------------------------------------------------------------
@@ -57,6 +48,62 @@ export function askFromWords(input: { groupName: string; weekNumber: number; occ
 }
 
 export const WEEKS_THIS_COVERS = "Weeks this covers";
+
+// ---------------------------------------------------------------------------
+// What they confirm before asking, in this order
+// ---------------------------------------------------------------------------
+
+export const BEFORE_YOU_ASK = "Before you ask";
+
+/** "I can’t go to another group’s session in person this week." */
+export function confirmInPersonWords(weeks: number): string {
+  return weeks > 1 ? "I can’t go to another group’s session in person for these weeks." : "I can’t go to another group’s session in person this week.";
+}
+
+/** "I can’t join my own group’s session online." */
+export function confirmOwnOnlineWords(weeks: number): string {
+  return weeks > 1 ? "I can’t join my own group’s sessions online for these weeks." : "I can’t join my own group’s session online.";
+}
+
+/** "I can’t join another group’s session online this week." */
+export function confirmOtherOnlineWords(weeks: number): string {
+  return weeks > 1 ? "I can’t join another group’s session online for these weeks." : "I can’t join another group’s session online this week.";
+}
+
+/** In the second line's place, where joining their own session online is no real choice. */
+export const OWN_ONLINE_ALREADY = "Your group’s session is online already, so there’s nothing to confirm here.";
+export const OWN_ONLINE_NOT_OFFERED = "Your group’s session can’t be joined online now, so there’s nothing to confirm here.";
+
+/** One line the form draws before the reason: a tick to confirm, or a sentence where there is nothing to confirm. */
+export type ConfirmTick = { kind: "tick"; key: keyof AskConfirmed; words: string };
+export type ConfirmLine = ConfirmTick | { kind: "say"; words: string };
+
+/**
+ * THE FORM'S LINES BEFORE THE REASON, in order, from the weeks ticked: in
+ * person at another group's session, their own group's session online, and
+ * another group's session online. The second is a tick only where joining
+ * online is a real choice for one of the weeks (`confirmationsNeeded`, the
+ * route's own rule); elsewhere it is a sentence and asks nothing, so nobody
+ * confirms something untrue. Several weeks read "for these weeks". Pure.
+ */
+export function confirmLinesOf(chosen: readonly { onlineOffered: boolean; heldOnline: boolean }[]): [ConfirmTick, ConfirmLine, ConfirmTick] {
+  const many = Math.max(chosen.length, 1);
+  const needed = confirmationsNeeded(chosen);
+  return [
+    { kind: "tick", key: "inPerson", words: confirmInPersonWords(many) },
+    needed.ownOnline
+      ? { kind: "tick", key: "ownOnline", words: confirmOwnOnlineWords(many) }
+      : { kind: "say", words: chosen.some((week) => week.heldOnline) ? OWN_ONLINE_ALREADY : OWN_ONLINE_NOT_OFFERED },
+    { kind: "tick", key: "otherOnline", words: confirmOtherOnlineWords(many) },
+  ];
+}
+
+/** Under the lines about another group's session: the site can't offer one yet, so the team arranges it. */
+export const CONTACT_INSTEAD = {
+  before: "If another group’s session could work for you, in person or online, email",
+  address: CONTACT_EMAIL,
+  after: "instead of asking to be excused, and the team will arrange it.",
+} as const;
 export const SHOW_LATER_WEEKS = "Show later weeks";
 
 /** How many weeks the list shows before "Show later weeks". */

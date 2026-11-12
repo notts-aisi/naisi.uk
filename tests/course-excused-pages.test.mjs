@@ -63,6 +63,7 @@ const { default: RequestsList } = await loadTs(join("features", "courses", "requ
 const { default: ExcusedRequestPage } = await loadTs(join("features", "courses", "requests", "ExcusedRequestPage.tsx"));
 const { default: OwnRequests } = await loadTs(join("features", "courses", "excused", "OwnRequests.tsx"));
 const { default: LastSessionCard } = await loadTs(join("features", "courses", "excused", "LastSessionCard.tsx"));
+const { default: AskForm } = await loadTs(join("features", "courses", "excused", "AskForm.tsx"));
 const requestPage = (await loadTs(join("app", "(app)", "admin", "admissions", "requests", "[requestId]", "page.tsx"))).default;
 
 /** Something only Amara and admins may read, and something only she and admins may read back. */
@@ -75,7 +76,9 @@ beforeEach(() => {
   w.reset();
 });
 
-const ask = (who, body, groupId = A) => call(who, askRoute.POST, { groupId }, { body, course: true });
+/** Everything the form asks a person to confirm, ticked, as the form sends it. */
+const CONFIRMED = { inPerson: true, ownOnline: true, otherOnline: true };
+const ask = (who, body, groupId = A) => call(who, askRoute.POST, { groupId }, { body: { ...CONFIRMED, ...body }, course: true });
 const decide = (who, action, requestId, body) => call(who, act[action].POST, { requestId }, { body, course: true });
 const register = (who, groupId = A) => call(who, routes.register.GET, { groupId }, { course: true });
 
@@ -137,7 +140,6 @@ describe("1. the words, one file per surface", () => {
     const now = new Date("2026-11-09T14:00:00Z");
     for (const [said, expected] of [
       [O.cantMakeDayWords("Wed 11 Nov"), "Can’t make Wed 11 Nov?"],
-      [O.joinOnlineFirstWords("Group C"), "Try joining online first. You stay in Group C."],
       [O.askFromWords({ groupName: "Group C", weekNumber: 2, occurrence: 1, when: "Wed 11 Nov, 3pm" }), "From Group C’s week 2 session, Wed 11 Nov, 3pm. An admin decides, usually the same day."],
       [O.weekChoiceWords(2, 1, "2026-11-11"), "Week 2 · Wed 11 Nov"],
       [O.waitingWords(["Rahul"]), "Waiting for an admin, usually today. Rahul sees only that you’ve asked."],
@@ -154,6 +156,12 @@ describe("1. the words, one file per surface", () => {
       [O.sendTheRequestWords(2), "Send the request for 2 weeks"],
       [O.ownRowLineWords({ state: "withdrawn", by: "", at: new Date("2026-11-09T11:20:00Z"), askedAt: null, now }), "Withdrawn by you, 11:20am"],
       [O.ownRowLineWords({ state: "approved", by: "Zach", at: new Date("2026-11-10T13:40:00Z"), askedAt: null, now }), "Approved by Zach, Tue 10 Nov, 1:40pm"],
+      [O.confirmInPersonWords(1), "I can’t go to another group’s session in person this week."],
+      [O.confirmInPersonWords(2), "I can’t go to another group’s session in person for these weeks."],
+      [O.confirmOwnOnlineWords(1), "I can’t join my own group’s session online."],
+      [O.confirmOwnOnlineWords(3), "I can’t join my own group’s sessions online for these weeks."],
+      [O.confirmOtherOnlineWords(1), "I can’t join another group’s session online this week."],
+      [O.confirmOtherOnlineWords(2), "I can’t join another group’s session online for these weeks."],
     ]) {
       assert.equal(said, expected);
     }
@@ -355,6 +363,7 @@ describe("3. the person's programme page: their own card, sent and drawn for the
       const sent = JSON.stringify(theirs.props ?? {});
       assert.ok(!sent.includes(REASON), `${who} was sent Amara's reason`);
       assert.ok(!theirs.text.includes(REASON), `${who} was drawn Amara's reason`);
+      assert.doesNotMatch(sent, /otherOnline|inPerson|confirmed they/, `${who} was sent what Amara confirmed`);
     }
     const dev = await programmePage("dev");
     assert.deepEqual(dev.props.excused.requests, [], "Dev was sent Amara's requests");
@@ -444,6 +453,51 @@ describe("3. the person's programme page: their own card, sent and drawn for the
     });
     assert.match(declined.text, /Not excused for week 3\. Zach: “You could have joined online\.” Week 3 · Thu 12 Nov Absent What the register says for this session\./);
   });
+
+  test("before asking, the form asks them to confirm, in order: three ticks in a room with online offered, two and a sentence where it isn't", () => {
+    const week = (key, n, online) => ({ sessionKey: key, weekNumber: n, occurrence: 1, dateKey: "2026-11-19", ...online });
+    const ROOM = { onlineOffered: true, heldOnline: false };
+    const ONLINE = { onlineOffered: false, heldOnline: true };
+    const control = createElement("span", { "data-testid": "joining-online-control" }, "Joining online");
+    const form = (weeks, mode = "before") =>
+      draws(AskForm, { groupId: A, weeks, facilitatorFirstNames: ["Sofia"], mode, onlineControl: control });
+    const order = (html, ids) => ids.map((id) => html.indexOf(`data-testid="${id}"`));
+
+    // In a room, joining online offered: three ticks, today's control beside the second.
+    const room = form([week("w04", 4, ROOM)]);
+    const at = order(room.html, ["excuse-confirm-in-person", "excuse-confirm-own-online", "joining-online-control", "excuse-confirm-other-online", "excuse-reason"]);
+    assert.ok(at.every((place) => place >= 0), `a line is missing: ${at}`);
+    assert.deepEqual([...at].sort((a, b) => a - b), at, "the lines are out of order, or below the reason");
+    assert.match(room.text, /Before you ask I can’t go to another group’s session in person this week\. I can’t join my own group’s session online\. Joining online I can’t join another group’s session online this week\./);
+    // Under the lines about another group: the team's own address, the one the site already gives members.
+    assert.match(room.html, /href="mailto:ai-safety@uonsu\.com"/);
+    assert.match(room.text, /If another group’s session could work for you, in person or online, email ai-safety@uonsu\.com instead of asking to be excused, and the team will arrange it\./);
+
+    // Online already: no tick for their own session, one sentence in its place, and no control.
+    const online = form([week("w04", 4, ONLINE)]);
+    assert.ok(!online.html.includes('data-testid="excuse-confirm-own-online"'), "a tick for something that can't be done");
+    assert.ok(!online.html.includes("joining-online-control"), "joining online offered for a session held online");
+    assert.match(online.text, /I can’t go to another group’s session in person this week\. Your group’s session is online already, so there’s nothing to confirm here\. I can’t join another group’s session online this week\./);
+
+    // After a session (the last session's card): nothing to join, said so.
+    const after = form([week("w03", 3, { onlineOffered: false, heldOnline: false })], "after");
+    assert.match(after.text, /Your group’s session can’t be joined online now, so there’s nothing to confirm here\./);
+    assert.ok(!after.html.includes('data-testid="excuse-confirm-own-online"'));
+
+    // Several weeks: "for these weeks", and one week in a room is enough to ask the second.
+    assert.deepEqual(
+      O.confirmLinesOf([week("w04", 4, ONLINE), week("w05", 5, ROOM)]).map((line) => [line.kind, line.key ?? null, line.words]),
+      [
+        ["tick", "inPerson", "I can’t go to another group’s session in person for these weeks."],
+        ["tick", "ownOnline", "I can’t join my own group’s sessions online for these weeks."],
+        ["tick", "otherOnline", "I can’t join another group’s session online for these weeks."],
+      ],
+    );
+    assert.deepEqual(
+      O.confirmLinesOf([week("w04", 4, ONLINE), week("w05", 5, ONLINE)]).map((line) => line.kind),
+      ["tick", "say", "tick"],
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -461,6 +515,7 @@ describe("4. the register: one of two facts, for everybody who reads it, and not
       assert.match(read.text, /If it’s approved, Absent becomes Excused by itself\. You never see why\./, who);
       assert.ok(!JSON.stringify(read.body).includes(REASON), `${who} was sent the reason`);
       assert.ok(!read.text.includes(REASON), `${who} was drawn the reason`);
+      assert.doesNotMatch(JSON.stringify(read.body), /otherOnline|inPerson|confirmed they/, `${who} was sent what Amara confirmed`);
     }
     // A facilitator of another group reads no register of this one.
     assert.notEqual((await register("tom")).status, 200);
@@ -545,6 +600,7 @@ describe("5. the Requests page and one request's page: an admin's alone", () => 
       "Said in advance, before requests",
       "Members never see a count or an allowance.",
       "Amara sent this",
+      "Amara confirmed they can’t go to another group’s session in person, join their own group’s session online, or join another group’s session online.",
     ]) {
       assert.ok(asAdmin.text.includes(words), `an admin's page does not say: ${words}`);
     }
@@ -553,7 +609,13 @@ describe("5. the Requests page and one request's page: an admin's alone", () => 
       const theirs = await draw(requestPage, who, { requestId: id });
       assert.ok(!theirs.text.includes(REASON), `${who} was drawn the reason`);
       assert.ok(!theirs.text.includes("Excused before"), `${who} was drawn how often`);
+      assert.ok(!theirs.text.includes("confirmed they"), `${who} was drawn what Amara confirmed`);
     }
+    // A request made before confirmations were asked: the page reads as before, with no line for them.
+    world.db.poke(`courseRequests/${id}`, { confirmed: null });
+    const old = await draw(requestPage, "zach", { requestId: id });
+    assert.ok(old.text.includes(`“${REASON}”`), "the old request's page lost its reason");
+    assert.ok(!old.text.includes("confirmed they"), "an old request is said to have confirmed something");
     for (const who of ["sofia", "amara"]) {
       const theirs = await draw(requestPage, who, { requestId: id });
       assert.equal(theirs.to, "/dashboard", `${who} reached one request's page`);

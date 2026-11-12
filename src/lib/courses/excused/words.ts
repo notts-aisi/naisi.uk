@@ -138,6 +138,10 @@ export const EXCUSED_REFUSAL = {
   tooManyReplies: "This request has had as many replies as it can keep.",
   /** The group or its programme is gone: nothing to write on. */
   gone: "That group isn’t there any more, so nothing was changed. Decline it, with a reply, to close it.",
+  /** A confirmation the form asked for and the press did not give. */
+  confirmInPerson: "Confirm that you can’t go to another group’s session in person.",
+  confirmOwnOnline: "Confirm that you can’t join your own group’s session online.",
+  confirmOtherOnline: "Confirm that you can’t join another group’s session online.",
   /** The person left the group, was moved, or the group was archived: nothing was written. */
   left: "They’ve left that group, so nothing was changed. Decline it, with a reply, to close it.",
   /** The register moved under the approval: nothing was written. */

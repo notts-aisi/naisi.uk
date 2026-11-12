@@ -30,9 +30,14 @@ async function send(url: string, body: unknown): Promise<Answer> {
   }
 }
 
-/** Ask to be excused from these sessions of the group, with one line of why. */
-export function askToBeExcused(groupId: string, sessionKeys: readonly string[], reason: string): Promise<Answer> {
-  return send(`/api/courses/groups/${encodeURIComponent(groupId)}/excused`, { sessionKeys, reason });
+/** Ask to be excused from these sessions of the group, with one line of why and what they confirmed. */
+export function askToBeExcused(
+  groupId: string,
+  sessionKeys: readonly string[],
+  reason: string,
+  confirmed: { inPerson: boolean; ownOnline: boolean; otherOnline: boolean },
+): Promise<Answer> {
+  return send(`/api/courses/groups/${encodeURIComponent(groupId)}/excused`, { sessionKeys, reason, ...confirmed });
 }
 
 const requestPath = (requestId: string, action: string) =>

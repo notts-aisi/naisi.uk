@@ -19,7 +19,7 @@ import {
 import type { CourseRequestStatus } from "@/lib/firestore/courseRequests";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { excuseLineOf, ownRequestsIn } from "./ask";
-import { askState, excusedKindOf, requestStandingOf, standingWeek, weeksAbout, type AskClosed } from "./model";
+import { askState, excusedKindOf, onlineOfferedFor, requestStandingOf, standingWeek, weeksAbout, type AskClosed } from "./model";
 
 /**
  * ONE PERSON'S OWN EXCUSED WEEKS, for their programme page: for each session
@@ -75,7 +75,9 @@ export type OwnExcusedSession = {
   register: "absent" | "excused" | "came" | null;
   excuse: OwnExcuse | null;
   ask: OwnAsk;
-  /** What the flow offers first. */
+  /** The session is held online for everybody: there is no joining it online instead. */
+  heldOnline: boolean;
+  /** What the flow offers first: joining online where that is a real choice (`onlineOfferedFor`). */
   first: { online: boolean };
 };
 
@@ -199,8 +201,9 @@ export async function excusedFor(
       register: line.finished ? (line.mark === "absent" ? "absent" : line.mark === "excused" ? "excused" : cameBy(line.mark) ? "came" : null) : null,
       excuse,
       ask,
+      heldOnline: sessionHeldOnline(group, session),
       first: {
-        online: ask.open && ask.when === "before" && !sessionHeldOnline(group, session),
+        online: ask.open && onlineOfferedFor({ when: ask.when, heldOnline: sessionHeldOnline(group, session) }),
       },
     };
   });

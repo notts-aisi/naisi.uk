@@ -163,7 +163,7 @@ export default function ExcusedRequestPage({ view }: { view: ExcusedRequestPageV
           {R.replyToWords(first)}
         </h2>
         {!view.belongs && (
-          <p className={styles.warn} data-testid="excused-left">
+          <p className={styles.warn}>
             {R.leftGroupWords(first)}
           </p>
         )}
@@ -250,6 +250,7 @@ export default function ExcusedRequestPage({ view }: { view: ExcusedRequestPageV
                 {REASON_GONE}
               </p>
             ) : null}
+            {view.confirmed && <p className={styles.line}>{R.confirmedWords(first, view.confirmed.ownOnline)}</p>}
             <div>
               <p className={styles.label}>{R.ASKS_TO_BE_EXCUSED_FROM}</p>
               {view.weeks.map((week) => (
