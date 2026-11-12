@@ -415,6 +415,24 @@ const RAW_SITES = {
       "runs naming them as a track lead. Neither grants anything: every candidate is held to the one " +
       "gate, `runStaffingOf` and `doesTrackLeadWork`, before any of its requests is read.",
   },
+  "src/lib/courses/excused/ask.ts": {
+    role: "not-a-gate",
+    matches: { facilitatorUids: 1 },
+    provedBy: ['if (!takesPartIn(user, seat, group, run.id) || !isNamedWithStanding(user, "courseEnrolments.uid", seat.uid)) {'],
+    why:
+      "Not a gate: being named one of the group's facilitators REFUSES asking to be excused (a facilitator keeps " +
+      "the instant Can't make it); it grants nothing. Who may ask is decided first, by the caller's own place held " +
+      "to the live bar.",
+  },
+  "src/lib/courses/excused/own.ts": {
+    role: "not-a-gate",
+    matches: { facilitatorUids: 1 },
+    provedBy: ["if (!group || !takesPartIn(user, seat, group, run.id)) return null;"],
+    why:
+      "Not a gate: being named one of the group's facilitators only switches asking off on the person's own view " +
+      "of their excused weeks (`asks: false`) and shows nothing more. Whose view it is was decided first, by the " +
+      "caller's own place held to the live bar (`takesPartIn`).",
+  },
   "src/lib/messages/writers.ts": {
     role: "not-a-gate",
     matches: { facilitatorUids: 1 },

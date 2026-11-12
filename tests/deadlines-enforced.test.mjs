@@ -230,6 +230,10 @@ const DEADLINE_NAMES = new Map([
         "src/lib/courses/weekWork/model.ts",
         "src/lib/courses/weekWork/own.ts",
         "src/lib/courses/weekWork/readers.ts",
+        // The same close, for asking to be excused from a week: `excused/own.ts`
+        // hands it to the person's own view, and the ask route
+        // (`excused/ask.ts`) refuses an ask past it through `runClosesAt`.
+        "src/lib/courses/excused/own.ts",
         "src/app/api/courses/runs/[runId]/overview/route.ts",
         "src/app/api/courses/runs/[runId]/weeks/[weekId]/submit/route.ts",
       ],

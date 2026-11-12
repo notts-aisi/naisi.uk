@@ -130,6 +130,8 @@ export const EXCUSED_REFUSAL = {
   replyLine: "The reply must be one line.",
   replyLink: "Leave links out of the reply.",
   tooManyReplies: "This request has had as many replies as it can keep.",
+  /** The group or its programme is gone: nothing to write on. */
+  gone: "That group isn’t there any more, so nothing was changed. Decline it, with a reply, to close it.",
   /** The register moved under the approval: nothing was written. */
   changed: "That register has just changed. Check it, and press again.",
 } as const;

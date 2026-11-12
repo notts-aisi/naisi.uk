@@ -523,6 +523,39 @@ describe("deciding: admins only, each week on its own, and the register follows 
     assert.deepEqual(asRahul.body.cantMakeIt.find((entry) => entry.sessionKey === "w02").uids.sort(), ["amara", "dev"]);
   });
 
+  test("still waiting when the session starts: the register is taken as usual and finished, and nothing holds it up", async () => {
+    await amaraAsks();
+    at(DURING_W2);
+    const during = await readRegister("rahul");
+    assert.equal(during.body.excuseRequests.w02.amara, "waiting", "the facilitator is not told it waits");
+    assert.equal((await mark("rahul", 2, [{ uid: "amara", status: "absent" }, { uid: "dev", status: "present" }])).status, 200);
+    assert.equal((await finish("rahul", 2)).status, 200, "a waiting request held the register up");
+    assert.equal(stored().records.amara, "absent");
+    assert.equal(requestDocs()[0].status, "waiting");
+  });
+
+  test("approved while the register is still being taken: the line says excused, set by the approval, and the facilitators' Finish keeps it", async () => {
+    const id = await amaraAsks();
+    at(DURING_W2);
+    assert.equal((await mark("rahul", 2, [{ uid: "amara", status: "absent" }, { uid: "dev", status: "present" }])).status, 200);
+    world.mail.length = 0;
+    const answer = await act("zach", "approve", id, { sessionKey: "w02" });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.deepEqual([answer.body.week.register, answer.body.logged], ["written", 0]);
+    const doc = stored();
+    assert.equal(doc.records.amara, "excused");
+    assert.deepEqual([doc.setBy.amara.how, doc.setBy.amara.byUid], ["approval", "zach"]);
+    assert.equal(doc.corrected?.amara, undefined, "a draft is not corrected");
+    assert.equal(doc.excusedInAdvance?.amara, undefined, "during the session it was not said in advance");
+    assert.equal(doc.markedByUid, "rahul", "the approval took the register");
+    assert.deepEqual(auditRows().filter((row) => row.groupId === B), []);
+    assert.equal((await finish("rahul", 2)).status, 200);
+    assert.equal(stored().records.amara, "excused");
+    const sent = await mailText();
+    assert.match(sent.find((each) => each.subject === "You’re excused from week 2").html, /Your register says Excused for that session/);
+    assert.match(sent.find((each) => each.subject !== "You’re excused from week 2").html, /Your register now shows .+ as excused for Tue 10 Nov\./);
+  });
+
   test("after Finish: Absent becomes Excused as a correction made by the approval, logged without the reason; the figures follow", async () => {
     at(DURING_W2);
     assert.equal((await mark("rahul", 2, [{ uid: "amara", status: "absent" }, { uid: "dev", status: "present" }])).status, 200);

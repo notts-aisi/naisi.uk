@@ -5,6 +5,7 @@ import { heldOnline } from "@/lib/courses/joiningOnline/model";
 import { readNamingProgramme } from "@/lib/courses/programmeLead";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { workClosesAt } from "@/lib/courses/weekWork/closes";
+import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
 import { courseEnrolmentId, normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
@@ -144,7 +145,10 @@ export async function askToBeExcused(
     if (!runSnap.exists || runSnap.data()?.destroying === true || !seatSnap.exists) return refuse(404, EXCUSED_REFUSAL.notYours);
     const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
     const seat = normalizeCourseEnrolment(seatSnap.id, seatSnap.data() ?? {});
-    if (!takesPartIn(user, seat, group, run.id)) return refuse(404, EXCUSED_REFUSAL.notYours);
+    // Their own place, held to the live bar here as `takesPartIn` holds it.
+    if (!takesPartIn(user, seat, group, run.id) || !isNamedWithStanding(user, "courseEnrolments.uid", seat.uid)) {
+      return refuse(404, EXCUSED_REFUSAL.notYours);
+    }
     // Somebody who facilitates the group keeps today's "Can't make it".
     if (group.facilitatorUids.includes(user.uid)) return refuse(403, EXCUSED_REFUSAL.facilitates);
     if (closesAt && now.getTime() >= closesAt.getTime()) return refuse(409, EXCUSED_REFUSAL.closed);

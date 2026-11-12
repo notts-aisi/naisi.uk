@@ -11,6 +11,7 @@ import {
   readLineCorrection,
   writeLineCorrection,
 } from "@/lib/courses/registerCorrection/line";
+import { dayWords } from "@/lib/courses/sessionChange/words";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { excusedGroupUrl, excusedPersonUrl, sendExcusedEmail, type ExcusedEmailOutcome } from "@/lib/email/excusedEmail";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
@@ -40,7 +41,6 @@ import {
   sessionWhenWords,
   weekNotWaitingWords,
 } from "./words";
-import { dayWords } from "@/lib/courses/sessionChange/words";
 
 /**
  * WITHDRAWING, APPROVING, DECLINING AND REPLYING TO A REQUEST TO BE EXCUSED:
@@ -298,7 +298,7 @@ export async function approveExcusedWeek(
     return caught(err);
   }
   const both = await readRunAndGroup(db, request);
-  if (!both) return fail(409, EXCUSED_REFUSAL.notFound);
+  if (!both) return fail(409, EXCUSED_REFUSAL.gone);
   const { run } = both;
 
   // Names and addresses, read before the transaction: never the reason.
@@ -318,7 +318,7 @@ export async function approveExcusedWeek(
       const week = waitingWeek(fresh, press.sessionKey);
       // The session, from the group as it is in this transaction.
       const groupSnap = await tx.get(db.collection("courseGroups").doc(fresh.groupId));
-      if (!groupSnap.exists) throw new Refused(409, EXCUSED_REFUSAL.notFound);
+      if (!groupSnap.exists) throw new Refused(409, EXCUSED_REFUSAL.gone);
       const group = normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {});
       const sessions = resolveSessions(run, group);
       const session = sessions.find((each) => each.sessionKey === week.sessionKey) ?? null;
