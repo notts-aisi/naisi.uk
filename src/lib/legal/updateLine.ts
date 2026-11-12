@@ -24,6 +24,12 @@ import { POLICIES, type PolicyVersion } from "./policies";
  * own line, until its days end too. A current version with no
  * `updateLineAdds` says only its own line.
  *
+ * BEFORE THE CURRENT VERSION'S DATE (it can be served a day or two before
+ * the date it carries, the day it goes live): the version before it says
+ * its own line, under its own number, while that version is inside its
+ * days, so a line people should still be seeing never goes missing. After
+ * those days, and before the current version's date, no line.
+ *
  * Pure: the clock is the caller's, so a page reads it once and a test can
  * hand it any day.
  */
@@ -98,15 +104,21 @@ function lineOn(version: PolicyVersion | undefined, today: string): string | nul
  * The line for `now`, or null when there is none: the current privacy
  * version's `updateLine`, from its date to the day before `UPDATE_LINE_DAYS`
  * days later, in London; while the version before it is inside its own days
- * too, that version's line joined to the current one's `updateLineAdds`.
+ * too, that version's line joined to the current one's `updateLineAdds`;
+ * and before the current version's date, the version before it's own line
+ * while that version is inside its days.
  */
 export function policyUpdateLine(now: Date): PolicyUpdateLine | null {
   const [current, previous] = POLICIES.privacy.versions;
   const today = siteDayKey(now);
+  const before = previous ? lineOn(previous, today) : null;
   const own = lineOn(current, today);
-  if (!own) return null;
+  if (!own) {
+    const from = civilDayOf(current.lastUpdated);
+    if (before && from && today < from) return { version: previous.version, words: before, link: UPDATE_LINE_LINK, href: UPDATE_LINE_HREF };
+    return null;
+  }
   const adds = current.updateLineAdds?.trim();
-  const before = adds ? lineOn(previous, today) : null;
   const words = adds && before ? `${before.replace(/\.$/, "")}, ${adds}` : own;
   return { version: current.version, words, link: UPDATE_LINE_LINK, href: UPDATE_LINE_HREF };
 }

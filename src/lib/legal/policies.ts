@@ -187,8 +187,8 @@ export const POLICIES: Record<
     // Told, not asked: `LAST_PRIVACY_VERSION_ASKED` stays 15. For 14 days
     // from its date, Home and /privacy carry its `updateLine`, and while
     // v17's own 14 days still run, v17's line with `updateLineAdds` in place
-    // of its full stop. Its date is the day it goes live, set when it is
-    // promoted.
+    // of its full stop; before its date, v17's own line. Its date is the day
+    // it goes live, set when it is promoted.
     //
     // Keep this comment ABOVE `versions:`, never between the `[` and the first
     // `{`: tests/funnel-harness-guards.test.mjs reads the current version out
