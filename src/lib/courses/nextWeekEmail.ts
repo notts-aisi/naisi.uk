@@ -24,6 +24,7 @@ import {
   type CohortRecipient,
 } from "@/lib/email/courseFacilitatorEmails";
 import {
+  courseNudgeSessionWhere,
   courseWeekUrl,
   groupNudgeMarkerId,
   weekOpenPlace,
@@ -214,13 +215,15 @@ export async function readNextWeekEmail(
   const explainers = await explainersRead;
   const sessions = resolveSessions(run, group);
   const blocks = week && isBlockWeek(week) ? week.blocks : null;
+  // Whether a room is owed, by the same place the line is printed from
+  // (`weekOpenPlace` prints `where` exactly as below), so the two agree.
   const place = weekOpenPlace(session.session, sessionModeForWeek(group, session.weekId), campusForWeek(group, session.weekId));
   const facts: WeekOpenFacts = {
     courseTitle: run.courseTitle,
     weekNumber: session.weekNumber,
     weekTitle: week?.title ?? "",
     sessionAt: sessionInstants(session).startsAt,
-    where: place.where,
+    where: courseNudgeSessionWhere(session.session, sessionModeForWeek(group, session.weekId)),
     first: sessions[0]?.sessionKey === session.sessionKey,
     // A cancelled session's email says it is off, why, and when the group
     // meets next, in place of when and where it meets; the session after one
