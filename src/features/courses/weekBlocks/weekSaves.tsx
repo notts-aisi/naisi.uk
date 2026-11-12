@@ -3,16 +3,16 @@
 import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
 
 /**
- * EVERY BOX'S WAITING SAVE, FLUSHED BEFORE THE WEEK IS SUBMITTED. Each box
- * on a week page (a reflection, a fill-in box, the written answer) saves as
- * its writer types, a moment after they stop (`useDebouncedWrite`). Submit
- * locks the week, and a save that reached the server after it would be
- * refused and the last words typed lost, so Submit first writes everything
- * still waiting and only then submits.
+ * EVERY BOX'S WAITING SAVE, IN ONE PLACE ON THE WEEK PAGE. Each box on a week
+ * page (a reflection, a fill-in box, the written answer) saves as its writer
+ * types, a moment after they stop (`useDebouncedWrite`). Nothing closes at a
+ * send any more, but a send must carry the last words typed, so whatever on
+ * the page sends writes everything still waiting first (`flushAll`, or the
+ * box's own `flush`, which the written answer's Send calls).
  *
  * The week page holds one registry (`WeekSavesProvider`); each box registers
- * its saver's `flush` while it is on the page (`useRegisterFlush`); Submit
- * asks `flushAll` and waits for every write to settle.
+ * its saver's `flush` while it is on the page (`useRegisterFlush`); `flushAll`
+ * waits for every write to settle.
  */
 
 type Flush = () => Promise<unknown>;
@@ -35,7 +35,7 @@ export function useWeekSaves(): { registry: Registry; flushAll: () => Promise<vo
         },
       },
       flushAll: async () => {
-        // A write that fails says so on its own box; Submit goes on.
+        // A write that fails says so on its own box; whatever asked goes on.
         await Promise.allSettled([...live.current].map((latest) => latest()()));
       },
     }),

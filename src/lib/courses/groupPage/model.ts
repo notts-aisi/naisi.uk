@@ -467,7 +467,8 @@ export type OneWeekPreview = {
   before: PreviewMoment | null;
   after: PreviewMoment | null;
   lastSession: { before: string; after: string };
-  lock: { before: string | null; after: string | null };
+  /** From when the week's work counts as late (the session its people are due at), before and after; null with none. */
+  lateFrom: { before: string | null; after: string | null };
   reminders: PreviewReminders;
   said: { joiningOnline: { count: number; names: string[] }; cantMakeIt: { count: number; names: string[] } };
   told: PreviewTold;
@@ -486,7 +487,7 @@ export type RegularPreview = {
     before: { weekday: number; startTimeLocal: string; durationMinutes: number; room: string; campus: GroupCampus | null };
     after: { weekday: number; startTimeLocal: string; durationMinutes: number; room: string; campus: GroupCampus | null };
   };
-  moves: { weekNumber: number; before: PreviewMoment | null; after: PreviewMoment | null; lock: { before: string | null; after: string | null } }[];
+  moves: { weekNumber: number; before: PreviewMoment | null; after: PreviewMoment | null; lateFrom: { before: string | null; after: string | null } }[];
   kept: { weekNumber: number; pinned: boolean; session: PreviewMoment | null }[];
   ownTimes: { weekNumber: number; kind: "online" | "moved" | "cancelled" | "pushed" | "set"; session: PreviewMoment | null; campus: GroupCampus | null }[];
   reminders: ({ weekNumber: number } & PreviewReminders)[];
@@ -530,14 +531,22 @@ export function instantWords(iso: string | null): string {
   return `${londonDayLabel(at)}, ${londonClockLabel(at)}`;
 }
 
-/** "Week 2’s work locks at Thu 12 Nov, 3pm (was Wed 11 Nov, 3pm)." / "Unchanged: Wed 25 Nov, 3pm." */
-export function lockLine(weekNumber: number, lock: { before: string | null; after: string | null }): string {
-  const before = instantWords(lock.before);
-  const after = instantWords(lock.after);
-  if (!after) return before ? `Week ${weekNumber}’s work would have no session left to lock at (it locked at ${before}).` : "";
+/**
+ * From when the week's work counts as late, before and after the change (the
+ * session its people are due at): "Week 2’s work counts as late from Thu 12
+ * Nov, 3pm (was Wed 11 Nov, 3pm)." / "Unchanged: Wed 25 Nov, 3pm." Nothing
+ * locks: work added after it is shown as late, with how late.
+ */
+export function lateFromLine(weekNumber: number, lateFrom: { before: string | null; after: string | null }): string {
+  const before = instantWords(lateFrom.before);
+  const after = instantWords(lateFrom.after);
+  if (!after) return before ? `Week ${weekNumber} would have no session, so nothing added to its work would count as late (it counted from ${before}).` : "";
   if (before === after) return `Unchanged: ${after}.`;
-  return before ? `Week ${weekNumber}’s work locks at ${after} (was ${before}).` : `Week ${weekNumber}’s work locks at ${after}.`;
+  return before ? `Week ${weekNumber}’s work counts as late from ${after} (was ${before}).` : `Week ${weekNumber}’s work counts as late from ${after}.`;
 }
+
+/** The panel's label for that line. */
+export const LATE_FROM = "Late from";
 
 /** Both automatic emails before a session are off: one plain line, and nothing else. */
 export const REMINDERS_OFF = "The automatic emails before a session are switched off, so none goes out on its own.";
@@ -657,8 +666,8 @@ export function oneWeekPreviewLines(input: {
   const lines: PreviewLine[] = [];
   const session = oneWeekSessionLine(preview, metAtAnotherTime);
   if (session) lines.push({ label: "Session", text: session });
-  const lock = lockLine(preview.weekNumber, preview.lock);
-  if (lock) lines.push({ label: "Work locks", text: lock });
+  const late = lateFromLine(preview.weekNumber, preview.lateFrom);
+  if (late) lines.push({ label: LATE_FROM, text: late });
   if (metAtAnotherTime && preview.after) {
     lines.push({
       label: "Register",
@@ -723,8 +732,8 @@ export function regularPreviewLines(input: {
     const kept = preview.kept.filter((week) => week.session);
     const text =
       kept.length === 1
-        ? `Week ${kept[0].weekNumber} keeps ${dayWords(kept[0].session!.dateKey)}, ${clockWords(kept[0].session!.startTimeLocal)}. Its register and when its work locks don’t change.`
-        : `${capital(weekSpanWords(kept.map((week) => week.weekNumber)))} keep their dates (${namesWords(kept.map((week) => dayWords(week.session!.dateKey)))}). Their registers and when their work locks don’t change.`;
+        ? `Week ${kept[0].weekNumber} keeps ${dayWords(kept[0].session!.dateKey)}, ${clockWords(kept[0].session!.startTimeLocal)}. Its register and late times don’t change.`
+        : `${capital(weekSpanWords(kept.map((week) => week.weekNumber)))} keep their dates (${namesWords(kept.map((week) => dayWords(week.session!.dateKey)))}). Their registers and late times don’t change.`;
     if (kept.length > 0) lines.push({ label: "Kept", text });
   }
 
@@ -736,17 +745,17 @@ export function regularPreviewLines(input: {
     });
   }
 
-  const lockParts = preview.moves
+  const lateParts = preview.moves
     .slice(0, 2)
     .map((move) => {
-      const before = instantWords(move.lock.before);
-      const now = instantWords(move.lock.after);
+      const before = instantWords(move.lateFrom.before);
+      const now = instantWords(move.lateFrom.after);
       if (!now || before === now) return "";
       return before ? `Week ${move.weekNumber}: ${now}, not ${before}.` : `Week ${move.weekNumber}: ${now}.`;
     })
     .filter(Boolean);
-  if (preview.moves.length > 2) lockParts.push("Later weeks: at each one’s new session.");
-  if (lockParts.length > 0) lines.push({ label: "Work locks", text: lockParts.join(" ") });
+  if (preview.moves.length > 2) lateParts.push("Later weeks: at each one’s new session.");
+  if (lateParts.length > 0) lines.push({ label: LATE_FROM, text: lateParts.join(" ") });
 
   if (preview.reminders.length > 0) {
     const off = preview.reminders.every((each) => !each.weekOpen.scheduled && !each.reminders.on);

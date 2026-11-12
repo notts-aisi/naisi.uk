@@ -46,6 +46,13 @@ import { programmeLabelOf } from "@/lib/memberNotes/words";
  * with words in it, asked inside the save's transaction with where the week
  * stands. A rating is kept when its week is reopened, as feedback is.
  *
+ * WHICH VERSION: a rating stores the mark of the version its readers read
+ * when it was saved (`aboutSavedAt`), and nothing else: unlike feedback it
+ * stamps nothing on the person's week, so the answer's next change keeps no
+ * version for it. That version would sit on the answer's own row, which its
+ * writer reads, and tell them a rating exists. When the answer has changed
+ * since, the review page tells staff so (`teamRatingsOf`).
+ *
  * View-as is refused first, so a view-as session never rates in the member's
  * name. Every refusal before the gate has passed says nothing about whose
  * work exists. The answer is `{ ok: true }` alone: the page draws the
@@ -155,9 +162,20 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string }
         }),
         tx.get(ref),
       ]);
-      const refusal = feedbackRefusalFor("writtenAnswer", standing.state, standing.answer, { notReadable: NOT_READABLE_YET, answerEmpty: ANSWER_EMPTY });
+      const refusal = feedbackRefusalFor("writtenAnswer", standing, { notReadable: NOT_READABLE_YET, answerEmpty: ANSWER_EMPTY });
       if (refusal) throw new RatingError(refusal, 409);
-      const said = { itemId, rating, comment: comment.comment, raterRole: gate.raterRole, updatedAt: FieldValue.serverTimestamp() };
+      // Which version it is about. Nothing is stamped on the week: a version
+      // kept for a rating would sit on the answer's own row, which its writer
+      // reads, and say a rating exists. Staff are told when it has changed since.
+      const about = standing.read;
+      const said = {
+        itemId,
+        rating,
+        comment: comment.comment,
+        raterRole: gate.raterRole,
+        ...(about?.savedAt ? { aboutSavedAt: about.savedAt } : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
       if (snap.exists) {
         tx.update(ref, said);
       } else {

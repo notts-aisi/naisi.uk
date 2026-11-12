@@ -134,22 +134,20 @@ export function legacyWeekAsks(week: {
 
 /**
  * WHAT IS LEFT OF ONE PERSON'S WEEK, as a reminder lists it: everything the
- * check before Submit names (`weekCheck`), and, for a week with something to
- * write that is not submitted yet, that it is not submitted. Asked only of a
- * week that is not done, so it is never empty: such a week either is not
- * submitted, or has something its tasks count still to tick.
+ * check names (`weekCheck`: readings and steps not ticked, the pack, empty
+ * reflections and boxes, an empty written answer, one over its limit), and
+ * whether a written answer with words in it has not been sent yet (`notSent`),
+ * which the check does not name. Asked only of a week that is not done, so
+ * it is never empty: such a week has something its tasks count still to
+ * tick, or to write, or to send. Nothing closes at the session: a week the
+ * old Submit was pressed for has every answer sent already.
  */
-export type WeekLeft = { items: NotDone[]; notSubmitted: boolean };
+export type WeekLeft = { items: NotDone[]; notSent: boolean };
 
-export function weekLeft(input: {
-  blocks: readonly WeekBlock[];
-  tasks: readonly TaskNeeds[];
-  state: CheckState;
-  writes: boolean;
-  submitted: boolean;
-}): WeekLeft {
+export function weekLeft(input: { blocks: readonly WeekBlock[]; tasks: readonly TaskNeeds[]; state: CheckState }): WeekLeft {
+  const answers = allBlocks(input.blocks).filter((block) => block.type === "writtenAnswer");
   return {
     items: weekCheck(input.blocks, input.tasks, input.state),
-    notSubmitted: input.writes && !input.submitted,
+    notSent: answers.some((block) => input.state.answerOf(block.id).words > 0 && !input.state.isSent(block.id)),
   };
 }

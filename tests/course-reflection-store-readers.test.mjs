@@ -129,11 +129,11 @@ const READERS = {
   },
   "app/api/courses/runs/[runId]/weeks/[weekId]/submit/route.ts": {
     treats: "tells",
-    why: "submitting a week stamps when each of its written answers was first sent: a reflection's or a fill-in box's row is never stamped",
+    why: "the week's old Submit stamps when each of its written answers was sent: a reflection's or a fill-in box's row is never stamped",
   },
-  "app/api/courses/runs/[runId]/weeks/[weekId]/reopen/route.ts": {
+  "app/api/courses/runs/[runId]/written-answers/[answerId]/send/route.ts": {
     treats: "tells",
-    why: "reopening a week clears the lock an opened written answer kept: a reflection's row is never touched",
+    why: "the written answer's own Send stamps when it was sent: a reflection's or a fill-in box's row is refused, never stamped",
   },
   "lib/courses/weekWork/readers.ts": {
     treats: "tells",

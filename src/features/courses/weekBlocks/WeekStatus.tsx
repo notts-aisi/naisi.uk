@@ -1,55 +1,41 @@
 import type { WeekWorkWire } from "@/lib/courses/weekWork/model";
-import {
-  LOCKED,
-  SAVED_AS_YOU_GO,
-  SUBMITTED,
-  askToReopenWords,
-  doneOfWords,
-  lockedBoxWords,
-  type Readers,
-} from "@/lib/courses/weekWork/words";
+import { SAVED_AS_YOU_GO, doneOfWords } from "@/lib/courses/weekWork/words";
 import styles from "./weekWork.module.css";
 
 /**
- * THE WEEK'S STATUS BOX, at the top of the week page for somebody taking
- * part (the week you submit): "1 of 3 done · Saved as you go" while the week
- * takes work; "Submitted" or "Locked" with the count once it does not, what
- * a locked week means, and whom to ask to reopen it. Asking is a plain line:
- * nothing on the site carries the request yet.
+ * THE BOX AT THE TOP OF THE WEEK, for somebody taking part (the week stays
+ * open): "1 of 3 done · Saved as you go" while the programme takes work,
+ * the count alone once it has closed (the line under the title says so), and
+ * under it one line when there is one to say: once the session they are due
+ * at has started, that the group met, that they can still finish it and that
+ * anything added or changed now shows as late to the people who read their
+ * work (`sessionMetWords`); for a facilitator's own work, who reads it and
+ * that what they add after their group's session shows those people as late
+ * (`ownWorkWords`). A fact, not a warning: drawn in the box's own neutral
+ * colours, never the warning colour.
  */
 export default function WeekStatus({
   work,
   counts,
-  readers,
-  wroteAnything,
+  line,
 }: {
   work: WeekWorkWire;
   counts: { done: number; of: number };
-  /** Who reads the written answer and may reopen the week: the group's facilitators, or the lead. */
-  readers: Readers;
-  /** Something written in the week, for what a locked week says was saved. */
-  wroteAnything: boolean;
+  /** The line under the count, or null with none. */
+  line: string | null;
 }) {
   const count = counts.of > 0 ? doneOfWords(counts.done, counts.of) : null;
-  if (work.state === "open" || work.state === "reopened") {
-    return (
-      <div className={styles.status}>
-        <div className={styles.statusRow}>
-          <p className={styles.statusCount}>{count ?? SAVED_AS_YOU_GO}</p>
-          {count && <p className={styles.statusQuiet}>{SAVED_AS_YOU_GO}</p>}
-        </div>
-      </div>
-    );
-  }
-  const submitted = work.state === "submitted";
+  const open = !work.closed;
+  if (!count && !open && !line) return null;
   return (
     <div className={styles.status}>
-      <div className={styles.statusRow}>
-        <span className={submitted ? `${styles.chip} ${styles.chipDone}` : styles.chip}>{submitted ? SUBMITTED : LOCKED}</span>
-        {count && <p className={styles.statusQuiet}>{count}</p>}
-      </div>
-      {!submitted && <p className={styles.statusLine}>{lockedBoxWords(readers, wroteAnything)}</p>}
-      <p className={styles.statusLine}>{askToReopenWords(readers)}</p>
+      {(count || open) && (
+        <div className={styles.statusRow}>
+          <p className={styles.statusCount}>{count ?? SAVED_AS_YOU_GO}</p>
+          {count && open && <p className={styles.statusQuiet}>{SAVED_AS_YOU_GO}</p>}
+        </div>
+      )}
+      {line && <p className={styles.statusLine}>{line}</p>}
     </div>
   );
 }

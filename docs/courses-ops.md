@@ -580,16 +580,17 @@ them whatever they unsubscribed from, and says why above its words.
 | Runs scanned | status `applications-open`, `applications-closed` or `running`; archived groups skipped |
 | `maxPerTick` | 100 |
 
-**Done is the one meaning** (`weekDone`, docs/course-weeks.md): submitted,
-when the week asks for anything written, and every reading and step its tasks
-count ticked. It is asked as each reminder goes, so somebody who finishes
+**Done is the one meaning** (`weekDone`, "The week stays open"): every
+reading and step its tasks count ticked, and either the old Submit pressed or
+everything written it counts written and sent. It is asked as each reminder goes, so somebody who finishes
 after the 3-day reminder is not sent the 1-day one. A session that is
 cancelled has no reminders; the session after it reminds about both weeks,
 each with its own list. A moved session is reminded about on its new date.
 
 Somebody claimed and not mailed is stamped on their marker with why: `done`;
-`submitted` (submitted with something its tasks count still unticked, so
-nothing listed could be done in it now) or `locked`; `joined-late`; `stale`
+`locked` (the programme has closed, so nothing listed could be done in it now;
+`submitted` on a marker written while weeks locked at Submit); `joined-late`
+(the session started before they were told their group, or they have none); `stale`
 (the reminder is more than 12 hours late; stamped once, within a day of going
 stale, and then left alone); and the notice audience's own reasons,
 `no-account`, `no-address`, `same-inbox` and `suppressed`. Somebody who left
@@ -2457,13 +2458,14 @@ admins, and promises no names only on the read-out page.
   fails if either page ever draws the other's layout.
 - Reflections get no "read" mark and no reply. Written answers keep their
   own feedback flow.
-- Reflections and fill-in boxes are read as they are typed (privacy v15). A
+- Reflections and fill-in boxes are read as they are typed (privacy v17). A
   WRITTEN ANSWER is not: its words, and its count of words, reach the review
   page, the review queue, the Coursework tab, a person's page and Claude only
-  once `workIsReadable` says so, its week submitted or locked, or the answer
-  sent before weeks were submitted (see "The week you submit" below).
-  `tests/course-written-answer-readers.test.mjs` walks the tree for every
-  reader of an answer's words.
+  as `readableAnswer` hands them: before the session the person is due at,
+  the words as LAST SENT (a change since is not read until it is sent again);
+  once that session has started, the latest words, sent or not (see "The week
+  stays open" below). `tests/course-written-answer-readers.test.mjs` walks
+  the tree for every reader of an answer's words.
 
 ### The Coursework tab, `.../programmes/[programmeId]/coursework`
 
@@ -2473,9 +2475,11 @@ a place (the People tab's set, in a group or not yet), anybody else placed in
 one of the run's live groups, and each facilitator, marked as facilitating. A
 column per week of the run's plan written as blocks. Each cell leads with
 "Done" or "Not done", by the one meaning of done every page uses
-(`weekDone`: the week is submitted, where it asks for anything written, and
-every tick its tasks count is ticked, the person's own pathway reading
-among them). Then it counts what the person did in the week they read
+(`weekDone`: every tick its tasks count is ticked, the person's own pathway
+reading among them, and either the old Submit was pressed or every box its
+tasks count is written and every answer it counts sent), with when it became
+done and how long after the session (`doneAt`, `doneLateMs`). Then it counts
+what the person did in the week they read
 (their group's copy once Publish has told them their group, the run's own
 week before that, so week 1 work written before groups go out is counted):
 reflection parts written, sources ticked, where the written answer stands
@@ -2485,8 +2489,8 @@ Filters are plain links: a group, "Not in a group yet", "No feedback yet",
 and "Not done": the
 people with a week that has begun for them (on the calendar of the group
 whose weeks they read) and is not done. A week still to come reads "Not
-done" quietly and puts nobody under the filter. Weeks that locked before
-weeks were submitted were never submitted, so they read "Not done" too.
+done" quietly and puts nobody under the filter. A week with nothing its
+tasks count reads as done for everybody.
 
 A placement Publish has not told is shown to admins alone (marked "Not told
 yet"); the lead sees that person under "Not in a group yet".
@@ -2519,53 +2523,110 @@ pack in the pathways their weeks count, by id (`readPackCaseRecords`), for
 whether a week is done; never the ready box for a talk. No query needs a
 composite index. Nothing on either page writes.
 
-## The week you submit
+## The week stays open
 
-A week written as blocks saves as its person goes and has one Submit
-(`src/lib/courses/weekWork/`). Weeks written before blocks, and an
-incubator's team page, keep their own pages and never lock.
+A week written as blocks saves as its person goes, and NOTHING CLOSES AT THE
+SESSION, or at a send (`src/lib/courses/weekWork/`). Weeks written before
+blocks, and an incubator's team page, keep their own pages and never close
+here.
 
-- **Submit** (`POST /api/courses/runs/[runId]/weeks/[weekId]/submit`, their
-  own week only, `{ submit: true }`): the page first writes every box's
-  waiting save, then shows the check, which names what is not done ("One
-  reading isn't ticked: ...") and still submits ("Submit anyway"), except a
-  written answer over the top of its word range. Submit stamps
-  `courseWeekWork` (when, the first time once, how many times) and stamps
-  each written answer of the week that has words with `firstSentAt`. A week
-  with only things to tick has no Submit.
-- **The lock.** A week takes no more ticks, words, packs or ready marks once
-  it is submitted, or once the group's session that week starts, submitted or
-  not (`dueMoment(sessions, n, "before")`: a cancelled session moves it to the
-  group's next session that meets). A facilitator of two groups locks at the
-  earlier session. With no time to lock at (the group's time is not set,
-  nobody has been told a group yet, or somebody was told their group after the
-  session) only Submit locks it. Every write route asks inside its own
-  transaction (`assertWeekTakesWork`). A rating or a private note on a reading
-  stays open: it is about the material.
-- **Reopen** (`POST .../weeks/[weekId]/reopen` with `{ uid }`): the people
-  the one gate lets act on the person's work (`writtenReviewRole`: the group's
-  facilitators, the lead and admins; a facilitator's own week, the lead and
-  admins), never the person. It lasts until they submit again or the group's
-  next session that meets starts. It clears an answer's old `openedAt` lock.
-  Nobody is emailed; the week page says who reopened it and until when. The
-  control is "Reopen week 3 for Sofia", with a confirm, on This week's work and
-  on the review page.
+- **The programme's close** (`closes.ts`): every week of a run takes ticks,
+  words, picks and sends until the end of the London day N days after the
+  day of the run's last session (the latest any live group has, a cancelled
+  one not counted), where N is the run's optional `workClosesAfterDays`
+  (missing: 14). After that every week of the run is read only, for
+  everybody. A run with no session to date never closes by the clock. No page
+  sets the number yet. Every write route asks inside its own transaction
+  (`assertWeekTakesWork`) and refuses with one sentence that says when it
+  closed (`closedWords`). A rating or a private note on a reading stays open:
+  it is about the material.
+- **The session a person is due at** (`sessionDue.ts`, `weekDueOf`): their
+  told placement's group's session that week (a facilitator holding a place,
+  that group's; holding none, the earliest of the groups they run); moved or
+  put right, when it meets or met; pushed back, the week's new session;
+  cancelled with the group keeping pace, when it WOULD have started. Told
+  their group after it started: no moment for that week ("Joined late"),
+  and nothing of theirs in it is ever late. It is the one moment late is
+  told against, from which an unsent answer may be read, and after which
+  the first change keeps the earlier version.
+- **Late is worked out when read, never stored** (`lateBy`, its words
+  `lateWords`: "40 minutes", "5 hours", "3 days"): the time of a change, a
+  send or a tick against that moment. "After its deadline" (staff only) is an
+  answer first sent after the block's own deadline but before the session.
+- **Send** (`POST /api/courses/runs/[runId]/written-answers/[answerId]/send`,
+  `{ weekId }`, the writer's own): an answer with words, within its word
+  limit. It stamps `firstSentAt` (with `submittedAt`) once and `sentAt` every
+  time; the work log gets `send` or `send-again`. Sending words already sent,
+  unchanged, writes nothing. The answer may then be changed ("Change my
+  answer") and sent again; before the session its readers read it as last
+  sent.
+- **The old Submit** (`POST .../weeks/[weekId]/submit`) stays for a page open
+  since before: it sends every answer of the week with words that is not sent
+  as it stands (an answer over its limit stops it, nothing written), stamps
+  `courseWeekWork.submittedAt` (when it was pressed, as it always meant) and
+  closes nothing. A week submitted under it is done once its ticks are.
+- **Earlier versions** (`versions.ts`): an optional `earlierVersions` list
+  on the answer's, reflection's or fill-in box's own row, written by the save
+  that changes the words, in the same transaction, only at the first change
+  after the session started (`session`), after a send before it (`sent`), or
+  after feedback or a rating on these very words (`reviewed`, one word for
+  both, so the writer's own row never says a rating was given); one change
+  crossing several lines keeps one version with every reason. At most 12 versions and 120,000 characters
+  between them: at the cap the oldest that is not the one at the session
+  gives way. A box emptied when a version is owed keeps its row, empty, with
+  `emptiedAt`, which reads as nothing written (`boxIsWritten`). A save that
+  changes nothing writes nothing, so a version's mark (its last save) stays
+  exact.
+- **Reopen is gone.** `POST .../weeks/[weekId]/reopen` asks the one gate as
+  it did and answers `{ ok: true, message }` that weeks no longer lock,
+  writing nothing. Stored reopen facts change nothing: a week reopened once
+  reads as first submitted. An answer opened by a reviewer before weeks were
+  submitted (`openedAt`) locks nothing.
 - **Ticks** go through `PUT /api/courses/runs/[runId]/ticks/[itemId]` with
   `{ weekId, completed }`, for everybody, a holder's week 1 before groups go
   out included. `firestore.rules` refuses a browser write that sets or changes
   `completed` or `completedAt`; a rating or a comment carries both through.
 - **The log** (`courseWorkLog`, server only): a row per tick and untick, the
   first save of each writing spell (30 minutes without a save starts a new
-  one), each emptied box, each submit and each reopen, with the server's time.
-  Nothing reads it yet. Page opens are never logged.
-- **One meaning of done** (`weekDone`): submitted, when the week asks for
-  anything written, and every tick This week's tasks count ticked. "N of M
-  done" stays the one count. This week's work's own column says where each
-  person's week stands ("Submitted Tue 10 Nov, 9:31pm", "Not submitted",
-  "2 of 3 done", "Started", "Not started", "Before they joined"), and its head
-  says when the group's week locks ("Locks Wed 3pm").
-- **Deleting**: both new collections go with an account (by `uid`) and with a
-  run's destroy (by `runId`), and the destroy dialog counts them.
+  one), each emptied box, each send and send again, and each press of the old
+  Submit, with the server's time. Nothing reads it yet. Page opens are never
+  logged.
+- **One meaning of done** (`weekDone`): every tick This week's tasks count
+  ticked, the person's own pack among them, and either the old Submit pressed
+  or every reflection and fill-in box its tasks count written and every
+  answer it counts sent. Nobody done under the old rule is not done under
+  this one. `weekDoneAt` says when it became done; staff pages say "Done on
+  time" or "Done late" against the session. "N of M done" stays the one count.
+  This week's work's head says when the group meets that week ("Meets Wed
+  3pm"); a facilitator's own row, and so whether it was late, is worked out
+  only for the lead and admins.
+- **Deleting**: the week's records and the log go with an account (by `uid`)
+  and with a run's destroy (by `runId`), and the destroy dialog counts them.
+  Earlier versions live on the rows they belong to, and go with them.
+- **The pages** say it in the week's own words (`words.ts`). The person's
+  week page: under the title, before the session, the session and that the
+  work stays open after it, then the day the programme closes (`untilWhenWords`,
+  privacy v17's "the week's page says until when"); once it has closed, that
+  it can't change now, and every box is read only. Once the session has
+  started, one neutral line at the top says the group met, that they can
+  still finish it, and that what is added or changed now shows as late
+  (`sessionMetWords`); a facilitator's own work says who reads it and that
+  what they add after their group's session shows those people as late
+  (`ownWorkWords`). Beside each thing, when it was ticked, saved or sent, and
+  once the session has started, before it or how long after; nobody with no
+  session to be due at is ever told late. Each written answer has "Send my
+  answer" while something is unsent (with what makes the week done under it)
+  and "Change my answer" after; changed since a send, it says who sees which
+  version. Feedback on words changed since carries the version it was about.
+  Staff pages say "Sent", "Changed" or "Saved" with "Late: 3 days after the
+  session", "After its deadline" for staff alone, "Done on time", "Done late"
+  and "Joined late", and stack the answer as it stood at the session under
+  the latest. No page has Submit or Reopen.
+- **The emails**: "Week N is open" says the work saves as you go and can
+  still be added to once the session has passed, what is added then showing
+  as late; the reminders before a session list what is left (a written
+  answer with words and not sent among it: "Your written answer isn't sent
+  yet.") and say the same.
 
 
 ## Feedback
@@ -2590,10 +2651,15 @@ nothing in it is a mark.
   with the name anybody may see, and the people running the group read each
   piece signed as the person does. A writer's chip takes its initials from
   that name, so no initial comes from a full name.
-- **On what**: a week written as blocks, once its readers may read it
-  (`workIsReadable`: submitted, or locked at the session first), asked inside
-  the save's transaction; a week open or reopened takes none. A piece on the
-  written answer needs words in it. Feedback stays when a week is reopened.
+- **On what**: a week written as blocks, once its readers may read it,
+  asked inside the save's transaction: a piece on the written answer once
+  `readableAnswer` hands its readers words; a piece on the week as a whole
+  once the session has started, the answer may be read, or the old Submit
+  was pressed. A piece on the written answer stores which version it was
+  about (`aboutSavedAt`), and stamps that version's mark on the person's
+  week record (`reviewedVersions`, never on the answer's own row) so the
+  answer's next change keeps those words; a card on the words since changed
+  carries the version it was about, to staff and to the person.
 - **Where**: on the written answer's review page ("Your feedback", the
   reader's own piece, changed in place until its email goes), and on the
   Coursework tab's person page ("Feedback on the week", for the lead and
@@ -2654,9 +2720,11 @@ Ratings tab or the Kairos file.
   about the people a note suggests, only those of answers written after the
   person agreed to version 13, and one comment beside the highest
   (`docs/applications.md`, "Next term: who to ask").
-- **What is rated**: the week's written answer, once its readers may read it
-  (`workIsReadable`, asked inside the save's transaction), and only with words
-  in it. Reflections are not rated. A rating stays when the week is reopened.
+- **What is rated**: the week's written answer, as its readers may read it
+  (`readableAnswer`, asked inside the save's transaction), and only with words
+  in it. Reflections are not rated. A rating stores which version it was
+  about (`aboutSavedAt`) and stamps the person's week record as feedback does,
+  so the answer's next change keeps the rated words.
 - **One each**: `courseWorkRatings/{runId}__{uid}__{weekId}__{raterUid}`, with
   `itemId` (the answer's block), `rating` (a whole number from 1 to 10),
   `comment` (needed; 300 words at most), `raterRole` (`admin` or `lead`),
@@ -2793,8 +2861,10 @@ through and the update did not, the dialog says so and offers to tell the
 group again. The reason and a moved room are refused if they hold a link.
 
 The press may first be asked with `preview: true`, which changes nothing and
-answers with what it would do: the session before and after, when the week's
-work locks before and after, whether "Week N is open" and the reminders
+answers with what it would do: the session before and after, from when the
+week's work counts as late before and after (`lateFrom`, the session its
+people are due at, through `groupSessionAt`; the panel's "Late from"),
+whether "Week N is open" and the reminders
 before a session are switched on and whether this session's have already
 gone, who said they are joining online or can't make it, who would be told,
 and the notice.

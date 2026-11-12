@@ -77,6 +77,11 @@ export function saidDayWords(at: string | null, changedAt: string | null): strin
   return when ? londonDayLabel(new Date(when)) : "";
 }
 
+/** Under a rating whose answer has changed since: "Sofia’s answer has changed since this rating." */
+export function changedSinceRatingWords(firstName: string): string {
+  return `${firstName ? `${firstName}’s answer` : "The answer"} has changed since this rating.`;
+}
+
 // ---------------------------------------------------------------------------
 // The Pangram chip beside the answer, for an admin alone
 // ---------------------------------------------------------------------------
@@ -95,7 +100,7 @@ export const SAY_WHOSE_ANSWER = "Say whose answer, which week and which answer."
 export const PICK_A_RATING = "Pick a rating from 1 to 10.";
 export const WRITE_A_COMMENT = "Write a comment for the team before you save.";
 export const NOT_A_RATING_WEEK = "That answer can’t be rated here. Reload the page.";
-export const NOT_READABLE_YET = "That week hasn’t been submitted yet, so there’s nothing to rate.";
+export const NOT_READABLE_YET = "That answer can’t be read yet: it isn’t sent, and the session hasn’t started, so there’s nothing to rate.";
 export const ANSWER_EMPTY = "That written answer is empty, so there’s nothing to rate.";
 export const NO_RATING_TO_CLEAR = "You haven’t rated this answer, so there’s nothing to clear.";
 export const RATING_NOT_SAVED = "That rating didn’t save. Check your connection and try again.";

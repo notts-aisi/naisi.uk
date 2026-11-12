@@ -7,7 +7,7 @@ import type { When, WordRange } from "./weekBlocks/model";
  * the pages and the routes say one thing.
  *
  * The boards' words are kept exactly, apostrophes and all. Where a board
- * draws nothing (a facilitator's own answer, an answer reopened, a refusal),
+ * draws nothing (a facilitator's own answer, a refusal),
  * the words are written here in the boards' voice and listed in the build
  * notes for the boards' designers to confirm.
  *
@@ -15,10 +15,10 @@ import type { When, WordRange } from "./weekBlocks/model";
  * total: nothing is counted but words. Feedback on it is a signed comment,
  * whose words are feedback's own (`feedback/words.ts`).
  *
- * Since weeks are submitted (`src/lib/courses/weekWork/`), an answer is sent
- * by submitting its week, and the words the answer's own pages say of it
- * being sent are "Submitted". Who reads it, and until when it can change,
- * are the week's own words (`weekWork/words.ts`).
+ * The week stays open (`src/lib/courses/weekWork/`): an answer has its own
+ * Send, and the words its pages say of it being sent are "Sent". Nothing is
+ * submitted, locked or reopened. Who reads it, until when it can change and
+ * how late anything was are the week's own words (`weekWork/words.ts`).
  */
 
 const SMALL_NUMBERS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
@@ -50,10 +50,8 @@ export function dayAndClockWords(at: Date): string {
 // ---------------------------------------------------------------------------
 
 export const ANSWER_NOT_HERE = "That answer isn’t on this week any more. Reload the page.";
-export const ANSWER_LOCKED =
-  "This answer has been opened, so it can’t change now. Ask whoever opened it to reopen it if you need to.";
-/** A body that still asks to send: the page was opened before sending became submitting the week. */
-export const ANSWER_SEND_RELOAD = "Your written answer is sent when you submit the week now. Reload the page.";
+/** A save that still asks to send: the page was opened before an answer had its own Send. */
+export const ANSWER_SEND_RELOAD = "Reload the page to send your written answer.";
 export const ANSWER_SENT_CANNOT_EMPTY = "A sent answer can’t be empty. Write it again, or leave it as it was.";
 export const ANSWER_TOO_LONG_TO_STORE = "That’s longer than an answer can be. Cut it down and try again.";
 export const ANSWER_NOT_SAVED = "Couldn’t save that just now. It tries again as you type.";
@@ -72,7 +70,7 @@ export function overLimitWords(words: number, limit: number, alreadySent: boolea
 export const WRITTEN_ANSWER = "Written answer";
 export const YOUR_ANSWER = "Your answer";
 export const DRAFT = "Draft";
-export const SENT = "Submitted";
+export const SENT = "Sent";
 export const FEEDBACK = "Feedback";
 export const DUE_TONIGHT = "Due tonight";
 export const DUE_TODAY = "Due today";
@@ -134,14 +132,9 @@ export function readersFeedbackWords(readers: { kind: "facilitators"; names: str
   return `${who} read it and may give feedback on it.`;
 }
 
-/** "Submitted Mon 16 Nov, 10:42pm." */
+/** "Sent Mon 16 Nov, 10:42pm." */
 export function sentLineWords(at: Date): string {
-  return `Submitted ${dayAndClockWords(at)}.`;
-}
-
-/** "Rahul opened it on Tue 17 Nov at 9:58am, so it can’t change now." (the locked line under feedback on the week page). */
-export function lockedLineWords(byName: string, at: Date): string {
-  return `${byName} opened it on ${londonDayLabel(at)} at ${londonClockLabel(at)}, so it can’t change now.`;
+  return `Sent ${dayAndClockWords(at)}.`;
 }
 
 /** "Feedback from Rahul". */
@@ -154,9 +147,9 @@ export function draftStateWords(words: number): string {
   return `${DRAFT} · ${words} ${words === 1 ? "word" : "words"}`;
 }
 
-/** "Submitted Mon 16 Nov" (the programme page's task row). */
+/** "Sent Mon 16 Nov" (the programme page's task row). */
 export function sentOnWords(at: Date): string {
-  return `Submitted ${londonDayLabel(at)}`;
+  return `Sent ${londonDayLabel(at)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -172,14 +165,14 @@ export const WRITTEN_ANSWERS = "Written answers";
 export const GROUP = "Group";
 export const TO_GIVE_FEEDBACK_ON = "To give feedback on";
 export const WITH_FEEDBACK = "With feedback";
-export const NOT_SENT_YET = "Not submitted yet";
+export const NOT_SENT_YET = "Not sent yet";
 export const NOT_STARTED = "Not started";
 export const LATE = "Late";
 export const PREVIOUS = "Previous";
 export const SHOW_ALL_OF_IT = "Show all of it";
 export const NO_WRITTEN_ANSWER_THIS_WEEK = "This week has no written answer.";
 export const NOBODY_HERE = "Nobody’s written answer is yours to give feedback on in this group.";
-export const NOBODY_SENT_YET = "Nobody has submitted this week’s written answer yet.";
+export const NOBODY_SENT_YET = "Nobody has sent this week’s written answer yet.";
 
 /** "Group B · Week 3 · Written answers". */
 export function reviewEyebrowWords(groupName: string, weekNumber: number): string {
@@ -201,26 +194,23 @@ export function positionWords(at: number, of: number): string {
   return `${at} of ${of} to give feedback on`;
 }
 
-/** "Submitted Mon 16 Nov, 10:42pm": when an answer to give feedback on was first sent. */
+/** "Sent Mon 16 Nov, 10:42pm": when an answer to give feedback on was sent. */
 export function listSentWords(at: Date): string {
-  return `Submitted ${dayAndClockWords(at)}`;
+  return `Sent ${dayAndClockWords(at)}`;
 }
 
-/** "Locked Wed 18 Nov, 3pm, not submitted": an answer its readers may read because its week locked first. */
-export function listLockedWords(at: Date): string {
-  return `Locked ${dayAndClockWords(at)}, not submitted`;
+/** "Not sent, read since the session, Wed 18 Nov, 3pm": an answer its readers may read because the session started before it was sent. */
+export function listReadSinceWords(at: Date): string {
+  return `Not sent, read since the session, ${dayAndClockWords(at)}`;
 }
 
 /**
- * The review page's line under an answer, from where its week stands:
- * "Submitted Tue 17 Nov, 9:31pm, so Amara can’t change it now.", "Locked
- * when the session started, Wed 18 Nov, 3pm. Amara didn’t submit it.", or,
- * for an answer sent before weeks were submitted, that it can still change.
+ * The review page's line under an answer (the week stays open): "Amara can
+ * change it until the programme closes. Before the session you read it as
+ * last sent; from the session, as it stands."
  */
-export function reviewWeekLineWords(week: { state: string; at: string | null }, firstName: string): string {
-  if (week.state === "submitted" && week.at) return `Submitted ${dayAndClockWords(new Date(week.at))}, so ${firstName} can’t change it now.`;
-  if (week.state === "locked" && week.at) return `Locked when the session started, ${dayAndClockWords(new Date(week.at))}. ${firstName} didn’t submit it.`;
-  return `Sent before weeks were submitted: ${firstName} can still change it until the week is submitted or locks.`;
+export function reviewWeekLineWords(firstName: string): string {
+  return `${firstName} can change it until the programme closes. Before the session you read it as last sent; from the session, as it stands.`;
 }
 
 /** "By Sofia", "By you and Claudia": who left feedback on it, each once. */

@@ -42,7 +42,8 @@ export const WEEK_NOTES_WORDS = {
   keptAlready: "A note from this week is already on their record.",
   slip: "Claude’s draft named somebody it wasn’t sent, so it wasn’t kept. Draft again.",
   noDraft: "There’s no draft for them now. Reload the page.",
-  notSubmittedNow: "Their week isn’t submitted now, so there’s nothing to note. Discard the draft, or wait for them to submit it again.",
+  // The week page has no Submit now (each written answer has its own Send), so nobody is told to wait for one.
+  notSubmittedNow: "Their week isn’t submitted now, so there’s nothing to note. Discard the draft.",
   failed: "Claude couldn’t draft a note just now. Try again.",
   loadFailed: "Couldn’t reach the site. Try again.",
 
@@ -119,7 +120,7 @@ export const WEEK_NOTES_WORDS = {
   newer: (what: "rating" | "feedback" | "both", when: string) =>
     `${what === "rating" ? "A rating" : what === "feedback" ? "Feedback" : "Feedback and a rating"} came in after this draft, the newest ${when}. Draft again to include it.`,
   changed: "Their week has changed since this draft. Draft again to use what’s there now.",
-  reopened: "Their week was reopened after this draft, so there’s no submission to note. Discard it, or wait for them to submit it again.",
+  reopened: "Their week was reopened after this draft, so there’s no submission to note. Discard it.",
   savedLine: (weekNumber: number, name: string) => `Drafted by Claude from week ${weekNumber}. Saved by ${name}.`,
   noSuggestion: "No suggestion for next term.",
   readBy: (who: string) => `Who reads it: ${who}`,

@@ -4,7 +4,7 @@ import { isAddressableId } from "@/lib/addressableId";
 import {
   groupHistoryRow,
   iso,
-  lockOf,
+  lateFromOf,
   momentOf,
   momentValues,
   readJobSwitches,
@@ -260,7 +260,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
           before: momentOf(found, first.session),
           after: momentOf(first.after, afterSession),
           lastSession: { before: lastOf(before), after: lastOf(after) },
-          lock: { before: lockOf(before, press.weekNumber), after: lockOf(after, press.weekNumber) },
+          lateFrom: { before: lateFromOf(before, press.weekNumber), after: lateFromOf(after, press.weekNumber) },
           reminders,
           said,
           told,

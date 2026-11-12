@@ -7,6 +7,7 @@ import {
   type WorkRatingRole,
 } from "@/lib/firestore/courseWorkRatings";
 import { cardNamesOf } from "../feedback/readers";
+import type { PieceFacts } from "../weekWork/versions";
 import { teamRatingsOf, type TeamRatingsView } from "./model";
 
 /**
@@ -80,13 +81,21 @@ export async function readRatingsAbout(db: Firestore, uids: readonly string[]): 
 /**
  * What "Rating for the team" and "What the team said" show `viewer` about one
  * written answer: every rating on it, each rater named by the first word of
- * the name they go by.
+ * the name they go by, and whether the answer has changed since each.
+ * `answer` is the stored answer the caller has already read, or null.
  */
 export async function loadTeamRatings(
   db: Firestore,
-  input: { runId: string; uid: string; weekId: string; itemId: string; viewer: { uid: string; role: WorkRatingRole } },
+  input: {
+    runId: string;
+    uid: string;
+    weekId: string;
+    itemId: string;
+    viewer: { uid: string; role: WorkRatingRole };
+    answer: PieceFacts | null;
+  },
 ): Promise<TeamRatingsView> {
   const ratings = await readAnswerRatings(db, input);
   const names = await cardNamesOf(db, [input.viewer.uid, ...ratings.map((rating) => rating.raterUid)]);
-  return teamRatingsOf(ratings, input.itemId, names.firstName, input.viewer);
+  return teamRatingsOf(ratings, input.itemId, names.firstName, input.viewer, input.answer);
 }
