@@ -84,6 +84,10 @@ export type AttendanceCovers = AttendancePayload["covers"];
 export type AttendanceFacilitatorRecord = NonNullable<AttendancePayload["facilitatorRecord"]>;
 export type AttendanceFacilitator = AttendancePayload["facilitators"][number];
 export type AttendanceCaller = AttendancePayload["caller"];
+/** `sessionKey -> uid -> story` of each line corrected after its register was finished. */
+export type AttendanceCorrections = AttendancePayload["corrections"];
+/** `sessionKey -> uid -> request`: a waiting ask about the line, or what became of the newest. */
+export type AttendanceRequests = AttendancePayload["requests"];
 
 export type AttendanceState = {
   group: AttendancePayload["group"] | null;
@@ -122,6 +126,10 @@ export type AttendanceState = {
   facilitators: AttendanceFacilitator[];
   /** What the reader may do on each session; null until the first payload. */
   caller: AttendanceCaller | null;
+  /** Each corrected line's story, as the route sends it to this reader. */
+  corrections: AttendanceCorrections;
+  /** The asks about lines, as the route sends them to this reader. */
+  requests: AttendanceRequests;
   /** True on the first load of a group AND on a manual refresh. */
   loading: boolean;
   /** A fetch for the CURRENT group has landed, so the grid is real. */
@@ -141,13 +149,15 @@ export type AttendanceState = {
     patch?: SessionPatch,
   ) => Promise<void>;
   /**
-   * An admin's correction to a register that is already pushed: marks, the
-   * held switch, or the session note. Every change appends its own audit row.
+   * A correction to a register that is already finished, with its reason:
+   * marks, or (an admin's) the session note. Every changed line appends its
+   * own history row. Whether a session happened is the column's, never this.
    */
   edit: (
     session: AttendanceSession,
     marks: AttendanceMark[],
-    patch?: SessionPatch,
+    patch: { notes?: string } | undefined,
+    reason: string,
   ) => Promise<AttendanceEditResult>;
   /**
    * FINISH THE REGISTER (or PUSH ATTENDANCE). Locks the register and rebuilds
@@ -177,6 +187,8 @@ const NO_CANT_MAKE_IT: AttendanceCantMakeIt[] = [];
 const NO_SET_BY: AttendanceSetBy = {};
 const NO_COVERS: AttendanceCovers = {};
 const NO_FACILITATORS: AttendanceFacilitator[] = [];
+const NO_CORRECTIONS: AttendanceCorrections = {};
+const NO_REQUESTS: AttendanceRequests = {};
 
 /**
  * A separator that cannot occur in a group id, so the composite stamp can
@@ -440,7 +452,8 @@ export function useAttendance(groupId: string, options: { week?: number | null }
     async (
       session: AttendanceSession,
       marks: AttendanceMark[],
-      patch?: SessionPatch,
+      patch: { notes?: string } | undefined,
+      reason: string,
     ) => {
       const res = await fetch(endpoint, {
         method: "PATCH",
@@ -449,8 +462,8 @@ export function useAttendance(groupId: string, options: { week?: number | null }
           weekNumber: session.weekNumber,
           occurrence: session.occurrence,
           marks,
-          ...(patch?.held !== undefined ? { held: patch.held } : {}),
           ...(patch?.notes !== undefined ? { notes: patch.notes } : {}),
+          reason,
         }),
       });
       const body = (await res.json().catch(() => null)) as
@@ -553,6 +566,8 @@ export function useAttendance(groupId: string, options: { week?: number | null }
     facilitatorRecord: data?.facilitatorRecord ?? null,
     facilitators: data?.facilitators ?? NO_FACILITATORS,
     caller: data?.caller ?? null,
+    corrections: data?.corrections ?? NO_CORRECTIONS,
+    requests: data?.requests ?? NO_REQUESTS,
     loading,
     loaded: !idle && !loading && data !== null,
     error: fresh?.error ?? null,

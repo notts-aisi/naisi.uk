@@ -226,6 +226,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/courses/requests/load.ts",
+    {
+      why: "the Requests page finds the runs a reader might lead and each run's programme name: it reads each form's programmes by the ids on that form's own programmeIds, and holds every run it finds to the one gate before reading its requests",
+    },
+  ],
+  [
     "src/lib/courses/programmeLead.ts",
     {
       why: "the one answer to who leads the programme that names a course run: it reads each form's programmes by the ids on that form's own programmeIds, to find the programme whose runId names the run and take its lead",

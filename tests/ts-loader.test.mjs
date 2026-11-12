@@ -447,6 +447,12 @@ const USERS = new Map([
       "else of the run does is decided by the pages as they run",
   ],
   [
+    "course-register-correction-pages.test.mjs",
+    "renders the Requests page, one request's page and a group's Attendance tab (.tsx client components) for an " +
+      "admin, a lead and the person who asked, because who is offered Approve and Decline, and whether the " +
+      "facilitators' row is drawn, are decided by the pages as they render",
+  ],
+  [
     "course-hub-when-free.test.mjs",
     "renders the application page (a .tsx server component) and its When you're free card for somebody " +
       "holding a place and for somebody told their group, because whether the card is drawn, and what it " +

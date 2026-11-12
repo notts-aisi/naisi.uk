@@ -1,5 +1,6 @@
 "use client";
 
+import { AFTER_FINISH } from "@/lib/courses/registerCorrection/pageWords";
 import { useState } from "react";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
@@ -136,10 +137,7 @@ export default function PushConfirm({
 
         <ul className={styles.points}>
           {emailLine && <li>{emailLine}</li>}
-          <li>
-            The register locks. An admin can still correct it afterwards, and every
-            change they make is recorded.
-          </li>
+          <li>{AFTER_FINISH}</li>
           <li>
             {held
               ? "Everyone sees their mark, and everyone’s attendance figures are rebuilt from this register."

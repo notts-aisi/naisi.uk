@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { isValidDateKey } from "@/lib/courses/weekPlan";
 import { memberCurrentWeek, resolveCalendar } from "@/lib/courses/groupResolve";
-import { readMirrorPlan, type RegisterOverride } from "@/lib/courses/attendanceMirror";
 import {
   gateGroupRegister,
   gateGroupRegisterRead,
@@ -31,7 +30,6 @@ import { getCurrentUser } from "@/lib/firebase/session";
 import {
   ATTENDANCE_LIMITS,
   ATTENDANCE_STATUSES,
-  ATTENDANCE_STATUS_LABEL,
   COVER,
   EXCUSED_IN_ADVANCE,
   FACILITATOR_RECORD,
@@ -60,6 +58,19 @@ import {
 import { REGISTER_COVER_REFUSAL, tookDetail } from "@/lib/courses/registerCover/words";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import {
+  CorrectionFullError,
+  CorrectionMissingError,
+  CorrectionNotHeldError,
+  CorrectionUnfinishedError,
+  namesGoneBy,
+  readLineCorrection,
+  writeLineCorrection,
+  type WantedLine,
+} from "@/lib/courses/registerCorrection/line";
+import { parseCorrectionReason } from "@/lib/courses/registerCorrection/model";
+import { registerCorrectionExtras, type RegisterCorrectionExtras } from "@/lib/courses/registerCorrection/view";
+import { CORRECTION_REFUSAL } from "@/lib/courses/registerCorrection/words";
 import {
   normalizeCourseRun,
   normalizeCourseWeek,
@@ -237,7 +248,12 @@ export type AttendancePayload = {
    * many words.
    */
   participantNotes: Record<string, Record<string, string>>;
-  /** True when the caller may correct a register that is already pushed. */
+  /**
+   * True for an admin: the grid's own lane on a finished column (its cells,
+   * and the resend of the week's email). Who corrects a finished register
+   * with a reason is `caller.corrects`, which adds the people leading the
+   * programme.
+   */
   canEditPushed: boolean;
   /**
    * How this register ends, every value from a record: which button it is,
@@ -277,6 +293,20 @@ export type AttendancePayload = {
   facilitators: (NamedPerson & { you: boolean })[];
   /** What the reader may do here, so the page offers nothing a route would refuse. */
   caller: AttendanceCaller;
+  /**
+   * CORRECTED LINES, `sessionKey -> uid -> story`: what the line said
+   * before, who set that and when, who corrected it and when, and who asked.
+   * The reason only for the people who correct registers and the person who
+   * gave it. Empty for somebody given one session.
+   */
+  corrections: RegisterCorrectionExtras["corrections"];
+  /**
+   * REQUESTS ABOUT LINES, `sessionKey -> uid -> request`: a waiting ask, or
+   * what became of the newest one. Its reason and reply only for the people
+   * who correct registers and the person who asked. Empty for somebody given
+   * one session.
+   */
+  requests: RegisterCorrectionExtras["requests"];
 };
 
 /** What the reader is on this register, and what they may do on each session of it. */
@@ -286,6 +316,12 @@ export type AttendanceCaller = {
   facilitates: boolean;
   readsNotes: boolean;
   readsFacilitatorRecord: boolean;
+  /**
+   * Corrects a finished register, a line or a whole column, with a reason:
+   * an admin, or somebody leading the programme while the group is not
+   * archived. A facilitator of the group asks for a correction instead.
+   */
+  corrects: boolean;
   /** By session key, for each column. */
   sessions: Record<string, { writes: boolean; checksIn: boolean; readsCheckInTotals: boolean; reports: boolean; holdsCover: boolean }>;
 };
@@ -495,12 +531,6 @@ function onlineAfter(given: boolean | undefined, kept: unknown, said: unknown): 
   if (typeof given === "boolean") return given;
   if (typeof kept === "boolean") return kept;
   return Boolean(said);
-}
-
-/** A mark as an audit row says it: "Present", "Present online", "not marked". */
-function markLabel(status: AttendanceStatus | null, online: boolean): string {
-  if (!status) return "not marked";
-  return cameBy(status) && online ? `${ATTENDANCE_STATUS_LABEL[status]} online` : ATTENDANCE_STATUS_LABEL[status];
 }
 
 /**
@@ -926,7 +956,10 @@ export async function GET(
     .map((column) => registerBySessionKey.get(column.sessionKey))
     .filter((register): register is CourseAttendanceDoc => register !== undefined);
   const readsFacilitatorRecord = readsFacilitatorRecordOf(gated);
-  const [extras, facilitators] = await Promise.all([
+  // Who corrects a finished register: admins, and the people leading the
+  // programme while the group is not archived (the write gate's own rule).
+  const corrects = gated.isAdmin || (gated.leads && !group.archived);
+  const [extras, facilitators, corrections] = await Promise.all([
     registerCoverExtras(db, {
       registers: columnRegisters,
       rows: memberUids,
@@ -935,12 +968,23 @@ export async function GET(
       now,
     }),
     standingFacilitators(db, group, { isAdmin: gated.isAdmin, role: actor.role }),
+    // Corrected lines and the requests about lines (`registerCorrection/view.ts`).
+    registerCorrectionExtras(db, {
+      runId,
+      groupId,
+      registers: columnRegisters,
+      rows: memberUids,
+      viewer: { uid: actor.uid, isAdmin: gated.isAdmin, role: actor.role },
+      corrects,
+      onlyGiven,
+    }),
   ]);
   const caller: AttendanceCaller = {
     standing: gated.isAdmin ? "admin" : gated.facilitates ? "facilitator" : gated.leads ? "lead" : "given",
     facilitates: gated.facilitates,
     readsNotes: gated.readsNotes,
     readsFacilitatorRecord,
+    corrects,
     sessions: Object.fromEntries(
       columns.map((column) => {
         const access = registerSessionAccess(gated, {
@@ -993,6 +1037,8 @@ export async function GET(
     ...(extras.facilitatorRecord ? { facilitatorRecord: extras.facilitatorRecord } : {}),
     facilitators: facilitators.map((each) => ({ ...each, you: each.uid === actor.uid })),
     caller,
+    corrections: corrections.corrections,
+    requests: corrections.requests,
   };
 
   return NextResponse.json(payload);
@@ -1031,10 +1077,6 @@ type FacilitatorPresenceStamp = {
   at: Date;
   how: "cover" | "arrived" | "finish" | "changed";
 };
-/** PATCH met a session nobody has opened a register for. */
-class RegisterMissingError extends Error {}
-/** PATCH met a register that is still the facilitator's draft. */
-class RegisterUnpushedError extends Error {}
 
 export async function POST(
   req: Request,
@@ -1334,9 +1376,26 @@ export async function POST(
 }
 
 // ---------------------------------------------------------------------------
-// PATCH: an admin correcting a LOCKED register
+// PATCH: correcting a FINISHED register, a line at a time
 // ---------------------------------------------------------------------------
 
+/**
+ * CORRECTING LINES OF A FINISHED REGISTER: admins, the programme's lead and
+ * the run's track leads (`leads` on the gate). A facilitator of the group
+ * asks for a correction instead (`.../attendance/requests`), and is told so.
+ *
+ * Every correction needs a reason (`parseCorrectionReason`): a page from
+ * before reasons were asked sends none, and is told in one plain sentence.
+ * Whether a session happened is corrected for the whole column
+ * (`.../attendance/column`), never on this lane. A session's note may change
+ * here beside the lines, on the admin's lane only: the notes are the
+ * facilitators' and admins'.
+ *
+ * What it writes, in one transaction, is `src/lib/courses/registerCorrection/line.ts`:
+ * each line, who set it, that it was corrected, the figures in full, and one
+ * history row per line with what it said before, the reason and the request.
+ * Nobody is emailed.
+ */
 export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ groupId: string }> },
@@ -1347,269 +1406,111 @@ export async function PATCH(
   const { groupId } = await ctx.params;
   const prepared = await prepareWrite(groupId, req);
   if (!prepared.ok) return prepared.response;
-  const { actor, db, runId, isAdmin, sessions, session, members, body } = prepared.ctx;
+  const { actor, db, runId, isAdmin, leads, facilitates, sessions, session, members, body, group } = prepared.ctx;
 
-  // ADMIN ONLY, and checked before the body is looked at any further. The push
-  // is the facilitator's last word on a session; correcting it afterwards is
-  // an administrative act with a name attached to it.
-  if (!isAdmin) {
+  // WHO, before the body is looked at any further: an admin or somebody
+  // leading the programme. A facilitator of the group asks instead.
+  if (!isAdmin && !leads) {
     return NextResponse.json(
-      { error: "Only an admin can change a register after it has been pushed." },
+      { error: facilitates ? CORRECTION_REFUSAL.facilitator : "Forbidden" },
       { status: 403 },
     );
   }
   const cancelled = cancelledSessionRefusal(prepared.ctx);
   if (cancelled) return cancelled;
 
+  const reason = parseCorrectionReason(body.reason, {
+    preview: false,
+    missing: CORRECTION_REFUSAL.oldPage,
+    empty: CORRECTION_REFUSAL.reason,
+    text: CORRECTION_REFUSAL.reasonText,
+    line: CORRECTION_REFUSAL.reasonLine,
+    link: CORRECTION_REFUSAL.reasonLink,
+  });
+  if (!reason.ok) return NextResponse.json({ error: reason.error }, { status: 400 });
+  // Whether it happened is the whole column's (`.../attendance/column`).
+  if (body.held !== undefined) {
+    return NextResponse.json({ error: CORRECTION_REFUSAL.held }, { status: 400 });
+  }
+
   const parsedMarks = parseMarks(body.marks);
   if (!parsedMarks.ok) {
     return NextResponse.json({ error: parsedMarks.error }, { status: 400 });
   }
-  const wanted = parsedMarks.value;
-  const givenOnline = parsedMarks.online;
-  const hasHeld = body.held !== undefined;
-  if (hasHeld && typeof body.held !== "boolean") {
-    return NextResponse.json({ error: "held must be true or false." }, { status: 400 });
-  }
-  // The SESSION note travels this lane too. It is a note about the room, not
-  // about a person, and an admin correcting a pushed register is exactly who
-  // writes "the fire alarm went off at 19:20" afterwards. Participant notes
-  // stay on their own route, which the push deliberately never locks.
+  // The SESSION note travels this lane too, for the people the register's
+  // notes are written for: an admin correcting a finished register is
+  // exactly who writes "the fire alarm went off at 19:20" afterwards.
+  // Participant notes stay on their own route.
   const hasNotes = body.notes !== undefined;
   let notes = "";
   if (hasNotes) {
+    if (!prepared.ctx.readsNotes) {
+      return NextResponse.json({ error: REGISTER_COVER_REFUSAL.notes }, { status: 403 });
+    }
     const parsed = parseNotes(body.notes);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
     notes = parsed.value;
   }
-  if (wanted.size === 0 && !hasHeld && !hasNotes) {
+  const wanted = new Map<string, WantedLine>(
+    [...parsedMarks.value].map(([uid, status]) => [uid, { mark: status, online: parsedMarks.online.get(uid) }]),
+  );
+  if (wanted.size === 0 && !hasNotes) {
     return NextResponse.json({ error: "Nothing to change." }, { status: 400 });
   }
 
-  const rosterError = checkMarksAgainstRoster(wanted, members, session.weekNumber);
+  const rosterError = checkMarksAgainstRoster(parsedMarks.value, members, session.weekNumber);
   if (rosterError) return NextResponse.json({ error: rosterError }, { status: 400 });
 
-  const ref = db
-    .collection("courseAttendance")
-    .doc(attendanceDocId(runId, groupId, session.weekNumber, session.occurrence));
   const now = new Date();
-  const actorName = actor.displayName ?? "";
-  const memberName = new Map(members.map((m) => [m.uid, m.displayName]));
-  // Read OUTSIDE the transaction: it is a membership list, not a value the
+  // Read OUTSIDE the transaction: who the figures belong to, and the name
+  // each person goes by for the history's sentence. Neither is a value the
   // correction races with, and a transaction that queries cannot then write.
-  const mirrorMembers = await loadMirrorMembers(db, runId, groupId);
+  const [mirrorMembers, names] = await Promise.all([
+    loadMirrorMembers(db, runId, groupId),
+    namesGoneBy(db, wanted.keys()),
+  ]);
 
   let logged = 0;
   let changed = 0;
-  let held = true;
   try {
     await db.runTransaction(async (tx) => {
-      logged = 0;
-      changed = 0;
-      const snap = await tx.get(ref);
-      if (!snap.exists) throw new RegisterMissingError();
-      const data = snap.data() ?? {};
-      // PATCH is the LOCKED lane. A draft register is the facilitator's to
-      // finish, and letting an admin type into one from a different surface
-      // would leave two doors onto one unfinished document.
-      if (!data.pushedAt) throw new RegisterUnpushedError();
-
-      const stored = (data.records ?? {}) as Record<string, unknown>;
-      const before = new Map<string, AttendanceStatus | null>();
-      for (const uid of wanted.keys()) {
-        const value = stored[uid];
-        before.set(
-          uid,
-          ATTENDANCE_STATUSES.includes(value as AttendanceStatus)
-            ? (value as AttendanceStatus)
-            : null,
-        );
-      }
-      // Where each of them was before, and after this correction: online only
-      // beside a mark that says they came (`onlineAfter` for the after).
-      const onlineStored = (data[ONLINE] ?? {}) as Record<string, unknown>;
-      const saidStored = (data[ONLINE_SAID] ?? {}) as Record<string, unknown>;
-      const onlineBefore = new Map<string, boolean>();
-      const onlineNow = new Map<string, boolean>();
-      for (const [uid, status] of wanted) {
-        const was = before.get(uid) ?? null;
-        onlineBefore.set(uid, cameBy(was) && onlineStored[uid] === true);
-        onlineNow.set(
-          uid,
-          cameBy(status) && onlineAfter(givenOnline.get(uid), cameBy(was) ? onlineStored[uid] : undefined, saidStored[uid]),
-        );
-      }
-      const heldBefore = data.held !== false;
-      const heldAfter = hasHeld ? body.held === true : heldBefore;
-      held = heldAfter;
-      const notesBefore = typeof data.notes === "string" ? data.notes : "";
-      const notesMoved = hasNotes && notes !== notesBefore;
-
-      // Only the marks that actually MOVE are written or logged, a mark whose
-      // room or online moved among them. An audit row per unchanged cell
-      // would bury the one row that matters.
-      const moved = [...wanted.entries()].filter(
-        ([uid, status]) =>
-          (before.get(uid) ?? null) !== status || onlineBefore.get(uid) !== onlineNow.get(uid),
-      );
-      changed = moved.length;
-
-      const keys = new Set(Object.keys(stored));
-      for (const [uid, status] of moved) {
-        if (status === null) keys.delete(uid);
-        else keys.add(uid);
-      }
-      if (keys.size > ATTENDANCE_LIMITS.maxRecords) throw new RegisterFullError();
-
-      // EVERY READ BEFORE EVERY WRITE. The mirror plan reads the group's other
-      // registers and the enrolments, so it has to run before the write below.
-      const overrides = new Map<string, RegisterOverride>([
-        [
-          session.sessionKey,
-          {
-            marks: new Map(moved),
-            online: new Map(moved.map(([uid, status]) => [uid, cameBy(status) ? onlineNow.get(uid) === true : null])),
-            held: heldAfter,
-            // Already pushed, and staying pushed. Stated so the recompute
-            // counts this session whatever the read raced with.
-            pushedAt: (data.pushedAt as { toDate?: () => Date })?.toDate?.() ?? now,
-          },
-        ],
-      ]);
-      const plan = await readMirrorPlan(tx, db, {
-        runId,
+      const plan = await readLineCorrection(tx, db, {
+        run: { id: runId },
         groupId,
+        session,
         sessions,
-        // NOT `members`: the register's rows are the ACTIVE enrolments, and a
-        // correction to a pushed register has to move the figures of everybody
-        // whose rollup is read afterwards, withdrawn and completed included.
-        members: mirrorMembers,
-        overrides,
+        mirrorMembers,
+        wanted,
         now,
       });
-
-      if (moved.length > 0 || heldAfter !== heldBefore || notesMoved) {
-        const records: Record<string, AttendanceStatus | FieldValue> = {};
-        const where: Record<string, boolean | FieldValue> = {};
-        // Each corrected line says who corrected it and when; a line the
-        // correction cleared loses its stamp.
-        const stamps: Record<string, LineSetterStamp | FieldValue> = {};
-        const setBefore = (data[SET_BY] ?? {}) as Record<string, unknown>;
-        for (const [uid, status] of moved) {
-          records[uid] = status === null ? FieldValue.delete() : status;
-          if (cameBy(status)) where[uid] = onlineNow.get(uid) === true;
-          else if (Object.hasOwn(onlineStored, uid)) where[uid] = FieldValue.delete();
-          if (status !== null) stamps[uid] = { byUid: actor.uid, at: now, how: "correction" };
-          else if (Object.hasOwn(setBefore, uid)) stamps[uid] = FieldValue.delete();
-        }
-        tx.set(
-          ref,
-          {
-            records,
-            ...(Object.keys(where).length > 0 ? { [ONLINE]: where } : {}),
-            ...(Object.keys(stamps).length > 0 ? { [SET_BY]: stamps } : {}),
-            ...(hasHeld ? { held: heldAfter } : {}),
-            ...(notesMoved ? { notes } : {}),
-            updatedAt: FieldValue.serverTimestamp(),
-            // `markedByUid` is deliberately NOT moved to the admin: it records
-            // who ran the session. Who corrected it afterwards is what the
-            // audit rows are for.
-          },
-          { merge: true },
-        );
-      }
-
-      for (const write of plan.writes) {
-        tx.set(write.ref, { attendance: write.rollup }, { merge: true });
-      }
-
-      // ONE AUDIT ROW PER CHANGED MARK, with the before and the after in the
-      // sentence. A single row saying "the register was edited" would answer
-      // none of the questions the log exists for.
-      for (const [uid, status] of moved) {
-        const from = before.get(uid) ?? null;
-        const wasOnline = onlineBefore.get(uid) === true;
-        const isOnline = onlineNow.get(uid) === true;
-        // A mark that only moved between the room and online says both
-        // places; otherwise each mark says online where it was, and the room
-        // goes without saying, as it did before the register kept it.
-        const change =
-          from === status
-            ? `${markLabel(from, false)} ${wasOnline ? "online" : "in the room"} to ${markLabel(status, false)} ${isOnline ? "online" : "in the room"}`
-            : `${markLabel(from, wasOnline)} to ${markLabel(status, isOnline)}`;
-        tx.set(db.collection(COURSE_AUDIT_COLLECTION).doc(), {
-          kind: "attendance-edit",
-          runId,
-          groupId,
-          subjectUid: uid,
-          actorUid: actor.uid,
-          actorName,
-          targetLabel: `${session.sessionKey} register`,
-          detail:
-            `${memberName.get(uid) ?? uid}: ${change}, ` +
-            `week ${session.weekNumber} session ${session.occurrence}.`,
-          at: FieldValue.serverTimestamp(),
-        });
-        logged += 1;
-      }
-      if (heldAfter !== heldBefore) {
-        tx.set(db.collection(COURSE_AUDIT_COLLECTION).doc(), {
-          kind: "attendance-edit",
-          runId,
-          groupId,
-          subjectUid: null,
-          actorUid: actor.uid,
-          actorName,
-          targetLabel: `${session.sessionKey} register`,
-          detail: heldAfter
-            ? `Week ${session.weekNumber} session ${session.occurrence} marked as held again, so it counts in everyone's attendance.`
-            : `Week ${session.weekNumber} session ${session.occurrence} marked as not held, so it leaves everyone's attendance.`,
-          at: FieldValue.serverTimestamp(),
-        });
-        logged += 1;
-      }
-      if (notesMoved) {
-        // The note's TEXT is deliberately not copied into the audit row: it is
-        // a facilitator's account of a session and can name people, and the
-        // log is read by every admin. That it changed, and who changed it, is
-        // the fact the log is for.
-        tx.set(db.collection(COURSE_AUDIT_COLLECTION).doc(), {
-          kind: "attendance-edit",
-          runId,
-          groupId,
-          subjectUid: null,
-          actorUid: actor.uid,
-          actorName,
-          targetLabel: `${session.sessionKey} register`,
-          detail: notes
-            ? `Session note on week ${session.weekNumber} session ${session.occurrence} rewritten after the push.`
-            : `Session note on week ${session.weekNumber} session ${session.occurrence} cleared after the push.`,
-          at: FieldValue.serverTimestamp(),
-        });
-        logged += 1;
-      }
+      changed = plan.moved.length;
+      const notesBefore = plan.register.notes ?? "";
+      const notesMoved = hasNotes && notes !== notesBefore;
+      logged = writeLineCorrection(tx, db, plan, {
+        run: { id: runId },
+        group,
+        session,
+        actor,
+        reason: reason.value,
+        names,
+        asked: null,
+        notes: notesMoved ? { value: notes } : null,
+        now,
+      });
     });
   } catch (err) {
-    if (err instanceof RegisterMissingError) {
-      return NextResponse.json(
-        { error: "There's no register for that session yet." },
-        { status: 404 },
-      );
+    if (err instanceof CorrectionMissingError) {
+      return NextResponse.json({ error: CORRECTION_REFUSAL.noRegister }, { status: 404 });
     }
-    if (err instanceof RegisterUnpushedError) {
-      return NextResponse.json(
-        {
-          error:
-            "That register hasn't been pushed yet, so it is still the facilitator's to mark.",
-        },
-        { status: 409 },
-      );
+    if (err instanceof CorrectionUnfinishedError) {
+      return NextResponse.json({ error: CORRECTION_REFUSAL.notFinished }, { status: 409 });
     }
-    if (err instanceof RegisterFullError) {
+    if (err instanceof CorrectionNotHeldError) {
+      return NextResponse.json({ error: CORRECTION_REFUSAL.alreadyNotHeld }, { status: 409 });
+    }
+    if (err instanceof CorrectionFullError) {
       return NextResponse.json(
-        {
-          error: `This register is full (maximum ${ATTENDANCE_LIMITS.maxRecords} people).`,
-        },
+        { error: `This register is full (maximum ${ATTENDANCE_LIMITS.maxRecords} people).` },
         { status: 409 },
       );
     }
@@ -1622,7 +1523,7 @@ export async function PATCH(
     weekNumber: session.weekNumber,
     occurrence: session.occurrence,
     marked: changed,
-    held,
+    held: true,
     logged,
   };
   return NextResponse.json(result);

@@ -3441,6 +3441,20 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === courseRequests ===
+    // What somebody on a programme asks of the people running it, and what
+    // became of it (src/lib/firestore/courseRequests.ts): first, a
+    // facilitator asking for a line of a finished register to be corrected,
+    // with why. Written and read only by the request routes, the register's
+    // read and the pages' loaders on the Admin SDK, after their own gate. So
+    // every browser is refused, the person who asked, the person a request
+    // is about, the programme's lead and admins included: a request can
+    // carry a reason about a named person, and a reason is only ever served
+    // to the people a route decides may read it.
+    match /courseRequests/{requestId} {
+      allow read, write: if false;
+    }
+
     // === courseBestAnswers ===
     // Claude's pick of the strongest answers to one week of a run (privacy
     // v13; src/lib/courses/coursework/bestAnswers.ts): the accounts it

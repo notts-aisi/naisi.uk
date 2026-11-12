@@ -639,7 +639,11 @@ describe("3. the group's page, and the facilitator's cut", () => {
     // the programme's lead take.
     const registerPath = `/admin/admissions/forms/${ROUND}/programmes/${AGI}/groups/${B}/register`;
     assert.ok(drawn.html.includes(`href="${registerPath}"`), "Take the register is the group's register under this page");
-    assert.doesNotMatch(drawn.text, /Attendance, all weeks/, "no tab for something that does not exist yet");
+    // CHANGED ON PURPOSE (November 2026), with correcting a register: the
+    // group's attendance across every week is a third tab, for admins and
+    // the programme's lead (tests/course-register-correction-pages.test.mjs
+    // holds who is given it).
+    assert.match(drawn.text, /Week by week Attendance, all weeks History/, "the Attendance tab sits between Week by week and History");
     assert.doesNotMatch(drawn.text, /Remind/, "Remind comes with a later step");
     const [body] = find(drawn.element, "GroupPage");
     assert.ok(body, "the page hands its body the server's view");

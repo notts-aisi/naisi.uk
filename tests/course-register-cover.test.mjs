@@ -677,6 +677,8 @@ describe("8. the start a register keeps is read from the group inside the write"
       "lib/courses/regularTime/apply.ts": "a new regular time reads the group as groupSnap in its transaction",
       "lib/courses/cantMakeIt/seat.ts": "a person's own word reads the group as groupSnap in its transaction",
       "lib/courses/joiningOnline/seat.ts": "a person's own word reads the group as groupSnap in its transaction",
+      "lib/courses/registerCorrection/column.ts":
+        "a column moved to the session it belongs to (sessionInTransaction), and a session that did or did not happen (groupRef in its transaction)",
     };
     const NOT_A_REGISTER_WRITE = {
       "lib/courses/sessionChange/didNotHappen.ts": "written inside the change route's transaction, which reads the group first",

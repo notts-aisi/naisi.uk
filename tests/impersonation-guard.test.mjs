@@ -125,7 +125,22 @@ const MUST_GUARD = [
   ["src/app/api/courses/[courseId]/templates/route.ts", "writes a reusable curriculum template"],
   ["src/app/api/courses/calendar/route.ts", "makes or replaces the caller's own calendar link, a secret kept in their name"],
   ["src/app/api/courses/exercise-responses/[responseId]/review/route.ts", "reviews a learner's submitted work and releases the comment"],
-  ["src/app/api/courses/groups/[groupId]/attendance/route.ts", "marks a session register, and lets an admin correct a locked one"],
+  ["src/app/api/courses/groups/[groupId]/attendance/route.ts", "marks a session register, and lets an admin or the programme's lead correct a finished one"],
+  [
+    "src/app/api/courses/groups/[groupId]/attendance/column/route.ts",
+    "corrects a finished register's whole column (held online, moved, cleared, whether it happened), rewriting everybody's attendance and the group's sessions, in the presser's name",
+  ],
+  [
+    "src/app/api/courses/groups/[groupId]/attendance/requests/route.ts",
+    "asks for a correction of a line of a finished register, in the asker's name",
+  ],
+  ["src/app/api/courses/requests/[requestId]/withdraw/route.ts", "withdraws a request for a correction, in the asker's name"],
+  [
+    "src/app/api/courses/requests/[requestId]/approve/route.ts",
+    "approves a request, correcting the line it is about and rewriting everybody's attendance, in the approver's name",
+  ],
+  ["src/app/api/courses/requests/[requestId]/decline/route.ts", "declines a request with a reply to the person who asked, in the decider's name"],
+  ["src/app/api/courses/requests/[requestId]/take/route.ts", "says who is dealing with a request, in their name"],
   ["src/app/api/courses/groups/[groupId]/attendance/push/route.ts", "locks a register, rewrites every member's attendance record and mails the group"],
   [
     "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts",
