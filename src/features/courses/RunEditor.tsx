@@ -24,7 +24,7 @@ import {
 } from "@/lib/firestore/events";
 import { ACADEMIC_YEAR_PATTERN, type UserDoc } from "@/lib/firestore/users";
 import { isValidDateKey } from "@/lib/courses/weekPlan";
-import { START_DATE_READ_ONLY, groupPagePath } from "@/lib/courses/groupPage/words";
+import { START_DATE_READ_ONLY, goneOutSinceOpened, groupPagePath } from "@/lib/courses/groupPage/words";
 import {
   COHORT_LIMITS,
   COHORT_TERMS,
@@ -87,10 +87,11 @@ type Props = {
   runId: string;
   /**
    * Publish has sent the run's groups out (`allocationPublishedAt`, read by
-   * the page on the server). From then on the start date is read only (a new
-   * one would move every group's weeks) and each group card's day, time and
-   * length are words with the way to the group's own page, where a time
-   * changes from a week onwards with its people told.
+   * the page on the server). From then on the start date and the week plan
+   * are read only (every group's weeks are dated from them, and
+   * firestore.rules refuses a browser write to either) and each group card's
+   * day, time and length are words with the way to the group's own page,
+   * where a time changes from a week onwards with its people told.
    */
   groupsGoneOut?: boolean;
   /** The programme naming the run, whose Groups tab holds each group's page; null when none does. */
@@ -610,18 +611,25 @@ export default function RunEditor({ courseId, runId, groupsGoneOut = false, grou
       cohort = { term: cohortTerm as CohortTerm, year, number };
     }
     setMetaError(null);
+    // A page opened before the groups went out still offers the start date;
+    // the rules refuse a new one once they have, and the toast says why.
+    const startDateChanged = !groupsGoneOut && startDate !== run?.startDate;
 
     let ok = false;
     await runAction(
       async () => {
-        await updateRun(runId, {
-          label: trimmedLabel,
-          academicYear: trimmedYear,
-          // Once the groups have gone out the start date is never written from
-          // here: the field is read only, and a stale copy must not move weeks.
-          ...(groupsGoneOut ? {} : { startDate }),
-          cohort,
-        });
+        try {
+          await updateRun(runId, {
+            label: trimmedLabel,
+            academicYear: trimmedYear,
+            // Once the groups have gone out the start date is never written from
+            // here: the field is read only, and a stale copy must not move weeks.
+            ...(groupsGoneOut ? {} : { startDate }),
+            cohort,
+          });
+        } catch (err) {
+          throw goneOutSinceOpened(err, startDateChanged);
+        }
         ok = true;
       },
       { savingMessage: "Saving run details…", successMessage: "Run details saved" },
@@ -1162,6 +1170,7 @@ export default function RunEditor({ courseId, runId, groupsGoneOut = false, grou
           startDate={run.startDate}
           weekPlan={run.weekPlan}
           status={run.status}
+          groupsGoneOut={groupsGoneOut}
           runAction={runAction}
           onSaved={reload}
         />
