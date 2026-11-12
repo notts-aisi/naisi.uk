@@ -436,6 +436,24 @@ test(
     const responseTo = (pg, suffix, method) =>
       pg.waitForResponse((r) => new URL(r.url()).pathname.endsWith(suffix) && r.request().method() === method, { timeout: WAIT_MS });
 
+    /**
+     * The answer to the next PRESS of a POST route whose path ends `suffix`,
+     * never one of its previews (`preview: true`), which go to the same route
+     * and can still be on their way when the button is pressed.
+     */
+    const pressTo = (pg, suffix) =>
+      pg.waitForResponse(
+        (r) => {
+          if (r.request().method() !== "POST" || !new URL(r.url()).pathname.endsWith(suffix)) return false;
+          try {
+            return JSON.parse(r.request().postData() ?? "{}")?.preview !== true;
+          } catch {
+            return true;
+          }
+        },
+        { timeout: WAIT_MS },
+      );
+
     async function okBody(response, what) {
       const body = await response.json().catch(() => null);
       assert.ok(response.ok(), `${what} answered ${response.status()}: ${JSON.stringify(body)}`);
@@ -801,7 +819,7 @@ test(
           const count = Number(/email (\d+) /.exec(label)?.[1]);
           assert.equal(count, toldA.length, `the button's count is not Group A's ${toldA.length} people: ${label} (preview: ${preview})`);
           const [changed, posted] = await Promise.all([
-            responseTo(pg, `/groups/${groupA.id}/session/change`, "POST"),
+            pressTo(pg, `/groups/${groupA.id}/session/change`),
             responseTo(pg, `/runs/${state.runId}/updates`, "POST"),
             button.click(),
           ]);
@@ -850,7 +868,7 @@ test(
           const label = await textOf(button);
           const count = Number(/email (\d+) /.exec(label)?.[1]);
           assert.equal(count, told.length, `the button's count is not Group A's people and its other facilitator: ${label} (preview: ${preview})`);
-          const [changed] = await Promise.all([responseTo(pg, `/groups/${groupA.id}/session/regular`, "POST"), button.click()]);
+          const [changed] = await Promise.all([pressTo(pg, `/groups/${groupA.id}/session/regular`), button.click()]);
           const body = await okBody(changed, "The new regular time");
           assert.equal(body.email?.sent, count, "the notice emailed another number than its button");
           await pg.getByRole("status").filter({ hasText: `${groupA.name} now meets on ${WEEKDAYS[newWeekday]}s` }).waitFor({ timeout: WAIT_MS });
@@ -1050,7 +1068,7 @@ test(
         assert.equal(await tick.isChecked(), false, "telling the group is on before anybody ticks it");
         const { fresh } = await press("giving Group B's week 3 to Kit", { kit: 1 }, async () => {
           const button = panel.getByRole("button", { name: `Give ${kit.first} this session and email ${kit.first} (1)`, exact: true });
-          const [given] = await Promise.all([responseTo(pg, `/groups/${groupB.id}/attendance/cover`, "POST"), button.click()]);
+          const [given] = await Promise.all([pressTo(pg, `/groups/${groupB.id}/attendance/cover`), button.click()]);
           const body = await okBody(given, "Giving the session");
           assert.deepEqual([body.cover?.kind, body.email, body.notice], ["given", "sent", null]);
         });
@@ -1146,7 +1164,7 @@ test(
         await waitFor("Before you save to say what it does", async () => (await textOf(column.getByTestId("column-before"))).length > 0);
         await press("saying Group B's week 1 didn't happen", nobody, async () => {
           const [saved] = await Promise.all([
-            responseTo(pg, `/groups/${groupB.id}/attendance/column`, "POST"),
+            pressTo(pg, `/groups/${groupB.id}/attendance/column`),
             column.getByRole("button", { name: WORDS.saveDidntHappen, exact: true }).click(),
           ]);
           const body = await okBody(saved, "It didn't happen");
@@ -1262,7 +1280,7 @@ test(
           await send.waitFor({ timeout: WAIT_MS });
           assert.equal(await textOf(send), WORDS.sendTo(notDone.length));
           await waitFor("Send to be live", async () => send.isEnabled());
-          const [pressed] = await Promise.all([responseTo(fernPage, remindPath, "POST"), send.click()]);
+          const [pressed] = await Promise.all([pressTo(fernPage, remindPath), send.click()]);
           assert.deepEqual(pressed.request().postDataJSON(), { week: REMIND_WEEK, count: notDone.length });
           assert.equal((await okBody(pressed, "Remind")).sent?.sent, notDone.length);
         });
