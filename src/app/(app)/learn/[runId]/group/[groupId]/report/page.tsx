@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import SessionReportPageBody from "@/features/courses/report/SessionReportPageBody";
+import { sessionReportPageTree } from "@/features/courses/report/SessionReportPageBody";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
 import { loadReportPage } from "@/lib/courses/sessionReports/page";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -63,6 +63,6 @@ export default async function SessionReportPage({
   const groupPath = `${runHome}/group/${encodeURIComponent(groupId)}`;
   const backHref =
     view.covering && typeof asked === "string" ? `${groupPath}/register?session=${encodeURIComponent(asked)}` : groupPath;
-  // Called, not mounted: the body holds no hook, so the page answers with the tree it draws.
-  return SessionReportPageBody({ view, backHref });
+  // The page answers with the tree the helper draws.
+  return sessionReportPageTree({ view, backHref });
 }

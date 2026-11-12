@@ -1,7 +1,7 @@
 import { NoProgrammeHere, Refusal } from "@/features/applications/editor/Refusals";
 import NotYours from "@/features/applications/groups/NotYours";
 import { groupsPath } from "@/features/applications/groups/GroupsViews";
-import SessionReportPageBody from "@/features/courses/report/SessionReportPageBody";
+import { sessionReportPageTree } from "@/features/courses/report/SessionReportPageBody";
 import { sessionParamOf } from "@/features/courses/register/RegisterPageBody";
 import { isAddressableId } from "@/lib/addressableId";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
@@ -53,6 +53,6 @@ export default async function ProgrammeGroupReportPage({
 
   const groupPage = `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/${encodeURIComponent(groupId)}`;
   const backHref = report.covering && session ? `${groupPage}/register?session=${encodeURIComponent(session)}` : groupPage;
-  // Called, not mounted: the body holds no hook, so the page answers with the tree it draws.
-  return SessionReportPageBody({ view: report, backHref });
+  // The page answers with the tree the helper draws.
+  return sessionReportPageTree({ view: report, backHref });
 }

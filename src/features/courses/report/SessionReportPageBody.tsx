@@ -8,7 +8,8 @@ import type { ReportPageView } from "@/lib/courses/sessionReports/page";
 import { REPORT_WORDS } from "@/lib/courses/sessionReports/words";
 
 /**
- * ONE SESSION'S REPORT, as a page: the facilitator's under
+ * ONE SESSION'S REPORT, as a page's tree, called by the page that draws it
+ * (a helper, not a component: it holds no hook): the facilitator's under
  * `/learn/[runId]/group/[groupId]/report` and the one under the programme's
  * group page for the programme's lead or an admin who took a session's
  * register in a facilitator's place. The page that draws it has asked its
@@ -18,7 +19,7 @@ import { REPORT_WORDS } from "@/lib/courses/sessionReports/words";
  * by you, covering for Josh. ..."), and its way back is the register it was
  * written from, not the group's page.
  */
-export default function SessionReportPageBody({ view, backHref }: { view: ReportPageView; backHref: string }) {
+export function sessionReportPageTree({ view, backHref }: { view: ReportPageView; backHref: string }) {
   // The facilitator pages' frame is a size container that draws the phone
   // bar when it is narrow, so it keeps the column's whole width; the report
   // keeps the width of a form read down a phone inside it.

@@ -67,8 +67,7 @@ export default async function GroupRegisterPage({
   // with a place): the programme's lead takes a register under the
   // programme's group page, so this page restates the layout's refusal
   // rather than lean on it.
-  const runAdmits =
-    access.canLearn || access.isReviewer || access.isTrackLead || access.hasLeft || Boolean(access.beforeGroups);
+  const runAdmits = access.canLearn || access.isReviewer || access.isTrackLead;
   if (!gated.isAdmin && !gated.facilitates && gated.leads && !runAdmits) redirect(runHome);
 
   // The way back, and where "It didn't happen" lives: the group's page,
