@@ -313,8 +313,11 @@ describe("4. a cell", () => {
       assert.deepEqual(cellOf(view, "Chloe Nguyen", 3), {
         weekNumber: 3,
         counted: true,
-        // Nobody has submitted week 3 yet, and it has begun: the run is in week 3.
-        done: false,
+        // Nobody pressed the old Submit for week 3, and it has begun (the run is in week 3), but Chloe's week is
+        // done: every tick its task counts is ticked and her answer is sent. No tick here says when, so no moment.
+        done: true,
+        doneAt: null,
+        doneLateMs: null,
         reached: true,
         reflections: { written: 1, of: 3 },
         ticks: { ticked: 1, of: 2 },
@@ -425,6 +428,8 @@ describe("7. the model", () => {
       weekNumber: 2,
       counted: false,
       done: null,
+      doneAt: null,
+      doneLateMs: null,
       reached: false,
       reflections: null,
       ticks: null,
@@ -441,7 +446,9 @@ describe("7. the model", () => {
       { uid: "n", name: "Nia", facilitating: false, groupId: null, readsGroupId: null, notToldYet: false },
       { uid: "f", name: "Fay", facilitating: true, groupId: "g1", readsGroupId: "g1", notToldYet: false },
     ];
-    const week = { weekNumber: 1, title: "", parts: [], sources: [], answer: { id: "wa", prompt: "", boxes: [] }, boxes: [], tasks: [], writes: true };
+    // One task: the written answer, sent.
+    const sendIt = { tickIds: [], promptIds: [], answerIds: ["wa"], chooseOneIds: [], talkIds: [], fillInIds: [], unseenIds: [] };
+    const week = { weekNumber: 1, title: "", parts: [], sources: [], answer: { id: "wa", prompt: "", boxes: [] }, boxes: [], tasks: [sendIt], writes: true };
     const sections = (filter) =>
       model.courseworkSections({
         columns: [{ weekNumber: 1 }],
@@ -451,8 +458,8 @@ describe("7. the model", () => {
         weekOf: () => week,
         personHref: (uid) => `/p/${uid}`,
         writtenHref: () => null,
-        // Fay and Zed submitted week 1; it has begun for everybody but Nia.
-        submittedOf: (uid) => uid === "f" || uid === "z",
+        // Fay and Zed pressed the old Submit for week 1 (Ana's answer waits, never sent); it has begun for everybody but Nia.
+        standingOf: (uid) => ({ submittedAt: uid === "f" || uid === "z" ? new Date("2026-11-02T20:00:00Z") : null, due: { at: null, by: "undated" } }),
         reachedOf: (person) => (person.uid === "n" ? 0 : 1),
         filter,
         notInAGroupTitle: "Nobody's",
@@ -460,7 +467,7 @@ describe("7. the model", () => {
     assert.deepEqual(sections({ group: "all", waiting: false, notDone: false }), [["One", ["Fay"]], ["Two", ["Ana", "Zed"]], ["Nobody's", ["Nia"]]]);
     assert.deepEqual(sections({ group: "all", waiting: true, notDone: false }), [["Two", ["Ana"]]]);
     assert.deepEqual(sections({ group: "none", waiting: false, notDone: false }), [["Nobody's", ["Nia"]]]);
-    // Not done: Ana has not submitted a week that has begun; Nia's has not begun, so is nobody's to chase yet.
+    // Not done: Ana's week has begun and is not done (nothing sent, the old Submit not pressed); Nia's has not begun, so is nobody's to chase yet.
     assert.deepEqual(sections({ group: "all", waiting: false, notDone: true }), [["Two", ["Ana"]]]);
     assert.deepEqual(sections({ group: "g1", waiting: false, notDone: true }), []);
     assert.deepEqual(sections({ group: "all", waiting: true, notDone: true }), [["Two", ["Ana"]]], "the filters combine");
@@ -687,6 +694,18 @@ describe("10. done, by the one meaning every page uses, and the Not done filter"
   /** The world: Chloe submitted weeks 1 and 3; week 4 has a pathway, and the run is in week 3. */
   function doneSeed() {
     const seed = courseworkSeed();
+    // This week's task covers part 1 of weeks 1 and 3 (its two reflection boxes), as a pasted week works out from its words.
+    for (const n of [1, 3]) {
+      const week = seed[`courseRuns/${RUN.agi}/weeks/w0${n}`];
+      seed[`courseRuns/${RUN.agi}/weeks/w0${n}`] = {
+        ...week,
+        blocks: week.blocks.map((block) =>
+          block.type === "thisWeek"
+            ? { ...block, rows: block.rows.map((row, index) => (row.type === "task" && index === 0 ? { ...row, covers: [`k${n}-p1`] } : row)) }
+            : block,
+        ),
+      };
+    }
     seed[`courseRuns/${RUN.agi}/weeks/w04`] = weekFour();
     seed[`courseWeekWork/${RUN.agi}__chloe__w01`] = submitted("chloe", 1, new Date("2026-11-02T20:00:00Z"));
     seed[`courseWeekWork/${RUN.agi}__chloe__w03`] = submitted("chloe", 3, new Date("2026-11-16T21:31:00Z"));
@@ -695,14 +714,17 @@ describe("10. done, by the one meaning every page uses, and the Not done filter"
   const rows = (view) => view.sections.flatMap((section) => section.rows);
   const names = async (query) => rowsOf(tableOf(await tab("zach", query))).map(([, name]) => name);
 
-  test("a cell leads with Done or Not done: submitted where the week asks for anything written, every tick it counts ticked, the pathway's own reading among them", () => {
+  test("a cell leads with Done or Not done: every tick it counts ticked, the pathway's own reading among them, and the old Submit pressed or everything written it counts written", () => {
     const four = model.courseworkWeekOf({ ...weekFour(), id: "w04" });
     assert.deepEqual(model.chooseOneIdsOf(four), ["k4-c1"]);
     assert.equal(four.writes, true);
-    const cell = (work, submittedNow) =>
-      model.cellOf(four, 4, { ...model.NO_WORK, ...work }, { person: "/p", written: null }, { submitted: submittedNow, reached: true }).done;
+    const standing = (submittedNow) => ({ submittedAt: submittedNow ? new Date("2026-11-20T09:00:00Z") : null, due: { at: null, by: "undated" }, reached: true });
+    const cell = (work, submittedNow) => model.cellOf(four, 4, { ...model.NO_WORK, ...work }, { person: "/p", written: null }, standing(submittedNow)).done;
     const all = { ticked: new Set(["k4-s1", "k4-pk1"]), packs: new Map([["k4-c1", "k4-pk1"]]) };
-    assert.equal(cell(all, false), false, "not submitted");
+    assert.equal(cell(all, false), false, "not submitted, and the reflection empty");
+    // The week stays open: its reflection written, it is done with no Submit at all.
+    assert.equal(cell({ ...all, reflections: new Set(["4 k4-rp1"]) }, false), true);
+    assert.equal(cell({ ticked: new Set(["k4-s1"]), packs: all.packs, reflections: new Set(["4 k4-rp1"]) }, false), false, "the pathway's reading still counts");
     assert.equal(cell(all, true), true);
     assert.equal(cell({ ...all, ticked: new Set(["k4-s1"]) }, true), false, "the pathway's reading is not ticked");
     assert.equal(cell({ ...all, ticked: new Set(["k4-s1", "k4-pk2"]) }, true), false, "another pack's reading ticked is not theirs");
@@ -711,10 +733,25 @@ describe("10. done, by the one meaning every page uses, and the Not done filter"
     // Submit anyway: the reflection left empty does not stop a week being done.
     assert.equal(cell({ ...all, reflections: new Set() }, true), true);
     // A week with only things to tick is done once they are ticked, and a week with nothing to count is never not done.
-    const ticksOnly = { ...four, writes: false };
-    assert.equal(model.cellOf(ticksOnly, 4, { ...model.NO_WORK, ...all }, { person: "/p", written: null }, { submitted: false, reached: true }).done, true);
+    const ticksOnly = { ...four, writes: false, tasks: four.tasks.map((needs) => ({ ...needs, promptIds: [], answerIds: [], fillInIds: [] })) };
+    assert.equal(model.cellOf(ticksOnly, 4, { ...model.NO_WORK, ...all }, { person: "/p", written: null }, standing(false)).done, true);
     const nothing = { ...four, writes: false, tasks: [] };
-    assert.equal(model.cellOf(nothing, 4, model.NO_WORK, { person: "/p", written: null }, { submitted: false, reached: true }).done, true);
+    assert.equal(model.cellOf(nothing, 4, model.NO_WORK, { person: "/p", written: null }, standing(false)).done, true);
+    // When it became done, told against the session: done late, with how late.
+    const late = model.cellOf(
+      four,
+      4,
+      {
+        ...model.NO_WORK,
+        ...all,
+        reflections: new Set(["4 k4-rp1"]),
+        tickedAt: new Map([["k4-s1", new Date("2026-11-18T10:00:00Z")], ["k4-pk1", new Date("2026-11-18T11:00:00Z")]]),
+        writtenAt: new Map([["4 k4-rp1", new Date("2026-11-19T20:00:00Z")]]),
+      },
+      { person: "/p", written: null },
+      { submittedAt: null, due: { at: new Date("2026-11-19T18:00:00Z"), by: "session" }, reached: true },
+    );
+    assert.deepEqual([late.done, late.doneAt, late.doneLateMs], [true, "2026-11-19T20:00:00.000Z", 2 * 60 * 60 * 1000]);
   });
 
   test("the tab: each cell's first line, a week still to come said quietly, and Not done keeps the people behind on a week that has begun", async () => {
@@ -725,11 +762,13 @@ describe("10. done, by the one meaning every page uses, and the Not done filter"
     const chloe = rows(view).find((row) => row.name === "Chloe Nguyen");
     assert.deepEqual(chloe.cells.map((cell) => [cell.weekNumber, cell.done, cell.reached]), [[1, true, true], [3, true, true], [4, false, false]]);
     assert.equal(chloe.notDone, false, "week 4 has not begun");
-    assert.deepEqual(cellOf(view, "Farah Hussain", 3).done, false);
+    // Farah's week 3 is done too now, with no Submit: both boxes its task counts are written. Kofi wrote neither.
+    assert.deepEqual(cellOf(view, "Farah Hussain", 3).done, true);
+    assert.deepEqual(cellOf(view, "Kofi Asante", 3).done, false);
     // Drawn: the first line of each cell, in its own words and tone, and said to a screen reader.
     assert.match(drawn.html, /aria-label="Week 3, done: Chloe Nguyen’s coursework"><span class="weekDone">Done<\/span>/);
     assert.match(drawn.html, /aria-label="Week 4, not done: Chloe Nguyen’s coursework"><span class="weekToCome">Not done<\/span>/);
-    assert.match(drawn.html, /aria-label="Week 3, not done: Farah Hussain’s coursework"><span class="weekNotDone">Not done<\/span>/);
+    assert.match(drawn.html, /aria-label="Week 3, not done: Kofi Asante’s coursework"><span class="weekNotDone">Not done<\/span>/);
     // Not done: everybody behind on week 1 or week 3, facilitators' own weeks and Tariq's included; never Chloe.
     const behind = await names({ notdone: "1" });
     assert.deepEqual(behind, (await names({})).filter((name) => name !== "Chloe Nguyen"));
@@ -763,9 +802,9 @@ describe("10. done, by the one meaning every page uses, and the Not done filter"
     chloe = rows(tableOf(await tab("claudia"))).find((row) => row.name === "Chloe Nguyen");
     assert.deepEqual([chloe.cells.find((cell) => cell.weekNumber === 4).done, chloe.notDone], [true, false]);
     assert.ok(!(await names({ notdone: "1" })).includes("Chloe Nguyen"));
-    // A reopened week is not submitted: Chloe is behind again until she submits it again.
+    // A stored reopen from when weeks locked changes nothing: she stays done, and off the filter.
     w.world.db.poke(`courseWeekWork/${RUN.agi}__chloe__w04`, { submittedAt: null, reopenedAt: new Date("2026-11-20T11:00:00Z"), reopenedByUid: "rahul" });
-    assert.ok((await names({ notdone: "1" })).includes("Chloe Nguyen"));
+    assert.ok(!(await names({ notdone: "1" })).includes("Chloe Nguyen"));
   });
 
   test("the words: Done and Not done, sentence case, and never a mark, a grade or a score", () => {

@@ -3,19 +3,22 @@
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
- * ## The rule this guards (privacy v15, "Changing your work")
+ * ## The rule this guards (privacy v17, "Changing your work")
  *
  * "A written answer is yours until you send it: until then they see only that
- * you have started it, never what it says, and if your week locks before you
- * send it, they may then read what you wrote." Since weeks are submitted, an
- * answer is sent by submitting its week, and the one answer to whether its
- * readers may read it is `workIsReadable` (`src/lib/courses/weekWork/model.ts`):
- * the week submitted or locked, or the answer sent before weeks were
- * submitted. The class of failure is a reader that hands a facilitator, the
- * lead, an admin or Claude the words of a draft: one more page, queue or
- * export that reads the answers store and forgets to ask.
+ * you've started it. Once the session it's due at has started, they may read
+ * what you've written so far, sent or not." The week stays open: an answer
+ * has its own Send, may be changed and sent again, and before the session its
+ * readers read it as LAST SENT. The one answer to which of its words they may
+ * read is `readableAnswer` (`src/lib/courses/weekWork/versions.ts`): null
+ * before the session for an answer never sent, the words as last sent before
+ * it, the latest once it has started. The class of failure is a reader that
+ * hands a facilitator, the lead, an admin or Claude the words of a draft, or
+ * of a change not sent yet: one more page, queue or export that reads the
+ * answers store and forgets to ask, or asks and then reads the row's own
+ * latest words instead of the words it was handed.
  *
- * Reflections and fill-in boxes are read as they are typed, as v15 says, and
+ * Reflections and fill-in boxes are read as they are typed, as v17 says, and
  * are not this guard's.
  *
  * ## How it is held
@@ -26,7 +29,7 @@
  * with a written answer's words:
  *
  *  - `others`: it reads, counts as waiting, or hands on the words of
- *    somebody other than the caller. Its code asks `workIsReadable(`.
+ *    somebody other than the caller. Its code asks `readableAnswer(`.
  *  - `own`: it reads the caller's own rows only, by their own uid, and says
  *    which literal shows it.
  *  - `no-words`: it never reads a written answer's words for anybody: it
@@ -66,7 +69,7 @@ const READERS = {
   // ---- others: each asks workIsReadable ------------------------------------
   "lib/courses/writtenAnswers/reviewPage.ts": {
     treats: "others",
-    why: "the review page: an answer is listed to give feedback on, opened and shown with its count only once its readers may read it",
+    why: "the review page: an answer is listed to give feedback on, opened and shown with its count only as its readers may read it, as last sent before the session",
   },
   "lib/courses/writtenAnswers/queue.ts": {
     treats: "others",
@@ -74,21 +77,26 @@ const READERS = {
   },
   "lib/courses/facilitatorWeek/readers.ts": {
     treats: "others",
-    why: "the Coursework tab and one person's page: an answer's words, count and feedback only once its readers may read it, its state otherwise",
+    why: "the Coursework tab and one person's page: an answer's words, count and feedback only as its readers may read it, its state otherwise",
   },
   "lib/courses/coursework/gather.ts": {
     treats: "others",
-    why: "Claude, Pangram, the notes draft and best answers: a written answer is gathered only once its readers may read it",
+    why: "Claude, Pangram, the notes draft and best answers: a written answer is gathered only as its readers may read it, never a change not sent yet before the session",
   },
   "lib/courses/feedback/access.ts": {
     treats: "others",
-    why: "feedback is saved only on work its readers may read, asked inside the save's transaction; the words are never read out or sent back",
+    why: "feedback and ratings are saved only on work its readers may read, asked inside the save's transaction, which says which version they read; the words are never read out or sent back",
   },
   // ---- own: the caller's own rows only -------------------------------------
   "app/api/courses/runs/[runId]/my-exercises/route.ts": { treats: "own", proof: "actor.uid", why: "the person's own rows on their own week page, by their own uid" },
   "app/api/courses/runs/[runId]/overview/route.ts": { treats: "own", proof: "actor.uid", why: "the caller's own rows, for This week's count and their answer's line, by their own uid" },
   "app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts": { treats: "own", proof: "actor.uid", why: "the writer's own route: it writes their own answer, at an id built from their own uid" },
-  "app/api/courses/runs/[runId]/weeks/[weekId]/submit/route.ts": { treats: "own", proof: "actor.uid", why: "Submit stamps the caller's own answers as sent, never reading their words out" },
+  "app/api/courses/runs/[runId]/weeks/[weekId]/submit/route.ts": { treats: "own", proof: "actor.uid", why: "the old Submit stamps the caller's own answers as sent, never reading their words out" },
+  "app/api/courses/runs/[runId]/written-answers/[answerId]/send/route.ts": {
+    treats: "own",
+    proof: "actor.uid",
+    why: "the answer's own Send stamps the caller's own answer as sent, at an id built from their own uid, and echoes it to them alone",
+  },
   // ---- no-words: never a written answer's words ------------------------------
   "app/api/courses/exercise-responses/[responseId]/review/route.ts": { treats: "no-words", why: "a verdict on a summer exercise answer; a written answer reads as no row" },
   "app/api/courses/groups/[groupId]/exercises/route.ts": { treats: "no-words", why: "the summer's review queue; written answers and boxes are left out" },
@@ -100,7 +108,6 @@ const READERS = {
   "app/api/courses/runs/[runId]/normalise-weeks/route.ts": { treats: "no-words", why: "refuses to renumber weeks that have any answers, by count" },
   "app/api/courses/runs/[runId]/reflections/[promptId]/route.ts": { treats: "no-words", why: "a reflection's writer: never a written answer" },
   "app/api/courses/runs/[runId]/reflections/route.ts": { treats: "no-words", why: "the one reader of somebody's reflections, read as typed as v15 says: never a written answer" },
-  "app/api/courses/runs/[runId]/weeks/[weekId]/reopen/route.ts": { treats: "no-words", why: "reopening clears an opened answer's lock, reading only whether it was opened" },
   "lib/courses/facilitatorGroup.ts": { treats: "no-words", why: "a facilitator's To review card counts the summer's answers sent" },
   "lib/courses/finishing/whoFinished.ts": { treats: "no-words", why: "who finished counts written answers sent, by their first-sent time, never their words" },
   "lib/courses/weekPaste.ts": { treats: "no-words", why: "a paste counts the rows on the items it would take out, never their words" },
@@ -146,7 +153,7 @@ test("every entry says what it does with a written answer's words, and why", () 
 for (const [file, entry] of Object.entries(READERS)) {
   if (entry.treats === "others") {
     test(`${file} asks whether a written answer may be read`, () => {
-      assert.match(codeOf(join(SRC, file)), /\bworkIsReadable\(/, `${file} reads somebody's written answer and never asks workIsReadable`);
+      assert.match(codeOf(join(SRC, file)), /\breadableAnswer\(/, `${file} reads somebody's written answer and never asks readableAnswer`);
     });
   }
   if (entry.treats === "own") {
@@ -173,17 +180,28 @@ test("the readers of somebody else's words are the five that review, queue, read
   );
 });
 
-test("the one answer: submitted or locked, or sent before weeks were submitted, and never while open or reopened otherwise", () => {
-  const model = codeOf(join(SRC, "lib", "courses", "weekWork", "model.ts"));
+test("the one answer: as last sent before the session, the latest once it has started, and nothing never sent before it", () => {
+  const versions = codeOf(join(SRC, "lib", "courses", "weekWork", "versions.ts"));
   assert.match(
-    model,
-    /export function workIsReadable\(state: WeekWorkState, answer: \{ firstSentAt: Date \| null \} \| null\): boolean \{\s*if \(state\.kind === "submitted" \|\| state\.kind === "locked"\) return true;\s*return state\.kind === "open" && answer\?\.firstSentAt != null;\s*\}/,
+    versions,
+    /export function readableAnswer\(piece: PieceFacts \| null, dueAt: Date \| null, now: Date\): ReadVersion \| null \{\s*if \(!piece\) return null;\s*if \(sessionStartedAt\(dueAt, now\)\) return latestOf\(piece\);\s*const sent = lastSentAt\(piece\);\s*if \(sent === null\) return null;/,
   );
-  // The words leave the person's page only once they may be read: the gated readers hand on nothing else.
+  // Before the session, a change since the last send is not read: the version kept as sent is.
+  assert.match(versions, /if \(keptAsSent && keptAsSent\.replacedAt\.getTime\(\) > sent\.getTime\(\)\) return readOf\(keptAsSent\);/);
+  // The words leave the person's page only as they may be read: the gated readers hand on nothing else.
   const readers = codeOf(join(SRC, "lib", "courses", "facilitatorWeek", "readers.ts"));
-  assert.match(readers, /text: readable \? record\.text : "",/);
-  assert.match(readers, /boxes: readable \? record\.boxes : null,/);
+  assert.match(readers, /const read = readableAnswer\(piece, due\.at, on\.now\);/);
+  assert.match(readers, /text: read\?\.text \?\? "",/);
+  assert.match(readers, /boxes: read\?\.boxes \?\? null,/);
   const review = codeOf(join(SRC, "lib", "courses", "writtenAnswers", "reviewPage.ts"));
-  assert.match(review, /words: readable \? \(record\?\.words \?\? 0\) : 0,/);
+  assert.match(review, /const read = record \? readableAnswer\(answerPiece\(record\), due\.at, now\) : null;/);
+  assert.match(review, /words: readable \? \(read\?\.words \?\? 0\) : 0,/);
   assert.match(review, /if \(chosen && answer && chosen\.readable\) \{/);
+  // The answer shown is the words handed back, never the row's own latest words.
+  assert.match(review, /text: shown\?\.text \?\? "",/);
+  assert.match(review, /boxes: shown\?\.boxes \?\? null,/);
+  assert.doesNotMatch(review, /text: record\?\.text/, "the review page shows the row's latest words, sent or not");
+  // Claude and Pangram are handed the words as read, never the row's own.
+  const gather = codeOf(join(SRC, "lib", "courses", "coursework", "gather.ts"));
+  assert.match(gather, /rows\.push\(\{ id: doc\.id, uid, question, data: read \? \{ \.\.\.data, text: read\.text, boxes: read\.boxes \?\? undefined \} : data \}\);/);
 });

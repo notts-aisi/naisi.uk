@@ -438,7 +438,7 @@ describe("4. This week's work and the review queue's counts", () => {
       assert.equal(queueOf(drawn).href, `${RUN_HOME}/group/${B}/reflections?week=3`);
       assert.match(drawn.text, /Review queue Reflections Part 1, 2 of 3 · Part 2, 1 of 3 · Part 3, 0 of 3 Read them/);
       // The head says when the group's week locks, and the week's own column where each person's week stands (the week you submit).
-    assert.match(drawn.text, /This week’s work Week 3 · Thu 12 to Wed 18 Nov · Locks Tue 6pm Name Part 1 reflection Part 2 reflection Part 3 reflection Week 3 CN Chloe Nguyen Written Not yet Not yet Started/);
+    assert.match(drawn.text, /This week’s work Week 3 · Thu 12 to Wed 18 Nov · Meets Tue 6pm Name Part 1 reflection Part 2 reflection Part 3 reflection Week 3 CN Chloe Nguyen Written Not yet Not yet Started/);
       // The phone's lines, as the facilitator's group page draws them.
       assert.match(drawn.text, /FH Farah Hussain Reflections Part 1 written · part 2 written · part 3 not yet Week 3 Started KA Kofi Asante Reflections Not yet/);
       assert.match(drawn.text, /Facilitators’ own work is for Claudia and admins to read, so it isn’t listed here\./);
@@ -479,7 +479,7 @@ describe("4. This week's work and the review queue's counts", () => {
     const asFacilitator = await groupPage("sofia");
     assert.deepEqual(weekOf(asFacilitator).rows, []);
     assert.equal(queueOf(asFacilitator), null);
-    assert.match(asFacilitator.text, /This week’s work Week 3 · Thu 12 to Wed 18 Nov · Locks Tue 6pm You’ll see your group’s names when groups go out\./);
+    assert.match(asFacilitator.text, /This week’s work Week 3 · Thu 12 to Wed 18 Nov · Meets Tue 6pm You’ll see your group’s names when groups go out\./);
     const asAdmin = await groupPage("zach");
     assert.deepEqual(weekOf(asAdmin).rows.map(said), ["Chloe Nguyen", "Farah Hussain", "Kofi Asante", "Rahul Mehta (facilitator)", "Sofia Rossi (facilitator)"]);
     assert.ok(queueOf(asAdmin));
@@ -792,7 +792,8 @@ describe("9. the tree", () => {
     const asked = person.indexOf("if (!privateNotesOf(viewer, person)) return null;");
     assert.ok(asked !== -1 && person.indexOf("readPrivateNotes(db, runId, week.weekNumber, readable, week.sourceIds)") > asked, "a person's page reads a note before asking whose notes the viewer reads");
     // The run-wide read for the Coursework tab and a person's page: ticks through a projection with no note.
-    assert.match(code, /db\.collection\("courseProgress"\)\.where\("runId", "==", runId\)\.select\("uid", "itemId", "completed"\)\.get\(\)/);
+    // The run-wide read for the Coursework tab and a person's page: ticks and when, through a projection with no note.
+    assert.match(code, /db\.collection\("courseProgress"\)\.where\("runId", "==", runId\)\.select\("uid", "itemId", "completed", "completedAt"\)\.get\(\)/);
     assert.match(code, /if \(!isReflectionResponse\(data\) \|\| data\.runId !== runId\) continue;/);
     // The page to read lines out reads reflections, never a note.
     const readOut = code.slice(code.indexOf("export async function loadReadOutWeek("));

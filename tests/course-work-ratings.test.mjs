@@ -73,7 +73,7 @@ async function weekTwoWritten() {
 }
 
 /** Every field a stored rating holds, and nothing else. */
-const RATING_FIELDS = ["comment", "createdAt", "itemId", "programmeLabel", "raterRole", "raterUid", "rating", "runId", "uid", "updatedAt", "weekId", "weekNumber"];
+const RATING_FIELDS = ["aboutSavedAt", "comment", "createdAt", "itemId", "programmeLabel", "raterRole", "raterUid", "rating", "runId", "uid", "updatedAt", "weekId", "weekNumber"];
 
 const ratingsOf = (uid) => w.workRatings().filter((rating) => rating.uid === uid);
 const ratingPath = (uid, n, raterUid) => `courseWorkRatings/${record.courseWorkRatingId(RUN.agi, uid, `w0${n}`, raterUid)}`;
@@ -116,6 +116,8 @@ describe("1. rating an answer: admins and the programme's lead, on readable work
       },
     );
     assert.ok(stored.createdAt instanceof Date && stored.updatedAt instanceof Date, "a rating keeps when it was given and last changed");
+    // Which version of the answer it was about: the words as sent.
+    assert.deepEqual(stored.aboutSavedAt, w.world.db.read(w.rowPath("chloe", 2)).updatedAt);
     assert.deepEqual(Object.keys(stored).sort(), RATING_FIELDS, "a rating stores something else");
     assert.equal(w.world.mail.length, 0, "a rating emails nobody");
     // Nothing of it reaches the feedback the person reads.
@@ -168,21 +170,26 @@ describe("1. rating an answer: admins and the programme's lead, on readable work
     assert.deepEqual(ratingsOf("rahul").map((rating) => rating.raterRole).sort(), ["admin", "lead"]);
   });
 
-  test("only readable work: not a draft in an open week, not a week reopened; the session's lock opens a draft to its readers", async () => {
+  test("only readable work: not a draft before the session; the session opens a draft to its readers; a changed answer is rated as read, and keeps the rated words", async () => {
     await w.write("kofi", 3, { boxes: { "wb-what": "Light the lamp.", "wb-who": "", "wb-next": "" } });
     const draft = await w.rate("zach", "kofi", 3, 4, "Too soon.");
     assert.deepEqual([draft.status, draft.body.error], [409, words.NOT_READABLE_YET]);
-    // Group B's session locks the week: Kofi's draft may now be read, and rated.
+    // Group B's session starts: Kofi's draft may now be read, and rated.
     w.at(B_MEETS_3);
     assert.equal((await w.rate("zach", "kofi", 3, 4, "On what was there.")).status, 200);
-    // A week reopened is unsent again, and takes no rating; the rating already given stays.
+    // A rating on words that then change: the change keeps the rated words, and the rating points at them.
     w.at(NOW);
     await weekTwoWritten();
-    assert.equal((await w.rate("zach", "chloe", 2, 8, "Before the reopen.")).status, 200);
-    assert.equal((await w.reopenWeek("rahul", "chloe", 2)).status, 200);
-    const reopened = await w.rate("zach", "chloe", 2, 3, "Not yet.");
-    assert.deepEqual([reopened.status, reopened.body.error], [409, words.NOT_READABLE_YET]);
-    assert.equal(w.world.db.read(ratingPath("chloe", 2, "zach")).rating, 8, "a reopen keeps the rating given");
+    assert.equal((await w.rate("zach", "chloe", 2, 8, "Before the change.")).status, 200);
+    const rated = w.world.db.read(ratingPath("chloe", 2, "zach"));
+    assert.equal((await w.reopenWeek("rahul", "chloe", 2)).status, 200, "the old Reopen changes nothing");
+    w.at("2026-11-17T13:00:00Z");
+    assert.equal((await w.write("chloe", 2, { text: sentence(26) })).status, 200);
+    const row = w.world.db.read(w.rowPath("chloe", 2));
+    const kept = row.earlierVersions.find((version) => new Date(version.savedAt).getTime() === rated.aboutSavedAt.getTime());
+    assert.ok(kept, "the rated words are kept");
+    assert.ok(kept.reasons.includes("feedback"));
+    assert.equal(w.world.db.read(ratingPath("chloe", 2, "zach")).rating, 8, "a change keeps the rating given");
   });
 
   test("a written answer with no words takes no rating", async () => {

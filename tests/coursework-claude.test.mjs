@@ -51,7 +51,7 @@ import { after, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { CASCADE_FIRESTORE_STUB, makeCascadeDb } from "./lib/cascadeStore.mjs";
-import { makeFacilitatorPagesWorld } from "./lib/facilitatorPagesWorld.mjs";
+import { A, makeFacilitatorPagesWorld } from "./lib/facilitatorPagesWorld.mjs";
 import { AGI, NOTED, NOW, ROUND, RUN, SAID, facilitatorWeekSeed, reflection } from "./lib/facilitatorWeekWorld.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
 
@@ -600,11 +600,11 @@ describe("Pangram on coursework: admins only, counted answers of 50 words or mor
 // 4b. A written answer is gathered only once its readers may read it
 // ---------------------------------------------------------------------------
 
-describe("the gatherer takes a written answer only once its readers may read it (privacy v15)", () => {
+describe("the gatherer takes a written answer only as its readers may read it (privacy v17)", () => {
   const WEEK_THREE = `courseRuns/${RUN.agi}/weeks/w03`;
   const ANSWER = `courseExerciseResponses/${RUN.agi}__amara__w03__k3-wa`;
   const WEEK_WORK = `courseWeekWork/${RUN.agi}__amara__w03`;
-  /** Wed 11 Nov at 10am: Group A meets for week 3 on Thu 12 Nov at 6pm, so Amara's week 3 is open. */
+  /** Wed 11 Nov at 10am: Group A meets for week 3 on Thu 12 Nov at 6pm, so Amara's session has not started. */
   const WEEK_OPEN = "2026-11-11T10:00:00Z";
   const GATHERED = [["written", `${RUN.agi}__amara__w03__k3-wa`]];
 
@@ -662,7 +662,7 @@ describe("the gatherer takes a written answer only once its readers may read it 
     assert.equal(await planned(), false);
   });
 
-  test("submitted, it is gathered; reopened, it is its writer's again until it is submitted or the next session locks it", async () => {
+  test("sent, it is gathered; a stored reopen changes nothing; changed and not sent again, it is gathered as sent until the session, then as it stands", async () => {
     const at = new Date("2026-11-10T21:00:00Z");
     reset({
       [WEEK_THREE]: weekThreeWithAnswer(),
@@ -672,22 +672,34 @@ describe("the gatherer takes a written answer only once its readers may read it 
     w.at(WEEK_OPEN);
     assert.deepEqual((await gathered()).parts, GATHERED);
     assert.equal(await planned(), true);
-    // Reopened at 10am: unsent again, so gathered no more.
+    // A reopen stored from when weeks locked changes nothing: it was sent, so it is gathered still.
     w.world.db.poke(WEEK_WORK, { submittedAt: null, reopenedAt: new Date(WEEK_OPEN), reopenedByUid: "sofia" });
-    assert.deepEqual((await gathered()).parts, []);
-    assert.equal(await planned(), false);
-    // Group A's session locks it again, and its readers may read it.
+    assert.deepEqual((await gathered()).parts, GATHERED);
+    assert.equal(await planned(), true);
+    // Changed after it was sent, before the session: the words as sent are what is gathered, never the change.
+    const CHANGED = `${LONG} And a change nobody has been sent.`;
+    w.world.db.poke(ANSWER, {
+      text: CHANGED,
+      updatedAt: new Date(WEEK_OPEN),
+      earlierVersions: [{ text: LONG, words: LONG.split(/\s+/).length, savedAt: AFTER, replacedAt: new Date(WEEK_OPEN), sentAt: at, reasons: ["sent"] }],
+    });
+    const gather = await w.loadTs(join("lib", "courses", "coursework", "gather.ts"));
+    const weeks = await gather.loadRunWeeks(w.world.db, RUN.agi, [A]);
+    const textOf = async () => (await gather.loadAnswers(w.world.db, RUN.agi, weeks, new Set(["amara"]))).find((each) => each.kind === "written")?.text;
+    assert.equal(await textOf(), LONG.trim());
+    // Group A's session has started: its readers read it as it stands, and so does the gatherer.
     w.at("2026-11-12T18:00:00Z");
+    assert.equal(await textOf(), CHANGED.trim());
     assert.deepEqual((await gathered()).parts, GATHERED);
   });
 
-  test("locked at the session before it was submitted, it is gathered whether it was sent or not", async () => {
+  test("once the session has started, it is gathered whether it was sent or not", async () => {
     reset({ [WEEK_THREE]: weekThreeWithAnswer(), [ANSWER]: answer() });
     // The world's own clock: Group A met for week 3 on Thursday.
     assert.deepEqual((await gathered()).parts, GATHERED);
   });
 
-  test("an answer sent before weeks were submitted stays gathered while its week is open", async () => {
+  test("an answer sent before weeks were submitted stays gathered before its session", async () => {
     reset({ [WEEK_THREE]: weekThreeWithAnswer(), [ANSWER]: answer({ firstSentAt: AFTER, submittedAt: AFTER }) });
     w.at(WEEK_OPEN);
     assert.deepEqual((await gathered()).parts, GATHERED);

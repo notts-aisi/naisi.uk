@@ -206,21 +206,19 @@ export function listSentWords(at: Date): string {
   return `Submitted ${dayAndClockWords(at)}`;
 }
 
-/** "Locked Wed 18 Nov, 3pm, not submitted": an answer its readers may read because its week locked first. */
+/** "Not sent, read since the session, Wed 18 Nov, 3pm": an answer its readers may read because the session started before it was sent. */
 export function listLockedWords(at: Date): string {
-  return `Locked ${dayAndClockWords(at)}, not submitted`;
+  return `Not sent, read since the session, ${dayAndClockWords(at)}`;
 }
 
 /**
- * The review page's line under an answer, from where its week stands:
- * "Submitted Tue 17 Nov, 9:31pm, so Amara can’t change it now.", "Locked
- * when the session started, Wed 18 Nov, 3pm. Amara didn’t submit it.", or,
- * for an answer sent before weeks were submitted, that it can still change.
+ * The review page's line under an answer (the week stays open): "Amara can
+ * change it until the programme closes. Before the session you read it as
+ * last sent; from the session, as it stands." `week` is read by nothing now:
+ * nothing is submitted, locked or reopened any more.
  */
-export function reviewWeekLineWords(week: { state: string; at: string | null }, firstName: string): string {
-  if (week.state === "submitted" && week.at) return `Submitted ${dayAndClockWords(new Date(week.at))}, so ${firstName} can’t change it now.`;
-  if (week.state === "locked" && week.at) return `Locked when the session started, ${dayAndClockWords(new Date(week.at))}. ${firstName} didn’t submit it.`;
-  return `Sent before weeks were submitted: ${firstName} can still change it until the week is submitted or locks.`;
+export function reviewWeekLineWords(_week: { state: string; at: string | null }, firstName: string): string {
+  return `${firstName} can change it until the programme closes. Before the session you read it as last sent; from the session, as it stands.`;
 }
 
 /** "By Sofia", "By you and Claudia": who left feedback on it, each once. */

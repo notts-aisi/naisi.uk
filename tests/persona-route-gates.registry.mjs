@@ -2886,18 +2886,19 @@ export const ROUTES = {
     POST: {
       expect: signedIn(400),
       why:
-        "Submitting one's own week: view-as is refused first, then the session, then the body is checked " +
-        "before anything is read (it must say to submit), so every signed-in persona meets the same 400 on " +
-        "an empty one. Once a valid body arrives the caller's own seat decides.",
+        "The week's old Submit, kept for a page open since before the week stayed open: view-as is refused " +
+        "first, then the session, then the body is checked before anything is read (it must say to submit), " +
+        "so every signed-in persona meets the same 400 on an empty one. Once a valid body arrives the caller's own seat decides.",
     },
   },
   "/api/courses/runs/[runId]/weeks/[weekId]/reopen": {
     POST: {
       expect: signedIn(400),
       why:
-        "Reopening somebody's week: view-as is refused first, then the session, then the body is checked " +
-        "before anything is read (whose week), so every signed-in persona meets the same 400 on an empty " +
-        "one. The one gate on whose work a reader may act on is asked once a valid body arrives.",
+        "The old Reopen, which writes nothing now (weeks stay open): view-as is refused first, then the " +
+        "session, then the body is checked before anything is read (whose week), so every signed-in persona " +
+        "meets the same 400 on an empty one. The one gate on whose work a reader may act on is asked once a " +
+        "valid body arrives, and answers as it always did.",
     },
   },
   "/api/courses/runs/[runId]/weeks/[weekId]/ready": {
@@ -2956,6 +2957,16 @@ export const ROUTES = {
         "read (which week, and the answer as text or as boxes), so every signed-in persona meets the " +
         "same 400 on an empty one. The caller's own seat, or a group they facilitate, is asked once a " +
         "valid body arrives.",
+    },
+  },
+  "/api/courses/runs/[runId]/written-answers/[answerId]/send": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Sending one's own written answer (the week stays open): view-as is refused first, then the " +
+        "session, then the body is checked before anything is read (which week), so every signed-in " +
+        "persona meets the same 400 on an empty one. The caller's own seat, or a group they facilitate, " +
+        "is asked once a valid body arrives, and nobody sends anybody else's.",
     },
   },
   "/api/courses/runs/[runId]/feedback": {
@@ -6792,6 +6803,9 @@ export const REAL_ROUTES = {
   },
   "/api/courses/runs/[runId]/written-answers/[answerId]": {
     PUT: seatWrite("writing a written answer", { weekId: "w01", text: "Written by the persona battery." }),
+  },
+  "/api/courses/runs/[runId]/written-answers/[answerId]/send": {
+    POST: seatWrite("sending a written answer", { weekId: "w01" }),
   },
   "/api/courses/runs/[runId]/feedback": {
     POST: bodyFirst("Then the one gate on whose work it is, asked before anything of theirs is read."),

@@ -203,16 +203,19 @@ export async function gatherWeekReview(db: Firestore, opened: WeekReviewDoor, no
   const started = await loadPeopleWeekFacts(db, { runId: run.id, weekNumber, blocks: opened.blocks, uids: [...fellows] });
   const tasks = weekTaskNeeds(opened.blocks);
   /**
-   * Not done by the session they were due at, once it has started (what a
-   * week that locked before it was submitted used to say): "locked" to the
-   * facts, "open" otherwise.
+   * Not finished by the session they were due at, once it has started (what
+   * a week that locked before it was submitted used to say): "locked" to the
+   * facts, "open" otherwise. Pressing the old Submit before the session
+   * counts as finished, as it always did; otherwise the week done by then.
    */
   const standingOf = (uid: string): "open" | "locked" => {
     const due = states.dueOf(uid, weekNumber);
     if (!sessionHasStarted(due, now) || !due.at) return "open";
+    const submittedAt = states.submittedOf(uid, weekNumber);
+    if (submittedAt && submittedAt.getTime() <= due.at.getTime()) return "open";
     const own = started.get(uid);
     if (!own) return "locked";
-    const progress = personWeekProgress({ tasks, state: own.state, times: own.times, submittedAt: states.submittedOf(uid, weekNumber), touched: own.touched });
+    const progress = personWeekProgress({ tasks, state: own.state, times: own.times, submittedAt, touched: own.touched });
     return progress.weekDone && progress.doneAt !== null && progress.doneAt.getTime() <= due.at.getTime() ? "open" : "locked";
   };
   const metGroups = new Set(opened.groups.filter((each) => each.met).map((each) => each.group.id));

@@ -498,6 +498,11 @@ describe("3. the words", () => {
     assert.deepEqual(words.personWeekWords({ progress: done, doneAt: done.doneAt, due }), { text: "Done on time", detail: null });
     assert.deepEqual(words.personWeekWords({ progress: done, doneAt: at("2026-11-20T18:00:00Z"), due }), { text: "Done late", detail: "Late: 3 days after the session" });
     assert.deepEqual(words.personWeekWords({ progress: done, doneAt: done.doneAt, due: { at: null, by: "undated" } }), { text: "Done", detail: null });
+    assert.deepEqual(words.personWeekWords({ progress: done, doneAt: null, due }), { text: "Done", detail: null }, "no time to tell it by");
+    // A week with nothing to count is never said to be done: how far along, as before.
+    const nothingCounted = { done: 0, of: 0, weekDone: true, doneAt: null, started: true };
+    assert.deepEqual(words.personWeekWords({ progress: nothingCounted, doneAt: null, due }), { text: "Started", detail: null });
+    assert.equal(words.personWeekTone({ progress: nothingCounted, doneAt: null, due }), "partly");
     assert.deepEqual(words.personWeekWords({ progress: some, doneAt: null, due }), { text: "2 of 3 done", detail: null });
     assert.deepEqual(words.personWeekWords({ progress: { ...some, done: 0 }, doneAt: null, due }), { text: "Started", detail: null });
     assert.deepEqual(words.personWeekWords({ progress: { ...some, done: 0, started: false }, doneAt: null, due }), { text: "Not started", detail: null });

@@ -12,10 +12,11 @@
  *     due from 9am on its day until twelve hours later and never once the
  *     session has started; either side of the clocks going back.
  *  2. ONLY THE PEOPLE WHOSE WEEK IS NOT DONE. "Done" is the one meaning
- *     (`weekDone`): submitted, and every reading its tasks count ticked.
- *     Somebody who finishes after the 3-day reminder is not sent the 1-day
- *     one. A week submitted with a reading left unticked takes no more work,
- *     and is not reminded about.
+ *     (`weekDone`): every reading its tasks count ticked, and the old Submit
+ *     pressed or everything written it counts written and sent. Somebody who
+ *     finishes after the 3-day reminder is not sent the 1-day one. A week
+ *     submitted with a reading left unticked still takes work (the week stays
+ *     open), so it is reminded about, for that reading alone.
  *  3. ONE MARKER EACH. A claim per person per reminder, stamped with why
  *     nobody was mailed when nobody was; two ticks at once send once; a
  *     reminder too late to be worth sending is stamped stale, once.
@@ -263,11 +264,15 @@ describe("2. only the people whose week is not done", () => {
     assert.equal(mailTo("farah").length, 2, "and the others still get theirs");
   });
 
-  test("a week submitted with a reading left unticked takes no more work: no reminder, stamped submitted", async () => {
+  test("a week submitted with a reading left unticked still takes work: the reminder names the reading, never that it is not submitted", async () => {
     await finishWeek("farah", 2, { tickBoth: false });
     await runJob(DUE.b2three);
-    assert.equal(mailTo("farah").length, 0);
-    assert.equal(marker("farah", 3).skippedReason, "submitted");
+    const [message] = mailTo("farah");
+    assert.ok(message, "the week stays open, and is not done");
+    assert.ok(marker("farah", 3).sentAt, "the marker says it was sent");
+    const text = await textOf(message);
+    assert.match(text, /Week 2 isn’t finished yet: \* One reading isn’t ticked: “Who keeps the lamps”\./);
+    assert.doesNotMatch(text, /Week 2 isn’t submitted\./, "the old Submit was pressed");
   });
 
   test("the reminder lists what is left, the check's own lines, and that the week is not submitted", async () => {

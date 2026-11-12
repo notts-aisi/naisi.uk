@@ -293,9 +293,9 @@ async function serverPage(file, params, who, searchParams = {}) {
   try {
     const element = await page({ params: Promise.resolve(params), searchParams: Promise.resolve(searchParams) });
     const html = renderToStaticMarkup(element);
-    return { html, text: textOf(html), to: null };
+    return { element, html, text: textOf(html), to: null };
   } catch (err) {
-    if (err?.message === "NEXT_REDIRECT") return { html: "", text: "", to: err.to };
+    if (err?.message === "NEXT_REDIRECT") return { element: null, html: "", text: "", to: err.to };
     throw err;
   } finally {
     world.course = false;
@@ -610,10 +610,11 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
 
   test("everybody the reflection route lets write in week 1 is answered their own boxes back, after Publish", async () => {
     const rows = await writersAndReaders();
-    // Admitted, as before Publish; but week 1 locked for Group A when it met on Thu 29 Oct, Sofia's
-    // earlier group, so Dev, Tariq and Sofia are refused as locked (409), never as somebody not taking part.
+    // Admitted, as before Publish. Week 1 met for Group A on Thu 29 Oct, Sofia's earlier group, and the week
+    // stays open until the programme closes, so Dev, Tariq and Sofia write too (late), never refused.
     assert.deepEqual(rows.filter((row) => row.wrote !== 403).map((row) => row.who), ["amara", "bea", "dev", "tariq", "rahul", "sofia", "tom"]);
-    assert.deepEqual(rows.filter((row) => row.wrote === 409).map((row) => row.who), ["dev", "tariq", "sofia"]);
+    assert.deepEqual(rows.filter((row) => row.wrote === 409).map((row) => row.who), []);
+    assert.deepEqual(rows.filter((row) => row.wrote !== 403 && row.wrote !== 200).map((row) => row.who), [], "nobody admitted is refused");
     assert.deepEqual(rows.filter((row) => row.wrote === 200 && row.read !== 200), []);
   });
 
@@ -802,12 +803,16 @@ describe("4. week 2 (Group B meets on Tue 10 Nov): a written answer, sent and gi
     assert.match(counts.pages.programme.text, /Done: Your written answer Submitted Sun 8 Nov/);
   });
 
-  test("Amara's submitted week is locked, and Rahul saves feedback on it: nobody is emailed, until an admin's batch sends one email with no comment in it", async () => {
+  test("Amara's submitted week still takes work, and Rahul saves feedback on it: nobody is emailed, until an admin's batch sends one email with no comment in it", async () => {
     at("2026-11-09T10:00:00Z");
     const answer = stored(2).answers[0];
     world.mail.length = 0;
-    const locked = await asCourse("amara", routes.written.PUT, { runId: RUN.agi, answerId: answer.id }, { weekId: "w02", text: words(230) });
-    assert.equal(locked.status, 409);
+    // The week stays open after the old Submit: a save goes through (the same words here, so nothing is written).
+    const path = `courseExerciseResponses/${RUN.agi}__amara__w02__${answer.id}`;
+    const before = JSON.stringify(world.db.read(path));
+    const open = await asCourse("amara", routes.written.PUT, { runId: RUN.agi, answerId: answer.id }, { weekId: "w02", text: words(220) });
+    assert.equal(open.status, 200, JSON.stringify(open.body));
+    assert.equal(JSON.stringify(world.db.read(path)), before, "a save that changes nothing writes nothing");
     const comment = "A lighthouse view anyone could argue with.";
     // Feedback is a comment: levels sent beside it are never stored.
     ok(await asCourse("rahul", routes.feedback.POST, { runId: RUN.agi }, { uid: "amara", weekId: "w02", on: "writtenAnswer", itemId: answer.id, text: comment, levels: LEVELS }), "feedback");
@@ -867,12 +872,14 @@ describe("4. week 2 (Group B meets on Tue 10 Nov): a written answer, sent and gi
     // "Pathway" in the guide's); Amara's answer reads as the review page reads it; nobody has a pack or a case
     // before the draw. On a phone each person's lines say the same. The week's own column leads with where
     // each person's week stands (the week you submit): Amara submitted it, one task of three done, and Rahul
-    // may reopen it for her; the head says when the group's week locks.
+    // may reopen it for her; the head says when the group meets that week. Nothing is reopened now (the week
+    // stays open): her week is one task of three done, and not done, whatever the old Submit said.
     assert.match(
       page.text,
-      /This week’s work Week 2 · Thu 5 to Wed 11 Nov · Locks Tue 6pm Name Part 1 reflection Part 2 reflection Week 2 Pack Written answer Case A Amara Not yet Not yet Submitted Sun 8 Nov, 8pm 1 of 3 done Reopen week 2 for Amara Not given yet Feedback · Rahul Not given yet /,
+      /This week’s work Week 2 · Thu 5 to Wed 11 Nov · Meets Tue 6pm Name Part 1 reflection Part 2 reflection Week 2 Pack Written answer Case A Amara Not yet Not yet 1 of 3 done Not given yet Feedback · Rahul Not given yet /,
     );
-    assert.match(page.text, /A Amara Reflections Not yet Week 2 Submitted Sun 8 Nov, 8pm 1 of 3 done Reopen week 2 for Amara Pack Not given yet Written answer Feedback · Rahul Case Not given yet /);
+    assert.match(page.text, /A Amara Reflections Not yet Week 2 1 of 3 done Pack Not given yet Written answer Feedback · Rahul Case Not given yet /);
+    assert.doesNotMatch(page.text, /Reopen week/);
     // Three facilitators: the notes are for Rahul and the other two, in one list with the reader
     // first. Putting "you and" before a list already joined with "and" said "and" twice.
     assert.match(page.text, /Notes for you, Sofia and Bea Only Group B’s facilitators, Claudia and admins see these\./);
@@ -1003,18 +1010,26 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     assert.doesNotMatch(page.text, /\bLate\b/);
   });
 
-  test("Late is staff's: an admin's review page marks Bea's answer Late and Amara's not; Rahul's never lists Bea's", async () => {
+  test("After its deadline is staff's: an admin's review page marks Bea's answer after its deadline and never late, and Amara's neither; Rahul's never lists Bea's", async () => {
     const review = (who, person) => serverPage(["[runId]", "group", "[groupId]", "written", "page.tsx"], { runId: RUN.agi, groupId: B }, who, { week: "3", person });
     const admin = await review("zach", "bea");
     // An admin is shown each full name (the names rule); Rahul, the name each goes by.
-    assert.match(admin.text, /To give feedback on 2 AO Amara Okafor Submitted Mon 16 Nov, 9pm BL Bea Lindqvist Submitted Tue 17 Nov, 9am Late /);
-    assert.match(admin.text, /Bea’s answer 200 words · 200 to 300 Submitted Tue 17 Nov, 9am Late /);
+    assert.match(admin.text, /To give feedback on 2 AO Amara Okafor Submitted Mon 16 Nov, 9pm BL Bea Lindqvist Submitted Tue 17 Nov, 9am /);
+    assert.match(admin.text, /Bea’s answer 200 words · 200 to 300 Submitted Tue 17 Nov, 9am /);
+    // Sent after it was due (the end of the day before) but before the session: after its deadline, never late.
+    const model = admin.element.props.model;
+    const of = (uid) => [...model.toGive, ...model.feedbackSent].find((person) => person.uid === uid);
+    assert.deepEqual([of("bea").afterDeadline, of("bea").late, of("bea").sentLateMs], [true, false, null]);
+    assert.deepEqual([of("amara").afterDeadline, of("amara").late], [false, false]);
+    assert.doesNotMatch(admin.text, /9am Late /);
     // Asked for Bea, Rahul's page opens on the one answer it may show him, Amara's.
     const rahul = await review("rahul", "bea");
     assert.match(rahul.text, /To give feedback on 1 A Amara Submitted Mon 16 Nov, 9pm With feedback/);
     assert.doesNotMatch(rahul.text, /B Bea Submitted|Bea’s answer|\bLate\b/);
-    // Submitted, the week is locked: the page says so, and Rahul may reopen it for Amara.
-    assert.match(rahul.text, /Submitted Mon 16 Nov, 9pm, so Amara can’t change it now\. Reopen week 3 for Amara/);
+    assert.ok(![...rahul.element.props.model.toGive, ...rahul.element.props.model.feedbackSent, ...rahul.element.props.model.notSent].some((person) => person.uid === "bea"));
+    // Nothing is locked now: the page says Amara can change it until the programme closes, and offers no reopen.
+    assert.match(rahul.text, /Amara can change it until the programme closes\. Before the session you read it as last sent; from the session, as it stands\./);
+    assert.doesNotMatch(rahul.text, /Reopen week/);
   });
 
   test("W-work: in week 3, This week's work says each person's pack, written answer and case, to exactly the readers of each", async () => {
@@ -1035,7 +1050,7 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
         page.text,
         new RegExp(
           `Name Part 1 reflection Part 2 reflection Week 3 ${given.title} Written answer Case A Amara Written Written ` +
-            `Submitted Mon 16 Nov, 9pm 3 of 3 done Reopen week 3 for Amara ${given.packs[0].name} To give feedback ${caseTitle("amara")} `,
+            `Done on time ${given.packs[0].name} To give feedback ${caseTitle("amara")} `,
         ),
         who,
       );
@@ -1045,18 +1060,20 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
       // shows every co-facilitator what was handed out in the room.)
       const table = page.text.slice(page.text.indexOf("This week’s work"), page.text.indexOf("Reading ticks"));
       assert.doesNotMatch(table, new RegExp(`Bea|${given.packs[1].name}|${caseTitle("bea")}`), `${who}'s table shows Bea's own work`);
+      assert.doesNotMatch(table, /Reopen week|Done late|Late:/, `${who}'s table offers a reopen, or tells a facilitator's own lateness`);
     }
     // An admin: the fellows, then the facilitators' own rows, marked as theirs, Bea's pack and answer among them,
     // each by the full name the names rule shows an admin.
     const admin = await groupPage("zach");
     assert.match(
       admin.text,
-      new RegExp(`BL Bea Lindqvist Facilitator Not yet Not yet Submitted Tue 17 Nov, 9am 1 of 3 done Reopen week 3 for Bea ${given.packs[1].name} To give feedback ${caseTitle("bea")} `),
+      new RegExp(`BL Bea Lindqvist Facilitator Not yet Not yet 1 of 3 done ${given.packs[1].name} To give feedback ${caseTitle("bea")} `),
     );
-    // Rahul wrote nothing in week 3, and facilitates Group B alone, whose week 3 has not met: not started, nothing to reopen.
+    // Rahul wrote nothing in week 3, and facilitates Group B alone, whose week 3 has not met: not started.
     assert.match(admin.text, /RM Rahul Mehta Facilitator Not yet Not yet Not started Not given yet Not started Not given yet /);
-    // Sofia also facilitates Group A, which met on Thursday: her own week 3 locked then, and an admin may reopen it.
-    assert.match(admin.text, /SR Sofia Rossi Facilitator Not yet Not yet Not submitted 0 of 3 done Reopen week 3 for Sofia /);
+    // Sofia also facilitates Group A, which met on Thursday: her own week 3 stays open, not started, nothing to reopen.
+    assert.match(admin.text, /SR Sofia Rossi Facilitator Not yet Not yet Not started Not given yet Not started Not given yet /);
+    assert.doesNotMatch(admin.text, /Reopen week/);
     assert.ok(admin.html.includes(review("bea")), "an admin has no way to Bea's answer");
     // A fellow never reaches the group page.
     assert.equal((await groupPage("amara")).to, `/learn/${encodeURIComponent(RUN.agi)}`);
@@ -1077,21 +1094,36 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     });
     const cellsOf = (uid) => Object.fromEntries(columns.map((column) => [column.key, column.cells[uid] ?? null]));
     assert.deepEqual(columns.map((column) => [column.key, column.label]), [["week", "Week 3"], ["pathway", given.title], ["written", "Written answer"], ["case", "Case"]]);
-    assert.equal(columns[0].note, "Locks Tue 6pm", "the group's week 3 meets tonight at 6pm");
+    assert.equal(columns[0].note, "Meets Tue 6pm", "the group's week 3 meets tonight at 6pm");
     assert.deepEqual(cellsOf("bea"), {
+      // The lead reads a facilitator's own week (and so whether it was late); nothing is reopened now.
       week: {
-        text: "Submitted Tue 17 Nov, 9am",
+        text: "1 of 3 done",
         href: null,
-        detail: "1 of 3 done",
-        tone: "done",
-        // The lead reopens a facilitator's own week.
-        reopen: { runId: RUN.agi, weekNumber: 3, uid: "bea", firstName: "Bea" },
+        detail: null,
+        tone: "partly",
+        reopen: null,
       },
       pathway: { text: given.packs[1].name, href: null },
-      written: { text: "To give feedback", href: "lead-review?week=3&person=bea" },
+      written: { text: "To give feedback", href: "lead-review?week=3&person=bea", lateMs: null },
       case: { text: caseTitle("bea"), href: null },
     });
-    assert.deepEqual(cellsOf("amara").written, { text: "To give feedback", href: "lead-review?week=3&person=amara" });
+    assert.deepEqual(cellsOf("amara").written, { text: "To give feedback", href: "lead-review?week=3&person=amara", lateMs: null });
+    // A co-facilitator, Rahul, is never handed Bea's own week, and so never whether it was late.
+    const asRahul = await lib.workColumns.loadWorkColumns(world.courseDb, {
+      run,
+      group,
+      actor: w.sessionOf("rahul"),
+      viewer: { isAdmin: false, leadOf: null },
+      weekNumber: 3,
+      people,
+      reviewHref: (uid, n) => `review?week=${n}&person=${uid}`,
+      now: new Date(),
+    });
+    for (const column of asRahul.filter((each) => each.key === "week" || each.key === "written")) {
+      assert.equal(column.cells.bea ?? null, null, `${column.key}: Rahul is handed Bea's own cell`);
+    }
+    assert.ok(asRahul.find((each) => each.key === "week").cells.amara, "Rahul is handed the fellow's");
   });
 
   test("who waits for whose feedback: Rahul and Sofia have Amara's answer and never Bea's; the lead and an admin have both", async () => {

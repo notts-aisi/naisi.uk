@@ -1160,6 +1160,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the page that shows a facilitator or a lead somebody's action plan exists and a browser spec opens it.",
   },
+  "/api/courses/runs/[runId]/written-answers/[answerId]/send": {
+    reason:
+      "Course hub: a written answer's own Send (the week stays open), sent again after a change; who sends, what each send stamps, the words its readers read before and after the session, and the programme's close are executed by tests/course-week-work.test.mjs, against the real routes and the review page's loader. No page presses it yet: the week page that draws Send my answer is the next change.",
+    coverWhen:
+      "When the week page draws Send my answer: a browser spec signs in a member of a group Publish has told, writes the week's answer, sends it, changes it, sends it again and reads the page's own line back.",
+  },
   "/api/courses/runs/[runId]/fill-in-boxes/[boxId]": {
     reason:
       "Course hub: a fill-in box on a week written as blocks (week 6's action plan), saved as the person types; who writes, who is refused and what a box keeps are executed by tests/course-hub-week-six.test.mjs; typed in a browser on the preview kit at 390, saved, reloaded and read back.",

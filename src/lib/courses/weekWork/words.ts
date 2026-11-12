@@ -318,18 +318,25 @@ export type PersonWeekLine = {
   due: WeekDue;
 };
 
+/** Done, with something to count: a week with nothing to count is never said to be done or not. */
+function saidDone(progress: PersonWeekProgress): boolean {
+  return progress.weekDone && progress.of > 0;
+}
+
 /**
  * Where one person's week stands, as a staff page says it: "Done on time",
  * "Done late" (with how late beside it), "Done" (no session to tell it
- * against), "2 of 3 done", "Started", "Not started", "Joined late".
+ * against, or no time to tell it by), "2 of 3 done", "Started", "Not
+ * started", "Joined late".
  */
 export function personWeekWords(line: PersonWeekLine): { text: string; detail: string | null } {
   const { progress, doneAt, due } = line;
   const count = progress.of > 0 ? doneOfWords(progress.done, progress.of) : null;
-  if (progress.weekDone && progress.started) {
-    const late = doneAt && due.at && doneAt.getTime() > due.at.getTime() ? doneAt.getTime() - due.at.getTime() : null;
+  if (saidDone(progress)) {
+    if (!doneAt || !due.at) return { text: DONE, detail: null };
+    const late = doneAt.getTime() > due.at.getTime() ? doneAt.getTime() - due.at.getTime() : null;
     if (late !== null) return { text: DONE_LATE, detail: lateAfterSessionWords(late) };
-    return { text: due.at ? DONE_ON_TIME : DONE, detail: null };
+    return { text: DONE_ON_TIME, detail: null };
   }
   if (due.by === "joined-late" && !progress.started) return { text: JOINED_LATE, detail: null };
   if (progress.done > 0 && count) return { text: count, detail: null };
@@ -338,7 +345,7 @@ export function personWeekWords(line: PersonWeekLine): { text: string; detail: s
 
 /** The tone a staff page draws a person's week in. */
 export function personWeekTone(line: PersonWeekLine): "done" | "partly" | "none" {
-  if (line.progress.weekDone && line.progress.started) return "done";
+  if (saidDone(line.progress)) return "done";
   if (line.progress.started) return "partly";
   return "none";
 }

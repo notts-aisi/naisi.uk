@@ -185,13 +185,15 @@ export function feedbackRefusalFor(
   at: FeedbackStanding,
   words: { notReadable: string; answerEmpty: string },
 ): string | null {
+  // The week as a whole may be read: the session has started, the answer may be read, or the old Submit was pressed.
+  const weekReadable = sessionHasStarted(at.standing.due, at.now) || at.read !== null || at.standing.state.submittedAt !== null;
   if (on === "writtenAnswer") {
-    if (!at.read) return words.notReadable;
-    if (at.read.words === 0) return words.answerEmpty;
-    return null;
+    if (at.read) return at.read.words === 0 ? words.answerEmpty : null;
+    // Nothing in it to read, in a week that may be read: empty, not unread.
+    if (weekReadable && (!at.answer || at.answer.words === 0)) return words.answerEmpty;
+    return words.notReadable;
   }
-  const readable = sessionHasStarted(at.standing.due, at.now) || at.read !== null || at.standing.state.submittedAt !== null;
-  return readable ? null : words.notReadable;
+  return weekReadable ? null : words.notReadable;
 }
 
 /**
