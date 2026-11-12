@@ -172,7 +172,7 @@ function rowFits(question: CourseworkQuestion, data: Raw, readOf: (data: Raw) =>
  * `options.session`: the session each writer is due at and the clock, from a
  * caller that has read them already (the weekly notes, which decide from the
  * same answer which weeks they draw on), so one sum and one clock decide
- * both. Without it they are read here, for now.
+ * both. Without it they are read here, at the moment of the call.
  */
 export async function loadAnswers(
   db: Firestore,
