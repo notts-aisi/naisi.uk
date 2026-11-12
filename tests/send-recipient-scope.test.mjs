@@ -617,6 +617,31 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/app/api/courses/runs/[runId]/weeks/[weekId]/tell/route.ts#audiences.recipients",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by tellAudiences (src/lib/courses/weekEdit/notice.ts): the shared notice audience over the run's " +
+        "own enrolment rows (resolveNoticeAudience), less the presser, narrowed to the choice: everybody, the " +
+        "people whose group reads the run's week (from the run's live groups and their own copies), or the " +
+        "people with work on the week (from the run's own progress, answer and pick rows). The request names " +
+        "only the choice and the number it was shown.",
+      why:
+        "Who a notice about a change to a week reaches, counted by the same function the preview's numbers " +
+        "come from; the press is refused when the two no longer agree.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/weeks/[weekId]/tell/route.ts#local:recipients",
+    {
+      reads: 1,
+      origin: "derived",
+      derivedFrom: ["src/app/api/courses/runs/[runId]/weeks/[weekId]/tell/route.ts#audiences.recipients"],
+      why: "The chosen audience, kept for the dispatch once every refusal has passed.",
+    },
+  ],
+  [
     "src/app/api/events/[id]/broadcast/route.ts#event.collaboratorUids",
     {
       reads: 2,

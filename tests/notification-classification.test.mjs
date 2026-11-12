@@ -727,6 +727,12 @@ const REGISTRY = {
   "src/app/api/courses/runs/[runId]/updates/route.ts#sendEmail": T(
     "\"Send a test to me\" on the update composer: the update's own email, marked [TEST], to the address on the presser's own account and nobody else. Nobody's preference is passed over and nothing is posted, so it is no notice.",
   ),
+  "src/app/api/courses/runs/[runId]/weeks/[weekId]/tell/route.ts#sendNotice": N(
+    "Telling people about a change to a live week, a choice the editor makes after a save and never automatic: the programme's lead or an admin telling the people who have started the week, everyone it is open for, or everyone on the programme, about the programme they are on. It goes to those of the run's people holding a place whose group has gone out (`resolveNoticeAudience`), whatever they unsubscribed from and whatever the courses row says, never to the presser and never with a meeting link, with the marker (surface course-run), under the lane's caps. Email only: no push leg.",
+  ),
+  "src/app/api/courses/runs/[runId]/weeks/[weekId]/tell/route.ts#sendEmail": T(
+    "\"Send me a test first\" beside that notice: the notice's own email, marked [TEST], to the address on the presser's own account and nobody else. Nobody's preference is passed over and nobody is told, so it is no notice.",
+  ),
   "src/app/api/courses/runs/[runId]/email/route.ts#sendNoticePush": N(
     "The notification beside that notice. The ordinary announcement lane has no push leg at all, deliberately: a scheduled cohort mail that also buzzed every phone is how people turn notifications off for good.",
   ),
