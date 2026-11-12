@@ -76,7 +76,7 @@ const SAME_DAY = new Date("2026-11-10T15:00:00.000Z");
 const NEXT_DAY = new Date("2026-11-11T09:00:00.000Z");
 
 function noDashes(text, where) {
-  assert.doesNotMatch(text, /[–—]/, `${where} carries a dash`);
+  assert.doesNotMatch(text, /[\u2013\u2014]/, `${where} carries a dash`);
   assert.doesNotMatch(text, /collate/i, `${where} uses a word the house does not`);
 }
 
