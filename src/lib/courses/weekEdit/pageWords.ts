@@ -280,5 +280,5 @@ export const OLDER_EDITORS = {
   /** A group's own editor. */
   groupLine: "The programme’s weeks are edited by the programme’s lead.",
   groupCopyLine: (groupName: string) =>
-    `${groupName} reads its own copy of this week, made before copies were switched off. It’s shown here as the group reads it, and it can’t be changed from here any more.`,
+    `${groupName} reads its own copy of this week. It’s shown here as the group reads it, and it can’t be changed from here.`,
 } as const;

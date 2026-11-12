@@ -355,7 +355,7 @@ describe("5. the lead's card on the week's page, and the facilitator's group wee
     const copy = { ...canonical, summary: "Group B's own summary of week 2", published: true };
     const { text } = facilitatorsEditor("w02", 2, copy);
     assert.match(text, /Your group’s own copy/);
-    assert.match(text, /Group B reads its own copy of this week, made before copies were switched off\. It’s shown here as the group reads it, and it can’t be changed from here any more\./);
+    assert.match(text, /Group B reads its own copy of this week\. It’s shown here as the group reads it, and it can’t be changed from here\./);
     assert.match(text, /Group B’s own copy of Week 2/);
     assert.match(text, /Group B's own summary of week 2/);
     assert.ok(!text.includes("Save week details") && !text.includes("Customise"), "read only");
