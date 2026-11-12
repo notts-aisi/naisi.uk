@@ -149,7 +149,7 @@ describe("2. Read it", () => {
     assert.equal(answer.body.title, "How sure are you?");
     assert.deepEqual(
       Object.keys(answer.body).sort(),
-      ["answers", "blockCount", "checks", "due", "found", "kept", "minted", "problems", "removed", "title"],
+      ["answers", "blockCount", "checks", "comparison", "comparisonLine", "due", "found", "kept", "kinds", "minted", "problems", "removed", "title"],
       "built field by field: no blocks, no stored document",
     );
     assert.equal(everything(), before, "Read it writes nothing");
@@ -420,30 +420,44 @@ describe("7. a week of the plan with no page yet", () => {
   }
 
   test("a page made by somebody else between the read and the write is never overwritten: 409, read it again", async () => {
+    // The save is one transaction (src/lib/courses/weekEdit/save.ts): the page
+    // is made after the transaction has read the week and before it commits,
+    // the latest moment a race can land, so the commit must see it and refuse.
     const theirs = syntheticWeekDoc();
-    const view = world.courseDb;
-    const real = view.collection;
     let seen = null;
-    const meanwhile = (ref) => ({
-      ...ref,
-      collection: (name) => around(ref.collection(name)),
-      create: async (data) => {
-        if (ref.path === W3) {
-          world.db.seed(W3, theirs);
-          seen = JSON.stringify(world.db.read(W3));
-        }
-        return ref.create(data);
-      },
-    });
-    const around = (collection) => ({ ...collection, doc: (id) => meanwhile(collection.doc(id)) });
-    view.collection = (name) => around(real(name));
+    world.db.beforeCommit = () => {
+      world.db.seed(W3, theirs);
+      seen = JSON.stringify(world.db.read(W3));
+    };
     try {
       const answer = await as("claudia", "PUT", { markdown: syntheticGuideMarkdown() });
       assert.deepEqual([answer.status, answer.body.error], [409, "This week has just changed. Read it again, then save."]);
     } finally {
-      view.collection = real;
+      world.db.beforeCommit = null;
     }
     assert.ok(seen, "the page was made between the read and the write");
+    assert.equal(JSON.stringify(world.db.read(W3)), seen, "the page made meanwhile is as it was made");
+    assert.equal(world.db.paths().some((path) => path.startsWith(`${W3}/history/`)), false, "and the refused save left no record");
+  });
+
+  test("a page made between the route's read and the save's transaction is refused the same way", async () => {
+    const theirs = syntheticWeekDoc();
+    const view = world.courseDb;
+    const real = view.runTransaction.bind(view);
+    let seen = null;
+    view.runTransaction = async (fn) => {
+      if (!seen) {
+        world.db.seed(W3, theirs);
+        seen = JSON.stringify(world.db.read(W3));
+      }
+      return real(fn);
+    };
+    try {
+      const answer = await as("claudia", "PUT", { markdown: syntheticGuideMarkdown() });
+      assert.deepEqual([answer.status, answer.body.error], [409, "This week has just changed. Read it again, then save."]);
+    } finally {
+      delete view.runTransaction;
+    }
     assert.equal(JSON.stringify(world.db.read(W3)), seen, "the page made meanwhile is as it was made");
   });
 });

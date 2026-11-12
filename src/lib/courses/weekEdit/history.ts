@@ -36,8 +36,10 @@ import type { AskedMap, AskedVersion, AskedWords } from "./wordsThen";
  * bring back what a week said before a change.
  *
  * ORDER: `seq`, 1 upwards, and the record's id is made from it (`s000001`),
- * so two saves racing for the same number cannot both land. Read in order on
- * that one field: no declared index.
+ * so two saves racing for the same number cannot both land. A week's records
+ * are read whole (a week takes a few dozen saves in a term, not thousands)
+ * and put in order here, so no read is ordered on the server and none needs
+ * a declared index.
  *
  * Reverting the code that writes this leaves the records in place, read by
  * nothing; the week documents they sit under are unchanged in shape.
@@ -124,9 +126,16 @@ export function weekHistoryRef(db: Firestore, runId: string, weekId: string) {
   return weekDocRef(db, runId, weekId).collection(WEEK_HISTORY_SUBCOLLECTION);
 }
 
-/** The newest record, by its number. One field ordered: no declared index. */
-export function newestSaveQuery(db: Firestore, runId: string, weekId: string): Query {
-  return weekHistoryRef(db, runId, weekId).orderBy("seq", "desc").limit(1);
+/** Every record of a week, by number and fingerprint alone: what finds the newest. No order, no index. */
+export function saveHeadsQuery(db: Firestore, runId: string, weekId: string): Query {
+  return weekHistoryRef(db, runId, weekId).select("seq", "fingerprint");
+}
+
+/** The newest of some records, by number; null for none. */
+export function newestOf<T extends { seq: number }>(records: readonly T[]): T | null {
+  let newest: T | null = null;
+  for (const record of records) if (!newest || record.seq > newest.seq) newest = record;
+  return newest;
 }
 
 type Raw = Record<string, unknown>;
@@ -231,10 +240,9 @@ const LIST_FIELDS = [
 /** Every save of a week, newest first, without their blocks. */
 export async function listWeekSaves(db: Firestore, runId: string, weekId: string): Promise<WeekSaveDoc[]> {
   const snap = await weekHistoryRef(db, runId, weekId)
-    .orderBy("seq", "desc")
     .select(...LIST_FIELDS)
     .get();
-  return snap.docs.map((doc) => readWeekSave(doc.id, doc.data() ?? {}));
+  return snap.docs.map((doc) => readWeekSave(doc.id, doc.data() ?? {})).sort((a, b) => b.seq - a.seq);
 }
 
 /** One save with its blocks, or null when the week has no such record. */
@@ -251,9 +259,11 @@ export async function readWeekSaveById(
 
 /** Every save's words of its questions, for "the words a question had when it was answered". */
 export async function askedVersionsOf(db: Firestore, runId: string, weekId: string): Promise<AskedVersion[]> {
-  const snap = await weekHistoryRef(db, runId, weekId).orderBy("seq", "asc").select("seq", "at", "asked").get();
-  return snap.docs.map((doc) => {
-    const data = doc.data() ?? {};
-    return { seq: num(data.seq), at: instantOf(data.at), asked: readAsked(data.asked) };
-  });
+  const snap = await weekHistoryRef(db, runId, weekId).select("seq", "at", "asked").get();
+  return snap.docs
+    .map((doc) => {
+      const data = doc.data() ?? {};
+      return { seq: num(data.seq), at: instantOf(data.at), asked: readAsked(data.asked) };
+    })
+    .sort((a, b) => a.seq - b.seq);
 }

@@ -3,8 +3,8 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { emptyWeekFields, normalizeCourseWeek, type CourseWeekDoc } from "@/lib/firestore/courses";
 import { isBlockWeek, type WeekBlock } from "../weekBlocks/model";
 import {
-  newestSaveQuery,
-  readWeekSave,
+  newestOf,
+  saveHeadsQuery,
   saveIdOf,
   weekDocRef,
   weekHistoryRef,
@@ -99,7 +99,7 @@ export async function saveWeekBlocks(db: Firestore, input: SaveInput): Promise<S
     const [weekSnap, lockSnap, headSnap] = await Promise.all([
       tx.get(weekRef),
       tx.get(lockRef),
-      tx.get(newestSaveQuery(db, input.runId, input.weekId)),
+      tx.get(saveHeadsQuery(db, input.runId, input.weekId)),
     ]);
 
     // 1. Somebody else is editing this week.
@@ -121,7 +121,12 @@ export async function saveWeekBlocks(db: Firestore, input: SaveInput): Promise<S
     if (built.noop) return { ok: true, saved: false };
 
     // 3. The week as found, when the history does not already end with it.
-    const head = headSnap.docs[0] ? readWeekSave(headSnap.docs[0].id, headSnap.docs[0].data() ?? {}) : null;
+    const head = newestOf(
+      headSnap.docs.map((each) => {
+        const data = each.data() ?? {};
+        return { seq: typeof data.seq === "number" ? data.seq : 0, fingerprint: typeof data.fingerprint === "string" ? data.fingerprint : "" };
+      }),
+    );
     let seq = (head?.seq ?? 0) + 1;
     let foundSaveId: string | null = null;
     if (stored.blocks && (!head || head.fingerprint !== weekFingerprint(stored.blocks))) {

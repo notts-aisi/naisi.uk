@@ -6,7 +6,7 @@ import { readNamingProgramme } from "@/lib/courses/programmeLead";
 import { UPDATE_REPLY_TO } from "@/lib/courses/updates/words";
 import { HISTORY_WORDS, TELL_REFUSAL, TELL_WORDS } from "@/lib/courses/weekEdit/words";
 import { loadEditWeek, weekEditGate, type EditWeek } from "@/lib/courses/weekEdit/gate";
-import { isSaveId, newestSaveQuery, readWeekSave, readWeekSaveById, weekHistoryRef, type WeekSaveDoc } from "@/lib/courses/weekEdit/history";
+import { isSaveId, newestOf, readWeekSave, readWeekSaveById, saveHeadsQuery, weekHistoryRef, type WeekSaveDoc } from "@/lib/courses/weekEdit/history";
 import { TELL_AUDIENCES, letterBody, letterFor, tellAudiences, tellChoices, weekPageUrl, type TellAudience } from "@/lib/courses/weekEdit/notice";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { displayNameOf, ownAddressFor, reserveSendSlot, staffMessageBlocks, staffPreheader } from "@/lib/email/courseFacilitatorEmails";
@@ -58,8 +58,8 @@ async function saveToTell(
 ): Promise<{ save: WeekSaveDoc; latest: boolean } | NextResponse> {
   const save = await readWeekSaveById(db, runId, weekId, saveId);
   if (!save || save.kind === "found") return NextResponse.json({ error: TELL_REFUSAL.saveGone }, { status: 404 });
-  const head = (await newestSaveQuery(db, runId, weekId).get()).docs[0];
-  const newest = head ? readWeekSave(head.id, head.data() ?? {}) : null;
+  const heads = (await saveHeadsQuery(db, runId, weekId).get()).docs;
+  const newest = newestOf(heads.map((head) => readWeekSave(head.id, head.data() ?? {})));
   return { save, latest: newest?.id === save.id && loaded.week.published === true };
 }
 

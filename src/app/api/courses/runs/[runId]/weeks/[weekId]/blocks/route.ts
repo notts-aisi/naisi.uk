@@ -179,10 +179,13 @@ export async function POST(req: Request, ctx: Params) {
   const counts = await answersOnRemoved(db, gated.runId, gated.weekId, read.removed);
   const answer = pasteAnswer(read, counts, loaded.dayBeforeTime);
   // What it holds by kind, and what it changes in the live week, block by block.
-  const comparison = compareWeeks(
+  const compared = compareWeeks(
     { title: loaded.week.title, blocks: loaded.week.blocks ?? [] },
     { title: read.title || loaded.week.title, blocks: read.blocks },
   );
+  // A block the paste adds has no id until it is saved (each read mints one
+  // afresh), so an added row names none.
+  const comparison = { ...compared, rows: compared.rows.map((row) => (row.state === "added" ? { ...row, blockId: "" } : row)) };
   return NextResponse.json({
     ...answer,
     kinds: kindsIn(read.blocks),
