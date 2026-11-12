@@ -3,8 +3,9 @@ import { FieldValue } from "firebase-admin/firestore";
 import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
 import { londonClockLabel } from "@/lib/courses/londonLabels";
 import { didNotHappenLine } from "@/lib/courses/programmeAttendance";
-import { gateGroupRegister, isAddressableId } from "@/lib/courses/registerAccess";
+import { gateGroupRegister, isAddressableId, readsFacilitatorRecord } from "@/lib/courses/registerAccess";
 import { facilitatorsByFirstName } from "@/lib/courses/registerCover/people";
+import { sessionInTransaction } from "@/lib/courses/registerCover/sessionInTransaction";
 import { REGISTER_COVER_REFUSAL, presenceChangedDetail } from "@/lib/courses/registerCover/words";
 import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -31,12 +32,13 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * `state` is "there", "late" (with `arrivedAt`, an instant between the
  * session's start and its end) or "not-there". One history row, with the
  * entry before and after, who changed it, and the facilitator it is about;
- * that row is shown to admins and leads only (`loadGroupHistory`). Nobody is
+ * that row is shown to admins and the programme's lead only (`loadGroupHistory`). Nobody is
  * emailed.
  *
- * WHO: admins and the people leading the programme that names the run (its
- * lead, the run's track leads), who do not facilitate the group: whether a
- * facilitator was there is never theirs to read or write, not even their own.
+ * WHO: admins and the lead of the programme that names the run, who do not
+ * facilitate the group (`readsFacilitatorRecord`): whether a facilitator was
+ * there is never a facilitator's to read or write, not even their own, and
+ * never a run's track lead's by that alone.
  * Everybody else is one 403, before the body is read. View-as is refused
  * first.
  *
@@ -95,10 +97,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
-  // ── The gate, before the body: admins and leads who do not facilitate ────
+  // ── The gate, before the body: admins and the programme's lead who do not
+  // facilitate the group; never a run's track lead by that alone ──────────
   const gated = await gateGroupRegister(groupId, actor, db);
   if (!gated.ok) return NextResponse.json({ error: gated.error }, { status: gated.status });
-  if (!(gated.isAdmin || gated.leads) || gated.facilitates) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!readsFacilitatorRecord(gated)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { group, runId } = gated;
 
   let raw: unknown;
@@ -140,6 +143,22 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
   try {
     const entry = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
+      // The session as the group says it now, read in this transaction: the
+      // start the register keeps, and the window a late arrival must fall in,
+      // are never worked out from a group read before it.
+      const fresh = await sessionInTransaction(tx, db, run, group.id, session);
+      if (!fresh.ok) {
+        throw fresh.reason === "cancelled"
+          ? new Refusal(didNotHappenLine(group.name.trim() || "This group", fresh.dateKey), 409)
+          : new Refusal(`Week ${press.weekNumber} isn't a taught session of this group's schedule.`, 400);
+      }
+      if (!fresh.startsAt || fresh.startsAt.getTime() > now.getTime()) throw new Refusal(REGISTER_COVER_REFUSAL.notStarted, 409);
+      if (
+        press.arrivedAt &&
+        (press.arrivedAt.getTime() < fresh.startsAt.getTime() || press.arrivedAt.getTime() > (fresh.endsAt ?? fresh.startsAt).getTime())
+      ) {
+        throw new Refusal(REGISTER_COVER_REFUSAL.arrivedAt, 400);
+      }
       const register = snap.exists ? normalizeCourseAttendance(snap.id, snap.data() ?? {}) : null;
       const before = register?.facilitatorRecord[press.uid];
       const known =
@@ -166,7 +185,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
               how: "changed",
             },
           },
-          ...(startsAt ? { sessionAt: startsAt } : {}),
+          sessionAt: fresh.startsAt,
         },
         { merge: true },
       );

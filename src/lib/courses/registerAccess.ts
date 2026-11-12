@@ -49,8 +49,9 @@ import { doesTrackLeadWork, runStaffingOf } from "./runStaffing";
  *    `registerSessionAccess` what the caller may do on the one session it is
  *    about: somebody given a session writes that session's register and no
  *    other; a lead who has not taken a session's register opens no check-in
- *    and writes no report; and whether each facilitator was there goes to
- *    admins and the people leading the programme only.
+ *    and writes no report; and whether each facilitator was there, a
+ *    cover's reason and a check-in's totals go to admins and the programme's
+ *    lead only, never to a run's track lead by that alone.
  *  · THE REGISTER'S NOTES are the group's facilitators' and admins':
  *    what a facilitator writes about a named person, and about a session as a
  *    whole, is not sent to a lead or to somebody given a session, and a write
@@ -120,10 +121,19 @@ export type RegisterGate =
       /**
        * Not an admin, and leading the programme that names the group's run
        * or one of the run's track leads (`doesTrackLeadWork`): takes any
-       * session's register of the run, in a facilitator's place, and reads
-       * whether each facilitator was there.
+       * session's register of the run, in a facilitator's place. Whether
+       * each facilitator was there is `leadsProgramme`'s, not this.
        */
       leads: boolean;
+      /**
+       * Not an admin, not a facilitator of the group, and the lead of the
+       * programme that names the group's run (worked out from the form when
+       * they ask). Narrower than `leads`: a run's track lead by that alone is
+       * not. Who is sent whether each facilitator was there, a cover's
+       * reason and a check-in's totals, as the privacy policy says
+       * ("The programme's lead and admins see this").
+       */
+      leadsProgramme: boolean;
       /**
        * The sessions of this group the caller was GIVEN by an admin or a lead,
        * by key, while each grant holds: the only registers they read or take.
@@ -178,7 +188,14 @@ async function standingOnRegisters(
   actor: SessionUser,
   db: Firestore,
   mode: "write" | "read",
-): Promise<{ group: CourseGroupDoc | null; isAdmin: boolean; facilitates: boolean; leads: boolean; givenSessions: string[] }> {
+): Promise<{
+  group: CourseGroupDoc | null;
+  isAdmin: boolean;
+  facilitates: boolean;
+  leads: boolean;
+  leadsProgramme: boolean;
+  givenSessions: string[];
+}> {
   const groupSnap = await db.collection("courseGroups").doc(groupId).get();
   const group = groupSnap.exists
     ? normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {})
@@ -191,16 +208,19 @@ async function standingOnRegisters(
       isNamedWithStanding(actor, "courseGroups.facilitatorUids", group.facilitatorUids),
   );
   let leads = false;
+  let leadsProgramme = false;
   if (!isAdmin && !facilitates && group && isAddressableId(group.runId) && (mode === "read" || !group.archived)) {
     const runSnap = await db.collection("courseRuns").doc(group.runId).get();
     const trackLeadUids = runSnap.exists ? (runSnap.data() ?? {}).trackLeadUids : [];
-    leads = doesTrackLeadWork(await runStaffingOf(db, actor, { id: group.runId, trackLeadUids }));
+    const staffing = await runStaffingOf(db, actor, { id: group.runId, trackLeadUids });
+    leads = doesTrackLeadWork(staffing);
+    leadsProgramme = staffing.leadOf !== null;
   }
   const givenSessions =
     !isAdmin && !facilitates && !leads && group && !group.archived && isAddressableId(group.runId)
       ? await givenSessionsOf(db, group, actor, new Date())
       : [];
-  return { group, isAdmin, facilitates, leads, givenSessions };
+  return { group, isAdmin, facilitates, leads, leadsProgramme, givenSessions };
 }
 
 /**
@@ -222,7 +242,7 @@ export async function gateGroupRegister(
   actor: SessionUser,
   db: Firestore,
 ): Promise<RegisterGate> {
-  const { group, isAdmin, facilitates, leads, givenSessions } = await standingOnRegisters(groupId, actor, db, "write");
+  const { group, isAdmin, facilitates, leads, leadsProgramme, givenSessions } = await standingOnRegisters(groupId, actor, db, "write");
   if (!isAdmin && !facilitates && !leads && givenSessions.length === 0) {
     return { ok: false, status: 403, error: "Forbidden" };
   }
@@ -240,6 +260,7 @@ export async function gateGroupRegister(
     readsNotes: isAdmin || facilitates,
     facilitates,
     leads,
+    leadsProgramme,
     givenSessions,
   };
 }
@@ -263,7 +284,7 @@ export async function gateGroupRegisterRead(
   actor: SessionUser,
   db: Firestore,
 ): Promise<RegisterGate> {
-  const { group, isAdmin, facilitates, leads, givenSessions } = await standingOnRegisters(groupId, actor, db, "read");
+  const { group, isAdmin, facilitates, leads, leadsProgramme, givenSessions } = await standingOnRegisters(groupId, actor, db, "read");
   if (!isAdmin && !facilitates && !leads && givenSessions.length === 0) {
     return { ok: false, status: 403, error: "Forbidden" };
   }
@@ -281,6 +302,7 @@ export async function gateGroupRegisterRead(
     readsNotes: isAdmin || facilitates,
     facilitates,
     leads,
+    leadsProgramme,
     givenSessions,
   };
 }
@@ -363,16 +385,23 @@ export type RegisterSessionAccess = {
  *  - THE CHECK-IN: the group's facilitators, admins, and whoever took this
  *    session's register (`cover.byUid`: a lead who is covering, or somebody
  *    given it while it holds). A lead who has not taken it is refused. Its
- *    totals are not sent to somebody who was only given the session.
+ *    totals go to the group's facilitators, admins, and the programme's lead
+ *    who took it: never to a run's track lead by that alone, nor to somebody
+ *    who was only given the session.
  *  - THE SESSION REPORT: the group's facilitators, and whoever took this
  *    session's register while it holds. An admin or a lead who did not take
  *    it writes none.
- *  - WHETHER EACH FACILITATOR WAS THERE: admins and the people leading the
- *    programme, never somebody who facilitates the group, however else they
- *    stand, nor anybody given a session.
+ *  - WHETHER EACH FACILITATOR WAS THERE (and a cover's reason): admins and
+ *    the programme's lead, never somebody who facilitates the group, however
+ *    else they stand, nor a run's track lead by that alone, nor anybody given
+ *    a session. The privacy policy says "The programme's lead and admins see
+ *    this", and this is the one place that decides it.
  */
 export function registerSessionAccess(
-  gated: Pick<Extract<RegisterGate, { ok: true }>, "isAdmin" | "facilitates" | "leads" | "givenSessions" | "readsNotes">,
+  gated: Pick<
+    Extract<RegisterGate, { ok: true }>,
+    "isAdmin" | "facilitates" | "leads" | "leadsProgramme" | "givenSessions" | "readsNotes"
+  >,
   input: { uid: string; sessionKey: string; cover: RegisterCover | null; now: Date },
 ): RegisterSessionAccess {
   const given = gated.givenSessions.includes(input.sessionKey) && holdsGivenCover(input.cover, input.uid, input.now);
@@ -382,11 +411,23 @@ export function registerSessionAccess(
     writes: staff || gated.leads || given,
     readsNotes: gated.readsNotes,
     checksIn: staff || took,
-    readsCheckInTotals: staff || (gated.leads && took),
+    readsCheckInTotals: staff || (gated.leadsProgramme && took),
     reports: gated.facilitates || took,
-    readsFacilitatorRecord: (gated.isAdmin || gated.leads) && !gated.facilitates,
+    readsFacilitatorRecord: readsFacilitatorRecord(gated),
     holdsCover: took,
   };
+}
+
+/**
+ * WHO IS SENT WHETHER EACH FACILITATOR WAS THERE, and a cover's reason: an
+ * admin or the programme's lead, who does not facilitate the group. Asked of
+ * the gate's answer alone, so the register's read, the facilitator record's
+ * route and the group's history agree.
+ */
+export function readsFacilitatorRecord(
+  gated: Pick<Extract<RegisterGate, { ok: true }>, "isAdmin" | "facilitates" | "leadsProgramme">,
+): boolean {
+  return (gated.isAdmin || gated.leadsProgramme) && !gated.facilitates;
 }
 
 /**

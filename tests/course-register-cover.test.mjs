@@ -38,6 +38,10 @@
  *     session, never a member).
  *  7. THE CHASE: covered registers chase who took or gave them, never the
  *     facilitators covered.
+ *  8. THE START A REGISTER KEEPS (`sessionAt`) is worked out from the group
+ *     read inside the write's own transaction, so a register marked as the
+ *     group's weeks are re-dated keeps the session's real start: the three
+ *     register routes, and every file that writes the field, held to it.
  *
  * Deleting an account (a person's own stamp and entry go, who acted stays)
  * is held in tests/account-deletion-attendance.test.mjs.
@@ -47,6 +51,9 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import { render } from "@react-email/render";
 import { FIELD_VALUE_STUB } from "./lib/applicationsStore.mjs";
 import { session, userDoc } from "./lib/applicationsSmallTerm.mjs";
@@ -520,20 +527,43 @@ describe("6. whether each facilitator was there", () => {
     assert.equal(auditRows("attendance-push")[0].detail, "Finished week 1’s register, covering for Rahul and Sofia. 1 in the room, 1 excused.");
   });
 
-  test("who is sent it: admins and the people leading the programme, never a facilitator, somebody given a session or a member", async () => {
+  test("who is sent it: admins and the programme's lead, never a run's track lead, a facilitator, somebody given a session or a member", async () => {
     assert.equal((await take("claudia", { person: "bea", reason: "Both away." })).status, 200);
     const sent = {};
     for (const who of ["zach", "claudia", "yusuf", "rahul", "sofia", "bea", "amara", "tom"]) {
       const answer = await read(who);
       sent[who] = answer.status === 200 ? "facilitatorRecord" in answer.body : answer.status;
     }
-    assert.deepEqual(sent, { zach: true, claudia: true, yusuf: true, rahul: false, sofia: false, bea: false, amara: 403, tom: 403 });
+    // Yusuf is the run's track lead and does not lead the programme: he reads
+    // and takes its registers, and is sent none of this (the privacy policy:
+    // "The programme's lead and admins see this").
+    assert.deepEqual(sent, { zach: true, claudia: true, yusuf: false, rahul: false, sofia: false, bea: false, amara: 403, tom: 403 });
     assert.equal((await read("claudia")).body.covers.w01.reason, "Both away.");
-    assert.equal("reason" in (await read("rahul")).body.covers.w01, false, "a facilitator is sent the reason");
-    assert.doesNotMatch(JSON.stringify((await read("rahul")).body), /not-there/);
+    for (const who of ["rahul", "yusuf", "bea"]) {
+      const body = (await read(who)).body;
+      assert.equal("reason" in body.covers.w01, false, `${who} is sent the cover's reason`);
+      assert.doesNotMatch(JSON.stringify(body), /not-there|Both away/, `${who} is sent the facilitator record`);
+      assert.equal(body.caller.readsFacilitatorRecord, false, who);
+    }
+    assert.equal((await read("claudia")).body.caller.readsFacilitatorRecord, true);
   });
 
-  test("an admin or a lead changes one entry, with a history row only they are shown", async () => {
+  test("a run's track lead takes a register and opens its check-in, and is sent none of its totals", async () => {
+    assert.equal((await take("yusuf", {})).status, 200);
+    assert.equal((await mark("yusuf", [{ uid: "amara", status: "present" }])).status, 200);
+    const own = await card("yusuf", "w01");
+    assert.equal(own.status, 200, JSON.stringify(own.body));
+    assert.equal(own.body.last, null, "a track lead is sent the group's last check-in");
+    if (own.body.card?.state === "closed") assert.equal(own.body.card.totals, null);
+    assert.equal((await read("yusuf")).body.caller.sessions.w01.readsCheckInTotals, false);
+    assert.equal((await read("yusuf")).body.caller.sessions.w01.checksIn, true);
+    // The programme's lead who took it is sent them.
+    await told();
+    assert.equal((await take("claudia", {})).status, 200);
+    assert.equal((await read("claudia")).body.caller.sessions.w01.readsCheckInTotals, true);
+  });
+
+  test("an admin or the programme's lead changes one entry, with a history row only they are shown", async () => {
     assert.equal((await take("claudia", {})).status, 200);
     const change = (who, body) => call(who, record.POST, { groupId: B }, { body: { weekNumber: 1, ...body }, course: true });
     const changed = await change("claudia", { uid: "rahul", state: "late", arrivedAt: "2026-11-03T18:35:00.000Z" });
@@ -543,7 +573,7 @@ describe("6. whether each facilitator was there", () => {
     assert.equal(row.detail, "Changed whether Rahul was at week 1’s session: not there, now arrived late, at 6:35pm.");
     assert.deepEqual([row.before.state, row.after.state, row.subjectUid], ["not-there", "late", "rahul"]);
     const before = everything();
-    for (const who of ["rahul", "sofia", "bea", "amara"]) assert.equal((await change(who, { uid: "sofia", state: "there" })).status, 403, who);
+    for (const who of ["rahul", "sofia", "bea", "amara", "yusuf"]) assert.equal((await change(who, { uid: "sofia", state: "there" })).status, 403, who);
     assert.equal((await change("zach", { uid: "tom", state: "there" })).status, 400);
     assert.equal((await change("zach", { uid: "rahul", state: "late" })).status, 400, "late needs when they arrived");
     assert.equal(everything(), before);
@@ -574,5 +604,87 @@ describe("7. who the register's reminder is about", () => {
     assert.deepEqual(await chased(), ["claudia"]);
     assert.equal((await take("zach", { person: "bea" })).status, 200);
     assert.deepEqual(await chased(), ["zach"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. The start a register keeps
+// ---------------------------------------------------------------------------
+
+describe("8. the start a register keeps is read from the group inside the write", () => {
+  const GROUP_PATH = `courseGroups/${B}`;
+  /** Somebody re-dates week 1 to 6:30pm between the route's first read and its commit. */
+  const reDateMidWrite = () => {
+    world.db.beforeCommit = () => world.db.poke(GROUP_PATH, { "sessionOverrides.w01": { startTimeLocal: "18:30" } });
+  };
+
+  test("a mark saved as the week is re-dated keeps the new start, never the one read before", async () => {
+    reDateMidWrite();
+    const marked = await mark("rahul", [{ uid: "amara", status: "present" }]);
+    assert.equal(marked.status, 200, JSON.stringify(marked.body));
+    assert.equal(new Date(stored().sessionAt).toISOString(), "2026-11-03T18:30:00.000Z");
+  });
+
+  test("a cover pressed as the week is re-dated is refused, and nothing is stored or emailed", async () => {
+    reDateMidWrite();
+    const given = await take("claudia", { person: "bea" });
+    assert.deepEqual([given.status, given.body.error], [409, words.COVER_REFUSAL.changed]);
+    assert.deepEqual(world.mail, []);
+    assert.equal(stored(), null);
+    assert.equal(auditRows("register-given").length, 0);
+  });
+
+  test("the facilitator record, written as the week is re-dated, keeps the new start", async () => {
+    assert.equal((await take("claudia", {})).status, 200);
+    reDateMidWrite();
+    at("2026-11-03T18:45:00Z");
+    const changed = await call("claudia", record.POST, { groupId: B }, { body: { weekNumber: 1, uid: "rahul", state: "there" }, course: true });
+    assert.equal(changed.status, 200, JSON.stringify(changed.body));
+    assert.equal(new Date(stored().sessionAt).toISOString(), "2026-11-03T18:30:00.000Z");
+  });
+
+  test("every file that writes a register's start reads the group inside the same transaction", () => {
+    const root = fileURLToPath(new URL("../src", import.meta.url));
+    const files = [];
+    const walk = (dir) => {
+      for (const name of readdirSync(dir)) {
+        const path = join(dir, name);
+        if (statSync(path).isDirectory()) walk(path);
+        else if (/\.(ts|tsx)$/.test(name)) files.push(path);
+      }
+    };
+    walk(root);
+    // A file that names `sessionAt:` either stores it on a register while it
+    // changes the register (and reads the group in that transaction), or does
+    // not store it on a register at all. Both lists carry a reason, and both
+    // are checked against the tree.
+    const WRITERS = {
+      "app/api/courses/groups/[groupId]/attendance/route.ts": "the register's marks: sessionInTransaction",
+      "app/api/courses/groups/[groupId]/attendance/cover/route.ts": "taking or giving a session: sessionInTransaction",
+      "app/api/courses/groups/[groupId]/attendance/facilitators/route.ts": "the facilitator record: sessionInTransaction",
+      "app/api/courses/groups/[groupId]/session/change/route.ts": "one week's change reads the group as freshSnap in its transaction",
+      "lib/courses/regularTime/apply.ts": "a new regular time reads the group as groupSnap in its transaction",
+      "lib/courses/cantMakeIt/seat.ts": "a person's own word reads the group as groupSnap in its transaction",
+      "lib/courses/joiningOnline/seat.ts": "a person's own word reads the group as groupSnap in its transaction",
+    };
+    const NOT_A_REGISTER_WRITE = {
+      "lib/courses/sessionChange/didNotHappen.ts": "written inside the change route's transaction, which reads the group first",
+      "lib/courses/nextWeekEmail.ts": "the email's facts, never stored on a register",
+      "lib/courses/sessionReports/readers.ts": "a report's view, read only",
+      "lib/courses/weekEmails/words.ts": "an email's words",
+      "lib/scheduler/jobs/weekReminders.ts": "a reminder's facts, never stored on a register",
+    };
+    const naming = files
+      .filter((path) => /sessionAt\s*:/.test(readFileSync(path, "utf8")))
+      .map((path) => relative(root, path).split("\\").join("/"))
+      .sort();
+    const known = new Set([...Object.keys(WRITERS), ...Object.keys(NOT_A_REGISTER_WRITE)]);
+    assert.deepEqual(naming.filter((path) => !known.has(path)), [], "a new file writes sessionAt: say how it reads the group");
+    assert.deepEqual([...known].filter((path) => !naming.includes(path)).sort(), [], "a listed file no longer names sessionAt");
+    for (const path of Object.keys(WRITERS)) {
+      const text = readFileSync(join(root, path), "utf8");
+      const readsInside = /sessionInTransaction\(tx,/.test(text) || /await tx\.get\(groupRef\)/.test(text) || /tx\.get\(db\.collection\("courseGroups"\)/.test(text) || /freshSnap = await tx\.get\(/.test(text);
+      assert.ok(readsInside, `${path} stores sessionAt without reading the group in its transaction`);
+    }
   });
 });

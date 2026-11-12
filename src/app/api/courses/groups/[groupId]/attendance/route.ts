@@ -9,6 +9,7 @@ import {
   isAddressableId,
   loadMirrorMembers,
   loadRegisterMembers,
+  readsFacilitatorRecord as readsFacilitatorRecordOf,
   registerSessionAccess,
   type RegisterMember,
 } from "@/lib/courses/registerAccess";
@@ -46,6 +47,7 @@ import {
 } from "@/lib/firestore/courseAttendance";
 import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
 import { facilitatorsByFirstName } from "@/lib/courses/registerCover/people";
+import { sessionInTransaction } from "@/lib/courses/registerCover/sessionInTransaction";
 import {
   holdsGivenCover,
   lineMoved,
@@ -252,9 +254,9 @@ export type AttendancePayload = {
   covers: RegisterCoverExtras["covers"];
   /**
    * WHETHER EACH OF THE GROUP'S FACILITATORS WAS THERE, by session key. Sent
-   * ONLY to admins and the people leading the programme, and never to
-   * anybody who facilitates the group: the key is absent from every other
-   * reader's answer.
+   * ONLY to admins and the programme's lead, never to a run's track lead by
+   * that alone and never to anybody who facilitates the group: the key is
+   * absent from every other reader's answer.
    */
   facilitatorRecord?: RegisterCoverExtras["facilitatorRecord"];
   /** The group's facilitators who stand behind the role, by name: who Finish asks about, and whose place a cover takes. */
@@ -901,13 +903,13 @@ export async function GET(
     });
   }
 
-  // Who set each line, who covered, and (for admins and the people leading
-  // the programme, never a facilitator of the group) whether each
-  // facilitator was there: the columns' registers only.
+  // Who set each line, who covered, and (for admins and the programme's
+  // lead, never a facilitator of the group, never a run's track lead by that
+  // alone) whether each facilitator was there: the columns' registers only.
   const columnRegisters = columns
     .map((column) => registerBySessionKey.get(column.sessionKey))
     .filter((register): register is CourseAttendanceDoc => register !== undefined);
-  const readsFacilitatorRecord = (gated.isAdmin || gated.leads) && !gated.facilitates;
+  const readsFacilitatorRecord = readsFacilitatorRecordOf(gated);
   const [extras, facilitators] = await Promise.all([
     registerCoverExtras(db, {
       registers: columnRegisters,
@@ -988,6 +990,15 @@ class RegisterLockedError extends Error {}
 class RegisterNotYoursError extends Error {}
 /** POST asked a session to be marked as not held, which Change this week now does. */
 class NotHeldMovedError extends Error {}
+/** POST met a session the group, read in the transaction, no longer holds as it did. */
+class SessionChangedError extends Error {
+  constructor(
+    readonly reason: "gone" | "cancelled",
+    readonly dateKey: string,
+  ) {
+    super(reason);
+  }
+}
 
 /** One line's stamp as it is written. */
 type LineSetterStamp = { byUid: string; at: Date; how: LineSetterHow };
@@ -1060,7 +1071,6 @@ export async function POST(
   const ref = db
     .collection("courseAttendance")
     .doc(attendanceDocId(runId, groupId, session.weekNumber, session.occurrence));
-  const { startsAt, endsAt } = sessionInstants(session);
   // The register's OWN value after the write, not the request's: a POST that
   // sends no `held` must report what the session actually is rather than
   // assuming the default.
@@ -1076,6 +1086,14 @@ export async function POST(
     // is counted honestly rather than as 40.
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
+      // THE SESSION AS THE GROUP SAYS IT NOW, read in this transaction: the
+      // start the register keeps (`sessionAt`) and the end a late arrival is
+      // measured against are never worked out from a group read before it,
+      // so a register marked as the group's weeks are re-dated keeps the
+      // session's real start.
+      const fresh = await sessionInTransaction(tx, db, prepared.ctx.run, groupId, session);
+      if (!fresh.ok) throw new SessionChangedError(fresh.reason, fresh.dateKey);
+      const { startsAt, endsAt } = fresh;
       const data = snap.data() ?? {};
       held = hasHeld ? body.held === true : data.held !== false;
       // THE LOCK. A pushed register has already mailed the group and moved the
@@ -1237,6 +1255,17 @@ export async function POST(
   } catch (err) {
     if (err instanceof RegisterNotYoursError) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (err instanceof SessionChangedError) {
+      return NextResponse.json(
+        {
+          error:
+            err.reason === "cancelled"
+              ? didNotHappenLine(group.name.trim() || "This group", err.dateKey)
+              : `Week ${session.weekNumber} isn't a taught session of this group's schedule.`,
+        },
+        { status: 409 },
+      );
     }
     if (err instanceof NotHeldMovedError) {
       return NextResponse.json({ error: REGISTER_COVER_REFUSAL.didNotHappen }, { status: 409 });

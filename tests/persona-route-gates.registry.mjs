@@ -2000,10 +2000,10 @@ export const ROUTES = {
   "/api/courses/groups/[groupId]/attendance": {
     GET: {
       expect: adminOnly(404),
-      // `facilitatorRecord` is sent to admins and the people leading the
-      // programme only, never to a facilitator of the group, somebody given a
-      // session or a member: the key is absent from their answer
-      // (tests/course-register-cover.test.mjs holds each persona).
+      // `facilitatorRecord` is sent to admins and the programme's lead only,
+      // never to a run's track lead by that alone, a facilitator of the
+      // group, somebody given a session or a member: the key is absent from
+      // their answer (tests/course-register-cover.test.mjs holds each persona).
       fields: [
         "group",
         "sessions",
@@ -6054,7 +6054,7 @@ export const REAL_ROUTES = {
     POST: {
       another: {
         anonymous: c(401, NO_SESSION),
-        "*": c(403, "Neither an admin nor anybody leading the programme naming the run: one 403 before the body is read."),
+        "*": c(403, "Neither an admin nor the lead of the programme naming the run (a run's track lead by that alone is refused too): one 403 before the body is read."),
         admin: c(400, "An admin changes whether a facilitator was there, so admitted, then the body is checked: an empty one names no week."),
       },
       theirs: {

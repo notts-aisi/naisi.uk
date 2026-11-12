@@ -3450,9 +3450,12 @@ describe("the course hub passage", () => {
     // because the people leading a programme also take a register in a
     // facilitator's place, marks only.
     const gate = read("src/lib/courses/registerAccess.ts");
+    // MOVED again (November 2026), with the line it pins: the run-staffing
+    // answer is kept, because whether each facilitator was there goes to the
+    // programme's lead alone (`leadsProgramme`), never a run's track lead.
     assert.match(
       gate,
-      /leads = doesTrackLeadWork\(await runStaffingOf\(db, actor, \{ id: group\.runId, trackLeadUids \}\)\);/,
+      /const staffing = await runStaffingOf\(db, actor, \{ id: group\.runId, trackLeadUids \}\);\n\s*leads = doesTrackLeadWork\(staffing\);/,
       "the register's read gate no longer admits the programme's lead, so the " +
         "policy says the lead reads registers the lead cannot open.",
     );
@@ -11272,12 +11275,21 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
   test("a register records who took it, and a correction who made it, when and what it said before", () => {
     // "Your group's facilitators usually take the register. If they can't,
     // someone else running the programme may take it, and the register
-    // records who did." The register's gate admits its facilitators and
-    // admins, and every save of the marks keeps who saved them.
+    // records who did." MOVED (November 2026), with covering a register:
+    // the register's gate admits its facilitators, admins, the people
+    // leading the programme and somebody given one session, and nobody
+    // else; every save of the marks keeps who saved it, who set each line,
+    // and, taken in a facilitator's place, the cover.
     const access = withoutComments(read("src/lib/courses/registerAccess.ts"));
-    assert.match(access, /if \(!isAdmin && !facilitatesLiveGroup\) \{/);
+    assert.equal(
+      [...access.matchAll(/if \(!isAdmin && !facilitates && !leads && givenSessions\.length === 0\) \{\n\s*return \{ ok: false, status: 403, error: "Forbidden" \};/g)].length,
+      2,
+      "both register gates (writing and reading) refuse everybody else",
+    );
     const marking = withoutComments(read("src/app/api/courses/groups/[groupId]/attendance/route.ts"));
     assert.match(marking, /markedByUid: actor\.uid,/);
+    assert.match(marking, /stamps\[uid\] = \{ byUid: actor\.uid, at: now, how: setterHow\(facilitates\) \};/);
+    assert.match(marking, /\? \{ \[COVER\]: \{ kind: "self", byUid: actor\.uid, at: now, covering: coverable\.map\(\(each\) => each\.uid\) \} \}/);
     // "If a register is wrong, the people running the programme may correct
     // it, and we record who changed it, when and what it said before": an
     // admin's correction of a finished register writes one audit row per mark
@@ -11286,6 +11298,30 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
     assert.match(row, /const from = before\.get\(uid\) \?\? null;/);
     assert.match(row, /kind: "attendance-edit",[\s\S]*?actorUid: actor\.uid,[\s\S]*?at: FieldValue\.serverTimestamp\(\),/);
     assert.match(row, /: `\$\{markLabel\(from, wasOnline\)\} to \$\{markLabel\(status, isOnline\)\}`;/);
+  });
+
+  test("whether a facilitator was there: the programme's lead and admins see this, and nobody else", () => {
+    // "If you facilitate, we may also record whether you were at each session
+    // you run, and who took the register if you weren't. The programme's lead
+    // and admins see this." ADDED (November 2026), with covering a register.
+    // One function decides it, from the gate's answer: an admin or the
+    // programme's lead (`leadsProgramme`, never a run's track lead by that
+    // alone), who does not facilitate the group.
+    const access = withoutComments(read("src/lib/courses/registerAccess.ts"));
+    assert.match(access, /return \(gated\.isAdmin \|\| gated\.leadsProgramme\) && !gated\.facilitates;/);
+    assert.match(access, /leadsProgramme = staffing\.leadOf !== null;/);
+    assert.match(access, /readsFacilitatorRecord: readsFacilitatorRecord\(gated\),/);
+    // The programme's lead "sees the totals" of a check-in; a run's track
+    // lead who takes a register opens its check-in and is sent no totals.
+    assert.match(access, /readsCheckInTotals: staff \|\| \(gated\.leadsProgramme && took\),/);
+    // Every door that hands the record out, or changes it, asks that one function.
+    const marking = withoutComments(read("src/app/api/courses/groups/[groupId]/attendance/route.ts"));
+    assert.match(marking, /const readsFacilitatorRecord = readsFacilitatorRecordOf\(gated\);/);
+    const change = withoutComments(read("src/app/api/courses/groups/[groupId]/attendance/facilitators/route.ts"));
+    assert.match(change, /if \(!readsFacilitatorRecord\(gated\)\) return NextResponse\.json\(\{ error: "Forbidden" \}, \{ status: 403 \}\);/);
+    // The group's history drops the rows about it unless the page is drawn for one of them.
+    const history = withoutComments(read("src/lib/courses/groupHistory/load.ts"));
+    assert.match(history, /if \(!options\.facilitatorRecord && \(LEAD_ONLY_AUDIT_KINDS as readonly string\[\]\)\.includes\(row\.kind\)\) continue;/);
   });
 
   test("we record each time a conduct record is opened, first, and it stays closed when we cannot", () => {

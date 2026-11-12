@@ -184,6 +184,32 @@ describe("2. a draft with marks, called off", () => {
     assert.deepEqual(read(W1).records, { amara: "present", chloe: "absent", farah: "excused" });
   });
 
+  test("push back is refused when a later week's register is taken, and goes through when none is", async () => {
+    const sessionWords = await loadTs("lib/courses/sessionChange/words.ts");
+    // Week 2's register was taken (somebody saved marks on it): pushing week 1
+    // back would move week 2's session, which has met. The pressed session's
+    // own draft is the one register the rule leaves out.
+    await aDraft();
+    const W2 = registerPath(GROUP.b, 2);
+    world.db.seed(W2, { runId: RUN, groupId: GROUP.b, weekNumber: 2, occurrence: 1, records: { amara: "present" }, markedByUid: "rahul" });
+    const before = JSON.stringify(world.db.paths().sort().map((path) => [path, read(path)]));
+    for (const preview of [true, false]) {
+      const refused = await press("rahul", { kind: "push", ...(preview ? { preview: true } : {}) });
+      assert.deepEqual([refused.status, refused.body.error], [409, sessionWords.movesMetWords(2)], `preview: ${preview}`);
+    }
+    assert.equal(JSON.stringify(world.db.paths().sort().map((path) => [path, read(path)])), before, "a refused push changed something");
+    assert.equal(auditRows("session-did-not-happen").length, 0);
+    assert.equal(sessionsOfB().find((s) => s.weekNumber === 1).dateKey, "2026-10-20", "week 1 moved");
+
+    // The same press with no later register taken goes through, and clears the draft.
+    reset(seedWorld({ reminders: true }));
+    await aDraft();
+    const pushed = await press("rahul", { kind: "push" });
+    assert.equal(pushed.status, 200, JSON.stringify(pushed.body));
+    assert.deepEqual(read(W1).records, { farah: "excused" });
+    assert.equal(sessionsOfB().find((s) => s.weekNumber === 1).dateKey, "2026-10-27");
+  });
+
   test("moving or putting right a taken session is still refused, as before", async () => {
     await aDraft();
     const moved = await press("rahul", { kind: "move", metAtAnotherTime: true, move: { dateKey: "2026-10-21", time: "10am", room: "Room C20" } });

@@ -33,6 +33,8 @@ export const COVER_REFUSAL = {
   finished: "That register is finished, so nobody can take it now.",
   /** One of the group's facilitators has started the register. */
   started: "One of the group’s facilitators has started this register, so it doesn’t need covering.",
+  /** The group's weeks were re-dated between reading the session and saving the cover. */
+  changed: "That session has just changed. Check its day and time, and press again.",
   /** The session has no date, so no day to give it until. */
   undated: "That session has no day or time yet, so it can’t be given to anybody.",
   /** Giving a session to themselves. */

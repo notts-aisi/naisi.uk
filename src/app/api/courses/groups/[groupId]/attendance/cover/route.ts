@@ -8,6 +8,7 @@ import { gateGroupRegister, isAddressableId } from "@/lib/courses/registerAccess
 import { coverUntil } from "@/lib/courses/registerCover/model";
 import { parseCoverPress } from "@/lib/courses/registerCover/parse";
 import { approvedPerson, facilitatorsByFirstName, type CoverPerson } from "@/lib/courses/registerCover/people";
+import { sessionInTransaction } from "@/lib/courses/registerCover/sessionInTransaction";
 import {
   COVER_REFUSAL,
   coverCountChangedWords,
@@ -238,6 +239,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
     // ── The write ─────────────────────────────────────────────────────────
     await db.runTransaction(async (tx) => {
       const fresh = await tx.get(ref);
+      // The session as the group says it now, read in this transaction: the
+      // start the register keeps is never one worked out before it. A session
+      // re-dated since the words above were worked out is refused, so nothing
+      // is stored or emailed about a time it no longer has.
+      const current = await sessionInTransaction(tx, db, run, group.id, session);
+      if (!current.ok) {
+        throw current.reason === "cancelled"
+          ? new CoverRefusal(didNotHappenLine(group.name.trim() || "This group", current.dateKey), 409)
+          : new CoverRefusal(COVER_REFUSAL.session, 400);
+      }
+      if ((current.startsAt?.getTime() ?? null) !== (startsAt?.getTime() ?? null)) throw new CoverRefusal(COVER_REFUSAL.changed, 409);
       const register = fresh.exists ? normalizeCourseAttendance(fresh.id, fresh.data() ?? {}) : null;
       if (register?.pushedAt) throw new CoverRefusal(COVER_REFUSAL.finished, 409);
       if (startedByFacilitator(register, group.facilitatorUids)) throw new CoverRefusal(COVER_REFUSAL.started, 409);
@@ -277,7 +289,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
           occurrence: session.occurrence,
           [COVER]: cover,
           ...(Object.keys(presence).length > 0 ? { [FACILITATOR_RECORD]: presence } : {}),
-          ...(startsAt ? { sessionAt: startsAt } : {}),
+          ...(current.startsAt ? { sessionAt: current.startsAt } : {}),
         },
         { merge: true },
       );
