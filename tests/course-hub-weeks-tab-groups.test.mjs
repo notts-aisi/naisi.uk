@@ -13,6 +13,7 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -30,6 +31,10 @@ const { default: GroupWeekEditor } = await loadTs(join("features", "courses", "G
 const { normalizeCourseWeek } = await loadTs(join("lib", "firestore", "courses.ts"));
 
 const RUN_W3 = `courseRuns/${RUN.agi}/weeks/w03`;
+const { EDIT_REFUSAL } = await loadTs(join("lib", "courses", "weekEdit", "words.ts"));
+const GROUP_COPY_LEAD_ONLY = EDIT_REFUSAL.groupCopyLeadOnly;
+const fork = await courseRoute("groups", "[groupId]", "weeks", "[weekId]", "fork");
+const groupWeekPatch = await courseRoute("groups", "[groupId]", "weeks", "[weekId]");
 const copyPath = (group, weekId = "w03") => `courseGroups/${group}/weeks/${weekId}`;
 const as = (who, method, group, body, extra = {}) =>
   call(who, route[method], { groupId: group, weekId: extra.weekId ?? "w03" }, { ...(body !== undefined ? { body } : {}), course: true, viewAs: extra.viewAs ?? false });
@@ -108,6 +113,15 @@ describe("1. who may change one group's week", () => {
     assert.equal(everything(), before);
   });
 
+  test("the group's facilitators are refused Save in one plain sentence, and nothing is written", async () => {
+    const before = everything();
+    for (const [who, group] of [["rahul", B], ["sofia", B], ["sofia", A]]) {
+      const refused = await as(who, "PUT", group, { markdown: syntheticGuideMarkdown() });
+      assert.deepEqual([refused.status, refused.body], [403, { error: GROUP_COPY_LEAD_ONLY }], `${who} on ${group}`);
+    }
+    assert.equal(everything(), before);
+  });
+
   test("a view-as session is refused Read it and Save first", async () => {
     const before = everything();
     for (const method of ["POST", "PUT"]) {
@@ -134,6 +148,71 @@ describe("1. who may change one group's week", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 1b. The older routes: making a copy, and changing a copy's content
+// ---------------------------------------------------------------------------
+
+describe("1b. a group's own copy is made and changed by the programme's lead and admins, at the older routes too", () => {
+  const forkAs = (who, group = B) => call(who, fork.POST, { groupId: group, weekId: "w03" }, { course: true });
+  const patchAs = (who, body, group = B) => call(who, groupWeekPatch.PATCH, { groupId: group, weekId: "w03" }, { body, course: true });
+
+  test("making a copy: the group's facilitator (an old tab) is told plainly, the track lead refused, and nothing is written", async () => {
+    const before = everything();
+    for (const who of ["rahul", "sofia"]) {
+      const refused = await forkAs(who);
+      assert.deepEqual([refused.status, refused.body], [403, { error: GROUP_COPY_LEAD_ONLY }], who);
+    }
+    for (const who of ["yusuf", "tom", "chloe"]) {
+      const refused = await forkAs(who);
+      assert.deepEqual([refused.status, refused.body], [403, { error: "Forbidden" }], who);
+    }
+    assert.equal(everything(), before);
+  });
+
+  test("making a copy: the programme's lead and an admin make it", async () => {
+    const made = await forkAs("claudia");
+    assert.equal(made.status, 200, JSON.stringify(made.body));
+    assert.equal(world.db.read(copyPath(B)).forkedByUid, "claudia");
+    const again = await forkAs("zach");
+    assert.deepEqual([again.status, again.body.alreadyForked], [200, true]);
+    const other = await forkAs("zach", D);
+    assert.equal(other.status, 200, JSON.stringify(other.body));
+    assert.equal(world.db.read(copyPath(D)).forkedByUid, "zach");
+  });
+
+  test("changing a copy's content: the facilitator and the track lead are told plainly before the body is read; the lead and an admin change it", async () => {
+    assert.equal((await forkAs("claudia")).status, 200);
+    const before = everything();
+    for (const who of ["rahul", "sofia", "yusuf"]) {
+      const refused = await patchAs(who, { summary: "Not theirs" });
+      assert.deepEqual([refused.status, refused.body], [403, { error: GROUP_COPY_LEAD_ONLY }], who);
+      // Before the body: a body the route would refuse anyway is refused the same way.
+      assert.deepEqual((await patchAs(who, { title: "x" })).body, { error: GROUP_COPY_LEAD_ONLY }, who);
+    }
+    assert.equal((await patchAs("tom", { summary: "Not theirs" })).status, 403);
+    assert.equal(everything(), before);
+    const lead = await patchAs("claudia", { summary: "Group B’s cut" });
+    assert.equal(lead.status, 200, JSON.stringify(lead.body));
+    assert.equal(world.db.read(copyPath(B)).summary, "Group B’s cut");
+    const admin = await patchAs("zach", { summary: "An admin’s cut" });
+    assert.equal(admin.status, 200, JSON.stringify(admin.body));
+    assert.equal(world.db.read(copyPath(B)).summary, "An admin’s cut");
+  });
+
+  test("what a facilitator still does on purpose keeps working: how each week meets is another route, and the group's week still reads", async () => {
+    // How each week meets is written by the group's session route, which these refusals never touch.
+    const client = readFileSync(join(process.cwd(), "src", "features", "courses", "useGroupWeeks.ts"), "utf8");
+    assert.match(client, /export async function setGroupWeekMode[\s\S]*?requestJson\(groupSessionUrl\(groupId\), "PATCH", \{ weekId, mode \}\)/);
+    assert.match(client, /return `\$\{groupBase\(groupId\)\}\/session`;/);
+    const session = readFileSync(join(process.cwd(), "src", "app", "api", "courses", "groups", "[groupId]", "session", "route.ts"), "utf8");
+    assert.match(session, /if \(!isAdmin && !facilitatesLiveGroup && !staffsRun\)/, "the session route still admits the group's live facilitators");
+    assert.doesNotMatch(session, /groupCopyLeadOnly/);
+    // Copying the week out and reading a paste write nothing, and stay open to them.
+    assert.equal((await as("rahul", "GET", B)).status, 200);
+    assert.equal((await as("rahul", "POST", B, { markdown: syntheticGuideMarkdown() })).status, 200);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 2. The copy: made through the one copy function, ids kept
 // ---------------------------------------------------------------------------
 
@@ -141,13 +220,13 @@ describe("2. the group's own copy", () => {
   test("Copy as Markdown, change it, paste it back: the group's copy is made, every id kept, the run's week untouched", async () => {
     const run = world.db.read(RUN_W3);
     const runIds = idsOf(run.blocks);
-    const copied = await as("rahul", "GET", B);
+    const copied = await as("claudia", "GET", B);
     assert.equal(copied.status, 200);
     const changed = copied.body.markdown.replace("# Week 3: How sure are you?", "# Week 3: How sure is Group B?");
     assert.notEqual(changed, copied.body.markdown);
-    const read = await as("rahul", "POST", B, { markdown: changed });
+    const read = await as("claudia", "POST", B, { markdown: changed });
     assert.deepEqual([read.body.problems, read.body.removed, read.body.answers], [[], [], 0]);
-    const saved = await as("rahul", "PUT", B, { markdown: changed });
+    const saved = await as("claudia", "PUT", B, { markdown: changed });
     assert.equal(saved.status, 200, JSON.stringify(saved.body));
     assert.equal(saved.body.made, true);
     assert.equal(saved.body.minted, 0, "no id is minted on a round trip");
@@ -159,7 +238,7 @@ describe("2. the group's own copy", () => {
     for (const field of ["weekNumber", "summary", "materials", "exercises", "checklist", "questions", "published"]) {
       assert.deepEqual(copy[field], run[field], field);
     }
-    assert.equal(copy.forkedByUid, "rahul");
+    assert.equal(copy.forkedByUid, "claudia");
     assert.ok(copy.forkedAt, "the copy says when it was made");
     assert.equal(copy.ready, undefined, "a copy never carries Ready");
     assert.equal(copy.ownerUid, undefined, "nor the run's owner");
@@ -167,7 +246,7 @@ describe("2. the group's own copy", () => {
     for (const other of [A, C, D]) assert.equal(world.db.read(copyPath(other)), undefined, `no copy for ${other}`);
 
     // And the copy copies out again as itself.
-    const again = await as("claudia", "GET", B);
+    const again = await as("zach", "GET", B);
     assert.equal(again.body.markdown, changed);
   });
 
@@ -201,7 +280,7 @@ describe("2. the group's own copy", () => {
 
   test("a paste with a problem is refused, and another week's Markdown is one", async () => {
     const before = everything();
-    const saved = await as("rahul", "PUT", B, { markdown: syntheticGuideMarkdown().replace("# Week 3:", "# Week 4:") });
+    const saved = await as("claudia", "PUT", B, { markdown: syntheticGuideMarkdown().replace("# Week 3:", "# Week 4:") });
     assert.equal(saved.status, 400);
     assert.equal(saved.body.error, "This is week 4’s Markdown, and you’re loading week 3. Check the week, or change the first line.");
     assert.equal(everything(), before);
@@ -214,22 +293,22 @@ describe("2. the group's own copy", () => {
 
 describe("3. answers stay with their blocks", () => {
   test("taking out a source somebody in the group ticked asks to confirm, counting the group's people alone", async () => {
-    const copied = (await as("rahul", "GET", B)).body.markdown;
+    const copied = (await as("claudia", "GET", B)).body.markdown;
     const { id, line } = firstSource(copied);
     // Chloe is in Group B; Amara is in Group A, whose week this paste never touches.
     for (const uid of ["chloe", "amara"]) {
       world.db.seed(`courseProgress/${RUN.agi}__${uid}__${id}`, { runId: RUN.agi, uid, itemId: id, itemKind: "material", done: true });
     }
     const without = copied.replace(`${line}\n`, "");
-    const read = await as("rahul", "POST", B, { markdown: without });
+    const read = await as("claudia", "POST", B, { markdown: without });
     assert.equal(read.status, 200);
     assert.equal(read.body.answers, 1, "only Chloe's tick: Amara reads the run's week");
     assert.deepEqual(read.body.removed.filter((item) => item.answers > 0).map((item) => [item.id, item.answers]), [[id, 1]]);
-    const refused = await as("rahul", "PUT", B, { markdown: without });
+    const refused = await as("claudia", "PUT", B, { markdown: without });
     assert.equal(refused.status, 409);
     assert.equal(refused.body.error, "This paste takes out an item with 1 answer. Confirm to save it anyway.");
     assert.equal(world.db.read(copyPath(B)), undefined, "nothing saved until confirmed");
-    const saved = await as("rahul", "PUT", B, { markdown: without, confirmAnswers: 1 });
+    const saved = await as("claudia", "PUT", B, { markdown: without, confirmAnswers: 1 });
     assert.equal(saved.status, 200, JSON.stringify(saved.body));
     // The answers are never deleted: they stay stored, with their block's id.
     for (const uid of ["chloe", "amara"]) assert.ok(world.db.read(`courseProgress/${RUN.agi}__${uid}__${id}`), uid);
@@ -294,8 +373,8 @@ describe("5. the lead's card on the week's page, and the facilitator's group wee
   });
 
   test("a group with its own copy says so, with the day it was made", async () => {
-    const copied = (await as("rahul", "GET", B)).body.markdown;
-    assert.equal((await as("rahul", "PUT", B, { markdown: copied })).status, 200);
+    const copied = (await as("claudia", "GET", B)).body.markdown;
+    assert.equal((await as("claudia", "PUT", B, { markdown: copied })).status, 200);
     // Group B first in the menu.
     world.db.poke(`courseGroups/${D}`, { archived: true });
     const page = await draw("claudia", WeekPage, { roundId: ROUND, programmeId: AGI, weekId: "w03" });

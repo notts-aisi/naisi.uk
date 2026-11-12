@@ -2902,7 +2902,11 @@ longer makes or edits a group's copy of a week, until a later phase: it says
 the programme's weeks are edited by the programme's lead, keeps how each week
 meets, and shows a copy a group already has, read only; the group keeps
 reading it. The Weeks page's own "Week 3 for one group" paste stays, for the
-lead and admins. Neither the run's editor nor a group's routes write the history,
+lead and admins. The routes hold the same line: making a group's copy (the
+fork), changing its content (the group week's edit) and saving a group's
+paste refuse a facilitator, and the run's track lead at the edit, in one
+plain sentence, for an old tab; how each week meets is the group's session
+route and is untouched. Neither the run's editor nor a group's routes write the history,
 so a week they change is found again ("as it stood") before the next save
 here.
 

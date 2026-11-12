@@ -6584,12 +6584,12 @@ export const REAL_ROUTES = {
     PATCH: {
       another: {
         anonymous: c(401, NO_SESSION),
-        "*": c(403, "Neither an admin, a lead of the run (its track lead or its programme's lead) nor a live facilitator of the group: refused before the body."),
+        "*": c(403, "Neither an admin nor the lead of the programme that names the run: refused before the body (one 403, or for a facilitator of the group or the run's track lead, one plain sentence)."),
         admin: c(400, "Admitted, then an empty body changes nothing and is refused."),
       },
       theirs: {
         lead: c(400, "Leads the programme that names the run, so admitted, then an empty body changes nothing and is refused."),
-        facilitator: c(400, "A live facilitator of the group, so admitted, then an empty body changes nothing and is refused."),
+        facilitator: c(403, "A live facilitator of the group, refused in one plain sentence before the body: a group's own copy is changed by the programme's lead and admins alone."),
         participant: c(403, "Holds a place in the run's other group and leads nothing: refused before the body."),
       },
     },
@@ -6597,13 +6597,28 @@ export const REAL_ROUTES = {
   "/api/courses/groups/[groupId]/weeks/[weekId]/blocks": {
     GET: groupWeek("Copying the group's week out", c(404, "Admitted, and week 1 is not written as blocks here, so there is nothing to copy.")),
     POST: groupWeek("Reading a pasted week for the group", c(400, "Admitted, then the body is checked: no Markdown.")),
-    PUT: groupWeek("Saving a pasted week for the group", c(400, "Admitted, then the body is checked: no Markdown.")),
+    PUT: {
+      ...groupWeek("Saving a pasted week for the group", c(400, "Admitted, then the body is checked: no Markdown.")),
+      theirs: {
+        ...groupWeek("Saving a pasted week for the group", null).theirs,
+        lead: c(400, "Leads the programme that names the run, so admitted, then the body is checked: no Markdown."),
+        facilitator: c(403, "A live facilitator of the group may copy the week out and read a paste, and is refused Save in one plain sentence before the body: a group's own copy is made and changed by the programme's lead and admins alone."),
+      },
+    },
   },
   "/api/courses/groups/[groupId]/weeks/[weekId]/fork": {
-    POST: groupStaff(
-      "Giving the group its own copy of a week",
-      c(ACTS, "Admitted, and week 1 has canonical content: it takes no body, so it would make the group's copy."),
-    ),
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither an admin nor the lead of the programme that names the run: one 403 before anything else is read."),
+        admin: c(ACTS, "Admitted, and week 1 has canonical content: it takes no body, so it would make the group's copy."),
+      },
+      theirs: {
+        lead: c(ACTS, "Leads the programme that names the run, so admitted, and it takes no body: it would make the group's copy, so it is not sent."),
+        facilitator: c(403, "A live facilitator of the group, refused in one plain sentence: a group's own copy is made by the programme's lead and admins alone."),
+        participant: c(403, "Holds a place in the run's other group and leads nothing: one 403."),
+      },
+    },
   },
 
   // ---- A run ----------------------------------------------------------------

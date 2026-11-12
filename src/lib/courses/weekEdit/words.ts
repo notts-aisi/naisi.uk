@@ -16,6 +16,8 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 // ---------------------------------------------------------------------------
 
 export const EDIT_REFUSAL = {
+  /** To a group's facilitator (an old tab) making or changing the group's own copy of a week. */
+  groupCopyLeadOnly: "A group’s own copy of a week is made and changed by the programme’s lead or an admin, on the programme’s Weeks page.",
   body: "Send the change as JSON.",
   base: "Load the week again: the save doesn’t say which version of the block it changes.",
   fields: "Say what changes: the save has no fields.",
