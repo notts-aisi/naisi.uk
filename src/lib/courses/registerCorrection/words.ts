@@ -109,6 +109,15 @@ export const CORRECTION_REFUSAL = {
   changed: "That session has just changed. Check it, and press again.",
 } as const;
 
+/**
+ * It didn't happen, or It did happen, asked of a week's second session:
+ * whether a session happened is changed for a week's first session only (a
+ * week's change of time is the week's, and moves its first session).
+ */
+export function secondSessionWords(weekNumber: number): string {
+  return `Whether a session happened is changed for a week’s first session only, and this is week ${weekNumber}’s second.`;
+}
+
 /** A person on the register the press did not say anything about. */
 export function lineMissingWords(name: string): string {
   return `Say how ${name} was there.`;
@@ -224,16 +233,26 @@ export function heldOnlineDetail(weekNumber: number, occurrence: number, count: 
   return `Corrected ${registerWords(weekNumber, occurrence)}: it was held online. ${linesWords(count)} from In the room to Online.${why ? ` ${why}` : ""}`;
 }
 
-/** "Moved week 1’s register to week 2: its 5 lines belonged to that session. Why: “...”" */
+/**
+ * "Moved week 1’s register to week 2: its 5 lines belonged to that session.
+ * They replaced what was on week 2’s register: Dev Kim Excused (said in
+ * advance). Why: “...”"
+ */
 export function movedDetail(
   from: { weekNumber: number; occurrence: number },
   to: { weekNumber: number; occurrence: number },
   count: number,
   reason: string,
+  replaced: readonly { name: string; words: string }[] = [],
 ): string {
   const target = to.occurrence > 1 ? `week ${to.weekNumber}’s session ${to.occurrence}` : `week ${to.weekNumber}`;
+  const named = namedLines(replaced);
+  const over =
+    replaced.length === 0
+      ? ""
+      : ` They replaced ${named ? "what was" : `${linesWords(replaced.length)}`} on ${registerWords(to.weekNumber, to.occurrence)}${named ? `: ${named}` : ""}.`;
   const why = whyQuoted(reason);
-  return `Moved ${registerWords(from.weekNumber, from.occurrence)} to ${target}: its ${linesWords(count)} belonged to that session.${why ? ` ${why}` : ""}`;
+  return `Moved ${registerWords(from.weekNumber, from.occurrence)} to ${target}: its ${linesWords(count)} belonged to that session.${over}${why ? ` ${why}` : ""}`;
 }
 
 /** "Cleared week 1’s register: it was taken for the wrong session. 5 lines cleared: Aisha Rahman In the room, … Why: “...”" */

@@ -993,48 +993,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
-  "/api/courses/groups/[groupId]/attendance/column": {
-    reason:
-      "Course hub: an admin or a programme's lead correcting a finished register's whole column (held online, moved to another session, cleared, didn't happen, did happen), each with a preview and a reason. tests/course-register-corrections.test.mjs executes every kind as every kind of caller, with the register, the figures and the history row each writes; the pages that press it are built in the same change.",
-    coverWhen:
-      "When the group's attendance tab carries Correct this column, its browser spec previews and saves a correction there.",
-  },
-  "/api/courses/groups/[groupId]/attendance/requests": {
-    reason:
-      "Course hub: a facilitator asking for a correction of a line of a finished register, with why. tests/course-register-corrections.test.mjs executes it as every kind of caller, with each refusal and the request it writes; the register's page that presses it is built in the same change.",
-    coverWhen:
-      "When the register carries Ask for a correction on a finished line, its browser spec asks there and an admin approves it from the Requests page.",
-  },
-  "/api/courses/requests/[requestId]/withdraw": {
-    reason:
-      "Course hub: the person who asked for a correction taking it back while it waits. tests/course-register-corrections.test.mjs executes it as the asker, another facilitator and an admin; the register's page that presses it is built in the same change.",
-    coverWhen:
-      "When the register carries Withdraw the correction beside a waiting ask, its browser spec withdraws one there.",
-  },
-  "/api/courses/requests/[requestId]/approve": {
-    reason:
-      "Course hub: an admin or a programme's lead approving a request, which corrects the line it is about in the same transaction. tests/course-register-corrections.test.mjs executes it as every kind of caller, the correction it writes, and its refusal when the line has changed; the request's page that presses it is built in the same change.",
-    coverWhen:
-      "When the request's page carries Approve and correct, its browser spec approves a facilitator's ask there and reads the corrected line on the register.",
-  },
-  "/api/courses/requests/[requestId]/decline": {
-    reason:
-      "Course hub: an admin or a programme's lead declining a request with a reply. tests/course-register-corrections.test.mjs executes it as every kind of caller, and who reads the reply; the request's page that presses it is built in the same change.",
-    coverWhen:
-      "When the request's page carries Decline with its reply, its browser spec declines an ask there and reads the reply on the asker's register.",
-  },
-  "/(app)/admin/admissions/requests": {
-    reason:
-      "Course hub: the Requests page, where an admin or a programme's lead reads facilitators' asks for a register to be corrected. tests/course-register-correction-pages.test.mjs draws it from the loader's answers; tests/course-register-corrections.test.mjs runs the loader as every kind of reader.",
-    coverWhen:
-      "When the browser spec of correcting a register is verified: the lead opens this page from Home and opens a request from it.",
-  },
-  "/(app)/admin/admissions/requests/[requestId]": {
-    reason:
-      "Course hub: one request's page, where an admin or a programme's lead takes, approves or declines a facilitator's ask. tests/course-register-correction-pages.test.mjs draws it for the asker and for the people who decide it.",
-    coverWhen:
-      "When the browser spec of correcting a register is verified: the lead takes, approves and declines requests here.",
-  },
   "/api/courses/groups/[groupId]/excused": {
     reason:
       "Course hub: somebody holding a place asking to be excused from sessions of their group, with a short reason. tests/course-excused-weeks.test.mjs executes it as every kind of caller, before a session and after it, with each refusal and the request it writes (and nothing on a register); the programme page that presses it is built in the next change.",
@@ -1064,12 +1022,6 @@ const NOT_COVERED = {
       "Course hub: an admin replying to a request to be excused without deciding it, kept on the request and emailed to the person. tests/course-excused-weeks.test.mjs executes it as every kind of caller; the request's page that presses it is built in the next change.",
     coverWhen:
       "When the request's page carries Reply without deciding, its browser spec replies there.",
-  },
-  "/api/courses/requests/[requestId]/take": {
-    reason:
-      "Course hub: an admin or a programme's lead saying they are dealing with a request. tests/course-register-corrections.test.mjs executes it as every kind of caller; the request's page that presses it is built in the same change.",
-    coverWhen:
-      "When the request's page carries Take it, its browser spec takes a request there and reads who has it on the Requests page.",
   },
   "/api/courses/groups/[groupId]/session": {
     reason:

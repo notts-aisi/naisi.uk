@@ -213,7 +213,7 @@ export default async function ProgrammeLayout({
   const requestsWaiting = db && programme.runId && opensProgrammeGroups(role) ? await requestsWaitingOnRun(db, programme.runId) : 0;
   if (requestsWaiting > 0) {
     facts.push(
-      <Link href={REQUESTS_PATH} className={styles.metaItem} key="requests" data-testid="programme-requests">
+      <Link href={REQUESTS_PATH} className={styles.metaItem} key="requests">
         <strong>{programmeRequestsWords(requestsWaiting)}</strong>
       </Link>,
     );

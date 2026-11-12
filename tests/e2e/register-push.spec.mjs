@@ -44,8 +44,9 @@
  * column (counted before the push as well as after, so the check can fail);
  * the draft lane REFUSES a write to a pushed register even for this admin,
  * which the spec proves by issuing the POST the UI will not let it click and
- * reading the 409 back; and the admin's next correction travels the PATCH
- * lane with a reason, leaving an audit row saying who moved what and why.
+ * reading the 409 back; and the admin's next correction is pressed in the
+ * line's own sheet, which travels the PATCH lane with a reason, leaving an
+ * audit row saying who moved what and why.
  *
  * ## CHROMIUM ONLY
  *
@@ -763,33 +764,55 @@ test(
         // writes an audit row for every mark it moves.
         //
         // CHANGED ON PURPOSE (November 2026): every correction now needs a
-        // reason. The grid's one-tap correction sends none, so it is refused in
-        // one plain sentence until the correction is drawn with its reason, and
-        // this step sends the PATCH that drawing will send, from the page's
-        // own context and session. The refusal is held first, so a tap that
-        // corrects with no reason fails here.
+        // reason, and a finished line is corrected in its own sheet, pressed
+        // here on the page. The route's refusal of a correction with no
+        // reason is held first, from the page's own context and session, so
+        // an old page that corrects with no reason fails here; then the sheet
+        // holds its button until a reason is written, and its press is the
+        // PATCH, with the reason, that the route answers.
         const cell = cellOf(page, 0, PUSH_WEEK - 1);
         assert.equal(await statusOf(cell), "Present", "the pushed mark is not what it was");
-        const correct = (extra) =>
-          page.evaluate(
-            async ([groupId, weekNumber, uid, more]) => {
-              const res = await fetch(`/api/courses/groups/${encodeURIComponent(groupId)}/attendance`, {
-                method: "PATCH",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ weekNumber, occurrence: 1, marks: [{ uid, status: "late" }], ...more }),
-              });
-              return { status: res.status, body: await res.json().catch(() => null) };
-            },
-            [state.groupId, PUSH_WEEK, state.members[0].uid, extra],
-          );
-        const unexplained = await correct({});
+        const unexplained = await page.evaluate(
+          async ([groupId, weekNumber, uid]) => {
+            const res = await fetch(`/api/courses/groups/${encodeURIComponent(groupId)}/attendance`, {
+              method: "PATCH",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ weekNumber, occurrence: 1, marks: [{ uid, status: "late" }] }),
+            });
+            return { status: res.status, body: await res.json().catch(() => null) };
+          },
+          [state.groupId, PUSH_WEEK, state.members[0].uid],
+        );
         assert.deepEqual(
           [unexplained.status, unexplained.body?.error],
           [400, "A correction needs a reason now. Reload the page, and say why."],
           `a correction with no reason was not refused: ${JSON.stringify(unexplained)}`,
         );
-        const result = await correct({ reason: "They arrived ten minutes after the start." });
+
+        // The line opens its sheet: what it says, what it should say, why.
+        await cell.click();
+        const sheet = page.getByTestId("line-sheet");
+        await sheet.waitFor({ timeout: WAIT_MS });
+        assert.match((await sheet.innerText()).replace(/\s+/g, " "), /The register says In the room\./, "the sheet does not say what the line says");
+        assert.equal(
+          await sheet.getByRole("radio", { name: "In the room", exact: true }).count(),
+          0,
+          "the sheet offers what the line already says",
+        );
+        await sheet.getByRole("radio", { name: "Arrived late, in the room", exact: true }).check();
+        const save = sheet.getByTestId("line-sheet-submit");
+        assert.equal(await save.isDisabled(), true, "the correction can be saved with no reason");
+        await sheet.getByRole("textbox").fill("They arrived ten minutes after the start.");
+        const [response] = await Promise.all([
+          page.waitForResponse(
+            (r) => new URL(r.url()).pathname.endsWith(`/groups/${state.groupId}/attendance`) && r.request().method() === "PATCH",
+            { timeout: WAIT_MS },
+          ),
+          save.click(),
+        ]);
+        const result = { status: response.status(), body: await response.json().catch(() => null) };
         assert.equal(result.status, 200, `the correction was refused: ${JSON.stringify(result)}`);
+        assert.equal(JSON.parse(response.request().postData() ?? "{}").reason, "They arrived ten minutes after the start.", "the sheet sent no reason");
         const edited = result.body;
         assert.equal(edited.marked, 1, "the correction moved something other than one mark");
         assert.ok(edited.logged >= 1, "the correction logged no audit row");

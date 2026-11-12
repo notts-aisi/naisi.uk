@@ -200,11 +200,12 @@ export default function AttendanceTab({
                   Person
                 </th>
                 {shownColumns.map((column) => (
-                  <th key={column.weekNumber} scope="col" className={styles.head} data-testid="group-attendance-week">
+                  <th key={column.weekNumber} scope="col" className={styles.head}>
                     <span className={styles.headLabel}>{P.columnLabel(column.weekNumber, column.dateKey)}</span>
                     {column.finished && <span className={styles.headSub}>Finished by {P.firstOf(column.finished.name) || "somebody"}</span>}
                     {column.cover && <span className={styles.headSub}>Taken by {P.firstOf(column.cover.name)}</span>}
-                    {corrects && column.started && (column.finished || !column.held) && (
+                    {/* Whether a session happened is changed for a week's first session only. */}
+                    {corrects && column.started && (column.held ? Boolean(column.finished) : occurrenceOf(column.sessionKey) === 1) && (
                       <button
                         type="button"
                         className={styles.headButton}
@@ -242,11 +243,13 @@ export default function AttendanceTab({
       )}
 
       {view.facilitators && view.facilitators.length > 0 && shownColumns.length > 0 && (
-        <section className={styles.facilitators} aria-labelledby="group-attendance-facilitators" data-testid="group-attendance-facilitators">
-          <h3 id="group-attendance-facilitators" className={styles.subTitle}>
-            {P.FACILITATORS_ROW}
-          </h3>
-          {presenceShown && <p className={styles.note}>{P.FACILITATORS_ROW_NOTE}</p>}
+        <section className={styles.facilitators} aria-labelledby="group-attendance-facilitators">
+          <div className={styles.subHead}>
+            <h3 id="group-attendance-facilitators" className={styles.subTitle}>
+              {P.FACILITATORS_ROW}
+            </h3>
+            {presenceShown && <span className={styles.chip}>{P.FACILITATORS_ROW_CHIP}</span>}
+          </div>
           <div className={styles.scroll}>
             <table className={styles.table}>
               <thead>
@@ -282,6 +285,7 @@ export default function AttendanceTab({
               </tbody>
             </table>
           </div>
+          {presenceShown && <p className={styles.note}>{P.FACILITATORS_ROW_NOTE}</p>}
         </section>
       )}
 

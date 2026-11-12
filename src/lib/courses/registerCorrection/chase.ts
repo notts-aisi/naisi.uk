@@ -1,9 +1,12 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { standingUserOf } from "@/lib/courses/programmeLead";
+import { chaseTargets } from "@/lib/courses/registerCover/model";
 import { sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
-import { FOLLOW_UP_WINDOW_HOURS, registerFollowUpFallbackTaskId, registerFollowUpTaskId } from "@/lib/courses/unmarkedRegisters";
+import { FOLLOW_UP_WINDOW_HOURS, followUpDueAt, registerFollowUpFallbackTaskId, registerFollowUpTaskId } from "@/lib/courses/unmarkedRegisters";
+import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { readCoursesConfig } from "@/lib/firestore/config";
-import type { CourseAttendanceDoc } from "@/lib/firestore/courseAttendance";
+import type { CourseAttendanceDoc, RegisterCover } from "@/lib/firestore/courseAttendance";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { REGISTER_FOLLOW_UP_TASK_SOURCE } from "@/lib/firestore/courseTasks";
 import { jobStateFor, readSchedulerConfig } from "@/lib/firestore/schedulerConfig";
@@ -37,6 +40,12 @@ import { REGISTER_REMINDERS_JOB, UNMARKED_REGISTERS_JOB } from "@/lib/scheduler/
  * the preview says only what will happen; `restartChase` does it, after the
  * correction's transaction and best effort, as finishing a register
  * archives its card.
+ *
+ * WHO THE EMAIL GOES TO, when it goes again, is the job's own answer
+ * (`chaseTargets`) for the register as the correction leaves it: nobody has
+ * saved a line on it any more, so somebody covering it (who took it, or who
+ * gave the session) if the cover stays, else the group's facilitators, each
+ * held to the bar they were appointed behind, as the job holds them.
  */
 
 const HOUR_MS = 3_600_000;
@@ -46,6 +55,14 @@ export type ChaseFacts = {
   email: "returns" | "passed" | "off";
   /** The card for the programme's lead and admins: it comes back (or is raised in its time), its time has passed, or the job is off. */
   card: "returns" | "passed" | "off";
+  /**
+   * While the email goes again: who it goes to (the group's facilitators, or
+   * the person covering the register: who took it, or who gave the session).
+   * Null when it does not go again.
+   */
+  emailTo: { kind: "facilitators" | "cover-taker" | "cover-giver"; uids: string[] } | null;
+  /** While the email goes again: when its time for this session starts (ISO); it goes at the job's first run from then. */
+  emailFrom: string | null;
 };
 
 /** The card the unfinished-register job raised for this session, if it raised one. */
@@ -64,21 +81,50 @@ async function cardsOf(db: Firestore, runId: string, groupId: string, sessionKey
 
 export async function chaseFacts(
   db: Firestore,
-  input: { runId: string; groupId: string; session: ResolvedSession; now: Date },
+  input: {
+    runId: string;
+    group: Pick<CourseGroupDoc, "id" | "facilitatorUids">;
+    session: ResolvedSession;
+    now: Date;
+    /** The register's cover as the correction leaves it: a move takes it away, a clear keeps it. */
+    cover: RegisterCover | null;
+  },
 ): Promise<ChaseFacts> {
-  const { runId, groupId, session, now } = input;
+  const { runId, group, session, now } = input;
   const [courses, scheduler, cards] = await Promise.all([
     readCoursesConfig(db),
     readSchedulerConfig(db),
-    cardsOf(db, runId, groupId, session.sessionKey),
+    cardsOf(db, runId, group.id, session.sessionKey),
   ]);
   const endsAt = sessionInstants(session).endsAt;
   const until = (hours: number) => (endsAt ? endsAt.getTime() + (hours + FOLLOW_UP_WINDOW_HOURS) * HOUR_MS : 0);
   const emailOn = jobStateFor(scheduler, REGISTER_REMINDERS_JOB.id, REGISTER_REMINDERS_JOB.enabledByDefault).enabled;
   const cardOn = jobStateFor(scheduler, UNMARKED_REGISTERS_JOB.id, UNMARKED_REGISTERS_JOB.enabledByDefault).enabled;
+  const email: ChaseFacts["email"] = !emailOn ? "off" : now.getTime() < until(courses.unmarkedRegisterGraceHours) ? "returns" : "passed";
+  const card: ChaseFacts["card"] = !cardOn ? "off" : cards.length > 0 || now.getTime() < until(courses.registerTaskHours) ? "returns" : "passed";
+  if (email !== "returns" || !endsAt) return { email, card, emailTo: null, emailFrom: null };
+
+  // Who the job would remind about the register as the correction leaves it:
+  // nobody has saved a line on it any more, so no last saver.
+  const targets = chaseTargets({ cover: input.cover, markedByUid: "", facilitatorsWithStanding: [] });
+  const uids = targets.kind === "facilitators" ? [...new Set(group.facilitatorUids)] : targets.uids;
+  const wanted = uids.filter((uid) => uid && !uid.includes("/"));
+  const snaps = wanted.length ? await db.getAll(...wanted.map((uid) => db.collection("users").doc(uid))) : [];
+  // A facilitator is reminded while they meet the bar they were appointed behind.
+  const reminded = snaps
+    .filter((snap) => snap.exists)
+    .filter(
+      (snap) =>
+        targets.kind !== "facilitators" ||
+        isNamedWithStanding(standingUserOf(snap.id, (snap.data() ?? {}) as Record<string, unknown>), "courseGroups.facilitatorUids", group.facilitatorUids),
+    )
+    .map((snap) => snap.id);
+  const kind = targets.kind === "last-saver" ? "facilitators" : targets.kind;
   return {
-    email: !emailOn ? "off" : now.getTime() < until(courses.unmarkedRegisterGraceHours) ? "returns" : "passed",
-    card: !cardOn ? "off" : cards.length > 0 || now.getTime() < until(courses.registerTaskHours) ? "returns" : "passed",
+    email,
+    card,
+    emailTo: { kind, uids: reminded },
+    emailFrom: followUpDueAt(endsAt, courses.unmarkedRegisterGraceHours).toISOString(),
   };
 }
 

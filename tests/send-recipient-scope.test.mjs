@@ -493,6 +493,17 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/lib/scheduler/jobs/registerReminders.ts#().trackLeadUids",
+    {
+      reads: 1,
+      origin: "gate",
+      why:
+        "Whether the person a covered register's reminder goes to is one of the run's track leads, held to their bar, " +
+        "which decides only which register page the email links them to (the run's own, which admits a track lead). " +
+        "It adds nobody to who is emailed.",
+    },
+  ],
+  [
     "src/lib/scheduler/jobs/registerReminders.ts#group.facilitatorUids",
     {
       reads: 5,

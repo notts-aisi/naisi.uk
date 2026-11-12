@@ -245,6 +245,21 @@ describe("5. It didn't happen: what \"What will happen\" gains", () => {
     assert.equal(lines[2].text, "Its check-in was opened, and 1 session report was written. They are kept, and nothing more opens for it.");
   });
 
+  test("pushed back, the words say the week meets again and its check-in and report are its new session's", () => {
+    const facts = { leavesAttendance: true, chaseStops: true, checkIn: false, reports: 0, lines: { cleared: 0, said: {}, names: {} } };
+    const pushed = words.didNotHappenLines(facts, 2, "push");
+    assert.equal(
+      pushed[0].text,
+      "The session that didn’t happen leaves everyone’s attendance. Nobody is counted absent, and week 2’s register is taken at its new session.",
+    );
+    assert.equal(pushed[2].text, "Nothing was opened or written for it. Week 2’s check-in and report are for its new session.");
+    // Kept pace, as before.
+    const kept = words.didNotHappenLines(facts, 2, "cancel");
+    assert.equal(kept[0].text, "Week 2 leaves everyone’s attendance. Nobody is counted absent.");
+    assert.equal(kept[2].text, "Neither opens: there was no session.");
+    assert.equal(words.DRAFT_DIDNT_HAPPEN_LINE.startsWith("Its register has lines on it and isn’t finished."), true);
+  });
+
   test("the panel's words", () => {
     assert.equal(words.didntHappenTitle(2), "Week 2 didn’t happen");
     assert.equal(words.didntHappenLede("Group E", "2026-11-10", "16:00"), "Group E, Tue 10 Nov, 4pm.");
@@ -253,6 +268,31 @@ describe("5. It didn't happen: what \"What will happen\" gains", () => {
 });
 
 describe("6. giving a session to somebody else", () => {
+  test("the picker lists admins, the committee, the programme's leads and the run's facilitators, never this group's", () => {
+    const people = [
+      { uid: "zach", role: "admin" },
+      { uid: "nadia", role: "committee" },
+      { uid: "rahul", role: "member" },
+      { uid: "tom", role: "member" },
+      { uid: "yusuf", role: "member" },
+      { uid: "bea", role: "member" },
+      { uid: "sofia", role: "committee" },
+    ];
+    const groups = [
+      { id: "b", facilitators: [{ uid: "rahul" }, { uid: "sofia" }] },
+      { id: "c", facilitators: [{ uid: "tom" }] },
+    ];
+    const listed = model.coverCandidatesOf({ people, groups, leadUids: ["yusuf"], groupId: "b" }).map((each) => each.uid);
+    assert.deepEqual(listed, ["zach", "nadia", "tom", "yusuf"]);
+  });
+
+  test("who has the session already, over the picker", () => {
+    const given = { name: "Ola Nowak", kind: "given", live: true };
+    assert.equal(words.givenAlreadyWords(given, false), "Ola Nowak has this session until midnight. Giving it to somebody else replaces that.");
+    assert.equal(words.givenAlreadyWords(given, true), "Ola Nowak has this session already, until midnight. Giving it again sends nothing.");
+    assert.equal(words.givenAlreadyWords({ name: "Zach Levin", kind: "self", live: true }, false), "Zach Levin is taking this register. Giving it to somebody else replaces that.");
+  });
+
   test("the button says what it sends and to how many", () => {
     assert.equal(words.giveButtonWords("Ola", 1, 0), "Give Ola this session and email Ola (1)");
     assert.equal(words.giveButtonWords("Ola", 1, 6), "Give Ola this session and email Ola and the group (7)");
@@ -264,7 +304,10 @@ describe("6. giving a session to somebody else", () => {
     assert.equal(words.tellGroupWords("Group E", "Ola", true, "2026-11-10", 6), "Tell Group E that Ola is running today’s session (6 people)");
     assert.equal(words.tellGroupWords("Group E", "Ola", false, "2026-11-17", 1), "Tell Group E that Ola is running the session on Tue 17 Nov (1 person)");
     assert.equal(words.untilWords("2026-11-11T00:00:00.000Z"), "until midnight at the end of Tue 10 Nov");
-    assert.match(words.giveWhatTheyGet("2026-11-11T00:00:00.000Z"), /^Anyone with an account\. For this session only, until midnight at the end of Tue 10 Nov, they get its register, check-in and session report/);
+    assert.match(
+      words.giveWhatTheyGet("2026-11-11T00:00:00.000Z"),
+      /^An admin, a committee member, the programme’s lead, one of its track leads or one of its facilitators\. For this session only, until midnight at the end of Tue 10 Nov, they get its register, check-in and session report/,
+    );
     assert.equal(words.gaveWords("Ola", true, 0), "Ola has this session until midnight. Emailed Ola.");
     assert.equal(words.gaveWords("Ola", true, 6), "Ola has this session until midnight. Emailed Ola and 6 people in the group.");
     assert.equal(words.gaveWords("Ola", false, 0), "Ola has this session until midnight. Nobody was emailed.");

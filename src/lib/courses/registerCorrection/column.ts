@@ -20,8 +20,10 @@ import {
   clearedNames,
   closeCalledOffFollowUp,
   didNotHappenFacts,
+  sessionHasCheckInOrReport,
   writeDidNotHappen,
 } from "@/lib/courses/sessionChange/didNotHappen";
+import { pushHasRecordsWords } from "@/lib/courses/registerCover/words";
 import { startMoves, takenStartMoves } from "@/lib/courses/sessionChange/metSessions";
 import { sessionOfWeek } from "@/lib/courses/sessionChange/model";
 import { oneWeekHistoryDetail, oneWeekNoticeFor, weekSessionAfter } from "@/lib/courses/sessionChange/notice";
@@ -48,7 +50,7 @@ import { COURSE_AUDIT_COLLECTION, type CourseAuditValue } from "@/lib/firestore/
 import { normalizeCourseGroup, sessionChangeForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
-import { chaseFacts, restartChase } from "./chase";
+import { chaseFacts, restartChase, type ChaseFacts } from "./chase";
 import { namesGoneBy } from "./line";
 import { CORRECTION_REASON_MAX, lineOf, parseAskedLine, parseCorrectionReason, wordsOf, type RegisterLine } from "./model";
 import {
@@ -58,6 +60,7 @@ import {
   heldOnlineDetail,
   lineMissingWords,
   movedDetail,
+  secondSessionWords,
   targetCancelledWords,
   targetCoveredWords,
   targetMissingWords,
@@ -87,7 +90,12 @@ import {
  *    session" calls a session off, with its reason and its optional notice
  *    (the answer carries the notice's words; the page posts it through the
  *    updates route, as the change route's page does). The lines go into the
- *    history row's `before` and the register stops being finished.
+ *    history row's `before` and the register stops being finished. Push the
+ *    rest back is refused once the session has a check-in or a session
+ *    report, as the one-week change refuses it (both are kept by the week,
+ *    so the session a week later would open with them). Pushed back, the
+ *    cover and the record of whether each facilitator was there go too, each
+ *    kept in the same row's `before` (`writeDidNotHappen`).
  *  - `did-happen`: the reverse, for a session called off with the group
  *    keeping pace, or a register from before that says it did not happen:
  *    who was there, and the session comes back into every figure, finished
@@ -276,6 +284,17 @@ async function namesForReader(ctx: ColumnContext, uids: Iterable<string>): Promi
   return out;
 }
 
+/**
+ * The chase as a preview says it: when the reminder email goes again, the
+ * people it goes to, named for the reader, in place of their uids.
+ */
+async function chaseForReader(ctx: ColumnContext, facts: ChaseFacts) {
+  const { emailTo, ...rest } = facts;
+  if (!emailTo) return { ...rest, emailTo: null };
+  const names = await namesForReader(ctx, emailTo.uids);
+  return { ...rest, emailTo: { kind: emailTo.kind, names: emailTo.uids.map((uid) => names.get(uid) ?? "NAISI member") } };
+}
+
 /** "In the room" lines and the rest of a register, named. */
 function namedLines(register: CourseAttendanceDoc, uids: readonly string[], names: ReadonlyMap<string, string>) {
   return uids
@@ -455,6 +474,23 @@ function targetRefusal(ctx: ColumnContext, target: ResolvedSession, snap: Docume
   return null;
 }
 
+/**
+ * The lines a move writes over on the session the lines go to, by uid: what
+ * each said, and "(said in advance)" for the person's own word ("Can't make
+ * it", "Most weeks, not all"). A register nobody took holds no other line.
+ */
+function replacedLines(target: CourseAttendanceDoc | null, uids: readonly string[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!target) return out;
+  for (const uid of uids) {
+    if (target.records[uid] === undefined) continue;
+    const own = target.setBy[uid]?.how === "self" || (target.records[uid] === "excused" && target.excusedInAdvance[uid] !== undefined);
+    const words = wordsOf(lineOf(target, uid));
+    out[uid] = own ? `${words} (said in advance)` : words;
+  }
+  return out;
+}
+
 async function moveColumn(ctx: ColumnContext, press: ColumnPress): Promise<ColumnAnswer> {
   const { db, session, now, group, run } = ctx;
   const sourceRef = registerRef(ctx, session);
@@ -495,7 +531,8 @@ async function moveColumn(ctx: ColumnContext, press: ColumnPress): Promise<Colum
       // Whether a check-in was opened for it and how many reports it has, as
       // calling a session off counts them: neither moves.
       didNotHappenFacts(db, { run, group, session, register: undefined }),
-      chaseFacts(db, { runId: run.id, groupId: group.id, session, now }),
+      // A move takes the cover away with the lines: the register left behind has none.
+      chaseFacts(db, { runId: run.id, group, session, now, cover: null }).then((facts) => chaseForReader(ctx, facts)),
     ]);
     const staying = Object.keys(source.records).filter((uid) => !uids.includes(uid));
     return {
@@ -529,7 +566,7 @@ async function moveColumn(ctx: ColumnContext, press: ColumnPress): Promise<Colum
   const moveTo = target;
   const targetRef = registerRef(ctx, moveTo);
 
-  const [mirrorMembers] = await Promise.all([loadMirrorMembers(db, run.id, group.id)]);
+  const [mirrorMembers, historyNames] = await Promise.all([loadMirrorMembers(db, run.id, group.id), namesGoneBy(db, uids)]);
   let moved = 0;
   const failed = await runInTransaction(ctx, async (tx) => {
     // The session the lines go to, as the group says it now: the start its
@@ -544,6 +581,10 @@ async function moveColumn(ctx: ColumnContext, press: ColumnPress): Promise<Colum
     if (refusal) throw new Refused(409, refusal);
     const lines = linesSetForSession(fresh).uids;
     if (lines.length === 0) throw new Refused(409, CORRECTION_REFUSAL.nothingToMove);
+    // A line already on the session they go to is the person's own word in
+    // advance ("Can't make it"): nobody took that register. The move writes
+    // over it, so the history row keeps what it said, to be put back by hand.
+    const replaced = replacedLines(registerOf(freshTargetSnap), lines);
 
     const plan = await readMirrorPlan(tx, db, {
       runId: run.id,
@@ -617,8 +658,16 @@ async function moveColumn(ctx: ColumnContext, press: ColumnPress): Promise<Colum
       columnRow(ctx, {
         kind: "register-moved",
         session,
-        detail: movedDetail(session, moveTo, lines.length, press.reason),
-        before: said,
+        detail: movedDetail(
+          session,
+          moveTo,
+          lines.length,
+          press.reason,
+          Object.entries(replaced).map(([uid, words]) => ({ name: historyNames.get(uid) ?? "NAISI member", words })),
+        ),
+        // What each moved line said, and beside it what each line it wrote
+        // over on the other session said (`replaced:<uid>`).
+        before: { ...said, ...Object.fromEntries(Object.entries(replaced).map(([uid, words]) => [`replaced:${uid}`, words])) },
         after: said,
         reason: press.reason,
         toSessionKey: moveTo.sessionKey,
@@ -650,7 +699,8 @@ async function clearColumn(ctx: ColumnContext, press: ColumnPress): Promise<Colu
     const [names, facts, chase] = await Promise.all([
       namesForReader(ctx, Object.keys(register.records)),
       didNotHappenFacts(db, { run, group, session, register: undefined }),
-      chaseFacts(db, { runId: run.id, groupId: group.id, session, now }),
+      // A clear keeps the cover: whoever is covering it is chased, as the job chases them.
+      chaseFacts(db, { runId: run.id, group, session, now, cover: register.cover }).then((facts) => chaseForReader(ctx, facts)),
     ]);
     const staying = Object.keys(register.records).filter((uid) => !uids.includes(uid));
     return {
@@ -780,12 +830,18 @@ function changePressOf(press: ColumnPress): ChangePress {
 
 async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<ColumnAnswer> {
   const { db, session, now, run, group, actor } = ctx;
-  if (session.occurrence !== 1) return refuse(400, CORRECTION_REFUSAL.kind);
+  if (session.occurrence !== 1) return refuse(400, secondSessionWords(session.weekNumber));
   const ref = registerRef(ctx, session);
   const snap = await ref.get();
   const register = registerOf(snap);
   const why = finishedOrWhy(register, session);
   if (why || !register) return refuse(409, why ?? CORRECTION_REFUSAL.noRegister);
+  // A check-in and a session report are kept by the week: pushed back, the
+  // session a week later would open with this one's. Refused in the preview
+  // and the press, in the one-week change's own sentence; keep pace stays.
+  if (press.pace === "push" && (await sessionHasCheckInOrReport(db, run.id, group.id, session.sessionKey))) {
+    return refuse(409, pushHasRecordsWords(press.weekNumber));
+  }
   const change = changePressOf(press);
   const naming = await readNamingProgramme(db, run.id);
   const context = { groupName: group.name.trim() || "Untitled group", incubator: naming?.kind === "incubator" };
@@ -819,9 +875,7 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
             before: momentOf(group, first.session),
             after: momentOf(first.after, afterSession),
             lastSession: { before: lastOf(before), after: lastOf(after) },
-            // Nothing locks at a session any more: `lock` keeps its name for
-            // the pages, and holds from when the week's work counts as late.
-            lock: { before: lateFromOf(before, press.weekNumber), after: lateFromOf(after, press.weekNumber) },
+            lateFrom: { before: lateFromOf(before, press.weekNumber), after: lateFromOf(after, press.weekNumber) },
             clearing: namedLines(register, uids, names),
             didNotHappen: facts,
             told,
@@ -1002,7 +1056,7 @@ function didHappenRefusal(ctx: ColumnContext, register: CourseAttendanceDoc | nu
 
 async function didHappen(ctx: ColumnContext, press: ColumnPress): Promise<ColumnAnswer> {
   const { db, session, now, run, group, actor, members } = ctx;
-  if (session.occurrence !== 1) return refuse(400, CORRECTION_REFUSAL.kind);
+  if (session.occurrence !== 1) return refuse(400, secondSessionWords(session.weekNumber));
   const ref = registerRef(ctx, session);
   const groupRef = db.collection("courseGroups").doc(group.id);
   const register = registerOf(await ref.get());
@@ -1075,8 +1129,7 @@ async function didHappen(ctx: ColumnContext, press: ColumnPress): Promise<Column
             line: register ? wordsOf(lineOf(register, member.uid)) : "Not set",
           })),
           counts,
-          // From when the week's work counts as late, under the name the pages read (`lock`).
-          lock: { before: lateFromOf(ctx.sessions, session.weekNumber), after: lateFromOf(afterSessions, session.weekNumber) },
+          lateFrom: { before: lateFromOf(ctx.sessions, session.weekNumber), after: lateFromOf(afterSessions, session.weekNumber) },
           figures: true,
           emailed: 0,
           at: iso(now),

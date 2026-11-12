@@ -91,6 +91,12 @@ export type GroupPageWeek = {
   cover: { kind: "self" | "given"; byName: string; live: boolean } | null;
   /** "Started 12 minutes ago", for a session that has started; "" before. */
   startedAgo: string;
+  /**
+   * A check-in was opened for it or a session report written: both are kept
+   * by the week, so "Push the rest back a week" is not offered for it (the
+   * session a week later would open with them). Keep pace still is.
+   */
+  checkInOrReport: boolean;
 };
 
 /** One row of the group's history, as the History tab draws it. */
@@ -147,6 +153,13 @@ export type GroupPageView = {
   linkWeekNumber: number | null;
   /** The group's history, for admins and the lead; null on the facilitator's page. */
   history: { rows: GroupPageHistoryRow[]; more: boolean } | null;
+  /**
+   * Who leads the programme the group's run belongs to, by uid: its lead and
+   * the run's track leads. With admins, the committee and the run's
+   * facilitators, the people a session may be given to (`coverCandidatesOf`).
+   * Empty on the facilitator's page.
+   */
+  coverLeadUids: string[];
 };
 
 /** A week's register, as the ways to take it in a facilitator's place ask it (`coverChoicesOf`). */
@@ -231,11 +244,34 @@ export function weekAfter(weeks: readonly GroupPageWeek[], weekNumber: number): 
   return later ? { weekNumber: later.weekNumber, dateKey: later.dateKey } : null;
 }
 
+/** Why "Push the rest back a week" is not offered: a later week met, or this week has a check-in or a report. */
+export type PushBlock = "later-met" | "records" | null;
+
+/** Whether pushing the rest back from this week is blocked, by LATER weeks and the week's own records only. */
+function pushBlockOf(week: GroupPageWeek, weeks: readonly GroupPageWeek[]): PushBlock {
+  const index = weeks.findIndex((each) => each.weekNumber === week.weekNumber);
+  if (index >= 0 && weeks.slice(index + 1).some((each) => each.taken)) return "later-met";
+  if (week.checkInOrReport) return "records";
+  return null;
+}
+
+/**
+ * A week whose register is a draft somebody marked, not finished and still
+ * saying the session was held, after the session started: "It didn't happen"
+ * may still call it off with the two cancels, through the one-week change
+ * route (`callsOffDraft` there decides again).
+ */
+export function callsOffMarkedDraft(week: GroupPageWeek): boolean {
+  return week.started && week.taken && !week.finished && !week.heldFalse && !week.cancelled;
+}
+
 /**
  * What one-week choices a week offers, from the page's own facts (the week,
  * and the group's weeks in plan order); the route decides again. "Cancel and
  * push the rest back" moves every later week, so it is not offered once a
- * later week's register was taken: nothing may move a session that met.
+ * later week's register was taken: nothing may move a session that met. Nor
+ * once the week has a check-in or a session report, which are kept by the
+ * week and would belong to the session a week later.
  */
 export function oneWeekChoicesOf(
   week: GroupPageWeek,
@@ -247,20 +283,40 @@ export function oneWeekChoicesOf(
   met: boolean;
   online: boolean;
   restore: boolean;
-  /** Cancel and push the rest back a week: no later week has met. */
+  /** Cancel and push the rest back a week: no later week has met, and the week has no check-in or report. */
   push: boolean;
+  /** Why push back is not offered, when it is not. */
+  pushBlock: PushBlock;
 } {
   const met = week.taken;
   const putRight = !met && week.started;
-  const index = weeks.findIndex((each) => each.weekNumber === week.weekNumber);
-  const laterMet = index >= 0 && weeks.slice(index + 1).some((each) => each.taken);
+  const pushBlock = pushBlockOf(week, weeks);
   return {
     putRight,
     met,
     online: !met && !week.started && week.hasLink && !week.online,
     restore: !met && !week.started && week.change !== null && week.change !== "pushed",
-    push: !met && !laterMet,
+    push: !met && pushBlock === null,
+    pushBlock: met ? null : pushBlock,
   };
+}
+
+/**
+ * THE TWO CANCELS "IT DIDN'T HAPPEN" OFFERS for a session that started, its
+ * register empty or a draft somebody marked: keep pace always, and push the
+ * rest back a week worked out from LATER weeks and the week's own records,
+ * never from the pressed week's own draft (its lines are cleared in the same
+ * press, which is the route's own rule). Null for a week that cannot be
+ * called off this way: not started, finished, called off already, or said
+ * not to have happened on the old switch.
+ */
+export function didNotHappenChoicesOf(
+  week: GroupPageWeek,
+  weeks: readonly GroupPageWeek[],
+): { keepPace: true; push: boolean; pushBlock: PushBlock } | null {
+  if (!week.started || week.cancelled || week.finished || week.heldFalse) return null;
+  const pushBlock = pushBlockOf(week, weeks);
+  return { keepPace: true, push: pushBlock === null, pushBlock };
 }
 
 /** The days a move can land on: today or later for a move, today or earlier for "It met at another time". */

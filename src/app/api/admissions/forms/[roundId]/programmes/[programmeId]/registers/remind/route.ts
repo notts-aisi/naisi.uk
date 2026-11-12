@@ -24,7 +24,8 @@ import { readCoursesConfig } from "@/lib/firestore/config";
  *  4. The group must be one of the run's groups that still meet, the session
  *     one of its own, over, held, and its register not finished.
  *  5. Who it emails is worked out the way the reminder's job works it out
- *     (`readReminderState`), and must be the number the button showed; a
+ *     (`readReminderState`), never the person pressing, and must be the
+ *     number the button showed; a
  *     different number is refused, so nobody is emailed by a count they did
  *     not see.
  *  6. Each facilitator's send claims the job's own marker, so nobody is
@@ -137,7 +138,7 @@ export async function POST(req: Request, ctx: Ctx) {
     );
   }
 
-  const state = await readReminderState(db, group, sessionKey, now);
+  const state = await readReminderState(db, group, sessionKey, now, actor.uid);
   if (state.sendable.length === 0) {
     return NextResponse.json(
       {

@@ -421,8 +421,11 @@ describe("regrouping the menu did not change who is shown what", () => {
     assert.deepEqual(visibleTo({ ...NO_ACCESS }), [], "somebody with no way into the admin area is offered a page of it");
     assert.deepEqual(visibleTo({ ...NO_ACCESS, canAuthorCourses: true }), ["/admin/courses"]);
     assert.deepEqual(visibleTo({ ...NO_ACCESS, canManageMembership: true }), ["/admin/membership"]);
-    assert.deepEqual(visibleTo({ ...NO_ACCESS, isAdmissionsReviewer: true }), ["/admin/admissions", "/admin/admissions/forms"]);
-    assert.deepEqual(visibleTo({ ...NO_ACCESS, canAuthorRounds: true }), ["/admin/admissions", "/admin/admissions/forms"]);
+    // CHANGED ON PURPOSE (November 2026): the Requests page sits in the
+    // admissions tree, whose gate admits a programme's lead, so everybody
+    // that tree admits is offered it.
+    assert.deepEqual(visibleTo({ ...NO_ACCESS, isAdmissionsReviewer: true }), ["/admin/admissions", "/admin/admissions/forms", "/admin/admissions/requests"]);
+    assert.deepEqual(visibleTo({ ...NO_ACCESS, canAuthorRounds: true }), ["/admin/admissions", "/admin/admissions/forms", "/admin/admissions/requests"]);
     assert.deepEqual(
       visibleTo({ ...NO_ACCESS, isAdmin: true }),
       ADMIN_PAGES.map((p) => p.href).sort(),

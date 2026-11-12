@@ -91,7 +91,7 @@ export default function RequestsList({ view }: { view: RequestsPageView }) {
             </button>
           ))}
         </div>
-        {view.viewer === "admin" && programmes.size > 1 && (
+        {view.viewer === "admin" && programmes.size > 0 && (
           <label className={styles.filter}>
             <span className={styles.filterLabel}>Programme</span>
             <Select value={programme} onChange={(event) => setProgramme(event.target.value)}>
@@ -109,12 +109,12 @@ export default function RequestsList({ view }: { view: RequestsPageView }) {
       <section id="requests-panel" role="tabpanel" aria-labelledby={`requests-tab-${tab}`} className={styles.card}>
         <h2 className={styles.cardTitle}>Register corrections</h2>
         {shown.length === 0 ? (
-          <div className={styles.empty} data-testid="requests-empty">
+          <div className={styles.empty}>
             <p className={styles.emptyTitle}>{tab === "waiting" && nothing ? "No requests waiting" : P.NOTHING_IN_THIS_VIEW}</p>
             <p className={styles.line}>{P.NOTHING_WAITING_LINE}</p>
           </div>
         ) : (
-          <ul className={styles.rows} role="list" data-testid="requests-rows">
+          <ul className={styles.rows} role="list">
             {shown.map((row) => (
               <li key={row.id} className={styles.row} data-testid="request-row">
                 <div className={styles.rowBody}>

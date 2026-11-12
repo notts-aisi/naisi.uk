@@ -55,6 +55,8 @@ const register = await courseRoute("groups", "[groupId]", "attendance");
 const push = await courseRoute("groups", "[groupId]", "attendance", "push");
 const columnRoute = await courseRoute("groups", "[groupId]", "attendance", "column");
 const askRoute = await courseRoute("groups", "[groupId]", "attendance", "requests");
+const cantMakeIt = await courseRoute("groups", "[groupId]", "cant-make-it");
+const reportRoute = await courseRoute("groups", "[groupId]", "session-report");
 const overviewRoute = await courseRoute("runs", "[runId]", "overview");
 const actions = {
   withdraw: await courseRoute("requests", "[requestId]", "withdraw"),
@@ -63,6 +65,9 @@ const actions = {
   take: await courseRoute("requests", "[requestId]", "take"),
 };
 const words = await loadTs("lib/courses/registerCorrection/words.ts");
+const pageWords = await loadTs("lib/courses/registerCorrection/pageWords.ts");
+const columnLib = await loadTs("lib/courses/registerCorrection/column.ts");
+const coverWords = await loadTs("lib/courses/registerCover/words.ts");
 const attendanceLib = await loadTs("lib/firestore/courseAttendance.ts");
 const requestsLib = await loadTs("lib/firestore/courseRequests.ts");
 const auditLib = await loadTs("lib/firestore/courseAudit.ts");
@@ -445,6 +450,24 @@ describe("2. asking for a correction, and deciding it", () => {
     assert.deepEqual(after.view.counts, { waiting: 0, handling: 0, doneThisWeek: 1 });
   });
 
+  test("the Requests page lists only what its reader can open: never a group the lead also facilitates, nor an archived one", async () => {
+    const { id } = (await askDev()).body.request;
+    assert.equal((await loaders.loadRequestsPage(world.courseDb, sessionOf("claudia"), LATER)).view.rows.length, 1);
+    world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia", "claudia"] });
+    const listed = await loaders.loadRequestsPage(world.courseDb, sessionOf("claudia"), LATER);
+    assert.deepEqual([listed.status, listed.view.rows.length, listed.view.counts.waiting], ["ok", 0, 0]);
+    assert.equal((await loaders.loadRequestPage(world.courseDb, sessionOf("claudia"), id)).status, "none", "the list offers what the page does not open");
+    // An admin, and the run's track lead who does not facilitate it, still list it.
+    assert.equal((await loaders.loadRequestsPage(world.courseDb, sessionOf("zach"), LATER)).view.rows.length, 1);
+    assert.equal((await loaders.loadRequestsPage(world.courseDb, sessionOf("yusuf"), LATER)).view.rows.length, 1);
+    assert.equal((await loaders.loadRequestPage(world.courseDb, sessionOf("yusuf"), id)).status, "ok");
+    // An archived group's requests open for an admin only, so they are listed for an admin only.
+    world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia"], archived: true });
+    assert.equal((await loaders.loadRequestsPage(world.courseDb, sessionOf("yusuf"), LATER)).view.rows.length, 0);
+    assert.equal((await loaders.loadRequestPage(world.courseDb, sessionOf("yusuf"), id)).status, "none");
+    assert.equal((await loaders.loadRequestsPage(world.courseDb, sessionOf("zach"), LATER)).view.rows.length, 1);
+  });
+
   test("one request's page: the line now, why, who finished it, what approving does, its history; for the people who decide only", async () => {
     const { id } = (await askDev()).body.request;
     const page = await loaders.loadRequestPage(world.courseDb, sessionOf("claudia"), id);
@@ -593,6 +616,188 @@ describe("3. correcting the whole column", () => {
     assert.equal(answer.status, 409, JSON.stringify(answer.body));
     assert.equal(everything(), before);
   });
+  test("it did happen starts from each line: somebody who said in advance they couldn't make it stays Excused, and is not counted absent", async () => {
+    // Dev tells us before week 2 that he can't make it; Rahul takes week 2's register and finishes it.
+    at("2026-11-09T10:00:00Z");
+    const said = await call("dev", cantMakeIt.POST, { groupId: B }, { body: { sessionKey: "w02", cantMakeIt: true } });
+    assert.equal(said.status, 200, JSON.stringify(said.body));
+    at("2026-11-10T18:20:00Z");
+    assert.equal((await mark("rahul", [{ uid: "amara", status: "present" }], { weekNumber: 2 })).status, 200);
+    assert.equal((await finish("rahul", 2)).status, 200);
+    at(LATER);
+    const off = await column("claudia", { weekNumber: 2, kind: "did-not-happen", pace: "keep", dateKey: "2026-11-10", tell: false, reason: "Nobody came." });
+    assert.equal(off.status, 200, JSON.stringify(off.body));
+    assert.deepEqual(stored(W2).records, { dev: "excused" }, "what Dev said in advance stays");
+
+    const preview = await column("zach", { weekNumber: 2, kind: "did-happen", preview: true });
+    assert.equal(preview.status, 200, JSON.stringify(preview.body));
+    const lineFor = (uid) => preview.body.preview.people.find((each) => each.uid === uid).line;
+    assert.deepEqual([lineFor("dev"), lineFor("amara")], ["Excused", "Not set"]);
+    // The sheet shows each line, starts Dev on it (Excused is offered), and starts Amara on nothing.
+    assert.equal(pageWords.didHappenNowWords(lineFor("dev")), "Now: Excused");
+    assert.equal(pageWords.choiceOfLine(lineFor("dev")).key, "excused");
+    assert.ok(pageWords.didHappenChoicesFor(lineFor("dev")).some((choice) => choice.key === "excused"), "Excused is not offered");
+    assert.equal(pageWords.choiceOfLine(lineFor("amara")), null);
+
+    const done = await column("zach", {
+      weekNumber: 2,
+      kind: "did-happen",
+      lines: [
+        { uid: "amara", status: "present" },
+        { uid: "dev", ...pageWords.lineBody(pageWords.choiceOfLine(lineFor("dev"))) },
+      ],
+      reason: "It went ahead in the end.",
+    });
+    assert.equal(done.status, 200, JSON.stringify(done.body));
+    assert.deepEqual(done.body.counts, { room: 1, online: 0, absent: 0, excused: 1 });
+    assert.equal(stored(W2).records.dev, "excused");
+    // Week 1's absence is Dev's only one: week 2 counts as excused, as he told us.
+    assert.deepEqual([rollup("dev").absent, rollup("dev").excused], [1, 1]);
+  });
+
+  test("a move or a clear says who gets the register reminder and when while it goes again, and why not when its time has passed or the job is off", async () => {
+    const preview = async (kind = "clear") => {
+      const answer = await column("zach", { kind, preview: true });
+      assert.equal(answer.status, 200, JSON.stringify(answer.body));
+      return answer.body.preview;
+    };
+    const said = (shown, label) => pageWords.columnPreviewLines(shown, "Group B").find((row) => row.label === label)?.text ?? "";
+    const NOBODY = "Nobody is emailed. Its facilitators see it on the register; the people see it on their own pages.";
+
+    // Off: the reminders job ships switched off.
+    const off = await preview();
+    assert.deepEqual([off.chase.email, off.chase.emailTo, off.chase.emailFrom], ["off", null, null]);
+    assert.equal(said(off, "Told"), NOBODY);
+    assert.match(said(off, "Reminders"), /^The reminder email is switched off, so it doesn’t go\. The card /);
+    assert.doesNotMatch(said(off, "Reminders").split(". The card")[0], /passed/, "a job switched off is said to have passed");
+
+    // Switched on, the morning after week 2: week 1's reminder time has passed.
+    world.db.seed("config/scheduler", { jobs: { "courses-register-reminders": { enabled: true } } });
+    const passed = await preview();
+    assert.deepEqual([passed.chase.email, passed.chase.emailTo], ["passed", null]);
+    assert.equal(said(passed, "Told"), NOBODY);
+    assert.match(said(passed, "Reminders"), /^The reminder email’s time for this session has passed, so it doesn’t go again\. /);
+
+    // The morning after week 1: it goes again, to the group's facilitators, from 36 hours after the session ended.
+    at("2026-11-04T10:00:00Z");
+    const returns = await preview();
+    assert.equal(returns.chase.email, "returns");
+    assert.deepEqual([returns.chase.emailTo.kind, returns.chase.emailFrom], ["facilitators", "2026-11-05T08:00:00.000Z"]);
+    assert.equal(
+      said(returns, "Told"),
+      "Its facilitators, Rahul and Sofia, get the register reminder email soon after 8am on Thu 5 Nov if it isn’t finished by then. Nobody else is emailed.",
+    );
+    assert.match(said(returns, "Reminders"), /^The reminder email goes again\. /);
+    const moved = await preview("move");
+    assert.equal(said({ ...moved, to: { weekNumber: 2, dateKey: "2026-11-10" } }, "Told"), said(returns, "Told"), "a move says otherwise");
+
+    // A clear keeps the register's cover, so the reminder goes to whoever is covering it; a move takes the cover away.
+    world.db.poke(W1, { cover: { kind: "self", byUid: "claudia", at: DURING_W1, covering: ["rahul", "sofia"] } });
+    const covered = await preview();
+    assert.equal(covered.chase.emailTo.kind, "cover-taker");
+    assert.match(said(covered, "Told"), /^\S+, who took it in a facilitator’s place, gets the register reminder email soon after 8am on Thu 5 Nov if it isn’t finished by then\. Nobody else is emailed\.$/);
+    assert.equal((await preview("move")).chase.emailTo.kind, "facilitators");
+    // Held online changes no register's chase, and nobody is emailed.
+    const online = (await column("zach", { kind: "online", preview: true })).body.preview;
+    assert.equal(said(online, "Told"), NOBODY);
+    assert.deepEqual(world.mail, [], "a preview emailed somebody");
+  });
+
+  test("it didn't happen cannot push the rest back once the session has a session report, in its preview and its press, in the one-week change's sentence; keep pace still goes", async () => {
+    // Rahul writes week 1's report the day after it, while it is still open.
+    at("2026-11-04T10:00:00Z");
+    const reported = await call("rahul", reportRoute.PUT, { groupId: B }, { body: { sessionKey: "w01", answers: { how: 3 } }, course: true });
+    assert.equal(reported.status, 200, JSON.stringify(reported.body));
+    at(LATER);
+    const before = everything();
+    for (const preview of [true, false]) {
+      const refused = await column("claudia", {
+        kind: "did-not-happen",
+        pace: "push",
+        dateKey: "2026-11-03",
+        tell: false,
+        reason: "Nobody came.",
+        ...(preview ? { preview: true } : {}),
+      });
+      assert.deepEqual([refused.status, refused.body.error], [409, coverWords.pushHasRecordsWords(1)], `preview: ${preview}`);
+    }
+    assert.equal(everything(), before, "a refused push changed something");
+    // Keep pace's preview says the report stays, in the one-week change's words, and its press goes.
+    const kept = await column("claudia", { kind: "did-not-happen", pace: "keep", dateKey: "2026-11-03", preview: true });
+    assert.equal(kept.status, 200, JSON.stringify(kept.body));
+    assert.equal(kept.body.preview.didNotHappen.reports, 1);
+    assert.equal(
+      pageWords.didNotHappenPreviewLines(kept.body.preview).find((row) => row.label === "Check-in, report").text,
+      "1 session report was written. They are kept, and nothing more opens for it.",
+    );
+    assert.equal((await column("claudia", { kind: "did-not-happen", pace: "keep", dateKey: "2026-11-03", tell: false, reason: "Nobody came." })).status, 200);
+    assert.equal(world.db.read(`courseGroups/${B}`).sessionChanges.w01.kind, "cancelled");
+  });
+
+  test("pushed back, a finished register's cover and the record of whether each facilitator was there go into the history row", async () => {
+    world.db.poke(W1, {
+      cover: { kind: "self", byUid: "claudia", at: DURING_W1, covering: ["rahul", "sofia"] },
+      facilitatorRecord: { rahul: { state: "there", byUid: "claudia", at: DURING_W1, how: "cover" } },
+    });
+    const preview = await column("claudia", { kind: "did-not-happen", pace: "push", dateKey: "2026-11-03", preview: true });
+    assert.equal(preview.status, 200, JSON.stringify(preview.body));
+    assert.equal(
+      pageWords.didNotHappenPreviewLines(preview.body.preview).find((row) => row.label === "Check-in, report").text,
+      "Nothing was opened or written for it. Week 1’s check-in and report are for its new session.",
+    );
+    const answer = await column("claudia", { kind: "did-not-happen", pace: "push", dateKey: "2026-11-03", tell: false, reason: "Nobody came." });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    const saved = stored();
+    assert.deepEqual([saved.cover, saved.facilitatorRecord, saved.pushedAt], [undefined, undefined, undefined], "the next session's register opened with this one's");
+    const [row] = rows("session-did-not-happen");
+    assert.deepEqual(
+      [row.before.amara, row.before.dev, row.before.cover, row.before.coverByUid, row.before["facilitator:rahul"]],
+      ["Present", "Absent", "self", "claudia", "there"],
+    );
+    assert.match(row.detail, / was covering it\.$/);
+  });
+
+  test("a move that writes over somebody's own word on the other session keeps what it said in the history row", async () => {
+    at("2026-11-09T10:00:00Z");
+    const said = await call("dev", cantMakeIt.POST, { groupId: B }, { body: { sessionKey: "w02", cantMakeIt: true } });
+    assert.equal(said.status, 200, JSON.stringify(said.body));
+    at(LATER);
+    assert.deepEqual(stored(W2).records, { dev: "excused" });
+    const answer = await column("claudia", { kind: "move", to: { weekNumber: 2 }, reason: "These were week 2's lines." });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.equal(stored(W2).records.dev, "absent", "the moved line is week 2's now");
+    const [row] = rows("register-moved");
+    assert.deepEqual(
+      [row.before.dev, row.after.dev, row.before["replaced:dev"], row.before["replaced:amara"], row.lines],
+      ["Absent", "Absent", "Excused (said in advance)", undefined, 2],
+    );
+    assert.match(row.detail, /They replaced what was on week 2’s register: [^.]+ Excused \(said in advance\)\. Why: /);
+    assert.equal(auditLib.normalizeCourseAudit("x", row).before["replaced:dev"], "Excused (said in advance)", "the history reads it back");
+  });
+
+  test("whether a week's second session happened is not changed here, and the door says so in a sentence of its own", async () => {
+    // No stored group holds a second session yet (the group's normaliser does
+    // not read `extraSession`), so the column's door is asked directly.
+    const second = { weekNumber: 1, weekId: "w01", occurrence: 2, sessionKey: "w01-2", dateKey: "2026-11-05", cancelled: false };
+    const before = everything();
+    for (const raw of [
+      { kind: "did-not-happen", occurrence: 2, pace: "keep", dateKey: "2026-11-05", tell: false, reason: "x" },
+      { kind: "did-not-happen", occurrence: 2, pace: "keep", dateKey: "2026-11-05", preview: true },
+      { kind: "did-happen", occurrence: 2, preview: true },
+      { kind: "did-happen", occurrence: 2, lines: [], reason: "x" },
+    ]) {
+      const parsed = columnLib.parseColumnPress({ weekNumber: 1, ...raw });
+      assert.ok(parsed.ok, JSON.stringify(parsed));
+      const answer = await columnLib.correctColumn(
+        { db: world.courseDb, actor: sessionOf("zach"), run: null, group: null, sessions: [second], session: second, members: [], now: LATER },
+        parsed.value,
+      );
+      assert.deepEqual([answer.status, answer.body.error], [400, words.secondSessionWords(1)], JSON.stringify(raw));
+    }
+    assert.equal(everything(), before);
+    assert.equal(words.secondSessionWords(1), "Whether a session happened is changed for a week’s first session only, and this is week 1’s second.");
+  });
+
 });
 
 // ---------------------------------------------------------------------------

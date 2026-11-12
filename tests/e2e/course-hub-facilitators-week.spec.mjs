@@ -1134,12 +1134,16 @@ test(
           assert.equal(head.includes(ending.scheduled ? "Finished" : "Pushed"), done, `week ${weekNumber}'s column and its badge`);
           for (const person of inGroup) {
             if (done) {
-              const cell = cellOf(person, weekNumber, "img");
+              // CHANGED ON PURPOSE (November 2026), with correcting a register:
+              // a finished line no longer takes a tap from its facilitator; it
+              // opens Ask for a correction, which changes nothing by itself.
+              const cell = cellOf(person, weekNumber);
               assert.equal(
                 await cell.getAttribute("aria-label"),
-                `${person.first}, week ${weekNumber}: ${labelOf(markOf(person, weekNumber))}. This register is finished and locked.`,
-                `${person.first}'s week ${weekNumber} is not locked against the facilitator`,
+                `${person.first}, week ${weekNumber}: ${labelOf(markOf(person, weekNumber))}. Ask for a correction.`,
+                `${person.first}'s week ${weekNumber} does not offer the facilitator only a correction to ask for`,
               );
+              assert.equal(await cellOf(person, weekNumber, "img").count(), 0, `${person.first}'s week ${weekNumber} is drawn as a plain mark`);
             } else {
               assert.equal(
                 await cellOf(person, weekNumber).getAttribute("aria-label"),
@@ -1306,19 +1310,29 @@ test(
         // The toast covers the page while it is up, so a press before it goes lands on its backdrop.
         await toast.waitFor({ state: "hidden", timeout: WAIT_MS });
 
-        // The column is finished, and locked against its facilitator: her cells
-        // are no longer buttons, and the draft's controls have gone.
+        // The column is finished, and locked against its facilitator: a tap
+        // no longer changes a line, and the draft's controls have gone.
+        // CHANGED ON PURPOSE (November 2026), with correcting a register: each
+        // finished line opens Ask for a correction instead, which changes
+        // nothing until an admin or the programme's lead approves it, so her
+        // cells are buttons again that say so, and none is a tap that marks.
         await waitFor("this week's column to say it is finished", async () =>
           (await textOf(headerOf(thisWeek))).includes(ending.scheduled ? "Finished" : "Pushed") ? true : null,
         );
         for (const person of inGroup) {
           assert.equal(
-            await cellOf(person, thisWeek, "img").getAttribute("aria-label"),
-            `${person.first}, week ${thisWeek}: ${labelOf(fernMarks[person.key])}. This register is finished and locked.`,
-            `${person.first}'s mark is not locked against the facilitator`,
+            await cellOf(person, thisWeek).getAttribute("aria-label"),
+            `${person.first}, week ${thisWeek}: ${labelOf(fernMarks[person.key])}. Ask for a correction.`,
+            `${person.first}'s finished line does not offer the facilitator a correction to ask for`,
           );
-          assert.equal(await cellOf(person, thisWeek).count(), 0, `${person.first}'s cell is still a button`);
+          assert.equal(await cellOf(person, thisWeek, "img").count(), 0, `${person.first}'s line is drawn as a plain mark`);
         }
+        // Opening one changes nothing: it is the sheet, which writes only when its request is sent.
+        await cellOf(inGroup[0], thisWeek).click();
+        const sheet = facilitatorPage.getByTestId("line-sheet");
+        await sheet.getByRole("heading", { name: "Ask for a correction", exact: true }).waitFor({ timeout: WAIT_MS });
+        await sheet.getByRole("button", { name: "Close", exact: true }).click();
+        await sheet.waitFor({ state: "detached", timeout: WAIT_MS });
         // Each by its literal id, so the test-id guard can see both sides.
         const finishedColumn = headerOf(thisWeek);
         for (const [what, control] of [

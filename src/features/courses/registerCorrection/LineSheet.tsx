@@ -76,7 +76,9 @@ export default function LineSheet({
   const correcting = mode === "correct";
   const ready = Boolean(chosen) && reason.trim().length > 0 && !busy;
 
-  async function press() {
+  // A press that went through closes the sheet through history (`close`, the
+  // Modal's dismiss), so it leaves no entry behind for Back to stop on.
+  async function press(close: () => void) {
     if (!chosen || !target) return;
     setBusy(true);
     setProblem(null);
@@ -93,6 +95,7 @@ export default function LineSheet({
       setProblem(answer.error);
       return;
     }
+    close();
     onDone(
       correcting
         ? `Corrected: ${person.name}, ${says} to ${chosen.words}. Nobody was emailed.`
@@ -100,7 +103,7 @@ export default function LineSheet({
     );
   }
 
-  async function withdraw() {
+  async function withdraw(close: () => void) {
     if (!waiting) return;
     setBusy(true);
     setProblem(null);
@@ -110,6 +113,7 @@ export default function LineSheet({
       setProblem(answer.error);
       return;
     }
+    close();
     onDone("Withdrawn. The line says what it said.");
   }
 
@@ -153,7 +157,7 @@ export default function LineSheet({
 
           {waiting && mode === "ask" && waiting.yours && (
             <div className={styles.actions}>
-              <Button variant="secondary" onClick={() => void withdraw()} disabled={busy}>
+              <Button variant="secondary" onClick={() => void withdraw(dismiss)} disabled={busy}>
                 {busy ? P.SAVING : P.WITHDRAW}
               </Button>
             </div>
@@ -200,7 +204,7 @@ export default function LineSheet({
                 </p>
               )}
               <div className={styles.actions}>
-                <Button onClick={() => void press()} disabled={!ready} data-testid="line-sheet-submit">
+                <Button onClick={() => void press(dismiss)} disabled={!ready} data-testid="line-sheet-submit">
                   {busy ? (correcting ? P.SAVING : P.SENDING) : correcting ? P.SAVE_THE_CORRECTION : P.SEND_THE_REQUEST}
                 </Button>
                 {correcting && (

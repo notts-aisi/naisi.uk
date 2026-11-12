@@ -1,6 +1,7 @@
 import { londonClockLabel, londonDayLabel } from "@/lib/courses/londonLabels";
 import { clockWords, dayWords, namesWords, peopleWords } from "@/lib/courses/sessionChange/words";
 import { cameBy, type AttendanceStatus } from "@/lib/firestore/courseAttendance";
+import { didNotHappenLines } from "@/lib/courses/registerCover/pageWords";
 import { linesWords, lineWords } from "./words";
 
 /**
@@ -200,8 +201,8 @@ export type StoryView = {
 /**
  * The line beside a line with an ask on it.
  *  - waiting: "You asked for In the room at 9:40am. Waiting for an admin or the programme’s lead."
- *  - approved: "Corrected by Zach at 10:05am, as you asked."
- *  - declined: "Declined by Zach at 10:05am: “Daniel left at 3pm.”" (the reply only when the reader is sent it)
+ *  - approved: "Corrected by Sam at 10:05am, as you asked."
+ *  - declined: "Declined by Sam at 10:05am: “Daniel left at 3pm.”" (the reply only when the reader is sent it)
  */
 export function requestLine(request: RequestView, now: Date): string {
   const asker = request.yours ? "You" : firstOf(request.askedBy.name) || "Somebody";
@@ -229,7 +230,7 @@ export function cellChip(input: { corrected: boolean; request: RequestView | nul
 /**
  * A corrected line's story, in the order it happened:
  * "Was Absent, set by Rahul, Wed 4 Nov, 3:06pm. Rahul asked on Tue 10 Nov at
- * 9:40am. Corrected by Zach, Tue 10 Nov, 10:05am. Why: “...”"
+ * 9:40am. Corrected by Sam, Tue 10 Nov, 10:05am. Why: “...”"
  * The reason only when the reader is sent it.
  */
 export function storyWords(story: StoryView, sessionLabelOf: (key: string) => string = (key) => key): string {
@@ -316,12 +317,73 @@ function stayWords(staying: readonly NamedLine[]): string {
   return lines.size === 1 ? `${names} stay ${staying[0].line}.` : `${names} stay as they are.`;
 }
 
-/** The chase, as a preview says it comes back. */
-function chaseWords(chase: { email: string; card: string } | undefined): string {
+/**
+ * The chase of a register a move or a clear puts back to not taken, as the
+ * route's preview says it (`chase`): whether the reminder email and the card
+ * for the lead and admins go again, or why not (their time has passed, or
+ * the job is switched off), and while the email goes again, who it goes to
+ * and from when.
+ */
+export type ChaseView = {
+  email: string;
+  card: string;
+  emailTo?: { kind: string; names: string[] } | null;
+  emailFrom?: string | null;
+};
+
+/** Whether the reminder email will go to somebody again. */
+function emailGoes(chase: ChaseView | undefined): chase is ChaseView & { emailTo: { kind: string; names: string[] } } {
+  return Boolean(chase && chase.email === "returns" && chase.emailTo && chase.emailTo.names.length > 0);
+}
+
+/** The chase, as a preview says it comes back, or why not. */
+function chaseWords(chase: ChaseView | undefined): string {
   if (!chase) return "";
-  if (chase.email === "returns") return "The reminders about its register start again.";
-  if (chase.card === "returns") return "The reminder email’s time has passed, so only the card for the lead and admins comes back.";
-  return "Nothing chases it again: the reminders’ times have passed.";
+  const email = emailGoes(chase)
+    ? "The reminder email goes again."
+    : chase.email === "returns"
+      ? "The reminder email has nobody to go to."
+      : chase.email === "off"
+        ? "The reminder email is switched off, so it doesn’t go."
+        : "The reminder email’s time for this session has passed, so it doesn’t go again.";
+  const card =
+    chase.card === "returns"
+      ? "The card for the lead and admins comes back."
+      : chase.card === "off"
+        ? "The card for the lead and admins is switched off, so it doesn’t come back."
+        : "The card for the lead and admins doesn’t come back: its time has passed.";
+  return `${email} ${card}`;
+}
+
+/** "Nobody is emailed. ...": what a column correction tells, when nothing emails anybody. */
+const TOLD_NOBODY = "Nobody is emailed. Its facilitators see it on the register; the people see it on their own pages.";
+
+/**
+ * Told, for a register a move or a clear puts back to not taken: nobody is
+ * emailed, unless the reminder email goes again, when one plain sentence
+ * says who gets it and when ("Its facilitators, Rahul and Sofia, get the
+ * register reminder email soon after 6:04am on Thu 12 Nov if it isn’t
+ * finished by then."). `at` is when the preview was worked out.
+ */
+export function toldWords(chase: ChaseView | undefined, at: Date): string {
+  if (!emailGoes(chase)) return TOLD_NOBODY;
+  const firsts = chase.emailTo.names.map((name) => firstOf(name) || "Somebody");
+  const one = firsts.length === 1;
+  const who =
+    chase.emailTo.kind === "cover-taker"
+      ? `${firsts[0]}, who took it in a facilitator’s place,`
+      : chase.emailTo.kind === "cover-giver"
+        ? `${firsts[0]}, who gave the session to somebody,`
+        : `Its ${one ? "facilitator" : "facilitators"}, ${namesWords(firsts)},`;
+  const from = instant(chase.emailFrom);
+  const when =
+    !from || from.getTime() <= at.getTime()
+      ? "within about 15 minutes"
+      : londonDayLabel(from) === londonDayLabel(at)
+        ? `soon after ${londonClockLabel(from)} today`
+        : `soon after ${londonClockLabel(from)} on ${londonDayLabel(from)}`;
+  const verb = one || chase.emailTo.kind !== "facilitators" ? "gets" : "get";
+  return `${who} ${verb} the register reminder email ${when} if it isn’t finished by then. Nobody else is emailed.`;
 }
 
 export type BeforeYouSave = { label: string; text: string }[];
@@ -332,7 +394,9 @@ export function columnPreviewLines(preview: Record<string, unknown>, groupName: 
   const staying = (preview.staying as NamedLine[] | undefined) ?? [];
   const lines: BeforeYouSave = [];
   const figures = { label: "Figures", text: `Each person’s page, ${groupName.trim() || "the group"}, Overview and Surveys update.` };
-  const told = { label: "Told", text: "Nobody is emailed. Its facilitators see it on the register; the people see it on their own pages." };
+  // A move or a clear puts the register back to not taken, so its reminder may go again.
+  const chased = kind === "move" || kind === "clear" ? (preview.chase as ChaseView | undefined) : undefined;
+  const told = { label: "Told", text: toldWords(chased, instant(preview.at as string | undefined) ?? new Date()) };
   if (kind === "online") {
     const changes = Number(preview.changes ?? 0);
     lines.push({
@@ -352,7 +416,7 @@ export function columnPreviewLines(preview: Record<string, unknown>, groupName: 
         : `Choose the week whose session these ${linesWords(moves)} belong to.`,
     });
     lines.push(staysWords(preview));
-    const chase = chaseWords(preview.chase as { email: string; card: string } | undefined);
+    const chase = chaseWords(chased);
     if (chase && to) lines.push({ label: "Reminders", text: chase });
   } else if (kind === "clear") {
     const clears = Number(preview.clears ?? 0);
@@ -361,7 +425,7 @@ export function columnPreviewLines(preview: Record<string, unknown>, groupName: 
       text: `${linesWords(clears)} cleared. Week ${preview.weekNumber} goes back to not taken, and the group’s history keeps what each said.`,
     });
     lines.push(staysWords(preview));
-    const chase = chaseWords(preview.chase as { email: string; card: string } | undefined);
+    const chase = chaseWords(chased);
     if (chase) lines.push({ label: "Reminders", text: chase });
   }
   lines.push(figures, told);
@@ -386,9 +450,7 @@ type Moment = { weekNumber: number; dateKey: string; startTimeLocal: string } | 
 export function didNotHappenPreviewLines(preview: Record<string, unknown>): BeforeYouSave {
   const weekNumber = Number(preview.weekNumber ?? 0);
   const lines: BeforeYouSave = [];
-  const facts = preview.didNotHappen as
-    | { leavesAttendance: boolean; chaseStops: boolean; checkIn: boolean; reports: number }
-    | undefined;
+  const facts = preview.didNotHappen as { checkIn: boolean; reports: number } | undefined;
   const clearing = (preview.clearing as NamedLine[] | undefined) ?? [];
   lines.push({ label: "Attendance", text: `Week ${weekNumber} leaves everyone’s attendance. Nobody is counted absent.` });
   lines.push({
@@ -410,8 +472,16 @@ export function didNotHappenPreviewLines(preview: Record<string, unknown>): Befo
     lines.push({ label: "Dates", text: "The weeks after it keep their dates." });
   }
   if (facts) {
-    const made = [facts.checkIn ? "its check-in" : "", facts.reports > 0 ? (facts.reports === 1 ? "its session report" : `its ${facts.reports} session reports`) : ""].filter(Boolean);
-    if (made.length) lines.push({ label: "Check-in, report", text: `${namesWords(made)} ${made.length === 1 && facts.reports <= 1 ? "is" : "are"} kept.` });
+    // What was opened or written for it, in the one-week change's own words for
+    // the cancel chosen: kept pace, they are kept; pushed back, the week's
+    // check-in and report are its new session's (a push back is refused once
+    // either exists, so none is ever carried over).
+    const said = didNotHappenLines(
+      { leavesAttendance: false, chaseStops: false, checkIn: facts.checkIn, reports: facts.reports, lines: { cleared: 0, said: {} } },
+      weekNumber,
+      preview.pace === "push" ? "push" : "cancel",
+    ).find((row) => row.label === "Check-in, report");
+    if (said) lines.push(said);
   }
   return lines;
 }
@@ -450,7 +520,8 @@ export function columnDoneWords(way: ColumnWay | "did-happen", weekNumber: numbe
     case "online":
       return `Week ${weekNumber}: ${linesWords(count)} corrected to Online. Nobody was emailed.`;
     case "move":
-      return `Week ${weekNumber}’s ${linesWords(count)} moved to week ${toWeek ?? "?"}. Nobody was emailed.`;
+      // Not "nobody was emailed": the register it leaves may be chased again.
+      return `Week ${weekNumber}’s ${linesWords(count)} moved to week ${toWeek ?? "?"}. Week ${weekNumber} is back to not taken.`;
     case "clear":
       return `Week ${weekNumber}: ${linesWords(count)} cleared. It’s back to not taken.`;
     case "did-not-happen":
@@ -482,10 +553,48 @@ export function didHappenPreviewLines(preview: Record<string, unknown>, counts: 
   ];
 }
 
-/** The three ways somebody can be put down for It did happen. */
+/**
+ * The four ways somebody can be put down for It did happen: in the room,
+ * online, absent, or excused (somebody who told us in advance they couldn't
+ * make it is not counted absent).
+ */
 export const DID_HAPPEN_CHOICES: readonly LineChoice[] = LINE_CHOICES.filter(
-  (choice) => choice.key === "present" || choice.key === "present-online" || choice.key === "absent",
+  (choice) => choice.key === "present" || choice.key === "present-online" || choice.key === "absent" || choice.key === "excused",
 );
+
+/** The choice a person's line says now ("Excused", "In the room"), or null for a line that says nothing. */
+export function choiceOfLine(line: string): LineChoice | null {
+  return LINE_CHOICES.find((choice) => choice.words === line) ?? null;
+}
+
+/**
+ * The choices It did happen offers one person: the four, and what their line
+ * says now when it is another (arrived late, left early), so it can stay.
+ */
+export function didHappenChoicesFor(line: string): LineChoice[] {
+  const now = choiceOfLine(line);
+  return now && !DID_HAPPEN_CHOICES.some((choice) => choice.key === now.key) ? [...DID_HAPPEN_CHOICES, now] : [...DID_HAPPEN_CHOICES];
+}
+
+/** What a person's line says now, beside their name on It did happen: "Now: Excused", "Now: Not set". */
+export function didHappenNowWords(line: string): string {
+  return `Now: ${line.trim() || "Not set"}`;
+}
+
+/** The counts It did happen's Before you save says, from the choice for each person (a key, or null for none yet). */
+export function didHappenCounts(keys: readonly (string | null)[]): { room: number; online: number; absent: number; excused: number } {
+  const counts = { room: 0, online: 0, absent: 0, excused: 0 };
+  for (const key of keys) {
+    const choice = choiceOf(key);
+    if (!choice) continue;
+    if (cameBy(choice.status)) {
+      if (choice.online) counts.online += 1;
+      else counts.room += 1;
+    } else if (choice.status === "absent") counts.absent += 1;
+    else if (choice.status === "excused") counts.excused += 1;
+  }
+  return counts;
+}
 
 // ---------------------------------------------------------------------------
 // The Requests page and one request's page
@@ -517,7 +626,7 @@ export function requestAbout(row: { group: { name: string }; weekNumber: number;
   return `${row.group.name}, ${week}: ${row.subject.name}, ${row.from} to ${row.to}`;
 }
 
-/** Who has a request: "Nobody has it yet", "You have it", "Zach has it". */
+/** Who has a request: "Nobody has it yet", "You have it", "Sam has it". */
 export function handlingWords(handling: { name: string } | null, mine: boolean): string {
   if (!handling) return NOBODY_HAS_IT;
   return mine ? "You have it" : `${firstOf(handling.name) || "Somebody"} has it`;
@@ -629,7 +738,8 @@ export const ATTENDANCE_TAB = "Attendance, all weeks";
 export const CORRECT_ANY_LINE =
   "Leads and admins can correct any line of a finished week: click it. Every correction asks why, and the group’s history keeps who, when, from and to.";
 export const FACILITATORS_ROW = "Facilitators";
-export const FACILITATORS_ROW_NOTE = "Admins and the programme’s lead only. Facilitators don’t see this, and nor does anyone in the group.";
+export const FACILITATORS_ROW_CHIP = "Admins and the programme’s lead only";
+export const FACILITATORS_ROW_NOTE = "Facilitators don’t see this, and nor does anyone in the group.";
 export const IN_THE_ROOM_COUNT = "In the room";
 export const ONLINE_COUNT = "Online";
 

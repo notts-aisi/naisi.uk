@@ -7,7 +7,7 @@ import PersonSelector from "@/components/ui/PersonSelector";
 import { useHydrated } from "@/hooks/useHydrated";
 import type { GroupPageView, GroupPageWeek } from "@/lib/courses/groupPage/model";
 import * as W from "@/lib/courses/groupPage/words";
-import { firstWordOf } from "@/lib/courses/registerCover/pageModel";
+import { coverCandidatesOf, firstWordOf } from "@/lib/courses/registerCover/pageModel";
 import {
   CHOOSE_SOMEBODY,
   OFF_UNLESS_TICKED,
@@ -16,6 +16,7 @@ import {
   WHOS_COVERING,
   emailToWords,
   gaveWords,
+  givenAlreadyWords,
   giveButtonWords,
   giveLede,
   giveWhatTheyGet,
@@ -29,7 +30,10 @@ import styles from "./GroupPage.module.css";
  * SOMEONE ELSE IS COVERING: one session of the group given to somebody, for
  * that session only, until midnight (`POST .../attendance/cover` with a
  * `person`). Who (the person picker the Facilitators view uses to add a
- * facilitator, from the same list: anybody with an approved account), what
+ * facilitator, from the same list, narrowed to the people the route admits:
+ * admins, the committee, the programme's leads and its facilitators,
+ * `coverCandidatesOf`), who has the session already (the preview's
+ * `replaces`), what
  * they get and for how long (the preview's `until`), the tick to tell the
  * group (off unless ticked, with its count), the email to them as the
  * preview returns it, and one button that says what it sends and to how
@@ -39,6 +43,7 @@ import styles from "./GroupPage.module.css";
 
 type Preview = {
   until: string | null;
+  replaces: { kind: "self" | "given"; byUid: string; name: string; live: boolean } | null;
   person: { uid: string; name: string; emailed: number } | null;
   email: { subject: string; lines: string[]; button: string } | null;
   notice: { subject: string; lines: string[]; emails: number; refused: boolean } | null;
@@ -93,17 +98,16 @@ export default function GivePanel({
     };
   }, [view.runId]);
 
-  // Never the group's own facilitators: they take the register as usual.
-  const facilitating = useMemo(
-    () => new Set((people?.groups.find((each) => each.id === view.groupId)?.facilitators ?? []).map((each) => each.uid)),
-    [people, view.groupId],
-  );
+  // The people the route admits, never the group's own facilitators (they take the register as usual).
   const users: UserDoc[] = useMemo(
     () =>
-      (people?.people ?? [])
-        .filter((person) => !facilitating.has(person.uid))
-        .map((person) => normalizeUser(person.uid, { displayName: person.name, role: person.role })),
-    [people, facilitating],
+      coverCandidatesOf({
+        people: people?.people ?? [],
+        groups: people?.groups ?? [],
+        leadUids: view.coverLeadUids,
+        groupId: view.groupId,
+      }).map((person) => normalizeUser(person.uid, { displayName: person.name, role: person.role })),
+    [people, view.coverLeadUids, view.groupId],
   );
 
   // What a press would do, for the person chosen: the route's own preview.
@@ -131,6 +135,8 @@ export default function GivePanel({
   const canTell = Boolean(preview?.notice && !preview.notice.refused && groupEmails > 0);
   const telling = tell && canTell;
   const today = week.dateKey === view.todayKey;
+  // The same session given to the same person again sends nothing: the route answers 409, so the button is not offered.
+  const alreadyTheirs = Boolean(preview?.replaces && preview.replaces.kind === "given" && preview.replaces.live && preview.replaces.byUid === chosen);
   const off = !hydrated || busy;
 
   async function press() {
@@ -194,6 +200,12 @@ export default function GivePanel({
         <p className={styles.fieldHint}>{giveWhatTheyGet(preview?.until ?? null)}</p>
       </div>
 
+      {preview?.replaces && (
+        <p className={styles.panelNote}>
+          {givenAlreadyWords(preview.replaces, alreadyTheirs)}
+        </p>
+      )}
+      {!chosen && week.cover && <p className={styles.panelNote}>{givenAlreadyWords({ name: week.cover.byName, kind: week.cover.kind, live: week.cover.live }, false)}</p>}
       {!chosen && <p className={styles.previewNote}>{CHOOSE_SOMEBODY}</p>}
       {chosen && !preview && !refused && <p className={styles.previewNote}>{W.CHECKING}</p>}
       {refused && <p className={styles.previewRefused}>{refused}</p>}
@@ -247,7 +259,7 @@ export default function GivePanel({
         <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
           {W.CANCEL}
         </Button>
-        <Button type="button" onClick={() => void press()} disabled={off || !preview?.person}>
+        <Button type="button" onClick={() => void press()} disabled={off || !preview?.person || alreadyTheirs}>
           {busy ? W.SAVING : preview?.person ? giveButtonWords(first, preview.person.emailed, telling ? groupEmails : 0) : SOMEONE_ELSE_IS_COVERING}
         </Button>
       </div>

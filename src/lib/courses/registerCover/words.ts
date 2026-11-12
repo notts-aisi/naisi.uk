@@ -43,6 +43,11 @@ export const COVER_REFUSAL = {
   noAccount: "That person can’t be given a session: they need an approved account.",
   /** The person given it facilitates the group. */
   theyFacilitate: "They facilitate this group already, so they can take the register as usual.",
+  /** The person given it runs nothing on the programme (`runsThingsOn`). */
+  notRunning:
+    "A session can be given only to an admin, a committee member, the programme’s lead, one of its track leads or one of its facilitators.",
+  /** The session is already given to that person, and the grant still holds: nothing is written or sent again. */
+  alreadyGiven: "That session is already theirs, so nothing was changed and nobody was emailed again.",
   overCap: "Too many people to email in one send. Untick Tell the group.",
   nobodyToEmail: "Nobody in the group can be emailed yet. Untick Tell the group.",
 } as const;
@@ -50,6 +55,20 @@ export const COVER_REFUSAL = {
 /** The count on the button no longer holds: what it would email now. */
 export function coverCountChangedWords(emails: number): string {
   return `The group has changed since this was opened: it would now email ${emails === 1 ? "1 person" : `${emails} people`}. Check and press again.`;
+}
+
+/**
+ * A push back refused because the session already has a check-in or a
+ * session report: both are kept by the week, so the session a week later
+ * would open with them. The route's sentence; keep pace is still there.
+ */
+export function pushHasRecordsWords(weekNumber: number): string {
+  return `Week ${weekNumber} already has a check-in or a session report, which would then belong to the session a week later, so the rest can’t be pushed back. Cancel it and keep pace instead.`;
+}
+
+/** The same, as the hint where "Push the rest back a week" is not offered. */
+export function pushHasRecordsHint(weekNumber: number): string {
+  return `Week ${weekNumber} already has a check-in or a session report, so the rest can’t be pushed back.`;
 }
 
 /** The register's own refusals for what a cover changes. */
@@ -200,6 +219,21 @@ export function gaveDetail(
     : `Gave week ${weekNumber}’s session to ${personName}.`;
   const told = emailedGroup > 0 ? ` The group was told (${emailedGroup === 1 ? "1 person" : `${emailedGroup} people`}).` : "";
   return `${base}${reason ? ` Reason: ${reason}` : ""}${told}`;
+}
+
+/**
+ * "Ola Nowak was covering week 4 at its old time, so that cover is taken
+ * off.": what a change that moves a session's start says, in its own history
+ * row, about the cover it took off that session's register.
+ */
+export function coverTakenOffDetail(holderName: string, weekNumber: number, occurrence = 1): string {
+  const which = occurrence > 1 ? `week ${weekNumber}’s session ${occurrence}` : `week ${weekNumber}`;
+  return `${holderName.trim() || "Somebody"} was covering ${which} at its old time, so that cover is taken off.`;
+}
+
+/** "Ola Nowak was covering it.": the cover a push back clears from a draft, in that press's row. */
+export function coverClearedDetail(holderName: string): string {
+  return `${holderName.trim() || "Somebody"} was covering it.`;
 }
 
 const PRESENCE_WORDS = { there: "there", late: "arrived late", "not-there": "not there" } as const;
