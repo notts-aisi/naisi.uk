@@ -986,7 +986,7 @@ const MUST_NAME = [
   // people running a group reopening a week, are held in frozen v16 by the
   // version 17 describe.
   ["changing your work, and what is read before it is sent", /<strong>Changing your work\.<\/strong> Your reflections and the boxes you fill in save as you type, and the people who read your work can read them as you write\. A written answer is yours until you send it: until then they see only that you&apos;ve started it\. Once the session it&apos;s due at has started, they may read what you&apos;ve written so far, sent or not\. The week&apos;s page says until when you can change your work\./],
-  ["work added after a session, and what is kept when it changes", /We may let you keep adding to a week and changing it after its session, until your programme closes\. When you do, we record when, and the people who read your work see anything added or changed after the session as late, with how late\. If you change something after it&apos;s been read or given feedback, we keep the earlier version, with its feedback, beside the new one\./],
+  ["work added after a session, and what is kept when it changes", /We may let you keep adding to a week and changing it after its session, until your programme closes\. When you do, we record when, and the people who read your work may see anything added or changed after the session as late, with how late\. If you change something after it&apos;s been read or given feedback, we may keep the earlier version, with its feedback, beside the new one\./],
   // CHANGED ON PURPOSE (v13): v12 promised that nothing written in a course
   // is used outside its programme. v13 took it back from its own agreement
   // on and said the cut-off in its place; v15 says the same cut-off (§2m
@@ -9101,7 +9101,10 @@ describe("the re-consent gate", () => {
         "If a change affects how we use your information (a new use, a new outside service, or keeping something longer), we tell you on the site and by email before it takes effect, saying what changed.",
       ),
     );
-    assert.ok(PAGE_FLAT.includes("<strong>Changes.</strong> If we change how we use your information, we tell you on the site and by email before the change takes effect."));
+    // The summary at the top says the same: on the site. v16's is held in frozen v16.
+    assert.ok(PAGE_FLAT.includes("<strong>Changes.</strong> If we change how we use your information, we tell you on the site. </li>"));
+    assert.ok(V16_FLAT.includes("<strong>Changes.</strong> If we change how we use your information, we tell you on the site and by email before the change takes effect."));
+    assert.ok(!/by email before/.test(PAGE_FLAT), "version 17 still promises an email before a change somewhere");
     assert.ok(!/asked to accept or decline it/.test(PAGE_FLAT), "the policy still says every material change is asked, which v15 took back");
     assert.ok(V14_FLAT.includes("you will be shown the new version and asked to accept or decline it"), "v14 is frozen and should still say what it promised");
     // Every place that asks, with comments left out so a note about the gate
@@ -9133,7 +9136,7 @@ describe("the re-consent gate", () => {
     for (const [what, page, policy] of [
       [
         "that it is arranged by use and the last version anybody is asked to accept",
-        "This policy is now arranged by what we use your information for, and it is the last version you&apos;ll be asked to accept: from now on, if a change affects how we use your information, we&apos;ll tell you on the site and by email before it takes effect.",
+        "This policy is now arranged by what we use your information for, and it is the last version you&apos;ll be asked to accept: from now on, if a change affects how we use your information, we&apos;ll tell you on the site.",
         "You were asked to accept this version. If you decline it, you are signed out, and you can email us to have your account removed; an external collaborator can delete theirs there and then. We will not ask you to accept later versions.",
       ],
       [
@@ -11165,7 +11168,7 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
     [
       "changing your work, after the session too",
       "until then they see only that you have started it, never what it says, and if your week locks before you send it, they may then read what you wrote. The week&apos;s page says until when you can change your work, and the people running your group can reopen it for you.",
-      "until then they see only that you&apos;ve started it. Once the session it&apos;s due at has started, they may read what you&apos;ve written so far, sent or not. The week&apos;s page says until when you can change your work. We may let you keep adding to a week and changing it after its session, until your programme closes. When you do, we record when, and the people who read your work see anything added or changed after the session as late, with how late. If you change something after it&apos;s been read or given feedback, we keep the earlier version, with its feedback, beside the new one.",
+      "until then they see only that you&apos;ve started it. Once the session it&apos;s due at has started, they may read what you&apos;ve written so far, sent or not. The week&apos;s page says until when you can change your work. We may let you keep adding to a week and changing it after its session, until your programme closes. When you do, we record when, and the people who read your work may see anything added or changed after the session as late, with how late. If you change something after it&apos;s been read or given feedback, we may keep the earlier version, with its feedback, beside the new one.",
     ],
     [
       "reminders, after the session too",
@@ -11211,6 +11214,11 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
       "changes told on the site",
       "we tell you on the site and by email before it takes effect, saying what changed.",
       "we tell you on the site, saying what changed.",
+    ],
+    [
+      "the summary at the top says the same",
+      "<strong>Changes.</strong> If we change how we use your information, we tell you on the site and by email before the change takes effect.",
+      "<strong>Changes.</strong> If we change how we use your information, we tell you on the site.",
     ],
   ];
 
@@ -11287,21 +11295,14 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
     assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
   });
 
-  test("REPORTED, not changed: two sentences of v17 that the code does not yet make true", () => {
-    // The owner approved v17's words; these two are pinned as written and
-    // reported, as the head of this file says a sentence the code does not
-    // match is.
-    //
-    // 1. The summary at the top still says changes are told "on the site and
-    //    by email before the change takes effect", v16's words, beside the
-    //    reworded Changes to this policy, which says on the site alone.
-    assert.ok(PAGE_FLAT.includes("<strong>Changes.</strong> If we change how we use your information, we tell you on the site and by email before the change takes effect."));
-    // 2. "If you change something after it's been read or given feedback, we
-    //    keep the earlier version, with its feedback, beside the new one."
-    //    Today a week reopened by the people running a group takes changes
-    //    again, feedback already given stays beside the new words, and no
-    //    earlier version is kept.
-    assert.ok(PAGE_FLAT.includes("If you change something after it&apos;s been read or given feedback, we keep the earlier version, with its feedback, beside the new one."));
+  test("two sentences say 'may', because a reopened week can be changed today and nothing more is kept", () => {
+    // Work added after a session is shown as late, and an earlier version is
+    // kept beside a changed one, only once weeks stay open after their
+    // session. Until then a week reopened by the people running a group takes
+    // changes again with neither, so both sentences say "may".
+    assert.ok(PAGE_FLAT.includes("the people who read your work may see anything added or changed after the session as late, with how late."));
+    assert.ok(PAGE_FLAT.includes("If you change something after it&apos;s been read or given feedback, we may keep the earlier version, with its feedback, beside the new one."));
+    assert.ok(!PAGE_FLAT.includes("we keep the earlier version"), "version 17 promises an earlier version is always kept, which the code does not do yet");
     assert.match(read("src/app/api/courses/runs/[runId]/weeks/[weekId]/reopen/route.ts"), /Feedback already given stays, with its date\./);
   });
 });

@@ -160,8 +160,7 @@ export default function PrivacyContentV17({
               </li>
               <li>
                 <strong>Changes.</strong> If we change how we use your
-                information, we tell you on the site and by email before the
-                change takes effect.
+                information, we tell you on the site.
               </li>
             </ul>
           </div>
@@ -626,10 +625,10 @@ export default function PrivacyContentV17({
                 page says until when you can change your work. We may let you
                 keep adding to a week and changing it after its session, until
                 your programme closes. When you do, we record when, and the
-                people who read your work see anything added or changed after
-                the session as late, with how late. If you change something
-                after it&apos;s been read or given feedback, we keep the earlier
-                version, with its feedback, beside the new one.
+                people who read your work may see anything added or changed
+                after the session as late, with how late. If you change
+                something after it&apos;s been read or given feedback, we may
+                keep the earlier version, with its feedback, beside the new one.
               </p>
               <p>
                 <strong>Using your work later.</strong> What you write on a
