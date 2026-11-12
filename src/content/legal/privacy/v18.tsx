@@ -1,8 +1,10 @@
 /**
- * Version 18 of the Privacy Policy: version 17 with one sentence changed,
- * about the short note Claude may draft each week, and "What's changed in
- * version 18" at the top, with version 17's own line kept under it and
- * dated. Every other word is version 17's.
+ * Version 18 of the Privacy Policy: version 17 with the sentence about the
+ * short note Claude may draft each week changed, one sentence added to
+ * "Changing your work", the names sentence of "What is sent, and what comes
+ * back" made exact, and "What's changed in version 18" at the top, with
+ * version 17's own line kept under it and dated. Every other word is
+ * version 17's.
  *
  * What changed from v17, in code terms:
  *
@@ -21,7 +23,14 @@
  *     ...") is unchanged, and so is the rest: labels in place of names, no
  *     email address, the team's feedback, ratings and comments, who sees a
  *     draft and how long it is kept.
- *  2. **What's changed** at the top says so in one sentence, and keeps
+ *  2. **Changing your work**: from the session on, an unsent written
+ *     answer may also be used in the weekly note (one sentence added).
+ *  3. **What is sent, and what comes back**: the tools get "a number or a
+ *     label (such as "the fellow")" in place of each name, which is what
+ *     `noteDraftInput` sends ("the fellow", "another fellow", "Rater 1").
+ *  4. The weekly note's sentence also opens "Each week, or when an admin
+ *     asks for one": the profile's "Draft a note with Claude" is the asking.
+ *  5. **What's changed** at the top says so in one sentence, and keeps
  *     version 17's line under it with its date.
  *
  * Nobody is asked to accept this version: since v15 a later version is told,
@@ -93,8 +102,10 @@ export default function PrivacyContentV18({
           <div className={styles.lede}>
             <p id="whats-changed">
               <strong>What&apos;s changed in version 18:</strong> the short
-              note Claude may draft each week now uses your work as it stands
-              after your session, sent or not.
+              note Claude may draft each week, or when an admin asks for one,
+              now uses your work as it stands after your session, so it may use
+              a written answer you haven&apos;t sent; and we say that the tools
+              get a number or a label in place of each name.
             </p>
             <p>
               <strong>What changed in version 17, on 12 November 2026:</strong> who
@@ -618,8 +629,9 @@ export default function PrivacyContentV18({
                 work can read them as you write. A written answer is yours until
                 you send it: until then they see only that you&apos;ve started
                 it. Once the session it&apos;s due at has started, they may read
-                what you&apos;ve written so far, sent or not. The week&apos;s
-                page says until when you can change your work. We may let you
+                what you&apos;ve written so far, sent or not. From then on, it
+                may also be used in the short note Claude may draft each week.
+                The week&apos;s page says until when you can change your work. We may let you
                 keep adding to a week and changing it after its session, until
                 your programme closes. When you do, we record when, and the
                 people who read your work may see anything added or changed
@@ -817,8 +829,9 @@ export default function PrivacyContentV18({
                 and session reports: to grade answers, pick out the strongest
                 and weakest, and say what people found hard and who might need a
                 hand. Admins may ask Pangram to check longer answers for writing
-                produced with AI. Once a week Claude may also draft a short note
-                on how each person is doing. It is drafted after your session,
+                produced with AI. Each week, or when an admin asks for one,
+                Claude may also draft a short note on how each person is doing.
+                It is drafted after your session,
                 usually about a week after it, and uses your work on that week
                 as it stands then, sent or not, with the feedback, ratings and
                 comments people on the team gave it. Only what you wrote after
@@ -827,8 +840,8 @@ export default function PrivacyContentV18({
               </p>
               <p>
                 <strong>What is sent, and what comes back.</strong> The tools
-                receive the words with a number in place of each name, and no
-                email address. What comes back is seen by admins only, and is a
+                receive the words with a number or a label (such as &quot;the
+                fellow&quot;) in place of each name, and no email address. What comes back is seen by admins only, and is a
                 reason for a person to look, never a decision about you. It is
                 kept with what it was about (the application, or the
                 programme&apos;s run) and deleted with it. Nothing of it is

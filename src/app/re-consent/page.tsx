@@ -161,8 +161,10 @@ export default async function ReConsentPage() {
             weekly note, which says what version 15 changed. */}
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           <strong style={{ color: "var(--color-text)" }}>What changed in version 18.</strong>{" "}
-          The short note Claude may draft each week now uses your work as it
-          stands after your session, sent or not.
+          The short note Claude may draft each week, or when an admin asks for
+          one, now uses your work as it stands after your session, so it may
+          use a written answer you haven&apos;t sent; and we say that the tools
+          get a number or a label in place of each name.
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}

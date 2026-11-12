@@ -180,8 +180,10 @@ export const POLICIES: Record<
     //
     // v18 is the short note Claude may draft each week: it is drafted after
     // the person's session and uses their work on that week as it stands
-    // then, sent or not, no longer only the work they submitted. One sentence
-    // of v17 changes, and "What's changed" keeps v17's line under v18's.
+    // then, sent or not, no longer only the work they submitted; "Changing
+    // your work" says an unsent answer may be used in it from the session on,
+    // and the tools are said to get a number or a label for each name.
+    // "What's changed" keeps v17's line under v18's.
     // Told, not asked: `LAST_PRIVACY_VERSION_ASKED` stays 15. For 14 days
     // from its date, Home and /privacy carry its `updateLine`, and while
     // v17's own 14 days still run, v17's line with `updateLineAdds` in place

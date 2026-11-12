@@ -4,14 +4,16 @@
  *
  * Run with `npm test`.
  *
- * The current version is v18: v17 with one sentence changed, about the
- * short note Claude may draft each week (drafted after the person's session,
- * from their work on that week as it stands then, sent or not, no longer
- * "only the work they submitted"), and "What's changed in version 18" at the
- * top with version 17's line kept under it, dated. Told, not asked. Every
+ * The current version is v18: v17 with the sentence about the short note
+ * Claude may draft each week changed (each week or when an admin asks,
+ * drafted after the person's session, from their work on that week as it
+ * stands then, sent or not, no longer "only the work they submitted"), a
+ * sentence added to "Changing your work" saying so of an unsent answer, the
+ * names sentence made exact ("a number or a label"), and "What's changed in
+ * version 18" at the top with version 17's line kept under it, dated. Told, not asked. Every
  * other word is v17's, so the sections below that name v15, v16 or v17 hold
  * v18's text, the describe for version 18 holds its change to the code, and
- * the replaced sentence's pin moved to the sentence that replaced it, with
+ * each replaced sentence's pin moved to the sentence that replaced it, with
  * the old sentence held in frozen v17.
  *
  * v17 is v16 with "What's changed in version 17" at the
@@ -1007,7 +1009,10 @@ const MUST_NAME = [
   // a reading or feedback keeps the earlier version. v16's words, with the
   // people running a group reopening a week, are held in frozen v16 by the
   // version 17 describe.
-  ["changing your work, and what is read before it is sent", /<strong>Changing your work\.<\/strong> Your reflections and the boxes you fill in save as you type, and the people who read your work can read them as you write\. A written answer is yours until you send it: until then they see only that you&apos;ve started it\. Once the session it&apos;s due at has started, they may read what you&apos;ve written so far, sent or not\. The week&apos;s page says until when you can change your work\./],
+  // CHANGED ON PURPOSE (v18): from the session on, an unsent answer may also
+  // be used in the weekly note; v17's paragraph is held in frozen v17 by the
+  // version 18 describe.
+  ["changing your work, and what is read before it is sent", /<strong>Changing your work\.<\/strong> Your reflections and the boxes you fill in save as you type, and the people who read your work can read them as you write\. A written answer is yours until you send it: until then they see only that you&apos;ve started it\. Once the session it&apos;s due at has started, they may read what you&apos;ve written so far, sent or not\. From then on, it may also be used in the short note Claude may draft each week\. The week&apos;s page says until when you can change your work\./],
   ["work added after a session, and what is kept when it changes", /We may let you keep adding to a week and changing it after its session, until your programme closes\. When you do, we record when, and the people who read your work may see anything added or changed after the session as late, with how late\. If you change something after it&apos;s been read or given feedback, we may keep the earlier version, with its feedback, beside the new one\./],
   // CHANGED ON PURPOSE (v13): v12 promised that nothing written in a course
   // is used outside its programme. v13 took it back from its own agreement
@@ -9317,7 +9322,7 @@ describe("the re-consent gate", () => {
     // both, frozen.
     assert.ok(
       PAGE_FLAT.includes(
-        "Once a week Claude may also draft a short note on how each person is doing. It is drafted after your session, usually about a week after it, and uses your work on that week as it stands then, sent or not, with the feedback, ratings and comments people on the team gave it.",
+        "Each week, or when an admin asks for one, Claude may also draft a short note on how each person is doing. It is drafted after your session, usually about a week after it, and uses your work on that week as it stands then, sent or not, with the feedback, ratings and comments people on the team gave it.",
       ),
     );
     for (const frozen of [V17_FLAT, V15_FLAT]) {
@@ -9404,7 +9409,8 @@ describe("the re-consent gate", () => {
     const eighteen = accept.indexOf("What changed in version 18.</strong>");
     assert.ok(seventeen !== -1 && eighteen > seventeen && accept.indexOf("Read the full", eighteen) > eighteen, "the accept page no longer says what version 18 changed, after version 17");
     const said = accept.slice(eighteen, accept.indexOf("Read the full", eighteen));
-    const CHANGED = "the short note Claude may draft each week now uses your work as it stands after your session, sent or not.";
+    const CHANGED =
+      "the short note Claude may draft each week, or when an admin asks for one, now uses your work as it stands after your session, so it may use a written answer you haven&apos;t sent; and we say that the tools get a number or a label in place of each name.";
     assert.ok(said.includes(`T${CHANGED.slice(1)}`), "the accept page's line for version 18 is no longer the policy's own words");
     assert.ok(PAGE_FLAT.includes(`<p id="whats-changed"> <strong>What&apos;s changed in version 18:</strong> ${CHANGED} </p>`), "the policy no longer says what changed in version 18, in those words, at the anchor the line on Home links to");
     assert.ok(!V17_FLAT.includes("What&apos;s changed in version 18"));
@@ -10305,7 +10311,8 @@ describe("v13 took back the coursework promise from its own agreement on, and na
     // agreement. It may send survey answers later, which v13 said it never would.
     [
       "Only what you sent after you agreed to version 13 is used, and Claude is never sent your name, your email address, your private notes, your survey answers or when you are free.",
-      [CUT_OFF[1], "The tools receive the words with a number in place of each name, and no email address."],
+      // CHANGED ON PURPOSE (v18): a number or a label, as the notes send ("the fellow"); v17's words are held in frozen v17.
+      [CUT_OFF[1], "The tools receive the words with a number or a label (such as &quot;the fellow&quot;) in place of each name, and no email address."],
     ],
     [
       "Claude&apos;s draft is shown only to the admin who asked and is not kept unless an admin saves it, and a saved note says it was drafted by Claude.",
@@ -10324,7 +10331,8 @@ describe("v13 took back the coursework promise from its own agreement on, and na
       "An admin or a programme&apos;s lead can ask Claude to pick the strongest answers to each question of a week across the programme, with a reason for each, and to say what the people on it found hard.",
       ["Admins may ask Claude to help review coursework, survey answers and session reports: to grade answers, pick out the strongest and weakest, and say what people found hard and who might need a hand."],
     ],
-    ["No name, email address or account is sent: each person is a number, and the site puts the names back.", ["The tools receive the words with a number in place of each name, and no email address."]],
+    // CHANGED ON PURPOSE (v18): a number or a label, as the notes send ("the fellow"); v17's words are held in frozen v17.
+    ["No name, email address or account is sent: each person is a number, and the site puts the names back.", ["The tools receive the words with a number or a label (such as &quot;the fellow&quot;) in place of each name, and no email address."]],
     ["What comes back is shown to admins and the programme&apos;s lead only, never to other fellows.", ["What comes back is seen by admins only,"]],
     // PANGRAM_MIN_WORDS (50) is v15's "longer answers", held in §2h.
     [
@@ -10678,7 +10686,8 @@ describe("v15 lets admins ask Claude to review a week's coursework, check-ins an
   test("v15 says it", () => {
     v15Says([
       "Admins may ask Claude to help review coursework, survey answers and session reports: to grade answers, pick out the strongest and weakest, and say what people found hard and who might need a hand.",
-      "The tools receive the words with a number in place of each name, and no email address. What comes back is seen by admins only,",
+      // CHANGED ON PURPOSE (v18): a number or a label in place of each name; v17's words are held in frozen v17.
+      "The tools receive the words with a number or a label (such as &quot;the fellow&quot;) in place of each name, and no email address. What comes back is seen by admins only,",
       "kept with what it was about (the application, or the programme&apos;s run) and deleted with it.",
       "those grades are never shown to you, are never a mark, and are never kept on your record.",
       "Only NAISI&apos;s admins can see who said what, and we record each time one of them does.",
@@ -10825,7 +10834,7 @@ describe("v15 lets Claude draft a short note on how each person is doing, from t
     // and v17's sentence is held in both, frozen, by the accept page's test and
     // the version 18 describe.
     v15Says([
-      "Once a week Claude may also draft a short note on how each person is doing. It is drafted after your session, usually about a week after it, and uses your work on that week as it stands then, sent or not, with the feedback, ratings and comments people on the team gave it.",
+      "Each week, or when an admin asks for one, Claude may also draft a short note on how each person is doing. It is drafted after your session, usually about a week after it, and uses your work on that week as it stands then, sent or not, with the feedback, ratings and comments people on the team gave it.",
       "What comes back is seen by admins only,",
       "kept with what it was about (the application, or the programme&apos;s run) and deleted with it.",
       "Nothing of it is filed on your profile, except a note an admin has read, edited and saved, which says it was drafted by Claude.",
@@ -11614,13 +11623,18 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
   });
 });
 
-describe("v18 changes the one sentence about the weekly note, and keeps v17's What's changed under its own; every other word is v17's, and the code agrees", () => {
+describe("v18 changes the sentence about the weekly note, adds one to Changing your work, makes the names sentence exact, and keeps v17's What's changed under its own; every other word is v17's, and the code agrees", () => {
   /** A version's words as served, from its component on: the header comment is notes, not policy. */
   const bodyOf = (flat) => flat.slice(flat.indexOf("export default function "));
   const OLD_NOTE =
     "Once a week Claude may also draft a short note on how each person is doing, using only the work they submitted and the feedback, ratings and comments people on the team gave it.";
   const NEW_NOTE =
-    "Once a week Claude may also draft a short note on how each person is doing. It is drafted after your session, usually about a week after it, and uses your work on that week as it stands then, sent or not, with the feedback, ratings and comments people on the team gave it.";
+    "Each week, or when an admin asks for one, Claude may also draft a short note on how each person is doing. It is drafted after your session, usually about a week after it, and uses your work on that week as it stands then, sent or not, with the feedback, ratings and comments people on the team gave it.";
+  /** Added to "Changing your work" by v18, as the owner approved it. */
+  const UNSENT_IN_NOTE = "From then on, it may also be used in the short note Claude may draft each week.";
+  /** "What is sent, and what comes back": v17's names sentence, and v18's, as the owner approved it. */
+  const OLD_NAMES = "The tools receive the words with a number in place of each name, and no email address.";
+  const NEW_NAMES = "The tools receive the words with a number or a label (such as &quot;the fellow&quot;) in place of each name, and no email address.";
   /**
    * EVERY CHANGE v18 MAKES TO v17, as [what, v17's words, v18's words], each
    * a run of the flattened text. Applied to frozen v17 in turn, each found
@@ -11632,9 +11646,15 @@ describe("v18 changes the one sentence about the weekly note, and keeps v17's Wh
     [
       "what changed, at the top, with version 17's line kept under it and dated",
       '<p id="whats-changed"> <strong>What&apos;s changed in version 17:</strong>',
-      '<p id="whats-changed"> <strong>What&apos;s changed in version 18:</strong> the short note Claude may draft each week now uses your work as it stands after your session, sent or not. </p> <p> <strong>What changed in version 17, on 12 November 2026:</strong>',
+      '<p id="whats-changed"> <strong>What&apos;s changed in version 18:</strong> the short note Claude may draft each week, or when an admin asks for one, now uses your work as it stands after your session, so it may use a written answer you haven&apos;t sent; and we say that the tools get a number or a label in place of each name. </p> <p> <strong>What changed in version 17, on 12 November 2026:</strong>',
+    ],
+    [
+      "changing your work: from the session on, an unsent answer may also be used in the weekly note",
+      "they may read what you&apos;ve written so far, sent or not. The week&apos;s page says",
+      `they may read what you&apos;ve written so far, sent or not. ${UNSENT_IN_NOTE} The week&apos;s page says`,
     ],
     ["the weekly note, as the owner approved it", OLD_NOTE, NEW_NOTE],
+    ["what the tools receive in place of each name", OLD_NAMES, NEW_NAMES],
   ];
 
   test("v18 is v17 with these changes and no others", () => {
@@ -11645,6 +11665,17 @@ describe("v18 changes the one sentence about the weekly note, and keeps v17's Wh
       text = text.replace(before, after);
     }
     assert.equal(text, bodyOf(CURRENT_FLAT), "v18 differs from v17 somewhere outside the changes listed here");
+  });
+
+  test("the two sentences the owner approved beside it, word for word, and neither in v17", () => {
+    // "Changing your work": straight after the sentence about what is read once the session has started.
+    assert.ok(PAGE_FLAT.includes(`Once the session it&apos;s due at has started, they may read what you&apos;ve written so far, sent or not. ${UNSENT_IN_NOTE}`));
+    assert.ok(!V17_FLAT.includes(UNSENT_IN_NOTE));
+    // "What is sent, and what comes back": "the fellow" is the label the weekly note sends for its person.
+    assert.ok(PAGE_FLAT.includes(`<strong>What is sent, and what comes back.</strong> ${NEW_NAMES}`));
+    assert.ok(V17_FLAT.includes(`<strong>What is sent, and what comes back.</strong> ${OLD_NAMES}`));
+    assert.ok(!PAGE_FLAT.includes(OLD_NAMES));
+    assert.match(read("src/lib/courses/weekNotes/store.ts"), /label: person\.uid === uid \? "the fellow"/);
   });
 
   test("the sentence after it is unchanged, and still follows it", () => {
