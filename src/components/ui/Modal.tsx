@@ -34,6 +34,13 @@ type Props = {
    * unless asked for.
    */
   sheet?: boolean;
+  /**
+   * Wider than a phone, the panel stands at the right-hand edge, the whole
+   * height of the window, with the page still in view beside it: a side
+   * panel for a long form whose answer is read against the page. At phone
+   * width it is the sheet above. Off unless asked for.
+   */
+  side?: boolean;
 };
 
 /**
@@ -49,7 +56,7 @@ type Props = {
  * so tabbing out of the dialog would put focus on content the user can see but
  * cannot reach past the scrim.
  */
-export default function Modal({ open, onClose, ariaLabel, children, width = "md", sheet = false }: Props) {
+export default function Modal({ open, onClose, ariaLabel, children, width = "md", sheet = false, side = false }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
   // SSR-safe "are we on the client" check. The portal needs `document.body`,
@@ -125,7 +132,11 @@ export default function Modal({ open, onClose, ariaLabel, children, width = "md"
   if (!isClient) return null;
 
   return createPortal(
-    <div className={sheet ? `${styles.root} ${styles.sheetRoot}` : styles.root} aria-hidden={!open} inert={!open}>
+    <div
+      className={[styles.root, sheet || side ? styles.sheetRoot : "", side ? styles.sideRoot : ""].filter(Boolean).join(" ")}
+      aria-hidden={!open}
+      inert={!open}
+    >
       <div className={`${styles.scrim} ${open ? styles.scrimOpen : ""}`} onClick={dismiss} />
       <div
         ref={panelRef}
@@ -133,7 +144,7 @@ export default function Modal({ open, onClose, ariaLabel, children, width = "md"
         aria-modal="true"
         aria-label={ariaLabel}
         tabIndex={-1}
-        className={`${styles.panel} ${styles[`width_${width}`]} ${sheet ? styles.sheet : ""} ${open ? styles.panelOpen : ""}`}
+        className={`${styles.panel} ${styles[`width_${width}`]} ${sheet || side ? styles.sheet : ""} ${side ? styles.side : ""} ${open ? styles.panelOpen : ""}`}
       >
         {typeof children === "function" ? children(dismiss) : children}
       </div>

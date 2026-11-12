@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { groupPagePath, openGroupPageLabel } from "@/lib/courses/groupPage/words";
 import type { CSSProperties, ReactNode } from "react";
 import { ArrowRightIcon } from "@/features/applications/editor/Icons";
 import shared from "@/features/applications/editor/editor.module.css";
@@ -295,7 +296,15 @@ function YourGroups({ view, picture, acts }: { view: TimesView; picture: Picture
           {picture.groups.map((group) => (
             <li key={group.id} className={`${styles.item} ${styles.groupItem}`}>
               <span className={styles.itemText}>
-                <strong>{group.name}</strong>
+                <strong>
+                  <Link
+                    href={groupPagePath(view.roundId, view.programmeId, group.id)}
+                    className={styles.groupLink}
+                    aria-label={openGroupPageLabel(group.name)}
+                  >
+                    {group.name}
+                  </Link>
+                </strong>
                 <br />
                 <span className={styles.muted}>
                   {groupLine(

@@ -8,6 +8,7 @@ import GroupCampusPicker from "@/features/applications/groups/GroupCampusPicker"
 import GroupRoomField from "@/features/applications/groups/GroupRoomField";
 import { useHydrated } from "@/hooks/useHydrated";
 import type { SessionCardView } from "@/lib/courses/sessionChange/view";
+import { groupPagePath, openGroupPageLabel } from "@/lib/courses/groupPage/words";
 import { CHANGE_A_SESSION, STATE_WORDS } from "@/lib/courses/sessionChange/words";
 import ChangeSessionDialog from "./ChangeSessionDialog";
 import styles from "./SessionsBoard.module.css";
@@ -95,7 +96,19 @@ export default function SessionsBoard({
             return (
               <div key={card.key} className={here ? `${styles.card} ${styles.cardOpen}` : styles.card}>
                 <div className={styles.cardMain}>
-                  <h3 className={styles.cardHeading}>{card.heading}</h3>
+                  <h3 className={styles.cardHeading}>
+                    {campusAt && card.campus ? (
+                      <Link
+                        className={styles.cardHeadingLink}
+                        href={groupPagePath(campusAt.roundId, campusAt.programmeId, card.campus.groupId)}
+                        aria-label={openGroupPageLabel(card.heading)}
+                      >
+                        {card.heading}
+                      </Link>
+                    ) : (
+                      card.heading
+                    )}
+                  </h3>
                   {card.sub && <p className={styles.cardSub}>{card.sub}</p>}
                   {card.people.length > 0 && (
                     <div className={styles.people}>

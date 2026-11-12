@@ -17,6 +17,7 @@ import PathwaySpread from "@/features/courses/packsAndCases/PathwaySpread";
 import PairsCard from "@/features/courses/pairs/PairsCard";
 import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
 import ThisWeeksWork, { ReflectionsQueueCard, workColumnsOf } from "@/features/courses/facilitatorWeek/ThisWeeksWork";
+import FacilitatorMeets from "@/features/courses/groupPage/FacilitatorMeets";
 import { ticketFacts } from "@/features/courses/sessionChange/cardFacts";
 import SessionNotice from "@/features/courses/sessionChange/SessionNotice";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
@@ -30,6 +31,7 @@ import { facilitatorGuidePath } from "@/lib/courses/facilitatorGuide/model";
 import { readGuideIndex } from "@/lib/courses/facilitatorGuide/store";
 import { FACILITATOR_GUIDE, guideForWeekWords } from "@/lib/courses/facilitatorGuide/words";
 import { loadFacilitatorGroup } from "@/lib/courses/facilitatorGroup";
+import { loadGroupPage } from "@/lib/courses/groupPage/load";
 import { seesSessionLink } from "@/lib/courses/meetingLink/audience";
 import { joiningOnlineBox } from "@/lib/courses/meetingLink/box";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
@@ -366,7 +368,7 @@ export default async function GroupHomePage({
   // The box at the top: who is joining a session online, named as this
   // reader is shown the group's people, and where a link is still wanted.
   // Nothing is offered to press in a view-as session, where nothing is written.
-  const [joiningOnline, viewAs] = await Promise.all([
+  const [joiningOnline, viewAs, meets] = await Promise.all([
     joiningOnlineBox(db, {
       run: access.run,
       group,
@@ -374,6 +376,11 @@ export default async function GroupHomePage({
       now,
     }).catch(() => []),
     getImpersonator().then((marker) => markerIsLive(marker, access.user.uid)),
+    // How the group meets and its weeks, the facilitator's cut of the group's
+    // page: no people, no history, no address and no link. A live group only.
+    group.archived
+      ? Promise.resolve(null)
+      : loadGroupPage(db, { run: access.run, group, viewer: "facilitator", viewerUid: access.user.uid, now }),
   ]);
   const writtenHref = (row: { uid: string; weekNumber: number }) =>
     `${groupPath}/written?week=${row.weekNumber}&person=${encodeURIComponent(row.uid)}`;
@@ -631,6 +638,16 @@ export default async function GroupHomePage({
           </div>
         )}
       </header>
+
+      {/* How the group meets, Change one week, Set the link and the row of
+          weeks: added above what was here, which stays as it was. */}
+      {meets && (
+        <FacilitatorMeets
+          view={meets}
+          eyebrow={[programme?.shortName ?? access.run.courseTitle, groupName].filter(Boolean).join(" · ")}
+          canChange={!viewAs}
+        />
+      )}
 
       {/* Who is joining a session online, and the field for its link. */}
       <JoiningOnlineBox groupId={groupId} sessions={joiningOnline} canAdd={!viewAs} />

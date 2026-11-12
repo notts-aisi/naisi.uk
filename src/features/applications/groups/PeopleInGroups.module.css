@@ -499,6 +499,24 @@
   display: inline-flex;
 }
 
+/* A group's name, as the way to the group's own page. */
+.columnTitleLink {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--color-border-strong);
+  text-underline-offset: 3px;
+}
+
+.columnTitleLink:hover {
+  text-decoration-color: currentColor;
+}
+
+.columnTitleLink:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 /* A phone: the groups stack under To place, one above the next, so the page
    never scrolls sideways; the move menu is how a card moves here. */
 @media (max-width: 48rem) { /* --bp-md */

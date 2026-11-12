@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { groupPagePath, openGroupPageLabel } from "@/lib/courses/groupPage/words";
 import { useCallback, useMemo, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import {
   DndContext,
@@ -738,7 +739,15 @@ export default function PeopleInGroups({ view, views }: Props) {
                           <div className={styles.columnHead}>
                             <div className={styles.columnTop}>
                               <span className={styles.columnTitleRow}>
-                                <h3 className={styles.columnTitle}>{group.name}</h3>
+                                <h3 className={styles.columnTitle}>
+                                  <Link
+                                    href={groupPagePath(view.roundId, view.programmeId, group.id)}
+                                    className={styles.columnTitleLink}
+                                    aria-label={openGroupPageLabel(group.name)}
+                                  >
+                                    {group.name}
+                                  </Link>
+                                </h3>
                                 {full && <span className={`${styles.chip} ${styles.chipOk}`}>{words.FULL}</span>}
                               </span>
                               <span className={styles.seats}>{words.seatsWords(list.length, group.capacity)}</span>
