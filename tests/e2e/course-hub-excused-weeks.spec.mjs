@@ -72,7 +72,7 @@ import {
   stateDir,
   statePath,
 } from "../../scripts/e2e-fixtures/core.mjs";
-import { EXCUSED_WEEKS_STEPS as STEPS, RECAPTCHA_DEPENDENT_STEPS, SPEC } from "../../scripts/e2e-fixtures/course-hub-excused-weeks.mjs";
+import { RECAPTCHA_DEPENDENT_STEPS, SPEC } from "../../scripts/e2e-fixtures/course-hub-excused-weeks.mjs";
 import { startGroupSession } from "../../scripts/e2e-fixtures/course-hub-sessions-and-work.mjs";
 import { dayLabel, sessionOf, weekDocId } from "../../scripts/e2e-fixtures/worlds/course-hub-term.mjs";
 
@@ -356,7 +356,7 @@ test(
     let benRequest = null;
     let adaRequest = null;
     try {
-      await step(STEPS[0], async () => {
+      await step("the admin approves the people, the account that will lead the programme and the other group's facilitator", async () => {
         activePage = adminPage;
         await signIn(adminPage, { email: secrets.adminEmail, password: secrets.adminPassword });
         for (const account of [ada, ben, fern, gus, hal]) {
@@ -365,7 +365,7 @@ test(
         }
       });
 
-      await step(STEPS[1], async () => {
+      await step("the admin makes the lead's account SU-recognised committee on its member page", async () => {
         activePage = adminPage;
         await adminPage.goto(`${origin}/admin/members/${enc(gus.uid)}`, { waitUntil: "domcontentloaded" });
         const access = adminPage.locator(`section[aria-labelledby="access-${gus.uid}"]`);
@@ -378,7 +378,7 @@ test(
         await waitFor("Gus's account to say SU-recognised", async () => (await readUserDoc(gus.uid))?.suRecognised === true);
       });
 
-      await step(STEPS[2], async () => {
+      await step("the admin names the running course run and the programme's lead on the Settings tab, and hands its people over", async () => {
         activePage = adminPage;
         await adminPage.goto(`${formBase}/setup`, { waitUntil: "domcontentloaded" });
         const region = adminPage.getByRole("region", { name: "Course run" });
@@ -407,7 +407,7 @@ test(
         assert.equal((await okBody(rolesResponse, "Naming the lead")).programme?.lead?.uid, gus.uid, "the programme's lead is not the one chosen");
       });
 
-      await step(STEPS[3], async () => {
+      await step("the admin appoints a facilitator to each group", async () => {
         activePage = adminPage;
         await adminPage.goto(`${formBase}/groups/facilitators`, { waitUntil: "domcontentloaded" });
         const card = adminPage.locator('section[aria-labelledby="facilitators-title"]');
@@ -427,7 +427,7 @@ test(
         }
       });
 
-      await step(STEPS[4], async () => {
+      await step("a member asks to be excused from their next session's card, which has no instant button; nobody is emailed", async () => {
         activePage = benPage;
         await signIn(benPage, { email: ben.email, password: ben.password });
         const before = await mailCounts();
@@ -447,7 +447,7 @@ test(
         await assertNobodyEmailed(before, "asking to be excused");
       });
 
-      await step(STEPS[5], async () => {
+      await step("the facilitator's register says the member asked and nothing else, in the page and in its data", async () => {
         activePage = fernPage;
         await signIn(fernPage, { email: fern.email, password: fern.password });
         await fernPage.goto(`${origin}${registerPath}`, { waitUntil: "domcontentloaded" });
@@ -468,7 +468,7 @@ test(
         assert.equal(await fernPage.getByRole("button", { name: /^(Approve|Decline)/ }).count(), 0, "the register asks the facilitator to decide");
       });
 
-      await step(STEPS[6], async () => {
+      await step("the programme's lead is shown no request to be excused, on the Requests page or Home", async () => {
         activePage = gusPage;
         await signIn(gusPage, { email: gus.email, password: gus.password });
         await gusPage.goto(`${origin}/dashboard`, { waitUntil: "domcontentloaded" });
@@ -486,7 +486,7 @@ test(
         assert.ok(!(await gusPage.content()).includes(WHY.ben), "the lead was shown the reason");
       });
 
-      await step(STEPS[7], async () => {
+      await step("an admin opens it from Home and approves it with a reply: two emails, no reason, no link; the register and the card say excused", async () => {
         activePage = adminPage;
         const before = await mailCounts();
         await adminPage.goto(`${origin}/dashboard`, { waitUntil: "domcontentloaded" });
@@ -552,7 +552,7 @@ test(
         await line.waitFor({ timeout: WAIT_MS });
       });
 
-      await step(STEPS[8], async () => {
+      await step("a past week whose finished register says Absent is asked about and approved: Excused, in the group's history, and the figures change", async () => {
         // Fern takes week 3's register: Ada in the room, Ben absent, finished.
         activePage = fernPage;
         await fernPage.goto(`${origin}${registerPath}?session=${lastKey}`, { waitUntil: "domcontentloaded" });
@@ -631,7 +631,7 @@ test(
         await benPage.getByRole("img", { name: new RegExp(`^Week ${lastWeek}, ${escapeRegExp(dayLabel(last.dateKey))}: Excused`) }).waitFor({ timeout: WAIT_MS });
       });
 
-      await step(STEPS[9], async () => {
+      await step("another week is declined with a reply, after a reply without deciding: the member reads it; the register shows nothing", async () => {
         activePage = adaPage;
         await signIn(adaPage, { email: ada.email, password: ada.password });
         let before = await mailCounts();
@@ -679,7 +679,7 @@ test(
         assert.ok(!(await textOf(fernPage.getByTestId("attendance-excuse-list"))).includes(ada.first), "the register says Ada asked");
       });
 
-      await step(STEPS[10], async () => {
+      await step("the member asks, then withdraws: nobody is emailed, and the admin's list no longer shows it", async () => {
         activePage = adaPage;
         const before = await mailCounts();
         const again = await askFromCard(adaPage, ada, WHY.adaAgain);
@@ -704,7 +704,7 @@ test(
         assert.equal((await storedRequest(again))?.status, "withdrawn");
       });
 
-      await step(STEPS[11], async () => {
+      await step("came anyway: the facilitator marks the excused member in the room; the figures count them, and the request stays approved", async () => {
         // Week 4 starts now: the fixture moves Group A's own calendar, as the
         // sessions spec does, so the register can be taken on the day.
         await startGroupSession(groupA, nextWeek, { after: new Date() });
