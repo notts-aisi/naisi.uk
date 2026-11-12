@@ -34,6 +34,7 @@ import {
   type CantMakeItView,
   type RegisterLine,
 } from "./model";
+import { excuseHoldsIn } from "@/lib/courses/excused/standing";
 import { CANT_MAKE_IT_REFUSAL } from "./words";
 
 /**
@@ -391,6 +392,12 @@ export async function recordCantMakeIt(
 
     if (request.cantMakeIt) {
       if (state.kind === "marked") return refuse(409, CANT_MAKE_IT_REFUSAL.marked);
+      // A request to be excused from it, waiting or declined, is not undone
+      // on the person's own word.
+      if (state.kind === "open") {
+        const hold = (await excuseHoldsIn(tx, db, user.uid, run.id))(session.sessionKey);
+        if (hold) return refuse(409, hold === "waiting" ? CANT_MAKE_IT_REFUSAL.askedWaiting : CANT_MAKE_IT_REFUSAL.askedDeclined);
+      }
       if (state.kind === "open") {
         if (!registerHasRoom(line)) return refuse(409, CANT_MAKE_IT_REFUSAL.full);
         writeExcusedInAdvance(tx, line, { run, group, uid: user.uid, told: FieldValue.serverTimestamp() });

@@ -52,6 +52,17 @@ export type TimeQuestionSession = {
 };
 
 /**
+ * The sessions "Most weeks, not all" offers to tick. While the question is
+ * asked (no answer yet to the asking that is current), every session still
+ * to come. Once that asking has an answer, only the ones already ticked, to
+ * untick: a week more is asked for as a request to be excused, and the route
+ * refuses an answer that adds one.
+ */
+export function ticksOffered<T extends Pick<TimeQuestionSession, "told">>(sessions: readonly T[], answered: boolean): T[] {
+  return answered ? sessions.filter((each) => each.told) : [...sessions];
+}
+
+/**
  * The card on the programme page (`timeQuestionFor` in `./seat.ts`): the
  * group, when it meets, its campus, their answer so far, and the group's
  * sessions still to come that they could say they can't make.

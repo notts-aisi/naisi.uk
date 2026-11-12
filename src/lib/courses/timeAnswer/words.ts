@@ -180,7 +180,13 @@ export const ANSWER_REFUSAL = {
   moved: "Your group has changed since this page was opened. Reload the page to see your group now.",
   /** A facilitator who holds a place sits in the group they facilitate. */
   facilitating: `You facilitate this group, so its time is one to sort out with the programme’s lead. Email ${ANSWER_BY_EMAIL_ADDRESS}.`,
+  /** A week ticked after this asking already has an answer: ticks only come off now. */
+  addLater: "You’ve answered this already, so no week can be added here. To miss another week, press Can’t make it on your next session’s card and ask to be excused.",
 } as const;
+
+/** Under the ticks once the asking has an answer: they come off, and another week is asked for. */
+export const UNTICK_ONLY =
+  "You can untick a week here. To miss another week, press Can’t make it on your next session’s card and ask to be excused.";
 
 /** "Keep why to 500 characters." */
 export function tooLongWords(what: "reason" | "alternatives", max: number): string {

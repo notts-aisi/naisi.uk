@@ -7,7 +7,7 @@ import { Field } from "@/components/ui/Input";
 import OptionRow from "@/components/ui/OptionRow";
 import { useHydrated } from "@/hooks/useHydrated";
 import { ENROLMENT_LIMITS } from "@/lib/firestore/courseEnrolments";
-import type { TimeAnswerView, TimeQuestionSession, TimeQuestionView } from "@/lib/courses/timeAnswer/model";
+import { ticksOffered, type TimeAnswerView, type TimeQuestionSession, type TimeQuestionView } from "@/lib/courses/timeAnswer/model";
 import {
   ALTERNATIVES_HINT,
   ALTERNATIVES_LABEL,
@@ -24,6 +24,7 @@ import {
   MOST_WEEKS_INTRO,
   MOST_WEEKS_WHO_READS,
   NONE_TO_TICK,
+  UNTICK_ONLY,
   ODD_WEEK_NOTE,
   OR_EMAIL,
   REASON_HINT,
@@ -150,6 +151,11 @@ export default function TimeAnswerCard({
   }
 
   const asking = answer === null || choosing;
+  // Weeks are ticked while the question is asked: once this asking has an
+  // answer, the form offers only the weeks already ticked, to untick, and
+  // says how another week is asked for (the route holds the same rule).
+  const untickOnly = answer !== null;
+  const offered = ticksOffered(sessions, untickOnly);
   const missing = sessions.filter((each) => each.told).map((each) => each.day);
 
   const orEmail = (
@@ -202,11 +208,11 @@ export default function TimeAnswerCard({
           }}
         >
           <p id={ticksId} className={styles.line}>
-            {sessions.length > 0 ? MOST_WEEKS_INTRO : NONE_TO_TICK}
+            {untickOnly ? UNTICK_ONLY : sessions.length > 0 ? MOST_WEEKS_INTRO : NONE_TO_TICK}
           </p>
-          {sessions.length > 0 && (
+          {offered.length > 0 && (
             <div className={styles.sessions} role="group" aria-labelledby={ticksId}>
-              {sessions.map((each) => (
+              {offered.map((each) => (
                 <OptionRow
                   key={each.sessionKey}
                   name="sessionKeys"

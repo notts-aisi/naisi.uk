@@ -963,6 +963,30 @@ describe("a line an approval wrote is taken back by nothing but a correction", (
     assert.equal(coverModel.stampStartsIt({ byUid: "zach", how: "facilitator" }, new Set(["zach"])), true, "a facilitator's own mark stopped starting it");
   });
 
+  test("a session with a request waiting, or declined, is never excused on the person's own word: not by a tick, not by the instant button", async () => {
+    const tick = () => call("amara", timeAnswerRoute.POST, { runId: RUN.agi }, { body: { groupId: B, kind: "mostWeeks", sessionKeys: ["w03"] }, course: true });
+    const instant = () => call("amara", cantMakeItRoute.POST, { groupId: B }, { body: { sessionKey: "w03", cantMakeIt: true }, course: true });
+    const id = await amaraAsks(["w03"]);
+    for (const [state, sentence] of [
+      ["waiting", cantWords.CANT_MAKE_IT_REFUSAL.askedWaiting],
+      ["declined", cantWords.CANT_MAKE_IT_REFUSAL.askedDeclined],
+    ]) {
+      if (state === "declined") assert.equal((await act("zach", "decline", id, { sessionKey: "w03", reply: "Please come along." })).status, 200);
+      const before = everything();
+      const ticked = await tick();
+      assert.deepEqual([ticked.status, ticked.body.error], [409, `Tue 17 Nov: ${sentence}`], state);
+      const pressed = await instant();
+      assert.deepEqual([pressed.status, pressed.body.error], [409, sentence], state);
+      assert.equal(everything(), before, `${state}: a refused door wrote something`);
+      assert.equal(world.db.read(W3) ?? null, null, `${state}: the register says excused on her own word`);
+    }
+    assert.equal(cantWords.CANT_MAKE_IT_REFUSAL.askedWaiting, "You’ve asked an admin to excuse you from that session, and it’s waiting for a decision.");
+    assert.equal(cantWords.CANT_MAKE_IT_REFUSAL.askedDeclined, "Your request to be excused from that session was declined. You can ask again, or just come along.");
+    // Another week, with no request about it, is as before for the first answer.
+    const other = await call("amara", timeAnswerRoute.POST, { runId: RUN.agi }, { body: { groupId: B, kind: "mostWeeks", sessionKeys: ["w04"] }, course: true });
+    assert.equal(other.status, 200, JSON.stringify(other.body));
+  });
+
   test("a facilitator's own mark still wins over it on the day, as over any line", async () => {
     await approvedWeek3();
     at(new Date("2026-11-17T18:20:00Z"));

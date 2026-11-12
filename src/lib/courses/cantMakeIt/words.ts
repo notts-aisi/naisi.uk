@@ -50,6 +50,10 @@ export const CANT_MAKE_IT_REFUSAL = {
    * wrote: it stays, and coming is enough.
    */
   approved: "You’re excused from this session. If you can come after all, just come along: your facilitators’ register will show you there.",
+  /** A request to be excused from it waits: it is an admin's to decide. */
+  askedWaiting: "You’ve asked an admin to excuse you from that session, and it’s waiting for a decision.",
+  /** A request to be excused from it was declined: that stands. */
+  askedDeclined: "Your request to be excused from that session was declined. You can ask again, or just come along.",
   failed: "That didn’t save. Try again.",
 } as const;
 

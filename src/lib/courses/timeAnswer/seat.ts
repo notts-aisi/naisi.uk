@@ -11,6 +11,7 @@ import {
   writeTakenBack,
 } from "@/lib/courses/cantMakeIt/seat";
 import { CANT_MAKE_IT_REFUSAL } from "@/lib/courses/cantMakeIt/words";
+import { excuseHoldsIn } from "@/lib/courses/excused/standing";
 import { sessionWhenLabel } from "@/lib/courses/londonLabels";
 import { resolveSessions } from "@/lib/courses/sessions";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
@@ -201,6 +202,15 @@ export async function recordTimeAnswer(
     if (!request.sessionKeys.every((key) => known.has(key))) return refuse(400, CANT_MAKE_IT_REFUSAL.noSession);
     const lines = await readSessionLines(tx, db, { run, group, uid: user.uid, sessions, now });
     const ticked = new Set(request.sessionKeys);
+    // WEEKS ARE TICKED WHILE THE QUESTION IS ASKED: in the first answer to
+    // the asking that is current (the group's `timeQuestionSince`, moved by a
+    // new regular time). Once that asking has an answer, ticks only come off:
+    // a week more is asked for like anybody else's, as a request to be
+    // excused. And a session with a request to be excused waiting, or
+    // declined, is never excused here on the person's own word.
+    const answered = currentTimeAnswer(seat, timeQuestionSinceOf(group)) !== null;
+    const adds = lines.some((line) => ticked.has(line.session.sessionKey) && line.state.kind === "open");
+    const holdOf = adds ? await excuseHoldsIn(tx, db, user.uid, run.id) : () => null;
 
     // Everything decided before anything is written: a ticked session that
     // can no longer be told about refuses the whole answer, naming its day.
@@ -209,6 +219,11 @@ export async function recordTimeAnswer(
       const day = sessionDay(line.session);
       if (line.state.kind === "closed") return refuse(409, sessionRefusalWords(day, closedWords(line.state)));
       if (line.state.kind === "marked") return refuse(409, sessionRefusalWords(day, CANT_MAKE_IT_REFUSAL.marked));
+      if (line.state.kind === "open") {
+        const hold = holdOf(line.session.sessionKey);
+        if (hold) return refuse(409, sessionRefusalWords(day, hold === "waiting" ? CANT_MAKE_IT_REFUSAL.askedWaiting : CANT_MAKE_IT_REFUSAL.askedDeclined));
+        if (answered) return refuse(409, sessionRefusalWords(day, ANSWER_REFUSAL.addLater));
+      }
       if (line.state.kind === "open" && !registerHasRoom(line)) return refuse(409, sessionRefusalWords(day, CANT_MAKE_IT_REFUSAL.full));
     }
     for (const line of lines) {
