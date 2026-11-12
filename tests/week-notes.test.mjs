@@ -339,6 +339,10 @@ describe("1. what a note's draft is sent: a week whose session has started, its 
     assert.match(system, /other people's views of the work, not facts about the fellow/);
     assert.match(system, /whether they might one day facilitate a group/);
     assert.doesNotMatch(system, /[\u2013\u2014]/);
+    // Privacy v18: the work as it stands, sent or not, so neither tells Claude the work was submitted.
+    assert.match(message, /Only the fellow's work from after a certain date is shown/);
+    assert.match(system, /You are given one fellow's coursework from one programme/);
+    assert.doesNotMatch(`${system}\n${message}`, /submitted/i);
   });
 
   test("what the draft keeps as Built only from is what was sent, item for item", async () => {
