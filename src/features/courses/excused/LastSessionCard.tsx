@@ -74,8 +74,9 @@ export default function LastSessionCard({
             weekNumber: session.weekNumber,
             occurrence: session.occurrence,
             dateKey: session.dateKey,
+            // After the session: nothing to confirm about the past.
+            upcoming: false,
             onlineOffered: false,
-            heldOnline: session.heldOnline,
           },
         ]}
         facilitatorFirstNames={facilitatorFirstNames}

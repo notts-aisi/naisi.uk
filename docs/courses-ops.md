@@ -1278,15 +1278,19 @@ one.
   that already says excused or that they came, and not once the programme has
   closed. A facilitator of the group is refused and keeps "Can't make it".
   The reason is one line, no link, at most 200 characters. Before it, the form
-  asks them to confirm, in order, that they can't go to another group's
-  session in person, can't join their own group's session online (only where
-  it is held in a room and asked about before it, `onlineOfferedFor`; elsewhere
-  the form says so and asks nothing) and can't join another group's session
-  online. The three are plain booleans; the route works out which apply from
-  the same rule (`confirmationsNeeded`) and refuses in one sentence when one is
-  missing. The request stores `confirmed: { at, inPerson, ownOnline,
-  otherOnline }`, `ownOnline` null where it was no choice; a request made
-  before has none and reads as before. Only an admin's page of the request
+  asks them to confirm, in order and about the weeks still to come, that they
+  can't go to another group's session in person, can't join their own group's
+  session online (only where it is held in a room, `onlineOfferedFor`;
+  elsewhere the form says so and asks nothing) and can't join another group's
+  session online. A session already past (asked about after it) is confirmed
+  nothing about, so a request about one alone asks none. The three are plain
+  booleans; the route works out which apply from the same rule
+  (`confirmationsNeeded`) and refuses in one sentence when one is missing.
+  Ticks stand for the weeks they were given for (`confirmationsFor`): changing
+  the weeks clears them. The request stores `confirmed: { at, inPerson,
+  ownOnline, otherOnline }`, `ownOnline` null where it was no choice, and
+  none when nothing was asked; a request made before has none and reads as
+  before. Only an admin's page of the request
   shows it, as one line. Asking writes the request and nothing on a register:
   a waiting request never holds a register up. It emails the admins, never the
   reason (see docs/notifications.md); nobody else.

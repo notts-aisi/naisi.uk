@@ -9,11 +9,16 @@ import { EXCUSED_LIMITS } from "@/lib/firestore/courseExcusedRequests";
 import { askToBeExcused } from "./api";
 import styles from "./Excuse.module.css";
 
-/** Nothing ticked yet: where the confirmations start, and where they go back to when the weeks change. */
-const NOTHING_CONFIRMED: AskConfirmed = { inPerson: false, ownOnline: false, otherOnline: false };
-
 /** One session the request may cover, and whether joining it online is a real choice (`onlineOfferedFor`). */
-export type AskWeek = { sessionKey: string; weekNumber: number; occurrence: number; dateKey: string; onlineOffered: boolean; heldOnline: boolean };
+export type AskWeek = {
+  sessionKey: string;
+  weekNumber: number;
+  occurrence: number;
+  dateKey: string;
+  /** Still to come: asked about before it. A past session (asked about after it) is confirmed nothing about. */
+  upcoming: boolean;
+  onlineOffered: boolean;
+};
 
 /**
  * ASKING TO BE EXCUSED: the weeks, one short line of why under the line
@@ -28,15 +33,18 @@ export type AskWeek = { sessionKey: string; weekNumber: number; occurrence: numb
  * weeks". AFTER ONE (`weeks` holds the one session, whose finished register
  * says Absent), there is nothing to tick.
  *
- * BEFORE YOU ASK, in this order, above the reason: they can't go to another
- * group's session in person, can't join their own group's session online
- * (only where that is a real choice, `confirmationsNeeded`, with today's
- * "Joining online" beside it; elsewhere the form says so and asks nothing),
- * and can't join another group's session online. The site cannot show or
- * book another group's session yet, so under those lines it says to email
- * the team, who will arrange it; when one-week visits exist, they go there.
- * "Send the request" works once every line shown is ticked, and the route
- * asks the same of the same rule.
+ * BEFORE YOU ASK, in this order, above the reason, about the weeks still to
+ * come: they can't go to another group's session in person, can't join their
+ * own group's session online (only where that is a real choice,
+ * `confirmationsNeeded`, with today's "Joining online" beside it; elsewhere
+ * the form says so and asks nothing), and can't join another group's session
+ * online. The site cannot show or book another group's session yet, so under
+ * those lines it says to email the team, who will arrange it; when one-week
+ * visits exist, they go there. "Send the request" works once every line shown
+ * is ticked, and the route asks the same of the same rule. After a session
+ * there is nothing to confirm about the past, and none is shown. The ticks
+ * stand for the weeks they were given for (`confirmationsFor`): ticking or
+ * unticking a week means confirming again.
  *
  * The reason is one line: a line break is dropped as it is typed and the box
  * stops at the route's limit. Nothing here logs it. `locked` is a view-as
@@ -70,7 +78,7 @@ export default function AskForm({
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const [confirmed, setConfirmed] = useState<AskConfirmed>(NOTHING_CONFIRMED);
+  const [held, setHeld] = useState<O.GivenConfirmations | null>(null);
 
   const shown = more || weeks.length <= O.WEEKS_SHOWN_FIRST ? weeks : weeks.slice(0, O.WEEKS_SHOWN_FIRST);
   const chosen = weeks.filter((week) => ticked.has(week.sessionKey));
@@ -78,11 +86,14 @@ export default function AskForm({
   // The lines to confirm, from the weeks ticked, by the route's own rule:
   // only a line drawn as a tick is asked for, and only those are sent as true.
   const lines = O.confirmLinesOf(chosen);
-  const [inPersonLine, ownLine, otherOnlineLine] = lines;
-  const asked = (key: keyof AskConfirmed) => lines.some((line) => line.kind === "tick" && line.key === key);
-  const allConfirmed = lines.every((line) => line.kind !== "tick" || confirmed[line.key]);
-  const onConfirm = (key: keyof AskConfirmed) => (event: { target: { checked: boolean } }) =>
-    setConfirmed((was) => ({ ...was, [key]: event.target.checked }));
+  const chosenKeys = chosen.map((week) => week.sessionKey);
+  const confirmed = O.confirmationsFor(held, chosenKeys);
+  const asked = (key: keyof AskConfirmed) => (lines ?? []).some((line) => line.kind === "tick" && line.key === key);
+  const allConfirmed = (lines ?? []).every((line) => line.kind !== "tick" || confirmed[line.key]);
+  const onConfirm = (key: keyof AskConfirmed) => (event: { target: { checked: boolean } }) => {
+    const checked = event.target.checked;
+    setHeld((was) => ({ forWeeks: O.weeksKeyOf(chosenKeys), given: { ...O.confirmationsFor(was, chosenKeys), [key]: checked } }));
+  };
 
   function toggle(key: string) {
     setTicked((before) => {
@@ -92,7 +103,7 @@ export default function AskForm({
       return next;
     });
     // What they confirmed was about the weeks ticked then: other weeks are confirmed again.
-    setConfirmed(NOTHING_CONFIRMED);
+    setHeld(null);
   }
 
   async function send() {
@@ -156,55 +167,57 @@ export default function AskForm({
         </fieldset>
       ) : null}
 
-      <fieldset className={styles.weeks}>
-        <legend className={styles.legend}>{O.BEFORE_YOU_ASK}</legend>
-        <label className={styles.weekChoice}>
-          <input
-            type="checkbox"
-            checked={confirmed.inPerson}
-            onChange={onConfirm("inPerson")}
-            disabled={off}
-            data-testid="excuse-confirm-in-person"
-          />
-          <span>{inPersonLine.words}</span>
-        </label>
-        {ownLine.kind === "tick" ? (
-          <>
-            <label className={styles.weekChoice}>
-              <input
-                type="checkbox"
-                checked={confirmed.ownOnline}
-                onChange={onConfirm("ownOnline")}
-                disabled={off}
-                data-testid="excuse-confirm-own-online"
-              />
-              <span>{ownLine.words}</span>
-            </label>
-            {/* Today's "Joining online", beside the line that asks them to confirm they can't. */}
-            {onlineControl}
-          </>
-        ) : (
-          <p className={styles.small}>{ownLine.words}</p>
-        )}
-        <label className={styles.weekChoice}>
-          <input
-            type="checkbox"
-            checked={confirmed.otherOnline}
-            onChange={onConfirm("otherOnline")}
-            disabled={off}
-            data-testid="excuse-confirm-other-online"
-          />
-          <span>{otherOnlineLine.words}</span>
-        </label>
-        {/* The seam: another group's session that week is offered here once one-week visits exist. */}
-        <p className={styles.small}>
-          {O.CONTACT_INSTEAD.before}{" "}
-          <a className={styles.mailLink} href={`mailto:${O.CONTACT_INSTEAD.address}`}>
-            {O.CONTACT_INSTEAD.address}
-          </a>{" "}
-          {O.CONTACT_INSTEAD.after}
-        </p>
-      </fieldset>
+      {lines ? (
+        <fieldset className={styles.weeks}>
+          <legend className={styles.legend}>{O.BEFORE_YOU_ASK}</legend>
+          <label className={styles.weekChoice}>
+            <input
+              type="checkbox"
+              checked={confirmed.inPerson}
+              onChange={onConfirm("inPerson")}
+              disabled={off}
+              data-testid="excuse-confirm-in-person"
+            />
+            <span>{lines[0].words}</span>
+          </label>
+          {lines[1].kind === "tick" ? (
+            <>
+              <label className={styles.weekChoice}>
+                <input
+                  type="checkbox"
+                  checked={confirmed.ownOnline}
+                  onChange={onConfirm("ownOnline")}
+                  disabled={off}
+                  data-testid="excuse-confirm-own-online"
+                />
+                <span>{lines[1].words}</span>
+              </label>
+              {/* Today's "Joining online", beside the line that asks them to confirm they can't. */}
+              {onlineControl}
+            </>
+          ) : (
+            <p className={styles.small}>{lines[1].words}</p>
+          )}
+          <label className={styles.weekChoice}>
+            <input
+              type="checkbox"
+              checked={confirmed.otherOnline}
+              onChange={onConfirm("otherOnline")}
+              disabled={off}
+              data-testid="excuse-confirm-other-online"
+            />
+            <span>{lines[2].words}</span>
+          </label>
+          {/* The seam: another group's session that week is offered here once one-week visits exist. */}
+          <p className={styles.small}>
+            {O.CONTACT_INSTEAD.before}{" "}
+            <a className={styles.mailLink} href={`mailto:${O.CONTACT_INSTEAD.address}`}>
+              {O.CONTACT_INSTEAD.address}
+            </a>{" "}
+            {O.CONTACT_INSTEAD.after}
+          </p>
+        </fieldset>
+      ) : null}
 
       {/* The line about medical details comes before the box, so it is read first. */}
       <p className={styles.medical} id={`${id}-medical`}>

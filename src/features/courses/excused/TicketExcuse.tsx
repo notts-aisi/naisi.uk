@@ -92,8 +92,9 @@ export default function TicketExcuse({
         weekNumber: each.weekNumber,
         occurrence: each.occurrence,
         dateKey: each.dateKey,
+        // `weeksToChoose` offers sessions still to come alone.
+        upcoming: true,
         onlineOffered: each.first.online,
-        heldOnline: each.heldOnline,
       }))
     : [];
 
@@ -186,8 +187,8 @@ export default function TicketExcuse({
             weekNumber: session.weekNumber,
             occurrence: session.occurrence,
             dateKey: session.dateKey,
+            upcoming: true,
             onlineOffered: session.first.online,
-            heldOnline: session.heldOnline,
             when,
           }}
           weeks={weeks}

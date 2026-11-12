@@ -495,9 +495,15 @@ describe("confirming before asking: the route asks for what the form showed, by 
     assert.equal(model.onlineOfferedFor({ when: "before", heldOnline: false }), true, "in a room, before it");
     assert.equal(model.onlineOfferedFor({ when: "before", heldOnline: true }), false, "online already");
     assert.equal(model.onlineOfferedFor({ when: "after", heldOnline: false }), false, "after it, nothing to join");
-    assert.deepEqual(model.confirmationsNeeded([{ onlineOffered: true }]), { inPerson: true, ownOnline: true, otherOnline: true });
-    assert.deepEqual(model.confirmationsNeeded([{ onlineOffered: false }]), { inPerson: true, ownOnline: false, otherOnline: true });
-    assert.deepEqual(model.confirmationsNeeded([{ onlineOffered: false }, { onlineOffered: true }]).ownOnline, true, "one week of several is enough");
+    const coming = (onlineOffered) => ({ upcoming: true, onlineOffered });
+    const PAST = { upcoming: false, onlineOffered: false };
+    assert.deepEqual(model.confirmationsNeeded([coming(true)]), { inPerson: true, ownOnline: true, otherOnline: true });
+    assert.deepEqual(model.confirmationsNeeded([coming(false)]), { inPerson: true, ownOnline: false, otherOnline: true });
+    assert.deepEqual(model.confirmationsNeeded([coming(false), coming(true)]).ownOnline, true, "one week of several is enough");
+    // A session already past is confirmed nothing about; with one to come beside it, that one is.
+    assert.deepEqual(model.confirmationsNeeded([PAST]), { inPerson: false, ownOnline: false, otherOnline: false });
+    assert.deepEqual(model.confirmationsNeeded([PAST, coming(true)]), { inPerson: true, ownOnline: true, otherOnline: true });
+    assert.deepEqual(model.confirmationsNeeded([]), { inPerson: false, ownOnline: false, otherOnline: false });
     const all = { inPerson: true, ownOnline: true, otherOnline: true };
     assert.equal(model.missingConfirmation(all, all), null);
     // In the form's order: the first one missing is the one said.
@@ -542,6 +548,28 @@ describe("confirming before asking: the route asks for what the form showed, by 
     assert.equal(requestDocs()[0].confirmed.ownOnline, null, "nothing to confirm, so nothing claimed");
     const other = await ask("amara", { sessionKeys: ["w03"], reason: REASON, otherOnline: false });
     assert.deepEqual([other.status, other.body.error], [400, words.EXCUSED_REFUSAL.confirmOtherOnline], "the other two still are");
+  });
+
+  test("after a session nothing is confirmed about it: none asked or kept; with a week to come beside it, that week's are", async () => {
+    at(DURING_W2);
+    assert.equal((await mark("rahul", 2, [{ uid: "amara", status: "absent" }, { uid: "dev", status: "absent" }])).status, 200);
+    at(AFTER_W2);
+    assert.equal((await finish("rahul", 2)).status, 200);
+    world.mail.length = 0;
+    // The past session alone: no confirmation sent, none needed, none kept.
+    const past = await ask("amara", { sessionKeys: ["w02"], reason: "I was ill." }, B, { raw: true });
+    assert.equal(past.status, 200, JSON.stringify(past.body));
+    assert.equal("confirmed" in requestDocs()[0], false, "a request about a past session keeps confirmations nobody gave");
+    // A past session and one to come: the one to come is confirmed, all three (week 3 is in a room).
+    const mixed = (confirmed) => ask("dev", { sessionKeys: ["w02", "w03"], reason: "Away.", ...confirmed }, B, { raw: true });
+    assert.deepEqual([(await mixed({})).body.error], [words.EXCUSED_REFUSAL.confirmInPerson]);
+    assert.deepEqual([(await mixed({ inPerson: true, otherOnline: true })).body.error], [words.EXCUSED_REFUSAL.confirmOwnOnline]);
+    assert.equal(requestDocs().length, 1, "a refused ask wrote something");
+    const both = await mixed({ inPerson: true, ownOnline: true, otherOnline: true });
+    assert.equal(both.status, 200, JSON.stringify(both.body));
+    assert.deepEqual(both.body.request.weeks.map((week) => [week.sessionKey, week.asked]), [["w02", "after"], ["w03", "before"]]);
+    const kept = requestDocs().find((doc) => doc.subjectUid === "dev").confirmed;
+    assert.deepEqual([kept.inPerson, kept.ownOnline, kept.otherOnline], [true, true, true]);
   });
 
   test("a request made before confirmations were asked reads as before: no confirmations, nothing else changed", async () => {

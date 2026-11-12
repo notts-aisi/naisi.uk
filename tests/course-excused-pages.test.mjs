@@ -156,12 +156,16 @@ describe("1. the words, one file per surface", () => {
       [O.sendTheRequestWords(2), "Send the request for 2 weeks"],
       [O.ownRowLineWords({ state: "withdrawn", by: "", at: new Date("2026-11-09T11:20:00Z"), askedAt: null, now }), "Withdrawn by you, 11:20am"],
       [O.ownRowLineWords({ state: "approved", by: "Zach", at: new Date("2026-11-10T13:40:00Z"), askedAt: null, now }), "Approved by Zach, Tue 10 Nov, 1:40pm"],
-      [O.confirmInPersonWords(1), "I can’t go to another group’s session in person this week."],
-      [O.confirmInPersonWords(2), "I can’t go to another group’s session in person for these weeks."],
-      [O.confirmOwnOnlineWords(1), "I can’t join my own group’s session online."],
-      [O.confirmOwnOnlineWords(3), "I can’t join my own group’s sessions online for these weeks."],
-      [O.confirmOtherOnlineWords(1), "I can’t join another group’s session online this week."],
-      [O.confirmOtherOnlineWords(2), "I can’t join another group’s session online for these weeks."],
+      [O.confirmInPersonWords({ weeks: 1 }), "I can’t go to another group’s session in person this week."],
+      [O.confirmInPersonWords({ weeks: 2 }), "I can’t go to another group’s session in person for these weeks."],
+      [O.confirmInPersonWords({ weeks: 1, alsoPast: true }), "I can’t go to another group’s session in person for the week still to come."],
+      [O.confirmOwnOnlineWords({ weeks: 1 }), "I can’t join my own group’s session online."],
+      [O.confirmOwnOnlineWords({ weeks: 3 }), "I can’t join my own group’s sessions online for these weeks."],
+      [O.confirmOwnOnlineWords({ weeks: 1, alsoPast: true }), "I can’t join my own group’s session online for the week still to come."],
+      [O.confirmOwnOnlineWords({ weeks: 2, alsoPast: true }), "I can’t join my own group’s sessions online for the weeks still to come."],
+      [O.confirmOtherOnlineWords({ weeks: 1 }), "I can’t join another group’s session online this week."],
+      [O.confirmOtherOnlineWords({ weeks: 2 }), "I can’t join another group’s session online for these weeks."],
+      [O.confirmOtherOnlineWords({ weeks: 2, alsoPast: true }), "I can’t join another group’s session online for the weeks still to come."],
     ]) {
       assert.equal(said, expected);
     }
@@ -456,8 +460,9 @@ describe("3. the person's programme page: their own card, sent and drawn for the
 
   test("before asking, the form asks them to confirm, in order: three ticks in a room with online offered, two and a sentence where it isn't", () => {
     const week = (key, n, online) => ({ sessionKey: key, weekNumber: n, occurrence: 1, dateKey: "2026-11-19", ...online });
-    const ROOM = { onlineOffered: true, heldOnline: false };
-    const ONLINE = { onlineOffered: false, heldOnline: true };
+    const ROOM = { upcoming: true, onlineOffered: true };
+    const ONLINE = { upcoming: true, onlineOffered: false };
+    const PAST = { upcoming: false, onlineOffered: false };
     const control = createElement("span", { "data-testid": "joining-online-control" }, "Joining online");
     const form = (weeks, mode = "before") =>
       draws(AskForm, { groupId: A, weeks, facilitatorFirstNames: ["Sofia"], mode, onlineControl: control });
@@ -479,10 +484,23 @@ describe("3. the person's programme page: their own card, sent and drawn for the
     assert.ok(!online.html.includes("joining-online-control"), "joining online offered for a session held online");
     assert.match(online.text, /I can’t go to another group’s session in person this week\. Your group’s session is online already, so there’s nothing to confirm here\. I can’t join another group’s session online this week\./);
 
-    // After a session (the last session's card): nothing to join, said so.
-    const after = form([week("w03", 3, { onlineOffered: false, heldOnline: false })], "after");
-    assert.match(after.text, /Your group’s session can’t be joined online now, so there’s nothing to confirm here\./);
-    assert.ok(!after.html.includes('data-testid="excuse-confirm-own-online"'));
+    // After a session (the last session's card): nothing to confirm about the past, so none is shown.
+    const after = form([week("w03", 3, PAST)], "after");
+    for (const id of ["excuse-confirm-in-person", "excuse-confirm-own-online", "excuse-confirm-other-online"]) {
+      assert.ok(!after.html.includes(`data-testid="${id}"`), `asked after the session, the form asks ${id}`);
+    }
+    assert.doesNotMatch(after.text, /Before you ask|I can’t|another group’s session/, "the form asks something about a session already past");
+    assert.match(after.html, /data-testid="excuse-reason"/, "the reason box went with them");
+    assert.equal(O.confirmLinesOf([week("w03", 3, PAST)]), null);
+    // A request over a past session and one to come: the lines are about the one to come, and say so.
+    assert.deepEqual(
+      O.confirmLinesOf([week("w03", 3, PAST), week("w04", 4, ROOM)]).map((line) => line.words),
+      [
+        "I can’t go to another group’s session in person for the week still to come.",
+        "I can’t join my own group’s session online for the week still to come.",
+        "I can’t join another group’s session online for the week still to come.",
+      ],
+    );
 
     // Several weeks: "for these weeks", and one week in a room is enough to ask the second.
     assert.deepEqual(
@@ -497,6 +515,27 @@ describe("3. the person's programme page: their own card, sent and drawn for the
       O.confirmLinesOf([week("w04", 4, ONLINE), week("w05", 5, ONLINE)]).map((line) => line.kind),
       ["tick", "say", "tick"],
     );
+  });
+
+  test("changing the weeks ticked clears what was confirmed: a tick given for one set of weeks never stands for another", () => {
+    const ALL = { inPerson: true, ownOnline: true, otherOnline: true };
+    const held = { forWeeks: O.weeksKeyOf(["w04"]), given: ALL };
+    assert.deepEqual(O.confirmationsFor(held, ["w04"]), ALL, "the weeks they were given for");
+    assert.deepEqual(O.confirmationsFor(held, ["w04", "w05"]), O.NOTHING_CONFIRMED, "a week added");
+    assert.deepEqual(O.confirmationsFor(held, ["w05"]), O.NOTHING_CONFIRMED, "other weeks");
+    assert.deepEqual(O.confirmationsFor(held, []), O.NOTHING_CONFIRMED, "no weeks");
+    assert.deepEqual(O.confirmationsFor(null, ["w04"]), O.NOTHING_CONFIRMED, "nothing given");
+    // The same weeks in another order are the same weeks.
+    const two = { forWeeks: O.weeksKeyOf(["w05", "w04"]), given: ALL };
+    assert.deepEqual(O.confirmationsFor(two, ["w04", "w05"]), ALL);
+    assert.deepEqual(O.confirmationsFor(two, ["w04"]), O.NOTHING_CONFIRMED, "a week taken off");
+    assert.deepEqual(O.NOTHING_CONFIRMED, { inPerson: false, ownOnline: false, otherOnline: false });
+    // The form reads every tick through that rule, keyed by the weeks ticked, and forgets them on a change of weeks.
+    const source = readSource("src/features/courses/excused/AskForm.tsx");
+    assert.match(source, /const confirmed = O\.confirmationsFor\(held, chosenKeys\);/);
+    assert.match(source, /setHeld\(\(was\) => \(\{ forWeeks: O\.weeksKeyOf\(chosenKeys\), given: \{ \.\.\.O\.confirmationsFor\(was, chosenKeys\), \[key\]: checked \} \}\)\);/);
+    assert.match(source, /function toggle\(key: string\) \{[\s\S]*?setHeld\(null\);\n  \}/, "changing the weeks does not clear the ticks");
+    assert.equal((source.match(/useState<AskConfirmed>/g) ?? []).length, 0, "a second store of ticks beside the rule");
   });
 });
 

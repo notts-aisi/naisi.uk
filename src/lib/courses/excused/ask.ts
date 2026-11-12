@@ -29,6 +29,7 @@ import {
   missingConfirmation,
   onlineOfferedFor,
   requestStandingOf,
+  type ConfirmWeek,
   weeksAbout,
   NO_LINE,
   type AskPress,
@@ -184,7 +185,7 @@ export async function askToBeExcused(
     ]);
 
     const weeks: Record<string, unknown>[] = [];
-    const choices: { onlineOffered: boolean }[] = [];
+    const choices: ConfirmWeek[] = [];
     const answer: Extract<AskOutcome, { ok: true }>["request"]["weeks"] = [];
     for (const [at, session] of sessions.entries()) {
       const snap = registerSnaps[at];
@@ -201,7 +202,7 @@ export async function askToBeExcused(
       // Joining their own session online was a real choice for this session
       // (`onlineOfferedFor`, the form's own rule): in a room, asked before it.
       const onlineOffered = onlineOfferedFor({ when: state.when, heldOnline: sessionHeldOnline(group, session) });
-      choices.push({ onlineOffered });
+      choices.push({ upcoming: state.when === "before", onlineOffered });
       const online = onlineOffered && line.mark === null;
       weeks.push({
         sessionKey: session.sessionKey,
@@ -229,7 +230,8 @@ export async function askToBeExcused(
     }
 
     // What they confirmed before asking, each one the form showed them: the
-    // route works out which apply from the same rule the form does.
+    // route works out which apply from the same rule the form does. They are
+    // about the weeks still to come; a session already past needs none.
     const needed = confirmationsNeeded(choices);
     const missing = missingConfirmation(needed, press.confirmed);
     if (missing) return refuse(400, missing);
@@ -250,7 +252,10 @@ export async function askToBeExcused(
       reason: press.reason,
       // That they confirmed they can't take part another way, and when; the
       // second is null where joining their own session online was no choice.
-      confirmed: { at: now, inPerson: true, ownOnline: needed.ownOnline ? true : null, otherOnline: true },
+      // A request about a past session alone confirms nothing, and keeps none.
+      ...(needed.inPerson
+        ? { confirmed: { at: now, inPerson: true, ownOnline: needed.ownOnline ? true : null, otherOnline: true } }
+        : {}),
       // Kept until the programme closes: the job that deletes it reads this.
       reasonHeld: true,
       status: "waiting",

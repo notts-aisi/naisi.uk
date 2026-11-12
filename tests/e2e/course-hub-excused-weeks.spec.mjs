@@ -15,7 +15,8 @@
  *     can't go to another group's session in person, can't join his own
  *     group's session online (today's "Joining online" beside it: Group A is
  *     a room with a link) and can't join another group's session online;
- *     Send stays off until all three are ticked. He asks to be excused from
+ *     Send stays off until all three are ticked, and ticking a second week
+ *     clears them, to be confirmed again. He asks to be excused from
  *     week 4 with a reason. The card says it waits. The admins alone are
  *     emailed (the harness admin's switch on the Requests page read first),
  *     once each, without the reason or the meeting link.
@@ -30,7 +31,7 @@
  *     carries the reason or the meeting link, and Fern's carries no reply.
  *     The register says Excused; Ben's card says who approved it and the reply.
  *  5. FERN finishes week 3 with Ben absent; BEN asks about it from his last
- *     session's card, where joining online is no choice and the form says so;
+ *     session's card, which asks him to confirm nothing about a session past;
  *     the admin approves it: the line becomes Excused, the
  *     group's History keeps it under Registers without the reason, and Ben's
  *     figures change on the pages that show them.
@@ -107,7 +108,6 @@ const WORDS = {
   confirmInPerson: "I can’t go to another group’s session in person this week.",
   confirmOwnOnline: "I can’t join my own group’s session online.",
   confirmOtherOnline: "I can’t join another group’s session online this week.",
-  ownOnlineNow: "Your group’s session can’t be joined online now, so there’s nothing to confirm here.",
   contactInstead: "If another group’s session could work for you, in person or online, email",
   contactAddress: "ai-safety@uonsu.com",
   emailMe: "Email me about new requests",
@@ -329,14 +329,17 @@ test(
     }
 
     /**
-     * The three things to confirm before asking, ticked in order. With
-     * `offOnly`, first proves Send stays off until every one shown is ticked.
+     * The three things to confirm before asking, ticked in order (Group A's
+     * sessions are in a room, so all three are asked). With `offOnly`, first
+     * proves Send stays off until every one is ticked.
      */
-    async function confirmAll(form, { ownOnline, offOnly = false }) {
+    async function confirmAll(form, { offOnly = false } = {}) {
       const send = form.getByTestId("excuse-send");
-      const ticks = [form.getByTestId("excuse-confirm-in-person"), form.getByTestId("excuse-confirm-other-online")];
-      if (ownOnline) ticks.splice(1, 0, form.getByTestId("excuse-confirm-own-online"));
-      else assert.equal(await form.getByTestId("excuse-confirm-own-online").count(), 0, "a tick for joining online where it is no choice");
+      const ticks = [
+        form.getByTestId("excuse-confirm-in-person"),
+        form.getByTestId("excuse-confirm-own-online"),
+        form.getByTestId("excuse-confirm-other-online"),
+      ];
       await waitFor("the form to be live once the page has hydrated", async () => ticks[0].isEnabled());
       if (offOnly) {
         assert.equal(await send.isDisabled(), true, "Send works before anything is confirmed");
@@ -351,12 +354,12 @@ test(
     }
 
     /** What the form says before the reason, in order, and the team's address under it. */
-    async function assertConfirmLines(form, { ownOnline }) {
+    async function assertConfirmLines(form) {
       const said = flat(await form.innerText());
       const lines = [
         WORDS.beforeYouAsk,
         WORDS.confirmInPerson,
-        ownOnline ? WORDS.confirmOwnOnline : WORDS.ownOnlineNow,
+        WORDS.confirmOwnOnline,
         WORDS.confirmOtherOnline,
         WORDS.contactInstead,
         WORDS.medical,
@@ -409,7 +412,7 @@ test(
       // gives the team's address instead.
       const form = sheet.getByTestId("excuse-ask-form");
       await form.getByRole("button", { name: WORDS.joiningOnline(nextDay), exact: true }).waitFor({ timeout: WAIT_MS });
-      await assertConfirmLines(form, { ownOnline: true });
+      await assertConfirmLines(form);
       const said = flat(await form.innerText());
       assert.ok(said.indexOf(WORDS.medical) >= 0 && said.indexOf(WORDS.medical) < said.indexOf(WORDS.why), "the line about medical details is not above the box");
       assert.ok(said.includes(WORDS.whoReads), "the request does not say who reads the reason");
@@ -418,7 +421,18 @@ test(
       const box = form.getByRole("checkbox", { name: `Week ${nextWeek} · ${nextDay}`, exact: true });
       assert.equal(await box.isChecked(), true, "the week the card is about is not ticked");
       await form.getByTestId("excuse-reason").fill(why);
-      await confirmAll(form, { ownOnline: true, offOnly });
+      await confirmAll(form, { offOnly });
+      if (offOnly) {
+        // A tick given for one set of weeks never stands for another: ticking a second week clears them.
+        const laterWeek = nextWeek + 1;
+        const later = form.getByRole("checkbox", { name: `Week ${laterWeek} · ${dayLabel(sessionOf(groupA, laterWeek).dateKey)}`, exact: true });
+        await later.check();
+        assert.equal(await form.getByTestId("excuse-confirm-in-person").isChecked(), false, "a tick given for one week stands for two");
+        assert.equal(await form.getByTestId("excuse-send").isDisabled(), true, "Send works for weeks nobody confirmed");
+        await later.uncheck();
+        assert.equal(await form.getByTestId("excuse-confirm-own-online").isChecked(), false, "a tick came back with the weeks");
+        await confirmAll(form);
+      }
       const [asked] = await Promise.all([responseTo(pg, `/groups/${groupA.id}/excused`, "POST"), form.getByTestId("excuse-send").click()]);
       assert.deepEqual(
         asked.request().postDataJSON(),
@@ -667,13 +681,15 @@ test(
         for (const words of [`Last session · week ${lastWeek}`, "Absent", WORDS.missedIt, `Ask to be excused for week ${lastWeek}`]) {
           assert.ok(said.includes(words), `the last session's card does not say "${words}": ${said}`);
         }
-        // After the session there is nothing to join: the form says so, and asks the other two.
-        await assertConfirmLines(card, { ownOnline: false });
+        // After the session nothing is confirmed about it: none of the three is shown or asked.
+        const pastSaid = flat(await card.innerText());
+        assert.ok(!pastSaid.includes(WORDS.beforeYouAsk) && !pastSaid.includes(WORDS.confirmInPerson), `the form asks about a session already past: ${pastSaid}`);
+        assert.equal(await card.getByTestId("excuse-confirm-in-person").count(), 0, "a tick about a session already past");
         await card.getByTestId("excuse-reason").fill(WHY.benPast);
-        await confirmAll(card, { ownOnline: false });
         const send = card.getByTestId("excuse-send");
+        await waitFor("Send to be live once the page has hydrated", async () => send.isEnabled());
         const [asked] = await Promise.all([responseTo(benPage, `/groups/${groupA.id}/excused`, "POST"), send.click()]);
-        assert.deepEqual(asked.request().postDataJSON(), { sessionKeys: [lastKey], reason: WHY.benPast, inPerson: true, ownOnline: false, otherOnline: true });
+        assert.deepEqual(asked.request().postDataJSON(), { sessionKeys: [lastKey], reason: WHY.benPast, inPerson: false, ownOnline: false, otherOnline: false });
         const askedBody = await okBody(asked, "Asking to be excused after the session");
         assert.deepEqual(askedBody.request?.weeks?.map((week) => [week.sessionKey, week.asked]), [[lastKey, "after"]]);
         const pastRequest = askedBody.request.id;

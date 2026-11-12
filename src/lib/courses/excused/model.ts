@@ -111,14 +111,22 @@ export function onlineOfferedFor(input: { when: "before" | "after"; heldOnline: 
   return input.when === "before" && !input.heldOnline;
 }
 
+/** One week of a request, as the confirmations ask it: still to come (asked about before it), and whether joining it online is a real choice. */
+export type ConfirmWeek = { upcoming: boolean; onlineOffered: boolean };
+
 /**
- * Which of the three confirmations a request needs, from its weeks: that
- * they can't go to another group's session in person, and can't join another
- * group's session online, always; that they can't join their own group's
- * session online only where that is a real choice for one of its weeks.
+ * Which of the three confirmations a request needs, from its weeks. They are
+ * about a session still to come, so a week asked about after it (its
+ * finished register says Absent) needs none, and a request with no week to
+ * come needs none at all. For the weeks to come: that they can't go to
+ * another group's session in person, and can't join another group's session
+ * online, always; that they can't join their own group's session online only
+ * where that is a real choice for one of them.
  */
-export function confirmationsNeeded(weeks: readonly { onlineOffered: boolean }[]): AskConfirmed {
-  return { inPerson: true, ownOnline: weeks.some((week) => week.onlineOffered), otherOnline: true };
+export function confirmationsNeeded(weeks: readonly ConfirmWeek[]): AskConfirmed {
+  const coming = weeks.filter((week) => week.upcoming);
+  const any = coming.length > 0;
+  return { inPerson: any, ownOnline: coming.some((week) => week.onlineOffered), otherOnline: any };
 }
 
 /** The first confirmation needed and not given, in the form's order, as the route's sentence; null with none missing. */

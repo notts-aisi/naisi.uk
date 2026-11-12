@@ -1,7 +1,7 @@
 import { londonClockLabel, londonDayLabel } from "@/lib/courses/londonLabels";
 import { dayWords, hoursWords, namesWords, weeksWords } from "@/lib/courses/sessionChange/words";
 import { CONTACT_EMAIL } from "@/content/socials";
-import { confirmationsNeeded, type AskConfirmed } from "./model";
+import { confirmationsNeeded, type AskConfirmed, type ConfirmWeek } from "./model";
 import { approvedByWords, youAskedWords } from "./words";
 
 /**
@@ -55,24 +55,37 @@ export const WEEKS_THIS_COVERS = "Weeks this covers";
 
 export const BEFORE_YOU_ASK = "Before you ask";
 
+/**
+ * Which weeks a line is about: "this week" for one, "for these weeks" for
+ * several, and, where the request also covers a session already past (which
+ * nobody confirms anything about), "for the week still to come" or "for the
+ * weeks still to come".
+ */
+export type ConfirmScope = { weeks: number; alsoPast?: boolean };
+
+function scopeWords(scope: ConfirmScope): string {
+  if (scope.alsoPast) return scope.weeks > 1 ? "for the weeks still to come" : "for the week still to come";
+  return scope.weeks > 1 ? "for these weeks" : "this week";
+}
+
 /** "I can’t go to another group’s session in person this week." */
-export function confirmInPersonWords(weeks: number): string {
-  return weeks > 1 ? "I can’t go to another group’s session in person for these weeks." : "I can’t go to another group’s session in person this week.";
+export function confirmInPersonWords(scope: ConfirmScope): string {
+  return `I can’t go to another group’s session in person ${scopeWords(scope)}.`;
 }
 
 /** "I can’t join my own group’s session online." */
-export function confirmOwnOnlineWords(weeks: number): string {
-  return weeks > 1 ? "I can’t join my own group’s sessions online for these weeks." : "I can’t join my own group’s session online.";
+export function confirmOwnOnlineWords(scope: ConfirmScope): string {
+  if (!scope.alsoPast && scope.weeks <= 1) return "I can’t join my own group’s session online.";
+  return `I can’t join my own group’s ${scope.weeks > 1 ? "sessions" : "session"} online ${scopeWords(scope)}.`;
 }
 
 /** "I can’t join another group’s session online this week." */
-export function confirmOtherOnlineWords(weeks: number): string {
-  return weeks > 1 ? "I can’t join another group’s session online for these weeks." : "I can’t join another group’s session online this week.";
+export function confirmOtherOnlineWords(scope: ConfirmScope): string {
+  return `I can’t join another group’s session online ${scopeWords(scope)}.`;
 }
 
-/** In the second line's place, where joining their own session online is no real choice. */
+/** In the second line's place, where the weeks to come are online for everybody and there is nothing to join instead. */
 export const OWN_ONLINE_ALREADY = "Your group’s session is online already, so there’s nothing to confirm here.";
-export const OWN_ONLINE_NOT_OFFERED = "Your group’s session can’t be joined online now, so there’s nothing to confirm here.";
 
 /** One line the form draws before the reason: a tick to confirm, or a sentence where there is nothing to confirm. */
 export type ConfirmTick = { kind: "tick"; key: keyof AskConfirmed; words: string };
@@ -81,21 +94,46 @@ export type ConfirmLine = ConfirmTick | { kind: "say"; words: string };
 /**
  * THE FORM'S LINES BEFORE THE REASON, in order, from the weeks ticked: in
  * person at another group's session, their own group's session online, and
- * another group's session online. The second is a tick only where joining
- * online is a real choice for one of the weeks (`confirmationsNeeded`, the
- * route's own rule); elsewhere it is a sentence and asks nothing, so nobody
- * confirms something untrue. Several weeks read "for these weeks". Pure.
+ * another group's session online, all about the weeks still to come
+ * (`confirmationsNeeded`, the route's own rule). The second is a tick only
+ * where joining online is a real choice for one of them; elsewhere it is a
+ * sentence and asks nothing, so nobody confirms something untrue. NULL when
+ * no week is still to come (asking after a session): there is nothing to
+ * confirm about the past, so the form shows none. Pure.
  */
-export function confirmLinesOf(chosen: readonly { onlineOffered: boolean; heldOnline: boolean }[]): [ConfirmTick, ConfirmLine, ConfirmTick] {
-  const many = Math.max(chosen.length, 1);
+export function confirmLinesOf(chosen: readonly ConfirmWeek[]): [ConfirmTick, ConfirmLine, ConfirmTick] | null {
+  const coming = chosen.filter((week) => week.upcoming);
+  if (coming.length === 0) return null;
+  const scope: ConfirmScope = { weeks: coming.length, alsoPast: coming.length < chosen.length };
   const needed = confirmationsNeeded(chosen);
   return [
-    { kind: "tick", key: "inPerson", words: confirmInPersonWords(many) },
+    { kind: "tick", key: "inPerson", words: confirmInPersonWords(scope) },
     needed.ownOnline
-      ? { kind: "tick", key: "ownOnline", words: confirmOwnOnlineWords(many) }
-      : { kind: "say", words: chosen.some((week) => week.heldOnline) ? OWN_ONLINE_ALREADY : OWN_ONLINE_NOT_OFFERED },
-    { kind: "tick", key: "otherOnline", words: confirmOtherOnlineWords(many) },
+      ? { kind: "tick", key: "ownOnline", words: confirmOwnOnlineWords(scope) }
+      : { kind: "say", words: OWN_ONLINE_ALREADY },
+    { kind: "tick", key: "otherOnline", words: confirmOtherOnlineWords(scope) },
   ];
+}
+
+/** Nothing confirmed. */
+export const NOTHING_CONFIRMED: AskConfirmed = { inPerson: false, ownOnline: false, otherOnline: false };
+
+/** What the form holds: the ticks given, and the weeks they were given for (`weeksKeyOf`). */
+export type GivenConfirmations = { forWeeks: string; given: AskConfirmed };
+
+/** One set of weeks as one string, whatever order they were ticked in. */
+export function weeksKeyOf(sessionKeys: readonly string[]): string {
+  return [...new Set(sessionKeys)].sort().join(",");
+}
+
+/**
+ * WHAT STANDS CONFIRMED for the weeks ticked now: the ticks given, only while
+ * they were given for exactly these weeks. Ticking or unticking a week means
+ * confirming again, so a tick given for one set of weeks never stands for
+ * another. Pure.
+ */
+export function confirmationsFor(held: GivenConfirmations | null, sessionKeys: readonly string[]): AskConfirmed {
+  return held && held.forWeeks === weeksKeyOf(sessionKeys) ? held.given : NOTHING_CONFIRMED;
 }
 
 /** Under the lines about another group's session: the site can't offer one yet, so the team arranges it. */
