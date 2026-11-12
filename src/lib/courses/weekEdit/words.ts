@@ -63,6 +63,9 @@ export const EDIT_REFUSAL = {
     `${plural(sent, "person has", "people have")} sent this answer already, so when it’s due stays as it is: it’s what ${sent === 1 ? "their answer was" : "their answers were"} sent against.`,
   notBlocks: "This week isn’t written as blocks, so there’s nothing to change in place. Paste the week instead.",
   noPage: "This week has no page yet. Paste the week to make it.",
+  /** The week as stored holds items its reader leaves out (over a cap, unreadable): an edit or restore would drop them. */
+  unreadable:
+    "Nothing was saved: this week as stored holds items the editor can’t read back, and saving here would drop them with their ticks and answers.",
   runGone: "This run isn’t on the site any more.",
 } as const;
 

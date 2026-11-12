@@ -77,7 +77,10 @@ export async function POST(req: Request, ctx: Params) {
   if (weekFingerprint(version.blocks) === base && (version.title === "" || version.title === loaded.week.title)) {
     return NextResponse.json({ saved: false, saveId: null, summary: RESTORE_WORDS.same });
   }
-  // The paste's own checks: a version stored under an older cap is refused rather than written back over it.
+  // The paste's own checks on the version as read. The history's reader has
+  // already cut a version stored under an older cap to today's caps, so these
+  // see what it kept; a week AS STORED that its reader cuts is refused in the
+  // save itself (`readDropsItems`), so nothing on the live week is dropped.
   const problems = weekBlocksProblems(version.blocks);
   if (problems.length > 0) return NextResponse.json({ error: problems[0] }, { status: 400 });
 

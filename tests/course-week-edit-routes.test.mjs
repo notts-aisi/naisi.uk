@@ -288,6 +288,32 @@ describe("2. one block changed in place", () => {
     assert.equal(same.body.saved, false);
     assert.equal(everything(), before);
   });
+
+  test("a week whose stored items its reader leaves out is never written back: an edit and a restore are refused, nothing dropped", async () => {
+    const { itemIdsOf, readDropsItems } = await loadTs(join("lib", "courses", "weekEdit", "model.ts"));
+    const { sanitizeWeekBlocks } = await loadTs(join("lib", "courses", "weekBlocks", "model.ts"));
+    seedWeek();
+    // A clean week reads back with every id it stores.
+    const clean = world.db.read(W3).blocks;
+    assert.equal(readDropsItems(clean, sanitizeWeekBlocks(clean)), false);
+    assert.ok(itemIdsOf(clean).includes("rp-2"));
+    await change("zach", "src-1", { title: "Base rates, a field guide" });
+    // Then the cap tightens under it: a reflection stored with a third prompt, which today's reader cuts.
+    const overCap = structuredClone(world.db.read(W3));
+    const reflection = overCap.blocks.flatMap((block) => (block.type === "part" ? block.blocks : [block])).find((block) => block.id === "rs-1");
+    reflection.prompts.push({ id: "rp-3", text: "A third question, stored under an older cap?" });
+    world.db.seed(W3, overCap);
+    world.db.seed(`courseExerciseResponses/${RUN.agi}__chloe__w03__rp-3`, { runId: RUN.agi, uid: "chloe", weekId: "w03", exerciseId: "rp-3", kind: "reflection", text: "Kept." });
+    assert.equal(readDropsItems(overCap.blocks, sanitizeWeekBlocks(overCap.blocks)), true);
+    const before = everything();
+    const item = await itemOf("zach", "src-1");
+    const edit = await ask("zach", R.block.PATCH, { ...AT, blockId: "src-1" }, { body: { base: item.fingerprint, fields: { title: "A third title" } } });
+    assert.deepEqual([edit.status, edit.body.error], [409, EDIT_REFUSAL.unreadable]);
+    const compared = await ask("zach", R.save.GET, { ...AT, saveId: "s000001" });
+    const restore = await ask("zach", R.restore.POST, { ...AT, saveId: "s000001" }, { body: { base: compared.body.restore.base, confirmAnswers: compared.body.restore.answers } });
+    assert.deepEqual([restore.status, restore.body.error], [409, EDIT_REFUSAL.unreadable]);
+    assert.equal(everything(), before, "nothing written: the third prompt and its answer are where they were");
+  });
 });
 
 // ---------------------------------------------------------------------------

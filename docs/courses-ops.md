@@ -2757,7 +2757,11 @@ the lead of the programme that names the run, the people the paste has always
 admitted (`weekEditGate`, `src/lib/courses/weekEdit/gate.ts`), and both go
 through one save (`saveWeekBlocks`, `src/lib/courses/weekEdit/save.ts`): one
 transaction, the same checks, the same lock and the same history. The routes
-are under `/api/courses/runs/[runId]/weeks/[weekId]/`.
+are under `/api/courses/runs/[runId]/weeks/[weekId]/`. An edit and a restore
+write the whole week back as the reader of weeks returns it, and that reader
+cuts what is over today's caps, so both are refused (409) when the item ids
+as read differ from the item ids as stored (`readDropsItems`): a tightened
+cap never drops items and detaches their ticks.
 
 **One block, in place** (`PATCH blocks/[blockId]`). Four kinds: a source
 (kind, title, link, author, date, time, note), a text (its heading, time and

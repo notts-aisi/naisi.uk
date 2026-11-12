@@ -13,9 +13,9 @@ import {
   type WeekSaveKind,
 } from "./history";
 import { heldByAnother, heldRefusal, readHold, weekLockRef } from "./lock";
-import { weekFingerprint, type EditChange } from "./model";
+import { readDropsItems, weekFingerprint, type EditChange } from "./model";
 import { askedOf } from "./wordsThen";
-import { HISTORY_WORDS } from "./words";
+import { EDIT_REFUSAL, HISTORY_WORDS } from "./words";
 
 /**
  * EVERY SAVE OF A RUN'S WEEK'S BLOCKS, IN ONE TRANSACTION: an edit in place,
@@ -26,7 +26,11 @@ import { HISTORY_WORDS } from "./words";
  *     them;
  *  2. builds the new blocks from the week AS STORED INSIDE the transaction,
  *     so a save can never land on a week that changed after it was read (the
- *     builder refuses when what it was read against is no longer there);
+ *     builder refuses when what it was read against is no longer there); an
+ *     edit and a restore, which write the whole week back as the reader of
+ *     weeks returns it, are refused (409) when that reader left any stored
+ *     item out (`readDropsItems`: a list over a tightened cap, an item it
+ *     cannot read), so no save drops items and detaches their ticks;
  *  3. stores the week as it found it first, when the newest record of the
  *     history is not what is stored (`history.ts`, "Every week has a
  *     before");
@@ -114,6 +118,9 @@ export async function saveWeekBlocks(db: Firestore, input: SaveInput): Promise<S
       title: doc?.title ?? "",
       doc,
     };
+    if (input.kind !== "paste" && weekSnap.exists && readDropsItems((weekSnap.data() ?? {}).blocks, stored.blocks ?? [])) {
+      return { ok: false, status: 409, body: { error: EDIT_REFUSAL.unreadable } };
+    }
     const built = input.build(stored);
     if (!built.ok) return { ok: false, status: built.status, body: built.body };
     if (built.noop) return { ok: true, saved: false };

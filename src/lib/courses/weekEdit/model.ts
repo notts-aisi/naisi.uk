@@ -128,6 +128,33 @@ export function weekFingerprint(blocks: readonly WeekBlock[]): string {
   return fingerprintOf(blocks);
 }
 
+/** Every `id` in a list of blocks, as stored or as read, however deep, sorted: what a week's ticks and answers hang on. */
+export function itemIdsOf(value: unknown, out: string[] = []): string[] {
+  if (Array.isArray(value)) {
+    for (const item of value) itemIdsOf(item, out);
+  } else if (value && typeof value === "object") {
+    for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
+      if (key === "id" && typeof inner === "string") out.push(inner);
+      else itemIdsOf(inner, out);
+    }
+  }
+  return out;
+}
+
+/**
+ * Whether reading a week's stored blocks dropped anything: the item ids as
+ * read differ from the item ids as stored. The reader of weeks keeps what it
+ * can trust inside today's caps (`sanitizeWeekBlocks`), so a list over a
+ * tightened cap, an unknown kind or a reused id is read without some items.
+ * An edit and a restore write the whole week back as read, so they refuse
+ * such a week rather than drop those items and detach their ticks and answers.
+ */
+export function readDropsItems(storedBlocks: unknown, read: readonly WeekBlock[]): boolean {
+  const stored = itemIdsOf(storedBlocks).sort();
+  const kept = itemIdsOf(read).sort();
+  return stored.length !== kept.length || stored.some((id, index) => id !== kept[index]);
+}
+
 // ---------------------------------------------------------------------------
 // Text to and from Markdown, read as a week's text is
 // ---------------------------------------------------------------------------
