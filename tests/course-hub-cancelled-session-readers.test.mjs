@@ -99,6 +99,13 @@ const READERS = {
       "a mark, the switch, a note or a correction to its register is refused in the register's words for a session " +
       "that did not happen",
   },
+  "lib/courses/registerCover/didNotHappen.ts": {
+    kind: "asks",
+    proof: ["if (session.cancelled) return false;", "return stored.pushedAt === null && stored.held;"],
+    why:
+      "whether a cancel or a push after the fact clears a draft's lines (It didn't happen): a session already called off " +
+      "is not called off again, and a register that already says it did not happen keeps its own reading",
+  },
   "lib/courses/programmeAttendance.ts": {
     kind: "asks",
     proof: ["const held = !session.cancelled && (register ? register.held : true);"],
@@ -232,7 +239,10 @@ const READERS = {
   "features/courses/AttendanceGrid.tsx": {
     kind: "told",
     from: ["app/api/courses/groups/[groupId]/attendance/route.ts"],
-    via: ["session"],
+    // ADDED (November 2026): `panelSession` (the session the address names, or
+    // the foot's) and `each` (whether any column is still a draft) are columns
+    // of the same answer, as `session` is.
+    via: ["session", "panelSession", "each"],
     proof: ["AttendanceSession"],
     why: "the register's grid draws the register route's own columns",
   },

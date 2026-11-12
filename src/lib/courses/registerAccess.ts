@@ -7,43 +7,56 @@ import {
   normalizeCourseEnrolment,
   placementIsShownTo,
 } from "@/lib/firestore/courseEnrolments";
+import {
+  attendanceDocId,
+  normalizeCourseAttendance,
+  type CourseAttendanceDoc,
+  type RegisterCover,
+} from "@/lib/firestore/courseAttendance";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
-import { firstNameOfUser, programmeLedBy } from "./programmeLead";
+import { firstNameOfUser } from "./programmeLead";
+import { holdsCover, holdsGivenCover } from "./registerCover/model";
+import { doesTrackLeadWork, runStaffingOf } from "./runStaffing";
 
 /**
  * WHO MAY TOUCH A GROUP'S REGISTER, in one place.
  *
- * There are now four doors onto the same documents: the register itself
- * (GET and POST), the admin's post-push edit (PATCH), PUSH ATTENDANCE, and the
- * participant-note drawer. They are four verbs on ONE act, running a session,
- * so one predicate decides who may use any of them, and it lives here.
+ * There are several doors onto the same documents: the register itself
+ * (GET and POST), the admin's post-push edit (PATCH), finishing it (the push),
+ * the participant-note drawer, the check-in, taking a register in somebody's
+ * place and the facilitator record. They are verbs on ONE act, running a
+ * session, so one gate decides who reaches any of them, and one function
+ * (`registerSessionAccess`) what each may do on one session, and both live
+ * here.
  *
  * ── THE PREDICATE ───────────────────────────────────────────────────────────
  * A facilitator of THIS group, while it is LIVE (`courseGroups.facilitatorUids`
- * on a group that is not archived) union admins. That is the whole list.
+ * on a group that is not archived), admins, the people leading the programme
+ * that names the group's run (its lead, worked out from the form when they
+ * ask, and the run's track leads: `doesTrackLeadWork`), and somebody an admin
+ * or a lead GAVE one session to, for that session only, while it holds.
  *  · ARCHIVING A GROUP UNSTAFFS IT. One rule, stated identically in
  *    `runAccess.ts`, the exercises queue, the review route and the page gates.
  *    Admins bypass it: an archived cohort is exactly what an admin is asked to
- *    go back and look at.
+ *    go back and look at. The people leading the programme still READ an
+ *    archived group's registers: the record is still the programme's.
  *  · Plain members get 403. Attendance is a roster-wide record, and "who else
  *    missed last week" is not a member's to read even about their own group. A
  *    member's OWN attendance travels on the run overview instead.
- *  · Another group's facilitator, an admissions reviewer and a track lead all
- *    get 403. Admissions is a SEPARATE LANE from the cohort, and staffing a
- *    run is not facilitating a group, which is why the run doc is not
- *    consulted for access at all.
- *  · READING is one person wider (`gateGroupRegisterRead`, the register's
- *    GET alone): the lead of the programme that names the group's run reads
- *    every register of that run, its marks and nothing they could change.
- *    They answer for the whole programme's attendance, which is a different
- *    thing from staffing it. Their power is worked out from the form when
- *    they ask (`programmeLedBy`), and is nothing on any other run.
+ *  · Another group's facilitator and an admissions reviewer get 403.
+ *  · ADMITTED TO THE GROUP IS NOT ADMITTED TO EVERY DOOR. Each door asks
+ *    `registerSessionAccess` what the caller may do on the one session it is
+ *    about: somebody given a session writes that session's register and no
+ *    other; a lead who has not taken a session's register opens no check-in
+ *    and writes no report; and whether each facilitator was there, a
+ *    cover's reason and a check-in's totals go to admins and the programme's
+ *    lead only, never to a run's track lead by that alone.
  *  · THE REGISTER'S NOTES are the group's facilitators' and admins':
  *    what a facilitator writes about a named person, and about a session as a
- *    whole, is not sent to a caller the read gate admits only as the lead.
- *    `readsNotes` says which callers get them, and the GET is the one door
- *    that hands notes out to a reader.
+ *    whole, is not sent to a lead or to somebody given a session, and a write
+ *    of theirs that carries one is refused. `readsNotes` says which callers
+ *    get them, and the GET is the one door that hands notes out to a reader.
  *
  * ── AUTHORIZATION BEFORE EXISTENCE ──────────────────────────────────────────
  * A missing group, an ARCHIVED group and a group you do not facilitate all
@@ -99,35 +112,138 @@ export type RegisterGate =
       /**
        * True for an admin and the group's live facilitators, the people the
        * register's notes are written for. False for a caller admitted only
-       * as the programme's lead, who reads the marks and no note.
+       * as somebody leading the programme or somebody given a session, who
+       * are sent the marks and no note, and whose writes may carry none.
        */
       readsNotes: boolean;
+      /** A live facilitator of THIS group, held to the bar they were appointed behind. */
+      facilitates: boolean;
+      /**
+       * Not an admin, and leading the programme that names the group's run
+       * or one of the run's track leads (`doesTrackLeadWork`): takes any
+       * session's register of the run, in a facilitator's place. Whether
+       * each facilitator was there is `leadsProgramme`'s, not this.
+       */
+      leads: boolean;
+      /**
+       * Not an admin, not a facilitator of the group, and the lead of the
+       * programme that names the group's run (worked out from the form when
+       * they ask). Narrower than `leads`: a run's track lead by that alone is
+       * not. Who is sent whether each facilitator was there, a cover's
+       * reason and a check-in's totals, as the privacy policy says
+       * ("The programme's lead and admins see this").
+       */
+      leadsProgramme: boolean;
+      /**
+       * The sessions of this group the caller was GIVEN by an admin or a lead,
+       * by key, while each grant holds: the only registers they read or take.
+       * Empty for everybody admitted any other way.
+       */
+      givenSessions: string[];
     }
   /** Map straight onto a `NextResponse.json({ error }, { status })`. */
   | { ok: false; status: number; error: string };
 
+/** The roles of an approved account: the floor under somebody given a session. */
+const APPROVED_ROLES = new Set(["member", "committee", "admin"]);
+
+/** Most sessions of one group a person could be given at once, for the one query that finds them. */
+const MAX_GIVEN_PER_GROUP = 20;
+
 /**
- * Resolve the group and decide access, off ONE document read. Returns a plain
- * status and sentence rather than a `NextResponse` so this module stays free
- * of `next/server`; each route renders its own response.
+ * THE SESSIONS OF A GROUP SOMEBODY WAS GIVEN, while each grant holds: the
+ * registers whose `cover` names them as the person given it. One equality
+ * query on two fields (no index is owed for equalities alone), asked only of
+ * a caller nothing else admits, so the group's facilitators, its leads and
+ * admins never pay for it.
  */
-export async function gateGroupRegister(
+async function givenSessionsOf(db: Firestore, group: CourseGroupDoc, actor: SessionUser, now: Date): Promise<string[]> {
+  if (!APPROVED_ROLES.has(actor.role) || !actor.uid) return [];
+  const snap = await db
+    .collection("courseAttendance")
+    .where("groupId", "==", group.id)
+    .where("cover.byUid", "==", actor.uid)
+    .limit(MAX_GIVEN_PER_GROUP)
+    .get();
+  const keys: string[] = [];
+  for (const doc of snap.docs) {
+    const register = normalizeCourseAttendance(doc.id, doc.data() ?? {});
+    if (register.runId !== group.runId || register.groupId !== group.id) continue;
+    if (holdsGivenCover(register.cover, actor.uid, now)) keys.push(register.sessionKey);
+  }
+  return keys.sort();
+}
+
+/**
+ * How the caller stands on one group's registers, off the group's document
+ * (and, only for somebody it does not already admit, the run's and the
+ * registers that name them as given a session).
+ *
+ * For a WRITE an archived group is unstaffed: its facilitators, its leads and
+ * anybody given a session are refused, and an admin is not. For a READ the
+ * people leading the programme read an archived group's registers too.
+ */
+async function standingOnRegisters(
   groupId: string,
   actor: SessionUser,
   db: Firestore,
-): Promise<RegisterGate> {
+  mode: "write" | "read",
+): Promise<{
+  group: CourseGroupDoc | null;
+  isAdmin: boolean;
+  facilitates: boolean;
+  leads: boolean;
+  leadsProgramme: boolean;
+  givenSessions: string[];
+}> {
   const groupSnap = await db.collection("courseGroups").doc(groupId).get();
   const group = groupSnap.exists
     ? normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {})
     : null;
 
   const isAdmin = actor.role === "admin";
-  const facilitatesLiveGroup = Boolean(
+  const facilitates = Boolean(
     group &&
       !group.archived &&
       isNamedWithStanding(actor, "courseGroups.facilitatorUids", group.facilitatorUids),
   );
-  if (!isAdmin && !facilitatesLiveGroup) {
+  let leads = false;
+  let leadsProgramme = false;
+  if (!isAdmin && !facilitates && group && isAddressableId(group.runId) && (mode === "read" || !group.archived)) {
+    const runSnap = await db.collection("courseRuns").doc(group.runId).get();
+    const trackLeadUids = runSnap.exists ? (runSnap.data() ?? {}).trackLeadUids : [];
+    const staffing = await runStaffingOf(db, actor, { id: group.runId, trackLeadUids });
+    leads = doesTrackLeadWork(staffing);
+    leadsProgramme = staffing.leadOf !== null;
+  }
+  const givenSessions =
+    !isAdmin && !facilitates && !leads && group && !group.archived && isAddressableId(group.runId)
+      ? await givenSessionsOf(db, group, actor, new Date())
+      : [];
+  return { group, isAdmin, facilitates, leads, leadsProgramme, givenSessions };
+}
+
+/**
+ * Resolve the group and decide who may WRITE its register: an admin, a live
+ * facilitator of the group, somebody leading the programme that names its
+ * run (its lead, the run's track leads), and somebody given one of its
+ * sessions while that grant holds. Returns a plain status and sentence rather
+ * than a `NextResponse` so this module stays free of `next/server`; each
+ * route renders its own response.
+ *
+ * ADMITTED HERE IS NOT ADMITTED EVERYWHERE. Each door narrows it for what it
+ * does: a register's notes and the note drawer are `readsNotes`' alone; the
+ * check-in and the session report are the facilitators', an admin's for the
+ * check-in, and whoever took THAT session's register (`registerSessionAccess`);
+ * somebody given a session writes that session's register and nothing else.
+ */
+export async function gateGroupRegister(
+  groupId: string,
+  actor: SessionUser,
+  db: Firestore,
+): Promise<RegisterGate> {
+  const { group, isAdmin, facilitates, leads, leadsProgramme, givenSessions } = await standingOnRegisters(groupId, actor, db, "write");
+  if (!isAdmin && !facilitates && !leads && givenSessions.length === 0) {
     return { ok: false, status: 403, error: "Forbidden" };
   }
   // Reachable only by an admin: every other caller is already past the gate on
@@ -136,46 +252,40 @@ export async function gateGroupRegister(
   if (!group.runId || !isAddressableId(group.runId)) {
     return { ok: false, status: 400, error: "Group is not attached to a run" };
   }
-  return { ok: true, group, runId: group.runId, isAdmin, readsNotes: true };
+  return {
+    ok: true,
+    group,
+    runId: group.runId,
+    isAdmin,
+    readsNotes: isAdmin || facilitates,
+    facilitates,
+    leads,
+    leadsProgramme,
+    givenSessions,
+  };
 }
 
 /**
  * Resolve the group and decide who may READ its register: everybody
- * `gateGroupRegister` admits, and the lead of the programme that names the
- * group's run, for every group of that run, read only. The register's GET is
- * the one door that asks this; every write keeps `gateGroupRegister`.
+ * `gateGroupRegister` admits, and the people leading the programme that
+ * names the group's run read an archived group's registers too. The
+ * register's GET is the one door that asks this; every write keeps
+ * `gateGroupRegister`.
  *
  * The same refusals as the write gate: a missing group, a group on another
  * programme's run and a group the caller has no part in collapse onto one
  * 403, so probing ids tells nobody which exist. `isAdmin` stays the admin's
  * alone, so a lead reads the people Publish has told and corrects nothing,
- * and `readsNotes` is false for a lead, who is sent no note.
+ * and `readsNotes` is false for a lead and for somebody given a session, who
+ * are sent no note.
  */
 export async function gateGroupRegisterRead(
   groupId: string,
   actor: SessionUser,
   db: Firestore,
 ): Promise<RegisterGate> {
-  const groupSnap = await db.collection("courseGroups").doc(groupId).get();
-  const group = groupSnap.exists
-    ? normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {})
-    : null;
-
-  const isAdmin = actor.role === "admin";
-  const facilitatesLiveGroup = Boolean(
-    group &&
-      !group.archived &&
-      isNamedWithStanding(actor, "courseGroups.facilitatorUids", group.facilitatorUids),
-  );
-  // The lead reads every register of their run, an archived group's too: the
-  // record of a group that stopped meeting is still the programme's.
-  const leadsTheRun =
-    !isAdmin &&
-    !facilitatesLiveGroup &&
-    group !== null &&
-    isAddressableId(group.runId) &&
-    (await programmeLedBy(db, actor, group.runId)) !== null;
-  if (!isAdmin && !facilitatesLiveGroup && !leadsTheRun) {
+  const { group, isAdmin, facilitates, leads, leadsProgramme, givenSessions } = await standingOnRegisters(groupId, actor, db, "read");
+  if (!isAdmin && !facilitates && !leads && givenSessions.length === 0) {
     return { ok: false, status: 403, error: "Forbidden" };
   }
   // Reachable only by an admin: anybody else is past the gate on a group
@@ -184,7 +294,140 @@ export async function gateGroupRegisterRead(
   if (!group.runId || !isAddressableId(group.runId)) {
     return { ok: false, status: 400, error: "Group is not attached to a run" };
   }
-  return { ok: true, group, runId: group.runId, isAdmin, readsNotes: isAdmin || facilitatesLiveGroup };
+  return {
+    ok: true,
+    group,
+    runId: group.runId,
+    isAdmin,
+    readsNotes: isAdmin || facilitates,
+    facilitates,
+    leads,
+    leadsProgramme,
+    givenSessions,
+  };
+}
+
+/**
+ * THE SESSIONS OF A GROUP WHOSE REGISTER THE CALLER TOOK IN A FACILITATOR'S
+ * PLACE, while each cover holds (a lead's or an admin's own, or a session
+ * given to them, until it ends): the sessions whose check-in they open and
+ * whose report they write. The same one equality query as for a session
+ * given, asked only of somebody who facilitates nothing here.
+ */
+export async function coveredSessionsOf(
+  db: Firestore,
+  group: Pick<CourseGroupDoc, "id" | "runId">,
+  uid: string,
+  now: Date,
+): Promise<string[]> {
+  if (!uid) return [];
+  const snap = await db
+    .collection("courseAttendance")
+    .where("groupId", "==", group.id)
+    .where("cover.byUid", "==", uid)
+    .limit(MAX_GIVEN_PER_GROUP)
+    .get();
+  const keys: string[] = [];
+  for (const doc of snap.docs) {
+    const register = normalizeCourseAttendance(doc.id, doc.data() ?? {});
+    if (register.runId !== group.runId || register.groupId !== group.id) continue;
+    if (holdsCover(register.cover, uid, now)) keys.push(register.sessionKey);
+  }
+  return keys.sort();
+}
+
+/** "w03" or "w03-2", as its week and occurrence, or null. */
+function sessionKeyParts(key: string): { weekNumber: number; occurrence: number } | null {
+  const match = /^w(\d{2})(?:-(\d))?$/.exec(key);
+  if (!match) return null;
+  const weekNumber = Number(match[1]);
+  const occurrence = match[2] ? Number(match[2]) : 1;
+  return weekNumber >= 1 && occurrence >= 1 ? { weekNumber, occurrence } : null;
+}
+
+/** One session's register as stored, by its key, or null when it has none. */
+export async function readSessionRegister(
+  db: Firestore,
+  runId: string,
+  groupId: string,
+  key: string,
+): Promise<CourseAttendanceDoc | null> {
+  const parts = sessionKeyParts(key);
+  if (!parts) return null;
+  const snap = await db.collection("courseAttendance").doc(attendanceDocId(runId, groupId, parts.weekNumber, parts.occurrence)).get();
+  return snap.exists ? normalizeCourseAttendance(snap.id, snap.data() ?? {}) : null;
+}
+
+/** What the caller may do on ONE session's register, once the gate has admitted them to the group's. */
+export type RegisterSessionAccess = {
+  /** Marks, and Finish. */
+  writes: boolean;
+  /** The session's notes, and the notes about named people. */
+  readsNotes: boolean;
+  /** Opens and closes the session's check-in. */
+  checksIn: boolean;
+  /** Is sent the check-in's totals. */
+  readsCheckInTotals: boolean;
+  /** Writes a session report for it. */
+  reports: boolean;
+  /** Reads and changes whether each facilitator was there. */
+  readsFacilitatorRecord: boolean;
+  /** Took this register in a facilitator's place, and still holds it. */
+  holdsCover: boolean;
+};
+
+/**
+ * ONE SESSION'S DOORS, for a caller the gate has admitted to the group:
+ *
+ *  - WRITING its register: an admin, the group's facilitators, the people
+ *    leading the programme, and somebody given THIS session while it holds.
+ *  - ITS NOTES: the group's facilitators and admins, nobody else.
+ *  - THE CHECK-IN: the group's facilitators, admins, and whoever took this
+ *    session's register (`cover.byUid`: a lead who is covering, or somebody
+ *    given it while it holds). A lead who has not taken it is refused. Its
+ *    totals go to the group's facilitators, admins, and the programme's lead
+ *    who took it: never to a run's track lead by that alone, nor to somebody
+ *    who was only given the session.
+ *  - THE SESSION REPORT: the group's facilitators, and whoever took this
+ *    session's register while it holds. An admin or a lead who did not take
+ *    it writes none.
+ *  - WHETHER EACH FACILITATOR WAS THERE (and a cover's reason): admins and
+ *    the programme's lead, never somebody who facilitates the group, however
+ *    else they stand, nor a run's track lead by that alone, nor anybody given
+ *    a session. The privacy policy says "The programme's lead and admins see
+ *    this", and this is the one place that decides it.
+ */
+export function registerSessionAccess(
+  gated: Pick<
+    Extract<RegisterGate, { ok: true }>,
+    "isAdmin" | "facilitates" | "leads" | "leadsProgramme" | "givenSessions" | "readsNotes"
+  >,
+  input: { uid: string; sessionKey: string; cover: RegisterCover | null; now: Date },
+): RegisterSessionAccess {
+  const given = gated.givenSessions.includes(input.sessionKey) && holdsGivenCover(input.cover, input.uid, input.now);
+  const took = holdsCover(input.cover, input.uid, input.now);
+  const staff = gated.isAdmin || gated.facilitates;
+  return {
+    writes: staff || gated.leads || given,
+    readsNotes: gated.readsNotes,
+    checksIn: staff || took,
+    readsCheckInTotals: staff || (gated.leadsProgramme && took),
+    reports: gated.facilitates || took,
+    readsFacilitatorRecord: readsFacilitatorRecord(gated),
+    holdsCover: took,
+  };
+}
+
+/**
+ * WHO IS SENT WHETHER EACH FACILITATOR WAS THERE, and a cover's reason: an
+ * admin or the programme's lead, who does not facilitate the group. Asked of
+ * the gate's answer alone, so the register's read, the facilitator record's
+ * route and the group's history agree.
+ */
+export function readsFacilitatorRecord(
+  gated: Pick<Extract<RegisterGate, { ok: true }>, "isAdmin" | "facilitates" | "leadsProgramme">,
+): boolean {
+  return (gated.isAdmin || gated.leadsProgramme) && !gated.facilitates;
 }
 
 /**

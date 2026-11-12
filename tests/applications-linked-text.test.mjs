@@ -1270,6 +1270,21 @@ const BUILT = new Map([
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/page.tsx",
     { built: ["tabPath"], from: "the programme's Groups tab, from the form's and the programme's ids, encoded (`groupsPath`)" },
   ],
+  // ADDED (November 2026), with covering a register.
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/register/page.tsx",
+    {
+      built: ["groupPage", "tabPath"],
+      from: "the group's page and the programme's Groups tab, from the form's, the programme's and the group's ids, encoded",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/report/page.tsx",
+    {
+      built: ["tabPath"],
+      from: "the programme's Groups tab, from the form's and the programme's ids, encoded (`groupsPath`)",
+    },
+  ],
   [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/layout.tsx",
     { built: ["home"], from: "the term's own page, from the form's id" },

@@ -96,6 +96,18 @@ async function lastClosed(
   return best;
 }
 
+/**
+ * Whether a check-in was ever opened for one session of a group: for the
+ * preview of calling that session off after it passed. Nothing of it is read
+ * but that it exists.
+ */
+export async function checkInWasOpened(db: Firestore, runId: string, groupId: string, sessionKey: string): Promise<boolean> {
+  const snap = await db.collection(SURVEYS_COLLECTION).doc(checkInSurveyId(runId, groupId, sessionKey)).get();
+  if (!snap.exists) return false;
+  const stored = normalizeSurvey(snap.id, snap.data() ?? {});
+  return isCheckIn(stored) && stored.audience.groupId === groupId;
+}
+
 export async function checkInRegisterView(
   db: Firestore,
   input: { runId: string; group: CourseGroupDoc; sessionKey: string; now: Date },

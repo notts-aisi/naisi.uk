@@ -8,10 +8,13 @@ import { updateEmailAudience } from "@/lib/courses/updates/audience";
 import { addDaysToKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { loadGroupHistory } from "@/lib/courses/groupHistory/load";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
+import { coverIsLive, startedByFacilitator } from "@/lib/courses/registerCover/model";
+import { startedAgoWords } from "@/lib/courses/registerCover/pageWords";
 import {
   EXCUSED_IN_ADVANCE,
   ONLINE_SAID,
   attendanceDocId,
+  normalizeCourseAttendance,
   registerIsTaken,
 } from "@/lib/firestore/courseAttendance";
 import { normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
@@ -115,7 +118,10 @@ export async function loadGroupPage(
       .where("status", "==", "active")
       .get(),
     updateEmailAudience(db, run, [group], "group", group.id, viewerUid, { withFacilitators: true }),
-    staff ? loadGroupHistory(db, run.id, group.id) : Promise.resolve(null),
+    // Rows about whether a facilitator was at a session are loaded only for
+    // an admin or the programme's lead who does not facilitate the group:
+    // that record is sent to nobody else.
+    staff ? loadGroupHistory(db, run.id, group.id, { facilitatorRecord: !group.facilitatorUids.includes(viewerUid) }) : Promise.resolve(null),
   ]);
   const lead = await readRunLead(db, run.id, naming);
 
@@ -138,9 +144,17 @@ export async function loadGroupPage(
     return person && isNamedWithStanding(standingUserOf(uid, person.data), "courseGroups.facilitatorUids", group.facilitatorUids);
   });
   const nameOf = (uid: string) => names.get(uid)?.goesBy ?? "";
+  // Who took a register in a facilitator's place, or was given a session,
+  // may be anybody with an account: named for the page's staff only.
+  const coverUids = staff
+    ? [...new Set(registerSnaps.map((snap) => (snap?.exists ? normalizeCourseAttendance(snap.id, snap.data() ?? {}).cover?.byUid ?? "" : "")).filter(Boolean))]
+    : [];
+  const coverNames = await namesOf(db, coverUids.filter((uid) => !names.has(uid)));
+  const anyName = (uid: string) => names.get(uid)?.full || coverNames.get(uid)?.full || "NAISI member";
 
   const weeks: GroupPageWeek[] = sessions.map((session, index) => {
     const register = registerSnaps[index]?.exists ? (registerSnaps[index].data() ?? {}) : undefined;
+    const stored = register ? normalizeCourseAttendance(registerSnaps[index].id, register) : null;
     const title = weekSnaps[index]?.exists ? String(weekSnaps[index].data()?.title ?? "").trim() : "";
     const { startsAt, endsAt } = sessionInstants(session);
     const started = Boolean(startsAt && startsAt.getTime() <= now.getTime());
@@ -195,6 +209,14 @@ export async function loadGroupPage(
             .map((seat) => ({ uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: saidOf(seat.uid) }))
             .sort((a, b) => a.name.localeCompare(b.name))
         : [],
+      finished: Boolean(stored?.pushedAt),
+      heldFalse: register?.held === false,
+      facilitatorStarted: startedByFacilitator(stored, group.facilitatorUids),
+      cover:
+        staff && stored?.cover
+          ? { kind: stored.cover.kind, byName: anyName(stored.cover.byUid), live: coverIsLive(stored.cover, now) }
+          : null,
+      startedAgo: started && startsAt ? startedAgoWords(startsAt, now) : "",
     };
   });
 

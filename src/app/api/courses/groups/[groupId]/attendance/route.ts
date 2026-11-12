@@ -9,8 +9,16 @@ import {
   isAddressableId,
   loadMirrorMembers,
   loadRegisterMembers,
+  readsFacilitatorRecord as readsFacilitatorRecordOf,
+  registerSessionAccess,
   type RegisterMember,
 } from "@/lib/courses/registerAccess";
+import {
+  registerCoverExtras,
+  standingFacilitators,
+  type NamedPerson,
+  type RegisterCoverExtras,
+} from "@/lib/courses/registerCover/view";
 import { didNotHappenLine, leaversOfGroup, readRunRecords } from "@/lib/courses/programmeAttendance";
 import { readRegisterEnding, type RegisterEnding } from "@/lib/courses/registerEnding";
 import {
@@ -24,15 +32,31 @@ import {
   ATTENDANCE_LIMITS,
   ATTENDANCE_STATUSES,
   ATTENDANCE_STATUS_LABEL,
+  COVER,
   EXCUSED_IN_ADVANCE,
+  FACILITATOR_RECORD,
   ONLINE,
   ONLINE_SAID,
+  SET_BY,
   attendanceDocId,
   cameBy,
   normalizeCourseAttendance,
   type AttendanceStatus,
   type CourseAttendanceDoc,
+  type LineSetterHow,
 } from "@/lib/firestore/courseAttendance";
+import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
+import { facilitatorsByFirstName } from "@/lib/courses/registerCover/people";
+import { sessionInTransaction } from "@/lib/courses/registerCover/sessionInTransaction";
+import {
+  holdsGivenCover,
+  lineMoved,
+  presenceOnSave,
+  saveTakesCover,
+  setterHow,
+  startedByFacilitator,
+} from "@/lib/courses/registerCover/model";
+import { REGISTER_COVER_REFUSAL, tookDetail } from "@/lib/courses/registerCover/words";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import {
@@ -141,6 +165,15 @@ export type AttendanceSession = {
   notes: string;
   /** ISO instant of PUSH ATTENDANCE, or null while this is still a draft. */
   pushedAt: string | null;
+  /**
+   * One of the group's facilitators has started this register (saved a mark
+   * or set a line), so somebody else saving on it is helping, not covering
+   * (`startedByFacilitator`). False with no register yet.
+   */
+  facilitatorStarted: boolean;
+  /** ISO instants the session starts and ends, or null with no day and time. */
+  startsAt: string | null;
+  endsAt: string | null;
 };
 
 export type AttendancePayload = {
@@ -220,6 +253,40 @@ export type AttendancePayload = {
    * table for a session that has not ended, and beside the mark in a cell.
    */
   cantMakeIt: AttendanceCantMakeIt[];
+  /**
+   * WHO SET EACH LINE, AND WHEN, `sessionKey -> uid -> {name, at, how}`:
+   * rows only, named by the names rule for the reader. `how: "self"` is the
+   * person's own word before the session. A register written before lines
+   * were stamped has none, and shows nobody.
+   */
+  setBy: RegisterCoverExtras["setBy"];
+  /** WHO TOOK A SESSION'S REGISTER IN A FACILITATOR'S PLACE, by session key; absent for a session nobody covered. */
+  covers: RegisterCoverExtras["covers"];
+  /**
+   * WHETHER EACH OF THE GROUP'S FACILITATORS WAS THERE, by session key. Sent
+   * ONLY to admins and the programme's lead, never to a run's track lead by
+   * that alone and never to anybody who facilitates the group: the key is
+   * absent from every other reader's answer.
+   */
+  facilitatorRecord?: RegisterCoverExtras["facilitatorRecord"];
+  /**
+   * The group's facilitators who stand behind the role, by name: who Finish
+   * asks about, and whose place a cover takes. `you` marks the reader.
+   */
+  facilitators: (NamedPerson & { you: boolean })[];
+  /** What the reader may do here, so the page offers nothing a route would refuse. */
+  caller: AttendanceCaller;
+};
+
+/** What the reader is on this register, and what they may do on each session of it. */
+export type AttendanceCaller = {
+  standing: "admin" | "facilitator" | "lead" | "given";
+  /** A live facilitator of the group, whatever else they are: their saves are stamped as a facilitator's and take nobody's place. */
+  facilitates: boolean;
+  readsNotes: boolean;
+  readsFacilitatorRecord: boolean;
+  /** By session key, for each column. */
+  sessions: Record<string, { writes: boolean; checksIn: boolean; readsCheckInTotals: boolean; reports: boolean; holdsCover: boolean }>;
 };
 
 /** One session where somebody told us in advance they can't make it. */
@@ -484,6 +551,14 @@ type WriteContext = {
   run: CourseRunDoc;
   runId: string;
   isAdmin: boolean;
+  /** A live facilitator of this group. */
+  facilitates: boolean;
+  /** Leads the programme naming the run, or a track lead of it (not an admin). */
+  leads: boolean;
+  /** The sessions the caller was given, while each holds. */
+  givenSessions: string[];
+  /** The group's facilitators and admins: the register's notes are theirs. */
+  readsNotes: boolean;
   sessions: ResolvedSession[];
   session: ResolvedSession;
   members: RegisterMember[];
@@ -563,12 +638,28 @@ async function prepareWrite(
       run,
       runId: gated.runId,
       isAdmin: gated.isAdmin,
+      facilitates: gated.facilitates,
+      leads: gated.leads,
+      givenSessions: gated.givenSessions,
+      readsNotes: gated.readsNotes,
       sessions,
       session,
       members,
       body,
     },
   };
+}
+
+/**
+ * SOMEBODY GIVEN ONE SESSION writes that session's register and no other,
+ * and reaches it only while the grant holds: a session of the group they
+ * were not given is the same 403 as a group they have no part in. Everybody
+ * else the gate admitted writes any session's.
+ */
+function sessionRefusal(ctx: WriteContext): NextResponse | null {
+  if (ctx.isAdmin || ctx.facilitates || ctx.leads) return null;
+  if (ctx.givenSessions.includes(ctx.session.sessionKey)) return null;
+  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 
 /**
@@ -625,6 +716,10 @@ export async function GET(
   }
   const { group, runId } = gated;
   const now = new Date();
+  // Somebody GIVEN a session, and admitted no other way, reads that
+  // session's register and nothing else of the group: no other column, no
+  // session still to come, nobody who left.
+  const onlyGiven = !gated.isAdmin && !gated.facilitates && !gated.leads;
 
   // The run's records too, for who left this group: the lead's grid works
   // that out from the whole run (somebody staff took off is listed where a
@@ -632,7 +727,7 @@ export async function GET(
   const [runSnap, { members, notYetTold }, runRecords] = await Promise.all([
     db.collection("courseRuns").doc(runId).get(),
     loadRegisterMembers(db, runId, groupId, { isAdmin: gated.isAdmin, role: actor.role }),
-    readRunRecords(db, runId),
+    onlyGiven ? Promise.resolve(null) : readRunRecords(db, runId),
   ]);
   if (!runSnap.exists) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
@@ -642,7 +737,9 @@ export async function GET(
   const leaverOnline = new Map(leaving.map((leaver) => [leaver.uid, [] as string[]]));
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const sessions = resolveSessions(run, group);
-  const columns = columnsFor(run, group, sessions, requestedWeek);
+  const columns = onlyGiven
+    ? sessions.filter((session) => gated.givenSessions.includes(session.sessionKey))
+    : columnsFor(run, group, sessions, requestedWeek);
 
   // Three `getAll`s, one round trip: the canonical week docs (titles only),
   // this group's forked copies of the same weeks, and the registers
@@ -658,7 +755,7 @@ export async function GET(
   // session" meets nobody, so nothing is said of it.
   const columnKeys = new Set(columns.map((c) => c.sessionKey));
   const ahead = sessions.filter((s) => {
-    if (s.cancelled || columnKeys.has(s.sessionKey)) return false;
+    if (onlyGiven || s.cancelled || columnKeys.has(s.sessionKey)) return false;
     const { endsAt } = sessionInstants(s);
     return endsAt !== null && endsAt.getTime() > now.getTime();
   });
@@ -787,6 +884,7 @@ export async function GET(
       finished: Boolean(stateByKey.get(session.sessionKey)?.pushedAt),
     })),
     now,
+    registers: registerBySessionKey,
   });
 
   const leavers: AttendanceLeaver[] = leaving
@@ -820,6 +918,42 @@ export async function GET(
     });
   }
 
+  // Who set each line, who covered, and (for admins and the programme's
+  // lead, never a facilitator of the group, never a run's track lead by that
+  // alone) whether each facilitator was there: the columns' registers only.
+  const columnRegisters = columns
+    .map((column) => registerBySessionKey.get(column.sessionKey))
+    .filter((register): register is CourseAttendanceDoc => register !== undefined);
+  const readsFacilitatorRecord = readsFacilitatorRecordOf(gated);
+  const [extras, facilitators] = await Promise.all([
+    registerCoverExtras(db, {
+      registers: columnRegisters,
+      rows: memberUids,
+      viewer: { uid: actor.uid, isAdmin: gated.isAdmin, role: actor.role },
+      readsFacilitatorRecord,
+      now,
+    }),
+    standingFacilitators(db, group, { isAdmin: gated.isAdmin, role: actor.role }),
+  ]);
+  const caller: AttendanceCaller = {
+    standing: gated.isAdmin ? "admin" : gated.facilitates ? "facilitator" : gated.leads ? "lead" : "given",
+    facilitates: gated.facilitates,
+    readsNotes: gated.readsNotes,
+    readsFacilitatorRecord,
+    sessions: Object.fromEntries(
+      columns.map((column) => {
+        const access = registerSessionAccess(gated, {
+          uid: actor.uid,
+          sessionKey: column.sessionKey,
+          cover: registerBySessionKey.get(column.sessionKey)?.cover ?? null,
+          now,
+        });
+        const { writes, checksIn, readsCheckInTotals, reports, holdsCover } = access;
+        return [column.sessionKey, { writes, checksIn, readsCheckInTotals, reports, holdsCover }];
+      }),
+    ),
+  };
+
   const payload: AttendancePayload = {
     group: { id: group.id, name: group.name },
     sessions: columns.map((c) => {
@@ -838,6 +972,9 @@ export async function GET(
         held: !c.cancelled && (state?.held ?? true),
         notes: state?.notes ?? "",
         pushedAt: state?.pushedAt ?? null,
+        facilitatorStarted: startedByFacilitator(registerBySessionKey.get(c.sessionKey) ?? null, group.facilitatorUids),
+        startsAt: sessionInstants(c).startsAt?.toISOString() ?? null,
+        endsAt: sessionInstants(c).endsAt?.toISOString() ?? null,
       };
     }),
     members,
@@ -850,6 +987,11 @@ export async function GET(
     canEditPushed: gated.isAdmin,
     ending,
     cantMakeIt,
+    setBy: extras.setBy,
+    covers: extras.covers,
+    ...(extras.facilitatorRecord ? { facilitatorRecord: extras.facilitatorRecord } : {}),
+    facilitators: facilitators.map((each) => ({ ...each, you: each.uid === actor.uid })),
+    caller,
   };
 
   return NextResponse.json(payload);
@@ -863,6 +1005,31 @@ export async function GET(
 class RegisterFullError extends Error {}
 /** POST met a register that has already been pushed. */
 class RegisterLockedError extends Error {}
+/** POST by somebody given the session, met a grant that no longer holds. */
+class RegisterNotYoursError extends Error {}
+/** POST asked a session to be marked as not held, which Change this week now does. */
+class NotHeldMovedError extends Error {}
+/** POST met a session the group, read in the transaction, no longer holds as it did. */
+class SessionChangedError extends Error {
+  constructor(
+    readonly reason: "gone" | "cancelled",
+    readonly dateKey: string,
+  ) {
+    super(reason);
+  }
+}
+
+/** One line's stamp as it is written. */
+type LineSetterStamp = { byUid: string; at: Date; how: LineSetterHow };
+
+/** One facilitator's entry as it is written. */
+type FacilitatorPresenceStamp = {
+  state: "there" | "late" | "not-there";
+  arrivedAt?: Date;
+  byUid: string;
+  at: Date;
+  how: "cover" | "arrived" | "finish" | "changed";
+};
 /** PATCH met a session nobody has opened a register for. */
 class RegisterMissingError extends Error {}
 /** PATCH met a register that is still the facilitator's draft. */
@@ -878,9 +1045,11 @@ export async function POST(
   const { groupId } = await ctx.params;
   const prepared = await prepareWrite(groupId, req);
   if (!prepared.ok) return prepared.response;
+  const notYours = sessionRefusal(prepared.ctx);
+  if (notYours) return notYours;
   const cancelled = cancelledSessionRefusal(prepared.ctx);
   if (cancelled) return cancelled;
-  const { actor, db, runId, session, members, body } = prepared.ctx;
+  const { actor, db, runId, session, members, body, group, facilitates } = prepared.ctx;
 
   const parsedMarks = parseMarks(body.marks);
   if (!parsedMarks.ok) {
@@ -896,6 +1065,11 @@ export async function POST(
   const hasNotes = body.notes !== undefined;
   let notes = "";
   if (hasNotes) {
+    // The register's notes are its facilitators' and admins': somebody
+    // leading the programme, or given the session, saves marks only.
+    if (!prepared.ctx.readsNotes) {
+      return NextResponse.json({ error: REGISTER_COVER_REFUSAL.notes }, { status: 403 });
+    }
     const parsed = parseNotes(body.notes);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
     notes = parsed.value;
@@ -908,14 +1082,19 @@ export async function POST(
   const rosterError = checkMarksAgainstRoster(wanted, members, session.weekNumber);
   if (rosterError) return NextResponse.json({ error: rosterError }, { status: 400 });
 
+  // Somebody who is not one of the group's facilitators may take the register
+  // in their place with this save: the facilitators whose place it would take
+  // are the ones who stand behind the role now, read before the transaction.
+  const coverable = facilitates ? [] : await facilitatorsByFirstName(db, group);
+
   const ref = db
     .collection("courseAttendance")
     .doc(attendanceDocId(runId, groupId, session.weekNumber, session.occurrence));
-  const { startsAt } = sessionInstants(session);
   // The register's OWN value after the write, not the request's: a POST that
   // sends no `held` must report what the session actually is rather than
   // assuming the default.
   let held = true;
+  const now = new Date();
 
   try {
     // A TRANSACTION for one document, because the 40-key cap is a property of
@@ -926,12 +1105,30 @@ export async function POST(
     // is counted honestly rather than as 40.
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
+      // THE SESSION AS THE GROUP SAYS IT NOW, read in this transaction: the
+      // start the register keeps (`sessionAt`) and the end a late arrival is
+      // measured against are never worked out from a group read before it,
+      // so a register marked as the group's weeks are re-dated keeps the
+      // session's real start.
+      const fresh = await sessionInTransaction(tx, db, prepared.ctx.run, groupId, session);
+      if (!fresh.ok) throw new SessionChangedError(fresh.reason, fresh.dateKey);
+      const { startsAt, endsAt } = fresh;
       const data = snap.data() ?? {};
       held = hasHeld ? body.held === true : data.held !== false;
       // THE LOCK. A pushed register has already mailed the group and moved the
       // rollups a reviewer reads; a later draft-lane write would leave the two
       // describing different sessions. PATCH is the admin's door.
       if (data.pushedAt) throw new RegisterLockedError();
+      // "It didn't happen" now lives with the two cancels in Change this week:
+      // a NEW not-held is refused; a register that already says it reads and
+      // saves as before.
+      if (hasHeld && body.held === false && data.held !== false) throw new NotHeldMovedError();
+      const stored = normalizeCourseAttendance(snap.id, data);
+      // Somebody given this session holds it only while the grant does: read
+      // again here, against the register as it is now.
+      if (!prepared.ctx.isAdmin && !facilitates && !prepared.ctx.leads && !holdsGivenCover(stored.cover, actor.uid, now)) {
+        throw new RegisterNotYoursError();
+      }
 
       const raw = (data.records ?? {}) as Record<string, unknown>;
       const keys = new Set(Object.keys(raw));
@@ -979,6 +1176,60 @@ export async function POST(
         }
       }
 
+      // WHO SET EACH LINE: a line this save moved (its mark, or where somebody
+      // who came was) is stamped with who saved it and when; a line it cleared
+      // loses its stamp; a line it did not move keeps the one it had.
+      const stamps: Record<string, LineSetterStamp | FieldValue> = {};
+      let changedLines = 0;
+      for (const [uid, status] of wanted) {
+        const beforeMark = ATTENDANCE_STATUSES.includes(recordsBefore[uid] as AttendanceStatus)
+          ? (recordsBefore[uid] as AttendanceStatus)
+          : null;
+        const beforeOnline = typeof onlineBefore[uid] === "boolean" ? (onlineBefore[uid] as boolean) : undefined;
+        const afterOnline = cameBy(status) ? (where[uid] as boolean) : undefined;
+        if (!lineMoved({ mark: beforeMark, online: beforeOnline }, { mark: status, online: afterOnline })) continue;
+        if (status === null) {
+          if (stored.setBy[uid]) stamps[uid] = FieldValue.delete();
+        } else {
+          stamps[uid] = { byUid: actor.uid, at: now, how: setterHow(facilitates) };
+          changedLines += 1;
+        }
+      }
+
+      // TAKEN IN A FACILITATOR'S PLACE: an admin's or a lead's first line on a
+      // register nobody covered and none of its facilitators has started
+      // stamps the cover in the same write, so a register is never taken in
+      // somebody's place without the record, and the facilitators whose place
+      // it takes are recorded as not there.
+      const takesCover =
+        !facilitates &&
+        saveTakesCover({
+          changedLines,
+          cover: stored.cover,
+          markedByUid: stored.markedByUid,
+          setBy: stored.setBy,
+          facilitatorUids: prepared.ctx.group.facilitatorUids,
+        });
+      const presence: Record<string, FacilitatorPresenceStamp> = {};
+      if (takesCover) {
+        for (const facilitator of coverable) {
+          if (stored.facilitatorRecord[facilitator.uid]) continue;
+          presence[facilitator.uid] = { state: "not-there", byUid: actor.uid, at: now, how: "cover" };
+        }
+      }
+      // A facilitator recorded not there because somebody covered for them,
+      // saving anything during the session, arrived late, at this moment.
+      if (facilitates) {
+        const arrived = presenceOnSave({
+          uid: actor.uid,
+          cover: stored.cover,
+          entry: stored.facilitatorRecord[actor.uid],
+          now,
+          endsAt,
+        });
+        if (arrived) presence[actor.uid] = { ...arrived, byUid: actor.uid, at: now, how: "arrived" };
+      }
+
       tx.set(
         ref,
         {
@@ -990,6 +1241,11 @@ export async function POST(
           records,
           ...(Object.keys(toldTakenOver).length > 0 ? { [EXCUSED_IN_ADVANCE]: toldTakenOver } : {}),
           ...(Object.keys(where).length > 0 ? { [ONLINE]: where } : {}),
+          ...(Object.keys(stamps).length > 0 ? { [SET_BY]: stamps } : {}),
+          ...(takesCover
+            ? { [COVER]: { kind: "self", byUid: actor.uid, at: now, covering: coverable.map((each) => each.uid) } }
+            : {}),
+          ...(Object.keys(presence).length > 0 ? { [FACILITATOR_RECORD]: presence } : {}),
           markedByUid: actor.uid,
           updatedAt: FieldValue.serverTimestamp(),
           ...(hasHeld ? { held: body.held === true } : {}),
@@ -1000,8 +1256,39 @@ export async function POST(
         },
         { merge: true },
       );
+      if (takesCover) {
+        tx.set(
+          db.collection(COURSE_AUDIT_COLLECTION).doc(),
+          groupHistoryRow({
+            kind: "register-covered",
+            run: { id: runId },
+            group: prepared.ctx.group,
+            actor,
+            detail: tookDetail(session.weekNumber, coverable.map((each) => each.firstName), ""),
+            weekId: session.weekId,
+            after: { kind: "self", covering: coverable.length },
+          }),
+        );
+      }
     });
   } catch (err) {
+    if (err instanceof RegisterNotYoursError) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (err instanceof SessionChangedError) {
+      return NextResponse.json(
+        {
+          error:
+            err.reason === "cancelled"
+              ? didNotHappenLine(group.name.trim() || "This group", err.dateKey)
+              : `Week ${session.weekNumber} isn't a taught session of this group's schedule.`,
+        },
+        { status: 409 },
+      );
+    }
+    if (err instanceof NotHeldMovedError) {
+      return NextResponse.json({ error: REGISTER_COVER_REFUSAL.didNotHappen }, { status: 409 });
+    }
     if (err instanceof RegisterLockedError) {
       return NextResponse.json(
         {
@@ -1200,16 +1487,23 @@ export async function PATCH(
       if (moved.length > 0 || heldAfter !== heldBefore || notesMoved) {
         const records: Record<string, AttendanceStatus | FieldValue> = {};
         const where: Record<string, boolean | FieldValue> = {};
+        // Each corrected line says who corrected it and when; a line the
+        // correction cleared loses its stamp.
+        const stamps: Record<string, LineSetterStamp | FieldValue> = {};
+        const setBefore = (data[SET_BY] ?? {}) as Record<string, unknown>;
         for (const [uid, status] of moved) {
           records[uid] = status === null ? FieldValue.delete() : status;
           if (cameBy(status)) where[uid] = onlineNow.get(uid) === true;
           else if (Object.hasOwn(onlineStored, uid)) where[uid] = FieldValue.delete();
+          if (status !== null) stamps[uid] = { byUid: actor.uid, at: now, how: "correction" };
+          else if (Object.hasOwn(setBefore, uid)) stamps[uid] = FieldValue.delete();
         }
         tx.set(
           ref,
           {
             records,
             ...(Object.keys(where).length > 0 ? { [ONLINE]: where } : {}),
+            ...(Object.keys(stamps).length > 0 ? { [SET_BY]: stamps } : {}),
             ...(hasHeld ? { held: heldAfter } : {}),
             ...(notesMoved ? { notes } : {}),
             updatedAt: FieldValue.serverTimestamp(),

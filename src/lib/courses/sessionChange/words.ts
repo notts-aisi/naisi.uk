@@ -479,6 +479,14 @@ export type OneWeekNotice =
     }
   | { kind: "online"; weekNumber: number; dateKey: string; hhmm: string }
   | { kind: "cancel"; weekNumber: number; next: { weekNumber: number; dateKey: string } | null }
+  /** Cancelled after its time had passed: it did not happen. */
+  | {
+      kind: "didNotHappen";
+      weekNumber: number;
+      /** The day it was due on. */
+      dateKey: string;
+      next: { weekNumber: number; dateKey: string; hhmm: string; room: string } | null;
+    }
   | { kind: "push"; weekNumber: number; fromDateKey: string; newDateKey: string; lastDateKey: string }
   | { kind: "restore"; weekNumber: number; dateKey: string; hhmm: string; room: string }
   | {
@@ -547,6 +555,16 @@ export function oneWeekNoticeWords(
           why,
         ),
       };
+    case "didNotHappen": {
+      const met = context.incubator
+        ? `There was no session on ${dayWords(change.dateKey)}.`
+        : `${context.groupName} didn’t meet on ${dayWords(change.dateKey)}.`;
+      const next = change.next;
+      const still = next
+        ? `Week ${next.weekNumber} is still ${[dayWords(next.dateKey), clockWords(next.hhmm), next.room.trim()].filter(Boolean).join(", ")}, and week ${n}’s work is still on your programme page.`
+        : `Week ${n}’s work is still on your programme page.`;
+      return { title: `No session for week ${n}`, message: lines(`${met} ${still}`, why) };
+    }
     case "push":
       return {
         title: `Week ${n} moves to next week, and the rest follow`,

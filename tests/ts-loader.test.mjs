@@ -1372,6 +1372,12 @@ const USERS = new Map([
       "later privacy version is told rather than asked is held before a later version exists",
   ],
   [
+    "course-register-cover-pages.test.mjs",
+    "it executes the pure page model and words of covering a register (src/lib/courses/registerCover/pageModel.ts " +
+      "and pageWords.ts), because which weeks offer the ways to take a register, whose place a line names, who set " +
+      "each line in the London clock and what the check before Finish lists are worked out by running them",
+  ],
+  [
     "policy-update-line.test.mjs",
     "it executes `policyUpdateLine` (src/lib/legal/updateLine.ts) against the real policy list and against lists " +
       "with `./policies` stubbed to other dates, because whether Home and /privacy say the policy changed is worked " +

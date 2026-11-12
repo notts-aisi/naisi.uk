@@ -285,13 +285,14 @@ export const NO_HISTORY_LINE =
 
 export const WHO_CHANGED_WHAT = "Who changed what";
 
-export type HistoryFilter = "everything" | "time-and-room" | "people" | "link";
+export type HistoryFilter = "everything" | "time-and-room" | "people" | "link" | "registers";
 
 export const HISTORY_FILTERS: readonly { value: HistoryFilter; label: string }[] = [
   { value: "everything", label: "Everything" },
   { value: "time-and-room", label: "Time and room" },
   { value: "people", label: "People" },
   { value: "link", label: "Link" },
+  { value: "registers", label: "Registers" },
 ];
 
 /** A filter that leaves nothing: "Nothing under Link yet." */

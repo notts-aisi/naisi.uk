@@ -183,6 +183,8 @@ function drawnConfirm(payload, sessionKey) {
 
 const FACILITATOR = { [GROUP.b]: "rahul", [GROUP.a]: "amelia" };
 const LEAD = "claudia";
+/** A facilitator on another run: no part in these groups. */
+const OUTSIDER = "pia";
 const ADMIN = "zach";
 const IN_GROUP = { [GROUP.b]: ["amara", "chloe", "farah"], [GROUP.a]: ["ana"] };
 const address = (uid) => `${uid}@example.com`;
@@ -235,12 +237,15 @@ async function pressTogether(groupId, weekNumber, { by = FACILITATOR[groupId] } 
   const confirm = drawnConfirm(before, key(weekNumber));
   assert.equal(confirm.first, pushEmailSentence(before.group.name, line), "the confirm does not say the GET's answer");
 
-  // The lead reads the register, and may not push it.
+  // CHANGED ON PURPOSE (November 2026): this was the lead's press, refused.
+  // The lead now takes a register in a facilitator's place and may finish
+  // it, so the refused press is a facilitator of the other run's group's,
+  // which reads nothing here and pushes nothing.
   const mailBefore = world.mail.length;
-  const refused = await call(LEAD, push.POST, { groupId }, { body: { weekNumber, occurrence: 1 } });
-  assert.equal(refused.status, 403, `the lead pushed a register: ${JSON.stringify(refused.body)}`);
-  assert.equal(world.mail.length, mailBefore, "the lead's refused press emailed somebody");
-  assert.ok(!read(registerPath(groupId, weekNumber))?.pushedAt, "the lead's refused press locked the register");
+  const refused = await call(OUTSIDER, push.POST, { groupId }, { body: { weekNumber, occurrence: 1 } });
+  assert.equal(refused.status, 403, `somebody with no part in the group pushed its register: ${JSON.stringify(refused.body)}`);
+  assert.equal(world.mail.length, mailBefore, "the refused press emailed somebody");
+  assert.ok(!read(registerPath(groupId, weekNumber))?.pushedAt, "the refused press locked the register");
 
   const pressed = await call(by, push.POST, { groupId }, { body: { weekNumber, occurrence: 1 } });
   const sent = world.mail.slice(mailBefore);

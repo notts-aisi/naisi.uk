@@ -18,7 +18,9 @@ import { readCoursesConfig, type CoursesConfig } from "@/lib/firestore/config";
 import {
   attendanceDocId,
   normalizeCourseAttendance,
+  type CourseAttendanceDoc,
 } from "@/lib/firestore/courseAttendance";
+import { chaseTargets } from "@/lib/courses/registerCover/model";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import {
   normalizeCourseRun,
@@ -56,6 +58,13 @@ import type { JobContext, JobRegistration, JobResult } from "../registry";
  * are not archived. "Not finished" is the task job's own predicate
  * (`isRegisterUnmarked`): not pushed, unless the facilitator has said the
  * session did not happen. A finished register is never reminded about.
+ *
+ * ── WHO ─────────────────────────────────────────────────────────────────────
+ * `chasedUids`: once somebody took the register in a facilitator's place,
+ * never the facilitators whose place was taken, but the person who took it
+ * (a lead or an admin) or, for a session given to somebody, the person who
+ * gave it (the grant has ended by then). With no cover, the facilitator who
+ * last saved it when one did, else every facilitator of the group, as before.
  *
  * ── ONE EACH ────────────────────────────────────────────────────────────────
  * One marker per facilitator per session
@@ -145,7 +154,82 @@ export async function resolveFacilitator(
   return { to: email, name: firstNameOfUser(data) };
 }
 
-/** One session's facilitators, each reminded once. */
+/** The roles of an approved account: somebody who took or gave a register is held to this floor. */
+const APPROVED_ROLES = new Set(["member", "committee", "admin"]);
+
+/**
+ * Everything one reminder needs for somebody who is NOT one of the group's
+ * facilitators: the person who took the register in a facilitator's place,
+ * or who gave the session to somebody covering. The same questions as
+ * `resolveFacilitator` but the role's own bar, which is an approved account:
+ * an address, their own "Tasks and worksheets" switch, the do-not-email list.
+ */
+async function resolveCoverer(db: Firestore, uid: string): Promise<{ to: string; name: string } | { skip: string }> {
+  if (!uid || uid.includes("/")) return { skip: "no-account" };
+  const snap = await db.collection("users").doc(uid).get();
+  if (!snap.exists) return { skip: "no-account" };
+  const data = (snap.data() ?? {}) as Record<string, unknown>;
+  if (!APPROVED_ROLES.has(typeof data.role === "string" ? data.role : "")) return { skip: "no-standing" };
+  const email = typeof data.email === "string" ? data.email.trim() : "";
+  if (!email) return { skip: "no-address" };
+  if (!wantsEmailForProfile(data.profile, "tasks")) return { skip: "opted-out" };
+  try {
+    if (await isSuppressed(db, email)) return { skip: "suppressed" };
+  } catch {
+    return { skip: SUPPRESSION_UNREADABLE };
+  }
+  return { to: email, name: firstNameOfUser(data) };
+}
+
+/**
+ * One person a reminder about this register goes to: a facilitator of the
+ * group through `resolveFacilitator`, anybody else (who took or gave it)
+ * through `resolveCoverer`.
+ */
+export async function resolveChased(
+  db: Firestore,
+  uid: string,
+  group: Pick<CourseGroupDoc, "facilitatorUids">,
+): Promise<{ to: string; name: string } | { skip: string }> {
+  if (group.facilitatorUids.includes(uid)) return resolveFacilitator(db, uid, group.facilitatorUids);
+  return resolveCoverer(db, uid);
+}
+
+/**
+ * WHO A REGISTER'S REMINDER IS ABOUT (`chaseTargets`), by uid, in order.
+ *
+ *  - Covered: the person who took it, or who gave it; never the facilitators
+ *    whose place was taken.
+ *  - Not covered, last saved by a facilitator of the group with standing:
+ *    that facilitator alone.
+ *  - Otherwise: every facilitator of the group, exactly as before covers
+ *    existed (each still held to their bar by `resolveFacilitator`).
+ *
+ * Markers stay keyed as ever (`regremind__{groupId}__{sessionKey}__{uid}`),
+ * so nothing already sent is sent again.
+ */
+export async function chasedUids(
+  db: Firestore,
+  group: Pick<CourseGroupDoc, "facilitatorUids">,
+  register: Pick<CourseAttendanceDoc, "cover" | "markedByUid"> | null,
+): Promise<string[]> {
+  const markedBy = register?.markedByUid ?? "";
+  let saverStands = false;
+  if (markedBy && group.facilitatorUids.includes(markedBy)) {
+    const snap = await db.collection("users").doc(markedBy).get();
+    saverStands =
+      snap.exists &&
+      isNamedWithStanding(standingUserOf(markedBy, (snap.data() ?? {}) as Record<string, unknown>), "courseGroups.facilitatorUids", group.facilitatorUids);
+  }
+  const targets = chaseTargets({
+    cover: register?.cover ?? null,
+    markedByUid: markedBy,
+    facilitatorsWithStanding: saverStands ? [markedBy] : [],
+  });
+  return targets.kind === "facilitators" ? [...new Set(group.facilitatorUids)] : targets.uids;
+}
+
+/** One session's chase: the people `chasedUids` names, each reminded once. */
 async function remindForSession(
   state: TickState,
   run: CourseRunDoc,
@@ -154,12 +238,13 @@ async function remindForSession(
   startsAt: Date,
   endsAt: Date,
   pass: Pass,
+  register: CourseAttendanceDoc | null,
 ): Promise<"done" | "out-of-time"> {
   const { db, ctx, config } = state;
   const dueAt = followUpDueAt(endsAt, config.unmarkedRegisterGraceHours);
   let facts: RegisterReminderFacts | null = null;
 
-  for (const uid of [...new Set(group.facilitatorUids)]) {
+  for (const uid of await chasedUids(db, group, register)) {
     if (Date.now() >= state.deadlineMs || pass.sent >= ctx.maxPerTick) return "out-of-time";
     const marker = registerReminderMarker(group.id, session.sessionKey, uid);
     const outcome = await claim(db, marker, { job: JOB_ID, policy: ctx.policy });
@@ -171,7 +256,7 @@ async function remindForSession(
         pass.skipped += 1;
         continue;
       }
-      const person = await resolveFacilitator(db, uid, group.facilitatorUids);
+      const person = await resolveChased(db, uid, group);
       if ("skip" in person) {
         await stampSkipped(db, marker.id, person.skip, ctx.now);
         pass.skipped += 1;
@@ -230,7 +315,8 @@ async function remindForGroup(
   pass: Pass,
 ): Promise<"done" | "out-of-time"> {
   const { db, ctx, config } = state;
-  if (group.facilitatorUids.length === 0) return "done";
+  // A group with nobody facilitating it is still chased when somebody took
+  // a register in its place: `chasedUids` names who, and nobody when none.
   // A session cancelled through "Change a session" met nobody: no reminder.
   const due = resolveSessions(run, group)
     .filter((session) => !session.cancelled)
@@ -260,7 +346,7 @@ async function remindForGroup(
     });
     if (!unfinished) continue;
     const { session, startsAt, endsAt } = due[i];
-    if ((await remindForSession(state, run, group, session, startsAt, endsAt, pass)) === "out-of-time") {
+    if ((await remindForSession(state, run, group, session, startsAt, endsAt, pass, register)) === "out-of-time") {
       return "out-of-time";
     }
   }

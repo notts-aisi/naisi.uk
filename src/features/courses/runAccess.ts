@@ -13,6 +13,8 @@ import {
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { weekOneDoorFor, type PlaceBeforeGroups } from "@/lib/courses/weekOne/door";
+import { holdsGivenCover } from "@/lib/courses/registerCover/model";
+import { normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
 
 /**
  * The learning space's server-side gate: who is asking, which run, and what
@@ -277,4 +279,36 @@ export const getLeftRuns = cache(async (): Promise<RunAccess[]> => {
   }
   const accesses = await Promise.all([...runIds].map((runId) => getRunAccess(runId)));
   return accesses.filter((access): access is RunAccess => access !== null && access.hasLeft);
+});
+
+/** Most registers of one run a person could be given sessions on at once, for the one query that finds them. */
+const MAX_GIVEN_ON_RUN = 20;
+
+/**
+ * SOMEBODY GIVEN ONE SESSION OF THIS RUN, while the grant holds: a register
+ * of one of the run's groups whose cover names them as the person given it
+ * (`holdsGivenCover`), for the run's layout to let them through to that
+ * session's register, its check-in and its report, and nothing else. Any
+ * approved account may be given a session, so they may hold no other role on
+ * the run. Every other page under the run narrows to its own predicate
+ * (`canLearn`, a facilitator of the group, a reviewer) and sends them away.
+ *
+ * One equality query on two fields (`runId`, `cover.byUid`), which needs no
+ * declared index, asked only of somebody the run admits no other way.
+ */
+export const holdsGivenSessionOn = cache(async (runId: string, uid: string): Promise<boolean> => {
+  if (!runId || runId.includes("/") || !uid) return false;
+  const db = getAdminDb();
+  if (!db) return false;
+  const snap = await db
+    .collection("courseAttendance")
+    .where("runId", "==", runId)
+    .where("cover.byUid", "==", uid)
+    .limit(MAX_GIVEN_ON_RUN)
+    .get();
+  const now = new Date();
+  return snap.docs.some((doc) => {
+    const register = normalizeCourseAttendance(doc.id, doc.data() ?? {});
+    return register.runId === runId && holdsGivenCover(register.cover, uid, now);
+  });
 });

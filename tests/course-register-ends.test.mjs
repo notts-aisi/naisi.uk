@@ -555,7 +555,7 @@ describe("the reminder to the facilitators, 36 hours after the session ends", ()
     const text = await textOf(message);
     assert.match(text, /Group B’s register for Tue 20 Oct isn’t pushed yet\./);
     assert.match(text, /Push attendance to lock the register/);
-    assert.match(text, /If the session didn’t happen, the register can say so, and it still needs pushing\./);
+    assert.match(text, /If the session didn’t happen, say so with Change one week on the group’s page, and nobody is reminded about this register again\./);
     assert.match(text, /If it’s still not pushed 60 hours after the session, Claudia and admins get a task\./);
     assert.doesNotMatch(text, /finish/i);
     assert.match(text, /learn\/agi-strategy-fellowship-autumn-2026__run00001\/group\/autumn-2026-group-b__grp0000b/);
@@ -571,7 +571,7 @@ describe("the reminder to the facilitators, 36 hours after the session ends", ()
     const text = await textOf(message);
     assert.match(text, /Group B’s register for Tue 20 Oct isn’t finished yet\./);
     assert.match(text, /Finish the register to lock it and show everyone their mark\. Nobody’s emailed\./);
-    assert.match(text, /If the session didn’t happen, the register can say so, and it still needs finishing\./);
+    assert.match(text, /If the session didn’t happen, say so with Change one week on the group’s page, and nobody is reminded about this register again\./);
     assert.match(text, /If it’s still not finished 60 hours after the session, Claudia and admins get a task\./);
     assert.doesNotMatch(text, /push/i);
   });
@@ -581,10 +581,15 @@ describe("the reminder to the facilitators, 36 hours after the session ends", ()
     switches({ scheduled: true });
     await markAll("rahul", GROUP.b, 1, MEMBERS_B);
     await finish("rahul", GROUP.b, 1);
-    const held = await call("amelia", register.POST, { groupId: GROUP.a }, {
-      body: { weekNumber: 1, held: false },
-    });
-    assert.equal(held.status, 200, JSON.stringify(held.body));
+    // CHANGED ON PURPOSE (November 2026): this pressed the register's
+    // not-held switch, which no longer takes a NEW not-held ("It didn't
+    // happen" is Change this week's two cancels, and a session called off
+    // that way is held not chased in tests/course-register-did-not-happen.test.mjs).
+    // A register that already says it did not happen reads as before, so it
+    // is written here as one written before the switch moved.
+    world.db.seed(registerPath(GROUP.a, 1), { runId: RUN, groupId: GROUP.a, weekNumber: 1, records: {}, held: false, markedByUid: "amelia" });
+    const held = await call("amelia", register.POST, { groupId: GROUP.a }, { body: { weekNumber: 1, held: false } });
+    assert.equal(held.status, 200, `saying it again is not new: ${JSON.stringify(held.body)}`);
     await runJob(registerRemindersJob, new Date("2026-10-21T07:00:00Z"));
     await runJob(registerRemindersJob, afterEnd(36));
     for (const uid of ["rahul", "sofia", "amelia"]) assert.equal(mailTo(uid).length, 0, uid);
@@ -658,8 +663,16 @@ describe("the task for the lead and the admins, 60 hours after the session ends"
 // ===========================================================================
 
 describe("who may finish a register", () => {
-  test("a facilitator of another group, the lead, a member and a pending account are refused", async () => {
-    for (const who of ["amelia", "claudia", "amara", "wen", "nell"]) {
+  // CHANGED ON PURPOSE (November 2026): the lead was refused here too. The
+  // lead now takes a register in a facilitator's place (marks only), so the
+  // lead's press of an empty register meets the empty register's refusal,
+  // and nothing is written either way: tests/course-register-cover.test.mjs
+  // holds what the lead may do.
+  test("a facilitator of another group, a member and a pending account are refused; the lead's empty press writes nothing", async () => {
+    const lead = await finish("claudia", GROUP.b, 1);
+    assert.equal(lead.status, 400);
+    assert.match(lead.body.error, /^Mark the register before pushing it\./);
+    for (const who of ["amelia", "amara", "wen", "nell"]) {
       const finished = await finish(who, GROUP.b, 1);
       assert.equal(finished.status, 403, `${who} may not finish Group B's register`);
       const tapped = await call(who, register.POST, { groupId: GROUP.b }, {

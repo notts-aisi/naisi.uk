@@ -16,6 +16,8 @@ import { missingWeekOpenWords } from "@/lib/courses/weekEmails/words";
 import { courseNudgeSessionWhere } from "@/lib/email/courseNudgeEmail";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { readCoursesConfig } from "@/lib/firestore/config";
+import type { CourseAttendanceDoc } from "@/lib/firestore/courseAttendance";
+import { chasedUids } from "@/lib/scheduler/jobs/registerReminders";
 import { sessionModeForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { readSchedulerConfig } from "@/lib/firestore/schedulerConfig";
@@ -93,7 +95,11 @@ export type RegisterEnding = {
   pushEmails: Record<string, PushEmailLine>;
   /** "Week N is open" for the session after the focus. Only while it is on its schedule. */
   nextEmail: NextEmailLine | null;
-  /** The facilitators' reminder, when its job is on and the group has facilitators. */
+  /**
+   * The reminder, when its job is on: the first names it goes to about the
+   * focus (every facilitator; the one who last saved it; or, once somebody
+   * covered it, whoever took or gave it, never the facilitators covered).
+   */
   reminder: { hours: number; names: string[] } | null;
   /** The lead's and admins' task, when its job is on. "" when the run has no lead. */
   task: { hours: number; leadName: string } | null;
@@ -131,6 +137,14 @@ async function facilitatorNames(db: Firestore, group: CourseGroupDoc): Promise<s
     if (name) names.push(name);
   }
   return names;
+}
+
+/** The first names of these accounts, in order; an account with none is left out. */
+async function firstNamesOf(db: Firestore, uids: readonly string[]): Promise<string[]> {
+  const wanted = uids.filter((uid) => uid && !uid.includes("/"));
+  if (wanted.length === 0) return [];
+  const snaps = await db.getAll(...wanted.map((uid) => db.collection("users").doc(uid)));
+  return snaps.filter((snap) => snap.exists).map((snap) => firstNameOfUser((snap.data() ?? {}) as Record<string, unknown>)).filter(Boolean);
 }
 
 /** A stored instant, from a Timestamp or a Date, or null. */
@@ -196,6 +210,12 @@ export async function readRegisterEnding(
     /** The register's columns, with whether each is finished. */
     columns: readonly EndingColumn[];
     now: Date;
+    /**
+     * The columns' registers as stored, by session key, for who the reminder
+     * about the focus goes to once somebody covered it or a facilitator last
+     * saved it (`chasedUids`). Left out, the reminder names every facilitator.
+     */
+    registers?: ReadonlyMap<string, CourseAttendanceDoc>;
   },
 ): Promise<RegisterEnding> {
   const { run, group, sessions, columns, now } = args;
@@ -240,8 +260,20 @@ export async function readRegisterEnding(
       ? await nextEmailLineFor(db, { run, group, sessions, session: nextSession, config, now })
       : null;
 
+  // Who the reminder goes to about the focus: the job's own answer once a
+  // register was covered or last saved by one facilitator, else every
+  // facilitator who stands behind the role, as before.
+  const focusRegister = focus && !focus.finished ? (args.registers?.get(focus.sessionKey) ?? null) : null;
+  const reminderNames = async (): Promise<string[]> => {
+    if (focusRegister && (focusRegister.cover || focusRegister.markedByUid)) {
+      const uids = await chasedUids(db, group, focusRegister);
+      const everyFacilitator = !focusRegister.cover && uids.length === new Set(group.facilitatorUids).size;
+      if (!everyFacilitator) return firstNamesOf(db, uids);
+    }
+    return facilitatorNames(db, group);
+  };
   const [names, lead] = await Promise.all([
-    switches.remindersOn ? facilitatorNames(db, group) : Promise.resolve([] as string[]),
+    switches.remindersOn ? reminderNames() : Promise.resolve([] as string[]),
     switches.tasksOn ? readRunLead(db, run.id) : Promise.resolve(null),
   ]);
 
@@ -254,7 +286,7 @@ export async function readRegisterEnding(
     nextEmail,
     // The job skips a group with nobody facilitating it, so the page does too.
     reminder:
-      switches.remindersOn && group.facilitatorUids.length > 0
+      switches.remindersOn && (group.facilitatorUids.length > 0 || names.length > 0)
         ? { hours: config.unmarkedRegisterGraceHours, names }
         : null,
     task: switches.tasksOn ? { hours: config.registerTaskHours, leadName: lead?.firstName ?? "" } : null,
