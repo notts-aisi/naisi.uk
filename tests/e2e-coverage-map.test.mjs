@@ -445,6 +445,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
   },
+  "/api/admin/members/[uid]/conduct-flag/open": {
+    reason:
+      "Admin CRUD: /api/admin/members/[uid]/conduct-flag/open is an admin opening one member's conduct record on that member's page, and its failure lands on that admin's own screen; tests/member-conduct-flag.test.mjs runs the real handler, the recorded opening and the refusal when it cannot be recorded.",
+    coverWhen:
+      "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
+  },
   "/api/admin/membership/export": {
     reason:
       "Membership: the column matching behind /api/admin/membership/export is a guess until a real Students' Union export exists to match against.",

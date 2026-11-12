@@ -2462,7 +2462,10 @@ export async function deleteAccountCascade(
 
   // The conduct flag. Addressed at the uid, so no query and no index. It
   // carries a free-text allegation about a named person, which has no reason
-  // to outlive the account it describes.
+  // to outlive the account it describes. The record of each time an admin
+  // opened it (`recordOpenings`, kind `conduct-flag`) stays, as the other
+  // openings do: it names the account by an id that no longer resolves, and
+  // nothing the flag said.
   try {
     const flagRef = db.collection("memberConductFlags").doc(uid);
     if ((await flagRef.get()).exists) {

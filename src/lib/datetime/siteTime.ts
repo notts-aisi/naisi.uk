@@ -67,3 +67,12 @@ const DAY_KEY_FORMAT = new Intl.DateTimeFormat("en-CA", {
 export function isSameSiteDay(a: Date, b: Date): boolean {
   return DAY_KEY_FORMAT.format(a) === DAY_KEY_FORMAT.format(b);
 }
+
+/**
+ * The London calendar day an instant falls on, as "YYYY-MM-DD". Two of them
+ * compare as strings in date order, so a day can be held against a range of
+ * days without turning either back into an instant.
+ */
+export function siteDayKey(date: Date): string {
+  return DAY_KEY_FORMAT.format(date);
+}

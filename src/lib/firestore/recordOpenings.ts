@@ -3,7 +3,7 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 
 /**
  * `recordOpenings/{autoId}`: ONE ROW EACH TIME AN ADMIN OPENS ONE PERSON'S
- * CONFIDENTIAL RECORD. Two kinds of record today, each with its own writer
+ * CONFIDENTIAL RECORD. Four kinds of record today, each with its own writer
  * here and the same order:
  *
  *  - a person's sealed predictions card on one run
@@ -17,6 +17,10 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
  *    (`kind: "survey-bar"`, "See who"), whose one comment is
  *    (`"survey-comment"`, "Whose is this?"), and its Answers tab, every answer
  *    in one table (`"survey-table"`). Keyed to the survey, never to a run.
+ *  - one person's conduct record, its reason with who set it and when
+ *    (`kind: "conduct-flag"`, `src/lib/firestore/memberConductFlags.ts`),
+ *    written by `openConductFlagRecorded`, keyed to the person alone. Privacy
+ *    policy version 17 says "we record each time one is opened".
  *
  * Another kind of record joins by adding its kind below, and its ids.
  *
@@ -60,6 +64,10 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
  *    has no run at all, and an event's deletion leaves its survey. Names
  *    coming off a survey (`src/lib/surveys/namesOff.ts`) leave its openings
  *    too: they say whose answers were opened, never what they said.
+ *  - NOTHING TAKES AWAY AN OPENING OF A CONDUCT RECORD. Clearing the flag
+ *    deletes the flag and leaves its openings, and deleting the account
+ *    leaves them as it leaves the others: they are the record of who read it
+ *    while it stood, and say nothing it said.
  */
 
 export const RECORD_OPENINGS_COLLECTION = "recordOpenings";
@@ -75,9 +83,11 @@ export type RecordOpeningKind =
   /** Whose one comment on a survey's results is ("Whose is this?"). */
   | "survey-comment"
   /** A survey's Answers tab: every answer, with names, in one table. */
-  | "survey-table";
+  | "survey-table"
+  /** One person's conduct record, with its reason, on their page in the admin area. */
+  | "conduct-flag";
 
-export const RECORD_OPENING_KINDS: readonly RecordOpeningKind[] = ["sealed-predictions", "survey-answers", "survey-bar", "survey-comment", "survey-table"];
+export const RECORD_OPENING_KINDS: readonly RecordOpeningKind[] = ["sealed-predictions", "survey-answers", "survey-bar", "survey-comment", "survey-table", "conduct-flag"];
 
 /** The longest name a row keeps. */
 const MAX_ACTOR_NAME = 120;
@@ -245,6 +255,54 @@ export async function openSurveyNamesRecorded<T>(
   }
   const value = await read();
   return { ok: true, value, openingId: ref.id };
+}
+
+// ---------------------------------------------------------------------------
+// One person's conduct record
+// ---------------------------------------------------------------------------
+
+/** An opening of one person's conduct record, from their page in the admin area. */
+export type ConductFlagOpening = {
+  /** The admin who opened it. */
+  actorUid: string;
+  /** Their name when they opened it. */
+  actorName: string;
+  /** Whose record it is, by account id. */
+  subjectUid: string;
+};
+
+/**
+ * Record that `opening.actorUid` opened `opening.subjectUid`'s conduct record
+ * (`memberConductFlags/{uid}`), THEN read it with `read`: the same order as
+ * `openRecorded`. When the row cannot be written, `read` is never called and
+ * the answer is `{ ok: false }`, so the caller shows nothing of the reason.
+ *
+ * The row holds no `runId` and no survey, so no run's destroy takes it, and
+ * nothing that reads survey openings finds it: those readers keep only their
+ * own kinds. Clearing the flag, or deleting the account, leaves it too (see
+ * the head of this file).
+ */
+export async function openConductFlagRecorded<T>(
+  db: Firestore,
+  opening: ConductFlagOpening,
+  read: () => Promise<T>,
+): Promise<OpenedRecord<T>> {
+  try {
+    await db
+      .collection(RECORD_OPENINGS_COLLECTION)
+      .doc()
+      .create({
+        kind: "conduct-flag",
+        actorUid: opening.actorUid,
+        actorName: opening.actorName.replace(/\s+/g, " ").trim().slice(0, MAX_ACTOR_NAME),
+        subjectUid: opening.subjectUid,
+        openedAt: FieldValue.serverTimestamp(),
+      });
+  } catch (err) {
+    console.error("[record openings] could not record an opening of a conduct record, so nothing was read", err);
+    return { ok: false };
+  }
+  return { ok: true, value: await read() };
 }
 
 // ---------------------------------------------------------------------------
