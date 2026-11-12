@@ -19,6 +19,7 @@ import {
   currentWeekFor,
   isValidDateKey,
 } from "@/lib/courses/weekPlan";
+import { WEEK_PLAN_READ_ONLY } from "@/lib/courses/groupPage/words";
 import {
   normaliseRunWeekIds,
   updateRun,
@@ -64,6 +65,13 @@ type Props = {
    * `status={run.status}` on the `<WeekPlanBuilder>` in `RunEditor.tsx`.
    */
   status?: CourseRunStatus;
+  /**
+   * Publish has sent the run's groups out (`allocationPublishedAt`). The plan
+   * is then read only for everyone, admins included, the way the start date
+   * is: every group's weeks are dated from it, and firestore.rules refuses a
+   * browser write to it from then on.
+   */
+  groupsGoneOut?: boolean;
   runAction: ToastRun;
   onSaved: () => void;
   disabled?: boolean;
@@ -151,6 +159,7 @@ export default function WeekPlanBuilder({
   startDate,
   weekPlan,
   status: statusProp,
+  groupsGoneOut = false,
   runAction,
   onSaved,
   disabled,
@@ -327,6 +336,8 @@ export default function WeekPlanBuilder({
   }
 
   async function save() {
+    // Read only once the groups have gone out: nothing is written from here.
+    if (groupsGoneOut) return;
     // A nameless break renders to the cohort as an unexplained gap in the
     // week rail, so it is caught here rather than shipped.
     const unlabelled = plan.findIndex(
@@ -381,7 +392,8 @@ export default function WeekPlanBuilder({
             "checking whether this run is still a draft" on every open of a
             draft is a notice about the component's plumbing, not about the
             run. A parent that passes `status` never renders this at all. */}
-        {locked && status && (
+        {groupsGoneOut && <p className={styles.warn}>{WEEK_PLAN_READ_ONLY}</p>}
+        {!groupsGoneOut && locked && status && (
           <p className={styles.warn}>
             {`This run is ${COURSE_RUN_STATUS_LABEL[status].toLowerCase()}, so its weeks can no longer be reordered or removed.`}{" "}
             {isAdmin
@@ -389,7 +401,7 @@ export default function WeekPlanBuilder({
               : "An admin can still add a slot at the end."}
           </p>
         )}
-        {locked && status && isAdmin && (
+        {!groupsGoneOut && locked && status && isAdmin && (
           <p className={styles.hint}>
             Adding a slot to a live run moves every later week by seven days.
             Tell the cohort before you save.
@@ -397,7 +409,7 @@ export default function WeekPlanBuilder({
         )}
       </div>
 
-      {!locked && drift.length > 0 && (
+      {!groupsGoneOut && !locked && drift.length > 0 && (
         <div className={styles.drift}>
           <p className={styles.driftTitle}>
             {drift.length === 1
@@ -480,6 +492,8 @@ export default function WeekPlanBuilder({
                     Week {entry.weekNumber}
                     <span className={styles.weekId}>{entry.weekId}</span>
                   </span>
+                ) : groupsGoneOut ? (
+                  <span className={styles.weekName}>{entry.label}</span>
                 ) : (
                   <Input
                     value={entry.label}
@@ -507,38 +521,40 @@ export default function WeekPlanBuilder({
                 )}
               </div>
 
-              <div className={styles.controls}>
-                <button
-                  type="button"
-                  className={styles.iconBtn}
-                  onClick={() => move(i, -1)}
-                  disabled={disabled || !canReshape || i === 0}
-                  aria-label={`Move slot ${i + 1} earlier`}
-                  title={canReshape ? "Move up" : LOCK_TITLE}
-                >
-                  ▲
-                </button>
-                <button
-                  type="button"
-                  className={styles.iconBtn}
-                  onClick={() => move(i, 1)}
-                  disabled={disabled || !canReshape || i === plan.length - 1}
-                  aria-label={`Move slot ${i + 1} later`}
-                  title={canReshape ? "Move down" : LOCK_TITLE}
-                >
-                  ▼
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
-                  onClick={() => removeAt(i)}
-                  disabled={disabled || !canReshape}
-                  aria-label={`Remove slot ${i + 1}`}
-                  title={canReshape ? "Remove" : LOCK_TITLE}
-                >
-                  ✕
-                </button>
-              </div>
+              {!groupsGoneOut && (
+                <div className={styles.controls}>
+                  <button
+                    type="button"
+                    className={styles.iconBtn}
+                    onClick={() => move(i, -1)}
+                    disabled={disabled || !canReshape || i === 0}
+                    aria-label={`Move slot ${i + 1} earlier`}
+                    title={canReshape ? "Move up" : LOCK_TITLE}
+                  >
+                    ▲
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.iconBtn}
+                    onClick={() => move(i, 1)}
+                    disabled={disabled || !canReshape || i === plan.length - 1}
+                    aria-label={`Move slot ${i + 1} later`}
+                    title={canReshape ? "Move down" : LOCK_TITLE}
+                  >
+                    ▼
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+                    onClick={() => removeAt(i)}
+                    disabled={disabled || !canReshape}
+                    aria-label={`Remove slot ${i + 1}`}
+                    title={canReshape ? "Remove" : LOCK_TITLE}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
             </li>
           );
         })}
@@ -547,35 +563,41 @@ export default function WeekPlanBuilder({
       {planError && <p className={styles.error}>{planError}</p>}
 
       <div className={styles.actions}>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={addWeek}
-          disabled={disabled || full || !canGrow}
-          title={canGrow ? undefined : LOCK_TITLE}
-        >
-          Add week
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={addBreak}
-          disabled={disabled || full || !canGrow}
-          title={canGrow ? undefined : LOCK_TITLE}
-        >
-          Add break
-        </Button>
+        {!groupsGoneOut && (
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={addWeek}
+              disabled={disabled || full || !canGrow}
+              title={canGrow ? undefined : LOCK_TITLE}
+            >
+              Add week
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={addBreak}
+              disabled={disabled || full || !canGrow}
+              title={canGrow ? undefined : LOCK_TITLE}
+            >
+              Add break
+            </Button>
+          </>
+        )}
         <span className={styles.spacer} />
         <span className={styles.count}>
           {plan.filter((e) => e.kind === "week").length} weeks ·{" "}
           {plan.filter((e) => e.kind === "break").length} breaks ·{" "}
           {plan.length}/{COURSE_FIELD_LIMITS.maxWeekPlanEntries} slots
         </span>
-        <Button type="button" onClick={save} disabled={disabled || !dirty}>
-          Save week plan
-        </Button>
+        {!groupsGoneOut && (
+          <Button type="button" onClick={save} disabled={disabled || !dirty}>
+            Save week plan
+          </Button>
+        )}
       </div>
     </div>
   );

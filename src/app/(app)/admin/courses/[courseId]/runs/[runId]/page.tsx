@@ -14,8 +14,9 @@ import { getAdminDb } from "@/lib/firebase/admin";
  * has sent the run's groups out (the run's `allocationPublishedAt`, which the
  * editor's own reading of the run does not carry), and which programme names
  * the run, whose Groups tab holds each group's page. Once the groups have gone
- * out the run's start date is read only and each group's day, time and length
- * are words with the way to that page. Nothing about anybody is read.
+ * out the run's start date and week plan are read only and each group's day,
+ * time and length are words with the way to that page. Nothing about anybody
+ * is read.
  */
 export default async function AdminCourseRunPage({
   params,

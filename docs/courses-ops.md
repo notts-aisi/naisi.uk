@@ -2546,6 +2546,22 @@ group meets next, until that evening has passed.
 change route writes it, and no client lane may set it, change it or create a
 group carrying it.
 
+Once a run's groups have gone out (its `allocationPublishedAt` is set), a
+group's time changes only through the routes in this section and the next,
+for every writer, admins included. No browser may then change a group's
+`session.weekday`, `session.startTimeLocal` or `session.durationMinutes`, its
+`sessionOverrides`, `sessionModes`, `sessionChanges`, `paceStartDate`,
+`paceWeekPlan`, `timeQuestionSince` or `runId`, nor the run's `startDate`,
+`weekPlan` or `allocationPublishedAt` (`groupTimeKeptOnceGroupsOut` and
+`runDatesKeptOnceGroupsOut` in `firestore.rules`). The room, the meeting link,
+the notes, the name, the capacity and the campus stay writable from the run
+editor's group card, and the run editor shows the start date and the week plan
+read only. Before the groups go out the rules are as they were. A group write
+reads its run only when it touches one of those fields: at most two documents
+a write (the writer's own and the run), as before for a track lead or a
+facilitator. `scripts/rules-tests/tests/course-told-times.test.mjs` runs each
+field as each kind of writer, before and after.
+
 ## A new regular time, from a week onwards
 
 `POST /api/courses/groups/[groupId]/session/regular`: a group's regular day,

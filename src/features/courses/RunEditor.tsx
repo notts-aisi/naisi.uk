@@ -87,10 +87,11 @@ type Props = {
   runId: string;
   /**
    * Publish has sent the run's groups out (`allocationPublishedAt`, read by
-   * the page on the server). From then on the start date is read only (a new
-   * one would move every group's weeks) and each group card's day, time and
-   * length are words with the way to the group's own page, where a time
-   * changes from a week onwards with its people told.
+   * the page on the server). From then on the start date and the week plan
+   * are read only (every group's weeks are dated from them, and
+   * firestore.rules refuses a browser write to either) and each group card's
+   * day, time and length are words with the way to the group's own page,
+   * where a time changes from a week onwards with its people told.
    */
   groupsGoneOut?: boolean;
   /** The programme naming the run, whose Groups tab holds each group's page; null when none does. */
@@ -1162,6 +1163,7 @@ export default function RunEditor({ courseId, runId, groupsGoneOut = false, grou
           startDate={run.startDate}
           weekPlan={run.weekPlan}
           status={run.status}
+          groupsGoneOut={groupsGoneOut}
           runAction={runAction}
           onSaved={reload}
         />

@@ -472,6 +472,10 @@ export const GO_TO_GROUPS = "Go to Groups";
 export const START_DATE_READ_ONLY =
   "The groups have gone out, so the start date can’t change here: a new one would move every group’s weeks, the ones that met included.";
 
+/** Above the run's week plan once Publish has sent its groups out: why it is read only, and what a group's break is instead. */
+export const WEEK_PLAN_READ_ONLY =
+  `The groups have gone out, so the week plan can’t change here: the groups’ weeks are dated from it. For a break in one group’s weeks, use ${CANCEL_PUSH_BACK} on that group’s page, which never moves a week that has met.`;
+
 /** Above a group card's day, time and length once its run's groups have gone out. */
 export const SLOT_READ_ONLY_LABEL = "Day, time and length";
 

@@ -761,6 +761,31 @@ test("GUARD: the rules pin weekPlan the moment a run stops being a draft", () =>
   assert.match(WEEK_PLAN_BUILDER, /if \(full \|\| !canGrow\) return;/);
 });
 
+test("GUARD: once a run's groups have gone out, its dates and a group's time are the routes' for every writer", () => {
+  // The run's start date and plan, and the stamp that says the groups went
+  // out, on the update rule's OUTER clause, beside runGuideUntouched: admins
+  // ride it too. scripts/rules-tests/tests/course-told-times.test.mjs runs it.
+  assert.match(RULES, /function runDatesKeptOnceGroupsOut\(\)/);
+  assert.match(RULES, /allow update: if runGuideUntouched\(\) && runDatesKeptOnceGroupsOut\(\) && \(isAdmin\(\)/);
+  // A group's time: the slot, the overrides, the server's records of each
+  // change, the pace pair, when answers count from and the run it is in, held
+  // after the admin branch's closing bracket so admins are held too.
+  assert.match(RULES, /function groupTimeUntouched\(\)/);
+  for (const field of ["runId", "sessionOverrides", "sessionModes", "sessionChanges", "paceStartDate", "paceWeekPlan", "timeQuestionSince"]) {
+    assert.match(RULES, new RegExp(`affectedKeys\\(\\)\\.hasAny\\(\\[[^\\]]*'${field}'`), `${field} is not held once groups have gone out`);
+  }
+  for (const field of ["weekday", "startTimeLocal", "durationMinutes"]) {
+    assert.match(RULES, new RegExp(`request\\.resource\\.data\\.get\\(\\['session', '${field}'\\], null\\)`));
+  }
+  assert.match(RULES, /\)\s*&& groupTimeKeptOnceGroupsOut\(\);/);
+  // The affordance half: the run editor hands the builder the fact, and the
+  // builder then offers no control and writes nothing.
+  assert.match(RUN_EDITOR, /groupsGoneOut=\{groupsGoneOut\}/);
+  assert.match(WEEK_PLAN_BUILDER, /async function save\(\) \{\s*\/\/[^\n]*\n\s*if \(groupsGoneOut\) return;/);
+  assert.match(WEEK_PLAN_BUILDER, /\{!groupsGoneOut && \(\s*<Button type="button" onClick=\{save\}/);
+  assert.match(WEEK_PLAN_BUILDER, /\{groupsGoneOut && <p className=\{styles\.warn\}>\{WEEK_PLAN_READ_ONLY\}<\/p>\}/);
+});
+
 /**
  * `status/route.ts`'s `draftExitBlocker`, reproduced. The route counts drift
  * itself rather than importing `weekAddressDrift` (a "use client" module), so
