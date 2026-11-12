@@ -369,7 +369,7 @@ export default function ColumnSheet({
           )}
 
           <div className={styles.actions}>
-            <Button onClick={() => void press()} disabled={!ready} data-testid="column-sheet-submit">
+            <Button onClick={() => void press()} disabled={!ready}>
               {busy ? P.SAVING : button}
             </Button>
             <Button variant="secondary" onClick={dismiss} disabled={busy}>

@@ -2083,7 +2083,9 @@ async function seedWeekThree(state, plan, at) {
  * are swept with them.
  */
 export function accountsOf(state) {
-  return [...(state.people ?? []), state.facilitator, state.lead, state.covering].filter(Boolean);
+  // `otherFacilitator`: the account the correcting-a-register spec appoints to
+  // the other group, made by its fixture like `lead` and `covering`.
+  return [...(state.people ?? []), state.facilitator, state.lead, state.covering, state.otherFacilitator].filter(Boolean);
 }
 
 /** Every cohort subscription id this term's people could be given, constructed. */
@@ -2452,6 +2454,8 @@ export async function countTerm(state) {
     await fixtureQuery("courseEnrolments").where("runId", "==", runId).get()
   ).size;
   counts.courseAudit = (await fixtureQuery("courseAudit").where("runId", "==", runId).get()).size;
+  // A facilitator's asks for a register to be corrected, and what became of each.
+  counts.courseRequests = (await fixtureQuery("courseRequests").where("runId", "==", runId).get()).size;
   counts.courseNudges = (await fixtureQuery("courseNudges").where("runId", "==", runId).get()).size;
   counts.courseProgress = (await fixtureQuery("courseProgress").where("runId", "==", runId).get()).size;
   counts.courseExerciseResponses = (
@@ -2589,6 +2593,7 @@ export async function teardownTerm(state) {
   await deleteQuery(fixtureQuery("subscriptions").where("channel", "==", state.channel));
   await deleteQuery(fixtureQuery("courseNudges").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseAudit").where("runId", "==", runId));
+  await deleteQuery(fixtureQuery("courseRequests").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseEnrolments").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseApplications").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseProgress").where("runId", "==", runId));

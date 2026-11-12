@@ -274,8 +274,9 @@ const READERS = {
     from: ["app/api/courses/groups/[groupId]/attendance/route.ts"],
     // ADDED (November 2026): `panelSession` (the session the address names, or
     // the foot's) and `each` (whether any column is still a draft) are columns
-    // of the same answer, as `session` is.
-    via: ["session", "panelSession", "each"],
+    // of the same answer, as `session` is. So is `columnSession`, the column
+    // whose correction sheet is open (correcting a register, the same month).
+    via: ["session", "panelSession", "each", "columnSession"],
     proof: ["AttendanceSession"],
     why: "the register's grid draws the register route's own columns",
   },

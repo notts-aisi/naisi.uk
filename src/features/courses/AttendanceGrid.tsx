@@ -1133,7 +1133,6 @@ export default function AttendanceGrid({
                       <button
                         type="button"
                         className={styles.bulk}
-                        data-testid="attendance-column-correct"
                         onClick={() => setColumnTarget(session.sessionKey)}
                       >
                         {session.held ? P.correctColumnWords(session.weekNumber) : P.didHappenWords(session.weekNumber)}

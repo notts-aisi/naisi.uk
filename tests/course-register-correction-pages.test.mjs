@@ -384,7 +384,7 @@ describe("2. the pages, drawn", () => {
     const drawn = draw(AttendanceTab, { view: { ...ATTENDANCE, facilitators }, runId: "run1", requestsBase: null });
     assert.ok(!drawn.text.includes("Arrived 4:40pm") && !drawn.text.includes("Admins and the programme’s lead only"), drawn.text);
     const none = draw(AttendanceTab, { view: { ...ATTENDANCE, facilitators: null }, runId: "run1", requestsBase: null });
-    assert.ok(!none.html.includes('data-testid="group-attendance-facilitators"'), "a reader sent no facilitators is drawn their row");
+    assert.ok(!none.html.includes('id="group-attendance-facilitators"'), "a reader sent no facilitators is drawn their row");
   });
 });
 
