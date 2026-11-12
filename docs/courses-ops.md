@@ -2384,13 +2384,16 @@ simply stops reaching it, and the chase below takes over.
 ### The check-in and the session report
 
 - **The check-in** (open, close, and the card): the group's facilitators and
-  admins as before, and whoever took THAT session's register (`cover.byUid`:
-  a lead covering it, or somebody given it while it holds). A lead who has not
-  taken it is refused, as before. Somebody given a session sees that it is
+  admins as before, and whoever took THAT session's register (`cover.byUid`).
+  A register somebody took themselves counts as theirs only while they are an
+  admin or lead the run, the people the cover route lets take one; a session
+  given to somebody counts while the grant holds and stands
+  (`registerSessionAccess`). A lead who has not taken it is refused, as
+  before. Somebody given a session sees that it is
   open, how many have sent it and when it closes, and is never sent the
   totals, of that check-in or the group's last.
 - **The session report**: the group's live facilitators, and whoever took the
-  session's register while the cover holds, whose report is stored with
+  session's register, counted the same way, whose report is stored with
   `coveringFor` (the facilitators whose place they took) so readers label it
   "covering for Josh". One report per writer per session, as before. An admin
   or a lead who did not take the register writes none, and nor does somebody
@@ -2470,7 +2473,10 @@ reminder due that day goes to every facilitator, or to the one who last saved
 it; a group's other facilitators whose markers were not yet claimed are not
 emailed about a register one of them started. `courses-unmarked-registers` (the
 card at 60 hours) is unchanged. The register's foot names who the reminder
-goes to by the same answer.
+goes to by the same answer, to every reader of the register; so the register's
+GET sends every reader who gave a session and until when (`givenBy`, `until`
+on its cover), and the person the foot names about a given session is the
+`givenBy` that reader is sent.
 
 ### Finish
 
@@ -2534,7 +2540,11 @@ Called off after the fact, a session is out of every figure, is never chased
 and its report, as any cancelled session does. Its notice is "No session for
 week 2" ("Group E didn't meet on Tue 10 Nov. Week 3 is still Tue 17 Nov, 4pm,
 Monica Partridge E05, and week 2's work is still on your programme page.", and
-the reason); a push back sends the cancelled and pushed back words.
+the reason); a push back sends the cancelled and pushed back words. Where the
+next session meets is asked the way the rest of the site asks it
+(`heldOnline`: the week's own mode and campus, and the room): a session held
+online for everybody is "online", never its stored room, and the same holds
+for the notice of a week put back as usual.
 
 ### Where it is done
 
@@ -2560,11 +2570,11 @@ the reason); a push back sends the cancelled and pushed back words.
   register page shows that one session's column, names only, with no notes
   and no way into the group's page, and that session's meeting link while the
   grant holds (through `seesSessionLink`, never in an email); every other page
-  under the run refuses them. The register says who took it and when, and who
-  set each line and when, to everybody who reads it; whose place was taken,
-  who gave a session and until when, to admins and the programme's lead, and
-  to a facilitator when it was their own place; and to a facilitator who
-  arrives late, who started it. Finish shows the
+  under the run refuses them. The register says who took it and when, who
+  gave a session and until when, and who set each line and when, to
+  everybody who reads it; whose place was taken to admins and the
+  programme's lead, and to a facilitator when it was their own place alone;
+  and to a facilitator who arrives late, who started it. Finish shows the
   marks before the lock and, in a group with more than one facilitator, asks
   the finishing facilitator who was here. Admins and the programme's lead get
   a panel about the session: who took it, the facilitator record with its

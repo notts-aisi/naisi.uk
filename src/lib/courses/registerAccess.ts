@@ -439,14 +439,17 @@ export type RegisterSessionAccess = {
  *    leading the programme, and somebody given THIS session while it holds.
  *  - ITS NOTES: the group's facilitators and admins, nobody else.
  *  - THE CHECK-IN: the group's facilitators, admins, and whoever took this
- *    session's register (`cover.byUid`: a lead who is covering, or somebody
- *    given it while it holds). A lead who has not taken it is refused. Its
- *    totals go to the group's facilitators, admins, and the programme's lead
- *    who took it: never to a run's track lead by that alone, nor to somebody
- *    who was only given the session.
+ *    session's register (`cover.byUid`). A register somebody took
+ *    themselves counts as theirs only while they are an admin or lead the
+ *    run today, the people the cover route lets take one; a session given
+ *    to somebody counts while the grant holds and stands (the gate admits
+ *    a person through a grant only while it stands). A lead who has not
+ *    taken it is refused. Its totals go to the group's facilitators,
+ *    admins, and the programme's lead who took it: never to a run's track
+ *    lead by that alone, nor to somebody who was only given the session.
  *  - THE SESSION REPORT: the group's facilitators, and whoever took this
- *    session's register while it holds. An admin or a lead who did not take
- *    it writes none.
+ *    session's register, counted the same way. An admin or a lead who did
+ *    not take it writes none.
  *  - WHETHER EACH FACILITATOR WAS THERE (and a cover's reason): admins and
  *    the programme's lead, never somebody who facilitates the group, however
  *    else they stand, nor a run's track lead by that alone, nor anybody given
@@ -461,7 +464,11 @@ export function registerSessionAccess(
   input: { uid: string; sessionKey: string; cover: RegisterCover | null; now: Date },
 ): RegisterSessionAccess {
   const given = gated.givenSessions.includes(input.sessionKey) && holdsGivenCover(input.cover, input.uid, input.now);
-  const took = holdsCover(input.cover, input.uid, input.now);
+  // A cover somebody took themselves holds for ever, so it counts only while
+  // its holder may take one today: an admin, or somebody leading the run.
+  const took =
+    holdsCover(input.cover, input.uid, input.now) &&
+    (input.cover?.kind !== "self" || gated.isAdmin || gated.leads);
   const staff = gated.isAdmin || gated.facilitates;
   return {
     writes: staff || gated.leads || given,

@@ -14,11 +14,13 @@ import { runsThingsOn } from "./runsThings";
 
 /**
  * WHAT THE REGISTER'S READ ADDS ABOUT WHO TOOK IT: for each session on the
- * page, who set each line and when, who took it and when, and (for admins
- * and the programme's lead only) in whose place, who gave it, until when and
- * whether each of the group's facilitators was there; a facilitator is told
- * when it was their own place. Every person by name, by the names rule for
- * whoever reads it (`nameForViewer`), never an address.
+ * page, who set each line and when, who took it and when, who gave it and
+ * until when, and (for admins and the programme's lead only) in whose place
+ * and whether each of the group's facilitators was there; a facilitator is
+ * told when it was their own place. Who gave a session goes to every reader
+ * because the register's foot names that person to every reader as the one
+ * reminded about it (`chasedUids`). Every person by name, by the names rule
+ * for whoever reads it (`nameForViewer`), never an address.
  *
  * A register written before these fields existed has none of them, and reads
  * as nobody having set anything, nobody covering, and no record.
@@ -50,9 +52,13 @@ export type CoverView = {
    * to anybody else only the reader, when it was their place.
    */
   covering: CoveredPerson[];
-  /** For a session given to somebody: who gave it. Admins and the programme's lead only; null for anybody else. */
+  /**
+   * For a session given to somebody: who gave it, to every reader of the
+   * register, the same person its foot says is reminded about it. Null for a
+   * register somebody took themselves.
+   */
   givenBy: NamedPerson | null;
-  /** For a session given to somebody: when it stops being theirs. Admins and the programme's lead only; null for anybody else. */
+  /** For a session given to somebody: when it stops being theirs, to every reader of the register. Null for a register somebody took themselves. */
   until: string | null;
   /** Whether it still holds: a session given to somebody stops at `until`. */
   live: boolean;
@@ -218,19 +224,21 @@ export async function registerCoverExtras(
 
     const cover = register.cover;
     if (cover) {
-      // Who took it, and when, go to every reader of the register. Whose
-      // place, who gave it and until when go to admins and the programme's
-      // lead (`readsFacilitatorRecord`, the privacy policy's "The
-      // programme's lead and admins see this"); a facilitator is told only
-      // when it was their own place, never a co-facilitator's.
+      // Who took it and when, who gave it and until when, go to every reader
+      // of the register: the foot tells each of them who the reminder about
+      // a given session goes to, and that is who gave it. Whose place goes
+      // to admins and the programme's lead (`readsFacilitatorRecord`, the
+      // privacy policy's "The programme's lead and admins see this"); a
+      // facilitator is told only when it was their own place, never a
+      // co-facilitator's.
       const covering = readsFacilitatorRecord ? cover.covering : cover.covering.filter((uid) => uid === viewer.uid);
       const view: CoverView = {
         kind: cover.kind,
         by: person(cover.byUid),
         at: cover.at.toISOString(),
         covering: covering.map((uid) => ({ ...person(uid), you: uid === viewer.uid })),
-        givenBy: readsFacilitatorRecord && cover.grantedByUid ? person(cover.grantedByUid) : null,
-        until: readsFacilitatorRecord && cover.until ? cover.until.toISOString() : null,
+        givenBy: cover.grantedByUid ? person(cover.grantedByUid) : null,
+        until: cover.until ? cover.until.toISOString() : null,
         live: coverIsLive(cover, now),
         yours: cover.byUid === viewer.uid,
       };

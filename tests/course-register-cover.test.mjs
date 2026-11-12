@@ -51,6 +51,9 @@
  *     reason never reaches a facilitator's history; a report is written only
  *     by somebody who still passes the register's gate; Remind never emails
  *     its presser; the reminder links each person to a page they can open.
+ * 10. A REGISTER SOMEBODY TOOK THEMSELVES opens its check-in and its report
+ *     to them only while they are an admin or lead the run; a session given
+ *     to them opens while the grant holds and stands.
  *
  * Deleting an account (a person's own stamp and entry go, who acted stays)
  * is held in tests/account-deletion-attendance.test.mjs.
@@ -559,10 +562,14 @@ describe("4. somebody given a session takes that one register, names only", () =
 });
 
 describe("4a. who took a register, and whose place it was, by reader", () => {
-  test("who took it and when reach every reader; whose place, who gave it and until when, admins and the programme's lead; a facilitator their own place alone", async () => {
+  /** The six readers: an admin, the programme's lead, a track lead, the two facilitators whose place it was, the person given it. */
+  const READERS = ["zach", "claudia", "yusuf", "rahul", "sofia", "tom"];
+
+  test("who took it and when, who gave it and until when, reach every reader; whose place, admins and the programme's lead; a facilitator their own place alone", async () => {
     assert.equal((await take("claudia", { person: "tom" })).status, 200);
+    const until = stored().cover.until.toISOString();
     const seen = {};
-    for (const who of ["zach", "claudia", "yusuf", "rahul", "sofia", "tom"]) {
+    for (const who of READERS) {
       const answer = await read(who);
       assert.equal(answer.status, 200, `${who}: ${JSON.stringify(answer.body)}`);
       const cover = answer.body.covers.w01;
@@ -571,16 +578,16 @@ describe("4a. who took a register, and whose place it was, by reader", () => {
       seen[who] = {
         covering: cover.covering.map((each) => each.uid),
         givenBy: cover.givenBy?.uid ?? null,
-        until: cover.until === null ? null : "set",
+        until: cover.until,
       };
     }
     assert.deepEqual(seen, {
-      zach: { covering: ["rahul", "sofia"], givenBy: "claudia", until: "set" },
-      claudia: { covering: ["rahul", "sofia"], givenBy: "claudia", until: "set" },
-      yusuf: { covering: [], givenBy: null, until: null },
-      rahul: { covering: ["rahul"], givenBy: null, until: null },
-      sofia: { covering: ["sofia"], givenBy: null, until: null },
-      tom: { covering: [], givenBy: null, until: null },
+      zach: { covering: ["rahul", "sofia"], givenBy: "claudia", until },
+      claudia: { covering: ["rahul", "sofia"], givenBy: "claudia", until },
+      yusuf: { covering: [], givenBy: "claudia", until },
+      rahul: { covering: ["rahul"], givenBy: "claudia", until },
+      sofia: { covering: ["sofia"], givenBy: "claudia", until },
+      tom: { covering: [], givenBy: "claudia", until },
     });
     // The facilitator's line says it was their place, and never a co-facilitator's.
     const asRahul = (await read("rahul")).body;
@@ -593,6 +600,61 @@ describe("4a. who took a register, and whose place it was, by reader", () => {
     });
     assert.match(line, /was given this session, covering for you\./);
     assert.doesNotMatch(line, /Sofia/);
+  });
+
+  test("each reader's line over a given session, with who gave it and until when sent: whose place only to a reader sent it", async () => {
+    assert.equal((await take("claudia", { person: "tom" })).status, 200);
+    const lines = {};
+    const place = {};
+    for (const who of READERS) {
+      const body = (await read(who)).body;
+      const cover = body.covers.w01;
+      assert.ok(cover.givenBy && cover.until, `${who} is not sent who gave it and until when`);
+      lines[who] = pageWords.placeLine({
+        cover,
+        facilitators: body.facilitators,
+        readerFacilitates: who === "rahul" || who === "sofia",
+        facilitatorStarted: false,
+        finished: false,
+      });
+      place[who] = cover.covering.map((each) => each.name.split(" ")[0]);
+    }
+    // Each reader is sent names by the names rule for them: staff read a whole name, a facilitator the name a person goes by.
+    assert.deepEqual(lines, {
+      zach: "Tom Fletcher has this session until midnight in Rahul and Sofia’s place.",
+      claudia: "Tom Fletcher has this session until midnight in Rahul and Sofia’s place.",
+      yusuf: "Tom Fletcher has this session until midnight.",
+      rahul: "Tom was given this session, covering for you. Carry on from here: each line says who set it.",
+      sofia: "Tom was given this session, covering for you. Carry on from here: each line says who set it.",
+      tom: "You’re taking this register. It will say Tom took it.",
+    });
+    // No line names a facilitator whose place the reader is not sent.
+    for (const who of READERS) {
+      for (const name of ["Rahul", "Sofia"]) {
+        if (!place[who].includes(name)) assert.doesNotMatch(lines[who], new RegExp(name), `${who}'s line names ${name}'s place`);
+      }
+    }
+  });
+
+  test("the register's foot and its cover agree: the person the foot says is reminded about a given session is the person every reader is sent as having given it", async () => {
+    world.db.seed("config/scheduler", { enabled: true, jobs: { "courses-register-reminders": { enabled: true } } });
+    assert.equal((await take("claudia", { person: "tom" })).status, 200);
+    for (const who of READERS) {
+      const body = (await read(who)).body;
+      assert.equal(body.ending.focus?.sessionKey, "w01", who);
+      const givenBy = body.covers.w01.givenBy;
+      assert.equal(givenBy?.uid, "claudia", who);
+      assert.deepEqual(body.ending.reminder?.names, [givenBy.name.split(" ")[0]], `${who}: the foot names somebody else`);
+    }
+    // A register somebody took themselves: nobody gave it, and the foot names who took it.
+    await told();
+    world.db.seed("config/scheduler", { enabled: true, jobs: { "courses-register-reminders": { enabled: true } } });
+    assert.equal((await take("claudia", {})).status, 200);
+    for (const who of ["zach", "claudia", "yusuf", "rahul", "sofia"]) {
+      const body = (await read(who)).body;
+      assert.deepEqual([body.covers.w01.givenBy, body.covers.w01.until], [null, null], who);
+      assert.deepEqual(body.ending.reminder?.names, [body.covers.w01.by.name.split(" ")[0]], who);
+    }
   });
 });
 
@@ -1164,5 +1226,55 @@ describe("9. after the review", () => {
       reminderEmail.registerReminderLink("https://naisi.example", RUN.agi, B),
       `https://naisi.example/learn/${RUN.agi}/group/${B}/register`,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. A register somebody took themselves, and while it counts as theirs
+// ---------------------------------------------------------------------------
+
+describe("10. a register somebody took themselves opens its check-in and its report to them only while they can take one", () => {
+  /** Week 3's session: Tue 17 Nov, 6pm in London (GMT). */
+  const WEEK_3 = "2026-11-17T18:12:00Z";
+  /**
+   * The check-in (read, open, close) and the session report of one session,
+   * as `who`: 403 is the door refusing them; anything else is the door
+   * letting them through (opening and closing a check-in nobody is marked
+   * here for answers 409 from past the door).
+   */
+  async function doorsOn(who, key) {
+    const door = (answer) => (answer.status === 403 ? 403 : `through (${answer.status})`);
+    return {
+      read: door(await card(who, key)),
+      open: door(await call(who, checkIn.POST, { groupId: B }, { body: { session: key, people: 2 }, course: true })),
+      close: door(await call(who, checkInClose.POST, { groupId: B }, { body: { session: key }, course: true })),
+      report: door(await call(who, report.PUT, { groupId: B }, { body: { sessionKey: key, answers: { how: 4 } }, course: true })),
+    };
+  }
+  const REFUSED = { read: 403, open: 403, close: 403, report: 403 };
+  const THROUGH = { read: "through (200)", open: "through (409)", close: "through (409)", report: "through (200)" };
+
+  test("taken while leading the run, leading nothing today, and given another session: refused the one taken, admitted to the one given", async () => {
+    assert.equal((await take("yusuf", {})).status, 200);
+    // Yusuf stops being the run's track lead, and stays on the committee.
+    world.db.poke(`courseRuns/${RUN.agi}`, { trackLeadUids: [] });
+    const given = await call("claudia", cover.POST, { groupId: B }, { body: { weekNumber: 3, person: "yusuf" }, course: true });
+    assert.equal(given.status, 200, JSON.stringify(given.body));
+    at(WEEK_3);
+    const before = everything();
+    assert.deepEqual(await doorsOn("yusuf", "w01"), REFUSED);
+    assert.equal(everything(), before, "a refused door wrote something");
+    assert.equal(stored().cover.byUid, "yusuf", "the cover itself is left as it was");
+    assert.deepEqual(await doorsOn("yusuf", "w03"), THROUGH);
+  });
+
+  test("a lead who took it and leads today, an admin who took it, and a facilitator of the group are admitted as before", async () => {
+    for (const taker of ["yusuf", "zach"]) {
+      await told();
+      assert.equal((await take(taker, {})).status, 200);
+      assert.deepEqual(await doorsOn(taker, "w01"), THROUGH, taker);
+    }
+    await told();
+    assert.deepEqual(await doorsOn("rahul", "w01"), THROUGH);
   });
 });

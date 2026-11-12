@@ -466,7 +466,12 @@ export const ROOM_TO_BE_CONFIRMED_LINE =
 /** Under a moved session: where somebody who can't make it says so. */
 export const CANT_MAKE_NEW_TIME = "Can’t make the new time? Tell us on your programme page.";
 
-/** What one week's notice is about, as the route works it out. */
+/**
+ * What one week's notice is about, as the route works it out. On the next
+ * session after one that did not happen, and on a session put back, `online`
+ * is the session held online for everybody (`heldOnline`), and then `room` is
+ * "": the notice says such a session is online, and never names a room for it.
+ */
 export type OneWeekNotice =
   | {
       kind: "move";
@@ -485,10 +490,10 @@ export type OneWeekNotice =
       weekNumber: number;
       /** The day it was due on. */
       dateKey: string;
-      next: { weekNumber: number; dateKey: string; hhmm: string; room: string } | null;
+      next: { weekNumber: number; dateKey: string; hhmm: string; room: string; online: boolean } | null;
     }
   | { kind: "push"; weekNumber: number; fromDateKey: string; newDateKey: string; lastDateKey: string }
-  | { kind: "restore"; weekNumber: number; dateKey: string; hhmm: string; room: string }
+  | { kind: "restore"; weekNumber: number; dateKey: string; hhmm: string; room: string; online: boolean }
   | {
       kind: "metAtAnotherTime";
       weekNumber: number;
@@ -561,7 +566,7 @@ export function oneWeekNoticeWords(
         : `${context.groupName} didn’t meet on ${dayWords(change.dateKey)}.`;
       const next = change.next;
       const still = next
-        ? `Week ${next.weekNumber} is still ${[dayWords(next.dateKey), clockWords(next.hhmm), next.room.trim()].filter(Boolean).join(", ")}, and week ${n}’s work is still on your programme page.`
+        ? `Week ${next.weekNumber} is still ${[dayWords(next.dateKey), clockWords(next.hhmm), next.online ? "online" : next.room.trim()].filter(Boolean).join(", ")}, and week ${n}’s work is still on your programme page.`
         : `Week ${n}’s work is still on your programme page.`;
       return { title: `No session for week ${n}`, message: lines(`${met} ${still}`, why) };
     }
@@ -574,7 +579,7 @@ export function oneWeekNoticeWords(
         ),
       };
     case "restore": {
-      const room = change.room.trim() ? `, ${change.room.trim()}` : "";
+      const room = change.online ? ", online" : change.room.trim() ? `, ${change.room.trim()}` : "";
       return {
         title: `Week ${n} is back to its usual time`,
         message: lines(
