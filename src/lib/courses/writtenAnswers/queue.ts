@@ -8,6 +8,7 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { liveGroupsOf, reviewableIn, reviewerFactsOf, type OwnerFacts } from "./access";
 import { answerPiece, instantOf, isWordCountedAnswer, readWrittenAnswer } from "./model";
+import { lateBy } from "../weekWork/model";
 import { loadRunWeekStates } from "../weekWork/readers";
 import { readableAnswer } from "../weekWork/versions";
 import { readRunFeedback } from "../feedback/readers";
@@ -58,6 +59,8 @@ export type WrittenQueueRow = {
   firstSentAt: string;
   /** Never sent: read since the session it was due at started, and `firstSentAt` is that start. */
   locked: boolean;
+  /** How long after the session it was due at it was first sent (ms); null when not after it, or never sent. */
+  lateMs: number | null;
 };
 
 /** The weeks of a run, checked for one written as blocks. */
@@ -120,7 +123,7 @@ export async function loadWrittenQueues(
     }
   }
 
-  const waiting: Array<{ uid: string; weekNumber: number; sentAt: Date; locked: boolean }> = [];
+  const waiting: Array<{ uid: string; weekNumber: number; sentAt: Date; locked: boolean; lateMs: number | null }> = [];
   for (const doc of answerSnap.docs) {
     const data = (doc.data() ?? {}) as Record<string, unknown>;
     const uid = typeof data.uid === "string" ? data.uid : "";
@@ -140,7 +143,7 @@ export async function loadWrittenQueues(
     const firstSentAt = instantOf(data.firstSentAt);
     const sentAt = firstSentAt ?? due.at;
     if (!sentAt) continue;
-    waiting.push({ uid, weekNumber, sentAt, locked: firstSentAt === null });
+    waiting.push({ uid, weekNumber, sentAt, locked: firstSentAt === null, lateMs: lateBy(firstSentAt, due) });
   }
   waiting.sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime() || a.uid.localeCompare(b.uid));
 
@@ -157,6 +160,7 @@ export async function loadWrittenQueues(
       weekNumber: row.weekNumber,
       firstSentAt: row.sentAt.toISOString(),
       locked: row.locked,
+      lateMs: row.lateMs,
     });
   }
   return out;

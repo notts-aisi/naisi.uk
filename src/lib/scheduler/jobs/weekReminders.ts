@@ -241,7 +241,7 @@ export function reminderVerdict(
     }
     remind.push({
       weekNumber: week.weekNumber,
-      left: weekLeft({ blocks: week.blocks, tasks: week.tasks, state: own.state, writes: week.writes, submitted: state.submittedAt !== null }),
+      left: weekLeft({ blocks: week.blocks, tasks: week.tasks, state: own.state }),
       writes: week.writes,
     });
   }

@@ -50,6 +50,7 @@ const sessionMoment = await loadTs("lib/courses/weekWork/sessionDue.ts");
 const closes = await loadTs("lib/courses/weekWork/closes.ts");
 const versions = await loadTs("lib/courses/weekWork/versions.ts");
 const words = await loadTs("lib/courses/weekWork/words.ts");
+const pageFacts = await loadTs("lib/courses/weekWork/pageFacts.ts");
 const progress = await loadTs("lib/courses/weekBlocks/progress.ts");
 const courses = await loadTs("lib/firestore/courses.ts");
 const groupsStore = await loadTs("lib/firestore/courseGroups.ts");
@@ -410,36 +411,47 @@ describe("2. done, and the check before Send", () => {
 });
 
 describe("3. the words", () => {
-  const room = { room: "Portland A21", reopenedBy: "Rahul" };
   const closesAt = at("2026-12-24T00:00:00Z");
+  /** Before the session (Wed 18 Nov, 3pm), and after it. */
+  const before = { room: "Portland A21", now: at("2026-11-17T12:00:00Z") };
+  const after = { room: "Portland A21", now: at("2026-11-20T12:00:00Z") };
 
   test("the week's page says until when the work can change, in every state (privacy v17)", () => {
     const open = (due) => ({ kind: "open", due, closesAt, submittedAt: null });
     assert.equal(
-      words.lockLineWords(open({ at: at("2026-11-18T15:00:00Z"), by: "session" }), room),
-      "Your session: Wed 18 Nov, 3pm, Portland A21. Anything you add or change after it shows as late to the people who read your work, with how late. This week stays open until the programme closes, at the end of Wed 23 Dec.",
+      words.untilWhenWords(open({ at: at("2026-11-18T15:00:00Z"), by: "session" }), before),
+      "Your session: Wed 18 Nov, 3pm, Portland A21. Your work stays open after it: anything you add or change after it shows as late to the people who read your work, with how late. This week stays open until the programme closes, at the end of Wed 23 Dec.",
+    );
+    // Once the session has started, the box at the top says the session and the late; this line says when the programme closes.
+    assert.equal(
+      words.untilWhenWords(open({ at: at("2026-11-18T15:00:00Z"), by: "session" }), after),
+      "This week stays open until the programme closes, at the end of Wed 23 Dec.",
     );
     assert.equal(
-      words.lockLineWords(open({ at: at("2026-11-18T15:00:00Z"), by: "cancelled" }), room),
-      "Your session this week, Wed 18 Nov, 3pm, is cancelled. Anything you add or change after it shows as late to the people who read your work, with how late. This week stays open until the programme closes, at the end of Wed 23 Dec.",
+      words.untilWhenWords(open({ at: at("2026-11-18T15:00:00Z"), by: "cancelled" }), before),
+      "Your session this week, Wed 18 Nov, 3pm, is cancelled. Anything you add or change after the time it would have started shows as late to the people who read your work, with how late. This week stays open until the programme closes, at the end of Wed 23 Dec.",
     );
     assert.equal(
-      words.lockLineWords(open({ at: null, by: "undated" }), room),
+      words.untilWhenWords(open({ at: null, by: "undated" }), before),
       "Your group’s time isn’t set yet. This week stays open until the programme closes, at the end of Wed 23 Dec.",
     );
-    assert.equal(words.lockLineWords(open({ at: null, by: "no-group" }), room), "This week stays open until the programme closes, at the end of Wed 23 Dec.");
+    assert.equal(words.untilWhenWords(open({ at: null, by: "no-group" }), before), "This week stays open until the programme closes, at the end of Wed 23 Dec.");
     assert.equal(
-      words.lockLineWords(open({ at: null, by: "joined-late" }), room),
+      words.untilWhenWords(open({ at: null, by: "joined-late" }), after),
       "You joined your group after this week’s session, so nothing you add to it shows as late. This week stays open until the programme closes, at the end of Wed 23 Dec.",
     );
     assert.equal(
-      words.lockLineWords({ kind: "open", due: { at: null, by: "no-group" }, closesAt: null, submittedAt: null }, room),
+      words.untilWhenWords({ kind: "open", due: { at: null, by: "no-group" }, closesAt: null, submittedAt: null }, before),
       "This week stays open until the programme closes.",
     );
     assert.equal(
-      words.lockLineWords({ kind: "closed", at: closesAt, due: { at: null, by: "no-group" }, submittedAt: null }, room),
+      words.untilWhenWords({ kind: "closed", at: closesAt, due: { at: null, by: "no-group" }, submittedAt: null }, after),
       "The programme closed at the end of Wed 23 Dec, so this week can’t change now.",
     );
+    // Nothing on it says locked, submitted or reopened, in any state.
+    for (const state of [open({ at: at("2026-11-18T15:00:00Z"), by: "session" }), open({ at: null, by: "joined-late" }), { kind: "closed", at: closesAt, due: { at: null, by: "no-group" }, submittedAt: null }]) {
+      for (const when of [before, after]) assert.doesNotMatch(words.untilWhenWords(state, when), /\block|submit|reopen/i);
+    }
     assert.equal(words.closedWords(closesAt), "The programme closed at the end of Wed 23 Dec, so this week can’t change now.");
     // The wire carries it, and the page reads it back.
     const wire = model.weekWorkWire(open({ at: at("2026-11-18T15:00:00Z"), by: "session" }), at("2026-11-18T16:00:00Z"));
@@ -481,16 +493,10 @@ describe("3. the words", () => {
     assert.equal(words.JOINED_LATE, "Joined late");
   });
 
-  test("the check, the closed box and the readers' line say who reads the written answer, and when", () => {
-    assert.equal(words.notDoneLeadWords(2), "Two things aren’t done yet:");
-    assert.equal(words.notDoneLeadWords(1), "One thing isn’t done yet:");
+  test("what isn't done, Send, and the readers' line say who reads the written answer, and when", () => {
     assert.equal(words.notDoneWords({ kind: "readings", titles: ["Compute as a lever for governance"] }), "One reading isn’t ticked: “Compute as a lever for governance”.");
     assert.equal(words.notDoneWords({ kind: "answer", emptyBoxes: 1, boxes: 3 }), "One box of your written answer is empty.");
     assert.equal(words.notDoneWords({ kind: "overLimit", words: 412, limit: 350 }), "Your written answer is 412 words. The limit is 350.");
-    assert.equal(
-      words.checkLockLineWords({ hasAnswer: true, ownIsTheLeads: false }),
-      "Submitting sends your written answer, and your facilitator and the programme team can then read it. You can keep changing this week until the programme closes.",
-    );
     assert.equal(
       words.answerReadersWords({ kind: "facilitators", names: ["Rahul"] }, "Claudia"),
       "Once you send it, or once your session has started, Rahul, Claudia and admins can read your written answer.",
@@ -499,12 +505,124 @@ describe("3. the words", () => {
       words.answerReadersWords({ kind: "lead", leadName: "Claudia" }, "Claudia"),
       "Once you send it, or once your session has started, Claudia and admins can read your written answer.",
     );
-    assert.equal(words.lockedBoxWords({ kind: "facilitators", names: ["Rahul"] }, true), "The programme has closed, so this week can’t change now.");
-    assert.equal(words.askToReopenWords({ kind: "facilitators", names: ["Rahul", "Sofia"] }), "Everything you saved is kept. Ask Rahul or Sofia about anything in it.");
-    assert.equal(words.askToReopenWords({ kind: "lead", leadName: "Claudia" }), "Everything you saved is kept. Ask Claudia about anything in it.");
     assert.equal(words.SEND_MY_ANSWER, "Send my answer");
     assert.equal(words.CHANGE_MY_ANSWER, "Change my answer");
     assert.equal(words.sentLineWords(at("2026-11-10T21:31:00Z")), "Sent Tue 10 Nov, 9:31pm.");
+  });
+
+  test("beside each thing the person did: when, and once the session has started whether it was before it or how long after; never late with no session", () => {
+    const due = { at: at("2026-11-04T15:00:00Z"), by: "session" };
+    const sixDaysOn = at("2026-11-10T20:30:00Z");
+    // After the session.
+    assert.equal(words.savedLineWords(at("2026-11-03T20:15:00Z"), due, sixDaysOn), "Saved Tue 3 Nov, 8:15pm, before the session.");
+    assert.equal(words.savedLineWords(at("2026-11-10T20:01:00Z"), due, sixDaysOn), "Saved Tue 10 Nov, 8:01pm: 6 days after your session");
+    assert.equal(words.sentLineWords(at("2026-11-08T21:12:00Z"), due, sixDaysOn), "Sent Sun 8 Nov, 9:12pm: 4 days after your session");
+    assert.equal(words.sentLineWords(at("2026-11-04T15:40:00Z"), due, sixDaysOn), "Sent Wed 4 Nov, 3:40pm: 40 minutes after your session");
+    assert.equal(words.tickedOnWords(at("2026-11-07T18:20:00Z"), due, sixDaysOn), "Ticked Sat 7 Nov: 3 days after your session");
+    assert.equal(words.tickedOnWords(at("2026-11-03T18:20:00Z"), due, sixDaysOn), "Ticked Tue 3 Nov");
+    assert.equal(words.allTickedWords(at("2026-11-03T18:20:00Z"), due, sixDaysOn), "All ticked by Tue 3 Nov.");
+    assert.equal(words.allTickedWords(at("2026-11-07T18:20:00Z"), due, sixDaysOn), "All ticked by Sat 7 Nov: 3 days after your session");
+    // Before the session: the time alone, never "before the session" or late.
+    const dayBefore = at("2026-11-03T21:00:00Z");
+    assert.equal(words.savedLineWords(at("2026-11-03T20:15:00Z"), due, dayBefore), "Saved Tue 3 Nov, 8:15pm.");
+    assert.equal(words.tickedOnWords(at("2026-11-03T18:20:00Z"), due, dayBefore), "Ticked Tue 3 Nov");
+    // No session to be due at (no group, told after it met, no time set): never late.
+    for (const none of [{ at: null, by: "no-group" }, { at: null, by: "joined-late" }, { at: null, by: "undated" }]) {
+      assert.equal(words.savedLineWords(at("2026-11-10T20:01:00Z"), none, sixDaysOn), "Saved Tue 10 Nov, 8:01pm.");
+      assert.equal(words.sentLineWords(at("2026-11-08T21:12:00Z"), none, sixDaysOn), "Sent Sun 8 Nov, 9:12pm.");
+      assert.equal(words.tickedOnWords(at("2026-11-07T18:20:00Z"), none, sixDaysOn), "Ticked Sat 7 Nov");
+      assert.equal(words.allTickedWords(at("2026-11-07T18:20:00Z"), none, sixDaysOn), "All ticked by Sat 7 Nov.");
+    }
+    // Changed since sent: who sees what, before and after the session.
+    assert.equal(
+      words.changedSinceSentWords(false),
+      "You’ve changed it since you sent it. The people who read your work still see the version you sent until you send it again.",
+    );
+    assert.equal(
+      words.changedSinceSentWords(true),
+      "You’ve changed it since you sent it. Your session has started, so the people who read your work see your latest words.",
+    );
+    // What makes the week done, under Send.
+    assert.equal(words.doneOnceSentWords(1, "ticks"), "Week 1 is done once it’s sent: every reading is already ticked.");
+    assert.equal(words.doneOnceSentWords(1, "done"), "Week 1 is done once it’s sent: everything else it asks for is done.");
+    assert.equal(words.doneOnceSentWords(1, "left"), "Week 1 is done once it’s sent and everything else it asks for is done.");
+    assert.equal(words.doneOnceSentWords(1, "nothing"), "Week 1 is done once it’s sent.");
+  });
+
+  test("the box at the top of the week: once the session has started, that the group met, in neutral words; a facilitator's own, who reads it", () => {
+    const due = { at: at("2026-11-04T15:00:00Z"), by: "session" };
+    const later = at("2026-11-10T20:30:00Z");
+    assert.equal(
+      words.sessionMetWords({ due, weekNumber: 1, groupName: "Group C", done: false, now: later }),
+      "Group C met for week 1 on Wed 4 Nov. You can still finish it. Anything you add or change now shows as late to the people who read your work, with how late.",
+    );
+    assert.equal(
+      words.sessionMetWords({ due, weekNumber: 1, groupName: "Group C", done: true, now: later }),
+      "Group C met for week 1 on Wed 4 Nov. Anything you add or change now shows as late to the people who read your work, with how late.",
+    );
+    assert.equal(
+      words.sessionMetWords({ due: { ...due, by: "cancelled" }, weekNumber: 1, groupName: null, done: false, now: later }),
+      "Your group’s week 1 session, Wed 4 Nov, 3pm, was cancelled. You can still finish it. Anything you add or change after the time it would have started shows as late to the people who read your work, with how late.",
+    );
+    // Before the session, and with no session to be due at, nothing.
+    assert.equal(words.sessionMetWords({ due, weekNumber: 1, groupName: "Group C", done: false, now: at("2026-11-04T14:59:00Z") }), null);
+    for (const none of ["no-group", "joined-late", "undated"]) {
+      assert.equal(words.sessionMetWords({ due: { at: null, by: none }, weekNumber: 1, groupName: "Group C", done: false, now: later }), null);
+    }
+    // A facilitator's own work: who reads it, and that what they add after their group's session shows those people as late.
+    const own = { runs: "Group C", meets: "Group C", readers: "Claudia and admins" };
+    assert.equal(
+      words.ownWorkWords({ ...own, due, now: later }),
+      "You run Group C, so your own work is read by Claudia and admins, not by your group. Group C met on Wed 4 Nov: anything you add now shows them as late.",
+    );
+    assert.equal(
+      words.ownWorkWords({ ...own, due, now: at("2026-11-02T10:00:00Z") }),
+      "You run Group C, so your own work is read by Claudia and admins, not by your group. Anything you add after Group C’s session on Wed 4 Nov shows them as late.",
+    );
+    assert.equal(
+      words.ownWorkWords({ runs: null, meets: null, readers: "admins", due: { at: null, by: "undated" }, now: later }),
+      "You run groups on this programme, so your own work is read by admins, not by your groups.",
+    );
+    for (const line of [
+      words.sessionMetWords({ due, weekNumber: 1, groupName: "Group C", done: false, now: later }),
+      words.ownWorkWords({ ...own, due, now: later }),
+    ]) {
+      assert.doesNotMatch(line, /\block|submit|reopen|warning|[–—]/i, line);
+    }
+  });
+
+  test("staff words: sent, changed and saved, the version at the session, and the version feedback was about", () => {
+    assert.equal(words.staffSentWords(at("2026-11-16T22:42:00Z")), "Sent Mon 16 Nov, 10:42pm");
+    assert.equal(words.staffChangedWords(at("2026-11-07T18:20:00Z")), "Changed Sat 7 Nov, 6:20pm");
+    assert.equal(words.staffChangedWords(at("2026-11-07T18:20:00Z"), false), "Saved Sat 7 Nov, 6:20pm");
+    assert.equal(words.staffChangedSinceSentWords("Amara"), "Amara has changed it since sending it. You read it as sent until it’s sent again or the session starts.");
+    assert.equal(words.AS_IT_STOOD_AT_THE_SESSION, "As it stood at the session");
+    assert.equal(words.THE_VERSION_THIS_FEEDBACK_WAS_ABOUT, "The version this feedback was about");
+    assert.equal(words.answerChangedSinceWords("Amara"), "Amara’s answer has changed since this feedback was written.");
+    assert.equal(words.YOUR_ANSWER_CHANGED_SINCE, "Your answer has changed since this feedback was written.");
+  });
+
+  test("what the rest of the week needs once an answer is sent (`restOfWeekOnceSent`): done asks it, as everywhere", () => {
+    const tasks = [
+      { tickIds: ["s1", "s2"], promptIds: [], answerIds: [], chooseOneIds: [], talkIds: [], fillInIds: [], unseenIds: [] },
+      { tickIds: [], promptIds: [], answerIds: ["wa"], chooseOneIds: [], talkIds: [], fillInIds: [], unseenIds: [] },
+    ];
+    const asks = { tickIds: [], promptIds: [], answerIds: ["wa"], chooseOneIds: [], talkIds: [], fillInIds: [], unseenIds: [] };
+    const state = (ticked, sent = []) => ({ isTicked: (id) => ticked.includes(id), isWritten: () => false, isSent: (id) => sent.includes(id), packOf: () => null });
+    assert.equal(pageFacts.restOfWeekOnceSent({ tasks, asks, state: state(["s1", "s2"]), submitted: false, answerId: "wa" }), "ticks");
+    assert.equal(pageFacts.restOfWeekOnceSent({ tasks, asks, state: state(["s1"]), submitted: false, answerId: "wa" }), "left");
+    assert.equal(pageFacts.restOfWeekOnceSent({ tasks, asks, state: state(["s1", "s2"], ["wa"]), submitted: false, answerId: "wa" }), null, "done already");
+    const withReflection = [...tasks, { tickIds: [], promptIds: ["p1"], answerIds: [], chooseOneIds: [], talkIds: [], fillInIds: [], unseenIds: [] }];
+    const written = { ...state(["s1", "s2"]), isWritten: (id) => id === "p1" };
+    assert.equal(pageFacts.restOfWeekOnceSent({ tasks: withReflection, asks, state: written, submitted: false, answerId: "wa" }), "done");
+    assert.equal(pageFacts.restOfWeekOnceSent({ tasks: [tasks[1]], asks, state: state([]), submitted: false, answerId: "wa" }), "nothing");
+    // The old Submit pressed: done already, whatever is unsent.
+    assert.equal(pageFacts.restOfWeekOnceSent({ tasks, asks, state: state(["s1", "s2"]), submitted: true, answerId: "wa" }), null);
+    assert.deepEqual(pageFacts.dueOfWire(null), { at: null, by: "no-group" });
+    assert.deepEqual(pageFacts.dueOfWire({ dueAt: "2026-11-04T15:00:00.000Z", dueBy: "session" }), { at: at("2026-11-04T15:00:00Z"), by: "session" });
+    assert.equal(pageFacts.latestOf([at("2026-11-03T10:00:00Z"), at("2026-11-04T10:00:00Z")]).toISOString(), "2026-11-04T10:00:00.000Z");
+    assert.equal(pageFacts.latestOf([at("2026-11-03T10:00:00Z"), null]), null);
+    assert.equal(pageFacts.latestOf([]), null);
   });
 
   test("a staff page says done on time or done late, how far along otherwise, and joined late; never how much is written", () => {
@@ -549,7 +667,16 @@ describe("3. the words", () => {
       }[kind];
       assert.doesNotMatch(words.notDoneWords(sample), /\b(?:marks?|marked|grades?|scores?)\b|[–—]/i, kind);
     }
-    for (const line of [words.lateWords(DAY), words.closedWords(at("2026-12-24T00:00:00Z")), words.WEEKS_STAY_OPEN, words.staysOpenWords(null)]) {
+    for (const line of [
+      words.lateWords(DAY),
+      words.closedWords(at("2026-12-24T00:00:00Z")),
+      words.WEEKS_STAY_OPEN,
+      words.staysOpenWords(null),
+      words.changedSinceSentWords(true),
+      words.changedSinceSentWords(false),
+      words.doneOnceSentWords(2, "ticks"),
+      words.staffChangedSinceSentWords("Amara"),
+    ]) {
       assert.doesNotMatch(line, /\b(?:marks?|marked|grades?|scores?)\b|[–—]/i, line);
     }
   });

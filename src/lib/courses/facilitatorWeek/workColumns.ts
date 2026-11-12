@@ -56,16 +56,14 @@ import { NOT_CHOSEN_YET, TO_GIVE_FEEDBACK, feedbackByWords, weekColumnWords } fr
 
 /**
  * One cell: its words, the address it leads to when it is a link, and for the
- * week's column the count beside it, how it is drawn, and a reopen for the
- * reader to press.
+ * week's column the count beside it and how it is drawn; on a written
+ * answer's, how late it was sent.
  */
 export type WorkCell = {
   text: string;
   href: string | null;
   detail?: string | null;
   tone?: "done" | "partly" | "none";
-  /** Always null: nothing is reopened now (the page as it was). */
-  reopen?: { runId: string; weekNumber: number; uid: string; firstName: string } | null;
   /** On a written answer's cell: how long after the session it was last sent (ms), or null when not after it. */
   lateMs?: number | null;
 };
@@ -134,7 +132,7 @@ export async function loadWorkColumns(
       if (!own) continue;
       const line = { progress: own, doneAt: own.doneAt, due: states.dueOf(person.uid, weekNumber) };
       const words = personWeekWords(line);
-      cells[person.uid] = { text: words.text, href: null, detail: words.detail, tone: personWeekTone(line), reopen: null };
+      cells[person.uid] = { text: words.text, href: null, detail: words.detail, tone: personWeekTone(line) };
     }
     const meets = groupSessionAt({ sessionLists: [resolveSessions(run, group)], toldAt: null }, weekNumber);
     columns.push({ key: "week", label: weekColumnWords(weekNumber), cells, note: meets ? groupSessionWords(meets, now) : null });

@@ -1,9 +1,10 @@
-/* The week you submit, on the week page: the line under the title that says
-   until when the work can change, the status box, Submit at the end of the
-   work, and the check before it. Every colour and space from the theme's
-   tokens; the status box reads like This week's card. */
+/* The week stays open, on the week page: the line under the title that says
+   until when the work can change, the box at the top (the count, and once
+   the session has started one neutral line that it met), and when each tick
+   was made. Every colour and space from the theme's tokens; the box reads
+   like This week's card. */
 
-.lockLine {
+.untilLine {
   margin: 10px 0 0;
   font-size: clamp(0.9375rem, 1.5cqi, 1rem);
   line-height: 1.55;
@@ -31,13 +32,6 @@
   min-width: 0;
 }
 
-.statusStart {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
 .statusCount {
   margin: 0;
   font-size: 1rem;
@@ -60,123 +54,6 @@
   line-height: 1.55;
   color: var(--color-text-soft);
   overflow-wrap: anywhere;
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  height: 26px;
-  padding: 0 10px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--color-border-strong);
-  background: var(--color-bg);
-  color: var(--color-text-soft);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  white-space: nowrap;
-  box-sizing: border-box;
-}
-
-.chipDone {
-  border-color: var(--color-ok-line);
-  background: var(--color-success-soft);
-  color: var(--color-ok);
-}
-
-.submit {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.submit button {
-  min-height: 48px;
-}
-
-.submitLine {
-  margin: 0;
-  font-size: var(--text-sm);
-  line-height: 1.55;
-  color: var(--color-text-muted);
-}
-
-.error {
-  margin: 0;
-  font-size: var(--text-sm);
-  line-height: 1.5;
-  color: var(--color-danger-text, var(--color-warning));
-}
-
-.dialog {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-width: 0;
-}
-
-.dialogTitle {
-  margin: 0;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.375rem;
-  line-height: 1.25;
-  letter-spacing: -0.015em;
-  color: var(--color-text);
-}
-
-.dialogLead {
-  margin: 0;
-  font-size: 1rem;
-  line-height: 1.5;
-  color: var(--color-text-soft);
-}
-
-.dialogList {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.dialogItem {
-  position: relative;
-  padding-left: 18px;
-  font-size: 1rem;
-  line-height: 1.5;
-  color: var(--color-text);
-  overflow-wrap: anywhere;
-}
-
-.dialogItem::before {
-  content: "";
-  position: absolute;
-  left: 2px;
-  top: 0.65em;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--color-warning);
-}
-
-.dialogQuiet {
-  margin: 0;
-  font-size: var(--text-sm);
-  line-height: 1.55;
-  color: var(--color-text-muted);
-}
-
-.dialogActions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 4px;
-}
-
-.dialogActions button {
-  min-height: 44px;
 }
 
 .ticked {

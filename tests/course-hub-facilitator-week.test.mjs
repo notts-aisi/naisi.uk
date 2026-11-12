@@ -579,7 +579,12 @@ describe("6. the lead's and admins' view of a group's week", () => {
     assert.match(asLead.text, /Only you and admins read these\. They’re never read out\./);
     assert.match(asLead.text, new RegExp(`Chloe Nguyen Sun 15 Nov, 4:12pm ${SAID.chloe["k3-rp1"]} Farah Hussain Sun 15 Nov, 4:12pm ${SAID.farah["k3-rp1"]}`));
     assert.match(asLead.text, /2 of 3 wrote one · Kofi Asante hasn’t/);
-    assert.match(asLead.text, new RegExp(`Facilitators’ own reflections Rahul Mehta Facilitator Sun 15 Nov, 4:12pm ${SAID.rahul["k3-rp1"]} Sofia Rossi Facilitator Sun 15 Nov, 4:12pm ${SAID.sofia["k3-rp1"]}`));
+    // A facilitator's own lateness is the lead's and admins' alone: Sofia's group (Group A) met on Thursday,
+    // so what she wrote on Sunday is late from it; Rahul's group meets on Tuesday, so his is not.
+    assert.match(
+      asLead.text,
+      new RegExp(`Facilitators’ own reflections Rahul Mehta Facilitator Sun 15 Nov, 4:12pm ${SAID.rahul["k3-rp1"]} Sofia Rossi Facilitator Sun 15 Nov, 4:12pm Late: 2 days after the session ${SAID.sofia["k3-rp1"]}`),
+    );
     assert.doesNotMatch(asLead.html, /Read this out|To read out|Copy for the session/);
     // Nobody who left and nobody of another group, and never a private note.
     for (const uid of ["isaac", "amara"]) for (const text of Object.values(SAID[uid])) assert.ok(!asLead.html.includes(text), `the lead is shown ${uid}'s reflection`);
@@ -610,6 +615,8 @@ describe("6. the lead's and admins' view of a group's week", () => {
         for (const text of Object.values(SAID[uid])) assert.ok(!drawn.html.includes(text) && !JSON.stringify(drawn.element).includes(text), `${who} is shown ${uid}'s reflection`);
       }
       for (const [, text] of ALL_NOTES) assert.ok(!drawn.html.includes(text), `${who} is shown a private note`);
+      // Nor how late a facilitator's own was: nothing on a facilitator's page says a co-facilitator's work was late.
+      assert.doesNotMatch(drawn.text, /Late:/, `${who} is told how late somebody's reflection was, though the group's fellows wrote before the session`);
       assert.match(drawn.text, /Group B’s facilitators, Claudia and admins read reflections with names\. Fellows can’t see each other’s\./);
       assert.match(drawn.html, new RegExp(`href="${RUN_HOME}/group/${B}/reflections\\?week=3"[^>]*>Pick lines to read out<`));
     }

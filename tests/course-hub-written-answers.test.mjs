@@ -530,8 +530,8 @@ describe("Late, from the session, and only for its readers; after its deadline, 
     assert.deepEqual(of("afterDeadline"), { chloe: false, farah: true });
     assert.deepEqual(of("late"), { chloe: false, farah: false });
     assert.deepEqual(of("sentLateMs"), { chloe: null, farah: null });
-    assert.match(page.text, /Farah Hussain Submitted Tue 10 Nov, 12pm/);
-    assert.doesNotMatch(page.text, /Farah Hussain Submitted Tue 10 Nov, 12pm Late/, "before the session is never late");
+    assert.match(page.text, /Farah Hussain Sent Tue 10 Nov, 12pm After its deadline/);
+    assert.doesNotMatch(page.text, /Farah Hussain Sent Tue 10 Nov, 12pm Late/, "before the session is never late");
 
     // Group B's week 2 session cancelled, the group keeping pace: late is told from when it would have started.
     w.reset();
@@ -562,12 +562,12 @@ describe("Late, from the session, and only for its readers; after its deadline, 
 // ---------------------------------------------------------------------------
 
 describe("4. the pages, as the boards draw them", () => {
-  test("the week page draws the written answer for a fellow: the question, the box, the count, the due line, who reads it and from when, and the week's Submit", async () => {
+  test("the week page draws the written answer for a fellow: the question, the box, the count, the due line, who reads it and from when, and its own Send once there is something to send", async () => {
     w.at(BEFORE_DUE_2);
     const page = await w.weekPage("chloe", 2);
     inOrder(page.text, [
       "Who keeps the lamps",
-      "Your session: Tue 10 Nov, 6pm, Hallward B12. Anything you add or change after it shows as late to the people who read your work, with how late. This week stays open until the programme closes, at the end of Wed 23 Dec.",
+      "Your session: Tue 10 Nov, 6pm, Hallward B12. Your work stays open after it: anything you add or change after it shows as late to the people who read your work, with how late. This week stays open until the programme closes, at the end of Wed 23 Dec.",
       "0 of 2 done",
       "Saved as you go",
       "Part 2",
@@ -582,43 +582,56 @@ describe("4. the pages, as the boards draw them", () => {
       "Due by noon, Mon 9 Nov. Rahul and Sofia read it before your session and may give feedback on it.",
       "Once you send it, or once your session has started, Rahul, Sofia, Claudia and admins can read your written answer.",
       "Other fellows can’t.",
-      "Submit week 2",
-      "Submitting doesn’t close this week: you can keep changing it until the programme closes.",
     ]);
     assert.match(page.html, /<label for="[^"]+" class="label">Your answer<\/label><textarea id="[^"]+" class="box answerBox" rows="8">/);
     // The writer is told that what they add after the session shows as late, with how late (privacy v17);
     // "After its deadline" is the staff's alone, and never the word exercise.
-    assert.match(page.text, /Anything you add or change after it shows as late to the people who read your work, with how late\./);
+    assert.match(page.text, /anything you add or change after it shows as late to the people who read your work, with how late\./);
     assert.doesNotMatch(page.text, /after its deadline|exercise/i);
-    // Sent by submitting the week, never on its own; and nothing on the page locks when somebody opens it.
-    assert.doesNotMatch(page.text, /Send to|opens it|opened it/);
+    // Nothing on the page locks, submits or reopens any more, and nothing to send yet: no Send.
+    assert.doesNotMatch(page.text, /Submit|submitt|\block|reopen|Send my answer|opens it|opened it/i);
     assert.doesNotMatch(page.html, /readOnly=""|readonly=""/);
     // Nothing sent, nothing ticked: neither task is done.
     assert.match(page.text, /0 of 2 done/);
-    // A draft is not sent: the task stays open.
+    // A draft is not sent: the task stays open, and the card offers its own Send with what makes the week done.
     await w.write("chloe", 2, { text: words(25) });
-    assert.match((await w.weekPage("chloe", 2)).text, /0 of 2 done/);
+    const draft = await w.weekPage("chloe", 2);
+    assert.match(draft.text, /0 of 2 done/);
+    inOrder(draft.text, [
+      "25 words · 20 to 40",
+      "Saved Sun 8 Nov, 10am.",
+      "Due by noon, Mon 9 Nov. Rahul and Sofia read it before your session and may give feedback on it.",
+      "Send my answer",
+      "Week 2 is done once it’s sent and everything else it asks for is done.",
+    ]);
+    assert.match(draft.html, /<button[^>]*>(?:<[^>]+>)*Send my answer(?:<\/[^>]+>)*<\/button>/);
+    assert.doesNotMatch(draft.text, /Change my answer/);
   });
 
-  test("once submitted the week page says so and stays open; Feedback from leads to the week's Feedback; the old Reopen changes nothing, the feedback kept", async () => {
+  test("once sent the week page says so, when, and that it was before the session, with Change my answer; after the session one neutral line says the group met; the old Reopen changes nothing", async () => {
     w.at(BEFORE_DUE_2);
     await w.write("chloe", 2, { text: words(25) }, { send: true });
     w.at(NOW);
     let page = await w.weekPage("chloe", 2);
     inOrder(page.text, [
-      "Your session: Tue 10 Nov, 6pm, Hallward B12. Anything you add or change after it shows as late to the people who read your work, with how late. This week stays open until the programme closes, at the end of Wed 23 Dec.",
+      "This week stays open until the programme closes, at the end of Wed 23 Dec.",
       "1 of 2 done",
       "Saved as you go",
+      "Group B met for week 2 on Tue 10 Nov. You can still finish it. Anything you add or change now shows as late to the people who read your work, with how late.",
       "Done",
-      "Submitted Sun 8 Nov",
+      "Sent Sun 8 Nov",
+      "Sent",
       "25 words · 20 to 40",
-      "Submitted Sun 8 Nov, 10am.",
+      "Sent Sun 8 Nov, 10am, before the session.",
+      "Change my answer",
       "Once you send it, or once your session has started, Rahul, Sofia, Claudia and admins can read your written answer.",
     ]);
     assert.match(page.text, /1 of 2 done/, "the task that covers the written answer is done once it is sent");
-    // Nothing is read only: the week stays open until the programme closes.
-    assert.doesNotMatch(page.html, /readOnly=""|readonly=""/);
-    assert.doesNotMatch(page.text, /is locked|Locked|reopened/);
+    // A sent answer is shown as sent, read only until "Change my answer"; nothing else is.
+    assert.equal((page.html.match(/readOnly=""|readonly=""/g) ?? []).length, 1, "only the sent answer's box waits for Change my answer");
+    assert.doesNotMatch(page.text, /is locked|Locked|reopened|Submit|Send my answer/);
+    // The line at the top is a fact, in the box's own neutral colours: never the warning colour.
+    assert.doesNotMatch(page.html, /class="[^"]*warning[^"]*"[^>]*>Group B met/);
 
     w.at("2026-11-17T10:05:00Z");
     await feedback("rahul", "chloe", 2, "Clear.");
@@ -634,8 +647,35 @@ describe("4. the pages, as the boards draw them", () => {
     page = await w.weekPage("chloe", 2);
     assert.doesNotMatch(page.text, /reopened this week/);
     assert.match(page.text, /1 of 2 done Saved as you go/);
-    assert.doesNotMatch(page.html, /readOnly=""|readonly=""/);
     assert.match(page.html, />Feedback from Rahul<\/a>/);
+  });
+
+  test("changed since sent: before the session its readers still see what was sent; after it they see the latest, and the page says so with how late", async () => {
+    w.at(BEFORE_DUE_2);
+    await w.write("chloe", 2, { text: words(25) }, { send: true });
+    w.at("2026-11-09T09:00:00Z");
+    await w.write("chloe", 2, { text: words(26) });
+    let page = await w.weekPage("chloe", 2);
+    inOrder(page.text, [
+      "26 words · 20 to 40",
+      "Saved Mon 9 Nov, 9am.",
+      "You’ve changed it since you sent it. The people who read your work still see the version you sent until you send it again.",
+      "Send my answer",
+    ]);
+    assert.doesNotMatch(page.text, /Change my answer|Week 2 is done once it’s sent/, "sent once already: the week does not wait on this send");
+    // After the session: the latest words are what its readers read, and the change says how late.
+    w.at("2026-11-12T19:00:00Z");
+    await w.write("chloe", 2, { text: words(27) });
+    page = await w.weekPage("chloe", 2);
+    inOrder(page.text, [
+      "27 words · 20 to 40",
+      "Saved Thu 12 Nov, 7pm: 2 days after your session",
+      "You’ve changed it since you sent it. Your session has started, so the people who read your work see your latest words.",
+      "Send my answer",
+    ]);
+    // Somebody with no session to be due at is never told late: an admin reading the week sees no box at all.
+    const zach = await w.weekPage("zach", 2);
+    assert.doesNotMatch(zach.text, /after your session|Send my answer|Change my answer/);
   });
 
   test("a week whose session has passed with the answer never sent: still open, the draft saved and still a draft, and who may now read it", async () => {
@@ -644,23 +684,26 @@ describe("4. the pages, as the boards draw them", () => {
     w.at(NOW);
     const page = await w.weekPage("kofi", 2);
     inOrder(page.text, [
-      "Your session: Tue 10 Nov, 6pm, Hallward B12. Anything you add or change after it shows as late to the people who read your work, with how late. This week stays open until the programme closes, at the end of Wed 23 Dec.",
+      "This week stays open until the programme closes, at the end of Wed 23 Dec.",
       "0 of 2 done",
       "Saved as you go",
+      "Group B met for week 2 on Tue 10 Nov. You can still finish it. Anything you add or change now shows as late to the people who read your work, with how late.",
       "Draft · 3 words",
       "Draft",
       "beacon beacon beacon",
       "3 words · 20 to 40",
+      "Saved Sun 8 Nov, 10am, before the session.",
+      "Send my answer",
       "Once you send it, or once your session has started, Rahul, Sofia, Claudia and admins can read your written answer.",
-      "Submit week 2",
     ]);
-    assert.doesNotMatch(page.text, /Locked|Not submitted|didn’t submit/);
+    assert.doesNotMatch(page.text, /Locked|Not submitted|didn’t submit|Submit/);
     assert.doesNotMatch(page.html, /readOnly=""|readonly=""/);
     // And once the programme has closed, the old page draws it read only, saying when it closed.
     w.at("2026-12-24T00:00:00Z");
     const closed = await w.weekPage("kofi", 2);
     assert.match(closed.text, /The programme closed at the end of Wed 23 Dec, so this week can’t change now\./);
     assert.match(closed.html, /readOnly=""|readonly=""/);
+    assert.doesNotMatch(closed.text, /Send my answer|Change my answer|Saved as you go/, "a closed programme offers nothing to send or change");
   });
 
   test("an answer opened before weeks were submitted is no longer read only: the page says the week stays open", async () => {
@@ -681,29 +724,37 @@ describe("4. the pages, as the boards draw them", () => {
       updatedAt: new Date("2026-11-15T10:00:00Z"),
     });
     const page = await w.weekPage("chloe", 3);
-    assert.match(page.text, /Your session: Tue 17 Nov, 6pm, Hallward B12\. Anything you add or change after it shows as late to the people who read your work, with how late\. This week stays open until the programme closes, at the end of Wed 23 Dec\./);
+    assert.match(page.text, /Your session: Tue 17 Nov, 6pm, Hallward B12\. Your work stays open after it: anything you add or change after it shows as late to the people who read your work, with how late\. This week stays open until the programme closes, at the end of Wed 23 Dec\./);
+    // Sent, and opened by a reviewer: the page says only that it was sent, and offers Change my answer.
+    assert.match(page.text, /Sent Sun 15 Nov, 10am\. Change my answer/);
+    assert.doesNotMatch(page.text, /opened it|can’t change now/);
     // The route takes a change (tests/course-week-work.test.mjs): the page's own word about the opening is the second builder's.
     assert.equal((await w.write("chloe", 3, { boxes: { "wb-what": "Lamps and keepers." } })).status, 200);
   });
 
-  test("a facilitator writing their own answer is told the lead and admins read it once they submit; an admin reads the question with no box and no Submit", async () => {
+  test("a facilitator writing their own answer is told who reads it (the lead and admins, not their group) and that what they add after their group's session shows them as late; an admin reads the question with no box and no Send", async () => {
     w.at(BEFORE_DUE_2);
     const rahul = await w.weekPage("rahul", 2);
     inOrder(rahul.text, [
-      "Your session: Tue 10 Nov, 6pm, Hallward B12. Anything you add or change after it shows as late to the people who read your work, with how late. This week stays open until the programme closes, at the end of Wed 23 Dec.",
+      "Your session: Tue 10 Nov, 6pm, Hallward B12. Your work stays open after it: anything you add or change after it shows as late to the people who read your work, with how late. This week stays open until the programme closes, at the end of Wed 23 Dec.",
+      "You run Group B, so your own work is read by Claudia and admins, not by your group. Anything you add after Group B’s session on Tue 10 Nov shows them as late.",
       "Due by noon, Mon 9 Nov. Claudia and admins read it and may give feedback on it.",
       "Once you send it, or once your session has started, Claudia and admins can read your written answer.",
       "Nobody else on the programme can read it, your co-facilitators included.",
-      "Submit week 2",
     ]);
-    assert.doesNotMatch(rahul.text, /Send to|opens it/);
+    assert.doesNotMatch(rahul.text, /Send to|opens it|Submit/);
+    w.at(NOW);
+    assert.match(
+      (await w.weekPage("rahul", 2)).text,
+      /You run Group B, so your own work is read by Claudia and admins, not by your group\. Group B met on Tue 10 Nov: anything you add now shows them as late\./,
+    );
     const zach = await w.weekPage("zach", 2);
     assert.match(zach.text, /Who should keep the lamps lit, and why\?/);
     assert.doesNotMatch(zach.html, /class="box answerBox"/);
-    assert.doesNotMatch(zach.text, /Submit week|This week stays open|Send to/);
+    assert.doesNotMatch(zach.text, /Submit week|This week stays open|Send to|Send my answer|You run/);
   });
 
-  test("an answer in labelled boxes is drawn box by box, each with its label and hint, sent together by the week's Submit", async () => {
+  test("an answer in labelled boxes is drawn box by box, each with its label and hint, and sent together by its own Send", async () => {
     const page = await w.weekPage("chloe", 3);
     inOrder(page.text, [
       "Written answer",
@@ -715,24 +766,26 @@ describe("4. the pages, as the boards draw them", () => {
       "My next step",
       "one line.",
       "0 words",
-      "Submit week 3",
     ]);
     assert.equal((page.html.match(/class="box answerBox"/g) ?? []).length, 3);
+    assert.doesNotMatch(page.text, /Submit|Send my answer/, "nothing written: nothing to send");
+    await w.write("chloe", 3, { boxes: { "wb-what": words(5) } });
+    assert.match((await w.weekPage("chloe", 3)).text, /5 words .*Send my answer/);
     assert.match(page.html, /<fieldset class="boxes"><legend class="label">Your answer<\/legend>/);
   });
 
-  test("the programme page's task row reads Draft, then Submitted, then Feedback from whoever gave it; a draft past its session stays a draft", async () => {
+  test("the programme page's task row reads Draft, then Sent, then Feedback from whoever gave it; a draft past its session stays a draft", async () => {
     await w.write("chloe", 3, { boxes: { "wb-what": words(5) } });
     let home = await w.programmeHome("chloe");
     assert.match(home.text, /Your written answer Draft · 5 words/);
     assert.match(home.text, /0 of 2 done/);
     await w.write("chloe", 3, { boxes: { "wb-what": words(5) } }, { send: true });
     home = await w.programmeHome("chloe");
-    assert.match(home.text, /Your written answer Submitted Tue 17 Nov/);
-    assert.match(home.text, /1 of 2 done/, "the programme page counts a submitted answer done, from the overview's own rows");
+    assert.match(home.text, /Your written answer Sent Tue 17 Nov/);
+    assert.match(home.text, /1 of 2 done/, "the programme page counts a sent answer done, from the overview's own rows");
     await feedback("sofia", "chloe", 3, "On your plan.");
     home = await w.programmeHome("chloe");
-    assert.match(home.html, /Submitted Tue 17 Nov <a href="\/learn\/[^"]+\/weeks\/3#feedback" class="cardLink">Feedback from Sofia<span aria-hidden="true">→<\/span><\/a>/);
+    assert.match(home.html, /Sent Tue 17 Nov <a href="\/learn\/[^"]+\/weeks\/3#feedback" class="cardLink">Feedback from Sofia<span aria-hidden="true">→<\/span><\/a>/);
 
     // Group A met for week 3 on Thursday with Amara's draft unsent: the week stays open, so it is still a draft.
     w.at("2026-11-11T10:00:00Z");
@@ -740,7 +793,7 @@ describe("4. the pages, as the boards draw them", () => {
     w.at(NOW);
     home = await w.programmeHome("amara");
     assert.match(home.text, /Your written answer Draft · 4 words/);
-    assert.doesNotMatch(home.text, /Not submitted/);
+    assert.doesNotMatch(home.text, /Not submitted|Submitted|Locked/);
     // Its readers may give feedback on it now the session has started, and the row leads to it.
     assert.equal((await feedback("sofia", "amara", 3, "On what you had.")).status, 200);
     home = await w.programmeHome("amara");
@@ -768,12 +821,13 @@ describe("4. the pages, as the boards draw them", () => {
       "To give feedback on",
       "2",
       "Chloe Nguyen",
-      "Submitted Sun 8 Nov, 10am",
+      "Sent Sun 8 Nov, 10am",
       "Farah Hussain",
-      "Submitted Tue 10 Nov, 12pm",
+      "Sent Tue 10 Nov, 12pm",
+      "After its deadline",
       "With feedback",
       "0",
-      "Not submitted yet",
+      "Not sent yet",
       "1",
       "Kofi Asante",
       "Started",
@@ -782,7 +836,7 @@ describe("4. the pages, as the boards draw them", () => {
       "Show all of it",
       "Chloe’s answer",
       "25 words · 20 to 40",
-      "Submitted Sun 8 Nov, 10am",
+      "Sent Sun 8 Nov, 10am",
       "Chloe can change it until the programme closes. Before the session you read it as last sent; from the session, as it stands.",
       "Your feedback",
       "Optional: write it when there’s time, when it’s needed, or when they’ve asked a question. It’s signed with your name.",
@@ -817,10 +871,29 @@ describe("4. the pages, as the boards draw them", () => {
     assert.deepEqual([kofi.person.firstSentAt, kofi.person.due.at, kofi.shown.latest], [null, "2026-11-10T18:00:00.000Z", true]);
     inOrder(locked.text, [
       "Kofi Asante",
+      "Not sent, read since the session, Tue 10 Nov, 6pm",
       "Kofi’s answer",
       "4 words · 20 to 40",
+      "Saved Sun 8 Nov, 10am",
       "beacon beacon beacon beacon",
       "Kofi can change it until the programme closes. Before the session you read it as last sent; from the session, as it stands.",
+    ]);
+    // Saved before the session: never late, and never "After its deadline", which is for a send.
+    assert.doesNotMatch(locked.text, /Saved Sun 8 Nov, 10am Late/);
+
+    // Kofi changes it after the session: the page says when and how late, and shows it as it stood at the session.
+    w.at("2026-11-12T19:00:00Z");
+    assert.equal((await w.write("kofi", 2, { text: words(5, "harbour") })).status, 200);
+    w.at(NOW);
+    const changed = await w.writtenPage("rahul", { week: "2", person: "kofi" });
+    inOrder(changed.text, [
+      "Kofi’s answer",
+      "5 words · 20 to 40",
+      "Saved Thu 12 Nov, 7pm",
+      "Late: 2 days after the session",
+      "harbour harbour harbour harbour harbour",
+      "As it stood at the session",
+      "beacon beacon beacon beacon",
     ]);
     assert.doesNotMatch(locked.text, /Reopen week/);
     // Opened with nobody asked for, the page opens on the oldest waiting.
@@ -850,7 +923,7 @@ describe("4. the pages, as the boards draw them", () => {
     assert.equal(model.selected.role.mayReview, true);
     // The title names him as the names rule names him to the lead, who is on the committee; the sentences by the name he goes by.
     assert.match(page.text, /Rahul Mehta’s lamp plan/);
-    assert.match(page.text, /Submitted Sun 8 Nov, 10am .*Rahul can change it until the programme closes\. Before the session you read it as last sent; from the session, as it stands\./);
+    assert.match(page.text, /Sent Sun 8 Nov, 10am .*Rahul can change it until the programme closes\. Before the session you read it as last sent; from the session, as it stands\./);
     assert.doesNotMatch(page.text, /Reopen week/);
     assert.equal(page.wrote, false, "a GET never writes, and opening an answer stamps nothing");
     // The lead's page for another programme's lead, and for a fellow: nothing of it.
@@ -956,12 +1029,14 @@ describe("4. the pages, as the boards draw them", () => {
       "2 week 2 answers",
       "People see your feedback on their page as soon as you save it; the email telling them goes in a batch.",
       "Chloe Nguyen",
-      "Submitted Sun 8 Nov, 10am",
+      "Sent Sun 8 Nov, 10am",
       "Write feedback",
       "Farah Hussain",
-      "Submitted Tue 10 Nov, 12pm",
+      "Sent Tue 10 Nov, 12pm",
       "Write feedback",
     ]);
+    // Sent before the session: the card says nothing of late.
+    assert.doesNotMatch(group.text.slice(group.text.indexOf("Feedback to write"), group.text.indexOf("Feedback to write") + 400), /Late/);
     assert.match(group.html, /href="\/learn\/[^"]+\/group\/[^"]+\/written\?week=2&amp;person=chloe"/);
     // The card lists the group's fellows and never Rahul's own answer, which is the lead's and admins' to read.
     const toWrite = group.text.slice(group.text.indexOf("Feedback to write"), group.text.indexOf("Feedback to write") + 400);
@@ -1005,7 +1080,7 @@ describe("4. the pages, as the boards draw them", () => {
     // Sent, it waits from when it was sent.
     assert.equal((await w.sendAnswer("kofi", 2)).status, 200);
     assert.equal((await w.summary("rahul")).body.writtenToGive, 1);
-    inOrder((await w.groupPage("rahul")).text, ["Kofi Asante", "Submitted Tue 17 Nov, 12pm", "Write feedback"]);
+    inOrder((await w.groupPage("rahul")).text, ["Kofi Asante", "Sent Tue 17 Nov, 12pm", "Late: 6 days after the session", "Write feedback"]);
   });
 });
 
@@ -1144,7 +1219,7 @@ describe("6. finishing's column, the rubric's setting, the email", () => {
     assert.equal(w.lib.model.answerNameOf("Part four"), "your written answer");
   });
 
-  test("never the word exercise for the written answer, and no dash, in its words; an answer is submitted, never sent, where its writer reads it", () => {
+  test("never the word exercise for the written answer, and no dash, in its words; an answer is sent, never submitted, wherever it is read", () => {
     const all = Object.values(w.lib.words)
       .map((value) => (typeof value === "string" ? value : ""))
       .join(" ");
@@ -1161,11 +1236,16 @@ describe("6. finishing's column, the rubric's setting, the email", () => {
     const at = new Date("2026-11-16T22:42:00Z");
     assert.deepEqual(
       [said.SENT, said.sentLineWords(at), said.sentOnWords(at), said.listSentWords(at), said.NOT_SENT_YET],
-      ["Submitted", "Submitted Mon 16 Nov, 10:42pm.", "Submitted Mon 16 Nov", "Submitted Mon 16 Nov, 10:42pm", "Not submitted yet"],
+      ["Sent", "Sent Mon 16 Nov, 10:42pm.", "Sent Mon 16 Nov", "Sent Mon 16 Nov, 10:42pm", "Not sent yet"],
     );
     // An answer never sent, read because the session it was due at started before it was sent.
-    assert.equal(said.listLockedWords(at), "Not sent, read since the session, Mon 16 Nov, 10:42pm");
-    assert.doesNotMatch(said.listLockedWords(at), /Locked|exercise|[–—]/i);
+    assert.equal(said.listReadSinceWords(at), "Not sent, read since the session, Mon 16 Nov, 10:42pm");
+    assert.doesNotMatch(said.listReadSinceWords(at), /Locked|exercise|[–—]/i);
+    // Nothing the written answer says is submitted, locked or reopened any more.
+    assert.equal(said.NOBODY_SENT_YET, "Nobody has sent this week’s written answer yet.");
+    for (const value of Object.values(said)) {
+      if (typeof value === "string") assert.doesNotMatch(value, /submit|\block|reopen/i, value);
+    }
     // The feedback page's "266 words · submitted ..." went with the page: the feedback the writer reads,
     // on their week page, is signed and dated and never says it was sent, nor carries a dash.
     const feedbackWords = w.lib.feedbackWords;

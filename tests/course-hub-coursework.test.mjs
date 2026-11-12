@@ -318,6 +318,8 @@ describe("4. a cell", () => {
         done: false,
         doneAt: null,
         doneLateMs: null,
+        // The session Chloe was due at, which "Done on time" and "Done late" are told against.
+        due: { at: "2026-11-17T18:00:00.000Z", by: "session" },
         reached: true,
         reflections: { written: 1, of: 3 },
         ticks: { ticked: 1, of: 2 },
@@ -430,6 +432,7 @@ describe("7. the model", () => {
       done: null,
       doneAt: null,
       doneLateMs: null,
+      due: { at: null, by: "no-group" },
       reached: false,
       reflections: null,
       ticks: null,
@@ -752,6 +755,7 @@ describe("10. done, by the one meaning every page uses, and the Not done filter"
       { submittedAt: null, due: { at: new Date("2026-11-19T18:00:00Z"), by: "session" }, reached: true },
     );
     assert.deepEqual([late.done, late.doneAt, late.doneLateMs], [true, "2026-11-19T20:00:00.000Z", 2 * 60 * 60 * 1000]);
+    assert.deepEqual(late.due, { at: "2026-11-19T18:00:00.000Z", by: "session" });
   });
 
   test("the tab: each cell's first line, a week still to come said quietly, and Not done keeps the people behind on a week that has begun", async () => {
@@ -788,8 +792,11 @@ describe("10. done, by the one meaning every page uses, and the Not done filter"
   test("once week 4 begins Chloe is behind on it, until she picks her pathway, ticks both readings and submits", async () => {
     w.reset(doneSeed());
     w.at("2026-11-20T10:00:00Z");
-    let chloe = rows(tableOf(await tab("claudia"))).find((row) => row.name === "Chloe Nguyen");
+    const after = await tab("claudia");
+    let chloe = rows(tableOf(after)).find((row) => row.name === "Chloe Nguyen");
     assert.deepEqual(chloe.cells.map((cell) => [cell.weekNumber, cell.done, cell.reached]), [[1, true, true], [3, true, true], [4, false, true]]);
+    // Once the session she was due at has passed, done says whether it was on time.
+    assert.match(after.html, /aria-label="Week 3, done: Chloe Nguyen’s coursework"><span class="weekDone">Done on time<\/span>/);
     assert.ok((await names({ notdone: "1" })).includes("Chloe Nguyen"));
     // Submitted with the week's reading ticked, but no pathway yet: still not done.
     w.world.db.seed(`courseProgress/${RUN.agi}__chloe__k4-s1`, tick("chloe", "k4-s1", { weekNumber: 4 }));

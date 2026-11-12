@@ -1,12 +1,14 @@
 import { londonClockLabel, londonDayLabel } from "../londonLabels";
-import { namesAnd, namesOr, numberWords } from "../writtenAnswerWords";
+import { namesAnd, numberWords } from "../writtenAnswerWords";
 import type { NotDone, PersonWeekProgress, WeekDue, WeekWorkState } from "./model";
 
 /**
  * EVERY WORD THE WEEK SAYS ABOUT ITSELF: the week page's line about until
- * when the work can change, its status box, Send and the check before it, how
- * late something was, a closed programme, and the one line a staff page says
- * of a person's week. One file, so the pages and the routes say one thing.
+ * when the work can change, the box at its top (after the session, and a
+ * facilitator's own), Send and Change my answer, when each thing was done and
+ * how late, a closed programme, what isn't done (the reminders), and what a
+ * staff page says of a person's week and of words changed since. One file,
+ * so the pages, the routes and the emails say one thing.
  *
  * Never "mark", "grade" or "score", and no pronoun for a person: their name.
  * Times in the house clock ("3pm", "9:31pm"), days as "Wed 18 Nov".
@@ -24,10 +26,6 @@ export function dayClockWords(at: Date): string {
 // ---------------------------------------------------------------------------
 
 export const SAVED_AS_YOU_GO = "Saved as you go";
-export const SUBMITTED = "Submitted";
-export const LOCKED = "Locked";
-export const NOT_SUBMITTED = "Not submitted";
-export const REOPENED = "Reopened";
 
 /**
  * The London day a programme's work closes at the end of: the day before the
@@ -54,17 +52,24 @@ function sessionLineWords(due: WeekDue, room: string): string {
 }
 
 /**
- * The line under the week's title that says until when the work can change
+ * THE LINE UNDER THE WEEK'S TITLE THAT SAYS UNTIL WHEN THE WORK CAN CHANGE
  * (privacy v17: "The week's page says until when you can change your
- * work"): the session they are due at, that anything added or changed after
- * it shows as late, and when the programme closes. `room` is the session's
- * room that week, "" for none. `reopenedBy` is read by nothing now: nothing
- * is reopened.
+ * work"). Before the session they are due at: the session, that anything
+ * added or changed after it shows as late, and when the programme closes.
+ * Once that session has started, the box at the top of the week says the
+ * session and the late (`sessionMetWords`), so this line says only when the
+ * programme closes. Once it has closed: that the week can't change now.
+ * `room` is the session's room that week, "" for none.
  */
-export function lockLineWords(state: WeekWorkState, input: { room: string; reopenedBy?: string }): string {
+export function untilWhenWords(state: WeekWorkState, input: { room: string; now: Date }): string {
   if (state.kind === "closed") return closedWords(state.at);
-  const session = sessionLineWords(state.due, input.room);
-  const late = state.due.at ? " Anything you add or change after it shows as late to the people who read your work, with how late." : "";
+  const started = state.due.at !== null && input.now.getTime() >= state.due.at.getTime();
+  const session = started ? "" : sessionLineWords(state.due, input.room);
+  const late = !state.due.at
+    ? ""
+    : state.due.by === "cancelled"
+      ? " Anything you add or change after the time it would have started shows as late to the people who read your work, with how late."
+      : " Your work stays open after it: anything you add or change after it shows as late to the people who read your work, with how late.";
   return [session ? `${session}${late}` : "", staysOpenWords(state.closesAt)].filter(Boolean).join(" ");
 }
 
@@ -113,7 +118,7 @@ export const AFTER_ITS_DEADLINE = "After its deadline";
 export const JOINED_LATE = "Joined late";
 
 // ---------------------------------------------------------------------------
-// The status box
+// The box at the top of the week, before the session
 // ---------------------------------------------------------------------------
 
 /** "1 of 3 done". */
@@ -121,55 +126,12 @@ export function doneOfWords(done: number, of: number): string {
   return `${done} of ${of} done`;
 }
 
-/** Who reads the written answer, as the locked box names them: "Rahul and Sofia", "Claudia and admins". */
+/** Who reads the written answer: the group's facilitators by first name, or the lead and admins for a facilitator's own. */
 export type Readers = { kind: "facilitators"; names: string[] } | { kind: "lead"; leadName: string | null };
 
-/** Whom to ask about the week: the group's facilitators, or the lead for a facilitator's own week. */
-function askWho(readers: Readers): string {
-  if (readers.kind === "facilitators") return readers.names.length > 0 ? namesOr(readers.names) : "your facilitators";
-  return readers.leadName ?? "the programme’s lead";
-}
-
-/**
- * A closed week's line (the status box once the programme has closed): "The
- * programme has closed, so this week can’t change now." `readers` and
- * `wroteAnything` are read by nothing now.
- */
-export function lockedBoxWords(_readers: Readers, _wroteAnything: boolean): string {
-  return "The programme has closed, so this week can’t change now.";
-}
-
-/** The closed week's second line: "Everything you saved is kept. Ask Rahul about anything in it." */
-export function askToReopenWords(readers: Readers): string {
-  return `Everything you saved is kept. Ask ${askWho(readers)} about anything in it.`;
-}
-
 // ---------------------------------------------------------------------------
-// Submit, and the check before it
+// What isn't done (the reminders, and the routes' refusals)
 // ---------------------------------------------------------------------------
-
-/** "Submit week 3". */
-export function submitWeekWords(weekNumber: number): string {
-  return `Submit week ${weekNumber}`;
-}
-
-export const SUBMIT_LOCKS_LINE = "Submitting doesn’t close this week: you can keep changing it until the programme closes.";
-export const GO_BACK_AND_FINISH = "Go back and finish";
-export const SUBMIT_ANYWAY = "Submit anyway";
-export const GO_BACK = "Go back";
-export const EVERYTHING_DONE = "Everything this week asks for is done.";
-export const SUBMITTING = "Submitting…";
-export const SUBMIT_FAILED = "That didn’t submit. Check your connection and try again.";
-
-/** "Before you submit week 3". */
-export function checkTitleWords(weekNumber: number): string {
-  return `Before you submit week ${weekNumber}`;
-}
-
-/** "Two things aren’t done yet:", "One thing isn’t done yet:". */
-export function notDoneLeadWords(count: number): string {
-  return count === 1 ? "One thing isn’t done yet:" : `${capitalise(numberWords(count))} things aren’t done yet:`;
-}
 
 /** “A”, “B” and “C”. */
 function quotedAnd(titles: readonly string[]): string {
@@ -215,21 +177,6 @@ export function notDoneWords(item: NotDone): string {
   }
 }
 
-/**
- * The check's line about what Submit does. With a written answer, who may
- * then read it: the group's facilitator and the programme team, or, for a
- * facilitator's own week, the programme team.
- */
-export function checkLockLineWords(input: { hasAnswer: boolean; ownIsTheLeads: boolean }): string {
-  if (!input.hasAnswer) return SUBMIT_LOCKS_LINE;
-  return input.ownIsTheLeads
-    ? "Submitting sends your written answer, and the programme team can then read it. You can keep changing this week until the programme closes."
-    : "Submitting sends your written answer, and your facilitator and the programme team can then read it. You can keep changing this week until the programme closes.";
-}
-
-/** Said when an answer over its limit stops Submit. */
-export const CUT_TO_SUBMIT = "Cut your written answer to its limit to submit this week.";
-
 // ---------------------------------------------------------------------------
 // Sending a written answer
 // ---------------------------------------------------------------------------
@@ -242,9 +189,182 @@ export const SEND_FAILED = "That didn’t send. Check your connection and try ag
 export const NOTHING_TO_SEND = "Write your answer before you send it.";
 export const CUT_TO_SEND = "Cut your written answer to its limit to send it.";
 
-/** "Sent Tue 10 Nov, 9:31pm." */
-export function sentLineWords(at: Date): string {
-  return `Sent ${dayClockWords(at)}.`;
+/**
+ * WHEN ONE OF THE PERSON'S OWN THINGS WAS DONE, against the session they are
+ * due at, as the week page says it beside the thing: before that session has
+ * started, the time alone ("Saved Tue 3 Nov, 8:15pm."); once it has, whether
+ * it was before it ("Saved Tue 3 Nov, 8:15pm, before the session.") or how
+ * long after ("Saved Sat 7 Nov, 6:20pm: 3 days after your session"). With no
+ * session to be due at (no group yet, told the group after it met, no time
+ * set), never late: the time alone. Always the clock time, never "just now",
+ * so a page left open never says something stale.
+ */
+function whenDoneWords(verb: string, at: Date, due: WeekDue, now: Date | null): string {
+  const when = dayClockWords(at);
+  if (now === null || due.at === null || now.getTime() < due.at.getTime()) return `${verb} ${when}.`;
+  const late = at.getTime() - due.at.getTime();
+  if (late > 0) return `${verb} ${when}: ${afterYourSessionWords(late)}`;
+  return `${verb} ${when}, before the session.`;
+}
+
+/** "Saved Tue 3 Nov, 8:15pm, before the session.", "Saved Tue 10 Nov, 8:01pm: 6 days after your session"; given no `now`, the time alone. */
+export function savedLineWords(at: Date, due: WeekDue, now: Date | null): string {
+  return whenDoneWords("Saved", at, due, now);
+}
+
+/**
+ * "Sent Tue 10 Nov, 9:31pm.", and once the session has started "Sent Sun 8
+ * Nov, 9:12pm: 4 days after your session" or "…, before the session.". Given
+ * no `now`, the time alone.
+ */
+export function sentLineWords(at: Date, due: WeekDue = { at: null, by: "no-group" }, now: Date | null = null): string {
+  return whenDoneWords("Sent", at, due, now);
+}
+
+/** How long after the session something done at `at` was, once that session has started; null otherwise. */
+function lateOnceStarted(at: Date, due: WeekDue, now: Date): number | null {
+  if (due.at === null || now.getTime() < due.at.getTime()) return null;
+  const late = at.getTime() - due.at.getTime();
+  return late > 0 ? late : null;
+}
+
+/**
+ * "Ticked Sun 15 Nov", under a reading the person ticked, its day alone as it
+ * always was; "Ticked Sat 7 Nov: 3 days after your session" when it was
+ * ticked after the session they are due at.
+ */
+export function tickedOnWords(at: Date, due: WeekDue = { at: null, by: "no-group" }, now: Date = at): string {
+  const late = lateOnceStarted(at, due, now);
+  return late === null ? `Ticked ${londonDayLabel(at)}` : `Ticked ${londonDayLabel(at)}: ${afterYourSessionWords(late)}`;
+}
+
+/** "All ticked by Tue 3 Nov.", "All ticked by Sat 7 Nov: 3 days after your session" (a task that is only ticks). */
+export function allTickedWords(at: Date, due: WeekDue, now: Date): string {
+  const late = lateOnceStarted(at, due, now);
+  return late === null ? `All ticked by ${londonDayLabel(at)}.` : `All ticked by ${londonDayLabel(at)}: ${afterYourSessionWords(late)}`;
+}
+
+/**
+ * A sent answer changed since, as its writer is told who reads what: before
+ * the session (or with no session to be due at) the people who read their
+ * work still read the version they sent until they send it again; once the
+ * session has started, they read the latest words.
+ */
+export function changedSinceSentWords(sessionStarted: boolean): string {
+  return sessionStarted
+    ? "You’ve changed it since you sent it. Your session has started, so the people who read your work see your latest words."
+    : "You’ve changed it since you sent it. The people who read your work still see the version you sent until you send it again.";
+}
+
+/** What the rest of a week needs, beside one written answer, for "done once it's sent". */
+export type RestOfWeek = "ticks" | "done" | "left" | "nothing";
+
+/**
+ * Under Send, what makes the week done: "Week 1 is done once it’s sent:
+ * every reading is already ticked." (everything else it counts is ticks, all
+ * ticked), "…: everything else it asks for is done." (writing too), or "Week
+ * 1 is done once it’s sent and everything else it asks for is done.", or
+ * "Week 1 is done once it’s sent." when the answer is all it asks for.
+ */
+export function doneOnceSentWords(weekNumber: number, rest: RestOfWeek): string {
+  if (rest === "nothing") return `Week ${weekNumber} is done once it’s sent.`;
+  if (rest === "ticks") return `Week ${weekNumber} is done once it’s sent: every reading is already ticked.`;
+  if (rest === "done") return `Week ${weekNumber} is done once it’s sent: everything else it asks for is done.`;
+  return `Week ${weekNumber} is done once it’s sent and everything else it asks for is done.`;
+}
+
+/** "Not sent": an answer with words, never sent. */
+export const NOT_SENT = "Not sent";
+
+// ---------------------------------------------------------------------------
+// The box at the top of the week: after the session, and a facilitator's own
+// ---------------------------------------------------------------------------
+
+/**
+ * ONCE THE SESSION THEY ARE DUE AT HAS STARTED, the one line at the top of a
+ * member's week, a fact and not a warning: "Group C met for week 1 on Wed 4
+ * Nov. You can still finish it. Anything you add or change now shows as late
+ * to the people who read your work, with how late." Done, it says nothing of
+ * finishing. A cancelled session (the group keeping pace) is told against
+ * when it would have started. Null before the session, and with no session
+ * to be due at: nothing of theirs is ever late then.
+ */
+export function sessionMetWords(input: { due: WeekDue; weekNumber: number; groupName: string | null; done: boolean; now: Date }): string | null {
+  const { due, weekNumber, groupName, done, now } = input;
+  if (due.at === null || now.getTime() < due.at.getTime()) return null;
+  const finish = done ? "" : " You can still finish it.";
+  if (due.by === "cancelled") {
+    const whose = groupName ? `${groupName}’s` : "Your group’s";
+    return `${whose} week ${weekNumber} session, ${dayClockWords(due.at)}, was cancelled.${finish} Anything you add or change after the time it would have started shows as late to the people who read your work, with how late.`;
+  }
+  return `${groupName ?? "Your group"} met for week ${weekNumber} on ${londonDayLabel(due.at)}.${finish} Anything you add or change now shows as late to the people who read your work, with how late.`;
+}
+
+/**
+ * A FACILITATOR'S OWN WORK (privacy v17: "If you facilitate a group, your own
+ * work is read by the lead and admins only"), the line at the top of their
+ * week: who reads it, and that what they add after their group's session
+ * shows those people as late. "You run Group C, so your own work is read by
+ * Claudia and admins, not by your group. Group C met on Wed 4 Nov: anything
+ * you add now shows them as late." `readers` is "Claudia and admins", or
+ * "admins" with no lead; `runs` the group they run, null for somebody who
+ * runs more than one; `meets` the group whose session their week goes by (the
+ * one they hold a place in, or the one they run), null when that is not one
+ * group.
+ */
+export function ownWorkWords(input: { due: WeekDue; runs: string | null; meets: string | null; readers: string; now: Date }): string {
+  const { due, runs, meets, readers, now } = input;
+  const who = runs
+    ? `You run ${runs}, so your own work is read by ${readers}, not by your group.`
+    : `You run groups on this programme, so your own work is read by ${readers}, not by your groups.`;
+  if (due.at === null) return who;
+  const day = londonDayLabel(due.at);
+  if (now.getTime() < due.at.getTime()) {
+    return `${who} Anything you add after ${meets ? `${meets}’s` : "your"} session on ${day} shows them as late.`;
+  }
+  if (due.by === "cancelled") {
+    return `${who} ${meets ? `${meets}’s` : "Your group’s"} session on ${day} was cancelled: anything you add now shows them as late.`;
+  }
+  return `${who} ${meets ?? "Your group"} met on ${day}: anything you add now shows them as late.`;
+}
+
+// ---------------------------------------------------------------------------
+// Feedback on words that have changed since
+// ---------------------------------------------------------------------------
+
+/** Over the version a piece of feedback was about, when the answer has changed since. */
+export const THE_VERSION_THIS_FEEDBACK_WAS_ABOUT = "The version this feedback was about";
+/** Over the answer as it stood at the session, when the words shown have changed since. */
+export const AS_IT_STOOD_AT_THE_SESSION = "As it stood at the session";
+/** A piece whose version is no longer kept (the person's own page). */
+export const YOUR_ANSWER_CHANGED_SINCE = "Your answer has changed since this feedback was written.";
+
+/** The same, as the people running the group read it: "Amara’s answer has changed since this feedback was written." */
+export function answerChangedSinceWords(firstName: string): string {
+  return `${firstName}’s answer has changed since this feedback was written.`;
+}
+
+// ---------------------------------------------------------------------------
+// Staff pages: what was added or changed, and when
+// ---------------------------------------------------------------------------
+
+/** "Sent Mon 16 Nov, 10:42pm": when an answer was last sent, on a staff page. */
+export function staffSentWords(at: Date): string {
+  return `Sent ${dayClockWords(at)}`;
+}
+
+/** "Changed Sat 7 Nov, 6:20pm": when the words shown last changed, on a staff page; "Saved …" for an answer never sent. */
+export function staffChangedWords(at: Date, sent = true): string {
+  return `${sent ? "Changed" : "Saved"} ${dayClockWords(at)}`;
+}
+
+/**
+ * A sent answer changed since, before the session, as its readers are told:
+ * they read it as sent, never the change. "Amara has changed it since sending
+ * it. You read it as sent until it’s sent again or the session starts."
+ */
+export function staffChangedSinceSentWords(firstName: string): string {
+  return `${firstName} has changed it since sending it. You read it as sent until it’s sent again or the session starts.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -273,22 +393,6 @@ export function othersReadWords(readers: Readers): string {
   return readers.kind === "lead" ? "Nobody else on the programme can read it, your co-facilitators included." : "Other fellows can’t.";
 }
 
-/** "146 words, saved Tue 17 Nov." (the locked week's written answer, not submitted). */
-export function savedOnWords(words: number, at: Date | null): string {
-  const count = `${words} ${words === 1 ? "word" : "words"}`;
-  return at ? `${count}, saved ${londonDayLabel(at)}.` : `${count}.`;
-}
-
-/** "Submitted Tue 10 Nov, 9:31pm." */
-export function submittedLineWords(at: Date): string {
-  return `${SUBMITTED} ${dayClockWords(at)}.`;
-}
-
-/** "Ticked Sun 15 Nov", under a reading the person ticked. */
-export function tickedOnWords(at: Date): string {
-  return `Ticked ${londonDayLabel(at)}`;
-}
-
 
 // ---------------------------------------------------------------------------
 // Staff pages: one line a person
@@ -305,9 +409,6 @@ export const NOT_STARTED = "Not started";
 export const DONE = "Done";
 export const DONE_ON_TIME = "Done on time";
 export const DONE_LATE = "Done late";
-/** The page as it was: the review page's own lines. */
-export const BEFORE_THEY_JOINED = "Before they joined";
-export const REOPENED_NOT_SUBMITTED = "Reopened, not submitted again";
 
 /** What a staff page knows of one person's week to say it. */
 export type PersonWeekLine = {
@@ -348,29 +449,6 @@ export function personWeekTone(line: PersonWeekLine): "done" | "partly" | "none"
   if (saidDone(line.progress)) return "done";
   if (line.progress.started) return "partly";
   return "none";
-}
-
-// ---------------------------------------------------------------------------
-// Reopening: gone. The page as it was keeps its words until it is redrawn.
-// ---------------------------------------------------------------------------
-
-/** "Reopen week 3 for Sofia" (the page as it was). */
-export function reopenWeekWords(weekNumber: number, firstName: string): string {
-  return `Reopen week ${weekNumber} for ${firstName}`;
-}
-
-/** The confirm's words (the page as it was): true now, since nothing is locked. */
-export function reopenConfirmWords(weekNumber: number, firstName: string): string {
-  return `${firstName} can already change week ${weekNumber}: weeks stay open until the programme closes. Nobody is emailed.`;
-}
-
-export const REOPEN = "Reopen";
-export const KEEP_IT_LOCKED = "Keep it as it is";
-export const REOPEN_FAILED = "That didn’t go through. Check your connection and try again.";
-
-/** Said once the old Reopen button has been pressed: nothing was changed. */
-export function reopenedDoneWords(weekNumber: number, firstName: string): string {
-  return `Week ${weekNumber} is already open for ${firstName}.`;
 }
 
 /** The reopen route's answer: nothing locks, so nothing is reopened, and nothing is written. */

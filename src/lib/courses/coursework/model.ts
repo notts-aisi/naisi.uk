@@ -161,6 +161,8 @@ export type CourseworkCell = {
   doneAt: string | null;
   /** How long after the session they were due at it became done (ms): "Done late". Null when on time, or no session. */
   doneLateMs: number | null;
+  /** The session they were due at that week (ISO 8601), or null with none; `by` says why ("joined-late": "Joined late"). */
+  due: { at: string | null; by: WeekDue["by"] };
   /** The week has begun for them, on the calendar of the group whose weeks they read. */
   reached: boolean;
   /** Reflection parts written, of the week's parts; null for a week with none. */
@@ -268,6 +270,11 @@ export type CellStanding = { submittedAt: Date | null; due: WeekDue; reached: bo
 
 const NO_STANDING: CellStanding = { submittedAt: null, due: { at: null, by: "no-group" }, reached: false };
 
+/** The session they were due at, as a cell carries it. */
+function dueWire(due: WeekDue): CourseworkCell["due"] {
+  return { at: due.at ? due.at.toISOString() : null, by: due.by };
+}
+
 /**
  * One cell, worked out from the week the person reads, what they wrote and
  * ticked, and where their week stands (`loadRunWeekStates`): when the old
@@ -284,7 +291,7 @@ export function cellOf(
   const href = `${links.person}#week-${weekNumber}`;
   const reached = standing.reached;
   if (!week) {
-    return { weekNumber, counted: false, done: null, doneAt: null, doneLateMs: null, reached, reflections: null, ticks: null, answer: null, boxes: null, href };
+    return { weekNumber, counted: false, done: null, doneAt: null, doneLateMs: null, due: dueWire(standing.due), reached, reflections: null, ticks: null, answer: null, boxes: null, href };
   }
   const key = (id: string) => workKey(weekNumber, id);
   const packOf = (id: string) => work.packs?.get(id) ?? null;
@@ -332,6 +339,7 @@ export function cellOf(
     done,
     doneAt: doneAt ? doneAt.toISOString() : null,
     doneLateMs: lateBy(doneAt, standing.due),
+    due: dueWire(standing.due),
     reached,
     reflections,
     ticks,

@@ -405,9 +405,11 @@ export type WeekWorkWire = {
   /** When they first pressed the week's old Submit, or null. Nothing presses it on the page now. */
   submittedAt: string | null;
   /**
-   * THE PAGE AS IT WAS BEFORE THE WEEK STAYED OPEN, until it is redrawn: "open"
-   * while the programme takes work and "locked" once it has closed. Never
-   * "submitted" or "reopened" any more.
+   * THE PAGE AS IT WAS BEFORE THE WEEK STAYED OPEN: "open" while the programme
+   * takes work and "locked" once it has closed; never "submitted" or
+   * "reopened" any more. No page in this tree reads this field or the four
+   * after it: they stay on the wire so a tab opened before this change, which
+   * runs the old page's code against this route, still draws something true.
    */
   state: "open" | "submitted" | "locked" | "reopened";
   /** When it closed, once closed (the page as it was). */

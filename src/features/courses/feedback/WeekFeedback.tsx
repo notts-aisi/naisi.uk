@@ -1,7 +1,12 @@
 import InitialsChip from "@/components/ui/InitialsChip";
 import type { OwnFeedbackCard } from "@/lib/courses/feedback/model";
 import { FEEDBACK_HEADING, cardByWords, cardHeadingWords } from "@/lib/courses/feedback/words";
+import { THE_VERSION_THIS_FEEDBACK_WAS_ABOUT, YOUR_ANSWER_CHANGED_SINCE, savedLineWords } from "@/lib/courses/weekWork/words";
+import EarlierVersion, { versionBoxes } from "./EarlierVersion";
 import styles from "./feedback.module.css";
+
+/** No session to tell a saved time against: the time alone. */
+const NO_SESSION = { at: null, by: "no-group" } as const;
 
 /** The anchor the Feedback section is reached by: the emails' links, the old feedback page, the week's own lines. */
 export const FEEDBACK_ANCHOR = "feedback";
@@ -16,10 +21,25 @@ export const FEEDBACK_ANCHOR = "feedback";
  * it had no comment. No level, mark or number is drawn, and nothing says
  * whether a piece was emailed.
  *
+ * A piece on a written answer that has changed since it was written carries
+ * the version it was about (`about`), drawn under it and labelled "The
+ * version this feedback was about", so feedback never sits under words it
+ * was not about; one whose version is no longer kept says the answer has
+ * changed since.
+ *
  * Drawn from the overview's `weeks[].feedback`, the caller's own alone, and
  * only when there is something to draw.
  */
-export default function WeekFeedback({ cards, programme }: { cards: OwnFeedbackCard[]; programme: string }) {
+export default function WeekFeedback({
+  cards,
+  programme,
+  answerBoxes = () => [],
+}: {
+  cards: OwnFeedbackCard[];
+  programme: string;
+  /** A written answer's labelled boxes, in the week's order, for the version a piece was about; none for one box. */
+  answerBoxes?: (answerId: string) => Array<{ id: string; label: string }>;
+}) {
   if (cards.length === 0) return null;
   return (
     <section id={FEEDBACK_ANCHOR} className={styles.section} aria-labelledby={`${FEEDBACK_ANCHOR}-title`}>
@@ -50,6 +70,15 @@ export default function WeekFeedback({ cards, programme }: { cards: OwnFeedbackC
                 ))}
               </ul>
             )}
+            {card.about && (
+              <EarlierVersion
+                label={THE_VERSION_THIS_FEEDBACK_WAS_ABOUT}
+                when={card.about.savedAt ? savedLineWords(new Date(card.about.savedAt), NO_SESSION, null) : ""}
+                text={card.about.text}
+                boxes={versionBoxes(card.about.boxes, card.itemId ? answerBoxes(card.itemId) : [])}
+              />
+            )}
+            {card.aboutGone && <p className={styles.cardBy}>{YOUR_ANSWER_CHANGED_SINCE}</p>}
           </li>
         ))}
       </ul>

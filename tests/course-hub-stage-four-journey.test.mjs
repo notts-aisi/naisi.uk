@@ -799,8 +799,8 @@ describe("4. week 2 (Group B meets on Tue 10 Nov): a written answer, sent and gi
     const counts = await threeCounts("amara", 2);
     // The answer sent is one task of three done: the parts wait for a pack, the talk for a case.
     assert.deepEqual([counts.week, counts.programme, counts.home], ["1 of 3 done", "1 of 3 done", "1 of 3 done"]);
-    assert.match(counts.pages.week.text, /Done: Part 4: your forecast, the week’s written answer \(200 to 300 words\) About 30 minutes By the end of Mon 9 Nov Submitted Sun 8 Nov/);
-    assert.match(counts.pages.programme.text, /Done: Your written answer Submitted Sun 8 Nov/);
+    assert.match(counts.pages.week.text, /Done: Part 4: your forecast, the week’s written answer \(200 to 300 words\) About 30 minutes By the end of Mon 9 Nov Sent Sun 8 Nov/);
+    assert.match(counts.pages.programme.text, /Done: Your written answer Sent Sun 8 Nov/);
   });
 
   test("Amara's submitted week still takes work, and Rahul saves feedback on it: nobody is emailed, until an admin's batch sends one email with no comment in it", async () => {
@@ -935,7 +935,11 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     assert.equal(nextWeek[0].subject, "Week 3 is open: How sure are you, again?");
     assert.match(nextWeek[0].text, /Week 3 of AGI Strategy Fellowship is open: How sure are you, again\? Your next session is Tue 17 Nov at 6pm in Hallward B12\./);
     assert.match(nextWeek[0].text, /4 readings Your pack’s reading 2 short reflections Your plan A written answer Getting ready for your talk/);
-    assert.match(nextWeek[0].text, /Your work saves as you go and locks when your session starts\./);
+    assert.match(
+      nextWeek[0].text,
+      /Your work saves as you go and stays open after your session: anything you add or change after it shows as late to the people who read your work, with how late\./,
+    );
+    assert.doesNotMatch(nextWeek[0].text, /\block|submit/i, "Week N is open still speaks of locking or submitting");
     assert.doesNotMatch(nextWeek[0].text, /exercise/i);
     const weekThree = await w.weekPage("amara", 3, ticksOf("amara"));
     assert.equal(doneOn(weekThree.text), "0 of 3 done");
@@ -994,7 +998,7 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     ok(await asCourse("amara", routes.written.PUT, { runId: RUN.agi, answerId: w3.answers[0].id }, { weekId: "w03", text: "Elections first, then the rest. ".repeat(40).trim() }), "written");
     const talk = w3.talks.find((block) => block.groups.some((group) => group.cases.length > 0));
     ok(await asCourse("amara", routes.packs.PUT, { runId: RUN.agi, blockId: talk.id }, { weekId: "w03", ready: true }), "ready");
-    // Submitting last: it locks everything in the week, the ready mark among it.
+    // The old Submit last, as a page open since before would press it: it closes nothing, and sends the answer.
     ok(await asCourse("amara", routes.submitWeek.POST, { runId: RUN.agi, weekId: "w03" }, { submit: true }), "submitted");
     const counts = await threeCounts("amara", 3);
     assert.deepEqual([counts.week, counts.programme, counts.home], ["3 of 3 done", "3 of 3 done", "3 of 3 done"]);
@@ -1014,8 +1018,8 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     const review = (who, person) => serverPage(["[runId]", "group", "[groupId]", "written", "page.tsx"], { runId: RUN.agi, groupId: B }, who, { week: "3", person });
     const admin = await review("zach", "bea");
     // An admin is shown each full name (the names rule); Rahul, the name each goes by.
-    assert.match(admin.text, /To give feedback on 2 AO Amara Okafor Submitted Mon 16 Nov, 9pm BL Bea Lindqvist Submitted Tue 17 Nov, 9am /);
-    assert.match(admin.text, /Bea’s answer 200 words · 200 to 300 Submitted Tue 17 Nov, 9am /);
+    assert.match(admin.text, /To give feedback on 2 AO Amara Okafor Sent Mon 16 Nov, 9pm BL Bea Lindqvist Sent Tue 17 Nov, 9am After its deadline /);
+    assert.match(admin.text, /Bea’s answer 200 words · 200 to 300 Sent Tue 17 Nov, 9am After its deadline /);
     // Sent after it was due (the end of the day before) but before the session: after its deadline, never late.
     const model = admin.element.props.model;
     const of = (uid) => [...model.toGive, ...model.feedbackSent].find((person) => person.uid === uid);
@@ -1024,8 +1028,8 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     assert.doesNotMatch(admin.text, /9am Late /);
     // Asked for Bea, Rahul's page opens on the one answer it may show him, Amara's.
     const rahul = await review("rahul", "bea");
-    assert.match(rahul.text, /To give feedback on 1 A Amara Submitted Mon 16 Nov, 9pm With feedback/);
-    assert.doesNotMatch(rahul.text, /B Bea Submitted|Bea’s answer|\bLate\b/);
+    assert.match(rahul.text, /To give feedback on 1 A Amara Sent Mon 16 Nov, 9pm With feedback/);
+    assert.doesNotMatch(rahul.text, /B Bea Sent|Bea’s answer|\bLate\b|After its deadline/);
     assert.ok(![...rahul.element.props.model.toGive, ...rahul.element.props.model.feedbackSent, ...rahul.element.props.model.notSent].some((person) => person.uid === "bea"));
     // Nothing is locked now: the page says Amara can change it until the programme closes, and offers no reopen.
     assert.match(rahul.text, /Amara can change it until the programme closes\. Before the session you read it as last sent; from the session, as it stands\./);
@@ -1102,7 +1106,6 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
         href: null,
         detail: null,
         tone: "partly",
-        reopen: null,
       },
       pathway: { text: given.packs[1].name, href: null },
       written: { text: "To give feedback", href: "lead-review?week=3&person=bea", lateMs: null },

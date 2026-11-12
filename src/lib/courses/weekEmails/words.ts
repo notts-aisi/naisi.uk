@@ -102,8 +102,11 @@ export type WeekOpenFacts = {
   weekUrl: string;
   /** The weekly feedback form, "" for none. Never asked for before the first session. */
   feedbackUrl: string;
-  /** Whether the week's work locks at the session: a week written as blocks. */
-  locks: boolean;
+  /**
+   * A week written as blocks, whose work stays open after the session and
+   * shows as late when added or changed after it: the email says so.
+   */
+  staysOpen: boolean;
   /**
    * The explainer an admin scheduled at the start of the session, read when
    * the email is built: how long and what about, or null. An email that has
@@ -152,8 +155,9 @@ function weekOpenLead(facts: WeekOpenFacts): string {
  * the first name they go by, the week and when the group meets (or, for a
  * cancelled evening, that it is off, why and when they meet next), the
  * explainer the session starts with when an admin scheduled one, what the
- * week asks for, a button to its page, and that the work saves as you go
- * and locks when the session starts.
+ * week asks for, a button to its page, and that the work saves as you go and
+ * stays open after the session, with anything added or changed after it shown
+ * as late to the people who read it.
  */
 export function weekOpenEmailWords(facts: WeekOpenFacts, firstName: string): WeekEmailWords {
   const lead = weekOpenLead(facts);
@@ -162,13 +166,7 @@ export function weekOpenEmailWords(facts: WeekOpenFacts, firstName: string): Wee
   // A session that is off starts with nothing.
   if (facts.explainer && !facts.cancelled) paragraphs.push(memberLineWords(facts.explainer.minutes, facts.explainer.topic));
   const after: string[] = [];
-  if (facts.locks) {
-    after.push(
-      facts.cancelled
-        ? "Your work saves as you go and locks when your next session starts."
-        : "Your work saves as you go and locks when your session starts.",
-    );
-  }
+  if (facts.staysOpen) after.push(staysOpenAfterWords(facts.cancelled));
   const feedbackUrl = facts.first ? "" : oneLine(facts.feedbackUrl);
   return {
     subject: weekOpenSubject(facts),
@@ -181,6 +179,19 @@ export function weekOpenEmailWords(facts: WeekOpenFacts, firstName: string): Wee
     after,
     feedback: feedbackUrl ? { words: "Tell us how the last session went", url: feedbackUrl } : null,
   };
+}
+
+/**
+ * The line under the button of "Week N is open" for a week written as blocks:
+ * the work saves as you go and stays open after the session, and anything
+ * added or changed after it shows as late, with how late, to the people who
+ * read it. A cancelled session (the group keeping pace) is told against when
+ * it would have started.
+ */
+export function staysOpenAfterWords(cancelled: boolean): string {
+  return cancelled
+    ? "Your work saves as you go and stays open: anything you add or change after the time this week’s session would have started shows as late to the people who read your work, with how late."
+    : "Your work saves as you go and stays open after your session: anything you add or change after it shows as late to the people who read your work, with how late.";
 }
 
 /**
@@ -241,34 +252,37 @@ export function weekReminderSubject(facts: Pick<WeekReminderFacts, "daysBefore" 
     : `${weeks}: your session is on ${londonDayLabel(facts.sessionAt)}`;
 }
 
-/** "Week 3 isn’t submitted.": the line a reminder adds to the check's for a week not submitted. */
-export function notSubmittedWords(weekNumber: number): string {
-  return `Week ${weekNumber} isn’t submitted.`;
-}
+/** The line a reminder adds to the check's for a written answer with words in it that is not sent yet. */
+export const ANSWER_NOT_SENT_YET = "Your written answer isn’t sent yet.";
 
-/** What is left of one week, one line each: the check's lines, then that it is not submitted. */
-export function weekLeftWords(weekNumber: number, left: WeekLeft): string[] {
+/** What is left of one week, one line each: the check's lines, then that the written answer isn't sent. */
+export function weekLeftWords(left: WeekLeft): string[] {
   const lines = left.items.map(notDoneWords);
-  if (left.notSubmitted) lines.push(notSubmittedWords(weekNumber));
+  if (left.notSent) lines.push(ANSWER_NOT_SENT_YET);
   return lines;
 }
 
+/** The reminders' last words: the work stays open after the session, and what is added after it shows as late. */
+export const REMINDER_STAYS_OPEN =
+  "Your work stays open after the session: anything you add after it shows as late to the people who read your work, with how late.";
+
 /**
- * The line under the button: what stops these reminders, and when the work
- * locks. Two weeks where only one has something to write are each finished
- * their own way, which the lists above spell out, so that line says "each".
+ * The line under the button: what stops these reminders, and that the work
+ * stays open after the session. A week with something to write is finished
+ * by everything listed above (the lists name each thing left, a written
+ * answer not sent among them); two weeks where only one has something to
+ * write are each finished their own way, so that line says "each".
  */
 function reminderAfterWords(weeks: readonly ReminderWeek[]): string {
-  const locks = "Your work locks when the session starts.";
   const writing = weeks.filter((week) => week.writes).length;
   if (weeks.length === 1) {
     return writing === 1
-      ? `Submitting it, with every reading ticked, stops these reminders. ${locks}`
-      : `Ticking everything it asks for stops these reminders. ${locks}`;
+      ? `Finishing everything listed above stops these reminders. ${REMINDER_STAYS_OPEN}`
+      : `Ticking everything it asks for stops these reminders. ${REMINDER_STAYS_OPEN}`;
   }
-  if (writing === weeks.length) return `Submitting each week, with every reading ticked, stops these reminders. ${locks}`;
-  if (writing === 0) return `Ticking everything they ask for stops these reminders. ${locks}`;
-  return `Finishing each week stops these reminders. ${locks}`;
+  if (writing === weeks.length) return `Finishing everything listed above stops these reminders. ${REMINDER_STAYS_OPEN}`;
+  if (writing === 0) return `Ticking everything they ask for stops these reminders. ${REMINDER_STAYS_OPEN}`;
+  return `Finishing each week stops these reminders. ${REMINDER_STAYS_OPEN}`;
 }
 
 /**
@@ -290,7 +304,7 @@ export function weekReminderEmailWords(facts: WeekReminderFacts, firstName: stri
     paragraphs: [lead],
     lists: facts.weeks.map((week) => ({
       lead: `Week ${week.weekNumber} isn’t finished yet:`,
-      items: weekLeftWords(week.weekNumber, week.left),
+      items: weekLeftWords(week.left),
     })),
     button: `Finish week ${first}`,
     link: facts.weekUrl,

@@ -5785,19 +5785,36 @@ describe("the course hub passage", () => {
     // week's title, for somebody taking part, the line that says until when
     // (the programme's close: the week stays open after its session), run in
     // every state, and drawn by the week page from where the week stands.
-    const until = (state) => weekWorkWords.lockLineWords(state, { room: "Portland A21", reopenedBy: "Rahul" });
+    const until = (state, now = new Date("2026-11-17T12:00:00Z")) => weekWorkWords.untilWhenWords(state, { room: "Portland A21", now });
     const wed = new Date("2026-11-18T15:00:00Z");
     const closes = new Date("2026-12-24T00:00:00Z");
     const open = (due) => ({ kind: "open", due, closesAt: closes, submittedAt: null });
     assert.equal(
       until(open({ at: wed, by: "session" })),
-      "Your session: Wed 18 Nov, 3pm, Portland A21. Anything you add or change after it shows as late to the people who read your work, with how late. This week stays open until the programme closes, at the end of Wed 23 Dec.",
+      "Your session: Wed 18 Nov, 3pm, Portland A21. Your work stays open after it: anything you add or change after it shows as late to the people who read your work, with how late. This week stays open until the programme closes, at the end of Wed 23 Dec.",
     );
+    // After the session the line still says until when: the programme's close.
+    assert.equal(until(open({ at: wed, by: "session" }), new Date("2026-11-20T12:00:00Z")), "This week stays open until the programme closes, at the end of Wed 23 Dec.");
     assert.equal(until(open({ at: null, by: "undated" })), "Your group’s time isn’t set yet. This week stays open until the programme closes, at the end of Wed 23 Dec.");
     assert.equal(until(open({ at: null, by: "no-group" })), "This week stays open until the programme closes, at the end of Wed 23 Dec.");
     assert.equal(until({ kind: "closed", at: closes, due: { at: wed, by: "session" }, submittedAt: null }), "The programme closed at the end of Wed 23 Dec, so this week can’t change now.");
     const weekPage = withoutComments(read("src/features/courses/weekBlocks/BlockWeek.tsx"));
-    assert.match(weekPage, /\{work && \(\s*<p className=\{weekWorkStyles\.lockLine\}>\s*\{lockLineWords\(weekWorkStateOf\(work\)/, "the week page no longer says until when the work can change");
+    assert.match(weekPage, /\{work && <p className=\{weekWorkStyles\.untilLine\}>\{untilWhenWords\(weekWorkStateOf\(work\), \{ room: schedule\?\.location \?\? "", now \}\)\}<\/p>\}/, "the week page no longer says until when the work can change");
+    // "When you do, we record when, and the people who read your work may see
+    // anything added or changed after the session as late, with how late":
+    // the week page says so once the session has started, in one neutral line
+    // at its top, and for a facilitator's own work says who reads it ("the
+    // lead and admins only") and that they see what is added after it as late.
+    assert.equal(
+      weekWorkWords.sessionMetWords({ due: { at: wed, by: "session" }, weekNumber: 3, groupName: "Group C", done: false, now: new Date("2026-11-20T12:00:00Z") }),
+      "Group C met for week 3 on Wed 18 Nov. You can still finish it. Anything you add or change now shows as late to the people who read your work, with how late.",
+    );
+    assert.equal(
+      weekWorkWords.ownWorkWords({ due: { at: wed, by: "session" }, runs: "Group C", meets: "Group C", readers: "Claudia and admins", now: new Date("2026-11-20T12:00:00Z") }),
+      "You run Group C, so your own work is read by Claudia and admins, not by your group. Group C met on Wed 18 Nov: anything you add now shows them as late.",
+    );
+    assert.ok(weekPage.includes("readers: leadFirstName ? `${leadFirstName} and admins` : \"admins\","), "a facilitator's own week no longer names the lead and admins as its readers");
+    assert.match(weekPage, /const statusLine = !work\s*\? null\s*: ownWorkIsTheLeads\s*\? ownWorkWords\(/, "a facilitator's own week no longer says who reads it");
     // The wire it reads carries the close, from the one reading of every live group's calendar.
     assert.ok(withoutComments(read("src/lib/courses/weekWork/readers.ts")).includes("const closesAt = workClosesAt(run, liveGroups);"));
     // v16's "the people running your group can reopen it" is gone from v17 with the lock: the old reopen
@@ -5925,7 +5942,7 @@ describe("the course hub passage", () => {
 
     // "It appears on the week's page": the week page draws the person's own
     // feedback under its status, from the overview, which reads only their own.
-    assert.match(read("src/features/courses/weekBlocks/BlockWeek.tsx"), /<WeekFeedback cards=\{feedbackCards\} programme=\{payload\.programme\?\.name \?\? ""\} \/>/);
+    assert.match(read("src/features/courses/weekBlocks/BlockWeek.tsx"), /<WeekFeedback cards=\{feedbackCards\} programme=\{payload\.programme\?\.name \?\? ""\} answerBoxes=\{answerBoxLabels\} \/>/);
     assert.ok(withoutComments(read("src/lib/courses/feedback/readers.ts")).includes('.where("uid", "==", uid).where("runId", "==", runId)'), "a person's page reads somebody else's feedback");
     // "And we may email you to say feedback is waiting": the one email, in an
     // admin's batch, one a person, never carrying the feedback.
@@ -10947,9 +10964,11 @@ describe("v15 says reminders before a session are about what is left, are part o
     assert.match(job, /const sessions = resolveSessions\(runState\.run, group\);/, "the group's own sessions");
   });
 
-  test("about what is left of that week's work: the check before Submit's own lines, and nothing else", () => {
-    assert.match(job, /left: weekLeft\(\{ blocks: week\.blocks, tasks: week\.tasks, state: own\.state, writes: week\.writes, submitted: state\.submittedAt !== null \}\),/);
+  test("about what is left of that week's work: the check's own lines, a written answer not sent yet, and nothing else", () => {
+    assert.match(job, /left: weekLeft\(\{ blocks: week\.blocks, tasks: week\.tasks, state: own\.state \}\),/);
     assert.match(words, /const lines = left\.items\.map\(notDoneWords\);/);
+    assert.match(words, /if \(left\.notSent\) lines\.push\(ANSWER_NOT_SENT_YET\);/);
+    assert.match(words, /export const ANSWER_NOT_SENT_YET = "Your written answer isn’t sent yet\.";/);
   });
 
   test("part of running the programme, so the settings don't switch them off: a notice, to everybody holding a place", () => {
