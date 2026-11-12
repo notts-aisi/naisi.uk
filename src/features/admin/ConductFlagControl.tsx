@@ -37,15 +37,18 @@ function readFlag(body: Partial<FlagState>): FlagState {
  * The conduct flag on one person's page in the admin area.
  *
  * `memberConductFlags/{uid}` is unreadable and unwritable from any client, so
- * this control is a pair of calls to `/api/admin/members/[uid]/conduct-flag`
- * rather than a Firestore listener like the rest of the row. That is the whole
+ * this control is a pair of calls, `/api/admin/members/[uid]/conduct-flag/open`
+ * to read and `/api/admin/members/[uid]/conduct-flag` to set or clear, rather
+ * than a Firestore listener like the rest of the row. Reading is an opening:
+ * the route records it before it reads, and answers with nothing when it
+ * cannot (privacy policy version 17, "we record each time one is opened"). That is the whole
  * reason the collection exists: the reason text is a free-text allegation about
  * a named student, and the person it describes must never be able to reach it
  * from their own browser.
  *
- * The fetch happens on mount, and the component only mounts on one person's
+ * The opening happens on mount, and the component only mounts on one person's
  * page, so opening the Accounts list does not ask the server about everybody's
- * conduct. MemberItem does not render this control on the admin's own page;
+ * conduct, nor record an opening of it. MemberItem does not render this control on the admin's own page;
  * the route refuses a self-flag as well, so the rule holds against a hand-made
  * request too.
  */
@@ -61,7 +64,8 @@ export default function ConductFlagControl({ uid, displayName }: Props) {
     async (isCancelled: () => boolean) => {
       try {
         const res = await fetch(
-          `/api/admin/members/${encodeURIComponent(uid)}/conduct-flag`,
+          `/api/admin/members/${encodeURIComponent(uid)}/conduct-flag/open`,
+          { method: "POST" },
         );
         const body = (await res.json().catch(() => null)) as
           | (Partial<FlagState> & { error?: string })
@@ -221,6 +225,14 @@ export default function ConductFlagControl({ uid, displayName }: Props) {
 
       {state !== null && composing && (
         <div className={styles.compose}>
+          {/* Above the box in both cases, flagging and rewording: the privacy
+              policy says conduct records aren't for health information or
+              allegations of crimes, and that we ask anyone adding to one to
+              leave them out. */}
+          <p className={styles.muted}>
+            Don&apos;t include medical details or describe an alleged crime. Take
+            anything that might be a crime to the head admin instead.
+          </p>
           <CountedTextarea
             value={reason}
             max={CONDUCT_FLAG_FIELD_LIMITS.reason}

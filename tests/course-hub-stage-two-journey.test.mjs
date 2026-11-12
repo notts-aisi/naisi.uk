@@ -145,6 +145,7 @@ const STYLESHEETS = [
   // This week's work's Reopen (the week you submit): its button's sheet and the confirm's.
   "./written.module.css",
   "./Modal.module.css",
+  "./GroupPage.module.css",
   "./GroupsViews.module.css",
   "./ProgrammePitches.module.css",
   "./PitchingWeek.module.css",

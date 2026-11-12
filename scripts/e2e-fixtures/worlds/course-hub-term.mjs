@@ -2212,7 +2212,10 @@ async function sendRowsOf(state, surveyIds = [], messageIds = []) {
  *  - the updates route's: each audience's daily counter, and each presser's
  *    own hourly ones, the test's and the post's;
  *  - a register's push throttle, one per group and presser
- *    (`push__<groupId>__<uid>` in src/app/api/courses/groups/[groupId]/attendance/push/route.ts).
+ *    (`push__<groupId>__<uid>` in src/app/api/courses/groups/[groupId]/attendance/push/route.ts);
+ *  - the notice a group's new regular time or room sends, one daily counter
+ *    per group, whoever presses (`groupchangeday__<groupId>`, `claimGroupNotice`
+ *    in src/lib/courses/groupChange/notice.ts).
  * The pressers are the admin, while the ledger holds the admin's uid, and the
  * term's facilitator, who writes to their group and finishes its register.
  */
@@ -2223,6 +2226,7 @@ function sendCounterIdsOf(state) {
     `facilitators__${state.runId}`,
   ];
   const ids = audiences.map((key) => `emailrate__updateday__${key}`);
+  for (const group of state.groups ?? []) ids.push(`emailrate__groupchangeday__${group.id}`);
   for (const uid of [state.adminUid, state.facilitator?.uid].filter(Boolean)) {
     ids.push(`emailrate__updatetest__${state.runId}__${uid}`);
     ids.push(`emailrate__updatepost__${state.runId}__${uid}`);

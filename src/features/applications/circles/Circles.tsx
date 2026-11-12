@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { changeOnGroupPageWords, groupPagePath } from "@/lib/courses/groupPage/words";
 import { useMemo, useState } from "react";
 import Select from "@/components/ui/Select";
 import { useHydrated } from "@/hooks/useHydrated";
@@ -647,7 +648,15 @@ export default function Circles({ initial }: { initial: CirclesView }) {
 
   const timeControl = (ring: DrawnRing) => {
     if (option || !live.sent || !ring.id || !ring.slot) return null;
-    if (ring.told) return null;
+    // A group Publish has told: its time is the ring's words, and it is
+    // changed on the group's own page, where what will happen is shown first.
+    if (ring.told) {
+      return (
+        <Link className={styles.smallQuiet} href={groupPagePath(live.roundId, live.programmeId, ring.id)}>
+          {changeOnGroupPageWords(ring.name)}
+        </Link>
+      );
+    }
     if (timing?.key !== ring.key) {
       return (
         <button

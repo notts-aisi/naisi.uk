@@ -525,18 +525,23 @@ export const ROUTES = {
     },
   },
   "/api/admin/members/[uid]/conduct-flag": {
-    GET: {
-      expect: adminOnly(200),
-      fields: ["byName", "flagged", "flaggedAt", "reason"],
-      why:
-        "Admin only through requireAdmin; a missing session is a 401 here rather than the " +
-        "tree's usual 403, and the admin gets the empty flag shape for an unknown uid.",
-    },
     POST: {
       expect: adminOnly(400),
       why:
         "Admin only through requireAdmin; the admin then meets the body validation before any " +
-        "member is read.",
+        "member is read. There is no GET: reading a flag is an opening, recorded first, through " +
+        "the open route below (privacy v17).",
+    },
+  },
+  "/api/admin/members/[uid]/conduct-flag/open": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Opening a member's conduct record is an admin's alone: view-as first, then the session (a " +
+        "missing one is a 401, as on the route that sets a flag) and the admin bar, before the " +
+        "database; the admin is told there is no member with the made-up id, and no opening is " +
+        "recorded, because an opening is recorded only against a member who is there. What an " +
+        "admin's opening answers is held key by key in tests/member-conduct-flag.test.mjs.",
     },
   },
   "/api/admin/members/[uid]/events": {
@@ -4462,6 +4467,16 @@ export const PAGES = {
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
       "and with an address that names nothing is drawn the same not-here state.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The admissions tree's gate, then the page's own (loadProgrammeRun, decided from the form before the run is read, " +
+      "the gate of every Groups view): one group's page is the programme's lead's and an admin's, so a reviewer on the form " +
+      "is told the tab is theirs, a programme the caller has no role on renders 'there is no programme here', and a group " +
+      "that is not a live group of the run the programme names renders a calm not-here page, each with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
@@ -7340,6 +7355,9 @@ export const REAL_PAGES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]": programmePage("one person's coursework page, or its calm not-here for an id that is nobody's."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": programmePage("People in groups, the run's allocation board."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": programmePage("Publish's own page."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]": programmePage(
+    "one group's page, or its calm not-here for a group that is not a live group of the run the programme names.",
+  ),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": programmePage("the Sessions view."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/circles": programmePage("Circles for an admin; the lead is drawn a note that Circles is an admin's."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/times": programmePage("the Times view."),

@@ -392,6 +392,10 @@ export const REFUSAL = {
   stale: "That session has changed since this was opened. Close it and open it again.",
   noLink: "This group has no join link yet, so it can’t be held online. Add the link to the group’s session first.",
   notChanged: "That session is already as usual.",
+  /** Cancel, asked of a session that is cancelled: a second press of one that went through. */
+  alreadyCancelled: "That session is already cancelled.",
+  /** Hold it online, asked of a session held online: a second press of one that went through. */
+  alreadyOnline: "That session is already being held online.",
   noPlan: "That week isn’t in the group’s plan, so it can’t be pushed back.",
   planFull: "The group’s plan is full, so it can’t take another week.",
   movedIntoPast: "That day and time have passed. Choose a later one.",
@@ -600,6 +604,17 @@ export function reasonTooLongWords(max: number): string {
 /** "Choose a day in week 4, from Thu 19 to Wed 25 Nov." */
 export function dayOutOfWeekWords(weekNumber: number, range: string): string {
   return `Choose a day in week ${weekNumber}, from ${range}.`;
+}
+
+/**
+ * A change that would move a session whose register was taken, named by its
+ * week: "This would move week 4’s session, which has met: its register has
+ * been taken." The one sentence every door that can move a session refuses
+ * with, and the preview with it.
+ */
+export function movesMetWords(weekNumber: number, occurrence: number = 1): string {
+  const which = occurrence > 1 ? `week ${weekNumber}’s second session` : `week ${weekNumber}’s session`;
+  return `This would move ${which}, which has met: its register has been taken.`;
 }
 
 /** The count on the button is a promise, as an update's is. */

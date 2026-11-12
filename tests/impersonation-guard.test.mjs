@@ -524,6 +524,12 @@ const MUST_GUARD = [
     "src/app/api/admin/members/[uid]/conduct-flag/route.ts",
     "sets and clears a member's conduct flag",
   ],
+  // Reading a conduct flag is an opening, recorded in the caller's name
+  // before the flag is read (privacy v17), as opening sealed predictions is.
+  [
+    "src/app/api/admin/members/[uid]/conduct-flag/open/route.ts",
+    "records an admin's opening of a member's conduct record, in the caller's name, before it reads it",
+  ],
   // The notes admins keep about a person (privacy v13): a record about a
   // named member that only admins read, written as the caller, which no
   // client can read back to check what happened.

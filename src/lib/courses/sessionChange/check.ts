@@ -9,6 +9,7 @@ import {
   sessionModeForWeek,
   type GroupSessionOverride,
   type SessionChange,
+  type SessionChangeWas,
 } from "@/lib/firestore/courseGroups";
 import { COURSE_FIELD_LIMITS, type CourseRunDoc } from "@/lib/firestore/courses";
 import type { GroupCampus } from "../campus";
@@ -43,9 +44,14 @@ import { REFUSAL, dayOutOfWeekWords, dayRangeWords } from "./words";
  * Only for a week that "Change a session" changed (a change record that is
  * online, moved or cancelled). A week whose override has no change record is
  * a week pinned to when it met, or a link for that week alone: there is
- * nothing to put back. Putting back removes from the override only what a
- * change sets (day, time, length, room, campus) and keeps the week's own link
- * and notes.
+ * nothing to put back. Putting back keeps the week's own link and notes, and
+ * puts back what was there before the change: the day, time, length, room and
+ * campus go back to what the record says the override held before the week's
+ * first change still on record (`was`, which a later change of the same week
+ * carries over, so a week moved and then held online goes back to where it
+ * was before the move). A record written before `was` existed puts back as
+ * it always did for a move (those fields removed), and leaves them for a week
+ * held online or cancelled (they were never the change's, and may be a pin).
  */
 
 export class ChangeRefusal extends Error {
@@ -81,6 +87,8 @@ export type CheckedPress = {
     /** The campus the press set for the week, or null when it set none. */
     campus: GroupCampus | null;
   } | null;
+  /** For online, move and cancel: what the change record keeps of the override from before the week's first change; null to keep nothing. */
+  was: SessionChangeWas | null;
   pushed: { plan: WeekPlanEntry[]; newDateKey: string; lastDateKey: string } | null;
   /** For a put back: the override that is left (its link and notes), or null for none. */
   restoredOverride: GroupSessionOverride | null;
@@ -101,6 +109,40 @@ export function overrideWithoutChange(override: GroupSessionOverride | undefined
   for (const field of CHANGE_FIELDS) delete left[field];
   delete left.mode;
   return Object.keys(left).length > 0 ? left : null;
+}
+
+/**
+ * What a change records of the week's override (`SessionChange.was`): the
+ * fields a move sets, as they were before the week's FIRST change still on
+ * record. A week changed again carries its record's `was` over; one moved
+ * before the field existed keeps none (null: nobody knows what was there),
+ * so putting it back behaves as it always did.
+ */
+function wasBeforeChange(record: SessionChange | null, override: GroupSessionOverride | undefined): SessionChangeWas | null {
+  if (record?.was) return record.was;
+  if (record?.kind === "moved") return null;
+  const was: SessionChangeWas = {};
+  for (const field of CHANGE_FIELDS) {
+    const value = override?.[field];
+    if (value !== undefined) (was as Record<string, unknown>)[field] = value;
+  }
+  return was;
+}
+
+/** The override a put back leaves, and null when nothing is left (see the header). */
+export function overrideAfterPutBack(record: SessionChange, override: GroupSessionOverride | undefined): GroupSessionOverride | null {
+  if (!record.was && record.kind !== "moved") {
+    // Held online or cancelled, recorded before `was`: only the mode was the change's.
+    const { mode: _mode, ...kept } = override ?? {};
+    return Object.keys(kept).length > 0 ? kept : null;
+  }
+  const left: GroupSessionOverride = { ...(overrideWithoutChange(override) ?? {}), ...(record.was ?? {}) };
+  return Object.keys(left).length > 0 ? left : null;
+}
+
+/** Whether putting this record back sets the fields a change sets (rather than leaving them): see `overrideAfterPutBack`. */
+export function putBackSetsChangeFields(record: SessionChange | null): boolean {
+  return Boolean(record && (record.was || record.kind === "moved"));
 }
 
 export function checkPress(
@@ -134,6 +176,10 @@ export function checkPress(
   const record = sessionChangeForWeek(group, weekId);
   const overrides = { ...group.sessionOverrides };
   const changes = { ...(group.sessionChanges ?? {}) };
+  const was = press.kind === "online" || press.kind === "move" || press.kind === "cancel"
+    ? wasBeforeChange(record, group.sessionOverrides[weekId])
+    : null;
+  const recorded = (kind: SessionChange["kind"]): SessionChange => ({ ...change(kind, session.dateKey), ...(was ? { was } : {}) });
   const base = {
     weekId,
     session,
@@ -142,13 +188,16 @@ export function checkPress(
     move: null,
     pushed: null,
     restoredOverride: null,
+    was,
   };
 
   switch (press.kind) {
     case "online": {
+      // A second press of one that went through (its answer lost on the way) must not tell the group twice.
+      if (sessionModeForWeek(group, weekId) === "virtual") throw new ChangeRefusal(REFUSAL.alreadyOnline, 409);
       if (!session.session.meetingUrl) throw new ChangeRefusal(REFUSAL.noLink, 400);
       overrides[weekId] = { ...overrides[weekId], mode: "virtual" };
-      changes[weekId] = change("online", session.dateKey);
+      changes[weekId] = recorded("online");
       return { ...base, after: { ...group, sessionOverrides: overrides, sessionChanges: changes }, auditKind: "session-online" };
     }
     case "move": {
@@ -199,7 +248,7 @@ export function checkPress(
         ...(move.durationMinutes !== null ? { durationMinutes: move.durationMinutes } : {}),
         ...(move.campus !== null ? { campus: move.campus } : {}),
       };
-      changes[weekId] = change("moved", session.dateKey);
+      changes[weekId] = recorded("moved");
       return {
         ...base,
         move: {
@@ -215,7 +264,9 @@ export function checkPress(
       };
     }
     case "cancel":
-      changes[weekId] = change("cancelled", session.dateKey);
+      // As for online: that is how it is now, so nothing changes and nobody is told again.
+      if (session.cancelled) throw new ChangeRefusal(REFUSAL.alreadyCancelled, 409);
+      changes[weekId] = recorded("cancelled");
       return { ...base, after: { ...group, sessionChanges: changes }, auditKind: "session-cancelled" };
     case "push": {
       const pushed = pushBackOutcome(run, group, press.weekNumber);
@@ -234,7 +285,7 @@ export function checkPress(
       // push moved the weeks rather than this one, and an override with no
       // change record is a week pinned to when it met, or its own link.
       if (!record || record.kind === "pushed") throw new ChangeRefusal(REFUSAL.notChanged, 400);
-      const left = overrideWithoutChange(overrides[weekId]);
+      const left = overrideAfterPutBack(record, overrides[weekId]);
       if (left) overrides[weekId] = left;
       else delete overrides[weekId];
       delete changes[weekId];

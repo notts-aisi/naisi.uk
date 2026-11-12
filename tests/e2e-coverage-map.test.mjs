@@ -445,6 +445,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
   },
+  "/api/admin/members/[uid]/conduct-flag/open": {
+    reason:
+      "Admin CRUD: /api/admin/members/[uid]/conduct-flag/open is an admin opening one member's conduct record on that member's page, and its failure lands on that admin's own screen; tests/member-conduct-flag.test.mjs runs the real handler, the recorded opening and the refusal when it cannot be recorded.",
+    coverWhen:
+      "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
+  },
   "/api/admin/membership/export": {
     reason:
       "Membership: the column matching behind /api/admin/membership/export is a guess until a real Students' Union export exists to match against.",
@@ -998,12 +1004,6 @@ const NOT_COVERED = {
       "Course hub: an admin or a programme's lead changing whether one of a group's facilitators was at a session, with its history row. tests/course-register-cover.test.mjs executes it as every kind of caller, and that nobody else is sent the record; the page that presses it is built in the same change.",
     coverWhen:
       "When the register shows the facilitator record with its Change for admins and leads, its browser spec changes an entry there.",
-  },
-  "/api/courses/groups/[groupId]/session/regular": {
-    reason:
-      "Course hub: a group's new regular time from a week onwards, with its preview. tests/course-group-time-change.test.mjs executes it as every kind of caller, with the weeks it pins, the answers it asks again and the notice it sends; the group's page that presses it is built in the same change.",
-    coverWhen:
-      "When the group's page with Change and From a week onwards is on the branch, its browser spec presses it there.",
   },
   "/api/courses/groups/[groupId]/session": {
     reason:
@@ -1740,12 +1740,6 @@ const NOT_COVERED = {
       "Course hub: a programme's ratings for its lead and admins; tests/course-ratings.test.mjs renders it as the lead, an admin, a reviewer and another programme's lead, before and after the run's last session.",
     coverWhen:
       "When the end-to-end fixtures seed a run whose last session is over, with the programme's lead signed in.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": {
-    reason:
-      "Course hub: the Groups tab's People in groups view is the run's own allocation board, drawn as designed for the programme's lead and admins; its every caller, its words in every state and its one count are executed by tests/course-hub-people-in-groups.test.mjs and tests/course-hub-lead-pages.test.mjs, the board's routes by tests/course-hub-lead-routes.test.mjs and tests/applications-handover-board.test.mjs, and it was checked by hand at 1440 and 390.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a programme that names a run with groups, with its lead signed in.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/circles": {
     reason:

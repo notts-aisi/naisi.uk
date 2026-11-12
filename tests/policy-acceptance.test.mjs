@@ -9,7 +9,7 @@
  * privacy version below 15, one to an older Terms of Use, and one naming a
  * version the site has never served; never for an agreement to 15 or any
  * later privacy version the site serves. The table runs against the real
- * policy list, and again against a list where privacy has moved on to 17 and
+ * policy list, and again against a list where privacy has moved on to 18 and
  * the terms to 2, so "later versions are told, not asked" is held before a
  * later version exists. Where the helper is used (the two gated layouts and
  * the accept page) is held by `tests/privacy-policy.test.mjs`, section 3.
@@ -27,16 +27,16 @@ const { loadTs } = createLoader({ stubs: [["server-only", "export {};"]] });
 const acceptance = await loadTs("lib/legal/acceptance.ts");
 const policies = await loadTs("lib/legal/policies.ts");
 
-/** The helper again, over a policy list where privacy is at 17 and the terms at 2. */
+/** The helper again, over a policy list where privacy is at 18 and the terms at 2. */
 const { loadTs: loadLater } = createLoader({
   stubs: [
     ["server-only", "export {};"],
     [
       "./policies",
       "export const POLICIES = { terms: { versions: [{ version: 2, lastUpdated: \"1 March 2027\" }, { version: 1, lastUpdated: \"25 May 2026\" }] }, " +
-        "privacy: { versions: [{ version: 17, lastUpdated: \"1 March 2027\" }, { version: 16, lastUpdated: \"1 January 2027\" }, { version: 15, lastUpdated: \"31 October 2026\" }] } };\n" +
+        "privacy: { versions: [{ version: 18, lastUpdated: \"1 March 2027\" }, { version: 17, lastUpdated: \"1 February 2027\" }, { version: 16, lastUpdated: \"1 January 2027\" }, { version: 15, lastUpdated: \"31 October 2026\" }] } };\n" +
         "export function currentPolicy(key) { return POLICIES[key].versions[0]; }\n" +
-        "export const CURRENT_POLICY_VERSION = \"terms.2+privacy.17\";",
+        "export const CURRENT_POLICY_VERSION = \"terms.2+privacy.18\";",
     ],
   ],
 });
@@ -73,11 +73,11 @@ const UNREADABLE = [
 ];
 
 describe("needsPolicyAcceptance, against the policies the site serves today", () => {
-  test("the site serves privacy 16 and terms 1, and 15 is still the last version anybody is asked to accept", () => {
+  test("the site serves privacy 17 and terms 1, and 15 is still the last version anybody is asked to accept", () => {
     assert.equal(acceptance.LAST_PRIVACY_VERSION_ASKED, 15);
-    assert.equal(policies.currentPolicy("privacy").version, 16);
+    assert.equal(policies.currentPolicy("privacy").version, 17);
     assert.equal(policies.currentPolicy("terms").version, 1);
-    assert.equal(policies.CURRENT_POLICY_VERSION, "terms.1+privacy.16");
+    assert.equal(policies.CURRENT_POLICY_VERSION, "terms.1+privacy.17");
   });
 
   test("what accepting stamps is never asked about again", () => {
@@ -85,20 +85,24 @@ describe("needsPolicyAcceptance, against the policies the site serves today", ()
   });
 
   const TABLE = [
-    // An agreement to 15 or 16 with the current terms, in either order: v16
-    // is told, not asked, so nobody who accepted 15 is asked again.
+    // An agreement to 15, 16 or 17 with the current terms, in either order:
+    // v16 and v17 are told, not asked, so nobody who accepted 15 is asked
+    // again.
     ["terms.1+privacy.15", false],
     ["privacy.15+terms.1", false],
     ["terms.1+privacy.16", false],
     ["privacy.16+terms.1", false],
+    ["terms.1+privacy.17", false],
+    ["privacy.17+terms.1", false],
     // Every version before 15 is asked once more.
     ...Array.from({ length: 14 }, (_, i) => [`terms.1+privacy.${i + 1}`, true]),
     ["privacy.14+terms.1", true],
     // A version the site has never served is no agreement to anything.
-    ["terms.1+privacy.17", true],
+    ["terms.1+privacy.18", true],
     ["terms.1+privacy.99", true],
     ["terms.2+privacy.15", true],
     ["terms.2+privacy.16", true],
+    ["terms.2+privacy.17", true],
     ["terms.9+privacy.99", true],
     ...UNREADABLE.map((value) => [value, true]),
   ];
@@ -110,22 +114,26 @@ describe("needsPolicyAcceptance, against the policies the site serves today", ()
   }
 });
 
-describe("needsPolicyAcceptance, once privacy has moved on to 17 and the terms to 2", () => {
+describe("needsPolicyAcceptance, once privacy has moved on to 18 and the terms to 2", () => {
   const TABLE = [
     // Any privacy version from 15 to the one served, with the current terms: told, not asked.
     ["terms.2+privacy.15", false],
     ["terms.2+privacy.16", false],
     ["terms.2+privacy.17", false],
+    ["terms.2+privacy.18", false],
     ["privacy.16+terms.2", false],
+    ["privacy.18+terms.2", false],
     // An older Terms of Use is asked, whichever privacy version came with it.
     ["terms.1+privacy.15", true],
     ["terms.1+privacy.17", true],
+    ["terms.1+privacy.18", true],
     // Before 15 is still asked.
     ["terms.2+privacy.14", true],
     ["terms.2+privacy.1", true],
     // Never served.
-    ["terms.2+privacy.18", true],
+    ["terms.2+privacy.19", true],
     ["terms.3+privacy.17", true],
+    ["terms.3+privacy.18", true],
     ...UNREADABLE.map((value) => [value, true]),
   ];
 

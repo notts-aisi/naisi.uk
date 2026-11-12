@@ -519,6 +519,15 @@ const READERS = {
       "the notes admins keep, an admin's alone: a person's seats are read only for the runs they are on, to offer the " +
       "programme a note is written from. No group or placement is shown",
   },
+  "lib/courses/groupPage/load.ts": {
+    kind: "staff",
+    proof: ['const staff = viewer !== "facilitator";', ".filter((seat) => staff || placementIsTold(seat));"],
+    told: 1,
+    why:
+      "a group's page: admins and the programme's lead are shown every place in the group, told or not, as the " +
+      "Groups tab shows them (the page is behind `loadProgrammeRun`); the facilitator's cut on their own group page " +
+      "counts only the places Publish has told, and names nobody",
+  },
   "lib/courses/groupChange/facts.ts": {
     kind: "staff",
     proof: [

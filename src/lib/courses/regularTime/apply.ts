@@ -23,7 +23,9 @@ import { REGULAR_REFUSAL } from "./words";
  * the change on what it read (`planRegularChange`) and writes:
  *
  *  1. the pins on every earlier taught week (no change record: a pin is not
- *     a change);
+ *     a change), and the same values into the `was` of an earlier week's own
+ *     change record, where it holds none of them, so putting that change back
+ *     lands on the pin;
  *  2. the group's standing `session` (day, start, length, room) and, when the
  *     press set one, its `campus`;
  *  3. a cancelled evening's record moved to its week's new date, so it stays
@@ -34,9 +36,10 @@ import { REGULAR_REFUSAL } from "./words";
  *  5. on every register nobody has taken, the session's new start
  *     (`sessionAt`);
  *  6. when the day or the start changed, for each active, told fellow whose
- *     answer is "Most weeks, not all": each session they ticked that has not
- *     started on the new dates and whose line is still their own word is
- *     taken back, through the writer "I can make it after all" uses. A
+ *     answer is "Most weeks, not all": each session they ticked whose start
+ *     this change moves, that has not started on the new dates and whose
+ *     line is still their own word, is taken back, through the writer "I can
+ *     make it after all" uses. A week that keeps its time keeps the word. A
  *     one-off "can't make it" or "joining online" is left as it is;
  *  7. one row of the group's history.
  *
@@ -139,6 +142,10 @@ export async function applyRegularChange(
     for (const [weekId, pin] of Object.entries(plan.pins)) {
       for (const [field, value] of Object.entries(pin)) update[`sessionOverrides.${weekId}.${field}`] = value;
     }
+    // A pinned week's own change keeps the pin as what it held before, so putting that change back lands on it.
+    for (const [weekId, wasPin] of Object.entries(plan.wasPins)) {
+      for (const [field, value] of Object.entries(wasPin)) update[`sessionChanges.${weekId}.was.${field}`] = value;
+    }
     for (const [weekId, dateKey] of Object.entries(plan.cancelledMoves)) {
       update[`sessionChanges.${weekId}.dateKey`] = dateKey;
     }
@@ -159,6 +166,13 @@ export async function applyRegularChange(
     let takenBack = 0;
     if (plan.dayOrTimeChanged) {
       const since = timeQuestionSinceOf(group);
+      // Only the weeks whose start this change moves: a week that keeps its
+      // time (pinned before the starting week, or keeping its own one-week
+      // change) is still at the time the person said they can't make.
+      const startOf = (session: ResolvedSession) => sessionInstants(session).startsAt?.getTime() ?? null;
+      const timeMoves = new Set(
+        plan.moves.filter((move) => startOf(move.before) !== startOf(move.after)).map((move) => move.weekNumber),
+      );
       for (const doc of seatSnap.docs) {
         const seat = normalizeCourseEnrolment(doc.id, doc.data() ?? {});
         if (seat.role !== "learner" || seat.groupId !== group.id || !placementIsTold(seat)) continue;
@@ -166,7 +180,7 @@ export async function applyRegularChange(
         if (answer?.kind !== "mostWeeks") continue;
         for (const key of answer.sessionKeys) {
           const session = plan.sessionsAfter.find((each) => each.sessionKey === key && each.occurrence === 1);
-          if (!session) continue;
+          if (!session || !timeMoves.has(session.weekNumber)) continue;
           const ref = refOf.get(session.weekNumber);
           const data = registers.get(session.weekNumber);
           if (!ref || !data) continue;

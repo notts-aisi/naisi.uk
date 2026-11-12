@@ -121,6 +121,22 @@
   text-wrap: pretty;
 }
 
+/* The line saying the privacy policy changed, under the greeting for 14 days
+   from a version's date (PolicyUpdate.tsx). Quiet: muted words and a link, no
+   card, so it reads as a note and not a task. The link keeps its 44px row; on
+   a narrow screen it drops under the words. */
+.policyLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+
 .srOnly {
   position: absolute;
   width: 1px;

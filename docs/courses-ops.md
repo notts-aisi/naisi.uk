@@ -2649,6 +2649,24 @@ come. A session whose register was taken met, and its time cannot change: the
 register is corrected instead. A move always stays inside the week's own
 seven days.
 
+### Nothing moves a session that met
+
+Whatever the change, it must not move the start of any session whose register
+was taken (`takenStartMoves` in `src/lib/courses/sessionChange/metSessions.ts`):
+"Cancel it, and push the rest back a week" moves every later week, so it is
+refused (409, "This would move week 4's session, which has met: its register
+has been taken.") once a later week met, in the press and in its preview, and
+the group's page greys it out with "A later week has already met, so the rest
+can't be pushed back." Cancel and keep pace moves nothing and stays open. The
+group's own pace (`/api/courses/groups/[groupId]/pace`) asks the same rule: a
+plan or a start date that would move a session that met is refused in the same
+sentence; one that moves only weeks nobody took a register for goes through.
+
+A second press of a cancel, or of holding a week online, that already went
+through (its answer lost on the way) is refused (409, "That session is already
+cancelled." / "That session is already being held online."), so nothing
+changes and the group is not told twice.
+
 ### What each one does
 
 - **Hold it online**: same day and time, the week switched online. Only for a
@@ -2668,11 +2686,17 @@ seven days.
   after it move back one week, and the group finishes a week later. From then
   on the group keeps its own plan, as after Add break in the pace editor.
 - **Hold it as usual** (only for a week with a change record that is online,
-  moved or cancelled): back to the group's weekly slot and room. It removes
-  from the week's override only what a change sets (day, start, length, room,
-  campus), so the week's own meeting link and notes stay. A week whose
-  override has no change record is a week pinned to when it met (see "A new
-  regular time") or a link for that week alone: there is nothing to put back.
+  moved or cancelled): back to what the week was before the change. The
+  week's own meeting link and notes stay. The week's day, start, length, room
+  and campus go back to what the change record says the override held before
+  the week's first change still on record (`was`, empty when it held none,
+  carried over when the same week is changed again), so an unpinned week
+  returns to the weekly slot, a pinned one to its pin, and a week moved and
+  then held online to where it was before the move. A record written before
+  `was` existed puts back as before: a move's fields are removed, and a week
+  held online or cancelled keeps them. A week whose override has no change
+  record is a week pinned to when it met (see "A new regular time") or a link
+  for that week alone: there is nothing to put back.
 
 A cancellation is of one evening: if the run is re-dated, or the group
 re-paced, so that the week's session falls on another date, the week is held
@@ -2750,7 +2774,15 @@ production when a group's regular day was changed by hand. So before the slot
 changes, every earlier taught week is pinned: for each of day, start, length,
 room and campus, when the week's override does not already carry it and the
 old value differs from the new one, the old value is written into the week's
-override. An existing override value always wins. A pinned week gets no change
+override. An existing override value always wins. For a week whose register
+was taken and holds `sessionAt`, the day and start kept are that instant's in
+London (when it falls inside the week's own seven days), not the slot's: a
+week already re-dated by hand is pinned to when it met, and its kept date in
+the preview is the register's. An earlier week that carries its own one-week
+change (held online, moved, cancelled) also has the same old values written
+into that change's `was`, for each field it holds none of, so putting the
+change back later returns the week to its pin and not to the new slot. A
+pinned week gets no change
 record: it is not a change, and there is nothing to put back. It is done with
 overrides rather than a new "regular from week N" field on purpose: the code
 from before this already reads overrides, so the dates stay right even if the
@@ -2772,9 +2804,11 @@ change is reverted.
   The stored answer is kept. A group without the stamp counts every answer, as
   before.
 - For each active fellow whose answer is "Most weeks, not all", each ticked
-  session that has not started on the new dates and whose register line is
-  still their own word is taken back, through the writer "I can make it after
-  all" uses. A one-off "can't make it" or "joining online" stays.
+  session whose start this change moves, that has not started on the new dates
+  and whose register line is still their own word, is taken back, through the
+  writer "I can make it after all" uses. A week that keeps its time (pinned, or
+  keeping its own change) keeps the word. A one-off "can't make it" or
+  "joining online" stays.
 - Moves `sessionAt` on every register nobody has taken, and writes one
   `group-time-changed` row of the group's history.
 
@@ -3699,7 +3733,7 @@ certificate was sent in error, and tell its owner.
 
 Privacy policy version 13 took back version 12's promise that nothing
 written in a course is used outside its programme, from its own agreement on,
-and the current policy (`src/content/legal/privacy/v16.tsx`) keeps those
+and the current policy (`src/content/legal/privacy/v17.tsx`) keeps those
 words. Three features rest on that, each an admin's press and never
 automatic, all built like the applications' second reader
 (`docs/applications.md`, "Claude and Pangram"): labels to Claude, names put

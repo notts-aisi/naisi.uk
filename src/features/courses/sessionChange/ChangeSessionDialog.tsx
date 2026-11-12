@@ -59,7 +59,13 @@ import styles from "./SessionsBoard.module.css";
  */
 
 type Note = { tone: "problem"; text: string };
-type PendingUpdate = { groupId: string; title: string; message: string; emailCount: number };
+/**
+ * The update the change route answers with. `withFacilitators` is the route's
+ * own word that the update's email reaches the group's facilitators too: it is
+ * posted on exactly as given, so a group with a facilitator who holds no
+ * place in it is counted as the change route counted it.
+ */
+type PendingUpdate = { groupId: string; title: string; message: string; emailCount: number; withFacilitators?: boolean };
 
 export default function ChangeSessionDialog({
   facts,
@@ -112,6 +118,7 @@ export default function ChangeSessionDialog({
           message: update.message,
           email: update.emailCount > 0,
           ...(update.emailCount > 0 ? { emailCount: update.emailCount } : {}),
+          ...(update.withFacilitators === true ? { withFacilitators: true } : {}),
         }),
       });
       body = (await response.json().catch(() => null)) as Record<string, unknown> | null;
