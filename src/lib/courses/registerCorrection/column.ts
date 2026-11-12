@@ -915,8 +915,9 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
   if (why || !register) return refuse(409, why ?? CORRECTION_REFUSAL.noRegister);
   // Whether a push back would go through (`pushRefusalOf`): a push it would
   // refuse is refused here, in the preview and the press alike, and keep
-  // pace's preview says so, so the sheet does not offer it. Keep pace stays.
-  const pushRefused = await pushRefusalOf(ctx, press);
+  // pace's preview says so, so the sheet does not offer it. A keep pace save
+  // never asks: keep pace stays whatever a push would meet.
+  const pushRefused = press.pace === "push" || press.preview ? await pushRefusalOf(ctx, press) : null;
   if (press.pace === "push" && pushRefused) return refuse(pushRefused.status, pushRefused.error, pushRefused.detail);
   const change = changePressOf(press);
   const naming = await readNamingProgramme(db, run.id);

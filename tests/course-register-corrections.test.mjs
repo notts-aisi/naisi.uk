@@ -806,6 +806,7 @@ describe("3. correcting the whole column", () => {
     assert.deepEqual(sites, [...Object.keys(EVERY_PACE), ...Object.keys(PUSH_ONLY)].sort(), "the route refuses something this walk has not classified");
     // Every branch the door takes on which pace or which change it is, in either spelling.
     const PACE_BRANCHES = {
+      "const pushRefused = press.pace === \"push\" || press.preview ? await pushRefusalOf(ctx, press) : null;": "asked for a push or a preview, never on a keep pace save",
       "if (press.pace === \"push\" && pushRefused) return refuse(pushRefused.status, pushRefused.error, pushRefused.detail);": "the push's refusal, through pushRefusalOf",
       "if (change.kind === \"push\") {": "the push's write; its one refusal is REFUSAL.noPlan, known unreachable",
       "newDateKey: change.kind === \"push\" ? (checked.pushed?.newDateKey ?? null) : null,": "the answer's new date: no refusal",
@@ -884,6 +885,31 @@ describe("3. correcting the whole column", () => {
     }
     // Until a preview has said, nothing is offered.
     assert.deepEqual(pageWords.pushChoiceOf(null), { offered: false, why: "" });
+  });
+
+  test("a keep pace save never asks whether a push would go through; its preview and a push do", async () => {
+    // Watched by the collections asked for: a session report and a check-in are read only by the push's check.
+    const real = world.courseDb;
+    const asked = [];
+    world.courseDb = new Proxy(real, {
+      get(target, prop) {
+        if (prop === "collection") return (name) => (asked.push(name), target.collection(name));
+        const value = Reflect.get(target, prop, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const asksPush = () => asked.includes("courseSessionReports") || asked.includes("surveys");
+    try {
+      const preview = await column("claudia", { kind: "did-not-happen", pace: "keep", dateKey: "2026-11-03", preview: true });
+      assert.equal(preview.status, 200, JSON.stringify(preview.body));
+      assert.equal(asksPush(), true, "keep pace's preview does not ask whether a push would go through, so the watch reads nothing");
+      asked.length = 0;
+      const kept = await column("claudia", { kind: "did-not-happen", pace: "keep", dateKey: "2026-11-03", tell: false, reason: "Nobody came." });
+      assert.equal(kept.status, 200, JSON.stringify(kept.body));
+      assert.equal(asksPush(), false, `a keep pace save asked whether a push would go through: ${asked.join(", ")}`);
+    } finally {
+      world.courseDb = real;
+    }
   });
 
   test("pushed back, the Attendance line says the week meets a week later and its register is taken then; keep pace keeps its line", async () => {
