@@ -31,7 +31,7 @@
  *     kept for them through the programme's own routes, held by
  *     `tests/notes-for-leads.test.mjs`.
  *  2. Claude's draft of a note: only counted rows of weeks whose session has
- *     started (privacy v18), as they stand, from the person's agreement to
+ *     ended (privacy v18), as they stand, from the person's agreement to
  *     privacy v15, no name, nothing stored.
  *     `tests/week-notes.test.mjs` holds the end-of-week drafts and the team's
  *     words, through the same builder.
@@ -294,12 +294,12 @@ describe("notes about a person on the admins' routes: admins only, and never abo
 // 2. Claude's draft of a note
 // ---------------------------------------------------------------------------
 
-describe("Claude drafts a note from the weeks whose session has started, with no name, and nothing is kept", () => {
+describe("Claude drafts a note from the weeks whose session has ended, with no name, and nothing is kept", () => {
   // The end-of-week notes' rule, which the profile's draft follows (privacy
-  // v18): only weeks whose session the person was due at has started, their
+  // v18): only weeks whose session the person was due at has ended, their
   // work in them as it stands, sent or not, and only work written after the
   // person agreed to version 15. Amara agrees to it on Thu 5 Nov; Group A met
-  // for week 3 on Thu 12 Nov at 6pm.
+  // for week 3 on Thu 12 Nov from 6pm to 8pm.
   const agreeToV15 = (uid) => w.world.db.poke(`users/${uid}`, { policyVersion: "terms.1+privacy.15", policyAgreedAt: new Date("2026-11-05T09:00:00Z") });
   // The week's old Submit, after its reflections were last saved (Sun 15 Nov). It counts for nothing in a
   // note since privacy v18: a week submitted under it is read as it stands, like any other.
@@ -338,25 +338,27 @@ describe("Claude drafts a note from the weeks whose session has started, with no
     assert.equal(read.body.agreed, true, "Claude may draft once the person has agreed to version 15");
   });
 
-  test("no session, no note: a week before its session is never sent, submitted or not; once it has started, it goes unsubmitted", async () => {
+  test("no session, no note: a week before or during its session is never sent, submitted or not; once it has ended, it goes unsubmitted", async () => {
     // CHANGED ON PURPOSE (privacy v18): "no submission, no note" is gone. An hour before Group A's week 3
-    // session, a week already submitted under the old button sends nothing; from the session on, a week
-    // never submitted goes as it stands.
+    // session, and as it starts, and a minute before it ends, a week already submitted under the old button
+    // sends nothing; once the session has ended, a week never submitted goes as it stands.
+    for (const at of ["2026-11-12T17:00:00Z", "2026-11-12T18:00:00Z", "2026-11-12T19:59:00Z"]) {
+      reset();
+      agreeToV15("amara");
+      submitWeek3("amara");
+      w.at(at);
+      const before = await ask("zach", routes.draft.POST, { uid: "amara" }, { body: { runId: RUN.agi } });
+      assert.equal(before.status, 409, at);
+      assert.equal(before.body.error, "Claude can’t draft a note from this programme yet: none of their sessions on it has ended.", at);
+      assert.deepEqual(globalThis.__cwClaudeAsked, [], at);
+    }
     reset();
     agreeToV15("amara");
-    submitWeek3("amara");
-    w.at("2026-11-12T17:00:00Z");
-    const before = await ask("zach", routes.draft.POST, { uid: "amara" }, { body: { runId: RUN.agi } });
-    assert.equal(before.status, 409);
-    assert.equal(before.body.error, "Claude can’t draft a note from this programme yet: none of their sessions on it has started.");
-    assert.deepEqual(globalThis.__cwClaudeAsked, []);
-    reset();
-    agreeToV15("amara");
-    w.at("2026-11-12T18:00:00Z");
+    w.at("2026-11-12T20:00:00Z");
     globalThis.__cwClaudeAnswer = { ok: true, value: { note: "The fellow writes about the lamps with care." }, model: "claude-opus-5-5", usage: { inputTokens: 1, outputTokens: 1 } };
     const after = await ask("zach", routes.draft.POST, { uid: "amara" }, { body: { runId: RUN.agi } });
     assert.equal(after.status, 200, JSON.stringify(after.body));
-    assert.ok(globalThis.__cwClaudeAsked[0].message.includes(SAID.amara["k3-rp1"]), "the week was not sent once its session had started");
+    assert.ok(globalThis.__cwClaudeAsked[0].message.includes(SAID.amara["k3-rp1"]), "the week was not sent once its session had ended");
     w.at(NOW);
   });
 
@@ -371,7 +373,7 @@ describe("Claude drafts a note from the weeks whose session has started, with no
     assert.deepEqual(globalThis.__cwClaudeAsked, []);
   });
 
-  test("only counted rows of a week whose session has started go, with no name, address, account or private note, and the draft is returned, never stored", async () => {
+  test("only counted rows of a week whose session has ended go, with no name, address, account or private note, and the draft is returned, never stored", async () => {
     reset();
     agreeToV15("amara");
     submitWeek3("amara");
