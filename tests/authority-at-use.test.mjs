@@ -402,6 +402,19 @@ const RAW_SITES = {
       "the caller as a facilitator (a facilitator who holds a place has a learner's row), " +
       "before any of them adds the `facilitator` role.",
   },
+  "src/lib/courses/requests/load.ts": {
+    role: "not-a-gate",
+    matches: { leadUid: 1, trackLeadUids: 1 },
+    provedBy: ["if (doesTrackLeadWork(await runStaffingOf(db, actor, { id: runId, trackLeadUids: stored }))) runIds.push(runId);"],
+    // The control runs after the two reads, as on the course hub: they only
+    // find the runs that might be the reader's, and decide nothing.
+    controlAfter: true,
+    why:
+      "The Requests page finds the runs a reader might lead: the runs whose programme names the caller " +
+      "as its lead on the forms, and one `array-contains` query scoped to the caller's own uid for the " +
+      "runs naming them as a track lead. Neither grants anything: every candidate is held to the one " +
+      "gate, `runStaffingOf` and `doesTrackLeadWork`, before any of its requests is read.",
+  },
   "src/lib/messages/writers.ts": {
     role: "not-a-gate",
     matches: { facilitatorUids: 1 },

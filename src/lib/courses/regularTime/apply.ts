@@ -2,6 +2,7 @@ import "server-only";
 import { FieldValue, type DocumentReference, type Firestore } from "firebase-admin/firestore";
 import { campusLabel } from "@/lib/courses/campus";
 import { cantMakeItState } from "@/lib/courses/cantMakeIt/model";
+import { coverHolderNames, coversOffOf, coversOffWords, writeCoversOff } from "@/lib/courses/registerCover/moves";
 import { writeTakenBack } from "@/lib/courses/cantMakeIt/seat";
 import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
 import { historyDetail, momentWords, regularHeadline } from "@/lib/courses/groupChange/words";
@@ -34,7 +35,9 @@ import { REGULAR_REFUSAL } from "./words";
  *     to "Can you make this time?" given before it stops counting and people
  *     are asked again (their stored answers are kept);
  *  5. on every register nobody has taken, the session's new start
- *     (`sessionAt`);
+ *     (`sessionAt`); and on each of those whose start moves and that holds a
+ *     cover, the cover and the facilitators' entries it wrote go (a cover is
+ *     for its evening, never another), named in the history row;
  *  6. when the day or the start changed, for each active, told fellow whose
  *     answer is "Most weeks, not all": each session they ticked whose start
  *     this change moves, that has not started on the new dates and whose
@@ -130,6 +133,22 @@ export async function applyRegularChange(
     if (!planned.ok) return planned;
     const { plan } = planned;
 
+    // A cover does not ride along to another evening: a register nobody has
+    // taken loses the cover it holds when this change moves its session's
+    // start, and the history row says who had been covering. Read here,
+    // before the first write.
+    const startOfSession = (session: ResolvedSession) => sessionInstants(session).startsAt?.getTime() ?? null;
+    const refByWeek = new Map(refs.map((each, index) => [each.weekNumber, { ref: each.ref, snap: registerSnaps[index] }] as const));
+    const coversOff = coversOffOf(
+      plan.moves
+        .filter((move) => startOfSession(move.before) !== startOfSession(move.after))
+        .flatMap((move) => {
+          const found = refByWeek.get(move.weekNumber);
+          return found ? [{ ref: found.ref, weekNumber: move.weekNumber, occurrence: 1, snap: found.snap }] : [];
+        }),
+    );
+    const holderNames = await coverHolderNames(tx, db, coversOff);
+
     // ── 1 to 4: the group ────────────────────────────────────────────────────
     const update: Record<string, unknown> = {
       "session.weekday": plan.session.weekday,
@@ -161,6 +180,8 @@ export async function applyRegularChange(
       if (!data || !ref || !startsAt || registerIsTaken(data)) continue;
       tx.update(ref, { sessionAt: startsAt });
     }
+
+    writeCoversOff(tx, coversOff);
 
     // ── 6: "Most weeks, not all" ticks, taken back for the new time ──────────
     let takenBack = 0;
@@ -213,7 +234,7 @@ export async function applyRegularChange(
         group,
         actor,
         weekId: plan.moves[0]?.weekId ?? null,
-        detail: historyDetail({
+        detail: [historyDetail({
           headline: regularHeadline(
             plan.fromWeek,
             {
@@ -233,7 +254,7 @@ export async function applyRegularChange(
             : undefined,
           reason: press.reason,
           emailed: input.emailed,
-        }),
+        }), coversOffWords(coversOff, holderNames)].filter(Boolean).join(" "),
         before: {
           weekday: group.session.weekday,
           startTimeLocal: group.session.startTimeLocal,

@@ -223,9 +223,9 @@ describe("1. the arithmetic of a group's page", () => {
 
   test("which one-week choices a week offers: a passed week with no register is put right; a week that met offers none", () => {
     const alone = (each) => model.oneWeekChoicesOf(each, [each]);
-    assert.deepEqual(alone(week({ hasLink: true })), { putRight: false, met: false, online: true, restore: false, push: true });
-    assert.deepEqual(alone(week({ started: true })), { putRight: true, met: false, online: false, restore: false, push: true });
-    assert.deepEqual(alone(week({ started: true, taken: true })), { putRight: false, met: true, online: false, restore: false, push: false });
+    assert.deepEqual(alone(week({ hasLink: true })), { putRight: false, met: false, online: true, restore: false, push: true, pushBlock: null });
+    assert.deepEqual(alone(week({ started: true })), { putRight: true, met: false, online: false, restore: false, push: true, pushBlock: null });
+    assert.deepEqual(alone(week({ started: true, taken: true })), { putRight: false, met: true, online: false, restore: false, push: false, pushBlock: null });
     assert.equal(alone(week({ change: "moved" })).restore, true);
     assert.equal(alone(week({ change: "pushed" })).restore, false, "a push moved the weeks, not this one");
     assert.equal(alone(week({ hasLink: false })).online, false, "no link, no holding it online");
@@ -237,10 +237,43 @@ describe("1. the arithmetic of a group's page", () => {
     const four = week({ weekNumber: 4, weekId: "w04", sessionKey: "w04", dateKey: "2026-11-24", started: true, ended: true, taken: true });
     const five = week({ weekNumber: 5, weekId: "w05", sessionKey: "w05", dateKey: "2026-12-01" });
     const weeks = [three, four, five];
-    assert.deepEqual(model.oneWeekChoicesOf(three, weeks), { putRight: true, met: false, online: false, restore: false, push: false });
+    assert.deepEqual(model.oneWeekChoicesOf(three, weeks), { putRight: true, met: false, online: false, restore: false, push: false, pushBlock: "later-met" });
     assert.equal(model.oneWeekChoicesOf(five, weeks).push, true, "an earlier week that met moves nowhere");
     assert.equal(model.oneWeekChoicesOf(four, weeks).met, true);
     assert.equal(words.PUSH_BACK_LATER_MET, "A later week has already met, so the rest can’t be pushed back.");
+  });
+
+  test("push back is not offered for a week with a check-in or a session report; keep pace still is", () => {
+    const three = week({ weekNumber: 3, weekId: "w03", sessionKey: "w03", started: true, ended: true, checkInOrReport: true });
+    const four = week({ weekNumber: 4, weekId: "w04", sessionKey: "w04" });
+    assert.deepEqual(
+      [model.oneWeekChoicesOf(three, [three, four]).push, model.oneWeekChoicesOf(three, [three, four]).pushBlock],
+      [false, "records"],
+    );
+    assert.deepEqual(model.didNotHappenChoicesOf(three, [three, four]), { keepPace: true, push: false, pushBlock: "records" });
+    assert.equal(model.oneWeekChoicesOf(four, [three, four]).push, true, "an earlier week's records move nothing");
+  });
+
+  test("It didn't happen works push back out from LATER weeks only: a draft with marks on the week itself does not block it", () => {
+    // Week 3 started; somebody marked a draft and did not finish it. It counts as met for every other change.
+    const draft = week({ weekNumber: 3, weekId: "w03", sessionKey: "w03", started: true, ended: true, taken: true });
+    const four = week({ weekNumber: 4, weekId: "w04", sessionKey: "w04" });
+    assert.equal(model.oneWeekChoicesOf(draft, [draft, four]).met, true);
+    assert.equal(model.callsOffMarkedDraft(draft), true);
+    assert.deepEqual(model.didNotHappenChoicesOf(draft, [draft, four]), { keepPace: true, push: true, pushBlock: null });
+    // A later week that met still blocks it.
+    const fourMet = { ...four, started: true, taken: true };
+    assert.deepEqual(model.didNotHappenChoicesOf(draft, [draft, fourMet]), { keepPace: true, push: false, pushBlock: "later-met" });
+    // Not a draft to call off: finished, said not to have happened, called off, or not started.
+    for (const over of [{ finished: true }, { heldFalse: true }, { cancelled: true }, { started: false }]) {
+      const each = { ...draft, ...over };
+      assert.equal(model.callsOffMarkedDraft(each), false, JSON.stringify(over));
+      assert.equal(model.didNotHappenChoicesOf(each, [each, four]), null, JSON.stringify(over));
+    }
+    // A week that passed with no register at all: both cancels, as ever.
+    const empty = week({ weekNumber: 3, weekId: "w03", sessionKey: "w03", started: true, ended: true });
+    assert.equal(model.callsOffMarkedDraft(empty), false);
+    assert.deepEqual(model.didNotHappenChoicesOf(empty, [empty, four]), { keepPace: true, push: true, pushBlock: null });
   });
 
   test("a move lands on today or later; it met at another time lands on today or earlier, in the week's own days", () => {
@@ -606,7 +639,11 @@ describe("3. the group's page, and the facilitator's cut", () => {
     // the programme's lead take.
     const registerPath = `/admin/admissions/forms/${ROUND}/programmes/${AGI}/groups/${B}/register`;
     assert.ok(drawn.html.includes(`href="${registerPath}"`), "Take the register is the group's register under this page");
-    assert.doesNotMatch(drawn.text, /Attendance, all weeks/, "no tab for something that does not exist yet");
+    // CHANGED ON PURPOSE (November 2026), with correcting a register: the
+    // group's attendance across every week is a third tab, for admins and
+    // the programme's lead (tests/course-register-correction-pages.test.mjs
+    // holds who is given it).
+    assert.match(drawn.text, /Week by week Attendance, all weeks History/, "the Attendance tab sits between Week by week and History");
     assert.doesNotMatch(drawn.text, /Remind/, "Remind comes with a later step");
     const [body] = find(drawn.element, "GroupPage");
     assert.ok(body, "the page hands its body the server's view");

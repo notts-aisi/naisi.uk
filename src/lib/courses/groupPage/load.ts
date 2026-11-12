@@ -10,6 +10,7 @@ import { loadGroupHistory } from "@/lib/courses/groupHistory/load";
 import { groupWeekWorkView, readGroupWeekWork } from "@/lib/courses/groupWeekWork/load";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { coverIsLive, startedByFacilitator } from "@/lib/courses/registerCover/model";
+import { sessionsWithCheckInOrReport } from "@/lib/courses/sessionChange/didNotHappen";
 import { startedAgoWords } from "@/lib/courses/registerCover/pageWords";
 import {
   EXCUSED_IN_ADVANCE,
@@ -167,7 +168,7 @@ export async function loadGroupPage(
   const facilitatorSet = new Set(group.facilitatorUids);
 
   // Who took a register in a facilitator's place, or was given a session,
-  // may be anybody with an account: named for the page's staff only.
+  // may be somebody outside the group: named for the page's staff only.
   const coverUidsOf = (snaps: readonly FirebaseFirestore.DocumentSnapshot[]) =>
     staff
       ? [...new Set(snaps.map((snap) => (snap?.exists ? normalizeCourseAttendance(snap.id, snap.data() ?? {}).cover?.byUid ?? "" : "")).filter(Boolean))]
@@ -197,7 +198,7 @@ export async function loadGroupPage(
       return null;
     });
 
-  const [naming, registerSnaps, weekSnaps, seats, audience, history, lead, names, worked] = await Promise.all([
+  const [naming, registerSnaps, weekSnaps, seats, audience, history, withRecords, lead, names, worked] = await Promise.all([
     namingRead,
     registerRead,
     weekRefs.length ? db.getAll(...weekRefs) : Promise.resolve([]),
@@ -207,6 +208,8 @@ export async function loadGroupPage(
     // an admin or the programme's lead who does not facilitate the group:
     // that record is sent to nobody else.
     staff ? loadGroupHistory(db, run.id, group.id, { facilitatorRecord: !group.facilitatorUids.includes(viewerUid) }) : Promise.resolve(null),
+    // Which sessions have a check-in or a session report: push back is not offered for them.
+    sessionsWithCheckInOrReport(db, run.id, group.id, sessions.map((session) => session.sessionKey)),
     namingRead.then((found) => readRunLead(db, run.id, found)),
     namesRead,
     workRead,
@@ -288,6 +291,7 @@ export async function loadGroupPage(
           ? { kind: stored.cover.kind, byName: anyName(stored.cover.byUid), live: coverIsLive(stored.cover, now) }
           : null,
       startedAgo: started && startsAt ? startedAgoWords(startsAt, now) : "",
+      checkInOrReport: withRecords.has(session.sessionKey),
     };
   });
 
@@ -353,6 +357,8 @@ export async function loadGroupPage(
     notice: { emails: audience.refused ? 0 : audience.recipients.length, refused: audience.refused },
     linkSessionKey: linkWeek?.sessionKey ?? null,
     linkWeekNumber: linkWeek?.weekNumber ?? null,
+    // The people leading the programme, for who a session may be given to: staff only.
+    coverLeadUids: staff ? [...new Set([...(lead ? [lead.uid] : []), ...run.trackLeadUids])] : [],
     history: history
       ? {
           rows: history.rows.map((row) => {

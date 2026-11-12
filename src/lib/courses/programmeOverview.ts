@@ -441,7 +441,7 @@ export async function buildProgrammeOverview(
       if (facts.tag !== "not-finished") continue;
       reminderStates.set(
         `${entry.group.id}__${facts.session.sessionKey}`,
-        await readReminderState(db, entry.group, facts.session.sessionKey, now),
+        await readReminderState(db, entry.group, facts.session.sessionKey, now, viewer.uid),
       );
     }
   }

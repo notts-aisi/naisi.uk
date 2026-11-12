@@ -8,7 +8,9 @@ import { useHydrated } from "@/hooks/useHydrated";
 import { GROUP_CAMPUSES, type GroupCampus } from "@/lib/courses/campus";
 import { CAMPUS_LABEL } from "@/lib/courses/campusWords";
 import {
+  callsOffMarkedDraft,
   defaultRegularStart,
+  didNotHappenChoicesOf,
   lengthOptions,
   moveDays,
   oneWeekButtonWords,
@@ -27,10 +29,13 @@ import {
   type OneWeekKind,
   type OneWeekPreview,
   type PreviewLine,
+  type PushBlock,
   type RegularPreview,
 } from "@/lib/courses/groupPage/model";
 import * as W from "@/lib/courses/groupPage/words";
+import { pushHasRecordsHint } from "@/lib/courses/registerCover/words";
 import {
+  DRAFT_DIDNT_HAPPEN_LINE,
   KEEP_PACE,
   PUSH_THE_REST_BACK,
   WHAT_HAPPENS_AFTER,
@@ -88,6 +93,13 @@ type Preview =
 type Answered = { asked: string; preview: Preview };
 
 type PendingUpdate = { groupId: string; title: string; message: string; emailCount: number; withFacilitators: boolean };
+
+/** Why "Push the rest back a week" is not offered, in the panel's words; "" when it is. */
+function pushBlockWords(block: PushBlock, weekNumber: number): string {
+  if (block === "later-met") return W.PUSH_BACK_LATER_MET;
+  if (block === "records") return pushHasRecordsHint(weekNumber);
+  return "";
+}
 
 /** The fields a choice of week starts from: the week's own session. */
 function fieldsOf(week: GroupPageWeek | null, view: GroupPageView) {
@@ -152,6 +164,13 @@ export default function ChangePanel({
   );
   const week = weeks.find((each) => each.weekNumber === weekNumber) ?? null;
   const choices = week ? oneWeekChoicesOf(week, weeks) : null;
+  // A started week whose register is a draft somebody marked, not finished:
+  // it counts as met for every other change, and may still be called off with
+  // the two cancels, through the same route and preview as "It didn't happen".
+  const draftCalledOff = Boolean(!didNotHappen && week && choices?.met && callsOffMarkedDraft(week));
+  const calledOff = didNotHappen || draftCalledOff;
+  // The two cancels, with push back worked out from LATER weeks and the week's own records only.
+  const cancels = week && calledOff ? didNotHappenChoicesOf(week, weeks) : null;
 
   const [kind, setKind] = useState<OneWeekKind | null>(choices?.putRight && !didNotHappen ? "move" : null);
   const [met, setMet] = useState<boolean>(Boolean(choices?.putRight) && !didNotHappen);
@@ -285,14 +304,14 @@ export default function ChangePanel({
   const emails = emailsSaid ?? told?.emails ?? 0;
   const canTell = Boolean(told && !told.refused && (told.people > 0 || told.emails > 0));
   // Called off after it started, the notice is the tick's to send; any other one-week change tells the group.
-  const tell = canTell && (choice === "regular" ? emails > 0 : met || didNotHappen ? tellAnyway : true);
+  const tell = canTell && (choice === "regular" ? emails > 0 : met || calledOff ? tellAnyway : true);
   const buttonEmails = tell ? emails : 0;
 
   const lines: PreviewLine[] =
     preview.status === "one"
       ? [
           // A session called off after it started: what else follows, from the route's own preview.
-          ...(preview.data.didNotHappen ? didNotHappenLines(preview.data.didNotHappen, preview.data.weekNumber) : []),
+          ...(preview.data.didNotHappen ? didNotHappenLines(preview.data.didNotHappen, preview.data.weekNumber, preview.data.kind) : []),
           ...oneWeekPreviewLines({ preview: preview.data, metAtAnotherTime: met, tell, groupName: view.groupName, incubator: view.incubator }),
         ]
       : preview.status === "regular"
@@ -538,6 +557,32 @@ export default function ChangePanel({
     </>
   );
 
+  /** The two cancels for a session that did not happen: keep pace, or push the rest back a week where it can be. */
+  const cancelsFieldset = (each: GroupPageWeek) => (
+    <fieldset className={styles.options}>
+      <legend className={styles.legend}>{WHAT_HAPPENS_AFTER}</legend>
+      {radio(`${ids}-kind`, "cancel", kind === "cancel", () => {
+        setKind("cancel");
+        setMet(false);
+        setTellAnyway(false);
+      }, KEEP_PACE, W.keepPaceHintWords(nextWeek))}
+      {radio(
+        `${ids}-kind`,
+        "push",
+        kind === "push",
+        () => {
+          setKind("push");
+          setMet(false);
+          // Pushing the rest back moves every later week: the group is told unless the tick is taken off.
+          setTellAnyway(true);
+        },
+        PUSH_THE_REST_BACK,
+        cancels?.push ? W.PUSH_BACK_HINT : pushBlockWords(cancels?.pushBlock ?? null, each.weekNumber),
+        !cancels?.push,
+      )}
+    </fieldset>
+  );
+
   return (
     <section className={styles.panel} aria-labelledby={titleId}>
       <div className={styles.panelHead}>
@@ -552,30 +597,7 @@ export default function ChangePanel({
       {oneWeekOnly && !didNotHappen && <p className={styles.panelLede}>{W.facilitatorCanLine(view.leadFirstName)}</p>}
       {didNotHappen && week && <p className={styles.panelLede}>{didntHappenLede(view.groupName, week.dateKey, week.hhmm)}</p>}
 
-      {didNotHappen && week ? (
-        <fieldset className={styles.options}>
-          <legend className={styles.legend}>{WHAT_HAPPENS_AFTER}</legend>
-          {radio(`${ids}-kind`, "cancel", kind === "cancel", () => {
-            setKind("cancel");
-            setMet(false);
-            setTellAnyway(false);
-          }, KEEP_PACE, W.keepPaceHintWords(nextWeek))}
-          {radio(
-            `${ids}-kind`,
-            "push",
-            kind === "push",
-            () => {
-              setKind("push");
-              setMet(false);
-              // Pushing the rest back moves every later week: the group is told unless the tick is taken off.
-              setTellAnyway(true);
-            },
-            PUSH_THE_REST_BACK,
-            choices?.push ? W.PUSH_BACK_HINT : W.PUSH_BACK_LATER_MET,
-            !choices?.push,
-          )}
-        </fieldset>
-      ) : null}
+      {didNotHappen && week ? cancelsFieldset(week) : null}
 
       {!oneWeekOnly && !didNotHappen && view.canChangeRegular && (
         <fieldset className={styles.options}>
@@ -606,7 +628,11 @@ export default function ChangePanel({
               onChange={(e) => chooseWeek(Number(e.target.value))}
             >
               {weeks.map((each) => (
-                <option key={each.weekNumber} value={String(each.weekNumber)} disabled={each.taken || !each.dateKey}>
+                <option
+                  key={each.weekNumber}
+                  value={String(each.weekNumber)}
+                  disabled={(each.taken && !callsOffMarkedDraft(each)) || !each.dateKey}
+                >
                   {W.weekOptionWords(each.weekNumber, each.dateKey, each.hhmm, each.state)}
                 </option>
               ))}
@@ -614,7 +640,13 @@ export default function ChangePanel({
             {!oneWeekOnly && <p className={styles.fieldHint}>{W.WHICH_WEEK_HINT}</p>}
           </div>
 
-          {week && choices?.met && <p className={styles.panelNote}>{W.MET_LINE}</p>}
+          {week && choices?.met && !draftCalledOff && <p className={styles.panelNote}>{W.MET_LINE}</p>}
+          {week && draftCalledOff && (
+            <>
+              <p className={styles.panelNote}>{DRAFT_DIDNT_HAPPEN_LINE}</p>
+              {cancelsFieldset(week)}
+            </>
+          )}
 
           {week && choices && !choices.met && (
             <fieldset className={styles.options}>
@@ -663,8 +695,8 @@ export default function ChangePanel({
                   setMet(false);
                 },
                 W.CANCEL_PUSH_BACK,
-                // Once a later week has met, the rest can't move: the reason, in place of the hint.
-                !choices.push ? W.PUSH_BACK_LATER_MET : choices.putRight ? "" : W.PUSH_BACK_HINT,
+                // Once a later week has met, or this one has a check-in or a report, the rest can't move: the reason, in place of the hint.
+                !choices.push ? pushBlockWords(choices.pushBlock, week.weekNumber) : choices.putRight ? "" : W.PUSH_BACK_HINT,
                 !choices.push,
               )}
               {choices.restore &&
@@ -786,7 +818,7 @@ export default function ChangePanel({
         </div>
       )}
 
-      {didNotHappen && kind && canTell && (
+      {calledOff && kind && canTell && (
         <label className={styles.tick}>
           <input
             type="checkbox"

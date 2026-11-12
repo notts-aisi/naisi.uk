@@ -45,6 +45,7 @@ const change = await courseRoute("groups", "[groupId]", "session", "change");
 const cantMakeIt = await courseRoute("groups", "[groupId]", "cant-make-it");
 const checkIn = await courseRoute("groups", "[groupId]", "check-in");
 const report = await courseRoute("groups", "[groupId]", "session-report");
+const coverRoute = await courseRoute("groups", "[groupId]", "attendance", "cover");
 const { registerRemindersJob } = await lib("scheduler", "jobs", "registerReminders.ts");
 const { unmarkedRegistersJob } = await lib("scheduler", "jobs", "unmarkedRegisters.ts");
 const { registerFollowUpTaskId } = await lib("courses", "unmarkedRegisters.ts");
@@ -327,5 +328,76 @@ describe("6. what the group is told", () => {
     at(AFTER);
     const answer = await press("rahul", { kind: "push", preview: true });
     assert.equal(answer.body.preview.notice.title, "Week 1 moves to next week, and the rest follow");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. After the review: a cover cleared by a push back, and a session with a
+//    check-in or a report
+// ---------------------------------------------------------------------------
+
+describe("7. a covered draft, and a session that already has a check-in or a report", () => {
+  /** Claudia took week 1's register in Rahul and Sofia's place during the session, and marked Amara present. */
+  async function aCoveredDraft() {
+    at(DURING);
+    const took = await call("claudia", coverRoute.POST, { groupId: GROUP.b }, { body: { weekNumber: 1 } });
+    assert.equal(took.status, 200, JSON.stringify(took.body));
+    assert.equal((await mark("claudia", [{ uid: "amara", status: "present" }])).status, 200);
+    at(AFTER);
+  }
+
+  test("push back: the cover and the record of who was there leave the register and stay in the row, beside the lines", async () => {
+    await aCoveredDraft();
+    const answer = await press("claudia", { kind: "push" });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    const doc = read(W1);
+    assert.equal(doc.cover, undefined);
+    assert.equal(doc.facilitatorRecord, undefined);
+    const [row] = auditRows("session-did-not-happen");
+    assert.deepEqual(row.before, {
+      amara: "Present",
+      cover: "self",
+      coverByUid: "claudia",
+      "facilitator:rahul": "not-there",
+      "facilitator:sofia": "not-there",
+    });
+    assert.match(row.detail, /^Week 1 didn’t happen, the rest pushed back a week\. Cleared 1 line of its register: Amara Present\. Claudia was covering it\.$/);
+  });
+
+  test("keep pace: the cover and the record stay on the register, as the record of a session nobody ran", async () => {
+    await aCoveredDraft();
+    assert.equal((await press("claudia", { kind: "cancel" })).status, 200);
+    const doc = read(W1);
+    assert.equal(doc.cover.byUid, "claudia");
+    assert.deepEqual(Object.keys(doc.facilitatorRecord).sort(), ["rahul", "sofia"]);
+    assert.deepEqual(auditRows("session-did-not-happen")[0].before, { amara: "Present" });
+  });
+
+  test("a session report stops a push back, in its preview and its press, with one sentence; keep pace still goes", async () => {
+    await aDraft();
+    const reported = await call("rahul", report.PUT, { groupId: GROUP.b }, { body: { sessionKey: "w01", answers: { how: 3 } } });
+    assert.equal(reported.status, 200, JSON.stringify(reported.body));
+    const before = JSON.stringify(world.db.paths().sort().map((path) => [path, read(path)]));
+    for (const preview of [true, false]) {
+      const refused = await press("rahul", { kind: "push", ...(preview ? { preview: true } : {}) });
+      assert.deepEqual([refused.status, refused.body.error], [409, coverWords.pushHasRecordsWords(1)], `preview: ${preview}`);
+    }
+    assert.equal(JSON.stringify(world.db.paths().sort().map((path) => [path, read(path)])), before, "a refused push changed something");
+    const kept = await press("rahul", { kind: "cancel", preview: true });
+    assert.equal(kept.status, 200, JSON.stringify(kept.body));
+    assert.equal(kept.body.preview.didNotHappen.reports, 1);
+    assert.equal((await press("rahul", { kind: "cancel" })).status, 200);
+  });
+
+  test("an opened check-in stops a push back too", async () => {
+    // The check-in goes to the people marked here, so somebody is marked first.
+    at(DURING);
+    assert.equal((await mark("rahul", [{ uid: "amara", status: "present" }])).status, 200);
+    const opened = await call("rahul", checkIn.POST, { groupId: GROUP.b }, { body: { session: "w01", people: 1 } });
+    assert.equal(opened.status, 200, JSON.stringify(opened.body));
+    at(AFTER);
+    const refused = await press("rahul", { kind: "push" });
+    assert.deepEqual([refused.status, refused.body.error], [409, coverWords.pushHasRecordsWords(1)]);
+    assert.equal(sessionsOfB().find((s) => s.weekNumber === 1).dateKey, "2026-10-20", "week 1 moved");
   });
 });

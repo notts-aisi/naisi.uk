@@ -131,8 +131,8 @@ export type CourseAuditKind =
   /** A session's meeting link set, for one week or every week. The row never holds the link. */
   | "group-link-set"
   /**
-   * The four below are a session's REGISTER: who took it in whose place, and
-   * what was done when a session did not happen. Each carries `weekId`.
+   * The five below are a session's REGISTER: who took it in whose place, and
+   * what was done when a session did not happen or moved. Each carries `weekId`.
    *
    * An admin or somebody leading the programme took a session's register in
    * its facilitators' place ("I'm covering it", or the first line they saved).
@@ -151,6 +151,37 @@ export type CourseAuditKind =
    * its register held were cleared; `before` keeps what each line said.
    */
   | "session-did-not-happen"
+  /**
+   * The four below CORRECT A WHOLE COLUMN of a finished register, one row
+   * for each correction, with the reason, `sessionKey`, and `before` and
+   * `after` keyed by the uid of each line it changed (what the line said, in
+   * words). A line's own correction is an `attendance-edit` row, as it always
+   * was, now with `before`, `after`, `reason` and, from an approved request,
+   * `requestId`. No row ever holds a note's words.
+   *
+   * It was held online: every line that said in the room now says online.
+   */
+  | "register-held-online"
+  /**
+   * The lines belonged to another session: the register moved to another
+   * week's session of the group (`toSessionKey`), and its own went back to
+   * not taken.
+   */
+  | "register-moved"
+  /** It was taken for the wrong session: the column went back to not taken. */
+  | "register-cleared"
+  /**
+   * A session recorded as not having happened did happen: it came back into
+   * every figure, with who was there, finished by the person correcting.
+   */
+  | "session-did-happen"
+  /**
+   * A group's own pace moved the start of a session whose register nobody had
+   * taken but somebody was covering, so the cover was taken off: it was for
+   * the old evening. (A one-week change and a new regular time say the same
+   * in their own row.)
+   */
+  | "register-cover-removed"
   /**
    * Somebody running the group pressed Remind about one week's work: one row
    * for the press, saying how many it was for and how many were emailed,
@@ -190,6 +221,11 @@ export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "register-given",
   "facilitator-record-changed",
   "session-did-not-happen",
+  "register-held-online",
+  "register-moved",
+  "register-cleared",
+  "session-did-happen",
+  "register-cover-removed",
   "week-reminded",
 ];
 
@@ -227,6 +263,11 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "register-given": "Session given to somebody covering",
   "facilitator-record-changed": "Whether a facilitator was there changed",
   "session-did-not-happen": "Session didn’t happen, register cleared",
+  "register-held-online": "Register corrected: it was held online",
+  "register-moved": "Register moved to another session",
+  "register-cleared": "Register cleared: taken for the wrong session",
+  "session-did-happen": "Session did happen, register finished",
+  "register-cover-removed": "Cover taken off a session that moved",
   "week-reminded": "Reminded about a week’s work",
 };
 
@@ -258,8 +299,28 @@ const COURSE_AUDIT_CATEGORY: Partial<Record<CourseAuditKind, CourseAuditCategory
   "register-given": "registers",
   "facilitator-record-changed": "registers",
   "session-did-not-happen": "registers",
+  "register-held-online": "registers",
+  "register-moved": "registers",
+  "register-cleared": "registers",
+  "session-did-happen": "registers",
+  "register-cover-removed": "registers",
   "week-reminded": "people",
 };
+
+/**
+ * The kinds that correct a finished register, a line or a whole column: the
+ * rows the register's read works out each corrected line's story from.
+ * `attendance-edit` is a line's own; the other four correct a column, and
+ * `session-did-not-happen` clears one when a finished session is called off.
+ */
+export const REGISTER_CORRECTION_AUDIT_KINDS: readonly CourseAuditKind[] = [
+  "attendance-edit",
+  "register-held-online",
+  "register-moved",
+  "register-cleared",
+  "session-did-happen",
+  "session-did-not-happen",
+];
 
 /**
  * The kinds a group's history shows to admins and the people leading the
@@ -268,6 +329,15 @@ const COURSE_AUDIT_CATEGORY: Partial<Record<CourseAuditKind, CourseAuditCategory
  * anybody else drops these rows.
  */
 export const LEAD_ONLY_AUDIT_KINDS: readonly CourseAuditKind[] = ["facilitator-record-changed"];
+
+/**
+ * The kinds whose REASON a group's history shows to admins and the people
+ * leading the programme only: why a facilitator's register was taken or
+ * their session given to somebody is about that facilitator, so a history
+ * drawn for anybody else keeps the row and leaves its reason out, the rule
+ * `LEAD_ONLY_AUDIT_KINDS` follows for the record of who was there.
+ */
+export const LEAD_ONLY_REASON_KINDS: readonly CourseAuditKind[] = ["register-covered", "register-given"];
 
 export function courseAuditCategory(kind: CourseAuditKind | string): CourseAuditCategory {
   return isCourseAuditKind(kind) ? (COURSE_AUDIT_CATEGORY[kind] ?? "other") : "other";
@@ -297,14 +367,21 @@ export const COURSE_AUDIT_LIMITS = {
   detail: 1000,
   actorName: 120,
   targetLabel: 200,
-  /** The reason a change was given, as the group was told it: one line. */
-  reason: 200,
+  /**
+   * The reason a change was given: one line. A change of time asks for 200
+   * characters at most and a register's correction for 300, so a row is read
+   * up to the longer of the two.
+   */
+  reason: 300,
   /**
    * Keys in a `before` or `after` map, and the length of one text value in
-   * it. As many as a register's lines (40), because a session called off
-   * after the fact keeps what each cleared line said in its `before`.
+   * it. A register's lines (40) and room beside them, because a session
+   * called off after the fact keeps what each cleared line said in its
+   * `before`, and a push back keeps the cover and the facilitators' record
+   * it cleared there too (three keys, and one for each of at most five
+   * facilitators).
    */
-  changeKeys: 40,
+  changeKeys: 50,
   changeValue: 200,
 } as const;
 
@@ -328,6 +405,23 @@ export type CourseAuditChange = {
   reason: string | null;
   /** How many people the change emailed; 0 for nobody, null when the row predates the field. */
   emailed: number | null;
+};
+
+/**
+ * THE OPTIONAL FIELDS A REGISTER'S CORRECTION ADDS beside the change fields:
+ * which session it corrected, where a moved register went, and the request
+ * an approved correction came from. Null on every row that does not carry
+ * them, which is every row written before them.
+ */
+export type CourseAuditCorrection = {
+  /** The session whose register was corrected ("w03", or "w03-2" for a week's second session). */
+  sessionKey: string | null;
+  /** For a register moved to another session: the session it moved to. */
+  toSessionKey: string | null;
+  /** The `courseRequests` id an approved correction came from. */
+  requestId: string | null;
+  /** For a whole column's correction: how many lines it changed. */
+  lines: number | null;
 };
 
 export type CourseAuditDoc = {
@@ -367,7 +461,8 @@ export type CourseAuditDoc = {
   /** One human sentence: what changed, and from what to what. */
   detail: string;
   at: Date | null;
-} & CourseAuditChange;
+} & CourseAuditChange &
+  CourseAuditCorrection;
 
 type Raw = Record<string, unknown>;
 
@@ -428,6 +523,25 @@ export function courseAuditChangeOf(data: Raw): CourseAuditChange {
   };
 }
 
+/** A session key as every register keys it: "w03", or "w03-2". */
+const SESSION_KEY = /^w\d{2}(?:-\d)?$/;
+
+/** A document id as a row may hold one: short, and naming one document. */
+function idOrNull(v: unknown): string | null {
+  return typeof v === "string" && v.length > 0 && v.length <= 128 && !v.includes("/") ? v : null;
+}
+
+/** The optional correction fields of a stored row, each null when the row does not carry it. */
+export function courseAuditCorrectionOf(data: Raw): CourseAuditCorrection {
+  const key = (v: unknown) => (typeof v === "string" && SESSION_KEY.test(v) ? v : null);
+  return {
+    sessionKey: key(data.sessionKey),
+    toSessionKey: key(data.toSessionKey),
+    requestId: idOrNull(data.requestId),
+    lines: typeof data.lines === "number" && Number.isInteger(data.lines) && data.lines >= 0 ? data.lines : null,
+  };
+}
+
 export function normalizeCourseAudit(id: string, data: Raw): CourseAuditDoc {
   // A kind this build does not recognise is KEPT as written and flagged,
   // never mapped onto a known one. The row still has to appear in the log
@@ -449,5 +563,6 @@ export function normalizeCourseAudit(id: string, data: Raw): CourseAuditDoc {
     detail: str(data.detail, COURSE_AUDIT_LIMITS.detail),
     at: tsToDate(data.at),
     ...courseAuditChangeOf(data),
+    ...courseAuditCorrectionOf(data),
   };
 }

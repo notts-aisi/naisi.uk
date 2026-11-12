@@ -105,8 +105,12 @@ const giveLink = (who, body, { groupId = B, viewAs = false } = {}) =>
   call(who, linkRoute.POST, { groupId }, { body, course: true, viewAs });
 /** The register, as `who`. */
 const registerAs = (who, groupId = B) => call(who, registerRoute.GET, { groupId }, { course: true });
+/** A correction (PATCH) carries a reason: every correction of a finished register needs one. */
 const markAs = (who, week, marks, method = "POST") =>
-  call(who, registerRoute[method], { groupId: B }, { body: { weekNumber: week, marks }, course: true });
+  call(who, registerRoute[method], { groupId: B }, {
+    body: { weekNumber: week, marks, ...(method === "PATCH" ? { reason: "From the sign-in sheet." } : {}) },
+    course: true,
+  });
 /** A register as stored. */
 const stored = (groupId, week) => world.db.read(registerPath(groupId, week));
 /** A stored stamp, as a Date, whichever the store kept. */
@@ -645,7 +649,15 @@ describe("6. the register keeps in the room or online beside the marks", () => {
       .filter((path) => path.startsWith("courseAudit/"))
       .map((path) => world.db.read(path))
       .filter((row) => row.kind === "attendance-edit");
-    assert.deepEqual(audit.map((row) => row.detail), ["Kofi Asante: Late in the room to Late online, week 3 session 1."]);
+    // CHANGED ON PURPOSE (November 2026): a correction's row says the line
+    // in the register's words, with the reason, and keeps both lines apart.
+    assert.deepEqual(audit.map((row) => row.detail), [
+      "Corrected week 3’s register: Kofi Asante, Arrived late, in the room to Arrived late, online. Why: “From the sign-in sheet.”",
+    ]);
+    assert.deepEqual(
+      [audit[0].before.line, audit[0].before.online, audit[0].after.line, audit[0].after.online],
+      ["Arrived late, in the room", false, "Arrived late, online", true],
+    );
     // The same place sent again moves nothing and logs nothing.
     const again = await markAs("zach", 3, [{ uid: "kofi", status: "late", online: true }], "PATCH");
     assert.deepEqual([again.body.marked, again.body.logged], [0, 0]);
@@ -653,7 +665,14 @@ describe("6. the register keeps in the room or online beside the marks", () => {
     const both = await markAs("zach", 3, [{ uid: "farah", status: "late", online: true }], "PATCH");
     assert.equal(both.status, 200);
     assert.ok(
-      world.db.paths().some((path) => path.startsWith("courseAudit/") && world.db.read(path).detail === "Farah Hussain: Present to Late online, week 3 session 1."),
+      world.db
+        .paths()
+        .some(
+          (path) =>
+            path.startsWith("courseAudit/") &&
+            world.db.read(path).detail ===
+              "Corrected week 3’s register: Farah Hussain, In the room to Arrived late, online. Why: “From the sign-in sheet.”",
+        ),
       "the correction of a mark and its place is not one row saying both",
     );
   });

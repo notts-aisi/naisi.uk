@@ -11218,6 +11218,12 @@ describe("v16 says a register records the room or online, and you may tell us in
         ["src/app/api/courses/groups/[groupId]/attendance/route.ts", "the register's marking and an admin's correction: where somebody marked as having come was, beside that mark"],
         // ADDED (November 2026): It didn't happen clears it with the mark it sat beside, and nothing else.
         ["src/lib/courses/sessionChange/didNotHappen.ts", "a session called off after it passed (It didn't happen): where somebody marked as having come was goes with the mark it sat beside, both kept in the history row"],
+        // ADDED (November 2026), with corrections: v17 says the people running
+        // the programme may correct a register. A line's correction, and an
+        // approved request, write where somebody who came was beside the mark,
+        // and the history row keeps what it said before.
+        ["src/lib/courses/registerCorrection/line.ts", "a finished register's line corrected by an admin or somebody leading the programme, or by an approved request: where somebody marked as having come was, beside that mark, with what it said before in the history row"],
+        ["src/lib/courses/registerCorrection/column.ts", "a finished register's whole column corrected by an admin or somebody leading the programme (held online, moved to the session it belongs to, said to have happened): where somebody marked as having come was, beside that mark, with what each line said before in the history row"],
         ["src/lib/firestore/accountDeletion.ts", "account deletion clears the person's own entry, key by key, and nobody else's"],
       ]),
       "writing where somebody who came was",
@@ -11383,13 +11389,21 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
     assert.match(marking, /stamps\[uid\] = \{ byUid: actor\.uid, at: now, how: setterHow\(facilitates\) \};/);
     assert.match(marking, /\? \{ \[COVER\]: \{ kind: "self", byUid: actor\.uid, at: now, covering: coverable\.map\(\(each\) => each\.uid\) \} \}/);
     // "If a register is wrong, the people running the programme may correct
-    // it, and we record who changed it, when and what it said before": an
-    // admin's correction of a finished register writes one audit row per mark
-    // it moves, with who, when, and the mark before and after.
-    const row = marking.slice(marking.indexOf("for (const [uid, status] of moved) {"));
-    assert.match(row, /const from = before\.get\(uid\) \?\? null;/);
-    assert.match(row, /kind: "attendance-edit",[\s\S]*?actorUid: actor\.uid,[\s\S]*?at: FieldValue\.serverTimestamp\(\),/);
-    assert.match(row, /: `\$\{markLabel\(from, wasOnline\)\} to \$\{markLabel\(status, isOnline\)\}`;/);
+    // it, and we record who changed it, when and what it said before, and may
+    // record why": a correction of a finished register (an admin's or a
+    // lead's, or an approved request) writes one audit row per line it moves,
+    // with who, when, the line before (and who set it) and after, and why.
+    // MOVED (November 2026) with corrections: the rows are written by the one
+    // module the correction route and an approved request both call.
+    assert.match(marking, /logged = writeLineCorrection\(tx, db, plan, \{/);
+    const line = withoutComments(read("src/lib/courses/registerCorrection/line.ts"));
+    const row = line.slice(line.indexOf("for (const line of moved) {\n    tx.set(db.collection(COURSE_AUDIT_COLLECTION).doc(), {"));
+    assert.match(row, /kind: "attendance-edit",[\s\S]*?actor,[\s\S]*?before: beforeValues\(line\.before, register\.setBy\[line\.uid\]\),[\s\S]*?after: afterValues\(line\.after\),[\s\S]*?reason: input\.reason,/);
+    assert.match(row, /from: wordsOf\(line\.before\),\s*to: wordsOf\(line\.after\),/);
+    const facts = withoutComments(read("src/lib/courses/groupChange/facts.ts"));
+    assert.match(facts, /actorUid: input\.actor\.uid,[\s\S]*?at: FieldValue\.serverTimestamp\(\),/);
+    const model = withoutComments(read("src/lib/courses/registerCorrection/model.ts"));
+    assert.match(model, /setByUid: setBy\?\.byUid \?\? null,\s*setAt: setBy \? setBy\.at\.toISOString\(\) : null,/);
   });
 
   test("whether a facilitator was there: the programme's lead and admins see this, and nobody else", () => {
@@ -11516,6 +11530,16 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
     // The mark the save routes read is kept where the person cannot read it: a rating's existence never reaches them.
     assert.match(withoutComments(read("src/lib/courses/feedback/access.ts")), /reviewedVersions: \{ \[input\.itemId\]: input\.read\.savedAt \},/);
     assert.doesNotMatch(withoutComments(read("src/lib/courses/writtenAnswers/model.ts")), /reviewedVersions/);
+  });
+
+  test("requests are kept 'while your account exists': deleting an account deletes the requests it asked and the requests about it", () => {
+    assert.ok(PAGE_FLAT.includes("<strong>Requests and messages:</strong> while your account exists, like your other records, with our replies."));
+    const cascade = read("src/lib/firestore/accountDeletion.ts");
+    assert.match(cascade, /summary\.courseRequestsDeleted = await deleteCourseRequestsOf\(db, uid\);/);
+    assert.match(cascade, /deleteOwnedCourseRows\(db, COURSE_REQUESTS_COLLECTION, uid, "askedByUid"\)/);
+    assert.match(cascade, /deleteOwnedCourseRows\(db, COURSE_REQUESTS_COLLECTION, uid, "subjectUid"\)/);
+    // tests/account-deletion-attendance.test.mjs runs the sweep.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "account-deletion-attendance.test.mjs")));
   });
 });
 
