@@ -98,6 +98,20 @@ export function takesPartIn(user: SessionUser, seat: CourseEnrolmentDoc, group: 
   return isNamedWithStanding(user, "courseEnrolments.uid", seat.uid);
 }
 
+/**
+ * WHETHER THE CALLER FACILITATES THIS GROUP, held to the live bar: named
+ * among its facilitators while their account still stands behind the role
+ * (`isNamedWithStanding`). The one question both doors ask, so they never
+ * disagree about who it is: asking to be excused (`excused/ask.ts`) refuses
+ * exactly these people, the instant "Can't make it" serves exactly them, and
+ * the person's own view (`excused/own.ts`) offers each the way in it keeps.
+ * A place in the group is held to the same bar (`takesPartIn`), so an account
+ * that no longer stands is turned away by both doors before this is asked.
+ */
+export function facilitatesGroup(user: SessionUser, group: CourseGroupDoc): boolean {
+  return isNamedWithStanding(user, "courseGroups.facilitatorUids", group.facilitatorUids);
+}
+
 /** One person's line of one register, as `cantMakeItState` asks it. */
 function lineOf(data: Record<string, unknown> | undefined, id: string, uid: string): RegisterLine {
   if (!data) return EMPTY_LINE;
@@ -386,7 +400,7 @@ export async function recordCantMakeIt(
     // group they facilitate: anybody else taking part asks to be excused, and
     // an admin decides. Taking a line they wrote back stays open to everybody,
     // so nobody is left with a word they gave before requests.
-    if (request.cantMakeIt && !group.facilitatorUids.includes(user.uid)) return refuse(403, CANT_MAKE_IT_REFUSAL.askInstead);
+    if (request.cantMakeIt && !facilitatesGroup(user, group)) return refuse(403, CANT_MAKE_IT_REFUSAL.askInstead);
 
     // The session is one this group holds, by the group's own calendar.
     const session = resolveSessions(run, group).find((each) => each.sessionKey === request.sessionKey);

@@ -1,6 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { takesPartIn } from "@/lib/courses/cantMakeIt/seat";
+import { facilitatesGroup, takesPartIn } from "@/lib/courses/cantMakeIt/seat";
 import { heldOnline } from "@/lib/courses/joiningOnline/model";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { isAddressableId } from "@/lib/courses/registerAccess";
@@ -128,7 +128,7 @@ export async function excusedFor(
   if (!seat?.groupId) return null;
   const group = input.groups.find((each) => each.id === seat.groupId);
   if (!group || !takesPartIn(user, seat, group, run.id)) return null;
-  const asks = !group.facilitatorUids.includes(user.uid);
+  const asks = !facilitatesGroup(user, group);
   const closesAtDate = workClosesAt(run, input.groups.filter((each) => !each.archived));
   const closed = closesAtDate !== null && now.getTime() >= closesAtDate.getTime();
 

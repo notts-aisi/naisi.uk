@@ -1,6 +1,6 @@
 import "server-only";
 import type { Firestore, Transaction } from "firebase-admin/firestore";
-import { takesPartIn } from "@/lib/courses/cantMakeIt/seat";
+import { facilitatesGroup, takesPartIn } from "@/lib/courses/cantMakeIt/seat";
 import { heldOnline } from "@/lib/courses/joiningOnline/model";
 import { readNamingProgramme } from "@/lib/courses/programmeLead";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
@@ -168,8 +168,9 @@ export async function askToBeExcused(
     if (!takesPartIn(user, seat, group, run.id) || !placementIsTold(seat) || !isNamedWithStanding(user, "courseEnrolments.uid", seat.uid)) {
       return refuse(404, EXCUSED_REFUSAL.notYours);
     }
-    // Somebody who facilitates the group keeps today's "Can't make it".
-    if (group.facilitatorUids.includes(user.uid)) return refuse(403, EXCUSED_REFUSAL.facilitates);
+    // Somebody who facilitates the group keeps today's "Can't make it": the
+    // instant route asks the same question (`facilitatesGroup`).
+    if (facilitatesGroup(user, group)) return refuse(403, EXCUSED_REFUSAL.facilitates);
     if (closesAt && now.getTime() >= closesAt.getTime()) return refuse(409, EXCUSED_REFUSAL.closed);
 
     // The sessions, by the group's own calendar as it is in this transaction.

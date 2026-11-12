@@ -1443,6 +1443,39 @@ describe("a line an approval wrote is taken back by nothing but a correction", (
     assert.match(standing, /\.where\("subjectUid", "==", uid\)\s*\.where\("runId", "==", runId\)\s*\.where\("status", "in", BEARING\)/);
   });
 
+  test("who facilitates the group is one question for both doors, held to the live bar: the ask refuses exactly whom the instant button serves", async () => {
+    const seatLib = await loadTs("lib/courses/cantMakeIt/seat.ts");
+    const askNow = () => ask("amara", { sessionKeys: ["w03"], reason: REASON });
+    const instantNow = () => call("amara", cantMakeItRoute.POST, { groupId: B }, { body: { sessionKey: "w03", cantMakeIt: true }, course: true });
+    const group = world.db.read(`courseGroups/${B}`);
+    world.db.poke(`courseGroups/${B}`, { facilitatorUids: [...group.facilitatorUids, "amara"] });
+    const listed = groups.normalizeCourseGroup(B, world.db.read(`courseGroups/${B}`));
+    // Listed and standing: the ask refuses her, the instant button serves her.
+    assert.equal(seatLib.facilitatesGroup(sessionOf("amara"), listed), true);
+    const refused = await askNow();
+    assert.deepEqual([refused.status, refused.body.error], [403, words.EXCUSED_REFUSAL.facilitates]);
+    assert.equal((await instantNow()).status, 200, "a facilitator holding a place lost the instant button");
+    assert.equal((await call("amara", cantMakeItRoute.POST, { groupId: B }, { body: { sessionKey: "w03", cantMakeIt: false }, course: true })).status, 200);
+    // Listed, but her account no longer stands behind the role: she facilitates nothing, by either door's
+    // question. Her place is held to the same bar (`takesPartIn`), so each door turns her away before asking
+    // it, alike, and nothing is written.
+    world.db.poke("users/amara", { role: "rejected" });
+    assert.ok(listed.facilitatorUids.includes("amara"), "she is no longer listed");
+    assert.equal(seatLib.facilitatesGroup(sessionOf("amara"), listed), false, "a listed account without standing facilitates the group");
+    const before = everything();
+    const asked = await askNow();
+    const pressed = await instantNow();
+    assert.deepEqual([asked.status, asked.body.error], [404, words.EXCUSED_REFUSAL.notYours]);
+    assert.deepEqual([pressed.status, pressed.body.error], [404, cantWords.CANT_MAKE_IT_REFUSAL.notYours]);
+    assert.equal(everything(), before, "a door wrote something for an account without standing");
+    // Both doors and the person's own view ask the one function, and nobody compares the list raw.
+    for (const file of ["lib/courses/excused/ask.ts", "lib/courses/cantMakeIt/seat.ts", "lib/courses/excused/own.ts"]) {
+      const code = readFileSync(join(SRC, ...file.split("/")), "utf8");
+      assert.match(code, /facilitatesGroup\(user, group\)/, file);
+      assert.doesNotMatch(code, /facilitatorUids\.includes\(user\.uid\)/, `${file} asks who facilitates the group raw`);
+    }
+  });
+
   test("nor by staff reading their answer as some weeks: an admin and the lead are refused a week with a request waiting or declined", async () => {
     const staffTick = (who, sessionKeys) =>
       call(who, someWeeksRoute.POST, { runId: RUN.agi, uid: "amara" }, { body: { sessionKeys }, course: true });
