@@ -969,6 +969,37 @@ describe("who is sent what: the reason and how often to admins only, one of two 
     assert.match(correctionWords.storyWords(adminStory), /Corrected by Zach’s approval, /);
   });
 
+  test("a lead later corrects a line an approval set: the story's earlier setter reads as an approved request, named and dated for an admin alone", async () => {
+    const correctionWords = await loadTs("lib/courses/registerCorrection/pageWords.ts");
+    const id = await amaraAsks();
+    assert.equal((await act("zach", "approve", id, { sessionKey: "w02" })).status, 200);
+    at(DURING_W2);
+    assert.equal((await mark("rahul", 2, [{ uid: "dev", status: "present" }])).status, 200);
+    assert.equal((await finish("rahul", 2)).status, 200);
+    assert.equal(stored().setBy.amara.how, "approval", "the finished line is not the approval's");
+    at(AFTER_W2);
+    const corrected = await call("claudia", register.PATCH, { groupId: B }, {
+      body: { weekNumber: 2, marks: [{ uid: "amara", status: "present" }], reason: "She came for the second half." },
+      course: true,
+    });
+    assert.equal(corrected.status, 200, JSON.stringify(corrected.body));
+    for (const who of ["rahul", "claudia"]) {
+      const story = (await readRegister(who)).body.corrections.w02.amara;
+      assert.deepEqual(story.beforeSetBy, { name: "", at: "", byApproval: true }, who);
+      const said = correctionWords.storyWords(story);
+      assert.match(said, /^Was Excused, set by an approved request to be excused\. /, `${who}: ${said}`);
+      assert.ok(!said.includes("Zach") && !JSON.stringify(story).includes("Zach"), `${who} was told who approved it`);
+    }
+    const adminStory = (await readRegister("zach")).body.corrections.w02.amara;
+    assert.equal(adminStory.beforeSetBy.byApproval, true);
+    assert.match(correctionWords.storyWords(adminStory), /^Was Excused, set by Zach’s approval, /);
+    // A line a person set is told as before.
+    assert.equal(
+      correctionWords.storyWords({ kind: "line", before: "Absent", beforeSetBy: { name: "Rahul Mehta", at: "2026-11-04T15:06:00.000Z" }, correctedBy: { name: "Claudia" }, correctedAt: "2026-11-11T10:00:00.000Z" }).startsWith("Was Absent, set by Rahul, "),
+      true,
+    );
+  });
+
   test("a declined or withdrawn week shows nothing", async () => {
     const id = await amaraAsks(["w02", "w03"]);
     assert.equal((await act("zach", "decline", id, { sessionKey: "w02", reply: "No." })).status, 200);

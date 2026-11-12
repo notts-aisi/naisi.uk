@@ -51,8 +51,13 @@ export type CorrectionStory = {
   kind: "line" | "held-online" | "moved" | "did-happen";
   /** What the line said before, in words ("Absent"); null for a session that had no lines. */
   before: string | null;
-  /** Who set what it said before, and when; null when the register did not keep it. */
-  beforeSetBy: (Named & { at: string }) | null;
+  /**
+   * Who set what it said before, and when; null when the register did not
+   * keep it. Set by an approved request to be excused (`byApproval`): who
+   * approved it and when reach an admin alone, and anybody else is sent ""
+   * for both.
+   */
+  beforeSetBy: (Named & { at: string; byApproval?: true }) | null;
   /** Who corrected it, and when ("" for a reader who is not an admin, when an approved request to be excused corrected it). */
   correctedBy: Named;
   correctedAt: string;
@@ -114,18 +119,20 @@ function storyKind(kind: string): CorrectionStory["kind"] | null {
 }
 
 /** Whether a history row corrected this person's line on this session, and what it said before. */
-function rowTouches(row: CourseAuditDoc, sessionKey: string, uid: string): { before: string | null; setByUid: string | null; setAt: string | null } | null {
+type Touched = { before: string | null; setByUid: string | null; setAt: string | null; setByApproval: boolean };
+
+function rowTouches(row: CourseAuditDoc, sessionKey: string, uid: string): Touched | null {
   if (row.kind === "attendance-edit") {
     if (row.sessionKey !== sessionKey || row.subjectUid !== uid || !row.after) return null;
     const before = typeof row.before?.line === "string" ? row.before.line : null;
     const setByUid = typeof row.before?.setByUid === "string" ? row.before.setByUid : null;
     const setAt = typeof row.before?.setAt === "string" ? row.before.setAt : null;
-    return { before, setByUid, setAt };
+    return { before, setByUid, setAt, setByApproval: row.before?.setHow === "approval" };
   }
   const here = row.kind === "register-moved" ? row.toSessionKey === sessionKey : row.sessionKey === sessionKey;
   if (!here || !row.after || !Object.hasOwn(row.after, uid)) return null;
   const said = row.before?.[uid];
-  return { before: typeof said === "string" ? said : null, setByUid: null, setAt: null };
+  return { before: typeof said === "string" ? said : null, setByUid: null, setAt: null, setByApproval: false };
 }
 
 export async function registerCorrectionExtras(
@@ -201,6 +208,14 @@ export async function registerCorrectionExtras(
   }
   const named = (uid: string, fallback = "NAISI member"): Named => ({ name: names.get(uid) ?? fallback });
 
+  // Who set what a line said before, and when. Set by an approved request to
+  // be excused: who approved it, and when, are an admin's alone.
+  const beforeSetByFor = (touched: Touched | null): CorrectionStory["beforeSetBy"] => {
+    if (!touched?.setByUid || !touched.setAt) return null;
+    if (!touched.setByApproval) return { ...named(touched.setByUid), at: touched.setAt };
+    return viewer.isAdmin ? { ...named(touched.setByUid), at: touched.setAt, byApproval: true } : { name: "", at: "", byApproval: true };
+  };
+
   for (const { sessionKey, uid, stamp, byApproval } of correctedLines) {
     const row = auditRows.find((each) => rowTouches(each, sessionKey, uid) !== null) ?? null;
     const touched = row ? rowTouches(row, sessionKey, uid) : null;
@@ -209,8 +224,7 @@ export async function registerCorrectionExtras(
     const story: CorrectionStory = {
       kind: kind ?? "line",
       before: touched?.before ?? null,
-      beforeSetBy:
-        touched?.setByUid && touched.setAt ? { ...named(touched.setByUid), at: touched.setAt } : null,
+      beforeSetBy: beforeSetByFor(touched),
       correctedBy: row ? named(row.actorUid, row.actorName || "NAISI member") : named(stamp.byUid),
       correctedAt: (row?.at ?? stamp.at).toISOString(),
       movedFrom: row?.kind === "register-moved" ? row.sessionKey : null,

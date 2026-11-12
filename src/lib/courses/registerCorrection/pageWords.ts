@@ -196,7 +196,8 @@ export type RequestView = {
 export type StoryView = {
   kind: "line" | "held-online" | "moved" | "did-happen";
   before: string | null;
-  beforeSetBy: { name: string; at: string } | null;
+  /** `byApproval`: set by an approved request to be excused, named and dated for an admin alone. */
+  beforeSetBy: { name: string; at: string; byApproval?: boolean } | null;
   correctedBy: { name: string };
   correctedAt: string;
   /** Corrected by an approved request to be excused: who and when are an admin's alone. */
@@ -248,7 +249,15 @@ export function storyWords(story: StoryView, sessionLabelOf: (key: string) => st
   } else if (story.kind === "did-happen") {
     parts.push("Put back when the session was said to have happened.");
   } else if (story.before) {
-    const setBy = story.beforeSetBy ? `, set by ${firstOf(story.beforeSetBy.name) || "somebody"}, ${dayAndClock(story.beforeSetBy.at)}` : "";
+    const by = story.beforeSetBy;
+    const approver = by ? firstOf(by.name) : "";
+    const setBy = !by
+      ? ""
+      : by.byApproval
+        ? approver
+          ? `, set by ${approver}’s approval, ${dayAndClock(by.at)}`
+          : ", set by an approved request to be excused"
+        : `, set by ${approver || "somebody"}, ${dayAndClock(by.at)}`;
     parts.push(`Was ${story.before}${setBy}.`);
   }
   if (story.kind === "held-online") parts.push("The whole column was corrected: it was held online.");
