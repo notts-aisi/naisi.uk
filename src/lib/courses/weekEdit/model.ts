@@ -734,7 +734,7 @@ export function questionText(block: WrittenAnswerBlock): string {
   return proseText(block.prompt);
 }
 
-/** The history's one line for an edit: "Part 2: new link for Katja Grace’s reading". */
+/** The history's one line for an edit: "Part 2: new link for Ada Example’s reading". */
 export function editSummary(change: EditChange, located: Located): string {
   const part = located.part ? located.partNumber : null;
   switch (change.type) {

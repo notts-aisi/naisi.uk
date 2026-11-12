@@ -97,7 +97,7 @@ export function sourceNoun(kind: SourceKind): string {
   return KIND_NOUN[kind];
 }
 
-/** "Katja Grace’s reading", or "“Counterarguments …”" with nobody named. */
+/** "Ada Example’s reading", or "“A field guide …”" with nobody named. */
 export function sourceOwnerWords(by: string, title: string, kind: SourceKind): string {
   const who = by.split(",")[0]?.trim() ?? "";
   return who ? `${who}’s ${sourceNoun(kind)}` : `“${title}”`;
@@ -132,7 +132,7 @@ function partLead(partNumber: number | null): string {
 }
 
 export const HISTORY_WORDS = {
-  /** "Part 2: new link for Katja Grace’s reading". */
+  /** "Part 2: new link for Ada Example’s reading". */
   source: (partNumber: number | null, changed: readonly string[], owner: string) =>
     `${partLead(partNumber)}new ${fieldsWords(changed)} for ${owner}`,
   /** "Part 1: text reworded", "“Why this week”: heading changed". */
@@ -182,7 +182,7 @@ export const COMPARE_WORDS = {
     answers > 0 ? `Removed: ${n}, ${plural(answers, "answer", "answers")} kept with the people who wrote them` : `Removed: ${n}`,
   moved: (n: number) => `Moved: ${n}`,
   same: "No block differs.",
-  /** "Read: “Title”, Ajeya Cotra, 2021. 22 minutes. cold-takes.com link". */
+  /** "Read: “Title”, Ada Example, 2024. 15 minutes. example.com link". */
   linkHost: (host: string) => `${host} link`,
   noLink: "no link of its own",
   wordsRange: (range: WordRange | null) => (range ? `${range.min} to ${range.max} words` : "no word range"),
@@ -219,7 +219,7 @@ export const TELL_WORDS = {
   sendButton: (count: number) => `Send to ${plural(count, "person", "people")}`,
   testButton: "Send me a test first",
   nobodyButton: "Don’t tell anyone",
-  /** The saved line above the choices: "Part 2: a new link for Katja Grace’s reading. Nobody has been emailed." */
+  /** The saved line above the choices: "Part 2: a new link for Ada Example’s reading. Nobody has been emailed." */
   savedLine: (summary: string) => `${summary}. Nobody has been emailed.`,
   testSubject: (subject: string) => `[TEST] ${subject}`,
   weekLine: (weekNumber: number, url: string) => `Week ${weekNumber} is here: ${url}`,

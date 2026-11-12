@@ -10,7 +10,7 @@ import { getCurrentUser } from "@/lib/firebase/session";
  * A WEEK'S HISTORY: every save, newest first.
  *
  *   GET ...  each save in the list's words: when, who (by first name), its
- *            one line ("Part 2: new link for Katja Grace’s reading"), who it
+ *            one line ("Part 2: new link for Ada Example’s reading"), who it
  *            is for, what it kept of people's work, whether people were told
  *            and how many, and whether it is what the week holds now. Writes
  *            nothing. A week never changed here has no saves.
