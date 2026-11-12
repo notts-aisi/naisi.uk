@@ -53,8 +53,8 @@ export const COUNT_WORDS = {
 
 export const PANEL_WORDS = {
   change: "Change",
-  /** The edit button's name for a screen reader: "Change Part 1’s source". */
-  changeLabel: (place: string) => `Change ${place}`,
+  /** The edit button's name, told apart from its neighbours': "Change Part 1’s source: A field guide to base rates". */
+  changeLabel: (place: string, label: string) => (label.trim() ? `Change ${place}: ${label.trim()}` : `Change ${place}`),
   close: "Close",
   cancel: "Cancel",
   saving: "Saving…",

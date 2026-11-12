@@ -9,7 +9,7 @@ import type { EditorItem } from "@/lib/courses/weekEdit/editor";
 import { countLine } from "@/lib/courses/weekEdit/pageModel";
 import { LOCK_NOTICE, PANEL_WORDS, TELL_PAGE, WEEK_LINE } from "@/lib/courses/weekEdit/pageWords";
 import { KIND_LABEL } from "@/lib/courses/weekEdit/words";
-import { allBlocks, type WeekBlock } from "@/lib/courses/weekBlocks/model";
+import { allBlocks, blockLabel, type WeekBlock } from "@/lib/courses/weekBlocks/model";
 import BlockPanel, { type SavedBlock } from "./BlockPanel";
 import TellDialog from "./TellDialog";
 import WeekBlockView from "./WeekBlockView";
@@ -185,7 +185,7 @@ export default function EditWeekView({ historyHref }: { historyHref: string }) {
                       className={styles.changeButton}
                       onClick={() => void open(entry)}
                       disabled={editingOff}
-                      aria-label={PANEL_WORDS.changeLabel(entry.place)}
+                      aria-label={PANEL_WORDS.changeLabel(entry.place, blockLabel(block))}
                     >
                       {PANEL_WORDS.change}
                     </Button>

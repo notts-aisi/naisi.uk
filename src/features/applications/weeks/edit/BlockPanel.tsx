@@ -168,7 +168,8 @@ export default function BlockPanel({
     setNote(null);
   }
 
-  const field = (name: string) => `${ids}-${name}`;
+  // Apart from the heading's own id (`-title`), so a box called "title" is never labelled by the heading.
+  const field = (name: string) => `${ids}-field-${name}`;
   const was = (before: string, now: string) =>
     before !== now ? <p className={styles.was}>{PANEL_WORDS.was(before)}</p> : null;
 

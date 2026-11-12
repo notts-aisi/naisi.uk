@@ -79,7 +79,7 @@ import {
   statePath,
 } from "../../scripts/e2e-fixtures/core.mjs";
 import { EDIT_WEEK, RECAPTCHA_DEPENDENT_STEPS, SPEC, startedKeys } from "../../scripts/e2e-fixtures/course-hub-edit-a-week.mjs";
-import { COURSEWORK_SOURCES, courseworkItemId } from "../../scripts/e2e-fixtures/worlds/course-hub-term.mjs";
+import { COURSEWORK_PROMPTS, COURSEWORK_SOURCES, courseworkItemId } from "../../scripts/e2e-fixtures/worlds/course-hub-term.mjs";
 
 const RUN_STATE_DIR = stateDir();
 const STATE_PATH = statePath(SPEC.name, RUN_STATE_DIR);
@@ -105,8 +105,8 @@ const READING = Object.freeze({
   by: "E2E Example",
 });
 
-/** The reflection the lead opens while the second admin looks. */
-const REFLECTION_PLACE = "Part 1’s reflection";
+/** The reflection the lead opens while the second admin looks: week 3's first, by its first prompt. */
+const REFLECTION = Object.freeze({ place: "Part 1’s reflection", label: COURSEWORK_PROMPTS.rp1 });
 
 /** The words the pages say, restated from src/lib/courses/weekEdit/pageWords.ts and words.ts. */
 const WORDS = {
@@ -116,7 +116,7 @@ const WORDS = {
   blocksTitle: `Week ${WEEK}, as it reads`,
   live: "Live",
   editingLine: `Only you are editing week ${WEEK}.`,
-  change: (place) => `Change ${place}`,
+  change: (place, label) => `Change ${place}: ${label}`,
   panelTitle: `Source · Part ${READING.partNumber}`,
   titleLabel: "Title",
   linkLabel: "Link",
@@ -328,8 +328,8 @@ test(
     /** One block's card on the week's page. */
     const card = (pg, blockId) => pg.locator(`li#edit-${blockId}`);
     /** A Change button, once the page's script has made it pressable. */
-    async function changeReady(pg, place) {
-      const button = pg.getByRole("button", { name: WORDS.change(place), exact: true });
+    async function changeReady(pg, place, label) {
+      const button = pg.getByRole("button", { name: WORDS.change(place, label), exact: true });
       await button.waitFor({ timeout: WAIT_MS });
       await waitFor(`${place}'s Change to be pressable`, async () => button.isEnabled());
       return button;
@@ -445,7 +445,7 @@ test(
 
         // Change takes the week, and the panel opens with the reading's own words.
         const before = readingIn(await storedWeek());
-        const [taken] = await Promise.all([responseTo(leadPage, `${api}/lock`, "POST"), (await changeReady(leadPage, READING.place)).click()]);
+        const [taken] = await Promise.all([responseTo(leadPage, `${api}/lock`, "POST"), (await changeReady(leadPage, READING.place, READING.title)).click()]);
         assert.equal((await okBody(taken, "Taking the week")).lock?.state, "yours");
         assert.equal((await storedLock())?.holderUid, gus.uid, "the week's lock does not name the lead");
         const sheet = panel(leadPage);
@@ -504,7 +504,7 @@ test(
       await step("the lead gives the same reading a new address, and the tell dialog's test emails the lead alone", async () => {
         activePage = leadPage;
         await leadPage.goto(weekUrl, { waitUntil: "domcontentloaded" });
-        await Promise.all([responseTo(leadPage, `${api}/lock`, "POST"), (await changeReady(leadPage, READING.place)).click()]);
+        await Promise.all([responseTo(leadPage, `${api}/lock`, "POST"), (await changeReady(leadPage, READING.place, READING.newTitle)).click()]);
         const sheet = panel(leadPage);
         await sheet.getByRole("heading", { name: WORDS.panelTitle, exact: true }).waitFor({ timeout: WAIT_MS });
         await sheet.getByLabel(WORDS.linkLabel, { exact: true }).fill(READING.newUrl);
@@ -565,7 +565,12 @@ test(
           for (const half of [read[0].text, read[0].html]) {
             assert.ok(!half.includes(groupA.meetingUrl) && !half.includes(new URL(groupA.meetingUrl).host), `${person.first}'s notice carries the meeting link`);
           }
-          assert.ok(read[0].links.some((href) => href.includes(`/learn/${state.runId}/weeks/${WEEK}`)), `${person.first}'s notice has no way to the week`);
+          // "Week 3 is here: <the week's page>", as the notice's last line (`TELL_WORDS.weekLine`), as text or a link.
+          assert.ok(read[0].words.includes(`Week ${WEEK} is here: `), `${person.first}'s notice does not say where the week is: ${read[0].words}`);
+          assert.ok(
+            [read[0].words, read[0].text, ...read[0].links].some((part) => part.includes(`/learn/${state.runId}/weeks/${WEEK}`)),
+            `${person.first}'s notice has no way to the week`,
+          );
         }
         for (const person of notStarted) assert.equal((await mailTo(person.email, WORDS.linkSubject)).length, 0, `${person.first} has not started the week and was told`);
         assert.equal((await mailTo(gus.email, WORDS.linkSubject)).length, 0, "the lead was sent their own notice");
@@ -581,7 +586,7 @@ test(
       await step("a second admin opens week 3 while the lead has a panel open: the notice names the lead and every editing control is off", async () => {
         activePage = leadPage;
         await leadPage.goto(weekUrl, { waitUntil: "domcontentloaded" });
-        await Promise.all([responseTo(leadPage, `${api}/lock`, "POST"), (await changeReady(leadPage, REFLECTION_PLACE)).click()]);
+        await Promise.all([responseTo(leadPage, `${api}/lock`, "POST"), (await changeReady(leadPage, REFLECTION.place, REFLECTION.label)).click()]);
         await panel(leadPage).getByRole("button", { name: WORDS.save, exact: true }).waitFor({ timeout: WAIT_MS });
 
         activePage = adminPage;
@@ -611,7 +616,7 @@ test(
         await okBody(given, "Giving the week back");
         activePage = adminPage;
         await adminPage.reload({ waitUntil: "domcontentloaded" });
-        await changeReady(adminPage, READING.place);
+        await changeReady(adminPage, READING.place, READING.newTitle);
         assert.equal(await adminPage.getByText(WORDS.heldTitle(gus.first), { exact: true }).count(), 0, "the notice outlived the lead's hold");
       });
 

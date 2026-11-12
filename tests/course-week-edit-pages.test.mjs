@@ -15,6 +15,8 @@
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { AGI, NOW, PROGRAMME_PATH, ROUND, RUN, makeWeeksTabWorld } from "./lib/weeksTabWorld.mjs";
 import { syntheticWeekBlocks } from "./lib/weekBlocksFixture.mjs";
 
@@ -29,6 +31,7 @@ const model = await loadTs(join("lib", "courses", "weekEdit", "model.ts"));
 const WeekPage = await tabsPage("weeks", "[weekId]", "page.tsx");
 const HistoryPage = await tabsPage("weeks", "[weekId]", "history", "page.tsx");
 const blockRoute = await courseRoute("runs", "[runId]", "weeks", "[weekId]", "blocks", "[blockId]");
+const { default: BlockPanel } = await loadTs(join("features", "applications", "weeks", "edit", "BlockPanel.tsx"));
 
 const W3 = `courseRuns/${RUN.agi}/weeks/w03`;
 const at = (weekId) => ({ roundId: ROUND, programmeId: AGI, weekId });
@@ -249,6 +252,53 @@ describe("3. the words around a save, the history and the paste", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 3b. The side panel's boxes, each labelled by its own label
+// ---------------------------------------------------------------------------
+
+describe("3b. the side panel: every box has its own label, and no id is used twice", () => {
+  for (const id of ["src-1", "tx-before", "rs-1", "wa-1"]) {
+    test(`the panel for ${id}`, () => {
+      const located = model.locateBlock(syntheticWeekBlocks(), id);
+      const item = {
+        blockId: id,
+        type: located.block.type,
+        place: model.placeWords(located),
+        partNumber: located.partNumber,
+        editable: true,
+        fingerprint: model.blockFingerprint(located.block),
+        fields: model.editorFieldsOf(located),
+        counts: { ticks: 1, answers: 2, sent: 1 },
+      };
+      const html = renderToStaticMarkup(
+        createElement(BlockPanel, {
+          item,
+          latest: item,
+          runId: RUN.agi,
+          weekId: "w03",
+          weekNumber: 3,
+          programme: "AGI Strategy",
+          reach: { groups: [{ id: "a", name: "Group A", ownCopy: false }], reading: 1, copies: [] },
+          live: true,
+          lost: false,
+          lockedBy: null,
+          onClose() {},
+          onSaved() {},
+          onRefusedBy() {},
+          onStale() {},
+        }),
+      );
+      const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
+      assert.equal(new Set(ids).size, ids.length, `an id is used twice: ${ids.join(" ")}`);
+      const labels = [...html.matchAll(/<label[^>]*for="([^"]+)"[^>]*>([^<]*)</g)];
+      assert.ok(labels.length > 0, "no labelled box");
+      for (const [, target, words] of labels) {
+        assert.match(html, new RegExp(`<(input|textarea|select)[^>]*id="${target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`), `“${words}” labels no box`);
+      }
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // 4. The week's page, drawn
 // ---------------------------------------------------------------------------
 
@@ -306,7 +356,10 @@ describe("4. the week's page: as it reads, with what people have done beside eac
       const changes = [...html.matchAll(/aria-label="Change ([^"]+)"/g)].map((m) => m[1]);
       const editable = expected.filter(([, type]) => ["source", "text", "reflection", "writtenAnswer"].includes(type));
       assert.equal(changes.length, editable.length, `${who}: ${changes.join(" | ")}`);
-      assert.ok(changes.includes("Part 1’s source"), changes.join(" | "));
+      // Each told apart from its neighbours: two sources in one part are two names.
+      assert.ok(changes.includes("Part 1’s source: A field guide to base rates"), changes.join(" | "));
+      assert.ok(changes.includes("Part 1’s source: The forecaster’s handbook"), changes.join(" | "));
+      assert.equal(new Set(changes).size, changes.length, `two Change buttons share a name: ${changes.join(" | ")}`);
       // Counts, numbers only.
       const card = (id) => new RegExp(`<li id="edit-${id}"[\\s\\S]*?</li>`).exec(html)?.[0] ?? "";
       assert.match(textOf(card("src-1")), /Source · Part 1 1 ticked Change A field guide to base rates/);
