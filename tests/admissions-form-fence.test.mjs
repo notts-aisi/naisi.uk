@@ -375,6 +375,13 @@ const ROUND_SURFACES = {
       "one programme's Groups tab, Publish's own page for the run it names. It reaches the round only through " +
       "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]": {
+    kind: "form",
+    why:
+      "one group's own page under the programme's Groups tab, the programme's lead's and an admin's. It reaches the " +
+      "round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round " +
+      "that is not a form, and the page then says there is no programme here",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": {
     kind: "form",
     why:

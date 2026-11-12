@@ -1729,12 +1729,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a run whose last session is over, with the programme's lead signed in.",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": {
-    reason:
-      "Course hub: the Groups tab's People in groups view is the run's own allocation board, drawn as designed for the programme's lead and admins; its every caller, its words in every state and its one count are executed by tests/course-hub-people-in-groups.test.mjs and tests/course-hub-lead-pages.test.mjs, the board's routes by tests/course-hub-lead-routes.test.mjs and tests/applications-handover-board.test.mjs, and it was checked by hand at 1440 and 390.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a programme that names a run with groups, with its lead signed in.",
-  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/circles": {
     reason:
       "An admin's Circles. Its read, its suggestions and Apply's differences are executed by tests/applications-circles.test.mjs and tests/applications-arrange-changes.test.mjs; the page's gate by the persona battery.",

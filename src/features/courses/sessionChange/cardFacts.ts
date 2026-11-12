@@ -100,10 +100,13 @@ export function ticketFacts(group: OverviewGroup): TicketFacts | null {
   // The link whenever the session has one, an in-person week's too: somebody
   // may be joining it online.
   const joinUrl = link;
-  const online = heldOnline({ mode, campus: group.campus ?? null, room: next.location });
+  // The week's own campus (a session moved to another campus that week),
+  // else the group's: a card built before the field carries none.
+  const campus = next.campus !== undefined ? next.campus : (group.campus ?? null);
+  const online = heldOnline({ mode, campus, room: next.location });
   const room = mode !== "virtual" && next.location.trim() ? next.location.trim() : null;
-  // Where the room would be, while there is none: the group's campus.
-  const standIn = mode !== "virtual" ? campusLabel(group.campus ?? null) || null : null;
+  // Where the room would be, while there is none: the week's campus.
+  const standIn = mode !== "virtual" ? campusLabel(campus) || null : null;
   return {
     weekNumber: next.weekNumber,
     weekNumbers: next.weekNumbers.length > 0 ? next.weekNumbers : [next.weekNumber],

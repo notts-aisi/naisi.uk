@@ -286,9 +286,10 @@ describe("1. the Sessions view is the lead's and an admin's", () => {
         // a notice. Omar's address is stopped.
         tell: {
           people: 3,
-          emails: 2,
+          // The group's two who can be emailed, and its two facilitators: Claudia is neither.
+          emails: 4,
           refused: false,
-          line: "Emails 2 of the 3 people in Group B and puts an update on their programme page.",
+          line: "Emails 2 of the 3 people in Group B and 2 facilitators, and puts an update on their programme page.",
         },
         whoCan: "Rahul, Sofia, Claudia, Yusuf and admins can change a session.",
         dateKey: TUE_24,
@@ -315,9 +316,10 @@ describe("1. the Sessions view is the lead's and an admin's", () => {
     world.db.poke("subscriptions/cohort__ines", { subscribed: true });
     world.db.poke(`courseEnrolments/${RUN.agi}__omar`, { status: "withdrawn" });
     const { card } = await cardsFor("claudia");
+    // The group's two facilitators are emailed too, and the line says so.
     assert.equal(
       card("Group B").dialog.tell.line,
-      "Emails the 2 people in Group B and puts an update on their programme page.",
+      "Emails the 2 people in Group B and 2 facilitators, and puts an update on their programme page.",
     );
   });
 
@@ -371,9 +373,9 @@ describe("2. the dialog draws the board's words", () => {
       "Cancel it, and keep pace Week 4’s reading stays open. On Tue 1 Dec the group talks about weeks 4 and 5 together, and still finishes on Tue 8 Dec.",
       "Cancel it, and push the rest back a week Group B’s last session would move to Tue 15 Dec.",
       "Reason (the group sees this)",
-      "Tell the group Emails 2 of the 3 people in Group B and puts an update on their programme page.",
+      "Tell the group Emails 2 of the 3 people in Group B and 2 facilitators, and puts an update on their programme page.",
       "Change Tue 24 Nov’s session",
-      "Emails 2 people",
+      "Emails 4 people",
       "Keep it",
       "Rahul, Sofia, Claudia, Yusuf and admins can change a session.",
     ]) {
@@ -526,7 +528,13 @@ describe("4. what the group's people read after each kind of change", () => {
     const updates = await w.ask.read("amara");
     assert.deepEqual(
       updates.body.updates.map((update) => [update.title, update.message, update.toWords]),
-      [["Tue 24 Nov’s session is cancelled", "Rahul and Sofia are both away. Week 4’s reading stays open.", "to Group B"]],
+      [
+        [
+          "No session for week 4",
+          "Group B won’t meet for week 4. Week 5 is still Tue 1 Dec, and week 4’s work is still on your programme page.\n\nWhy: Rahul and Sofia are both away.",
+          "to Group B",
+        ],
+      ],
     );
   });
 

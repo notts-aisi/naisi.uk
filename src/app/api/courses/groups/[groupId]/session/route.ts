@@ -9,6 +9,8 @@ import {
   type GroupSessionMode,
 } from "@/lib/firestore/courseGroups";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
+import { normalizeCourseRun } from "@/lib/firestore/courses";
 
 /**
  * SET HOW ONE WEEK MEETS — the virtual/in-person switch of v2 decision 7,
@@ -32,8 +34,9 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * to an empty room.
  *
  * ── WHO MAY FLIP ────────────────────────────────────────────────────────────
- * The pace route's twin, verbatim: a facilitator of THIS group while it is
- * LIVE, ∪ admins. AUTHORIZATION BEFORE EXISTENCE — missing, archived and
+ * A facilitator of THIS group while it is LIVE, the lead of the programme
+ * that names its run, one of the run's track leads (`doesTrackLeadWork`),
+ * and admins. AUTHORIZATION BEFORE EXISTENCE: missing, archived and
  * someone-else's group collapse onto ONE indistinguishable 403. Same closed
  * body ("unknown field is a 400").
  */
@@ -77,7 +80,15 @@ export async function PATCH(
       !group.archived &&
       isNamedWithStanding(actor, "courseGroups.facilitatorUids", group.facilitatorUids),
   );
-  if (!isAdmin && !facilitatesLiveGroup) {
+  // The programme's lead and the run's track leads, asked of the group's own run.
+  let staffsRun = false;
+  if (!isAdmin && !facilitatesLiveGroup && group && !group.archived && group.runId && isAddressableId(group.runId)) {
+    const runSnap = await db.collection("courseRuns").doc(group.runId).get();
+    if (runSnap.exists && runSnap.data()?.destroying !== true) {
+      staffsRun = doesTrackLeadWork(await runStaffingOf(db, actor, normalizeCourseRun(runSnap.id, runSnap.data() ?? {})));
+    }
+  }
+  if (!isAdmin && !facilitatesLiveGroup && !staffsRun) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   if (!group) {

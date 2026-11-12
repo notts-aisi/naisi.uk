@@ -37,3 +37,15 @@ export const UNMARKED_REGISTERS_JOB = {
   id: "courses-unmarked-registers",
   enabledByDefault: true,
 } as const;
+
+/**
+ * `courses-week-reminders`: the reminders 3 days and 1 day before a session.
+ * Not a register's job, but restated here for the same reason: changing a
+ * group's session says whether its reminders go at all, and a request that
+ * says so must not import the job's sends. Off until an admin turns it on:
+ * it emails people.
+ */
+export const WEEK_REMINDERS_JOB = {
+  id: "courses-week-reminders",
+  enabledByDefault: false,
+} as const;

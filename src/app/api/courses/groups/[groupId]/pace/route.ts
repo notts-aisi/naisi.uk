@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { isValidDateKey, type WeekPlanEntry } from "@/lib/courses/weekPlan";
 import { memberCurrentWeek, resolveCalendar } from "@/lib/courses/groupResolve";
+import { takenStartMoves } from "@/lib/courses/sessionChange/metSessions";
+import { movesMetWords } from "@/lib/courses/sessionChange/words";
+import { resolveSessions } from "@/lib/courses/sessions";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
+import { attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
 import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import {
@@ -54,8 +57,17 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * run-plan surgery does not hold this group's pacing hostage — the gate
  * compares the OLD effective calendar with the NEW one, both through
  * `resolveCalendar`. Start-date changes alone can never strand (registers
- * key by week NUMBER), so a date-only change with a stranded past sails
- * through, as it must.
+ * key by week NUMBER), so a date-only change with a stranded past passes
+ * this gate, as it must; whether it moves a session that met is the next
+ * rule's question.
+ *
+ * ── NOTHING MAY MOVE A SESSION THAT MET ─────────────────────────────────────
+ * A week has no stored date: a new plan or start date re-dates every week
+ * after the first slot it changes. So a pace that would move the start of
+ * any session whose register was taken (`registerIsTaken`: finished, marked,
+ * or said not to have happened) is refused too, for everyone, in the one
+ * sentence the one-week change route refuses with (`takenStartMoves`). A
+ * pace that moves only weeks nobody has taken a register for goes through.
  *
  * The check runs in ONE transaction with the write — group, run, register and
  * enrolment reads all `tx.get` — so the plan the gate approved is the plan the
@@ -366,6 +378,20 @@ export async function PATCH(
           { strandedWeeks: stranded },
         );
       }
+
+      // NOTHING MAY MOVE THE START OF A SESSION WHOSE REGISTER IS TAKEN (see
+      // the header): the same rule, and the same sentence, as one week's
+      // change. A plan or a start date that re-dates only weeks nobody took a
+      // register for goes through as before.
+      const byId = new Map(registersSnap.docs.map((doc) => [doc.id, doc.data() ?? {}] as const));
+      const sessionsBefore = resolveSessions(run, fresh);
+      const registers = new Map<string, Record<string, unknown>>();
+      for (const session of sessionsBefore) {
+        const data = byId.get(attendanceDocId(run.id, groupId, session.weekNumber, session.occurrence));
+        if (data) registers.set(session.sessionKey, data);
+      }
+      const [met] = takenStartMoves(sessionsBefore, resolveSessions(run, { ...fresh, ...nextPace }), registers);
+      if (met) throw new PaceRefusedError(movesMetWords(met.before.weekNumber, met.before.occurrence), 409);
 
       // THE MIRROR WINDOW (see the header). Computed BEFORE the first write,
       // like everything else in this callback — `memberCurrentWeek` is pure,

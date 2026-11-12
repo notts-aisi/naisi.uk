@@ -25,6 +25,7 @@ import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/cours
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import {
   currentTimeAnswer,
+  timeQuestionSinceOf,
   type TimeAnswerRequest,
   type TimeAnswerView,
   type TimeQuestionSession,
@@ -133,7 +134,7 @@ export async function timeQuestionFor(
     groupName: group.name.trim(),
     when: sessionWhenLabel(group.session),
     campus: group.campus,
-    answer: currentTimeAnswer(seat),
+    answer: currentTimeAnswer(seat, timeQuestionSinceOf(group)),
     sessions,
   };
 }

@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { groupPagePath } from "@/lib/courses/groupPage/words";
+
 import { Fragment, useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { RunFacilitatorsPayload } from "@/app/api/courses/runs/[runId]/facilitators/route";
 import Button from "@/components/ui/Button";
@@ -619,7 +622,14 @@ export default function GroupFacilitators({ runId }: Props) {
     return (
       <li key={each.id} className={styles.group}>
         <div className={styles.groupHead}>
-          <strong className={styles.groupName}>{each.name || "Untitled group"}</strong>
+          <strong className={styles.groupName}>
+            <Link
+              href={groupPagePath(model.roundId, model.programmeId, each.id)}
+              className={styles.groupLink}
+            >
+              {each.name || "Untitled group"}
+            </Link>
+          </strong>
           <span className={styles.muted}>{each.short ?? "No day and time yet"}</span>
         </div>
         <div className={styles.groupBody}>
