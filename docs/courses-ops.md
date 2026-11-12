@@ -2929,6 +2929,24 @@ group meets next, until that evening has passed.
 change route writes it, and no client lane may set it, change it or create a
 group carrying it.
 
+Once a run's groups have gone out (its `allocationPublishedAt` is set), a
+group's time changes only through the routes in this section and the next,
+for every writer, admins included. No browser may then change a group's
+`session.weekday`, `session.startTimeLocal` or `session.durationMinutes`, its
+`sessionOverrides`, `sessionModes`, `sessionChanges`, `paceStartDate`,
+`paceWeekPlan`, `timeQuestionSince` or `runId`, nor the run's `startDate` or
+`weekPlan` (`groupTimeKeptOnceGroupsOut` and `runDatesKeptOnceGroupsOut` in
+`firestore.rules`). The stamp itself is the publish route's at any time: no
+browser write changes it, set or unset, and no run is created carrying it.
+The room, the meeting link, the notes, the name, the capacity and the campus
+stay writable from the run editor's group card, and the run editor shows the
+start date and the week plan read only. Before the groups go out the rules are
+otherwise as they were. A group write
+reads its run only when it touches one of those fields: at most two documents
+a write (the writer's own and the run), as before for a track lead or a
+facilitator. `scripts/rules-tests/tests/course-told-times.test.mjs` runs each
+field as each kind of writer, before and after.
+
 ## A new regular time, from a week onwards
 
 `POST /api/courses/groups/[groupId]/session/regular`: a group's regular day,
@@ -3526,7 +3544,8 @@ to that week's session (Changing a session), which tells the group.
 The page's calendar is the run's own: an incubator that meets for seven
 weeks this term and three in February has a week plan of weeks 1 to 7,
 seven breaks and weeks 8 to 10 (the run editor's week plan; an admin can
-add breaks and weeks at the end of a running run). "The weeks" splits the
+add breaks and weeks at the end of a running run until the run's groups have
+gone out, when the plan becomes read only). "The weeks" splits the
 taught weeks at the breaks and says where this term ends and when the next
 meets.
 
