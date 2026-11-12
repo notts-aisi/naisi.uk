@@ -2250,7 +2250,8 @@ range and due rule). Every other kind is refused with one sentence; the paste
 still changes anything, and adding, moving or removing a block is the
 paste's. Rich fields travel as Markdown and are read by the reader a week's
 text is read with, so anything a paste would leave out (HTML, a picture, a link
-that is not https) is refused here rather than dropped. The block keeps its
+that is not https) is refused here rather than dropped, and so is anything the
+paste refuses as facilitator material. The block keeps its
 id, and so do its prompts and boxes, so every tick and answer stays with it
 with no further work. The edited week is held to `weekBlocksProblems` and must
 read back from the reader of weeks exactly as written; only a problem the edit
