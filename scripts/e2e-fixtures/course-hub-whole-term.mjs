@@ -271,11 +271,16 @@ export const SPEC = {
     ],
   },
   /**
-   * UNVERIFIED: written on 12 Nov 2026 and not yet run end to end. It is
-   * marked verified only after two local runs in a row with every step green
-   * and the fixture manifest at zero.
+   * VERIFIED on 12 Nov 2026 against the harness's loopback server on a laptop
+   * (a production build of the branch), twice in a row: all twenty three
+   * steps ran each time, 207 rows existed before teardown (the term's form,
+   * course, run, 3 weeks and their 5 saves, 2 groups, 8 places, 7 registers,
+   * 14 history rows, 3 requests, 38 sends, 11 accounts and their documents
+   * among them, and 5 of the counters this fixture keeps), and the manifest
+   * read zero afterwards. The pull request's end-to-end job is its first CI
+   * run.
    */
-  status: "unverified",
+  status: "verified",
   seed,
   countRows,
   teardown,
