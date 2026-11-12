@@ -37,6 +37,8 @@
 import { beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { render } from "@react-email/render";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { B, BEFORE_WEEK3, LINK, RUN, makeRemindWorld, remindSeed, tickRow, weekDone } from "./lib/remindWorld.mjs";
 
 const w = await makeRemindWorld("__remindByHand");
@@ -335,6 +337,42 @@ describe("8. the week's card on the group's page", () => {
   test("a week asked for that is not one of the plan's opens the week the page opens on", async () => {
     const view = await page("facilitator", "rahul", 42);
     assert.equal(view.workWeek, view.openWeek);
+  });
+});
+
+describe("8b. the card, drawn", () => {
+  const textOf = (html) => html.replace(/<[^>]+>/g, " ").replace(/&#x27;/g, "'").replace(/\s+/g, " ").trim();
+
+  test("for the lead and admins: the count, the bars, the chips, the table with Last reminded and a Remind each, late and the facilitators' own", async () => {
+    for (const [path, doc] of Object.entries(weekDone("ines", 3, "r3", new Date("2026-11-18T18:00:00Z")))) world.db.seed(path, doc);
+    world.db.seed(`schedulerMarkers/weekremind__${B}__w03__omar__1`, { sentAt: new Date("2026-11-16T09:00:00Z") });
+    const view = await page("admin", "zach", 3);
+    const said = new Map(view.weeks.find((week) => week.weekNumber === 3).people.map((person) => [person.uid, person.said]));
+    const html = renderToStaticMarkup(
+      createElement(w.parts.WeekWorkCard, { groupName: view.groupName, work: view.work, said, facilitatorsApart: [], onRemind: () => {} }),
+    );
+    const text = textOf(html);
+    assert.match(text, /2 of 4 have done week 3/);
+    assert.match(text, /Done means every reading ticked, the reflection written and the written answer sent\./);
+    assert.match(text, /Everyone 4 .*Week not done 2 .*Readings not done 2 .*Reflection not done 2 .*Written answer not done 2 .*Late 1/);
+    assert.match(text, /Ines .*2 of 2 .*Written Wed 18 Nov .*Late: 1 day after the session .*Sent Wed 18 Nov, 6pm .*Done late/);
+    assert.match(text, /Omar .*Not started .*Mon 16 Nov, 9am · 1-day, automatic/);
+    assert.match(text, /Late in week 3 Ines Readings, reflection and written answer done Wed 18 Nov, 6pm Late: 1 day after the session/);
+    assert.match(text, /Facilitators’ own work/);
+    // Omar's address is suppressed and Dev is not told: neither has a Remind of their own; nobody done has one either.
+    assert.equal((html.match(/>Remind [A-Z]/g) ?? []).length, 0, "nobody here can be reminded: Ines is done");
+    assert.doesNotMatch(text, /Remind \d+ (person|people)/);
+  });
+
+  test("for a facilitator: the count and Remind, and never a facilitator's own week", async () => {
+    const view = await page("facilitator", "rahul", 3);
+    const text = textOf(renderToStaticMarkup(createElement(w.parts.FacilitatorWeekWork, { groupId: B, work: view.work })));
+    assert.match(text, /^1 of 3 have done week 3 Week 3 Done on time 1 Not started 2 Remind 1 person whose week isn’t done /);
+    assert.doesNotMatch(text, /Rahul|Sofia|own/);
+    const meets = textOf(renderToStaticMarkup(createElement(w.parts.FacilitatorMeets, { view, eyebrow: "AGI Strategy · Group B", path: "/learn/run/group/b" })));
+    assert.match(meets, /Week 3/);
+    const links = renderToStaticMarkup(createElement(w.parts.FacilitatorMeets, { view, eyebrow: "", path: "/learn/run/group/b" }));
+    assert.match(links, /href="\/learn\/run\/group\/b\?week=3"[^>]*aria-current="true"/);
   });
 });
 

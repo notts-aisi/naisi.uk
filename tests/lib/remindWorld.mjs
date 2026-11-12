@@ -27,6 +27,11 @@
 import { AWAY, B, CAST, LINK, NOW, RUN, TUE_24, makeSessionsWorld, updatesSeed } from "./sessionsWorld.mjs";
 import { remindWeek } from "./remindWeek.mjs";
 import { FIELD_VALUE_STUB } from "./applicationsStore.mjs";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createElement } from "react";
+import { walkSource } from "./functionScan.mjs";
 
 export { AWAY, B, CAST, LINK, NOW, RUN, TUE_24, remindWeek };
 
@@ -128,15 +133,32 @@ const FIRESTORE_STUB = FIELD_VALUE_STUB.replace(
     " export class FieldPath { constructor(...parts) { this.parts = parts; } static documentId() { return '__name__'; } }",
 );
 
+/** Every CSS module in `src`, stubbed to hand back each class's own name. */
+const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "src");
+const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(name) });";
+const STYLESHEETS = new Set();
+for (const file of walkSource(SRC)) {
+  for (const [, specifier] of readFileSync(file, "utf8").matchAll(/from\s+"([^"]+\.module\.css)"/g)) STYLESHEETS.add(specifier);
+}
+
 /** The world, the Remind route and short ways to ask it. */
 export async function makeRemindWorld(key = "__remind") {
-  const made = await makeSessionsWorld(key, [["firebase-admin/firestore", FIRESTORE_STUB]]);
+  globalThis.__remindUi = { h: createElement };
+  const made = await makeSessionsWorld(key, [
+    ["firebase-admin/firestore", FIRESTORE_STUB],
+    ["next/navigation", "export function useRouter() { return { refresh() {}, push() {}, replace() {} }; }"],
+    [
+      "next/link",
+      "export default ({ href, className, children, ...rest }) =>\n" +
+        "  globalThis.__remindUi.h('a', { href, className, 'aria-label': rest['aria-label'], 'aria-current': rest['aria-current'] }, children);",
+    ],
+    ...[...STYLESHEETS].map((path) => [path, CLASS_NAMES]),
+  ]);
   const { world, call, courseRoute, loadTs, reset: resetSessions } = made;
   const remind = await courseRoute("groups", "[groupId]", "remind");
   const groupPage = await loadTs("lib/courses/groupPage/load.ts");
   const groupsLib = await loadTs("lib/firestore/courseGroups.ts");
   const coursesLib = await loadTs("lib/firestore/courses.ts");
-  const deletion = await loadTs("lib/firestore/accountDeletion.ts");
 
   const reset = (seed = remindSeed()) => resetSessions(seed);
 
@@ -172,5 +194,11 @@ export async function makeRemindWorld(key = "__remind") {
       .map((path) => world.db.read(path))
       .filter((row) => row.kind === kind);
 
-  return { ...made, remind, reset, ask, preview, press, page, mailTo, historyRows, deletion, groupPage };
+  const parts = {
+    WeekWorkCard: (await loadTs("features/courses/groupPage/WeekWorkCard.tsx")).default,
+    FacilitatorWeekWork: (await loadTs("features/courses/groupPage/FacilitatorWeekWork.tsx")).default,
+    FacilitatorMeets: (await loadTs("features/courses/groupPage/FacilitatorMeets.tsx")).default,
+  };
+
+  return { ...made, remind, reset, ask, preview, press, page, mailTo, historyRows, groupPage, parts };
 }
