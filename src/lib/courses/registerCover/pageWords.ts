@@ -153,7 +153,22 @@ export function untilWords(untilIso: string | null): string {
 
 /** What somebody given a session gets, and for how long. */
 export function giveWhatTheyGet(untilIso: string | null): string {
-  return `Anyone with an account. For this session only, ${untilWords(untilIso)}, they get its register, check-in and session report, with the group’s names: no notes, applications or email addresses.`;
+  return `An admin, a committee member, the programme’s lead, one of its track leads or one of its facilitators. For this session only, ${untilWords(untilIso)}, they get its register, check-in and session report, with the group’s names: no notes, applications or email addresses.`;
+}
+
+/**
+ * Who has a session already, over the person picker: "Ola Nowak has this
+ * session until midnight. Giving it to somebody else replaces that."; for the
+ * person chosen, that it is theirs already and nothing would be sent.
+ */
+export function givenAlreadyWords(holder: { name: string; kind: "self" | "given"; live: boolean }, chosenIsHolder: boolean): string {
+  if (chosenIsHolder && holder.kind === "given" && holder.live) {
+    return `${holder.name} has this session already, until midnight. Giving it again sends nothing.`;
+  }
+  if (holder.kind === "self") return `${holder.name} is taking this register. Giving it to somebody else replaces that.`;
+  return holder.live
+    ? `${holder.name} has this session until midnight. Giving it to somebody else replaces that.`
+    : `${holder.name} had this session until midnight, and the register isn’t finished.`;
 }
 
 /** "Tell Group E that Ola is running today's session (6 people)". */
@@ -279,6 +294,10 @@ function clockOf(iso: string): string {
   return Number.isNaN(at.getTime()) ? "" : londonClockLabel(at);
 }
 
+/** Over the one session's meeting link, for somebody given that session (never in an email). */
+export const GIVEN_SESSION_LINK_LINE = "This session’s meeting link is here while the session is yours.";
+export const JOIN_ONLINE = "Join online";
+
 /** The line where the old "Didn't happen" switch was: where the two cancels live now. */
 export const DIDNT_HAPPEN_MOVED_FACILITATOR = "Didn’t happen? Use Change one week on the group’s page.";
 export const DIDNT_HAPPEN_MOVED_STAFF = "Didn’t happen? Use It didn’t happen on the group’s page.";
@@ -375,6 +394,10 @@ export function didntHappenLede(groupName: string, dateKey: string, hhmm: string
 }
 
 export const WHAT_HAPPENS_AFTER = "What happens to the weeks after it";
+
+/** Over the two cancels in Change one week, for a week whose register is a draft with marks. */
+export const DRAFT_DIDNT_HAPPEN_LINE =
+  "Its register has lines on it and isn’t finished. If the session didn’t happen, choose what happens to the weeks after it: its lines are cleared, and the group’s history keeps what each said.";
 export const KEEP_PACE = "Keep pace";
 export const PUSH_THE_REST_BACK = "Push the rest back a week";
 
@@ -393,12 +416,26 @@ function capital(text: string): string {
  * attendance; the lines set for it are cleared (whose, and what each said)
  * while what people said in advance stays; whether a check-in or a report
  * was made for it; and that the reminders about its register stop. Only
- * what is true today: the panel's own lines say when the week's work locks.
+ * what is true today, and true for the cancel chosen: kept pace, the week
+ * has no session; pushed back, the week meets a week later, and its
+ * register, check-in and report are that session's (a push back is refused
+ * once a check-in or a report exists, so none is ever carried over). The
+ * panel's own lines say when the week's work locks.
  */
-export function didNotHappenLines(facts: DidNotHappenPreview, weekNumber: number): { label: string; text: string }[] {
+export function didNotHappenLines(
+  facts: DidNotHappenPreview,
+  weekNumber: number,
+  kind: "cancel" | "push" | string = "cancel",
+): { label: string; text: string }[] {
   const lines: { label: string; text: string }[] = [];
+  const pushed = kind === "push";
   if (facts.leavesAttendance) {
-    lines.push({ label: "Attendance", text: `Week ${weekNumber} leaves everyone’s attendance. Nobody is counted absent.` });
+    lines.push({
+      label: "Attendance",
+      text: pushed
+        ? `The session that didn’t happen leaves everyone’s attendance. Nobody is counted absent, and week ${weekNumber}’s register is taken at its new session.`
+        : `Week ${weekNumber} leaves everyone’s attendance. Nobody is counted absent.`,
+    });
   }
   const said = Object.entries(facts.lines.said);
   if (facts.lines.cleared === 0 || said.length === 0) {
@@ -413,7 +450,12 @@ export function didNotHappenLines(facts: DidNotHappenPreview, weekNumber: number
   const made = [facts.checkIn ? "its check-in was opened" : "", facts.reports > 0 ? `${facts.reports === 1 ? "1 session report was" : `${facts.reports} session reports were`} written` : ""].filter(Boolean);
   lines.push({
     label: "Check-in, report",
-    text: made.length === 0 ? "Neither opens: there was no session." : `${capital(made.join(", and "))}. They are kept, and nothing more opens for it.`,
+    text:
+      made.length > 0
+        ? `${capital(made.join(", and "))}. They are kept, and nothing more opens for it.`
+        : pushed
+          ? `Nothing was opened or written for it. Week ${weekNumber}’s check-in and report are for its new session.`
+          : "Neither opens: there was no session.",
   });
   if (facts.chaseStops) lines.push({ label: "Register reminders", text: `Reminders about week ${weekNumber}’s register stop.` });
   return lines;

@@ -22,9 +22,12 @@ import {
   clearedNames,
   closeCalledOffFollowUp,
   didNotHappenFacts,
+  sessionHasCheckInOrReport,
   writeDidNotHappen,
 } from "@/lib/courses/sessionChange/didNotHappen";
+import { pushHasRecordsWords } from "@/lib/courses/registerCover/words";
 import { startMoves, takenStartMoves } from "@/lib/courses/sessionChange/metSessions";
+import { coverHolderNames, coversOffOf, coversOffWords, writeCoversOff } from "@/lib/courses/registerCover/moves";
 import { sessionOfWeek } from "@/lib/courses/sessionChange/model";
 import { oneWeekHistoryDetail, oneWeekNoticeFor, weekSessionAfter } from "@/lib/courses/sessionChange/notice";
 import { parseChangePress, type ChangePress } from "@/lib/courses/sessionChange/parse";
@@ -219,6 +222,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
     const registerSnap = await registerRef.get();
     const register = registerSnap.exists ? (registerSnap.data() ?? {}) : undefined;
     const first = checkPress(run, found, press, now, register);
+    // A check-in and a session report are keyed by the week: pushed back, the
+    // session a week later would open with this one's. Keep pace stays.
+    if (press.kind === "push" && (await sessionHasCheckInOrReport(db, run.id, found.id, first.session.sessionKey))) {
+      throw new ChangeRefusal(pushHasRecordsWords(press.weekNumber), 409);
+    }
     const naming = await readNamingProgramme(db, run.id);
     const incubator = naming?.kind === "incubator";
     const groupName = found.name.trim() || "Untitled group";
@@ -301,15 +309,28 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       const before = resolveSessions(run, group);
       const after = resolveSessions(run, checked.after);
       const metRefs = moveRegisterRefs(db, run, group.id, before, after);
+      const metSnaps = metRefs.length ? await tx.getAll(...metRefs) : [];
       refuseMovingMet(
         before,
         after,
-        metRefs.length ? await tx.getAll(...metRefs) : [],
+        metSnaps,
         checked.started && callsOffDraft(press, freshData, checked.session) ? checked.session.sessionKey : null,
       );
       const moved = movedSessions(before, after);
       const movedRefs = moved.map((session) => registerRefOf(db, run, group.id, session.weekNumber));
       const movedSnaps = movedRefs.length ? await tx.getAll(...movedRefs) : [];
+      // A cover does not ride along to another evening: a register nobody has
+      // taken loses the cover it holds when its session's start moves, and the
+      // history row says who had been covering (`../registerCover/moves`).
+      const coversOff = coversOffOf(
+        startMoves(before, after).map((move, index) => ({
+          ref: metRefs[index],
+          weekNumber: move.before.weekNumber,
+          occurrence: move.before.occurrence,
+          snap: metSnaps[index],
+        })),
+      );
+      const holderNames = await coverHolderNames(tx, db, coversOff);
 
       const update: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
       const weekId = checked.weekId;
@@ -388,6 +409,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
         if (!snap?.exists || !startsAt || registerIsTaken(snap.data() ?? {})) return;
         tx.update(movedRefs[index], { sessionAt: startsAt });
       });
+      writeCoversOff(tx, coversOff);
 
       const emailed = press.tell ? press.emailCount : 0;
       const afterSession = weekSessionAfter(run, checked, press.weekNumber);
@@ -415,7 +437,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
           run,
           group,
           actor,
-          detail: oneWeekHistoryDetail(run, checked, press, emailed),
+          detail: [oneWeekHistoryDetail(run, checked, press, emailed), coversOffWords(coversOff, holderNames)].filter(Boolean).join(" "),
           weekId,
           before: momentValues(momentOf(group, checked.session)),
           after: momentValues(momentOf(checked.after, afterSession)),

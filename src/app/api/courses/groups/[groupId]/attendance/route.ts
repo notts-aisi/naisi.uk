@@ -53,6 +53,7 @@ import {
   lineMoved,
   presenceOnSave,
   saveTakesCover,
+  sessionHasEnded,
   setterHow,
   startedByFacilitator,
 } from "@/lib/courses/registerCover/model";
@@ -1211,7 +1212,10 @@ export async function POST(
           facilitatorUids: prepared.ctx.group.facilitatorUids,
         });
       const presence: Record<string, FacilitatorPresenceStamp> = {};
-      if (takesCover) {
+      // Only during the session or before it: a register caught up after the
+      // session ended records nobody as not there (nobody taking it then
+      // knows); an admin or the programme's lead can say who was.
+      if (takesCover && !sessionHasEnded(endsAt, now)) {
         for (const facilitator of coverable) {
           if (stored.facilitatorRecord[facilitator.uid]) continue;
           presence[facilitator.uid] = { state: "not-there", byUid: actor.uid, at: now, how: "cover" };

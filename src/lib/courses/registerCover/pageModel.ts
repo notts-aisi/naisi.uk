@@ -85,6 +85,36 @@ export function noticeWeekOf(weeks: readonly WeekRegisterFacts[]): number | null
 }
 
 // ---------------------------------------------------------------------------
+// Who a session may be given to
+// ---------------------------------------------------------------------------
+
+/**
+ * THE PEOPLE "SOMEONE ELSE IS COVERING" LISTS: the ones the cover route
+ * admits (`runsThingsOn`), from what the page already has. `people` are the
+ * approved accounts the run's Facilitators view lists, with their roles;
+ * `groups` the run's groups that still meet, with who facilitates each;
+ * `leadUids` the programme's lead and the run's track leads. Listed: an
+ * admin, a committee member, one of those leads, or a facilitator of one of
+ * those groups. Never a facilitator of this group, who takes the register as
+ * usual. The route decides again on every press.
+ */
+export function coverCandidatesOf<T extends { uid: string; role: string }>(input: {
+  people: readonly T[];
+  groups: readonly { id: string; facilitators: readonly { uid: string }[] }[];
+  leadUids: readonly string[];
+  groupId: string;
+}): T[] {
+  const own = new Set((input.groups.find((each) => each.id === input.groupId)?.facilitators ?? []).map((each) => each.uid));
+  const facilitators = new Set(input.groups.flatMap((each) => each.facilitators.map((person) => person.uid)));
+  const leads = new Set(input.leadUids);
+  return input.people.filter(
+    (person) =>
+      !own.has(person.uid) &&
+      (person.role === "admin" || person.role === "committee" || leads.has(person.uid) || facilitators.has(person.uid)),
+  );
+}
+
+// ---------------------------------------------------------------------------
 // The summary before Finish
 // ---------------------------------------------------------------------------
 

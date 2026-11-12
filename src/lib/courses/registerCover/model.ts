@@ -64,6 +64,30 @@ export function holdsGivenCover(cover: RegisterCover | null, uid: string, now: D
   return Boolean(cover && cover.kind === "given" && holdsCover(cover, uid, now));
 }
 
+/**
+ * WHAT A CHANGE THAT MOVES A SESSION'S START TAKES OFF ITS REGISTER, when
+ * nobody has taken that register but somebody holds its cover: the cover
+ * (who was covering it, and a given one's `until`) and the entries it wrote
+ * in the record of whether each facilitator was there (`how: "cover"`).
+ * Both were about the old evening: left on, the facilitator who runs the
+ * session at its new time would be recorded as not there, the reminders
+ * would go to the wrong person, and a given session would end on the old
+ * day. Null when the register is taken (`taken`, `registerIsTaken` of the
+ * stored register: nothing may move it) or holds no cover. The person's own
+ * words before the session stay with it, as every change keeps them.
+ */
+export function coverOffOnMove(
+  register: Pick<CourseAttendanceDoc, "cover" | "facilitatorRecord"> | null,
+  taken: boolean,
+): { byUid: string; kind: RegisterCover["kind"]; entries: string[] } | null {
+  if (!register || !register.cover || taken) return null;
+  const entries = Object.entries(register.facilitatorRecord)
+    .filter(([, entry]) => entry.how === "cover")
+    .map(([uid]) => uid)
+    .sort();
+  return { byUid: register.cover.byUid, kind: register.cover.kind, entries };
+}
+
 // ---------------------------------------------------------------------------
 // Who set each line
 // ---------------------------------------------------------------------------
@@ -88,11 +112,25 @@ export function setterHow(facilitates: boolean): LineSetterHow {
 }
 
 /**
+ * Whether one line's stamp says a facilitator of the group took the register
+ * up: set as a facilitator, or by one of them. A person's OWN word before
+ * the session (`self`: "Can't make it", "Joining online") never counts,
+ * whoever said it: a facilitator who also holds a place in the group and
+ * says they can't make it has not started the register, and is exactly the
+ * person somebody may need to cover for.
+ */
+function stampStartsIt(entry: { byUid: string; how: LineSetterHow }, facilitators: ReadonlySet<string>): boolean {
+  if (entry.how === "self") return false;
+  return entry.how === "facilitator" || facilitators.has(entry.byUid);
+}
+
+/**
  * WHETHER A SAVE BY SOMEBODY WHO IS NOT ONE OF THE GROUP'S FACILITATORS
  * TAKES THE REGISTER IN THEIR PLACE: it changed a line, the register has no
  * cover yet, and none of the group's facilitators has started it (saved a
- * mark, or set a line). A facilitator who has started it is there, and
- * somebody helping them is not covering for them.
+ * mark, or set a line; their own word before the session is not starting
+ * it). A facilitator who has started it is there, and somebody helping them
+ * is not covering for them.
  */
 export function saveTakesCover(input: {
   changedLines: number;
@@ -104,13 +142,15 @@ export function saveTakesCover(input: {
   if (input.changedLines === 0 || input.cover) return false;
   const facilitators = new Set(input.facilitatorUids);
   if (input.markedByUid && facilitators.has(input.markedByUid)) return false;
-  return !Object.values(input.setBy).some((entry) => entry.how === "facilitator" || facilitators.has(entry.byUid));
+  return !Object.values(input.setBy).some((entry) => stampStartsIt(entry, facilitators));
 }
 
 /**
  * WHETHER ONE OF THE GROUP'S FACILITATORS HAS STARTED THIS REGISTER: saved a
- * mark, or set a line. Then there is nobody to cover for: the cover route
- * refuses it, and the pages offer the register itself, to help.
+ * mark, or set a line. Their own word before the session ("Can't make it",
+ * "Joining online", stamped `self`) is not starting it. Then there is nobody
+ * to cover for: the cover route refuses it, and the pages offer the register
+ * itself, to help.
  */
 export function startedByFacilitator(
   register: Pick<CourseAttendanceDoc, "markedByUid" | "setBy"> | null,
@@ -119,12 +159,22 @@ export function startedByFacilitator(
   if (!register) return false;
   const facilitators = new Set(facilitatorUids);
   if (register.markedByUid && facilitators.has(register.markedByUid)) return true;
-  return Object.values(register.setBy).some((entry) => entry.how === "facilitator" || facilitators.has(entry.byUid));
+  return Object.values(register.setBy).some((entry) => stampStartsIt(entry, facilitators));
 }
 
 // ---------------------------------------------------------------------------
 // Whether each facilitator was there
 // ---------------------------------------------------------------------------
+
+/**
+ * Whether a session has ended at `now`. A cover taken or given before then
+ * records the facilitators whose place it takes as not there; one taken
+ * after it (catching up an old register) records nobody, because nobody
+ * taking it then knows who was there. A session with no end is not over.
+ */
+export function sessionHasEnded(endsAt: Date | null, now: Date): boolean {
+  return endsAt !== null && now.getTime() >= endsAt.getTime();
+}
 
 /** What becomes of one facilitator's entry when they save the register: late from now, or unchanged (null). */
 export function presenceOnSave(input: {

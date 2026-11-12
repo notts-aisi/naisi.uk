@@ -9,6 +9,7 @@ import { addDaysToKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { loadGroupHistory } from "@/lib/courses/groupHistory/load";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { coverIsLive, startedByFacilitator } from "@/lib/courses/registerCover/model";
+import { sessionsWithCheckInOrReport } from "@/lib/courses/sessionChange/didNotHappen";
 import { startedAgoWords } from "@/lib/courses/registerCover/pageWords";
 import {
   EXCUSED_IN_ADVANCE,
@@ -106,7 +107,7 @@ export async function loadGroupPage(
   );
   const weekRefs = sessions.map((session) => db.collection("courseRuns").doc(run.id).collection("weeks").doc(weekDocId(session.weekNumber)));
 
-  const [naming, registerSnaps, weekSnaps, seatSnap, audience, history] = await Promise.all([
+  const [naming, registerSnaps, weekSnaps, seatSnap, audience, history, withRecords] = await Promise.all([
     readNamingProgramme(db, run.id),
     registerRefs.length ? db.getAll(...registerRefs) : Promise.resolve([]),
     weekRefs.length ? db.getAll(...weekRefs) : Promise.resolve([]),
@@ -122,6 +123,8 @@ export async function loadGroupPage(
     // an admin or the programme's lead who does not facilitate the group:
     // that record is sent to nobody else.
     staff ? loadGroupHistory(db, run.id, group.id, { facilitatorRecord: !group.facilitatorUids.includes(viewerUid) }) : Promise.resolve(null),
+    // Which sessions have a check-in or a session report: push back is not offered for them.
+    sessionsWithCheckInOrReport(db, run.id, group.id, sessions.map((session) => session.sessionKey)),
   ]);
   const lead = await readRunLead(db, run.id, naming);
 
@@ -145,7 +148,7 @@ export async function loadGroupPage(
   });
   const nameOf = (uid: string) => names.get(uid)?.goesBy ?? "";
   // Who took a register in a facilitator's place, or was given a session,
-  // may be anybody with an account: named for the page's staff only.
+  // may be somebody outside the group: named for the page's staff only.
   const coverUids = staff
     ? [...new Set(registerSnaps.map((snap) => (snap?.exists ? normalizeCourseAttendance(snap.id, snap.data() ?? {}).cover?.byUid ?? "" : "")).filter(Boolean))]
     : [];
@@ -217,6 +220,7 @@ export async function loadGroupPage(
           ? { kind: stored.cover.kind, byName: anyName(stored.cover.byUid), live: coverIsLive(stored.cover, now) }
           : null,
       startedAgo: started && startsAt ? startedAgoWords(startsAt, now) : "",
+      checkInOrReport: withRecords.has(session.sessionKey),
     };
   });
 
@@ -252,6 +256,8 @@ export async function loadGroupPage(
     notice: { emails: audience.refused ? 0 : audience.recipients.length, refused: audience.refused },
     linkSessionKey: linkWeek?.sessionKey ?? null,
     linkWeekNumber: linkWeek?.weekNumber ?? null,
+    // The people leading the programme, for who a session may be given to: staff only.
+    coverLeadUids: staff ? [...new Set([...(lead ? [lead.uid] : []), ...run.trackLeadUids])] : [],
     history: history
       ? {
           rows: history.rows.map((row) => {

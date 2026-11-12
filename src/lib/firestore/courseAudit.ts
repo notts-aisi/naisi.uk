@@ -131,8 +131,8 @@ export type CourseAuditKind =
   /** A session's meeting link set, for one week or every week. The row never holds the link. */
   | "group-link-set"
   /**
-   * The four below are a session's REGISTER: who took it in whose place, and
-   * what was done when a session did not happen. Each carries `weekId`.
+   * The five below are a session's REGISTER: who took it in whose place, and
+   * what was done when a session did not happen or moved. Each carries `weekId`.
    *
    * An admin or somebody leading the programme took a session's register in
    * its facilitators' place ("I'm covering it", or the first line they saved).
@@ -150,7 +150,14 @@ export type CourseAuditKind =
    * A session that had started was called off after the fact, and the lines
    * its register held were cleared; `before` keeps what each line said.
    */
-  | "session-did-not-happen";
+  | "session-did-not-happen"
+  /**
+   * A group's own pace moved the start of a session whose register nobody had
+   * taken but somebody was covering, so the cover was taken off: it was for
+   * the old evening. (A one-week change and a new regular time say the same
+   * in their own row.)
+   */
+  | "register-cover-removed";
 
 export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "attendance-edit",
@@ -183,6 +190,7 @@ export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "register-given",
   "facilitator-record-changed",
   "session-did-not-happen",
+  "register-cover-removed",
 ];
 
 /** The label for a kind this build does not know. See `courseAuditKindLabel`. */
@@ -219,6 +227,7 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "register-given": "Session given to somebody covering",
   "facilitator-record-changed": "Whether a facilitator was there changed",
   "session-did-not-happen": "Session didn’t happen, register cleared",
+  "register-cover-removed": "Cover taken off a session that moved",
 };
 
 /**
@@ -249,6 +258,7 @@ const COURSE_AUDIT_CATEGORY: Partial<Record<CourseAuditKind, CourseAuditCategory
   "register-given": "registers",
   "facilitator-record-changed": "registers",
   "session-did-not-happen": "registers",
+  "register-cover-removed": "registers",
 };
 
 /**
@@ -258,6 +268,15 @@ const COURSE_AUDIT_CATEGORY: Partial<Record<CourseAuditKind, CourseAuditCategory
  * anybody else drops these rows.
  */
 export const LEAD_ONLY_AUDIT_KINDS: readonly CourseAuditKind[] = ["facilitator-record-changed"];
+
+/**
+ * The kinds whose REASON a group's history shows to admins and the people
+ * leading the programme only: why a facilitator's register was taken or
+ * their session given to somebody is about that facilitator, so a history
+ * drawn for anybody else keeps the row and leaves its reason out, the rule
+ * `LEAD_ONLY_AUDIT_KINDS` follows for the record of who was there.
+ */
+export const LEAD_ONLY_REASON_KINDS: readonly CourseAuditKind[] = ["register-covered", "register-given"];
 
 export function courseAuditCategory(kind: CourseAuditKind | string): CourseAuditCategory {
   return isCourseAuditKind(kind) ? (COURSE_AUDIT_CATEGORY[kind] ?? "other") : "other";
@@ -291,10 +310,13 @@ export const COURSE_AUDIT_LIMITS = {
   reason: 200,
   /**
    * Keys in a `before` or `after` map, and the length of one text value in
-   * it. As many as a register's lines (40), because a session called off
-   * after the fact keeps what each cleared line said in its `before`.
+   * it. A register's lines (40) and room beside them, because a session
+   * called off after the fact keeps what each cleared line said in its
+   * `before`, and a push back keeps the cover and the facilitators' record
+   * it cleared there too (three keys, and one for each of at most five
+   * facilitators).
    */
-  changeKeys: 40,
+  changeKeys: 50,
   changeValue: 200,
 } as const;
 
