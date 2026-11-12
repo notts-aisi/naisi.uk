@@ -1385,7 +1385,7 @@ const USERS = new Map([
     "it executes `needsPolicyAcceptance` (src/lib/legal/acceptance.ts) on a table of stored agreements, because " +
       "who the member area and a collaborator's space send to accept the policies is decided by comparing a stored " +
       "string with the versions the site serves, and only running it shows the answer; it runs again with " +
-      "`./policies` stubbed to a list where privacy has moved on to 18 and the terms to 2, so the promise that a " +
+      "`./policies` stubbed to a list where privacy has moved on to 19 and the terms to 2, so the promise that a " +
       "later privacy version is told rather than asked is held before a later version exists",
   ],
   [

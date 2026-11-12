@@ -1,5 +1,5 @@
 import { siteDayKey } from "@/lib/datetime/siteTime";
-import { currentPolicy } from "./policies";
+import { POLICIES, type PolicyVersion } from "./policies";
 
 /**
  * THE LINE THAT SAYS THE PRIVACY POLICY CHANGED, on Home and at the top of
@@ -16,6 +16,13 @@ import { currentPolicy } from "./policies";
  * the version's `lastUpdated` day, London time, for `UPDATE_LINE_DAYS` days,
  * and then to nobody. A version with no `updateLine`, or a date that cannot
  * be read, shows no line at all.
+ *
+ * TWO VERSIONS AT ONCE. While the version before the current one is still
+ * inside its own days, the line says what both changed: that version's line
+ * with the current version's `updateLineAdds` in place of its full stop
+ * (version 18 within version 17's days). After them, the current version's
+ * own line, until its days end too. A current version with no
+ * `updateLineAdds` says only its own line.
  *
  * Pure: the clock is the caller's, so a page reads it once and a test can
  * hand it any day.
@@ -77,18 +84,29 @@ function daysAfter(day: string, days: number): string {
   return new Date(Date.UTC(year, month - 1, date + days)).toISOString().slice(0, 10);
 }
 
+/** A version's line when `today` is inside its days, or null: none, a date that cannot be read, or outside them. */
+function lineOn(version: PolicyVersion | undefined, today: string): string | null {
+  const words = version?.updateLine?.trim();
+  if (!version || !words) return null;
+  const from = civilDayOf(version.lastUpdated);
+  if (!from) return null;
+  if (today < from || today >= daysAfter(from, UPDATE_LINE_DAYS)) return null;
+  return words;
+}
+
 /**
  * The line for `now`, or null when there is none: the current privacy
  * version's `updateLine`, from its date to the day before `UPDATE_LINE_DAYS`
- * days later, in London.
+ * days later, in London; while the version before it is inside its own days
+ * too, that version's line joined to the current one's `updateLineAdds`.
  */
 export function policyUpdateLine(now: Date): PolicyUpdateLine | null {
-  const current = currentPolicy("privacy");
-  const words = current.updateLine?.trim();
-  if (!words) return null;
-  const from = civilDayOf(current.lastUpdated);
-  if (!from) return null;
+  const [current, previous] = POLICIES.privacy.versions;
   const today = siteDayKey(now);
-  if (today < from || today >= daysAfter(from, UPDATE_LINE_DAYS)) return null;
+  const own = lineOn(current, today);
+  if (!own) return null;
+  const adds = current.updateLineAdds?.trim();
+  const before = adds ? lineOn(previous, today) : null;
+  const words = adds && before ? `${before.replace(/\.$/, "")}, ${adds}` : own;
   return { version: current.version, words, link: UPDATE_LINE_LINK, href: UPDATE_LINE_HREF };
 }

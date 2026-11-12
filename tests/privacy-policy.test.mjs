@@ -4,17 +4,27 @@
  *
  * Run with `npm test`.
  *
- * The current version is v17: v16 with "What's changed in version 17" at the
+ * The current version is v18: v17 with one sentence changed, about the
+ * short note Claude may draft each week (drafted after the person's session,
+ * from their work on that week as it stands then, sent or not, no longer
+ * "only the work they submitted"), and "What's changed in version 18" at the
+ * top with version 17's line kept under it, dated. Told, not asked. Every
+ * other word is v17's, so the sections below that name v15, v16 or v17 hold
+ * v18's text, the describe for version 18 holds its change to the code, and
+ * the replaced sentence's pin moved to the sentence that replaced it, with
+ * the old sentence held in frozen v17.
+ *
+ * v17 is v16 with "What's changed in version 17" at the
  * top, and new words for taking part (who takes and corrects a register,
  * requests and messages to the team, visiting another group's session, a
  * facilitator's own attendance), work added after a session and reminders
  * after it, a second anonymous form, conduct records (each opening recorded
  * first), how long the new records are kept, two lawful bases, and changes
  * to the policy told on the site rather than by email. Told, not asked, like
- * v16. Every other word is v16's, so the sections below that name v15 or v16
- * hold v17's text, the describe for version 17 holds its new passages to the
- * code, and where a v16 sentence was replaced, its pin moved to the sentence
- * that replaced it and the old sentence is held in frozen v16.
+ * v16. Every other word is v16's; the describe for version 17 holds its new
+ * passages to the code, and where a v16 sentence was replaced, its pin moved
+ * to the sentence that replaced it and the old sentence is held in frozen
+ * v16.
  *
  * v16 is v15 with two passages about joining a session online (a register
  * keeps whether somebody was in the room or joined online, and somebody may
@@ -43,7 +53,7 @@
  * promise, held in the frozen files themselves.
  *
  * Every version behind the current one is frozen byte for byte (§1b): v1 to
- * v16. Editing an accepted version changes what somebody sees at the archive
+ * v17. Editing an accepted version changes what somebody sees at the archive
  * URL for the wording they agreed to, without anybody being asked, so new
  * wording goes in a new file, every time. From v15 a new version is told,
  * not asked (`needsPolicyAcceptance`, §3), which makes the freeze matter
@@ -169,15 +179,17 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v17.tsx");
+const CURRENT = read("src/content/legal/privacy/v18.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
  * no pattern written as a sentence would ever match the raw source. Every
- * content check below runs against this, because v17 is the text the site
+ * content check below runs against this, because v18 is the text the site
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v17, frozen: read by the version 17 describe, which proves v17 is v16 with its changes, and by the version 18 describe, which proves v18 is v17 with its one. */
+const V17_FLAT = read("src/content/legal/privacy/v17.tsx").replace(/\s+/g, " ");
 /** v16, frozen: read by the version 17 describe, which proves the sentences v17 replaced are still in the words v16 published, and v17's are not. */
 const V16_FLAT = read("src/content/legal/privacy/v16.tsx").replace(/\s+/g, " ");
 /** v15, frozen: read by the joining online describe, which proves v16's two passages are not in it and the words they replace are. */
@@ -229,13 +241,16 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v17 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 17);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.17");
+  test("privacy v18 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 18);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.18");
   });
 
-  test("privacy v17 is dated the day its words last changed", () => {
-    // Provisional: set again to the day v17 goes live, as v16's and v15's were.
+  test("privacy v18 is dated the day its words last changed", () => {
+    // Provisional: set again to the day v18 goes live, as v17's, v16's and v15's were.
+    const eighteen = POLICIES.privacy.versions.find((v) => v.version === 18);
+    assert.equal(eighteen?.lastUpdated, "13 November 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 18).length, 1);
     const seventeen = POLICIES.privacy.versions.find((v) => v.version === 17);
     assert.equal(seventeen?.lastUpdated, "12 November 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 17).length, 1);
@@ -388,6 +403,13 @@ describe("policy versions", () => {
  * identical. Anything that changes a word needs a new version instead.
  */
 const FROZEN_VERSIONS = new Map([
+  [
+    "privacy/v17",
+    {
+      sha256: "73f87329be7218b977134b4c109647bb1898db29b9b336605d5140d3d84c86d4",
+      why: "taking part in a programme, current from 12 November 2026 until v18 replaced it; told rather than asked, and the wording that said the weekly note used only the work somebody submitted, frozen when v18 changed that one sentence rather than editing it in place",
+    },
+  ],
   [
     "privacy/v16",
     {
@@ -9288,8 +9310,20 @@ describe("the re-consent gate", () => {
       // Held to version 15's own text, frozen, now that the current version is a later one.
       assert.ok(V15_FLAT.includes(policy), `the accept page says v15 changed ${what}, and v15 does not say it`);
     }
-    // The weekly note is drafted from submitted work and the team's feedback.
-    assert.ok(PAGE_FLAT.includes("Once a week Claude may also draft a short note on how each person is doing, using only the work they submitted and the feedback, ratings and comments people on the team gave it."));
+    // The weekly note. CHANGED ON PURPOSE (v18): it is drafted after the
+    // session, from the work as it stands then, sent or not, and the team's
+    // feedback; the accept page says so in version 18's line (below). v17's
+    // and v15's sentence, "using only the work they submitted", is held in
+    // both, frozen.
+    assert.ok(
+      PAGE_FLAT.includes(
+        "Once a week Claude may also draft a short note on how each person is doing. It is drafted after your session, usually about a week after it, and uses your work on that week as it stands then, sent or not, with the feedback, ratings and comments people on the team gave it.",
+      ),
+    );
+    for (const frozen of [V17_FLAT, V15_FLAT]) {
+      assert.ok(frozen.includes("Once a week Claude may also draft a short note on how each person is doing, using only the work they submitted and the feedback, ratings and comments people on the team gave it."));
+    }
+    assert.ok(!PAGE_FLAT.includes("using only the work they submitted"), "version 18 still says the weekly note uses only submitted work");
     // "Only admins see what comes back" is the code's: Claude's best answers,
     // Pangram on coursework, the week review and its follow-up, and the
     // end-of-week notes' draft, save and discard refuse anybody but an admin
@@ -9355,8 +9389,25 @@ describe("the re-consent gate", () => {
     const CHANGED =
       "who can take and correct a register; asking to change session or group, to be excused, or to message the team; work added after a session, and reminders after it; a second form that never records who fills it in; conduct records that can note good things as well as concerns; how long we keep reasons and messages; and that we tell you about changes to this policy on the site.";
     assert.ok(said.includes(`W${CHANGED.slice(1)}`), "the accept page's line for version 17 is no longer the policy's own words");
-    assert.ok(PAGE_FLAT.includes(`<strong>What&apos;s changed in version 17:</strong> ${CHANGED}`), "the policy no longer says what changed in version 17, in those words");
+    // Version 17's own "What's changed", and version 18 keeping it under its own, dated.
+    assert.ok(V17_FLAT.includes(`<strong>What&apos;s changed in version 17:</strong> ${CHANGED}`), "v17 no longer says what changed in version 17, in those words");
+    assert.ok(PAGE_FLAT.includes(`<strong>What changed in version 17, on 12 November 2026:</strong> ${CHANGED}`), "the policy no longer keeps what changed in version 17, with its date, in those words");
     assert.ok(!V16_FLAT.includes("What&apos;s changed in version 17"));
+  });
+
+  test("the accept page says what version 18 changes, after version 17's line, in version 18's own words", () => {
+    // Asked only of an agreement older than v15, which accepts v18: so the
+    // page says each version's change, oldest first, version 18's last. Its
+    // line is the policy's own "What's changed in version 18".
+    const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
+    const seventeen = accept.indexOf("What changed in version 17.</strong>");
+    const eighteen = accept.indexOf("What changed in version 18.</strong>");
+    assert.ok(seventeen !== -1 && eighteen > seventeen && accept.indexOf("Read the full", eighteen) > eighteen, "the accept page no longer says what version 18 changed, after version 17");
+    const said = accept.slice(eighteen, accept.indexOf("Read the full", eighteen));
+    const CHANGED = "the short note Claude may draft each week now uses your work as it stands after your session, sent or not.";
+    assert.ok(said.includes(`T${CHANGED.slice(1)}`), "the accept page's line for version 18 is no longer the policy's own words");
+    assert.ok(PAGE_FLAT.includes(`<p id="whats-changed"> <strong>What&apos;s changed in version 18:</strong> ${CHANGED} </p>`), "the policy no longer says what changed in version 18, in those words, at the anchor the line on Home links to");
+    assert.ok(!V17_FLAT.includes("What&apos;s changed in version 18"));
   });
 
   test("is not left behind on the dashboard layout alone", () => {
@@ -10764,13 +10815,17 @@ describe("v15 lets notes, ratings and work from after version 13 be used when so
 /** The one builder of a note's draft, the end-of-week notes' and the profile's. Pure. */
 const noteInput = await loadTs("lib/courses/coursework/input.ts");
 
-describe("v15 lets Claude draft a short note on how each person is doing, from the work they submitted and the team's words on it, kept only when an admin saves it; the code agrees", () => {
+describe("v15 lets Claude draft a short note on how each person is doing, from the team's words on their work (v18: the work as it stands after their session, sent or not), kept only when an admin saves it; the code agrees", () => {
   const strip = (source) => source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
   const NOTES_API = "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes";
 
   test("v15 says it", () => {
+    // CHANGED ON PURPOSE (v18): "using only the work they submitted" is now
+    // the work on that week as it stands after the session, sent or not; v15's
+    // and v17's sentence is held in both, frozen, by the accept page's test and
+    // the version 18 describe.
     v15Says([
-      "Once a week Claude may also draft a short note on how each person is doing, using only the work they submitted and the feedback, ratings and comments people on the team gave it.",
+      "Once a week Claude may also draft a short note on how each person is doing. It is drafted after your session, usually about a week after it, and uses your work on that week as it stands then, sent or not, with the feedback, ratings and comments people on the team gave it.",
       "What comes back is seen by admins only,",
       "kept with what it was about (the application, or the programme&apos;s run) and deleted with it.",
       "Nothing of it is filed on your profile, except a note an admin has read, edited and saved, which says it was drafted by Claude.",
@@ -11361,13 +11416,15 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
   ];
 
   test("v17 is v16 with these changes and no others", () => {
+    // Read from frozen v17 since v18 replaced it; v18 is v17 with its own
+    // change, held by the version 18 describe.
     let text = bodyOf(V16_FLAT);
     for (const [what, before, after] of V17_CHANGES) {
       assert.equal(text.split(before).length, 2, `v16 does not say, exactly once, what v17 changes (${what}): ${before}`);
-      assert.ok(!bodyOf(CURRENT_FLAT).includes(before) || after.includes(before), `v17 still says what it was meant to replace (${what})`);
+      assert.ok(!bodyOf(V17_FLAT).includes(before) || after.includes(before), `v17 still says what it was meant to replace (${what})`);
       text = text.replace(before, after);
     }
-    assert.equal(text, bodyOf(CURRENT_FLAT), "v17 differs from v16 somewhere outside the changes listed here");
+    assert.equal(text, bodyOf(V17_FLAT), "v17 differs from v16 somewhere outside the changes listed here");
   });
 
   test("a register records who took it, and a correction who made it, when and what it said before", () => {
@@ -11540,6 +11597,62 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
     assert.match(cascade, /deleteOwnedCourseRows\(db, COURSE_REQUESTS_COLLECTION, uid, "subjectUid"\)/);
     // tests/account-deletion-attendance.test.mjs runs the sweep.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "account-deletion-attendance.test.mjs")));
+  });
+});
+
+describe("v18 changes the one sentence about the weekly note, and keeps v17's What's changed under its own; every other word is v17's, and the code agrees", () => {
+  /** A version's words as served, from its component on: the header comment is notes, not policy. */
+  const bodyOf = (flat) => flat.slice(flat.indexOf("export default function "));
+  const OLD_NOTE =
+    "Once a week Claude may also draft a short note on how each person is doing, using only the work they submitted and the feedback, ratings and comments people on the team gave it.";
+  const NEW_NOTE =
+    "Once a week Claude may also draft a short note on how each person is doing. It is drafted after your session, usually about a week after it, and uses your work on that week as it stands then, sent or not, with the feedback, ratings and comments people on the team gave it.";
+  /**
+   * EVERY CHANGE v18 MAKES TO v17, as [what, v17's words, v18's words], each
+   * a run of the flattened text. Applied to frozen v17 in turn, each found
+   * exactly once, they give v18 exactly: so nothing else in v17 changed, and
+   * the replaced sentence is held, here, in the words that replaced it.
+   */
+  const V18_CHANGES = [
+    ["the component's name", "export default function PrivacyContentV17(", "export default function PrivacyContentV18("],
+    [
+      "what changed, at the top, with version 17's line kept under it and dated",
+      '<p id="whats-changed"> <strong>What&apos;s changed in version 17:</strong>',
+      '<p id="whats-changed"> <strong>What&apos;s changed in version 18:</strong> the short note Claude may draft each week now uses your work as it stands after your session, sent or not. </p> <p> <strong>What changed in version 17, on 12 November 2026:</strong>',
+    ],
+    ["the weekly note, as the owner approved it", OLD_NOTE, NEW_NOTE],
+  ];
+
+  test("v18 is v17 with these changes and no others", () => {
+    let text = bodyOf(V17_FLAT);
+    for (const [what, before, after] of V18_CHANGES) {
+      assert.equal(text.split(before).length, 2, `v17 does not say, exactly once, what v18 changes (${what}): ${before}`);
+      assert.ok(!bodyOf(CURRENT_FLAT).includes(before) || after.includes(before), `v18 still says what it was meant to replace (${what})`);
+      text = text.replace(before, after);
+    }
+    assert.equal(text, bodyOf(CURRENT_FLAT), "v18 differs from v17 somewhere outside the changes listed here");
+  });
+
+  test("the sentence after it is unchanged, and still follows it", () => {
+    const after = "Only what you wrote after you first agreed to version 13 of this policy, or after you joined if that was later, is ever sent.";
+    assert.ok(PAGE_FLAT.includes(`${NEW_NOTE} ${after}`), "the version 13 sentence no longer follows the weekly note's, word for word");
+    assert.ok(V17_FLAT.includes(`${OLD_NOTE} ${after}`));
+  });
+
+  test("told, not asked: nobody is asked to accept it, and Home and /privacy say what both versions changed while version 17's days run", async () => {
+    const acceptance = await loadTs("lib/legal/acceptance.ts");
+    assert.equal(acceptance.LAST_PRIVACY_VERSION_ASKED, 15);
+    for (const stored of ["terms.1+privacy.15", "terms.1+privacy.16", "terms.1+privacy.17", "terms.1+privacy.18"]) {
+      assert.equal(acceptance.needsPolicyAcceptance(stored), false, stored);
+    }
+    const eighteen = POLICIES.privacy.versions.find((v) => v.version === 18);
+    assert.equal(
+      eighteen?.updateLine,
+      "We've updated our privacy policy. The short note Claude may draft each week now uses your work as it stands after your session, sent or not.",
+    );
+    assert.equal(eighteen?.updateLineAdds, "and the short note Claude may draft each week now uses your work as it stands after your session, sent or not.");
+    // The three periods, worked out from the two dates, are run in tests/policy-update-line.test.mjs.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
   });
 });
 
