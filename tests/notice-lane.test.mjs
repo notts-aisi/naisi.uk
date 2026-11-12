@@ -1802,7 +1802,7 @@ describe("a bypass is visible in the send log", () => {
     assert.match(dashboard, /kindBadge\(s\.kind, s\.surface\)/);
   });
 
-  test("every surface the log can hold is labelled on the dashboard and has the marker's reason", () => {
+  test("every surface the log can hold is labelled on the dashboard, has the marker's reason and a row in the surfaces table", () => {
     // The union as written, its comments taken out first. Messages' sent list is
     // held to the same union in tests/messages.test.mjs.
     const sends = src("lib", "firestore", "emailSends.ts").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
@@ -1816,6 +1816,18 @@ describe("a bypass is visible in the send log", () => {
     const marker = src("emails", "NoticeMarker.tsx").replace(/\/\/[^\n]*/g, "");
     assert.deepEqual(keysOf(dashboard, "SURFACE_LABELS"), surfaces, "a surface the Deliverability tab shows by its code name");
     assert.deepEqual(keysOf(marker, "NOTICE_REASON"), surfaces, "a surface whose notice says no reason of its own");
+    // docs/notifications.md, "The surfaces": every surface has at least one row
+    // (a surface with more than one door has one per door), and no row names a
+    // surface the log cannot hold.
+    const doc = readFileSync(join(REPO_ROOT, "docs", "notifications.md"), "utf8");
+    const start = doc.indexOf("\n### The surfaces\n");
+    assert.ok(start !== -1, "docs/notifications.md has no surfaces table");
+    const end = doc.indexOf("\n#", start + 1);
+    const table = doc.slice(start, end === -1 ? undefined : end);
+    assert.match(table, /^\| Surface \| Route \| Who may send \| Audience \|$/m, "the surfaces table's head changed: read its rows again");
+    const rows = [...table.matchAll(/^\| `([^`]+)` \|/gm)].map((m) => m[1]);
+    assert.ok(rows.length >= surfaces.length, "could not read the table's rows");
+    assert.deepEqual([...new Set(rows)].sort(), surfaces, "a surface with no row in docs/notifications.md's surfaces table, or a row for one the log cannot hold");
   });
 
   test("a reminder by hand says which week, and is labelled as by hand wherever a surface is", async () => {
