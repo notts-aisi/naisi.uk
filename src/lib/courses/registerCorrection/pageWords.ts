@@ -481,6 +481,8 @@ export function didNotHappenPreviewLines(preview: Record<string, unknown>): Befo
         ? "Nothing was set on its register, so nothing is cleared."
         : `${linesWords(clearing.length)} cleared: ${namesWords(clearing.map((each) => `${firstOf(each.name)} (${each.line.toLowerCase()})`))}. The group’s history keeps what each said.`,
   });
+  // Whose cover of a later session the press takes off (only a push moves one), in the route's own sentences: one line.
+  const coversEnd = ((preview.coversEnd as string[] | undefined) ?? []).filter((text) => typeof text === "string" && text.trim());
   if (preview.pace === "push") {
     const after = preview.after as Moment;
     lines.push({
@@ -492,6 +494,7 @@ export function didNotHappenPreviewLines(preview: Record<string, unknown>): Befo
   } else {
     lines.push({ label: "Dates", text: "The weeks after it keep their dates." });
   }
+  if (coversEnd.length > 0) lines.push({ label: "Cover", text: coversEnd.join(" ") });
   if (facts) {
     // What was opened or written for it, in the one-week change's own words for
     // the cancel chosen: kept pace, they are kept; pushed back, the week's

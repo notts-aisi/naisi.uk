@@ -24,6 +24,15 @@ import {
   writeDidNotHappen,
 } from "@/lib/courses/sessionChange/didNotHappen";
 import { PUSH_BACK_LATER_MET } from "@/lib/courses/groupPage/words";
+import {
+  coverHolderNames,
+  coversEndLines,
+  coversOffOf,
+  coversOffWords,
+  startMovedRegisters,
+  writeCoversOff,
+  type MovedRegister,
+} from "@/lib/courses/registerCover/moves";
 import { pushHasRecordsHint, pushHasRecordsWords } from "@/lib/courses/registerCover/words";
 import { startMoves, takenStartMoves } from "@/lib/courses/sessionChange/metSessions";
 import { sessionOfWeek } from "@/lib/courses/sessionChange/model";
@@ -98,7 +107,10 @@ import {
  *    has met, and when the plan has no room (`pushRefusalOf`); keep pace's
  *    preview says which, so the sheet never offers it. Pushed back, the
  *    cover and the record of whether each facilitator was there go too, each
- *    kept in the same row's `before` (`writeDidNotHappen`).
+ *    kept in the same row's `before` (`writeDidNotHappen`); and every later
+ *    register nobody has taken loses the cover it holds, as every change that
+ *    moves a session's start takes it off (`registerCover/moves`), the row
+ *    saying who had been covering and the preview saying so first.
  *  - `did-happen`: the reverse, for a session called off with the group
  *    keeping pace, or a register from before that says it did not happen:
  *    who was there, and the session comes back into every figure, finished
@@ -815,6 +827,23 @@ function metMoveOf(
   return takenStartMoves(before, after, registers)[0] ?? null;
 }
 
+/**
+ * The registers of the sessions a call-off moves, with their snapshots, but
+ * the one it calls off (whose own cover `writeDidNotHappen` keeps in the
+ * row): what the covers a push back takes off, and the lines its preview says
+ * about them, are both asked of (`registerCover/moves`).
+ */
+function laterMovedRegisters(
+  before: readonly ResolvedSession[],
+  after: readonly ResolvedSession[],
+  refs: readonly DocumentReference[],
+  snaps: ReadonlyArray<DocumentSnapshot | undefined>,
+  calledOffKey: string,
+): MovedRegister[] {
+  const keys = startMoves(before, after).map((move) => move.before.sessionKey);
+  return startMovedRegisters(before, after, refs, snaps).filter((_, index) => keys[index] !== calledOffKey);
+}
+
 /** Nothing may move the start of a session whose register is taken, but the one this press calls off. */
 function refuseMovingMet(
   before: readonly ResolvedSession[],
@@ -901,14 +930,17 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
       const before = resolveSessions(run, group);
       const after = resolveSessions(run, first.after);
       const refs = moveRefs(ctx, before, after);
-      refuseMovingMet(before, after, refs.length ? await db.getAll(...refs) : [], session.sessionKey);
+      const refSnaps = refs.length ? await db.getAll(...refs) : [];
+      refuseMovingMet(before, after, refSnaps, session.sessionKey);
       const afterSession = sessionOfWeek(after, press.weekNumber);
       const lastOf = (sessions: readonly ResolvedSession[]) =>
         sessions.filter((s) => !s.cancelled && s.dateKey).reduce((last, s) => (s.dateKey > last ? s.dateKey : last), "");
-      const [facts, told, names] = await Promise.all([
+      const [facts, told, names, coversEnd] = await Promise.all([
         didNotHappenFacts(db, { run, group, session: first.session, register: snap.data() ?? {} }),
         toldFacts(db, run, group, actor.uid),
         namesForReader(ctx, Object.keys(register.records)),
+        // Whose cover of a later session the press would take off, by the press's own rule.
+        coversEndLines(db, laterMovedRegisters(before, after, refs, refSnaps, session.sessionKey)),
       ]);
       const { uids } = linesSetForSession(register);
       return {
@@ -927,6 +959,7 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
             didNotHappen: facts,
             // Whether the sheet offers Push the rest back, and why not when it does not.
             push: pushRefused ? { offered: false, why: pushRefused.why } : { offered: true, why: null },
+            coversEnd,
             told,
             notice: oneWeekNoticeFor(run, first, change, context),
             figures: true,
@@ -968,7 +1001,14 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
     const before = resolveSessions(run, fresh);
     const after = resolveSessions(run, checked.after);
     const refs = moveRefs(ctx, before, after);
-    refuseMovingMet(before, after, refs.length ? await tx.getAll(...refs) : [], session.sessionKey);
+    const refSnaps = refs.length ? await tx.getAll(...refs) : [];
+    refuseMovingMet(before, after, refSnaps, session.sessionKey);
+    // A cover does not ride along to another evening: a later register nobody
+    // has taken loses the cover it holds when the push moves its session's
+    // start, and the history row says who had been covering. Read here,
+    // before the first write.
+    const coversOff = coversOffOf(laterMovedRegisters(before, after, refs, refSnaps, session.sessionKey));
+    const holderNames = await coverHolderNames(tx, db, coversOff);
     // Every other session whose start moves keeps it on a register nobody took.
     const moved = after.filter((now_) => {
       if (now_.occurrence !== 1 || now_.sessionKey === session.sessionKey) return false;
@@ -1014,6 +1054,7 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
       if (!movedSnap?.exists || !startsAt || registerIsTaken(movedSnap.data() ?? {})) return;
       tx.update(movedRefs[index], { sessionAt: startsAt });
     });
+    writeCoversOff(tx, coversOff);
 
     const emailed = press.tell ? press.emailCount : 0;
     const afterSession = weekSessionAfter(run, checked, press.weekNumber);
@@ -1054,7 +1095,7 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
           run,
           group: fresh,
           actor,
-          detail: oneWeekHistoryDetail(run, checked, change, emailed),
+          detail: [oneWeekHistoryDetail(run, checked, change, emailed), coversOffWords(coversOff, holderNames)].filter(Boolean).join(" "),
           weekId,
           before: momentValues(momentOf(fresh, checked.session)),
           after: momentValues(momentOf(checked.after, afterSession)),

@@ -27,7 +27,7 @@ import {
 } from "@/lib/courses/sessionChange/didNotHappen";
 import { pushHasRecordsWords } from "@/lib/courses/registerCover/words";
 import { startMoves, takenStartMoves } from "@/lib/courses/sessionChange/metSessions";
-import { coverHolderNames, coversEndLines, coversOffOf, coversOffWords, writeCoversOff } from "@/lib/courses/registerCover/moves";
+import { coverHolderNames, coversEndLines, coversOffOf, coversOffWords, startMovedRegisters, writeCoversOff } from "@/lib/courses/registerCover/moves";
 import { sessionOfWeek } from "@/lib/courses/sessionChange/model";
 import { oneWeekHistoryDetail, oneWeekNoticeFor, weekSessionAfter } from "@/lib/courses/sessionChange/notice";
 import { parseChangePress, type ChangePress } from "@/lib/courses/sessionChange/parse";
@@ -146,25 +146,6 @@ function moveRegisterRefs(
 }
 
 /**
- * The registers of every session whose start the change moves, with their
- * snapshots (`moveRegisterRefs`'s order): what the covers a press takes off,
- * and the lines its preview says about them, are both asked of.
- */
-function movedRegisters(
-  before: readonly ResolvedSession[],
-  after: readonly ResolvedSession[],
-  refs: readonly DocumentReference[],
-  snaps: ReadonlyArray<DocumentSnapshot | undefined>,
-): Array<{ ref: DocumentReference; weekNumber: number; occurrence: number; snap: DocumentSnapshot | undefined }> {
-  return startMoves(before, after).map((move, index) => ({
-    ref: refs[index],
-    weekNumber: move.before.weekNumber,
-    occurrence: move.before.occurrence,
-    snap: snaps[index],
-  }));
-}
-
-/**
  * NOTHING MAY MOVE THE START OF A SESSION WHOSE REGISTER IS TAKEN, for every
  * kind of change (a push back moves every later week): refused, in one
  * sentence naming the week that met, before anything is written. `snaps` are
@@ -268,7 +249,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
         saidFacts(db, register),
         toldFacts(db, run, found, actor.uid),
         // Whose cover the press would take off, by the press's own rule (`../registerCover/moves`).
-        coversEndLines(db, movedRegisters(before, after, metRefs, metSnaps)),
+        coversEndLines(db, startMovedRegisters(before, after, metRefs, metSnaps)),
       ]);
       const afterSession = sessionOfWeek(after, press.weekNumber);
       const lastOf = (sessions: readonly ResolvedSession[]) =>
@@ -345,7 +326,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       // A cover does not ride along to another evening: a register nobody has
       // taken loses the cover it holds when its session's start moves, and the
       // history row says who had been covering (`../registerCover/moves`).
-      const coversOff = coversOffOf(movedRegisters(before, after, metRefs, metSnaps));
+      const coversOff = coversOffOf(startMovedRegisters(before, after, metRefs, metSnaps));
       const holderNames = await coverHolderNames(tx, db, coversOff);
 
       const update: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };

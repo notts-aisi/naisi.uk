@@ -860,6 +860,57 @@ describe("3. correcting the whole column", () => {
     assert.equal(linesOf(kept.body.preview).Attendance, "Week 1 leaves everyone’s attendance. Nobody is counted absent.");
   });
 
+  describe("a later week's cover, when the rest is pushed back", () => {
+    const W3 = `courseAttendance/${RUN.agi}__${B}__w03`;
+    const GIVEN_AT = new Date("2026-11-11T09:00:00Z");
+    /** Week 3's register holds only a cover: Claudia was given it by Zach, and Rahul is recorded not there by it. */
+    const givenWeekThree = () =>
+      world.db.seed(W3, {
+        runId: RUN.agi,
+        groupId: B,
+        weekNumber: 3,
+        occurrence: 1,
+        records: {},
+        cover: { kind: "given", byUid: "claudia", at: GIVEN_AT, covering: ["rahul", "sofia"], grantedByUid: "zach", grantedAt: GIVEN_AT, until: new Date("2026-11-18T00:00:00Z") },
+        facilitatorRecord: {
+          rahul: { state: "not-there", byUid: "zach", at: GIVEN_AT, how: "cover" },
+          sofia: { state: "there", byUid: "zach", at: GIVEN_AT, how: "changed" },
+        },
+      });
+    const ENDS = "Claudia’s cover of week 3’s session ends: the session moves. Give it again if they can still take it.";
+    const linesOf = (preview) => Object.fromEntries(pageWords.didNotHappenPreviewLines(preview).map((row) => [row.label, row.text]));
+
+    test("the preview names it first and writes nothing; the press takes it off with the entries it wrote, and the row says who", async () => {
+      givenWeekThree();
+      const before = everything();
+      const preview = await column("zach", { kind: "did-not-happen", pace: "push", dateKey: "2026-11-03", preview: true });
+      assert.equal(preview.status, 200, JSON.stringify(preview.body));
+      assert.deepEqual(preview.body.preview.coversEnd, [ENDS]);
+      assert.equal(linesOf(preview.body.preview).Cover, ENDS);
+      assert.equal(everything(), before, "the preview wrote something");
+      const answer = await column("zach", { kind: "did-not-happen", pace: "push", dateKey: "2026-11-03", tell: false, reason: "Nobody came." });
+      assert.equal(answer.status, 200, JSON.stringify(answer.body));
+      const w3 = stored(W3);
+      assert.equal(w3.cover, undefined, "week 3's cover rode along to its new evening");
+      assert.equal(w3.facilitatorRecord?.rahul, undefined, "the cover's entry rode along");
+      assert.equal(w3.facilitatorRecord?.sofia?.how, "changed", "an entry the cover did not write went too");
+      const [row] = rows("session-pushed");
+      assert.ok(row.detail.endsWith("Claudia was covering week 3 at its old time, so that cover is taken off."), row.detail);
+    });
+
+    test("kept pace, nothing moves: the cover stays, and neither the preview nor the row mentions it", async () => {
+      givenWeekThree();
+      const preview = await column("zach", { kind: "did-not-happen", pace: "keep", dateKey: "2026-11-03", preview: true });
+      assert.deepEqual(preview.body.preview.coversEnd, []);
+      assert.equal(linesOf(preview.body.preview).Cover, undefined);
+      const answer = await column("zach", { kind: "did-not-happen", pace: "keep", dateKey: "2026-11-03", tell: false, reason: "Nobody came." });
+      assert.equal(answer.status, 200, JSON.stringify(answer.body));
+      assert.equal(stored(W3).cover.byUid, "claudia");
+      assert.equal(stored(W3).facilitatorRecord.rahul.state, "not-there");
+      for (const row of rows()) assert.doesNotMatch(row.detail ?? "", /was covering week 3/);
+    });
+  });
+
   test("pushed back, a finished register's cover and the record of whether each facilitator was there go into the history row", async () => {
     world.db.poke(W1, {
       cover: { kind: "self", byUid: "claudia", at: DURING_W1, covering: ["rahul", "sofia"] },

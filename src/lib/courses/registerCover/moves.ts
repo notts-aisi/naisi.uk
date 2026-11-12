@@ -7,6 +7,8 @@ import {
   type Transaction,
 } from "firebase-admin/firestore";
 import { displayNameOf } from "@/lib/courses/registerAccess";
+import { startMoves } from "@/lib/courses/sessionChange/metSessions";
+import type { ResolvedSession } from "@/lib/courses/sessions";
 import { COVER, FACILITATOR_RECORD, normalizeCourseAttendance, registerIsTaken } from "@/lib/firestore/courseAttendance";
 import { coverOffOnMove } from "./model";
 import { coverEndsWords, coverTakenOffDetail } from "./words";
@@ -14,8 +16,9 @@ import { coverEndsWords, coverTakenOffDetail } from "./words";
 /**
  * A COVER DOES NOT RIDE ALONG WHEN ITS SESSION MOVES. Every change that can
  * move the start of a session (one week's change, a new regular time, a
- * group's own pace) asks this inside its own transaction, about the
- * registers of the sessions whose start it moves:
+ * group's own pace, It didn't happen on a finished column) asks this inside
+ * its own transaction, about the registers of the sessions whose start it
+ * moves:
  *
  *  1. `coversOffOf`: which of those registers nobody has taken but somebody
  *     holds the cover of (`coverOffOnMove`), from the snapshots the change
@@ -45,6 +48,30 @@ export type CoverOff = {
   /** The facilitators whose entry the cover wrote, by uid. */
   entries: string[];
 };
+
+/** One register of a session a change moves, with its snapshot as the change read it. */
+export type MovedRegister = { ref: DocumentReference; weekNumber: number; occurrence: number; snap: DocumentSnapshot | undefined };
+
+/**
+ * The registers of every session whose start a change moves (`startMoves`),
+ * each with its snapshot: `refs` and `snaps` are in `startMoves`'s order, as
+ * a change reads them to refuse moving a session that met. What `coversOffOf`
+ * and `coversEndLines` are asked of, for one week's change and for It didn't
+ * happen on a finished column alike.
+ */
+export function startMovedRegisters(
+  before: readonly ResolvedSession[],
+  after: readonly ResolvedSession[],
+  refs: readonly DocumentReference[],
+  snaps: ReadonlyArray<DocumentSnapshot | undefined>,
+): MovedRegister[] {
+  return startMoves(before, after).map((move, index) => ({
+    ref: refs[index],
+    weekNumber: move.before.weekNumber,
+    occurrence: move.before.occurrence,
+    snap: snaps[index],
+  }));
+}
 
 /** The registers, among those of the sessions a change moves, that lose their cover. */
 export function coversOffOf(
