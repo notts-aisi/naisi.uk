@@ -111,6 +111,10 @@ describe("1. the session a person is due at, when the programme closes, and wher
     assert.equal(sessionMoment.weekDueEndsAt({ sessionLists: [TUESDAYS], toldAt: null }, 5), null);
     assert.equal(sessionMoment.weekDueEndsAt(sessionMoment.NO_GROUP, 1), null);
     assert.equal(sessionMoment.weekDueEndsAt({ sessionLists: [TUESDAYS], toldAt: at("2026-11-11T09:00:00Z") }, 2), null);
+    // No length set: the session still has its start for every other reader, and no end to wait for.
+    const lengthless = [session(3, "2026-11-17")].map((each) => ({ ...each, session: { ...each.session, durationMinutes: 0 } }));
+    assert.deepEqual(sessionMoment.weekDueOf({ sessionLists: [lengthless], toldAt: null }, 3), { at: at("2026-11-17T18:00:00Z"), by: "session" });
+    assert.equal(sessionMoment.weekDueEndsAt({ sessionLists: [lengthless], toldAt: null }, 3), null);
   });
 
   test("no session to tell against: no time set, a week the plan does not teach, nobody placed, told the group after it started", () => {

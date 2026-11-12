@@ -36,7 +36,7 @@ export const WEEK_NOTES_WORDS = {
       ? "This week’s notes can be drafted once every group has met, and no group meets it yet."
       : `This week’s notes can be drafted once every group has met: ${met} of ${of} have.`,
   notSetUp: "Claude isn’t set up on this site yet.",
-  noSession: "Their session for this week hasn’t ended yet, or they have none, so there’s nothing of theirs to note.",
+  noSession: "Their session for this week hasn’t ended yet, has no length set, or they have none, so there’s nothing of theirs to note.",
   wroteNothing: "They haven’t written anything in this week yet, so there’s nothing to note.",
   noWork: "This week asks for no written work, so there are no notes to draft from it.",
   nothingToSend: `Nothing of their week can be sent: only work written after they agreed to version ${V} of the privacy policy is.`,

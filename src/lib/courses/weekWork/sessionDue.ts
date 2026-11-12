@@ -75,7 +75,9 @@ function dueSessionOf(source: SessionSource, weekNumber: number): { due: WeekDue
   }
   if (!best) return { due: { at: null, by: "undated" }, endsAt: null };
   if (source.toldAt && best.at.getTime() <= source.toldAt.getTime()) return { due: { at: null, by: "joined-late" }, endsAt: null };
-  return { due: { at: best.at, by: best.cancelled ? "cancelled" : "session" }, endsAt: best.endsAt };
+  // A session with no length (its end not after its start) has no end to tell: the week waits for one.
+  const endsAt = best.endsAt.getTime() > best.at.getTime() ? best.endsAt : null;
+  return { due: { at: best.at, by: best.cancelled ? "cancelled" : "session" }, endsAt };
 }
 
 /** The session the person whose sessions these are is due at in week `weekNumber`. */
@@ -86,7 +88,9 @@ export function weekDueOf(source: SessionSource, weekNumber: number): WeekDue {
 /**
  * WHEN THAT SESSION ENDS: the end of the very session `weekDueOf` picks, its
  * own end instant (`sessionInstants`), or null whenever `weekDueOf` has no
- * moment. Cancelled with the group keeping pace: when it would have ended.
+ * moment, and null when that session has no length (its end is not after its
+ * start), so nothing waits on an end that is its start. Cancelled with the
+ * group keeping pace: when it would have ended.
  * The weekly notes draw on a week only after it (privacy v18: "It is drafted
  * after your session").
  */

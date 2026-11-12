@@ -28,7 +28,8 @@ import { reviewUseFrom } from "@/lib/legal/reviewUse";
  * `loadRunWeekStates`), never a second sum; cancelled with the group keeping
  * pace, when it would have ended. So nothing typed during the session goes
  * before it is over. A week with no such session for them (no group, no time
- * set, joined after it started) is not drawn on. The week's old Submit counts
+ * set, joined after it started), or whose session has no length set, is not
+ * drawn on. The week's old Submit counts
  * for nothing here: a week submitted under it is a week like any other.
  *
  * WHAT OF IT: the person's work as it stands at `now`, through the

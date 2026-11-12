@@ -535,6 +535,22 @@ describe("1. what a note's draft is sent: a week whose session has ended, its wo
     assert.ok(globalThis.__wnClaudeAsked[0].message.includes(TYPED));
   });
 
+  test("a group whose session has no length set has no end to wait for, so its week is not drawn on, and the press says so", async () => {
+    // Group A's sessions with no length: each one starts at 6pm and has no end after its start.
+    const groupA = seed()[`courseGroups/${A}`];
+    reset({ [`courseGroups/${A}`]: { ...groupA, session: { ...groupA.session, durationMinutes: 0 } } });
+    globalThis.__wnClaudeAnswer = ok(DRAFTED);
+    const gather = await w.loadTs(join("lib", "courses", "weekNotes", "gather.ts"));
+    const coursework = await w.loadTs(join("lib", "courses", "coursework", "gather.ts"));
+    const weeks = await coursework.loadRunWeeks(w.world.db, RUN.agi, [A]);
+    const sources = await gather.gatherPersonNote(w.world.db, { runId: RUN.agi, uid: "amara", weeks, now: new Date(THURSDAY) });
+    assert.deepEqual([sources.weeks, sources.answers], [[], []], "a week was drawn on with no end to its session");
+    const refused = await draft("zach", { uid: "amara" });
+    assert.deepEqual([refused.status, refused.body.error], [409, words.WEEK_NOTES_WORDS.noSession]);
+    assert.match(words.WEEK_NOTES_WORDS.noSession, /has no length set/);
+    assert.equal(globalThis.__wnClaudeAsked.length, 0);
+  });
+
   test("somebody with no group has no session, so no week of theirs is drawn on; the version 13 rule still holds after the session", async () => {
     // Dev, with an answer never sent, taken out of his group: no session to be due at, so nothing of his goes.
     reset({ [`courseEnrolments/${RUN.agi}__dev`]: { ...seed()[`courseEnrolments/${RUN.agi}__dev`], groupId: null } });
@@ -695,7 +711,7 @@ describe("2. drafting a person's note: an admin's, once every group has met, fro
     globalThis.__wnClaudeAnswer = ok(DRAFTED);
     const none = await draft("zach", { uid: "amara" });
     assert.equal(none.status, 409);
-    assert.equal(none.body.error, "Their session for this week hasn’t ended yet, or they have none, so there’s nothing of theirs to note.");
+    assert.equal(none.body.error, "Their session for this week hasn’t ended yet, has no length set, or they have none, so there’s nothing of theirs to note.");
     assert.equal(globalThis.__wnClaudeAsked.length, 0);
     reset();
     globalThis.__wnClaudeAnswer = ok(DRAFTED);
