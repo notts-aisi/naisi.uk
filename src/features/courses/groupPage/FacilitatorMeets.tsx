@@ -30,10 +30,13 @@ import styles from "./GroupPage.module.css";
 export default function FacilitatorMeets({
   view,
   eyebrow,
+  path,
 }: {
   view: GroupPageView;
   /** "AGI Strategy · Group C". */
   eyebrow: string;
+  /** This page's own address, without a query: each week leads to it with `?week=`. */
+  path: string;
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -88,7 +91,7 @@ export default function FacilitatorMeets({
           {view.weeks.map((week) => (
             <li key={week.weekNumber} className={styles.pillItem}>
               <Link
-                href={`?week=${week.weekNumber}`}
+                href={`${path}?week=${week.weekNumber}`}
                 scroll={false}
                 replace
                 className={week.weekNumber === chosen ? `${styles.pill} ${styles.pillOn}` : styles.pill}
