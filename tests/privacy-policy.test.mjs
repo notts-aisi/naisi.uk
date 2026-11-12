@@ -10958,7 +10958,7 @@ describe("v15 says reminders before a session are about what is left, are part o
   });
 
   test("they stop once the week is done: a week done is asked about before anything is sent", () => {
-    const done = job.indexOf("if (weekDone({ tasks: week.tasks, state: own.state, submitted: state.submittedAt !== null })) continue;");
+    const done = job.indexOf("if (weekDone({ tasks: week.tasks, state: own.state, submitted: state.submittedAt !== null, asks: week.asks })) continue;");
     const remind = job.indexOf("remind.push({");
     assert.ok(done > 0 && remind > done, "a reminder can go to somebody whose week is done");
     assert.match(job, /await stampSkipped\(db, marker\.id, verdict\.why, ctx\.now\);/);

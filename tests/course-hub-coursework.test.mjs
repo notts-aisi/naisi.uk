@@ -313,9 +313,9 @@ describe("4. a cell", () => {
       assert.deepEqual(cellOf(view, "Chloe Nguyen", 3), {
         weekNumber: 3,
         counted: true,
-        // Nobody pressed the old Submit for week 3, and it has begun (the run is in week 3), but Chloe's week is
-        // done: every tick its task counts is ticked and her answer is sent. No tick here says when, so no moment.
-        done: true,
+        // Nobody pressed the old Submit for week 3, and it has begun (the run is in week 3). Its This week counts
+        // nothing, so done asks for everything it asks to be written, and two of Chloe's reflections are empty.
+        done: false,
         doneAt: null,
         doneLateMs: null,
         reached: true,
@@ -735,7 +735,7 @@ describe("10. done, by the one meaning every page uses, and the Not done filter"
     // A week with only things to tick is done once they are ticked, and a week with nothing to count is never not done.
     const ticksOnly = { ...four, writes: false, tasks: four.tasks.map((needs) => ({ ...needs, promptIds: [], answerIds: [], fillInIds: [] })) };
     assert.equal(model.cellOf(ticksOnly, 4, { ...model.NO_WORK, ...all }, { person: "/p", written: null }, standing(false)).done, true);
-    const nothing = { ...four, writes: false, tasks: [] };
+    const nothing = { ...four, writes: false, tasks: [], asks: model.courseworkWeekOf({ ...weekFour(), id: "w04", blocks: [] }).asks };
     assert.equal(model.cellOf(nothing, 4, model.NO_WORK, { person: "/p", written: null }, standing(false)).done, true);
     // When it became done, told against the session: done late, with how late.
     const late = model.cellOf(

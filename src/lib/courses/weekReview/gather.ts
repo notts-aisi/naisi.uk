@@ -7,7 +7,7 @@ import { buildRunAttendance, readRunRecords } from "@/lib/courses/programmeAtten
 import { weekReportsForReview } from "@/lib/courses/sessionReports/readers";
 import { partsOf } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds } from "@/lib/courses/weekBlocks/progress";
-import { personWeekProgress, sessionHasStarted, weekAsksForWriting } from "@/lib/courses/weekWork/model";
+import { personWeekProgress, sessionHasStarted, weekAsksForWriting, weekWritingNeeds } from "@/lib/courses/weekWork/model";
 import { loadPeopleWeekFacts, loadRunWeekStates } from "@/lib/courses/weekWork/readers";
 import { REVIEW_FOLLOW_UP_TASK_SOURCE } from "@/lib/firestore/courseTasks";
 import { SOMETHING_ELSE } from "@/lib/firestore/courseSessionReports";
@@ -202,6 +202,7 @@ export async function gatherWeekReview(db: Firestore, opened: WeekReviewDoor, no
   const writes = weekAsksForWriting(opened.blocks);
   const started = await loadPeopleWeekFacts(db, { runId: run.id, weekNumber, blocks: opened.blocks, uids: [...fellows] });
   const tasks = weekTaskNeeds(opened.blocks);
+  const asks = weekWritingNeeds(opened.blocks);
   /**
    * Not finished by the session they were due at, once it has started (what
    * a week that locked before it was submitted used to say): "locked" to the
@@ -215,7 +216,7 @@ export async function gatherWeekReview(db: Firestore, opened: WeekReviewDoor, no
     if (submittedAt && submittedAt.getTime() <= due.at.getTime()) return "open";
     const own = started.get(uid);
     if (!own) return "locked";
-    const progress = personWeekProgress({ tasks, state: own.state, times: own.times, submittedAt, touched: own.touched });
+    const progress = personWeekProgress({ tasks, state: own.state, times: own.times, submittedAt, touched: own.touched, asks });
     return progress.weekDone && progress.doneAt !== null && progress.doneAt.getTime() <= due.at.getTime() ? "open" : "locked";
   };
   const metGroups = new Set(opened.groups.filter((each) => each.met).map((each) => each.group.id));

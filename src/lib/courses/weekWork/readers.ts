@@ -26,6 +26,7 @@ import {
   submittedOnce,
   weekWorkState,
   weekWorkWire,
+  weekWritingNeeds,
   type CheckState,
   type DoneTimes,
   type PersonWeekProgress,
@@ -270,10 +271,11 @@ export async function loadPeopleWeekProgress(
   const out = new Map<string, PersonWeekProgress>();
   const facts = await loadPeopleWeekFacts(db, input);
   const tasks = weekTaskNeeds(input.blocks);
+  const asks = weekWritingNeeds(input.blocks);
   for (const [uid, own] of facts) {
     out.set(
       uid,
-      personWeekProgress({ tasks, state: own.state, times: own.times, submittedAt: input.submittedAt(uid), touched: own.touched }),
+      personWeekProgress({ tasks, state: own.state, times: own.times, submittedAt: input.submittedAt(uid), touched: own.touched, asks }),
     );
   }
   return out;

@@ -344,6 +344,22 @@ describe("2. done, and the check before Send", () => {
     assert.equal(model.weekDone({ tasks, state: { ...everything, isReady: () => false }, submitted: false }), true);
   });
 
+  test("a week whose This week counts nothing asks for everything written in it, so it is never done by default; a week with nothing to write needs nothing", () => {
+    const noThisWeek = WEEK.slice(1);
+    const asks = model.weekWritingNeeds(noThisWeek);
+    assert.deepEqual([asks.promptIds, asks.fillInIds, asks.answerIds], [["rp1", "rp2"], [], ["wa"]]);
+    const none = progress.weekTaskNeeds(noThisWeek);
+    assert.equal(none.filter(progress.isCounted).length, 0);
+    assert.equal(model.weekDone({ tasks: none, state: nothing, submitted: false, asks }), false, "nothing written: not done");
+    assert.equal(model.weekDone({ tasks: none, state: { ...nothing, isWritten: () => true }, submitted: false, asks }), false, "the answer not sent");
+    assert.equal(model.weekDone({ tasks: none, state: { ...nothing, isWritten: () => true, isSent: () => true }, submitted: false, asks }), true);
+    assert.equal(model.weekDone({ tasks: none, state: nothing, submitted: true, asks }), true, "the old Submit, as it always was");
+    // Counted tasks decide when there are any: the week's other writing is not asked.
+    assert.equal(model.weekDone({ tasks, state: { ...everything, isWritten: (id) => id === "rp1" || id === "rp2" }, submitted: false, asks }), true);
+    // Nothing to write and nothing counted: never not done.
+    assert.equal(model.weekDone({ tasks: [], state: nothing, submitted: false, asks: model.weekWritingNeeds([]) }), true);
+  });
+
   test("when a week became done: the latest moment its needed things were done, by the old Submit or by what was written and sent", () => {
     const t = (iso) => at(iso);
     const times = {

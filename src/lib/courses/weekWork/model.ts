@@ -34,8 +34,10 @@ export type { DueBy, WeekDue };
  * old Submit button (`courseWeekWork.submittedAt`, ever), or every reflection
  * box and fill-in box its tasks count holds something and every written
  * answer its tasks count has been sent. So nobody done under the old rule is
- * ever not done under this one. A week with only things to tick is done once
- * they are ticked; a talk's ready mark counts towards "N of M done"
+ * ever not done under this one. A week whose This week counts nothing at all
+ * asks instead for everything written in it (`weekWritingNeeds`), so a week
+ * that asks for writing is never done by default. A week with only things to
+ * tick is done once they are ticked; a talk's ready mark counts towards "N of M done"
  * (`progress.ts`) and not towards done. `weekDoneAt` says when it became
  * done, the latest of the moments its needed things were done, for "done on
  * time" and "done late" against the session.
@@ -138,6 +140,27 @@ function counted(tasks: readonly TaskNeeds[], kind: "tickIds" | "chooseOneIds" |
 }
 
 /**
+ * EVERYTHING A WEEK ASKS TO BE WRITTEN, whatever its tasks cover: each
+ * reflection box, each fill-in box and each written answer in it. What done
+ * asks of a week whose This week counts nothing at all (a week with no This
+ * week block), so a week that asks for writing is never done by default.
+ */
+export function weekWritingNeeds(blocks: readonly WeekBlock[]): TaskNeeds {
+  const needs: TaskNeeds = { tickIds: [], promptIds: [], answerIds: [], chooseOneIds: [], talkIds: [], fillInIds: [], unseenIds: [] };
+  for (const block of allBlocks(blocks)) {
+    if (block.type === "reflection") needs.promptIds.push(...block.prompts.map((prompt) => prompt.id));
+    else if (block.type === "fillIn") needs.fillInIds.push(...block.groups.flatMap((group) => group.boxes.map((box) => box.id)));
+    else if (block.type === "writtenAnswer") needs.answerIds.push(block.id);
+  }
+  return needs;
+}
+
+/** The writing done asks for: what the tasks count, or, when they count nothing at all, everything the week asks to be written. */
+function writingAsked(tasks: readonly TaskNeeds[], asks: TaskNeeds | undefined): readonly TaskNeeds[] {
+  return tasks.some(isCounted) || !asks ? tasks : [asks];
+}
+
+/**
  * THE WEEK IS DONE: every tick its tasks count ticked, the person's own pack
  * among them, and either it was submitted under the old Submit button
  * (`submitted`, ever: a reopen since changes nothing) or every reflection box
@@ -152,8 +175,11 @@ export function weekDone(input: {
   tasks: readonly TaskNeeds[];
   state: Pick<DoneState, "isTicked" | "packOf" | "isWritten" | "isSent">;
   submitted: boolean;
+  /** Everything the week asks to be written (`weekWritingNeeds`), asked when its tasks count nothing at all. */
+  asks?: TaskNeeds;
 }): boolean {
   const { tasks, state, submitted } = input;
+  const writing = writingAsked(tasks, input.asks);
   const packOf = state.packOf ?? (() => null);
   const ticked =
     counted(tasks, "tickIds").every((id) => state.isTicked(id)) &&
@@ -164,9 +190,9 @@ export function weekDone(input: {
   if (!ticked) return false;
   if (submitted) return true;
   return (
-    counted(tasks, "promptIds").every((id) => state.isWritten(id)) &&
-    counted(tasks, "fillInIds").every((id) => state.isWritten(id)) &&
-    counted(tasks, "answerIds").every((id) => state.isSent(id))
+    counted(writing, "promptIds").every((id) => state.isWritten(id)) &&
+    counted(writing, "fillInIds").every((id) => state.isWritten(id)) &&
+    counted(writing, "answerIds").every((id) => state.isSent(id))
   );
 }
 
@@ -198,8 +224,9 @@ function latest(times: ReadonlyArray<Date | null>): { all: boolean; at: number |
  * is not done, and for a week with nothing to count. Against the session they
  * were due at, it says done on time or done late.
  */
-export function weekDoneAt(input: { tasks: readonly TaskNeeds[]; times: DoneTimes; submittedAt: Date | null }): Date | null {
+export function weekDoneAt(input: { tasks: readonly TaskNeeds[]; times: DoneTimes; submittedAt: Date | null; asks?: TaskNeeds }): Date | null {
   const { tasks, times, submittedAt } = input;
+  const writing = writingAsked(tasks, input.asks);
   const packOf = times.packOf ?? (() => null);
   const ticks = latest([
     ...counted(tasks, "tickIds").map((id) => times.tickedAt(id)),
@@ -210,9 +237,9 @@ export function weekDoneAt(input: { tasks: readonly TaskNeeds[]; times: DoneTime
   ]);
   if (!ticks.all) return null;
   const written = latest([
-    ...counted(tasks, "promptIds").map((id) => times.writtenAt(id)),
-    ...counted(tasks, "fillInIds").map((id) => times.writtenAt(id)),
-    ...counted(tasks, "answerIds").map((id) => times.sentAt(id)),
+    ...counted(writing, "promptIds").map((id) => times.writtenAt(id)),
+    ...counted(writing, "fillInIds").map((id) => times.writtenAt(id)),
+    ...counted(writing, "answerIds").map((id) => times.sentAt(id)),
   ]);
   const ways = [submittedAt?.getTime() ?? null, written.all ? written.at : null].filter((at): at is number => at !== null);
   const writtenNeedsNothing = written.all && written.at === null;
@@ -249,15 +276,17 @@ export function personWeekProgress(input: {
   submittedAt: Date | null;
   /** Anything of theirs on the week: a tick, a word, a pack picked. */
   touched: boolean;
+  /** Everything the week asks to be written (`weekWritingNeeds`), for a week whose tasks count nothing. */
+  asks?: TaskNeeds;
 }): PersonWeekProgress {
   const countedTasks = input.tasks.filter(isCounted);
   const done = countedTasks.filter((needs) => taskDone(needs, input.state)).length;
-  const isDone = weekDone({ tasks: input.tasks, state: input.state, submitted: input.submittedAt !== null });
+  const isDone = weekDone({ tasks: input.tasks, state: input.state, submitted: input.submittedAt !== null, asks: input.asks });
   return {
     done,
     of: countedTasks.length,
     weekDone: isDone,
-    doneAt: isDone && input.times ? weekDoneAt({ tasks: input.tasks, times: input.times, submittedAt: input.submittedAt }) : null,
+    doneAt: isDone && input.times ? weekDoneAt({ tasks: input.tasks, times: input.times, submittedAt: input.submittedAt, asks: input.asks }) : null,
     started: input.touched || done > 0,
   };
 }

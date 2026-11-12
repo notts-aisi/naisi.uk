@@ -13,7 +13,7 @@ import {
   type ReminderDays,
 } from "@/lib/courses/weekEmails/model";
 import { weekReminderEmailWords, type ReminderWeek } from "@/lib/courses/weekEmails/words";
-import { weekAsksForWriting, weekDone } from "@/lib/courses/weekWork/model";
+import { weekAsksForWriting, weekDone, weekWritingNeeds } from "@/lib/courses/weekWork/model";
 import {
   loadPeopleWeekFacts,
   loadRunWeekStates,
@@ -162,6 +162,8 @@ type ReminderWeekInfo = {
   blocks: readonly WeekBlock[];
   tasks: TaskNeeds[];
   writes: boolean;
+  /** Everything the week asks to be written, for a week whose tasks count nothing (`weekWritingNeeds`). */
+  asks: TaskNeeds;
   facts: Map<string, PersonWeekFacts>;
 };
 
@@ -227,7 +229,7 @@ export function reminderVerdict(
     const own = week.facts.get(uid);
     if (!own) continue;
     // The one meaning of done: reminders stop once the week is done.
-    if (weekDone({ tasks: week.tasks, state: own.state, submitted: state.submittedAt !== null })) continue;
+    if (weekDone({ tasks: week.tasks, state: own.state, submitted: state.submittedAt !== null, asks: week.asks })) continue;
     // Not done, and no more work can be done in it: the programme has closed. Nothing listed could be done.
     if (state.kind === "closed") {
       why ??= "locked";
@@ -266,6 +268,7 @@ async function reminderWeeks(
       blocks: week.blocks,
       tasks: weekTaskNeeds(week.blocks),
       writes: weekAsksForWriting(week.blocks),
+      asks: weekWritingNeeds(week.blocks),
       facts,
     });
   }

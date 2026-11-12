@@ -2,7 +2,7 @@ import { partWritten, reflectionPartsOf, tickedSourcesOf, type ReflectionPart, t
 import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds, type TaskNeeds } from "@/lib/courses/weekBlocks/progress";
 import { weekFillInBoxes, weekWrittenAnswers, type ReadableWeek } from "@/lib/courses/weekBlocks/reader";
-import { lateBy, weekAsksForWriting, weekDone, weekDoneAt, type WeekDue } from "@/lib/courses/weekWork/model";
+import { lateBy, weekAsksForWriting, weekDone, weekDoneAt, weekWritingNeeds, type WeekDue } from "@/lib/courses/weekWork/model";
 import type { AnswerState } from "@/lib/courses/writtenAnswers/model";
 import type { StaffFeedbackCard } from "@/lib/courses/feedback/model";
 import type { PieceFacts } from "@/lib/courses/weekWork/versions";
@@ -68,8 +68,10 @@ export type CourseworkWeek = {
   boxes: Array<{ id: string; heading: string; label: string }>;
   /** This week's tasks, by what each needs (`weekTaskNeeds`), for whether the week is done. */
   tasks: TaskNeeds[];
-  /** The week asks for something written, so it is done only once it is submitted. */
+  /** The week asks for something written. */
   writes: boolean;
+  /** Everything the week asks to be written (`weekWritingNeeds`): what done asks when its tasks count nothing. Absent: nothing. */
+  asks?: TaskNeeds;
 };
 
 /** A stored week, read for the tab: null for a week not written as blocks, which has no coursework here. */
@@ -86,6 +88,7 @@ export function courseworkWeekOf(week: (ReadableWeek & { weekNumber: number; tit
     boxes: weekFillInBoxes(week).map((box) => ({ id: box.id, heading: box.heading, label: box.label })),
     tasks: weekTaskNeeds(blocks),
     writes: weekAsksForWriting(blocks),
+    asks: weekWritingNeeds(blocks),
   };
 }
 
@@ -294,6 +297,7 @@ export function cellOf(
       isSent: (id) => work.sentAt?.has(key(id)) ?? false,
     },
     submitted: standing.submittedAt !== null,
+    asks: week.asks,
   });
   const doneAt = done
     ? weekDoneAt({
@@ -305,6 +309,7 @@ export function cellOf(
           packOf,
         },
         submittedAt: standing.submittedAt,
+        asks: week.asks,
       })
     : null;
   const reflections =
