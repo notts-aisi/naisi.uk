@@ -1791,10 +1791,18 @@ test(
               [said[moved], fern],
               [said[regular], gus],
               [said[took], gus],
+              [said[corrected], gus],
+              [said[excusedDan], null],
             ]) {
-              assert.ok(line.includes(who.first), `"${line}" does not say who`);
-              assert.match(line, /\d{1,2}(:\d{2})?(am|pm)/, `"${line}" does not say when`);
+              if (who) assert.ok(line.includes(who.first), `"${line}" does not say who`);
+              assert.match(line, /^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}, \d{1,2}(:\d{2})?(am|pm) \S/, `"${line}" does not say when, then who`);
             }
+          } else {
+            const at = (pattern) => said.findIndex((line) => pattern.test(line));
+            const given = at(new RegExp(`Gave week ${GIVEN_WEEK}’s session to [^.]*${escapeRegExp(kit.first)}`));
+            const notHeld = at(new RegExp(`week ${NOT_HELD_WEEK}`, "i"));
+            assert.ok(given >= 0 && notHeld >= 0 && notHeld < given, `Group B's history does not list the session given and then week 1 that didn't happen, newest first:\n${page}`);
+            for (const index of [given, notHeld]) assert.match(said[index], /^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}, \d{1,2}(:\d{2})?(am|pm) \S/, `"${said[index]}" does not say when, then who`);
           }
         }
         const saves = (await fixtureWeekSubcollection(state.runId, EDITED_WEEK_ID, "history").get()).docs.map((doc) => doc.data()).sort((a, b) => a.seq - b.seq);
