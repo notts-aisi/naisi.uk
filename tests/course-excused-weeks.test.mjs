@@ -272,6 +272,51 @@ describe("the arithmetic: what a press says, which sessions may be asked about, 
     assert.equal(words.timesThisTermWords(0), "Never, this term.");
   });
 
+  test("the words: what approving will do, who it emails, and the emails' first lines, never a dash", () => {
+    assert.equal(words.toldWords("Grace", ["Rahul"]), "2 emails: Grace, with your reply; and Rahul, without the reason.");
+    assert.equal(words.toldWords("Grace", []), "1 email: Grace, with your reply.");
+    assert.equal(words.toldWords(null, []), "Nobody is emailed.");
+    assert.equal(
+      words.approvingWords({ write: "in-advance", started: false, personFirstName: "Grace", facilitatorFirstNames: ["Rahul"] }),
+      "The register says Excused for Grace, with nothing for Rahul to do.",
+    );
+    assert.equal(
+      words.approvingWords({ write: "correct", started: true, personFirstName: "Tom", facilitatorFirstNames: ["Nadia"] }),
+      "The register is already finished and says Absent: approving changes it to Excused and logs it in the group’s history.",
+    );
+    assert.match(words.approvingWords({ write: "keep", kept: "came", started: true, personFirstName: "Tom", facilitatorFirstNames: [] }), /was there, so it stays as it is/);
+    assert.equal(words.approveButtonWords(2, ""), "Approve and email 2 people");
+    assert.equal(words.declineButtonWords("Grace"), "Decline and email Grace");
+    assert.equal(words.sendTheRequestWords(2), "Send the request for 2 weeks");
+    const approved = words.approvedEmailWords({
+      weekNumber: 2,
+      occurrence: 1,
+      groupName: "Group C",
+      when: "Wed 11 Nov, 3pm",
+      deciderFirstName: "Zach",
+      reply: "Hope the appointment goes well.",
+      outcome: "before",
+      facilitatorFirstNames: ["Rahul"],
+    });
+    assert.deepEqual(approved, {
+      subject: "You’re excused from week 2",
+      before: ["Zach approved your request to be excused from Group C’s week 2 session, Wed 11 Nov, 3pm."],
+      quote: "Zach says: “Hope the appointment goes well.”",
+      after: ["Week 2’s work is still due by your session, and its reminders still come until it’s done. If you can come after all, just come along."],
+      button: "Open your programme page",
+      footnote: "Rahul is told you’re excused, but not why.",
+    });
+    const facilitators = words.facilitatorsEmailWords({ personName: "Grace Chen", personFirstName: "Grace", weekNumber: 2, occurrence: 1, day: "Wed 11 Nov", already: false });
+    assert.equal(facilitators.subject, "Grace Chen is excused from week 2");
+    assert.deepEqual(facilitators.before, ["Your register will show Grace as excused for Wed 11 Nov. There’s nothing for you to do."]);
+    const declined = words.declinedEmailWords({ weekNumber: 3, occurrence: 1, day: "Wed 18 Nov", deciderFirstName: "Zach", reply: "No.", session: "absent" });
+    assert.equal(declined.subject, "About your request for week 3");
+    assert.deepEqual(declined.before, ["Your request to be excused from Wed 18 Nov wasn’t approved."]);
+    assert.deepEqual(declined.after, ["The register says Absent for that session, and week 3’s work is still open."]);
+    const all = JSON.stringify([approved, facilitators, declined, words.EXCUSED_REFUSAL, words.replyEmailWords({ weekNumbers: [2, 3], deciderFirstName: "Zach", reply: "Hi.", waiting: true })]);
+    assert.doesNotMatch(all, /[\u2013\u2014]/, "a dash in the words");
+  });
+
   test("an excused request is read only by its own normaliser, so no correction reader can mistake it for one", () => {
     const doc = {
       kind: "excused",
