@@ -160,6 +160,10 @@ The same shape, older:
   exercised on synthetic call sites, definitions, comments and property
   accesses so a guard that had quietly stopped matching would fail rather than
   pass.
+- `tests/route-framing-headers.test.mjs`: no source file sets a response's
+  `Content-Length`, `Content-Encoding` or `Transfer-Encoding`. The server
+  frames a response and Next.js drops those three from what a route returns,
+  so a route that sets one states something no browser is told.
 - `tests/pwa-offline-assets.test.mjs`: the service worker's write-nothing
   contract.
 - `tests/event-location-disclosure.test.mjs`: an event's exact location

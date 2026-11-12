@@ -182,7 +182,9 @@ describe("who downloads it", () => {
       assert.equal(answer.headers["cache-control"], "private, no-store");
       assert.equal(answer.headers["x-robots-tag"], "noindex");
       assert.ok(asText(answer.bytes).startsWith("%PDF-"));
-      assert.equal(Number(answer.headers["content-length"]), answer.bytes.length);
+      assert.ok(asText(answer.bytes).trimEnd().endsWith("%%EOF"), "the PDF does not end as a PDF ends");
+      // The server sets a response's framing: the route states no length of its own.
+      assert.equal(answer.headers["content-length"], undefined);
     }
     // Typed in small letters, it is the same certificate.
     assert.equal((await get("amara", AMARA.toLowerCase())).status, 200);
