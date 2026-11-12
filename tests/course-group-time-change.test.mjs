@@ -37,7 +37,7 @@
 import { beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { render } from "@react-email/render";
-import { AGI, AWAY, B, LINK, NOW, ROUND, RUN, TUE_24, makeSessionsWorld } from "./lib/sessionsWorld.mjs";
+import { AGI, AWAY, B, LINK, ROUND, RUN, TUE_24, makeSessionsWorld } from "./lib/sessionsWorld.mjs";
 
 const w = await makeSessionsWorld("__groupTimeChange");
 const { world, ask, group, sessionsOf, reset, at, loadTs, everything } = w;

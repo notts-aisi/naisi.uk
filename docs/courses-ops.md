@@ -2607,7 +2607,7 @@ on a counter of their own (`groupchangeday__{groupId}`), no hourly window.
 `courseAudit` rows newest first with the index that exists (`runId`, `at`
 descending), keeps the group's, and gives each its label and a category for
 the page's filters: time and room, people, link, registers, or other. Rows
-carry their one sentence (`detail`) and, from 12 Nov 2026, the optional
+carry their one sentence (`detail`) and, from the day this shipped, the optional
 `weekId`, `before`, `after`, `reason` and `emailed`; an older row, and a kind
 this build does not know, read as they were written. History of times, rooms
 and links starts the day this shipped; the register finishes logged before it

@@ -109,7 +109,7 @@ export type CourseAuditKind =
    * The nine below are a GROUP'S TIME, ROOM AND LINK, one row for each
    * change, so a group's history can say who changed what, when, from what,
    * why, and how many were emailed (`weekId`, `before`, `after`, `reason`,
-   * `emailed`). Written from 12 Nov 2026; nothing earlier was logged.
+   * `emailed`). Written from the day these kinds shipped; nothing earlier was logged.
    *
    * One week's session moved, that week only ("Change a session", Move it).
    */

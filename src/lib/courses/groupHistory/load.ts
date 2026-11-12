@@ -12,7 +12,7 @@ import {
 /**
  * ONE GROUP'S HISTORY: who changed its time, room, link and people, when,
  * what it was before, why, and how many were emailed, newest first, for the
- * group's History tab. Logged from 12 Nov 2026; the register finishes logged
+ * group's History tab. Logged from the day this shipped; the register finishes logged
  * before then show too.
  *
  * READ WITH THE INDEX THAT EXISTS, `courseAudit (runId, at desc)`: the run's
