@@ -31,11 +31,19 @@ export async function requestsWaitingFor(db: Firestore, user: SessionUser, now: 
   }
 }
 
-/** How many requests about one run wait for somebody to decide them: one read by `runId`. */
-export async function requestsWaitingOnRun(db: Firestore, runId: string): Promise<number> {
+/**
+ * How many requests about one run wait for somebody to decide them: one read
+ * by `runId`. Requests to be excused are decided by admins only, so they are
+ * counted only when the caller says the reader is an admin (`excused: true`);
+ * left out, the count is the requests a programme's lead decides.
+ */
+export async function requestsWaitingOnRun(db: Firestore, runId: string, opts: { excused?: boolean } = {}): Promise<number> {
   try {
     const snap = await db.collection("courseRequests").where("runId", "==", runId).limit(500).get();
-    return snap.docs.filter((doc) => (doc.data() ?? {}).status === "waiting").length;
+    return snap.docs.filter((doc) => {
+      const data = doc.data() ?? {};
+      return data.status === "waiting" && (opts.excused === true || data.kind !== "excused");
+    }).length;
   } catch (err) {
     console.warn("[programme] could not count the requests waiting", err);
     return 0;

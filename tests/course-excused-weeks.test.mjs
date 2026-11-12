@@ -1,0 +1,846 @@
+/**
+ * Excused weeks: asking to be excused from a session, and an admin deciding
+ * each week of it.
+ *
+ * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
+ *
+ *   POST /api/courses/groups/[groupId]/excused                      (ask)
+ *   POST /api/courses/requests/[requestId]/excused/withdraw         (the asker)
+ *   POST /api/courses/requests/[requestId]/excused/{approve,decline,reply}  (admins)
+ *   GET  /api/courses/groups/[groupId]/attendance                   (the two facts)
+ *   excusedFor, loadExcusedRequestPage, loadRequestsPage, loadGroupPage (the readers)
+ *   deleteClosedReasons and its job                                  (the reason goes at close)
+ *
+ * ## What this guards
+ *
+ *  1. WHO ASKS: somebody holding a told place in the group, for its sessions,
+ *     before a session or after it while its finished register says Absent,
+ *     until the programme closes. Not a facilitator of the group, not staff,
+ *     not anybody else.
+ *  2. WHO DECIDES: admins only, never the person who asked. Not the
+ *     programme's lead, not a track lead, not a facilitator.
+ *  3. WHAT APPROVING DOES TO THE REGISTER, in one transaction with the
+ *     decision: before the session the line reads exactly as the instant
+ *     "Can't make it" leaves it (held to the readers that knew nothing of
+ *     requests); after Finish, Absent becomes Excused as a correction made
+ *     by the approval; a line that says they came is left alone; a
+ *     facilitator's later mark wins. Declining and withdrawing change nothing.
+ *  4. WHO IS SENT WHAT: the reason and how often reach admins only; a
+ *     facilitator and a lead are sent one of two facts per person per
+ *     session; a member is never sent a count.
+ *  5. THE EMAILS: approved to the person (with the reply) and the group's
+ *     facilitators (never the reason); declined and a reply to the person;
+ *     asking and withdrawing email nobody. No meeting link.
+ *  6. THE REASON GOES when the programme closes, leaving the decision; an
+ *     open run loses nothing; twice is once.
+ *
+ * Real: the routes and every library under them. Stubbed: the session, the
+ * Admin SDK handle, the view-as guard and the mail door.
+ */
+import { beforeEach, describe, mock, test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { render } from "@react-email/render";
+import { FIELD_VALUE_STUB } from "./lib/applicationsStore.mjs";
+import { loadJoin, makeWorld } from "./lib/handoverWorld.mjs";
+import { A, B, C, RUN, leadSeed } from "./lib/leadWorld.mjs";
+
+const FIRESTORE = FIELD_VALUE_STUB.replace(
+  "export class Timestamp {}",
+  "export class Timestamp {" +
+    " static now() { return new Date(); }" +
+    " static fromDate(date) { return date; }" +
+    " static fromMillis(ms) { return new Date(ms); }" +
+    " }" +
+    " export class FieldPath { static documentId() { return '__name__'; } }",
+);
+const made = makeWorld("__excusedWeeks", [["firebase-admin/firestore", FIRESTORE]]);
+const { world, reset, call, everything, courseRoute, loadTs, sessionOf } = made;
+const join_ = await loadJoin(made);
+const askRoute = await courseRoute("groups", "[groupId]", "excused");
+const register = await courseRoute("groups", "[groupId]", "attendance");
+const push = await courseRoute("groups", "[groupId]", "attendance", "push");
+const cantMakeItRoute = await courseRoute("groups", "[groupId]", "cant-make-it");
+const actions = {
+  withdraw: await courseRoute("requests", "[requestId]", "excused", "withdraw"),
+  approve: await courseRoute("requests", "[requestId]", "excused", "approve"),
+  decline: await courseRoute("requests", "[requestId]", "excused", "decline"),
+  reply: await courseRoute("requests", "[requestId]", "excused", "reply"),
+};
+const correctionApprove = await courseRoute("requests", "[requestId]", "approve");
+const model = await loadTs("lib/courses/excused/model.ts");
+const words = await loadTs("lib/courses/excused/words.ts");
+const record = await loadTs("lib/firestore/courseExcusedRequests.ts");
+const requestsLib = await loadTs("lib/firestore/courseRequests.ts");
+const attendanceLib = await loadTs("lib/firestore/courseAttendance.ts");
+const cantModel = await loadTs("lib/courses/cantMakeIt/model.ts");
+const own = await loadTs("lib/courses/excused/own.ts");
+const page = await loadTs("lib/courses/excused/page.ts");
+const tidy = await loadTs("lib/courses/excused/tidy.ts");
+const loaders = await loadTs("lib/courses/requests/load.ts");
+const home = await loadTs("lib/courses/requests/home.ts");
+const history = await loadTs("lib/courses/groupHistory/load.ts");
+const groupPage = await loadTs("lib/courses/groupPage/load.ts");
+const jobModule = await loadTs("lib/scheduler/jobs/excusedReasonsOff.ts");
+const courses = await loadTs("lib/firestore/courses.ts");
+const groups = await loadTs("lib/firestore/courseGroups.ts");
+const enrolments = await loadTs("lib/firestore/courseEnrolments.ts");
+
+const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
+const PLACED_ON = new Date("2026-10-27T17:38:00Z");
+/** Monday 9 Nov, before Group B's week 2 session (Tue 10 Nov, 6pm to 8pm London, GMT). */
+const BEFORE_W2 = new Date("2026-11-09T09:40:00Z");
+/** During week 2's session. */
+const DURING_W2 = new Date("2026-11-10T18:20:00Z");
+/** The morning after week 2. */
+const AFTER_W2 = new Date("2026-11-11T09:30:00Z");
+/** After the programme closed: its last session is Wed 9 Dec (Group C), and work closes 14 days after. */
+const CLOSED = new Date("2026-12-24T00:00:01Z");
+mock.timers.enable({ apis: ["Date"], now: PLACED_ON });
+const at = (when) => mock.timers.setTime(new Date(when).getTime());
+
+const REASON = "An appointment on Tuesday evening that I can't move.";
+const REPLY = "Hope the appointment goes well.";
+const W2 = `courseAttendance/${RUN.agi}__${B}__w02`;
+const stored = (path = W2) => world.db.read(path) ?? null;
+const requestDocs = () =>
+  world.db
+    .paths()
+    .filter((path) => path.startsWith("courseRequests/"))
+    .map((path) => ({ id: path.split("/")[1], ...world.db.read(path) }));
+const auditRows = (kind) =>
+  world.db
+    .paths()
+    .filter((path) => path.startsWith("courseAudit/"))
+    .map((path) => world.db.read(path))
+    .filter((row) => !kind || row.kind === kind);
+const rollup = (uid) => world.db.read(`courseEnrolments/${RUN.agi}__${uid}`).attendance;
+
+const ask = (who, body, groupId = B, opts = {}) => call(who, askRoute.POST, { groupId }, { body, course: true, ...opts });
+const act = (who, action, requestId, body) => call(who, actions[action].POST, { requestId }, { body: body ?? {}, course: true });
+const mark = (who, weekNumber, marks) => call(who, register.POST, { groupId: B }, { body: { weekNumber, marks }, course: true });
+const finish = (who, weekNumber) => call(who, push.POST, { groupId: B }, { body: { weekNumber }, course: true });
+const readRegister = (who) => call(who, register.GET, { groupId: B }, { course: true });
+
+async function mailText() {
+  return Promise.all(
+    world.mail.map(async (message) => ({
+      to: message.to,
+      subject: message.subject,
+      kind: message.kind,
+      html: await render(message.react),
+    })),
+  );
+}
+
+/** Amara and Dev placed in Group B and told; the clock is Monday before week 2. */
+async function placed() {
+  at(PLACED_ON);
+  reset(leadSeed(), { now: () => new Date() });
+  assert.equal((await join_.press()).status, 200);
+  const done = await join_.place("zach", [
+    { uid: "amara", groupId: B },
+    { uid: "dev", groupId: B },
+    { uid: "bea", groupId: A },
+    { uid: "tariq", groupId: C },
+  ]);
+  assert.equal(done.status, 200, JSON.stringify(done.body));
+  assert.equal((await join_.publish("zach")).status, 200);
+  at(BEFORE_W2);
+  world.mail.length = 0;
+}
+
+/** Amara asks to be excused from week 2, before it. */
+async function amaraAsks(keys = ["w02"]) {
+  const answer = await ask("amara", { sessionKeys: keys, reason: REASON });
+  assert.equal(answer.status, 200, JSON.stringify(answer.body));
+  return answer.body.request.id;
+}
+
+/** A seat like Amara's, for somebody else, in a group: a facilitator who holds a place, or an admin who does. */
+function seatLike(uid, groupId = B) {
+  const seat = structuredClone(world.db.read(`courseEnrolments/${RUN.agi}__amara`));
+  world.db.seed(`courseEnrolments/${RUN.agi}__${uid}`, { ...seat, uid, groupId });
+}
+
+// ---------------------------------------------------------------------------
+// The arithmetic
+// ---------------------------------------------------------------------------
+
+describe("the arithmetic: what a press says, which sessions may be asked about, what approving writes", () => {
+  test("an ask is sessions and one short line, nothing else", () => {
+    assert.deepEqual(model.parseAsk({ sessionKeys: ["w02", "w03"], reason: " A few words. " }), {
+      ok: true,
+      value: { sessionKeys: ["w02", "w03"], reason: "A few words." },
+    });
+    assert.equal(model.parseAsk(null).error, words.EXCUSED_REFUSAL.body);
+    assert.equal(model.parseAsk({ sessionKeys: [], reason: "x" }).error, words.EXCUSED_REFUSAL.weeks);
+    assert.equal(model.parseAsk({ sessionKeys: ["w2"], reason: "x" }).error, words.EXCUSED_REFUSAL.weeks);
+    assert.equal(model.parseAsk({ sessionKeys: ["w02", "w02"], reason: "x" }).error, words.EXCUSED_REFUSAL.sameWeek);
+    assert.equal(
+      model.parseAsk({ sessionKeys: Array.from({ length: 11 }, (_, i) => `w${String(i + 1).padStart(2, "0")}`), reason: "x" }).error,
+      words.EXCUSED_REFUSAL.tooMany,
+    );
+    assert.equal(model.parseAsk({ sessionKeys: ["w02"], uid: "dev", reason: "x" }).error, words.EXCUSED_REFUSAL.body, "nobody asks for anybody else");
+    assert.equal(model.parseAsk({ sessionKeys: ["w02"] }).error, words.EXCUSED_REFUSAL.reason);
+    assert.equal(model.parseAsk({ sessionKeys: ["w02"], reason: "   " }).error, words.EXCUSED_REFUSAL.reason);
+    assert.equal(model.parseAsk({ sessionKeys: ["w02"], reason: 4 }).error, words.EXCUSED_REFUSAL.reasonText);
+    assert.equal(model.parseAsk({ sessionKeys: ["w02"], reason: "one\ntwo" }).error, words.EXCUSED_REFUSAL.reasonLine);
+    assert.equal(model.parseAsk({ sessionKeys: ["w02"], reason: "see example.com/why" }).error, words.EXCUSED_REFUSAL.reasonLink);
+    assert.equal(model.parseAsk({ sessionKeys: ["w02"], reason: "x".repeat(201) }).error, "The reason must be 200 characters or fewer.");
+  });
+
+  test("a decision names one week; a decline needs a reply, an approval does not", () => {
+    assert.deepEqual(model.parseDecision({ sessionKey: "w02" }, { replyNeeded: false }), { ok: true, value: { sessionKey: "w02", reply: "" } });
+    assert.equal(model.parseDecision({ sessionKey: "w02" }, { replyNeeded: true }).error, words.EXCUSED_REFUSAL.reply);
+    assert.equal(model.parseDecision({}, { replyNeeded: false }).error, words.EXCUSED_REFUSAL.week);
+    assert.equal(model.parseDecision({ sessionKey: "w02", reply: "a\nb" }, { replyNeeded: false }).error, words.EXCUSED_REFUSAL.replyLine);
+    assert.equal(model.parseReplyPress({}).error, words.EXCUSED_REFUSAL.replyEmpty);
+    assert.deepEqual(model.parseWithdraw(null), { ok: true, value: { sessionKey: null } });
+    assert.deepEqual(model.parseWithdraw({ sessionKey: "w03" }), { ok: true, value: { sessionKey: "w03" } });
+    assert.equal(model.parseWithdraw({ who: "dev" }).error, words.EXCUSED_REFUSAL.body);
+  });
+
+  test("which sessions may be asked about: before, or after while a finished register says Absent", () => {
+    const starts = new Date("2026-11-10T18:00:00Z");
+    const before = new Date("2026-11-10T17:00:00Z");
+    const after = new Date("2026-11-10T21:00:00Z");
+    const line = (over = {}) => ({ finished: false, notHeld: false, mark: null, ...over });
+    const state = (over) => model.askState({ startsAt: starts, cancelled: false, line: line(), standing: null, now: before, ...over });
+    assert.deepEqual(state({}), { open: true, when: "before" });
+    assert.deepEqual(state({ cancelled: true }), { open: false, why: "cancelled" });
+    assert.deepEqual(state({ startsAt: null }), { open: false, why: "undated" });
+    assert.deepEqual(state({ line: line({ notHeld: true }) }), { open: false, why: "not-held" });
+    assert.deepEqual(state({ standing: "waiting" }), { open: false, why: "waiting" });
+    assert.deepEqual(state({ standing: "approved" }), { open: false, why: "approved" });
+    assert.deepEqual(state({ line: line({ mark: "excused" }) }), { open: false, why: "excused" });
+    assert.deepEqual(state({ line: line({ mark: "present" }) }), { open: false, why: "came" });
+    // After it starts, a draft says nothing of its marks.
+    assert.deepEqual(state({ now: after, line: line({ mark: "present" }) }), { open: false, why: "not-finished" });
+    assert.deepEqual(state({ now: after, line: line({ mark: "absent" }) }), { open: false, why: "not-finished" });
+    assert.deepEqual(state({ now: after, line: line({ finished: true, mark: "absent" }) }), { open: true, when: "after" });
+    assert.deepEqual(state({ now: after, line: line({ finished: true, mark: "late" }) }), { open: false, why: "came" });
+    assert.deepEqual(state({ now: after, line: line({ finished: true, mark: "excused" }) }), { open: false, why: "excused" });
+    assert.deepEqual(state({ now: after, line: line({ finished: true }) }), { open: false, why: "not-absent" });
+  });
+
+  test("what approving writes: as Can't make it before, Absent to Excused after Finish, never over a line that came", () => {
+    const starts = new Date("2026-11-10T18:00:00Z");
+    const before = new Date("2026-11-10T17:00:00Z");
+    const after = new Date("2026-11-10T21:00:00Z");
+    const plan = (now, over = {}, cancelled = false) =>
+      model.approvalPlan({ startsAt: starts, cancelled, line: { finished: false, notHeld: false, mark: null, ...over }, now });
+    assert.deepEqual(plan(before), { write: "in-advance", outcome: "written", say: "before", tellsFacilitators: true });
+    assert.equal(plan(after).write, "draft");
+    assert.equal(plan(after, { mark: "absent" }).write, "draft");
+    assert.deepEqual(plan(after, { finished: true, mark: "absent" }), { write: "correct", outcome: "corrected", say: "excused-now", tellsFacilitators: true });
+    for (const came of ["present", "late", "left-early"]) {
+      assert.deepEqual(plan(after, { finished: true, mark: came }), { write: "keep", outcome: "kept", say: "came", tellsFacilitators: false, kept: "came" });
+      assert.equal(plan(after, { mark: came }).write, "keep", "a facilitator's draft entry wins");
+    }
+    assert.equal(plan(after, { finished: true, mark: "excused" }).kept, "excused");
+    assert.equal(plan(after, { finished: true }).kept, "no-line");
+    assert.equal(plan(before, {}, true).kept, "not-held");
+    assert.equal(plan(after, { finished: true, notHeld: true, mark: "absent" }).kept, "not-held");
+  });
+
+  test("the one fact: waiting, else excused, else nothing; a request's status follows its weeks", () => {
+    const req = (weeks) => ({ id: "r", subjectUid: "amara", askedAt: new Date(1), weeks: weeks.map(([sessionKey, status, ms = 2]) => ({ sessionKey, status, decidedAt: new Date(ms), withdrawnAt: null })) });
+    const requests = [req([["w02", "declined", 5]]), req([["w02", "waiting"]])];
+    assert.equal(model.factOf(model.weeksAbout(requests, "amara", "w02")), "waiting");
+    assert.equal(model.factOf(model.weeksAbout([req([["w02", "approved"]])], "amara", "w02")), "excused");
+    assert.equal(model.factOf(model.weeksAbout([req([["w02", "declined"]])], "amara", "w02")), null);
+    assert.equal(model.factOf(model.weeksAbout([req([["w02", "withdrawn"]])], "amara", "w02")), null);
+    assert.equal(model.factOf(model.weeksAbout([req([["w02", "approved"]])], "dev", "w02")), null);
+    assert.equal(record.excusedStatusOf([{ status: "approved" }, { status: "waiting" }]), "waiting");
+    assert.equal(record.excusedStatusOf([{ status: "declined" }, { status: "approved" }]), "approved");
+    assert.equal(record.excusedStatusOf([{ status: "declined" }, { status: "withdrawn" }]), "declined");
+    assert.equal(record.excusedStatusOf([{ status: "withdrawn" }]), "withdrawn");
+  });
+
+  test("three kinds of being excused, told apart: approved, said when the time was set, said in advance before requests", () => {
+    const told = new Date("2026-11-01T10:00:00Z");
+    assert.equal(model.excusedKindOf({ approved: true, mark: "present", toldAt: null, ticked: false }), "approved");
+    assert.equal(model.excusedKindOf({ approved: false, mark: "excused", toldAt: told, ticked: true }), "time-set");
+    assert.equal(model.excusedKindOf({ approved: false, mark: "excused", toldAt: told, ticked: false }), "in-advance");
+    assert.equal(model.excusedKindOf({ approved: false, mark: "excused", toldAt: null, ticked: false }), null, "a facilitator's own Excused is the register's");
+    assert.equal(words.excusedKindWords("in-advance"), "Said in advance, before requests");
+    assert.equal(words.excusedKindWords("time-set"), "Said when the time was set");
+    assert.equal(words.timesThisTermWords(1), "Once this term.");
+    assert.equal(words.timesThisTermWords(0), "Never, this term.");
+  });
+
+  test("an excused request is read only by its own normaliser, so no correction reader can mistake it for one", () => {
+    const doc = {
+      kind: "excused",
+      status: "waiting",
+      runId: RUN.agi,
+      groupId: B,
+      subjectUid: "amara",
+      askedByUid: "amara",
+      reason: REASON,
+      reasonHeld: true,
+      change: { weeks: [{ sessionKey: "w02", status: "waiting" }, { sessionKey: "w02", status: "waiting" }, { sessionKey: "nope", status: "waiting" }] },
+    };
+    assert.equal(requestsLib.normalizeCourseRequest("r", doc), null, "the correction normaliser reads an excused request");
+    assert.deepEqual(requestsLib.COURSE_REQUEST_KINDS, ["register-correction"]);
+    const read = record.normalizeExcusedRequest("r", doc);
+    assert.deepEqual(read.weeks.map((week) => week.sessionKey), ["w02"], "a garbled or repeated week is dropped");
+    assert.equal(read.reasonHeld, true);
+    assert.equal(record.normalizeExcusedRequest("r", { ...doc, kind: "register-correction" }), null);
+    assert.equal(record.normalizeExcusedRequest("r", { ...doc, change: { weeks: [] } }), null);
+    assert.equal(record.normalizeExcusedRequest("r", { ...doc, reason: "", reasonHeld: true }).reasonHeld, false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Asking
+// ---------------------------------------------------------------------------
+
+describe("asking: somebody holding a told place, for their own group's sessions, and nothing on a register", () => {
+  beforeEach(placed);
+
+  test("Amara asks about week 2: one request, waiting, nothing on the register, nobody emailed", async () => {
+    const answer = await ask("amara", { sessionKeys: ["w02"], reason: REASON });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.deepEqual(Object.keys(answer.body).sort(), ["ok", "request"]);
+    assert.deepEqual(answer.body.request.weeks, [
+      { sessionKey: "w02", weekNumber: 2, occurrence: 1, dateKey: "2026-11-10", asked: "before", state: "waiting" },
+    ]);
+    const [doc] = requestDocs();
+    assert.equal(doc.kind, "excused");
+    assert.equal(doc.status, "waiting");
+    assert.deepEqual([doc.subjectUid, doc.askedByUid, doc.runId, doc.groupId], ["amara", "amara", RUN.agi, B]);
+    assert.equal(doc.reason, REASON);
+    assert.equal(doc.reasonHeld, true);
+    assert.equal(doc.change.weeks[0].offered.online, true, "joining online was open to her first");
+    assert.equal(stored(), null, "a waiting request holds no register up");
+    assert.deepEqual(world.mail, []);
+  });
+
+  test("several weeks in one request, each waiting on its own", async () => {
+    const answer = await ask("amara", { sessionKeys: ["w03", "w02"], reason: REASON });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.deepEqual(answer.body.request.weeks.map((week) => week.sessionKey), ["w02", "w03"]);
+    assert.equal(requestDocs()[0].sessionKey, "w02");
+  });
+
+  test("not twice for a week that waits, nor for one already excused; a facilitator of the group keeps Can't make it", async () => {
+    await amaraAsks();
+    const again = await ask("amara", { sessionKeys: ["w03", "w02"], reason: REASON });
+    assert.deepEqual([again.status, again.body.error], [409, "You’ve already asked to be excused from week 2, and it’s waiting."]);
+    assert.equal(requestDocs().length, 1, "a refused ask writes nothing");
+    // Dev says Can't make it on week 3 the old way: asking adds nothing.
+    assert.equal((await call("dev", cantMakeItRoute.POST, { groupId: B }, { body: { sessionKey: "w03", cantMakeIt: true }, course: true })).status, 200);
+    const told = await ask("dev", { sessionKeys: ["w03"], reason: REASON });
+    assert.deepEqual([told.status, told.body.error], [409, "You’re already excused from week 3."]);
+    // Rahul facilitates Group B and holds a place in it.
+    seatLike("rahul");
+    const fac = await ask("rahul", { sessionKeys: ["w02"], reason: REASON });
+    assert.deepEqual([fac.status, fac.body.error], [403, words.EXCUSED_REFUSAL.facilitates]);
+  });
+
+  test("nobody else asks: staff, another group's people, somebody on nothing, signed out, view-as", async () => {
+    for (const who of ["zach", "claudia", "yusuf", "rahul", "bea", "nobody"]) {
+      const answer = await ask(who, { sessionKeys: ["w02"], reason: REASON });
+      assert.deepEqual([answer.status, answer.body.error], [404, words.EXCUSED_REFUSAL.notYours], who);
+    }
+    assert.equal((await ask(null, { sessionKeys: ["w02"], reason: REASON })).status, 401);
+    assert.equal((await ask("amara", { sessionKeys: ["w02"], reason: REASON }, B, { viewAs: true })).status, 403);
+    assert.equal((await ask("amara", { sessionKeys: ["w02"], reason: REASON }, "missing-group")).status, 404);
+    assert.equal((await ask("amara", { sessionKeys: ["w09"], reason: REASON })).status, 400);
+    assert.deepEqual(requestDocs(), []);
+  });
+
+  test("after the session: only once its register is finished and says Absent", async () => {
+    at(DURING_W2);
+    assert.equal((await mark("rahul", 2, [{ uid: "amara", status: "absent" }, { uid: "dev", status: "present" }])).status, 200);
+    at(AFTER_W2);
+    const early = await ask("amara", { sessionKeys: ["w02"], reason: REASON });
+    assert.deepEqual([early.status, early.body.error], [409, "Week 2’s session has started. You can ask once its register is finished, if it says you were absent."]);
+    const devEarly = await ask("dev", { sessionKeys: ["w02"], reason: REASON });
+    assert.equal(devEarly.body.error, early.body.error, "a draft's marks are never said to the person");
+    assert.equal((await finish("rahul", 2)).status, 200);
+    world.mail.length = 0;
+    const came = await ask("dev", { sessionKeys: ["w02"], reason: REASON });
+    assert.deepEqual([came.status, came.body.error], [409, "Week 2’s register says you came, so there’s nothing to be excused from."]);
+    const answer = await ask("amara", { sessionKeys: ["w02"], reason: "I was ill." });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.equal(answer.body.request.weeks[0].asked, "after");
+    assert.equal(requestDocs()[0].change.weeks[0].offered.online, false);
+  });
+
+  test("until the programme closes", async () => {
+    at(CLOSED);
+    const answer = await ask("amara", { sessionKeys: ["w02"], reason: REASON });
+    assert.deepEqual([answer.status, answer.body.error], [409, words.EXCUSED_REFUSAL.closed]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Withdrawing
+// ---------------------------------------------------------------------------
+
+describe("withdrawing: the asker, a week or the whole request, while it waits", () => {
+  beforeEach(placed);
+
+  test("one week, then the rest; nothing on a register; nobody emailed", async () => {
+    const id = await amaraAsks(["w02", "w03"]);
+    const one = await act("amara", "withdraw", id, { sessionKey: "w03" });
+    assert.equal(one.status, 200, JSON.stringify(one.body));
+    assert.deepEqual(one.body, { ok: true, status: "waiting", weeks: [{ sessionKey: "w02", state: "waiting" }, { sessionKey: "w03", state: "withdrawn" }] });
+    const again = await act("amara", "withdraw", id, { sessionKey: "w03" });
+    assert.deepEqual([again.status, again.body.error], [409, "Week 3 was withdrawn."]);
+    const rest = await act("amara", "withdraw", id);
+    assert.deepEqual([rest.status, rest.body.status], [200, "withdrawn"]);
+    const doc = requestDocs()[0];
+    assert.equal(doc.status, "withdrawn");
+    assert.ok(doc.withdrawnAt);
+    assert.deepEqual(doc.history.map((entry) => [entry.what, entry.sessionKey]), [["asked", null], ["withdrawn", "w03"], ["withdrawn", "w02"]]);
+    const none = await act("amara", "withdraw", id);
+    assert.deepEqual([none.status, none.body.error], [409, words.EXCUSED_REFUSAL.nothingWaiting]);
+    assert.equal(stored(), null);
+    assert.deepEqual(world.mail, []);
+  });
+
+  test("only the asker: anybody else is told nothing, an admin is told why", async () => {
+    const id = await amaraAsks();
+    for (const who of ["dev", "rahul", "claudia", "yusuf", "nobody"]) {
+      assert.deepEqual([(await act(who, "withdraw", id)).status, (await act(who, "withdraw", id)).body.error], [403, "Forbidden"], who);
+    }
+    const admin = await act("zach", "withdraw", id);
+    assert.deepEqual([admin.status, admin.body.error], [403, words.EXCUSED_REFUSAL.onlyAsker]);
+    assert.deepEqual([(await act("zach", "withdraw", "missing")).status, (await act("dev", "withdraw", "missing")).status], [404, 403]);
+    assert.equal((await act(null, "withdraw", id)).status, 401);
+    assert.equal(requestDocs()[0].status, "waiting");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Deciding
+// ---------------------------------------------------------------------------
+
+describe("deciding: admins only, each week on its own, and the register follows an approval", () => {
+  beforeEach(placed);
+
+  test("only an admin decides: never the lead, a track lead, a facilitator or the asker", async () => {
+    const id = await amaraAsks();
+    for (const who of ["claudia", "yusuf", "rahul", "amara", "dev", "nobody"]) {
+      for (const action of ["approve", "decline", "reply"]) {
+        const answer = await act(who, action, id, { sessionKey: "w02", reply: REPLY });
+        assert.deepEqual([answer.status, answer.body.error], [403, "Forbidden"], `${who} ${action}`);
+      }
+    }
+    for (const action of ["approve", "decline", "reply"]) {
+      assert.equal((await act("zach", action, "missing", { sessionKey: "w02", reply: REPLY })).status, 404, action);
+      assert.equal((await act(null, action, id, {})).status, 401, action);
+    }
+    // The correction routes do not know an excused request: nobody approves one through them.
+    assert.deepEqual([(await call("zach", correctionApprove.POST, { requestId: id }, { body: {}, course: true })).status], [404]);
+    assert.equal(requestDocs()[0].status, "waiting");
+    assert.equal(stored(), null);
+    assert.deepEqual(world.mail, []);
+  });
+
+  test("an admin who asked does not decide their own", async () => {
+    seatLike("zach");
+    const answer = await ask("zach", { sessionKeys: ["w02"], reason: REASON });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    const own_ = await act("zach", "approve", answer.body.request.id, { sessionKey: "w02" });
+    assert.deepEqual([own_.status, own_.body.error], [403, words.EXCUSED_REFUSAL.ownRequest]);
+  });
+
+  test("approved before the session: the line reads exactly as Can't make it leaves it, set by the approval; two emails, never the reason", async () => {
+    const id = await amaraAsks();
+    // Dev says Can't make it the old way, for the comparison.
+    assert.equal((await call("dev", cantMakeItRoute.POST, { groupId: B }, { body: { sessionKey: "w02", cantMakeIt: true }, course: true })).status, 200);
+    const answer = await act("zach", "approve", id, { sessionKey: "w02", reply: REPLY });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.deepEqual(answer.body, {
+      ok: true,
+      status: "approved",
+      week: { sessionKey: "w02", state: "approved", register: "written" },
+      logged: 0,
+      emailed: { person: "sent", facilitators: 2 },
+    });
+    const doc = stored();
+    assert.equal(doc.records.amara, "excused");
+    assert.ok(doc.excusedInAdvance.amara instanceof Date);
+    assert.deepEqual(doc.setBy.amara, { byUid: "zach", at: BEFORE_W2, how: "approval" });
+    assert.equal(doc.setBy.dev.how, "self");
+    assert.equal(doc.markedByUid, undefined, "an approval takes no register");
+    assert.equal(doc.pushedAt, undefined);
+    assert.deepEqual(auditRows().filter((row) => row.groupId === B), [], "an approval before the session writes no history row");
+
+    const decided = requestDocs()[0];
+    assert.equal(decided.status, "approved");
+    assert.deepEqual(
+      [decided.change.weeks[0].status, decided.change.weeks[0].decidedByUid, decided.change.weeks[0].reply, decided.change.weeks[0].register],
+      ["approved", "zach", REPLY, "written"],
+    );
+
+    const sent = await mailText();
+    const email = (uid) => world.db.read(`users/${uid}`).email;
+    assert.deepEqual(sent.map((each) => [each.to, each.kind]).sort(), [
+      [email("amara"), "course-enrolment"],
+      [email("rahul"), "course-facilitator"],
+      [email("sofia"), "course-facilitator"],
+    ].sort());
+    assert.equal(sent.find((each) => each.to === email("amara")).subject, "You’re excused from week 2");
+    const person = sent.find((each) => each.to === world.db.read("users/amara").email);
+    assert.match(person.html, /approved your request to be excused from Group B’s week 2 session, Tue 10 Nov, 6pm\./);
+    assert.match(person.html, /Hope the appointment goes well\./);
+    assert.match(person.html, /If you can come after all, just come along\./);
+    assert.match(person.html, /Rahul and Sofia are told you’re excused, but not why\./);
+    for (const each of sent) {
+      assert.ok(!each.html.includes("appointment on Tuesday"), `${each.to} was sent the reason`);
+      assert.doesNotMatch(each.html, /meet\.|zoom|teams\.microsoft/i, "an email carries a meeting link");
+    }
+    const facilitator = sent.find((each) => each.to === world.db.read("users/rahul").email);
+    assert.match(facilitator.subject, / is excused from week 2$/);
+    assert.match(facilitator.html, /Your register will show .+ as excused for Tue 10 Nov\. There’s nothing for you to do\./);
+    assert.ok(!facilitator.html.includes(REPLY), "a facilitator was sent the reply");
+
+    // THE READERS THAT KNEW NOTHING OF REQUESTS read Amara's line as Dev's:
+    // the instant ticket's own state, whether the register is taken, and the
+    // register's "can't make it" list.
+    const register_ = attendanceLib.normalizeCourseAttendance("x", doc);
+    for (const uid of ["amara", "dev"]) {
+      const state = cantModel.cantMakeItState({
+        startsAt: new Date("2026-11-10T18:00:00Z"),
+        cancelled: false,
+        line: { finished: false, notHeld: false, mark: register_.records[uid], toldAt: register_.excusedInAdvance[uid] ?? null },
+        now: BEFORE_W2,
+      });
+      assert.equal(state.kind, "told", uid);
+    }
+    assert.equal(attendanceLib.registerIsTaken(doc), false);
+    const keysOf = (uid) => Object.keys(doc).filter((key) => doc[key] && typeof doc[key] === "object" && Object.hasOwn(doc[key], uid)).sort();
+    assert.deepEqual(keysOf("amara"), keysOf("dev"), "the approval wrote a field Can't make it does not");
+    const asRahul = await readRegister("rahul");
+    assert.deepEqual(asRahul.body.cantMakeIt.find((entry) => entry.sessionKey === "w02").uids.sort(), ["amara", "dev"]);
+  });
+
+  test("after Finish: Absent becomes Excused as a correction made by the approval, logged without the reason; the figures follow", async () => {
+    at(DURING_W2);
+    assert.equal((await mark("rahul", 2, [{ uid: "amara", status: "absent" }, { uid: "dev", status: "present" }])).status, 200);
+    assert.equal((await finish("rahul", 2)).status, 200);
+    at(AFTER_W2);
+    const absentBefore = rollup("amara");
+    const id = await amaraAsks();
+    world.mail.length = 0;
+    const answer = await act("zach", "approve", id, { sessionKey: "w02" });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.deepEqual([answer.body.week.register, answer.body.logged], ["corrected", 1]);
+    const doc = stored();
+    assert.equal(doc.records.amara, "excused");
+    assert.equal(doc.setBy.amara.how, "approval");
+    assert.equal(doc.corrected.amara.byUid, "zach");
+    assert.equal(doc.excusedInAdvance?.amara, undefined, "after the session it was not said in advance");
+    assert.notDeepEqual(rollup("amara"), absentBefore, "the figures did not follow");
+    const [row] = auditRows("attendance-edit");
+    assert.equal(row.requestId, id);
+    assert.equal(row.subjectUid, "amara");
+    assert.equal(row.reason, undefined, "the history carries the reason");
+    assert.deepEqual([row.before.line, row.after.line], ["Absent", "Excused"]);
+    assert.match(row.detail, /^Zach approved .+’s request to be excused for week 2\. The register changed from Absent to Excused\. Emailed .+\.$/);
+    assert.ok(!row.detail.includes(REASON));
+    const { rows: shown } = await history.loadGroupHistory(world.courseDb, RUN.agi, B);
+    const listed = shown.find((each) => each.kind === "attendance-edit");
+    assert.equal(listed.category, "registers");
+    assert.ok(!JSON.stringify(shown).includes(REASON), "the group's history carries the reason");
+    const sent = await mailText();
+    assert.equal(sent.length, 3);
+    assert.match(sent.find((each) => each.subject === "You’re excused from week 2").html, /Your register says Excused for that session/);
+    // What the facilitator reads of the corrected line: the story, never the reason or who asked.
+    const asRahul = await readRegister("rahul");
+    assert.equal(asRahul.body.corrections.w02.amara.before, "Absent");
+    assert.equal(asRahul.body.corrections.w02.amara.asked, null);
+    assert.ok(!JSON.stringify(asRahul.body).includes(REASON));
+  });
+
+  test("after Finish, a line that says they came is left alone, and the week is approved all the same", async () => {
+    at(DURING_W2);
+    assert.equal((await mark("rahul", 2, [{ uid: "amara", status: "absent" }, { uid: "dev", status: "present" }])).status, 200);
+    assert.equal((await finish("rahul", 2)).status, 200);
+    at(AFTER_W2);
+    const id = await amaraAsks();
+    // An admin corrects Amara's line to In the room before the request is decided.
+    assert.equal(
+      (await call("zach", register.PATCH, { groupId: B }, { body: { weekNumber: 2, marks: [{ uid: "amara", status: "present" }], reason: "She was there." }, course: true }))
+        .status,
+      200,
+    );
+    world.mail.length = 0;
+    const rows = auditRows().length;
+    const answer = await act("zach", "approve", id, { sessionKey: "w02" });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.deepEqual([answer.body.week.register, answer.body.logged, answer.body.emailed.facilitators], ["kept", 0, 0]);
+    assert.equal(stored().records.amara, "present");
+    assert.equal(auditRows().length, rows);
+    const sent = await mailText();
+    assert.equal(sent.length, 1, "the facilitators were told of a line that says they came");
+    assert.match(sent[0].html, /Your register says you were there, so it stays as it is\./);
+  });
+
+  test("a facilitator's later mark wins, and the request stays approved", async () => {
+    const id = await amaraAsks();
+    assert.equal((await act("zach", "approve", id, { sessionKey: "w02" })).status, 200);
+    at(DURING_W2);
+    assert.equal((await mark("rahul", 2, [{ uid: "amara", status: "present" }])).status, 200);
+    assert.equal(stored().records.amara, "present");
+    assert.equal(stored().excusedInAdvance?.amara, undefined);
+    assert.equal(requestDocs()[0].status, "approved");
+    const asRahul = await readRegister("rahul");
+    assert.equal(asRahul.body.excuseRequests.w02.amara, "excused");
+  });
+
+  test("declining needs a reply, changes nothing on a register and emails the person alone", async () => {
+    const id = await amaraAsks(["w02", "w03"]);
+    const bare = await act("zach", "decline", id, { sessionKey: "w02" });
+    assert.deepEqual([bare.status, bare.body.error], [400, words.EXCUSED_REFUSAL.reply]);
+    const before = everything();
+    const answer = await act("zach", "decline", id, { sessionKey: "w02", reply: "You could join online." });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.deepEqual(answer.body, { ok: true, status: "waiting", week: { sessionKey: "w02", state: "declined" }, emailed: { person: "sent" } });
+    assert.notEqual(everything(), before);
+    assert.equal(stored(), null);
+    const sent = await mailText();
+    assert.deepEqual(sent.map((each) => [each.to, each.subject]), [[world.db.read("users/amara").email, "About your request for week 2"]]);
+    assert.match(sent[0].html, /Your request to be excused from Tue 10 Nov wasn’t approved\./);
+    assert.match(sent[0].html, /You could join online\./);
+    const twice = await act("zach", "decline", id, { sessionKey: "w02", reply: "Again." });
+    assert.deepEqual([twice.status, twice.body.error], [409, "Week 2 has been decided already."]);
+    // The other week, approved: one email per decision.
+    world.mail.length = 0;
+    assert.equal((await act("zach", "approve", id, { sessionKey: "w03" })).status, 200);
+    assert.equal(requestDocs()[0].status, "approved");
+    assert.equal((await mailText()).filter((each) => each.to === world.db.read("users/amara").email).length, 1);
+  });
+
+  test("a reply without deciding is kept on the request and emailed to the person", async () => {
+    const id = await amaraAsks();
+    const answer = await act("zach", "reply", id, { reply: "Could you join online instead?" });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.deepEqual(answer.body, { ok: true, status: "waiting", replied: true, emailed: { person: "sent" } });
+    const doc = requestDocs()[0];
+    assert.equal(doc.change.replies[0].text, "Could you join online instead?");
+    assert.equal(doc.reply, "Could you join online instead?");
+    assert.equal(doc.status, "waiting");
+    assert.deepEqual(doc.history.map((entry) => entry.what), ["asked", "replied"]);
+    const sent = await mailText();
+    assert.deepEqual(sent.map((each) => each.subject), ["About your request for week 2"]);
+    assert.match(sent[0].html, /It’s still waiting for a decision\./);
+    assert.equal(stored(), null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Who is sent what
+// ---------------------------------------------------------------------------
+
+describe("who is sent what: the reason and how often to admins only, one of two facts to the people running the group", () => {
+  beforeEach(placed);
+
+  test("the register's read: waiting, then excused, and nothing else, for everybody who reads it", async () => {
+    const id = await amaraAsks();
+    for (const who of ["rahul", "claudia", "yusuf", "zach"]) {
+      const answer = await readRegister(who);
+      assert.equal(answer.status, 200, who);
+      assert.deepEqual(answer.body.excuseRequests, { w02: { amara: "waiting" } }, who);
+      assert.ok(!JSON.stringify(answer.body).includes(REASON), `${who} was sent the reason`);
+      assert.deepEqual(answer.body.requests, {}, `${who} was sent an excused request as a correction`);
+    }
+    assert.equal((await act("zach", "approve", id, { sessionKey: "w02", reply: REPLY })).status, 200);
+    const after = await readRegister("rahul");
+    assert.deepEqual(after.body.excuseRequests, { w02: { amara: "excused" } });
+    assert.ok(!JSON.stringify(after.body).includes(REPLY), "a facilitator was sent the reply");
+  });
+
+  test("a declined or withdrawn week shows nothing", async () => {
+    const id = await amaraAsks(["w02", "w03"]);
+    assert.equal((await act("zach", "decline", id, { sessionKey: "w02", reply: "No." })).status, 200);
+    assert.equal((await act("amara", "withdraw", id, { sessionKey: "w03" })).status, 200);
+    assert.deepEqual((await readRegister("rahul")).body.excuseRequests, {});
+  });
+
+  test("the group's page: the fact beside each person for the lead, never the reason", async () => {
+    await amaraAsks();
+    const run = courses.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+    const group = groups.normalizeCourseGroup(B, world.db.read(`courseGroups/${B}`));
+    const view = await groupPage.loadGroupPage(world.courseDb, { run, group, viewer: "lead", viewerUid: "claudia", now: new Date() });
+    const week2 = view.weeks.find((week) => week.sessionKey === "w02");
+    assert.equal(week2.people.find((person) => person.uid === "amara").excuse, "waiting");
+    assert.equal("excuse" in week2.people.find((person) => person.uid === "dev"), false);
+    assert.ok(!JSON.stringify(view).includes(REASON));
+  });
+
+  test("the Requests page: an excused request is an admin's row only; one request's page is an admin's only", async () => {
+    const id = await amaraAsks();
+    const asAdmin = await loaders.loadRequestsPage(world.courseDb, sessionOf("zach"), AFTER_W2);
+    const row = asAdmin.view.rows.find((each) => each.id === id);
+    assert.equal(row.kind, "excused");
+    assert.deepEqual(row.weeks.map((week) => [week.sessionKey, week.state]), [["w02", "waiting"]]);
+    assert.equal(asAdmin.view.counts.waiting, 1);
+    assert.ok(!JSON.stringify(asAdmin).includes(REASON), "the list carries the reason");
+    for (const who of ["claudia", "yusuf"]) {
+      const asLead = await loaders.loadRequestsPage(world.courseDb, sessionOf(who), AFTER_W2);
+      assert.equal(asLead.view.rows.some((each) => each.id === id), false, who);
+      assert.equal(asLead.view.counts.waiting, 0, who);
+    }
+    for (const who of ["claudia", "yusuf", "rahul", "amara"]) {
+      assert.equal((await loaders.loadRequestPage(world.courseDb, sessionOf(who), id)).status, "none", who);
+      assert.equal((await page.loadExcusedRequestPage(world.courseDb, sessionOf(who), id, AFTER_W2)).status, "none", who);
+    }
+    assert.equal(await home.requestsWaitingOnRun(world.courseDb, RUN.agi), 0, "a lead's count includes an excused request");
+    assert.equal(await home.requestsWaitingOnRun(world.courseDb, RUN.agi, { excused: true }), 1);
+  });
+
+  test("one request's page for an admin: the reason, each week, what approving will do and who it emails, how often before", async () => {
+    // Dev's earlier, before requests: week 1, the instant way.
+    world.db.seed(`courseAttendance/${RUN.agi}__${B}__w01`, {
+      runId: RUN.agi,
+      groupId: B,
+      weekNumber: 1,
+      occurrence: 1,
+      records: { amara: "excused" },
+      excusedInAdvance: { amara: new Date("2026-11-01T10:00:00Z") },
+    });
+    const id = await amaraAsks(["w02", "w03"]);
+    const loaded = await page.loadExcusedRequestPage(world.courseDb, sessionOf("zach"), id, BEFORE_W2);
+    assert.equal(loaded.status, "ok");
+    const view = loaded.view;
+    assert.equal(view.reason, REASON);
+    assert.deepEqual(view.weeks.map((week) => [week.sessionKey, week.status, week.approving.write]), [["w02", "waiting", "in-advance"], ["w03", "waiting", "in-advance"]]);
+    assert.equal(view.weeks[0].approving.emails, 3);
+    assert.match(view.weeks[0].approving.told, /^3 emails: .+, with your reply; and .+ and .+, without the reason\.$/);
+    assert.match(view.weeks[0].approving.words, /^The register says Excused for .+, with nothing for .+ to do\.$/);
+    assert.deepEqual(view.excusedBefore.counts, { approved: 0, "time-set": 0, "in-advance": 1 });
+    assert.deepEqual(view.excusedBefore.weeks.map((week) => [week.sessionKey, week.kind]), [["w01", "in-advance"]]);
+    assert.equal(view.canDecide, true);
+  });
+
+  test("the person's own: their card's facts and their own words, never a count", async () => {
+    const id = await amaraAsks();
+    const run = courses.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+    const groupList = [A, B, C].map((gid) => groups.normalizeCourseGroup(gid, world.db.read(`courseGroups/${gid}`)));
+    const seat = enrolments.normalizeCourseEnrolment(`${RUN.agi}__amara`, world.db.read(`courseEnrolments/${RUN.agi}__amara`));
+    const readOwn = () => own.excusedFor(world.courseDb, { user: sessionOf("amara"), run, enrolment: seat, groups: groupList, now: new Date() });
+    let view = await readOwn();
+    const week2 = view.sessions.find((session) => session.sessionKey === "w02");
+    assert.deepEqual([week2.excuse.kind, week2.excuse.reason, week2.ask.open], ["waiting", REASON, false]);
+    assert.equal(view.sessions.find((session) => session.sessionKey === "w03").ask.open, true);
+    assert.equal(view.sessions.find((session) => session.sessionKey === "w03").first.online, true);
+    assert.equal(view.asks, true);
+    assert.ok(!/"count"|"counts"|timesThisTerm/.test(JSON.stringify(view)), "a member was sent a count");
+    assert.equal((await act("zach", "approve", id, { sessionKey: "w02", reply: REPLY })).status, 200);
+    view = await readOwn();
+    const approved = view.sessions.find((session) => session.sessionKey === "w02").excuse;
+    assert.equal(approved.kind, "approved");
+    assert.equal(approved.reply, REPLY);
+    assert.equal(approved.by.firstName, "Zach");
+    assert.deepEqual(view.requests.map((each) => [each.id, each.status]), [[id, "approved"]]);
+    // Nobody else's: Dev reads none of Amara's.
+    const devSeat = enrolments.normalizeCourseEnrolment(`${RUN.agi}__dev`, world.db.read(`courseEnrolments/${RUN.agi}__dev`));
+    const devView = await own.excusedFor(world.courseDb, { user: sessionOf("dev"), run, enrolment: devSeat, groups: groupList, now: new Date() });
+    assert.deepEqual(devView.requests, []);
+    assert.equal(devView.sessions.find((session) => session.sessionKey === "w02").excuse, null);
+  });
+
+  test("today's instant lines read as said in advance, before requests; Most weeks ticks as said when the time was set", async () => {
+    // Amara: an instant line on week 2. Dev: "Most weeks, not all", week 3 ticked.
+    assert.equal((await call("amara", cantMakeItRoute.POST, { groupId: B }, { body: { sessionKey: "w02", cantMakeIt: true }, course: true })).status, 200);
+    world.db.seed(`courseAttendance/${RUN.agi}__${B}__w03`, {
+      runId: RUN.agi,
+      groupId: B,
+      weekNumber: 3,
+      occurrence: 1,
+      records: { dev: "excused" },
+      excusedInAdvance: { dev: new Date("2026-11-01T10:00:00Z") },
+    });
+    world.db.poke(`courseEnrolments/${RUN.agi}__dev`, {
+      timeAnswer: { kind: "mostWeeks", sessionKeys: ["w03"], forGroupId: B, at: new Date("2026-11-01T10:00:00Z") },
+    });
+    const run = courses.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+    const groupList = [A, B, C].map((gid) => groups.normalizeCourseGroup(gid, world.db.read(`courseGroups/${gid}`)));
+    const seatOf = (uid) => enrolments.normalizeCourseEnrolment(`${RUN.agi}__${uid}`, world.db.read(`courseEnrolments/${RUN.agi}__${uid}`));
+    const amaraView = await own.excusedFor(world.courseDb, { user: sessionOf("amara"), run, enrolment: seatOf("amara"), groups: groupList, now: new Date() });
+    assert.equal(amaraView.sessions.find((session) => session.sessionKey === "w02").excuse.kind, "in-advance");
+    const devView = await own.excusedFor(world.courseDb, { user: sessionOf("dev"), run, enrolment: seatOf("dev"), groups: groupList, now: new Date() });
+    assert.equal(devView.sessions.find((session) => session.sessionKey === "w03").excuse.kind, "time-set");
+    // No request record for either, and nothing migrated.
+    assert.deepEqual(requestDocs(), []);
+    // Dev asks about week 2; the admin's page counts week 3 apart.
+    const asked = await ask("dev", { sessionKeys: ["w02"], reason: "Away." });
+    assert.equal(asked.status, 200, JSON.stringify(asked.body));
+    const view = (await page.loadExcusedRequestPage(world.courseDb, sessionOf("zach"), asked.body.request.id, new Date())).view;
+    assert.deepEqual(view.excusedBefore.counts, { approved: 0, "time-set": 1, "in-advance": 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The reason goes when the programme closes
+// ---------------------------------------------------------------------------
+
+describe("the reason goes when the programme closes, and the decision stays", () => {
+  beforeEach(placed);
+
+  test("a closed run loses its reasons and nothing else; an open run loses nothing; twice is once", async () => {
+    const id = await amaraAsks(["w02", "w03"]);
+    assert.equal((await act("zach", "approve", id, { sessionKey: "w02", reply: REPLY })).status, 200);
+    assert.equal((await act("zach", "decline", id, { sessionKey: "w03", reply: "No." })).status, 200);
+    const waitingId = (await ask("dev", { sessionKeys: ["w04"], reason: "Still waiting." })).body.request.id;
+    // Open: nothing happens.
+    const open = await tidy.deleteClosedReasons(world.courseDb, AFTER_W2);
+    assert.deepEqual(open, { deleted: 0, runsClosed: 0, runsOpen: 1 });
+    assert.equal(world.db.read(`courseRequests/${id}`).reason, REASON);
+    // Closed: every reason of the run goes, decided and still waiting.
+    const before = structuredClone(world.db.read(`courseRequests/${id}`));
+    const closed = await tidy.deleteClosedReasons(world.courseDb, CLOSED);
+    assert.deepEqual(closed, { deleted: 2, runsClosed: 1, runsOpen: 0 });
+    const after = world.db.read(`courseRequests/${id}`);
+    assert.equal(after.reason, undefined);
+    assert.equal(after.reasonHeld, false);
+    assert.ok(after.reasonGoneAt);
+    const { reason: _r, reasonHeld: _h, reasonGoneAt: _g, ...rest } = after;
+    const { reason: _r2, reasonHeld: _h2, ...was } = before;
+    assert.deepEqual(rest, was, "something besides the reason changed");
+    assert.equal(world.db.read(`courseRequests/${waitingId}`).reason, undefined);
+    // Twice is once.
+    const snapshot = everything();
+    assert.deepEqual(await tidy.deleteClosedReasons(world.courseDb, CLOSED), { deleted: 0, runsClosed: 0, runsOpen: 0 });
+    assert.equal(everything(), snapshot);
+    // The admin's page says it went; the person is still excused.
+    const view = (await page.loadExcusedRequestPage(world.courseDb, sessionOf("zach"), id, CLOSED)).view;
+    assert.equal(view.reason, "");
+    assert.ok(view.reasonGoneAt);
+    assert.equal(view.weeks[0].status, "approved");
+  });
+
+  test("a run with no close moment keeps its reasons", async () => {
+    await amaraAsks();
+    world.db.poke(`courseRuns/${RUN.agi}`, { weekPlan: [] });
+    assert.deepEqual(await tidy.deleteClosedReasons(world.courseDb, CLOSED), { deleted: 0, runsClosed: 0, runsOpen: 1 });
+    assert.equal(requestDocs()[0].reason, REASON);
+  });
+
+  test("the job: registered, on by default because the privacy policy promises it, and it emails nobody", async () => {
+    const job = jobModule.excusedReasonsOffJob;
+    assert.equal(job.id, "courses-excused-reasons-off");
+    assert.equal(job.enabledByDefault, undefined, "a job that keeps a privacy promise ships switched off");
+    const registry = readFileSync(join(SRC, "lib", "scheduler", "registry.ts"), "utf8");
+    assert.match(registry, /^\s*"courses-excused-reasons-off",$/m);
+    assert.match(registry, /^\s*excusedReasonsOffJob,$/m);
+    const source = readFileSync(join(SRC, "lib", "scheduler", "jobs", "excusedReasonsOff.ts"), "utf8");
+    assert.doesNotMatch(source, /@\/lib\/(email|push)\//);
+    // It runs as the tick runs it: a count, never a reason.
+    await amaraAsks();
+    at(CLOSED);
+    const logged = [];
+    const result = await job.handler({ now: CLOSED, log: (message, extra) => logged.push([message, extra]), budget: { remainingMs: () => 1e6, expired: () => false } });
+    assert.deepEqual([result.processed, result.note], [1, "1 reasons deleted"]);
+    assert.ok(!JSON.stringify(logged).includes(REASON));
+  });
+});

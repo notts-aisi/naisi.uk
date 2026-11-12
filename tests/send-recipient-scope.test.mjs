@@ -398,6 +398,18 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/lib/courses/excused/decide.ts#group.facilitatorUids",
+    {
+      reads: 3,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "The group's facilitators an approved request to be excused tells (never the reason): each named on the " +
+        "group, held to the standing the role is appointed behind, with an address, never the person the request " +
+        "is about and never the admin pressing. The press names nobody: the request names its group.",
+    },
+  ],
+  [
     "src/app/api/courses/groups/[groupId]/attendance/push/route.ts#group.facilitatorUids",
     {
       reads: 2,

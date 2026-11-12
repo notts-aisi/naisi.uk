@@ -7,6 +7,7 @@ import { slotDays } from "@/lib/courses/sessionChange/model";
 import { updateEmailAudience } from "@/lib/courses/updates/audience";
 import { addDaysToKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { loadGroupHistory } from "@/lib/courses/groupHistory/load";
+import { excuseFactsForGroup, type ExcuseFacts } from "@/lib/courses/excused/facts";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { coverIsLive, startedByFacilitator } from "@/lib/courses/registerCover/model";
 import { startedAgoWords } from "@/lib/courses/registerCover/pageWords";
@@ -149,7 +150,19 @@ export async function loadGroupPage(
   const coverUids = staff
     ? [...new Set(registerSnaps.map((snap) => (snap?.exists ? normalizeCourseAttendance(snap.id, snap.data() ?? {}).cover?.byUid ?? "" : "")).filter(Boolean))]
     : [];
-  const coverNames = await namesOf(db, coverUids.filter((uid) => !names.has(uid)));
+  const [coverNames, excuseFacts] = await Promise.all([
+    namesOf(db, coverUids.filter((uid) => !names.has(uid))),
+    // Requests to be excused: one of two facts per person per session, for
+    // the page's staff only (the facilitator's cut lists no people).
+    staff
+      ? excuseFactsForGroup(db, {
+          runId: run.id,
+          groupId: group.id,
+          uids: new Set(fellows.map((seat) => seat.uid)),
+          sessionKeys: sessions.map((session) => session.sessionKey),
+        })
+      : Promise.resolve<ExcuseFacts>({}),
+  ]);
   const anyName = (uid: string) => names.get(uid)?.full || coverNames.get(uid)?.full || "NAISI member";
 
   const weeks: GroupPageWeek[] = sessions.map((session, index) => {
@@ -206,7 +219,10 @@ export async function loadGroupPage(
       cantMakeIt: staff ? everyone.filter((uid) => cantUids.has(uid)).map(nameOf).filter(Boolean) : [],
       people: staff
         ? fellows
-            .map((seat) => ({ uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: saidOf(seat.uid) }))
+            .map((seat) => {
+              const excuse = excuseFacts[session.sessionKey]?.[seat.uid];
+              return { uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: saidOf(seat.uid), ...(excuse ? { excuse } : {}) };
+            })
             .sort((a, b) => a.name.localeCompare(b.name))
         : [],
       finished: Boolean(stored?.pushedAt),

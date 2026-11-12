@@ -84,8 +84,12 @@ import { CANT_MAKE_IT_REFUSAL } from "./words";
  * Nobody is emailed, and nothing is sent later because of it.
  */
 
-/** Whether this seat is one of the group's people the register shows, by the caller's own uid. */
-function takesPartIn(user: SessionUser, seat: CourseEnrolmentDoc, group: CourseGroupDoc, runId: string): boolean {
+/**
+ * Whether this seat is one of the group's people the register shows, by the
+ * caller's own uid. Asking to be excused from a week asks the same
+ * (`src/lib/courses/excused/ask.ts`).
+ */
+export function takesPartIn(user: SessionUser, seat: CourseEnrolmentDoc, group: CourseGroupDoc, runId: string): boolean {
   if (seat.uid !== user.uid || seat.runId !== runId) return false;
   if (seat.role !== "learner" || seat.status !== "active") return false;
   if (!seat.groupId || seat.groupId !== group.id || group.runId !== runId || group.archived) return false;
@@ -193,13 +197,30 @@ export function registerHasRoom(line: SessionLine): boolean {
  * line, and otherwise merges this one key into each map, so nobody else's
  * line is ever written. The parts of the id live as fields, as the marking
  * route writes them.
+ *
+ * AN APPROVED REQUEST TO BE EXCUSED, before its session, is written by this
+ * same write (`src/lib/courses/excused/decide.ts`), so the register reads
+ * exactly as "Can't make it" leaves it, and code that knows nothing of
+ * requests reads it the same. Only who set the line differs: `setBy` names
+ * the admin who approved it, `how: "approval"`, beside the person's own word
+ * (`told`, when they asked).
  */
 export function writeExcusedInAdvance(
   tx: Transaction,
   line: SessionLine,
-  input: { run: CourseRunDoc; group: CourseGroupDoc; uid: string; told: Date | FieldValue },
+  input: {
+    run: CourseRunDoc;
+    group: CourseGroupDoc;
+    uid: string;
+    told: Date | FieldValue;
+    /** Set by an approval, not by the person's own word: who approved it, and when. */
+    approvedBy?: { byUid: string; at: Date };
+  },
 ): void {
   const { uid, told } = input;
+  const setter = input.approvedBy
+    ? { byUid: input.approvedBy.byUid, at: input.approvedBy.at, how: "approval" }
+    : { byUid: uid, at: told, how: "self" };
   const { startsAt } = sessionInstants(line.session);
   tx.set(
     line.ref,
@@ -210,8 +231,9 @@ export function writeExcusedInAdvance(
       occurrence: line.session.occurrence,
       records: { [uid]: "excused" },
       [EXCUSED_IN_ADVANCE]: { [uid]: told },
-      // The line says who set it: the person's own word, before the session.
-      [SET_BY]: { [uid]: { byUid: uid, at: told, how: "self" } },
+      // The line says who set it: the person's own word, before the session,
+      // or the admin who approved their request to be excused.
+      [SET_BY]: { [uid]: setter },
       ...(startsAt ? { sessionAt: startsAt } : {}),
     },
     { merge: true },

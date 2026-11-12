@@ -69,6 +69,7 @@ import {
 } from "@/lib/courses/registerCorrection/line";
 import { parseCorrectionReason } from "@/lib/courses/registerCorrection/model";
 import { registerCorrectionExtras, type RegisterCorrectionExtras } from "@/lib/courses/registerCorrection/view";
+import { excuseFactsForGroup, type ExcuseFacts } from "@/lib/courses/excused/facts";
 import { CORRECTION_REFUSAL } from "@/lib/courses/registerCorrection/words";
 import {
   normalizeCourseRun,
@@ -306,6 +307,14 @@ export type AttendancePayload = {
    * one session.
    */
   requests: RegisterCorrectionExtras["requests"];
+  /**
+   * REQUESTS TO BE EXCUSED, `sessionKey -> uid -> "waiting" | "excused"`:
+   * for each row and each session on the page (a column, or one still to
+   * come), one of two facts and nothing else (`src/lib/courses/excused/
+   * facts.ts`): asked and waiting, or excused by an approved request. Never
+   * the reason, never how often. Absent sessions and rows have none.
+   */
+  excuseRequests: ExcuseFacts;
 };
 
 /** What the reader is on this register, and what they may do on each session of it. */
@@ -958,7 +967,7 @@ export async function GET(
   // Who corrects a finished register: admins, and the people leading the
   // programme while the group is not archived (the write gate's own rule).
   const corrects = gated.isAdmin || (gated.leads && !group.archived);
-  const [extras, facilitators, corrections] = await Promise.all([
+  const [extras, facilitators, corrections, excuseRequests] = await Promise.all([
     registerCoverExtras(db, {
       registers: columnRegisters,
       rows: memberUids,
@@ -976,6 +985,14 @@ export async function GET(
       viewer: { uid: actor.uid, isAdmin: gated.isAdmin, role: actor.role },
       corrects,
       onlyGiven,
+    }),
+    // Requests to be excused: one of two facts per row per session, for
+    // everybody who reads the register (`src/lib/courses/excused/facts.ts`).
+    excuseFactsForGroup(db, {
+      runId,
+      groupId,
+      uids: memberUids,
+      sessionKeys: [...columns, ...ahead].map((session) => session.sessionKey),
     }),
   ]);
   const caller: AttendanceCaller = {
@@ -1038,6 +1055,7 @@ export async function GET(
     caller,
     corrections: corrections.corrections,
     requests: corrections.requests,
+    excuseRequests,
   };
 
   return NextResponse.json(payload);

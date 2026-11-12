@@ -11037,11 +11037,12 @@ describe("v15 says reminders before a session are about what is left, are part o
 describe("v15 says you may tell us in advance that you can't make a session, which records you as excused; the code agrees", () => {
   // "We may let you tell us in advance that you can't make a session, which
   // records you as excused." Each clause, held to the one write that does it
-  // (`writeExcusedInAdvance`) and to each of its three callers: "Can't make
+  // (`writeExcusedInAdvance`) and to each of its callers: "Can't make
   // it" on the ticket (`recordCantMakeIt`), "Most weeks, not all" on the
-  // card (`recordTimeAnswer`), and staff's "They meant some weeks", which
+  // card (`recordTimeAnswer`), staff's "They meant some weeks", which
   // records the sessions a person named in their own words
-  // (`recordSomeWeeks`). The routes are run as every kind of caller in
+  // (`recordSomeWeeks`), and an admin approving a request to be excused
+  // before its session (`approveExcusedWeek`). The routes are run as every kind of caller in
   // tests/course-session-cant-make-it.test.mjs and
   // tests/course-hub-time-answer.test.mjs.
   const seat = withoutComments(read("src/lib/courses/cantMakeIt/seat.ts"));
@@ -11121,11 +11122,22 @@ describe("v15 says you may tell us in advance that you can't make a session, whi
     );
   });
 
-  test("the one write has three callers: you, by your own uid, when you say so; or staff, from your own words", () => {
+  test("the one write has four callers: you, by your own uid, when you say so; staff, from your own words; or an admin approving your request, before the session", () => {
     assert.deepEqual(callersOf("writeExcusedInAdvance"), [
+      // ADDED (November 2026), with excused weeks: an admin approving your
+      // request to be excused before the session writes your line exactly as
+      // "Can't make it" does, dated when you asked, set by the approval.
+      ["src/lib/courses/excused/decide.ts", 1],
       ["src/lib/courses/timeAnswer/seat.ts", 1],
       ["src/lib/courses/timeAnswer/someWeeks.ts", 1],
     ]);
+    const approval = withoutComments(read("src/lib/courses/excused/decide.ts"));
+    assert.match(
+      approval,
+      /if \(plan\.write === "in-advance" && session\) \{[\s\S]*?writeExcusedInAdvance\(tx, sessionLine, \{[\s\S]*?uid: fresh\.subjectUid,[\s\S]*?told: fresh\.askedAt \?\? now,[\s\S]*?approvedBy: \{ byUid: actor\.uid, at: now \},/,
+    );
+    assert.match(approval, /if \(actor\.role !== "admin"\) return fail\(403, "Forbidden"\);/, "somebody other than an admin approves");
+    assert.match(seat, /\? \{ byUid: input\.approvedBy\.byUid, at: input\.approvedBy\.at, how: "approval" \}\s*: \{ byUid: uid, at: told, how: "self" \};/);
     // The ticket, in the writer's own module: your own uid, now.
     assert.match(seat, /writeExcusedInAdvance\(tx, line, \{ run, group, uid: user\.uid, told: FieldValue\.serverTimestamp\(\) \}\);/);
     assert.equal([...seat.matchAll(/\bwriteExcusedInAdvance\(/g)].length, 2, "the ticket calls the write once, beside its definition");
@@ -11398,8 +11410,18 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
     assert.match(marking, /logged = writeLineCorrection\(tx, db, plan, \{/);
     const line = withoutComments(read("src/lib/courses/registerCorrection/line.ts"));
     const row = line.slice(line.indexOf("for (const line of moved) {\n    tx.set(db.collection(COURSE_AUDIT_COLLECTION).doc(), {"));
-    assert.match(row, /kind: "attendance-edit",[\s\S]*?actor,[\s\S]*?before: beforeValues\(line\.before, register\.setBy\[line\.uid\]\),[\s\S]*?after: afterValues\(line\.after\),[\s\S]*?reason: input\.reason,/);
+    // MOVED (November 2026), with excused weeks: a correction made by
+    // approving a request to be excused writes the same row, with the
+    // approval's own sentence and NO reason (the person's reason is read by
+    // admins only, and the history by the programme's lead); every other
+    // correction keeps its reason as before.
+    assert.match(row, /kind: "attendance-edit",[\s\S]*?actor,[\s\S]*?before: beforeValues\(line\.before, register\.setBy\[line\.uid\]\),[\s\S]*?after: afterValues\(line\.after\),[\s\S]*?reason: approval \? null : input\.reason,/);
     assert.match(row, /from: wordsOf\(line\.before\),\s*to: wordsOf\(line\.after\),/);
+    assert.match(line, /const how = approval \? "approval" : "correction";/);
+    assert.match(line, /stamps\[uid\] = \{ byUid: actor\.uid, at: now, how \};/);
+    const excusedDecide = withoutComments(read("src/lib/courses/excused/decide.ts"));
+    assert.match(excusedDecide, /logged = writeLineCorrection\(tx, db, correction, \{[\s\S]*?reason: "",[\s\S]*?approval: \{/);
+    assert.doesNotMatch(excusedDecide, /reason: (fresh|request)\.reason/, "an approval writes the person's reason somewhere");
     const facts = withoutComments(read("src/lib/courses/groupChange/facts.ts"));
     assert.match(facts, /actorUid: input\.actor\.uid,[\s\S]*?at: FieldValue\.serverTimestamp\(\),/);
     const model = withoutComments(read("src/lib/courses/registerCorrection/model.ts"));

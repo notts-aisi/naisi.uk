@@ -981,6 +981,14 @@ describe("6. the person, the programme's lead and admins read it; nobody else do
       "lib/courses/cantMakeIt/seat.ts",
       "the ticket's Can't make it keeps a most weeks answer's list of sessions in step with the register, on the caller's own seat, and changes no other answer",
     ],
+    [
+      "lib/courses/excused/own.ts",
+      "the person's own excused weeks, by their own uid: a session they ticked under most weeks reads as said when the time was set, through the stale-answer rule, and nothing is counted",
+    ],
+    [
+      "lib/courses/excused/page.ts",
+      "one request to be excused, an admin's alone: the sessions ticked under most weeks, counted apart from approved weeks and earlier lines, through the stale-answer rule",
+    ],
     ["features/courses/timeAnswer/TimeAnswerCard.tsx", "the person's own card, drawing what they said"],
     ["features/courses/RunHome.tsx", "hands the person's own card what the server page worked out"],
     ["app/(app)/learn/[runId]/page.tsx", "the person's own programme page, which works out their own card behind its gate"],

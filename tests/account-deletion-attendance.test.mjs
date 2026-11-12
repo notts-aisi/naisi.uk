@@ -506,6 +506,18 @@ test("requests the person asked and requests about them go with the account; one
   assert.ok(!db.queries.includes("handlingUid") && !db.queries.includes("decidedByUid"), "who acted on a request is not a reason to delete it");
 });
 
+test("a request to be excused goes with the account of the person who asked; one an admin only decided stays", async () => {
+  // An excused request is asked by and about the same person, and each of its
+  // weeks names who decided it inside the request, never in a field the sweep
+  // reads: deciding a week is no reason to delete the request.
+  const db = makeRequestsDb({
+    theirs: { kind: "excused", askedByUid: "gone", subjectUid: "gone", decidedByUid: "admin", change: { weeks: [{ sessionKey: "w02", decidedByUid: "admin" }] } },
+    decidedByThem: { kind: "excused", askedByUid: "someone", subjectUid: "someone", decidedByUid: "gone", change: { weeks: [{ sessionKey: "w02", decidedByUid: "gone" }] } },
+  });
+  assert.equal(await deleteCourseRequestsOf(db, "gone"), 1, "the request is counted once");
+  assert.deepEqual([...db.docs.keys()], ["decidedByThem"]);
+});
+
 test("the cascade calls the requests sweep, and its summary counts it", () => {
   const cascade = readFileSync(join(SRC, "lib", "firestore", "accountDeletion.ts"), "utf8");
   assert.match(cascade, /summary\.courseRequestsDeleted = await deleteCourseRequestsOf\(db, uid\);/);

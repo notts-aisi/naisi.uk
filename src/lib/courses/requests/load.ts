@@ -21,6 +21,8 @@ import {
 } from "@/lib/firestore/courseRequests";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
+import { excusedRequestRows } from "@/lib/courses/excused/page";
+import { normalizeExcusedRequest, type ExcusedRequestDoc } from "@/lib/firestore/courseExcusedRequests";
 import { sessionKeyParts } from "./decide";
 
 /**
@@ -51,7 +53,8 @@ export type RequestPerson = { uid: string; name: string };
 
 export type RequestRow = {
   id: string;
-  kind: CourseRequestKind;
+  /** `excused` rows are admins' only (`src/lib/courses/excused/page.ts`). */
+  kind: CourseRequestKind | "excused";
   status: CourseRequestStatus;
   state: RequestState;
   askedBy: RequestPerson;
@@ -74,6 +77,8 @@ export type RequestRow = {
   mine: boolean;
   decidedBy: RequestPerson | null;
   decidedAt: string | null;
+  /** An excused request's weeks, each with where it stands; absent on a correction. */
+  weeks?: { sessionKey: string; weekNumber: number; occurrence: number; dateKey: string; state: CourseRequestStatus }[];
 };
 
 export type RequestsPageView = {
@@ -218,8 +223,12 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
   const weekStartsAt = weekStartOf(now);
 
   let requests: CourseRequestDoc[] = [];
+  // Requests to be excused: admins' only, read from the same two lists.
+  let excused: ExcusedRequestDoc[] = [];
   const read = (snap: FirebaseFirestore.QuerySnapshot) =>
     snap.docs.map((doc) => normalizeCourseRequest(doc.id, doc.data() ?? {})).filter((each): each is CourseRequestDoc => each !== null);
+  const readExcused = (snap: FirebaseFirestore.QuerySnapshot) =>
+    snap.docs.map((doc) => normalizeExcusedRequest(doc.id, doc.data() ?? {})).filter((each): each is ExcusedRequestDoc => each !== null);
   if (isAdmin) {
     const [waiting, decided] = await Promise.all([
       db.collection(COURSE_REQUESTS_COLLECTION).where("status", "==", "waiting").limit(MAX_REQUESTS).get(),
@@ -228,6 +237,13 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
     const byId = new Map<string, CourseRequestDoc>();
     for (const each of [...read(waiting), ...read(decided)]) byId.set(each.id, each);
     requests = [...byId.values()];
+    const excusedById = new Map<string, ExcusedRequestDoc>();
+    for (const each of [...readExcused(waiting), ...readExcused(decided)]) excusedById.set(each.id, each);
+    excused = [...excusedById.values()].filter(
+      (each) =>
+        each.status === "waiting" ||
+        ((each.status === "approved" || each.status === "declined") && each.decidedAt !== null && each.decidedAt.getTime() >= weekStartsAt.getTime()),
+    );
   } else {
     const snaps = await Promise.all(
       led.runIds.map((runId) => db.collection(COURSE_REQUESTS_COLLECTION).where("runId", "==", runId).limit(MAX_REQUESTS).get()),
@@ -241,9 +257,8 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
       ((each.status === "approved" || each.status === "declined") && each.decidedAt !== null && each.decidedAt.getTime() >= weekStartsAt.getTime()),
   );
 
-  const ctx = await context(db, requests, actor);
-  const rows = requests
-    .map((each) => rowOf(each, ctx, led.naming, actor))
+  const [ctx, excusedRows] = await Promise.all([context(db, requests, actor), excusedRequestRows(db, excused, led.naming, actor)]);
+  const rows: RequestRow[] = [...requests.map((each) => rowOf(each, ctx, led.naming, actor)), ...excusedRows]
     .sort(
       (a, b) =>
         ORDER[a.state] - ORDER[b.state] ||

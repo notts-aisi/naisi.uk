@@ -2128,6 +2128,52 @@ export const ROUTES = {
         "{ ok, status }.",
     },
   },
+  "/api/courses/groups/[groupId]/excused": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Asking to be excused from sessions of your own group: view-as is refused first, then the session, then " +
+        "the address and the body (the sessions and a reason) are checked before anything is read, so every " +
+        "signed-in persona meets the same 400 on an empty one. The caller's own place is read once a whole body " +
+        "arrives. Its answer is { ok, request }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/excused/withdraw": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Withdrawing a request to be excused: view-as first, then the request is read; only the person who asked " +
+        "withdraws it, and a missing request is one 403 for everybody but an admin, who is told it is missing. Its " +
+        "answer is { ok, status, weeks }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/excused/approve": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Approving a week of a request to be excused: view-as first, then anybody but an admin is one 403 before " +
+        "anything is read, and an admin is told a missing request is missing, before the body is read. Its answer " +
+        "is { ok, status, week, logged, emailed }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/excused/decline": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Declining a week of a request to be excused: view-as first, then anybody but an admin is one 403 before " +
+        "anything is read, and an admin is told a missing request is missing, before the reply is checked. Its " +
+        "answer is { ok, status, week, emailed }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/excused/reply": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Replying to a request to be excused without deciding it: view-as first, then anybody but an admin is one " +
+        "403 before anything is read, and an admin is told a missing request is missing, before the reply is " +
+        "checked. Its answer is { ok, status, replied, emailed }.",
+    },
+  },
   "/api/courses/groups/[groupId]/cant-make-it": {
     POST: {
       expect: signedIn(400),
@@ -6199,6 +6245,30 @@ export const REAL_ROUTES = {
         lead: c(400, "Leads the programme naming the run, so admitted, then the body is checked: an empty one names no week."),
         facilitator: c(403, "Whether a facilitator was there is never a facilitator's to read or change, their own included: refused before the body is read."),
         participant: c(403, "Holds a place in the run's other group and runs nothing: one 403 before the body is read."),
+      },
+    },
+  },
+  "/api/courses/groups/[groupId]/excused": {
+    POST: {
+      realDrive: {
+        body: { sessionKeys: ["w01"], reason: "A test of who may ask." },
+        why:
+          "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the " +
+          "refused are sent it: nobody with a told place in the group, and a facilitator of it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No place in this group: there is no session of it for them to ask about."),
+        admin: c(404, "An admin holds no place in this group, so has no session of it to ask about."),
+      },
+      theirs: {
+        lead: c(404, "Leading the programme gives no place in the group: answered as a group they are not in."),
+        facilitator: c(
+          403,
+          "Holds a told place in this group but facilitates it, so keeps the instant Can't make it and is told so " +
+            "before anything is written.",
+        ),
+        participant: c(404, "Holds a place in the run's other group: answered as a group they are not in."),
       },
     },
   },
