@@ -310,6 +310,83 @@ describe("3. put it back as usual", () => {
     );
   });
 
+  // Week 4 pinned to Monday 23 Nov at 6pm, as a new regular time pins a week.
+  const PIN = { weekday: 1, startTimeLocal: "18:00" };
+
+  test("a pinned week held online and put back keeps its pin", async () => {
+    world.db.poke(`courseGroups/${B}`, { "session.meetingUrl": LINK, "sessionOverrides.w04": PIN });
+    const online = await ask.change("rahul", B, silently({ week: 4, dateKey: "2026-11-23", kind: "online" }));
+    assert.equal(online.status, 200, JSON.stringify(online.body));
+    const back = await ask.change("rahul", B, silently({ week: 4, dateKey: "2026-11-23", kind: "restore" }));
+    assert.equal(back.status, 200, JSON.stringify(back.body));
+    const stored = world.db.read(`courseGroups/${B}`);
+    assert.deepEqual(stored.sessionOverrides.w04, PIN);
+    assert.equal(stored.sessionModes?.w04, undefined);
+    assert.equal(stored.sessionChanges.w04, undefined);
+    assert.deepEqual([weekOf(4).dateKey, weekOf(4).session.startTimeLocal], ["2026-11-23", "18:00"]);
+  });
+
+  test("a pinned week moved, moved again, then put back returns to its pin", async () => {
+    world.db.poke(`courseGroups/${B}`, { "sessionOverrides.w04": PIN });
+    const moved = await ask.change(
+      "rahul",
+      B,
+      silently({ week: 4, dateKey: "2026-11-23", kind: "move", move: { dateKey: "2026-11-25", time: "7pm", room: "Portland A13" } }),
+    );
+    assert.equal(moved.status, 200, JSON.stringify(moved.body));
+    assert.deepEqual(world.db.read(`courseGroups/${B}`).sessionChanges.w04.was, PIN, "the record keeps what the week held");
+    const again = await ask.change(
+      "rahul",
+      B,
+      silently({ week: 4, dateKey: "2026-11-25", kind: "move", move: { dateKey: "2026-11-24", time: "5pm", room: "Portland A13", length: 90 } }),
+    );
+    assert.equal(again.status, 200, JSON.stringify(again.body));
+    assert.deepEqual(world.db.read(`courseGroups/${B}`).sessionChanges.w04.was, PIN, "a second move keeps the first one's record");
+    const preview = await ask.change("rahul", B, { week: 4, dateKey: "2026-11-24", kind: "restore", reason: AWAY, preview: true });
+    assert.deepEqual([preview.body.preview.after.dateKey, preview.body.preview.after.startTimeLocal], ["2026-11-23", "18:00"]);
+    const back = await ask.change("rahul", B, silently({ week: 4, dateKey: "2026-11-24", kind: "restore" }));
+    assert.equal(back.status, 200, JSON.stringify(back.body));
+    const stored = world.db.read(`courseGroups/${B}`);
+    assert.deepEqual(stored.sessionOverrides.w04, PIN);
+    assert.equal(stored.sessionChanges.w04, undefined);
+    assert.deepEqual([weekOf(4).dateKey, weekOf(4).session.startTimeLocal, weekOf(4).session.durationMinutes], ["2026-11-23", "18:00", 120]);
+  });
+
+  test("an unpinned week moved then put back returns to the regular slot", async () => {
+    const moved = await ask.change(
+      "rahul",
+      B,
+      silently({ week: 4, dateKey: TUE_24, kind: "move", move: { dateKey: "2026-11-25", time: "7pm", room: "Portland A13" } }),
+    );
+    assert.equal(moved.status, 200, JSON.stringify(moved.body));
+    assert.deepEqual(world.db.read(`courseGroups/${B}`).sessionChanges.w04.was, {}, "it held nothing of its own");
+    const back = await ask.change("rahul", B, silently({ week: 4, dateKey: "2026-11-25", kind: "restore" }));
+    assert.equal(back.status, 200, JSON.stringify(back.body));
+    assert.equal(world.db.read(`courseGroups/${B}`).sessionOverrides?.w04, undefined);
+    assert.deepEqual([weekOf(4).dateKey, weekOf(4).session.startTimeLocal], [TUE_24, "18:00"]);
+  });
+
+  test("a move recorded before the record kept what was there is put back as before, and old code reads the new record", async () => {
+    world.db.poke(`courseGroups/${B}`, {
+      "sessionOverrides.w04": { weekday: 3, startTimeLocal: "19:00", location: "Portland A13" },
+      "sessionChanges.w04": { kind: "moved", reason: AWAY, dateKey: TUE_24, byUid: "rahul", at: new Date("2026-11-18T09:00:00Z") },
+    });
+    assert.equal(Object.hasOwn(group().sessionChanges.w04, "was"), false, "no was is read as none");
+    const back = await ask.change("rahul", B, silently({ week: 4, dateKey: "2026-11-25", kind: "restore" }));
+    assert.equal(back.status, 200, JSON.stringify(back.body));
+    assert.equal(world.db.read(`courseGroups/${B}`).sessionOverrides?.w04, undefined);
+    // A stored was is read as the fields a move sets, and only those; a record of another kind carries none.
+    const read = groupsLib.normalizeCourseGroup(B, {
+      ...world.db.read(`courseGroups/${B}`),
+      sessionChanges: {
+        w05: { kind: "moved", reason: AWAY, dateKey: "2026-12-01", byUid: "rahul", at: null, was: { weekday: 1, startTimeLocal: "18:00", meetingUrl: LINK, notes: "x" } },
+        w06: { kind: "cancelled", reason: AWAY, dateKey: "2026-12-08", byUid: "rahul", at: null, was: { weekday: 1 } },
+      },
+    });
+    assert.deepEqual(read.sessionChanges.w05.was, { weekday: 1, startTimeLocal: "18:00" });
+    assert.equal(Object.hasOwn(read.sessionChanges.w06, "was"), false);
+  });
+
   test("a week pinned to its own time, with no change record, has nothing to put back", async () => {
     world.db.poke(`courseGroups/${B}`, { "sessionOverrides.w04": { weekday: 1, startTimeLocal: "18:00" } });
     const before = everything();

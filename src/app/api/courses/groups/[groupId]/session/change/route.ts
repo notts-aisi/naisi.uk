@@ -16,7 +16,7 @@ import {
 import { readNamingProgramme } from "@/lib/courses/programmeLead";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
-import { ChangeRefusal, checkPress, type CheckedPress } from "@/lib/courses/sessionChange/check";
+import { CHANGE_FIELDS, ChangeRefusal, checkPress, type CheckedPress } from "@/lib/courses/sessionChange/check";
 import { startMoves, takenStartMoves } from "@/lib/courses/sessionChange/metSessions";
 import { sessionOfWeek } from "@/lib/courses/sessionChange/model";
 import { oneWeekHistoryDetail, oneWeekNoticeFor, weekSessionAfter } from "@/lib/courses/sessionChange/notice";
@@ -32,6 +32,7 @@ import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import {
   GROUP_FIELD_LIMITS,
   normalizeCourseGroup,
+  sessionChangeForWeek,
   type CourseGroupDoc,
 } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
@@ -310,7 +311,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
           // A moved session meets in its room: whatever the week said before
           // about meeting online goes with the old arrangement.
           update[`sessionModes.${weekId}`] = FieldValue.delete();
-          update[`sessionChanges.${weekId}`] = { kind: "moved", ...record };
+          // What the week held before it was first moved, so putting it back puts back exactly that.
+          update[`sessionChanges.${weekId}`] = { kind: "moved", ...record, ...(move.was ? { was: move.was } : {}) };
           break;
         }
         case "cancel":
@@ -323,14 +325,18 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
           break;
         }
         case "restore": {
-          // Only what a change sets goes: the week's own link and notes stay.
+          // Only what the change set goes back: the week's own link and notes
+          // stay; held online or cancelled, its day, time, length, room and
+          // campus were never the change's and are left (they may be a pin);
+          // moved, they become what the week held before (`overrideAfterPutBack`).
           const left = checked.restoredOverride;
-          if (left) {
-            for (const field of ["weekday", "startTimeLocal", "durationMinutes", "location", "campus"]) {
-              update[`sessionOverrides.${weekId}.${field}`] = FieldValue.delete();
-            }
-          } else {
+          if (!left) {
             update[`sessionOverrides.${weekId}`] = FieldValue.delete();
+          } else if (sessionChangeForWeek(group, weekId)?.kind === "moved") {
+            for (const field of CHANGE_FIELDS) {
+              const value = left[field];
+              update[`sessionOverrides.${weekId}.${field}`] = value !== undefined ? value : FieldValue.delete();
+            }
           }
           update[`sessionModes.${weekId}`] = FieldValue.delete();
           update[`sessionChanges.${weekId}`] = FieldValue.delete();

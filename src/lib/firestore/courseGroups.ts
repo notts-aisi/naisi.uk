@@ -171,7 +171,19 @@ export type SessionChange = {
   /** Who changed it. */
   byUid: string;
   at: Date | null;
+  /**
+   * For `moved` only: what the week's override held of the fields a move
+   * sets (day, start, length, room, campus) before the week was first moved,
+   * so "Put it back as usual" puts back exactly that and a week pinned to
+   * when it met returns to its pin. Empty when it held none. Absent on a
+   * record written before the field existed: putting it back then removes
+   * those fields, as it always did. Code from before it ignores it.
+   */
+  was?: SessionChangeWas;
 };
+
+/** The override fields a move sets, as a `moved` record remembers them (`SessionChange.was`). */
+export type SessionChangeWas = Pick<GroupSessionOverride, "weekday" | "startTimeLocal" | "durationMinutes" | "location" | "campus">;
 
 /**
  * One facilitator's appointment to this group: who appointed them, when, and
@@ -657,9 +669,24 @@ function normalizeSessionChanges(v: unknown): Record<string, SessionChange> {
       dateKey: entry.dateKey,
       byUid: typeof entry.byUid === "string" ? entry.byUid : "",
       at: tsToDate(entry.at),
+      ...(entry.kind === "moved" && entry.was && typeof entry.was === "object" && !Array.isArray(entry.was)
+        ? { was: changeWasOf(entry.was) }
+        : {}),
     };
     count += 1;
   }
+  return out;
+}
+
+/** A `moved` record's `was`, read as an override is read and kept to the fields a move sets. */
+function changeWasOf(v: unknown): SessionChangeWas {
+  const { weekday, startTimeLocal, durationMinutes, location, campus } = normalizeSessionOverride(v);
+  const out: SessionChangeWas = {};
+  if (weekday !== undefined) out.weekday = weekday;
+  if (startTimeLocal !== undefined) out.startTimeLocal = startTimeLocal;
+  if (durationMinutes !== undefined) out.durationMinutes = durationMinutes;
+  if (location !== undefined) out.location = location;
+  if (campus !== undefined) out.campus = campus;
   return out;
 }
 
