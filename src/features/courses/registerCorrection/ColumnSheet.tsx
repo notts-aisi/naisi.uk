@@ -189,7 +189,7 @@ export default function ColumnSheet({
   const title = happened ? P.correctColumnWords(session.weekNumber) : P.didHappenWords(session.weekNumber);
 
   return (
-    <Modal open={open} onClose={onClose} ariaLabel={title} side>
+    <Modal open={open} onClose={onClose} ariaLabel={title} sheet>
       {(dismiss) => (
         <div className={styles.sheet} data-testid="column-sheet">
           <div className={styles.head}>
