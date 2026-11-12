@@ -28,9 +28,11 @@ const TONE: Record<Bucket, string> = {
  * their own), filtered by the chips; "Late in week 1"; and the facilitators'
  * own weeks, counted in no number.
  *
- * Everything is the server's (`loadGroupWeekWork`); every number here is
+ * Everything is the server's (`groupWeekWorkView`); every number here is
  * counted from `work.rows` (`countBuckets`), so the bars, the chips and the
- * table are one count. Remind opens the panel the page owns.
+ * table are one count. Remind's button counts the rows that have a Remind,
+ * and anybody counted in "Week not done" without one is named under it with
+ * why. Remind opens the panel the page owns.
  */
 export default function WeekWorkCard({
   groupName,

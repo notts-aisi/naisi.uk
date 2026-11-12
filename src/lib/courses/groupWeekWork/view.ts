@@ -5,8 +5,9 @@ import type { Bucket, LastReminded, PieceKey } from "./model";
  * (`loadGroupWeekWork`): plain values and words, never a stored record. Names
  * only: no address, no word anybody wrote, no meeting link. Who is in it is
  * decided on the server before anything here is made: the group's fellows,
- * never its facilitators; a facilitator's own week only for the programme's
- * lead and admins (`own`), and null for anybody else.
+ * never anybody who facilitates a live group of the run; a facilitator's own
+ * week only for the programme's lead and admins (`own`), and null for
+ * anybody else.
  *
  * The bars, the chips and "4 of 6 have done week 1" are counted from `rows`
  * by the page (`countBuckets`), so every number on the card is one count.
@@ -34,7 +35,11 @@ export type WorkRow = {
   lastReminded: LastReminded | null;
   /** Reminded in the last day: the panel warns before a press. */
   recent: boolean;
-  /** In Remind's audience now: the row has its own Remind. */
+  /**
+   * Remind reaches them by its rule (told, not done, not joined late, not the
+   * viewer), before any address is read: the row has its own Remind. The
+   * preview then says whether their address can be emailed.
+   */
   remindable: boolean;
   /** Done after the session: the line under them in "Late in week N", and how late; null otherwise. */
   late: { line: string; detail: string } | null;
@@ -65,7 +70,11 @@ export type GroupWeekWorkView = {
   rows: WorkRow[];
   /** The facilitators' own weeks: the programme's lead's and admins' alone, null for anybody else. */
   own: OwnWeekRow[] | null;
-  /** How many a Remind of everybody not done emails now, for its button; null when Remind is not offered. */
+  /**
+   * How many rows Remind reaches, for its button ("Remind 2 people"), counted
+   * from `rows` with no address read; null when Remind is not offered. The
+   * preview reads the addresses and its count is the one a press carries.
+   */
   remind: { count: number } | null;
   /** What is true of the automatic reminders before this week's session, in a sentence. */
   automatic: string;
