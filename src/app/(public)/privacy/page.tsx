@@ -14,6 +14,14 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: linkPreviewImages() },
 };
 
+/**
+ * Regenerated at most an hour apart, because the page reads the clock: for 14
+ * days from the current version's date its top carries the line saying the
+ * policy changed (`policyUpdateLine` in `src/lib/legal/updateLine.ts`). A page
+ * built once would keep that line, or keep it away, until the next deploy.
+ */
+export const revalidate = 3600;
+
 export default function PrivacyPage() {
   return <LegalPolicyPage policy="privacy" />;
 }

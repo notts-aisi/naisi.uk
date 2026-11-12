@@ -114,7 +114,7 @@ export default async function ReConsentPage() {
           This policy is now arranged by what we use your information for, and
           it is the last version you&apos;ll be asked to accept: from now on,
           if a change affects how we use your information, we&apos;ll tell you
-          on the site and by email before it takes effect.
+          on the site.
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           What&apos;s new: the people running a programme may rate your written
@@ -143,6 +143,18 @@ export default async function ReConsentPage() {
           <strong style={{ color: "var(--color-text)" }}>What changed in version 16.</strong>{" "}
           Registers record whether you were in the room or joined online, and
           you can tell us in advance that you are joining online.
+        </p>
+        {/* Version 17's line is the policy's own "What's changed in version
+            17", word for word. Since version 17 a change is told on the site,
+            so the paragraph about version 15 above says "on the site" too. */}
+        <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
+          <strong style={{ color: "var(--color-text)" }}>What changed in version 17.</strong>{" "}
+          Who can take and correct a register; asking to change session or
+          group, to be excused, or to message the team; work added after a
+          session, and reminders after it; a second form that never records who
+          fills it in; conduct records that can note good things as well as
+          concerns; how long we keep reasons and messages; and that we tell you
+          about changes to this policy on the site.
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}

@@ -12,12 +12,14 @@ import { holdsPlace, type HoldsPlace } from "@/features/applications/home/holdsP
 import { InstallCard } from "@/features/pwa/InstallCard";
 import { fetchPublicTerm } from "@/features/term/fetchPublicTerm";
 import { termCivilDay } from "@/features/term/termWords";
+import { policyUpdateLine } from "@/lib/legal/updateLine";
 import ComingUp from "./ComingUp";
 import ForYou from "./ForYou";
 import FullNameCard from "./FullNameCard";
 import { FinishProfile, NoApplicationsYet } from "./HomeAside";
 import HomeAdmin from "./HomeAdmin";
 import HomeMember from "./HomeMember";
+import PolicyUpdate from "./PolicyUpdate";
 import TermCard from "./TermCard";
 import { forYouEvents, fullNameQuestion, homeEvents, profileSteps, type ForYouEvent } from "./homeData";
 import { firstName } from "./homeWords";
@@ -175,13 +177,15 @@ export default async function DashboardPage() {
       <NoApplicationsYet closesAt={term.closesAt} />
     ) : null;
 
-  // Under the greeting on every form, the admins' too: an event for chosen
-  // people they were invited to ("For you"), the question about a full name
-  // while it is unanswered, then the quiet install invitation (phones only,
-  // dismissible once, hidden when already installed; see
-  // src/features/pwa/InstallCard.tsx).
+  // Under the greeting on every form, the admins' too: for 14 days from a
+  // privacy policy version's date, the line saying it changed (worked out
+  // from the date, `policyUpdateLine`); an event for chosen people they were
+  // invited to ("For you"), the question about a full name while it is
+  // unanswered, then the quiet install invitation (phones only, dismissible
+  // once, hidden when already installed; see src/features/pwa/InstallCard.tsx).
   const invite = (
     <>
+      <PolicyUpdate line={policyUpdateLine(now)} />
       <ForYou events={forYou} />
       {user && askFullName && <FullNameCard uid={user.uid} suggestion={askFullName.suggestion} />}
       <InstallCard />

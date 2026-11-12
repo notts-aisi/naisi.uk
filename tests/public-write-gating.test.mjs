@@ -609,19 +609,11 @@ const PUBLIC_HANDLERS = new Map([
 
   // --- gated inside a helper the scan cannot follow -------------------------
   [
-    "src/app/api/admin/members/[uid]/conduct-flag/route.ts#GET",
-    {
-      anonymous: false,
-      gatedBy: "requireAdmin(",
-      why: "Admin only, through a helper in the file that returns the refusal rather than throwing.",
-    },
-  ],
-  [
     "src/app/api/admin/members/[uid]/conduct-flag/route.ts#POST",
     {
       anonymous: false,
       gatedBy: "requireAdmin(",
-      why: "The same helper on the write that records a conduct flag against a member.",
+      why: "Admin only, through a helper in the file that returns the refusal rather than throwing, on the write that records a conduct flag against a member. The route has no GET: reading a flag is the open route's recorded opening, whose session check the scan sees in its body.",
     },
   ],
   [

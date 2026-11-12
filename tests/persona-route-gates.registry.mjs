@@ -525,18 +525,23 @@ export const ROUTES = {
     },
   },
   "/api/admin/members/[uid]/conduct-flag": {
-    GET: {
-      expect: adminOnly(200),
-      fields: ["byName", "flagged", "flaggedAt", "reason"],
-      why:
-        "Admin only through requireAdmin; a missing session is a 401 here rather than the " +
-        "tree's usual 403, and the admin gets the empty flag shape for an unknown uid.",
-    },
     POST: {
       expect: adminOnly(400),
       why:
         "Admin only through requireAdmin; the admin then meets the body validation before any " +
-        "member is read.",
+        "member is read. There is no GET: reading a flag is an opening, recorded first, through " +
+        "the open route below (privacy v17).",
+    },
+  },
+  "/api/admin/members/[uid]/conduct-flag/open": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Opening a member's conduct record is an admin's alone: view-as first, then the session (a " +
+        "missing one is a 401, as on the route that sets a flag) and the admin bar, before the " +
+        "database; the admin is told there is no member with the made-up id, and no opening is " +
+        "recorded, because an opening is recorded only against a member who is there. What an " +
+        "admin's opening answers is held key by key in tests/member-conduct-flag.test.mjs.",
     },
   },
   "/api/admin/members/[uid]/events": {

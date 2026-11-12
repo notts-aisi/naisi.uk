@@ -11,6 +11,7 @@ import {
 
 /**
  * The conduct flag on one member: the only writer of `memberConductFlags/{uid}`.
+ * Reading one is `./open/route.ts`, which records each opening first.
  *
  * ## Why a route at all
  *
@@ -32,10 +33,19 @@ import {
  * account-deletion sweep is an addressed delete at the same id, so a cleared
  * flag and a deleted account leave exactly the same nothing behind.
  *
+ * ## Reading it is an opening, recorded first
+ *
+ * There is no GET. An admin reads a flag through `POST ./open`, which records
+ * the opening (`recordOpenings`, kind `conduct-flag`) before it reads, and
+ * keeps the record closed when it cannot: the privacy policy says "we record
+ * each time one is opened" from version 17. A GET here that answered with the
+ * reason would be a way round that record, and a GET must not write
+ * (`tests/get-handlers-readonly.test.mjs`).
+ *
  * ## What each caller gets back
  *
- * Both handlers answer with `conductFlagForQueue(flag, true)` and nothing
- * beside it, because only an admin reaches either handler. The projection is
+ * Setting, clearing and `./open` answer with `conductFlagForQueue(flag, true)`
+ * and nothing beside it, because only an admin reaches any of them. The projection is
  * the whole body: a handler that spread it and added a sibling key would have
  * moved the "what may this viewer see" decision out of the one function that
  * makes it, and the next payload to copy the shape may be a reviewer's.
@@ -57,9 +67,6 @@ import {
  */
 
 type Ctx = { params: Promise<{ uid: string }> };
-
-/** What an admin is told when they ask about their own account. */
-const OWN_ACCOUNT = "The conduct record on your own account is not shown to you. Ask another admin.";
 
 const COLLECTION = "memberConductFlags";
 
@@ -108,39 +115,6 @@ async function requireAdmin(): Promise<Gate> {
     };
   }
   return { actor, error: null };
-}
-
-/**
- * The current flag, for the admin Members row. There is no client read of this
- * collection by design, so without this handler the row would have no way to
- * show the state it is about to change.
- */
-export async function GET(_req: Request, ctx: Ctx) {
-  const gate = await requireAdmin();
-  if (gate.error) return gate.error;
-
-  const { uid } = await ctx.params;
-  if (!uid) return NextResponse.json({ error: "Missing uid" }, { status: 400 });
-
-  // The person a flag describes never reads it, an admin included: the
-  // reason is free text that may name whoever reported them. Refused before
-  // the read, with the same answer whether a flag exists or not, as setting
-  // and clearing refuse the subject and as member notes refuse theirs.
-  if (uid === gate.actor.uid) {
-    return NextResponse.json({ error: OWN_ACCOUNT }, { status: 400 });
-  }
-
-  const db = getAdminDb();
-  if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
-
-  try {
-    const snap = await db.collection(COLLECTION).doc(uid).get();
-    const flag = snap.exists ? normalizeMemberConductFlag(uid, snap.data() ?? {}) : null;
-    return NextResponse.json(conductFlagForQueue(flag, true));
-  } catch (err) {
-    console.error("[conduct-flag] read failed:", uid, err);
-    return NextResponse.json({ error: "Could not read the conduct flag." }, { status: 500 });
-  }
 }
 
 /**

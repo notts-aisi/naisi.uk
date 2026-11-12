@@ -17,6 +17,7 @@ import PrivacyContentV13 from "./privacy/v13";
 import PrivacyContentV14 from "./privacy/v14";
 import PrivacyContentV15 from "./privacy/v15";
 import PrivacyContentV16 from "./privacy/v16";
+import PrivacyContentV17 from "./privacy/v17";
 
 /** A version's self-contained content component, with header slots. */
 export type LegalContent = (props: {
@@ -47,5 +48,6 @@ export const LEGAL_CONTENT: Record<PolicyKey, Record<number, LegalContent>> = {
     14: PrivacyContentV14,
     15: PrivacyContentV15,
     16: PrivacyContentV16,
+    17: PrivacyContentV17,
   },
 };
