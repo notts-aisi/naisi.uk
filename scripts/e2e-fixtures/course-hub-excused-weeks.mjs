@@ -30,8 +30,9 @@
  *
  * ## It reads its own mail, so it runs only where the mail is caught
  *
- * Asking and withdrawing email nobody, and each decision emails exactly who
- * it says: the spec reads that off the harness's own mailboxes. So it
+ * Asking emails the admins and nobody else, withdrawing emails nobody, and
+ * each decision emails exactly who it says: the spec reads that off the
+ * harness's own mailboxes, the harness admin's among them. So it
  * declares `requiresCaughtMail`, and the runner skips it anywhere but a
  * server it started with its mail forced into Mailpit.
  */
@@ -48,13 +49,13 @@ export const EXCUSED_WEEKS_STEPS = [
   "the admin makes the lead's account SU-recognised committee on its member page",
   "the admin names the running course run and the programme's lead on the Settings tab, and hands its people over",
   "the admin appoints a facilitator to each group",
-  "a member asks to be excused from their next session's card, which has no instant button; nobody is emailed",
+  "a member confirms they can't take part another way and asks to be excused from their next session's card; the admins alone are emailed",
   "the facilitator's register says the member asked and nothing else, in the page and in its data",
   "the programme's lead is shown no request to be excused, on the Requests page or Home",
   "an admin opens it from Home and approves it with a reply: two emails, no reason, no link; the register and the card say excused",
   "a past week whose finished register says Absent is asked about and approved: Excused, in the group's history, and the figures change",
   "another week is declined with a reply, after a reply without deciding: the member reads it; the register shows nothing",
-  "the member asks, then withdraws: nobody is emailed, and the admin's list no longer shows it",
+  "the member asks, then withdraws: the admins alone are told of the ask, and the admin's list no longer shows it",
   "came anyway: the facilitator marks the excused member in the room; the figures count them, and the request stays approved",
 ];
 

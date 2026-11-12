@@ -11,9 +11,14 @@
  * hands the people over, appoints Fern to Group A and Hal to Group B. Then:
  *
  *  1. BEN opens his next session's card: no instant button. Can't make it
- *     opens the short flow (joining online first, then the request); he asks
- *     to be excused from week 4 with a reason. The card says it waits.
- *     Nobody is emailed.
+ *     opens the request, which first asks him to confirm, in order, that he
+ *     can't go to another group's session in person, can't join his own
+ *     group's session online (today's "Joining online" beside it: Group A is
+ *     a room with a link) and can't join another group's session online;
+ *     Send stays off until all three are ticked. He asks to be excused from
+ *     week 4 with a reason. The card says it waits. The admins alone are
+ *     emailed (the harness admin's switch on the Requests page read first),
+ *     once each, without the reason or the meeting link.
  *  2. FERN, Group A's facilitator, opens the register: it says Ben asked,
  *     and nothing else. Neither the page nor the register's own answer holds
  *     the reason.
@@ -25,14 +30,15 @@
  *     carries the reason or the meeting link, and Fern's carries no reply.
  *     The register says Excused; Ben's card says who approved it and the reply.
  *  5. FERN finishes week 3 with Ben absent; BEN asks about it from his last
- *     session's card; the admin approves it: the line becomes Excused, the
+ *     session's card, where joining online is no choice and the form says so;
+ *     the admin approves it: the line becomes Excused, the
  *     group's History keeps it under Registers without the reason, and Ben's
  *     figures change on the pages that show them.
  *  6. ADA asks about week 4; the admin replies without deciding, then
  *     declines it with a reply: Ada is emailed once each time and reads the
  *     reply on her card; Fern's register shows nothing for her.
- *  7. ADA asks again, then withdraws: nobody is emailed, and the admin's list
- *     no longer shows it as waiting.
+ *  7. ADA asks again, then withdraws: the admins are told of the ask, nobody
+ *     of the withdrawal, and the admin's list no longer shows it as waiting.
  *  8. CAME ANYWAY: week 4 starts (the fixture moves Group A's own calendar),
  *     Fern marks Ben in the room and finishes the register: the figures count
  *     him as there, the request stays approved, and his card says he came.
@@ -43,7 +49,9 @@
  *
  * It declares `requiresCaughtMail`: the runner skips it anywhere but a server
  * it started with its mail forced into Mailpit, because who is emailed is
- * read off the harness's own mailboxes.
+ * read off the harness's own mailboxes: the term's people and the harness
+ * admin. Any other admin of the project is emailed about each ask too, into
+ * the same Mailpit, and is not counted here.
  *
  * CHROMIUM ONLY: a green run is a regression net, never a substitute for the
  * manual Safari pass.
@@ -95,9 +103,16 @@ const WORDS = {
   ticket: "Your next session",
   cantMakeIt: (day) => `Can’t make it on ${day}`,
   cantMakeDay: (day) => `Can’t make ${day}?`,
-  joinOnlineFirst: (group) => `Try joining online first. You stay in ${group}.`,
+  beforeYouAsk: "Before you ask",
+  confirmInPerson: "I can’t go to another group’s session in person this week.",
+  confirmOwnOnline: "I can’t join my own group’s session online.",
+  confirmOtherOnline: "I can’t join another group’s session online this week.",
+  ownOnlineNow: "Your group’s session can’t be joined online now, so there’s nothing to confirm here.",
+  contactInstead: "If another group’s session could work for you, in person or online, email",
+  contactAddress: "ai-safety@uonsu.com",
+  emailMe: "Email me about new requests",
+  newRequest: (first, week) => new RegExp(`^${first}\\b.* asked to be excused from week ${week}(, for (today|tomorrow))?$`),
   joiningOnline: (day) => `Joining online on ${day}`,
-  askToBeExcused: "Ask to be excused",
   canMakeItAfterAll: "I can make it after all",
   medical: "Please don’t include medical details or anything about your health. A few words are enough.",
   why: "Why (a line is enough)",
@@ -191,7 +206,9 @@ test(
     const ben = state.people.find((person) => person.key === "ben");
     const cleo = state.people.find((person) => person.key === "cleo");
     for (const [key, value] of Object.entries({ fern, gus, hal, groupA, groupB, ada, ben, cleo })) assert.ok(value, `the term has no ${key}`);
-    const everybody = [ada, ben, cleo, fern, gus, hal];
+    // The harness admin's mailbox is counted with the people's: asking emails the admins.
+    const admin = { key: "admin", email: secrets.adminEmail, first: "the admin" };
+    const everybody = [ada, ben, cleo, fern, gus, hal, admin];
 
     // Group A's next session (week 4, days ahead) and the one before it (week 3, passed, never opened).
     const nextWeek = [1, 2, 3, 4, 5, 6].find((week) => sessionOf(groupA, week).startsAt.getTime() > Date.now());
@@ -280,7 +297,6 @@ test(
       }
       return fresh;
     }
-    const assertNobodyEmailed = (before, what) => assertEmailed(before, {}, what);
 
     /** What the register's own answer says, read from the page the way the page reads it. */
     const registerAnswer = (pg, groupId) =>
@@ -312,8 +328,71 @@ test(
       await waitFor(`${key}'s register to be finished`, async () => Boolean((await storedRegister(key))?.pushedAt));
     }
 
+    /**
+     * The three things to confirm before asking, ticked in order. With
+     * `offOnly`, first proves Send stays off until every one shown is ticked.
+     */
+    async function confirmAll(form, { ownOnline, offOnly = false }) {
+      const send = form.getByTestId("excuse-send");
+      const ticks = [form.getByTestId("excuse-confirm-in-person"), form.getByTestId("excuse-confirm-other-online")];
+      if (ownOnline) ticks.splice(1, 0, form.getByTestId("excuse-confirm-own-online"));
+      else assert.equal(await form.getByTestId("excuse-confirm-own-online").count(), 0, "a tick for joining online where it is no choice");
+      await waitFor("the form to be live once the page has hydrated", async () => ticks[0].isEnabled());
+      if (offOnly) {
+        assert.equal(await send.isDisabled(), true, "Send works before anything is confirmed");
+        // Every tick but the last: still off.
+        for (const tick of ticks.slice(0, -1)) await tick.check();
+        assert.equal(await send.isDisabled(), true, "Send works with one thing left to confirm");
+        await ticks.at(-1).check();
+      } else {
+        for (const tick of ticks) await tick.check();
+      }
+      await waitFor("Send to be live once everything is confirmed", async () => send.isEnabled());
+    }
+
+    /** What the form says before the reason, in order, and the team's address under it. */
+    async function assertConfirmLines(form, { ownOnline }) {
+      const said = flat(await form.innerText());
+      const lines = [
+        WORDS.beforeYouAsk,
+        WORDS.confirmInPerson,
+        ownOnline ? WORDS.confirmOwnOnline : WORDS.ownOnlineNow,
+        WORDS.confirmOtherOnline,
+        WORDS.contactInstead,
+        WORDS.medical,
+        WORDS.why,
+      ];
+      const at = lines.map((line) => said.indexOf(line));
+      assert.ok(at.every((place, i) => place >= 0 && (i === 0 || place > at[i - 1])), `the form's lines are missing or out of order: ${said}`);
+      assert.equal(await form.locator('a[href^="mailto:"]').first().getAttribute("href"), `mailto:${WORDS.contactAddress}`, "the way to the team is not its own address");
+    }
+
+    /** Before an ask: the admins' Requests page, with the harness admin's email about new requests switched on. */
+    async function adminEmailsOn() {
+      await adminPage.goto(`${origin}/admin/admissions/requests`, { waitUntil: "domcontentloaded" });
+      const card = adminPage.getByTestId("requests-email-me");
+      await card.waitFor({ timeout: WAIT_MS });
+      assert.ok((await textOf(card)).includes(WORDS.emailMe), "the switch is not the admin's email about new requests");
+      const box = card.getByRole("checkbox");
+      await waitFor("the switch to be live once the page has hydrated", async () => box.isEnabled());
+      // On unless somebody switched it off; this account is the harness's own.
+      if (!(await box.isChecked())) {
+        const [saved] = await Promise.all([responseTo(adminPage, "/api/courses/requests/emails", "POST"), box.check()]);
+        await okBody(saved, "Switching the email about new requests back on");
+      }
+      assert.equal(await box.isChecked(), true);
+    }
+
+    /** The admins' email about one ask, as the harness admin gets it: who, which week, never why or the link. */
+    function assertAboutTheAsk(message, { person, week, why, requestId }) {
+      assert.match(message.Subject, WORDS.newRequest(person.first, week), "the admins' email does not say who asked about which week");
+      assert.ok(!message.HTML.includes(why) && !message.Text.includes(why), "the admins' email carries the reason");
+      assert.ok(!message.Text.includes("meet.example.com") && !hrefUrls(message.HTML).some((url) => url.includes("meet.example.com")), "the admins' email carries the meeting link");
+      assert.ok(hrefUrls(message.HTML).some((url) => url.endsWith(requestPath(requestId))), "the admins' email does not lead to the request");
+    }
+
     /** From a person's next session's card: Can't make it, then the request, for the week the card is about. */
-    async function askFromCard(pg, person, why) {
+    async function askFromCard(pg, person, why, { offOnly = false } = {}) {
       await pg.goto(learnUrl, { waitUntil: "domcontentloaded" });
       const ticket = pg.getByRole("region", { name: WORDS.ticket, exact: true });
       // The way in to a request, by its own id: the instant button carries none.
@@ -324,13 +403,13 @@ test(
       await press.click();
       const sheet = pg.getByTestId("excuse-sheet");
       await sheet.getByRole("heading", { name: WORDS.cantMakeDay(nextDay), exact: true }).waitFor({ timeout: WAIT_MS });
-      // A room with a link: joining online first, then the request. The seam
-      // for another group's session that week stays empty.
-      await sheet.getByText(WORDS.joinOnlineFirst(groupA.name), { exact: true }).waitFor({ timeout: WAIT_MS });
-      await sheet.getByRole("button", { name: WORDS.joiningOnline(nextDay), exact: true }).waitFor({ timeout: WAIT_MS });
-      await sheet.getByTestId("excuse-ask-instead").click();
-      await sheet.getByRole("heading", { name: WORDS.askToBeExcused, exact: true }).waitFor({ timeout: WAIT_MS });
+      // The request, which first asks what else they could do: a room with a
+      // link, so today's Joining online sits beside the line about it. The
+      // seam for another group's session that week stays empty: the form
+      // gives the team's address instead.
       const form = sheet.getByTestId("excuse-ask-form");
+      await form.getByRole("button", { name: WORDS.joiningOnline(nextDay), exact: true }).waitFor({ timeout: WAIT_MS });
+      await assertConfirmLines(form, { ownOnline: true });
       const said = flat(await form.innerText());
       assert.ok(said.indexOf(WORDS.medical) >= 0 && said.indexOf(WORDS.medical) < said.indexOf(WORDS.why), "the line about medical details is not above the box");
       assert.ok(said.includes(WORDS.whoReads), "the request does not say who reads the reason");
@@ -339,8 +418,13 @@ test(
       const box = form.getByRole("checkbox", { name: `Week ${nextWeek} · ${nextDay}`, exact: true });
       assert.equal(await box.isChecked(), true, "the week the card is about is not ticked");
       await form.getByTestId("excuse-reason").fill(why);
+      await confirmAll(form, { ownOnline: true, offOnly });
       const [asked] = await Promise.all([responseTo(pg, `/groups/${groupA.id}/excused`, "POST"), form.getByTestId("excuse-send").click()]);
-      assert.deepEqual(asked.request().postDataJSON(), { sessionKeys: [nextKey], reason: why }, `${person.first}'s request named other weeks`);
+      assert.deepEqual(
+        asked.request().postDataJSON(),
+        { sessionKeys: [nextKey], reason: why, inPerson: true, ownOnline: true, otherOnline: true },
+        `${person.first}'s request named other weeks, or not what they confirmed`,
+      );
       const body = await okBody(asked, "Asking to be excused");
       await sheet.waitFor({ state: "detached", timeout: WAIT_MS });
       await ticket.getByText(WORDS.waiting(fern.first), { exact: true }).waitFor({ timeout: WAIT_MS });
@@ -427,7 +511,9 @@ test(
         }
       });
 
-      await step("a member asks to be excused from their next session's card, which has no instant button; nobody is emailed", async () => {
+      await step("a member confirms they can't take part another way and asks to be excused from their next session's card; the admins alone are emailed", async () => {
+        activePage = adminPage;
+        await adminEmailsOn();
         activePage = benPage;
         await signIn(benPage, { email: ben.email, password: ben.password });
         const before = await mailCounts();
@@ -436,15 +522,22 @@ test(
         await ticket.getByRole("button", { name: WORDS.cantMakeIt(nextDay), exact: true }).waitFor({ timeout: WAIT_MS });
         // No instant button: nothing records him as excused on the spot, and nothing to take back.
         assert.equal(await ticket.getByRole("button", { name: WORDS.canMakeItAfterAll, exact: true }).count(), 0, "the instant button's take-back is drawn");
-        benRequest = await askFromCard(benPage, ben, WHY.ben);
+        benRequest = await askFromCard(benPage, ben, WHY.ben, { offOnly: true });
         const ticketText = await textOf(ticket);
         assert.ok(ticketText.includes(WORDS.asked), `the card does not say he asked: ${ticketText}`);
         await ticket.getByRole("button", { name: WORDS.withdraw, exact: true }).waitFor({ timeout: WAIT_MS });
 
         const stored = await storedRequest(benRequest);
         assert.deepEqual([stored?.kind, stored?.status, stored?.subjectUid, stored?.reason], ["excused", "waiting", ben.uid, WHY.ben]);
+        assert.deepEqual(
+          [stored?.confirmed?.inPerson, stored?.confirmed?.ownOnline, stored?.confirmed?.otherOnline, Boolean(stored?.confirmed?.at)],
+          [true, true, true, true],
+          "the request does not keep what he confirmed, and when",
+        );
         assert.equal((await storedRegister(nextKey))?.records?.[ben.uid], undefined, "asking wrote a line on the register");
-        await assertNobodyEmailed(before, "asking to be excused");
+        // The admins, once each; not Ben, not Fern, not the lead, not anybody else in the term.
+        const [toAdmin] = (await assertEmailed(before, { admin: 1 }, "asking to be excused")).admin;
+        assertAboutTheAsk(toAdmin, { person: ben, week: nextWeek, why: WHY.ben, requestId: benRequest });
       });
 
       await step("the facilitator's register says the member asked and nothing else, in the page and in its data", async () => {
@@ -574,14 +667,18 @@ test(
         for (const words of [`Last session · week ${lastWeek}`, "Absent", WORDS.missedIt, `Ask to be excused for week ${lastWeek}`]) {
           assert.ok(said.includes(words), `the last session's card does not say "${words}": ${said}`);
         }
+        // After the session there is nothing to join: the form says so, and asks the other two.
+        await assertConfirmLines(card, { ownOnline: false });
         await card.getByTestId("excuse-reason").fill(WHY.benPast);
+        await confirmAll(card, { ownOnline: false });
         const send = card.getByTestId("excuse-send");
-        await waitFor("Send to be live once the page has hydrated", async () => send.isEnabled());
         const [asked] = await Promise.all([responseTo(benPage, `/groups/${groupA.id}/excused`, "POST"), send.click()]);
+        assert.deepEqual(asked.request().postDataJSON(), { sessionKeys: [lastKey], reason: WHY.benPast, inPerson: true, ownOnline: false, otherOnline: true });
         const askedBody = await okBody(asked, "Asking to be excused after the session");
         assert.deepEqual(askedBody.request?.weeks?.map((week) => [week.sessionKey, week.asked]), [[lastKey, "after"]]);
         const pastRequest = askedBody.request.id;
-        await assertNobodyEmailed(before, "asking after the session");
+        const [toAdmin] = (await assertEmailed(before, { admin: 1 }, "asking after the session")).admin;
+        assertAboutTheAsk(toAdmin, { person: ben, week: lastWeek, why: WHY.benPast, requestId: pastRequest });
 
         // The admin approves it.
         activePage = adminPage;
@@ -636,7 +733,8 @@ test(
         await signIn(adaPage, { email: ada.email, password: ada.password });
         let before = await mailCounts();
         adaRequest = await askFromCard(adaPage, ada, WHY.ada);
-        await assertNobodyEmailed(before, "Ada asking");
+        const [toAdmin] = (await assertEmailed(before, { admin: 1 }, "Ada asking")).admin;
+        assertAboutTheAsk(toAdmin, { person: ada, week: nextWeek, why: WHY.ada, requestId: adaRequest });
 
         // The admin replies without deciding, then declines with a reply.
         activePage = adminPage;
@@ -679,7 +777,7 @@ test(
         assert.ok(!(await textOf(fernPage.getByTestId("attendance-excuse-list"))).includes(ada.first), "the register says Ada asked");
       });
 
-      await step("the member asks, then withdraws: nobody is emailed, and the admin's list no longer shows it", async () => {
+      await step("the member asks, then withdraws: the admins alone are told of the ask, and the admin's list no longer shows it", async () => {
         activePage = adaPage;
         const before = await mailCounts();
         const again = await askFromCard(adaPage, ada, WHY.adaAgain);
@@ -695,7 +793,9 @@ test(
         assert.match(own, new RegExp(`Excused for week ${nextWeek} Withdrawn by you, .+ Withdrawn`), own);
         assert.match(own, new RegExp(`Excused for week ${nextWeek} Declined by \\S+, .+ Declined`), own);
         assert.doesNotMatch(own, /\d+ times|this term/, "a member is shown a count");
-        await assertNobodyEmailed(before, "asking and withdrawing");
+        // The ask told the admins, once each; the withdrawal told nobody.
+        const [toAdmin] = (await assertEmailed(before, { admin: 1 }, "asking and withdrawing")).admin;
+        assertAboutTheAsk(toAdmin, { person: ada, week: nextWeek, why: WHY.adaAgain, requestId: again });
 
         activePage = adminPage;
         await adminPage.goto(`${origin}/admin/admissions/requests`, { waitUntil: "domcontentloaded" });
