@@ -2022,6 +2022,12 @@ export const ROUTES = {
         "facilitatorRecord",
         "facilitators",
         "caller",
+        // Each corrected line's story and each request about a line. A
+        // reason, and a reply, only for the people who correct registers and
+        // the person who gave it: a facilitator never reads a reason somebody
+        // else gave (tests/course-register-corrections.test.mjs).
+        "corrections",
+        "requests",
       ],
       why:
         "The register gate (gateGroupRegisterRead) collapses missing, archived and not-yours onto " +
@@ -2064,6 +2070,62 @@ export const ROUTES = {
       why:
         "Changing whether one of a group's facilitators was at a session: view-as first, then the register's own " +
         "gate, one 403 for a non-admin, and an admin is told the group is missing, before the body is read.",
+    },
+  },
+  "/api/courses/groups/[groupId]/attendance/column": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Correcting a finished register's whole column: view-as first, then the register's own gate, which " +
+        "collapses missing, archived and not-yours onto one 403 for a non-admin and tells an admin the group is " +
+        "missing, then who corrects (admins and the people leading the programme), before the body is read. Its " +
+        "answer is { ok, preview } for a preview, or { ok, kind } with what the kind changed; It didn't happen " +
+        "adds { change, update }.",
+    },
+  },
+  "/api/courses/groups/[groupId]/attendance/requests": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Asking for a correction of a finished register's line: view-as first, then the register's own gate, one " +
+        "403 for a non-admin and an admin told the group is missing, then whether the caller facilitates the " +
+        "group, before the body is read. Its answer is { ok, request }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/approve": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Approving a request: view-as first, then the request is read and its group's register gate decides; a " +
+        "missing request is one 403 for everybody but an admin, who is told it is missing. Its answer is " +
+        "{ ok, status, logged }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/decline": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Declining a request: view-as first, then the request is read and its group's register gate decides, " +
+        "before the reply is checked; a missing request is one 403 for everybody but an admin, who is told it is " +
+        "missing. Its answer is { ok, status }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/take": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Taking a request: view-as first, then the request is read and its group's register gate decides; a " +
+        "missing request is one 403 for everybody but an admin, who is told it is missing. Its answer is " +
+        "{ ok, handlingUid }.",
+    },
+  },
+  "/api/courses/requests/[requestId]/withdraw": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Withdrawing a request: view-as first, then the request is read; only the person who asked withdraws it, " +
+        "and a missing request is one 403 for everybody but an admin, who is told it is missing. Its answer is " +
+        "{ ok, status }.",
     },
   },
   "/api/courses/groups/[groupId]/cant-make-it": {
@@ -6030,7 +6092,7 @@ export const REAL_ROUTES = {
     PATCH: registerTakers(
       "Changing a pushed register",
       c(400, "Admitted, then the body is checked: an empty one says no week."),
-      c(400, "Admitted to the register's gate as the programme's lead, then the body is checked: an empty one says no week. A whole one is refused, a correction being an admin's."),
+      c(400, "Admitted to the register's gate as the programme's lead, then the body is checked: an empty one says no week. A whole one with a reason is a correction, which the programme's lead makes as an admin does."),
     ),
   },
   "/api/courses/groups/[groupId]/attendance/push": {
@@ -6046,6 +6108,34 @@ export const REAL_ROUTES = {
       theirs: {
         lead: c(400, "Leads the programme naming the run, so admitted, then the body is checked: an empty one names no week."),
         facilitator: c(403, "Facilitates the group, so takes its register as usual: refused before the body is read."),
+        participant: c(403, "Holds a place in the run's other group and runs nothing: one 403 before the body is read."),
+      },
+    },
+  },
+  "/api/courses/groups/[groupId]/attendance/column": {
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither an admin nor anybody leading the programme naming the run: one 403 before the body is read."),
+        admin: c(400, "An admin corrects any finished register, so admitted, then the body is checked: an empty one names no week."),
+      },
+      theirs: {
+        lead: c(400, "Leads the programme naming the run, so corrects its finished registers: admitted, then the body is checked: an empty one names no week."),
+        facilitator: c(403, "Facilitates the group, so asks for a correction instead, and is told so before the body is read."),
+        participant: c(403, "Holds a place in the run's other group and runs nothing: one 403 before the body is read."),
+      },
+    },
+  },
+  "/api/courses/groups/[groupId]/attendance/requests": {
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Facilitates nothing in this group: one 403 before the body is read."),
+        admin: c(403, "An admin corrects the register themselves, so has nothing to ask, and is told so before the body is read."),
+      },
+      theirs: {
+        lead: c(403, "Leads the programme naming the run, so corrects the register themselves, and is told so before the body is read."),
+        facilitator: c(400, "Facilitates the group, so asks for corrections: admitted, then the body is checked: an empty one names no week."),
         participant: c(403, "Holds a place in the run's other group and runs nothing: one 403 before the body is read."),
       },
     },

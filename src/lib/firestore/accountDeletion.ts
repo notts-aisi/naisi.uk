@@ -26,7 +26,7 @@ import { TEAM_ENTRIES_COLLECTION } from "@/lib/courses/teamPage/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
 import { TEAMS_MARKERS, TEAMS_TEST_KIND } from "@/lib/courses/teams/told";
 import { ASSESSMENTS_COLLECTION } from "./admissionAssessments";
-import { EXCUSED_IN_ADVANCE, FACILITATOR_RECORD, ONLINE, ONLINE_SAID, SET_BY } from "./courseAttendance";
+import { CORRECTED, EXCUSED_IN_ADVANCE, FACILITATOR_RECORD, ONLINE, ONLINE_SAID, SET_BY } from "./courseAttendance";
 import { normalizeCourseEnrolment } from "./courseEnrolments";
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
@@ -1274,7 +1274,9 @@ export async function clearCourseAttendanceMarks(
       // The uids NAMING WHO ACTED (a line's `byUid`, a cover's `byUid`,
       // `covering` and `grantedByUid`, an entry's `byUid`) are kept, exactly
       // as `markedByUid` and `pushedByUid` always have been: they record who
-      // ran the session, not anything about the person deleted.
+      // ran the session, not anything about the person deleted. And one
+      // more: when their own line was corrected (`corrected`), keyed by them,
+      // whose `byUid` (who corrected it) is kept the same way.
       const marked = snap.docs.filter(
         (d) =>
           holds(d, "records") ||
@@ -1283,7 +1285,8 @@ export async function clearCourseAttendanceMarks(
           holds(d, ONLINE_SAID) ||
           holds(d, ONLINE) ||
           holds(d, SET_BY) ||
-          holds(d, FACILITATOR_RECORD),
+          holds(d, FACILITATOR_RECORD) ||
+          holds(d, CORRECTED),
       );
       if (marked.length > 0) {
         const batch = db.batch();
@@ -1312,6 +1315,9 @@ export async function clearCourseAttendanceMarks(
           }
           if (holds(d, FACILITATOR_RECORD)) {
             batch.update(d.ref, new FieldPath(FACILITATOR_RECORD, uid), FieldValue.delete());
+          }
+          if (holds(d, CORRECTED)) {
+            batch.update(d.ref, new FieldPath(CORRECTED, uid), FieldValue.delete());
           }
         }
         await batch.commit();

@@ -340,6 +340,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "What was chosen for each person told their group at a time they said they couldn’t make: a note of our own words, or none. They belong to this run’s places, so they go with the run. Claude’s drafts of them are kept with the applications, not here.",
   },
+  requests: {
+    label: "Requests",
+    fate: "destroyed",
+    note: "What was asked of the people running the programme, such as a facilitator asking for a line of a finished register to be corrected, with why, and what became of each. They are about the registers of the groups this destroy deletes, so they go with the run.",
+  },
   bestAnswers: {
     label: "Claude’s best answers",
     fate: "destroyed",

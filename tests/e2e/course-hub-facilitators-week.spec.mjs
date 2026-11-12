@@ -1333,7 +1333,8 @@ test(
         await assertFoot(ending);
 
         // Neither lane takes a mark from her now: the draft lane is locked for
-        // everybody, and correcting a finished register is an admin's.
+        // everybody, and correcting a finished register is an admin's or the
+        // programme's lead's (she asks for a correction instead).
         const lane = (method) =>
           fetchAs(facilitatorPage, `/api/courses/groups/${enc(facilitated.id)}/attendance`, {
             method,
@@ -1349,7 +1350,7 @@ test(
         const correction = await lane("PATCH");
         assert.deepEqual(
           [correction.status, correction.body?.error],
-          [403, "Only an admin can change a register after it has been pushed."],
+          [403, "A finished register is corrected by an admin or the programme’s lead. Ask for a correction on the line instead."],
           "a facilitator corrected a finished register",
         );
 

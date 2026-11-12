@@ -62,6 +62,12 @@ export type RegisterOverride = {
   held?: boolean;
   /** The push stamp. Set when this change is what makes the register count. */
   pushedAt?: Date;
+  /**
+   * The register stops being finished with this change (a correction that
+   * moves its lines to another session, or clears them, or calls the session
+   * off): it counts for nobody, whatever was stored.
+   */
+  unpushed?: boolean;
 };
 
 export type MirrorPlan = {
@@ -167,7 +173,7 @@ export async function readMirrorPlan(
         // whatever its register says: it counts for nobody (the rollup's
         // second rule), as the lead's tabs and the register read it.
         held: !session.cancelled && (override?.held ?? stored?.held ?? true),
-        pushedAt: override?.pushedAt ?? stored?.pushedAt ?? null,
+        pushedAt: override?.unpushed ? null : (override?.pushedAt ?? stored?.pushedAt ?? null),
         status,
         online,
       });

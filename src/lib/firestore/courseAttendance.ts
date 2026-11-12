@@ -222,7 +222,25 @@ export type CourseAttendanceDoc = {
    * by key, as it does `records`.
    */
   facilitatorRecord: Record<string, FacilitatorPresence>;
+  /**
+   * WHICH LINES WERE CORRECTED AFTER THE REGISTER WAS FINISHED, keyed by the
+   * uid of the person the line is about: when, and by whom. Written only by
+   * the correction routes (a line, a whole column, an approved request), in
+   * the same write that changed the line. What the line said before, who set
+   * it and why it changed live in the group's history (`courseAudit`), never
+   * here: this map is only what lets the person's own list say "Corrected on
+   * Tue 10 Nov" without reading the history. A register written before the
+   * map existed has none, and no line on it reads as corrected.
+   *
+   * Keyed by uid, so account deletion clears the person's own entry key by
+   * key, as it does `records`. The `byUid` inside names who acted, and is
+   * kept as `pushedByUid` is.
+   */
+  corrected: Record<string, LineCorrection>;
 };
+
+/** One corrected line's stamp: when, and who corrected it. */
+export type LineCorrection = { at: Date; byUid: string };
 
 /**
  * HOW A LINE CAME TO SAY WHAT IT SAYS.
@@ -298,6 +316,9 @@ export const COVER = "cover";
 
 /** The register's record of whether each facilitator was there. */
 export const FACILITATOR_RECORD = "facilitatorRecord";
+
+/** The register's map of which lines were corrected after it was finished. */
+export const CORRECTED = "corrected";
 
 /**
  * The register's map of who told us in advance they can't make the session.
@@ -552,6 +573,27 @@ function asFacilitatorRecord(v: unknown): Record<string, FacilitatorPresence> {
   return out;
 }
 
+/**
+ * Which lines were corrected, capped in number of keys as `asRecords` is. An
+ * entry with no time or no actor is no entry, so a hand-edited one reads as
+ * a line nobody corrected rather than one corrected by nobody.
+ */
+function asCorrected(v: unknown): Record<string, LineCorrection> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: Record<string, LineCorrection> = {};
+  let count = 0;
+  for (const uid of Object.keys(v as Raw).sort()) {
+    if (count >= ATTENDANCE_LIMITS.maxRecords) break;
+    const entry = (v as Raw)[uid] as Raw | null;
+    if (!isUid(uid) || !entry || typeof entry !== "object") continue;
+    const at = tsToDate(entry.at);
+    if (!at || !isUid(entry.byUid)) continue;
+    out[uid] = { at, byUid: entry.byUid };
+    count += 1;
+  }
+  return out;
+}
+
 export function normalizeCourseAttendance(id: string, data: Raw): CourseAttendanceDoc {
   const weekNumber =
     typeof data.weekNumber === "number" && Number.isFinite(data.weekNumber)
@@ -597,6 +639,9 @@ export function normalizeCourseAttendance(id: string, data: Raw): CourseAttendan
     setBy: asSetBy(data[SET_BY]),
     cover: asCover(data[COVER]),
     facilitatorRecord: asFacilitatorRecord(data[FACILITATOR_RECORD]),
+    // Absent on every register written before corrections were stamped, and
+    // absent reads as today: no line on it reads as corrected.
+    corrected: asCorrected(data[CORRECTED]),
   };
   const sessionAt = tsToDate(data.sessionAt);
   if (sessionAt) doc.sessionAt = sessionAt;

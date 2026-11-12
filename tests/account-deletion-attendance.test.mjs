@@ -410,3 +410,31 @@ test("who set the person's own line, and whether they were there when they facil
   assert.deepEqual(db.raw.get("run1__grp1__w12").facilitatorRecord, {}, "their own entry as a facilitator goes");
   assert.deepEqual(db.deletedDocs, [], "the shared register was deleted");
 });
+
+test("when the person's own line was corrected goes too; who corrected somebody else's stays", async () => {
+  // `corrected` is keyed by the person whose line it is, as `records` is, so
+  // their own entry goes with the account. A stamp on somebody else's line
+  // naming them as who corrected it stays, as `pushedByUid` does.
+  const db = makeDb({
+    run1__grp1__w13: register({
+      records: { gone: "present", stays: "absent" },
+      participantNotes: {},
+      corrected: {
+        gone: { at: "2026-12-08T10:05:00.000Z", byUid: "lead" },
+        stays: { at: "2026-12-08T10:06:00.000Z", byUid: "gone" },
+      },
+    }),
+    run1__grp1__w14: register({
+      records: { stays: "present" },
+      participantNotes: {},
+      corrected: { gone: { at: "2026-12-15T10:05:00.000Z", byUid: "lead" } },
+    }),
+  });
+
+  assert.equal(await clearCourseAttendanceMarks(db, ["run1"], "gone"), 2);
+  const first = db.raw.get("run1__grp1__w13");
+  assert.deepEqual(Object.keys(first.corrected), ["stays"], "their own corrected stamp goes");
+  assert.equal(first.corrected.stays.byUid, "gone", "who corrected somebody else's line stays");
+  assert.deepEqual(db.raw.get("run1__grp1__w14").corrected, {}, "a register holding only their stamp is found and cleared");
+  assert.deepEqual(db.deletedDocs, [], "the shared register was deleted");
+});

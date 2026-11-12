@@ -123,7 +123,11 @@ describe("1. the lead reads every register of their run", () => {
         assert.equal(member.displayName, account(member.uid).profile.preferredName, `${groupId}: the facilitator's name for ${member.uid}`);
       }
       assert.deepEqual(asLead.body.sessions.map((session) => session.sessionKey), asFacilitator.body.sessions.map((session) => session.sessionKey));
-      assert.equal(asLead.body.canEditPushed, false, "a lead corrects nothing");
+      // CHANGED ON PURPOSE (November 2026): the lead now corrects a finished
+      // register, with a reason (tests/course-register-corrections.test.mjs);
+      // a facilitator of the group still does not, and asks instead.
+      assert.equal(asLead.body.canEditPushed, true, "the lead corrects a finished register");
+      assert.equal(asFacilitator.body.canEditPushed, false, "a facilitator asks for a correction instead");
     }
   });
 
@@ -204,10 +208,14 @@ describe("1. the lead reads every register of their run", () => {
 describe("2. the lead takes a register, marks only", () => {
   // CHANGED ON PURPOSE (November 2026). This test asserted that every write
   // by the lead was refused. The lead now takes a register in the
-  // facilitators' place: the notes, the note drawer and an admin's
-  // correction are still refused, each with nothing written or sent, and
-  // the marks the lead saves record that the lead took the register.
-  test("a note on the session, a note on a person and a correction are refused, and nothing is written or sent", async () => {
+  // facilitators' place: the notes and the note drawer are still refused,
+  // each with nothing written or sent, and the marks the lead saves record
+  // that the lead took the register. CHANGED AGAIN (November 2026): the lead
+  // now corrects a finished register too, with a reason
+  // (tests/course-register-corrections.test.mjs); a correction with no
+  // reason, as a page from before reasons sends it, is refused in one plain
+  // sentence, with nothing written or sent.
+  test("a note on the session, a note on a person and a correction with no reason are refused, and nothing is written or sent", async () => {
     const before = everything();
     const answers = [
       await call("claudia", register.POST, { groupId: B }, {
@@ -217,7 +225,8 @@ describe("2. the lead takes a register, marks only", () => {
       await call("claudia", register.PATCH, { groupId: B }, { body: { weekNumber: 1, marks: [{ uid: "amara", status: "absent" }] }, course: true }),
       await call("claudia", participantNotes.POST, { groupId: B }, { body: { weekNumber: 1, uid: "amara", note: "x" }, course: true }),
     ];
-    assert.deepEqual(answers.map((answer) => answer.status), [403, 403, 403]);
+    assert.deepEqual(answers.map((answer) => answer.status), [403, 400, 403]);
+    assert.equal(answers[1].body.error, "A correction needs a reason now. Reload the page, and say why.");
     assert.equal(everything(), before);
     assert.deepEqual(world.mail, []);
   });

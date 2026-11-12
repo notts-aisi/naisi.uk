@@ -652,7 +652,8 @@ describe("6. the facilitators' register of a session cancelled and kept pace", (
     for (const who of ["rahul", "sofia", "zach"]) {
       const answers = await presses(who);
       // An admin's correction reaches the cancelled session's refusal; a
-      // facilitator's is refused before it, as every correction of theirs is.
+      // facilitator's is refused before it, as every correction of theirs is
+      // (they ask for one instead: the sentence says so).
       assert.deepEqual(
         answers,
         {
@@ -660,7 +661,10 @@ describe("6. the facilitators' register of a session cancelled and kept pace", (
           held: refused,
           note: refused,
           push: refused,
-          correction: who === "zach" ? refused : [403, "Only an admin can change a register after it has been pushed."],
+          correction:
+            who === "zach"
+              ? refused
+              : [403, "A finished register is corrected by an admin or the programme’s lead. Ask for a correction on the line instead."],
         },
         who,
       );
@@ -698,7 +702,10 @@ describe("6. the facilitators' register of a session cancelled and kept pace", (
     // Then the evening is cancelled, and an admin corrects week 3, which
     // rebuilds everybody's figures from the group's registers.
     await press("rahul", B, CANCEL, { tell: false });
-    assert.deepEqual(await write("zach", register.PATCH, { weekNumber: 3, marks: [{ uid: "omar", status: "late" }] }), ok);
+    assert.deepEqual(
+      await write("zach", register.PATCH, { weekNumber: 3, marks: [{ uid: "omar", status: "late" }], reason: "Omar arrived at ten past." }),
+      ok,
+    );
     assert.deepEqual([rollup().sessionsHeld, rollup().attendedInFull], [1, 1]);
 
     // Her own marks, as the run home and Home read them: week 4 was not held.

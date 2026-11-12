@@ -2242,6 +2242,157 @@ Every field is optional and server-written. Code from before this ignores
 register exactly as it did: a cover alone was never `markedByUid`, so no
 register reads as taken because of one.
 
+## When a register is wrong
+
+Before Finish the group's facilitators change anything themselves. After it,
+a finished register is corrected by admins and the people leading the
+programme (its lead and the run's track leads: `leads` on the register's gate,
+not on an archived group), a line at a time or a whole column, and a
+facilitator of the group asks for a correction instead. Every correction needs
+a reason, and nobody is emailed by one. The code is
+`src/lib/courses/registerCorrection/` and `src/lib/courses/requests/`.
+
+### Correcting a line
+
+`PATCH /api/courses/groups/[groupId]/attendance` with `{ weekNumber,
+occurrence?, marks: [{ uid, status|null, online? }], reason, notes? }`.
+
+- **Who**: admins and the people leading the programme. A facilitator of the
+  group is told "A finished register is corrected by an admin or the
+  programme's lead. Ask for a correction on the line instead."; anybody else
+  is the register gate's one 403.
+- **The reason**: one line, no link, at most 300 characters. A body with no
+  `reason` at all (a page from before reasons were asked) is told "A
+  correction needs a reason now. Reload the page, and say why."; `held` is
+  refused here, because whether it happened is the column's.
+- **What it writes, in one transaction** (`registerCorrection/line.ts`): the
+  line's mark and where they were; `setBy.<uid>` with `how: "correction"`; the
+  new optional `corrected.<uid>: { at, byUid }`; everybody's figures, worked
+  out again in full from the registers; and one `attendance-edit` row
+  (registers) per line it moved, with `weekId`, `sessionKey`, `subjectUid`,
+  `before` (`mark`, `online`, `line` in words, and who set it: `setByUid`,
+  `setAt`, `setHow`), `after`, `reason`, `emailed: 0`, and `requestId` when an
+  approved request made it. "Corrected week 1's register: Daniel Kim, Absent to
+  In the room. Asked by Rahul at 9:40am. Why: "...""
+- **A session's note** may change beside the lines on the admin's lane (the
+  notes are the facilitators' and admins'). Its row says that it changed and
+  never what it said: the history is read by the programme's lead.
+- **The person** is not emailed. Their own list of sessions gains
+  `correctedOn`, the London date their line was last corrected
+  (`ownAttendance.ts`): never who, why or a count.
+
+### Correcting a whole column, and whether a session happened
+
+`POST /api/courses/groups/[groupId]/attendance/column` with `{ weekNumber,
+occurrence?, kind, reason, preview? }` and the kind's own fields; the same
+gate, and `preview: true` says what would change and writes nothing. One
+history row per correction (`sessionKey`, `before` and `after` by person, the
+reason), and `corrected` stamps on every line it changed; a cleared line has
+none, being no line.
+
+- **`online`**, it was held online: every line in the room becomes online;
+  the others stay (`register-held-online`). The lines keep who set them.
+- **`move`** with `to: { weekNumber, occurrence? }`, these lines belong to
+  another session: to another week's session of the group that has met and
+  whose register nobody took or is covering. The lines, who set them, who took
+  it, the facilitator record and the finished stamps move; the source goes
+  back to not taken. What people said in advance stays with its own session, and
+  so do the source's check-in, its reports and any notes, which the preview
+  says plainly (`stays`). A preview without `to` lists `targets`, each with
+  whether it can take them and why not (`register-moved`, with `toSessionKey`).
+- **`clear`**, taken for the wrong session: back to not taken, every cleared
+  line in the row's `before` (`register-cleared`). Who took it, the
+  facilitator record and the notes stay on the register.
+- **`did-not-happen`** with `pace: "keep" | "push"`, `dateKey`, `tell`,
+  `emailCount`: calls the session off through the one-week change's own logic
+  (`checkPress`, the rule that nothing moves a session whose register is taken,
+  the change's history row and its notice), clears the lines into a
+  `session-did-not-happen` row and takes the finished stamps away. With Tell
+  the group ticked the answer carries `update`, which the page posts through
+  the updates route as the change dialog does.
+- **`did-happen`** with `lines: [{ uid, status, online? }]` for every row who
+  had joined by that week: for a session called off keeping pace (the week is
+  put back as Hold it as usual puts it back) or a register from before that
+  says it did not happen. The lines are set by the person correcting, who
+  finishes it (`session-did-happen`). A week whose cancel pushed the rest back
+  is refused: the later weeks have moved, which is a change of time.
+
+When a register goes back to not taken (moved away, or cleared) it is chased
+again as far as the jobs allow (`registerCorrection/chase.ts`): the 36-hour
+reminder's and the 60-hour card's markers for the session are taken away, so
+each goes again in its own band; a card finishing archived is put back on the
+board. The preview's `chase` says which is true: `returns`, `passed` (its band
+for this session has gone by), or `off`.
+
+### Asking for a correction
+
+A new server-only collection, `courseRequests` (`allow read, write: if
+false`), designed for every kind of request this round needs; only
+`register-correction` is built. Each holds `kind`, `runId`, `groupId`,
+`roundId` and `programmeId` (so a lead's list needs no join), `sessionKey`,
+`weekId`, `subjectUid`, `askedByUid`, `askedAt`, `change` (`from` and `to`
+lines), `reason`, `status` (`waiting`, `approved`, `declined`, `withdrawn`),
+`handlingUid` and `handlingAt`, `decidedByUid` and `decidedAt`, `withdrawnAt`,
+`reply`, and a short `history[]`. Every list reads one field (waiting by
+`status`, a run's by `runId`, a register's by `groupId`, this week's decided by
+a range on `decidedAt`), so no index is declared.
+
+- **Ask**: `POST /api/courses/groups/[groupId]/attendance/requests`, `{
+  weekNumber, occurrence?, uid, to: { status, online? }, reason }`, by a
+  facilitator of the group with standing, for a line of a finished register.
+  Refused while it is not finished, when the line already says that, and when
+  a request for that line is waiting.
+- **Withdraw**, **approve**, **decline** (`{ reply }`, needed) and **take
+  it**: `POST /api/courses/requests/[requestId]/<action>`. Withdraw is the
+  asker's while it waits; the others are admins' and the people leading the
+  programme's, never the asker's. Approve corrects the line in the same
+  transaction as the decision, with the request's reason and id, and is
+  refused (the request still waiting) when the line no longer says what the
+  request says it did.
+- The register's GET adds `corrections` (each corrected line's story: what it
+  said before, who set that and when, who corrected it, when, who asked) and
+  `requests` (a waiting ask, or the newest outcome). A reason and a reply go
+  only to the people who correct registers and the person who gave or got it:
+  a facilitator never reads a reason somebody else gave.
+
+### The Requests page, and one request's page
+
+`loadRequestsPage` (`src/lib/courses/requests/load.ts`): admins read every
+programme's; a programme's lead and a run's track lead the requests of the
+runs they lead (`runStaffingOf`); anybody else `none`. Counts for waiting,
+being handled and done this week (since Monday in London), and each row with
+who asked, about whom, what, when and who has it. `loadRequestPage`, for the
+people who decide it: the line now and whether it still says what was asked,
+the reason, who finished the register and when, what approving does (the
+line, the figures, nobody emailed), who has it and its history.
+
+### A group's attendance across every week
+
+`loadGroupAttendance` (`src/lib/courses/groupAttendance/load.ts`), for the
+group's page: the people by weeks, each cell as facts (the grid's own state,
+the mark, online, saved, corrected, said in advance), the two counts per
+person (in the room, online), and each column's facts (held, taken, finished
+by whom and when, taken in whose place, how many lines corrected). Worked out
+by the Attendance tab's own functions, so every page agrees. A facilitator
+holding a place in their own group is listed with the facilitators, not among
+the people; the facilitators' own row goes to admins and the people leading
+the programme, and whether each was there only to admins and the programme's
+lead (`readsFacilitatorRecord`). A facilitator reading it is sent neither.
+
+### Deleting an account, and reverting
+
+`corrected.<uid>` goes with the account, key by key, as `records` does; the
+`byUid` naming who corrected somebody else's line stays. Requests are left, as
+`courseAudit`'s rows are: a request is a staff record of a change to a
+register, and the correction it led to keeps the same names in the group's
+history. The run's destroy drains them by `runId`.
+
+Every field is optional and server-written. Code from before this ignores
+`corrected`, the audit rows' `sessionKey`, `toSessionKey` and `requestId`, and
+`courseRequests`, and reads every register as it is: a corrected line is a
+line, a moved or cleared register a register that is not finished. Requests
+still waiting would have no page, so decide them first.
+
 ## A facilitator's session report
 
 Privacy policy v15's "Session reports": two minutes on a phone straight after

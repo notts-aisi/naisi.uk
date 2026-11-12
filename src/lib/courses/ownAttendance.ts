@@ -1,10 +1,12 @@
 import {
   ATTENDANCE_STATUSES,
+  CORRECTED,
   ONLINE,
   cameBy,
   type AttendanceStatus,
 } from "@/lib/firestore/courseAttendance";
 import type { ResolvedSession } from "./sessions";
+import { londonDateKey } from "./weekPlan";
 
 /**
  * ONE MEMBER'S OWN ATTENDANCE, projected out of their group's registers.
@@ -16,13 +18,15 @@ import type { ResolvedSession } from "./sessions";
  *
  * So this function is a PROJECTION, not a filter, and the distinction is the
  * whole point. It never spreads a register, never deletes keys off a copy of
- * one, never passes a normalised register doc along. It reads exactly five
+ * one, never passes a normalised register doc along. It reads exactly six
  * facts out of each one and builds a new object from them:
  *
  *   the session it belongs to, whether that session was held (a session
  *   cancelled through "Change a session" never was), its date, THIS uid's
- *   mark, and whether THIS uid joined it online (only beside a mark that
- *   says they came; a register that does not say reads as in the room).
+ *   mark, whether THIS uid joined it online (only beside a mark that says
+ *   they came; a register that does not say reads as in the room), and the
+ *   day THIS uid's line was corrected after the register was finished, if
+ *   it was: the day only, never who corrected it, why, or how many times.
  *
  * Nothing else can leak, because nothing else is ever read. A field added to
  * `courseAttendance` next term travels nowhere by default, which is the
@@ -70,6 +74,12 @@ export type OwnAttendanceSession = {
    * were.
    */
   online: boolean;
+  /**
+   * The London date ("2026-11-10") THIS uid's line was last corrected after
+   * the register was finished, for "Corrected on Tue 10 Nov"; null when it
+   * never was. Never who corrected it, why, or a count.
+   */
+  correctedOn: string | null;
 };
 
 /**
@@ -102,6 +112,17 @@ function statusOf(records: unknown, uid: string): AttendanceStatus | null {
 function onlineOf(online: unknown, uid: string): boolean {
   if (!online || typeof online !== "object") return false;
   return (online as Record<string, unknown>)[uid] === true;
+}
+
+/** The day THIS uid's entry in a register's `corrected` map was stamped, in London. Nobody else's is read. */
+function correctedOnOf(corrected: unknown, uid: string): string | null {
+  if (!corrected || typeof corrected !== "object" || Array.isArray(corrected)) return null;
+  const entry = (corrected as Record<string, unknown>)[uid] as { at?: unknown } | null | undefined;
+  if (!entry || typeof entry !== "object") return null;
+  const at = entry.at;
+  const date =
+    at instanceof Date ? at : typeof (at as { toDate?: () => Date } | null)?.toDate === "function" ? (at as { toDate: () => Date }).toDate() : null;
+  return date && !Number.isNaN(date.getTime()) ? londonDateKey(date) : null;
 }
 
 /**
@@ -162,6 +183,7 @@ export function ownAttendanceSessions(
       held: !session.cancelled && raw.held !== false,
       status,
       online: cameBy(status) && onlineOf(raw[ONLINE], uid),
+      correctedOn: correctedOnOf(raw[CORRECTED], uid),
     });
   }
   return out;

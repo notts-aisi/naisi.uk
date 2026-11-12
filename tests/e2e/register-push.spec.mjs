@@ -45,7 +45,7 @@
  * the draft lane REFUSES a write to a pushed register even for this admin,
  * which the spec proves by issuing the POST the UI will not let it click and
  * reading the 409 back; and the admin's next correction travels the PATCH
- * lane, leaving an audit row saying who moved what.
+ * lane with a reason, leaving an audit row saying who moved what and why.
  *
  * ## CHROMIUM ONLY
  *
@@ -744,13 +744,40 @@ test(
       });
 
       await step("an admin edit of a pushed mark changes it and logs an audit row", async () => {
-        // The cell reads Present; one tap on a PUSHED register takes the
+        // The cell reads Present. A correction of a PUSHED register takes the
         // admin's PATCH lane rather than the facilitator's POST, which is the
         // whole shape of the boundary: the draft lane is closed and this one
         // writes an audit row for every mark it moves.
+        //
+        // CHANGED ON PURPOSE (November 2026): every correction now needs a
+        // reason. The grid's one-tap correction sends none, so it is refused in
+        // one plain sentence until the correction is drawn with its reason, and
+        // this step sends the PATCH that drawing will send, from the page's
+        // own context and session. The refusal is held first, so a tap that
+        // corrects with no reason fails here.
         const cell = cellOf(page, 0, PUSH_WEEK - 1);
         assert.equal(await statusOf(cell), "Present", "the pushed mark is not what it was");
-        const edited = await tap(page, cell, { method: "PATCH" });
+        const correct = (extra) =>
+          page.evaluate(
+            async ([groupId, weekNumber, uid, more]) => {
+              const res = await fetch(`/api/courses/groups/${encodeURIComponent(groupId)}/attendance`, {
+                method: "PATCH",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ weekNumber, occurrence: 1, marks: [{ uid, status: "late" }], ...more }),
+              });
+              return { status: res.status, body: await res.json().catch(() => null) };
+            },
+            [state.groupId, PUSH_WEEK, state.members[0].uid, extra],
+          );
+        const unexplained = await correct({});
+        assert.deepEqual(
+          [unexplained.status, unexplained.body?.error],
+          [400, "A correction needs a reason now. Reload the page, and say why."],
+          `a correction with no reason was not refused: ${JSON.stringify(unexplained)}`,
+        );
+        const result = await correct({ reason: "They arrived ten minutes after the start." });
+        assert.equal(result.status, 200, `the correction was refused: ${JSON.stringify(result)}`);
+        const edited = result.body;
         assert.equal(edited.marked, 1, "the correction moved something other than one mark");
         assert.ok(edited.logged >= 1, "the correction logged no audit row");
 
@@ -773,8 +800,8 @@ test(
         const detail = audit.docs.map((d) => d.data().detail ?? "").join(" | ");
         assert.match(
           detail,
-          /Present to Late/,
-          `the audit row does not say what changed: ${detail}`,
+          /In the room to Arrived late, in the room\. Why: “They arrived ten minutes after the start\.”/,
+          `the audit row does not say what changed, and why: ${detail}`,
         );
       });
 
