@@ -35,6 +35,7 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { FIELD_VALUE_STUB } from "./lib/applicationsStore.mjs";
 import { loadJoin, makeWorld } from "./lib/handoverWorld.mjs";
 import { A, B, C, RUN, leadSeed } from "./lib/leadWorld.mjs";
@@ -74,6 +75,11 @@ const auditLib = await loadTs("lib/firestore/courseAudit.ts");
 const history = await loadTs("lib/courses/groupHistory/load.ts");
 const loaders = await loadTs("lib/courses/requests/load.ts");
 const attendanceLoader = await loadTs("lib/courses/groupAttendance/load.ts");
+const changeWords = await loadTs("lib/courses/sessionChange/words.ts");
+const groupPageWords = await loadTs("lib/courses/groupPage/words.ts");
+const changeModel = await loadTs("lib/courses/sessionChange/model.ts");
+/** A file under src, as text. */
+const sourceOf = (path) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
 
 const PLACED_ON = new Date("2026-10-27T17:38:00Z");
 /** Group B's week 1 session: Tue 3 Nov, 6pm to 8pm in London (GMT). */
@@ -732,6 +738,99 @@ describe("3. correcting the whole column", () => {
     );
     assert.equal((await column("claudia", { kind: "did-not-happen", pace: "keep", dateKey: "2026-11-03", tell: false, reason: "Nobody came." })).status, 200);
     assert.equal(world.db.read(`courseGroups/${B}`).sessionChanges.w01.kind, "cancelled");
+  });
+
+  test("every refusal a push back meets is one the sheet does not offer, said in the group page's own words", async () => {
+    // Every refusal of a push that keep pace does not meet, as the route has
+    // them: its own (`pushRefusalOf`) and the one-week change's check of a push
+    // (`checkPress`, its push case). The walk below covers each one, both ways.
+    const column_ = sourceOf("lib/courses/registerCorrection/column.ts");
+    const own = column_.slice(column_.indexOf("async function pushRefusalOf("), column_.indexOf("\n}\n", column_.indexOf("async function pushRefusalOf(")));
+    const check = sourceOf("lib/courses/sessionChange/check.ts");
+    const pushCase = check.slice(check.indexOf('case "push": {'), check.indexOf("return {", check.indexOf('case "push": {')));
+    const sources = [
+      ...[...own.matchAll(/error: ([A-Za-z.]+)/g)].map((m) => m[1]).filter((name) => name !== "err.message"),
+      ...[...pushCase.matchAll(/ChangeRefusal\((REFUSAL\.\w+)/g)].map((m) => m[1]),
+    ].sort();
+    assert.ok(own.includes("if (err instanceof ChangeRefusal) return"), "the route no longer passes the one-week change's own push refusals on");
+    // Only through pushRefusalOf does the route refuse a push that keep pace would not meet.
+    const door = column_.slice(column_.indexOf("async function didNotHappen("));
+    assert.equal((door.match(/press\.pace === "push"/g) ?? []).length, 1, "the route refuses a push back some other way");
+
+    /** A world in which a push back is refused for one reason. */
+    const reasons = {
+      pushHasRecordsWords: {
+        set: async () => {
+          at("2026-11-04T10:00:00Z");
+          const reported = await call("rahul", reportRoute.PUT, { groupId: B }, { body: { sessionKey: "w01", answers: { how: 3 } }, course: true });
+          assert.equal(reported.status, 200, JSON.stringify(reported.body));
+        },
+        refused: [409, coverWords.pushHasRecordsWords(1)],
+        why: coverWords.pushHasRecordsHint(1),
+      },
+      movesMetWords: {
+        set: async () => {
+          at("2026-11-10T18:20:00Z");
+          assert.equal((await mark("rahul", [{ uid: "amara", status: "present" }], { weekNumber: 2 })).status, 200);
+        },
+        refused: [409, changeWords.movesMetWords(2)],
+        why: groupPageWords.PUSH_BACK_LATER_MET,
+      },
+      "REFUSAL.planFull": {
+        set: async () => {
+          // The group's own plan at the cap: a push adds a week's break, which it has no room for.
+          const weeks = world.db.read(`courseRuns/${RUN.agi}`).weekPlan;
+          const spare = Array.from({ length: 60 - weeks.length }, () => ({ kind: "break", label: "Spare" }));
+          world.db.poke(`courseGroups/${B}`, { paceWeekPlan: [...weeks, ...spare] });
+        },
+        refused: [400, changeWords.REFUSAL.planFull],
+        why: changeWords.REFUSAL.planFull,
+      },
+    };
+    // Never met on this route: a session it reached is in the group's plan, which is what the session was resolved from.
+    const UNREACHABLE = { "REFUSAL.noPlan": "a session the route reached is a week of the group's plan" };
+    assert.deepEqual(sources, [...Object.keys(reasons), ...Object.keys(UNREACHABLE)].sort(), "a push back has a refusal this walk does not cover");
+    const plan = world.db.read(`courseRuns/${RUN.agi}`).weekPlan;
+    for (const entry of plan.filter((each) => each.kind === "week")) {
+      assert.ok(changeModel.planWithBreakBefore(plan, entry.weekNumber), `week ${entry.weekNumber} has a session and no place in the plan`);
+    }
+
+    const pushPress = { kind: "did-not-happen", pace: "push", dateKey: "2026-11-03", tell: false, reason: "Nobody came." };
+    const keepPreview = { kind: "did-not-happen", pace: "keep", dateKey: "2026-11-03", preview: true };
+    // With none of them, the sheet offers it.
+    const offered = await column("claudia", keepPreview);
+    assert.equal(offered.status, 200, JSON.stringify(offered.body));
+    assert.deepEqual(pageWords.pushChoiceOf(offered.body.preview), { offered: true, why: "" });
+    for (const [source, reason] of Object.entries(reasons)) {
+      await finishedWeekOne();
+      await reason.set();
+      at(LATER);
+      const before = everything();
+      // The press, and its preview, refuse it.
+      for (const preview of [false, true]) {
+        const refused = await column("claudia", { ...pushPress, ...(preview ? { preview: true } : {}) });
+        assert.deepEqual([refused.status, refused.body.error], reason.refused, `${source}, preview: ${preview}`);
+      }
+      assert.equal(everything(), before, `${source}: a refused push changed something`);
+      // Keep pace's preview, which the sheet asks first, says it is not offered, and why, in the group page's words.
+      const kept = await column("claudia", keepPreview);
+      assert.equal(kept.status, 200, `${source}: ${JSON.stringify(kept.body)}`);
+      assert.deepEqual(pageWords.pushChoiceOf(kept.body.preview), { offered: false, why: reason.why }, source);
+    }
+    // Until a preview has said, nothing is offered.
+    assert.deepEqual(pageWords.pushChoiceOf(null), { offered: false, why: "" });
+  });
+
+  test("pushed back, the Attendance line says the week meets a week later and its register is taken then; keep pace keeps its line", async () => {
+    const pushed = await column("claudia", { kind: "did-not-happen", pace: "push", dateKey: "2026-11-03", preview: true });
+    assert.equal(pushed.status, 200, JSON.stringify(pushed.body));
+    const linesOf = (preview) => Object.fromEntries(pageWords.didNotHappenPreviewLines(preview).map((row) => [row.label, row.text]));
+    const push = linesOf(pushed.body.preview);
+    assert.equal(push.Attendance, "The session that didn’t happen leaves everyone’s attendance. Nobody is counted absent, and week 1’s register is taken at its new session.");
+    assert.doesNotMatch(push.Attendance, /^Week 1 leaves everyone’s attendance/);
+    assert.match(push.Dates, /^Week 1 meets on Tue 10 Nov at 6pm instead, and every week after it a week later\.$/);
+    const kept = await column("claudia", { kind: "did-not-happen", pace: "keep", dateKey: "2026-11-03", preview: true });
+    assert.equal(linesOf(kept.body.preview).Attendance, "Week 1 leaves everyone’s attendance. Nobody is counted absent.");
   });
 
   test("pushed back, a finished register's cover and the record of whether each facilitator was there go into the history row", async () => {

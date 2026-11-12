@@ -446,13 +446,34 @@ function staysWords(preview: Record<string, unknown>): { label: string; text: st
 /** A session as a did-not-happen preview draws it (`SessionMoment`). */
 type Moment = { weekNumber: number; dateKey: string; startTimeLocal: string } | null;
 
+/**
+ * Whether the sheet offers Push the rest back, from the route's own preview
+ * (`push`, worked out by every refusal a push meets), and, when it does not,
+ * why, in the sentence the group page's own panel says for the same refusal.
+ * Not offered until a preview has said.
+ */
+export function pushChoiceOf(preview: Record<string, unknown> | null): { offered: boolean; why: string } {
+  const push = preview?.push as { offered?: unknown; why?: unknown } | undefined;
+  if (!push || typeof push !== "object") return { offered: false, why: "" };
+  if (push.offered === true) return { offered: true, why: "" };
+  return { offered: false, why: typeof push.why === "string" ? push.why : "" };
+}
+
 /** "Before you save" for It didn't happen, from the route's own preview. */
 export function didNotHappenPreviewLines(preview: Record<string, unknown>): BeforeYouSave {
   const weekNumber = Number(preview.weekNumber ?? 0);
   const lines: BeforeYouSave = [];
   const facts = preview.didNotHappen as { checkIn: boolean; reports: number } | undefined;
   const clearing = (preview.clearing as NamedLine[] | undefined) ?? [];
-  lines.push({ label: "Attendance", text: `Week ${weekNumber} leaves everyone’s attendance. Nobody is counted absent.` });
+  // The one-week change's own words for the cancel chosen: kept pace, the week
+  // leaves everyone's attendance; pushed back, it meets a week later and its
+  // register is taken then.
+  const attendance = didNotHappenLines(
+    { leavesAttendance: true, chaseStops: false, checkIn: false, reports: 0, lines: { cleared: 0, said: {} } },
+    weekNumber,
+    preview.pace === "push" ? "push" : "cancel",
+  ).find((row) => row.label === "Attendance");
+  if (attendance) lines.push(attendance);
   lines.push({
     label: "Register",
     text:
