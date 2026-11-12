@@ -581,10 +581,15 @@ describe("the reminder to the facilitators, 36 hours after the session ends", ()
     switches({ scheduled: true });
     await markAll("rahul", GROUP.b, 1, MEMBERS_B);
     await finish("rahul", GROUP.b, 1);
-    const held = await call("amelia", register.POST, { groupId: GROUP.a }, {
-      body: { weekNumber: 1, held: false },
-    });
-    assert.equal(held.status, 200, JSON.stringify(held.body));
+    // CHANGED ON PURPOSE (November 2026): this pressed the register's
+    // not-held switch, which no longer takes a NEW not-held ("It didn't
+    // happen" is Change this week's two cancels, and a session called off
+    // that way is held not chased in tests/course-register-did-not-happen.test.mjs).
+    // A register that already says it did not happen reads as before, so it
+    // is written here as one written before the switch moved.
+    world.db.seed(registerPath(GROUP.a, 1), { runId: RUN, groupId: GROUP.a, weekNumber: 1, records: {}, held: false, markedByUid: "amelia" });
+    const held = await call("amelia", register.POST, { groupId: GROUP.a }, { body: { weekNumber: 1, held: false } });
+    assert.equal(held.status, 200, `saying it again is not new: ${JSON.stringify(held.body)}`);
     await runJob(registerRemindersJob, new Date("2026-10-21T07:00:00Z"));
     await runJob(registerRemindersJob, afterEnd(36));
     for (const uid of ["rahul", "sofia", "amelia"]) assert.equal(mailTo(uid).length, 0, uid);

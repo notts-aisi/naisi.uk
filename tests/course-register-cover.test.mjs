@@ -319,7 +319,8 @@ describe("3. one session given to somebody else", () => {
     assert.match(html, /group\/agi-autumn-2026-monday__grp00001\/register\?session=w01/);
     assert.doesNotMatch(html, /meet\.example/);
     const [row] = auditRows("register-given");
-    assert.equal(row.detail, "Gave week 1’s session to Bea Lindqvist, in Rahul and Sofia’s place. Reason: Rahul and Sofia are both ill.");
+    // The name each goes by: the history is read by whoever its page admits.
+    assert.equal(row.detail, "Gave week 1’s session to Bea, in Rahul and Sofia’s place. Reason: Rahul and Sofia are both ill.");
     assert.equal(row.subjectUid, "bea");
     assert.equal(row.emailed, 1);
   });
@@ -539,7 +540,7 @@ describe("6. whether each facilitator was there", () => {
     assert.equal(changed.status, 200, JSON.stringify(changed.body));
     assert.equal(stored().facilitatorRecord.rahul.how, "changed");
     const [row] = auditRows("facilitator-record-changed");
-    assert.equal(row.detail, "Changed whether Rahul Mehta was at week 1’s session: not there, now arrived late, at 6:35pm.");
+    assert.equal(row.detail, "Changed whether Rahul was at week 1’s session: not there, now arrived late, at 6:35pm.");
     assert.deepEqual([row.before.state, row.after.state, row.subjectUid], ["not-there", "late", "rahul"]);
     const before = everything();
     for (const who of ["rahul", "sofia", "bea", "amara"]) assert.equal((await change(who, { uid: "sofia", state: "there" })).status, 403, who);
