@@ -20,6 +20,7 @@ import {
   SLOT_READ_ONLY_LINE,
   changeOnGroupPageWords,
   dayAndTimeWords,
+  goneOutSinceOpened,
   lengthLine,
 } from "@/lib/courses/groupPage/words";
 import {
@@ -194,20 +195,32 @@ export default function GroupEditor({
       ? { location: fullSession.location, meetingUrl: fullSession.meetingUrl, notes: fullSession.notes }
       : fullSession;
     const facilitatorsChanged = !sameUids(facilitatorUids, group.facilitatorUids);
+    // A card opened before the groups went out still offers the day, time
+    // and length; the rules refuse a change once they have, and the toast
+    // says why.
+    const slotChanged =
+      !goneOut
+      && (session.weekday !== group.session.weekday
+        || session.startTimeLocal !== group.session.startTimeLocal
+        || session.durationMinutes !== group.session.durationMinutes);
 
     let ok = false;
     await runAction(
       async () => {
-        await updateGroup(
-          group.id,
-          {
-            name: trimmedName,
-            capacity: nextCapacity,
-            session: nextSession,
-            campus,
-          },
-          enrolMode,
-        );
+        try {
+          await updateGroup(
+            group.id,
+            {
+              name: trimmedName,
+              capacity: nextCapacity,
+              session: nextSession,
+              campus,
+            },
+            enrolMode,
+          );
+        } catch (err) {
+          throw goneOutSinceOpened(err, slotChanged);
+        }
         if (facilitatorsChanged) {
           await setGroupFacilitators(group.id, facilitatorUids);
         }

@@ -22,8 +22,9 @@ import {
   packCaseRecordId,
 } from "@/lib/firestore/coursePacksAndCases";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
-import { WeekShutError, assertWeekTakesWork, logWork, ownLockSource, weekStateIn } from "@/lib/courses/weekWork/own";
-import { WEEK_SHUT } from "@/lib/courses/weekWork/words";
+import { workClosesAt } from "@/lib/courses/weekWork/closes";
+import { WorkClosedError, assertWeekTakesWork, logWork, ownSessionSource, weekStateIn } from "@/lib/courses/weekWork/own";
+import { closedWords } from "@/lib/courses/weekWork/words";
 
 /**
  * A PERSON'S OWN PACK AND TALK: `PUT` with `{ weekId, packId }` picks a
@@ -42,17 +43,21 @@ import { WEEK_SHUT } from "@/lib/courses/weekWork/words";
  *
  * A PICK can change until the person's session for the week starts (the
  * week's own, or the group's next one when it is cancelled): after that the
- * pack they read is the one the session was built on. With no group, and so
- * no session, it stays open. A Choose one a facilitator gives out is refused
- * here: "To switch, ask Rahul or Sofia".
+ * pack they read is the one the session was built on, and the facilitator's
+ * draw gives packs out to whoever has not picked. This is the pick's own
+ * rule, kept as it was when weeks stopped locking at the session. With no
+ * group, and so no session, it stays open. A Choose one a facilitator gives
+ * out is refused here: "To switch, ask Rahul or Sofia".
  *
  * READY is the person's own mark and nobody else's: coursework gets no mark.
  * On a talk with cases it waits for a case to be given; a talk with none (a
  * pitch) can be marked any time. It can be taken back.
  *
- * A WEEK SUBMITTED OR LOCKED takes neither (`src/lib/courses/weekWork/`),
- * asked inside the transaction that writes. A pick goes in the work log as a
- * save, a ready mark as a tick or an untick.
+ * THE WEEK STAYS OPEN (`src/lib/courses/weekWork/`): beyond the pick's own
+ * rule, either is refused only once the programme has closed, asked inside
+ * the transaction that writes. A ready mark after the session is late, told
+ * from its own time. A pick goes in the work log as a save, a ready mark as a
+ * tick or an untick.
  *
  * Which week: the person's group's own copy when it has one, the run's
  * otherwise (`resolveWeekDoc`), as the week page and the reflections route
@@ -168,7 +173,8 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string; 
   const ref = db.collection(COURSE_PACKS_AND_CASES_COLLECTION).doc(packCaseRecordId(runId, actor.uid, blockId));
   const base = { runId, uid: actor.uid, weekId, weekNumber, blockId };
   // Whose sessions lock this week for them: their own placement's group, or the groups they facilitate.
-  const source = ownLockSource(run, liveGroups, actor.uid, takesPart ? enrolment : null);
+  const source = ownSessionSource(run, liveGroups, actor.uid, takesPart ? enrolment : null);
+  const closesAt = workClosesAt(run, liveGroups);
   const now = new Date();
   const logged = { runId, uid: actor.uid, weekId, weekNumber, itemId: blockId };
 
@@ -193,7 +199,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string; 
     }
     try {
       await db.runTransaction(async (tx) => {
-        const week = await weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source, now });
+        const week = await weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source, closesAt, now });
         assertWeekTakesWork(week.state);
         tx.set(
           ref,
@@ -203,7 +209,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string; 
         logWork(tx, db, { ...logged, kind: "save", itemKind: "pack" });
       });
     } catch (err) {
-      if (err instanceof WeekShutError) return NextResponse.json({ error: WEEK_SHUT }, { status: 409 });
+      if (err instanceof WorkClosedError) return NextResponse.json({ error: closedWords(err.at) }, { status: 409 });
       console.error("[courses packs and cases] pick failed", runId, weekId, blockId, err);
       return NextResponse.json({ error: "Couldn’t save that just now. Try again." }, { status: 500 });
     }
@@ -220,7 +226,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string; 
     const answer = await db.runTransaction(async (tx) => {
       const [snap, week] = await Promise.all([
         tx.get(ref),
-        weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source, now }),
+        weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source, closesAt, now }),
       ]);
       assertWeekTakesWork(week.state);
       const stored = snap.exists ? normalizeCoursePackCase(snap.id, snap.data() ?? {}) : null;
@@ -245,7 +251,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string; 
     return NextResponse.json({ ok: true, record: answer });
   } catch (err) {
     if (err instanceof PickError) return NextResponse.json({ error: err.message }, { status: err.status });
-    if (err instanceof WeekShutError) return NextResponse.json({ error: WEEK_SHUT }, { status: 409 });
+    if (err instanceof WorkClosedError) return NextResponse.json({ error: closedWords(err.at) }, { status: 409 });
     console.error("[courses packs and cases] ready failed", runId, weekId, blockId, err);
     return NextResponse.json({ error: "Couldn’t save that just now. Try again." }, { status: 500 });
   }

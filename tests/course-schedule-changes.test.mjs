@@ -245,6 +245,7 @@ const COURSES_LIB = src("lib", "firestore", "courses.ts");
 const GROUP_RESOLVE = src("lib", "courses", "groupResolve.ts");
 const RUN_STATUS_LIB = src("lib", "courses", "runStatus.ts");
 const RUN_EDITOR = src("features", "courses", "RunEditor.tsx");
+const GROUP_EDITOR = src("features", "courses", "GroupEditor.tsx");
 
 const WEEK_PLAN_BUILDER = src("features", "courses", "WeekPlanBuilder.tsx");
 const WEEK_VIEW = src("features", "courses", "WeekView.tsx");
@@ -761,6 +762,48 @@ test("GUARD: the rules pin weekPlan the moment a run stops being a draft", () =>
   assert.match(WEEK_PLAN_BUILDER, /if \(full \|\| !canGrow\) return;/);
 });
 
+test("GUARD: once a run's groups have gone out, its dates and a group's time are the routes' for every writer", () => {
+  // The run's start date and plan, and the stamp that says the groups went
+  // out, on the update rule's OUTER clause, beside runGuideUntouched: admins
+  // ride it too. scripts/rules-tests/tests/course-told-times.test.mjs runs it.
+  assert.match(RULES, /function runDatesKeptOnceGroupsOut\(\)/);
+  assert.match(RULES, /allow update: if runGuideUntouched\(\) && runDatesKeptOnceGroupsOut\(\) && \(isAdmin\(\)/);
+  // A group's time: the slot, the overrides, the server's records of each
+  // change, the pace pair, when answers count from and the run it is in, held
+  // after the admin branch's closing bracket so admins are held too.
+  assert.match(RULES, /function groupTimeUntouched\(\)/);
+  for (const field of ["runId", "sessionOverrides", "sessionModes", "sessionChanges", "paceStartDate", "paceWeekPlan", "timeQuestionSince"]) {
+    assert.match(RULES, new RegExp(`affectedKeys\\(\\)\\.hasAny\\(\\[[^\\]]*'${field}'`), `${field} is not held once groups have gone out`);
+  }
+  for (const field of ["weekday", "startTimeLocal", "durationMinutes"]) {
+    assert.match(RULES, new RegExp(`request\\.resource\\.data\\.get\\(\\['session', '${field}'\\], null\\)`));
+  }
+  assert.match(RULES, /\)\s*&& groupTimeKeptOnceGroupsOut\(\);/);
+  // The affordance half: the run editor hands the builder the fact, and the
+  // builder then offers no control and writes nothing.
+  assert.match(RUN_EDITOR, /groupsGoneOut=\{groupsGoneOut\}/);
+  assert.match(WEEK_PLAN_BUILDER, /async function save\(\) \{\s*\/\/[^\n]*\n\s*if \(groupsGoneOut\) return;/);
+  assert.match(WEEK_PLAN_BUILDER, /\{!groupsGoneOut && \(\s*<Button type="button" onClick=\{save\}/);
+  assert.match(WEEK_PLAN_BUILDER, /\{groupsGoneOut && <p className=\{styles\.warn\}>\{WEEK_PLAN_READ_ONLY\}<\/p>\}/);
+  // The stamp itself: a browser write never changes it, set or unset, and a
+  // run is never created carrying it.
+  assert.match(
+    RULES,
+    /function runDatesKeptOnceGroupsOut\(\) \{\s*return request\.resource\.data\.get\('allocationPublishedAt', null\)\s*== resource\.data\.get\('allocationPublishedAt', null\)\s*&& \(/,
+  );
+  assert.match(RULES, /&& request\.resource\.data\.get\('allocationPublishedAt', null\) == null\s*&& runContentOk\(\)\s*&& runGuideUntouched\(\);/);
+  // A page opened before the groups went out: the three saves that can then
+  // be refused read one sentence in place of Firestore's, and only when they
+  // change what the rules keep (goneOutSinceOpened, run in
+  // course-group-page.test.mjs).
+  assert.match(RUN_EDITOR, /const startDateChanged = !groupsGoneOut && startDate !== run\?\.startDate;/);
+  assert.match(RUN_EDITOR, /\} catch \(err\) \{\s*throw goneOutSinceOpened\(err, startDateChanged\);/);
+  assert.match(GROUP_EDITOR, /const slotChanged =\s*!goneOut\s*&& \(session\.weekday !== group\.session\.weekday\s*\|\| session\.startTimeLocal !== group\.session\.startTimeLocal\s*\|\| session\.durationMinutes !== group\.session\.durationMinutes\);/);
+  assert.match(GROUP_EDITOR, /\} catch \(err\) \{\s*throw goneOutSinceOpened\(err, slotChanged\);/);
+  assert.match(WEEK_PLAN_BUILDER, /const refusalIsGoneOut = isAdmin && dirty;/);
+  assert.match(WEEK_PLAN_BUILDER, /\} catch \(err\) \{\s*throw goneOutSinceOpened\(err, refusalIsGoneOut\);/);
+});
+
 /**
  * `status/route.ts`'s `draftExitBlocker`, reproduced. The route counts drift
  * itself rather than importing `weekAddressDrift` (a "use client" module), so
@@ -1264,7 +1307,7 @@ test("GUARD — an email with no session for its group says less rather than lyi
       asks: [{ kind: "readings", count: 2 }],
       weekUrl: "https://naisi.uk/learn/asf-autumn-2026/weeks/3",
       feedbackUrl: "",
-      locks: true,
+      staysOpen: true,
     },
     "Alex",
   );

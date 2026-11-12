@@ -4,6 +4,7 @@ import { isAddressableId } from "@/lib/addressableId";
 import {
   feedbackGate,
   feedbackRefusalFor,
+  stampReviewed,
   feedbackStandingIn,
   feedbackWeekOf,
   type FeedbackGate,
@@ -206,8 +207,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ runId: string 
         source: week.source,
         now,
       });
-      const refusal = feedbackRefusalFor(on, standing.state, standing.answer, { notReadable: NOT_READABLE_YET, answerEmpty: ANSWER_EMPTY });
+      const refusal = feedbackRefusalFor(on, standing, { notReadable: NOT_READABLE_YET, answerEmpty: ANSWER_EMPTY });
       if (refusal) throw new FeedbackError(refusal, 409);
+      // On the written answer: which version it is about, kept by the answer's next change.
+      const about = on === "writtenAnswer" ? standing.read : null;
+      if (about) stampReviewed(tx, db, { runId, uid, weekId, weekNumber, itemId, read: about });
       const piece = {
         runId,
         uid,
@@ -215,6 +219,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ runId: string 
         weekNumber,
         on: on === "writtenAnswer" ? { kind: "writtenAnswer", itemId } : { kind: "week" },
         text: text.text,
+        ...(about?.savedAt ? { aboutSavedAt: about.savedAt } : {}),
         byUid: actor.uid,
         byRole: gate.byRole,
         createdAt: FieldValue.serverTimestamp(),

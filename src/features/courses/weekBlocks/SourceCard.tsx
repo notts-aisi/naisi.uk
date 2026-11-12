@@ -14,6 +14,7 @@ import {
 import { SOURCE_KIND_LABEL, type SourceBlock } from "@/lib/courses/weekBlocks/model";
 import { safeSourceUrl } from "@/lib/courses/weekBlocks/prose";
 import { PROGRESS_LIMITS, type CourseProgressDoc, type ProgressItemKind } from "@/lib/firestore/courseProgress";
+import type { WeekDue } from "@/lib/courses/weekWork/model";
 import { tickedOnWords } from "@/lib/courses/weekWork/words";
 import { saveProgressReflection } from "../progressMutations";
 import weekly from "../weekly/weekly.module.css";
@@ -56,8 +57,12 @@ type Props = {
   showTicks: boolean;
   /** Their enrolment is active and the week takes work: the ticks take writing. */
   canWrite: boolean;
-  /** The reading's box takes writing: their enrolment is active, whether or not the week is locked. Defaults to `canWrite`. */
+  /** The reading's box takes writing: their enrolment is active, whether or not the programme has closed. Defaults to `canWrite`. */
   canNote?: boolean;
+  /** The session the reader is due at, which a tick's line tells against ("Ticked Sat 7 Nov: 3 days after your session"). */
+  due?: WeekDue;
+  /** The moment the page was drawn. */
+  now?: Date;
   isDone: (itemId: string) => boolean;
   /** The person's own rows, for each reading's rating and note. */
   rows: ReadonlyMap<string, CourseProgressDoc>;
@@ -127,6 +132,8 @@ export default function SourceCard({
   privateNoteHint,
   canRate = true,
   canNote = canWrite,
+  due,
+  now,
 }: Props) {
   return (
     <div className={styles.sources}>
@@ -155,7 +162,7 @@ export default function SourceCard({
               <div className={styles.sourceBody}>
                 <SourceTitle lead={source.lead} title={source.title} href={href} />
                 {showTicks && done && rows.get(source.id)?.completedAt && (
-                  <span className={weekWork.ticked}>{tickedOnWords(rows.get(source.id)?.completedAt as Date)}</span>
+                  <span className={weekWork.ticked}>{tickedOnWords(rows.get(source.id)?.completedAt as Date, due, now)}</span>
                 )}
                 <p className={styles.sourceMeta}>
                   <span className={styles.kindPill}>{SOURCE_KIND_LABEL[source.kind]}</span>

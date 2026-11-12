@@ -210,7 +210,7 @@ export async function readNextWeekEmail(
     asks: blocks ? blockWeekAsks(blocks, weekTaskNeeds(blocks)) : week ? legacyWeekAsks(week) : [],
     weekUrl: courseWeekUrl(args.appUrl, run.id, session.weekNumber),
     feedbackUrl: args.feedbackUrl,
-    locks: blocks !== null,
+    staysOpen: blocks !== null,
     explainer: memberExplainerOn(explainers, group.id, session.sessionKey),
   };
   const missing = week ? missingWeekOpenValues(facts) : [];

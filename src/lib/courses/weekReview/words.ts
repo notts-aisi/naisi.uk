@@ -117,7 +117,7 @@ export const REVIEW_WORDS = {
   fromClaudeBoth: "Claude, from their answers and a facilitator’s report",
   absentInARow: (count: number) => `Missed the last ${count} sessions without saying.`,
   notStarted: (weekNumber: number) => `Week ${weekNumber} not started when their group met.`,
-  notSubmitted: (weekNumber: number) => `Week ${weekNumber} not submitted before it locked.`,
+  notSubmitted: (weekNumber: number) => `Week ${weekNumber} not done by the session.`,
   reportHand: (note: string) => (note.trim() ? `Might need a hand: “${note.trim()}”` : "Might need a hand."),
   reportNotRead: "Hadn’t done the readings.",
   readReports: "Read the reports",

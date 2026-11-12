@@ -8,6 +8,8 @@ import {
   lastWrittenWords,
   wroteWords,
 } from "@/lib/courses/facilitatorWeek/words";
+import { AS_IT_STOOD_AT_THE_SESSION, lateAfterSessionWords } from "@/lib/courses/weekWork/words";
+import EarlierVersion from "../feedback/EarlierVersion";
 import styles from "@/features/courses/facilitator/facilitator.module.css";
 import named from "./namedReflections.module.css";
 
@@ -18,10 +20,14 @@ import named from "./namedReflections.module.css";
  * order, each with the group's fellows' answers under their whole names, in
  * the group's order of people, and when each was last written; under the
  * prompt, how many wrote one and the names of the fellows who have not.
+ * Written after the session they were due at, "Late: 3 days after the
+ * session" beside when; changed since that session started, the words as
+ * they stood at it, stacked under the latest ("As it stood at the session").
  *
  * The lead and admins are handed each facilitator's own reflection apart
- * (`own`), under the facilitator's name and marked as theirs. A facilitator's
- * page never hands them.
+ * (`own`), under the facilitator's name and marked as theirs, with how late.
+ * A facilitator's page never hands them, so a co-facilitator never sees a
+ * facilitator's own lateness.
  *
  * Nothing here is picked or copied: lines are read out from the page that
  * has no names (`ReadOutView`), which never draws this component. A server
@@ -56,8 +62,10 @@ export default function NamedReflections({
                   <div className={named.answerHead}>
                     <span className={named.name}>{answer.name}</span>
                     {answer.at && <span className={named.when}>{lastWrittenWords(answer.at)}</span>}
+                    {answer.lateMs !== null && <span className={named.when}>{lateAfterSessionWords(answer.lateMs)}</span>}
                   </div>
                   <p className={named.text}>{answer.text}</p>
+                  {answer.atSession && <EarlierVersion label={AS_IT_STOOD_AT_THE_SESSION} text={answer.atSession} />}
                 </li>
               ))}
             </ul>
@@ -72,8 +80,10 @@ export default function NamedReflections({
                       <span>{person.name}</span>
                       <span className={styles.wkOwnChip}>{FACILITATOR}</span>
                       {person.at && <span className={named.when}>{lastWrittenWords(person.at)}</span>}
+                      {person.lateMs !== null && <span className={named.when}>{lateAfterSessionWords(person.lateMs)}</span>}
                     </p>
                     <p className={person.text ? styles.wkOwnText : `${styles.wkOwnText} ${styles.wkMuted}`}>{person.text ?? NOT_WRITTEN}</p>
+                    {person.atSession && <EarlierVersion label={AS_IT_STOOD_AT_THE_SESSION} text={person.atSession} />}
                   </li>
                 ))}
               </ul>

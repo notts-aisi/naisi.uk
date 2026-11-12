@@ -4,7 +4,7 @@ import type { SessionUser } from "@/lib/firebase/session";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import type { WorkRatingRole } from "@/lib/firestore/courseWorkRatings";
-import { readRunForLock } from "../weekWork/own";
+import { readRunForWork } from "../weekWork/own";
 import {
   liveGroupsOf,
   ownerFactsOf,
@@ -37,7 +37,7 @@ import {
  * person's own, carries none.
  *
  * ON WHAT: the week's written answer, once its readers may read it
- * (`workIsReadable`, asked inside the save's transaction with where the week
+ * (`readableAnswer`, asked inside the save's transaction with where the week
  * stands), and only with words in it.
  */
 
@@ -93,7 +93,7 @@ export async function workRatingGate(
   const refused: WorkRatingRefusal = { ok: false, status: 403, error: "Forbidden" };
   const facts = await reviewerFactsOf(db, actor, runId);
   if (!readsWorkRatings(facts)) return refused;
-  const run = await readRunForLock(db, runId);
+  const run = await readRunForWork(db, runId);
   if (!run) return refused;
   const liveGroups = await liveGroupsOf(db, runId);
   const owner = await ownerFactsOf(db, runId, uid, liveGroups, { isAdmin: facts.isAdmin });

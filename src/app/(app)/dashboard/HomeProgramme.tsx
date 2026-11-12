@@ -155,8 +155,8 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
     : null;
   // An unopened or unpublished week is not asked for: a learner may not read one.
   const week = useWeek(entry.runId, readable ? weekDocId(weekNumber) : "", false, weekSource);
-  // A week submitted or locked takes no tick until somebody running the group reopens it.
-  const weekTakesTicks = doc?.work ? doc.work.state === "open" || doc.work.state === "reopened" : true;
+  // A week takes ticks until the programme closes.
+  const weekTakesTicks = doc?.work ? !doc.work.closed : true;
   const ticks = useMaterialTicks(entry.runId, user?.uid ?? null, weekNumber, learner?.status === "active" && weekTakesTicks);
 
   const runHref = `/learn/${encodeURIComponent(entry.runId)}`;

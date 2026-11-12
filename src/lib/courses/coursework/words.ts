@@ -28,10 +28,13 @@ export function weekColumnWords(weekNumber: number): string {
 }
 
 /**
- * The first line of a cell, by the one meaning of done every page uses: the
- * week is submitted, where it asks for anything written, and every tick it
- * counts is ticked. Staff words: the person's own pages say "Submitted" and
- * "N of M done".
+ * The first line of a cell, by the one meaning of done every page uses
+ * (`weekDone`): every tick it counts ticked, and everything written it counts
+ * written and sent (or the old Submit pressed). Once the session they were
+ * due at has passed, "Done on time" or "Done late" (`DONE_ON_TIME`,
+ * `DONE_LATE` in `src/lib/courses/weekWork/words.ts`); "Joined late" for a
+ * week before they were told their group. Staff words: the person's own
+ * pages say "Sent" and "N of M done".
  */
 export const DONE = "Done";
 export const NOT_DONE = "Not done";

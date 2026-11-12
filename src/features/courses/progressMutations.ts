@@ -17,9 +17,9 @@ import { weekDocId } from "@/lib/firestore/courses";
  *
  * A TICK goes through a route (`PUT /api/courses/runs/[runId]/ticks/[itemId]`,
  * `tickThroughRoute`), the only writer of `completed` and `completedAt`: a
- * week written as blocks locks when it is submitted or its group's session
- * starts, which no rule in `firestore.rules` can know, and an untick is
- * recorded there with its time. The rules refuse a browser write that sets or
+ * week written as blocks takes ticks until its programme closes, which no
+ * rule in `firestore.rules` can know, and an untick is recorded there with
+ * its time. The rules refuse a browser write that sets or
  * changes either field.
  *
  * A RATING, A COMMENT OR A PRIVATE NOTE is still THE one client-direct write

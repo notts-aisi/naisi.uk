@@ -5,14 +5,16 @@ import facilitator from "@/features/courses/facilitator/facilitator.module.css";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 import type { WrittenQueueRow } from "@/lib/courses/writtenAnswers/queue";
 import { FEEDBACK_TO_WRITE, TO_WRITE_LINE, WRITE_FEEDBACK, toWriteWords } from "@/lib/courses/feedback/words";
-import { listLockedWords, listSentWords } from "@/lib/courses/writtenAnswerWords";
+import { listReadSinceWords, listSentWords } from "@/lib/courses/writtenAnswerWords";
+import { lateAfterSessionWords } from "@/lib/courses/weekWork/words";
 
 /**
  * FEEDBACK TO WRITE ON A GROUP'S PAGE (the facilitator's group page, at 1440
  * and on a phone): "3 week 2 answers", that people see feedback on
  * their page as soon as it is saved and the email goes in a batch, and each
- * person with when they submitted it (or when their week locked before they
- * did, in the review page's own words) and Write feedback, oldest first.
+ * person with when they sent it (or, never sent, since when its readers may
+ * read it: the session), "Late: 3 days after the session" when it was sent
+ * after the session, and Write feedback, oldest first.
  * Who is listed is the one gate's, bounded by the week's session
  * (`loadWrittenQueue`): a facilitator never sees a co-facilitator's own
  * answer, or their own.
@@ -51,8 +53,9 @@ export default function ReviewQueueCard({
                 <span className={facilitator.reviewText}>
                   <span className={facilitator.personName}>{row.name}</span>
                   <span className={facilitator.queueMeta}>
-                    {row.locked ? listLockedWords(new Date(row.firstSentAt)) : listSentWords(new Date(row.firstSentAt))}
+                    {row.locked ? listReadSinceWords(new Date(row.firstSentAt)) : listSentWords(new Date(row.firstSentAt))}
                   </span>
+                  {row.lateMs !== null && <span className={facilitator.queueMeta}>{lateAfterSessionWords(row.lateMs)}</span>}
                 </span>
                 <Link
                   href={hrefFor(row)}

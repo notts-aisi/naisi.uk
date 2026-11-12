@@ -5,7 +5,7 @@ import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { nextWeekEmailMarkerId } from "@/lib/courses/nextWeekEmail";
 import { resolveSessions, sessionInstants, type ResolvedSession, type SessionGroup } from "@/lib/courses/sessions";
 import { standingFacilitatorUidsOf, updateEmailAudience } from "@/lib/courses/updates/audience";
-import { dueMoment } from "@/lib/courses/weekBlocks/due";
+import { groupSessionAt } from "@/lib/courses/weekWork/sessionDue";
 import { WEEK_OPEN_DAYS_BEFORE, WEEK_REMINDER_DAYS, weekEmailSendAt } from "@/lib/courses/weekEmails/model";
 import type { SessionUser } from "@/lib/firebase/session";
 import { EXCUSED_IN_ADVANCE, ONLINE_SAID } from "@/lib/firestore/courseAttendance";
@@ -25,8 +25,11 @@ import { NEXT_WEEK_EMAIL_JOB, WEEK_REMINDERS_JOB } from "@/lib/scheduler/registe
  * stored.
  *
  *  - THE SESSION, before and after, as every schedule surface resolves it.
- *  - WHEN THE WEEK'S WORK LOCKS, before and after (`dueMoment`, the rule the
- *    lock itself reads).
+ *  - FROM WHEN THE WEEK'S WORK COUNTS AS LATE, before and after: the session
+ *    the group's people are due at that week (`groupSessionAt`, the one
+ *    function late is told against): a moved or put-right week when it meets,
+ *    a pushed-back week at its new session, a cancelled week that keeps pace
+ *    when it would have started. Nothing locks at the session any more.
  *  - THE TWO MEMBER EMAIL JOBS: whether "Week N is open" and the reminders
  *    before a session are switched on, when each would go before and after,
  *    and whether this session's have already gone (their markers are keyed by
@@ -72,9 +75,9 @@ export function iso(at: Date | null | undefined): string | null {
   return at ? at.toISOString() : null;
 }
 
-/** When week `weekNumber`'s work locks for the group whose sessions these are. */
-export function lockOf(sessions: readonly ResolvedSession[], weekNumber: number): string | null {
-  return iso(dueMoment(sessions, weekNumber, "before")?.at ?? null);
+/** From when week `weekNumber`'s work counts as late for the group whose sessions these are, or null with no session. */
+export function lateFromOf(sessions: readonly ResolvedSession[], weekNumber: number): string | null {
+  return iso(groupSessionAt({ sessionLists: [sessions], toldAt: null }, weekNumber));
 }
 
 /** The two member email jobs' switches, read as the tick reads them. */

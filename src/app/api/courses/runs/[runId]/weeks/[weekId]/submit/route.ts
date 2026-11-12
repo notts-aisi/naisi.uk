@@ -4,24 +4,21 @@ import { isAddressableId } from "@/lib/addressableId";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { weekWrittenAnswers } from "@/lib/courses/weekBlocks/reader";
-import { weekAsksForWriting, weekTakesWork, weekWorkWire, type WeekWorkWire } from "@/lib/courses/weekWork/model";
-import { logWork, ownSeatOn, weekStateIn, weekWorkRef } from "@/lib/courses/weekWork/own";
-import {
-  ALREADY_SUBMITTED,
-  NOTHING_TO_SUBMIT,
-  NOT_A_SUBMIT_WEEK,
-  WEEK_SHUT,
-  notDoneWords,
-} from "@/lib/courses/weekWork/words";
+import { weekAsksForWriting, weekWorkState, weekWorkWire, type WeekWorkWire } from "@/lib/courses/weekWork/model";
+import { WorkClosedError, assertWeekTakesWork, logWork, ownSeatOn, weekStateIn, weekWorkRef } from "@/lib/courses/weekWork/own";
+import { lastSentAt } from "@/lib/courses/weekWork/versions";
+import { NOTHING_TO_SUBMIT, NOT_A_SUBMIT_WEEK, closedWords, notDoneWords } from "@/lib/courses/weekWork/words";
 import { isReflectionResponse, exerciseResponseId } from "@/lib/firestore/courseExercises";
-import { isWordCountedAnswer, readWrittenAnswer } from "@/lib/courses/writtenAnswers/model";
+import { answerPiece, isWordCountedAnswer, readWrittenAnswer } from "@/lib/courses/writtenAnswers/model";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
- * SUBMITTING ONE'S OWN WEEK (the week you submit): `POST
- * /api/courses/runs/[runId]/weeks/[weekId]/submit` with `{ submit: true }`.
+ * THE WEEK'S OLD SUBMIT, kept for a page opened before the week stayed open:
+ * `POST /api/courses/runs/[runId]/weeks/[weekId]/submit` with
+ * `{ submit: true }`. The page drawn now sends each written answer with its
+ * own Send (`../../../written-answers/[answerId]/send`) and has no Submit.
  *
  * WHO: somebody taking part, for their OWN week only, as every route that
  * writes a week admits them (`ownSeatOn`): an active learner seat told its
@@ -30,18 +27,21 @@ import { getCurrentUser } from "@/lib/firebase/session";
  *
  * WHAT. A week written as blocks that asks for something written (a
  * reflection, fill-in boxes or a written answer): a week with only things to
- * tick has no Submit, and is done once they are ticked. A week written before
- * blocks keeps its own pages.
+ * tick has no Submit, and is done once they are ticked.
  *
- * Submitting sends what the week holds as it stands ("Submit anyway"): the
- * check on the page names what is not done, and only a written answer over
- * the top of its word range stops it, here as there. It locks the whole week
- * (`src/lib/courses/weekWork/`), until somebody running the group reopens it.
- * Inside one transaction it stamps the week (`courseWeekWork`: when, the
- * first time once, how many times), stamps each written answer of the week
- * that has words and was never sent with when it was first sent
- * (`firstSentAt`, and `submittedAt` with it, as every reader of answers sent
- * reads), and logs the submit.
+ * It SENDS every written answer of the week that has words and has not been
+ * sent as it stands (never sent, or changed since it was last sent), as the
+ * answer's own Send would: `firstSentAt` (with `submittedAt`) the first time,
+ * `sentAt` every time, each logged as a send. An answer over the top of its
+ * word range stops it, and nothing is written. It CLOSES NOTHING: the week
+ * takes work until the programme closes, which alone refuses it.
+ *
+ * It still stamps the week (`courseWeekWork`: `submittedAt` when, the first
+ * time once, how many times) and logs the submit, so `submittedAt` keeps the
+ * one meaning it always had: they pressed "Submit week N". A week submitted
+ * this way is done once its ticks are (`weekDone`), as it always was. Pressing
+ * it again sends what changed and stamps it again; nothing is refused for
+ * having been submitted before.
  *
  * Every refusal comes before anything is written: view-as first, the
  * session, the body, the address, who is asking, the week, then where it
@@ -118,15 +118,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ runId: string;
   let work: WeekWorkWire;
   try {
     ({ sent, work } = await db.runTransaction(async (tx) => {
-      const [{ state, record }, ...rows] = await Promise.all([
-        weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source: seat.source, now }),
+      const [standing, ...rows] = await Promise.all([
+        weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source: seat.source, closesAt: seat.closesAt, now }),
         ...answerRefs.map((ref) => tx.get(ref)),
       ]);
-      if (!weekTakesWork(state)) {
-        throw new SubmitRefusal(state.kind === "submitted" ? ALREADY_SUBMITTED : WEEK_SHUT, 409);
-      }
+      // Only a closed programme refuses.
+      assertWeekTakesWork(standing.state);
+      const record = standing.record;
       // The written answers as they stand: an answer over its word limit stops Submit.
-      const toSend: number[] = [];
+      const toSend: Array<{ index: number; first: boolean }> = [];
       answers.forEach((answer, index) => {
         const snap = rows[index];
         const data = snap.exists ? ((snap.data() ?? {}) as Record<string, unknown>) : null;
@@ -135,7 +135,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ runId: string;
         if (answer.words && written.words > answer.words.max) {
           throw new SubmitRefusal(notDoneWords({ kind: "overLimit", words: written.words, limit: answer.words.max }), 409);
         }
-        if (written.words > 0 && !written.firstSentAt) toSend.push(index);
+        const last = lastSentAt(answerPiece(written));
+        const unsent = last === null || (written.savedAt !== null && written.savedAt.getTime() > last.getTime());
+        if (written.words > 0 && unsent) toSend.push({ index, first: !written.firstSentAt });
       });
 
       const at = FieldValue.serverTimestamp();
@@ -154,18 +156,26 @@ export async function POST(req: Request, ctx: { params: Promise<{ runId: string;
         },
         { merge: true },
       );
-      for (const index of toSend) {
-        // Stored once and never moved: when the answer was first sent.
-        tx.update(answerRefs[index], { firstSentAt: at, submittedAt: at });
+      for (const { index, first } of toSend) {
+        // `firstSentAt` is stored once and never moved; `sentAt` moves with every send.
+        tx.update(answerRefs[index], first ? { firstSentAt: at, submittedAt: at, sentAt: at } : { sentAt: at });
+        logWork(tx, db, { runId, uid: actor.uid, weekId, weekNumber, kind: first ? "send" : "send-again", itemKind: "writtenAnswer", itemId: answerIds[index] });
       }
       logWork(tx, db, { runId, uid: actor.uid, weekId, weekNumber, kind: "submit", itemKind: "week", itemId: "" });
+      const after = weekWorkState({
+        due: standing.due,
+        closesAt: seat.closesAt,
+        facts: { submittedAt: now, firstSubmittedAt: record?.firstSubmittedAt ?? now },
+        now,
+      });
       return {
-        sent: toSend.map((index) => ({ id: answerIds[index], at: now.toISOString() })),
-        work: weekWorkWire({ kind: "submitted", at: now }, () => ""),
+        sent: toSend.map(({ index }) => ({ id: answerIds[index], at: now.toISOString() })),
+        work: weekWorkWire(after, now),
       };
     }));
   } catch (err) {
     if (err instanceof SubmitRefusal) return NextResponse.json({ error: err.message }, { status: err.status });
+    if (err instanceof WorkClosedError) return NextResponse.json({ error: closedWords(err.at) }, { status: 409 });
     console.error("[courses submit week] write failed", runId, weekId, err);
     return NextResponse.json({ error: "That didn’t submit. Check your connection and try again." }, { status: 500 });
   }

@@ -309,6 +309,8 @@ export async function makeWrittenAnswersWorld(key = "__writtenAnswers") {
     overview: await courseRoute("runs", "[runId]", "overview"),
     myExercises: await courseRoute("runs", "[runId]", "my-exercises"),
     write: await courseRoute("runs", "[runId]", "written-answers", "[answerId]"),
+    // The written answer's own Send (the week stays open).
+    sendAnswer: await courseRoute("runs", "[runId]", "written-answers", "[answerId]", "send"),
     // Feedback as a signed comment, and the batch email that says it is there.
     feedback: await courseRoute("runs", "[runId]", "feedback"),
     send: await courseRoute("runs", "[runId]", "feedback", "send"),
@@ -320,7 +322,7 @@ export async function makeWrittenAnswersWorld(key = "__writtenAnswers") {
     verdict: await courseRoute("exercise-responses", "[responseId]", "review"),
     queue: await courseRoute("groups", "[groupId]", "exercises"),
     submit: await courseRoute("runs", "[runId]", "exercises", "[exerciseId]", "submit"),
-    // The week you submit: Submit, Reopen and the one tick route.
+    // The week's old Submit, the old Reopen (which answers that weeks stay open) and the one tick route.
     submitWeek: await courseRoute("runs", "[runId]", "weeks", "[weekId]", "submit"),
     reopenWeek: await courseRoute("runs", "[runId]", "weeks", "[weekId]", "reopen"),
     tick: await courseRoute("runs", "[runId]", "ticks", "[itemId]"),
@@ -397,7 +399,11 @@ export async function makeWrittenAnswersWorld(key = "__writtenAnswers") {
     return call(who, routes.submitWeek.POST, { runId: RUN.agi, weekId: weekIdOf(n) }, { course: true, viewAs, body: { submit: true } });
   };
 
-  /** `who` submits their own week `n`, which sends its written answer. */
+  /** `who` sends their own week `n` written answer with its own Send. */
+  const sendAnswer = (who, n, { viewAs = false, body = null, answerId = n === 2 ? ONE_BOX.id : BOXES.id } = {}) =>
+    call(who, routes.sendAnswer.POST, { runId: RUN.agi, answerId }, { course: true, viewAs, body: body ?? { weekId: weekIdOf(n) } });
+
+  /** `who` presses their own week `n`'s old Submit, which sends its written answer. */
   const submitWeek = (who, n, { viewAs = false, body = { submit: true } } = {}) =>
     call(who, routes.submitWeek.POST, { runId: RUN.agi, weekId: weekIdOf(n) }, { course: true, viewAs, body });
 
@@ -598,6 +604,7 @@ export async function makeWrittenAnswersWorld(key = "__writtenAnswers") {
     sessionFor,
     rowPath,
     write,
+    sendAnswer,
     submitWeek,
     reopenWeek,
     tick,

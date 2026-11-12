@@ -105,6 +105,13 @@ export type ExerciseResponseWire = {
    * answer, so the review queue's rows read exactly as before.
    */
   kind?: "reflection" | "fillIn";
+  /**
+   * On a reflection or a fill-in box, from its writer's own reads: when its
+   * words were last saved (ISO 8601), which the week page tells against the
+   * session they are due at (`lateBy`, with the overview's `work.dueAt`).
+   * Absent everywhere else.
+   */
+  savedAt?: string | null;
   /** Server-asserted from the exercise definition — never the client's word. */
   responseType: "text" | "link";
   /** Non-null only on a `"text"` exercise. Plain text, rendered as text nodes. */
