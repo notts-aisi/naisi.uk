@@ -444,7 +444,7 @@ describe("1. the arithmetic of a group's page", () => {
       if (Array.isArray(value)) for (const each of value) strings.push(JSON.stringify(each));
       if (value && typeof value === "object" && !Array.isArray(value)) strings.push(JSON.stringify(value));
     }
-    for (const said of strings) assert.doesNotMatch(said, /[–—]/, said);
+    for (const said of strings) assert.doesNotMatch(said, /[\u2013\u2014]/, said);
   });
 });
 
