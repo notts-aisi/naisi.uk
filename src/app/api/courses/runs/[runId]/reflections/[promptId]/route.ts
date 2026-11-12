@@ -203,6 +203,8 @@ export async function PUT(
   const source = ownSessionSource(run, liveGroups, actor.uid, takesPart ? enrolment : null);
   const closesAt = run ? workClosesAt(run, liveGroups) : null;
   const now = new Date();
+  // When the words the box now holds were saved, for the writer's page: now, or, when nothing changed, their last save.
+  let savedAt: Date | null = now;
   const logged = { runId, uid: actor.uid, weekId, weekNumber, itemKind: "reflection" as const, itemId: promptId };
 
   try {
@@ -220,7 +222,10 @@ export async function PUT(
       const prior = snap.exists ? ((snap.data() ?? {}) as Record<string, unknown>) : null;
       const priorFacts = prior ? readPieceFacts(prior) : null;
       // A save that changes nothing writes nothing: the words' last save stays their version's mark.
-      if (prior && (typeof prior.text === "string" ? prior.text : "") === text) return;
+      if (prior && (typeof prior.text === "string" ? prior.text : "") === text) {
+        savedAt = priorFacts?.savedAt ?? null;
+        return;
+      }
       // The first change after the session keeps the words it replaces.
       const kept = versionsToKeep({ prior: priorFacts, itemId: promptId, standing: week, now });
       const keptList = kept?.list ?? priorFacts?.earlierVersions ?? [];
@@ -283,6 +288,8 @@ export async function PUT(
     weekNumber,
     exerciseId: promptId,
     kind: "reflection",
+    // When its words were last saved, which the writer's week page tells against their session (`savedLineWords`).
+    savedAt: text && savedAt ? savedAt.toISOString() : null,
     responseType: "text",
     text: text || null,
     linkUrl: null,

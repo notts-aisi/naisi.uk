@@ -1089,6 +1089,20 @@ describe("6. reflections: the version at the session kept once, an emptied box k
     assert.equal(rowOf("chloe", "k3-rp2", "w03").earlierVersions, undefined);
   });
 
+  test("the box's own route answers with when its words were saved, for the writer's page; an unchanged save answers with the last one", async () => {
+    setClock("2026-11-17T12:00:00Z");
+    const first = await r.writeBox("chloe", "k3-rp1", "w03", "Before.");
+    assert.equal(first.body.response.savedAt, "2026-11-17T12:00:00.000Z");
+    setClock("2026-11-17T19:00:00Z");
+    const same = await r.writeBox("chloe", "k3-rp1", "w03", "Before.");
+    assert.equal(same.status, 200);
+    assert.equal(new Date(same.body.response.savedAt).getTime(), rowOf("chloe", "k3-rp1", "w03").updatedAt.getTime(), "an unchanged save says when the words were really saved");
+    assert.notEqual(same.body.response.savedAt, "2026-11-17T19:00:00.000Z");
+    // Emptied, nothing is said to be saved.
+    setClock("2026-11-17T20:00:00Z");
+    assert.equal((await r.writeBox("chloe", "k3-rp1", "w03", "")).body.response.savedAt, null);
+  });
+
   test("an emptied box keeps its row, empty, when a version is owed; it reads as nothing written; otherwise its row goes", async () => {
     setClock("2026-11-17T12:00:00Z");
     await r.writeBox("chloe", "k3-rp1", "w03", "Before.");

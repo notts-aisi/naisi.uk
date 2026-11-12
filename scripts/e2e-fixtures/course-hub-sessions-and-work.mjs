@@ -178,48 +178,59 @@ export const SPEC = {
    * run with both "Most weeks, not all" and Joining online in the journey:
    * all fifteen steps against the loopback server on a laptop, 54 rows
    * before teardown, and zero after.
+   * Verified again on 2026-11-12, once the week stays open: the member sends
+   * with the answer's own Send and changes it before the session, the
+   * fixture starts the group's session, and the member's late work is read
+   * on the member's and the facilitator's pages, with another fellow reading
+   * none of it. All eighteen steps against the loopback server on a laptop,
+   * the fixture manifest at zero after teardown.
    */
-  status: "unverified",
+  status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three-work" }),
   countRows: countTerm,
   teardown: teardownTerm,
 };
 
-/** How long before now the moved session starts: long enough that the next save is plainly after it. */
-const STARTED_MINUTES_AGO = 3;
-
-/** London's wall clock, "HH:MM", `minutes` before `now`, on the same London day (never before midnight). */
-function wallClockBefore(now, minutes) {
+/** London's wall clock, "HH:MM", of an instant. */
+function londonClock(at) {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
-      .formatToParts(now)
+      .formatToParts(at)
       .map((part) => [part.type, part.value]),
   );
-  const at = Math.max(0, Number(parts.hour) * 60 + Number(parts.minute) - minutes);
-  return `${String(Math.floor(at / 60)).padStart(2, "0")}:${String(at % 60).padStart(2, "0")}`;
+  return `${parts.hour}:${parts.minute}`;
 }
 
 /**
- * THE SESSION STARTS. Moves `group`'s week `weekNumber` session to a few
- * minutes before `now`, on today's London date: the group's own pace start
- * becomes the day that puts week `weekNumber`'s slot on today (the run's plan
- * has no break), and that week's session moves to today's weekday at a wall
- * clock `STARTED_MINUTES_AGO` minutes back. The two fields the group's own
- * pace and a one-week "Move it" write, on the group's own record, which the
- * term's teardown deletes; nothing else is written and no row is added. Its
- * other weeks move with the pace start, all of them before week
- * `weekNumber` still in the past. Returns when the session now starts, as
- * the pages tell late against it.
+ * THE SESSION STARTS. Moves `group`'s week `weekNumber` session to start at
+ * the first whole London minute after `after` (the last change the journey
+ * made before it, so that change stays before the session), on today's date,
+ * and waits until that minute has come: the group's own pace start becomes
+ * the day that puts week `weekNumber`'s slot on today (the run's plan has no
+ * break), and that week's session moves to today's weekday at that minute.
+ * The two fields the group's own pace and a one-week "Move it" write, on the
+ * group's own record, which the term's teardown deletes; nothing else is
+ * written and no row is added. Its other weeks move with the pace start, all
+ * of them before week `weekNumber` still in the past. Returns when the
+ * session now starts, as the pages tell late against it.
  */
-export async function startGroupSession(group, weekNumber, now = new Date()) {
-  const todayKey = londonDateKey(now);
-  const startTimeLocal = wallClockBefore(now, STARTED_MINUTES_AGO);
+export async function startGroupSession(group, weekNumber, { after }) {
+  const minute = 60_000;
+  let startsAt = new Date(Math.floor(after.getTime() / minute) * minute + minute);
+  const todayKey = londonDateKey(new Date());
+  // A change made on an earlier London day: the session starts at today's first minute.
+  if (londonDateKey(startsAt) !== todayKey) startsAt = londonWallClockToInstant(todayKey, "00:00");
+  const startTimeLocal = londonClock(startsAt);
   const weekId = weekDocId(weekNumber);
   await fixtureDoc("courseGroups", group.id).update({
     paceStartDate: shiftDateKey(todayKey, -7 * (weekNumber - 1)),
     [`sessionOverrides.${weekId}.weekday`]: weekdayOf(todayKey),
     [`sessionOverrides.${weekId}.startTimeLocal`]: startTimeLocal,
-    updatedAt: now,
+    updatedAt: new Date(),
   });
-  return { dateKey: todayKey, startsAt: londonWallClockToInstant(todayKey, startTimeLocal) };
+  // Until that minute has come, the session has not started: wait for it, never more than a minute and
+  // a margin, so a save's time stamped by the database's clock is after it whatever this machine's says.
+  const wait = startsAt.getTime() - Date.now() + 10_000;
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  return { dateKey: todayKey, startsAt };
 }

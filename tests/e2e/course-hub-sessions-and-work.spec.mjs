@@ -183,6 +183,7 @@ const WORDS = Object.freeze({
   sentLate: /^Sent [A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}, \d{1,2}(?::\d{2})?[ap]m: \d+ minutes? after your session$/,
   staffLate: /Late: \d+ minutes? after the session/,
   atSession: "As it stood at the session",
+  thisWeeksWork: "This week’s work",
 });
 
 /** The link Fern gives week 4, at a reserved domain nothing answers on. */
@@ -841,8 +842,11 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
     await step(
       "once the group's session has started, the member's page says the group met, and what the member adds, changes and sends now says how late",
       async () => {
-        // The clock moves, as the term's points move it: Group A's week 4 session started a few minutes ago.
-        const session = await startGroupSession(group, nextWeek);
+        // The clock moves, as the term's points move it: Group A's week 4 session starts the minute after
+        // Ada's last change, so that change was before it, and the fixture waits until it has started.
+        const lastChange = asDate((await adasAnswer())?.updatedAt);
+        assert.ok(lastChange, "Ada's answer has no time of its last change");
+        const session = await startGroupSession(group, nextWeek, { after: lastChange });
         activePage = adaPage;
         await openWeek(adaPage);
         await adaPage.getByText(WORDS.met(group.name, nextWeek, session.startsAt), { exact: true }).waitFor({ timeout: WAIT_MS });
@@ -887,14 +891,15 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
       await fernPage.goto(namesUrl, { waitUntil: "domcontentloaded" });
       const answer = fernPage.getByRole("listitem").filter({ hasText: REFLECTION });
       await answer.first().waitFor({ timeout: WAIT_MS });
-      assert.match(flat(await answer.first().innerText()), WORDS.staffLate, "the reflections page does not say how late Ada's reflection was");
+      // Its own text, not as drawn: the time line is set in capitals by the stylesheet.
+      assert.match(await textOf(answer.first()), WORDS.staffLate, "the reflections page does not say how late Ada's reflection was");
 
       // This week's work on the group page: the written answer's cell says how late it was sent.
       await fernPage.goto(`${origin}${groupPath}`, { waitUntil: "domcontentloaded" });
       await fernPage.getByRole("heading", { name: group.name, level: 1 }).waitFor({ timeout: WAIT_MS });
-      const row = fernPage.getByRole("row").filter({ hasText: ada.first });
+      const row = fernPage.getByRole("region", { name: WORDS.thisWeeksWork, exact: true }).getByRole("row").filter({ hasText: ada.first });
       await row.first().waitFor({ timeout: WAIT_MS });
-      assert.match(flat(await row.first().innerText()), WORDS.staffLate, "This week's work does not say how late Ada's answer was sent");
+      assert.match(await textOf(row.first()), WORDS.staffLate, "This week's work does not say how late Ada's answer was sent");
     });
 
     await step("another fellow of the group reads none of the member's work", async () => {
