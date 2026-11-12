@@ -65,6 +65,8 @@ const push = await courseRoute("groups", "[groupId]", "attendance", "push");
 const cantMakeItRoute = await courseRoute("groups", "[groupId]", "cant-make-it");
 const regularRoute = await courseRoute("groups", "[groupId]", "session", "regular");
 const timeAnswerRoute = await courseRoute("runs", "[runId]", "time-answer");
+const someWeeksRoute = await courseRoute("runs", "[runId]", "enrolments", "[uid]", "time-answer");
+const timeWords = await loadTs("lib/courses/timeAnswer/words.ts");
 const emailsRoute = await courseRoute("requests", "emails");
 const actions = {
   withdraw: await courseRoute("requests", "[requestId]", "excused", "withdraw"),
@@ -1297,6 +1299,31 @@ describe("a line an approval wrote is taken back by nothing but a correction", (
     // Another week, with no request about it, is as before for the first answer.
     const other = await call("amara", timeAnswerRoute.POST, { runId: RUN.agi }, { body: { groupId: B, kind: "mostWeeks", sessionKeys: ["w04"] }, course: true });
     assert.equal(other.status, 200, JSON.stringify(other.body));
+  });
+
+  test("nor by staff reading their answer as some weeks: an admin and the lead are refused a week with a request waiting or declined", async () => {
+    const staffTick = (who, sessionKeys) =>
+      call(who, someWeeksRoute.POST, { runId: RUN.agi, uid: "amara" }, { body: { sessionKeys }, course: true });
+    const id = await amaraAsks(["w03"]);
+    const cant = { groupId: B, kind: "cant", reason: "Tuesday evenings clash with my lab shift.", alternatives: "Monday evenings." };
+    const said = await call("amara", timeAnswerRoute.POST, { runId: RUN.agi }, { body: cant, course: true });
+    assert.equal(said.status, 200, JSON.stringify(said.body));
+    const sentence = `Tue 17 Nov: ${timeWords.SOME_WEEKS_REFUSAL.withAnAdmin}`;
+    for (const state of ["waiting", "declined"]) {
+      if (state === "declined") assert.equal((await act("zach", "decline", id, { sessionKey: "w03", reply: "Please come along." })).status, 200);
+      for (const who of ["zach", "claudia"]) {
+        const before = everything();
+        const refused = await staffTick(who, ["w04", "w03"]);
+        assert.deepEqual([refused.status, refused.body.error], [409, sentence], `${state}, ${who}`);
+        assert.equal(everything(), before, `${state}, ${who}: a refused press wrote something`);
+      }
+    }
+    assert.equal(timeWords.SOME_WEEKS_REFUSAL.withAnAdmin, "That week has a request to be excused with an admin, so it can’t be ticked here.");
+    assert.equal(world.db.read(W3) ?? null, null, "the register says excused past the decline");
+    // Everything else about the door is as it was: the lead reads it as some weeks for a week with no request.
+    const saved = await staffTick("claudia", ["w04"]);
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.equal(world.db.read(`courseAttendance/${RUN.agi}__${B}__w04`).records.amara, "excused");
   });
 
   test("a facilitator marks Absent over an approval and finishes: the person's card says what the register says, and that an admin can correct it", async () => {

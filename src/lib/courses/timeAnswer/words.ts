@@ -302,5 +302,7 @@ export const SOME_WEEKS_REFUSAL = {
   notHeld: "Their facilitators have said that session didn’t happen.",
   marked: "Their facilitators have already filled in that session’s register for them.",
   full: "That session’s register is full.",
+  /** A request to be excused waits or was declined: only an admin decides those. */
+  withAnAdmin: "That week has a request to be excused with an admin, so it can’t be ticked here.",
   failed: "That didn’t save. Try again.",
 } as const;
