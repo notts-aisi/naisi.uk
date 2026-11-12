@@ -211,7 +211,8 @@ export type SetterView = { name: string; at: string; how: string; yours?: boolea
 /**
  * WHO SET A LINE, AND WHEN, in the board's words: "Set before the session"
  * for the person's own word, "Set by you, 4:14pm" for the reader's own line,
- * "Zach, 4:14pm" for anybody else's.
+ * "Zach, 4:14pm" for anybody else's, and "Zach’s approval, 9:10pm" for a
+ * line an admin's approval of a request to be excused wrote.
  */
 export function setByWords(entry: SetterView): string {
   if (entry.how === "self") return "Set before the session";
@@ -219,6 +220,7 @@ export function setByWords(entry: SetterView): string {
   const clock = Number.isNaN(at.getTime()) ? "" : londonClockLabel(at);
   if (entry.yours) return clock ? `Set by you, ${clock}` : "Set by you";
   const who = firstWordOf(entry.name) || "Somebody";
+  if (entry.how === "approval") return clock ? `${who}’s approval, ${clock}` : `${who}’s approval`;
   return clock ? `${who}, ${clock}` : who;
 }
 

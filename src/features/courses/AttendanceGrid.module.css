@@ -825,6 +825,36 @@
   color: var(--color-text);
 }
 
+/* Who has asked to be excused from a session still to come: a name and its fact. */
+.excuseList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.excuseRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.excuseRow .lineChip {
+  margin: 0;
+}
+
+.excuseNote {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
 /* A finished register's session note asks why. */
 .noteReason {
   display: flex;

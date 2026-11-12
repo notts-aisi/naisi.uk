@@ -88,6 +88,11 @@ export type AttendanceCaller = AttendancePayload["caller"];
 export type AttendanceCorrections = AttendancePayload["corrections"];
 /** `sessionKey -> uid -> request`: a waiting ask about the line, or what became of the newest. */
 export type AttendanceRequests = AttendancePayload["requests"];
+/**
+ * `sessionKey -> uid -> "waiting" | "excused"`: a request to be excused, as
+ * one of two facts and nothing else (never the reason, the reply or a count).
+ */
+export type AttendanceExcuseRequests = AttendancePayload["excuseRequests"];
 
 export type AttendanceState = {
   group: AttendancePayload["group"] | null;
@@ -130,6 +135,8 @@ export type AttendanceState = {
   corrections: AttendanceCorrections;
   /** The asks about lines, as the route sends them to this reader. */
   requests: AttendanceRequests;
+  /** Requests to be excused, one of two facts per person per session. */
+  excuseRequests: AttendanceExcuseRequests;
   /** True on the first load of a group AND on a manual refresh. */
   loading: boolean;
   /** A fetch for the CURRENT group has landed, so the grid is real. */
@@ -189,6 +196,7 @@ const NO_COVERS: AttendanceCovers = {};
 const NO_FACILITATORS: AttendanceFacilitator[] = [];
 const NO_CORRECTIONS: AttendanceCorrections = {};
 const NO_REQUESTS: AttendanceRequests = {};
+const NO_EXCUSE_REQUESTS: AttendanceExcuseRequests = {};
 
 /**
  * A separator that cannot occur in a group id, so the composite stamp can
@@ -568,6 +576,7 @@ export function useAttendance(groupId: string, options: { week?: number | null }
     caller: data?.caller ?? null,
     corrections: data?.corrections ?? NO_CORRECTIONS,
     requests: data?.requests ?? NO_REQUESTS,
+    excuseRequests: data?.excuseRequests ?? NO_EXCUSE_REQUESTS,
     loading,
     loaded: !idle && !loading && data !== null,
     error: fresh?.error ?? null,

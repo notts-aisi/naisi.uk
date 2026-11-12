@@ -15,6 +15,7 @@ import {
   type GroupPageWeek,
 } from "@/lib/courses/groupPage/model";
 import * as W from "@/lib/courses/groupPage/words";
+import * as S from "@/lib/courses/excused/staffWords";
 import { coverChoicesOf, noticeWeekOf } from "@/lib/courses/registerCover/pageModel";
 import * as C from "@/lib/courses/registerCover/pageWords";
 import { UNKNOWN_OUTCOME } from "@/lib/courses/sessionChange/words";
@@ -599,7 +600,20 @@ export default function GroupPage({
                     {week.people.map((person) => (
                       <tr key={person.uid}>
                         <td>{person.name}</td>
-                        <td>{W.WEEK_SAID_WORDS[person.said]}</td>
+                        <td>
+                          {/* A request to be excused is one of two facts, and
+                              says it in place of what they said in advance. */}
+                          {person.excuse ? (
+                            <span
+                              className={`${styles.excuseChip} ${person.excuse === "waiting" ? styles.excuseWaiting : styles.excuseExcused}`}
+                              data-testid="group-excuse-chip"
+                            >
+                              {S.factWords(person.excuse)}
+                            </span>
+                          ) : (
+                            W.WEEK_SAID_WORDS[person.said]
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -607,6 +621,7 @@ export default function GroupPage({
                 {view.facilitatorsWithPlaces.length > 0 && (
                   <p className={styles.cardLine}>{W.facilitatorsApartLine(view.facilitatorsWithPlaces)}</p>
                 )}
+                {week.people.some((person) => person.excuse) && <p className={styles.cardLine}>{S.WHAT_YOU_SEE}</p>}
               </section>
             )
           )}
