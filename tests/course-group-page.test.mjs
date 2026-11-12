@@ -518,7 +518,7 @@ describe("1. the arithmetic of a group's page", () => {
     assert.equal(own?.text, "Week 3 keeps its own change (held online): Tue 17 Nov, 5:30pm.");
   });
 
-  test("a cover the press takes off: one Cover line each, in the route's words, before who is told", () => {
+  test("a cover the press takes off: one Cover line saying each, in the route's words, before who is told", () => {
     const ENDS = "Ola Example’s cover of week 4’s session ends: the session moves. Give it again if they can still take it.";
     const oneWeek = model.oneWeekPreviewLines({
       preview: {
@@ -566,7 +566,9 @@ describe("1. the arithmetic of a group's page", () => {
       incubator: false,
       todayKey: "2026-11-19",
     });
-    assert.deepEqual(regular.filter((line) => line.label === "Cover").map((line) => line.text), [ENDS, ENDS.replace("week 4", "week 5")]);
+    // Two covers, one line: the panel keys its lines by label, so no label is drawn twice.
+    assert.deepEqual(regular.filter((line) => line.label === "Cover").map((line) => line.text), [`${ENDS} ${ENDS.replace("week 4", "week 5")}`]);
+    assert.equal(new Set(regular.map((line) => line.label)).size, regular.length, "a label drawn twice");
     assert.equal(regular.at(-1).label, "Told");
     assert.equal(regular.at(-2).label, "Cover");
   });

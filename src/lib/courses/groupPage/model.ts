@@ -516,12 +516,16 @@ export type RegularPreview = {
 /** One line of "What will happen": its label and its sentence. */
 export type PreviewLine = { label: string; text: string };
 
-/** The label of a line saying a cover ends, one line per cover, as the route wrote it. */
+/** The label of the line saying which covers end, as the route wrote each. */
 export const COVER_ENDS = "Cover";
 
-/** A line for each cover the press would take off, in the route's own words. */
+/**
+ * One Cover line saying each cover the press would take off, in the route's
+ * own sentences, or none: one line, because the panel keys its lines by label.
+ */
 function coverLines(coversEnd: readonly string[] | undefined): PreviewLine[] {
-  return (coversEnd ?? []).filter((text) => text.trim()).map((text) => ({ label: COVER_ENDS, text }));
+  const said = (coversEnd ?? []).filter((text) => text.trim());
+  return said.length > 0 ? [{ label: COVER_ENDS, text: said.join(" ") }] : [];
 }
 
 // ---------------------------------------------------------------------------
