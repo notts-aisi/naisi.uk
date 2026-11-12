@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import * as P from "@/lib/courses/registerCorrection/pageWords";
+import { secondSessionWords } from "@/lib/courses/registerCorrection/words";
+import { pushHasRecordsHint } from "@/lib/courses/registerCover/words";
 import { correctColumn, postGroupNotice, type Answer } from "./api";
 import styles from "./CorrectionSheets.module.css";
 
@@ -19,9 +21,11 @@ import styles from "./CorrectionSheets.module.css";
  *
  * Every way asks why, and shows "Before you save" from the route's own
  * preview (`preview: true`, which writes nothing) before the one button,
- * which names what it does. Nobody is emailed, except by It didn't happen's
- * notice when it is ticked, which says its count first: the count is the
- * preview's, and the route checks it again when the button is pressed.
+ * which names what it does. A correction emails nobody itself. It didn't
+ * happen's notice goes when it is ticked, and says its count first: the
+ * count is the preview's, and the route checks it again when the button is
+ * pressed. A move or a clear puts the register back to not taken, so its
+ * reminder may go again, and Before you save says who gets it and when.
  */
 
 export type ColumnTarget = {
@@ -62,7 +66,9 @@ export default function ColumnSheet({
   const [store, setStore] = useState<Store>({ key: "", answer: null });
 
   const session = target?.session ?? null;
-  const kind: P.ColumnWay | "did-happen" | null = happened ? way : "did-happen";
+  // Whether a session happened is changed for a week's first session only.
+  const firstSession = (session?.occurrence ?? 1) === 1;
+  const kind: P.ColumnWay | "did-happen" | null = happened ? way : firstSession ? "did-happen" : null;
 
   // What the preview is asked: one key per question, so an answer that lands
   // after the question changed is never shown.
@@ -70,9 +76,9 @@ export default function ColumnSheet({
     !session || !kind
       ? null
       : kind === "did-not-happen"
-        ? pace
-          ? { kind, weekNumber: session.weekNumber, occurrence: session.occurrence, preview: true, pace, dateKey: session.dateKey }
-          : null
+        ? // Before a pace is chosen, keep pace's preview: it says whether the
+          // session has a check-in or a report, which decides whether push back is offered.
+          { kind, weekNumber: session.weekNumber, occurrence: session.occurrence, preview: true, pace: pace ?? "keep", dateKey: session.dateKey }
         : kind === "move"
           ? {
               kind,
@@ -116,7 +122,10 @@ export default function ColumnSheet({
   const targets = ((preview?.targets as { weekNumber: number; occurrence: number; sessionKey: string; dateKey: string; ok: boolean; why: string | null }[] | undefined) ?? []).filter((each) => each.ok);
   const toWeek = toKey ? weekOfKey(toKey).weekNumber : null;
   const people = (preview?.people as { uid: string; name: string; line: string }[] | undefined) ?? [];
-  const everyoneSaid = people.length > 0 && people.every((each) => Boolean(lines[each.uid]));
+  // Each person starts from what their line says now (somebody who told us in
+  // advance they couldn't make it starts as Excused), until it is changed.
+  const chosenFor = (person: { uid: string; line: string }): string | null => lines[person.uid] ?? P.choiceOfLine(person.line)?.key ?? null;
+  const everyoneSaid = people.length > 0 && people.every((each) => Boolean(chosenFor(each)));
 
   const ready =
     !busy &&
@@ -128,18 +137,21 @@ export default function ColumnSheet({
     (kind === "did-not-happen" ? pace !== null : true) &&
     (kind === "did-happen" ? everyoneSaid : true);
 
-  const counts = { room: 0, online: 0, absent: 0, excused: 0 };
-  for (const each of people) {
-    const chosen = lines[each.uid];
-    if (chosen === "present") counts.room += 1;
-    else if (chosen === "present-online") counts.online += 1;
-    else if (chosen === "absent") counts.absent += 1;
-  }
+  const counts = P.didHappenCounts(people.map(chosenFor));
+
+  // Push the rest back is not offered once the session has a check-in or a
+  // session report (the route refuses it in the same words), nor until the
+  // preview has said whether it has.
+  const made = kind === "did-not-happen" ? ((preview?.didNotHappen as { checkIn: boolean; reports: number } | undefined) ?? null) : null;
+  const pushBlocked = Boolean(made && (made.checkIn || made.reports > 0));
+  const pushOffered = kind === "did-not-happen" && !pushBlocked && (made !== null || pace === "push");
 
   const before: P.BeforeYouSave = !preview
     ? []
     : kind === "did-not-happen"
-      ? P.didNotHappenPreviewLines(preview)
+      ? pace
+        ? P.didNotHappenPreviewLines(preview)
+        : []
       : kind === "did-happen"
         ? P.didHappenPreviewLines(preview, counts)
         : P.columnPreviewLines(preview, groupName);
@@ -164,7 +176,7 @@ export default function ColumnSheet({
             ? {
                 ...base,
                 lines: people.map((each) => {
-                  const chosen = P.choiceOf(lines[each.uid] ?? null);
+                  const chosen = P.choiceOf(chosenFor(each));
                   return { uid: each.uid, ...(chosen ? P.lineBody(chosen) : { status: "absent" }) };
                 }),
               }
@@ -274,9 +286,12 @@ export default function ColumnSheet({
                       className={styles.radio}
                       checked={pace === value}
                       onChange={() => setPace(value)}
-                      disabled={busy}
+                      disabled={busy || (value === "push" && !pushOffered)}
                     />
-                    <span>{label}</span>
+                    <span className={styles.choiceText}>
+                      <span>{label}</span>
+                      {value === "push" && pushBlocked && <span className={styles.choiceLine}>{pushHasRecordsHint(session.weekNumber)}</span>}
+                    </span>
                   </label>
                 ))}
               </div>
@@ -292,14 +307,22 @@ export default function ColumnSheet({
                     <span className={styles.personName} id={`did-happen-${each.uid}`}>
                       {each.name}
                     </span>
-                    <div className={styles.personChoices} role="radiogroup" aria-labelledby={`did-happen-${each.uid}`}>
-                      {P.DID_HAPPEN_CHOICES.map((choice) => (
-                        <label key={choice.key} className={`${styles.choice} ${lines[each.uid] === choice.key ? styles.choiceOn : ""}`}>
+                    <span className={styles.choiceLine} id={`did-happen-now-${each.uid}`}>
+                      {P.didHappenNowWords(each.line)}
+                    </span>
+                    <div
+                      className={styles.personChoices}
+                      role="radiogroup"
+                      aria-labelledby={`did-happen-${each.uid}`}
+                      aria-describedby={`did-happen-now-${each.uid}`}
+                    >
+                      {P.didHappenChoicesFor(each.line).map((choice) => (
+                        <label key={choice.key} className={`${styles.choice} ${chosenFor(each) === choice.key ? styles.choiceOn : ""}`}>
                           <input
                             type="radio"
                             name={`did-happen-${each.uid}`}
                             className={styles.radio}
-                            checked={lines[each.uid] === choice.key}
+                            checked={chosenFor(each) === choice.key}
                             onChange={() => setLines((now) => ({ ...now, [each.uid]: choice.key }))}
                             disabled={busy}
                           />
@@ -350,7 +373,7 @@ export default function ColumnSheet({
             </section>
           )}
 
-          {kind === "did-not-happen" && preview && (
+          {kind === "did-not-happen" && pace && preview && (
             <label className={styles.tick}>
               <input
                 type="checkbox"
@@ -363,7 +386,7 @@ export default function ColumnSheet({
             </label>
           )}
 
-          {!kind && <p className={styles.footLine}>{P.PREVIEW_WAITING}</p>}
+          {!kind && <p className={styles.footLine}>{happened ? P.PREVIEW_WAITING : secondSessionWords(session.weekNumber)}</p>}
 
           {problem && (
             <p className={styles.error} role="status">

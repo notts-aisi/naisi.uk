@@ -1128,8 +1128,11 @@ export default function AttendanceGrid({
                         keeps the way back for whoever does not correct
                         registers. For the people who do, a finished column,
                         or one that says it didn't happen, opens the column's
-                        correction instead, which asks why. */}
-                    {corrects && (pushed || !session.held) && (
+                        correction instead, which asks why. Whether a session
+                        happened is changed for a week's first session only,
+                        so a week's second session that says it didn't is
+                        offered nothing here. */}
+                    {corrects && (session.held ? pushed : session.occurrence === 1) && (
                       <button
                         type="button"
                         className={styles.bulk}

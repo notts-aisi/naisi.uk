@@ -8,6 +8,7 @@ import { gateGroupRegister, isAddressableId } from "@/lib/courses/registerAccess
 import { lineOf, sameLine, wordsOf } from "@/lib/courses/registerCorrection/model";
 import { resolveSessions } from "@/lib/courses/sessions";
 import { addDaysToKey, londonDateKey, londonWallClockToInstant } from "@/lib/courses/weekPlan";
+import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import { attendanceDocId, normalizeCourseAttendance, type LineSetterHow } from "@/lib/firestore/courseAttendance";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -33,7 +34,9 @@ import { sessionKeyParts } from "./decide";
  * track leads, read the requests of the runs they lead, and nobody else's.
  * Anybody else is answered `none`, as for a page that is not there. The
  * request page also asks the request's own group's register gate, so a lead
- * whose programme no longer names the run is nobody on it.
+ * whose programme no longer names the run is nobody on it, and the list
+ * leaves out what that page would not open: a group the lead facilitates,
+ * which the gate answers them on as its facilitator, or an archived one.
  *
  * READ WITH ONE FIELD AT A TIME, so no list needs a declared index: for an
  * admin, waiting requests by `status` and this week's decided ones by a
@@ -242,6 +245,12 @@ export async function loadRequestsPage(db: Firestore, actor: SessionUser, now: D
   );
 
   const ctx = await context(db, requests, actor);
+  // Only what the reader can open: one request's page asks the group's own
+  // register gate (`gateGroupRegisterForRead`), which answers a lead who also
+  // facilitates the group as a facilitator, and admits no lead to an
+  // archived group. The runs are led already (`ledRuns`); the rest is the
+  // group's, read once above.
+  if (!isAdmin) requests = requests.filter((each) => leadDecidesOn(actor, ctx.groups.get(each.groupId), each.runId));
   const rows = requests
     .map((each) => rowOf(each, ctx, led.naming, actor))
     .sort(
@@ -338,6 +347,17 @@ export async function loadRequestPage(db: Firestore, actor: SessionUser, request
       yours: request.askedByUid === actor.uid,
     },
   };
+}
+
+/**
+ * Whether somebody leading a run (`ledRuns` holds them to that) decides the
+ * requests on one of its groups, as the register's gate answers them: never
+ * on a group they facilitate (the gate answers them as its facilitator), on
+ * an archived group, or on a group of another run.
+ */
+function leadDecidesOn(actor: SessionUser, group: CourseGroupDoc | undefined, runId: string): boolean {
+  if (!group || group.archived || group.runId !== runId) return false;
+  return !isNamedWithStanding(actor, "courseGroups.facilitatorUids", group.facilitatorUids);
 }
 
 /** Whether the reader decides requests on this request's group: an admin, or somebody leading its programme. */

@@ -204,7 +204,8 @@ export default function AttendanceTab({
                     <span className={styles.headLabel}>{P.columnLabel(column.weekNumber, column.dateKey)}</span>
                     {column.finished && <span className={styles.headSub}>Finished by {P.firstOf(column.finished.name) || "somebody"}</span>}
                     {column.cover && <span className={styles.headSub}>Taken by {P.firstOf(column.cover.name)}</span>}
-                    {corrects && column.started && (column.finished || !column.held) && (
+                    {/* Whether a session happened is changed for a week's first session only. */}
+                    {corrects && column.started && (column.held ? Boolean(column.finished) : occurrenceOf(column.sessionKey) === 1) && (
                       <button
                         type="button"
                         className={styles.headButton}

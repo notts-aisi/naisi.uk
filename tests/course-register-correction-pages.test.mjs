@@ -149,19 +149,31 @@ describe("1. the words", () => {
     );
     assert.deepEqual(online[0], { label: "Changes", text: "5 lines: In the room to Online. Kai stays Absent." });
     assert.deepEqual(online.at(-1), { label: "Told", text: "Nobody is emailed. Its facilitators see it on the register; the people see it on their own pages." });
+    const returns = {
+      email: "returns",
+      card: "returns",
+      emailTo: { kind: "facilitators", names: ["Rahul Mehta", "Sofia Rossi"] },
+      emailFrom: "2026-11-12T08:00:00.000Z",
+    };
     const move = P.columnPreviewLines(
-      { kind: "move", weekNumber: 1, moves: 2, to: { weekNumber: 2, dateKey: "2026-11-11" }, staying: [], stays: { checkIn: true, reports: 1 }, chase: { email: "returns", card: "returns" } },
+      { kind: "move", weekNumber: 1, moves: 2, to: { weekNumber: 2, dateKey: "2026-11-11" }, staying: [], stays: { checkIn: true, reports: 1 }, chase: returns, at: "2026-11-11T10:00:00.000Z" },
       "Group I",
     );
     assert.equal(move[0].text, "2 lines move to week 2, Wed 11 Nov, with who set each. Week 1 goes back to not taken.");
     assert.equal(move[1].text, "What people said in advance, and any notes on the register, stay with this week. So do its check-in and its session report: they don’t move.");
-    assert.equal(move[2].text, "The reminders about its register start again.");
-    const clear = P.columnPreviewLines({ kind: "clear", weekNumber: 3, clears: 1, staying: [], stays: { checkIn: false, reports: 0 }, chase: { email: "passed", card: "returns" } }, "Group A");
+    assert.equal(move[2].text, "The reminder email goes again. The card for the lead and admins comes back.");
+    assert.deepEqual(move.at(-1), {
+      label: "Told",
+      text: "Its facilitators, Rahul and Sofia, get the register reminder email soon after 8am on Thu 12 Nov if it isn’t finished by then. Nobody else is emailed.",
+    });
+    const clear = P.columnPreviewLines({ kind: "clear", weekNumber: 3, clears: 1, staying: [], stays: { checkIn: false, reports: 0 }, chase: { email: "passed", card: "returns", emailTo: null, emailFrom: null } }, "Group A");
     assert.equal(clear[0].text, "1 line cleared. Week 3 goes back to not taken, and the group’s history keeps what each said.");
-    assert.equal(clear[2].text, "The reminder email’s time has passed, so only the card for the lead and admins comes back.");
+    assert.equal(clear[2].text, "The reminder email’s time for this session has passed, so it doesn’t go again. The card for the lead and admins comes back.");
+    assert.equal(clear.at(-1).text, "Nobody is emailed. Its facilitators see it on the register; the people see it on their own pages.");
     const keep = P.didNotHappenPreviewLines({ weekNumber: 2, pace: "keep", clearing: [{ uid: "a", name: "Ada Fixture", line: "In the room" }], didNotHappen: { checkIn: false, reports: 0 } });
-    assert.deepEqual(keep.map((row) => row.label), ["Attendance", "Register", "Dates"]);
+    assert.deepEqual(keep.map((row) => row.label), ["Attendance", "Register", "Dates", "Check-in, report"]);
     assert.equal(keep[1].text, "1 line cleared: Ada (in the room). The group’s history keeps what each said.");
+    assert.equal(keep[3].text, "Neither opens: there was no session.");
     const push = P.didNotHappenPreviewLines({ weekNumber: 2, pace: "push", clearing: [], after: { weekNumber: 2, dateKey: "2026-11-17", startTimeLocal: "18:00" } });
     assert.equal(push.find((row) => row.label === "Dates").text, "Week 2 meets on Tue 17 Nov at 6pm instead, and every week after it a week later.");
     assert.equal(P.columnButtonWords({ way: "online", weekNumber: 1, lines: 5, toWeek: null, tell: false, emails: 0 }), "Correct 5 lines");
@@ -176,6 +188,82 @@ describe("1. the words", () => {
     });
     assert.equal(P.correctColumnWords(1), "Correct week 1’s whole column");
     assert.equal(P.didHappenWords(1), "Week 1 did happen");
+  });
+
+  test("Told says nobody is emailed only while no reminder will go: who gets it and when when it returns, why not when it has passed or is off", () => {
+    const at = new Date("2026-11-11T10:00:00.000Z");
+    const nobody = "Nobody is emailed. Its facilitators see it on the register; the people see it on their own pages.";
+    const facilitators = { kind: "facilitators", names: ["Rahul Mehta", "Sofia Rossi"] };
+    // Returns: who, and when, in one sentence; never "Nobody is emailed".
+    const later = { email: "returns", card: "returns", emailTo: facilitators, emailFrom: "2026-11-12T08:00:00.000Z" };
+    assert.equal(P.toldWords(later, at), "Its facilitators, Rahul and Sofia, get the register reminder email soon after 8am on Thu 12 Nov if it isn’t finished by then. Nobody else is emailed.");
+    assert.equal(
+      P.toldWords({ ...later, emailFrom: "2026-11-11T20:00:00.000Z" }, at),
+      "Its facilitators, Rahul and Sofia, get the register reminder email soon after 8pm today if it isn’t finished by then. Nobody else is emailed.",
+    );
+    assert.equal(
+      P.toldWords({ ...later, emailFrom: "2026-11-10T20:00:00.000Z", emailTo: { kind: "facilitators", names: ["Rahul Mehta"] } }, at),
+      "Its facilitator, Rahul, gets the register reminder email within about 15 minutes if it isn’t finished by then. Nobody else is emailed.",
+    );
+    assert.match(P.toldWords({ ...later, emailTo: { kind: "cover-taker", names: ["Claudia Ward"] } }, at), /^Claudia, who took it in a facilitator’s place, gets the register reminder email soon after 8am on Thu 12 Nov/);
+    assert.match(P.toldWords({ ...later, emailTo: { kind: "cover-giver", names: ["Claudia Ward"] } }, at), /^Claudia, who gave the session to somebody, gets /);
+    for (const chase of [
+      later,
+      { email: "passed", card: "returns", emailTo: null, emailFrom: null },
+      { email: "passed", card: "passed", emailTo: null, emailFrom: null },
+      { email: "off", card: "off", emailTo: null, emailFrom: null },
+    ]) {
+      const lines = P.columnPreviewLines({ kind: "clear", weekNumber: 1, clears: 2, staying: [], stays: { checkIn: false, reports: 0 }, chase, at: at.toISOString() }, "Group B");
+      const told = lines.find((row) => row.label === "Told").text;
+      const reminders = lines.find((row) => row.label === "Reminders").text;
+      if (chase.email === "returns") {
+        assert.doesNotMatch(told, /Nobody is emailed/, "Told says nobody is emailed while a reminder will go");
+        assert.match(reminders, /^The reminder email goes again\./);
+      } else {
+        assert.equal(told, nobody);
+        assert.doesNotMatch(reminders, /goes again/);
+      }
+    }
+    // Passed and off say which: a job switched off is never said to have passed.
+    assert.equal(
+      P.columnPreviewLines({ kind: "clear", weekNumber: 1, clears: 1, staying: [], stays: { checkIn: false, reports: 0 }, chase: { email: "passed", card: "passed", emailTo: null, emailFrom: null } }, "Group B").find((row) => row.label === "Reminders").text,
+      "The reminder email’s time for this session has passed, so it doesn’t go again. The card for the lead and admins doesn’t come back: its time has passed.",
+    );
+    assert.equal(
+      P.columnPreviewLines({ kind: "clear", weekNumber: 1, clears: 1, staying: [], stays: { checkIn: false, reports: 0 }, chase: { email: "off", card: "off", emailTo: null, emailFrom: null } }, "Group B").find((row) => row.label === "Reminders").text,
+      "The reminder email is switched off, so it doesn’t go. The card for the lead and admins is switched off, so it doesn’t come back.",
+    );
+    // A group with nobody for the reminder to go to: nobody is emailed, and the reminder says so.
+    const nobodyToGo = { ...later, emailTo: { kind: "facilitators", names: [] } };
+    assert.equal(P.toldWords(nobodyToGo, at), nobody);
+    // Held online puts nothing back to not taken: nobody is emailed whatever the chase.
+    assert.equal(P.columnPreviewLines({ kind: "online", weekNumber: 1, changes: 1, staying: [], chase: later }, "Group B").at(-1).text, nobody);
+    // A move's line after it went through does not say nobody was emailed.
+    assert.doesNotMatch(P.columnDoneWords("move", 1, 2, 2), /emailed/);
+  });
+
+  test("It did happen offers Excused, shows each person's line, and starts each from it", () => {
+    assert.deepEqual(P.DID_HAPPEN_CHOICES.map((choice) => choice.words), ["In the room", "Online", "Absent", "Excused"]);
+    assert.equal(P.choiceOfLine("Excused").key, "excused");
+    assert.equal(P.choiceOfLine("Not set"), null);
+    assert.equal(P.didHappenNowWords("Excused"), "Now: Excused");
+    assert.equal(P.didHappenNowWords("Not set"), "Now: Not set");
+    // A line the four do not say stays offered, so it can be kept.
+    assert.deepEqual(P.didHappenChoicesFor("Arrived late, in the room").map((choice) => choice.key), ["present", "present-online", "absent", "excused", "late"]);
+    assert.deepEqual(P.didHappenChoicesFor("Excused").map((choice) => choice.key), ["present", "present-online", "absent", "excused"]);
+    assert.deepEqual(P.didHappenCounts(["present", "excused", null, "late-online", "absent", "excused"]), { room: 1, online: 1, absent: 1, excused: 2 });
+    assert.deepEqual(P.didHappenPreviewLines({ weekNumber: 2 }, P.didHappenCounts(["present", "excused"]))[0], {
+      label: "Attendance",
+      text: "Week 2 comes back into everyone’s attendance: 1 in the room and 1 excused.",
+    });
+  });
+
+  test("It didn't happen says what was opened or written for it, true for the cancel chosen", () => {
+    const row = (preview) => P.didNotHappenPreviewLines(preview).find((each) => each.label === "Check-in, report")?.text;
+    assert.equal(row({ weekNumber: 1, pace: "keep", clearing: [], didNotHappen: { checkIn: true, reports: 2 } }), "Its check-in was opened, and 2 session reports were written. They are kept, and nothing more opens for it.");
+    assert.equal(row({ weekNumber: 1, pace: "keep", clearing: [], didNotHappen: { checkIn: false, reports: 0 } }), "Neither opens: there was no session.");
+    // Push back is refused once either exists, so a push's preview has neither.
+    assert.equal(row({ weekNumber: 1, pace: "push", clearing: [], didNotHappen: { checkIn: false, reports: 0 } }), "Nothing was opened or written for it. Week 1’s check-in and report are for its new session.");
   });
 
   test("the Requests page's rows, one request's page and Home say who, about what, when and who has it", () => {
@@ -406,6 +494,28 @@ describe("3. the wiring", () => {
     assert.doesNotMatch(hook.slice(hook.indexOf("const edit = useCallback")), /held: patch\.held/, "a correction sends the held switch");
     const api = read("src/features/courses/registerCorrection/api.ts");
     assert.match(api, /reason: input\.reason,\n\s+\}\);\n\}/, "a line's correction is sent without its reason");
+  });
+
+  test("the column's sheet: It did happen starts each person from their line, push back is not offered once the session has a check-in or a report, and a week's second session is offered neither", () => {
+    const sheet = read("src/features/courses/registerCorrection/ColumnSheet.tsx");
+    assert.match(sheet, /const chosenFor = \(person: \{ uid: string; line: string \}\): string \| null => lines\[person\.uid\] \?\? P\.choiceOfLine\(person\.line\)\?\.key \?\? null;/);
+    assert.match(sheet, /\{P\.didHappenNowWords\(each\.line\)\}/, "the sheet does not show each person's line");
+    assert.match(sheet, /\{P\.didHappenChoicesFor\(each\.line\)\.map\(\(choice\) =>/);
+    assert.match(sheet, /checked=\{chosenFor\(each\) === choice\.key\}/, "a person does not start from their line");
+    assert.doesNotMatch(sheet, /DID_HAPPEN_CHOICES\.map/);
+    // Push back: worked out from the preview's own check-in and report, disabled with the one-week change's hint.
+    assert.match(sheet, /const pushBlocked = Boolean\(made && \(made\.checkIn \|\| made\.reports > 0\)\);/);
+    assert.match(sheet, /disabled=\{busy \|\| \(value === "push" && !pushOffered\)\}/);
+    assert.match(sheet, /\{value === "push" && pushBlocked && <span className=\{styles\.choiceLine\}>\{pushHasRecordsHint\(session\.weekNumber\)\}<\/span>\}/);
+    assert.match(sheet, /pace: pace \?\? "keep", dateKey: session\.dateKey/, "the sheet does not ask before a pace is chosen");
+    // A week's second session: It didn't happen is not offered, nor It did happen.
+    assert.match(sheet, /P\.COLUMN_WAYS\.filter\(\(each\) => each\.way !== "did-not-happen" \|\| session\.occurrence === 1\)/);
+    assert.match(sheet, /const kind: P\.ColumnWay \| "did-happen" \| null = happened \? way : firstSession \? "did-happen" : null;/);
+    assert.match(read("src/features/courses/AttendanceGrid.tsx"), /\{corrects && \(session\.held \? pushed : session\.occurrence === 1\) && \(/);
+    assert.match(
+      read("src/features/courses/groupPage/AttendanceTab.tsx"),
+      /\{corrects && column\.started && \(column\.held \? Boolean\(column\.finished\) : occurrenceOf\(column\.sessionKey\) === 1\) && \(/,
+    );
   });
 
   test("the Attendance tab is handed to admins and the programme's lead only, never on a facilitator's own page", () => {
