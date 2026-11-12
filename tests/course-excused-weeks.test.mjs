@@ -80,6 +80,7 @@ const attendanceLib = await loadTs("lib/firestore/courseAttendance.ts");
 const cantModel = await loadTs("lib/courses/cantMakeIt/model.ts");
 const cantWords = await loadTs("lib/courses/cantMakeIt/words.ts");
 const coverModel = await loadTs("lib/courses/registerCover/model.ts");
+const sessionsLib = await loadTs("lib/courses/sessions.ts");
 const own = await loadTs("lib/courses/excused/own.ts");
 const page = await loadTs("lib/courses/excused/page.ts");
 const tidy = await loadTs("lib/courses/excused/tidy.ts");
@@ -892,6 +893,38 @@ describe("who is sent what: the reason and how often to admins only, one of two 
     assert.equal(view.canDecide, true);
   });
 
+  test("how often, for admins: a week counts once its session happened and they were excused from it; weeks ahead are coming up, apart", () => {
+    const run = courses.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+    const group = groups.normalizeCourseGroup(B, world.db.read(`courseGroups/${B}`));
+    const sessions = sessionsLib.resolveSessions(run, group);
+    const register = (n, mark, extra = {}) =>
+      attendanceLib.normalizeCourseAttendance(`${RUN.agi}__${B}__w0${n}`, { runId: RUN.agi, groupId: B, weekNumber: n, occurrence: 1, records: { amara: mark }, ...extra });
+    const seat = { role: "learner", status: "active", groupId: B, timeAnswer: { kind: "mostWeeks", sessionKeys: ["w01", "w04"], forGroupId: B, at: new Date("2026-11-01T10:00:00Z") } };
+    const approved = (...keys) => ({ id: "r1", subjectUid: "amara", weeks: keys.map((sessionKey) => ({ sessionKey, status: "approved" })) });
+    const count = (registers, requests = [approved("w02", "w03")]) =>
+      page.excusedThisTermOf({ uid: "amara", sessions, registers: new Map(registers), requests, seat, group: { timeQuestionSince: null }, now: AFTER_W2 });
+    const told = { excusedInAdvance: { amara: new Date("2026-11-01T10:00:00Z") } };
+    const all = count([
+      // Week 1 ticked, and she came after all: not counted.
+      ["w01", register(1, "present")],
+      // Week 2 approved after Finish, and her line says Excused: counted.
+      ["w02", register(2, "excused", { pushedAt: new Date("2026-11-10T21:00:00Z") })],
+      // Weeks 3 (approved) and 4 (ticked) are still ahead: coming up, apart.
+      ["w03", register(3, "excused", told)],
+      ["w04", register(4, "excused", told)],
+    ]);
+    assert.equal(all.count, 1);
+    assert.deepEqual(all.counts, { approved: 1, "time-set": 0, "in-advance": 0, "before-requests": 0 });
+    assert.deepEqual(all.weeks.map((week) => [week.sessionKey, week.kind]), [["w02", "approved"]]);
+    assert.deepEqual(all.comingUp.map((week) => [week.sessionKey, week.kind]), [["w03", "approved"], ["w04", "time-set"]]);
+    // Approved, and she came anyway: not counted.
+    assert.equal(count([["w02", register(2, "present", { pushedAt: new Date("2026-11-10T21:00:00Z") })]]).count, 0);
+    // A session said not to have happened: not counted.
+    assert.equal(count([["w02", register(2, "excused", { held: false })]]).count, 0);
+    // A week ticked with no line saying Excused: nothing to count, ahead or past.
+    assert.deepEqual(count([], []).comingUp, []);
+  });
+
   test("the person's own: their card's facts and their own words, never a count", async () => {
     const id = await amaraAsks();
     const run = courses.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
@@ -947,7 +980,9 @@ describe("who is sent what: the reason and how often to admins only, one of two 
     const asked = await ask("dev", { sessionKeys: ["w02"], reason: "Away." });
     assert.equal(asked.status, 200, JSON.stringify(asked.body));
     const view = (await page.loadExcusedRequestPage(world.courseDb, sessionOf("zach"), asked.body.request.id, new Date())).view;
-    assert.deepEqual(view.excusedBefore.counts, { approved: 0, "time-set": 1, "in-advance": 0, "before-requests": 0 });
+    // Week 3 is still ahead: listed as coming up, apart, and not counted yet.
+    assert.deepEqual(view.excusedBefore.counts, { approved: 0, "time-set": 0, "in-advance": 0, "before-requests": 0 });
+    assert.deepEqual(view.excusedBefore.comingUp.map((week) => [week.sessionKey, week.kind]), [["w03", "time-set"]]);
   });
 });
 

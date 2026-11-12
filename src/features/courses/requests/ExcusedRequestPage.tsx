@@ -295,6 +295,23 @@ export default function ExcusedRequestPage({ view }: { view: ExcusedRequestPageV
                 })}
               </ul>
             )}
+            {before.comingUp.length > 0 && (
+              <>
+                <p className={styles.label}>{R.COMING_UP}</p>
+                <ul className={styles.history}>
+                  {before.comingUp.map((week) => {
+                    const row = R.excusedBeforeRow(week.weekNumber, week.occurrence, week.dateKey, week.kind);
+                    return (
+                      <li key={week.sessionKey}>
+                        <span>{row.week}</span>
+                        <br />
+                        <span className={styles.historyWhen}>{row.kind}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
             <p className={styles.label}>{R.MOST_WEEKS_TITLE}</p>
             <p className={styles.line}>
               {timeSet.length === 0 ? R.NONE : timeSet.map((week) => R.excusedBeforeRow(week.weekNumber, week.occurrence, week.dateKey, week.kind).week).join(", ")}

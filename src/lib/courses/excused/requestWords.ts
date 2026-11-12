@@ -223,6 +223,8 @@ export function firstOf(name: string): string {
 export const EXCUSED_BEFORE = "Excused before";
 export const STAFF_ONLY = "Staff only";
 export const MOST_WEEKS_TITLE = "Weeks given under “Most weeks, not all”";
+/** Weeks still ahead they are excused from, listed apart and not counted. */
+export const COMING_UP = "Coming up";
 export const NONE = "None";
 
 /** "Week 1 · Wed 4 Nov" with its kind. */

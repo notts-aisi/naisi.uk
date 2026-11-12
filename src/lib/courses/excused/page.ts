@@ -43,12 +43,21 @@ export type Loaded<T> = { status: "ok"; view: T } | { status: "none" };
 
 type Named = { uid: string; name: string };
 
-/** The weeks somebody has been excused this term, each kind told apart. Admins only: a member is never sent a count. */
+/** One week somebody is, or was, excused from. */
+export type ExcusedWeekRow = { sessionKey: string; weekNumber: number; occurrence: number; dateKey: string; kind: ExcusedKind };
+
+/**
+ * The weeks somebody has been excused this term, each kind told apart, and
+ * the ones still ahead apart from them. Admins only: a member is never sent a
+ * count.
+ */
 export type ExcusedThisTerm = {
-  /** Every week, of every kind. */
+  /** Every week counted, of every kind: its session happened and they were excused from it. */
   count: number;
   counts: Record<ExcusedKind, number>;
-  weeks: { sessionKey: string; weekNumber: number; occurrence: number; dateKey: string; kind: ExcusedKind }[];
+  weeks: ExcusedWeekRow[];
+  /** Weeks still ahead they are excused from: not counted until the session has happened. */
+  comingUp: ExcusedWeekRow[];
 };
 
 /** One week of the request, as its page shows it. */
@@ -152,8 +161,12 @@ async function registersFrom(
 /**
  * How often somebody has been excused this term (this run), and which
  * weeks: approved weeks of their requests, sessions they ticked under "Most
- * weeks, not all", and sessions they said in advance before requests, each
- * kind told apart. `except` leaves out one request's own weeks. Pure.
+ * weeks, not all", and sessions they said in advance, each kind told apart.
+ * A week counts only once its session has happened (it has started, or its
+ * register is finished), was not called off or said not to have happened,
+ * and their line says Excused: a week they came to after all is not one they
+ * were excused from. Weeks still ahead are listed apart, as coming up.
+ * `except` leaves out one request's own weeks. Pure.
  */
 export function excusedThisTermOf(input: {
   uid: string;
@@ -163,6 +176,7 @@ export function excusedThisTermOf(input: {
   seat: Pick<CourseEnrolmentDoc, "role" | "status" | "groupId" | "timeAnswer"> | null;
   group: Pick<CourseGroupDoc, "timeQuestionSince"> | null;
   except?: string | null;
+  now: Date;
 }): ExcusedThisTerm {
   const { uid } = input;
   const answer = input.seat ? currentTimeAnswer(input.seat, timeQuestionSinceOf(input.group)) : null;
@@ -178,11 +192,16 @@ export function excusedThisTermOf(input: {
       else if (week.status === "approved") approvedKeys.add(week.sessionKey);
     }
   }
-  const weeks: ExcusedThisTerm["weeks"] = [];
+  const weeks: ExcusedWeekRow[] = [];
+  const comingUp: ExcusedWeekRow[] = [];
   const counts: Record<ExcusedKind, number> = { approved: 0, "time-set": 0, "in-advance": 0, "before-requests": 0 };
   for (const session of input.sessions) {
     if (excepted.has(session.sessionKey) && !approvedKeys.has(session.sessionKey)) continue;
     const register = input.registers.get(session.sessionKey);
+    if (session.cancelled || (register && !register.held)) continue;
+    // In fact excused: their line says so. A week they came to after all,
+    // or whose line a facilitator set otherwise, is not one.
+    if ((register?.records[uid] ?? null) !== "excused") continue;
     const kind = excusedKindOf({
       approved: approvedKeys.has(session.sessionKey),
       mark: register?.records[uid] ?? null,
@@ -191,10 +210,17 @@ export function excusedThisTermOf(input: {
       tickedBefore: tickedBefore.has(session.sessionKey),
     });
     if (!kind) continue;
+    const row = { sessionKey: session.sessionKey, weekNumber: session.weekNumber, occurrence: session.occurrence, dateKey: session.dateKey, kind };
+    const { startsAt } = sessionInstants(session);
+    const happened = (startsAt !== null && startsAt.getTime() <= input.now.getTime()) || Boolean(register?.pushedAt);
+    if (!happened) {
+      comingUp.push(row);
+      continue;
+    }
     counts[kind] += 1;
-    weeks.push({ sessionKey: session.sessionKey, weekNumber: session.weekNumber, occurrence: session.occurrence, dateKey: session.dateKey, kind });
+    weeks.push(row);
   }
-  return { count: weeks.length, counts, weeks };
+  return { count: weeks.length, counts, weeks, comingUp };
 }
 
 /** ONE REQUEST'S PAGE, for admins. */
@@ -335,6 +361,7 @@ export async function loadExcusedRequestPage(
         seat,
         group,
         except: request.id,
+        now,
       }),
       history: request.history.map((entry) => ({ what: entry.what, by: named(entry.byUid), at: entry.at.toISOString(), sessionKey: entry.sessionKey })),
       canDecide: request.status === "waiting" && request.askedByUid !== actor.uid,
