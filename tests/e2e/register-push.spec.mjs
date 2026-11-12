@@ -496,26 +496,39 @@ test(
 
       // CHANGED ON PURPOSE (November 2026): the register's own switch used to
       // mark a session not held. "It didn't happen" now lives with the two
-      // cancels in Change this week, asked with a reason and previewed, so the
-      // register's write route refuses a NEW not-held and says where it went;
-      // the switch goes from the page in the same change.
-      await step("the register's not-held switch is refused, says where It didn't happen lives, and changes nothing", async () => {
+      // cancels in Change one week, asked with a reason and previewed, so the
+      // switch is gone from a draft column, one line under the register says
+      // where it went, and the register's write route refuses a NEW not-held
+      // from a page that still posts it, in a sentence saying where it went.
+      await step("the register's not-held switch is gone, a line says where It didn't happen lives, and an old page's press is refused and changes nothing", async () => {
         const header = headerOf(page, NOT_HELD_WEEK - 1);
-        const toggle = header.getByTestId("attendance-held-toggle");
-        const said = toastOf(page, /now under Change this week/);
-        const [answer] = await Promise.all([
-          page.waitForResponse(
-            (r) =>
-              new URL(r.url()).pathname.endsWith("/attendance") &&
-              r.request().method() === "POST",
-            { timeout: WAIT_MS },
-          ),
-          toggle.click(),
-        ]);
-        assert.equal(answer.status(), 409, "the register still takes a new not-held");
-        await said.waitFor({ timeout: WAIT_MS });
-        await page.keyboard.press("Escape");
-        await said.waitFor({ state: "hidden", timeout: WAIT_MS });
+        assert.equal(await header.getByTestId("attendance-held-toggle").count(), 0, "a draft column still offers the not-held switch");
+        const line = page.getByTestId("register-didnt-happen");
+        await line.waitFor({ timeout: WAIT_MS });
+        assert.equal(
+          (await line.innerText()).replace(/\s+/g, " ").trim(),
+          "Didn’t happen? Use Change one week on the group’s page. Open the group’s page",
+          "the line does not say where It didn't happen lives",
+        );
+        assert.equal(
+          new URL(await line.getByRole("link").getAttribute("href"), origin).pathname,
+          new URL(groupUrl).pathname,
+          "the line does not lead to the group's page",
+        );
+        // A page from before, still posting the switch: the route's sentence, and nothing written.
+        const answer = await page.evaluate(
+          async ([groupId, weekNumber]) => {
+            const res = await fetch(`/api/courses/groups/${encodeURIComponent(groupId)}/attendance`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ weekNumber, held: false }),
+            });
+            return { status: res.status, body: await res.json().catch(() => null) };
+          },
+          [state.groupId, NOT_HELD_WEEK],
+        );
+        assert.equal(answer.status, 409, "the register still takes a new not-held");
+        assert.match(answer.body?.error ?? "", /now under Change this week/, "the refusal does not say where It didn't happen lives");
         await reload(page);
         assert.equal(
           await headerOf(page, NOT_HELD_WEEK - 1).getByText("Not held").count(),

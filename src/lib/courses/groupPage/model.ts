@@ -152,6 +152,7 @@ export function weekRegisterFacts(week: GroupPageWeek): {
   heldFalse: boolean;
   facilitatorStarted: boolean;
   covered: boolean;
+  taken: boolean;
 } {
   return {
     weekNumber: week.weekNumber,
@@ -162,6 +163,7 @@ export function weekRegisterFacts(week: GroupPageWeek): {
     heldFalse: week.heldFalse,
     facilitatorStarted: week.facilitatorStarted,
     covered: week.cover !== null,
+    taken: week.taken,
   };
 }
 

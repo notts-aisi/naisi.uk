@@ -5,6 +5,7 @@ import { isAddressableId } from "@/lib/addressableId";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { groupsPath } from "@/features/applications/groups/GroupsViews";
 import { gateGroupRegister } from "@/lib/courses/registerAccess";
+import { DIDNT_HAPPEN_MOVED_STAFF } from "@/lib/courses/registerCover/pageWords";
 import { GO_TO_GROUPS, GROUP_NOT_HERE_LINE, GROUP_NOT_HERE_TITLE } from "@/lib/courses/groupPage/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -74,6 +75,6 @@ export default async function ProgrammeGroupRegisterPage({
     backHref: groupPage,
     session,
     reportHref: `${groupPage}/report`,
-    groupHref: groupPage,
+    didntHappen: { href: groupPage, words: DIDNT_HAPPEN_MOVED_STAFF },
   });
 }

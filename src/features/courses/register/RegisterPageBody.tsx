@@ -37,7 +37,7 @@ export default async function RegisterPageBody({
   backHref,
   session,
   reportHref,
-  groupHref,
+  didntHappen,
 }: {
   gated: Extract<RegisterGate, { ok: true }>;
   user: SessionUser;
@@ -48,8 +48,8 @@ export default async function RegisterPageBody({
   session: string | null;
   /** The session report's page for this group. */
   reportHref: string;
-  /** Where "It didn't happen" lives for this reader, or null. */
-  groupHref: string | null;
+  /** Where "It didn't happen" lives for this reader, in words with its link, or null. */
+  didntHappen: { href: string; words: string } | null;
 }) {
   const db = getAdminDb();
   const groupName = gated.group.name || "Group";
@@ -113,7 +113,7 @@ export default async function RegisterPageBody({
       {/* The register owns its own week controls and its own horizontal
           overflow: a wide table handles its own responsiveness rather than
           widening the shell (the `.mainWide` rule). */}
-      <AttendanceGrid groupId={gated.group.id} runId={gated.runId} reportHref={reportHref} session={session} groupHref={groupHref} />
+      <AttendanceGrid groupId={gated.group.id} runId={gated.runId} reportHref={reportHref} session={session} didntHappen={didntHappen} />
     </div>
   );
 }

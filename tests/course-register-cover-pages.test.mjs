@@ -46,6 +46,7 @@ const week = (over = {}) => ({
   heldFalse: false,
   facilitatorStarted: false,
   covered: false,
+  taken: false,
   ...over,
 });
 
@@ -77,6 +78,7 @@ describe("1. the ways a week offers, and the week the notice is about", () => {
     );
     assert.equal(model.noticeWeekOf([week({ weekNumber: 1 }), week({ weekNumber: 2, covered: true })]), 1, "a week somebody took is not the notice's");
     assert.equal(model.noticeWeekOf([week({ weekNumber: 1, facilitatorStarted: true })]), null);
+    assert.equal(model.noticeWeekOf([week({ weekNumber: 1, taken: true })]), null, "a register somebody saved lines on has been started");
     assert.equal(model.noticeWeekOf([week({ weekNumber: 1, finished: true }), week({ weekNumber: 2, started: false })]), null);
     assert.equal(model.noticeWeekOf([]), null);
   });

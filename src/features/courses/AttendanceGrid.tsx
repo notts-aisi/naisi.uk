@@ -19,13 +19,7 @@ import {
   type AttendanceStatus,
 } from "@/lib/firestore/courseAttendance";
 import { finishSummary } from "@/lib/courses/registerCover/pageModel";
-import {
-  DIDNT_HAPPEN_MOVED_FACILITATOR,
-  DIDNT_HAPPEN_MOVED_STAFF,
-  OPEN_THE_GROUPS_PAGE,
-  placeLine,
-  setByWords,
-} from "@/lib/courses/registerCover/pageWords";
+import { OPEN_THE_GROUPS_PAGE, placeLine, setByWords } from "@/lib/courses/registerCover/pageWords";
 import styles from "./AttendanceGrid.module.css";
 import ParticipantNoteDrawer from "./ParticipantNoteDrawer";
 import CheckInCard from "./register/CheckInCard";
@@ -156,11 +150,12 @@ export type AttendanceGridProps = {
   session?: string | null;
   /**
    * Where "It didn't happen" lives now, for the line that took the old
-   * switch's place: the facilitator's own group page, or the group's page
-   * under the programme for an admin or a lead. Null for somebody given one
-   * session, who has no way into the group's page.
+   * switch's place: "Change one week" on the group's own page under /learn,
+   * or "It didn't happen" on its page under the programme, as the page that
+   * draws the register says. Null for somebody given one session, who has no
+   * way into the group's page.
    */
-  groupHref?: string | null;
+  didntHappen?: { href: string; words: string } | null;
 };
 
 /** "w02" or "w02-2" as its week, or null. */
@@ -370,7 +365,7 @@ function SessionNoteDialog({
 // AttendanceGrid
 // ---------------------------------------------------------------------------
 
-export default function AttendanceGrid({ groupId, reportHref, session: askedSession = null, groupHref = null }: AttendanceGridProps) {
+export default function AttendanceGrid({ groupId, reportHref, session: askedSession = null, didntHappen = null }: AttendanceGridProps) {
   const {
     group,
     sessions,
@@ -843,7 +838,7 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
   const summary = pushSession ? finishSummary(members, pushSession.weekNumber, records[pushSession.sessionKey] ?? NO_MARKS, online?.[pushSession.sessionKey] ?? {}) : [];
   const hereChoices = caller?.facilitates && facilitators.length > 1 ? facilitators : null;
   // Where It didn't happen lives now, said where the switch was.
-  const movedLine = groupHref && caller && caller.standing !== "given" ? (facilitates ? DIDNT_HAPPEN_MOVED_FACILITATOR : DIDNT_HAPPEN_MOVED_STAFF) : null;
+  const movedLine = didntHappen && caller && caller.standing !== "given" ? didntHappen : null;
   const hasDraft = sessions.some((each) => each.pushedAt === null && each.held);
 
   const checkIn = panelKey ? <CheckInCard groupId={groupId} sessionKey={panelKey} marks={records[panelKey] ?? NO_MARKS} /> : null;
@@ -1380,10 +1375,10 @@ export default function AttendanceGrid({ groupId, reportHref, session: askedSess
 
       {/* Where the old "Didn't happen" switch was: one line saying where the
           two cancels live now. */}
-      {movedLine && hasDraft && groupHref && (
+      {movedLine && hasDraft && (
         <p className={styles.movedLine} data-testid="register-didnt-happen">
-          {movedLine}{" "}
-          <Link href={groupHref} className={styles.movedLink}>
+          {movedLine.words}{" "}
+          <Link href={movedLine.href} className={styles.movedLink}>
             {OPEN_THE_GROUPS_PAGE}
           </Link>
         </p>

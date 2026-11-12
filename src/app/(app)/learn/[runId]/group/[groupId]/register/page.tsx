@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import RegisterPageBody, { sessionParamOf } from "@/features/courses/register/RegisterPageBody";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
 import { gateGroupRegister } from "@/lib/courses/registerAccess";
+import { DIDNT_HAPPEN_MOVED_FACILITATOR } from "@/lib/courses/registerCover/pageWords";
 import { getAdminDb } from "@/lib/firebase/admin";
 
 /**
@@ -76,6 +77,6 @@ export default async function GroupRegisterPage({
     backHref: opensGroupPage ? groupPath : null,
     session,
     reportHref: `${groupPath}/report`,
-    groupHref: opensGroupPage ? groupPath : null,
+    didntHappen: opensGroupPage ? { href: groupPath, words: DIDNT_HAPPEN_MOVED_FACILITATOR } : null,
   });
 }

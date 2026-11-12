@@ -29,6 +29,8 @@ export type WeekRegisterFacts = {
   facilitatorStarted: boolean;
   /** Somebody took it in a facilitator's place, or was given it. */
   covered: boolean;
+  /** Anybody has saved on it (marks, or the old switch), or it is finished: `registerIsTaken`. */
+  taken: boolean;
 };
 
 /** The ways "Take the register" offers on one week. */
@@ -68,12 +70,13 @@ export function coverChoicesOf(week: WeekRegisterFacts): CoverChoices {
  * THE WEEK THE GROUP'S PAGE TELLS ITS ADMINS AND LEAD ABOUT FIRST ("Josh
  * hasn't started week 2's register"): the latest week whose session has
  * started and whose register nobody has started, finished or taken in
- * anybody's place. Null when there is none.
+ * anybody's place: no line saved on it at all, so the notice's "hasn't
+ * started" is true. Null when there is none.
  */
 export function noticeWeekOf(weeks: readonly WeekRegisterFacts[]): number | null {
   let found: number | null = null;
   for (const week of weeks) {
-    if (!week.started || week.covered) continue;
+    if (!week.started || week.covered || week.taken) continue;
     const choices = coverChoicesOf(week);
     if (!choices.offered) continue;
     if (found === null || week.weekNumber > found) found = week.weekNumber;

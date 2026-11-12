@@ -269,7 +269,7 @@ function clockOf(iso: string): string {
 }
 
 /** The line where the old "Didn't happen" switch was: where the two cancels live now. */
-export const DIDNT_HAPPEN_MOVED_FACILITATOR = "Didn’t happen? Use Change one week on your group’s page.";
+export const DIDNT_HAPPEN_MOVED_FACILITATOR = "Didn’t happen? Use Change one week on the group’s page.";
 export const DIDNT_HAPPEN_MOVED_STAFF = "Didn’t happen? Use It didn’t happen on the group’s page.";
 export const OPEN_THE_GROUPS_PAGE = "Open the group’s page";
 
