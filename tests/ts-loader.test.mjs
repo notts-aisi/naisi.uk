@@ -1216,6 +1216,14 @@ const USERS = new Map([
       "are decided by the code that runs. Only `server-only` is stubbed",
   ],
   [
+    "course-week-edit-model.test.mjs",
+    "executes the in-place edit of one block (src/lib/courses/weekEdit/model.ts), the comparison of two " +
+      "versions of a week and the words a question had when it was answered on the synthetic week holding " +
+      "every kind of block, against the week-blocks model and the Markdown reader the paste uses, because " +
+      "whether an edit keeps every id and passes the paste's own checks is decided by the code that runs. " +
+      "Only `server-only` is stubbed",
+  ],
+  [
     "course-week-blocks-public.test.mjs",
     "renders the public week page (a .tsx server component), its block view and the week curriculum to " +
       "HTML for a week written as blocks and for one written before them, because what a stranger is shown " +

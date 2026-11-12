@@ -5319,6 +5319,7 @@ describe("the course hub passage", () => {
         ["src/lib/courses/packsAndCases/readers.ts", "the readers, each read by id from the people a page may show it to"],
         ["src/app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts", "the person's own pick and ready box, in their own name only"],
         ["src/app/api/courses/groups/[groupId]/draw/route.ts", "the draw, typed in by the group's live facilitators, the programme's lead or an admin"],
+        ["src/lib/courses/weekEdit/counts.ts", "the week editor counts how many people have started a week, a pick among their work: a number for the programme's lead or an admin, never whose"],
         ["src/lib/firestore/courseDeletion.ts", "destroying a run deletes its records"],
         ["src/lib/firestore/accountDeletion.ts", "deleting an account deletes every record of theirs"],
       ]),

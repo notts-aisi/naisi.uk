@@ -574,11 +574,24 @@ test("GUARD — the fork route copies through templateWeekFields and mints NOTHI
   assert.match(FORK, /\.create\(\{/);
   assert.match(FORK, /isAlreadyExists\(err\)/);
   assert.match(FORK, /alreadyForked: true/);
-  // Facilitator-of-THIS-live-group ∪ admin, authorization before existence.
+  // Admin ∪ the lead of the programme that names the run, authorization
+  // before existence; a facilitator of THIS live group is told plainly why,
+  // anybody else meets one 403.
+  assert.match(FORK, /const leadsProgramme = Boolean\(!isAdmin && group && !group\.archived && group\.runId && \(await programmeLedBy\(db, actor, group\.runId\)\) !== null\)/);
+  assert.match(FORK, /if \(!isAdmin && !leadsProgramme\) \{/);
   assert.match(
     FORK,
     /group &&\s*!group\.archived &&\s*isNamedWithStanding\(actor, "courseGroups\.facilitatorUids", group\.facilitatorUids\)/,
   );
+  assert.match(FORK, /facilitatesLiveGroup\s*\?\s*NextResponse\.json\(\{ error: EDIT_REFUSAL\.groupCopyLeadOnly \}, \{ status: 403 \}\)/);
+});
+
+test("GUARD: the week PATCH changes a copy for the programme's lead and admins alone, before the body", () => {
+  const gate = WEEK_PATCH.indexOf("if (!isAdmin && !leadsProgramme)");
+  assert.ok(gate > 0, "the PATCH has no lead-or-admin gate");
+  assert.ok(gate < WEEK_PATCH.indexOf("await req.json()"), "the gate is after the body is read");
+  assert.match(WEEK_PATCH, /leadsProgramme = staffing\.leadOf !== null;/);
+  assert.match(WEEK_PATCH, /\{ error: EDIT_REFUSAL\.groupCopyLeadOnly \}, \{ status: 403 \}/);
 });
 
 test("GUARD — the week PATCH enforces the trust boundary SERVER-SIDE and refuses unforked", () => {

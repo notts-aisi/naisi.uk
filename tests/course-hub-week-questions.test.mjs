@@ -8,7 +8,7 @@
  *   sanitizeWeekQuestions, normalizeCourseWeek       what a week keeps
  *   saveWeek, ensureWeekDoc (client-direct)          the run's week editor (WeekEditor)
  *   POST .../groups/[groupId]/weeks/[weekId]/fork    a group's own copy, carried from the run's week
- *   PATCH .../groups/[groupId]/weeks/[weekId]        the group's copy, edited (GroupWeekEditor)
+ *   PATCH .../groups/[groupId]/weeks/[weekId]        the group's copy, edited (no page sends it now)
  *   templateWeekFields, clone-weeks                  a template both ways, a run copied from another
  *   WeekView                                         the week's page
  *
@@ -183,12 +183,16 @@ describe("2. the run's week editor writes them, client-direct", () => {
     assert.match(html, /<button[^>]*disabled=""[^>]*><span>Add a question<\/span><\/button>/);
   });
 
-  test("both editors draw the section and save through their own door", () => {
+  test("the run's editor draws the section and saves through its own door; a group's editor no longer writes a copy's questions", () => {
     const run = readFileSync(join(SRC, "features", "courses", "WeekEditor.tsx"), "utf8");
     assert.match(run, /<WeekQuestionsEditor questions=\{saved\.questions\} onSave=\{saveQuestions\} \/>/);
     assert.match(run, /await saveWeek\(runId, weekId, \{ questions \}\);/);
+    // Making and editing a group's own copy is switched off until a later
+    // phase: the facilitator's editor draws no questions editor and sends no
+    // patch of a copy (the route stays, for the questions an old page sends).
     const group = readFileSync(join(SRC, "features", "courses", "GroupWeekEditor.tsx"), "utf8");
-    assert.match(group, /questions=\{week\.questions\}\s*onSave=\{\(questions\) => save\("questions", \{ questions \}\)\}\s*forGroup/);
+    assert.doesNotMatch(group, /WeekQuestionsEditor/);
+    assert.doesNotMatch(group, /patchGroupWeek|forkGroupWeek/);
   });
 });
 
@@ -202,32 +206,35 @@ describe("3. a group's own copy of a week", () => {
   });
 
   test("the copy carries the run's questions", async () => {
-    assert.equal((await fork("rahul")).status, 200);
+    assert.equal((await fork("claudia")).status, 200);
     assert.deepEqual(world.db.read(forkPath(3)).questions, QUESTIONS);
   });
 
-  test("the group's facilitators write their own; the run's week keeps its", async () => {
-    await fork("rahul");
+  // CHANGED ON PURPOSE (November 2026): a group's own copy of a week is made
+  // and changed only by the programme's lead and admins; the group's
+  // facilitators, who wrote their own questions here, are refused.
+  test("the programme's lead writes the group's own; the run's week keeps its", async () => {
+    await fork("claudia");
     const ours = ["What surprised you most this week?", "Which reading would you drop?"];
-    const answer = await patch("sofia", { questions: ["  What surprised you most\nthis week?  ", "Which reading would you drop?"] });
+    const answer = await patch("claudia", { questions: ["  What surprised you most\nthis week?  ", "Which reading would you drop?"] });
     assert.equal(answer.status, 200, JSON.stringify(answer.body));
     assert.deepEqual(answer.body.updated, ["questions"]);
     assert.deepEqual(world.db.read(forkPath(3)).questions, ours);
     assert.deepEqual(world.db.read(weekPath(3)).questions, QUESTIONS);
   });
 
-  test("the programme's lead and an admin edit a group's copy too; nobody else does", async () => {
-    await fork("rahul");
+  test("the programme's lead and an admin edit a group's copy; nobody else does, the group's facilitators included", async () => {
+    await fork("claudia");
     const answers = {};
-    for (const who of ["claudia", "zach", "chloe", "tom", "lloyd", "nobody", null]) {
+    for (const who of ["claudia", "zach", "rahul", "sofia", "chloe", "tom", "lloyd", "nobody", null]) {
       answers[who ?? "signed out"] = (await patch(who, { questions: [`From ${who}?`] })).status;
     }
-    assert.deepEqual(answers, { claudia: 200, zach: 200, chloe: 403, tom: 403, lloyd: 403, nobody: 403, "signed out": 401 });
+    assert.deepEqual(answers, { claudia: 200, zach: 200, rahul: 403, sofia: 403, chloe: 403, tom: 403, lloyd: 403, nobody: 403, "signed out": 401 });
     assert.deepEqual(world.db.read(forkPath(3)).questions, ["From zach?"]);
   });
 
   test("refused whole, in a sentence a person can act on", async () => {
-    await fork("rahul");
+    await fork("claudia");
     const cases = [
       [{ questions: "Why?" }, "questions must be a list."],
       [{ questions: Array.from({ length: 6 }, (_, i) => `Q${i + 1}?`) }, "A week holds at most 5 questions."],
@@ -235,16 +242,16 @@ describe("3. a group's own copy of a week", () => {
       [{ questions: ["Fine?", "   "] }, "Question 2 is empty. Write it, or remove it."],
       [{ questions: ["x".repeat(161)] }, "Questions must be 160 characters or fewer."],
     ];
-    for (const [body, error] of cases) assert.deepEqual(said(await patch("rahul", body)), [400, error], JSON.stringify(body).slice(0, 60));
+    for (const [body, error] of cases) assert.deepEqual(said(await patch("claudia", body)), [400, error], JSON.stringify(body).slice(0, 60));
     assert.deepEqual(world.db.read(forkPath(3)).questions, QUESTIONS);
     // At the limits: five of 160 characters.
     const five = Array.from({ length: 5 }, (_, i) => `${i}`.padEnd(160, "x"));
-    assert.equal((await patch("rahul", { questions: five })).status, 200);
+    assert.equal((await patch("claudia", { questions: five })).status, 200);
     assert.deepEqual(world.db.read(forkPath(3)).questions, five);
   });
 
   test("before the group has its own copy the questions are the run's, and the route says to copy first", async () => {
-    assert.deepEqual(said(await patch("rahul", { questions: ["Ours?"] })), [409, "This week still tracks the run's canonical content. Fork it for your group first."]);
+    assert.deepEqual(said(await patch("claudia", { questions: ["Ours?"] })), [409, "This week still tracks the run's canonical content. Fork it for your group first."]);
     assert.equal(world.db.read(forkPath(3)) ?? null, null);
   });
 });

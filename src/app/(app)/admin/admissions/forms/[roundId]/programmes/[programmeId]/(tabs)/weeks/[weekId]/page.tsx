@@ -12,6 +12,8 @@ import { explainersFromWeek } from "@/lib/courses/explainers/readers";
 import { WEEK_EXPLAINER_WORDS } from "@/lib/courses/explainers/words";
 import { facilitatorGuideReader, facilitatorGuideWriter } from "@/lib/courses/facilitatorGuide/access";
 import { readGuideIndex } from "@/lib/courses/facilitatorGuide/store";
+import { loadWeekEditor } from "@/lib/courses/weekEdit/editor";
+import { loadEditWeek } from "@/lib/courses/weekEdit/gate";
 import { loadWeeksTab } from "@/lib/courses/weeksTab/load";
 import { weeksPath } from "@/lib/courses/weeksTab/paths";
 import { loadWeekPage, weekGuideBox } from "@/lib/courses/weeksTab/weekPage";
@@ -33,6 +35,13 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * The facilitator guide box reads the course's guide here, after the guide's
  * own gate (`facilitatorGuideReader`): the titles loaded in the week's two
  * places, and the box itself only for whom `facilitatorGuideWriter` admits.
+ *
+ * THE WEEK AS IT READS, TO CHANGE IN PLACE. The week as the in-place editor
+ * reads it (`loadWeekEditor`: its blocks, each block's fields and how many
+ * people have ticked or answered it, numbers only, who it reaches and the
+ * week's lock) is read here for the same lead and admins, and handed to the
+ * page's client half, which reads it again through the editor route after a
+ * save. Every change goes through the editing routes, which ask again.
  *
  * The explainers an admin scheduled from the week's review are listed under
  * the week, for the lead as for an admin: each one's topic (the admin's
@@ -63,8 +72,12 @@ export default async function ProgrammeWeekPage({
   ]);
   const loadedWeeks = reader && writer ? (await readGuideIndex(db, reader)).weeks : [];
   const guide = weekGuideBox(tab.courseId, week.weekNumber, { reads: reader !== null, loads: writer !== null }, loadedWeeks);
-  const page = await loadWeekPage(db, tab, week, guide);
-  const explainers = await explainersFromWeek(db, user, tab.runId, week.weekNumber, tab.groups);
+  const [page, explainers, editWeek] = await Promise.all([
+    loadWeekPage(db, tab, week, guide),
+    explainersFromWeek(db, user, tab.runId, week.weekNumber, tab.groups),
+    loadEditWeek(db, tab.runId, week.weekId),
+  ]);
+  const editor = "status" in editWeek ? null : await loadWeekEditor(db, editWeek, user.uid, new Date());
 
   return (
     <div className={styles.stack}>
@@ -75,7 +88,15 @@ export default async function ProgrammeWeekPage({
         current={week.weekId}
         review={{ viewer: view.viewer, now: new Date() }}
       />
-      <WeekPageView page={page} runId={tab.runId} roundId={view.roundId} programmeId={view.programmeId} viewer={view.viewer} />
+      <WeekPageView
+        page={page}
+        runId={tab.runId}
+        roundId={view.roundId}
+        programmeId={view.programmeId}
+        viewer={view.viewer}
+        editor={editor}
+        programme={view.programmeName}
+      />
       {explainers.length > 0 && (
         <section className={explainerStyles.weekCard} aria-labelledby="week-explainers-title">
           <h3 id="week-explainers-title" className={explainerStyles.weekTitle}>

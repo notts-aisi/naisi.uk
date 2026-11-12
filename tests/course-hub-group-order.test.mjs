@@ -362,6 +362,16 @@ const FETCHES_IT_CANNOT_READ = new Map([
       "programme address it builds: their answers with each reading, and no group.",
   ],
   [
+    "src/features/applications/weeks/edit/TellDialog.tsx",
+    "Telling people about a change to a live week, at the week's own tell route it builds from the run's and the " +
+      "week's ids: the choices and their counts, numbers only, and the email's words; never a run's groups.",
+  ],
+  [
+    "src/features/applications/weeks/edit/useWeekLock.ts",
+    "The week's lock, at the week's own lock route it builds from the run's and the week's ids: who is editing the " +
+      "week and since when; never a run's groups.",
+  ],
+  [
     "src/features/courses/WeekBlocksLoader.tsx",
     "The week loader's card, at the address it is handed (the run's week, or one group's own copy of it, on the " +
       "Weeks tab): it reads and saves one week's blocks, never a run's groups.",

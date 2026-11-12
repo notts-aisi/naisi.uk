@@ -588,6 +588,12 @@ const ROUND_SURFACES = {
       "one week's page on a programme's Weeks tab. " +
       "It reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/history": {
+    kind: "form",
+    why:
+      "A week's history, from a week's page on a programme's Weeks tab. " +
+      "It reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview": {
     kind: "form",
     why:
