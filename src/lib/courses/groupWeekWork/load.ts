@@ -336,7 +336,7 @@ export async function loadGroupWeekWork(
     /** Who is looking: never in Remind's count. */
     viewerUid: string;
     /** The group's fellows the page lists, named as the page names them. */
-    people: ReadonlyArray<{ uid: string; name: string; firstName: string; told: boolean }>;
+    people: ReadonlyArray<{ uid: string; name: string; firstName: string }>;
     /** The group's facilitators, for the programme's lead and admins only; empty for anybody else. */
     ownPeople: ReadonlyArray<{ uid: string; name: string; firstName: string }>;
     leadFirstName: string | null;

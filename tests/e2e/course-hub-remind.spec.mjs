@@ -331,7 +331,8 @@ test("course hub: who has done a week, and Remind by hand, as the group's facili
       assert.equal(await textOf(lines.nth(2)), `Hi ${ben.first},`);
       assert.equal(await textOf(lines.nth(3)), WORDS.met(group.name, REMIND_WEEK, session.startsAt));
       assert.equal(await textOf(lines.nth(4)), WORDS.addedNow);
-      await panel().getByTestId("remind-send").getByText(WORDS.sendTo(1), { exact: true }).waitFor({ timeout: WAIT_MS });
+      await panel().getByTestId("remind-send").waitFor({ timeout: WAIT_MS });
+      assert.equal(await textOf(panel().getByTestId("remind-send")), WORDS.sendTo(1), "the button does not say how many it emails");
     });
 
     await step("the facilitator sends it, and the one email goes to that fellow alone, in its words and with no meeting link", async () => {

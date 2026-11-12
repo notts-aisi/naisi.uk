@@ -242,7 +242,7 @@ export async function loadGroupPage(
           weekNumber: workWeek,
           viewerUid,
           people: fellows
-            .map((seat) => ({ uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", firstName: names.get(seat.uid)?.first ?? "", told: placementIsTold(seat) }))
+            .map((seat) => ({ uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", firstName: names.get(seat.uid)?.first ?? "" }))
             .sort((a, b) => a.name.localeCompare(b.name)),
           // A facilitator's own week is the programme's lead's and admins' alone.
           ownPeople: staff
