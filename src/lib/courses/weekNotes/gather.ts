@@ -4,7 +4,6 @@ import { loadAnswers } from "@/lib/courses/coursework/gather";
 import type { CourseworkAnswer, CourseworkWeek, NoteFeedback, NoteRating, NoteWeek } from "@/lib/courses/coursework/input";
 import { readOwnFeedback, readWeekFeedback } from "@/lib/courses/feedback/readers";
 import { liveGroupsOfRun } from "@/lib/courses/weeksTab/load";
-import { sessionHasStarted } from "@/lib/courses/weekWork/model";
 import { readRunForWork } from "@/lib/courses/weekWork/own";
 import { loadRunWeekStates, type RunWeekStates } from "@/lib/courses/weekWork/readers";
 import { readPersonRatings, readWeekRatings } from "@/lib/courses/workRatings/readers";
@@ -23,22 +22,25 @@ import { reviewUseFrom } from "@/lib/legal/reviewUse";
  * from what this hands it, and decides what of it goes.
  *
  * WHICH WEEKS: a week is drawn on once the session the person was due at for
- * it has started (`weekDueOf`, read through `loadRunWeekStates`: the same
- * "due" every other reader of work asks, `sessionHasStarted`), and never
- * before. A week with no such session for them (no group, no time set,
- * joined after it started) is not drawn on. The week's old Submit counts for
- * nothing here: a week submitted under it is a week like any other.
+ * it has ENDED, and never before: "drafted after your session". The session
+ * is the one every other reader of work asks (`weekDueOf`), and its end is
+ * that very session's own end instant (`weekDueEndsAt`, both read through
+ * `loadRunWeekStates`), never a second sum; cancelled with the group keeping
+ * pace, when it would have ended. So nothing typed during the session goes
+ * before it is over. A week with no such session for them (no group, no time
+ * set, joined after it started) is not drawn on. The week's old Submit counts
+ * for nothing here: a week submitted under it is a week like any other.
  *
  * WHAT OF IT: the person's work as it stands at `now`, through the
  * coursework's one reader (`loadAnswers`, handed the same sessions and clock,
  * which marks each row counted under version 13): each reflection and each
  * box as last saved, and each written answer as its latest saved words,
  * sent or not, which is how its readers read it once that session has
- * started (`readableAnswer`). Then the feedback on those weeks (through
- * feedback's own readers), the ratings for the team of their written answers
- * (through the ratings' own readers), and the accounts of the person and of
- * everybody who wrote or rated, for each one's version 15 moment
- * (`reviewUseFrom`). Never a survey or check-in, a session report, Claude's
+ * started (`readableAnswer`), as it has. Then the feedback on those weeks
+ * (through feedback's own readers), the ratings for the team of their
+ * written answers (through the ratings' own readers), and the accounts of
+ * the person and of everybody who wrote or rated, for each one's version 15
+ * moment (`reviewUseFrom`). Never a survey or check-in, a session report, Claude's
  * own grades or a register: this file imports none of their code, and
  * `tests/week-notes.test.mjs` holds that.
  *
@@ -48,7 +50,7 @@ import { reviewUseFrom } from "@/lib/legal/reviewUse";
 
 /** Everything one person's draft is built from, before `noteDraftInput` decides what goes. */
 export type PersonNoteSources = {
-  /** Their weeks whose session has started, each with its questions and when its work was read. */
+  /** Their weeks whose session has ended, each with its questions and when its work was read. */
   weeks: NoteWeek[];
   answers: CourseworkAnswer[];
   feedback: NoteFeedback[];
@@ -102,8 +104,8 @@ export function noteRatingOf(rating: CourseWorkRatingDoc): NoteRating | null {
   };
 }
 
-/** The session each person on a run is due at, by week, and the clock it is told against. */
-type RunSessions = { dueOf: RunWeekStates["dueOf"]; now: Date };
+/** The session each person on a run is due at, by week, when it ends, and the clock it is told against. */
+type RunSessions = { dueOf: RunWeekStates["dueOf"]; dueEndOf: RunWeekStates["dueEndOf"]; now: Date };
 
 /**
  * The sessions everybody on the run is due at (`loadRunWeekStates`, the one
@@ -113,18 +115,19 @@ async function sessionsOnRun(db: Firestore, runId: string, now: Date): Promise<R
   const [run, liveGroups] = await Promise.all([readRunForWork(db, runId), liveGroupsOfRun(db, runId)]);
   if (!run) return null;
   const states = await loadRunWeekStates(db, { run, liveGroups, now });
-  return { dueOf: states.dueOf, now };
+  return { dueOf: states.dueOf, dueEndOf: states.dueEndOf, now };
 }
 
-/** Whether `uid`'s week `weekNumber` is drawn on: the session they were due at for it has started. */
+/** Whether `uid`'s week `weekNumber` is drawn on: the session they were due at for it has ended. */
 function drawnOn(sessions: RunSessions | null, uid: string, weekNumber: number): boolean {
-  return sessions !== null && sessionHasStarted(sessions.dueOf(uid, weekNumber), sessions.now);
+  const endsAt = sessions === null ? null : sessions.dueEndOf(uid, weekNumber);
+  return sessions !== null && endsAt !== null && sessions.now.getTime() >= endsAt.getTime();
 }
 
 /**
  * ONE PERSON'S SOURCES on one run, over `weeks` (one week for the end-of-week
  * draft, every week of the run for the profile's): the weeks of them whose
- * session they were due at has started, their work in those weeks as it
+ * session they were due at has ended, their work in those weeks as it
  * stands (one equality on `uid`), their feedback and ratings on them
  * (equalities on `uid` and `runId`), and the accounts.
  */
@@ -170,7 +173,7 @@ export async function gatherPersonNote(
 /**
  * EVERYBODY'S SOURCES FOR ONE WEEK of a run, for the week's Notes page: the
  * sessions everybody is due at, the week's coursework by the people whose
- * session has started (one equality on `runId`, or on `uid` for one), the
+ * session has ended (one equality on `runId`, or on `uid` for one), the
  * week's feedback and ratings (equalities on `runId` and `weekId`), and every
  * account named. Built to hand `noteDraftInput` exactly what
  * `gatherPersonNote` would for each person, so the page's count of what would
@@ -211,7 +214,7 @@ export async function gatherWeekNotes(
   return out;
 }
 
-/** Whether a person's week is drawn on now: the session they were due at for it has started. */
+/** Whether a person's week is drawn on now: the session they were due at for it has ended. */
 export async function weekIsDrawnOn(db: Firestore, input: { runId: string; uid: string; weekNumber: number; now: Date }): Promise<boolean> {
   return drawnOn(await sessionsOnRun(db, input.runId, input.now), input.uid, input.weekNumber);
 }

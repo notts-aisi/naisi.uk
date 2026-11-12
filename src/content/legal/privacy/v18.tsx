@@ -12,10 +12,11 @@
  *     reports": the weekly note no longer uses "only the work they
  *     submitted". It is drafted after the person's session and uses their
  *     work on that week as it stands then, sent or not. A week is drawn on
- *     once the session the person is due at for it has started
- *     (`weekDueOf` in `src/lib/courses/weekWork/sessionDue.ts`, the one
- *     moment every reader of work goes by), never before, and a week with no
- *     such session is not drawn on; its reflections, boxes and written
+ *     once the session the person is due at for it has ended (`weekDueOf`
+ *     and that session's own end, `weekDueEndsAt`, in
+ *     `src/lib/courses/weekWork/sessionDue.ts`, the one moment every reader
+ *     of work goes by), never before or during it, and a week with no such
+ *     session is not drawn on; its reflections, boxes and written
  *     answers go as their latest saved words (`gatherPersonNote` and
  *     `gatherWeekNotes` in `src/lib/courses/weekNotes/gather.ts`). The
  *     week's old Submit no longer counts for anything here. The sentence

@@ -10901,11 +10901,14 @@ describe("v15 lets Claude draft a short note on how each person is doing, from t
     // CHANGED ON PURPOSE (v18): "only the work they submitted" held a week to its old Submit, a written
     // answer to what was last sent and a reflection to what was saved before the Submit. Now: "It is
     // drafted after your session ... and uses your work on that week as it stands then, sent or not".
-    // A week is handed over once the session the person was due at has started, and never before; by the
-    // one "due" every reader of work asks (`loadRunWeekStates`, `weekDueOf`), never a second sum.
+    // A week is handed over once the session the person was due at has ENDED ("drafted after your
+    // session"), and never before or during it; by the one "due" every reader of work asks and that very
+    // session's own end (`loadRunWeekStates`: `weekDueOf`, `weekDueEndsAt`), never a second sum.
     const code = strip(gather);
-    assert.match(code, /return sessions !== null && sessionHasStarted\(sessions\.dueOf\(uid, weekNumber\), sessions\.now\);/, "a week is drawn on before its session, or by another sum");
-    assert.match(code, /const states = await loadRunWeekStates\(db, \{ run, liveGroups, now \}\);\s*return \{ dueOf: states\.dueOf, now \};/);
+    assert.match(code, /const endsAt = sessions === null \? null : sessions\.dueEndOf\(uid, weekNumber\);\s*return sessions !== null && endsAt !== null && sessions\.now\.getTime\(\) >= endsAt\.getTime\(\);/, "a week is drawn on before its session ends, or by another sum");
+    assert.match(code, /const states = await loadRunWeekStates\(db, \{ run, liveGroups, now \}\);\s*return \{ dueOf: states\.dueOf, dueEndOf: states\.dueEndOf, now \};/);
+    assert.match(strip(read("src/lib/courses/weekWork/readers.ts")), /dueEndOf: \(uid, weekNumber\) => weekDueEndsAt\(sourceOf\(uid\), weekNumber\),/);
+    assert.match(strip(read("src/lib/courses/weekWork/sessionDue.ts")), /return dueSessionOf\(source, weekNumber\)\.due;[\s\S]*return dueSessionOf\(source, weekNumber\)\.endsAt;/, "the end is not that of the session the due is");
     assert.match(code, /input\.weeks\.filter\(\(week\) => drawnOn\(sessions, uid, week\.weekNumber\)\)/, "the profile's and a press's gatherer hands over a week before its session");
     assert.match(code, /\[\.\.\.people\]\.filter\(\(uid\) => drawnOn\(sessions, uid, week\.weekNumber\)\)/, "the page's gatherer hands over a week before its session");
     // Its work as it stands: read by the coursework's one reader against the same sessions and clock,

@@ -22,7 +22,7 @@ import { NOTES_WORDS } from "@/lib/memberNotes/words";
  * and what it suggests for next term (ticked by a person, never by Claude).
  * Kept with `draftedByClaude`, its week and what the draft was built from,
  * and the draft deleted, in one transaction; refused while no session the
- * person was due at that week has started (privacy v18), or when a note from
+ * person was due at that week has ended (privacy v18), or when a note from
  * this week is already kept. Nobody is emailed. `src/lib/courses/weekNotes/` holds the rules.
  */
 

@@ -20,7 +20,7 @@ import { getCurrentUser } from "@/lib/firebase/session";
  * again before the run is read. A view-as session is turned away first.
  *
  * POST `{ uid, again? }`: one person, once every group has met the week,
- * whose session that week has started, with something written in it that
+ * whose session that week has ended, with something written in it that
  * may be sent. Sends one request to
  * Anthropic, with labels and numbers in place of names, and keeps the draft
  * with the run. Refused when a note from this week is already saved, or a

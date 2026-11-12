@@ -45,7 +45,7 @@ export type DraftCard = Common & {
   offered: boolean;
   /** Feedback or a rating came in after the draft, or the week changed, or it is no longer drawn on: one line, or null. */
   stale: string | null;
-  /** Still drawn on (the session they are due at has started), so it may be saved. */
+  /** Still drawn on (the session they are due at has ended), so it may be saved. */
   savable: boolean;
 };
 
@@ -73,7 +73,7 @@ export type WeekNotesAdminView = {
   notYet: string | null;
   counts: string;
   notYetAgreed: string | null;
-  /** Who a press drafts for: their session has started, something to send, and neither a draft nor a saved note from this week. */
+  /** Who a press drafts for: their session has ended, something to send, and neither a draft nor a saved note from this week. */
   plan: Array<{ uid: string; name: string }>;
   only: "drafts" | "suggestions" | null;
   cards: Array<DraftCard | SavedCard>;
@@ -120,7 +120,7 @@ export function draftWithNames(draft: Pick<CourseNoteDraftDoc, "text" | "raters"
 /**
  * Why a draft may no longer say what it would now, or null: the week is no
  * longer drawn on for them (they have no session that week that has
- * started); feedback or a rating that would go came in after it; or what
+ * ended); feedback or a rating that would go came in after it; or what
  * would be sent has changed (their work as it stands, the team's words).
  */
 export function staleLine(draft: Pick<CourseNoteDraftDoc, "at" | "fingerprint">, now: Pick<NoteDraftInput, "builtFrom" | "fingerprint"> | null): string | null {
@@ -175,7 +175,7 @@ export function weekNotesAdminView(input: {
   people: readonly NotesPerson[];
   /** Each live group's id to its name, in meeting order. */
   groups: ReadonlyArray<{ id: string; name: string }>;
-  /** What a draft would be built from now, by person; null for somebody whose session this week has not started. */
+  /** What a draft would be built from now, by person; null for somebody whose session this week has not ended. */
   inputs: ReadonlyMap<string, NoteDraftInput | null>;
   /** Whose week is drawn on and holds nothing they wrote. */
   wroteNothing: ReadonlySet<string>;

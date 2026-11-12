@@ -28,7 +28,7 @@ import { WEEK_NOTES_WORDS } from "./words";
 /**
  * A WEEK'S NOTES ABOUT PEOPLE, KEPT AND READ (privacy v15, and v18 for what
  * a draft uses). Claude drafts one note per person whose session for the
- * week has started, from their work on that week as it stands, sent or not,
+ * week has ended, from their work on that week as it stands, sent or not,
  * and the team's words on it (`gather.ts`, `noteDraftInput`); an admin reads,
  * edits and saves it to the person's notes, or discards it.
  *
@@ -101,7 +101,7 @@ function scrubFor(uid: string, people: readonly RunPerson[]): NameToLabel[] {
 /**
  * The message one person's draft would carry, from what was gathered for
  * them; null when their week is not drawn on (no session of theirs that week
- * has started).
+ * has ended).
  */
 function inputFor(
   opened: WeekNotesDoor,

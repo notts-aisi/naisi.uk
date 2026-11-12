@@ -9,7 +9,7 @@ import styles from "./weekNotes.module.css";
 /**
  * "Draft this week's notes", for an admin on a week's Notes page, once every
  * group has met. The page hands it who to draft for (everybody whose session
- * has started with something that may be sent, with neither a draft nor a
+ * has ended with something that may be sent, with neither a draft nor a
  * note from this week), and it sends one request per person to the draft
  * route, three at a time, so each is one request to Anthropic inside the
  * site's own limit and each draft is kept as it returns. The page says how far it has got, and is

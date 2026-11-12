@@ -3051,7 +3051,10 @@ here.
   their group after it started: no moment for that week ("Joined late"),
   and nothing of theirs in it is ever late. It is the one moment late is
   told against, from which an unsent answer may be read, and after which
-  the first change keeps the earlier version.
+  the first change keeps the earlier version. That very session's own end
+  (`weekDueEndsAt`, `dueEndOf` on `loadRunWeekStates`; cancelled with the
+  group keeping pace, when it would have ended) is when the weekly notes may
+  draw on the week.
 - **Late is worked out when read, never stored** (`lateBy`, its words
   `lateWords`: "40 minutes", "5 hours", "3 days"): the time of a change, a
   send or a tick against that moment. "After its deadline" (staff only) is an
@@ -4436,7 +4439,7 @@ shows as out of date.
   programme. Each place says its rule in one line. "Draft a note with Claude"
   (`draft.ts`) sends what the end-of-week notes send (below), over every
   week of one run: the weeks whose session that person was due at has
-  started, their work in them as it stands, sent or not, written after they
+  ended, their work in them as it stands, sent or not, written after they
   agreed to privacy v15, and the
   team's feedback, ratings and comments on it, with every name of everybody
   on the run swapped for a label ("the fellow", "Rater 1"); the draft is
@@ -4718,10 +4721,13 @@ week's old Submit counts for nothing here since 18.)
   `adminOnly`, so the lead is turned away there and on the session before.
 - **Who**: the people holding a place, never a facilitator's own work. **No
   session, no note**: a week is drawn on for somebody once the session they
-  were due at for it has started (`weekDueOf` through `loadRunWeekStates`,
-  the same "due" every reader of work asks, `sessionHasStarted`), and never
-  before, not even an answer already sent. With no such session (no group,
-  no time set, told their group after it started) the week is not drawn on.
+  were due at for it has ENDED ("drafted after your session"): the same
+  "due" every reader of work asks (`weekDueOf`) and that very session's own
+  end (`weekDueEndsAt`, both through `loadRunWeekStates`), never a second
+  sum; cancelled with the group keeping pace, when it would have ended.
+  Never before or during it, so not even an answer already sent, nor what
+  is typed during the session. With no such session (no group, no time set,
+  told their group after it started) the week is not drawn on.
   Nothing waits a number of days after the session: the press waits only
   for every group to have met (the door, above). The page counts who has
   nothing written this week or no session yet, and who wrote something
@@ -4750,13 +4756,13 @@ week's old Submit counts for nothing here since 18.)
   Claude's words.
 - **The press**: "Draft this week's notes" sends one request per person from
   the browser, three at a time, each kept as it returns ("Drafted 12 of
-  41…"), for everybody whose session has started with something that may
+  41…"), for everybody whose session has ended with something that may
   be sent and neither a draft nor a note from this week; a second press
   drafts only who is still without one. "Draft again" on a card replaces
   that unsaved draft, and the card says when a rating or feedback came in
   after it, or that what would be sent has changed (the work as it stands,
-  so a change since the draft, sent or not, says so). A draft naming a label it was never sent is refused, never
-  kept. Nobody is emailed.
+  so a change since the draft, sent or not, says so). A draft naming a
+  label it was never sent is refused, never kept. Nobody is emailed.
 - **Kept** (`courseNoteDrafts/{runId}__{weekId}__{uid}`): Claude's words with
   its labels, what was sent item for item (`builtFrom`, shown as "Built only
   from": the week's work "as it stood on" the day it was drafted, `asOf`; a
@@ -4770,7 +4776,7 @@ week's old Submit counts for nothing here since 18.)
   and who reads it, admins and the programme's leads unless the admin keeps
   it to admins. A `memberNotes` note with `draftedByClaude`, `kind: "weekly"`,
   its week and `builtFrom`; one per person per week. Refused while the week
-  is not drawn on for them (no session of theirs that week has started).
+  is not drawn on for them (no session of theirs that week has ended).
   The saved card says "Drafted by Claude from week 3. Saved
   by Zach."
 - **The lead** reads the saved notes kept for leads, by the notes' one rule

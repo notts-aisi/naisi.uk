@@ -189,7 +189,7 @@ export type NoteRating = {
 /**
  * One of the person's weeks with its questions, and when its work was read
  * (`asOf`: the moment of the draft, so "as it stood" on that day). Only a
- * week whose session the person was due at has started is ever handed over
+ * week whose session the person was due at has ended is ever handed over
  * (`src/lib/courses/weekNotes/gather.ts`).
  */
 export type NoteWeek = { week: CourseworkWeek; asOf: Date };
@@ -225,10 +225,10 @@ const byAtThen = <T>(atOf: (item: T) => Date | null, keyOf: (item: T) => string)
  * builder for both drafts: the end-of-week notes hand it one week, and the
  * profile's "Draft a note with Claude" every week of one run.
  *
- *  - ONLY WEEKS WHOSE SESSION HAS STARTED. `weeks` holds the weeks whose
- *    session the person was due at has started, their work in them as it
+ *  - ONLY WEEKS WHOSE SESSION HAS ENDED. `weeks` holds the weeks whose
+ *    session the person was due at has ended, their work in them as it
  *    stands, sent or not (`gatherPersonNote`); anything else is never
- *    handed over, so a week before its session gives nothing.
+ *    handed over, so a week before or during its session gives nothing.
  *  - ONLY WORK FROM THEIR MOMENT: an answer counted under version 13 and
  *    first written after the person agreed to version 15 (`from`); none, and
  *    nothing of the week goes.

@@ -22,7 +22,7 @@ import { DRAFT_WORDS, NOTES_WORDS } from "./words";
  * In this order: an admin, about somebody else (`gateNotes`); Claude set up
  * on this site; the person's account; a run they are on; their agreement to
  * privacy v15 (`reviewUseFrom`); then THE SAME INPUT AS THE END-OF-WEEK
- * NOTES: the weeks of that run whose session they were due at has started,
+ * NOTES: the weeks of that run whose session they were due at has ended,
  * their work in them as it stands, sent or not, from their version 15
  * moment, and the team's feedback, ratings and comments on it
  * (`gatherPersonNote`, then `noteDraftInput`), with every name of everybody

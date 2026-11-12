@@ -1,7 +1,7 @@
 /**
  * THE WORDS OF A WEEK'S NOTES ABOUT PEOPLE (privacy v15, "AI-assisted
  * review", and v18 for what a draft uses: a week once the person's session
- * has started, their work as it stands, sent or not), the page's and the
+ * has ended, their work as it stands, sent or not), the page's and the
  * routes' alike. Admins draft and save; the programme's leads read the saved
  * notes kept for them. Nothing here reaches a member or a facilitator. Plain, British, sentence case, no dashes, no
  * pronoun for a person.
@@ -36,7 +36,7 @@ export const WEEK_NOTES_WORDS = {
       ? "This week’s notes can be drafted once every group has met, and no group meets it yet."
       : `This week’s notes can be drafted once every group has met: ${met} of ${of} have.`,
   notSetUp: "Claude isn’t set up on this site yet.",
-  noSession: "Their session for this week hasn’t started yet, or they have none, so there’s nothing of theirs to note.",
+  noSession: "Their session for this week hasn’t ended yet, or they have none, so there’s nothing of theirs to note.",
   wroteNothing: "They haven’t written anything in this week yet, so there’s nothing to note.",
   noWork: "This week asks for no written work, so there are no notes to draft from it.",
   nothingToSend: `Nothing of their week can be sent: only work written after they agreed to version ${V} of the privacy policy is.`,
@@ -44,7 +44,7 @@ export const WEEK_NOTES_WORDS = {
   keptAlready: "A note from this week is already on their record.",
   slip: "Claude’s draft named somebody it wasn’t sent, so it wasn’t kept. Draft again.",
   noDraft: "There’s no draft for them now. Reload the page.",
-  noSessionNow: "They have no session for this week that has started now, so there’s nothing to note. Discard the draft.",
+  noSessionNow: "They have no session for this week that has ended now, so there’s nothing to note. Discard the draft.",
   failed: "Claude couldn’t draft a note just now. Try again.",
   loadFailed: "Couldn’t reach the site. Try again.",
 
@@ -121,7 +121,7 @@ export const WEEK_NOTES_WORDS = {
   newer: (what: "rating" | "feedback" | "both", when: string) =>
     `${what === "rating" ? "A rating" : what === "feedback" ? "Feedback" : "Feedback and a rating"} came in after this draft, the newest ${when}. Draft again to include it.`,
   changed: "Their week has changed since this draft. Draft again to use what’s there now.",
-  noSessionAfter: "They have no session for this week that has started now, so there’s nothing to note. Discard it.",
+  noSessionAfter: "They have no session for this week that has ended now, so there’s nothing to note. Discard it.",
   savedLine: (weekNumber: number, name: string) => `Drafted by Claude from week ${weekNumber}. Saved by ${name}.`,
   noSuggestion: "No suggestion for next term.",
   readBy: (who: string) => `Who reads it: ${who}`,
