@@ -3,20 +3,21 @@ import NotYours from "@/features/applications/groups/NotYours";
 import RunBlank from "@/features/applications/groups/RunBlank";
 import CourseworkTable from "@/features/courses/coursework/CourseworkTable";
 import CourseworkWeekPanels from "@/features/courses/courseworkClaude/CourseworkWeekPanels";
-import { loadCourseworkTab } from "@/lib/courses/coursework/load";
+import { loadCourseworkTab, type CourseworkTabQuery } from "@/lib/courses/coursework/tabLoad";
 import { chosenWeek } from "@/lib/courses/coursework/model";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
 /**
- * One programme's Coursework tab (Zach, Fri 30 Oct): a row per person holding
- * a place on it, in a group or not yet, and per facilitator of its run's
- * groups, marked as facilitating; a column per week of the run written as
- * blocks; a cell that leads with whether the week is done, by the one
- * meaning of done every page uses, then counts, never anybody's words. A
- * name opens the person's page (`../../coursework/[uid]`, a screen of its
- * own), and the written answer in a cell opens its review page, where feedback
- * on it is written.
+ * One programme's Coursework tab (Zach, Fri 30 Oct; redrawn Fri 13 Nov 2026):
+ * a row per person holding a place on it, in a group or not yet, and per
+ * facilitator of its run's groups, marked as facilitating; a column per week
+ * of the run written as blocks; a cell that says one thing in words (Done,
+ * Done late, Started, Not started, Joined late, the day a week opens) and,
+ * for a reader who may read the person's work, up to three flags: Not read
+ * yet, No feedback yet, Changed since feedback. Never anybody's words. A
+ * cell opens the reading view of that person's week (`../../coursework/[uid]
+ * ?week=N`); a name opens the person's page.
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`loadCourseworkTab`, through
  * `loadProgrammeRun`), decided from the form before the run is read. A
@@ -25,14 +26,18 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * Publish has not told is shown to admins alone: to the lead that person
  * sits under "Not in a group yet". Private notes and survey answers are
  * never read for the tab. Server-rendered on the Admin SDK; the filters are
- * plain links (`?group=`, `?waiting=1`, `?notdone=1`). Nothing here writes.
+ * plain links (`?group=`, and one of `?notdone=1`, `?late=1`, `?unread=1`,
+ * `?waiting=1`, `?changed=1`), as is the whole list of what waits
+ * (`?list=all`). Nothing here writes, and nothing marks an answer read.
  *
- * UNDER THE TABLE, FOR AN ADMIN ALONE, one week at a time (`?week=3`, else
- * the latest week anybody shown has written in): Claude's best answers to it
- * and Pangram on it (`CourseworkWeekPanels`). The programme's lead is drawn
- * neither (privacy v15: what Claude returns is seen by admins only), and both
- * routes refuse the lead too. Each panel asks its own route, behind the same
- * door; Claude and Pangram are sent something only on a press.
+ * UNDER THE TABLE, the one list of written answers waiting for the reader's
+ * feedback, oldest first; then, FOR AN ADMIN ALONE, one week at a time
+ * (`?week=3`, else the latest week anybody shown has written in): Claude's
+ * best answers to it and Pangram on it (`CourseworkWeekPanels`). The
+ * programme's lead is drawn neither (privacy v15: what Claude returns is seen
+ * by admins only), and both routes refuse the lead too. Each panel asks its
+ * own route, behind the same door; Claude and Pangram are sent something only
+ * on a press.
  */
 
 export const dynamic = "force-dynamic";
@@ -42,11 +47,11 @@ export default async function ProgrammeCourseworkPage({
   searchParams,
 }: {
   params: Promise<{ roundId: string; programmeId: string }>;
-  searchParams?: Promise<{ group?: string | string[]; waiting?: string | string[]; notdone?: string | string[]; week?: string | string[] }>;
+  searchParams?: Promise<CourseworkTabQuery>;
 }) {
   const [{ roundId, programmeId }, query, user] = await Promise.all([
     params,
-    searchParams ?? Promise.resolve({} as { group?: string | string[]; waiting?: string | string[]; notdone?: string | string[]; week?: string | string[] }),
+    searchParams ?? Promise.resolve({} as CourseworkTabQuery),
     requireAdmissionsPage(),
   ]);
   const db = getAdminDb();
@@ -62,7 +67,7 @@ export default async function ProgrammeCourseworkPage({
   const panels = week && view.viewer === "admin" ? week : null;
   return (
     <>
-      <CourseworkTable view={view} base={base} week={week?.asked ? week.weekNumber : null} />
+      <CourseworkTable view={view} base={base} />
       {panels && (
         <CourseworkWeekPanels
           roundId={view.roundId}

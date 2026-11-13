@@ -4739,7 +4739,8 @@ export const PAGES = {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own (loadProgrammeRun, decided from the form " +
-      "before the run is read): what everybody holding a place has written, by name, is the programme's lead's and an " +
+      "before the run is read): what everybody holding a place has written, by name, with whether it is read and has " +
+      "feedback, and the list of answers waiting for the caller's feedback, is the programme's lead's and an " +
       "admin's, so a reviewer on the form is told the tab is theirs, and a programme the caller has no role on, or one " +
       "that does not exist, renders 'there is no programme here' with a 200. " +
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
@@ -7820,7 +7821,9 @@ export const REAL_PAGES = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": programmePage("its groups' reflections, its facilitators' own among them."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": programmePage("a group's week, who ticked what by name."),
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/coursework": programmePage("the Coursework tab, everybody's work by week."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/coursework": programmePage(
+    "the Coursework tab, everybody's work by week with the caller's flags, and the answers waiting for the caller's feedback.",
+  ),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]": programmePage(
     "the reading view of one person's week (the set's participant, a row of the Coursework tab), or its calm not-here for an id that is nobody's.",
   ),

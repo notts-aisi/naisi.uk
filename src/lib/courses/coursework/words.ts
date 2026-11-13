@@ -1,5 +1,8 @@
+import { londonDayLabel } from "@/lib/courses/londonLabels";
+import { dayWords } from "@/lib/courses/sessionChange/words";
+import { DONE_LATE, DONE_ON_TIME, JOINED_LATE, LATE } from "@/lib/courses/weekWork/words";
 import { dayAndClockWords } from "@/lib/courses/writtenAnswerWords";
-import type { CellAnswerState } from "./model";
+import type { CellAnswerState, CellState, CourseworkShow } from "./model";
 
 /**
  * THE WORDS OF A PROGRAMME'S COURSEWORK (Zach, Fri 30 Oct): the Coursework
@@ -28,49 +31,23 @@ export function weekColumnWords(weekNumber: number): string {
 }
 
 /**
- * The first line of a cell, by the one meaning of done every page uses
+ * A cell's word for a week done, by the one meaning of done every page uses
  * (`weekDone`): every tick it counts ticked, and everything written it counts
  * written and sent (or the old Submit pressed). Once the session they were
  * due at has passed, "Done on time" or "Done late" (`DONE_ON_TIME`,
  * `DONE_LATE` in `src/lib/courses/weekWork/words.ts`); "Joined late" for a
- * week before they were told their group. Staff words: the person's own
- * pages say "Sent" and "N of M done".
+ * week before they were told their group (`cellStateWords` below). Staff
+ * words: the person's own pages say "Sent" and "N of M done".
  */
 export const DONE = "Done";
-export const NOT_DONE = "Not done";
 
-/** "Reflections 2 of 3": parts whose reflection is written, of the week's parts. */
-export function reflectionsCellWords(written: number, of: number): string {
-  return `Reflections ${written} of ${of}`;
-}
-
-/** "Sources 1 of 2": sources ticked, of the week's sources. */
-export function ticksCellWords(ticked: number, of: number): string {
-  return `Sources ${ticked} of ${of}`;
-}
-
-/** "Boxes 3 of 7": fill-in boxes with something in them, of the week's boxes. */
-export function boxesCellWords(filled: number, of: number): string {
-  return `Boxes ${filled} of ${of}`;
-}
-
-/** Where a written answer stands, in a cell and on a person's page. */
+/** Where a written answer stands, on a person's week and on the page of one question. */
 export const ANSWER_STATE_WORDS: Record<CellAnswerState, string> = {
   "not-started": "Answer not started",
   started: "Answer started",
   waiting: "No feedback yet",
   feedback: "Feedback given",
 };
-
-/** The written answer part of a cell, for a screen reader: "Week 3 written answer, No feedback yet: Chloe Nguyen". */
-export function answerLinkLabelWords(name: string, weekNumber: number, state: CellAnswerState): string {
-  return `Week ${weekNumber} written answer, ${ANSWER_STATE_WORDS[state]}: ${name}`;
-}
-
-/** The rest of a cell, for a screen reader: "Week 3, not done: Chloe Nguyen’s coursework". */
-export function cellLinkLabelWords(name: string, weekNumber: number, done: boolean): string {
-  return `Week ${weekNumber}, ${done ? "done" : "not done"}: ${name}’s coursework`;
-}
 
 /** A week the person reads that is not written as blocks: nothing to count. */
 export const NO_COURSEWORK = "No coursework";
@@ -353,4 +330,118 @@ export const NOBODY_TO_READ = "There’s nobody in this group whose work is your
 /** "Question 2 of 5": where the question sits in the week. */
 export function questionOfWords(at: number, of: number): string {
   return `Question ${at} of ${of}`;
+}
+
+// The Coursework tab, redrawn --------------------------------------------------------
+
+/**
+ * The words of the Coursework tab as a table with words in every cell, its
+ * filters and its list of what waits for feedback (Fri 13 Nov 2026). Where the
+ * code had words already (Done, Done on time, Done late, Joined late, Late,
+ * Not read yet, No feedback yet, Changed since feedback, how late), the tab
+ * uses those, from their own files.
+ */
+
+/** A week begun with something done in it, and a week begun with nothing done. */
+export const STARTED = "Started";
+export const NOT_STARTED = "Not started";
+
+/** A week not begun for them, with no day to say it opens on. */
+export const NOT_OPEN_YET = "Not open yet";
+
+/** "Opens Thu 12 Nov": a week not begun for them, by the day it opens. */
+export function opensWords(dateKey: string | null): string {
+  const day = dateKey ? dayWords(dateKey) : "";
+  return day ? `Opens ${day}` : NOT_OPEN_YET;
+}
+
+/** What a cell says first, in words, by its state (`cellStateOf`). */
+export function cellStateWords(state: CellState, opensOn: string | null): string {
+  switch (state) {
+    case "no-coursework":
+      return NO_COURSEWORK;
+    case "done":
+      return DONE;
+    case "done-on-time":
+      return DONE_ON_TIME;
+    case "done-late":
+      return DONE_LATE;
+    case "joined-late":
+      return JOINED_LATE;
+    case "opens":
+      return opensWords(opensOn);
+    case "started":
+      return STARTED;
+    case "not-started":
+      return NOT_STARTED;
+  }
+}
+
+/** A cell, for a screen reader: "Chloe Nguyen, week 3: Started, Not read yet, No feedback yet". */
+export function cellLabelWords(name: string, weekNumber: number, said: readonly string[]): string {
+  return `${name}, week ${weekNumber}: ${said.join(", ")}`;
+}
+
+/** The filters over the people, one at a time, and the group's. */
+export const EVERYONE = "Everyone";
+export const WEEK_NOT_DONE = "Week not done";
+export const SHOW_WORDS: Record<CourseworkShow, string> = {
+  everyone: EVERYONE,
+  notDone: WEEK_NOT_DONE,
+  late: LATE,
+  unread: NOT_READ_YET,
+  noFeedback: WAITING_FOR_FEEDBACK,
+  changed: CHANGED_SINCE_FEEDBACK,
+};
+export const GROUP = "Group";
+export const ALL_GROUPS = "All groups";
+
+/** The way to the page of one question across a group. */
+export const READ_ONE_QUESTION = "Read one question";
+
+/** The key to the words of the cells, for a screen reader. */
+export const KEY = "Key";
+
+/** Stepping between weeks, one at a time, at phone width, for a screen reader. */
+export const WEEKS = "Weeks";
+
+/** The list under the table. */
+export const WAITING_TITLE = "Waiting for feedback, oldest first";
+export const WAITING_LINE = "Opens the reading view at that answer.";
+export const NOTHING_WAITING = "Nothing is waiting for feedback.";
+export const READ = "Read";
+
+/** "week 3 written answer", after the person's name. */
+export function writtenAnswerOfWeekWords(weekNumber: number): string {
+  return `week ${weekNumber} written answer`;
+}
+
+/** "Sent Thu 5 Nov", with "· late" when it was sent after the session it was due at. */
+export function waitingSentWords(at: Date, late: boolean): string {
+  return late ? `Sent ${londonDayLabel(at)} · late` : `Sent ${londonDayLabel(at)}`;
+}
+
+/** "Not sent, read since the session, Thu 5 Nov": never sent, read since the session it was due at started. */
+export function waitingNotSentWords(at: Date): string {
+  return `Not sent, read since the session, ${londonDayLabel(at)}`;
+}
+
+/** "Changed since feedback, Sat 7 Nov". */
+export function waitingChangedWords(at: Date): string {
+  return `${CHANGED_SINCE_FEEDBACK}, ${londonDayLabel(at)}`;
+}
+
+/** "Read Chloe Nguyen’s week 3 written answer", for a screen reader. */
+export function readAnswerLabelWords(name: string, weekNumber: number): string {
+  return `${READ} ${name}’s ${writtenAnswerOfWeekWords(weekNumber)}`;
+}
+
+/** "Show all 14". */
+export function showAllWords(total: number): string {
+  return `Show all ${total}`;
+}
+
+/** On Feedback to write: "Changed since feedback, Wed 18 Nov, 3pm". */
+export function changedOnWords(at: Date): string {
+  return `${CHANGED_SINCE_FEEDBACK}, ${dayAndClockWords(at)}`;
 }

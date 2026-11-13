@@ -12,6 +12,7 @@ import type { SessionUser } from "@/lib/firebase/session";
 import { exerciseResponseId, isFillInResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import { COURSE_WEEK_WORK_COLLECTION, courseWeekWorkId } from "@/lib/firestore/courseWeekWork";
 import { readRunForWork, weekWorkRef } from "./own";
+import { runWeekWorkOf, type RunWeekWork } from "./readers";
 
 /**
  * WHEN AN ANSWER WAS FIRST READ (Zach, Fri 13 Nov 2026): for each answer of a
@@ -46,7 +47,10 @@ import { readRunForWork, weekWorkRef } from "./own";
  * deletion sweep touches it.
  *
  * WHO SEES IT: the people who may read the answer, on the page of one
- * question across a group ("Not read yet"), and nobody else. What counts as
+ * question across a group ("Not read yet"), and, as a flag beside a person's
+ * week and on the list of answers waiting for feedback, on the programme's
+ * Coursework tab (an admin or the programme's lead, never on their own row),
+ * and nobody else. What counts as
  * read there is `readStateOf` (`src/lib/courses/coursework/question.ts`): a
  * time kept, or feedback on the answer; and, held against `keptSince`, an
  * answer with neither is unread only when it became readable since. This
@@ -167,6 +171,37 @@ export async function readFirstReads(
     out.set(uid, data && data.uid === uid && data.runId === input.runId ? firstReadsOf(data) : new Map());
   });
   return out;
+}
+
+/**
+ * EVERY WEEK RECORD ON A RUN, AND THE FIRST READS KEPT ON THEM, from ONE read
+ * (one equality on the run, no declared index): for the Coursework tab, after
+ * its gate, which reads the records anyway for where each person's weeks
+ * stand. `records` is every record as every other reader reads one
+ * (`runWeekWorkOf`, through `normalizeCourseWeekWork`, which never carries the
+ * times), handed on to the tab's other reads so the run's records are read
+ * once; `firstReads` the times, by uid, then week id, then answer id. A
+ * record is a person's only when it says so. Never who read anything: nothing
+ * of that is kept.
+ */
+export async function readRunWeekRecords(
+  db: Firestore,
+  runId: string,
+): Promise<{ records: RunWeekWork; firstReads: Map<string, Map<string, Map<string, Date>>> }> {
+  const snap = await db.collection(COURSE_WEEK_WORK_COLLECTION).where("runId", "==", runId).get();
+  const firstReads = new Map<string, Map<string, Map<string, Date>>>();
+  for (const doc of snap.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    const uid = typeof data.uid === "string" ? data.uid : "";
+    const weekId = typeof data.weekId === "string" ? data.weekId : "";
+    if (!uid || !weekId || data.runId !== runId) continue;
+    const times = firstReadsOf(data);
+    if (times.size === 0) continue;
+    const own = firstReads.get(uid) ?? new Map<string, Map<string, Date>>();
+    own.set(weekId, times);
+    firstReads.set(uid, own);
+  }
+  return { records: runWeekWorkOf(snap.docs, runId), firstReads };
 }
 
 /** The answers one call names: whose, and which of their week's answers. */

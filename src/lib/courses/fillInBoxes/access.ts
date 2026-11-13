@@ -43,6 +43,19 @@ const MAX_GROUPS = 50;
 export type BoxesReader = "admin" | "lead" | "facilitator";
 
 /**
+ * `boxesReaderFor`'s first two answers, for a reader whose standing on the
+ * run is known already (`reviewerFactsOf`, which asks the same two questions:
+ * the admin role, and `programmeLedBy`). An admin or the programme's lead
+ * reads everybody's boxes on the run, so the answer names nobody's boxes in
+ * particular, and a page that lists everybody (the Coursework tab) asks it
+ * once. Anybody else is null here, and is asked `boxesReaderFor` person by
+ * person.
+ */
+export function boxesReaderForStaff(facts: { isAdmin: boolean; isLead: boolean }): BoxesReader | null {
+  return facts.isAdmin ? "admin" : facts.isLead ? "lead" : null;
+}
+
+/**
  * May `actor` read `ownerUid`'s fill-in boxes on this run, and as whom? Null
  * for no. The admin's and the lead's answers read nothing of the owner; the
  * facilitator's reads the run's groups (one equality on the run) and the

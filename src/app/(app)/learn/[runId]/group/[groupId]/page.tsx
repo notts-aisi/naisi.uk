@@ -23,7 +23,8 @@ import { ticketFacts } from "@/features/courses/sessionChange/cardFacts";
 import SessionNotice from "@/features/courses/sessionChange/SessionNotice";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
 import ReviewQueueCard from "@/features/courses/written/ReviewQueueCard";
-import { loadWrittenQueueAndReadable } from "@/lib/courses/writtenAnswers/queue";
+import { loadWrittenQueueAndReadable, type WrittenQueueRow } from "@/lib/courses/writtenAnswers/queue";
+import { READING_ANSWER_ANCHOR } from "@/lib/courses/coursework/overview";
 import { readingHref } from "@/lib/courses/coursework/reading";
 import { StaffUpdatesSection } from "@/features/courses/updates/UpdatesList";
 import weekly from "@/features/courses/weekly/weekly.module.css";
@@ -582,11 +583,16 @@ export default async function GroupHomePage({
   // half, on a run whose weeks are written as blocks (null on a run of the
   // summer's weeks), and its reflections half, on a week written as blocks
   // with something to reflect on.
+  // An answer changed since its feedback opens the reading view at that answer, where both versions are drawn.
+  const changedHref = (row: WrittenQueueRow) => {
+    const read = row.changed ? readHref(row.uid, row.weekNumber) : null;
+    return read ? `${read}#${READING_ANSWER_ANCHOR}` : null;
+  };
   const writtenCard = writtenQueue ? (
     <ReviewQueueCard
       rows={writtenQueue}
-      hrefFor={writtenHref}
-      readHrefFor={(row) => readHref(row.uid, row.weekNumber) ?? writtenHref(row)}
+      hrefFor={(row) => changedHref(row) ?? writtenHref(row)}
+      readHrefFor={(row) => changedHref(row) ?? readHref(row.uid, row.weekNumber) ?? writtenHref(row)}
     />
   ) : null;
   // Once the run's last session is over, the way to rate the group: its

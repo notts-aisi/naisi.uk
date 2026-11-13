@@ -248,8 +248,8 @@ test("the one answer: as last sent before the session, the latest once it has st
 const HOLDS_PIECE = /\bPersonAnswerWrite\b|\bPersonWrites\b|\bwrites\.answers\b|\breadRunCoursework\(/;
 const PIECE_HOLDERS = {
   "lib/courses/facilitatorWeek/readers.ts": "builds it: `readRunCoursework`, server-only, asked by each caller after its own gate",
-  "lib/courses/coursework/load.ts":
-    "server-only: the Coursework tab's counts through `readRunCoursework` with words for nobody, and the programme's door to one person's week, which hands `readPersonWeek` the person after its gate; it reads no `.piece`",
+  "lib/courses/coursework/tabLoad.ts":
+    "server-only: the Coursework tab's states, flags and list of what waits through `readRunCoursework` with words for nobody (each answer's facts, never its words, are worked out inside the reader); it reads no `.piece`",
   "lib/courses/coursework/readingLoad.ts":
     "server-only: the reading view's one loader; reads `.piece` for the version each feedback card was about, whether the week and the answer take feedback, and the ratings' changes; hands the page `personWeeks`' answers, never the stored one",
   "lib/courses/coursework/model.ts": "pure: `personWeeks` copies an answer's named fields into what the page is handed, and never `piece` (run below)",

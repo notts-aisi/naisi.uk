@@ -6,34 +6,23 @@ import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import type { ApplicationForm } from "@/lib/applications/normalise";
 import { listPlaceHolders } from "@/lib/applications/people/load";
 import { loadForm } from "@/lib/applications/repo";
-import { readRunCoursework } from "@/lib/courses/facilitatorWeek/readers";
-import { resolveGroupCalendar } from "@/lib/courses/groupResolve";
-import { readPackCaseRecords } from "@/lib/courses/packsAndCases/readers";
 import { liveGroupsOf, reviewerFactsOf } from "@/lib/courses/writtenAnswers/access";
 import type { SessionUser } from "@/lib/firebase/session";
 import { normalizeCourseEnrolment, placementIsShownTo, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
-import {
-  NO_WORK,
-  chooseOneIdsOf,
-  courseworkSections,
-  readFilter,
-  type CourseworkFilter,
-  type CourseworkPerson,
-  type CourseworkSection,
-  type CourseworkViewer,
-} from "./model";
+import type { CourseworkPerson, CourseworkViewer } from "./model";
 import { personAnchorId, questionHref } from "./question";
 import { readPersonWeek, type PersonWeekView } from "./readingLoad";
-import { columnsOf, namesOf, weeksRead } from "./reads";
-import { BACK_TO_COURSEWORK, NOT_IN_A_GROUP_YET } from "./words";
+import { namesOf } from "./reads";
+import { BACK_TO_COURSEWORK } from "./words";
 
 /**
- * A PROGRAMME'S COURSEWORK, READ (Zach, Fri 30 Oct): the Coursework tab and
- * one person's page, on the server, for the programme's lead and admins.
- * `./model.ts` says who is a row, which week each reads and what a cell says;
- * this file reads and hands the pages what they draw.
+ * A PROGRAMME'S COURSEWORK, READ (Zach, Fri 30 Oct): the gate and the rows
+ * the Coursework tab and one person's page share, and one person's page, on
+ * the server, for the programme's lead and admins. `./model.ts` says who is a
+ * row, which week each reads and what a cell says; the tab itself is read by
+ * `./tabLoad.ts`, with this file's gate and rows.
  *
  * THE GATE comes first, from the form, before the run is read
  * (`loadProgrammeRun`, the Groups and Attendance tabs' own): an admin or the
@@ -68,13 +57,13 @@ import { BACK_TO_COURSEWORK, NOT_IN_A_GROUP_YET } from "./words";
  * name on a place's record stands in only where the account has gone.
  */
 
-type Gate =
+export type Gate =
   | { status: "none" }
   | { status: "not-yours" }
   | { status: "blank"; view: ProgrammeRunView }
   | { status: "ok"; view: ProgrammeRunView; run: CourseRunDoc; form: ApplicationForm; viewer: CourseworkViewer };
 
-async function openCoursework(db: Firestore, actor: SessionUser, roundId: string, programmeId: string): Promise<Gate> {
+export async function openCoursework(db: Firestore, actor: SessionUser, roundId: string, programmeId: string): Promise<Gate> {
   const outcome = await loadProgrammeRun(db, actor, roundId, programmeId);
   if (outcome.status !== "ok") return outcome;
   const { view } = outcome;
@@ -84,8 +73,22 @@ async function openCoursework(db: Firestore, actor: SessionUser, roundId: string
   return { status: "ok", view, run: normalizeCourseRun(runSnap.id, runSnap.data() ?? {}), form, viewer: view.viewer };
 }
 
+/**
+ * The run's seats (one equality on the run), every one as read, and by uid
+ * the seats on this run: the rows of the tab and a person's page are made
+ * from them by `peopleOf`, which asks of each placement whether it may be
+ * shown to the caller.
+ */
+export async function readRunSeats(db: Firestore, runId: string): Promise<{ enrolments: CourseEnrolmentDoc[]; seats: Map<string, CourseEnrolmentDoc> }> {
+  const snap = await db.collection("courseEnrolments").where("runId", "==", runId).get();
+  const enrolments = snap.docs.map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}));
+  const seats = new Map<string, CourseEnrolmentDoc>();
+  for (const seat of enrolments) if (seat.runId === runId && seat.uid) seats.set(seat.uid, seat);
+  return { enrolments, seats };
+}
+
 /** A seat that places somebody in one of the run's live groups, active or finished. */
-function placedIn(seat: CourseEnrolmentDoc | undefined | null, groups: readonly CourseGroupDoc[]): seat is CourseEnrolmentDoc & { groupId: string } {
+export function placedIn(seat: CourseEnrolmentDoc | undefined | null, groups: readonly CourseGroupDoc[]): seat is CourseEnrolmentDoc & { groupId: string } {
   return (
     !!seat &&
     seat.role === "learner" &&
@@ -103,7 +106,7 @@ function placedIn(seat: CourseEnrolmentDoc | undefined | null, groups: readonly 
  * run itself, with no place on the form behind it), who is taking part all
  * the same and whose coursework the group's pages already show.
  */
-function peopleOf(input: {
+export function peopleOf(input: {
   viewer: CourseworkViewer;
   groups: readonly CourseGroupDoc[];
   holders: readonly PlaceHolder[];
@@ -151,7 +154,7 @@ function peopleOf(input: {
 }
 
 /** The people `peopleOf` names from their accounts: facilitators, everybody holding a place, and anybody placed with no place on the form. */
-function accountsToName(groups: readonly CourseGroupDoc[], holders: readonly PlaceHolder[], seats: ReadonlyMap<string, CourseEnrolmentDoc>): string[] {
+export function accountsToName(groups: readonly CourseGroupDoc[], holders: readonly PlaceHolder[], seats: ReadonlyMap<string, CourseEnrolmentDoc>): string[] {
   const holding = new Set(holders.map((holder) => holder.uid));
   return [
     ...groups.flatMap((group) => group.facilitatorUids),
@@ -160,35 +163,8 @@ function accountsToName(groups: readonly CourseGroupDoc[], holders: readonly Pla
   ];
 }
 
-// ---------------------------------------------------------------------------
-// The tab
-// ---------------------------------------------------------------------------
-
-export type CourseworkTabView = {
-  roundId: string;
-  programmeId: string;
-  programmeName: string;
-  viewer: CourseworkViewer;
-  columns: Array<{ weekNumber: number; title: string }>;
-  /** The run's live groups, for the filter, in the one order every tab lists them. */
-  groups: Array<{ id: string; name: string }>;
-  filter: CourseworkFilter;
-  sections: CourseworkSection[];
-  counts: { holding: number; facilitating: number; waiting: number };
-  /** The lead's first name, for the line about who opens the tab; null with no lead. */
-  leadFirstName: string | null;
-  /** Every row's name by account, whatever the filter: the panels under the table name people by it. */
-  names: Record<string, string>;
-};
-
-export type CourseworkTabOutcome =
-  | { status: "none" }
-  | { status: "not-yours" }
-  | { status: "blank"; view: ProgrammeRunView }
-  | { status: "ok"; view: CourseworkTabView };
-
 /** The programme's pages, written out from ids, never from stored text. */
-function programmePathOf(view: ProgrammeRunView): string {
+export function programmePathOf(view: Pick<ProgrammeRunView, "roundId" | "programmeId">): string {
   return `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}`;
 }
 
@@ -196,107 +172,6 @@ function programmePathOf(view: ProgrammeRunView): string {
 function writtenHrefOf(programmePath: string, person: Pick<CourseworkPerson, "uid" | "groupId">, weekNumber: number): string | null {
   if (!person.groupId) return null;
   return `${programmePath}/written?group=${encodeURIComponent(person.groupId)}&week=${weekNumber}&person=${encodeURIComponent(person.uid)}`;
-}
-
-export async function loadCourseworkTab(
-  db: Firestore,
-  actor: SessionUser,
-  roundId: string,
-  programmeId: string,
-  query: { group?: unknown; waiting?: unknown; notdone?: unknown },
-): Promise<CourseworkTabOutcome> {
-  const gate = await openCoursework(db, actor, roundId, programmeId);
-  if (gate.status !== "ok") return gate;
-  const { view, run, form, viewer } = gate;
-
-  const [holders, groups, seatSnap, runWeeks, programme] = await Promise.all([
-    listPlaceHolders(db, form, view.programmeId),
-    liveGroupsOf(db, run.id),
-    // One equality on one field: the run's seats.
-    db.collection("courseEnrolments").where("runId", "==", run.id).get(),
-    weeksRead(db, run.id, null),
-    runProgrammeOf(db, run.id),
-  ]);
-  const seats = new Map<string, CourseEnrolmentDoc>();
-  for (const doc of seatSnap.docs) {
-    const seat = normalizeCourseEnrolment(doc.id, doc.data() ?? {});
-    if (seat.runId === run.id && seat.uid) seats.set(seat.uid, seat);
-  }
-  const [groupWeeks, names, coursework] = await Promise.all([
-    Promise.all(groups.map(async (group) => [group.id, await weeksRead(db, run.id, group.id)] as const)),
-    namesOf(db, accountsToName(groups, holders, seats), actor),
-    readRunCoursework(db, { run, liveGroups: groups, now: new Date() }, null),
-  ]);
-  const weeksOf = new Map(groupWeeks);
-  const columns = columnsOf(run, runWeeks);
-  const people = peopleOf({ viewer, groups, holders, seats, names });
-  const weekOf = (groupId: string | null, weekNumber: number) =>
-    groupId ? (weeksOf.get(groupId)?.get(weekNumber) ?? null) : (runWeeks.get(weekNumber) ?? null);
-  // Each person's pack in the Choose ones the weeks they read count, by id: a
-  // week with a pathway is done only once its pack's reading is ticked.
-  const packRecords = await readPackCaseRecords(
-    db,
-    run.id,
-    people.flatMap((person) =>
-      columns.flatMap((column) => chooseOneIdsOf(weekOf(person.readsGroupId, column.weekNumber)).map((blockId) => ({ uid: person.uid, blockId }))),
-    ),
-  );
-  const packs = new Map<string, Map<string, string>>();
-  for (const record of packRecords.values()) {
-    if (!record.packId) continue;
-    const own = packs.get(record.uid) ?? new Map<string, string>();
-    own.set(record.blockId, record.packId);
-    packs.set(record.uid, own);
-  }
-  // The last week that has begun on each group's calendar (the run's own for
-  // somebody in no group), for which weeks a row is not done in.
-  const now = new Date();
-  const reached = new Map<string | null, number>();
-  const reachedOf = (groupId: string | null) => {
-    if (!reached.has(groupId)) {
-      const group = groupId ? (groups.find((candidate) => candidate.id === groupId) ?? null) : null;
-      reached.set(groupId, resolveGroupCalendar(run, group, now).currentWeek?.anchorWeekNumber ?? 0);
-    }
-    return reached.get(groupId) ?? 0;
-  };
-  const programmePath = programmePathOf(view);
-  const groupList = groups.map((group) => ({ id: group.id, name: group.name.trim() || "Untitled group" }));
-  const filter = readFilter(query, groupList.map((group) => group.id));
-  const build = (wanted: CourseworkFilter) =>
-    courseworkSections({
-      columns,
-      groups: groupList,
-      people,
-      workOf: (uid) => ({ ...(coursework.work.get(uid) ?? NO_WORK), packs: packs.get(uid) ?? new Map() }),
-      weekOf,
-      personHref: (uid) => `${programmePath}/coursework/${encodeURIComponent(uid)}`,
-      writtenHref: (person, weekNumber) => writtenHrefOf(programmePath, person, weekNumber),
-      standingOf: (uid, weekNumber) => ({ submittedAt: coursework.states.submittedOf(uid, weekNumber), due: coursework.states.dueOf(uid, weekNumber) }),
-      reachedOf: (person) => reachedOf(person.readsGroupId),
-      filter: wanted,
-      notInAGroupTitle: NOT_IN_A_GROUP_YET,
-    });
-  const everybody = build({ group: "all", waiting: false, notDone: false }).flatMap((section) => section.rows);
-  return {
-    status: "ok",
-    view: {
-      roundId: view.roundId,
-      programmeId: view.programmeId,
-      programmeName: view.programmeName,
-      viewer,
-      columns,
-      groups: groupList,
-      filter,
-      sections: build(filter),
-      counts: {
-        holding: people.filter((person) => !person.facilitating).length,
-        facilitating: people.filter((person) => person.facilitating).length,
-        waiting: everybody.filter((row) => row.waiting).length,
-      },
-      leadFirstName: programme?.leadFirstName ?? null,
-      names: Object.fromEntries(everybody.map((row) => [row.uid, row.name])),
-    },
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -356,16 +231,13 @@ export async function loadPersonCoursework(
   if (gate.status !== "ok") return gate;
   const { view, run, form, viewer } = gate;
 
-  const [holders, groups, seatSnap, facts] = await Promise.all([
+  const [holders, groups, { enrolments, seats }, facts] = await Promise.all([
     listPlaceHolders(db, form, view.programmeId),
     liveGroupsOf(db, run.id),
     // One equality on one field: the run's seats, for the people of the person's section.
-    db.collection("courseEnrolments").where("runId", "==", run.id).get(),
+    readRunSeats(db, run.id),
     reviewerFactsOf(db, actor, run.id),
   ]);
-  const enrolments = seatSnap.docs.map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}));
-  const seats = new Map<string, CourseEnrolmentDoc>();
-  for (const seat of enrolments) if (seat.runId === run.id && seat.uid) seats.set(seat.uid, seat);
   const facilitates = groups.some((group) => group.facilitatorUids.includes(uid));
   const holder = holders.find((candidate) => candidate.uid === uid) ?? null;
   // A row of the tab, or nobody's page: a place on the form, a group facilitated, or a seat in a live group.
