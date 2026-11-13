@@ -436,10 +436,12 @@ export type RunDestroyCounts = {
   packsAndCases: number;
   /**
    * `courseWeekWork` rows: where each person's week stands, when they
-   * submitted it and when somebody reopened it
-   * (`src/lib/firestore/courseWeekWork.ts`). Keyed by `runId` on the row like
-   * every other leaf here, and it dies with the run: each record names a week
-   * this cascade deletes.
+   * submitted it and when somebody reopened it, and the days their answers
+   * were first read (`src/lib/firestore/courseWeekWork.ts`). Keyed by `runId`
+   * on the row like every other leaf here, and it dies with the run: each
+   * record names a week this cascade deletes. The one document saying when
+   * the site began keeping read times (`config/firstReadTimes`) is about no
+   * run and is left alone.
    */
   weekWork: number;
   /**

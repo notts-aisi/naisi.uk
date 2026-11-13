@@ -80,6 +80,8 @@ export const REVIEW_WORDS = {
   strongestTitle: "The strongest answers",
   weakestTitle: "The weakest answers",
   gradeOf: (grade: number) => `Draft grade ${grade}`,
+  /** On the reading view of one person's week, to an admin, in the grade's place until they have saved their own rating of the answer. */
+  gradeAfterYourRating: "Claude’s draft grade shows here once you’ve saved your own rating.",
   hideList: "Hide the list",
 
   // What people found hard.

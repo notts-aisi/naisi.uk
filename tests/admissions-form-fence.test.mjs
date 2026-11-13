@@ -437,6 +437,12 @@ const ROUND_SURFACES = {
       "one person's coursework on the programme, for its lead and admins. It reaches the round only through " +
       "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/question": {
+    kind: "form",
+    why:
+      "one question of a week across a group of the programme's run, for its lead and admins. It reaches the round only " +
+      "through openLeadDoor, which calls loadProgrammeRun, starting from the form's own loader and answering 'none' for a round that is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": {
     kind: "form",
     why:

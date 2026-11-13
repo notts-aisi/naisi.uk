@@ -1045,6 +1045,9 @@ export async function deleteCoursePacksAndCases(db: Firestore, uid: string): Pro
  * log of what it did to them (`courseWorkLog`), on every run, a page at a
  * time. Found by the one equality on `uid`; nobody else's record is touched:
  * a reopen's row names who reopened it, and is about the person whose week it is.
+ * The days each of their answers was first read go with the record. The one
+ * document saying when the site began keeping read times
+ * (`config/firstReadTimes`) is about nobody and is left alone.
  */
 export async function deleteCourseWeekWork(db: Firestore, uid: string): Promise<{ weeks: number; log: number }> {
   return {

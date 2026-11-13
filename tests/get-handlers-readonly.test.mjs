@@ -116,6 +116,13 @@ const MUTATION_HELPERS = {
   // the write is made in `src/lib/surveys/questionSetsStore.ts`, so a GET
   // added beside it later could call this and show nothing in its body.
   saveQuestionSet: "changes the questions every survey of one kind made from then on starts with",
+  // When an answer was first read. The route that keeps it holds a POST alone,
+  // fired by the reading pages once drawn, and the writes are made in
+  // `src/lib/courses/weekWork/firstRead.ts`, so a GET (which a prefetch or a
+  // link preview fetches) that called either would mark an answer read that
+  // nobody has looked at, and show nothing in its body.
+  markFirstRead: "keeps on people's week records the day each answer named was first read by somebody on the team",
+  startKeepingReadTimes: "makes the one document saying when the site began keeping read times, which every answer read is held against",
 };
 
 /**

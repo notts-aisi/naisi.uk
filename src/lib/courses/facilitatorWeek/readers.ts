@@ -626,20 +626,23 @@ export async function loadNamedReflections(
  *
  *  - From the week's answers store, each person's reflections, fill-in boxes
  *    and written answers, told apart by kind. For everybody, counts and
- *    states only; the words (and when each was written) only for `wordsOf`,
- *    the one person whose page is being drawn.
+ *    states only; the words (and when each was written) only for `wordsOf`:
+ *    the one person whose page is being drawn, or the people of one group
+ *    whose answers to one question are drawn (each caller has asked, person
+ *    by person, the gate on whose work its reader may read first).
  *  - A WRITTEN ANSWER (privacy v17) only as its readers may read it
  *    (`readableAnswer`, from the session the person is due at,
  *    `loadRunWeekStates`): before that session, the words as last sent; once
  *    it has started, the latest words, sent or not. Never sent, before it, it
  *    is started or not, and waits for nobody's feedback. Reflections and
  *    boxes are read as they are typed, as v17 says.
- *  - For the one person's page, each piece's labels: when it last changed,
+ *  - For each person in `wordsOf`, each piece's labels: when it last changed,
  *    how long after the session that was, and the version at the session
- *    when it differs; a written answer's last send too.
+ *    when it differs; a written answer's last send too. `writes` is the
+ *    first person's (the one person's page); `writesOf` holds everybody's.
  *  - The run's feedback (`courseFeedback`): an answer with a piece on it, or
  *    with feedback given before pieces existed, has feedback. The pieces
- *    about `wordsOf` travel back for their page.
+ *    about the people in `wordsOf` travel back for their page.
  *  - From the progress store, who ticked which item, through a projection
  *    with no rating, no comment and no private note.
  *  - Where each person's every week stands (`states`), which the tab's one
@@ -656,9 +659,18 @@ export async function readRunCoursework(
     /** The run's places, when the caller has read them already: not read again. */
     enrolments?: readonly CourseEnrolmentDoc[] | null;
   },
-  wordsOf: string | null,
-): Promise<{ work: Map<string, PersonWork>; writes: PersonWrites; states: RunWeekStates; feedback: CourseFeedbackDoc[] }> {
+  wordsOf: string | readonly string[] | null,
+): Promise<{
+  work: Map<string, PersonWork>;
+  writes: PersonWrites;
+  writesOf: ReadonlyMap<string, PersonWrites>;
+  states: RunWeekStates;
+  feedback: CourseFeedbackDoc[];
+}> {
   const runId = on.run.id;
+  // Whose words are read: nobody, the one person whose page is drawn, or the people of one group.
+  const wanted = wordsOf === null ? [] : typeof wordsOf === "string" ? [wordsOf] : [...wordsOf];
+  const wordsFor = new Set(wanted.filter(Boolean));
   const [responses, progress, states, pieces] = await Promise.all([
     db.collection("courseExerciseResponses").where("runId", "==", runId).get(),
     // The projection is the boundary: who, which item, whether it is ticked and when.
@@ -688,11 +700,12 @@ export async function readRunCoursework(
     }
     return found;
   };
-  // The one person's words, when a page asks for them.
-  const reflections = new Map<string, WrittenBox>();
-  const boxes = new Map<string, WrittenBox>();
-  const answers: Map<string, PersonAnswerWrite> = new Map();
-  const ticked = new Set<string>();
+  // The words of the people a page asks for, each person's apart.
+  type Writes = { reflections: Map<string, WrittenBox>; boxes: Map<string, WrittenBox>; answers: Map<string, PersonAnswerWrite>; ticked: Set<string> };
+  const writesOf = new Map<string, Writes>();
+  for (const uid of wordsFor) writesOf.set(uid, { reflections: new Map(), boxes: new Map(), answers: new Map(), ticked: new Set() });
+  /** The writes of somebody whose words are read, or null for anybody else. */
+  const wordsOfUid = (uid: string): Writes | null => writesOf.get(uid) ?? null;
   /** A box's words for the page, with how late they last changed and their words at the session when they differ. */
   const boxOf = (uid: string, weekNumber: number, data: Record<string, unknown>, text: string): WrittenBox => {
     const due: WeekDue = states.dueOf(uid, weekNumber);
@@ -715,12 +728,12 @@ export async function readRunCoursework(
       if (!text.trim()) continue;
       of(uid).reflections.add(key);
       of(uid).writtenAt.set(key, firstWrittenAt);
-      if (uid === wordsOf) reflections.set(key, boxOf(uid, weekNumber, data, text.trim()));
+      wordsOfUid(uid)?.reflections.set(key, boxOf(uid, weekNumber, data, text.trim()));
     } else if (isFillInResponse(data)) {
       if (!text.trim()) continue;
       of(uid).boxes.add(key);
       of(uid).writtenAt.set(key, firstWrittenAt);
-      if (uid === wordsOf) boxes.set(key, boxOf(uid, weekNumber, data, text));
+      wordsOfUid(uid)?.boxes.set(key, boxOf(uid, weekNumber, data, text));
     } else if (!isOwnBoxResponse(data) && isWordCountedAnswer(data)) {
       // A block week's written answer; the summer's exercise answers have no words count.
       const record = readWrittenAnswer(data);
@@ -742,10 +755,11 @@ export async function readRunCoursework(
               : answerState(record)
             : "not-started";
       of(uid).answers.set(key, state);
-      if (uid === wordsOf) {
+      const own = wordsOfUid(uid);
+      if (own) {
         const lastSent = lastSentAt(piece);
         const then = readable ? versionAtSession(piece, due.at, on.now) : null;
-        answers.set(key, {
+        own.answers.set(key, {
           state,
           words: read?.words ?? 0,
           text: read?.text ?? "",
@@ -769,13 +783,16 @@ export async function readRunCoursework(
     if (data.completed !== true || !uid || !itemId) continue;
     of(uid).ticked.add(itemId);
     of(uid).tickedAt.set(itemId, instantOf(data.completedAt));
-    if (uid === wordsOf) ticked.add(itemId);
+    wordsOfUid(uid)?.ticked.add(itemId);
   }
+  const none: PersonWrites = { reflections: new Map(), boxes: new Map(), answers: new Map(), ticked: new Set() };
   return {
     work,
-    writes: { reflections, boxes, answers, ticked },
+    // The first person's words: the one person's page asks for theirs alone.
+    writes: (wanted[0] ? writesOf.get(wanted[0]) : undefined) ?? none,
+    writesOf,
     states,
-    feedback: wordsOf ? pieces.filter((piece) => piece.uid === wordsOf) : [],
+    feedback: pieces.filter((piece) => wordsFor.has(piece.uid)),
   };
 }
 

@@ -244,6 +244,7 @@ const MUST_GUARD = [
   ["src/app/api/courses/runs/[runId]/feedback/send/route.ts", "emails each person their \"you have feedback\" email in the caller's name, which cannot be unsent"],
   ["src/app/api/courses/runs/[runId]/feedback/send/test/route.ts", "emails a test of the feedback emails to the address on the session, which is the member's in a view-as session"],
   ["src/app/api/courses/runs/[runId]/work-ratings/route.ts", "saves or clears a rating for the team of somebody's written answer, recorded as whoever the session says rated it"],
+  ["src/app/api/courses/runs/[runId]/first-read/route.ts", "keeps on somebody's week that an answer has been read by the team, from whatever the session may read: an admin looking as a facilitator would mark answers read that nobody running the group has opened"],
   ["src/app/api/courses/runs/[runId]/sync-tasks/route.ts", "creates committee tasks on the board"],
   ["src/app/api/courses/templates/[templateId]/route.ts", "deletes a curriculum template"],
   // Admissions: the round authoring console. A round is the object an intake

@@ -30,7 +30,10 @@
  *     `FIXTURE_COLLECTIONS`, checked by `assertFixtureCollection()` before any
  *     credential is obtained. One document family off that list has a door
  *     of its own: a fixture group's register reminder marker, one at a time,
- *     through `registerReminderMarkerDoc()`.
+ *     through `registerReminderMarkerDoc()`. And one document in `config`
+ *     beyond the membership pointer has a door that can only make it where
+ *     it is missing and read it, never change it: when the site began keeping
+ *     read times, through `readTimesKeptSince()`.
  *   - No fixture creates a privileged identity. Accounts are the auth
  *     harness's own `createHarnessUser` plus its `seedPendingUserDoc`, whose
  *     role is the hard-coded literal "pending". There is no code path in this
@@ -667,6 +670,36 @@ export function fixtureWeekSubcollection(runId, weekId, collection) {
  */
 export function membershipConfigDoc() {
   return fixtureDoc("config", MEMBERSHIP_CONFIG_DOC_ID);
+}
+
+/** The collection, and the one document in it, saying when the site began keeping read times (`src/lib/courses/weekWork/firstRead.ts`). */
+export const READ_TIMES_CONFIG_COLLECTION = "config";
+export const READ_TIMES_CONFIG_DOC_ID = "firstReadTimes";
+
+/**
+ * WHEN THE SITE BEGAN KEEPING READ TIMES, made where it is missing and read
+ * back, NEVER CHANGED: the one way a fixture reaches that document, which
+ * `fixtureDoc` still refuses. A spec that reads "Not read yet" needs the site
+ * to have begun keeping read times before the answers it saves; on a database
+ * where it has not, the document is made with `before`, and on one where it
+ * has, the time there stays as it is and is handed back for the fixture to
+ * save its answers after. It names nobody and is not the fixture's to tear
+ * down: it is the environment's own, and the site makes it the first time a
+ * reading page is opened anyway.
+ */
+export async function readTimesKeptSince(before) {
+  if (!(before instanceof Date) || Number.isNaN(before.getTime())) throw new Error("readTimesKeptSince needs an instant to make the document with.");
+  const ref = db().collection(READ_TIMES_CONFIG_COLLECTION).doc(READ_TIMES_CONFIG_DOC_ID);
+  try {
+    await ref.create({ keptSince: before });
+  } catch (err) {
+    // ALREADY_EXISTS: somebody made it first, and it is never moved.
+    if (err?.code !== 6) throw err;
+  }
+  const stored = (await ref.get()).data()?.keptSince;
+  const at = typeof stored?.toDate === "function" ? stored.toDate() : null;
+  if (!at) throw new Error(`config/${READ_TIMES_CONFIG_DOC_ID} holds no time.`);
+  return at;
 }
 
 /**

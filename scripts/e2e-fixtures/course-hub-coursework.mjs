@@ -18,7 +18,10 @@
  * reading the group's reflections with names and the page to read lines out,
  * which still names nobody, then opening Ada's week from the group's page,
  * the reading view on the group's side, and writing feedback on her answer
- * there, which the lead reads beside it.
+ * there, which the lead reads beside it. Both read one question across the
+ * group too: an answer not read yet, read once opened, the answers with no
+ * feedback yet, feedback written from that page, and the switch between the
+ * two ways of reading a week.
  *
  * WHAT IT CANNOT PROVE: that the programme's lead, when the lead is not an
  * admin, is never shown a private note or a placement Publish has not told.
@@ -42,15 +45,18 @@
  * batch does, which the spec never presses). So it runs wherever the harness
  * runs, against a deployed target too.
  *
- * ## What its feedback leaves behind
+ * ## What its feedback and its reading leave behind
  *
  * Saving a piece writes one `courseFeedback` row with the run's id on it, and
  * a piece on a written answer stamps the person's week record
  * (`courseWeekWork`), which the term counts and drains by the run. The pieces
- * are counted and deleted here, beside the term's own rows.
+ * are counted and deleted here, beside the term's own rows. Opening a
+ * person's week or one question across the group keeps on the same record
+ * when each answer shown was first read (`firstReadAt`, never who), so it
+ * makes or changes only `courseWeekWork` rows, which the term drains too.
  */
-import { deleteQuery, fixtureQuery } from "./core.mjs";
-import { countTerm, seedTerm, teardownTerm } from "./worlds/course-hub-term.mjs";
+import { deleteQuery, fixtureDoc, fixtureQuery, readTimesKeptSince } from "./core.mjs";
+import { COURSEWORK, countTerm, courseworkItemId, seedTerm, teardownTerm, weekDocId } from "./worlds/course-hub-term.mjs";
 
 /**
  * Every step the spec must complete, in order. Shared rather than restated:
@@ -62,6 +68,8 @@ export const COURSEWORK_STEPS = [
   "the admin appoints the facilitator to Group A on the Facilitators view",
   "the lead opens the Coursework tab: everybody in their group, the person in no group last, and each cell in counts",
   "the lead opens the person in no group: their week 1 reflections under their prompts",
+  "the lead opens one question across the group from a person's week: an answer not read yet, then read once opened",
+  "the facilitator opens the written answer across the group: not read yet, no feedback yet, the person's week and back, and read",
   "the lead opens a fellow's page: reflections with when, the answer waiting for feedback, and as an admin the private note",
   "the lead writes feedback on a fellow's week in the reading view, and reads it back",
   "the lead reads the group's reflections with each writer's name",
@@ -69,6 +77,7 @@ export const COURSEWORK_STEPS = [
   "the facilitator's page to read lines out still names nobody beside an answer",
   "the facilitator opens a person's week from the group page, reads it with the private note and no rating, and writes feedback there",
   "the lead reads the facilitator's feedback beside the answer on the programme's side",
+  "the lead writes feedback from the page of one question and reads it back, then switches to the person's week and back",
 ];
 
 /**
@@ -77,6 +86,31 @@ export const COURSEWORK_STEPS = [
  * takes a token.
  */
 export const RECAPTCHA_DEPENDENT_STEPS = [];
+
+/**
+ * THE SITE KEEPING READ TIMES BEFORE THE ANSWERS THE SPEC READS AS "NOT READ
+ * YET" (Ada's second reflection of week 3, which the lead opens, and her
+ * written answer, which the facilitator opens). An answer that became readable
+ * before the site began keeping read times (`config/firstReadTimes`) is
+ * neither read nor unread. So the fixture makes sure the site has begun,
+ * days before the term's first week where it has not (the document is made
+ * only where missing and never moved), and where it began after those two
+ * answers were saved (a database where it began recently), moves each to that
+ * instant, the answer's send with it. Her first reflection, whose time other
+ * steps read, is left as the term writes it.
+ */
+async function savedSinceReadTimesAreKept(state) {
+  const before = new Date(Date.now() - (COURSEWORK.daysIn + 3) * 24 * 60 * 60 * 1000);
+  const keptSince = await readTimesKeptSince(before);
+  const ada = state.people.find((person) => person.key === "ada");
+  for (const key of ["rp2", "wa"]) {
+    const ref = fixtureDoc("courseExerciseResponses", `${state.runId}__${ada.uid}__${weekDocId(3)}__${courseworkItemId(3, key)}`);
+    const stored = (await ref.get()).data();
+    const at = stored?.updatedAt?.toDate?.() ?? null;
+    if (!stored || (at && at.getTime() >= keptSince.getTime())) continue;
+    await ref.set(key === "wa" ? { updatedAt: keptSince, firstSentAt: keptSince, submittedAt: keptSince } : { updatedAt: keptSince }, { merge: true });
+  }
+}
 
 /** The pieces of feedback the spec saves, each with the run's id on it. */
 async function countFeedback(state) {
@@ -109,6 +143,7 @@ export const SPEC = {
       "/api/courses/runs/[runId]/facilitators",
       "/api/courses/groups/[groupId]/facilitators",
       "/api/courses/runs/[runId]/feedback",
+      "/api/courses/runs/[runId]/first-read",
     ],
     pages: [
       "/(auth)/login",
@@ -122,6 +157,8 @@ export const SPEC = {
       "/(app)/learn/[runId]/group/[groupId]/reflections",
       "/(app)/learn/[runId]/group/[groupId]",
       "/(app)/learn/[runId]/group/[groupId]/coursework/[uid]",
+      "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/question",
+      "/(app)/learn/[runId]/group/[groupId]/question",
     ],
   },
   /**
@@ -133,10 +170,19 @@ export const SPEC = {
    * laptop against a production build of the branch (`--local`), all twelve
    * steps ran, 49 rows existed before teardown (two pieces of feedback among
    * them), and the fixture manifest read zero after it. The pull request's
-   * end-to-end job runs them again.
+   * end-to-end job runs them again. The steps reading one question across the
+   * group (the lead and the facilitator: not read yet, then read; no feedback
+   * yet; feedback written from that page; the switch both ways) were added on
+   * 13 November 2026 and run the same way: all fifteen steps ran, 50 rows
+   * existed before teardown (one week record holding when answers were first
+   * read among them), and the fixture manifest read zero after it.
    */
   status: "verified",
-  seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "coursework" }),
+  seed: async ({ runId, suppress, onState }) => {
+    const state = await seedTerm({ runId, suppress, onState, point: "coursework" });
+    await savedSinceReadTimesAreKept(state);
+    return state;
+  },
   countRows: async (state) => {
     const term = await countTerm(state);
     const courseFeedback = await countFeedback(state);

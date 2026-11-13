@@ -37,9 +37,13 @@
  * Fri 13 Nov 2026): the reading view's loader asks the review's own store
  * for the grade of one answer (`readDraftGrade`), for an admin alone and only
  * on an answer the one gate lets that admin read, and only while the words
- * read are the words graded. It is in `REACHERS` with that gate, and the test
- * below holds the order: the admin's check before the call, the call in that
- * loader alone. The words it carries are the review's own.
+ * read are the words graded; and it hands the grade on only once that admin
+ * has saved their own rating of those words (Zach, Fri 13 Nov 2026; a rating
+ * of earlier words does not count), before then only the review's line
+ * saying it shows then. It is in `REACHERS` with
+ * that gate, and the test below holds the order: the admin's check before the
+ * call, the call in that loader alone, the grade held back on the admin's
+ * own rating. The words it carries are the review's own.
  *
  * EXPLAINERS (`src/lib/courses/explainers/`) start from a theme: the admin's
  * form reads one theme through the review's own store, behind its door
@@ -131,7 +135,7 @@ const REACHERS = {
   "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review/explainer/page.tsx":
     "the explainer's form, under the review: the programme's lead is drawn the review's calm refusal before anything is read, and an admin's form is loaded behind the review's door",
   "lib/courses/coursework/readingLoad.ts":
-    "the reading view of one person's week: one draft grade through the review's store (`readDraftGrade`), asked only for an admin who may read the answer and only while its words are the words graded, with the review's own words; handed to nobody else",
+    "the reading view of one person's week: one draft grade through the review's store (`readDraftGrade`), asked only for an admin who may read the answer and only while its words are the words graded, and handed on only once that admin has saved their own rating of it (before then the review's own line saying so), with the review's own words; handed to nobody else",
 };
 
 /**
@@ -227,6 +231,16 @@ describe("Claude's week reviews: read by admins, on the run, never on a record",
     const call = loader.indexOf("readDraftGrade(db,");
     const gate = loader.lastIndexOf("facts.isAdmin && mayWrite && answerId && answerReadable && stored", call);
     assert.ok(call !== -1 && gate !== -1 && call - gate < 200, "the draft grade is read without the admin's and the one gate's check right before it");
+    // Handed on only once the admin has saved their own rating of the answer; before then, only the review's line, never the grade.
+    assert.match(loader, /draftGrade: draft && ratedNow \? \{ line: REVIEW_WORDS\.gradesLine, grade: REVIEW_WORDS\.gradeOf\(draft\.grade\) \} : null,/);
+    assert.match(loader, /draftGradeWaits: draft !== null && !ratedNow \? REVIEW_WORDS\.gradeAfterYourRating : null,/);
+    // The admin's own rating, and only one of the words read now: a rating of earlier words does not open the grade.
+    assert.match(loader, /const ratedNow = team\?\.mine != null && !team\.mine\.changedSince;/);
+    assert.equal((loader.match(/\bdraft\.grade\b/g) ?? []).length, 1, "the grade is handed on somewhere else too");
+    // `team.mine` is the reader's own rating: the ratings view's own field, never somebody else's.
+    const ratingsModel = withoutComments(files.find(([file]) => file === "lib/courses/workRatings/model.ts")[1]);
+    assert.match(ratingsModel, /mine: stored\.raterUid === viewer\.uid,/);
+    assert.match(ratingsModel, /mine: said\.find\(\(row\) => row\.mine\) \?\? null,/);
     // The reading view's page and its screen never reach the review: the loader hands them two lines of words.
     for (const file of ["features/courses/coursework/ReadingView.tsx", "app/(app)/learn/[runId]/group/[groupId]/coursework/[uid]/page.tsx"]) {
       const found = files.find(([path]) => path === file);

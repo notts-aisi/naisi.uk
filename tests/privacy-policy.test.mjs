@@ -4393,6 +4393,10 @@ describe("the course hub passage", () => {
           "src/lib/courses/coursework/readingLoad.ts",
           "one person's week in the reading view, after its door's gate (the programme's: its lead and admins; the group's: its live facilitators, the lead and admins) and, on the group's side, the one gate on whose work a reader may act on, so a facilitator never reads a facilitator's own",
         ],
+        [
+          "src/lib/courses/coursework/questionLoad.ts",
+          "one question across a group, after its door's gate (the programme's: its lead and admins; the group's: its live facilitators, the lead and admins), the words read only for the people the one gate on whose work lets the reader read, so a facilitator never reads a facilitator's own",
+        ],
         ["src/app/(app)/learn/[runId]/group/[groupId]/page.tsx", "the group's page, for its live facilitators and admins"],
         ["src/app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx", "the page to read lines out, for the group's live facilitators and admins"],
         ["src/app/(app)/learn/[runId]/group/[groupId]/reflections/names/page.tsx", "the group's fellows' reflections with names, for the group's live facilitators and admins, never a facilitator's own"],
@@ -5573,6 +5577,14 @@ describe("the course hub passage", () => {
         [
           "src/lib/courses/coursework/readingLoad.ts",
           "one person's week in the reading view, on the programme's side or the group's: the gate asked for that person, and their boxes drawn only when it answers",
+        ],
+        [
+          "src/lib/courses/coursework/questionLoad.ts",
+          "one box across a group: the gate asked person by person, and a person's box drawn only when it answers",
+        ],
+        [
+          "src/lib/courses/weekWork/firstRead.ts",
+          "when a box was first read: kept only where the gate answers for the caller, and nothing of the box read out",
         ],
       ]),
       "deciding who reads somebody's fill-in boxes",
@@ -10684,6 +10696,10 @@ describe("v15 lets the people running a programme rate written work for each oth
         [
           "src/lib/courses/coursework/readingLoad.ts",
           "the reading view of one person's week, for an admin or the programme's lead alone (`mayRateWorkOf`, which never admits a facilitator or the person themselves); tests/course-work-ratings.test.mjs holds the call",
+        ],
+        [
+          "src/lib/courses/coursework/questionLoad.ts",
+          "one question across a group, for an admin or the programme's lead alone, person by person (`mayRateWorkOf`, which never admits a facilitator or the person themselves); tests/course-work-ratings.test.mjs holds the call",
         ],
       ]),
       "reading ratings for the team",

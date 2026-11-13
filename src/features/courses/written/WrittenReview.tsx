@@ -3,6 +3,8 @@
 import { useId, useState } from "react";
 import Link from "next/link";
 import InitialsChip from "@/components/ui/InitialsChip";
+import MarkFirstRead from "@/features/courses/coursework/MarkFirstRead";
+import { reviewPageFirstRead } from "@/lib/courses/coursework/question";
 import type { ReviewPageModel, ReviewPerson } from "@/lib/courses/writtenAnswers/reviewPage";
 import { FEEDBACK_HINT, YOUR_FEEDBACK } from "@/lib/courses/feedback/words";
 import {
@@ -93,6 +95,10 @@ import styles from "./written.module.css";
  * anything may be read the list says only that it is started. A
  * facilitator's own answer reaches only the programme's lead and admins, so
  * nothing of it, its lateness included, is drawn for a co-facilitator.
+ *
+ * Once drawn in the browser, the page names the one answer it put in front
+ * of its reader in full (`MarkFirstRead`), so the time it was first read by
+ * somebody on the team is kept, never who; the route asks its own gates.
  *
  * NOT DRAWN, though the board draws it: the person's reflections this week,
  * folded under the answer. The reflections half of the review is the
@@ -419,6 +425,7 @@ function Review({ model, readBase }: { model: ReviewPageModel; readBase: string 
   // The words shown changed after they were last sent (or were never sent): when, and how late.
   const changedAfterSend = shownAt !== null && (sentAt === null || shownAt.getTime() > sentAt.getTime());
   const atSession = selected.atSession;
+  const firstRead = reviewPageFirstRead(model);
 
   return (
     <div className={styles.reviewGrid}>
@@ -504,6 +511,8 @@ function Review({ model, readBase }: { model: ReviewPageModel; readBase: string 
           <RatingForTheTeam runId={model.runId} uid={person.uid} firstName={person.firstName} weekNumber={model.weekNumber} team={selected.team} />
         )}
       </div>
+      {/* The answer is in front of its reader in full: named once drawn, so the time it was first read is kept (never who). */}
+      {firstRead && <MarkFirstRead runId={model.runId} weekId={firstRead.weekId} people={firstRead.people} />}
     </div>
   );
 }

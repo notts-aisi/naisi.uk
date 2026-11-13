@@ -24,6 +24,7 @@ import {
   type CourseworkSection,
   type CourseworkViewer,
 } from "./model";
+import { personAnchorId, questionHref } from "./question";
 import { readPersonWeek, type PersonWeekView } from "./readingLoad";
 import { columnsOf, namesOf, weeksRead } from "./reads";
 import { BACK_TO_COURSEWORK, NOT_IN_A_GROUP_YET } from "./words";
@@ -394,6 +395,11 @@ export async function loadPersonCoursework(
     enrolments,
     // The programme's review page for the person's group: the lead's and admins', as this page is. None for somebody in no group.
     reviewHref: (weekNumber) => writtenHrefOf(programmePath, person, weekNumber),
+    // One question across the person's group, on the same week, landing on them. None for somebody in no group.
+    questionHref: (weekNumber) =>
+      person.groupId
+        ? `${questionHref(`${programmePath}/question?group=${encodeURIComponent(person.groupId)}`, { weekNumber, questionId: null })}#${personAnchorId(uid)}`
+        : null,
     back: group ? { label: group.name.trim() || "Untitled group", href: `${programmePath}/groups/${encodeURIComponent(group.id)}` } : tab,
     crumb: tab,
   });

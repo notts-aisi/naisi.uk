@@ -30,7 +30,14 @@
  *    reading view on the group's side: the answer, the private note, never a
  *    rating; writes feedback on the answer beside it and reads it back;
  *  - the lead reads Fern's feedback beside the answer on the programme's
- *    side.
+ *    side;
+ *  - one question across the group (the other way of reading a week), as
+ *    the lead and as Fern: from a person's week, "One question, whole
+ *    group"; an answer nobody on the team has opened says "Not read yet",
+ *    the page names what it showed once it is in the browser, and after it
+ *    the answer reads as read; Fern keeps only the answers with no feedback
+ *    yet, goes to Ada's week and back; the lead writes feedback on Ada's
+ *    answer from the page, reads it back, and switches to her week and back.
  *
  * A lead who is not an admin is never signed in by the harness, so that the
  * lead never sees a private note, an untold placement or the panels under
@@ -62,6 +69,7 @@ import {
   COURSEWORK_PROMPTS,
   COURSEWORK_SOURCES,
   compareGroupsByMeeting,
+  courseworkItemId,
 } from "../../scripts/e2e-fixtures/worlds/course-hub-term.mjs";
 
 const RUN_STATE_DIR = stateDir();
@@ -80,6 +88,8 @@ const DEPLOYED_TARGET_SKIP = RECAPTCHA_SKIP_REASON;
 /** The admin's piece on Ada's week as a whole, and Fern's on her written answer: the spec's own words. */
 const LEAD_SAYS = "A clear week: say which lamp you would keep first.";
 const FERN_SAYS = "Good reason. Which ships pay the most?";
+/** The lead's piece on Ada's written answer, written from the page of one question across the group. */
+const LEAD_ON_THE_ANSWER = "Say who pays when no ship comes in.";
 
 /** "Mon 2 Nov, 5:30pm": when a reflection was last written, as the pages date it (`dayAndClockWords`). */
 const WHEN = /(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec), \d{1,2}(?::\d{2})?(?:am|pm)/;
@@ -175,6 +185,7 @@ test(
     const said = (person, weekNumber, prompt) =>
       plan.coursework.reflections.find((entry) => entry.person === person.key && entry.weekNumber === weekNumber && entry.prompt === prompt)?.text;
     const adaSaid = said(ada, 3, "rp1");
+    const adaSecond = said(ada, 3, "rp2");
     const cleoSaid = said(cleo, 3, "rp1");
     const danSaid = said(dan, 1, "rp1");
     const adaNote = plan.coursework.ticks.find((entry) => entry.person === "ada").note;
@@ -247,6 +258,52 @@ test(
     ];
     /** Everything a page's main area says. */
     const mainOf = (pg) => wordsIn(pg.locator("main"));
+
+    /** Week 3's written answer, by its id: the question the page of one question asks last. */
+    const answerId = courseworkItemId(3, "wa");
+    /** One person's row on the page of one question across a group: a section carrying their id. */
+    const rowOn = (pg, person) => pg.locator(`section[id="p-${person.uid}"]`);
+    /** The two ways to read a week, drawn on both pages. */
+    const waysOn = (pg) => pg.getByRole("navigation", { name: "Ways to read", exact: true });
+    /** The filters over the people of one question. */
+    const filtersOn = (pg) => pg.getByRole("navigation", { name: "Show whose answers", exact: true });
+    /**
+     * Every call the reading pages on `pg` make to the first-read route once
+     * they are in the browser, from now on: `named` waits for one whose body
+     * names `id` of `person`'s and which the route answered, and holds the
+     * answer to exactly ok.
+     */
+    function watchMarks(pg) {
+      const seen = [];
+      const listener = (response) => {
+        if (response.request().method() !== "POST" || !new URL(response.url()).pathname.endsWith(`/runs/${state.runId}/first-read`)) return;
+        seen.push(response);
+      };
+      pg.on("response", listener);
+      return {
+        async named(person, id, what) {
+          const found = await waitFor(what, async () =>
+            seen.find((response) => {
+              const body = JSON.parse(response.request().postData() ?? "{}");
+              return (body.people ?? []).some((each) => each.uid === person.uid && each.ids.includes(id));
+            }),
+          );
+          assert.deepEqual(await okBody(found, what), { ok: true }, `${what}: the route answered more than ok`);
+        },
+        stop: () => pg.off("response", listener),
+      };
+    }
+    /** From one question, "Next question" until the question is the week's written answer. */
+    async function stepToTheAnswer(pg) {
+      for (let at = 0; at < 6; at += 1) {
+        if ((await wordsIn(pg.locator("section[aria-labelledby=question-asked]"))).includes(COURSEWORK_ANSWER_PROMPT)) return;
+        const next = pg.getByRole("link", { name: "Next question", exact: true }).first();
+        const href = await next.getAttribute("href");
+        await Promise.all([pg.waitForURL((url) => `${url.pathname}${url.search}` === href, { timeout: WAIT_MS }), next.click()]);
+        await pg.getByRole("heading", { name: "One question, the whole group", level: 1 }).waitFor({ timeout: WAIT_MS });
+      }
+      throw new Error("Next question never reached the week's written answer");
+    }
 
     try {
       await step("the admin approves the facilitator and the two people of the group they will facilitate", async () => {
@@ -384,6 +441,95 @@ test(
       });
 
       await step(
+        "the lead opens one question across the group from a person's week: an answer not read yet, then read once opened",
+        async () => {
+          activePage = adminPage;
+          // Ben has written nothing, so his week names nothing as read.
+          await adminPage.goto(`${courseworkUrl}/${enc(ben.uid)}?week=3`, { waitUntil: "domcontentloaded" });
+          await adminPage.getByRole("heading", { name: ben.displayName, level: 1 }).waitFor({ timeout: WAIT_MS });
+          const toQuestion = waysOn(adminPage).getByRole("link", { name: "One question, whole group", exact: true });
+          assert.equal(await toQuestion.getAttribute("href"), `${programmePathOnSite}/question?group=${enc(facilitated.id)}&week=3#p-${enc(ben.uid)}`);
+          const marks = watchMarks(adminPage);
+          await Promise.all([adminPage.waitForURL((url) => url.pathname.endsWith("/question"), { timeout: WAIT_MS }), toQuestion.click()]);
+          await adminPage.getByRole("heading", { name: "One question, the whole group", level: 1 }).waitFor({ timeout: WAIT_MS });
+          // The week's first question, asked once.
+          const asked = await wordsIn(adminPage.locator("section[aria-labelledby=question-asked]"));
+          assert.equal(asked, `The question · Part 1: Start with what you think · Question 1 of 4 ${COURSEWORK_PROMPTS.rp1}`);
+          assert.ok(await waysOn(adminPage).locator('[aria-current="page"]', { hasText: "One question, whole group" }).isVisible());
+          assert.ok((await wordsIn(rowOn(adminPage, ada))).includes(adaSaid), "Ada's first reflection is not drawn in full");
+          // On to the second, which Ada saved after the site began keeping read times.
+          const next = adminPage.getByRole("link", { name: "Next question", exact: true }).first();
+          await Promise.all([adminPage.waitForURL((url) => url.searchParams.get("question") === courseworkItemId(3, "rp2"), { timeout: WAIT_MS }), next.click()]);
+          await adminPage.getByText(COURSEWORK_PROMPTS.rp2, { exact: true }).waitFor({ timeout: WAIT_MS });
+          // Once in the browser, the page names what it showed in full: Ada's reflection.
+          await marks.named(ada, courseworkItemId(3, "rp2"), "the lead's page of one question naming Ada's reflection");
+          marks.stop();
+          // As it stood when the lead arrived: Ada's reflection opened by nobody on the team.
+          const adaRow = await wordsIn(rowOn(adminPage, ada));
+          assert.ok(adaRow.includes("Not read yet") && adaRow.includes(adaSecond), `Ada's reflection is not drawn as not read yet: ${adaRow}`);
+          assert.ok((await wordsIn(rowOn(adminPage, ben))).endsWith("Nothing written yet"), "Ben's row does not say nothing is written");
+          // The filters, each with its count of the people the lead may read (Ada, Ben and Fern's own).
+          for (const name of ["Everybody 3", "Not read yet 1"]) {
+            assert.ok(await filtersOn(adminPage).getByRole("button", { name, exact: true }).isVisible(), `no filter "${name}"`);
+          }
+          // A reflection takes no feedback of its own: no feedback filter on it.
+          assert.equal(await filtersOn(adminPage).getByRole("button", { name: /^No feedback yet/ }).count(), 0);
+          // Back to it: the lead's own opening has marked it read.
+          await adminPage.reload({ waitUntil: "domcontentloaded" });
+          await rowOn(adminPage, ada).waitFor({ timeout: WAIT_MS });
+          assert.ok(!(await wordsIn(rowOn(adminPage, ada))).includes("Not read yet"), "Ada's reflection still reads as not read yet");
+          const none = filtersOn(adminPage).getByRole("button", { name: "Not read yet 0", exact: true });
+          await Promise.all([adminPage.waitForURL((url) => url.searchParams.get("unread") === "1", { timeout: WAIT_MS }), none.click()]);
+          await adminPage.getByText("Nobody here matches that.", { exact: true }).waitFor({ timeout: WAIT_MS });
+          // A filter says it is on as a toggle does: pressed, and Everybody no longer is.
+          assert.equal(await filtersOn(adminPage).getByRole("button", { name: "Not read yet 0", exact: true, pressed: true }).count(), 1, "the filter does not say it is on");
+          assert.equal(await filtersOn(adminPage).getByRole("button", { name: "Everybody 3", exact: true, pressed: false }).count(), 1);
+        },
+      );
+
+      await step(
+        "the facilitator opens the written answer across the group: not read yet, no feedback yet, the person's week and back, and read",
+        async () => {
+          activePage = facilitatorPage;
+          await signIn(facilitatorPage, fern);
+          // From Ben's week on the group's side, who has written nothing, to the week's questions, and on to its written answer.
+          await facilitatorPage.goto(`${origin}${groupPath}/coursework/${enc(ben.uid)}?week=3`, { waitUntil: "domcontentloaded" });
+          const toQuestion = waysOn(facilitatorPage).getByRole("link", { name: "One question, whole group", exact: true });
+          await toQuestion.waitFor({ timeout: WAIT_MS });
+          assert.equal(await toQuestion.getAttribute("href"), `${groupPath}/question?week=3#p-${enc(ben.uid)}`);
+          const marks = watchMarks(facilitatorPage);
+          await Promise.all([facilitatorPage.waitForURL((url) => url.pathname.endsWith(`${groupPath}/question`), { timeout: WAIT_MS }), toQuestion.click()]);
+          await facilitatorPage.getByRole("heading", { name: "One question, the whole group", level: 1 }).waitFor({ timeout: WAIT_MS });
+          await stepToTheAnswer(facilitatorPage);
+          await marks.named(ada, answerId, "the facilitator's page of the written answer naming Ada's");
+          marks.stop();
+          assert.match(await wordsIn(facilitatorPage.locator("section[aria-labelledby=question-asked]")), /· Question 4 of 4 /);
+          // A facilitator is shown the group's fellows, never their own work.
+          assert.equal(await rowOn(facilitatorPage, fern).count(), 0, "a facilitator is shown their own answer");
+          const adaRow = await wordsIn(rowOn(facilitatorPage, ada));
+          assert.ok(adaRow.includes("Not read yet") && adaRow.includes("No feedback yet") && adaRow.includes(adaAnswer), `Ada's answer is not drawn as not read yet with no feedback yet: ${adaRow}`);
+          assert.ok(!(await mainOf(facilitatorPage)).includes("Rating for the team"), "a facilitator is offered a rating");
+          // Keep only the answers with no feedback yet: Ada's.
+          const noFeedback = filtersOn(facilitatorPage).getByRole("button", { name: "No feedback yet 1", exact: true });
+          await Promise.all([facilitatorPage.waitForURL((url) => url.searchParams.get("nofeedback") === "1", { timeout: WAIT_MS }), noFeedback.click()]);
+          await waitFor("the filter to keep Ada alone", async () => (await facilitatorPage.locator('section[id^="p-"]').count()) === 1 && (await rowOn(facilitatorPage, ada).count()) === 1);
+          // To Ada's week at this question, and back to one question across the group.
+          const toWeek = rowOn(facilitatorPage, ada).getByRole("link", { name: `Open ${ada.first}’s week`, exact: true });
+          assert.equal(await toWeek.getAttribute("href"), `${groupPath}/coursework/${enc(ada.uid)}?week=3#q-${answerId}`);
+          await Promise.all([facilitatorPage.waitForURL((url) => url.pathname.endsWith(`${groupPath}/coursework/${ada.uid}`), { timeout: WAIT_MS }), toWeek.click()]);
+          await facilitatorPage.locator('section[aria-labelledby="reading-answer"]').waitFor({ timeout: WAIT_MS });
+          const back = waysOn(facilitatorPage).getByRole("link", { name: "One question, whole group", exact: true });
+          await Promise.all([facilitatorPage.waitForURL((url) => url.pathname.endsWith(`${groupPath}/question`), { timeout: WAIT_MS }), back.click()]);
+          await rowOn(facilitatorPage, ada).waitFor({ timeout: WAIT_MS });
+          // And the written answer again: read now.
+          await stepToTheAnswer(facilitatorPage);
+          const again = await wordsIn(rowOn(facilitatorPage, ada));
+          assert.ok(!again.includes("Not read yet") && again.includes("No feedback yet"), `Ada's answer is not read, or has lost its feedback state: ${again}`);
+          assert.ok(await filtersOn(facilitatorPage).getByRole("button", { name: "Not read yet 0", exact: true }).isVisible());
+        },
+      );
+
+      await step(
         "the lead opens a fellow's page: reflections with when, the answer waiting for feedback, and as an admin the private note",
         async () => {
           activePage = adminPage;
@@ -471,7 +617,7 @@ test(
 
       await step("the facilitator reads the group's reflections with names, and never a private note", async () => {
         activePage = facilitatorPage;
-        await signIn(facilitatorPage, fern);
+        // Fern signed in on the step that read one question across the group.
         await facilitatorPage.goto(`${origin}${groupPath}/reflections?week=3`, { waitUntil: "domcontentloaded" });
         const withNames = facilitatorPage.getByRole("link", { name: "Read them with names", exact: true });
         await withNames.waitFor({ timeout: WAIT_MS });
@@ -529,6 +675,7 @@ test(
           );
           // The draft grade and the sealed prediction are an admin's alone.
           assert.ok(!(await mainOf(facilitatorPage)).includes("Draft grade"), "a facilitator is shown a draft grade");
+          assert.ok(!(await mainOf(facilitatorPage)).includes("Claude’s draft grade"), "a facilitator is told a draft grade waits");
           await answer.getByLabel("Comment", { exact: true }).fill(FERN_SAYS);
           const [response] = await Promise.all([
             responseTo(facilitatorPage, `/runs/${state.runId}/feedback`, "POST"),
@@ -557,6 +704,44 @@ test(
         // And the answer now says, at a glance, that it has feedback.
         assert.match(said, /^Written answer Feedback given \d+ words Sent /, `the answer does not say it has feedback: ${said}`);
       });
+
+      await step(
+        "the lead writes feedback from the page of one question and reads it back, then switches to the person's week and back",
+        async () => {
+          activePage = adminPage;
+          // From Ada's week (where the last step left the lead): one question across her group, landing on her.
+          const toQuestion = waysOn(adminPage).getByRole("link", { name: "One question, whole group", exact: true });
+          assert.equal(await toQuestion.getAttribute("href"), `${programmePathOnSite}/question?group=${enc(facilitated.id)}&week=3#p-${enc(ada.uid)}`);
+          await Promise.all([adminPage.waitForURL((url) => url.pathname.endsWith("/question"), { timeout: WAIT_MS }), toQuestion.click()]);
+          await adminPage.getByRole("heading", { name: "One question, the whole group", level: 1 }).waitFor({ timeout: WAIT_MS });
+          await stepToTheAnswer(adminPage);
+          const row = rowOn(adminPage, ada);
+          // Fern's feedback is on it, with who and when; nothing of the lead's own yet.
+          const before = await wordsIn(row);
+          assert.ok(before.includes("Feedback given") && before.includes(`Feedback from ${fern.first} ${ada.first}’s facilitator · `), `Fern's feedback is not on Ada's row: ${before}`);
+          assert.ok(before.includes("Rating for the team"), "an admin is not offered the rating for the team on the row");
+          await row.locator("summary", { hasText: "Add feedback" }).click();
+          await row.getByLabel("Comment", { exact: true }).fill(LEAD_ON_THE_ANSWER);
+          const [response] = await Promise.all([responseTo(adminPage, `/runs/${state.runId}/feedback`, "POST"), row.getByRole("button", { name: "Save feedback", exact: true }).click()]);
+          await okBody(response, "Saving feedback on the answer from the page of one question");
+          await row.getByRole("button", { name: "Save changes", exact: true }).waitFor({ timeout: WAIT_MS });
+          // Read back from the server: the lead's own piece, open to change, not emailed yet.
+          await adminPage.reload({ waitUntil: "domcontentloaded" });
+          const again = rowOn(adminPage, ada);
+          await again.getByRole("button", { name: "Save changes", exact: true }).waitFor({ timeout: WAIT_MS });
+          assert.equal(await again.getByLabel("Comment", { exact: true }).inputValue(), LEAD_ON_THE_ANSWER);
+          // To her week at this question, where the piece is beside the answer, and back.
+          const toWeek = waysOn(adminPage).getByRole("link", { name: "One person, one week", exact: true });
+          assert.equal(await toWeek.getAttribute("href"), `${programmePathOnSite}/coursework/${enc(ada.uid)}?week=3#q-${answerId}`);
+          await Promise.all([adminPage.waitForURL((url) => url.pathname.endsWith(`/coursework/${ada.uid}`), { timeout: WAIT_MS }), toWeek.click()]);
+          const answer = adminPage.locator('section[aria-labelledby="reading-answer"]');
+          await answer.getByRole("button", { name: "Save changes", exact: true }).waitFor({ timeout: WAIT_MS });
+          assert.equal(await answer.getByLabel("Comment", { exact: true }).inputValue(), LEAD_ON_THE_ANSWER);
+          const back = waysOn(adminPage).getByRole("link", { name: "One question, whole group", exact: true });
+          await Promise.all([adminPage.waitForURL((url) => url.pathname.endsWith("/question"), { timeout: WAIT_MS }), back.click()]);
+          await rowOn(adminPage, ada).waitFor({ timeout: WAIT_MS });
+        },
+      );
     } finally {
       await Promise.allSettled([facilitatorContext.close(), context.close()]);
       await browser.close().catch(() => {});
