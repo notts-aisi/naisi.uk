@@ -884,6 +884,15 @@
   margin: 6px 0 0;
 }
 
+/* When a box was saved, and how long after the session once it has started. */
+.boxWhen {
+  margin: 2px 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
 .saved {
   display: inline-flex;
   align-items: center;

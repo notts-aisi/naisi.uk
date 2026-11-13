@@ -636,6 +636,24 @@
   }
 }
 
+/* A group's name, as the way to the group's own page. */
+.cardHeadingLink {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--color-border-strong);
+  text-underline-offset: 3px;
+}
+
+.cardHeadingLink:hover {
+  text-decoration-color: currentColor;
+}
+
+.cardHeadingLink:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 @media (max-width: 48rem) {
   .dialog {
     flex: 1 1 100%;

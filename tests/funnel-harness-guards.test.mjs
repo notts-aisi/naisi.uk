@@ -48,6 +48,8 @@ import {
   ARTIFACTS_DIR,
   FIXTURE_COLLECTIONS,
   FIXTURE_SUBCOLLECTIONS,
+  FIXTURE_WEEK_SUBCOLLECTIONS,
+  assertFixtureWeekSubcollection,
   HARNESS_LOCAL_ORIGIN,
   RECAPTCHA_SKIP_REASON,
   REGISTER_REMINDER_MARKERS,
@@ -424,6 +426,18 @@ test("the browser harness routes every collection access through the chokepoint"
     "a subcollection joined the list. Add it to the pin above in the same change, " +
       "so the value stays readable off the source.",
   );
+  // A week's own subcollections (its history and edit lock), reached only off
+  // a fixture run's week, through the same identifier the grep trusts.
+  assert.match(
+    codeOf(CORE),
+    /export const FIXTURE_WEEK_SUBCOLLECTIONS = \["history", "editLock"\];/,
+    "FIXTURE_WEEK_SUBCOLLECTIONS must stay a literal list, for the same reason.",
+  );
+  assert.deepEqual(FIXTURE_WEEK_SUBCOLLECTIONS, ["history", "editLock"]);
+  for (const name of ["users", "weeks", "stages", "history2", ""]) {
+    assert.throws(() => assertFixtureWeekSubcollection(name), /REFUSING/, `a week's subcollection ${JSON.stringify(name)} is let through`);
+  }
+  for (const name of FIXTURE_WEEK_SUBCOLLECTIONS) assert.equal(assertFixtureWeekSubcollection(name), name);
 });
 
 test("the scheduler's collection is reached only for a fixture group's reminder markers, one at a time", () => {
@@ -1218,5 +1232,41 @@ test("every email helper the funnel's routes import consults the suppression lis
 test("every walked harness path is a readable file", () => {
   for (const file of HARNESS_FILES) {
     assert.ok(statSync(file).isFile(), `${rel(file)} is not a file.`);
+  }
+});
+
+test("the sweep by run id reaches every collection a fixture may address, the scheduler's weeks of check-ins among them", () => {
+  // `--sweep` is what clears a run whose ledger is lost, so it has to reach
+  // every collection teardown does: it walks FIXTURE_COLLECTIONS whole and
+  // passes over only the two shared documents a fixture borrows and puts
+  // back. A week of check-ins is named by its course run's id, which embeds
+  // the run id the sweep is keyed by, so a stray one is found by that id.
+  const sweep = codeOf(join(REPO_ROOT, "scripts", "e2e", "lib", "sweep.mjs"));
+  assert.match(sweep, /for \(const collection of FIXTURE_COLLECTIONS\)/, "the sweep no longer walks FIXTURE_COLLECTIONS");
+  const skipped = [...sweep.matchAll(/collection === "([^"]+)"/g)].map((m) => m[1]).sort();
+  assert.deepEqual(skipped, ["config", "surveyQuestionSets"], "the sweep now passes over a collection it should clear");
+  assert.ok(FIXTURE_COLLECTIONS.includes("checkInWeeks"), "the scheduler's weeks of check-ins are no longer a fixture collection");
+});
+
+test("every fixture that removes the scheduler's weeks of check-ins removes them after its term is gone, and only then counts them", () => {
+  // The `surveys-check-in-weeks` job writes a run's weeks while the run
+  // exists, so a tick between an early delete and the term's own teardown
+  // writes them back. Removing them once more after `teardownTerm`, when
+  // there is no run left to write them for, is what lets the count read zero.
+  // Walked over every fixture module, so a new one is held on arrival.
+  const removers = [...FIXTURE_MODULES, ...HELPER_MODULES].filter((file) => /fixtureDoc\(\s*"checkInWeeks"[\s\S]{0,200}?\.delete\(\)/.test(codeOf(file)));
+  assert.ok(removers.length >= 2, `only ${removers.length} fixtures remove the scheduler's weeks: the walk has stopped reading them`);
+  for (const fixture of removers) {
+    const source = codeOf(fixture);
+    const at = source.search(/async function teardown\(/);
+    assert.notEqual(at, -1, `${rel(fixture)}: removes the scheduler's weeks but has no teardown this guard can read`);
+    const body = source.slice(at);
+    const term = body.indexOf("await teardownTerm(state)");
+    assert.notEqual(term, -1, `${rel(fixture)}: teardown does not tear its term down`);
+    const after = body.slice(term);
+    const removeAgain = after.search(/await deleteCheckInWeeks\(state\)|fixtureDoc\(\s*"checkInWeeks"[\s\S]{0,200}?\.delete\(\)/);
+    const counted = after.indexOf("await checkInWeeksLeft(state)");
+    assert.ok(removeAgain !== -1, `${rel(fixture)}: the weeks are not removed after the term is gone`);
+    assert.ok(counted > removeAgain, `${rel(fixture)}: the weeks are counted before the last removal`);
   }
 });

@@ -30,8 +30,9 @@
  *     view-as session refused. The programme's leads read and write the notes
  *     kept for them through the programme's own routes, held by
  *     `tests/notes-for-leads.test.mjs`.
- *  2. Claude's draft of a note: only counted rows of submitted weeks, from
- *     the person's agreement to privacy v15, no name, nothing stored.
+ *  2. Claude's draft of a note: only counted rows of weeks whose session has
+ *     ended (privacy v18), as they stand, from the person's agreement to
+ *     privacy v15, no name, nothing stored.
  *     `tests/week-notes.test.mjs` holds the end-of-week drafts and the team's
  *     words, through the same builder.
  *  3. Best answers: admins only since privacy v15 (the lead refused on the
@@ -51,7 +52,7 @@ import { after, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { CASCADE_FIRESTORE_STUB, makeCascadeDb } from "./lib/cascadeStore.mjs";
-import { makeFacilitatorPagesWorld } from "./lib/facilitatorPagesWorld.mjs";
+import { A, makeFacilitatorPagesWorld } from "./lib/facilitatorPagesWorld.mjs";
 import { AGI, NOTED, NOW, ROUND, RUN, SAID, facilitatorWeekSeed, reflection } from "./lib/facilitatorWeekWorld.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
 
@@ -293,19 +294,23 @@ describe("notes about a person on the admins' routes: admins only, and never abo
 // 2. Claude's draft of a note
 // ---------------------------------------------------------------------------
 
-describe("Claude drafts a note from the weeks somebody submitted, with no name, and nothing is kept", () => {
+describe("Claude drafts a note from the weeks whose session has ended, with no name, and nothing is kept", () => {
   // The end-of-week notes' rule, which the profile's draft follows (privacy
-  // v15): only weeks submitted and not reopened since, only work written after
-  // the person agreed to version 15. Amara agrees to it on Thu 5 Nov.
+  // v18): only weeks whose session the person was due at has ended, their
+  // work in them as it stands, sent or not, and only work written after the
+  // person agreed to version 15. Amara agrees to it on Thu 5 Nov; Group A met
+  // for week 3 on Thu 12 Nov from 6pm to 8pm.
   const agreeToV15 = (uid) => w.world.db.poke(`users/${uid}`, { policyVersion: "terms.1+privacy.15", policyAgreedAt: new Date("2026-11-05T09:00:00Z") });
+  // The week's old Submit, after its reflections were last saved (Sun 15 Nov). It counts for nothing in a
+  // note since privacy v18: a week submitted under it is read as it stands, like any other.
   const submitWeek3 = (uid) =>
     w.world.db.seed(`courseWeekWork/${RUN.agi}__${uid}__w03`, {
       runId: RUN.agi,
       uid,
       weekId: "w03",
       weekNumber: 3,
-      submittedAt: new Date("2026-11-11T20:00:00Z"),
-      firstSubmittedAt: new Date("2026-11-11T20:00:00Z"),
+      submittedAt: new Date("2026-11-16T20:00:00Z"),
+      firstSubmittedAt: new Date("2026-11-16T20:00:00Z"),
       submitCount: 1,
     });
 
@@ -333,13 +338,28 @@ describe("Claude drafts a note from the weeks somebody submitted, with no name, 
     assert.equal(read.body.agreed, true, "Claude may draft once the person has agreed to version 15");
   });
 
-  test("no submission, no note: a week not submitted is never sent", async () => {
+  test("no session, no note: a week before or during its session is never sent, submitted or not; once it has ended, it goes unsubmitted", async () => {
+    // CHANGED ON PURPOSE (privacy v18): "no submission, no note" is gone. An hour before Group A's week 3
+    // session, and as it starts, and a minute before it ends, a week already submitted under the old button
+    // sends nothing; once the session has ended, a week never submitted goes as it stands.
+    for (const at of ["2026-11-12T17:00:00Z", "2026-11-12T18:00:00Z", "2026-11-12T19:59:00Z"]) {
+      reset();
+      agreeToV15("amara");
+      submitWeek3("amara");
+      w.at(at);
+      const before = await ask("zach", routes.draft.POST, { uid: "amara" }, { body: { runId: RUN.agi } });
+      assert.equal(before.status, 409, at);
+      assert.equal(before.body.error, "Claude can’t draft a note from this programme yet: none of their sessions on it has ended.", at);
+      assert.deepEqual(globalThis.__cwClaudeAsked, [], at);
+    }
     reset();
     agreeToV15("amara");
-    const answer = await ask("zach", routes.draft.POST, { uid: "amara" }, { body: { runId: RUN.agi } });
-    assert.equal(answer.status, 409);
-    assert.match(answer.body.error, /No submission, no note/);
-    assert.deepEqual(globalThis.__cwClaudeAsked, []);
+    w.at("2026-11-12T20:00:00Z");
+    globalThis.__cwClaudeAnswer = { ok: true, value: { note: "The fellow writes about the lamps with care." }, model: "claude-opus-5-5", usage: { inputTokens: 1, outputTokens: 1 } };
+    const after = await ask("zach", routes.draft.POST, { uid: "amara" }, { body: { runId: RUN.agi } });
+    assert.equal(after.status, 200, JSON.stringify(after.body));
+    assert.ok(globalThis.__cwClaudeAsked[0].message.includes(SAID.amara["k3-rp1"]), "the week was not sent once its session had ended");
+    w.at(NOW);
   });
 
   test("somebody whose writing all came before their agreement is not sent either", async () => {
@@ -349,11 +369,11 @@ describe("Claude drafts a note from the weeks somebody submitted, with no name, 
     w.world.db.poke(rowPath("amara", "k3-rp1"), { firstWrittenAt: BEFORE });
     const answer = await ask("zach", routes.draft.POST, { uid: "amara" }, { body: { runId: RUN.agi } });
     assert.equal(answer.status, 409);
-    assert.match(answer.body.error, /nothing they submitted on it was written after they agreed to version 15/);
+    assert.match(answer.body.error, /nothing they wrote on it came after they agreed to version 15/);
     assert.deepEqual(globalThis.__cwClaudeAsked, []);
   });
 
-  test("only counted rows of a submitted week go, with no name, address, account or private note, and the draft is returned, never stored", async () => {
+  test("only counted rows of a week whose session has ended go, with no name, address, account or private note, and the draft is returned, never stored", async () => {
     reset();
     agreeToV15("amara");
     submitWeek3("amara");
@@ -600,11 +620,11 @@ describe("Pangram on coursework: admins only, counted answers of 50 words or mor
 // 4b. A written answer is gathered only once its readers may read it
 // ---------------------------------------------------------------------------
 
-describe("the gatherer takes a written answer only once its readers may read it (privacy v15)", () => {
+describe("the gatherer takes a written answer only as its readers may read it (privacy v17)", () => {
   const WEEK_THREE = `courseRuns/${RUN.agi}/weeks/w03`;
   const ANSWER = `courseExerciseResponses/${RUN.agi}__amara__w03__k3-wa`;
   const WEEK_WORK = `courseWeekWork/${RUN.agi}__amara__w03`;
-  /** Wed 11 Nov at 10am: Group A meets for week 3 on Thu 12 Nov at 6pm, so Amara's week 3 is open. */
+  /** Wed 11 Nov at 10am: Group A meets for week 3 on Thu 12 Nov at 6pm, so Amara's session has not started. */
   const WEEK_OPEN = "2026-11-11T10:00:00Z";
   const GATHERED = [["written", `${RUN.agi}__amara__w03__k3-wa`]];
 
@@ -662,7 +682,7 @@ describe("the gatherer takes a written answer only once its readers may read it 
     assert.equal(await planned(), false);
   });
 
-  test("submitted, it is gathered; reopened, it is its writer's again until it is submitted or the next session locks it", async () => {
+  test("sent, it is gathered; a stored reopen changes nothing; changed and not sent again, it is gathered as sent until the session, then as it stands", async () => {
     const at = new Date("2026-11-10T21:00:00Z");
     reset({
       [WEEK_THREE]: weekThreeWithAnswer(),
@@ -672,22 +692,34 @@ describe("the gatherer takes a written answer only once its readers may read it 
     w.at(WEEK_OPEN);
     assert.deepEqual((await gathered()).parts, GATHERED);
     assert.equal(await planned(), true);
-    // Reopened at 10am: unsent again, so gathered no more.
+    // A reopen stored from when weeks locked changes nothing: it was sent, so it is gathered still.
     w.world.db.poke(WEEK_WORK, { submittedAt: null, reopenedAt: new Date(WEEK_OPEN), reopenedByUid: "sofia" });
-    assert.deepEqual((await gathered()).parts, []);
-    assert.equal(await planned(), false);
-    // Group A's session locks it again, and its readers may read it.
+    assert.deepEqual((await gathered()).parts, GATHERED);
+    assert.equal(await planned(), true);
+    // Changed after it was sent, before the session: the words as sent are what is gathered, never the change.
+    const CHANGED = `${LONG} And a change nobody has been sent.`;
+    w.world.db.poke(ANSWER, {
+      text: CHANGED,
+      updatedAt: new Date(WEEK_OPEN),
+      earlierVersions: [{ text: LONG, words: LONG.split(/\s+/).length, savedAt: AFTER, replacedAt: new Date(WEEK_OPEN), sentAt: at, reasons: ["sent"] }],
+    });
+    const gather = await w.loadTs(join("lib", "courses", "coursework", "gather.ts"));
+    const weeks = await gather.loadRunWeeks(w.world.db, RUN.agi, [A]);
+    const textOf = async () => (await gather.loadAnswers(w.world.db, RUN.agi, weeks, new Set(["amara"]))).find((each) => each.kind === "written")?.text;
+    assert.equal(await textOf(), LONG.trim());
+    // Group A's session has started: its readers read it as it stands, and so does the gatherer.
     w.at("2026-11-12T18:00:00Z");
+    assert.equal(await textOf(), CHANGED.trim());
     assert.deepEqual((await gathered()).parts, GATHERED);
   });
 
-  test("locked at the session before it was submitted, it is gathered whether it was sent or not", async () => {
+  test("once the session has started, it is gathered whether it was sent or not", async () => {
     reset({ [WEEK_THREE]: weekThreeWithAnswer(), [ANSWER]: answer() });
     // The world's own clock: Group A met for week 3 on Thursday.
     assert.deepEqual((await gathered()).parts, GATHERED);
   });
 
-  test("an answer sent before weeks were submitted stays gathered while its week is open", async () => {
+  test("an answer sent before weeks were submitted stays gathered before its session", async () => {
     reset({ [WEEK_THREE]: weekThreeWithAnswer(), [ANSWER]: answer({ firstSentAt: AFTER, submittedAt: AFTER }) });
     w.at(WEEK_OPEN);
     assert.deepEqual((await gathered()).parts, GATHERED);
@@ -742,12 +774,12 @@ describe("what is built for Claude and Pangram, on its own", () => {
     assert.doesNotMatch(built.message, /Clarity|Strong/);
   });
 
-  test("a note: the person is the fellow, only counted answers of a submitted week, levels, and the team's comments by their writer's role", () => {
+  test("a note: the person is the fellow, only counted answers of a week handed over, levels, and the team's comments by their writer's role", () => {
     const from = new Date("2026-11-01T09:00:00Z");
     const written = new Date("2026-11-10T09:00:00Z");
     const built = model.noteDraftInput({
       programme: "AGI Strategy",
-      weeks: [{ week, submittedAt: written }],
+      weeks: [{ week, asOf: written }],
       answers: answers.filter((a) => a.uid === "u-grace").map((a) => ({ ...a, firstWrittenAt: written })),
       // CHANGED ON PURPOSE (privacy v15, "the feedback, ratings and comments
       // people on the team gave it"): a comment goes, scrubbed like the work,
@@ -762,10 +794,10 @@ describe("what is built for Claude and Pangram, on its own", () => {
     assert.ok(built.message.includes("Clarity: Strong"));
     assert.ok(built.message.includes("Feedback from their facilitator: the fellow should ask a facilitator."));
     assert.doesNotMatch(built.message, /Grace|Hopper|Zoë|Ångström|u-zoe|u-grace/);
-    // Answers that are not counted, or come from no submitted week, never go.
+    // Answers that are not counted, or come from no week handed over (none before its session), never go.
     assert.equal(model.noteDraftInput({ programme: "P", weeks: [], answers: answers.map((a) => ({ ...a, firstWrittenAt: written })), feedback: [], ratings: [], people: [], from, writerFrom: new Map() }).sent, 0);
     assert.equal(
-      model.noteDraftInput({ programme: "P", weeks: [{ week, submittedAt: written }], answers: answers.filter((a) => a.uid === "u-old").map((a) => ({ ...a, firstWrittenAt: written })), feedback: [], ratings: [], people: [], from, writerFrom: new Map() }).sent,
+      model.noteDraftInput({ programme: "P", weeks: [{ week, asOf: written }], answers: answers.filter((a) => a.uid === "u-old").map((a) => ({ ...a, firstWrittenAt: written })), feedback: [], ratings: [], people: [], from, writerFrom: new Map() }).sent,
       0,
     );
     assert.equal(model.noteWithName("The fellow is sharp; the fellow should facilitate.", "Grace"), "Grace is sharp; Grace should facilitate.");

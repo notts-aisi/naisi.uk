@@ -5,7 +5,11 @@ import { REFUSAL, tooLongWords } from "./words";
 /**
  * THE BODY OF A PRESS ON THE UPDATES ROUTE, checked before anything is read.
  *
- *   { to, groupId?, title, message, email, emailCount?, test? }
+ *   { to, groupId?, title, message, email, emailCount?, test?, withFacilitators? }
+ *
+ * `withFacilitators`, for an update to one group: its email reaches the
+ * group's facilitators too (`updateEmailAudience`). A change to a group's
+ * sessions posts its update this way. Refused with any other `to`.
  *
  * `to` is "everyone", "group" (with `groupId`) or "facilitators". `email` is
  * the "Also email it" switch, and `emailCount` the number its button showed:
@@ -31,6 +35,8 @@ export type UpdatePost = {
   /** The number on the button; 0 when nothing is to be emailed. */
   emailCount: number;
   test: boolean;
+  /** For an update to one group: email its facilitators too. */
+  withFacilitators: boolean;
 };
 
 export type ParsedUpdatePost = { ok: true; value: UpdatePost } | { ok: false; error: string };
@@ -47,6 +53,11 @@ export function parseUpdatePost(raw: unknown): ParsedUpdatePost {
     return { ok: false, error: REFUSAL.to };
   }
   const audience = to as CourseUpdateTo;
+  if (b.withFacilitators !== undefined && typeof b.withFacilitators !== "boolean") {
+    return { ok: false, error: REFUSAL.withFacilitators };
+  }
+  const withFacilitators = b.withFacilitators === true;
+  if (withFacilitators && audience !== "group") return { ok: false, error: REFUSAL.withFacilitators };
   let groupId: string | null = null;
   if (audience === "group") {
     if (typeof b.groupId !== "string" || !isAddressableId(b.groupId)) return { ok: false, error: REFUSAL.group };
@@ -67,7 +78,7 @@ export function parseUpdatePost(raw: unknown): ParsedUpdatePost {
   }
 
   if (test) {
-    return { ok: true, value: { to: audience, groupId, title, message, email: false, emailCount: 0, test } };
+    return { ok: true, value: { to: audience, groupId, title, message, email: false, emailCount: 0, test, withFacilitators } };
   }
 
   if (typeof b.email !== "boolean") return { ok: false, error: REFUSAL.email };
@@ -79,6 +90,6 @@ export function parseUpdatePost(raw: unknown): ParsedUpdatePost {
   }
   return {
     ok: true,
-    value: { to: audience, groupId, title, message, email: b.email, emailCount, test },
+    value: { to: audience, groupId, title, message, email: b.email, emailCount, test, withFacilitators },
   };
 }

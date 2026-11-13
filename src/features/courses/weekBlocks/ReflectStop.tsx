@@ -11,16 +11,21 @@ import {
   REFLECTION_PLACEHOLDER,
   SAVED,
 } from "@/lib/courses/memberPageWords";
+import type { WeekDue } from "@/lib/courses/weekWork/model";
+import { savedLineWords } from "@/lib/courses/weekWork/words";
+import { YOU_ANSWERED_AN_EARLIER_WORDING, earlierQuestionWords, type AskedWords } from "@/lib/courses/weekEdit/wordsThen";
 import type { ReflectionBlock, ReflectionPrompt } from "@/lib/courses/weekBlocks/model";
 import { REFLECTION_MAX_CHARS } from "@/lib/firestore/courseExercises";
 import styles from "./blockWeek.module.css";
 import { putReflection } from "./boxWrites";
+import EarlierWording from "./EarlierWording";
 
 /**
  * A REFLECTION STOP: one or two
  * prompts, each a labelled box that saves as the person types, "Saved" once
- * what the box shows is stored, and on the page's first stop who reads them
- * and that a line may be read out without the name.
+ * what the box shows is stored, when it was saved (and once the session has
+ * started, whether that was before it or how long after), and on the page's
+ * first stop who reads them and that a line may be read out without the name.
  *
  * WHO SEES A BOX. Somebody taking part sees their own boxes; once their
  * enrolment is over (a finished programme) the boxes show what they wrote
@@ -34,12 +39,17 @@ import { putReflection } from "./boxWrites";
  * person's own rows have loaded (`loaded`), the stop says so instead, with a
  * way to try again.
  *
+ * AN EARLIER WORDING. Where a prompt has been reworded since the person
+ * first wrote to it (`askedThen`, from their own rows' route), "You answered
+ * an earlier wording:" and the words it had then sit under their words; with
+ * nothing written, or the same words, nothing does.
+ *
  * THE WRITE is `PUT /api/courses/runs/[runId]/reflections/[promptId]`
  * (`putReflection`, `./boxWrites.ts`), through `useDebouncedWrite` (one
  * writer, newest value wins, flushed on blur, on leaving and on the page
  * being hidden): every change either sends what the box now holds or cancels
  * what was waiting, as the exercise answer's box does. An emptied box sends
- * "" and the route removes the row. A refused write says the route's own
+ * "" and the route empties the row. A refused write says the route's own
  * sentence under the box; only a write that got no answer names the
  * connection.
  */
@@ -61,6 +71,12 @@ type Props = {
   canWrite: boolean;
   /** The lines under the page's first stop, or null under any other. A facilitator's own has no read-out line. */
   readers: { access: string; readOut: string | null } | null;
+  /** The session the person is due at, which when each box was saved is told against. */
+  due: WeekDue;
+  /** The moment the page was drawn. */
+  now: Date;
+  /** The words each prompt had when the person first wrote to it, by prompt id, only where reworded since. */
+  askedThen?: Readonly<Record<string, AskedWords>>;
   /** Hands each stored row back to the page, so its counts move as the box saves. */
   onSaved: (row: ExerciseResponseWire) => void;
 };
@@ -76,6 +92,9 @@ export default function ReflectStop({
   ownBoxes,
   canWrite,
   readers,
+  due,
+  now,
+  askedThen,
   onSaved,
 }: Props) {
   const showBoxes = ownBoxes && loaded;
@@ -100,7 +119,11 @@ export default function ReflectStop({
             runId={runId}
             weekId={weekId}
             stored={rows.get(prompt.id)?.text ?? ""}
+            savedAt={rows.get(prompt.id)?.savedAt ?? null}
+            due={due}
+            now={now}
             canWrite={canWrite}
+            earlier={earlierQuestionWords(askedThen?.[prompt.id], prompt.text)}
             onSaved={onSaved}
           />
         ) : (
@@ -124,14 +147,24 @@ function ReflectionBox({
   runId,
   weekId,
   stored,
+  savedAt,
+  due,
+  now,
   canWrite,
+  earlier,
   onSaved,
 }: {
   prompt: ReflectionPrompt;
   runId: string;
   weekId: string;
   stored: string;
+  /** When its words were last saved (ISO 8601), or null. */
+  savedAt: string | null;
+  due: WeekDue;
+  now: Date;
   canWrite: boolean;
+  /** The prompt's words when the person first wrote to it, where they differ from today's; else null. */
+  earlier: string | null;
   onSaved: (row: ExerciseResponseWire) => void;
 }) {
   const fieldId = useId();
@@ -160,7 +193,7 @@ function ReflectionBox({
   // Leaving the week, or the page being hidden, with a change waiting sends
   // it: the writer's own unmount and page-hide paths, with keepalive.
   const saver = useDebouncedWrite(write);
-  // Submit writes this box's waiting save before it submits the week.
+  // Anything on the page that sends writes this box's waiting save first.
   useRegisterFlush(saver.flush);
 
   const handleChange = (next: string) => {
@@ -214,6 +247,9 @@ function ReflectionBox({
           </span>
         ) : null}
       </p>
+      {/* When it was saved, and once the session has started whether that was before it or how long after. */}
+      {!pending && stored.trim() && savedAt && <p className={styles.boxWhen}>{savedLineWords(new Date(savedAt), due, now)}</p>}
+      {stored.trim() && <EarlierWording label={YOU_ANSWERED_AN_EARLIER_WORDING} words={earlier} />}
     </div>
   );
 }

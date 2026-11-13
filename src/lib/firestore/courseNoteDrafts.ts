@@ -3,8 +3,9 @@ import { noteSourcesOf, sourceUidsOf, sourcesWithout, type NoteSource } from "@/
 /**
  * `courseNoteDrafts/{runId}__{weekId}__{uid}`: Claude's draft of an
  * end-of-week note about one person, from one week of one run, waiting for an
- * admin on the week's Notes page (privacy v15, "AI-assisted review": "Once a
- * week Claude may also draft a short note on how each person is doing").
+ * admin on the week's Notes page (privacy v18, "AI-assisted review": "Each
+ * week, or when an admin asks for one, Claude may also draft a short note on
+ * how each person is doing").
  *
  * WHAT CLAUDE RETURNS IS AN ADMIN'S, AND STAYS WITH THE RUN. The policy says
  * what comes back "is seen by admins only", "is kept with what it was about

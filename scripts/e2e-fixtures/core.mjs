@@ -457,6 +457,11 @@ export const FIXTURE_COLLECTIONS = [
   "courseFinishing",
   "courseCertificates",
   "courseAudit",
+  // A facilitator's asks for a line of a finished register to be corrected
+  // (`runId` on every one), and what became of each. Written by the ask route
+  // a facilitator presses and the routes that decide one, and by nothing a
+  // fixture seeds.
+  "courseRequests",
   "subscriptions",
   "subscriptionEvents",
   "tasks",
@@ -532,6 +537,15 @@ export const BORROWED_QUESTION_SET_ID = "after";
 // `formVersion: 2`), which keeps them under the round the way an older round
 // keeps its stages.
 export const FIXTURE_SUBCOLLECTIONS = ["stages", "weeks", "questionSets"];
+
+/**
+ * Subcollections a fixture may reach off one of a fixture run's weeks: the
+ * week's history (a record of every save of it, written by the paste and
+ * the in-place editor) and its edit lock. Both sit a level below `weeks`, so a
+ * fixture that deletes its run's weeks has to count and delete them first,
+ * or they outlive the week they describe.
+ */
+export const FIXTURE_WEEK_SUBCOLLECTIONS = ["history", "editLock"];
 
 /**
  * The allowlist check, as a function rather than a source grep.
@@ -624,6 +638,23 @@ export function fixtureQuery(collection) {
 export function fixtureSubcollection(parentCollection, parentId, collection) {
   assertFixtureSubcollection(collection);
   return fixtureDoc(parentCollection, parentId).collection(collection);
+}
+
+/** The same check, for a subcollection reached off one of a fixture run's weeks. */
+export function assertFixtureWeekSubcollection(collection) {
+  if (!FIXTURE_WEEK_SUBCOLLECTIONS.includes(collection)) {
+    throw new Error(
+      `REFUSING to touch a week's subcollection ${JSON.stringify(collection)}. An e2e fixture ` +
+        `may only reach ${FIXTURE_WEEK_SUBCOLLECTIONS.join(", ")} under a fixture run's week.`,
+    );
+  }
+  return collection;
+}
+
+/** The ONLY way any fixture reaches a subcollection under one of a fixture run's weeks. */
+export function fixtureWeekSubcollection(runId, weekId, collection) {
+  assertFixtureWeekSubcollection(collection);
+  return fixtureSubcollection("courseRuns", runId, "weeks").doc(weekId).collection(collection);
 }
 
 /**

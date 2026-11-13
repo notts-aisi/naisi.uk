@@ -205,8 +205,12 @@ const ROUTES = [
   {
     name: "PATCH a group's week",
     ask: (who, o) => call(who, more.groupWeek.PATCH, { groupId: B, weekId: "w01" }, { body: {}, course: true, ...o }),
-    expect: "as the admin, for the admin, the lead, the track lead and the group's facilitator",
-    passes: ["zach", "claudia", "yusuf", "rahul"],
+    // CHANGED ON PURPOSE (November 2026): a group's own copy of a week is
+    // made and changed only by the programme's lead and admins, so the run's
+    // track lead and the group's facilitator are now refused (in one plain
+    // sentence) where they were admitted.
+    expect: "as the admin, for the admin and the lead",
+    passes: ["zach", "claudia"],
   },
   {
     name: "POST the run's email",
@@ -276,11 +280,17 @@ describe("1 and 2. every route a track lead passes, as every kind of caller", ()
     await ready();
     const before = everything();
     const resend = (who) => call(who, more.push.POST, { groupId: B }, { body: { weekNumber: 1, force: true }, course: true });
-    for (const who of ["claudia", "yusuf", "tess"]) {
+    // CHANGED ON PURPOSE (November 2026): the lead and the run's track lead
+    // now take a register in a facilitator's place, so they pass the
+    // register's gate and are refused the resend in its own sentence, as a
+    // facilitator is; the lead of another programme is still one 403.
+    for (const who of ["claudia", "yusuf"]) {
       const answer = await resend(who);
       assert.equal(answer.status, 403, who);
-      assert.equal(answer.body.error, "Forbidden", who);
+      assert.match(answer.body.error, /Only an admin can re-send an email that has already gone\./, who);
     }
+    const another = await resend("tess");
+    assert.deepEqual([another.status, another.body.error], [403, "Forbidden"]);
     const facilitator = await resend("rahul");
     assert.equal(facilitator.status, 403);
     assert.match(facilitator.body.error, /Only an admin can re-send an email that has already gone\./);
@@ -374,6 +384,49 @@ describe("3. the lead's power is worked out from the form on every request", () 
     assert.equal((await join_.board("nadia")).status, 200);
     assert.deepEqual((await join_.board("nadia")).body.people.map((row) => row.uid).sort(), ["amara", "bea", "dev", "tariq"]);
     assert.deepEqual(world.db.read(`courseRuns/${RUN.agi}`).trackLeadUids, ["yusuf"]);
+  });
+});
+
+describe("3b. staffing a group by hand answers nothing before it knows the caller", () => {
+  test("a missing group, a group with no run and a group whose run is gone: one 403 for everybody who does not staff, the admin told which", async () => {
+    await ready();
+    world.db.seed("courseGroups/orphan", { name: "Orphan", runId: "", facilitatorUids: [] });
+    world.db.seed("courseGroups/stray", { name: "Stray", runId: "gone-run", facilitatorUids: [] });
+    const press = (who, groupId) => call(who, more.facilitators.POST, { groupId }, { body: { uids: ["rahul"] }, course: true });
+    const before = everything();
+    for (const who of ["claudia", "yusuf", "tess", "lloyd", "rahul", "amara", "nobody"]) {
+      const answers = [];
+      for (const groupId of ["no-such-group", "orphan", "stray", "a/b"]) answers.push(await press(who, groupId));
+      assert.deepEqual(
+        answers.map((answer) => [answer.status, answer.body.error]),
+        Array(4).fill([403, "Forbidden"]),
+        `${who} is told something about a group they do not staff`,
+      );
+    }
+    const asAdmin = [];
+    for (const groupId of ["no-such-group", "orphan", "stray", "a/b"]) asAdmin.push((await press("zach", groupId)).status);
+    assert.deepEqual(asAdmin, [404, 400, 404, 404]);
+    assert.equal(everything(), before);
+    // A body that is not JSON is not read before the gate either.
+    const garbled = await call("amara", async function POST(req, ctx) {
+      return more.facilitators.POST(new Request("https://naisi.invalid/api", { method: "POST", body: "{" }), ctx);
+    }, { groupId: B }, { course: true });
+    assert.equal(garbled.status, 403);
+  });
+
+  test("the history names each person by the name they go by, never the account's display name", async () => {
+    await ready();
+    world.db.poke("users/rahul", { displayName: "R. Mehta (account)", profile: { preferredName: "Raz", fullName: "Rahul Mehta" } });
+    const answer = await call("claudia", more.facilitators.POST, { groupId: A }, { body: { uids: ["sofia", "rahul"] }, course: true });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    const rows = world.db
+      .paths()
+      .filter((path) => path.startsWith("courseAudit/"))
+      .map((path) => world.db.read(path))
+      .filter((row) => row.kind === "facilitator-appointed" && row.subjectUid === "rahul");
+    assert.equal(rows.length, 1);
+    assert.match(rows[0].detail, /^Added Raz as a facilitator\./);
+    assert.doesNotMatch(rows[0].detail, /account/);
   });
 });
 

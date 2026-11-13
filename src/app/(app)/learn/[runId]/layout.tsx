@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
+import { getRunAccess, getSessionUser, holdsGivenSessionOn } from "@/features/courses/runAccess";
 
 /**
  * The gate on one run's learning space. Everything under `/learn/[runId]`
@@ -25,6 +25,12 @@ import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
  * thing still theirs: the page that tells them they left, which the run home
  * draws, and the notes and reading list pages draw in their own stead. Every
  * cohort surface still narrows to `canLearn`, which leaving takes away.
+ *
+ * Somebody GIVEN ONE SESSION of the run by an admin or a lead (any approved
+ * account, who may hold no other role here) passes while the grant holds,
+ * for that session's register and report and nothing else
+ * (`holdsGivenSessionOn`): the register's and the report's pages ask their
+ * own gates for that one session, and every other page narrows.
  *
  * Somebody HOLDING A PLACE whom Publish has not told yet passes too, once
  * week 1 is ready (`beforeGroups`, week 1's door), for week 1's page
@@ -65,7 +71,12 @@ export default async function RunLayout({
     access.isReviewer ||
     access.isTrackLead ||
     access.hasLeft ||
-    Boolean(access.beforeGroups);
+    Boolean(access.beforeGroups) ||
+    // Somebody GIVEN one session of the run, while it holds: through to that
+    // session's register and report, which ask their own gate, and nothing
+    // else, since every other page here narrows to its own predicate. Asked
+    // only of somebody the run admits no other way.
+    (await holdsGivenSessionOn(runId, access.user.uid));
   if (!hasRunRole) redirect("/learn");
 
   return <>{children}</>;

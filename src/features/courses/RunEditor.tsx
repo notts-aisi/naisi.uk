@@ -24,6 +24,7 @@ import {
 } from "@/lib/firestore/events";
 import { ACADEMIC_YEAR_PATTERN, type UserDoc } from "@/lib/firestore/users";
 import { isValidDateKey } from "@/lib/courses/weekPlan";
+import { START_DATE_READ_ONLY, goneOutSinceOpened, groupPagePath } from "@/lib/courses/groupPage/words";
 import {
   COHORT_LIMITS,
   COHORT_TERMS,
@@ -81,7 +82,21 @@ import pickerStyles from "./TemplatePicker.module.css";
  * page owns.
  */
 
-type Props = { courseId: string; runId: string };
+type Props = {
+  courseId: string;
+  runId: string;
+  /**
+   * Publish has sent the run's groups out (`allocationPublishedAt`, read by
+   * the page on the server). From then on the start date and the week plan
+   * are read only (every group's weeks are dated from them, and
+   * firestore.rules refuses a browser write to either) and each group card's
+   * day, time and length are words with the way to the group's own page,
+   * where a time changes from a week onwards with its people told.
+   */
+  groupsGoneOut?: boolean;
+  /** The programme naming the run, whose Groups tab holds each group's page; null when none does. */
+  groupPagesAt?: { roundId: string; programmeId: string } | null;
+};
 
 /**
  * The page's one toast runner, as the sections take it. Derived from the hook
@@ -224,7 +239,7 @@ function useCourseRun(runId: string) {
   return { run, loading, notFound, error, reload };
 }
 
-export default function RunEditor({ courseId, runId }: Props) {
+export default function RunEditor({ courseId, runId, groupsGoneOut = false, groupPagesAt = null }: Props) {
   const { toast, run: runAction, dismiss } = useActionToast();
   // Who is looking. The admissions and allocation ROUTES answer to a narrower
   // set than this page's gate does (see the two links below), so the editor
@@ -420,6 +435,8 @@ export default function RunEditor({ courseId, runId }: Props) {
   const groupsAndRoles: GroupsAndRolesProps = {
     run,
     runId,
+    groupsGoneOut,
+    groupPagesAt,
     runAction,
     groups,
     groupsLoading,
@@ -553,7 +570,7 @@ export default function RunEditor({ courseId, runId }: Props) {
     // insists), and a garbled one poisons every derived week number for the
     // whole cohort — so this is a hard requirement, not a nicety. `updateRun`
     // re-checks it and the rules check it again.
-    if (!isValidDateKey(startDate)) {
+    if (!groupsGoneOut && !isValidDateKey(startDate)) {
       setMetaError("Start date must be a real date — every run needs one.");
       return;
     }
@@ -594,16 +611,25 @@ export default function RunEditor({ courseId, runId }: Props) {
       cohort = { term: cohortTerm as CohortTerm, year, number };
     }
     setMetaError(null);
+    // A page opened before the groups went out still offers the start date;
+    // the rules refuse a new one once they have, and the toast says why.
+    const startDateChanged = !groupsGoneOut && startDate !== run?.startDate;
 
     let ok = false;
     await runAction(
       async () => {
-        await updateRun(runId, {
-          label: trimmedLabel,
-          academicYear: trimmedYear,
-          startDate,
-          cohort,
-        });
+        try {
+          await updateRun(runId, {
+            label: trimmedLabel,
+            academicYear: trimmedYear,
+            // Once the groups have gone out the start date is never written from
+            // here: the field is read only, and a stale copy must not move weeks.
+            ...(groupsGoneOut ? {} : { startDate }),
+            cohort,
+          });
+        } catch (err) {
+          throw goneOutSinceOpened(err, startDateChanged);
+        }
         ok = true;
       },
       { savingMessage: "Saving run details…", successMessage: "Run details saved" },
@@ -960,12 +986,21 @@ export default function RunEditor({ courseId, runId }: Props) {
                 string "YYYY-MM-DD". Wrapping it in DateTimePopover would mean
                 inventing an instant and a timezone that the data model
                 deliberately doesn't have. */}
-            <Input
-              id="run-start"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
+            {groupsGoneOut ? (
+              <>
+                <p id="run-start" className={styles.readOnlyValue}>
+                  {formatCivilDate(run.startDate)}
+                </p>
+                <p className={styles.hint}>{START_DATE_READ_ONLY}</p>
+              </>
+            ) : (
+              <Input
+                id="run-start"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            )}
           </Field>
         </div>
 
@@ -1135,6 +1170,7 @@ export default function RunEditor({ courseId, runId }: Props) {
           startDate={run.startDate}
           weekPlan={run.weekPlan}
           status={run.status}
+          groupsGoneOut={groupsGoneOut}
           runAction={runAction}
           onSaved={reload}
         />
@@ -1516,6 +1552,8 @@ const ROSTER_NOTE_GROUPS =
 type GroupsAndRolesProps = {
   run: CourseRunDoc;
   runId: string;
+  groupsGoneOut: boolean;
+  groupPagesAt: { roundId: string; programmeId: string } | null;
   runAction: ToastRun;
   groups: CourseGroupDoc[];
   groupsLoading: boolean;
@@ -1543,6 +1581,8 @@ type GroupsAndRolesProps = {
 function GroupsAndRoles({
   run,
   runId,
+  groupsGoneOut,
+  groupPagesAt,
   runAction,
   groups,
   groupsLoading,
@@ -1623,6 +1663,8 @@ function GroupsAndRoles({
             <GroupEditor
               key={group.id}
               group={group}
+              goneOut={groupsGoneOut}
+              groupPageHref={groupPagesAt ? groupPagePath(groupPagesAt.roundId, groupPagesAt.programmeId, group.id) : null}
               members={members ?? []}
               enrolMode={run.enrolMode}
               runAction={runAction}

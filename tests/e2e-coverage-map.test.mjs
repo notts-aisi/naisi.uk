@@ -51,6 +51,7 @@ import assert from "node:assert/strict";
 import { readdirSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { duplicateKeysIn, duplicateKeysInText } from "./lib/duplicateKeys.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const APP_DIR = join(REPO_ROOT, "src", "app");
@@ -993,6 +994,17 @@ const NOT_COVERED = {
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
+  "/api/courses/requests/emails": {
+    reason:
+      "Course hub: an admin's own switch for the email that a request to be excused has arrived. tests/course-excused-weeks.test.mjs executes it as every kind of caller, with the field it writes and who is then emailed; the excused weeks spec reads the switch on the Requests page and leaves it alone, because pressing it would change the setting of the harness's one admin account for every spec after it.",
+    coverWhen: "When the harness has an admin account of its own to spare, so a spec can switch it off and back on without touching another spec's mail.",
+  },
+  "/api/courses/groups/[groupId]/cant-make-it": {
+    reason:
+      "Course hub: the instant Can't make it, which records somebody as excused on the spot. Somebody taking part now asks an admin instead (the excused weeks spec drives that), so only a facilitator who holds a place in the group they run says it; anybody else taking part is refused in one sentence, and may still take back a line they wrote before. tests/course-session-cant-make-it.test.mjs executes it as every kind of caller, with the refusal, the line it writes, its take-back and the line an approval wrote that it leaves alone.",
+    coverWhen:
+      "When a browser spec seats a facilitator in the group they run, or the route goes once the instant button has settled.",
+  },
   "/api/courses/groups/[groupId]/session": {
     reason:
       "Courses: /api/courses/groups/[groupId]/session is staff-facing, taken deliberately, and answered on the screen that called it.",
@@ -1159,6 +1171,18 @@ const NOT_COVERED = {
       "Course hub: one person's fill-in boxes, read by their group's facilitators, the programme's lead and admins (a facilitator's own by the lead and admins); every caller is executed by tests/course-hub-week-six.test.mjs. No page reads it yet: the facilitator's and the lead's pages that will are later pieces.",
     coverWhen:
       "When the page that shows a facilitator or a lead somebody's action plan exists and a browser spec opens it.",
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/submit": {
+    reason:
+      "Course hub: the week's old Submit, kept only for a week page opened before each written answer had its own Send: it sends every written answer of the week that has words and is within its limit, stamps the press, and closes nothing. No page in this tree presses it any more. Who may press it, what it sends and that it shuts nothing are executed by tests/course-week-work.test.mjs and tests/course-hub-written-answers.test.mjs against the real route.",
+    coverWhen:
+      "Never by a browser: no page draws it. When the route is removed, its entry goes with it.",
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/reopen": {
+    reason:
+      "Course hub: the old Reopen, kept only for a page opened before weeks stayed open: it asks its one gate, writes nothing and answers that weeks no longer lock. No page in this tree draws a Reopen any more. Its gate and that it writes nothing are executed by tests/course-week-work.test.mjs and pinned in tests/privacy-policy.test.mjs.",
+    coverWhen:
+      "Never by a browser: no page draws it. When the route is removed, its entry goes with it.",
   },
   "/api/courses/runs/[runId]/fill-in-boxes/[boxId]": {
     reason:
@@ -1717,23 +1741,11 @@ const NOT_COVERED = {
     coverWhen:
       "When a browser spec signs in as the programme's lead and gives feedback on a facilitator's own answer.",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": {
-    reason:
-      "Course hub: the lead's and admins' view of one group's week (This week's work with its pathway, written answer and case columns and each person's fill-in boxes, who ticked each source by name, its facilitators' own work); every caller is executed by tests/course-hub-facilitator-week.test.mjs, the columns and the boxes through the loaders the page calls by tests/course-hub-stage-four-journey.test.mjs, and it was checked in a browser on the preview kit at 1440 and 390.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a run whose weeks are written as blocks, with ticks and reflections, and the programme's lead signed in.",
-  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/ratings": {
     reason:
       "Course hub: a programme's ratings for its lead and admins; tests/course-ratings.test.mjs renders it as the lead, an admin, a reviewer and another programme's lead, before and after the run's last session.",
     coverWhen:
       "When the end-to-end fixtures seed a run whose last session is over, with the programme's lead signed in.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": {
-    reason:
-      "Course hub: the Groups tab's People in groups view is the run's own allocation board, drawn as designed for the programme's lead and admins; its every caller, its words in every state and its one count are executed by tests/course-hub-people-in-groups.test.mjs and tests/course-hub-lead-pages.test.mjs, the board's routes by tests/course-hub-lead-routes.test.mjs and tests/applications-handover-board.test.mjs, and it was checked by hand at 1440 and 390.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a programme that names a run with groups, with its lead signed in.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/circles": {
     reason:
@@ -1742,21 +1754,15 @@ const NOT_COVERED = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
     reason:
-      "Course hub: Publish's own page, its readiness check, the two emails and Publish's own buttons, for a programme's lead and admins; its every caller, what it blocks and what it only warns, each against a real press, are executed by tests/course-hub-get-ready.test.mjs, and it was checked by hand at 1440 and 390.",
+      "Course hub: Publish's own page under a programme's Groups tab, reached from the Overview and from People in groups: its readiness check, the two emails and Publish's own buttons, for a programme's lead and admins. Its every caller, what it blocks and what it only warns, each against a real press, are executed by tests/course-hub-get-ready.test.mjs, the way there by tests/course-hub-people-in-groups.test.mjs, and it was checked by hand at 1440 and 390.",
     coverWhen:
-      "When the groups-go-out spec presses Publish from the programme's own Groups tab rather than the run editor's board.",
+      "When the groups-go-out spec presses Publish from a programme's Groups tab rather than from the run editor's board.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/copy": {
     reason:
       "Course hub: Copy weeks from the course, a page of the Weeks tab; its every caller and the copy it sends (never an overwrite) are executed by tests/course-hub-weeks-tab.test.mjs.",
     coverWhen:
       "When a course has two runs on dev and a browser spec copies one's weeks into the other as its programme's lead.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
-    reason:
-      "Course hub: Publish's own page under a programme's Groups tab, reached from People in groups. The Publish area on it is the allocation board's, which the groups-go-out spec presses on the run editor's board; the page's every caller is executed by tests/course-hub-people-in-groups.test.mjs.",
-    coverWhen:
-      "When the groups-go-out spec presses Publish from a programme's Groups tab rather than from the run editor's board.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/people": {
     reason:
@@ -2439,6 +2445,21 @@ test("no NOT_COVERED entry has gone stale", async () => {
     }
   }
   assert.deepEqual(stale, [], `\n${stale.join("\n")}\n`);
+});
+
+test("no key is written twice in one object of this file, read from its source", () => {
+  // An object keeps the later of two equal keys and drops the earlier
+  // without a word, so the earlier entry is dead text that can say something
+  // else (a reason, a trigger) and nothing here would read it.
+  const sample = duplicateKeysInText('const x = { "/a": { reason: "one" }, b: 1, "/a": { reason: "two" } };');
+  assert.deepEqual(sample.duplicates, [{ key: "/a", lines: [1, 1] }], "the scan is not reading");
+  const { duplicates, unresolved } = duplicateKeysIn(fileURLToPath(import.meta.url));
+  assert.deepEqual(unresolved, [], "a computed key here cannot be compared without running the file: write it as a string");
+  assert.deepEqual(
+    duplicates.map(({ key, lines }) => `${key} (lines ${lines.join(", ")})`),
+    [],
+    "a key written twice in one object: keep one entry, with what is true",
+  );
 });
 
 test("every NOT_COVERED entry carries a real reason and a real trigger", () => {

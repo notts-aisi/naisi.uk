@@ -463,10 +463,23 @@ test(
     const thisSession = sessionOf(facilitated, thisWeek);
     const nextSession = sessionOf(facilitated, nextWeek);
     const movedDateKey = shiftDateKey(nextSession.dateKey, MOVE.daysLater);
-    /** The words the update carries, as `updateWords` in src/lib/courses/sessionChange/words.ts builds them. */
+    /**
+     * The words the update carries, as `oneWeekNoticeWords` in
+     * src/lib/courses/sessionChange/words.ts builds them: the email's subject,
+     * and its paragraphs (the group has no campus, so none is named).
+     */
+    const movedEndMinutes = Number(MOVE.startTimeLocal.slice(0, 2)) * 60 + Number(MOVE.startTimeLocal.slice(3)) + facilitated.durationMinutes;
+    const movedEnd = clockWords(
+      `${String(Math.floor(movedEndMinutes / 60) % 24).padStart(2, "0")}:${String(movedEndMinutes % 60).padStart(2, "0")}`,
+    );
+    const UPDATE_LINES = Object.freeze([
+      `${facilitated.name}’s week ${nextWeek} session moves, for this week only, to ${dayLabel(movedDateKey)}, ${clockWords(MOVE.startTimeLocal)} to ${movedEnd}, ${MOVE.room}.`,
+      `Why: ${MOVE.reason}`,
+      "Can’t make the new time? Tell us on your programme page.",
+    ]);
     const UPDATE = Object.freeze({
-      title: `${dayLabel(nextSession.dateKey)}’s session has moved`,
-      message: `${MOVE.reason} It’s on ${dayLabel(movedDateKey)} at ${clockWords(MOVE.startTimeLocal)} in ${MOVE.room}, this week only.`,
+      title: `Week ${nextWeek} moves to ${dayLabel(movedDateKey)}, ${clockWords(MOVE.startTimeLocal)}`,
+      message: UPDATE_LINES.join("\n\n"),
     });
 
     const formBase = `${origin}/admin/admissions/forms/${enc(state.formId)}/programmes/${enc(state.programmeId)}`;
@@ -1121,12 +1134,16 @@ test(
           assert.equal(head.includes(ending.scheduled ? "Finished" : "Pushed"), done, `week ${weekNumber}'s column and its badge`);
           for (const person of inGroup) {
             if (done) {
-              const cell = cellOf(person, weekNumber, "img");
+              // CHANGED ON PURPOSE (November 2026), with correcting a register:
+              // a finished line no longer takes a tap from its facilitator; it
+              // opens Ask for a correction, which changes nothing by itself.
+              const cell = cellOf(person, weekNumber);
               assert.equal(
                 await cell.getAttribute("aria-label"),
-                `${person.first}, week ${weekNumber}: ${labelOf(markOf(person, weekNumber))}. This register is finished and locked.`,
-                `${person.first}'s week ${weekNumber} is not locked against the facilitator`,
+                `${person.first}, week ${weekNumber}: ${labelOf(markOf(person, weekNumber))}. Ask for a correction.`,
+                `${person.first}'s week ${weekNumber} does not offer the facilitator only a correction to ask for`,
               );
+              assert.equal(await cellOf(person, weekNumber, "img").count(), 0, `${person.first}'s week ${weekNumber} is drawn as a plain mark`);
             } else {
               assert.equal(
                 await cellOf(person, weekNumber).getAttribute("aria-label"),
@@ -1247,7 +1264,9 @@ test(
                 // the confirm says why before the press, as the push's answer
                 // says it after.
                 `Nobody is emailed: week ${nextWeek} isn’t published yet, so the group won’t be sent a reminder.`,
-            "The register locks. An admin can still correct it afterwards, and every change they make is recorded.",
+            // After Finish a change goes through an admin or the programme's lead,
+            // asked for from the line (src/lib/courses/registerCorrection/pageWords.ts).
+            "The register locks. After that, a change goes through an admin or the programme’s lead, asked for from the line, and every change records who made it, when and why.",
             "Everyone sees their mark, and everyone’s attendance figures are rebuilt from this register.",
           ],
           "the confirm does not say what finishing does",
@@ -1291,19 +1310,29 @@ test(
         // The toast covers the page while it is up, so a press before it goes lands on its backdrop.
         await toast.waitFor({ state: "hidden", timeout: WAIT_MS });
 
-        // The column is finished, and locked against its facilitator: her cells
-        // are no longer buttons, and the draft's controls have gone.
+        // The column is finished, and locked against its facilitator: a tap
+        // no longer changes a line, and the draft's controls have gone.
+        // CHANGED ON PURPOSE (November 2026), with correcting a register: each
+        // finished line opens Ask for a correction instead, which changes
+        // nothing until an admin or the programme's lead approves it, so her
+        // cells are buttons again that say so, and none is a tap that marks.
         await waitFor("this week's column to say it is finished", async () =>
           (await textOf(headerOf(thisWeek))).includes(ending.scheduled ? "Finished" : "Pushed") ? true : null,
         );
         for (const person of inGroup) {
           assert.equal(
-            await cellOf(person, thisWeek, "img").getAttribute("aria-label"),
-            `${person.first}, week ${thisWeek}: ${labelOf(fernMarks[person.key])}. This register is finished and locked.`,
-            `${person.first}'s mark is not locked against the facilitator`,
+            await cellOf(person, thisWeek).getAttribute("aria-label"),
+            `${person.first}, week ${thisWeek}: ${labelOf(fernMarks[person.key])}. Ask for a correction.`,
+            `${person.first}'s finished line does not offer the facilitator a correction to ask for`,
           );
-          assert.equal(await cellOf(person, thisWeek).count(), 0, `${person.first}'s cell is still a button`);
+          assert.equal(await cellOf(person, thisWeek, "img").count(), 0, `${person.first}'s line is drawn as a plain mark`);
         }
+        // Opening one changes nothing: it is the sheet, which writes only when its request is sent.
+        await cellOf(inGroup[0], thisWeek).click();
+        const sheet = facilitatorPage.getByTestId("line-sheet");
+        await sheet.getByRole("heading", { name: "Ask for a correction", exact: true }).waitFor({ timeout: WAIT_MS });
+        await sheet.getByRole("button", { name: "Close", exact: true }).click();
+        await sheet.waitFor({ state: "detached", timeout: WAIT_MS });
         // Each by its literal id, so the test-id guard can see both sides.
         const finishedColumn = headerOf(thisWeek);
         for (const [what, control] of [
@@ -1320,7 +1349,8 @@ test(
         await assertFoot(ending);
 
         // Neither lane takes a mark from her now: the draft lane is locked for
-        // everybody, and correcting a finished register is an admin's.
+        // everybody, and correcting a finished register is an admin's or the
+        // programme's lead's (she asks for a correction instead).
         const lane = (method) =>
           fetchAs(facilitatorPage, `/api/courses/groups/${enc(facilitated.id)}/attendance`, {
             method,
@@ -1336,7 +1366,7 @@ test(
         const correction = await lane("PATCH");
         assert.deepEqual(
           [correction.status, correction.body?.error],
-          [403, "Only an admin can change a register after it has been pushed."],
+          [403, "A finished register is corrected by an admin or the programme’s lead. Ask for a correction on the line instead."],
           "a facilitator corrected a finished register",
         );
 
@@ -1475,13 +1505,29 @@ test(
           {
             ok: true,
             change: { kind: "move", weekNumber: nextWeek, dateKey: nextSession.dateKey, newDateKey: movedDateKey },
-            update: { groupId: facilitated.id, title: UPDATE.title, message: UPDATE.message, emailCount: inGroup.length },
+            update: {
+              groupId: facilitated.id,
+              title: UPDATE.title,
+              message: UPDATE.message,
+              emailCount: inGroup.length,
+              withFacilitators: true,
+            },
           },
           "the change's answer",
         );
+        // Posted with `withFacilitators`, as the change answered: a change to the
+        // group's sessions reaches its facilitators too (never the presser).
         assert.deepEqual(
           posted.request().postDataJSON(),
-          { to: "group", groupId: facilitated.id, title: UPDATE.title, message: UPDATE.message, email: true, emailCount: inGroup.length },
+          {
+            to: "group",
+            groupId: facilitated.id,
+            title: UPDATE.title,
+            message: UPDATE.message,
+            email: true,
+            emailCount: inGroup.length,
+            withFacilitators: true,
+          },
           "the update did not go to the group with the count on the button",
         );
         const postedBody = await okBody(posted, "Telling the group");
@@ -1577,7 +1623,7 @@ test(
           );
           assert.deepEqual(
             await readUpdates(pg),
-            [[UPDATE.title, `${fern.first} · to ${facilitated.name} · ${today}`, UPDATE.message], earlier],
+            [[UPDATE.title, `${fern.first} · to ${facilitated.name} · ${today}`, flat(UPDATE.message)], earlier],
             `${person.first}'s Updates`,
           );
           // The session the group meets at next is the moved one: its day, its time and its room.
@@ -1664,7 +1710,7 @@ test(
             "Sent as an important notice",
             "You are getting this because you are in this course group, so it reaches you whatever your " +
               "notification settings say, and it is never marketing.",
-            UPDATE.message,
+            ...UPDATE_LINES,
             `Sent by ${fern.first} · ${facilitated.name} · ${state.courseTitle} (${state.runLabel})`,
             FOOTER,
           ];

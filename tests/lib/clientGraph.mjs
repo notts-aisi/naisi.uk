@@ -251,3 +251,49 @@ export function walkClientGraph({ onPackage = () => {} } = {}) {
 
   return { sources, clientFiles, edgesFollowed, unresolved, reached };
 }
+
+/**
+ * The same walk from files the CALLER names rather than from the client
+ * files: every module those files reach through value imports, each with the
+ * shortest chain from the first entry whose walk reached it. For a guard that
+ * asks a question of what a server door reaches (the senders of mail, say).
+ * `entries` are absolute paths under `src`; `sources` is every file under
+ * `src` with its text, for the caller to read the reached modules from.
+ */
+export function walkModulesFrom(entries) {
+  const allFiles = sourceFilesUnder(SRC);
+  const sources = new Map(allFiles.map((file) => [file, readFileSync(file, "utf8")]));
+  const unresolved = [];
+  const reached = new Map();
+  for (const entry of entries) {
+    if (!sources.has(entry)) {
+      unresolved.push(`${repoPath(entry)} (an entry that is not a source file)`);
+      continue;
+    }
+    const queue = [[entry]];
+    const seen = new Set([entry]);
+    if (!reached.has(entry)) reached.set(entry, [entry]);
+    while (queue.length > 0) {
+      const chain = queue.shift();
+      const file = chain[chain.length - 1];
+      for (const specifier of valueSpecifiers(sources.get(file) ?? "")) {
+        if (!specifier.startsWith(".") && !specifier.startsWith("@/")) continue;
+        if (NOT_CODE.test(specifier)) continue;
+        const target = resolveLocal(specifier, file);
+        if (!target) {
+          unresolved.push(`${repoPath(file)} -> ${specifier}`);
+          continue;
+        }
+        if (!sources.has(target) || seen.has(target)) continue;
+        seen.add(target);
+        const next = [...chain, target];
+        if (!reached.has(target)) reached.set(target, next);
+        queue.push(next);
+      }
+    }
+  }
+  return { sources, unresolved, reached };
+}
+
+/** A module's text with its comments taken out, strings kept: what a guard reads code from. */
+export { stripComments };

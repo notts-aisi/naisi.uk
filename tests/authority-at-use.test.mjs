@@ -97,7 +97,10 @@ const repoPath = (file) => file.slice(REPO_ROOT.length + 1).split(sep).join("/")
  * reason. Its bar is registered, executed and checked against its appointment
  * site like every other; only the scanner half is missing, and saying so here
  * is the alternative to a scanner that reports every line in the repository.
- * Checked in both directions below.
+ * Checked in both directions below. `alsoAsks`, where present, is a second
+ * half of the bar that a session alone cannot answer: every file the walk
+ * finds must call it as well as name the authority, or be an exception with
+ * its reason.
  */
 const UNSCANNABLE_FIELDS = {
   "courseEnrolments.uid": {
@@ -120,6 +123,35 @@ const UNSCANNABLE_FIELDS = {
         "from somebody in a group takes the same code. It WRITES the caller's own row rather than " +
         "reading it as a grant, and admits whom that route admits, a pending account leaving an " +
         "open run included, for the reason that route's own exception gives.",
+    },
+  },
+  "courseAttendance.cover.byUid": {
+    why:
+      "`byUid` is on every line's stamp, every facilitator's entry and every cover, so scanning for it would " +
+      "report every register write. The walk is over the files that READ a register's cover by a person: the " +
+      "query that finds the registers whose cover names them, and a test of a live grant against the caller.",
+    addressedBy: /where\(\s*"cover\.byUid"\s*,\s*"=="|holds(?:Given)?Cover\([^;]*?(?:actor|user|viewer|session)[?!]?\.uid/,
+    // The bar has two halves: the approved account the literal above asks,
+    // and the run's (whether they run anything on the programme), which
+    // a session cannot answer. A file that reads the field asks both.
+    alsoAsks: {
+      pattern: /\b(?:givenSessionStands|runsThingsOn)\s*\(/,
+      why: "the run's half of the bar: `givenSessionStands`, or the give's own `runsThingsOn`",
+    },
+    exceptions: {
+      "src/features/courses/runAccess.ts":
+        "The run's layout lets somebody whose grant holds through to the register's page and no further. That " +
+        "page asks the register's gate, which asks the bar (`givenSessionStands`), and tells somebody who no " +
+        "longer stands so in a sentence; every route behind it refuses them.",
+      "src/app/api/courses/groups/[groupId]/attendance/route.ts":
+        "A save by somebody given the session re-reads the grant inside the write's own transaction, after " +
+        "`gateGroupRegister` admitted them through `givenSessionStands`, so two presses at once agree on it.",
+      "src/app/api/courses/groups/[groupId]/attendance/push/route.ts":
+        "Finish by somebody given the session re-reads the grant inside the write's own transaction, after " +
+        "`gateGroupRegister` admitted them through `givenSessionStands`, so the grant cannot end between the two.",
+      "src/lib/courses/sessionReports/context.ts":
+        "A session report by whoever took the register asks `gateGroupRegister` first, which holds somebody " +
+        "given the session to `givenSessionStands`, and only then reads whether they hold that session's cover.",
     },
   },
   "circulationResponses.uid": {
@@ -402,6 +434,18 @@ const RAW_SITES = {
       "the caller as a facilitator (a facilitator who holds a place has a learner's row), " +
       "before any of them adds the `facilitator` role.",
   },
+  "src/lib/courses/requests/load.ts": {
+    role: "not-a-gate",
+    matches: { leadUid: 1 },
+    provedBy: ["if ((await programmeLedBy(db, actor, runId)) !== null) runIds.push(runId);"],
+    // The control runs after the read, as on the course hub: it only finds
+    // the runs that might be the reader's, and decides nothing.
+    controlAfter: true,
+    why:
+      "The Requests page finds the runs a reader might lead: the runs whose programme names the caller " +
+      "as its lead on the forms. That grants nothing: every candidate is held to the lead's gate, " +
+      "`programmeLedBy`, which asks the lead's standing, before any of its requests is read.",
+  },
   "src/lib/messages/writers.ts": {
     role: "not-a-gate",
     matches: { facilitatorUids: 1 },
@@ -623,7 +667,9 @@ describe("the registry of bars against the tree", () => {
   test("every authority carries its field, its appointment site and a written reason", () => {
     for (const [key, bar] of Object.entries(AUTHORITY)) {
       assert.equal(bar.field, key, `${key}: \`field\` must repeat the key`);
-      assert.match(key, /^[a-zA-Z]+\.[a-zA-Z]+$/, `${key}: keys are "collection.field"`);
+      // "collection.field", or "collection.map.field" for a field inside a map
+      // (`courseAttendance.cover.byUid`).
+      assert.match(key, /^[a-zA-Z]+\.[a-zA-Z]+(?:\.[a-zA-Z]+)?$/, `${key}: keys are "collection.field"`);
       assert.ok(
         typeof bar.appointedBy === "string" && bar.appointedBy.length > 20,
         `${key}: name the file that WRITES the array`,
@@ -670,7 +716,7 @@ describe("the registry of bars against the tree", () => {
    * fails on arrival instead of being invisible to a three-name list.
    */
   test("every file that addresses one of those documents by the caller calls the helper", () => {
-    for (const [authority, { addressedBy, exceptions }] of Object.entries(
+    for (const [authority, { addressedBy, exceptions, alsoAsks }] of Object.entries(
       UNSCANNABLE_FIELDS,
     )) {
       const offenders = [];
@@ -683,6 +729,7 @@ describe("the registry of bars against the tree", () => {
         addressers += 1;
         if (path in (exceptions ?? {})) continue;
         if (!code.includes(`"${authority}"`)) offenders.push(path);
+        else if (alsoAsks && !alsoAsks.pattern.test(code)) offenders.push(`${path} (asks the approved account, not ${alsoAsks.why})`);
       }
       assert.ok(
         addressers > 0,
@@ -775,6 +822,7 @@ const MATRIX = {
   "courseRuns.runFacilitatorUids": "-- Y Y - Y Y Y".replace(/ /g, ""),
   "courseEnrolments.uid": "-- Y Y - Y Y Y".replace(/ /g, ""),
   "courseGroups.facilitatorUids": "-- Y Y - Y Y Y".replace(/ /g, ""),
+  "courseAttendance.cover.byUid": "-- Y Y - Y Y Y".replace(/ /g, ""),
   "events.authorUid": "-- Y Y - Y Y Y".replace(/ /g, ""),
   "events.collaboratorUids": "-- Y Y - Y Y Y".replace(/ /g, ""),
   "worksheets.authorUid": "-- - - - Y Y Y".replace(/ /g, ""),
@@ -1013,6 +1061,30 @@ describe("each bar agrees with the bar its appointment applied", () => {
       ]) {
         assert.equal(holdsStanding(user, key), approved, `${key} as ${persona}`);
       }
+    }
+  });
+
+  test("the given session's bar is the give's: an approved account here, and runsThingsOn asked at every use", () => {
+    // The give: an approved account (`approvedPerson`) that runs things on
+    // the programme (`runsThingsOn`), asked of the person named in the press.
+    const give = readFileSync(join(SRC, "app", "api", "courses", "groups", "[groupId]", "attendance", "cover", "route.ts"), "utf8");
+    assert.match(give, /person = await approvedPerson\(db, press\.person\);/);
+    assert.match(give, /if \(!\(await runsThingsOn\(db, run, person\)\)\) throw new CoverRefusal\(COVER_REFUSAL\.notRunning, 400\);/);
+    const people = readFileSync(join(SRC, "lib", "courses", "registerCover", "people.ts"), "utf8");
+    assert.match(people, /const APPROVED_ROLES = new Set\(\["member", "committee", "admin"\]\);/);
+    assert.match(people, /export \{ runsThingsOn \} from "\.\/runsThings";/, "the give no longer asks the one function");
+    // The use: the register's gate holds every given session to the same two halves.
+    const gate = scannableSource(join(SRC, "lib", "courses", "registerAccess.ts"));
+    assert.ok(gate.includes('import { runsThingsOn } from "./registerCover/runsThings";'), "the gate asks a different function");
+    assert.ok(gate.includes('if (!holdsStanding(actor, "courseAttendance.cover.byUid")) return false;'));
+    assert.ok(gate.includes("return runsThingsOn(db, { id: runId, trackLeadUids: (runSnap.data() ?? {}).trackLeadUids }, { standing: actor });"));
+    assert.ok(gate.includes("return (await givenSessionStands(db, group.runId, actor)) ? keys : [];"), "the gate's given sessions no longer ask the bar");
+    for (const persona of ORDER) {
+      assert.equal(
+        holdsStanding(PERSONAS[persona], "courseAttendance.cover.byUid"),
+        ["member", "committee", "admin"].includes(PERSONAS[persona].role),
+        `the given session's bar and approvedPerson disagree about ${persona}`,
+      );
     }
   });
 

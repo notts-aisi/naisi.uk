@@ -191,7 +191,134 @@ export type CourseAttendanceDoc = {
   online: Record<string, boolean>;
   markedByUid: string;
   updatedAt?: Date | null;
+  /**
+   * WHO SET EACH LINE, AND WHEN, keyed by the uid of the person the line is
+   * about. Written only by routes, in the same write that moved the line's
+   * mark or its in-the-room-or-online value (or, for somebody's own word in
+   * advance, the word itself). A line a save did not change keeps its stamp.
+   * A register written before this map existed has none, and shows nobody as
+   * having set anything: that is today's reading, not a gap to fill.
+   *
+   * Keyed by uid, so account deletion clears the person's own entry key by
+   * key with a `FieldPath`, as it does `records`. The `byUid` inside an entry
+   * names who acted, and is kept as `markedByUid` and `pushedByUid` are.
+   */
+  setBy: Record<string, LineSetter>;
+  /**
+   * WHO TOOK THIS REGISTER IN A FACILITATOR'S PLACE, or null when nobody did
+   * (every register written before the field, and every register a
+   * facilitator of the group took). A register may exist only to hold it,
+   * before any line is set: that register is NOT taken (`registerIsTaken`).
+   */
+  cover: RegisterCover | null;
+  /**
+   * WHETHER EACH OF THE GROUP'S FACILITATORS WAS AT THE SESSION, keyed by the
+   * facilitator's uid. Written only by routes. Sent only to admins and the
+   * people leading the programme (the programme's lead and the run's track
+   * leads), never to a facilitator, a person covering or a member. A register
+   * written before the map existed has none and shows none.
+   *
+   * Keyed by uid, so account deletion clears the facilitator's own entry key
+   * by key, as it does `records`.
+   */
+  facilitatorRecord: Record<string, FacilitatorPresence>;
+  /**
+   * WHICH LINES WERE CORRECTED AFTER THE REGISTER WAS FINISHED, keyed by the
+   * uid of the person the line is about: when, and by whom. Written only by
+   * the correction routes (a line, a whole column, an approved request), in
+   * the same write that changed the line. What the line said before, who set
+   * it and why it changed live in the group's history (`courseAudit`), never
+   * here: this map is only what lets the person's own list say "Corrected on
+   * Tue 10 Nov" without reading the history. A register written before the
+   * map existed has none, and no line on it reads as corrected.
+   *
+   * Keyed by uid, so account deletion clears the person's own entry key by
+   * key, as it does `records`. The `byUid` inside names who acted, and is
+   * kept as `pushedByUid` is.
+   */
+  corrected: Record<string, LineCorrection>;
 };
+
+/** One corrected line's stamp: when, and who corrected it. */
+export type LineCorrection = { at: Date; byUid: string };
+
+/**
+ * HOW A LINE CAME TO SAY WHAT IT SAYS.
+ *
+ *  - `facilitator`: one of the group's facilitators set it.
+ *  - `cover`: somebody who is not one of the group's facilitators set it: an
+ *    admin, the programme's lead, a track lead, or somebody given the session.
+ *  - `self`: the person's own word before the session ("Can't make it",
+ *    "Joining online", the sessions ticked under "Most weeks, not all").
+ *  - `approval`, `correction`: reserved for the requests and corrections that
+ *    come after this, and `correction` for an admin's change to a finished
+ *    register.
+ */
+export type LineSetterHow = "facilitator" | "cover" | "self" | "approval" | "correction";
+
+export const LINE_SETTER_HOWS: readonly LineSetterHow[] = ["facilitator", "cover", "self", "approval", "correction"];
+
+/** One line's stamp: who, when, and how. */
+export type LineSetter = { byUid: string; at: Date; how: LineSetterHow };
+
+/**
+ * WHO TOOK A REGISTER IN SOMEBODY'S PLACE.
+ *
+ *  - `self`: an admin or somebody leading the programme took it themselves
+ *    ("I'm covering it", or the first line they saved).
+ *  - `given`: an admin or a lead gave this one session to `byUid`, until
+ *    `until`. While that holds, and for this session only, they take its
+ *    register, open its check-in and write its report.
+ *
+ * `covering` is the group's facilitators with standing when it was taken,
+ * the people whose place was taken; it may be empty (a group with no
+ * facilitator).
+ */
+export type RegisterCover = {
+  kind: "self" | "given";
+  byUid: string;
+  at: Date;
+  covering: string[];
+  grantedByUid?: string;
+  grantedAt?: Date;
+  until?: Date;
+  reason?: string;
+};
+
+/** Whether one facilitator was there. */
+export type FacilitatorPresenceState = "there" | "late" | "not-there";
+
+export const FACILITATOR_PRESENCE_STATES: readonly FacilitatorPresenceState[] = ["there", "late", "not-there"];
+
+/**
+ * How an entry of the facilitator record was made: a cover taken in their
+ * place, their first save after it, the register being finished, or changed
+ * by an admin or a lead.
+ */
+export type FacilitatorPresenceHow = "cover" | "arrived" | "finish" | "changed";
+
+export const FACILITATOR_PRESENCE_HOWS: readonly FacilitatorPresenceHow[] = ["cover", "arrived", "finish", "changed"];
+
+export type FacilitatorPresence = {
+  state: FacilitatorPresenceState;
+  /** When they arrived, for `late`. */
+  arrivedAt?: Date;
+  byUid: string;
+  at: Date;
+  how: FacilitatorPresenceHow;
+};
+
+/** The register's map of who set each line. One name for the writes, readers and account deletion. */
+export const SET_BY = "setBy";
+
+/** The register's cover. */
+export const COVER = "cover";
+
+/** The register's record of whether each facilitator was there. */
+export const FACILITATOR_RECORD = "facilitatorRecord";
+
+/** The register's map of which lines were corrected after it was finished. */
+export const CORRECTED = "corrected";
 
 /**
  * The register's map of who told us in advance they can't make the session.
@@ -232,6 +359,30 @@ export function joinedOnline(
   uid: string,
 ): boolean {
   return cameBy(register.records[uid]) && register.online[uid] === true;
+}
+
+/**
+ * HAS THIS SESSION'S REGISTER BEEN TAKEN? Asked of the register as STORED
+ * (`undefined` when the session has none yet), by everything that has to
+ * know whether a session met before it moves it: changing one week's session,
+ * a new regular time from a week onwards, and the script that pins weeks
+ * that met.
+ *
+ * Taken means the document exists AND somebody took it: it is finished
+ * (`pushedAt`), a facilitator or an admin has marked it (`markedByUid`, the
+ * last person to save a mark), or it says the session did not happen
+ * (`held === false`). A register that exists only because somebody said in
+ * advance they can't make it, or are joining online, is NOT taken: those
+ * writes touch only their own line and never the register's own fields.
+ * Nor is a register that holds only a cover ("I'm covering it", or a session
+ * given to somebody) with no line set: covering it says who will take it,
+ * not that anybody has.
+ */
+export function registerIsTaken(data: Readonly<Record<string, unknown>> | null | undefined): boolean {
+  if (!data) return false;
+  if (data.pushedAt !== undefined && data.pushedAt !== null) return true;
+  if (typeof data.markedByUid === "string" && data.markedByUid !== "") return true;
+  return data.held === false;
 }
 
 /**
@@ -334,6 +485,115 @@ function asOnline(v: unknown): Record<string, boolean> {
   return out;
 }
 
+/** A uid as a map key or a field holds it: a non-empty string that names one document. */
+function isUid(v: unknown): v is string {
+  return typeof v === "string" && v.length > 0 && v.length <= 128 && !v.includes("/");
+}
+
+/**
+ * Who set each line, capped in number of keys as `asRecords` is. An entry
+ * with no actor, no time or a `how` this build does not know is no entry,
+ * so a hand-edited one shows nobody rather than somebody wrong.
+ */
+function asSetBy(v: unknown): Record<string, LineSetter> {
+  if (!v || typeof v !== "object") return {};
+  const out: Record<string, LineSetter> = {};
+  let count = 0;
+  for (const uid of Object.keys(v as Raw).sort()) {
+    if (count >= ATTENDANCE_LIMITS.maxRecords) break;
+    const entry = (v as Raw)[uid] as Raw | null;
+    if (!uid || !entry || typeof entry !== "object") continue;
+    const at = tsToDate(entry.at);
+    const how = entry.how;
+    if (!isUid(entry.byUid) || !at || !LINE_SETTER_HOWS.includes(how as LineSetterHow)) continue;
+    out[uid] = { byUid: entry.byUid, at, how: how as LineSetterHow };
+    count += 1;
+  }
+  return out;
+}
+
+/** Most facilitators a cover names: a group's own cap. */
+const MAX_COVERING = 5;
+
+/**
+ * The cover, or null. Null too for one missing what makes it a cover (its
+ * kind, who took it, when), so a hand-edited register reads as one nobody
+ * covered rather than one covered by nobody.
+ */
+function asCover(v: unknown): RegisterCover | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const raw = v as Raw;
+  const kind = raw.kind;
+  const at = tsToDate(raw.at);
+  if ((kind !== "self" && kind !== "given") || !isUid(raw.byUid) || !at) return null;
+  const covering = Array.isArray(raw.covering)
+    ? [...new Set(raw.covering.filter(isUid))].slice(0, MAX_COVERING)
+    : [];
+  const cover: RegisterCover = { kind, byUid: raw.byUid, at, covering };
+  if (isUid(raw.grantedByUid)) cover.grantedByUid = raw.grantedByUid;
+  const grantedAt = tsToDate(raw.grantedAt);
+  if (grantedAt) cover.grantedAt = grantedAt;
+  const until = tsToDate(raw.until);
+  if (until) cover.until = until;
+  if (typeof raw.reason === "string" && raw.reason.trim()) cover.reason = raw.reason.trim().slice(0, 200);
+  return cover;
+}
+
+/** The facilitator record, capped as the facilitators a group may have; a garbled entry is no entry. */
+function asFacilitatorRecord(v: unknown): Record<string, FacilitatorPresence> {
+  if (!v || typeof v !== "object") return {};
+  const out: Record<string, FacilitatorPresence> = {};
+  let count = 0;
+  for (const uid of Object.keys(v as Raw).sort()) {
+    if (count >= ATTENDANCE_LIMITS.maxRecords) break;
+    const entry = (v as Raw)[uid] as Raw | null;
+    if (!isUid(uid) || !entry || typeof entry !== "object") continue;
+    const at = tsToDate(entry.at);
+    const state = entry.state;
+    const how = entry.how;
+    if (
+      !FACILITATOR_PRESENCE_STATES.includes(state as FacilitatorPresenceState) ||
+      !FACILITATOR_PRESENCE_HOWS.includes(how as FacilitatorPresenceHow) ||
+      !isUid(entry.byUid) ||
+      !at
+    ) {
+      continue;
+    }
+    const presence: FacilitatorPresence = {
+      state: state as FacilitatorPresenceState,
+      byUid: entry.byUid,
+      at,
+      how: how as FacilitatorPresenceHow,
+    };
+    const arrivedAt = tsToDate(entry.arrivedAt);
+    if (arrivedAt && presence.state === "late") presence.arrivedAt = arrivedAt;
+    out[uid] = presence;
+    count += 1;
+  }
+  return out;
+}
+
+/**
+ * Which lines were corrected, capped in number of keys as `asRecords` is. An
+ * entry with no time or no actor is no entry, so a hand-edited one reads as
+ * a line nobody corrected rather than one corrected by nobody.
+ */
+function asCorrected(v: unknown): Record<string, LineCorrection> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: Record<string, LineCorrection> = {};
+  let count = 0;
+  for (const uid of Object.keys(v as Raw).sort()) {
+    if (count >= ATTENDANCE_LIMITS.maxRecords) break;
+    const entry = (v as Raw)[uid] as Raw | null;
+    if (!isUid(uid) || !entry || typeof entry !== "object") continue;
+    const at = tsToDate(entry.at);
+    if (!at || !isUid(entry.byUid)) continue;
+    out[uid] = { at, byUid: entry.byUid };
+    count += 1;
+  }
+  return out;
+}
+
 export function normalizeCourseAttendance(id: string, data: Raw): CourseAttendanceDoc {
   const weekNumber =
     typeof data.weekNumber === "number" && Number.isFinite(data.weekNumber)
@@ -373,6 +633,15 @@ export function normalizeCourseAttendance(id: string, data: Raw): CourseAttendan
     online: asOnline(data[ONLINE]),
     markedByUid: str(data.markedByUid),
     updatedAt: tsToDate(data.updatedAt),
+    // The three below are absent on every register written before them, and
+    // absent reads as today: nobody shown as having set a line, nobody
+    // covering, no record of the facilitators.
+    setBy: asSetBy(data[SET_BY]),
+    cover: asCover(data[COVER]),
+    facilitatorRecord: asFacilitatorRecord(data[FACILITATOR_RECORD]),
+    // Absent on every register written before corrections were stamped, and
+    // absent reads as today: no line on it reads as corrected.
+    corrected: asCorrected(data[CORRECTED]),
   };
   const sessionAt = tsToDate(data.sessionAt);
   if (sessionAt) doc.sessionAt = sessionAt;

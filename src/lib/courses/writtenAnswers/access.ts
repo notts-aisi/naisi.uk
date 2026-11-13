@@ -124,6 +124,19 @@ export function facilitatesOnRun(uid: string, liveGroups: readonly CourseGroupDo
 }
 
 /**
+ * A FACILITATOR'S OWN WORK ON ONE GROUP'S PAGES, WHOSE IT IS: everybody whose
+ * work a page about `group` treats as a facilitator's own, never one of its
+ * fellows. The group's own facilitators, and everybody who facilitates a live
+ * group of the run (`facilitatesOnRun`), holding a place in this group or not.
+ * The week's card and the readers of a group's week (its work, its
+ * reflections with names, the page to read lines out) ask this, and none of
+ * them decides it again.
+ */
+export function facilitatingOnRunOf(group: Pick<CourseGroupDoc, "facilitatorUids">, liveGroups: readonly CourseGroupDoc[]): Set<string> {
+  return new Set([...group.facilitatorUids, ...liveGroups.filter((each) => !each.archived).flatMap((each) => each.facilitatorUids)]);
+}
+
+/**
  * A FACILITATOR'S OWN WORK, WHO READS IT (Zach, Mon 26 Oct 2026: "read by
  * the programme's lead and admins (not co-facilitators)"): the lead of the
  * programme that names the run and admins read it and review it, and nobody

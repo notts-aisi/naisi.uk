@@ -16,6 +16,9 @@ import { readRunEndById } from "@/lib/courses/finishing/record";
 import { groupsGoOutDay } from "@/lib/courses/groupsGoOut";
 import { readGroupsGoOut } from "@/lib/courses/groupsGoOutRead";
 import { countRunGroups, readRunHeader } from "@/lib/courses/programmeAttendance";
+import { programmeRequestsWords } from "@/lib/courses/registerCorrection/pageWords";
+import { requestsWaitingOnRun } from "@/lib/courses/requests/home";
+import { REQUESTS_PATH } from "@/lib/courses/requests/paths";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { countRunWeeks } from "@/lib/courses/weeksTab/load";
 import { formatRunStartShort } from "@/lib/courses/window";
@@ -202,6 +205,22 @@ export default async function ProgrammeLayout({
       <span className={styles.metaItem} key="teams-by">
         Teams by <strong>{teamsTab.teamsBy}</strong>
       </span>,
+    );
+  }
+  // Facilitators' asks for a register to be corrected, waiting for the lead or
+  // an admin: the way to the Requests page, for the two who decide them, and
+  // only while something waits that the list would show them. Requests to be
+  // excused are an admin's alone to decide, so they count for an admin and
+  // never for a lead.
+  const requestsWaiting =
+    db && programme.runId && opensProgrammeGroups(role)
+      ? await requestsWaitingOnRun(db, user, programme.runId, { excused: role === "admin" })
+      : 0;
+  if (requestsWaiting > 0) {
+    facts.push(
+      <Link href={REQUESTS_PATH} className={styles.metaItem} key="requests">
+        <strong>{programmeRequestsWords(requestsWaiting)}</strong>
+      </Link>,
     );
   }
 

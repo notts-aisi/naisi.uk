@@ -58,6 +58,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { walkSource } from "./lib/functionScan.mjs";
 import { B, NOW, RUN, makeMemberPagesWorld, textOf } from "./lib/memberPagesWorld.mjs";
 import { A, register, registerPath } from "./lib/hubAttendanceWorld.mjs";
+import { pressedBefore } from "./lib/saidBefore.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
@@ -98,15 +99,22 @@ const tell = (who, body, { groupId = B, viewAs = false } = {}) =>
   call(who, press.POST, { groupId }, { body, course: true, viewAs });
 const online = (who, sessionKey, options) => tell(who, { sessionKey, online: true }, options);
 const inTheRoom = (who, sessionKey, options) => tell(who, { sessionKey, online: false }, options);
-const cantMake = (who, sessionKey, cantMakeIt = true) =>
-  call(who, cantRoute.POST, { groupId: B }, { body: { sessionKey, cantMakeIt }, course: true });
+/** "Can't make it" as an old page pressed it (a facilitator's only now, `tests/lib/saidBefore.mjs`), or its way back, which is everybody's. */
+const cantMake = (who, sessionKey, cantMakeIt = true) => {
+  const press = () => call(who, cantRoute.POST, { groupId: B }, { body: { sessionKey, cantMakeIt }, course: true });
+  return cantMakeIt ? pressedBefore(world.db, B, who, press) : press();
+};
 /** The box's link, as `who`. */
 const giveLink = (who, body, { groupId = B, viewAs = false } = {}) =>
   call(who, linkRoute.POST, { groupId }, { body, course: true, viewAs });
 /** The register, as `who`. */
 const registerAs = (who, groupId = B) => call(who, registerRoute.GET, { groupId }, { course: true });
+/** A correction (PATCH) carries a reason: every correction of a finished register needs one. */
 const markAs = (who, week, marks, method = "POST") =>
-  call(who, registerRoute[method], { groupId: B }, { body: { weekNumber: week, marks }, course: true });
+  call(who, registerRoute[method], { groupId: B }, {
+    body: { weekNumber: week, marks, ...(method === "PATCH" ? { reason: "From the sign-in sheet." } : {}) },
+    course: true,
+  });
 /** A register as stored. */
 const stored = (groupId, week) => world.db.read(registerPath(groupId, week));
 /** A stored stamp, as a Date, whichever the store kept. */
@@ -393,9 +401,27 @@ describe("3. the box asks the facilitators for a link, and the link route saves 
     assert.equal((await giveLink("zach", { sessionKey: "w03", url: LINK })).status, 200, "an admin may");
   });
 
-  test("everybody but the group's live facilitators and admins is refused before the body is read, and nothing is written", async () => {
+  test("the programme's lead sets a link too, and the group's history says which weeks, never the link", async () => {
+    // Claudia leads the programme that names the run: admitted, then the body is checked.
+    assert.equal((await giveLink("claudia", {})).status, 400, "the lead, with an empty body");
+    assert.equal((await giveLink("claudia", { sessionKey: "w03", url: LINK })).status, 200, "the lead may");
+    const rows = world.db
+      .paths()
+      .filter((path) => path.startsWith("courseAudit/"))
+      .map((path) => world.db.read(path))
+      .filter((row) => row.kind === "group-link-set");
+    assert.equal(rows.length, 1);
+    assert.deepEqual(
+      [rows[0].groupId, rows[0].weekId, rows[0].actorUid, rows[0].before, rows[0].after],
+      [B, "w03", "claudia", { link: false }, { link: true, everyWeek: false }],
+    );
+    assert.equal(rows[0].detail, "Set the meeting link for week 3 only. Before: no link.");
+    assert.ok(!JSON.stringify(rows[0]).includes("meet.example"), "the history holds the link");
+  });
+
+  test("everybody but the group's live facilitators, its programme's lead and admins is refused before the body is read, and nothing is written", async () => {
     const before = w.everything();
-    for (const [who, status] of [[null, 401], ["chloe", 403], ["claudia", 403], ["amara", 403], ["tom", 403], ["nobody", 403]]) {
+    for (const [who, status] of [[null, 401], ["chloe", 403], ["amara", 403], ["tom", 403], ["nobody", 403]]) {
       assert.equal((await giveLink(who, { sessionKey: "w03", url: LINK })).status, status, String(who));
       assert.equal((await giveLink(who, {})).status, status, `${who}, with an empty body`);
     }
@@ -627,7 +653,15 @@ describe("6. the register keeps in the room or online beside the marks", () => {
       .filter((path) => path.startsWith("courseAudit/"))
       .map((path) => world.db.read(path))
       .filter((row) => row.kind === "attendance-edit");
-    assert.deepEqual(audit.map((row) => row.detail), ["Kofi Asante: Late in the room to Late online, week 3 session 1."]);
+    // CHANGED ON PURPOSE (November 2026): a correction's row says the line
+    // in the register's words, with the reason, and keeps both lines apart.
+    assert.deepEqual(audit.map((row) => row.detail), [
+      "Corrected week 3’s register: Kofi Asante, Arrived late, in the room to Arrived late, online. Why: “From the sign-in sheet.”",
+    ]);
+    assert.deepEqual(
+      [audit[0].before.line, audit[0].before.online, audit[0].after.line, audit[0].after.online],
+      ["Arrived late, in the room", false, "Arrived late, online", true],
+    );
     // The same place sent again moves nothing and logs nothing.
     const again = await markAs("zach", 3, [{ uid: "kofi", status: "late", online: true }], "PATCH");
     assert.deepEqual([again.body.marked, again.body.logged], [0, 0]);
@@ -635,7 +669,14 @@ describe("6. the register keeps in the room or online beside the marks", () => {
     const both = await markAs("zach", 3, [{ uid: "farah", status: "late", online: true }], "PATCH");
     assert.equal(both.status, 200);
     assert.ok(
-      world.db.paths().some((path) => path.startsWith("courseAudit/") && world.db.read(path).detail === "Farah Hussain: Present to Late online, week 3 session 1."),
+      world.db
+        .paths()
+        .some(
+          (path) =>
+            path.startsWith("courseAudit/") &&
+            world.db.read(path).detail ===
+              "Corrected week 3’s register: Farah Hussain, In the room to Arrived late, online. Why: “From the sign-in sheet.”",
+        ),
       "the correction of a mark and its place is not one row saying both",
     );
   });

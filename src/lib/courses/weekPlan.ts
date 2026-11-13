@@ -335,3 +335,19 @@ export function londonWallClockToInstant(dateKey: string, hhmm: string): Date {
   if (wallAtCandidate === target) return new Date(candidate);
   return new Date(target - (wallAtCandidate - candidate));
 }
+
+/**
+ * An instant as London reads it: its civil date, its 24-hour "HH:MM" and its
+ * weekday (0 = Sunday, the slot's own numbering). The inverse of
+ * `londonWallClockToInstant`, and the same sum `londonPartsOf` does in
+ * `scripts/lib/pinMetSessions.mjs`, which cannot import this file.
+ */
+export function londonWallClockOf(instant: Date): { dateKey: string; hhmm: string; weekday: number } {
+  const wall = new Date(londonWallAsUtcMs(instant));
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    dateKey: wall.toISOString().slice(0, 10),
+    hhmm: `${pad(wall.getUTCHours())}:${pad(wall.getUTCMinutes())}`,
+    weekday: wall.getUTCDay(),
+  };
+}

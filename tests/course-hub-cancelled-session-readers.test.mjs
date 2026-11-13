@@ -99,12 +99,52 @@ const READERS = {
       "a mark, the switch, a note or a correction to its register is refused in the register's words for a session " +
       "that did not happen",
   },
+  "lib/courses/registerCover/didNotHappen.ts": {
+    kind: "asks",
+    proof: ["if (session.cancelled) return false;", "return stored.pushedAt === null && stored.held;"],
+    why:
+      "whether a cancel or a push after the fact clears a draft's lines (It didn't happen): a session already called off " +
+      "is not called off again, and a register that already says it did not happen keeps its own reading",
+  },
   "lib/courses/programmeAttendance.ts": {
     kind: "asks",
     proof: ["const held = !session.cancelled && (register ? register.held : true);"],
     why:
       "the lead's tabs (the Overview, the Attendance grid and its CSV, who finished): one fact per session, read once, " +
       "a cancelled session not held",
+  },
+
+  // ── Correcting a finished register (November 2026) ──────────────────────
+  "lib/courses/registerCorrection/line.ts": {
+    kind: "asks",
+    proof: ["if (session.cancelled || !register.held) throw new CorrectionNotHeldError();"],
+    why:
+      "a line of a finished register corrected, by a lead or an admin or an approved request: a session that did not " +
+      "happen, called off or said so on its register, has no line to correct",
+  },
+  "lib/courses/registerCorrection/column.ts": {
+    kind: "asks",
+    proof: [
+      "if (session.cancelled) return CORRECTION_REFUSAL.alreadyNotHeld;",
+      'if (session.cancelled) return record?.kind === "cancelled" ? null : CORRECTION_REFUSAL.changed;',
+    ],
+    why:
+      "a finished register's whole column corrected: every kind but It did happen is refused for a session that did " +
+      "not happen, and It did happen is only for a session called off keeping pace or a register that says so",
+  },
+  "lib/courses/requests/decide.ts": {
+    kind: "asks",
+    proof: ["if (session.cancelled) return fail(409, REQUEST_REFUSAL.notHeld);", "if (!session || session.cancelled) return fail(409, REQUEST_REFUSAL.gone);"],
+    why:
+      "asking for a correction and approving one: a session that did not happen has no line to ask about, and an " +
+      "approval of a line on one is refused",
+  },
+  "lib/courses/groupAttendance/load.ts": {
+    kind: "told",
+    from: ["lib/courses/programmeAttendance.ts"],
+    via: ["facts"],
+    proof: ["const facts = listed.sessions.get(weekNumber);"],
+    why: "a group's attendance across every week: each column's facts are the lead's grid's own, which says a cancelled session was not held",
   },
 
   // ── Every other reader of a stored register's switch ─────────────────────
@@ -171,6 +211,38 @@ const READERS = {
       "asked (`joiningOnlineState` answers cancelled first), so nobody is offered it or keeps a word for a session " +
       "that is not happening, and a register that says its session did not happen closes it too",
   },
+  "lib/courses/groupPage/load.ts": {
+    kind: "asks",
+    proof: ["cancelled: session.cancelled,", "heldFalse: register?.held === false,"],
+    why:
+      "A group's page: each week's state is worked out by `weekStateOf`, which is handed the session's own cancelled " +
+      "flag beside the register's switch, so a session called off through Change a session reads as cancelled and a " +
+      "register that says its session did not happen reads as didn't happen; nothing on the page chases or counts either",
+  },
+  "lib/courses/regularTime/apply.ts": {
+    kind: "asks",
+    proof: ["cancelled: session.cancelled,", "notHeld: !register.held,"],
+    why:
+      "A new regular time takes back a \"Most weeks, not all\" tick only on a line that is still the person's own word, " +
+      "asked as Can't make it asks it (`cantMakeItState`): a session called off, or a register that says its session " +
+      "did not happen, is closed, so nothing is taken back from a session that is not happening",
+  },
+  "lib/courses/excused/ask.ts": {
+    kind: "asks",
+    proof: ["cancelled: session.cancelled,", "notHeld: !register.held,"],
+    why:
+      "Asking to be excused: a session called off is closed before its register's switch is asked (`askState` " +
+      "answers cancelled first), so nobody asks about a session that is not happening, and a register that says its " +
+      "session did not happen closes it too",
+  },
+  "lib/courses/excused/page.ts": {
+    kind: "asks",
+    proof: ["cancelled: !session || session.cancelled,", "notHeld: register ? !register.held : false"],
+    why:
+      "One request to be excused, for admins: what approving a week will do asks whether its session was called off " +
+      "before the register's own switch (`approvalPlan` answers not held first), so approving a cancelled session " +
+      "is never said to write a line",
+  },
   "lib/courses/cantMakeIt/seat.ts": {
     kind: "asks",
     proof: ["cancelled: session.cancelled, line, now", "notHeld: !register.held,"],
@@ -216,7 +288,11 @@ const READERS = {
   "features/courses/AttendanceGrid.tsx": {
     kind: "told",
     from: ["app/api/courses/groups/[groupId]/attendance/route.ts"],
-    via: ["session"],
+    // ADDED (November 2026): `panelSession` (the session the address names, or
+    // the foot's) and `each` (whether any column is still a draft) are columns
+    // of the same answer, as `session` is. So is `columnSession`, the column
+    // whose correction sheet is open (correcting a register, the same month).
+    via: ["session", "panelSession", "each", "columnSession"],
     proof: ["AttendanceSession"],
     why: "the register's grid draws the register route's own columns",
   },

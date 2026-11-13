@@ -50,6 +50,42 @@
   margin-top: var(--space-4);
 }
 
+/* Day, time and length once the run's groups have gone out: words, and the
+   way to the group's own page. */
+.readOnlySlot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.readOnlyLabel {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.readOnlyValue {
+  margin: 0;
+  font-size: var(--text-base);
+  color: var(--color-text);
+}
+
+.readOnlyHint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.readOnlyLink {
+  color: var(--color-accent-text);
+}
+
+.readOnlyLink:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
 /* TODO: mobile pass — paired fields stack; the full touch review of the course
    admin surfaces rides its own PR. */
 @media (max-width: 48rem) { /* --bp-md */

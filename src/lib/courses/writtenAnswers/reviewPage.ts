@@ -14,7 +14,7 @@ import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { memberCurrentWeek, resolveCalendar, resolveWeekDoc } from "../groupResolve";
 import { firstNameOfUser, fullNameOfUser } from "../programmeLead";
 import { resolveSessions } from "../sessions";
-import { dueMoment, isLate } from "../weekBlocks/due";
+import { dueMoment } from "../weekBlocks/due";
 import { isBlockWeek, partsOf, type When, type WordRange } from "../weekBlocks/model";
 import type { Prose } from "../weekBlocks/prose";
 import { weekWrittenAnswers } from "../weekBlocks/reader";
@@ -30,15 +30,17 @@ import {
 } from "./access";
 import {
   answerNameOf,
+  answerPiece,
   answerState,
   isWordCountedAnswer,
   readWrittenAnswer,
   type AnswerState,
   type WrittenAnswerRecord,
 } from "./model";
-import { workIsReadable, type WeekWorkState } from "../weekWork/model";
+import { afterItsDeadline, lateBy, type DueBy } from "../weekWork/model";
 import { loadRunWeekStates } from "../weekWork/readers";
-import { byOldest, staffCardOf, staffLegacyCardOf, type StaffFeedbackCard } from "../feedback/model";
+import { lastSentAt, readableAnswer, sameWords, versionAtSession, type ReadVersion } from "../weekWork/versions";
+import { byOldest, staffCardOf, staffLegacyCardOf, type AboutVersion, type StaffFeedbackCard } from "../feedback/model";
 import { legacyRoleOf, readWeekFeedback } from "../feedback/readers";
 import { mayRateWorkOf, workRatingRoleOf } from "../workRatings/access";
 import type { TeamRatingsView } from "../workRatings/model";
@@ -47,6 +49,8 @@ import { writtenAnswerWords } from "../coursework/input";
 import { readAnswerReading, type AnswerReading } from "../coursework/pangramReadings";
 import { besideScopeOf, type ReportLinesView } from "../sessionReports/beside";
 import { readReportLinesAbout } from "../sessionReports/readers";
+import { askedThenFor, writtenAtOf } from "../weekEdit/askedThen";
+import type { AskedWords } from "../weekEdit/wordsThen";
 
 /**
  * WHAT THE REVIEW PAGE SHOWS, worked
@@ -70,17 +74,27 @@ import { readReportLinesAbout } from "../sessionReports/readers";
  * has not gone, for "Your feedback" to change. No rubric level is given here
  * any more.
  *
- * THE READING GATE (privacy v15): an answer's words, and its count of words,
- * leave here only when `workIsReadable` says its readers may read it: the
- * week submitted or locked, or the answer sent before weeks were submitted.
- * Until then the page says only that it is started ("Started"), and a week
- * reopened reads "Reopened, not submitted again". Where each week stands is
- * read once for the run (`loadRunWeekStates`).
+ * THE READING GATE (privacy v17, "Changing your work"): an answer's words,
+ * and its count of words, leave here only as `readableAnswer` says its
+ * readers may read them: before the session the person is due at, the words
+ * as LAST SENT (a change since is not read until it is sent again); once that
+ * session has started, the latest words, sent or not. Never sent, before the
+ * session, the page says only that it is started ("Started"). The session
+ * each person is due at is read once for the run (`loadRunWeekStates`).
+ *
+ * WHAT A PAGE IS HANDED TO LABEL IT (the week stays open): when the answer
+ * last changed and was last sent, how long after the session each was (late
+ * is always from the session), whether it was first sent after its own
+ * deadline but before the session ("After its deadline", staff only), the
+ * version as it stood at the session when that differs from the one shown,
+ * and on each piece of feedback the version it was about when the answer has
+ * changed since.
  *
  * RATINGS FOR THE TEAM (`src/lib/courses/workRatings/`, privacy v15): the
  * person open on the page carries every rating on their answer, and the
- * reader's own, only for a reader who gives and reads them (an admin, or the
- * programme's lead: `mayRateWorkOf`). For anybody else, a facilitator above
+ * reader's own, each saying whether the answer has changed since it, only
+ * for a reader who gives and reads them (an admin, or the programme's lead:
+ * `mayRateWorkOf`). For anybody else, a facilitator above
  * all, `team` is null and no rating is read. Pangram's last reading of the
  * answer is read for an admin alone (`pangram`), never for the lead.
  *
@@ -113,19 +127,33 @@ export type ReviewPerson = {
   name: string;
   firstName: string;
   state: AnswerState;
-  /**
-   * Its words may be read (`workIsReadable`): the week submitted or locked, or
-   * the answer sent before weeks were submitted. Never the words, nor their
-   * count, otherwise.
-   */
+  /** Its words may be read (`readableAnswer`): sent, or the session they were due at has started. */
   readable: boolean;
-  /** Where their week stands, and when it was submitted or locked (ISO 8601). */
-  week: { state: WeekWorkState["kind"]; at: string | null; joinedLate: boolean };
+  /**
+   * The page as it was before the week stayed open, until it is redrawn:
+   * always "open" now (nothing is submitted, locked or reopened), with no
+   * time, and whether they joined their group after the week's session.
+   */
+  week: { state: "open" | "submitted" | "locked" | "reopened"; at: string | null; joinedLate: boolean };
+  /** The session they were due at that week (ISO 8601), or null with none; `by` says why. */
+  due: { at: string | null; by: DueBy };
   /** ISO 8601: first sent, never moved; null for a draft or nothing. */
   firstSentAt: string | null;
-  /** First sent after the group's due moment. Staff only. */
+  /** ISO 8601: last sent; null for a draft or nothing. */
+  sentAt: string | null;
+  /** Changed since it was last sent: before the session its readers read it as sent. */
+  changedSinceSent: boolean;
+  /** ISO 8601: when its words last changed, while it may be read; null otherwise. */
+  changedAt: string | null;
+  /** How long after the session its words last changed (ms), while it may be read; null when not after it. */
+  changedLateMs: number | null;
+  /** How long after the session it was last sent (ms); null when not after it, or never sent. */
+  sentLateMs: number | null;
+  /** The page as it was: first sent after the session it was due at ("Late"). Staff only. */
   late: boolean;
-  /** Its count of words, while it may be read; 0 otherwise. */
+  /** First sent after its own deadline, but before the session ("After its deadline"). Staff only. */
+  afterDeadline: boolean;
+  /** Its count of words, as its readers read it (`readableAnswer`), while it may be read; 0 otherwise. */
   words: number;
   openedAt: string | null;
   openedByUid: string | null;
@@ -141,16 +169,19 @@ export type ReviewPerson = {
 
 export type ReviewSelected = {
   person: ReviewPerson;
-  /** An answer of one box. */
+  /** An answer of one box, as its readers read it (`readableAnswer`). */
   text: string;
-  /** An answer in labelled boxes, box id to words, or null. */
+  /** An answer in labelled boxes, box id to words, or null, as its readers read it. */
   boxes: Record<string, string> | null;
-  editedAt: string | null;
+  /** ISO 8601: when the words shown were last saved; `latest` when they are the answer's latest words. */
+  shown: { savedAt: string | null; latest: boolean };
+  /** The answer as it stood when the session started, when that differs from the words shown; null otherwise. */
+  atSession: AboutVersion | null;
   /** Every piece of feedback on their week, oldest first, the reader's own changeable piece on the answer left out. */
   cards: StaffFeedbackCard[];
   /** The reader's own piece on the answer while its email has not gone: what "Your feedback" changes. */
   own: StaffFeedbackCard | null;
-  /** What the reader may do with this answer: give feedback, and reopen the week. */
+  /** What the reader may do with this answer: give feedback. */
   role: ReviewRole;
   /**
    * Ratings for the team on this answer, for an admin or the programme's
@@ -167,6 +198,13 @@ export type ReviewSelected = {
    * report; null for a reader who is handed no line.
    */
   reportLines: ReportLinesView | null;
+  /**
+   * The question as it was worded when this answer was first written (its
+   * words, word range and due rule), ONLY where it has been reworded in place
+   * since; null otherwise. So no answer is shown as if it answered words it
+   * never saw (`src/lib/courses/weekEdit/askedThen.ts`).
+   */
+  askedThen: AskedWords | null;
 };
 
 export type ReviewPageModel = {
@@ -295,6 +333,8 @@ export async function loadWrittenReview(
     (piecesOf.get(uid) ?? []).filter((piece) => answer !== null && piece.on.kind === "writtenAnswer" && piece.on.itemId === answer.id);
   // Each person's row, by its id: nobody's but theirs.
   const records = new Map<string, WrittenAnswerRecord>();
+  // When each person first wrote their answer, for the words the question had then.
+  const writtenAt = new Map<string, Date | null>();
   if (answer && people.length > 0) {
     const snaps = await db.getAll(
       ...people.map((owner) => db.collection("courseExerciseResponses").doc(exerciseResponseId(run.id, owner.uid, weekId, answer.id))),
@@ -303,6 +343,7 @@ export async function loadWrittenReview(
       const data = snap.exists ? ((snap.data() ?? {}) as Record<string, unknown>) : null;
       if (data && !isReflectionResponse(data) && isWordCountedAnswer(data) && data.uid === people[index].uid) {
         records.set(people[index].uid, readWrittenAnswer(data));
+        writtenAt.set(people[index].uid, writtenAtOf(data));
       }
     });
   }
@@ -329,12 +370,18 @@ export async function loadWrittenReview(
     firstName.set(snap.id, firstNameOfUser(data) || fullNameOfUser(data));
   }
 
-  const due = answer ? dueMoment(resolveSessions(run, group), weekNumber, answer.due, dayBeforeTime) : null;
+  // The block's own deadline, for "After its deadline" (staff only).
+  const deadline = answer ? dueMoment(resolveSessions(run, group), weekNumber, answer.due, dayBeforeTime) : null;
+  const readOf = new Map<string, ReadVersion | null>();
   const personOf = (owner: OwnerFacts): ReviewPerson => {
     const record = records.get(owner.uid) ?? null;
     const facilitates = liveGroups.some((candidate) => candidate.facilitatorUids.includes(owner.uid));
-    const standing = states.stateOf(owner.uid, weekNumber);
-    const readable = record !== null && workIsReadable(standing, record);
+    const due = states.dueOf(owner.uid, weekNumber);
+    // What its readers read of it, if anything: the one answer.
+    const read = record ? readableAnswer(answerPiece(record), due.at, now) : null;
+    readOf.set(owner.uid, read);
+    const readable = read !== null;
+    const sent = record ? lastSentAt(answerPiece(record)) : null;
     // Who left feedback on the answer, each once, oldest first: feedback from before pieces, then the pieces.
     const writers: string[] = [];
     const given = [
@@ -348,14 +395,18 @@ export async function loadWrittenReview(
       firstName: firstName.get(owner.uid) ?? "NAISI member",
       state: answerState(record),
       readable,
-      week: {
-        state: standing.kind,
-        at: standing.kind === "submitted" || standing.kind === "locked" ? standing.at.toISOString() : null,
-        joinedLate: standing.kind === "open" && standing.by === "joined-late",
-      },
+      week: { state: "open", at: null, joinedLate: due.by === "joined-late" },
+      due: { at: due.at ? due.at.toISOString() : null, by: due.by },
       firstSentAt: record?.firstSentAt ? record.firstSentAt.toISOString() : null,
-      late: record?.firstSentAt ? isLate(record.firstSentAt, due) : false,
-      words: readable ? (record?.words ?? 0) : 0,
+      sentAt: sent ? sent.toISOString() : null,
+      changedSinceSent: Boolean(sent && record?.savedAt && record.savedAt.getTime() > sent.getTime()),
+      // Of the words its readers read: never when a change not sent yet was saved.
+      changedAt: read?.savedAt ? read.savedAt.toISOString() : null,
+      changedLateMs: read ? lateBy(read.savedAt, due) : null,
+      sentLateMs: lateBy(sent, due),
+      late: lateBy(record?.firstSentAt ?? null, due) !== null,
+      afterDeadline: afterItsDeadline(record?.firstSentAt ?? null, deadline?.at ?? null, due),
+      words: readable ? (read?.words ?? 0) : 0,
       openedAt: record?.openedAt ? record.openedAt.toISOString() : null,
       openedByUid: record?.openedAt ? record.openedByUid || null : null,
       openedByName: record?.openedAt && record.openedByUid ? (firstName.get(record.openedByUid) ?? null) : null,
@@ -367,8 +418,8 @@ export async function loadWrittenReview(
   };
   const all = people.map(personOf);
   // Oldest first, as the review queue lists them: when it was first sent, or,
-  // never sent, when its week locked at the session.
-  const sentKey = (person: ReviewPerson) => person.firstSentAt ?? (person.week.state === "locked" ? person.week.at : null) ?? "";
+  // never sent, from the session they were due at, since when it may be read.
+  const sentKey = (person: ReviewPerson) => person.firstSentAt ?? (person.readable ? person.due.at : null) ?? "";
   const bySent = (a: ReviewPerson, b: ReviewPerson) => sentKey(a).localeCompare(sentKey(b)) || a.name.localeCompare(b.name);
   // Only an answer its readers may read is given feedback on or opened here.
   const toGive = all.filter((person) => person.readable && person.words > 0 && !person.hasFeedback).sort(bySent);
@@ -392,11 +443,13 @@ export async function loadWrittenReview(
     const role = writtenReviewRole(actor, facts, owner, liveGroups);
     const names = { firstName: (uid: string) => firstName.get(uid) ?? "", goByName: (uid: string) => goByName.get(uid) ?? "" };
     const reader = { uid: actor.uid, isAdmin: facts.isAdmin, now };
+    const piece = record ? answerPiece(record) : null;
     const cards = byOldest([
       ...(record?.feedback
         ? [staffLegacyCardOf(answer.id, record.feedback, legacyRoleOf(record.feedback.byUid, group.facilitatorUids), names, reader)]
         : []),
-      ...(piecesOf.get(chosen.uid) ?? []).map((piece) => staffCardOf(piece, names, reader)),
+      // Each piece on the answer with the version it was about, when the answer has changed since.
+      ...(piecesOf.get(chosen.uid) ?? []).map((given) => staffCardOf(given, names, reader, piece)),
     ]);
     // "Your feedback" changes the reader's newest piece on the answer while it may change.
     const own =
@@ -406,7 +459,7 @@ export async function loadWrittenReview(
     // the week's session reports say about the person, as `besideScopeOf`
     // lets this reader see them.
     const beside = besideScopeOf({ uid: actor.uid, isAdmin: facts.isAdmin, isLead: facts.isLead }, chosen.uid, role.mayReview);
-    const [team, pangram, reportLines] = await Promise.all([
+    const [team, pangram, reportLines, askedThen] = await Promise.all([
       mayRateWorkOf(actor, facts, owner, liveGroups)
         ? loadTeamRatings(db, {
             runId: run.id,
@@ -414,6 +467,8 @@ export async function loadWrittenReview(
             weekId,
             itemId: answer.id,
             viewer: { uid: actor.uid, role: workRatingRoleOf(facts) },
+            // For whether the answer has changed since each rating.
+            answer: piece,
           })
         : Promise.resolve(null),
       facts.isAdmin && record
@@ -421,22 +476,32 @@ export async function loadWrittenReview(
             runId: run.id,
             uid: chosen.uid,
             rowId: exerciseResponseId(run.id, chosen.uid, weekId, answer.id),
-            words: writtenAnswerWords(answer.boxes, record),
+            // Against the words its readers read: never words they may not read yet.
+            words: writtenAnswerWords(answer.boxes, readOf.get(chosen.uid) ?? { text: "", boxes: null }),
           })
         : Promise.resolve(null),
       beside ? readReportLinesAbout(db, { runId: run.id, uid: chosen.uid, weekNumber, scope: beside }) : Promise.resolve(null),
+      askedThenFor(db, run.id, weekId, group.id, [{ key: chosen.uid, itemId: answer.id, writtenAt: writtenAt.get(chosen.uid) ?? null }]),
     ]);
+    // The words its readers read (`readableAnswer`): as last sent before the session, the latest after it.
+    const shown = readOf.get(chosen.uid) ?? null;
+    const atSession = piece ? versionAtSession(piece, states.dueOf(chosen.uid, weekNumber).at, now) : null;
     selected = {
       person: chosen,
-      text: record?.text ?? "",
-      boxes: record?.boxes ?? null,
-      editedAt: record?.editedAt ? record.editedAt.toISOString() : null,
+      text: shown?.text ?? "",
+      boxes: shown?.boxes ?? null,
+      shown: { savedAt: shown?.savedAt ? shown.savedAt.toISOString() : null, latest: shown?.latest ?? false },
+      atSession:
+        atSession && shown && !sameWords(atSession, shown)
+          ? { text: atSession.text, boxes: atSession.boxes, words: atSession.words, savedAt: atSession.savedAt ? atSession.savedAt.toISOString() : null }
+          : null,
       cards: cards.filter((card) => card !== own),
       own,
       role,
       team,
       pangram,
       reportLines,
+      askedThen: askedThen.get(chosen.uid) ?? null,
     };
   }
 

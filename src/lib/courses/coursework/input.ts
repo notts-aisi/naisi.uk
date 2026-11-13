@@ -186,8 +186,13 @@ export type NoteRating = {
   at: Date | null;
 };
 
-/** One of the person's weeks with its questions, and when they submitted it. Only a submitted week is ever handed over. */
-export type NoteWeek = { week: CourseworkWeek; submittedAt: Date };
+/**
+ * One of the person's weeks with its questions, and when its work was read
+ * (`asOf`: the moment of the draft, so "as it stood" on that day). Only a
+ * week whose session the person was due at has ended is ever handed over
+ * (`src/lib/courses/weekNotes/gather.ts`).
+ */
+export type NoteWeek = { week: CourseworkWeek; asOf: Date };
 
 export type NoteDraftInput = {
   message: string;
@@ -212,16 +217,19 @@ const byAtThen = <T>(atOf: (item: T) => Date | null, keyOf: (item: T) => string)
   (atOf(a)?.getTime() ?? 0) - (atOf(b)?.getTime() ?? 0) || keyOf(a).localeCompare(keyOf(b));
 
 /**
- * THE MESSAGE FOR CLAUDE'S DRAFT OF A NOTE ABOUT ONE PERSON (privacy v15:
- * "Once a week Claude may also draft a short note on how each person is
- * doing, using only the work they submitted and the feedback, ratings and
- * comments people on the team gave it"). The one builder for both drafts:
- * the end-of-week notes hand it one week, and the profile's "Draft a note
- * with Claude" every week of one run.
+ * THE MESSAGE FOR CLAUDE'S DRAFT OF A NOTE ABOUT ONE PERSON (privacy v18:
+ * "Each week, or when an admin asks for one, Claude may also draft a short
+ * note on how each person is doing. It is drafted after your session,
+ * usually about a week after it, and uses your work on that week as it
+ * stands then, sent or not, with the feedback, ratings and comments people
+ * on the team gave it"). The one
+ * builder for both drafts: the end-of-week notes hand it one week, and the
+ * profile's "Draft a note with Claude" every week of one run.
  *
- *  - ONLY SUBMITTED WEEKS. `weeks` holds the weeks the person submitted and
- *    has not had reopened since; anything else is never handed over, so
- *    there is no submission, no note.
+ *  - ONLY WEEKS WHOSE SESSION HAS ENDED. `weeks` holds the weeks whose
+ *    session the person was due at has ended, their work in them as it
+ *    stands, sent or not (`gatherPersonNote`); anything else is never
+ *    handed over, so a week before or during its session gives nothing.
  *  - ONLY WORK FROM THEIR MOMENT: an answer counted under version 13 and
  *    first written after the person agreed to version 15 (`from`); none, and
  *    nothing of the week goes.
@@ -267,11 +275,11 @@ export function noteDraftInput(input: {
   const lines: string[] = [];
   lines.push(`# The programme: ${scrub(input.programme)}`);
   lines.push(
-    "Only the fellow's submitted work from after a certain date is shown, each piece under the question it answers, with what people on the team said about it. Anything earlier is left out on purpose, so a question with no answer here is not one they skipped.",
+    "Only the fellow's work from after a certain date is shown, each piece under the question it answers, with what people on the team said about it. Anything earlier is left out on purpose, so a question with no answer here is not one they skipped.",
   );
   let sent = 0;
   const builtFrom: NoteSource[] = [];
-  for (const { week, submittedAt } of [...input.weeks].sort((a, b) => a.week.weekNumber - b.week.weekNumber)) {
+  for (const { week, asOf } of [...input.weeks].sort((a, b) => a.week.weekNumber - b.week.weekNumber)) {
     const mine = week.questions
       .map((question) => ({ question, answer: going.find((answer) => answer.questionKey === question.key && answer.weekId === week.weekId) }))
       .filter((pair): pair is { question: CourseworkQuestion; answer: CourseworkAnswer } => pair.answer !== undefined);
@@ -319,7 +327,7 @@ export function noteDraftInput(input: {
         said.push({ kind: "feedback", weekNumber: week.weekNumber, byUid: piece.byUid, role: piece.role, on: "week", at: piece.at });
       }
     }
-    builtFrom.push({ kind: "work", weekNumber: week.weekNumber, submittedAt, ...work });
+    builtFrom.push({ kind: "work", weekNumber: week.weekNumber, submittedAt: null, asOf, ...work });
     if (levels) builtFrom.push({ kind: "levels", weekNumber: week.weekNumber });
     builtFrom.push(...said);
   }

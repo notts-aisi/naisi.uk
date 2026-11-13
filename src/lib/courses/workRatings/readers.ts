@@ -7,6 +7,7 @@ import {
   type WorkRatingRole,
 } from "@/lib/firestore/courseWorkRatings";
 import { cardNamesOf } from "../feedback/readers";
+import type { PieceFacts } from "../weekWork/versions";
 import { teamRatingsOf, type TeamRatingsView } from "./model";
 
 /**
@@ -17,9 +18,9 @@ import { teamRatingsOf, type TeamRatingsView } from "./model";
  *    on one person's written answer, and the names they are listed by. One
  *    query, equalities only (`uid` and `runId`), filtered again in memory to
  *    the week and the answer;
- *  - the drafts of a note about a person (privacy v15, "using only the work
- *    they submitted and the feedback, ratings and comments people on the team
- *    gave it"), an admin's alone (`src/lib/courses/weekNotes/gather.ts`): one
+ *  - the drafts of a note about a person (privacy v18, "uses your work on
+ *    that week as it stands then, sent or not, with the feedback, ratings and
+ *    comments people on the team gave it"), an admin's alone (`src/lib/courses/weekNotes/gather.ts`): one
  *    person's ratings on a run and a whole week's. Equalities only (`uid` and
  *    `runId`, or `runId` and `weekId`), filtered again in memory;
  *  - a term's Next term page, an admin's alone, after `canRunTerm`
@@ -80,13 +81,21 @@ export async function readRatingsAbout(db: Firestore, uids: readonly string[]): 
 /**
  * What "Rating for the team" and "What the team said" show `viewer` about one
  * written answer: every rating on it, each rater named by the first word of
- * the name they go by.
+ * the name they go by, and whether the answer has changed since each.
+ * `answer` is the stored answer the caller has already read, or null.
  */
 export async function loadTeamRatings(
   db: Firestore,
-  input: { runId: string; uid: string; weekId: string; itemId: string; viewer: { uid: string; role: WorkRatingRole } },
+  input: {
+    runId: string;
+    uid: string;
+    weekId: string;
+    itemId: string;
+    viewer: { uid: string; role: WorkRatingRole };
+    answer: PieceFacts | null;
+  },
 ): Promise<TeamRatingsView> {
   const ratings = await readAnswerRatings(db, input);
   const names = await cardNamesOf(db, [input.viewer.uid, ...ratings.map((rating) => rating.raterUid)]);
-  return teamRatingsOf(ratings, input.itemId, names.firstName, input.viewer);
+  return teamRatingsOf(ratings, input.itemId, names.firstName, input.viewer, input.answer);
 }

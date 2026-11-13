@@ -98,14 +98,17 @@ it (`When`). The moment is each group's, from the group's own calendar
 (`CourseDoc.dayBeforeDueTime`, in the course's details): a London time on the
 day before, such as 12:00, or none, for by the end of that day. When the
 group's session is cancelled, the work is due by the same rule before the
-group's next session. Work first sent after the moment shows as Late to the
-group's facilitators, the lead and admins, and to nobody else.
+group's next session. Work first sent after the moment, but before the
+session, shows as "After its deadline" to the group's facilitators, the lead
+and admins, and to nobody else.
 
-A week LOCKS when its person submits it, or when the group's session that
-week starts (the "before" rule's moment), whichever comes first; the people
-running the group can reopen it for one person. The week page says until
-when under the title. See "The week you submit" in `docs/courses-ops.md` and
-`src/lib/courses/weekWork/`.
+Nothing closes a week at its session, or at a send: it takes work until
+the programme closes (14 days after the run's last session, unless the run
+says otherwise), and what is added or changed after the session shows as late
+to its readers, with how late. "Late" is from the session; an answer first
+sent after its own due moment but before the session is "After its deadline",
+to its readers alone. The week page says until when under the title. See "The
+week stays open" in `docs/courses-ops.md` and `src/lib/courses/weekWork/`.
 
 The loader says when the Markdown's words ("by noon the day before") and the
 course's setting disagree. The site goes by the setting.
@@ -598,14 +601,18 @@ editor under `/admin/courses` stays an admin's.
   (`emptyWeekFields`, unpublished) with the pasted blocks and title.
 - **A week for one group** goes through
   `/api/courses/groups/[groupId]/weeks/[weekId]/blocks`, for admins and the
-  programme's lead on any group of the run and for a group's facilitators on
-  their own. The first save makes the group's copy through `templateWeekFields`
+  programme's lead on any group of the run. A group's facilitators may copy
+  their group's week out (its Markdown, which counts nobody's work), and are
+  refused Read it and Save in one plain sentence, as they are at the older
+  fork and edit routes: a group's own copy is made and changed only by the
+  programme's lead and admins, and Read it counts what a paste would take out
+  of everybody's work, the facilitators' own included. The
+  first save makes the group's copy through `templateWeekFields`
   with the pasted blocks, so every id the paste keeps stays and ticks and
   answers stay with their blocks; later saves change the copy's blocks and
   title. A copy is made only of a published week. The answers a paste would
   take out are counted for that group's people and facilitators alone. The
-  run's week and every other group's are never written. A facilitator gets
-  the same card on their group's week editor, for a week written as blocks.
+  run's week and every other group's are never written.
 
 ### Not built, on purpose
 

@@ -36,12 +36,13 @@ export async function GET(_req: Request, ctx: Ctx) {
   if (!found) return NextResponse.json({ error: NOT_HERE }, { status: 404 });
 
   const { bytes } = await renderCertificatePdf(found.face, found.issuedAt);
+  // No Content-Length: the server sets a response's framing, and Next.js
+  // drops a length, an encoding or a transfer encoding that a route sets.
   return new Response(new Uint8Array(bytes), {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="${pdfFileName(found.code)}"`,
-      "Content-Length": String(bytes.length),
       "Cache-Control": "private, no-store",
       "X-Robots-Tag": "noindex",
     },

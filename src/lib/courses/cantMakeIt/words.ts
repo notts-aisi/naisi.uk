@@ -45,7 +45,18 @@ export const CANT_MAKE_IT_REFUSAL = {
   /** A facilitator has put them on the register already: theirs to change, not the person's. */
   marked: "Your facilitators have already filled in that session’s register for you, so tell them yourself.",
   full: "That session’s register is full. Tell your facilitators yourself.",
+  /**
+   * An old page's "I can make it after all" on a line an admin's approval
+   * wrote: it stays, and coming is enough.
+   */
+  approved: "You’re excused from this session. If you can come after all, just come along: your facilitators’ register will show you there.",
+  /** A request to be excused from it waits: it is an admin's to decide. */
+  askedWaiting: "You’ve asked an admin to excuse you from that session, and it’s waiting for a decision.",
+  /** A request to be excused from it was declined: that stands. */
+  askedDeclined: "Your request to be excused from that session was declined. You can ask again, or just come along.",
   failed: "That didn’t save. Try again.",
+  /** An old page's "Can't make it" from somebody taking part: that is a request now. */
+  askInstead: "To miss a session, ask to be excused from your programme page: press Can’t make it on your next session’s card, and an admin decides.",
 } as const;
 
 /** What the route answers once it has saved. */

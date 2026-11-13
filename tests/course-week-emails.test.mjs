@@ -150,11 +150,11 @@ const OPEN = {
   ],
   weekUrl: "https://naisi.uk/learn/agi-strategy-autumn-2026/weeks/3",
   feedbackUrl: "",
-  locks: true,
+  staysOpen: true,
 };
 
 describe("2. Week N is open, word for word", () => {
-  test("the email as drawn: subject, greeting, the week and the session, what it asks for, the button and the lock", async () => {
+  test("the email as drawn: subject, greeting, the week and the session, what it asks for, the button, and that the work stays open after the session", async () => {
     const email = words.weekOpenEmailWords(OPEN, "Priya");
     assert.equal(email.subject, "Week 3 is open: Power and incentives");
     assert.equal(email.greeting, "Hi Priya,");
@@ -164,13 +164,15 @@ describe("2. Week N is open, word for word", () => {
     assert.deepEqual(email.lists, [{ lead: "", items: ["3 readings", "A short reflection", "A written answer"] }]);
     assert.equal(email.button, "Open week 3");
     assert.equal(email.link, OPEN.weekUrl);
-    assert.deepEqual(email.after, ["Your work saves as you go and locks when your session starts."]);
+    assert.deepEqual(email.after, ["Your work saves as you go, and you can keep adding to it after your session: anything you add or change after it shows as late to the people who read your work, with how late."]);
     assert.equal(email.feedback, null, "no weekly form is set");
     assert.equal(email.preheader, email.paragraphs[0]);
 
     const text = await textOf(WeekEmail({ words: email, notice: NoticeMarker({ surface: "course-week" }) }));
     assert.match(text, /Sent as an important notice You are getting this because you are in this course group, so it reaches you whatever your notification settings say, and it is never marketing\./);
-    assert.match(text, /Hi Priya, .*Week 3 of AGI Strategy is open: Power and incentives\. Your next session is Wed 18 Nov at 3pm in Portland A21\. .*3 readings .*A short reflection .*A written answer .*Open week 3 .*Your work saves as you go and locks when your session starts\./);
+    assert.match(text, /Hi Priya, .*Week 3 of AGI Strategy is open: Power and incentives\. Your next session is Wed 18 Nov at 3pm in Portland A21\. .*3 readings .*A short reflection .*A written answer .*Open week 3 .*Your work saves as you go, and you can keep adding to it after your session: anything you add or change after it shows as late to the people who read your work, with how late\./);
+    // Nothing in it says the work locks or is submitted any more.
+    assert.doesNotMatch(text, /\block|\bsubmit/i);
     assert.doesNotMatch(text, /unsubscribe/i, "a notice offers no unsubscribe");
   });
 
@@ -203,16 +205,16 @@ describe("2. Week N is open, word for word", () => {
     const change = "Wed 18 Nov is cancelled. Rahul and Sofia are both away. Do week 3’s reading anyway. On Wed 25 Nov you’ll talk about weeks 3 and 4 together.";
     const off = words.weekOpenEmailWords({ ...OPEN, cancelled: true, change }, "Priya");
     assert.deepEqual(off.paragraphs, ["Week 3 of AGI Strategy is open: Power and incentives.", change]);
-    assert.deepEqual(off.after, ["Your work saves as you go and locks when your next session starts."]);
+    assert.deepEqual(off.after, ["Your work saves as you go, and you can keep adding to it: anything you add or change after the time this week’s session would have started shows as late to the people who read your work, with how late."]);
     // The session after it covers both weeks, and says so beside the session.
     const covers = words.weekOpenEmailWords({ ...OPEN, weekNumber: 4, change: "On Wed 25 Nov you’ll talk about weeks 3 and 4 together." }, "");
     assert.equal(covers.paragraphs.length, 2);
     assert.match(covers.paragraphs[0], /Your next session is Wed 18 Nov at 3pm in Portland A21\.$/);
   });
 
-  test("a week written before blocks: what it asks for in its own words, and no lock it does not have", () => {
+  test("a week written before blocks: what it asks for in its own words, and no line about late work it does not have", () => {
     const legacy = words.weekOpenEmailWords(
-      { ...OPEN, locks: false, asks: model.legacyWeekAsks({ materials: [{}, {}, { optional: true }], exercises: [{ required: true }, {}] }) },
+      { ...OPEN, staysOpen: false, asks: model.legacyWeekAsks({ materials: [{}, {}, { optional: true }], exercises: [{ required: true }, {}] }) },
       "",
     );
     assert.deepEqual(legacy.lists[0].items, ["2 things to read or watch", "An exercise to write up"]);
@@ -260,7 +262,7 @@ describe("2. the reminders, word for word", () => {
         daysBefore: 1,
         sessionAt: SESSION,
         where: "Portland A21",
-        weeks: [{ weekNumber: 3, left: { items: [reading], notSubmitted: true }, writes: true }],
+        weeks: [{ weekNumber: 3, left: { items: [reading], notSent: true }, writes: true }],
         weekUrl: "https://naisi.uk/learn/agi/weeks/3",
       },
       "Priya",
@@ -270,16 +272,17 @@ describe("2. the reminders, word for word", () => {
     assert.deepEqual(email.lists, [
       {
         lead: "Week 3 isn’t finished yet:",
-        items: ["One reading isn’t ticked: “Compute as a lever for governance”.", "Week 3 isn’t submitted."],
+        items: ["One reading isn’t ticked: “Compute as a lever for governance”.", "Your written answer isn’t sent yet."],
       },
     ]);
     assert.equal(email.button, "Finish week 3");
     assert.deepEqual(email.after, [
-      "Submitting it, with every reading ticked, stops these reminders. Your work locks when the session starts.",
+      "Finishing everything listed above stops these reminders. You can keep adding to your work after the session: anything you add after it shows as late to the people who read your work, with how late.",
     ]);
     const text = await textOf(WeekEmail({ words: email, notice: NoticeMarker({ surface: "course-week-reminder" }) }));
     assert.match(text, /You are getting this because our records show this week’s work isn’t finished, so it reaches you whatever your notification settings say/);
-    assert.match(text, /Week 3 isn’t finished yet: .*One reading isn’t ticked: “Compute as a lever for governance”\. .*Week 3 isn’t submitted\. .*Finish week 3/);
+    assert.match(text, /Week 3 isn’t finished yet: .*One reading isn’t ticked: “Compute as a lever for governance”\. .*Your written answer isn’t sent yet\. .*Finish week 3/);
+    assert.doesNotMatch(text, /\block|\bsubmit/i, "a reminder still speaks of locking or submitting");
     assert.doesNotMatch(text, /unsubscribe/i);
   });
 
@@ -291,8 +294,8 @@ describe("2. the reminders, word for word", () => {
         sessionAt: SESSION,
         where: "",
         weeks: [
-          { weekNumber: 3, left: { items: [], notSubmitted: true }, writes: true },
-          { weekNumber: 4, left: { items: [{ kind: "reflection", partNumber: 2, empty: true }], notSubmitted: true }, writes: true },
+          { weekNumber: 3, left: { items: [], notSent: true }, writes: true },
+          { weekNumber: 4, left: { items: [{ kind: "reflection", partNumber: 2, empty: true }], notSent: true }, writes: true },
         ],
         weekUrl: "https://naisi.uk/learn/agi/weeks/3",
       },
@@ -302,9 +305,10 @@ describe("2. the reminders, word for word", () => {
     assert.equal(three.greeting, "");
     assert.deepEqual(three.paragraphs, ["Your AGI Strategy session is on Wed 18 Nov at 3pm."]);
     assert.deepEqual(three.lists.map((list) => list.lead), ["Week 3 isn’t finished yet:", "Week 4 isn’t finished yet:"]);
-    assert.deepEqual(three.lists[1].items, ["Your part 2 reflection is empty.", "Week 4 isn’t submitted."]);
+    assert.deepEqual(three.lists[0].items, ["Your written answer isn’t sent yet."]);
+    assert.deepEqual(three.lists[1].items, ["Your part 2 reflection is empty.", "Your written answer isn’t sent yet."]);
     assert.equal(three.button, "Finish week 3");
-    assert.match(three.after[0], /^Submitting each week, with every reading ticked, stops these reminders\./);
+    assert.match(three.after[0], /^Finishing everything listed above stops these reminders\. You can keep adding to your work after the session/);
 
     const ticks = words.weekReminderEmailWords(
       {
@@ -312,17 +316,17 @@ describe("2. the reminders, word for word", () => {
         daysBefore: 1,
         sessionAt: SESSION,
         where: "Online",
-        weeks: [{ weekNumber: 5, left: { items: [{ kind: "steps", count: 2 }], notSubmitted: false }, writes: false }],
+        weeks: [{ weekNumber: 5, left: { items: [{ kind: "steps", count: 2 }], notSent: false }, writes: false }],
         weekUrl: "",
       },
       "Priya",
     );
     assert.deepEqual(ticks.paragraphs, ["Your AGI Strategy session is tomorrow, Wed 18 Nov at 3pm, online."]);
     assert.deepEqual(ticks.lists[0].items, ["Two steps aren’t ticked."]);
-    assert.deepEqual(ticks.after, ["Ticking everything it asks for stops these reminders. Your work locks when the session starts."]);
+    assert.deepEqual(ticks.after, ["Ticking everything it asks for stops these reminders. You can keep adding to your work after the session: anything you add after it shows as late to the people who read your work, with how late."]);
   });
 
-  test("two weeks are finished each their own way: what stops the reminders never asks a week with nothing to write to be submitted", () => {
+  test("two weeks are finished each their own way: what stops the reminders never asks a week with nothing to write to send anything", () => {
     const reminder = (writes) =>
       words.weekReminderEmailWords(
         {
@@ -332,20 +336,20 @@ describe("2. the reminders, word for word", () => {
           where: "",
           weeks: writes.map((write, at) => ({
             weekNumber: 3 + at,
-            left: { items: [{ kind: "steps", count: 1 }], notSubmitted: write },
+            left: { items: [{ kind: "steps", count: 1 }], notSent: write },
             writes: write,
           })),
           weekUrl: "https://naisi.uk/learn/agi/weeks/3",
         },
         "",
       ).after[0];
-    const locks = " Your work locks when the session starts.";
-    assert.equal(reminder([true, true]), `Submitting each week, with every reading ticked, stops these reminders.${locks}`);
-    assert.equal(reminder([false, false]), `Ticking everything they ask for stops these reminders.${locks}`);
-    assert.equal(reminder([true, false]), `Finishing each week stops these reminders.${locks}`);
-    assert.equal(reminder([false, true]), `Finishing each week stops these reminders.${locks}`);
-    assert.equal(reminder([true]), `Submitting it, with every reading ticked, stops these reminders.${locks}`);
-    assert.equal(reminder([false]), `Ticking everything it asks for stops these reminders.${locks}`);
+    const open = " You can keep adding to your work after the session: anything you add after it shows as late to the people who read your work, with how late.";
+    assert.equal(reminder([true, true]), `Finishing everything listed above stops these reminders.${open}`);
+    assert.equal(reminder([false, false]), `Ticking everything they ask for stops these reminders.${open}`);
+    assert.equal(reminder([true, false]), `Finishing each week stops these reminders.${open}`);
+    assert.equal(reminder([false, true]), `Finishing each week stops these reminders.${open}`);
+    assert.equal(reminder([true]), `Finishing everything listed above stops these reminders.${open}`);
+    assert.equal(reminder([false]), `Ticking everything it asks for stops these reminders.${open}`);
   });
 });
 
@@ -354,7 +358,7 @@ describe("2. the reminders, word for word", () => {
 // ===========================================================================
 
 describe("2b. no combination of missing facts sends a broken email", () => {
-  const FLAGS = ["title", "time", "room", "online", "cancelled", "change", "asks", "feedback", "first", "name", "link", "locks"];
+  const FLAGS = ["title", "time", "room", "online", "cancelled", "change", "asks", "feedback", "first", "name", "link", "staysOpen", "roomToBeConfirmed", "earlier"];
 
   function factsFor(mask) {
     const on = (flag) => (mask & (1 << FLAGS.indexOf(flag))) !== 0;
@@ -370,16 +374,18 @@ describe("2b. no combination of missing facts sends a broken email", () => {
         feedbackUrl: on("feedback") ? "https://forms.example/weekly" : "",
         first: on("first"),
         weekUrl: on("link") ? OPEN.weekUrl : "",
-        locks: on("locks"),
+        staysOpen: on("staysOpen"),
+        roomToBeConfirmed: on("roomToBeConfirmed"),
       },
       name: on("name") ? "Priya" : "",
+      earlier: on("earlier") ? [1, 2] : [],
     };
   }
 
   test(`all ${2 ** FLAGS.length} of them read whole`, async () => {
     for (let mask = 0; mask < 2 ** FLAGS.length; mask += 1) {
-      const { facts, name } = factsFor(mask);
-      const email = words.weekOpenEmailWords(facts, name);
+      const { facts, name, earlier } = factsFor(mask);
+      const email = words.weekOpenEmailWords(facts, name, { earlierNotDone: earlier });
       const label = `combination ${mask.toString(2).padStart(FLAGS.length, "0")}`;
       assert.ok(email.subject.length > 0 && !/[\r\n]/.test(email.subject), `${label}: subject`);
       const all = [email.subject, email.greeting, ...email.paragraphs, ...email.lists.flatMap((l) => [l.lead, ...l.items]), email.button, ...email.after];
@@ -390,8 +396,8 @@ describe("2b. no combination of missing facts sends a broken email", () => {
       }
       for (const list of email.lists) for (const item of list.items) assert.ok(item.trim().length > 0, `${label}: an empty line in a list`);
       if (!facts.weekUrl) assert.equal(email.link, "", `${label}: a button with nowhere to go`);
-      // Rendered only one in 64, to keep the suite quick: the template is one shape.
-      if (mask % 64 === 0) {
+      // Rendered only one in 256, to keep the suite quick: the template is one shape.
+      if (mask % 256 === 0) {
         const html = await render(WeekEmail({ words: email, notice: null }));
         assert.doesNotMatch(html, /href=""/, `${label}: a dead link`);
         if (!facts.weekUrl) assert.doesNotMatch(html, new RegExp(`Open week ${facts.weekNumber}`), `${label}: a button with no link`);
@@ -490,7 +496,7 @@ describe("4. what a week asks for, and what is left of one person's", () => {
     assert.deepEqual(model.blockWeekAsks([], []), [], "a week that asks for nothing lists nothing");
   });
 
-  test("what is left: the check's lines, and that a week with something to write is not submitted", () => {
+  test("what is left: the check's lines, and that a written answer with words in it is not sent yet", () => {
     const blocks = blockWeek();
     const tasks = progress.weekTaskNeeds(blocks);
     const state = {
@@ -501,14 +507,18 @@ describe("4. what a week asks for, and what is left of one person's", () => {
       isReady: () => false,
       answerOf: () => ({ words: 12, emptyBoxes: 0 }),
     };
-    const left = model.weekLeft({ blocks, tasks, state, writes: true, submitted: false });
-    assert.deepEqual(words.weekLeftWords(3, left), [
+    const left = model.weekLeft({ blocks, tasks, state });
+    assert.deepEqual(words.weekLeftWords(left), [
       "One reading isn’t ticked: “Compute as a lever for governance”.",
       "Your part 1 reflection is empty.",
-      "Week 3 isn’t submitted.",
+      "Your written answer isn’t sent yet.",
     ]);
-    assert.equal(model.weekLeft({ blocks, tasks, state, writes: true, submitted: true }).notSubmitted, false);
-    assert.equal(model.weekLeft({ blocks, tasks, state, writes: false, submitted: false }).notSubmitted, false);
+    // Sent (by its own Send, or the old Submit): nothing more to say of it.
+    assert.equal(model.weekLeft({ blocks, tasks, state: { ...state, isSent: () => true } }).notSent, false);
+    // Empty: the check already says so, and nothing is said twice.
+    const empty = model.weekLeft({ blocks, tasks, state: { ...state, answerOf: () => ({ words: 0, emptyBoxes: 1 }) } });
+    assert.equal(empty.notSent, false);
+    assert.ok(words.weekLeftWords(empty).includes("Your written answer is empty."));
   });
 });
 
@@ -521,15 +531,24 @@ describe("5. on the schedule, a fact the email carries that is empty holds it wh
     assert.deepEqual(words.missingWeekOpenValues({ ...OPEN, feedbackUrl: "" }), []);
   });
 
-  test("the group's day and time, its room, the week's title and what the week asks for each hold it", () => {
+  test("the group's day and time, the week's title and what the week asks for each hold it", () => {
     assert.deepEqual(words.missingWeekOpenValues({ ...OPEN, sessionAt: null }), ["sessionWhen"]);
-    assert.deepEqual(words.missingWeekOpenValues({ ...OPEN, where: " " }), ["sessionWhere"]);
     assert.deepEqual(words.missingWeekOpenValues({ ...OPEN, weekTitle: "" }), ["weekTitle"]);
     assert.deepEqual(words.missingWeekOpenValues({ ...OPEN, asks: [] }), ["weekAsks"]);
     assert.deepEqual(
-      words.missingWeekOpenWords(["sessionWhen", "sessionWhere", "weekTitle", "weekAsks"], 4),
-      ["the group’s day and time", "the group’s room", "week 4’s title", "what week 4 asks for"],
+      words.missingWeekOpenWords(["sessionWhen", "weekTitle", "weekAsks"], 4),
+      ["the group’s day and time", "week 4’s title", "what week 4 asks for"],
     );
+  });
+
+  test("a room not booked yet holds nothing: the email goes, saying Room to be confirmed", () => {
+    assert.deepEqual(words.missingWeekOpenValues({ ...OPEN, where: " " }), []);
+    assert.deepEqual(words.missingWeekOpenValues({ ...OPEN, where: "", roomToBeConfirmed: true }), []);
+    const email = words.weekOpenEmailWords({ ...OPEN, where: "", roomToBeConfirmed: true }, "Priya");
+    assert.deepEqual(email.paragraphs, [
+      "Week 3 of AGI Strategy is open: Power and incentives. Your next session is Wed 18 Nov at 3pm.",
+      "Room to be confirmed: we’ll email you as soon as it’s booked, and it’ll be on your programme page.",
+    ]);
   });
 
   test("a cancelled evening goes without its day and room, which it says are off", () => {
@@ -618,7 +637,7 @@ describe("7. the send", () => {
     }
   });
 
-  test("the template has two senders, and nothing else in src renders it", () => {
+  test("the template has three senders, and nothing else in src renders it", () => {
     const senders = [];
     for (const file of walk(SRC)) {
       const path = relative(REPO_ROOT, file).split(sep).join("/");
@@ -627,7 +646,12 @@ describe("7. the send", () => {
       const code = stripSource(readFileSync(file, "utf8"));
       if (/\bWeekEmail\(/.test(code)) senders.push(path);
     }
-    assert.deepEqual(senders.sort(), ["src/lib/courses/nextWeekEmail.ts", "src/lib/scheduler/jobs/weekReminders.ts"]);
+    // Remind by hand is built on the reminders: their template, their words of what is left.
+    assert.deepEqual(senders.sort(), [
+      "src/lib/courses/groupWeekWork/remind.ts",
+      "src/lib/courses/nextWeekEmail.ts",
+      "src/lib/scheduler/jobs/weekReminders.ts",
+    ]);
   });
 
   test("every word of both emails is written in one file", () => {

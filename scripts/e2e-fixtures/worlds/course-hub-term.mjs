@@ -229,6 +229,7 @@ import {
   fixtureId,
   fixtureQuery,
   fixtureSubcollection,
+  fixtureWeekSubcollection,
   registerReminderMarkerDoc,
   subscriptionId,
 } from "../core.mjs";
@@ -249,6 +250,7 @@ export const TERM_POINTS = Object.freeze([
   "first-day",
   "week-three",
   "week-three-unmarked",
+  "week-three-covering",
   "week-three-work",
   "coursework",
   "pitching-week",
@@ -258,6 +260,7 @@ export const TERM_POINTS = Object.freeze([
   "programme-over",
   "six-months-on",
   "check-in",
+  "whole-term",
 ]);
 
 /** The form's one programme at the first three points. Fixed: a programme id is unique on its own form. */
@@ -390,6 +393,29 @@ export const WEEK_THREE_UNMARKED = Object.freeze({
 });
 
 /**
+ * THE TERM THREE WEEKS IN, FOR COVERING A REGISTER: the same day of the same
+ * run as `WEEK_THREE`, the same places and the same published weeks, with
+ * both registers a cover is about. Group A's week 3 register was never
+ * opened (`WEEK_THREE_UNMARKED`'s Group A: its session has passed and nobody
+ * started its register, so its page says so and a lead takes it in its
+ * facilitator's place), and Group B's week 3 was saved and not finished
+ * (`WEEK_THREE`'s Group B: a passed session whose draft has marks, which the
+ * lead says didn't happen, pushing the rest back). Group A's week 2 was saved
+ * and not finished too: Fern, once appointed to Group A, marks a line on it
+ * and says on her own group's page that it didn't happen. Fern is appointed
+ * to Group A.
+ */
+export const WEEK_THREE_COVERING = Object.freeze({
+  daysIn: WEEK_THREE.daysIn,
+  places: WEEK_THREE.places,
+  marks: Object.freeze({ A: WEEK_THREE_UNMARKED.marks.A, B: WEEK_THREE.marks.B }),
+  unfinished: Object.freeze([WEEK_THREE.unfinished, Object.freeze({ group: "A", weekNumber: 2 })]),
+  unmarked: WEEK_THREE_UNMARKED.unmarked,
+  facilitated: "A",
+  published: WEEK_THREE.published,
+});
+
+/**
  * THE TERM THREE WEEKS IN, ITS WEEKS WRITTEN AS BLOCKS AND WEEK 4 OUT: the
  * third point (`WEEK_THREE_UNMARKED`) with weeks 1 to 4 published as blocks
  * (`courseworkWeekDoc`), so a member of Group A can write week 4, submit it
@@ -469,6 +495,7 @@ export function laterPlanOf(point) {
   if (point === "first-day") return FIRST_DAY;
   if (point === "week-three") return WEEK_THREE;
   if (point === "week-three-unmarked") return WEEK_THREE_UNMARKED;
+  if (point === "week-three-covering") return WEEK_THREE_COVERING;
   if (point === "week-three-work") return WEEK_THREE_WORK;
   if (point === "pitching-week") return PITCHING_WEEK;
   if (point === "week-four") return WEEK_FOUR;
@@ -478,6 +505,7 @@ export function laterPlanOf(point) {
   if (point === "six-months-on") return SIX_MONTHS_ON;
   if (point === "coursework") return COURSEWORK;
   if (point === "check-in") return CHECK_IN_DAY;
+  if (point === "whole-term") return WHOLE_TERM;
   return null;
 }
 
@@ -700,9 +728,10 @@ function castOf(plan) {
   return { programme: FELLOWSHIP, groupPlan: plan?.groups ?? GROUP_PLAN, peoplePlan: PEOPLE_PLAN, facilitatorPlan: FACILITATOR_PLAN };
 }
 
-/** True for the one register of a plan that was saved and not finished. */
+/** True for a register of a plan that was saved and not finished: `unfinished` names one, or a list of them. */
 function isUnfinishedIn(plan, groupKey, weekNumber) {
-  return Boolean(plan.unfinished) && plan.unfinished.group === groupKey && plan.unfinished.weekNumber === weekNumber;
+  const unfinished = Array.isArray(plan.unfinished) ? plan.unfinished : plan.unfinished ? [plan.unfinished] : [];
+  return unfinished.some((each) => each.group === groupKey && each.weekNumber === weekNumber);
 }
 
 /** The update the run's first week carries, to everyone, posted without an email. */
@@ -1378,8 +1407,11 @@ function pitchingFieldsOf(state) {
  */
 function registerFactsFor(plan, person) {
   const marks = plan.marks[person.groupKey] ?? {};
+  // Somebody told their group later (`joined`) is on no register before the week they joined.
+  const from = plan.joined?.[person.key]?.week ?? 1;
   return Object.keys(marks)
     .map(Number)
+    .filter((weekNumber) => weekNumber >= from)
     .sort((a, b) => a - b)
     .map((weekNumber) => ({
       sessionKey: weekDocId(weekNumber),
@@ -1426,6 +1458,10 @@ function rollupFor(plan, person, at) {
  * two Publish adds, and the tally.
  */
 function placementDoc({ state, plan, person, group, at }) {
+  // Somebody the plan says joined later (`joined`) was placed and told by
+  // Publish the day after their group's session of the week before, so every
+  // week before is one they joined after ("Joined late").
+  const told = joinedToldAt(plan, person, group);
   return {
     e2eTermRunId: state.termRunId,
     runId: state.runId,
@@ -1435,14 +1471,25 @@ function placementDoc({ state, plan, person, group, at }) {
     status: "active",
     role: LEARNER,
     applicationId: `${state.runId}__${person.uid}`,
-    // Week 1: they were placed before the run began.
-    joinedWeekNumber: 1,
-    allocatedEmailAt: at.published,
+    // Week 1: they were placed before the run began, unless the plan says later.
+    joinedWeekNumber: plan.joined?.[person.key]?.week ?? 1,
+    allocatedEmailAt: told ?? at.published,
     allocatedEmailDelivery: "sent",
     attendance: rollupFor(plan, person, at.lastFinished),
-    createdAt: at.placed,
-    updatedAt: at.lastFinished,
+    createdAt: told ? new Date(told.getTime() - HOUR_MS) : at.placed,
+    updatedAt: told && told > at.lastFinished ? told : at.lastFinished,
   };
+}
+
+/**
+ * When Publish told somebody the plan says joined later: noon the day after
+ * their group's session of the week before the one they joined. Null for
+ * everybody told before the run began.
+ */
+export function joinedToldAt(plan, person, group) {
+  const week = plan.joined?.[person.key]?.week;
+  if (!week || week <= 1) return null;
+  return londonWallClockToInstant(shiftDateKey(sessionOf(group, week - 1).dateKey, 1), "12:00");
 }
 
 /** The cohort list's row for one person, as Publish's `subscribe()` writes it. */
@@ -1558,6 +1605,10 @@ export function courseworkWeekDoc({ state, weekNumber, at }) {
     updatedAt: at,
     updatedByUid: null,
     blocks: [
+      // A point whose weeks count their work (`thisWeek`) opens each week as
+      // the paste writes one: This week, a task for each of its three parts,
+      // so done counts the readings, the reflections and the written answer.
+      ...(state.thisWeek ? [thisWeekBlock(weekNumber)] : []),
       {
         id: id("p1"),
         type: "part",
@@ -1607,6 +1658,99 @@ export function courseworkWeekDoc({ state, weekNumber, at }) {
       },
     ],
   };
+}
+
+/**
+ * A coursework week's This week block, as the paste writes one: a task for
+ * each of its three parts, so the week counts as done once both readings are
+ * ticked, the three reflections written and the answer sent.
+ */
+function thisWeekBlock(weekNumber) {
+  const id = (key) => courseworkItemId(weekNumber, key);
+  const task = (what, part) => ({ type: "task", what, time: "About 20 minutes", when: "before", whenText: "", covers: [id(part)] });
+  return {
+    id: id("tw"),
+    type: "thisWeek",
+    rows: [task("Part 1: start with what you think", "p1"), task("Part 2: two keepers' views", "p2"), task("Part 3: your answer", "p3")],
+    total: "About an hour",
+    note: [],
+  };
+}
+
+/** What a person seeded as having done a week wrote, every word made up. */
+export const SEEDED_WORK_WORDS = Object.freeze({
+  rp1: "Five lamps, two of them automatic now.",
+  rp2: "The harbour board, since the boats use the light.",
+  rp3: "They disagree about who pays for the oil.",
+  answer: "The harbour board should keep the lamps lit, because it charges the ships that need them most.",
+});
+
+/**
+ * The work a plan says somebody did before the seed (`work`), each row as
+ * its route writes it: `all` is a whole week (both readings ticked, the three
+ * reflections and the answer sent), otherwise the listed reflections alone.
+ * `before` is how long before their group's session of that week it was
+ * done, or `ago` how long before the seed, in hours.
+ */
+async function seedWork(state, entries) {
+  const now = Date.now();
+  for (const entry of entries) {
+    const person = state.people.find((each) => each.key === entry.person);
+    const group = state.groups.find((each) => each.key === person.groupKey);
+    const at =
+      entry.before !== undefined
+        ? new Date(sessionOf(group, entry.weekNumber).startsAt.getTime() - entry.before * HOUR_MS)
+        : new Date(now - entry.ago * HOUR_MS);
+    const weekId = weekDocId(entry.weekNumber);
+    const base = { e2eTermRunId: state.termRunId, runId: state.runId, uid: person.uid, weekNumber: entry.weekNumber };
+    const prompts = entry.all ? ["rp1", "rp2", "rp3"] : entry.reflections;
+    if (entry.all) {
+      for (const key of ["s1", "s2"]) {
+        const itemId = courseworkItemId(entry.weekNumber, key);
+        await fixtureDoc("courseProgress", progressId(state.runId, person.uid, itemId)).set({
+          ...base,
+          itemKind: "material",
+          itemId,
+          completed: true,
+          completedAt: at,
+          hasPublicComment: false,
+          updatedAt: at,
+        });
+      }
+    }
+    for (const key of prompts) {
+      const promptId = courseworkItemId(entry.weekNumber, key);
+      await fixtureDoc("courseExerciseResponses", `${state.runId}__${person.uid}__${weekId}__${promptId}`).set({
+        ...base,
+        weekId,
+        exerciseId: promptId,
+        kind: "reflection",
+        responseType: "text",
+        text: SEEDED_WORK_WORDS[key],
+        submittedAt: null,
+        reviewStatus: "unreviewed",
+        firstWrittenAt: at,
+        updatedAt: at,
+      });
+    }
+    if (entry.all) {
+      const answerId = courseworkItemId(entry.weekNumber, "wa");
+      await fixtureDoc("courseExerciseResponses", `${state.runId}__${person.uid}__${weekId}__${answerId}`).set({
+        ...base,
+        weekId,
+        exerciseId: answerId,
+        responseType: "text",
+        text: SEEDED_WORK_WORDS.answer,
+        words: SEEDED_WORK_WORDS.answer.trim().split(/\s+/).length,
+        firstWrittenAt: at,
+        firstSentAt: at,
+        sentAt: at,
+        submittedAt: at,
+        reviewStatus: "unreviewed",
+        updatedAt: at,
+      });
+    }
+  }
 }
 
 /**
@@ -1825,6 +1969,8 @@ export async function seedTerm({
     // The readings a plan's weeks list, and what its people wrote on them.
     ...(laterPlan?.readings ? { readings: laterPlan.readings } : {}),
     ...(laterPlan?.notes ? { notes: laterPlan.notes.map((entry) => ({ ...entry })) } : {}),
+    // Weeks that count their work: each opens with This week (`courseworkWeekDoc`).
+    ...(laterPlan?.thisWeek ? { thisWeek: true } : {}),
   };
 
   // Published BEFORE the first write and filled in place from here on.
@@ -1855,6 +2001,8 @@ export async function seedTerm({
         ...person,
         canMake: [...plan.canMake],
         ...(weekThree ? { groupKey: laterPlan.places[plan.key] } : {}),
+        // Told their group later than the rest: the week they joined.
+        ...(laterPlan?.joined?.[plan.key] ? { joinedWeekNumber: laterPlan.joined[plan.key].week } : {}),
       });
     }
   }
@@ -2035,6 +2183,8 @@ async function seedWeekThree(state, plan, at) {
   }
   // The coursework point's reflections, ticks and written answers.
   if (plan.coursework) await seedCoursework(state, plan.coursework);
+  // The whole term's: the weeks somebody had done, or started, before the seed.
+  if (plan.work) await seedWork(state, plan.work);
   // What a person wrote on a reading, saved an hour after their group's
   // session of that week.
   for (const entry of state.notes ?? []) {
@@ -2055,11 +2205,19 @@ async function seedWeekThree(state, plan, at) {
  * Every account the term made, the ones the seed never reached left out.
  * `state.lead` is an account a spec module makes beside the term for an admin
  * to make the programme's lead on the real pages
- * (`course-hub-explainers-and-lead-notes.mjs`): it is the term's to count and
- * tear down like any other, so its rows and its address are swept with them.
+ * (`course-hub-explainers-and-lead-notes.mjs`), and `state.covering` one an
+ * admin gives a session to (`course-hub-cover-register.mjs`): each is the
+ * term's to count and tear down like any other, so its rows and its address
+ * are swept with them.
  */
 export function accountsOf(state) {
-  return [...(state.people ?? []), state.facilitator, state.lead].filter(Boolean);
+  // `otherFacilitator`: the account the correcting-a-register spec appoints to
+  // the other group, made by its fixture like `lead` and `covering`.
+  // `outsider`: a member on no programme, made by the whole term's fixture so
+  // a spec can show that nothing reaches them.
+  return [...(state.people ?? []), state.facilitator, state.lead, state.covering, state.otherFacilitator, state.outsider].filter(
+    Boolean,
+  );
 }
 
 /** Every cohort subscription id this term's people could be given, constructed. */
@@ -2212,9 +2370,17 @@ async function sendRowsOf(state, surveyIds = [], messageIds = []) {
  *  - the updates route's: each audience's daily counter, and each presser's
  *    own hourly ones, the test's and the post's;
  *  - a register's push throttle, one per group and presser
- *    (`push__<groupId>__<uid>` in src/app/api/courses/groups/[groupId]/attendance/push/route.ts).
- * The pressers are the admin, while the ledger holds the admin's uid, and the
- * term's facilitator, who writes to their group and finishes its register.
+ *    (`push__<groupId>__<uid>` in src/app/api/courses/groups/[groupId]/attendance/push/route.ts);
+ *  - the notice a group's new regular time or room sends, one daily counter
+ *    per group, whoever presses (`groupchangeday__<groupId>`, `claimGroupNotice`
+ *    in src/lib/courses/groupChange/notice.ts);
+ *  - giving one session to somebody (the cover route's `GIVE_LIMITS`): one
+ *    counter per group and giver an hour (`covergive__<groupId>__<uid>`), one
+ *    per group a day (`covergiveday__<groupId>`), and one per person given a
+ *    session a day (`covergiven__<uid>`), for every account of the term.
+ * The pressers are the admin, while the ledger holds the admin's uid, the
+ * term's facilitator, who writes to their group and finishes its register,
+ * and, for giving a session, the programme's lead a fixture makes.
  */
 function sendCounterIdsOf(state) {
   const audiences = [
@@ -2223,12 +2389,18 @@ function sendCounterIdsOf(state) {
     `facilitators__${state.runId}`,
   ];
   const ids = audiences.map((key) => `emailrate__updateday__${key}`);
+  for (const group of state.groups ?? []) ids.push(`emailrate__groupchangeday__${group.id}`);
   for (const uid of [state.adminUid, state.facilitator?.uid].filter(Boolean)) {
     ids.push(`emailrate__updatetest__${state.runId}__${uid}`);
     ids.push(`emailrate__updatepost__${state.runId}__${uid}`);
     for (const key of audiences) ids.push(`emailrate__update__${key}__${uid}`);
     for (const group of state.groups ?? []) ids.push(`emailrate__push__${group.id}__${uid}`);
   }
+  for (const group of state.groups ?? []) {
+    ids.push(`emailrate__covergiveday__${group.id}`);
+    for (const uid of [state.adminUid, state.lead?.uid].filter(Boolean)) ids.push(`emailrate__covergive__${group.id}__${uid}`);
+  }
+  for (const account of accountsOf(state)) ids.push(`emailrate__covergiven__${account.uid}`);
   return ids;
 }
 
@@ -2424,6 +2596,8 @@ export async function countTerm(state) {
     await fixtureQuery("courseEnrolments").where("runId", "==", runId).get()
   ).size;
   counts.courseAudit = (await fixtureQuery("courseAudit").where("runId", "==", runId).get()).size;
+  // A facilitator's asks for a register to be corrected, and what became of each.
+  counts.courseRequests = (await fixtureQuery("courseRequests").where("runId", "==", runId).get()).size;
   counts.courseNudges = (await fixtureQuery("courseNudges").where("runId", "==", runId).get()).size;
   counts.courseProgress = (await fixtureQuery("courseProgress").where("runId", "==", runId).get()).size;
   counts.courseExerciseResponses = (
@@ -2437,6 +2611,14 @@ export async function countTerm(state) {
     await fixtureQuery("courseSessionReports").where("runId", "==", runId).get()
   ).size;
   counts.weeks = (await fixtureSubcollection("courseRuns", runId, "weeks").get()).size;
+  // Each week's history (every save of it by the paste or the in-place editor)
+  // and its edit lock, a level below the weeks, so counted week by week.
+  counts.weekHistory = 0;
+  counts.weekEditLocks = 0;
+  for (const week of (await fixtureSubcollection("courseRuns", runId, "weeks").get()).docs) {
+    counts.weekHistory += (await fixtureWeekSubcollection(runId, week.id, "history").get()).size;
+    counts.weekEditLocks += (await fixtureWeekSubcollection(runId, week.id, "editLock").get()).size;
+  }
   counts.tasks = (await fixtureQuery("tasks").where("sourceRef.cohortId", "==", runId).get()).size;
   counts.subscriptions = (
     await fixtureQuery("subscriptions").where("channel", "==", state.channel).get()
@@ -2561,6 +2743,7 @@ export async function teardownTerm(state) {
   await deleteQuery(fixtureQuery("subscriptions").where("channel", "==", state.channel));
   await deleteQuery(fixtureQuery("courseNudges").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseAudit").where("runId", "==", runId));
+  await deleteQuery(fixtureQuery("courseRequests").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseEnrolments").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseApplications").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseProgress").where("runId", "==", runId));
@@ -2610,6 +2793,13 @@ export async function teardownTerm(state) {
   await deleteQuery(fixtureQuery("courseGroups").where("runId", "==", runId));
   for (const group of state.groups ?? []) await fixtureDoc("courseGroups", group.id).delete();
   const weeks = await fixtureSubcollection("courseRuns", runId, "weeks").get();
+  // A week's history and edit lock first: deleting a week leaves what is under it.
+  for (const doc of weeks.docs) {
+    for (const sub of ["history", "editLock"]) {
+      const rows = await fixtureWeekSubcollection(runId, doc.id, sub).get();
+      for (const row of rows.docs) await row.ref.delete();
+    }
+  }
   for (const doc of weeks.docs) await doc.ref.delete();
   await fixtureDoc("courseRuns", runId).delete();
   await fixtureDoc("courses", state.courseId).delete();
@@ -3029,3 +3219,70 @@ async function seedLeavers(state, plan) {
     "applicationCounts.withdrawn": leavers.length,
   });
 }
+
+// ---------------------------------------------------------------------------
+// A whole term, two weeks in: the five pieces of running one, used together
+// ---------------------------------------------------------------------------
+
+/**
+ * THE FELLOWSHIP TWO WEEKS IN, FOR A WHOLE TERM DRIVEN END TO END
+ * ("whole-term"). Its run began `daysIn` days before the seed, so the seed's
+ * day is day 12 of the plan, in week 2: both groups' weeks 1 and 2 have met
+ * (Group A four days before the seed, Group B three) and their week 3
+ * sessions are days ahead (Group A three days after the seed, Group B four),
+ * so a run that crosses midnight is still in week 2 with no session today or
+ * tomorrow, and the rest of the weeks are further ahead.
+ *
+ * Group A is Ada, Ben, Dan, Eve and Ivo; Group B is Cleo. Eve was told her
+ * group the day after Group A's week 2 session (`joined`), so she joined in
+ * week 3 and is "Joined late" for weeks 1 and 2. Ivo holds a fellow's place
+ * in Group A, the group the admin makes him its second facilitator of on the
+ * real page (a facilitator sits in the group they facilitate). Fern is the
+ * account the admin appoints to Group A.
+ *
+ * Registers: Group A's week 1 is finished (Dan late, the rest in the room)
+ * and its week 2 was never opened, for the programme's lead to take in the
+ * facilitators' place; Group B's weeks 1 and 2 are finished. Weeks 1 to 3 are
+ * published, written as blocks, each opening with This week, so done counts
+ * the readings, the reflections and the written answer (`thisWeek`). The
+ * work done before the seed (`work`): Ada's week 1 and Dan's week 2, each the
+ * day before their session, and Cleo's first reflection of week 3, the day
+ * before the seed. Nothing has been posted to the run.
+ */
+export const WHOLE_TERM = Object.freeze({
+  daysIn: 12,
+  programme: FELLOWSHIP,
+  groups: GROUP_PLAN,
+  people: Object.freeze([
+    PEOPLE_PLAN[0],
+    PEOPLE_PLAN[1],
+    PEOPLE_PLAN[2],
+    Object.freeze({ key: "dan", first: "Dan", canMake: Object.freeze(["A"]) }),
+    Object.freeze({ key: "eve", first: "Eve", canMake: Object.freeze(["A"]) }),
+    Object.freeze({ key: "ivo", first: "Ivo", canMake: Object.freeze(["A"]) }),
+  ]),
+  facilitator: FACILITATOR_PLAN,
+  places: Object.freeze({ ada: "A", ben: "A", cleo: "B", dan: "A", eve: "A", ivo: "A" }),
+  joined: Object.freeze({ eve: Object.freeze({ week: 3 }) }),
+  marks: Object.freeze({
+    A: Object.freeze({
+      1: Object.freeze({ ada: "present", ben: "present", dan: "late", ivo: "present" }),
+    }),
+    B: Object.freeze({
+      1: Object.freeze({ cleo: "present" }),
+      2: Object.freeze({ cleo: "left-early" }),
+    }),
+  }),
+  unfinished: null,
+  unmarked: Object.freeze({ group: "A", weekNumber: 2 }),
+  facilitated: "A",
+  published: 3,
+  earlierUpdate: false,
+  blockWeeks: true,
+  thisWeek: true,
+  work: Object.freeze([
+    Object.freeze({ person: "ada", weekNumber: 1, all: true, before: 26 }),
+    Object.freeze({ person: "dan", weekNumber: 2, all: true, before: 26 }),
+    Object.freeze({ person: "cleo", weekNumber: 3, reflections: Object.freeze(["rp1"]), ago: 20 }),
+  ]),
+});

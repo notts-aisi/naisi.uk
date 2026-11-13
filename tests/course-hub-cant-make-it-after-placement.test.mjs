@@ -733,6 +733,11 @@ const WITHDRAWN_WRITERS = {
     proof: 'status: "withdrawn" satisfies CourseEnrolmentStatus,',
     why: "the one leave: what leaving writes to the seat, for both doors",
   },
+  "lib/courses/excused/decide.ts": {
+    writes: 1,
+    proof: 'const weeks = fresh.weeks.map((week) => (keys.includes(week.sessionKey) ? { ...week, status: "withdrawn" as const, withdrawnAt: now } : week));',
+    why: "withdrawing a request to be excused marks its weeks withdrawn; the seat it reads, to check the person is still in the group before an approval, is never written",
+  },
   "lib/firestore/courseDeletion.ts": {
     writes: 1,
     proof: 'status: "withdrawn", seatApplicationId: null,',

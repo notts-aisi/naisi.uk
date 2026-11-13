@@ -3,6 +3,7 @@ import { FieldValue, Timestamp, type Firestore } from "firebase-admin/firestore"
 import { isAddressableId } from "@/lib/addressableId";
 import { groupWeekRef, resolveCalendar, runWeekRef } from "@/lib/courses/groupResolve";
 import { programmeLedBy } from "@/lib/courses/programmeLead";
+import { EDIT_REFUSAL } from "@/lib/courses/weekEdit/words";
 import { weekToMarkdown } from "@/lib/courses/weekBlocks/markdownWrite";
 import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
 import {
@@ -38,7 +39,7 @@ import { templateWeekFields } from "@/lib/firestore/courseTemplates";
  *   POST ...  "Read it": the paste read against the group's copy, or against
  *             the run's week while the group has none (so the run's ids are
  *             kept), with what it takes out and the answers on it. Writes
- *             nothing.
+ *             nothing. The programme's lead and admins only.
  *   PUT  ...  "Save": the same read, then the group's own copy written.
  *
  * THE COPY IS THE GROUP'S OWN WEEK, `courseGroups/{groupId}/weeks/{wNN}`,
@@ -52,11 +53,15 @@ import { templateWeekFields } from "@/lib/firestore/courseTemplates";
  * ever writes the run's week, or another group's.
  *
  * WHO. An admin and the lead of the programme that names the group's run (any
- * group of the run that still meets), and the group's own facilitators while
- * it meets and they still stand behind the role. Nobody else: not a run's
- * track lead, a facilitator of another group, or anybody taking part.
- * AUTHORIZATION BEFORE EXISTENCE: a missing group, one that no longer meets
- * and somebody else's are one 403 for everybody but an admin.
+ * group of the run that still meets). The group's own facilitators, while it
+ * meets and they still stand behind the role, may copy the week out (GET,
+ * the week's Markdown, which counts nobody's work), and are refused Read it
+ * and Save in one plain sentence: a group's own copy is made and changed only
+ * by the programme's lead and admins, and Read it counts what a paste would
+ * take out of everybody's work, the facilitators' own included. Nobody else: not a run's track lead, a facilitator of
+ * another group, or anybody taking part. AUTHORIZATION BEFORE EXISTENCE: a
+ * missing group, one that no longer meets and somebody else's are one 403 for
+ * everybody but an admin.
  *
  * WHAT SAVE CHECKS is what the run's week loader checks (`weekPaste.ts`): the
  * paste read again against the copy as stored (or the run's week while there
@@ -89,16 +94,19 @@ async function readRun(db: Firestore, runId: string): Promise<CourseRunDoc | nul
 /**
  * The gate, then the address. The group is read first because it names its
  * facilitators and its run; nothing else is read for a caller it refuses.
+ * `changes`: the call writes the group's own copy, which the programme's
+ * lead and admins alone may do.
  */
-async function gate(db: Firestore, actor: Actor, params: Params["params"]): Promise<Gated | NextResponse> {
+async function gate(db: Firestore, actor: Actor, params: Params["params"], changes = false): Promise<Gated | NextResponse> {
   const { groupId, weekId } = await params;
   const isAdmin = actor.role === "admin";
   const snap = isAddressableId(groupId) ? await db.collection("courseGroups").doc(groupId).get() : null;
   const group = snap?.exists ? normalizeCourseGroup(snap.id, snap.data() ?? {}) : null;
   const meets = group !== null && !group.archived;
   const facilitates = meets && isNamedWithStanding(actor, "courseGroups.facilitatorUids", group.facilitatorUids);
-  const leads = !isAdmin && !facilitates && meets && (await programmeLedBy(db, actor, group.runId)) !== null;
+  const leads = !isAdmin && (!facilitates || changes) && meets && (await programmeLedBy(db, actor, group.runId)) !== null;
   if (!isAdmin && !facilitates && !leads) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (changes && !isAdmin && !leads) return NextResponse.json({ error: EDIT_REFUSAL.groupCopyLeadOnly }, { status: 403 });
   if (!group) return NextResponse.json({ error: "Group not found" }, { status: 404 });
   if (group.archived) return badRequest("This group no longer meets, so its weeks can’t be changed.");
   const run = await readRun(db, group.runId);
@@ -211,7 +219,10 @@ export async function POST(req: Request, ctx: Params) {
   if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
-  const gated = await gate(db, actor, ctx.params);
+  // "Read it" counts what a paste would take out of everybody's work, the
+  // group's facilitators' own included, so it is the people's who save it:
+  // the programme's lead and admins, as for the save.
+  const gated = await gate(db, actor, ctx.params, true);
   if (gated instanceof NextResponse) return gated;
   const sent = await markdownOf(req);
   if (sent instanceof NextResponse) return sent;
@@ -229,7 +240,7 @@ export async function PUT(req: Request, ctx: Params) {
   if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
-  const gated = await gate(db, actor, ctx.params);
+  const gated = await gate(db, actor, ctx.params, true);
   if (gated instanceof NextResponse) return gated;
   const sent = await markdownOf(req);
   if (sent instanceof NextResponse) return sent;

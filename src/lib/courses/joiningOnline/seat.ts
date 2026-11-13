@@ -7,6 +7,7 @@ import type { SessionUser } from "@/lib/firebase/session";
 import {
   ATTENDANCE_LIMITS,
   ONLINE_SAID,
+  SET_BY,
   attendanceDocId,
   normalizeCourseAttendance,
 } from "@/lib/firestore/courseAttendance";
@@ -16,7 +17,13 @@ import {
   placementIsTold,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
-import { GROUP_FIELD_LIMITS, normalizeCourseGroup, sessionModeForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import {
+  GROUP_FIELD_LIMITS,
+  campusForWeek,
+  normalizeCourseGroup,
+  sessionModeForWeek,
+  type CourseGroupDoc,
+} from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, validateSubmissionUrl, type CourseRunDoc } from "@/lib/firestore/courses";
 import {
   EMPTY_ONLINE_LINE,
@@ -83,7 +90,8 @@ function sessionHeldOnline(group: CourseGroupDoc, session: ResolvedSession): boo
   // The week's mode is kept for the week's first session only (the override
   // maps have no occurrence dimension; `src/lib/courses/sessions.ts`).
   const mode = session.occurrence === 1 ? sessionModeForWeek(group, session.weekId) : null;
-  return heldOnline({ mode, campus: group.campus, room: session.session.location });
+  const campus = session.occurrence === 1 ? campusForWeek(group, session.weekId) : group.campus;
+  return heldOnline({ mode, campus, room: session.session.location });
 }
 
 /** Where one person stands on one session of their group, from its register. */
@@ -210,6 +218,8 @@ export async function recordJoiningOnline(
           weekNumber: session.weekNumber,
           occurrence: session.occurrence,
           [ONLINE_SAID]: { [user.uid]: FieldValue.serverTimestamp() },
+          // Their line says who set it: their own word, before the session.
+          [SET_BY]: { [user.uid]: { byUid: user.uid, at: FieldValue.serverTimestamp(), how: "self" } },
           ...(startsAt ? { sessionAt: startsAt } : {}),
         },
         { merge: true },
@@ -219,6 +229,11 @@ export async function recordJoiningOnline(
 
     // Taking it back: only their own word.
     if (state.kind === "open") return { ok: true, online: false, hasLink };
+    // The line is empty again, so it says nobody set it.
+    if (Object.hasOwn((data?.[SET_BY] ?? {}) as Record<string, unknown>, user.uid)) {
+      tx.set(ref, { [ONLINE_SAID]: { [user.uid]: FieldValue.delete() }, [SET_BY]: { [user.uid]: FieldValue.delete() } }, { merge: true });
+      return { ok: true, online: false, hasLink };
+    }
     tx.set(ref, { [ONLINE_SAID]: { [user.uid]: FieldValue.delete() } }, { merge: true });
     return { ok: true, online: false, hasLink };
   });

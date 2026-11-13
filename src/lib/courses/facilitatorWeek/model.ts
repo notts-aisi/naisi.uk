@@ -11,12 +11,16 @@ import { weekSources, type ReadableWeek } from "@/lib/courses/weekBlocks/reader"
  * group's week (`src/lib/courses/facilitatorWeek/readers.ts` reads, the pages
  * draw):
  *
- *  - The group's FELLOWS (the people taking part in it, never one of its
- *    facilitators) are shown to everybody who may open a group's week: its
- *    live facilitators, the programme's lead and admins.
+ *  - The group's FELLOWS (the people taking part in it, never somebody who
+ *    facilitates a live group of the run, this one or another) are shown to
+ *    everybody who may open a group's week: its live facilitators, the
+ *    programme's lead and admins.
  *  - A FACILITATOR'S OWN coursework (Zach, Mon 26 Oct: a facilitator does the
  *    group's coursework as themselves) is the programme's lead's and admins'
  *    to read, and never a facilitator's, their own co-facilitators' included.
+ *    That holds for somebody who facilitates another group of the run and
+ *    holds a place in this one too (privacy v17: "If you facilitate a group,
+ *    your own work is read by the lead and admins only").
  *    So it is left out of every view a facilitator is given and shown to the
  *    lead and admins marked as theirs (`own`).
  *  - PRIVATE NOTES on a source are read by the group's facilitators and
@@ -66,16 +70,20 @@ export type WeekPerson = {
 /**
  * The people a viewer is shown, in the group page's order: the group's
  * fellows by their whole names, then, to the lead and admins only, each of
- * its standing facilitators, marked as their own. Somebody who facilitates
- * the group is never one of its fellows here, whether or not they also hold a
- * place in it.
+ * its standing facilitators, then anybody holding a place in it who
+ * facilitates another group of the run, each marked as their own. Somebody
+ * who facilitates a live group of the run (`facilitatingOnRun`, which the
+ * readers take from `facilitatingOnRunOf`, as the week's card does) is never
+ * one of the group's fellows here, whichever group it is and whether or not
+ * they also hold a place in this one.
  */
 export function peopleShown(
   viewer: WeekViewer,
   people: ReadonlyArray<{ uid: string; name: string; firstName?: string }>,
   facilitators: ReadonlyArray<{ uid: string; name: string; firstName: string }>,
+  facilitatingOnRun: ReadonlySet<string>,
 ): WeekPerson[] {
-  const facilitating = new Set(facilitators.map((person) => person.uid));
+  const facilitating = new Set([...facilitators.map((person) => person.uid), ...facilitatingOnRun]);
   const fellows: WeekPerson[] = people
     .filter((person) => !facilitating.has(person.uid))
     .map((person) => ({ uid: person.uid, name: person.name, firstName: person.firstName || firstWordOf(person.name), own: false }));
@@ -84,6 +92,12 @@ export function peopleShown(
   const own: WeekPerson[] = [];
   for (const person of facilitators) {
     if (seen.has(person.uid)) continue;
+    seen.add(person.uid);
+    own.push({ uid: person.uid, name: person.name, firstName: person.firstName || firstWordOf(person.name), own: true });
+  }
+  // Somebody holding a place here who facilitates another group: apart, as the group's own facilitators are.
+  for (const person of people) {
+    if (seen.has(person.uid) || !facilitating.has(person.uid)) continue;
     seen.add(person.uid);
     own.push({ uid: person.uid, name: person.name, firstName: person.firstName || firstWordOf(person.name), own: true });
   }

@@ -331,6 +331,7 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
             loading: myExercises.loading,
             reload: myExercises.reload,
             apply: myExercises.apply,
+            askedThen: myExercises.askedThen,
           }}
           sharedNotes={sharedNotes}
           leadFirstName={payload.programme?.leadFirstName ?? null}

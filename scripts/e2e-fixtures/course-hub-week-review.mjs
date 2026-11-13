@@ -10,10 +10,12 @@
  * fixture writes, for Ada and for Cleo: what each wrote in week 3 marked
  * first written a second after the seed, so after their accounts agreed to
  * the policy (every fixture account agrees to the current version, 15, when
- * it is seeded); their week 3 submitted a second after that; and a draft of a
- * note about each, as if Claude had drafted it, built only from that
- * submitted week. Ada wrote a written answer and a reflection, Cleo one
- * reflection. Everything else the term wrote carries no first-written time
+ * it is seeded); their week 3 submitted under the old button a second after
+ * that, which the review still reads (a week submitted under it is done once
+ * its ticks are) and a note's draft does not (privacy v18: a note draws on a
+ * week from its session on, as it stands); and a draft of a note about each,
+ * as if Claude had drafted it that moment, built only from that week as it
+ * stood. Ada wrote a written answer and a reflection, Cleo one reflection. Everything else the term wrote carries no first-written time
  * and is "not included yet".
  *
  * The spec (`tests/e2e/course-hub-week-review.spec.mjs`) is the harness's
@@ -65,7 +67,7 @@ export const WEEK_REVIEW_STEPS = [
   "who might need a hand, from the site's own records, each line saying where it came from",
   "the admin asks the facilitator to have a word with a person: one task, fixed words and no reason",
   "the admin presses Review with Claude once, and its draft grades, what people found hard and a hand come back",
-  "the week's notes, beside its review: who submitted, and a waiting draft built only from a submitted week",
+  "the week's notes, beside its review: who has work to note, and a waiting draft built only from the week as it stood",
   "the admin saves the draft to the person's notes, in the admin's words, and the card says who saved it",
   "the admin discards a waiting draft, and its person is the one left to draft for",
   "the admin presses Draft this week's notes once, and a draft comes back for the one person without one",
@@ -128,7 +130,7 @@ async function seed({ runId, suppress, onState }) {
       updatedAt: submitted,
     });
     // A draft of a note about them from week 3, in the shape the draft route
-    // keeps (src/lib/firestore/courseNoteDrafts.ts), built from their submitted week alone.
+    // keeps (src/lib/firestore/courseNoteDrafts.ts), built from their week as it stood when drafted.
     await fixtureDoc("courseNoteDrafts", `${state.runId}__w03__${person.uid}`).set({
       e2eTermRunId: state.termRunId,
       runId: state.runId,
@@ -136,7 +138,7 @@ async function seed({ runId, suppress, onState }) {
       weekNumber: 3,
       uid: person.uid,
       text,
-      builtFrom: [{ kind: "work", weekNumber: 3, submittedAt: submitted, ...built, boxes: 0 }],
+      builtFrom: [{ kind: "work", weekNumber: 3, submittedAt: null, asOf: submitted, ...built, boxes: 0 }],
       raters: {},
       sourceUids: [],
       fingerprint: "e2e-seeded",

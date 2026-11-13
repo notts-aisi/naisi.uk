@@ -1,6 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { buildHeldEmailTask, heldEmailTaskId } from "@/lib/courses/heldEmailTask";
+import { buildHeldEmailTask, buildRoomLinkTask, heldEmailTaskId, roomLinkTaskId } from "@/lib/courses/heldEmailTask";
 import { nextWeekEmailMarkerId, sendNextWeekEmail } from "@/lib/courses/nextWeekEmail";
 import { nextWeekEmailTiming } from "@/lib/courses/registerChase";
 import { missingWeekOpenWords } from "@/lib/courses/weekEmails/words";
@@ -41,11 +41,14 @@ import type { JobContext, JobRegistration, JobResult } from "../registry";
  *    tick after it is published sends it, if the session is still ahead;
  *  - a week published only after its session has started is never sent
  *    about: the window has closed;
- *  - a fact the email carries that is EMPTY (the group's room, the week's
- *    title, what the week asks for) holds the email whole rather than sending
- *    it without, and puts one card on the boards of the programme's lead and
- *    the admins saying what is missing. Filling it in sends the email on the
- *    next tick and archives the card.
+ *  - a fact the email carries that is EMPTY (the group's day and time, the
+ *    week's title, what the week asks for) holds the email whole rather than
+ *    sending it without, and puts one card on the boards of the programme's
+ *    lead and the admins saying what is missing. Filling it in sends the
+ *    email on the next tick and archives the card. A room not booked yet
+ *    holds nothing: the email goes, saying "Room to be confirmed". A room
+ *    that holds a link is one of those, and a mistake: the email goes the
+ *    same way, and one card tells the lead and the admins to put it right.
  *
  * The group's FIRST session is mailed about like every other: "Week 1 is
  * open" goes 6 days before it, to the people told their group by then.
@@ -122,19 +125,23 @@ async function readCandidateRunIds(db: Firestore): Promise<string[]> {
 
 /**
  * One card per group per session, telling the programme's lead and the admins
- * which value holds the email. Created once at a deterministic id; a card
- * already there (from an earlier tick) is left as it is.
+ * which value holds the email, or (`missing` null) that the email went saying
+ * "Room to be confirmed" because the group's room holds a link. Created once
+ * at a deterministic id; a card already there (from an earlier tick) is left
+ * as it is.
  */
 async function raiseHeldCard(
   state: TickState,
   run: CourseRunDoc,
   group: CourseGroupDoc,
   session: ResolvedSession,
-  missing: string[],
+  missing: string[] | null,
   startsAt: Date,
 ): Promise<void> {
   const { db } = state;
-  const ref = db.collection("tasks").doc(heldEmailTaskId(run.id, group.id, session.sessionKey));
+  const ref = db
+    .collection("tasks")
+    .doc(missing === null ? roomLinkTaskId(run.id, group.id, session.sessionKey) : heldEmailTaskId(run.id, group.id, session.sessionKey));
   if ((await ref.get()).exists) return;
   if (state.adminUids === null) state.adminUids = await readAdminUids(db, `scheduler:${JOB_ID}`);
   const people = await registerTaskPeople(db, run.id, state.adminUids, state.leads);
@@ -142,19 +149,19 @@ async function raiseHeldCard(
     state.ctx.log("no admin accounts, nothing to file a held email's card under");
     return;
   }
-  const payload = buildHeldEmailTask({
+  const args = {
     runId: run.id,
     groupId: group.id,
     session,
     courseTitle: run.courseTitle || run.label,
     groupName: group.name,
-    missing,
     completerUids: people.completerUids,
     creatorUid: people.creatorUid,
     dueDate: startsAt,
     now: state.ctx.now,
     limits: { title: TASK_FIELD_LIMITS.title, description: TASK_FIELD_LIMITS.description },
-  });
+  };
+  const payload = missing === null ? buildRoomLinkTask(args) : buildHeldEmailTask({ ...args, missing });
   try {
     await ref.create(payload);
   } catch (err) {
@@ -244,6 +251,14 @@ async function sendForGroup(
       if (outcome.held === null) {
         pass.sent += 1;
         await archiveHeldCard(state, run, group, session);
+        // It went saying "Room to be confirmed" for a room that holds a link:
+        // the lead and the admins are told, as they were while it was held. A
+        // card that cannot be made is logged: the email has gone either way.
+        if (outcome.roomHoldsLink) {
+          await raiseHeldCard(state, run, group, session, null, startsAt).catch((err: unknown) => {
+            console.error(`[scheduler:${JOB_ID}] could not raise a room's card`, { runId: run.id, groupId: group.id, sessionKey: session.sessionKey, err });
+          });
+        }
       } else if (outcome.held === "missing") {
         pass.heldMissing += 1;
         await raiseHeldCard(

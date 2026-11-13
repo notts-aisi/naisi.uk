@@ -2,16 +2,23 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { isValidDateKey, type WeekPlanEntry } from "@/lib/courses/weekPlan";
 import { memberCurrentWeek, resolveCalendar } from "@/lib/courses/groupResolve";
+import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
+import { coverHolderNames, coversOffOf, coversOffWords, writeCoversOff } from "@/lib/courses/registerCover/moves";
+import { startMoves, takenStartMoves } from "@/lib/courses/sessionChange/metSessions";
+import { movesMetWords } from "@/lib/courses/sessionChange/words";
+import { resolveSessions } from "@/lib/courses/sessions";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
+import { attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
+import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import {
   COURSE_FIELD_LIMITS,
   normalizeCourseRun,
   sanitizeWeekPlan,
+  weekDocId,
 } from "@/lib/firestore/courses";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 
@@ -54,8 +61,22 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * run-plan surgery does not hold this group's pacing hostage — the gate
  * compares the OLD effective calendar with the NEW one, both through
  * `resolveCalendar`. Start-date changes alone can never strand (registers
- * key by week NUMBER), so a date-only change with a stranded past sails
- * through, as it must.
+ * key by week NUMBER), so a date-only change with a stranded past passes
+ * this gate, as it must; whether it moves a session that met is the next
+ * rule's question.
+ *
+ * ── NOTHING MAY MOVE A SESSION THAT MET ─────────────────────────────────────
+ * A week has no stored date: a new plan or start date re-dates every week
+ * after the first slot it changes. So a pace that would move the start of
+ * any session whose register was taken (`registerIsTaken`: finished, marked,
+ * or said not to have happened) is refused too, for everyone, in the one
+ * sentence the one-week change route refuses with (`takenStartMoves`). A
+ * pace that moves only weeks nobody has taken a register for goes through.
+ *
+ * A COVER DOES NOT RIDE ALONG: a session whose start the new pace moves,
+ * whose register nobody has taken but somebody holds the cover of, loses that
+ * cover and the facilitators' entries it wrote, in the same transaction, with
+ * one history row (`register-cover-removed`) saying who had been covering.
  *
  * The check runs in ONE transaction with the write — group, run, register and
  * enrolment reads all `tx.get` — so the plan the gate approved is the plan the
@@ -367,6 +388,34 @@ export async function PATCH(
         );
       }
 
+      // NOTHING MAY MOVE THE START OF A SESSION WHOSE REGISTER IS TAKEN (see
+      // the header): the same rule, and the same sentence, as one week's
+      // change. A plan or a start date that re-dates only weeks nobody took a
+      // register for goes through as before.
+      const byId = new Map(registersSnap.docs.map((doc) => [doc.id, doc.data() ?? {}] as const));
+      const sessionsBefore = resolveSessions(run, fresh);
+      const registers = new Map<string, Record<string, unknown>>();
+      for (const session of sessionsBefore) {
+        const data = byId.get(attendanceDocId(run.id, groupId, session.weekNumber, session.occurrence));
+        if (data) registers.set(session.sessionKey, data);
+      }
+      const sessionsAfter = resolveSessions(run, { ...fresh, ...nextPace });
+      const [met] = takenStartMoves(sessionsBefore, sessionsAfter, registers);
+      if (met) throw new PaceRefusedError(movesMetWords(met.before.weekNumber, met.before.occurrence), 409);
+
+      // A COVER DOES NOT RIDE ALONG TO ANOTHER EVENING: a register nobody has
+      // taken loses the cover it holds when the new pace moves its session's
+      // start, with one history row saying who had been covering. Its holder's
+      // name is read here, before the first write.
+      const docById = new Map(registersSnap.docs.map((doc) => [doc.id, doc] as const));
+      const coversOff = coversOffOf(
+        startMoves(sessionsBefore, sessionsAfter).flatMap((move) => {
+          const doc = docById.get(attendanceDocId(run.id, groupId, move.before.weekNumber, move.before.occurrence));
+          return doc ? [{ ref: doc.ref, weekNumber: move.before.weekNumber, occurrence: move.before.occurrence, snap: doc }] : [];
+        }),
+      );
+      const holderNames = await coverHolderNames(tx, db, coversOff);
+
       // THE MIRROR WINDOW (see the header). Computed BEFORE the first write,
       // like everything else in this callback — `memberCurrentWeek` is pure,
       // but its inputs are the reads above and the ordering has to stay
@@ -420,6 +469,21 @@ export async function PATCH(
         // changed" and a pace change moves nobody's placement — the sync route
         // declines to bump it for the same reason.
         tx.update(doc.ref, { lastTaskSyncedWeek: resetMark });
+      }
+
+      writeCoversOff(tx, coversOff);
+      if (coversOff.length > 0) {
+        tx.set(
+          db.collection(COURSE_AUDIT_COLLECTION).doc(),
+          groupHistoryRow({
+            kind: "register-cover-removed",
+            run,
+            group: fresh,
+            actor,
+            detail: `Changed ${fresh.name.trim() || "the group"}’s pace. ${coversOffWords(coversOff, holderNames)}`,
+            weekId: weekDocId(coversOff[0].weekNumber),
+          }),
+        );
       }
 
       return { calendar: nextCalendar, rewound: rewinds.length };

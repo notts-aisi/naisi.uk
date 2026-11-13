@@ -17,6 +17,11 @@ import {
   type SeatProblem,
 } from "@/lib/courses/groupFacilitators";
 import { byHandElsewhereWords, byHandFullWords, byHandNotYoursWords } from "@/lib/courses/facilitatorAsks/words";
+import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
+import { facilitatorAddedHeadline, facilitatorRemovedHeadline, historyDetail } from "@/lib/courses/groupChange/words";
+import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
+import { isAddressableId } from "@/lib/addressableId";
+import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staffName";
 import type { Firestore } from "firebase-admin/firestore";
 
 /**
@@ -28,7 +33,10 @@ import type { Firestore } from "firebase-admin/firestore";
  *
  * Gated to admins, the parent run's track leads and the lead of the programme
  * that names the run (`runStaffingOf`): the people who staff a run.
- * Facilitators cannot add each other.
+ * Facilitators cannot add each other. Everybody else is one 403 before the
+ * body is read, whether or not the group and its run exist; an admin is told
+ * what is missing. People are named to the caller by the names rule
+ * (`nameForViewer`), and in the history by the name they go by.
  *
  * A FACILITATOR WHO HOLDS A PLACE SITS IN THE GROUP THEY FACILITATE. Somebody
  * added who holds a place on the run and sits in no group yet is placed in
@@ -39,6 +47,10 @@ import type { Firestore } from "firebase-admin/firestore";
  * wrote is the business of an admin and of the lead of the programme that
  * names the run (`rowIsServedTo`), so anybody else adding that person saves
  * nothing either.
+ *
+ * HISTORY: each person added or taken off writes one row of the group's
+ * history (`facilitator-appointed`, `facilitator-removed`), in the same
+ * transaction, naming them and the presser.
  */
 
 const ELIGIBLE_ROLES = ["member", "committee", "admin"] as const;
@@ -57,11 +69,14 @@ async function loadEligibleUids(db: Firestore): Promise<Set<string>> {
   return new Set(snap.docs.map((d) => d.id));
 }
 
-/** An account's name, for a sentence about them. */
-async function nameOf(db: Firestore, uid: string): Promise<string> {
+/**
+ * An account's name, for a sentence about them to the caller: the name the
+ * caller may see (`nameForViewer`): the committee and admins the full name,
+ * anybody else the name people go by.
+ */
+async function nameOf(db: Firestore, viewer: NameViewer, uid: string): Promise<string> {
   const account = await db.collection("users").doc(uid).get();
-  const name = account.exists ? account.data()?.displayName : null;
-  return typeof name === "string" && name.trim() ? name.trim() : "That person";
+  return account.exists ? nameForViewer(viewer, accountNamesOf(account.data() ?? {}), "That person") : "That person";
 }
 
 /** A group's name, for a sentence about it. */
@@ -92,36 +107,36 @@ export async function POST(
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
-  let body: { uids?: unknown };
-  try {
-    body = (await req.json()) as { uids?: unknown };
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-
-  const groupRef = db.collection("courseGroups").doc(groupId);
-  const groupSnap = await groupRef.get();
-  if (!groupSnap.exists) {
-    return NextResponse.json({ error: "Group not found" }, { status: 404 });
-  }
-  const group = groupSnap.data() ?? {};
-  const runId = typeof group.runId === "string" ? group.runId : "";
-  const courseId = typeof group.courseId === "string" ? group.courseId : "";
-  if (!runId) {
-    return NextResponse.json({ error: "Group is not attached to a run" }, { status: 400 });
-  }
-
-  const runSnap = await db.collection("courseRuns").doc(runId).get();
-  if (!runSnap.exists) {
+  // AUTHORIZATION BEFORE EXISTENCE. The group and its run are read only to
+  // ask who staffs them; anybody who is not an admin and does not staff the
+  // run is one 403 whatever is missing, before the body is read. An admin is
+  // told what is missing.
+  const isAdmin = actor.role === "admin";
+  const groupRef = isAddressableId(groupId) ? db.collection("courseGroups").doc(groupId) : null;
+  const groupSnap = groupRef ? await groupRef.get() : null;
+  const group = groupSnap?.exists ? (groupSnap.data() ?? {}) : null;
+  const runId = group && typeof group.runId === "string" && isAddressableId(group.runId) ? group.runId : "";
+  const courseId = group && typeof group.courseId === "string" ? group.courseId : "";
+  const runSnap = runId ? await db.collection("courseRuns").doc(runId).get() : null;
+  const run = runSnap?.exists ? (runSnap.data() ?? {}) : null;
+  if (!groupRef || !group || !runSnap || !run) {
+    if (!isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!groupRef || !group) return NextResponse.json({ error: "Group not found" }, { status: 404 });
+    if (!runId) return NextResponse.json({ error: "Group is not attached to a run" }, { status: 400 });
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
-  const run = runSnap.data() ?? {};
-
   // An admin, one of the run's track leads, or the lead of the programme that
   // names the run (`runStaffingOf`).
   const staffing = await runStaffingOf(db, actor, { id: runId, trackLeadUids: asUidList(run.trackLeadUids) });
   if (!doesTrackLeadWork(staffing)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  let body: { uids?: unknown };
+  try {
+    body = (await req.json()) as { uids?: unknown };
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
   const eligible = await loadEligibleUids(db);
@@ -174,6 +189,13 @@ export async function POST(
       joinedWeekNumber: joinedWeekFor(normalizeCourseRun(runSnap.id, run), stored),
     });
     if (!places.ok) return { kind: "seat", problem: places.problem, groupName: stored.name.trim() || "This group" };
+    // The names the history rows give, read before anything is written: the
+    // name each goes by, which anybody who reads the group's history may be
+    // shown (`nameForViewer` with no committee role).
+    const accounts = touched.length ? await tx.getAll(...touched.map((uid) => db.collection("users").doc(uid))) : [];
+    const nameOfTouched = new Map(
+      accounts.map((account) => [account.id, account.exists ? nameForViewer(null, accountNamesOf(account.data() ?? {}), "That person") : "That person"] as const),
+    );
 
     writeFacilitatorChange(tx, db, {
       groupRef,
@@ -185,6 +207,25 @@ export async function POST(
       recorded: new Set(Object.keys(stored.facilitatorAppointments)),
       placing: places.placing,
     });
+    for (const [uid, kind] of [
+      ...added.map((each) => [each, "facilitator-appointed"] as const),
+      ...removed.map((each) => [each, "facilitator-removed"] as const),
+    ]) {
+      const name = nameOfTouched.get(uid) ?? "That person";
+      tx.set(
+        db.collection(COURSE_AUDIT_COLLECTION).doc(),
+        groupHistoryRow({
+          kind,
+          run: { id: runId },
+          group: stored,
+          actor,
+          subjectUid: uid,
+          detail: historyDetail({
+            headline: kind === "facilitator-appointed" ? facilitatorAddedHeadline(name) : facilitatorRemovedHeadline(name),
+          }),
+        }),
+      );
+    }
     return { kind: "saved", placed: [...places.placing.keys()] };
   });
 
@@ -195,7 +236,7 @@ export async function POST(
   }
   if (outcome.kind === "seat") {
     const { problem, groupName } = outcome;
-    const name = await nameOf(db, problem.uid);
+    const name = await nameOf(db, actor, problem.uid);
     const error =
       problem.kind === "elsewhere"
         ? byHandElsewhereWords(name, await groupNameOf(db, problem.groupId), groupName)
@@ -203,6 +244,6 @@ export async function POST(
     return NextResponse.json({ error }, { status: 409 });
   }
   if (outcome.placed.length === 0) return NextResponse.json({ ok: true, facilitatorUids: next });
-  const placed = await Promise.all(outcome.placed.map((uid) => nameOf(db, uid)));
+  const placed = await Promise.all(outcome.placed.map((uid) => nameOf(db, actor, uid)));
   return NextResponse.json({ ok: true, facilitatorUids: next, placed });
 }

@@ -12,9 +12,13 @@
  *
  * ## What this guards
  *
- *  1. WHO. Somebody taking part in the group, told their group, and nobody
- *     else: every other kind of caller is refused before anything is
- *     written, and nobody is emailed.
+ *  1. WHO. Saying it on the spot is now a facilitator's only, on their own
+ *     place in a group they facilitate: a fellow is refused in one sentence
+ *     (they ask to be excused, and an admin decides), and takes back a line
+ *     they wrote before. The rest of this file is about the line and its
+ *     life, so it presses as an old page did (`tests/lib/saidBefore.mjs`).
+ *     Every other kind of caller is refused before anything is written, and
+ *     nobody is emailed.
  *  2. WHEN. Only before the session starts, on a session the group holds that
  *     is not called off, whose register is not finished and does not say it
  *     did not happen; never over a line a facilitator has filled in. Saying
@@ -51,6 +55,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { walkSource } from "./lib/functionScan.mjs";
 import { B, NOW, RUN, makeMemberPagesWorld, textOf } from "./lib/memberPagesWorld.mjs";
 import { C, D, register, registerPath } from "./lib/hubAttendanceWorld.mjs";
+import { pressedBefore } from "./lib/saidBefore.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
@@ -77,7 +82,16 @@ beforeEach(() => {
 /** One press, as `who`, about a session of `groupId`. */
 const tell = (who, body, { groupId = B, viewAs = false } = {}) =>
   call(who, press.POST, { groupId }, { body, course: true, viewAs });
-const cantMake = (who, sessionKey, options) => tell(who, { sessionKey, cantMakeIt: true }, options);
+/**
+ * "Can't make it" as an old page pressed it: saying it on the spot is now a
+ * facilitator's only (part 0), so the rest of this file, which is about the
+ * line and its life, presses as one, through the real route
+ * (`tests/lib/saidBefore.mjs`).
+ */
+const cantMake = (who, sessionKey, options) =>
+  pressedBefore(world.db, options?.groupId ?? B, who, () => tell(who, { sessionKey, cantMakeIt: true }, options));
+/** The press as it is now, nobody standing in. */
+const cantMakeNow = (who, sessionKey, options) => tell(who, { sessionKey, cantMakeIt: true }, options);
 const canAfterAll = (who, sessionKey, options) => tell(who, { sessionKey, cantMakeIt: false }, options);
 /** The register's answer to `who`. */
 const registerAs = (who, groupId = B) => call(who, registerRoute.GET, { groupId }, { course: true });
@@ -121,6 +135,29 @@ async function ticketFor(who) {
 // ---------------------------------------------------------------------------
 
 describe("1. who may say it", () => {
+  test("said on the spot now: a fellow is refused in one sentence and nothing is written; a facilitator holding a place in the group keeps it; a line written before is taken back by its writer", async () => {
+    const before = w.everything();
+    const fellow = await cantMakeNow("chloe", "w03");
+    assert.deepEqual([fellow.status, fellow.body.error], [403, words.CANT_MAKE_IT_REFUSAL.askInstead]);
+    assert.equal(
+      words.CANT_MAKE_IT_REFUSAL.askInstead,
+      "To miss a session, ask to be excused from your programme page: press Can’t make it on your next session’s card, and an admin decides.",
+    );
+    assert.equal(w.everything(), before, "a fellow's press wrote something");
+    // A line a fellow said before requests, as an old page pressed it, is theirs to take back.
+    assert.equal((await cantMake("chloe", "w03")).status, 200);
+    assert.deepEqual(world.db.read(`courseGroups/${B}`).facilitatorUids.includes("chloe"), false, "the stand-in stayed");
+    const back = await canAfterAll("chloe", "w03");
+    assert.equal(back.status, 200, JSON.stringify(back.body));
+    assert.equal(stored(B, 3).records?.chloe, undefined, "the take-back left the line");
+    // Somebody who facilitates the group they hold a place in still says it on the spot.
+    const group = world.db.read(`courseGroups/${B}`);
+    world.db.poke(`courseGroups/${B}`, { facilitatorUids: [...group.facilitatorUids, "chloe"] });
+    const own = await cantMakeNow("chloe", "w03");
+    assert.equal(own.status, 200, JSON.stringify(own.body));
+    assert.deepEqual(stored(B, 3).records, { chloe: "excused" });
+  });
+
   test("somebody taking part in the group, told their group: the register records them excused, with when they said so, and nobody is emailed", async () => {
     const answer = await cantMake("chloe", "w03");
     assert.deepEqual(answer, { status: 200, body: { ok: true, told: true, message: words.TOLD_US } });
@@ -148,17 +185,17 @@ describe("1. who may say it", () => {
       ["sam", 404, "somebody who left the run"],
       ["nobody", 404, "a member on nothing"],
     ]) {
-      const answer = await cantMake(who, "w03");
+      const answer = await cantMakeNow(who, "w03");
       assert.equal(answer.status, status, `${why}: ${JSON.stringify(answer.body)}`);
       if (status === 404) assert.equal(answer.body.error, words.CANT_MAKE_IT_REFUSAL.notYours, why);
     }
     // Una is placed in Group C and Publish has not told her: her own group is nobody's to her yet.
-    assert.equal((await cantMake("una", "w03", { groupId: "agi-autumn-2026-wednesday__grp00003" })).status, 404);
+    assert.equal((await cantMakeNow("una", "w03", { groupId: "agi-autumn-2026-wednesday__grp00003" })).status, 404);
     // A group that is not there is the same answer as one they are not in, and an id that names nothing.
-    assert.deepEqual((await cantMake("chloe", "w03", { groupId: "no-such-group" })).body, { error: words.CANT_MAKE_IT_REFUSAL.notYours });
-    assert.equal((await cantMake("chloe", "w03", { groupId: ".." })).status, 404);
+    assert.deepEqual((await cantMakeNow("chloe", "w03", { groupId: "no-such-group" })).body, { error: words.CANT_MAKE_IT_REFUSAL.notYours });
+    assert.equal((await cantMakeNow("chloe", "w03", { groupId: ".." })).status, 404);
     // A view-as session is refused before anything else.
-    assert.equal((await cantMake("chloe", "w03", { viewAs: true })).status, 403);
+    assert.equal((await cantMakeNow("chloe", "w03", { viewAs: true })).status, 403);
     assert.equal(w.everything(), before, "a refused press wrote something");
   });
 
@@ -374,19 +411,36 @@ describe("4. excused never counts as missing", () => {
 // 5. The programme page
 // ---------------------------------------------------------------------------
 
-describe("5. the programme page offers it on the ticket of the next session", () => {
-  test("to somebody taking part, says so once they have told us, and offers it back", async () => {
+describe("5. the programme page offers it on the ticket of the next session, to a facilitator who holds a place", () => {
+  // Somebody taking part now asks an admin to excuse them instead
+  // (tests/course-excused-pages.test.mjs): the instant button is drawn only
+  // where the person's own view of being excused says they facilitate the
+  // group they hold a place in, which the ask route refuses them.
+  const facilitates = { runId: RUN.agi, groupId: B, asks: false, closesAt: null, closed: false, sessions: [], requests: [] };
+
+  test("to a facilitator who holds a place: says so once they have told us, and offers it back", async () => {
     assert.deepEqual(await ticketFor("chloe"), { groupId: B, sessionKey: "w03", day: "Tue 17 Nov", told: false });
     await w.asBrowser("chloe");
-    const before = w.programmeHome("chloe", { cantMakeIt: await ticketFor("chloe") });
+    const before = w.programmeHome("chloe", { cantMakeIt: await ticketFor("chloe"), excused: facilitates });
     assert.ok(before.text.includes("Tue 17 Nov, 6pm to 8pm Hallward B12 R S with Rahul and Sofia Add to calendar Can’t make it"), before.text);
     assert.match(before.html, /aria-label="Can’t make it on Tue 17 Nov"/);
 
     assert.equal((await cantMake("chloe", "w03")).status, 200);
     const told = await ticketFor("chloe");
     assert.deepEqual(told, { groupId: B, sessionKey: "w03", day: "Tue 17 Nov", told: true });
-    const after = w.programmeHome("chloe", { cantMakeIt: told });
+    const after = w.programmeHome("chloe", { cantMakeIt: told, excused: facilitates });
     assert.ok(after.text.includes(`${words.TOLD_US} ${words.CAN_MAKE_IT_AFTER_ALL}`), after.text);
+  });
+
+  test("never to somebody taking part, and never without their view: the instant button is gone for them", async () => {
+    await w.asBrowser("chloe");
+    const view = await ticketFor("chloe");
+    for (const excused of [{ ...facilitates, asks: true }, null, undefined]) {
+      const drawn = w.programmeHome("chloe", { cantMakeIt: view, ...(excused === undefined ? {} : { excused }) });
+      assert.ok(!drawn.text.includes(words.CAN_MAKE_IT_AFTER_ALL), JSON.stringify(excused));
+      assert.doesNotMatch(drawn.html, /<button type="button" class="calendarButton" aria-label="Can’t make it on Tue 17 Nov">/, JSON.stringify(excused));
+      assert.ok(drawn.text.includes("Add to calendar"), "the ticket lost Add to calendar");
+    }
   });
 
   test("to nobody else, and not once the session has started; then about the session after", async () => {

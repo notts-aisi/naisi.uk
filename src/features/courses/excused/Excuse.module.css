@@ -1,0 +1,423 @@
+/* Being excused: the ticket's states and buttons, the sheet, the request
+   form, the last session's card and the person's own requests. Every
+   control is at least 44px tall; nothing here is wider than its container. */
+
+.ticketButton,
+.secondary,
+.secondaryWide,
+.primary {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  box-sizing: border-box;
+  cursor: pointer;
+  max-width: 100%;
+}
+
+.ticketButton,
+.secondary,
+.secondaryWide {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
+}
+
+.ticketButton {
+  white-space: nowrap;
+}
+
+.secondaryWide {
+  width: 100%;
+}
+
+.primary {
+  width: 100%;
+  border: 1px solid transparent;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.ticketButton:hover:not(:disabled),
+.secondary:hover:not(:disabled),
+.secondaryWide:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+
+.ticketButton:focus-visible,
+.secondary:focus-visible,
+.secondaryWide:focus-visible,
+.primary:focus-visible,
+.linkButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.ticketButton:disabled,
+.secondary:disabled,
+.secondaryWide:disabled,
+.primary:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.linkButton {
+  appearance: none;
+  -webkit-appearance: none;
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-accent-text);
+  cursor: pointer;
+}
+
+/* The card's state on the ticket: across the whole row of its actions. */
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  flex-basis: 100%;
+  min-width: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.3;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-muted);
+}
+
+.chipWaiting {
+  background: var(--color-warning-soft);
+  border-color: var(--color-warning-line);
+  color: var(--color-warning);
+}
+
+.chipExcused {
+  background: var(--color-success-soft);
+  border-color: var(--color-ok-line);
+  color: var(--color-ok);
+}
+
+.chipPlain {
+  background: transparent;
+}
+
+.line {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.small {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.small:empty,
+.problem:empty {
+  display: none;
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-danger-text);
+  overflow-wrap: anywhere;
+}
+
+.withdraw {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+/* The sheet */
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.sheetHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sheetTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.375rem;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+  min-width: 0;
+}
+
+/* The request */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.formTitle {
+  margin: 4px 0 0;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.weeks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.weekChoice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  font-size: var(--text-ui);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.weekChoice input {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  flex: none;
+  accent-color: var(--color-accent);
+}
+
+.mailLink {
+  color: var(--color-accent-text);
+  overflow-wrap: anywhere;
+}
+
+.medical {
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.field {
+  display: block;
+}
+
+.fieldLabel {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 72px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.happen {
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.happenTitle {
+  margin: 0 0 6px;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.happenRows {
+  margin: 0;
+}
+
+.happenRow {
+  padding: 8px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.happenRow dt {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.happenRow dd {
+  margin: 2px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+/* The last session's card, and their own requests */
+.card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 1.25rem clamp(1rem, 1.6cqi, 1.375rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-sizing: border-box;
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.1875rem;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+  min-width: 0;
+}
+
+.registerRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.ownRows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ownRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.ownBody {
+  min-width: 0;
+}
+
+.ownTitle {
+  margin: 0;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .ticketButton {
+    flex: 1 1 auto;
+  }
+
+  .sheetTitle {
+    font-size: 1.25rem;
+  }
+
+  .ownRow {
+    align-items: flex-start;
+  }
+}

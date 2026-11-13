@@ -14,48 +14,50 @@ import {
   normalizeCourseWeekWork,
   type CourseWeekWorkDoc,
 } from "@/lib/firestore/courseWeekWork";
-import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { readPackCaseRecords, recordBlocksOf } from "@/lib/courses/packsAndCases/readers";
 import type { WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds } from "@/lib/courses/weekBlocks/progress";
 import { instantOf, isWordCountedAnswer } from "@/lib/courses/writtenAnswers/model";
-import { isOwnBoxResponse } from "@/lib/firestore/courseExercises";
-import { NO_GROUP, weekLockOf, weekStateOf, type LockSource } from "./lock";
+import { boxIsWritten, isOwnBoxResponse } from "@/lib/firestore/courseExercises";
+import { workClosesAt } from "./closes";
+import { NO_GROUP, groupSessionAt, weekDueEndsAt, weekDueOf, type SessionSource, type WeekDue } from "./sessionDue";
 import {
   personWeekProgress,
-  weekAsksForWriting,
+  submittedOnce,
+  weekWorkState,
   weekWorkWire,
+  weekWritingNeeds,
   type CheckState,
+  type DoneTimes,
   type PersonWeekProgress,
-  type WeekLock,
   type WeekWorkState,
   type WeekWorkWire,
 } from "./model";
 
 /**
  * THE READS BEHIND WHERE A WEEK STANDS, on the server, each after its
- * caller's own gate: one person's week for the routes that write it, and
- * everybody's on a run for the pages that list people. `./model.ts` decides;
- * this file reads what it decides from.
+ * caller's own gate: one person's week for their own pages, and everybody's
+ * on a run for the pages that list people. `./model.ts` decides; this file
+ * reads what it decides from.
  *
  * Every query is one equality on `runId`, filtered in memory, so nothing
  * needs a declared index.
  */
 
 /**
- * WHOSE SESSIONS LOCK THIS PERSON'S WEEK (`./lock.ts`): their placement's
- * group when it is a live group and Publish has told them it (an admin's
- * view of a placement never counts: the lock is the person's own), told at
- * `allocatedEmailAt`, or when they took the seat themselves; otherwise each
- * live group they facilitate; otherwise none.
+ * WHOSE SESSIONS THIS PERSON'S WEEK GOES BY (`./sessionDue.ts`): their
+ * placement's group when it is a live group and Publish has told them it (an
+ * admin's view of a placement never counts: the session is the person's
+ * own), told at `allocatedEmailAt`, or when they took the seat themselves;
+ * otherwise each live group they facilitate; otherwise none.
  */
-export function lockSourceFor(
+export function sessionSourceFor(
   run: CourseRunDoc,
   liveGroups: readonly CourseGroupDoc[],
   uid: string,
   enrolment: CourseEnrolmentDoc | null,
   sessionsOf: (group: CourseGroupDoc) => readonly ResolvedSession[] = (group) => resolveSessions(run, group),
-): LockSource {
+): SessionSource {
   const placed =
     enrolment !== null &&
     enrolment.uid === uid &&
@@ -96,45 +98,63 @@ export async function readRunWeekWork(db: Firestore, runId: string): Promise<Map
 
 /**
  * ONE PERSON'S OWN WEEKS, as the overview hands them to their pages: each
- * week asked about, by its id, with where it stands and, when somebody
- * reopened it, that person's first name. Their own records alone, by address.
+ * week asked about, by its id, with the session they are due at, when the
+ * programme closes, and when they pressed the week's old Submit. Their own
+ * records alone, by address.
  */
 export async function ownWeekWires(
   db: Firestore,
-  input: { runId: string; uid: string; weeks: ReadonlyArray<{ id: string; weekNumber: number }>; source: LockSource; now: Date },
+  input: {
+    runId: string;
+    uid: string;
+    weeks: ReadonlyArray<{ id: string; weekNumber: number }>;
+    source: SessionSource;
+    closesAt: Date | null;
+    now: Date;
+  },
 ): Promise<Map<string, WeekWorkWire>> {
   const out = new Map<string, WeekWorkWire>();
   if (input.weeks.length === 0) return out;
   const snaps = await db.getAll(
     ...input.weeks.map((week) => db.collection(COURSE_WEEK_WORK_COLLECTION).doc(courseWeekWorkId(input.runId, input.uid, week.id))),
   );
-  const states = input.weeks.map((week, index) => {
+  input.weeks.forEach((week, index) => {
     const snap = snaps[index];
     const record = snap.exists ? normalizeCourseWeekWork(snap.id, snap.data() ?? {}) : null;
-    return weekStateOf(input.source, week.weekNumber, record && record.uid === input.uid ? record : null, input.now);
-  });
-  const reopeners = [...new Set(states.flatMap((state) => (state.kind === "reopened" && state.byUid ? [state.byUid] : [])))];
-  const names = new Map<string, string>();
-  for (const snap of reopeners.length ? await db.getAll(...reopeners.map((uid) => db.collection("users").doc(uid))) : []) {
-    if (snap.exists) names.set(snap.id, firstNameOfUser(snap.data() ?? {}));
-  }
-  input.weeks.forEach((week, index) => {
-    out.set(week.id, weekWorkWire(states[index], (uid) => names.get(uid) || "Your facilitator"));
+    const state = weekWorkState({
+      due: weekDueOf(input.source, week.weekNumber),
+      closesAt: input.closesAt,
+      facts: record && record.uid === input.uid ? record : null,
+      now: input.now,
+    });
+    out.set(week.id, weekWorkWire(state, input.now));
   });
   return out;
 }
 
 /**
  * WHAT EACH OF SOME PEOPLE HAS DONE OF ONE WEEK WRITTEN AS BLOCKS, as the
- * check before Submit reads a person's own week (`CheckState`): which
- * readings and steps they ticked, which boxes they wrote in, which written
- * answers are sent and how many words each holds, their pack and their ready
- * mark, and whether they have touched the week at all. Read on the server
- * after the caller's own gate, as counts and nothing else: the week's rows of
- * the answers store by who and which item (never a word), its ticks by who
- * and which item, and each person's pack and ready mark by address.
+ * check before Send reads a person's own week (`CheckState`), and when each
+ * thing was done (`DoneTimes`, for when the week became done): which readings
+ * and steps they ticked, which boxes they wrote in, which written answers are
+ * sent and how many words each holds, their pack and their ready mark, and
+ * whether they have touched the week at all. Read on the server after the
+ * caller's own gate, as counts and times and nothing else: the week's rows of
+ * the answers store by who, which item and when (never a word), its ticks by
+ * who, which item and when, and each person's pack and ready mark by address.
  */
-export type PersonWeekFacts = { state: CheckState; touched: boolean };
+export type PersonWeekFacts = {
+  state: CheckState;
+  times: DoneTimes;
+  touched: boolean;
+  /**
+   * When a reflection box or fill-in box holding something was last saved,
+   * for a staff page's "Started, saved Tue 3 Nov"; null for one empty or not
+   * saying. Never asked of a written answer: before the session its readers
+   * see only that it was started (privacy v17).
+   */
+  savedAt: (boxId: string) => Date | null;
+};
 
 export async function loadPeopleWeekFacts(
   db: Firestore,
@@ -151,19 +171,19 @@ export async function loadPeopleWeekFacts(
   if (uids.size === 0) return out;
   const recordBlocks = recordBlocksOf(blocks);
   const [rows, ticks, records] = await Promise.all([
-    // Who wrote in which box and which answers are sent: never a word.
+    // Who wrote in which box, when, and which answers are sent: never a word.
     db
       .collection("courseExerciseResponses")
       .where("runId", "==", runId)
       .where("weekNumber", "==", weekNumber)
-      .select("uid", "exerciseId", "kind", "words", "firstSentAt", "runId")
+      .select("uid", "exerciseId", "kind", "words", "firstSentAt", "firstWrittenAt", "updatedAt", "emptiedAt", "runId")
       .get(),
-    // The projection is the boundary: who, which item and whether it is ticked.
+    // The projection is the boundary: who, which item, whether it is ticked and when.
     db
       .collection("courseProgress")
       .where("runId", "==", runId)
       .where("weekNumber", "==", weekNumber)
-      .select("uid", "itemId", "completed")
+      .select("uid", "itemId", "completed", "completedAt")
       .get(),
     readPackCaseRecords(
       db,
@@ -171,12 +191,19 @@ export async function loadPeopleWeekFacts(
       [...uids].flatMap((uid) => recordBlocks.map((block) => ({ uid, blockId: block.id }))),
     ),
   ]);
-  type Facts = { written: Set<string>; sent: Set<string>; words: Map<string, number>; ticked: Set<string>; touched: boolean };
+  type Facts = {
+    written: Map<string, Date | null>;
+    saved: Map<string, Date | null>;
+    sent: Map<string, Date>;
+    words: Map<string, number>;
+    ticked: Map<string, Date | null>;
+    touched: boolean;
+  };
   const facts = new Map<string, Facts>();
   const of = (uid: string) => {
     let found = facts.get(uid);
     if (!found) {
-      found = { written: new Set(), sent: new Set(), words: new Map(), ticked: new Set(), touched: false };
+      found = { written: new Map(), saved: new Map(), sent: new Map(), words: new Map(), ticked: new Map(), touched: false };
       facts.set(uid, found);
     }
     return found;
@@ -186,12 +213,15 @@ export async function loadPeopleWeekFacts(
     const uid = typeof data.uid === "string" ? data.uid : "";
     const id = typeof data.exerciseId === "string" ? data.exerciseId : "";
     if (!uids.has(uid) || !id || data.runId !== runId) continue;
-    // A box's row exists only while it holds something: an emptied box deletes it.
     if (isOwnBoxResponse(data)) {
-      of(uid).written.add(id);
+      // A box holds something while its row does, unless the row is kept only for an earlier version.
+      if (!boxIsWritten(data)) continue;
+      of(uid).written.set(id, instantOf(data.firstWrittenAt) ?? instantOf(data.updatedAt));
+      of(uid).saved.set(id, instantOf(data.updatedAt) ?? instantOf(data.firstWrittenAt));
       of(uid).touched = true;
     } else if (isWordCountedAnswer(data)) {
-      if (instantOf(data.firstSentAt)) of(uid).sent.add(id);
+      const sentAt = instantOf(data.firstSentAt);
+      if (sentAt) of(uid).sent.set(id, sentAt);
       if (typeof data.words === "number" && data.words > 0) {
         of(uid).words.set(id, Math.floor(data.words));
         of(uid).touched = true;
@@ -203,25 +233,33 @@ export async function loadPeopleWeekFacts(
     const uid = typeof data.uid === "string" ? data.uid : "";
     const itemId = typeof data.itemId === "string" ? data.itemId : "";
     if (data.completed !== true || !uids.has(uid) || !itemId) continue;
-    of(uid).ticked.add(itemId);
+    of(uid).ticked.set(itemId, instantOf(data.completedAt));
     of(uid).touched = true;
   }
   for (const uid of uids) {
     const own = of(uid);
     const record = (blockId: string) => records.get(`${uid} ${blockId}`) ?? null;
     if (recordBlocks.some((block) => record(block.id)?.packId || record(block.id)?.ready)) own.touched = true;
+    const packOf = (id: string) => record(id)?.packId ?? null;
     out.set(uid, {
       state: {
         isTicked: (id) => own.ticked.has(id),
         isWritten: (id) => own.written.has(id),
         isSent: (id) => own.sent.has(id),
-        packOf: (id) => record(id)?.packId ?? null,
+        packOf,
         isReady: (id) => record(id)?.ready === true,
         // Counts only: no word of an answer is read here, so an answer in
         // boxes with words in some of them reads as having none empty.
         answerOf: (id) => ({ words: own.words.get(id) ?? 0, emptyBoxes: 0 }),
       },
+      times: {
+        tickedAt: (id) => own.ticked.get(id) ?? null,
+        writtenAt: (id) => own.written.get(id) ?? null,
+        sentAt: (id) => own.sent.get(id) ?? null,
+        packOf,
+      },
       touched: own.touched,
+      savedAt: (id) => own.saved.get(id) ?? null,
     });
   }
   return out;
@@ -230,9 +268,9 @@ export async function loadPeopleWeekFacts(
 /**
  * HOW FAR EACH OF SOME PEOPLE HAS GOT WITH ONE WEEK WRITTEN AS BLOCKS, by the
  * one count every page uses (`personWeekProgress`): This week's tasks done,
- * whether the week is done, and whether they have started it, from what
- * `loadPeopleWeekFacts` reads. `submitted` says whose week is submitted
- * (`loadRunWeekStates`).
+ * whether the week is done and when it became done, and whether they have
+ * started it, from what `loadPeopleWeekFacts` reads. `submittedAt` says when
+ * somebody pressed the week's old Submit (`RunWeekStates.submittedOf`).
  */
 export async function loadPeopleWeekProgress(
   db: Firestore,
@@ -241,31 +279,38 @@ export async function loadPeopleWeekProgress(
     weekNumber: number;
     blocks: readonly WeekBlock[];
     uids: readonly string[];
-    submitted: (uid: string) => boolean;
+    submittedAt: (uid: string) => Date | null;
   },
 ): Promise<Map<string, PersonWeekProgress>> {
   const out = new Map<string, PersonWeekProgress>();
   const facts = await loadPeopleWeekFacts(db, input);
   const tasks = weekTaskNeeds(input.blocks);
-  const writes = weekAsksForWriting(input.blocks);
+  const asks = weekWritingNeeds(input.blocks);
   for (const [uid, own] of facts) {
     out.set(
       uid,
-      personWeekProgress({ tasks, state: own.state, writes, submitted: input.submitted(uid), touched: own.touched }),
+      personWeekProgress({ tasks, state: own.state, times: own.times, submittedAt: input.submittedAt(uid), touched: own.touched, asks }),
     );
   }
   return out;
 }
 
-/** Where every week of every person on a run stands, and when each locks. */
+/** Where every week of every person on a run stands, and the session each is due at. */
 export type RunWeekStates = {
+  /** When the run closes for work, or null when it never closes by the clock. */
+  closesAt: Date | null;
   stateOf: (uid: string, weekNumber: number) => WeekWorkState;
-  lockOf: (uid: string, weekNumber: number) => WeekLock;
+  /** The session the person is due at that week (`./sessionDue.ts`). */
+  dueOf: (uid: string, weekNumber: number) => WeekDue;
+  /** When that same session ends (`weekDueEndsAt`), or null with none. */
+  dueEndOf: (uid: string, weekNumber: number) => Date | null;
   recordOf: (uid: string, weekNumber: number) => CourseWeekWorkDoc | null;
+  /** When they first pressed the week's old Submit, or null. */
+  submittedOf: (uid: string, weekNumber: number) => Date | null;
   /**
-   * When the person's group's session that week starts (the lock's own
-   * moment, `dueMoment`'s "before" rule), whenever they were told their
-   * group: null with none to date. What "Feedback to write" counts from.
+   * When the person's group's session that week starts, whenever they were
+   * told their group: null with none to date. What "Feedback to write"
+   * counts from.
    */
   sessionOf: (uid: string, weekNumber: number) => Date | null;
 };
@@ -305,20 +350,25 @@ export async function loadRunWeekStates(
     }
     return sessions;
   };
-  const sources = new Map<string, LockSource>();
+  const sources = new Map<string, SessionSource>();
   const sourceOf = (uid: string) => {
     let source = sources.get(uid);
     if (!source) {
-      source = lockSourceFor(run, liveGroups, uid, seatOf.get(uid) ?? null, sessionsOf);
+      source = sessionSourceFor(run, liveGroups, uid, seatOf.get(uid) ?? null, sessionsOf);
       sources.set(uid, source);
     }
     return source;
   };
+  const closesAt = workClosesAt(run, liveGroups);
   const recordOf = (uid: string, weekNumber: number) => records.get(uid)?.get(weekIdOf(weekNumber)) ?? null;
+  const dueOf = (uid: string, weekNumber: number) => weekDueOf(sourceOf(uid), weekNumber);
   return {
-    stateOf: (uid, weekNumber) => weekStateOf(sourceOf(uid), weekNumber, recordOf(uid, weekNumber), now),
-    lockOf: (uid, weekNumber) => weekLockOf(sourceOf(uid), weekNumber),
+    closesAt,
+    stateOf: (uid, weekNumber) => weekWorkState({ due: dueOf(uid, weekNumber), closesAt, facts: recordOf(uid, weekNumber), now }),
+    dueOf,
+    dueEndOf: (uid, weekNumber) => weekDueEndsAt(sourceOf(uid), weekNumber),
     recordOf,
-    sessionOf: (uid, weekNumber) => weekLockOf({ ...sourceOf(uid), toldAt: null }, weekNumber).at,
+    submittedOf: (uid, weekNumber) => submittedOnce(recordOf(uid, weekNumber)),
+    sessionOf: (uid, weekNumber) => groupSessionAt(sourceOf(uid), weekNumber),
   };
 }

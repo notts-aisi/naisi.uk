@@ -14,6 +14,9 @@ import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { isWordCountedAnswer, readWrittenAnswer } from "@/lib/courses/writtenAnswers/model";
 import { namedIn, writtenAnswerWire } from "@/lib/courses/writtenAnswers/wire";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
+import { askedThenFor, writtenAtOf } from "@/lib/courses/weekEdit/askedThen";
+import type { AskedWords } from "@/lib/courses/weekEdit/wordsThen";
+import { weekDocId } from "@/lib/firestore/courses";
 
 /**
  * The member's OWN exercise responses for one week — what the week page hydrates
@@ -62,6 +65,15 @@ export type MyExercisesPayload = {
    * a response can outlive a reordering, or the exercise itself.
    */
   responses: ExerciseResponseWire[];
+  /**
+   * The words a question had when the caller first wrote their answer to it,
+   * by the prompt's or written answer's id, ONLY where the question has been
+   * reworded in place since (`src/lib/courses/weekEdit/askedThen.ts`): a
+   * reflection's prompt, or a written answer's question, word range and due
+   * rule. Empty for a week never changed in place. Nothing is stored on the
+   * answer: the week's history is the record.
+   */
+  askedThen: Record<string, AskedWords>;
 };
 
 // ---------------------------------------------------------------------------
@@ -163,6 +175,8 @@ export async function GET(
   }
 
   const isAdmin = actor.role === "admin";
+  // The group whose copy of the week the caller reads, for the words then: none for an admin.
+  let groupId: string | null = null;
 
   // The enrolment is ADDRESSED, never queried: `courseEnrolmentId` binds
   // (run, uid), so there is no way to spell another member's row. The run doc
@@ -179,6 +193,7 @@ export async function GET(
     // Withdrawn / removed enrolments lose access the moment they are written,
     // whatever the member's open tab still shows. A placement Publish has not
     // told its owner about is no way in either: the run is shut to them.
+    groupId = enrolment?.groupId ?? null;
     const live =
       enrolment &&
       (enrolment.status === "active" || enrolment.status === "completed") &&
@@ -260,6 +275,8 @@ export async function GET(
       // Own rows only, so a reflection or a fill-in box travels here to the
       // one person it is for, marked as what it is.
       ...(doc.kind === "reflection" ? { kind: "reflection" as const } : doc.kind === "fillIn" ? { kind: "fillIn" as const } : {}),
+      // When a box's words were last saved, for the page to tell against their session.
+      ...(doc.kind === "reflection" || doc.kind === "fillIn" ? { savedAt: iso(doc.updatedAt) } : {}),
       responseType: doc.responseType,
       text: doc.text ?? null,
       linkUrl: doc.linkUrl ?? null,
@@ -276,6 +293,18 @@ export async function GET(
     }))
     .sort((a, b) => a.exerciseId.localeCompare(b.exerciseId));
 
-  const payload: MyExercisesPayload = { responses };
+  // Each answer's question as it was worded when the answer was first written, where it has changed since.
+  const asked = await askedThenFor(
+    db,
+    runId,
+    weekDocId(week),
+    groupId,
+    snap.docs.flatMap((d) => {
+      const data = (d.data() ?? {}) as Record<string, unknown>;
+      return typeof data.exerciseId === "string" ? [{ key: data.exerciseId, itemId: data.exerciseId, writtenAt: writtenAtOf(data) }] : [];
+    }),
+  );
+
+  const payload: MyExercisesPayload = { responses, askedThen: Object.fromEntries(asked) };
   return NextResponse.json(payload);
 }

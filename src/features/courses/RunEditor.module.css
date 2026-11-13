@@ -285,6 +285,14 @@
   margin-top: var(--space-4);
 }
 
+/* The start date once the run's groups have gone out: words, never a field. */
+.readOnlyValue {
+  margin: 0;
+  padding: var(--space-2) 0;
+  font-size: var(--text-base);
+  color: var(--color-text);
+}
+
 /* TODO: mobile pass — paired fields stack and the status bar wraps; the full
    touch review of the course admin surfaces rides its own PR. */
 @media (max-width: 48rem) { /* --bp-md */

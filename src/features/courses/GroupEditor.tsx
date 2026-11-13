@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useState } from "react";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
@@ -13,6 +14,15 @@ import type { UserDoc } from "@/lib/firestore/users";
 import { GROUP_CAMPUSES, campusOf, type GroupCampus } from "@/lib/courses/campus";
 import { CAMPUS, CAMPUS_HINT, CAMPUS_LABEL, CAMPUS_NOT_CHOSEN } from "@/lib/courses/campusWords";
 import { NEW_GROUP_SESSION_MINUTES } from "@/lib/courses/sessionLength";
+import {
+  SLOT_NO_PAGE_LINE,
+  SLOT_READ_ONLY_LABEL,
+  SLOT_READ_ONLY_LINE,
+  changeOnGroupPageWords,
+  dayAndTimeWords,
+  goneOutSinceOpened,
+  lengthLine,
+} from "@/lib/courses/groupPage/words";
 import {
   validateSubmissionUrl,
   type CourseEnrolMode,
@@ -95,6 +105,15 @@ type Props = {
   runAction: ToastRun;
   onSaved: () => void;
   disabled?: boolean;
+  /**
+   * The run's groups have gone out (Publish has sent them). The day, time
+   * and length are then words with the way to the group's own page, and are
+   * never written from here, so a card left open cannot put back a time
+   * changed on that page meanwhile. Every other field stays.
+   */
+  goneOut?: boolean;
+  /** The group's own page under its programme's Groups tab; null when no programme names the run. */
+  groupPageHref?: string | null;
 };
 
 export default function GroupEditor({
@@ -104,6 +123,8 @@ export default function GroupEditor({
   runAction,
   onSaved,
   disabled,
+  goneOut = false,
+  groupPageHref = null,
 }: Props) {
   const fieldId = useId();
 
@@ -160,7 +181,7 @@ export default function GroupEditor({
     }
     setError(null);
 
-    const nextSession: GroupSession = {
+    const fullSession: GroupSession = {
       ...session,
       location: session.location.trim(),
       // Empty stays null rather than "" — `meetingUrl` is nullable by design
@@ -168,21 +189,38 @@ export default function GroupEditor({
       meetingUrl: url ? url : null,
       notes: session.notes.trim(),
     };
+    // Once the groups have gone out the slot is the group page's: only the
+    // fields this card still edits are written (dotted paths, `updateGroup`).
+    const nextSession: Partial<GroupSession> = goneOut
+      ? { location: fullSession.location, meetingUrl: fullSession.meetingUrl, notes: fullSession.notes }
+      : fullSession;
     const facilitatorsChanged = !sameUids(facilitatorUids, group.facilitatorUids);
+    // A card opened before the groups went out still offers the day, time
+    // and length; the rules refuse a change once they have, and the toast
+    // says why.
+    const slotChanged =
+      !goneOut
+      && (session.weekday !== group.session.weekday
+        || session.startTimeLocal !== group.session.startTimeLocal
+        || session.durationMinutes !== group.session.durationMinutes);
 
     let ok = false;
     await runAction(
       async () => {
-        await updateGroup(
-          group.id,
-          {
-            name: trimmedName,
-            capacity: nextCapacity,
-            session: nextSession,
-            campus,
-          },
-          enrolMode,
-        );
+        try {
+          await updateGroup(
+            group.id,
+            {
+              name: trimmedName,
+              capacity: nextCapacity,
+              session: nextSession,
+              campus,
+            },
+            enrolMode,
+          );
+        } catch (err) {
+          throw goneOutSinceOpened(err, slotChanged);
+        }
         if (facilitatorsChanged) {
           await setGroupFacilitators(group.id, facilitatorUids);
         }
@@ -255,11 +293,33 @@ export default function GroupEditor({
           </Field>
         </div>
 
-        <SessionSlotField
-          value={session}
-          onChange={(next) => setSession({ ...session, ...next })}
-          disabled={disabled}
-        />
+        {goneOut ? (
+          <div className={styles.readOnlySlot}>
+            <p className={styles.readOnlyLabel}>{SLOT_READ_ONLY_LABEL}</p>
+            <p className={styles.readOnlyValue}>
+              {[dayAndTimeWords(group.session.weekday, group.session.startTimeLocal, group.session.durationMinutes), lengthLine(group.session.durationMinutes)]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+            <p className={styles.readOnlyHint}>
+              {groupPageHref ? SLOT_READ_ONLY_LINE : SLOT_NO_PAGE_LINE}
+              {groupPageHref && (
+                <>
+                  {" "}
+                  <Link href={groupPageHref} className={styles.readOnlyLink}>
+                    {changeOnGroupPageWords(group.name || "the group")}
+                  </Link>
+                </>
+              )}
+            </p>
+          </div>
+        ) : (
+          <SessionSlotField
+            value={session}
+            onChange={(next) => setSession({ ...session, ...next })}
+            disabled={disabled}
+          />
+        )}
 
         <Field id={`${fieldId}-campus`} label={CAMPUS} hint={CAMPUS_HINT}>
           <Select

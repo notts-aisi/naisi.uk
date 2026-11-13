@@ -248,6 +248,12 @@ names, each at their own account's address. Its rows in the log carry
 same email went once per piece, straight from the review route; the
 registry's entries moved with it, and the class did not change.
 
+**One session given to somebody covering is transactional.** "You're
+covering Group E today at 4pm" (`src/lib/email/coverGivenEmail.ts`) goes to the
+one person an admin or a lead gave the session to, about that session, so no
+setting of theirs switches it off; the do-not-email list still holds it back.
+It carries the register's link and never a meeting link.
+
 **An admin's reminder to a group's facilitators is transactional.** "Remind 2
 facilitators" on a programme's Check-ins view (`src/lib/surveys/checkIns/facilitatorReminder.ts`)
 emails each of a group's live facilitators that a session's check-in has not
@@ -256,6 +262,27 @@ It is about the session they facilitate and owed to them by the press, so it
 consults no row and carries no notice marker; the button names how many it
 emails, and it goes at most once a session a day. Its rows in the log carry
 `kind: "course-facilitator"`, as the register reminder's do.
+
+**A new request to be excused, to the admins, is transactional with a switch
+of its own.** When somebody asks to be excused from a week
+(`src/lib/courses/excused/alert.ts`), each admin is emailed that it has
+arrived: who asked, the group, each week's day and time, when, "for today" or
+"for tomorrow" when its first session starts within a day, and the way to the
+request's page. Never the reason, never a meeting link, never the person
+asking, a facilitator or the lead. It is owed to the admins who decide these,
+as the reminder above is owed to facilitators, so no row of the grid gates
+it; the admin's own "Email me about new requests" on the Requests page does,
+stored as `users/{uid}.requestEmails.excused` (on unless a stored `false`) by
+`POST /api/courses/requests/emails`, outside `profile.notifications`, whose
+whole map `/profile` rewrites on Save. Its rows in the log carry
+`kind: "course-request"`. It goes once the request is written, outside its
+transaction, and a failed send never fails the ask. Only the first three asks
+by one person on one run in one London day email the admins
+(`ADMIN_EMAILS_A_DAY`); later ones that day email nobody and still wait on
+the Requests page. The ask decides it in its own transaction from the
+requests that already carry `adminsToldOn` for that day, and marks its own,
+so asking and withdrawing in a loop cannot spend the site's sending
+allowance.
 
 **Invitation reminders (`application-invitation-reminders`).** Once a day, from
 10:00 London and never after 18:00, to everybody invited on decision day who
@@ -350,14 +377,19 @@ preference at all.
 | `course-room` | `POST /api/courses/groups/[groupId]/notice` | the same gate | the same members |
 | `course-run` | `POST /api/courses/runs/[runId]/email` with `asNotice: true` | admins, and the run's `runFacilitatorUids` or `trackLeadUids` | everybody holding a place on the run whose group has gone out, whatever they unsubscribed from (see below) |
 | `course-run` | `POST /api/courses/runs/[runId]/updates`, an update to everyone or to the facilitators | admins, the run's `trackLeadUids` and the lead of the programme that names the run | to everyone: everybody holding a place as above; to the facilitators: the facilitators of the run's live groups who still meet their bar, at their own addresses |
-| `course-group` | `POST /api/courses/runs/[runId]/updates`, an update to one group | the same, and a facilitator of that group while it is live | everybody holding a place in that group whose group has gone out, whatever they unsubscribed from |
+| `course-group` | `POST /api/courses/runs/[runId]/updates`, an update to one group | the same, and a facilitator of that group while it is live | everybody holding a place in that group whose group has gone out, whatever they unsubscribed from; with `withFacilitators` (a change to one week's session posts its update this way), the group's facilitators who meet their bar too, never the writer |
+| `course-group` | `POST /api/courses/groups/[groupId]/session/regular` (a new regular time from a week onwards) and `PUT /api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room` with `tell` (a room set or changed), through `src/lib/courses/groupChange/notice.ts` | the regular time: admins, the programme's lead and the run's track leads; the room: the programme's lead and admins | the group's told people and its facilitators who meet their bar, each once, never the presser; the people holding a place are asked "Can you make this time?" when the day or start changed; ten a day per group, no hourly window |
+| `course-group` | `POST /api/courses/groups/[groupId]/attendance/cover` with `tell` ("Ola is running today's session", one session given to somebody covering), through `src/lib/courses/groupChange/notice.ts` | admins, the programme's lead and the run's track leads | the group's told people, each once, never the presser and never the person given the session; off unless ticked, the count on the tick checked again at the press; never the reason, never a meeting link; the group's ten a day, claimed in one transaction with the give's own limits (the email to the person given the session, transactional: twelve by one giver on one group an hour, twenty on one group a day, twelve to one person a day across every group), so a give past any of them is refused whole; past the group's ten, its sentence says the give goes with the tick off |
+| `course-run` | `POST /api/courses/runs/[runId]/weeks/[weekId]/tell`, telling people about a change to a published week, after a save to it (docs/courses-ops.md, "Editing a week in place") | admins and the lead of the programme that names the run | the people holding a place on the run whose group has gone out, narrowed to the editor's choice: those with work on the week, those whose group reads the run's week, or all of them; never the presser; once per save, only about the newest save |
 | `course-survey` | `POST /api/surveys/[surveyId]/send` and `.../remind` (docs/surveys.md) | admins | everybody holding a place on the survey's programme, each at their account's address with their own link; the reminder to those of them who have not answered |
 | `course-follow-up` | the same two routes, for a follow-up survey at 6 or 12 months (docs/surveys.md) | admins | everybody whose row on the programme's before survey says yes to follow-ups now, each with their own link; the reminder to those of them who have not answered |
 | `event-survey` | the same two routes, for the survey after an event (docs/surveys.md); and for one its event's Survey after step set up, `POST /api/events/[id]/survey-after/send` ("Send it now", which at a started event with no survey of its own sets one up with the standard questions first) and the `event-surveys` job | admins; the event's author and collaborators while they stand, for Send it now; the job | the people who came to the event (each with an email: an account at its own address, a guest or a walk-in at the address they gave the event) or everybody whose sign-up was confirmed, less anybody who already answered with the QR code, each with their own link; with a survey its event set up, the one question about not coming to everybody with a place who wasn't checked in, at an event whose door was opened; the reminder to those it reached who have not answered |
+| `survey-blanks` | `POST /api/surveys/[surveyId]/people/[who]/blanks`, "Send the questions they left blank" by hand for one person, through `pressBlanks` in `src/lib/surveys/blanksStore.ts` (docs/surveys.md) | admins, view-as refused first | the one person pressed for, who sent a programme survey or a survey after an event with required questions left blank, while it takes answers (never a check-in), at their account's own address or the address a guest gave the event, with a new link of their own to just those questions; never in bulk and never on its own; at most three presses for one person a day and twenty an hour for one admin on one survey; the count the confirmation named checked again at the press; email only |
 | `course-check-in` | `POST /api/courses/groups/[groupId]/check-in`, opening the check-in at the end of a session (docs/surveys.md), from the register or, late too, from the programme's Check-ins view | admins, and a facilitator of THIS group while it is live; opening it late, admins alone | the people the session's register marks present, late or left early, never the group's facilitators, each at their account's address with their own link; once, when it opens: somebody marked there later is reached with no email; its one reminder is the next row |
 | `course-check-in-reminder` | the `surveys-check-in-reminders` job, at 9am the day after a session (docs/surveys.md) | the job | each person an open check-in reached who has not sent it and whose seat on the run is still live and told, with their own link, for a check-in opened on its session's own day; once each, by a scheduler marker |
 | `course-week` | "Week N is open", 6 days before each of a group's sessions at 9am: the `courses-next-week-email` job, or, while that job is off, `POST /api/courses/groups/[groupId]/attendance/push` (finishing the register before it) and an admin's Resend on a finished register | the job; the group's facilitator or an admin pressing the register; an admin resending | everybody holding a place in the group whose group has gone out, whatever they unsubscribed from; once per group per session, by the group's claim |
 | `course-week-reminder` | the reminders 3 days and 1 day before each of a group's sessions at 9am: the `courses-week-reminders` job | the job | each person holding a place in the group whose week (written as blocks, and published) is not done, listing what is left of it; one per person per reminder, by a scheduler marker; a week done, submitted or locked is never reminded about |
+| `course-week-remind-by-hand` | Remind, by hand: `POST /api/courses/groups/[groupId]/remind`, from a group's page or its facilitators' page | the people who read the group's work: its live facilitators, the programme's lead and admins (never a run's track lead by that alone) | each person holding a told place in the group whose week (written as blocks, and published) is not done at the press, or one of them; never anybody who facilitates a live group of the run, never the presser, never somebody who joined after the week's session, nobody once the programme has closed; any week whose work is open, before its session or after it; the count the preview showed checked again at the press; a retry of the same press sends nothing more; never a meeting link. Its line names the week ("our records show week 1 isn't done"); the Deliverability tab calls it "reminder by hand about a week" and Messages' sent list "Reminder by hand about a week" |
 | `messages` | `POST /api/messages`, a message written in Messages that goes as a programme notice ([messages.md](messages.md)) | admins, a programme's lead and a group's facilitator, each to the tags the picker gives them | the people the writer chose, when every tag is about running a programme and the writer runs everybody it reaches: holding a place on a programme they run, facilitating or leading it, or in a group they facilitate; each at their account's own address (or a university address they verified), the writer too when they are in the tags. Otherwise the message goes by their settings, not as a notice. A notice to one group, or to one programme's people (its everyone, or its people holding a place), also pushes, as the group email and the cohort email's important notice it took over did: each person it reached with an account and each whose every address bounced, never the writer (`pushTargetOf`); nothing else in Messages pushes |
 | `event-invitation` | `POST /api/events/[id]/publish` and `POST /api/events/[id]/invitations` ("Invite the N new since"), for an event for chosen people that is part of a programme (see below) | publishing: admins and `approveEvent` holders; inviting more: those and the event's author and collaborators while they stand | the people holding a place on that programme among the people chosen, at their account's own address (else a university address it verified), whatever their events row says; never the event's author; email only |
 
@@ -383,7 +415,13 @@ notices: the line above the words says why each reached them ("you are in
 this course group"; "our records show this week's work isn't finished"),
 there is no unsubscribe link, and nothing is pushed. They take no slot under
 the caps below: each is sent by a claim, once per group per session or once
-per person per reminder, and that claim is their bound. Their words are fixed
+per person per reminder, and that claim is their bound. Remind, by hand, is a
+person's press with the same template and the same list of what is left, on
+a surface of its own (`course-week-remind-by-hand`), since a reminder about
+week 1 pressed in week 3 is neither before a session nor about this week: its
+line says "our records show week 1 isn't done". It takes slots under the caps
+(see "The caps"), and each person it reaches is claimed for two minutes so a
+retry of the press emails nobody twice. Their words are fixed
 in `src/lib/courses/weekEmails/words.ts` and drawn by `src/emails/WeekEmail.tsx`;
 "Week N is open" was next week's email, a grid send that honoured the courses
 row and the run's list, until November 2026, and the weekly nudge beside it
@@ -506,8 +544,10 @@ to be rationed like any other send.
 | course room notice | **none** | 10 | 100 members, refused |
 | course run notice | 3 | 10 | 200 recipients, refused |
 | course update | 3, per (writer, audience) | 10, its own counter | 200 recipients, refused |
+| a change to a week | 3, per (presser, choice, week) | 10, per week, its own counter; and for the two choices that reach everyone the week is open for or the whole programme, 10 per run across every week, claimed in the same transaction | 200 recipients, refused (the run's notice audience) |
 | course check-in | **none** | 2, per group, its own counter | 40 people, refused |
 | Messages | 3, per (writer, audience) | 10, per audience, its own counter | 300 emails, refused |
+| Remind, by hand | 3, per (presser, the group's week and who: everybody or one person) | 10, per group, its own counter | the notice audience's 200 people, refused |
 | event invitation | 3, per (presser, event) | 10, per event | 300 people and 200 messages, refused |
 
 **Messages claims both windows for every send**, a message by their settings
@@ -556,7 +596,7 @@ something that cannot be switched off is the one dishonest thing this lane could
 ship.
 
 The `emailSends` receipt carries `kind: "notice"` plus `surface`, one of the
-strings above (and `survey-blanks`, docs/surveys.md), so the deliverability tab
+strings above, so the deliverability tab
 can answer "how much un-switch-off-able mail went out, and from where" without
 reading subject lines. Both are set by
 `sendNotice` alone. The older `course-notice` kind stays defined for the room

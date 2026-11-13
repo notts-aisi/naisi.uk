@@ -190,6 +190,13 @@ const READERS = {
       "Can't make it on a session's ticket: the caller's own seat only, read by their uid and shown to nobody else; " +
       "a seat Publish has not told them about takes no part, so its ticket offers nothing and its press is refused",
   },
+  "lib/courses/excused/ask.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "Asking to be excused from a week: the caller's own seat only, read by their uid; a seat Publish has not told " +
+      "them about takes no part, so its ask is refused as a group they are not in",
+  },
   "lib/courses/joiningOnline/seat.ts": {
     kind: "told",
     asks: 1,
@@ -203,6 +210,11 @@ const READERS = {
     why:
       "Remind on the Overview's card of who has not said when they are free: each person's own seat, by its id, " +
       "never shown. A seat Publish has told is left out, because its week is the group's now",
+  },
+  "lib/courses/weekEdit/counts.ts": {
+    kind: "told",
+    asks: 1,
+    why: "how many people a save of a run's week reaches, beside the in-place editor and in the week's history: an untold seat is nobody the week is open to yet, so it is not counted",
   },
   "lib/courses/updates/audience.ts": {
     kind: "told",
@@ -289,14 +301,7 @@ const READERS = {
   "lib/courses/weekWork/readers.ts": {
     kind: "told",
     asks: 1,
-    why: "whose sessions lock a person's week: their placement's group only once Publish has told them it, the lock being the person's own, whoever asks",
-  },
-  "app/api/courses/runs/[runId]/weeks/[weekId]/reopen/route.ts": {
-    kind: "staff",
-    proof: ['if (!run || !owner || !role?.mayReview) return NextResponse.json({ error: "Forbidden" }, { status: 403 });'],
-    why:
-      "reopening somebody's week reads their seat by its address, after the one gate on whose work a reader may act on, only to " +
-      "know whose sessions lock their week (the readers' own question, asked of the told placement), and sends back no seat",
+    why: "whose session a person is due at in a week: their placement's group only once Publish has told them it, the session being the person's own, whoever asks",
   },
   "lib/courses/feedback/access.ts": {
     kind: "staff",
@@ -434,6 +439,22 @@ const READERS = {
       "tab's Group column read each person's group as Publish told it, so a seat Publish has not told them about is " +
       "in no group, and no answer is counted under a group its person has not been told",
   },
+  "lib/courses/excused/page.ts": {
+    kind: "staff",
+    proof: ['if (actor.role !== "admin") return { status: "none" };'],
+    why:
+      "One request to be excused, for admins alone: the person's seat is read by its address only for the week they " +
+      "joined and their answer to the time question, to count how often they were excused; it shows no member a " +
+      "placement and names nobody to a facilitator",
+  },
+  "lib/courses/excused/decide.ts": {
+    kind: "staff",
+    proof: ['if (actor.role !== "admin") return fail(403, "Forbidden");'],
+    why:
+      "Approving a week of a request to be excused, for admins alone: the person's seat is read by its address only " +
+      "to check they still hold an active learner's place in the request's group before a line is written; it shows " +
+      "no member a placement and names nobody to a facilitator",
+  },
   "lib/applications/people/load.ts": {
     kind: "staff",
     proof: ['if (!opensProgrammeGroups(role)) return { status: "not-yours" };'],
@@ -518,6 +539,54 @@ const READERS = {
     why:
       "the notes admins keep, an admin's alone: a person's seats are read only for the runs they are on, to offer the " +
       "programme a note is written from. No group or placement is shown",
+  },
+  "lib/courses/groupPage/load.ts": {
+    kind: "staff",
+    proof: [
+      'const staff = viewer !== "facilitator";',
+      ".filter((seat) => staff || placementIsTold(seat)),",
+      "told: placementIsTold(seat),",
+    ],
+    told: 2,
+    why:
+      "a group's page: admins and the programme's lead are shown every place in the group, told or not, as the " +
+      "Groups tab shows them (the page is behind `loadProgrammeRun`); the facilitator's cut on their own group page " +
+      "counts only the places Publish has told, and names nobody. The second ask hands the week's card whether each " +
+      "place was told, so a place not told has no Remind of its own and is never counted on Remind's button",
+  },
+  "app/api/courses/groups/[groupId]/remind/route.ts": {
+    kind: "staff",
+    proof: ["const seatUids = seats.docs.map(", "readRemindAudience(db, {"],
+    why:
+      "Remind reads the group's places only to read where each one's week stands; who it previews by name and " +
+      "emails is the group's notice audience, which holds only places Publish has told, so a place not told is " +
+      "never named or emailed",
+  },
+  "lib/courses/groupChange/facts.ts": {
+    kind: "staff",
+    proof: [
+      '.filter((seat) => seat.role === "learner" && placementIsTold(seat))',
+      "people: uids.length,",
+    ],
+    told: 1,
+    why:
+      "what a change to a group's sessions would do, for the preview of the people who may change it (the routes " +
+      "admit a group's live facilitators, the programme's lead, the run's track leads and admins first): the group's " +
+      "told places are read only to count whose reminders before a session have gone, and the preview answers with " +
+      "counts. A placement nobody has told is no reminder and is not counted; nobody's group is shown",
+  },
+  "lib/courses/regularTime/apply.ts": {
+    kind: "writer",
+    proof: [
+      'if (seat.role !== "learner" || seat.groupId !== group.id || !placementIsTold(seat)) continue;',
+      "if (writeTakenBack(tx, { session, ref, data, state }, seat.uid)) takenBack += 1;",
+    ],
+    told: 1,
+    why:
+      "a new regular time from a week onwards, behind the route's gate (admins, the programme's lead and the run's " +
+      "track leads): each told fellow's \"Most weeks, not all\" ticks on the old time are taken back on the registers " +
+      "(never a line an admin's approval of a request to be excused wrote, which the one take-back write leaves alone), " +
+      "and a seat Publish has not told is left as it is, since it was never asked. It shows nobody anything",
   },
   "lib/courses/groupFacilitators.ts": {
     kind: "writer",

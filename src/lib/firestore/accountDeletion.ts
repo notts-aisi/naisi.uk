@@ -26,17 +26,19 @@ import { TEAM_ENTRIES_COLLECTION } from "@/lib/courses/teamPage/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
 import { TEAMS_MARKERS, TEAMS_TEST_KIND } from "@/lib/courses/teams/told";
 import { ASSESSMENTS_COLLECTION } from "./admissionAssessments";
-import { EXCUSED_IN_ADVANCE, ONLINE, ONLINE_SAID } from "./courseAttendance";
+import { CORRECTED, EXCUSED_IN_ADVANCE, FACILITATOR_RECORD, ONLINE, ONLINE_SAID, SET_BY } from "./courseAttendance";
 import { normalizeCourseEnrolment } from "./courseEnrolments";
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import { COURSE_WEEK_WORK_COLLECTION } from "./courseWeekWork";
 import { COURSE_WORK_LOG_COLLECTION } from "./courseWorkLog";
+import { HAND_REMINDERS_COLLECTION, HAND_REMINDER_KIND } from "./courseHandReminders";
 import { COURSE_FEEDBACK_COLLECTION, COURSE_FEEDBACK_SENDS_COLLECTION } from "./courseFeedback";
 import { COURSE_WORK_RATINGS_COLLECTION } from "./courseWorkRatings";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
+import { COURSE_REQUESTS_COLLECTION } from "./courseRequests";
 import {
   COURSE_SESSION_REPORTS_COLLECTION,
   aboutUidsOf,
@@ -209,6 +211,13 @@ export type AccountDeletionSummary = {
   courseWeekWorkDeleted: number;
   courseWorkLogDeleted: number;
   /**
+   * When this account was last reminded by hand about each of its weeks, and
+   * who pressed (`courseNudges`, kind `week-remind-by-hand`). Deleted: each
+   * record is about this account's week alone, as the automatic reminders'
+   * markers are.
+   */
+  courseHandRemindersDeleted: number;
+  /**
    * Feedback (`courseFeedback`): every piece on this account's work, and
    * every piece it wrote on somebody else's, deleted (a piece is shown signed
    * with its writer's name, and the name has gone). Its press of the batch
@@ -354,6 +363,16 @@ export type AccountDeletionSummary = {
    * facilitators to have a word with this person by name, so each goes.
    */
   reviewFollowUpsDeleted: number;
+  /**
+   * Requests (`courseRequests`) this account made of the people running a
+   * programme, and requests ABOUT this account (a facilitator asking for its
+   * line of a register to be corrected). Deleted, as the privacy policy says
+   * of requests: kept "while your account exists, like your other records".
+   * A correction a request led to stays in the group's history, as every
+   * `courseAudit` row does; its `requestId` then names nothing. Counted once
+   * per document.
+   */
+  courseRequestsDeleted: number;
   /**
    * Explainers (`courseExplainers`) this account gave, scheduled or
    * cancelled: each is the run's, opening its groups' sessions, so it stays,
@@ -926,6 +945,22 @@ export async function deleteReviewFollowUpsAbout(db: Firestore, uid: string): Pr
 }
 
 /**
+ * Delete every request this account made (`courseRequests.askedByUid`) and
+ * every request about it (`courseRequests.subjectUid`), on every run, a page
+ * at a time: one equality per field, so no declared index. A request names
+ * who asked and whose line it is about, and the privacy policy keeps
+ * requests "while your account exists". A request this account only took
+ * or decided stays, naming it by an id that no longer resolves, as the
+ * group's history does. Rows are deleted as they are read, so a request both
+ * made by and about this account is counted once.
+ */
+export async function deleteCourseRequestsOf(db: Firestore, uid: string): Promise<number> {
+  const asked = await deleteOwnedCourseRows(db, COURSE_REQUESTS_COLLECTION, uid, "askedByUid");
+  const about = await deleteOwnedCourseRows(db, COURSE_REQUESTS_COLLECTION, uid, "subjectUid");
+  return asked + about;
+}
+
+/**
  * Take this account's id off every explainer that names it
  * (`courseExplainers`, `src/lib/firestore/courseExplainers.ts`): as the one
  * explaining, as the admin who scheduled it, or as the admin who cancelled
@@ -1016,6 +1051,25 @@ export async function deleteCourseWeekWork(db: Firestore, uid: string): Promise<
     weeks: await deleteOwnedCourseRows(db, COURSE_WEEK_WORK_COLLECTION, uid),
     log: await deleteOwnedCourseRows(db, COURSE_WORK_LOG_COLLECTION, uid),
   };
+}
+
+/**
+ * Delete the records of this account's reminders by hand (`courseNudges`,
+ * kind `week-remind-by-hand`, described in `courseHandReminders.ts`), on
+ * every run. Found by the one equality on `uid` and told apart by their kind:
+ * the other records in the collection that carry a `uid` are not this
+ * sweep's. A reminder this account pressed for somebody else keeps its record,
+ * which is about that person's week; the name it shows was never stored.
+ */
+export async function deleteCourseHandReminders(db: Firestore, uid: string): Promise<number> {
+  const snap = await db.collection(HAND_REMINDERS_COLLECTION).where("uid", "==", uid).get();
+  const mine = snap.docs.filter((doc) => (doc.data() ?? {}).kind === HAND_REMINDER_KIND);
+  for (let at = 0; at < mine.length; at += 400) {
+    const batch = db.batch();
+    for (const doc of mine.slice(at, at + 400)) batch.delete(doc.ref);
+    await batch.commit();
+  }
+  return mine.length;
 }
 
 /**
@@ -1163,8 +1217,10 @@ export async function deleteCoursePredictions(db: Firestore, uid: string): Promi
  * equality on `writerUid` and stay for the programme's lead and admins with
  * no writer at all, as a register keeps the notes on it, which record no
  * writer: each moves to an automatic id, because its own id names its writer,
- * and `writerUid` is cleared. Names typed into a report's own words cannot be
- * found, and stay. One transaction per report; counted once per document.
+ * and `writerUid` is cleared. A report written by somebody covering for this
+ * account loses them from `coveringFor` and stays. Names typed into a
+ * report's own words cannot be found, and stay. One transaction per report;
+ * counted once per document.
  */
 export async function clearSessionReports(db: Firestore, uid: string): Promise<number> {
   const rows = db.collection(COURSE_SESSION_REPORTS_COLLECTION);
@@ -1188,6 +1244,19 @@ export async function clearSessionReports(db: Firestore, uid: string): Promise<n
       const answers = answersWithout(normalizeReportAnswers(data.answers), uid);
       tx.create(rows.doc(), { ...data, writerUid: null, answers, aboutUids: aboutUidsOf(answers) });
       tx.delete(doc.ref);
+    });
+    touched.add(doc.id);
+  }
+  // A report written by somebody covering for this account names them in
+  // `coveringFor`: they come out of it, and the report stays.
+  const coveredFor = await rows.where("coveringFor", "array-contains", uid).get();
+  for (const doc of coveredFor.docs) {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(doc.ref);
+      if (!snap.exists) return;
+      const list = (snap.data() ?? {}).coveringFor;
+      const kept = Array.isArray(list) ? list.filter((each) => each !== uid) : [];
+      tx.update(doc.ref, { coveringFor: kept });
     });
     touched.add(doc.id);
   }
@@ -1253,13 +1322,25 @@ export async function clearCourseAttendanceMarks(
         // anything: a malformed map simply has no key to clear.
         return typeof map === "object" && map !== null && uid in map;
       };
+      // And two more, kept the same way: who set the person's own line
+      // (`setBy`), and whether they were there when they facilitated the
+      // group (`facilitatorRecord`). Both keyed by the person they are about.
+      // The uids NAMING WHO ACTED (a line's `byUid`, a cover's `byUid`,
+      // `covering` and `grantedByUid`, an entry's `byUid`) are kept, exactly
+      // as `markedByUid` and `pushedByUid` always have been: they record who
+      // ran the session, not anything about the person deleted. And one
+      // more: when their own line was corrected (`corrected`), keyed by them,
+      // whose `byUid` (who corrected it) is kept the same way.
       const marked = snap.docs.filter(
         (d) =>
           holds(d, "records") ||
           holds(d, "participantNotes") ||
           holds(d, EXCUSED_IN_ADVANCE) ||
           holds(d, ONLINE_SAID) ||
-          holds(d, ONLINE),
+          holds(d, ONLINE) ||
+          holds(d, SET_BY) ||
+          holds(d, FACILITATOR_RECORD) ||
+          holds(d, CORRECTED),
       );
       if (marked.length > 0) {
         const batch = db.batch();
@@ -1282,6 +1363,15 @@ export async function clearCourseAttendanceMarks(
           }
           if (holds(d, ONLINE)) {
             batch.update(d.ref, new FieldPath(ONLINE, uid), FieldValue.delete());
+          }
+          if (holds(d, SET_BY)) {
+            batch.update(d.ref, new FieldPath(SET_BY, uid), FieldValue.delete());
+          }
+          if (holds(d, FACILITATOR_RECORD)) {
+            batch.update(d.ref, new FieldPath(FACILITATOR_RECORD, uid), FieldValue.delete());
+          }
+          if (holds(d, CORRECTED)) {
+            batch.update(d.ref, new FieldPath(CORRECTED, uid), FieldValue.delete());
           }
         }
         await batch.commit();
@@ -1763,6 +1853,7 @@ export async function deleteAccountCascade(
     coursePacksAndCasesDeleted: 0,
     courseWeekWorkDeleted: 0,
     courseWorkLogDeleted: 0,
+    courseHandRemindersDeleted: 0,
     courseFeedbackDeleted: 0,
     courseFeedbackCleared: 0,
     courseWorkRatingsDeleted: 0,
@@ -1790,6 +1881,7 @@ export async function deleteAccountCascade(
     courseNoteDraftsDeleted: 0,
     noteSourcesCleared: 0,
     reviewFollowUpsDeleted: 0,
+    courseRequestsDeleted: 0,
     courseExplainersCleared: 0,
     authDeleted: false,
   };
@@ -2014,7 +2106,16 @@ export async function deleteAccountCascade(
     //     the runs to scan (see the ordering rationale).
     let attendanceSwept = false;
     try {
-      const runIds = [...new Set(enrolments.map((e) => e.runId).filter(Boolean))];
+      // The runs they hold a place on, and the runs of the groups they
+      // facilitate: a facilitator holding no place still has an entry of
+      // their own in the facilitator record of a group's registers.
+      const facilitated = await db.collection("courseGroups").where("facilitatorUids", "array-contains", uid).get();
+      const runIds = [
+        ...new Set([
+          ...enrolments.map((e) => e.runId),
+          ...facilitated.docs.map((d) => (typeof d.data().runId === "string" ? (d.data().runId as string) : "")),
+        ].filter(Boolean)),
+      ];
       summary.courseAttendanceMarksCleared = await clearCourseAttendanceMarks(
         db,
         runIds,
@@ -2245,6 +2346,16 @@ export async function deleteAccountCascade(
     partialFailure = true;
   }
 
+  // 5c. REMINDERS BY HAND. When this account was last reminded about each of
+  //      its weeks is about its weeks alone, and goes with it (see
+  //      courseHandReminders.ts), as the automatic reminders' markers do.
+  try {
+    summary.courseHandRemindersDeleted = await deleteCourseHandReminders(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] course hand reminders delete failed:", uid, err);
+    partialFailure = true;
+  }
+
   // 5c. FEEDBACK. The feedback on this account's work, and the feedback it
   //      wrote, go with it; its presses of the batch email stay, about
   //      somebody else or the run, without its name (see courseFeedback.ts).
@@ -2350,6 +2461,13 @@ export async function deleteAccountCascade(
     summary.reviewFollowUpsDeleted = await deleteReviewFollowUpsAbout(db, uid);
   } catch (err) {
     console.error("[deleteAccount] review follow-ups delete failed:", uid, err);
+    partialFailure = true;
+  }
+  //      A request this account made, or one about it, goes with the account.
+  try {
+    summary.courseRequestsDeleted = await deleteCourseRequestsOf(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseRequests delete failed:", uid, err);
     partialFailure = true;
   }
   //      An explainer opens a group's session and is the run's: it stays, and

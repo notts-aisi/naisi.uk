@@ -26,6 +26,7 @@ import {
   ticksCellWords,
   weekColumnWords,
 } from "@/lib/courses/coursework/words";
+import { DONE_LATE, DONE_ON_TIME, JOINED_LATE, lateAfterSessionWords } from "@/lib/courses/weekWork/words";
 import styles from "./coursework.module.css";
 
 /**
@@ -46,7 +47,22 @@ import styles from "./coursework.module.css";
  * (`loadCourseworkTab`): names, counts, states and addresses.
  */
 
-function Cell({ cell, name }: { cell: CourseworkCell; name: string }) {
+/**
+ * A cell's first words: "Done late" (with how late beside it) or "Done on
+ * time" once the session they were due at has passed, "Done" with no session
+ * to tell it against or before it, "Joined late" for a week before they were
+ * told their group that they have not done, otherwise "Not done".
+ */
+function doneWordsOf(cell: CourseworkCell, now: Date): string {
+  if (cell.done === true) {
+    if (cell.doneLateMs !== null) return DONE_LATE;
+    if (cell.doneAt && cell.due.at && now.getTime() >= new Date(cell.due.at).getTime()) return DONE_ON_TIME;
+    return DONE;
+  }
+  return cell.due.by === "joined-late" ? JOINED_LATE : NOT_DONE;
+}
+
+function Cell({ cell, name, now }: { cell: CourseworkCell; name: string; now: Date }) {
   if (!cell.counted) return <span className={styles.muted}>{NO_COURSEWORK}</span>;
   const done = cell.done === true;
   const counts: Array<{ key: string; words: string; full: boolean }> = [];
@@ -63,7 +79,8 @@ function Cell({ cell, name }: { cell: CourseworkCell; name: string }) {
   return (
     <div className={styles.cell}>
       <Link href={cell.href} className={styles.cellLink} aria-label={cellLinkLabelWords(name, cell.weekNumber, done)}>
-        <span className={done ? styles.weekDone : cell.reached ? styles.weekNotDone : styles.weekToCome}>{done ? DONE : NOT_DONE}</span>
+        <span className={done ? styles.weekDone : cell.reached ? styles.weekNotDone : styles.weekToCome}>{doneWordsOf(cell, now)}</span>
+        {done && cell.doneLateMs !== null && <span className={styles.part}>{lateAfterSessionWords(cell.doneLateMs)}</span>}
         {counts.map((count) => (
           <span key={count.key} className={count.full ? styles.full : styles.part}>
             {count.words}
@@ -82,7 +99,7 @@ function Cell({ cell, name }: { cell: CourseworkCell; name: string }) {
   );
 }
 
-function Row({ row }: { row: CourseworkRow }) {
+function Row({ row, now }: { row: CourseworkRow; now: Date }) {
   return (
     <tr>
       <th scope="row" className={`${styles.rowHead} ${styles.nameCol}`}>
@@ -98,7 +115,7 @@ function Row({ row }: { row: CourseworkRow }) {
       </th>
       {row.cells.map((cell) => (
         <td key={cell.weekNumber} className={styles.td}>
-          <Cell cell={cell} name={row.name} />
+          <Cell cell={cell} name={row.name} now={now} />
         </td>
       ))}
     </tr>
@@ -115,6 +132,7 @@ export default function CourseworkTable({
   /** The week the address chose for the panels under the table, kept by every filter; null when it chose none. */
   week?: number | null;
 }) {
+  const now = new Date();
   const lead = view.viewer === "lead" ? { firstName: "", isReader: true } : view.leadFirstName ? { firstName: view.leadFirstName, isReader: false } : null;
   const groupFilters = [
     { key: "all", label: EVERYBODY },
@@ -200,7 +218,7 @@ export default function CourseworkTable({
                     </th>
                   </tr>
                   {section.rows.map((row) => (
-                    <Row key={row.uid} row={row} />
+                    <Row key={row.uid} row={row} now={now} />
                   ))}
                 </tbody>
               ))}

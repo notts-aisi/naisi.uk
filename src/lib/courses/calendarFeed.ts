@@ -11,6 +11,7 @@ import {
 } from "@/lib/firestore/courseEnrolments";
 import {
   GROUP_FIELD_LIMITS,
+  campusForWeek,
   normalizeCourseGroup,
   sessionChangeForWeek,
   sessionModeForWeek,
@@ -18,6 +19,7 @@ import {
 } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, validateSubmissionUrl, type CourseRunDoc } from "@/lib/firestore/courses";
 import { campusLabel } from "./campus";
+import { couldBeFollowed } from "./followable";
 import { programmePageAddress } from "./calendarLink";
 import { JOIN_ON_SITE, cancelledTitle, joinWords, sessionTitle, type CalendarLineGroup } from "./calendarWords";
 import { sessionsFromJoinWeek } from "./ownAttendance";
@@ -132,12 +134,15 @@ function eventOf(
   const hasLink = typeof slot.meetingUrl === "string" && validateSubmissionUrl(slot.meetingUrl, GROUP_FIELD_LIMITS.meetingUrl) === null;
   const online = mode === "virtual" || (mode === null && hasLink);
   // The week's own room; while there is none, and the week is not online,
-  // the group's campus stands in for it.
+  // the week's campus stands in for it (its own, else the group's). A room a
+  // reader could follow (`couldBeFollowed`) is a room not booked.
+  const campus = session.occurrence === 1 ? campusForWeek(group, session.weekId) : group.campus;
+  const typed = couldBeFollowed(slot.location) ? "" : slot.location.trim();
   const room =
-    mode !== "virtual" && slot.location.trim()
-      ? slot.location.trim()
+    mode !== "virtual" && typed
+      ? typed
       : !online
-        ? campusLabel(group.campus) || null
+        ? campusLabel(campus) || null
         : null;
   return {
     uid: sessionUid(run, group, session),

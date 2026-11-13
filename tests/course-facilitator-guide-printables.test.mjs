@@ -825,7 +825,8 @@ describe("5. who downloads the printables", () => {
         assert.equal(answer.headers["content-disposition"], `attachment; filename="${name}"`);
         assert.equal(answer.headers["cache-control"], "private, no-store");
         assert.equal(answer.headers["x-robots-tag"], "noindex");
-        assert.equal(Number(answer.headers["content-length"]), answer.bytes.length);
+        // The server sets a response's framing: the route states no length of its own.
+        assert.equal(answer.headers["content-length"], undefined);
         // Exactly the session's printables, drawn as the renderer draws them.
         const one = session === undefined ? doc : printables.printablesOfSession(doc, session);
         const want = await pdf.renderPrintablesPdf(one, printables.printablesPdfTitle("AGI Strategy Fellowship", session ?? null));

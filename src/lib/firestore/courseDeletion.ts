@@ -8,9 +8,11 @@ import {
 } from "firebase-admin/firestore";
 import type { Storage } from "firebase-admin/storage";
 import {
+  COURSE_FIELD_LIMITS,
   courseRunChannel,
   normalizeCourse,
   normalizeCourseRun,
+  weekDocId,
   type CourseDoc,
   type CourseRunDoc,
 } from "./courses";
@@ -28,6 +30,7 @@ import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
 import { COURSE_SESSION_REPORTS_COLLECTION } from "./courseSessionReports";
 import { PLACEMENT_NOTES_COLLECTION } from "@/lib/courses/placementNotes/model";
+import { COURSE_REQUESTS_COLLECTION } from "./courseRequests";
 import { BEST_ANSWERS_COLLECTION, PANGRAM_CHECKS_COLLECTION } from "@/lib/courses/coursework/collections";
 import { COURSE_WEEK_REVIEWS_COLLECTION } from "./courseWeekReviews";
 import { COURSE_EXPLAINERS_COLLECTION } from "./courseExplainers";
@@ -40,6 +43,7 @@ import { COURSE_WORK_RATINGS_COLLECTION } from "./courseWorkRatings";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { RECORD_OPENINGS_COLLECTION } from "./recordOpenings";
 import { CHECK_IN_WEEKS_COLLECTION } from "./checkInWeeks";
+import { WEEK_HISTORY_SUBCOLLECTION, WEEK_LOCK_SUBCOLLECTION } from "@/lib/courses/weekEdit/paths";
 import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
 import { COURSE_UPDATES_COLLECTION } from "./courseUpdates";
 import {
@@ -358,6 +362,16 @@ export type RunDestroyCounts = {
    */
   placementNotes: number;
   /**
+   * `courseRequests` rows: what somebody on the run asked of the people
+   * running it (first, a facilitator asking for a line of a finished
+   * register to be corrected, with why), and what became of it
+   * (`src/lib/firestore/courseRequests.ts`). Keyed by `runId` on the row like
+   * every other leaf here, and it dies with the run: a request is about a
+   * register of a group this cascade deletes, and nothing can show it once
+   * the group is gone.
+   */
+  requests: number;
+  /**
    * `courseBestAnswers` rows: Claude's pick of the strongest answers to each
    * week of this run (privacy v13, `src/lib/courses/coursework/bestAnswers.ts`).
    * Keyed by `runId` on the row like every other leaf here, and it dies with
@@ -504,6 +518,21 @@ export type RunDestroyCounts = {
    * which a destroy leaves alone (docs/surveys.md, "Deletion").
    */
   checkInWeeks: number;
+  /**
+   * Each week's `history` subcollection (`courseRuns/{runId}/weeks/{weekId}/
+   * history`, src/lib/courses/weekEdit/history.ts): one record for every save
+   * of a week by the in-place editor, the paste or a restore, each with who
+   * saved it, when, and the week's blocks after it. Under the week documents,
+   * so deleting a week would not delete them: they are drained week by week
+   * BEFORE the weeks, and they die with the run, as the weeks do.
+   */
+  weekHistory: number;
+  /**
+   * Each week's `editLock` subcollection (src/lib/courses/weekEdit/lock.ts):
+   * who is editing the week right now, at most one record a week, usually
+   * none. Drained with the history, before the weeks.
+   */
+  weekEditLocks: number;
   /**
    * `schedulerMarkers` rows this run owns: the send-dedupe markers the
    * scheduler tick writes before it sends anything.
@@ -1203,6 +1232,54 @@ async function releaseAdmissionSeats(
  * filters served by automatic single-field indexes / index merging — no
  * composite indexes were needed.
  */
+/**
+ * Every week id a history or lock record can sit under, WHETHER OR NOT ITS
+ * DOCUMENT EXISTS: the run's week documents, and every id a week of a plan
+ * can have (`weekDocId(1)` to `weekDocId(60)`, a plan's most). A lock is taken
+ * on a planned week nobody has opened yet, and renumbering a run's weeks
+ * deletes week documents and leaves the records under them, so a walk of the
+ * documents alone would leave those records behind. The editing routes write
+ * only under a week that exists or is in the plan, so nothing sits anywhere
+ * else.
+ */
+async function runWeekIds(db: Firestore, runId: string): Promise<string[]> {
+  const snap = await db.collection("courseRuns").doc(runId).collection("weeks").select().get();
+  const ids = new Set(snap.docs.map((doc) => doc.id));
+  for (let n = 1; n <= COURSE_FIELD_LIMITS.maxWeekPlanEntries; n += 1) ids.add(weekDocId(n));
+  return [...ids].sort();
+}
+
+/**
+ * The records under each of a run's weeks, counted the way they are drained:
+ * week by week, one subcollection at a time, with no collection-group read
+ * (which would need an index this project does not declare).
+ */
+async function countWeekRecords(db: Firestore, runId: string): Promise<{ history: number; locks: number }> {
+  const weekIds = await runWeekIds(db, runId);
+  const weeks = db.collection("courseRuns").doc(runId).collection("weeks");
+  const [history, locks] = await Promise.all([
+    Promise.all(weekIds.map((id) => countAgg(weeks.doc(id).collection(WEEK_HISTORY_SUBCOLLECTION)))),
+    Promise.all(weekIds.map((id) => countAgg(weeks.doc(id).collection(WEEK_LOCK_SUBCOLLECTION)))),
+  ]);
+  return { history: history.reduce((a, b) => a + b, 0), locks: locks.reduce((a, b) => a + b, 0) };
+}
+
+/**
+ * One subcollection under every week of the run, drained week by week, in
+ * the weeks' order. Drained when every week's is.
+ */
+async function drainWeekSubcollection(
+  db: Firestore,
+  runRef: DocumentReference,
+  subcollection: string,
+  budget: Budget,
+): Promise<DrainResult> {
+  const weekIds = await runWeekIds(db, runRef.id);
+  return drainInOrder(
+    weekIds.map((id) => () => drainQuery(db, subcollection, () => runRef.collection("weeks").doc(id).collection(subcollection), budget)),
+  );
+}
+
 export async function countRunDestroyTargets(
   db: Firestore,
   run: CourseRunDoc,
@@ -1244,6 +1321,7 @@ export async function countRunDestroyTargets(
     ),
   ];
 
+  const weekRecords = await countWeekRecords(db, runId);
   const [
     weeks,
     applications,
@@ -1269,6 +1347,7 @@ export async function countRunDestroyTargets(
     groupSharedNotes,
     sessionReports,
     placementNotes,
+    requests,
     bestAnswers,
     weekReviews,
     reviewFollowUps,
@@ -1362,6 +1441,8 @@ export async function countRunDestroyTargets(
     countAgg(db.collection(COURSE_SESSION_REPORTS_COLLECTION).where("runId", "==", runId)),
     // The same single equality the placement notes stage drains on.
     countAgg(db.collection(PLACEMENT_NOTES_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the requests stage drains on.
+    countAgg(db.collection(COURSE_REQUESTS_COLLECTION).where("runId", "==", runId)),
     // The same single equality the best answers stage drains on.
     countAgg(db.collection(BEST_ANSWERS_COLLECTION).where("runId", "==", runId)),
     // The same single equality the week reviews stage drains on.
@@ -1443,6 +1524,7 @@ export async function countRunDestroyTargets(
     groupSharedNotes,
     sessionReports,
     placementNotes,
+    requests,
     bestAnswers,
     weekReviews,
     reviewFollowUps,
@@ -1461,6 +1543,8 @@ export async function countRunDestroyTargets(
     predictions,
     recordOpenings,
     checkInWeeks,
+    weekHistory: weekRecords.history,
+    weekEditLocks: weekRecords.locks,
     schedulerMarkers: schedulerMarkerCounts.reduce((a, b) => a + b, 0),
     emailSendRows: emailSendCounts.reduce((a, b) => a + b, 0),
     dataExportRows: exportCounts.reduce((a, b) => a + b, 0),
@@ -2074,6 +2158,15 @@ export async function destroyRunCascade(
         drainQuery(db, PLACEMENT_NOTES_COLLECTION, byRunId(PLACEMENT_NOTES_COLLECTION), budget),
     },
     {
+      key: "requests",
+      // What was asked of the people running the run, and what became of
+      // it: a leaf keyed by `runId`, drained with the other leaves and
+      // BEFORE the groups each request is about. `write: if false` to every
+      // client, and the request routes read the run first and refuse one
+      // being destroyed, so nothing recreates one behind the cascade.
+      drain: () => drainQuery(db, COURSE_REQUESTS_COLLECTION, byRunId(COURSE_REQUESTS_COLLECTION), budget),
+    },
+    {
       key: "bestAnswers",
       // Claude's pick of each week's strongest answers: a leaf keyed by
       // `runId`, drained with the other leaves. `write: if false` to every
@@ -2202,6 +2295,19 @@ export async function destroyRunCascade(
     {
       key: "groups",
       drain: () => drainQuery(db, "courseGroups", byRunId("courseGroups"), budget),
+    },
+    {
+      key: "weekHistory",
+      // Each week's history: under the week documents, which Firestore would
+      // not delete them with, so drained week by week BEFORE the weeks. Written
+      // only by the editing routes, which read the run first and refuse one
+      // being destroyed, so nothing recreates one behind the cascade.
+      drain: () => drainWeekSubcollection(db, runRef, WEEK_HISTORY_SUBCOLLECTION, budget),
+    },
+    {
+      key: "weekEditLocks",
+      // Each week's edit lock, the same way and for the same reason.
+      drain: () => drainWeekSubcollection(db, runRef, WEEK_LOCK_SUBCOLLECTION, budget),
     },
     {
       key: "weeks",

@@ -47,9 +47,20 @@ export type TimeQuestionSession = {
   weekNumber: number;
   /** "Tue 17 Nov". */
   day: string;
-  /** They have told us they can't make it, and its register still records them as excused on their word. */
+  /** They have told us they can't make it, and its register still records them as excused on their word (never a line an approval wrote). */
   told: boolean;
 };
+
+/**
+ * The sessions "Most weeks, not all" offers to tick. While the question is
+ * asked (no answer yet to the asking that is current), every session still
+ * to come. Once that asking has an answer, only the ones already ticked, to
+ * untick: a week more is asked for as a request to be excused, and the route
+ * refuses an answer that adds one.
+ */
+export function ticksOffered<T extends Pick<TimeQuestionSession, "told">>(sessions: readonly T[], answered: boolean): T[] {
+  return answered ? sessions.filter((each) => each.told) : [...sessions];
+}
 
 /**
  * The card on the programme page (`timeQuestionFor` in `./seat.ts`): the
@@ -78,18 +89,36 @@ function viewOf(answer: NonNullable<CourseEnrolmentDoc["timeAnswer"]>): TimeAnsw
 
 /**
  * THE STALE-ANSWER RULE: the seat's answer, while it is about the group the
- * seat is in now, on a learner's seat that is still taking part. Null
- * otherwise, so an answer about a group they were moved out of, or kept on a
- * seat that has left, can never show. Every reader of the answer asks this.
+ * seat is in now, on a learner's seat that is still taking part, and was
+ * given since the group's time last changed. Null otherwise, so an answer
+ * about a group they were moved out of, kept on a seat that has left, or
+ * given about a day or time the group no longer meets at, can never show,
+ * and the person is asked again. Every reader of the answer asks this.
+ *
+ * `askedSince` is the group's `timeQuestionSince` (stamped when its regular
+ * day or time changes from a week onwards), or null for a group whose time
+ * never changed that way: then every answer about the group counts, as it
+ * always has. An answer with no stored time cannot be shown to be after the
+ * change, so it is asked again too. The stored answer is never touched: it
+ * is simply not the person's answer any more.
  */
 export function currentTimeAnswer(
   seat: Pick<CourseEnrolmentDoc, "role" | "status" | "groupId" | "timeAnswer">,
+  askedSince: Date | null,
 ): TimeAnswerView | null {
   const answer = seat.timeAnswer;
   if (!answer) return null;
   if (seat.role !== "learner" || seat.status !== "active") return null;
   if (!seat.groupId || answer.forGroupId !== seat.groupId) return null;
+  if (askedSince && (!answer.at || answer.at.getTime() < askedSince.getTime())) return null;
   return viewOf(answer);
+}
+
+/** The moment a group's answers count from: its `timeQuestionSince`, or null for every answer. */
+export function timeQuestionSinceOf(
+  group: { timeQuestionSince?: Date | null } | null | undefined,
+): Date | null {
+  return group?.timeQuestionSince instanceof Date ? group.timeQuestionSince : null;
 }
 
 /** Whether an answer says they can make the group's time: yes, or most weeks. Nobody moves them for it. */

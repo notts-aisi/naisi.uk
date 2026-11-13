@@ -13,7 +13,7 @@ import {
   type ReminderDays,
 } from "@/lib/courses/weekEmails/model";
 import { weekReminderEmailWords, type ReminderWeek } from "@/lib/courses/weekEmails/words";
-import { weekAsksForWriting, weekDone } from "@/lib/courses/weekWork/model";
+import { weekAsksForWriting, weekDone, weekWritingNeeds } from "@/lib/courses/weekWork/model";
 import {
   loadPeopleWeekFacts,
   loadRunWeekStates,
@@ -84,9 +84,10 @@ import type { JobContext, JobRegistration, JobResult } from "../registry";
  * (`schedulerMarkers/weekremind__{groupId}__{sessionKey}__{uid}__{3|1}`),
  * claimed before the send and stamped after it, so two ticks at once send
  * once and a crash re-sends nothing twice. Somebody claimed and not sent is
- * stamped with why: `done` (their week is), `submitted` or `locked` (it takes
- * no more work), `joined-late` (the week's session started before they were
- * told their group, so nothing locks it by the clock), `stale` (the tick was
+ * stamped with why: `done` (their week is), `locked` (the programme has
+ * closed, so it takes no more work; `submitted` on a marker written while
+ * weeks locked at the old Submit), `joined-late` (the week's session started
+ * before they were told their group, or they have none), `stale` (the tick was
  * down too long), and the notice audience's own reasons for leaving somebody
  * out: `no-account`, `no-address`, `same-inbox`, `suppressed`. Somebody who
  * left the programme no longer holds a place and is not in the audience at
@@ -161,6 +162,8 @@ type ReminderWeekInfo = {
   blocks: readonly WeekBlock[];
   tasks: TaskNeeds[];
   writes: boolean;
+  /** Everything the week asks to be written, for a week whose tasks count nothing (`weekWritingNeeds`). */
+  asks: TaskNeeds;
   facts: Map<string, PersonWeekFacts>;
 };
 
@@ -206,7 +209,7 @@ export function dueReminders(
 /** What one person is owed by one reminder, or why nothing. */
 type Verdict =
   | { send: true; weeks: ReminderWeek[] }
-  | { send: false; why: "done" | "submitted" | "locked" | "joined-late" };
+  | { send: false; why: "done" | "locked" | "joined-late" };
 
 /**
  * WHETHER ONE PERSON IS REMINDED, and about which weeks: each week the
@@ -225,21 +228,20 @@ export function reminderVerdict(
     const state = weekStates.stateOf(uid, week.weekNumber);
     const own = week.facts.get(uid);
     if (!own) continue;
-    const submitted = state.kind === "submitted";
-    if (weekDone({ tasks: week.tasks, state: own.state, writes: week.writes, submitted })) continue;
-    // Not done, and no more work can be done in it: submitted with something
-    // its tasks count still unticked, or locked. Nothing listed could be done.
-    if (state.kind === "submitted" || state.kind === "locked") {
-      why ??= state.kind;
+    // The one meaning of done: reminders stop once the week is done.
+    if (weekDone({ tasks: week.tasks, state: own.state, submitted: state.submittedAt !== null, asks: week.asks })) continue;
+    // Not done, and no more work can be done in it: the programme has closed. Nothing listed could be done.
+    if (state.kind === "closed") {
+      why ??= "locked";
       continue;
     }
-    if (state.kind === "open" && (state.by === "joined-late" || state.by === "no-group")) {
+    if (state.due.by === "joined-late" || state.due.by === "no-group") {
       why ??= "joined-late";
       continue;
     }
     remind.push({
       weekNumber: week.weekNumber,
-      left: weekLeft({ blocks: week.blocks, tasks: week.tasks, state: own.state, writes: week.writes, submitted: false }),
+      left: weekLeft({ blocks: week.blocks, tasks: week.tasks, state: own.state }),
       writes: week.writes,
     });
   }
@@ -266,6 +268,7 @@ async function reminderWeeks(
       blocks: week.blocks,
       tasks: weekTaskNeeds(week.blocks),
       writes: weekAsksForWriting(week.blocks),
+      asks: weekWritingNeeds(week.blocks),
       facts,
     });
   }

@@ -215,6 +215,7 @@ export const REFUSAL = {
   email: "Choose whether to email it.",
   emailCount: "Say how many people the button said it would email.",
   test: "Choose whether this is a test.",
+  withFacilitators: "Only an update to one group can be emailed to its facilitators too.",
   ownGroupOnly: "You can write to your own group only.",
   groupGone: "That group isn’t on this programme any more. Choose another.",
   nobodyToEmail: "Nobody it’s to can be emailed yet. Turn off Also email it to post it.",

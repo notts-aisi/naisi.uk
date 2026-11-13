@@ -13,10 +13,14 @@
  *    every pause: a spell starts with the first save after `SAVE_SPELL_MS`
  *    without one, and only that save is logged. The row itself keeps the
  *    first save (`firstWrittenAt`) and the last (`updatedAt`).
- *  - `cleared`: a box emptied, which deletes its row.
- *  - `submit`: the week submitted.
+ *  - `cleared`: a box emptied (which deletes its row, unless an earlier
+ *    version of it is kept on the row: `src/lib/courses/weekWork/versions.ts`).
+ *  - `send`: a written answer sent for the first time, by its own Send or by
+ *    the week's old Submit; `send-again`: sent again after a change.
+ *  - `submit`: the week's old Submit pressed (a page open since before weeks
+ *    stayed open).
  *  - `reopen`: the week reopened for them by somebody running the group,
- *    named in `byUid`.
+ *    named in `byUid`, when weeks locked. Nothing writes it now.
  *
  * Opening a page is never logged: no line of the policy covers it.
  *
@@ -32,7 +36,7 @@
 
 export const COURSE_WORK_LOG_COLLECTION = "courseWorkLog";
 
-export const WORK_LOG_KINDS = ["tick", "untick", "save", "cleared", "submit", "reopen"] as const;
+export const WORK_LOG_KINDS = ["tick", "untick", "save", "cleared", "send", "send-again", "submit", "reopen"] as const;
 export type WorkLogKind = (typeof WORK_LOG_KINDS)[number];
 
 /** What a row is about: one of the week's items, or the week itself (`week`) for a submit or a reopen. */

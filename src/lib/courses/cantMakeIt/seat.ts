@@ -13,6 +13,7 @@ import type { SessionUser } from "@/lib/firebase/session";
 import {
   ATTENDANCE_LIMITS,
   EXCUSED_IN_ADVANCE,
+  SET_BY,
   attendanceDocId,
   normalizeCourseAttendance,
 } from "@/lib/firestore/courseAttendance";
@@ -33,6 +34,7 @@ import {
   type CantMakeItView,
   type RegisterLine,
 } from "./model";
+import { excuseHoldsIn } from "@/lib/courses/excused/standing";
 import { CANT_MAKE_IT_REFUSAL } from "./words";
 
 /**
@@ -83,13 +85,31 @@ import { CANT_MAKE_IT_REFUSAL } from "./words";
  * Nobody is emailed, and nothing is sent later because of it.
  */
 
-/** Whether this seat is one of the group's people the register shows, by the caller's own uid. */
-function takesPartIn(user: SessionUser, seat: CourseEnrolmentDoc, group: CourseGroupDoc, runId: string): boolean {
+/**
+ * Whether this seat is one of the group's people the register shows, by the
+ * caller's own uid. Asking to be excused from a week asks the same
+ * (`src/lib/courses/excused/ask.ts`).
+ */
+export function takesPartIn(user: SessionUser, seat: CourseEnrolmentDoc, group: CourseGroupDoc, runId: string): boolean {
   if (seat.uid !== user.uid || seat.runId !== runId) return false;
   if (seat.role !== "learner" || seat.status !== "active") return false;
   if (!seat.groupId || seat.groupId !== group.id || group.runId !== runId || group.archived) return false;
   if (!placementIsTold(seat)) return false;
   return isNamedWithStanding(user, "courseEnrolments.uid", seat.uid);
+}
+
+/**
+ * WHETHER THE CALLER FACILITATES THIS GROUP, held to the live bar: named
+ * among its facilitators while their account still stands behind the role
+ * (`isNamedWithStanding`). The one question both doors ask, so they never
+ * disagree about who it is: asking to be excused (`excused/ask.ts`) refuses
+ * exactly these people, the instant "Can't make it" serves exactly them, and
+ * the person's own view (`excused/own.ts`) offers each the way in it keeps.
+ * A place in the group is held to the same bar (`takesPartIn`), so an account
+ * that no longer stands is turned away by both doors before this is asked.
+ */
+export function facilitatesGroup(user: SessionUser, group: CourseGroupDoc): boolean {
+  return isNamedWithStanding(user, "courseGroups.facilitatorUids", group.facilitatorUids);
 }
 
 /** One person's line of one register, as `cantMakeItState` asks it. */
@@ -192,13 +212,30 @@ export function registerHasRoom(line: SessionLine): boolean {
  * line, and otherwise merges this one key into each map, so nobody else's
  * line is ever written. The parts of the id live as fields, as the marking
  * route writes them.
+ *
+ * AN APPROVED REQUEST TO BE EXCUSED, before its session, is written by this
+ * same write (`src/lib/courses/excused/decide.ts`), so the register reads
+ * exactly as "Can't make it" leaves it, and code that knows nothing of
+ * requests reads it the same. Only who set the line differs: `setBy` names
+ * the admin who approved it, `how: "approval"`, beside the person's own word
+ * (`told`, when they asked).
  */
 export function writeExcusedInAdvance(
   tx: Transaction,
   line: SessionLine,
-  input: { run: CourseRunDoc; group: CourseGroupDoc; uid: string; told: Date | FieldValue },
+  input: {
+    run: CourseRunDoc;
+    group: CourseGroupDoc;
+    uid: string;
+    told: Date | FieldValue;
+    /** Set by an approval, not by the person's own word: who approved it, and when. */
+    approvedBy?: { byUid: string; at: Date };
+  },
 ): void {
   const { uid, told } = input;
+  const setter = input.approvedBy
+    ? { byUid: input.approvedBy.byUid, at: input.approvedBy.at, how: "approval" }
+    : { byUid: uid, at: told, how: "self" };
   const { startsAt } = sessionInstants(line.session);
   tx.set(
     line.ref,
@@ -209,19 +246,50 @@ export function writeExcusedInAdvance(
       occurrence: line.session.occurrence,
       records: { [uid]: "excused" },
       [EXCUSED_IN_ADVANCE]: { [uid]: told },
+      // The line says who set it: the person's own word, before the session,
+      // or the admin who approved their request to be excused.
+      [SET_BY]: { [uid]: setter },
       ...(startsAt ? { sessionAt: startsAt } : {}),
     },
     { merge: true },
   );
 }
 
-/** Taking a word in advance back: both keys of `uid`'s line, only on a line whose state is `told`. */
-export function writeTakenBack(tx: Transaction, line: SessionLine, uid: string): void {
+/**
+ * Whether an approval wrote `uid`'s line: an admin approved their request to
+ * be excused from this session (`setBy.<uid>.how` is `approval`). Such a line
+ * is not the person's own word, so nothing that takes a word back touches it:
+ * not an old page's "I can make it after all", not unticking "Most weeks, not
+ * all", not a new regular time. Only somebody correcting the register changes
+ * it, and a facilitator's own mark on the day wins over it, as over any line.
+ */
+export function setByApproval(line: Pick<SessionLine, "data">, uid: string): boolean {
+  const stamps = (line.data?.[SET_BY] ?? {}) as Record<string, unknown>;
+  const stamp = Object.hasOwn(stamps, uid) ? stamps[uid] : null;
+  return Boolean(stamp && typeof stamp === "object" && (stamp as { how?: unknown }).how === "approval");
+}
+
+/**
+ * Taking a word in advance back: both keys of `uid`'s line, only on a line
+ * whose state is `told`, and the stamp saying who set it, when it has one:
+ * the line is empty again.
+ *
+ * A line an approval wrote is left as it is (`setByApproval`), whoever calls:
+ * the answer is whether anything was taken back.
+ */
+export function writeTakenBack(tx: Transaction, line: SessionLine, uid: string): boolean {
+  if (setByApproval(line, uid)) return false;
+  const stamped = Object.hasOwn((line.data?.[SET_BY] ?? {}) as Record<string, unknown>, uid);
   tx.set(
     line.ref,
-    { records: { [uid]: FieldValue.delete() }, [EXCUSED_IN_ADVANCE]: { [uid]: FieldValue.delete() } },
+    {
+      records: { [uid]: FieldValue.delete() },
+      [EXCUSED_IN_ADVANCE]: { [uid]: FieldValue.delete() },
+      ...(stamped ? { [SET_BY]: { [uid]: FieldValue.delete() } } : {}),
+    },
     { merge: true },
   );
+  return true;
 }
 
 /**
@@ -277,9 +345,9 @@ export async function cantMakeItFor(
 
 export type CantMakeItOutcome =
   | { ok: true; told: boolean }
-  | { ok: false; status: 400 | 404 | 409; error: string };
+  | { ok: false; status: 400 | 403 | 404 | 409; error: string };
 
-const refuse = (status: 400 | 404 | 409, error: string): CantMakeItOutcome => ({ ok: false, status, error });
+const refuse = (status: 400 | 403 | 404 | 409, error: string): CantMakeItOutcome => ({ ok: false, status, error });
 
 const CLOSED: Record<Extract<CantMakeItState, { kind: "closed" }>["why"], string> = {
   started: CANT_MAKE_IT_REFUSAL.started,
@@ -328,6 +396,11 @@ export async function recordCantMakeIt(
     const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
     const seat = normalizeCourseEnrolment(seatSnap.id, seatSnap.data() ?? {});
     if (!takesPartIn(user, seat, group, run.id)) return refuse(404, CANT_MAKE_IT_REFUSAL.notYours);
+    // Saying it on the spot is a facilitator's only, on their own place in a
+    // group they facilitate: anybody else taking part asks to be excused, and
+    // an admin decides. Taking a line they wrote back stays open to everybody,
+    // so nobody is left with a word they gave before requests.
+    if (request.cantMakeIt && !facilitatesGroup(user, group)) return refuse(403, CANT_MAKE_IT_REFUSAL.askInstead);
 
     // The session is one this group holds, by the group's own calendar.
     const session = resolveSessions(run, group).find((each) => each.sessionKey === request.sessionKey);
@@ -338,6 +411,12 @@ export async function recordCantMakeIt(
 
     if (request.cantMakeIt) {
       if (state.kind === "marked") return refuse(409, CANT_MAKE_IT_REFUSAL.marked);
+      // A request to be excused from it, waiting or declined, is not undone
+      // on the person's own word.
+      if (state.kind === "open") {
+        const hold = (await excuseHoldsIn(tx, db, user.uid, run.id))(session.sessionKey);
+        if (hold) return refuse(409, hold === "waiting" ? CANT_MAKE_IT_REFUSAL.askedWaiting : CANT_MAKE_IT_REFUSAL.askedDeclined);
+      }
       if (state.kind === "open") {
         if (!registerHasRoom(line)) return refuse(409, CANT_MAKE_IT_REFUSAL.full);
         writeExcusedInAdvance(tx, line, { run, group, uid: user.uid, told: FieldValue.serverTimestamp() });
@@ -346,8 +425,11 @@ export async function recordCantMakeIt(
       return { ok: true, told: true };
     }
 
-    // Taking it back: only their own word, while it still stands.
+    // Taking it back: only their own word, while it still stands. A line an
+    // approval wrote is not their word: an old page still offering "I can
+    // make it after all" is told they are excused, and that coming is enough.
     if (state.kind === "marked") return refuse(409, CANT_MAKE_IT_REFUSAL.marked);
+    if (state.kind === "told" && setByApproval(line, user.uid)) return refuse(409, CANT_MAKE_IT_REFUSAL.approved);
     if (state.kind === "told") writeTakenBack(tx, line, user.uid);
     keepListInStep(tx, seatSnap.ref, seat, session.sessionKey, false);
     return { ok: true, told: false };

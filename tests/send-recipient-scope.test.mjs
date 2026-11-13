@@ -338,6 +338,163 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/app/api/courses/groups/[groupId]/session/regular/route.ts#audience.recipients",
+    {
+      reads: 5,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by groupNoticeAudience (src/lib/courses/groupChange/notice.ts), which is updateEmailAudience " +
+        "(src/lib/courses/updates/audience.ts) for the one group with `withFacilitators`: the group's own active, " +
+        "told enrolment rows through the shared cohort-audience helper, and the group's facilitatorUids (written " +
+        "by src/lib/courses/groupFacilitators.ts) each held to their bar, never the presser. Nothing in the " +
+        "request names a recipient.",
+      why:
+        "A new regular time's notice: who it reaches, counted by the same function the preview's number comes from; the request " +
+        "carries only that number.",
+    },
+  ],
+  [
+    "src/app/api/courses/groups/[groupId]/session/regular/route.ts#local:recipients",
+    {
+      reads: 1,
+      origin: "derived",
+      derivedFrom: ["src/app/api/courses/groups/[groupId]/session/regular/route.ts#audience.recipients"],
+      why: "The same audience, kept for the notice once every refusal has passed and the change is written.",
+    },
+  ],
+  [
+    "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts#audience.recipients",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by updateEmailAudience (src/lib/courses/updates/audience.ts) for the one group, without its " +
+        "facilitators: the group's own active, told enrolment rows through the shared cohort-audience helper, " +
+        "never the presser. The person given the session is then taken out. Nothing in the request names a recipient.",
+      why:
+        "The optional notice that somebody else is running a session: who it reaches, counted by the same function " +
+        "the preview's number comes from; the request carries only that number, checked again before anything changes.",
+    },
+  ],
+  [
+    "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts#local:recipients",
+    {
+      reads: 1,
+      origin: "derived",
+      derivedFrom: ["src/app/api/courses/groups/[groupId]/attendance/cover/route.ts#audience.recipients"],
+      why: "The same audience, without the person given the session, kept for the notice once every refusal has passed and the grant is written.",
+    },
+  ],
+  [
+    "src/app/api/courses/groups/[groupId]/remind/route.ts#found.facilitatorUids",
+    {
+      reads: 1,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "The gate: whether the presser facilitates the group, held to the bar they were appointed behind. It names no " +
+        "recipient: who Remind reaches is the group's notice audience, worked out on the server (readRemindAudience), " +
+        "and the group's facilitators are taken OUT of it, never put in.",
+    },
+  ],
+  [
+    "src/lib/courses/groupWeekWork/remind.ts#input.uid",
+    {
+      reads: 2,
+      origin: "assembled",
+      sourceOutsideScan:
+        "One person of the audience the Remind route assembled on the server (readRemindAudience in " +
+        "src/lib/courses/groupWeekWork/load.ts): the group's told places through resolveNoticeAudience, less anybody " +
+        "who facilitates a live group of the run, the presser, anybody done, joined late or with no group. The request names at most one uid, " +
+        "and only to narrow that audience to them; it never adds anybody.",
+      why: "Whose record a press claims before their email goes, so a retry of the same press emails nobody again.",
+    },
+  ],
+  [
+    "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts#group.facilitatorUids",
+    {
+      reads: 3,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "Whether one of the group's facilitators has started the register (then it needs no covering), and whether the " +
+        "person a session would be given to facilitates the group. It names no recipient: the one email goes to the " +
+        "person the press names, held to an approved account.",
+    },
+  ],
+  [
+    "src/lib/courses/excused/alert.ts#data.requestEmails",
+    {
+      reads: 1,
+      origin: "record",
+      why:
+        "Whether an admin has switched off the email that a request to be excused has arrived, on their own user " +
+        "document (`requestEmails.excused`, written by `src/app/api/courses/requests/emails/route.ts` for the caller " +
+        "alone). It only ever leaves an admin out: the audience is the accounts whose role is admin, never the person " +
+        "asking.",
+    },
+  ],
+  [
+    "src/lib/courses/excused/decide.ts#group.facilitatorUids",
+    {
+      reads: 3,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "The group's facilitators an approved request to be excused tells (never the reason): each named on the " +
+        "group, held to the standing the role is appointed behind, with an address, never the person the request " +
+        "is about and never the admin pressing. The press names nobody: the request names its group.",
+    },
+  ],
+  [
+    "src/app/api/courses/groups/[groupId]/attendance/push/route.ts#group.facilitatorUids",
+    {
+      reads: 2,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "Which of the group's facilitators Finish may record as there or not there. It names no recipient: next " +
+        "week's email goes to the group's told people through the shared send.",
+    },
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room/route.ts#audience.recipients",
+    {
+      reads: 5,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by groupNoticeAudience (src/lib/courses/groupChange/notice.ts), which is updateEmailAudience " +
+        "(src/lib/courses/updates/audience.ts) for the one group with `withFacilitators`: the group's own active, " +
+        "told enrolment rows through the shared cohort-audience helper, and the group's facilitatorUids (written " +
+        "by src/lib/courses/groupFacilitators.ts) each held to their bar, never the presser. Nothing in the " +
+        "request names a recipient.",
+      why:
+        "A room's notice: who it reaches, counted by the same function the preview's number comes from; the request " +
+        "carries only that number.",
+    },
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room/route.ts#local:recipients",
+    {
+      reads: 1,
+      origin: "derived",
+      derivedFrom: ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room/route.ts#audience.recipients"],
+      why: "The same audience, kept for the notice once every refusal has passed and the change is written.",
+    },
+  ],
+  [
+    "src/lib/courses/groupChange/notice.ts#group.facilitatorUids",
+    {
+      reads: 1,
+      origin: "roster",
+      writtenBy: "src/lib/courses/groupFacilitators.ts",
+      why:
+        "Which of a change's recipients are the group's facilitators, so they are not asked \"Can you make " +
+        "this time?\". It adds nobody: the recipients are the audience `updateEmailAudience` works out on the " +
+        "server, the group's told people and its facilitators with standing, never the presser.",
+    },
+  ],
+  [
     "src/lib/courses/facilitatorAsks/act.ts#group.facilitatorUids",
     {
       reads: 1,
@@ -361,14 +518,40 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/lib/scheduler/jobs/registerReminders.ts#targets.uids",
+    {
+      reads: 1,
+      origin: "record",
+      why:
+        "Who a covered register's reminder goes to instead of its facilitators (`chaseTargets`): the person who took it " +
+        "in their place, or who gave it to somebody, read off the register's own `cover` (written only by the cover " +
+        "route and the register's marking route), or the facilitator who last saved it. Each is held to an approved " +
+        "account, an address, their own switch and the do-not-email list before the email goes.",
+    },
+  ],
+  [
+    "src/lib/scheduler/jobs/registerReminders.ts#().trackLeadUids",
+    {
+      reads: 1,
+      origin: "gate",
+      why:
+        "Whether the person a covered register's reminder goes to is one of the run's track leads, held to their bar, " +
+        "which decides only which register page the email links them to (the run's own, which admits a track lead). " +
+        "It adds nobody to who is emailed.",
+    },
+  ],
+  [
     "src/lib/scheduler/jobs/registerReminders.ts#group.facilitatorUids",
     {
-      reads: 3,
+      reads: 5,
       origin: "roster",
       writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
       why:
         "The facilitators of the group whose register is unfinished, each reminded once, " +
-        "each held to the standing the role is appointed behind before the email goes.",
+        "each held to the standing the role is appointed behind before the email goes; and, " +
+        "for the chase once a register is covered or last saved by one of them (`chasedUids`, " +
+        "`resolveChased`), whether the last to save it is one of them and which door holds a " +
+        "person to their bar. The lead's Remind asks the same two functions.",
     },
   ],
   [
@@ -406,18 +589,6 @@ const RECIPIENT_SOURCES = new Map([
       origin: "derived",
       derivedFrom: ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/check-ins/remind/route.ts#plan.recipients"],
       why: "The route's own list of the group's live facilitators, handed over as it was counted; each gets one email at their own address.",
-    },
-  ],
-  [
-    "src/lib/courses/registerRemind.ts#group.facilitatorUids",
-    {
-      reads: 2,
-      origin: "roster",
-      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
-      why:
-        "The facilitators of one group of the run a programme names, for its lead's Remind: " +
-        "each held to the standing the role is appointed behind, and asked for an address and " +
-        "their own email switch, by the reminder job's resolveFacilitator before the email goes.",
     },
   ],
   [
@@ -614,6 +785,31 @@ const RECIPIENT_SOURCES = new Map([
       origin: "derived",
       derivedFrom: ["src/app/api/courses/runs/[runId]/updates/route.ts#audience.recipients"],
       why: "The same audience, kept for the dispatch once every refusal has passed.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/weeks/[weekId]/tell/route.ts#audiences.recipients",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by tellAudiences (src/lib/courses/weekEdit/notice.ts): the shared notice audience over the run's " +
+        "own enrolment rows (resolveNoticeAudience), less the presser, narrowed to the choice: everybody, the " +
+        "people whose group reads the run's week (from the run's live groups and their own copies), or the " +
+        "people with work on the week (from the run's own progress, answer and pick rows). The request names " +
+        "only the choice and the number it was shown.",
+      why:
+        "Who a notice about a change to a week reaches, counted by the same function the preview's numbers " +
+        "come from; the press is refused when the two no longer agree.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/weeks/[weekId]/tell/route.ts#local:recipients",
+    {
+      reads: 1,
+      origin: "derived",
+      derivedFrom: ["src/app/api/courses/runs/[runId]/weeks/[weekId]/tell/route.ts#audiences.recipients"],
+      why: "The chosen audience, kept for the dispatch once every refusal has passed.",
     },
   ],
   [

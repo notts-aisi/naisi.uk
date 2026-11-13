@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { PersonCourseworkView } from "@/lib/courses/coursework/load";
-import type { PersonWeek } from "@/lib/courses/coursework/model";
+import { workKey, type PersonWeek } from "@/lib/courses/coursework/model";
 import { lastWrittenWords } from "@/lib/courses/facilitatorWeek/words";
 import { FEEDBACK_HEADING, FEEDBACK_ON_THE_WEEK, WEEK_FEEDBACK_HINT } from "@/lib/courses/feedback/words";
 import FeedbackWriter from "../feedback/FeedbackWriter";
@@ -31,6 +31,10 @@ import {
   weekHeadingWords,
   wordsWords,
 } from "@/lib/courses/coursework/words";
+import { AS_IT_STOOD_AT_THE_SESSION, lateAfterSessionWords, staffChangedWords } from "@/lib/courses/weekWork/words";
+import { THE_QUESTION_WHEN_WRITTEN, earlierQuestionWords } from "@/lib/courses/weekEdit/wordsThen";
+import EarlierVersion from "../feedback/EarlierVersion";
+import EarlierWording from "../weekBlocks/EarlierWording";
 import styles from "./coursework.module.css";
 
 /**
@@ -45,6 +49,11 @@ import styles from "./coursework.module.css";
  * week as a whole (feedback on the written answer is written on its review
  * page).
  *
+ * Where a question was reworded after the person first answered it, "The
+ * question when this was written:" and its words then sit under their words
+ * (`view.askedThen`, handed only for words this page shows: never beside a
+ * written answer that is only started).
+ *
  * PRIVATE NOTES are drawn only where the loader read them: for an admin,
  * never for the programme's lead (`readPersonPrivateNotes`). Survey answers
  * are never here.
@@ -57,6 +66,8 @@ import styles from "./coursework.module.css";
 
 function Week({ week, notesShown, view }: { week: PersonWeek; notesShown: boolean; view: PersonCourseworkView }) {
   const heading = weekHeadingWords(week.weekNumber, week.title);
+  /** The question's words when this was first written, where they differ from the words it has now. */
+  const earlier = (id: string, now: string) => earlierQuestionWords(view.askedThen[workKey(week.weekNumber, id)], now);
   return (
     <section id={`week-${week.weekNumber}`} className={styles.week} aria-labelledby={`week-${week.weekNumber}-title`}>
       <h2 id={`week-${week.weekNumber}-title`} className={styles.weekTitle}>
@@ -79,7 +90,10 @@ function Week({ week, notesShown, view }: { week: PersonWeek; notesShown: boolea
                         {prompt.answer ? (
                           <>
                             <p className={styles.words}>{prompt.answer.text}</p>
+                            <EarlierWording label={THE_QUESTION_WHEN_WRITTEN} words={earlier(prompt.id, prompt.text)} />
                             {prompt.answer.at && <span className={styles.when}>{lastWrittenWords(prompt.answer.at)}</span>}
+                            {prompt.answer.lateMs !== null && <span className={styles.when}>{lateAfterSessionWords(prompt.answer.lateMs)}</span>}
+                            {prompt.answer.atSession && <EarlierVersion label={AS_IT_STOOD_AT_THE_SESSION} text={prompt.answer.atSession} />}
                           </>
                         ) : (
                           <p className={styles.notYet}>{NOT_WRITTEN_YET}</p>
@@ -101,8 +115,19 @@ function Week({ week, notesShown, view }: { week: PersonWeek; notesShown: boolea
                   {ANSWER_STATE_WORDS[week.answer.state]}
                 </span>
                 {week.answer.words > 0 && <span className={styles.muted}>{wordsWords(week.answer.words)}</span>}
-                {week.answer.sentAt && <span className={styles.muted}>{sentWhenWords(week.answer.sentAt)}</span>}
+                {(week.answer.lastSentAt ?? week.answer.sentAt) && (
+                  <span className={styles.muted}>{sentWhenWords((week.answer.lastSentAt ?? week.answer.sentAt) as Date)}</span>
+                )}
+                {week.answer.sentLateMs !== null && <span className={styles.muted}>{lateAfterSessionWords(week.answer.sentLateMs)}</span>}
               </div>
+              {week.answer.changedAt &&
+                week.answer.changedAt.getTime() > (week.answer.lastSentAt ?? week.answer.sentAt ?? new Date(0)).getTime() &&
+                week.answer.words > 0 && (
+                  <div className={styles.answerHead}>
+                    <span className={styles.muted}>{staffChangedWords(week.answer.changedAt, (week.answer.lastSentAt ?? week.answer.sentAt) !== null)}</span>
+                    {week.answer.changedLateMs !== null && <span className={styles.muted}>{lateAfterSessionWords(week.answer.changedLateMs)}</span>}
+                  </div>
+                )}
               {week.answer.text && <p className={styles.words}>{week.answer.text}</p>}
               {week.answer.boxes.length > 0 && (
                 <ul className={styles.items}>
@@ -113,6 +138,10 @@ function Week({ week, notesShown, view }: { week: PersonWeek; notesShown: boolea
                     </li>
                   ))}
                 </ul>
+              )}
+              {week.answer.words > 0 && <EarlierWording label={THE_QUESTION_WHEN_WRITTEN} words={earlier(week.answer.id, week.answer.prompt)} />}
+              {week.answer.atSession && (
+                <EarlierVersion label={AS_IT_STOOD_AT_THE_SESSION} text={week.answer.atSession.text} boxes={week.answer.atSession.boxes} />
               )}
               {week.answer.state === "waiting" && <p className={styles.notYet}>{NO_FEEDBACK_YET}</p>}
               {week.answer.href && (
@@ -131,6 +160,8 @@ function Week({ week, notesShown, view }: { week: PersonWeek; notesShown: boolea
                   <li key={`${week.weekNumber}-box-${index + 1}`} className={styles.item}>
                     <p className={styles.question}>{box.label ? `${box.heading}: ${box.label}` : box.heading}</p>
                     {box.text ? <p className={styles.words}>{box.text}</p> : <p className={styles.notYet}>{NOT_FILLED_IN_YET}</p>}
+                    {box.text && box.lateMs !== null && <span className={styles.when}>{lateAfterSessionWords(box.lateMs)}</span>}
+                    {box.atSession && <EarlierVersion label={AS_IT_STOOD_AT_THE_SESSION} text={box.atSession} />}
                   </li>
                 ))}
               </ul>

@@ -1,31 +1,51 @@
 import { NextResponse } from "next/server";
-import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, type DocumentReference, type DocumentSnapshot, type Firestore } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
-import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
-import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
-import { pushBackOutcome, sessionOfWeek, slotDays } from "@/lib/courses/sessionChange/model";
-import { parseChangePress, type ChangePress } from "@/lib/courses/sessionChange/parse";
 import {
-  REFUSAL,
-  countChangedWords,
-  dayOutOfWeekWords,
-  dayRangeWords,
-  updateWords,
-} from "@/lib/courses/sessionChange/words";
+  groupHistoryRow,
+  iso,
+  lateFromOf,
+  momentOf,
+  momentValues,
+  readJobSwitches,
+  reminderFacts,
+  saidFacts,
+  startOf,
+  toldFacts,
+} from "@/lib/courses/groupChange/facts";
+import { readNamingProgramme } from "@/lib/courses/programmeLead";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
+import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
+import { CHANGE_FIELDS, ChangeRefusal, checkPress, putBackSetsChangeFields, type CheckedPress } from "@/lib/courses/sessionChange/check";
+import {
+  callsOffDraft,
+  clearedNames,
+  closeCalledOffFollowUp,
+  didNotHappenFacts,
+  sessionHasCheckInOrReport,
+  writeDidNotHappen,
+} from "@/lib/courses/sessionChange/didNotHappen";
+import { pushHasRecordsWords } from "@/lib/courses/registerCover/words";
+import { startMoves, takenStartMoves } from "@/lib/courses/sessionChange/metSessions";
+import { coverHolderNames, coversEndLines, coversOffOf, coversOffWords, startMovedRegisters, writeCoversOff } from "@/lib/courses/registerCover/moves";
+import { sessionOfWeek } from "@/lib/courses/sessionChange/model";
+import { oneWeekHistoryDetail, oneWeekNoticeFor, weekSessionAfter } from "@/lib/courses/sessionChange/notice";
+import { parseChangePress, type ChangePress } from "@/lib/courses/sessionChange/parse";
+import { REFUSAL, countChangedWords, movesMetWords } from "@/lib/courses/sessionChange/words";
 import { updateEmailAudience } from "@/lib/courses/updates/audience";
-import { londonWallClockToInstant, type WeekPlanEntry } from "@/lib/courses/weekPlan";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { attendanceDocId, registerIsTaken } from "@/lib/firestore/courseAttendance";
+import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import {
   GROUP_FIELD_LIMITS,
   normalizeCourseGroup,
   sessionChangeForWeek,
-  sessionModeForWeek,
   type CourseGroupDoc,
 } from "@/lib/firestore/courseGroups";
-import { COURSE_FIELD_LIMITS, normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
+import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 
 /**
  * CHANGE ONE WEEK'S SESSION OF ONE GROUP: hold it online,
@@ -49,7 +69,10 @@ import { COURSE_FIELD_LIMITS, normalizeCourseRun, type CourseRunDoc } from "@/li
  * Every refusal comes before the write: the session must be the one the
  * dialog showed (its week and date), must not have started, and must be
  * changeable the way asked (a link to hold it online, a day in its own week to
- * move it to, a plan to push it back in). When the press will tell the group
+ * move it to, a plan to push it back in). Whatever the kind, it must not move
+ * the start of any session whose register was taken (`takenStartMoves`: a
+ * push back moves every later week, ones that met included), and the preview
+ * is refused in the same words. When the press will tell the group
  * with an email, the number on its button is checked here first, so a count
  * that no longer holds refuses the whole press (409, with the new count) and
  * nothing changes. The write is one transaction that reads the group again.
@@ -67,19 +90,15 @@ import { COURSE_FIELD_LIMITS, normalizeCourseRun, type CourseRunDoc } from "@/li
 type Answer = {
   ok: true;
   change: { kind: ChangePress["kind"]; weekNumber: number; dateKey: string; newDateKey: string | null };
-  update: { groupId: string; title: string; message: string; emailCount: number } | null;
+  update: {
+    groupId: string;
+    title: string;
+    message: string;
+    emailCount: number;
+    /** Post it with the group's facilitators in its email too. */
+    withFacilitators: true;
+  } | null;
 };
-
-class Refusal extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly detail: Record<string, unknown> = {},
-  ) {
-    super(message);
-    this.name = "Refusal";
-  }
-}
 
 async function readRun(db: Firestore, runId: string): Promise<CourseRunDoc | null> {
   if (!runId || !isAddressableId(runId)) return null;
@@ -93,6 +112,66 @@ async function readRun(db: Firestore, runId: string): Promise<CourseRunDoc | nul
 /** The week's one-week changes, counted against the cap the normaliser reads them under. */
 function fitsTheCap(map: Record<string, unknown>, weekId: string): boolean {
   return Object.hasOwn(map, weekId) || Object.keys(map).length < GROUP_FIELD_LIMITS.maxSessionOverrides;
+}
+
+/** The register of one week's first session: where its `sessionAt` lives. */
+function registerRefOf(db: Firestore, run: CourseRunDoc, groupId: string, weekNumber: number): DocumentReference {
+  return db.collection("courseAttendance").doc(attendanceDocId(run.id, groupId, weekNumber, 1));
+}
+
+/** The weeks whose first session starts at another instant after the press: their registers' `sessionAt` follows. */
+function movedSessions(before: readonly ResolvedSession[], after: readonly ResolvedSession[]): ResolvedSession[] {
+  const out: ResolvedSession[] = [];
+  for (const now of after) {
+    if (now.occurrence !== 1) continue;
+    const was = before.find((each) => each.weekNumber === now.weekNumber && each.occurrence === 1);
+    const from = startOf(was);
+    const to = startOf(now);
+    if (to && (!from || from.getTime() !== to.getTime())) out.push(now);
+  }
+  return out;
+}
+
+/** The register of every session whose start the change moves, any occurrence: what the one rule is asked of. */
+function moveRegisterRefs(
+  db: Firestore,
+  run: CourseRunDoc,
+  groupId: string,
+  before: readonly ResolvedSession[],
+  after: readonly ResolvedSession[],
+): DocumentReference[] {
+  return startMoves(before, after).map((move) =>
+    db.collection("courseAttendance").doc(attendanceDocId(run.id, groupId, move.before.weekNumber, move.before.occurrence)),
+  );
+}
+
+/**
+ * NOTHING MAY MOVE THE START OF A SESSION WHOSE REGISTER IS TAKEN, for every
+ * kind of change (a push back moves every later week): refused, in one
+ * sentence naming the week that met, before anything is written. `snaps` are
+ * the registers of `moveRegisterRefs`, in its order.
+ *
+ * ONE SESSION IS LEFT OUT: the pressed session itself when this press calls
+ * it off as a session that did not happen (`calledOffKey`, from
+ * `callsOffDraft` on a session that has started). Its draft's lines are
+ * cleared in the same transaction, so its register is not taken once the
+ * press is done, and it moves as a register nobody took. Every OTHER session
+ * the press moves is still asked: a push back is refused when a later week
+ * has met.
+ */
+function refuseMovingMet(
+  before: readonly ResolvedSession[],
+  after: readonly ResolvedSession[],
+  snaps: ReadonlyArray<DocumentSnapshot | undefined>,
+  calledOffKey: string | null = null,
+): void {
+  const registers = new Map<string, Record<string, unknown>>();
+  startMoves(before, after).forEach((move, index) => {
+    const snap = snaps[index];
+    if (snap?.exists && move.before.sessionKey !== calledOffKey) registers.set(move.before.sessionKey, snap.data() ?? {});
+  });
+  const [met] = takenStartMoves(before, after, registers);
+  if (met) throw new ChangeRefusal(movesMetWords(met.before.weekNumber, met.before.occurrence), 409);
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ groupId: string }> }) {
@@ -137,30 +216,119 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
 
   // ── The session, as the dialog showed it ─────────────────────────────────
   const now = new Date();
-  let outcome: { change: Answer["change"]; restored: Checked["restored"] };
+  const registerRef = registerRefOf(db, run, found.id, press.weekNumber);
+  let outcome: { change: Answer["change"]; checked: CheckedPress };
   try {
-    checkPress(run, found, press, now);
+    const registerSnap = await registerRef.get();
+    const register = registerSnap.exists ? (registerSnap.data() ?? {}) : undefined;
+    const first = checkPress(run, found, press, now, register);
+    // A check-in and a session report are keyed by the week: pushed back, the
+    // session a week later would open with this one's. Keep pace stays.
+    if (press.kind === "push" && (await sessionHasCheckInOrReport(db, run.id, found.id, first.session.sessionKey))) {
+      throw new ChangeRefusal(pushHasRecordsWords(press.weekNumber), 409);
+    }
+    const naming = await readNamingProgramme(db, run.id);
+    const incubator = naming?.kind === "incubator";
+    const groupName = found.name.trim() || "Untitled group";
+
+    if (press.preview) {
+      const before = resolveSessions(run, found);
+      const after = resolveSessions(run, first.after);
+      // The press would be refused for moving a session that met: so is its preview, in the same words.
+      const metRefs = moveRegisterRefs(db, run, found.id, before, after);
+      const metSnaps = metRefs.length ? await db.getAll(...metRefs) : [];
+      refuseMovingMet(
+        before,
+        after,
+        metSnaps,
+        first.started && callsOffDraft(press, register, first.session) ? first.session.sessionKey : null,
+      );
+      const switches = await readJobSwitches(db);
+      const [reminders, said, told, coversEnd] = await Promise.all([
+        reminderFacts(db, { run, group: found, before: first.session, after: weekSessionAfter(run, first, press.weekNumber), switches }),
+        saidFacts(db, register),
+        toldFacts(db, run, found, actor.uid),
+        // Whose cover the press would take off, by the press's own rule (`../registerCover/moves`).
+        coversEndLines(db, startMovedRegisters(before, after, metRefs, metSnaps)),
+      ]);
+      const afterSession = sessionOfWeek(after, press.weekNumber);
+      const lastOf = (sessions: readonly ResolvedSession[]) =>
+        sessions.filter((s) => !s.cancelled && s.dateKey).reduce((last, s) => (s.dateKey > last ? s.dateKey : last), "");
+      return NextResponse.json({
+        ok: true,
+        preview: {
+          kind: press.kind,
+          weekNumber: press.weekNumber,
+          started: first.started,
+          before: momentOf(found, first.session),
+          after: momentOf(first.after, afterSession),
+          lastSession: { before: lastOf(before), after: lastOf(after) },
+          lateFrom: { before: lateFromOf(before, press.weekNumber), after: lateFromOf(after, press.weekNumber) },
+          reminders,
+          said,
+          told,
+          register: { exists: register !== undefined, taken: registerIsTaken(register) },
+          coversEnd,
+          // Called off after it passed: what else follows (`./didNotHappen`).
+          didNotHappen:
+            first.started && (press.kind === "cancel" || press.kind === "push")
+              ? await didNotHappenFacts(db, { run, group: found, session: first.session, register })
+              : null,
+          notice: oneWeekNoticeFor(run, first, press, { groupName, incubator }),
+          at: iso(now),
+        },
+      });
+    }
+
     if (press.tell && press.emailCount > 0) {
       // The number on the button is a promise: checked before anything changes,
       // by the function the update's own press counts with.
       const groups: CourseGroupDoc[] = [found];
-      const audience = await updateEmailAudience(db, run, groups, "group", found.id, actor.uid);
-      if (audience.refused) throw new Refusal(REFUSAL.overCap, 400);
-      if (audience.recipients.length === 0) throw new Refusal(REFUSAL.nobodyToEmail, 400);
+      const audience = await updateEmailAudience(db, run, groups, "group", found.id, actor.uid, {
+        withFacilitators: true,
+      });
+      if (audience.refused) throw new ChangeRefusal(REFUSAL.overCap, 400);
+      if (audience.recipients.length === 0) throw new ChangeRefusal(REFUSAL.nobodyToEmail, 400);
       if (audience.recipients.length !== press.emailCount) {
-        throw new Refusal(countChangedWords(audience.recipients.length), 409, {
+        throw new ChangeRefusal(countChangedWords(audience.recipients.length), 409, {
           emails: audience.recipients.length,
         });
       }
     }
 
     // ── The write, on the group as it stands now ───────────────────────────
+    // Who the lines of a draft called off after the fact belonged to, for the
+    // history's sentence: read before the transaction.
+    const names = callsOffDraft(press, register, first.session) ? await clearedNames(db, register) : new Map<string, string>();
     outcome = await db.runTransaction(async (tx) => {
       const freshSnap = await tx.get(groupRef);
-      if (!freshSnap.exists) throw new Refusal(REFUSAL.gone, 400);
+      if (!freshSnap.exists) throw new ChangeRefusal(REFUSAL.gone, 400);
       const group = normalizeCourseGroup(freshSnap.id, freshSnap.data() ?? {});
-      if (group.archived || group.runId !== run.id) throw new Refusal(REFUSAL.gone, 400);
-      const checked = checkPress(run, group, press, now);
+      if (group.archived || group.runId !== run.id) throw new ChangeRefusal(REFUSAL.gone, 400);
+      const freshRegister = await tx.get(registerRef);
+      const freshData = freshRegister.exists ? (freshRegister.data() ?? {}) : undefined;
+      const checked = checkPress(run, group, press, now, freshData);
+
+      // Every session whose start moves, and its register: read before anything is written.
+      const before = resolveSessions(run, group);
+      const after = resolveSessions(run, checked.after);
+      const metRefs = moveRegisterRefs(db, run, group.id, before, after);
+      const metSnaps = metRefs.length ? await tx.getAll(...metRefs) : [];
+      refuseMovingMet(
+        before,
+        after,
+        metSnaps,
+        checked.started && callsOffDraft(press, freshData, checked.session) ? checked.session.sessionKey : null,
+      );
+      const moved = movedSessions(before, after);
+      const movedRefs = moved.map((session) => registerRefOf(db, run, group.id, session.weekNumber));
+      const movedSnaps = movedRefs.length ? await tx.getAll(...movedRefs) : [];
+      // A cover does not ride along to another evening: a register nobody has
+      // taken loses the cover it holds when its session's start moves, and the
+      // history row says who had been covering (`../registerCover/moves`).
+      const coversOff = coversOffOf(startMovedRegisters(before, after, metRefs, metSnaps));
+      const holderNames = await coverHolderNames(tx, db, coversOff);
+
       const update: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
       const weekId = checked.weekId;
       const record = {
@@ -168,27 +336,33 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
         dateKey: checked.dateKey,
         byUid: actor.uid,
         at: FieldValue.serverTimestamp(),
+        // What the week held before its first change, so putting it back puts back exactly that.
+        ...(checked.was ? { was: checked.was } : {}),
       };
       const rawGroup = freshSnap.data() ?? {};
       const changes = (rawGroup.sessionChanges ?? {}) as Record<string, unknown>;
-      if (press.kind !== "restore" && !fitsTheCap(changes, weekId)) throw new Refusal(REFUSAL.full, 400);
+      if (press.kind !== "restore" && !fitsTheCap(changes, weekId)) throw new ChangeRefusal(REFUSAL.full, 400);
 
       switch (press.kind) {
         case "online": {
           const modes = (rawGroup.sessionModes ?? {}) as Record<string, unknown>;
-          if (!fitsTheCap(modes, weekId)) throw new Refusal(REFUSAL.full, 400);
+          if (!fitsTheCap(modes, weekId)) throw new ChangeRefusal(REFUSAL.full, 400);
           update[`sessionModes.${weekId}`] = "virtual";
           update[`sessionChanges.${weekId}`] = { kind: "online", ...record };
           break;
         }
         case "move": {
-          const move = press.move;
-          if (!move || !checked.move) throw new Refusal(REFUSAL.move, 400);
+          const move = checked.move;
+          if (!move) throw new ChangeRefusal(REFUSAL.move, 400);
           const overrides = (rawGroup.sessionOverrides ?? {}) as Record<string, unknown>;
-          if (!fitsTheCap(overrides, weekId)) throw new Refusal(REFUSAL.full, 400);
-          update[`sessionOverrides.${weekId}.weekday`] = checked.move.weekday;
+          if (!fitsTheCap(overrides, weekId)) throw new ChangeRefusal(REFUSAL.full, 400);
+          update[`sessionOverrides.${weekId}.weekday`] = move.weekday;
           update[`sessionOverrides.${weekId}.startTimeLocal`] = move.startTimeLocal;
-          update[`sessionOverrides.${weekId}.location`] = move.room;
+          update[`sessionOverrides.${weekId}.location`] = move.location;
+          if (press.move?.durationMinutes !== null && press.move?.durationMinutes !== undefined) {
+            update[`sessionOverrides.${weekId}.durationMinutes`] = press.move.durationMinutes;
+          }
+          if (move.campus) update[`sessionOverrides.${weekId}.campus`] = move.campus;
           // A moved session meets in its room: whatever the week said before
           // about meeting online goes with the old arrangement.
           update[`sessionModes.${weekId}`] = FieldValue.delete();
@@ -199,173 +373,116 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
           update[`sessionChanges.${weekId}`] = { kind: "cancelled", ...record };
           break;
         case "push": {
-          if (!checked.pushed) throw new Refusal(REFUSAL.noPlan, 400);
+          if (!checked.pushed) throw new ChangeRefusal(REFUSAL.noPlan, 400);
           update.paceWeekPlan = checked.pushed.plan;
           update[`sessionChanges.${weekId}`] = { kind: "pushed", ...record };
           break;
         }
-        case "restore":
-          update[`sessionOverrides.${weekId}`] = FieldValue.delete();
+        case "restore": {
+          // Only what the change set goes back: the week's own link and notes
+          // stay, and the day, time, length, room and campus become what the
+          // week held before the change, or are left where nobody knows that
+          // and they were never the change's (`overrideAfterPutBack`).
+          const left = checked.restoredOverride;
+          if (!left) {
+            update[`sessionOverrides.${weekId}`] = FieldValue.delete();
+          } else if (putBackSetsChangeFields(sessionChangeForWeek(group, weekId))) {
+            for (const field of CHANGE_FIELDS) {
+              const value = left[field];
+              update[`sessionOverrides.${weekId}.${field}`] = value !== undefined ? value : FieldValue.delete();
+            }
+          }
           update[`sessionModes.${weekId}`] = FieldValue.delete();
           update[`sessionChanges.${weekId}`] = FieldValue.delete();
           break;
+        }
       }
       tx.update(groupRef, update);
+
+      // A register nobody has taken keeps the session's start with it.
+      moved.forEach((session, index) => {
+        const snap = movedSnaps[index];
+        const startsAt = sessionInstants(session).startsAt;
+        if (!snap?.exists || !startsAt || registerIsTaken(snap.data() ?? {})) return;
+        tx.update(movedRefs[index], { sessionAt: startsAt });
+      });
+      writeCoversOff(tx, coversOff);
+
+      const emailed = press.tell ? press.emailCount : 0;
+      const afterSession = weekSessionAfter(run, checked, press.weekNumber);
+      // It didn't happen, on a draft somebody marked: its lines go, in this write.
+      if (checked.started && freshData && callsOffDraft(press, freshData, checked.session)) {
+        writeDidNotHappen(tx, db, {
+          ref: registerRef,
+          register: freshData,
+          kind: press.kind as "cancel" | "push",
+          run,
+          group,
+          actor,
+          weekNumber: press.weekNumber,
+          weekId,
+          after: afterSession,
+          reason: press.reason,
+          emailed,
+          names,
+        });
+      }
+      tx.set(
+        db.collection(COURSE_AUDIT_COLLECTION).doc(),
+        groupHistoryRow({
+          kind: checked.auditKind,
+          run,
+          group,
+          actor,
+          detail: [oneWeekHistoryDetail(run, checked, press, emailed), coversOffWords(coversOff, holderNames)].filter(Boolean).join(" "),
+          weekId,
+          before: momentValues(momentOf(group, checked.session)),
+          after: momentValues(momentOf(checked.after, afterSession)),
+          reason: press.reason,
+          emailed,
+        }),
+      );
       return {
-        restored: checked.restored,
+        checked,
         change: {
           kind: press.kind,
           weekNumber: press.weekNumber,
           dateKey: checked.dateKey,
-          newDateKey: checked.move?.dateKey ?? checked.pushed?.newDateKey ?? checked.restored?.dateKey ?? null,
+          newDateKey:
+            press.kind === "move"
+              ? (checked.move?.dateKey ?? null)
+              : press.kind === "push"
+                ? (checked.pushed?.newDateKey ?? null)
+                : press.kind === "restore"
+                  ? (afterSession?.dateKey ?? null)
+                  : null,
         },
       };
     });
+
+    // A session called off after it passed has no register left to finish.
+    if (outcome.checked.started && (press.kind === "cancel" || press.kind === "push")) {
+      await closeCalledOffFollowUp(db, { runId: run.id, groupId: found.id, sessionKey: outcome.checked.session.sessionKey });
+    }
+
+    const answer: Answer = {
+      ok: true,
+      change: outcome.change,
+      update: press.tell
+        ? {
+            groupId: found.id,
+            ...oneWeekNoticeFor(run, outcome.checked, press, { groupName, incubator }),
+            emailCount: press.emailCount,
+            withFacilitators: true,
+          }
+        : null,
+    };
+    return NextResponse.json(answer);
   } catch (err) {
-    if (err instanceof Refusal) {
+    if (err instanceof ChangeRefusal) {
       return NextResponse.json({ error: err.message, ...err.detail }, { status: err.status });
     }
     console.error("[courses session change] failed", groupId, err);
     return NextResponse.json({ error: "That change didn’t go through, so nothing was changed." }, { status: 500 });
   }
-
-  const answer: Answer = {
-    ok: true,
-    change: outcome.change,
-    update: press.tell ? updateFor(press, outcome.change, outcome.restored, found.id) : null,
-  };
-  return NextResponse.json(answer);
-}
-
-/** The update the dialog posts to the group, with the count its email reaches. */
-function updateFor(
-  press: ChangePress,
-  change: Answer["change"],
-  restored: Checked["restored"],
-  groupId: string,
-): Answer["update"] {
-  const words = (() => {
-    switch (press.kind) {
-      case "cancel":
-        return updateWords({ kind: "cancel", dateKey: change.dateKey, weekNumber: change.weekNumber }, press.reason);
-      case "push":
-        return updateWords(
-          { kind: "push", dateKey: change.dateKey, weekNumber: change.weekNumber, newDateKey: change.newDateKey ?? "" },
-          press.reason,
-        );
-      case "online":
-        return updateWords({ kind: "online", dateKey: change.dateKey }, press.reason);
-      case "move":
-        return updateWords(
-          {
-            kind: "move",
-            dateKey: change.dateKey,
-            newDateKey: change.newDateKey ?? change.dateKey,
-            hhmm: press.move?.startTimeLocal ?? "",
-            room: press.move?.room ?? "",
-          },
-          press.reason,
-        );
-      case "restore":
-        return updateWords(
-          {
-            kind: "restore",
-            weekNumber: change.weekNumber,
-            dateKey: restored?.dateKey ?? change.dateKey,
-            hhmm: restored?.hhmm ?? "",
-            room: restored?.room ?? "",
-          },
-          press.reason,
-        );
-    }
-  })();
-  return { groupId, title: words.title, message: words.message, emailCount: press.emailCount };
-}
-
-/** What a press resolves to on one reading of the group. */
-type Checked = {
-  weekId: string;
-  /** The session's date: the evening a cancel takes off, the date a move moves from. */
-  dateKey: string;
-  move: { dateKey: string; weekday: number } | null;
-  pushed: { plan: WeekPlanEntry[]; newDateKey: string } | null;
-  /** Where a session put back as usual then falls. */
-  restored: { dateKey: string; hhmm: string; room: string } | null;
-};
-
-/**
- * Every refusal a press can meet on the group as it stands, asked once
- * before the write and again inside it. Throws a `Refusal`.
- */
-function checkPress(run: CourseRunDoc, group: CourseGroupDoc, press: ChangePress, now: Date): Checked {
-  const sessions = resolveSessions(run, group);
-  const session = sessionOfWeek(sessions, press.weekNumber);
-  if (!session || !session.dateKey) throw new Refusal(REFUSAL.noSuchSession, 400);
-  if (session.dateKey !== press.dateKey) throw new Refusal(REFUSAL.stale, 409);
-  const { startsAt } = sessionInstants(session);
-  if (!startsAt || startsAt.getTime() <= now.getTime()) throw new Refusal(REFUSAL.started, 409);
-  const weekId = session.weekId;
-  const change = sessionChangeForWeek(group, weekId);
-
-  const checked: Checked = { weekId, dateKey: session.dateKey, move: null, pushed: null, restored: null };
-  switch (press.kind) {
-    case "online":
-      if (!session.session.meetingUrl) throw new Refusal(REFUSAL.noLink, 400);
-      break;
-    case "move": {
-      const move = press.move;
-      if (!move) throw new Refusal(REFUSAL.move, 400);
-      const days = slotDays(session.slotStartKey);
-      if (!days.includes(move.dateKey)) {
-        throw new Refusal(
-          dayOutOfWeekWords(session.weekNumber, dayRangeWords(days[0] ?? "", days[days.length - 1] ?? "")),
-          400,
-        );
-      }
-      if (!move.room && session.session.location.trim()) throw new Refusal(REFUSAL.room, 400);
-      const weekday = new Date(`${move.dateKey}T12:00:00Z`).getUTCDay();
-      const same =
-        move.dateKey === session.dateKey &&
-        move.startTimeLocal === session.session.startTimeLocal &&
-        move.room === session.session.location.trim() &&
-        !session.cancelled &&
-        sessionModeForWeek(group, weekId) !== "virtual";
-      if (same) throw new Refusal(REFUSAL.sameAsNow, 400);
-      let movedStart: Date | null = null;
-      try {
-        movedStart = londonWallClockToInstant(move.dateKey, move.startTimeLocal);
-      } catch {
-        movedStart = null;
-      }
-      if (!movedStart || movedStart.getTime() <= now.getTime()) throw new Refusal(REFUSAL.movedIntoPast, 400);
-      checked.move = { dateKey: move.dateKey, weekday };
-      break;
-    }
-    case "cancel":
-      break;
-    case "push": {
-      const pushed = pushBackOutcome(run, group, press.weekNumber);
-      if (!pushed) throw new Refusal(REFUSAL.noPlan, 400);
-      if (pushed.plan.length > COURSE_FIELD_LIMITS.maxWeekPlanEntries) throw new Refusal(REFUSAL.planFull, 400);
-      checked.pushed = { plan: pushed.plan, newDateKey: pushed.newDateKey };
-      break;
-    }
-    case "restore": {
-      // A week's own arrangement: a change record (other than a push, which
-      // moved the weeks rather than this one), or a one-week override or mode
-      // set some other way. Putting it back clears all three.
-      const arranged = Object.hasOwn(group.sessionOverrides, weekId);
-      if (!(change && change.kind !== "pushed") && !arranged) throw new Refusal(REFUSAL.notChanged, 400);
-      const sessionOverrides = { ...group.sessionOverrides };
-      delete sessionOverrides[weekId];
-      const sessionChanges = { ...group.sessionChanges };
-      delete sessionChanges[weekId];
-      const back = sessionOfWeek(resolveSessions(run, { ...group, sessionOverrides, sessionChanges }), press.weekNumber);
-      checked.restored = back
-        ? { dateKey: back.dateKey, hhmm: back.session.startTimeLocal, room: back.session.location }
-        : null;
-      break;
-    }
-  }
-  return checked;
 }

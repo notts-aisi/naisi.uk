@@ -272,6 +272,11 @@ const USERS = new Map([
       "compiles, beside the written answers world that executes Submit, Reopen and the tick route",
   ],
   [
+    "course-written-answer-readers.test.mjs",
+    "runs the Coursework tab's person-page builder (`personWeeks`, a .ts module this loader compiles) with a " +
+      "stored answer full of words that must not leave the server, to prove the page is handed none of them",
+  ],
+  [
     "admissions-form-fence.test.mjs",
     "executes every older round route against a stored application form and against a round " +
       "of the older kind, with the session, the Admin SDK handle and every sending door faked, " +
@@ -440,6 +445,12 @@ const USERS = new Map([
     "renders the run's layout, its week page, its home and its progress page (.tsx server components) " +
       "as somebody holding a place before groups go out, because that week 1 opens to them and nothing " +
       "else of the run does is decided by the pages as they run",
+  ],
+  [
+    "course-register-correction-pages.test.mjs",
+    "renders the Requests page, one request's page and a group's Attendance tab (.tsx client components) for an " +
+      "admin, a lead and the person who asked, because who is offered Approve and Decline, and whether the " +
+      "facilitators' row is drawn, are decided by the pages as they render",
   ],
   [
     "course-hub-when-free.test.mjs",
@@ -968,6 +979,12 @@ const USERS = new Map([
       "one piece of arithmetic, so it is a multi-module graph rather than one leaf file",
   ],
   [
+    "pin-met-sessions.test.mjs",
+    "it holds the plain-JavaScript planner behind `scripts/pin-met-sessions.mjs` to the site's own resolver, so its " +
+      "graph is `sessions.ts` with the calendar, the group and run normalisers and `courseAttendance.ts` beside it; " +
+      "`server-only` is its only stub, because a dating checked against a copy of the resolver would prove nothing",
+  ],
+  [
     "account-deletion-worksheets.test.mjs",
     "it executes the whole account cascade to prove what that cascade KEEPS, so its graph is " +
       "`accountDeletion.ts` plus every collection helper it imports, `memberRecords.ts` among " +
@@ -1072,6 +1089,13 @@ const USERS = new Map([
       "src/lib/firestore/sourceSheets.ts, because a source number is printed on paper and a " +
       "copy of the counter in the test would prove nothing about the one that ships; the graph " +
       "reaches courses.ts for the shared link validator, so nothing is stubbed",
+  ],
+  [
+    "stored-room-in-messages.test.mjs",
+    "it executes the words of the emails written from a group's stored room (the cover emails, a new " +
+      "regular time's and a room's notice) with a room that holds a link, because the promise is what " +
+      "those shipping functions print and a copy would prove nothing; only `server-only` is stubbed, " +
+      "and the graph is pure word modules",
   ],
   [
     "links-page-content.test.mjs",
@@ -1199,11 +1223,25 @@ const USERS = new Map([
       "are decided by the code that runs. Only `server-only` is stubbed",
   ],
   [
+    "course-week-edit-model.test.mjs",
+    "executes the in-place edit of one block (src/lib/courses/weekEdit/model.ts), the comparison of two " +
+      "versions of a week and the words a question had when it was answered on the synthetic week holding " +
+      "every kind of block, against the week-blocks model and the Markdown reader the paste uses, because " +
+      "whether an edit keeps every id and passes the paste's own checks is decided by the code that runs. " +
+      "Only `server-only` is stubbed",
+  ],
+  [
     "course-week-blocks-public.test.mjs",
     "renders the public week page (a .tsx server component), its block view and the week curriculum to " +
       "HTML for a week written as blocks and for one written before them, because what a stranger is shown " +
       "of a week, and that nothing behind sign-in reaches the page, is decided by the page as it runs. The " +
       "fetcher, Next's link and navigation and the stylesheets are stubbed",
+  ],
+  [
+    "course-group-week-work.test.mjs",
+    "it renders Remind's email through the real week email template and its notice line, and reads a week's pieces " +
+      "through the blocks' own task needs and the one meaning of done, so the template's JSX and the pure modules " +
+      "under src/lib/courses are loaded together",
   ],
   [
     "course-guide-format.test.mjs",
@@ -1362,8 +1400,14 @@ const USERS = new Map([
     "it executes `needsPolicyAcceptance` (src/lib/legal/acceptance.ts) on a table of stored agreements, because " +
       "who the member area and a collaborator's space send to accept the policies is decided by comparing a stored " +
       "string with the versions the site serves, and only running it shows the answer; it runs again with " +
-      "`./policies` stubbed to a list where privacy has moved on to 18 and the terms to 2, so the promise that a " +
+      "`./policies` stubbed to a list where privacy has moved on to 19 and the terms to 2, so the promise that a " +
       "later privacy version is told rather than asked is held before a later version exists",
+  ],
+  [
+    "course-register-cover-pages.test.mjs",
+    "it executes the pure page model and words of covering a register (src/lib/courses/registerCover/pageModel.ts " +
+      "and pageWords.ts), because which weeks offer the ways to take a register, whose place a line names, who set " +
+      "each line in the London clock and what the check before Finish lists are worked out by running them",
   ],
   [
     "policy-update-line.test.mjs",

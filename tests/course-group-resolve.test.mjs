@@ -574,11 +574,24 @@ test("GUARD — the fork route copies through templateWeekFields and mints NOTHI
   assert.match(FORK, /\.create\(\{/);
   assert.match(FORK, /isAlreadyExists\(err\)/);
   assert.match(FORK, /alreadyForked: true/);
-  // Facilitator-of-THIS-live-group ∪ admin, authorization before existence.
+  // Admin ∪ the lead of the programme that names the run, authorization
+  // before existence; a facilitator of THIS live group is told plainly why,
+  // anybody else meets one 403.
+  assert.match(FORK, /const leadsProgramme = Boolean\(!isAdmin && group && !group\.archived && group\.runId && \(await programmeLedBy\(db, actor, group\.runId\)\) !== null\)/);
+  assert.match(FORK, /if \(!isAdmin && !leadsProgramme\) \{/);
   assert.match(
     FORK,
     /group &&\s*!group\.archived &&\s*isNamedWithStanding\(actor, "courseGroups\.facilitatorUids", group\.facilitatorUids\)/,
   );
+  assert.match(FORK, /facilitatesLiveGroup\s*\?\s*NextResponse\.json\(\{ error: EDIT_REFUSAL\.groupCopyLeadOnly \}, \{ status: 403 \}\)/);
+});
+
+test("GUARD: the week PATCH changes a copy for the programme's lead and admins alone, before the body", () => {
+  const gate = WEEK_PATCH.indexOf("if (!isAdmin && !leadsProgramme)");
+  assert.ok(gate > 0, "the PATCH has no lead-or-admin gate");
+  assert.ok(gate < WEEK_PATCH.indexOf("await req.json()"), "the gate is after the body is read");
+  assert.match(WEEK_PATCH, /leadsProgramme = staffing\.leadOf !== null;/);
+  assert.match(WEEK_PATCH, /\{ error: EDIT_REFUSAL\.groupCopyLeadOnly \}, \{ status: 403 \}/);
 });
 
 test("GUARD — the week PATCH enforces the trust boundary SERVER-SIDE and refuses unforked", () => {
@@ -975,6 +988,7 @@ test("GUARD: the projection carries no other uid's mark and no participant notes
     assert.ok(!wire.includes(leak), `the payload must not carry ${leak}`);
   }
   assert.deepEqual(Object.keys(out[0]).sort(), [
+    "correctedOn",
     "dateKey",
     "held",
     "occurrence",
@@ -983,6 +997,41 @@ test("GUARD: the projection carries no other uid's mark and no participant notes
     "status",
     "weekNumber",
   ]);
+});
+
+test("GUARD: a corrected line says the day it was corrected, the caller's own only, and never who or why", () => {
+  const sessions = [1, 2, 3].map((n) => ownSession(n, `2026-10-${String(n + 5).padStart(2, "0")}`));
+  const registers = new Map([
+    // Corrected late in the London evening of Tue 10 Nov (GMT), by somebody.
+    [
+      "w01",
+      {
+        pushedAt: new Date(),
+        records: { ada: "present", grace: "absent" },
+        corrected: {
+          ada: { at: new Date("2026-11-10T23:30:00Z"), byUid: "CORRECTOR-UID" },
+          grace: { at: new Date("2026-11-11T09:00:00Z"), byUid: "CORRECTOR-UID" },
+        },
+      },
+    ],
+    // Somebody else's line was corrected, not the caller's.
+    ["w02", { pushedAt: new Date(), records: { ada: "late", grace: "late" }, corrected: { grace: { at: new Date("2026-11-12T09:00:00Z"), byUid: "x" } } }],
+    // A garbled stamp is no stamp, and a register written before the map has none.
+    ["w03", { pushedAt: new Date(), records: { ada: "absent" }, corrected: { ada: { at: "yesterday", byUid: "x" } } }],
+  ]);
+  const out = ownAttendanceSessions("ada", sessions, registers);
+  assert.deepEqual(
+    out.map((s) => [s.sessionKey, s.correctedOn]),
+    [
+      ["w01", "2026-11-10"],
+      ["w02", null],
+      ["w03", null],
+    ],
+  );
+  const wire = JSON.stringify(out);
+  for (const leak of ["CORRECTOR-UID", "grace", "byUid", "2026-11-11", "2026-11-12"]) {
+    assert.ok(!wire.includes(leak), `the payload must not carry ${leak}`);
+  }
 });
 
 test("GUARD: online is the caller's own, beside a mark that says they came, and in the room otherwise", () => {

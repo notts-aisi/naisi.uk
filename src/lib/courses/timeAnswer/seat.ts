@@ -6,11 +6,13 @@ import {
   readSessionLinesNow,
   registerHasRoom,
   sessionDay,
+  setByApproval,
   stillToCome,
   writeExcusedInAdvance,
   writeTakenBack,
 } from "@/lib/courses/cantMakeIt/seat";
 import { CANT_MAKE_IT_REFUSAL } from "@/lib/courses/cantMakeIt/words";
+import { excuseHoldsIn } from "@/lib/courses/excused/standing";
 import { sessionWhenLabel } from "@/lib/courses/londonLabels";
 import { resolveSessions } from "@/lib/courses/sessions";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
@@ -25,6 +27,7 @@ import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/cours
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import {
   currentTimeAnswer,
+  timeQuestionSinceOf,
   type TimeAnswerRequest,
   type TimeAnswerView,
   type TimeQuestionSession,
@@ -126,14 +129,16 @@ export async function timeQuestionFor(
     sessionKey: line.session.sessionKey,
     weekNumber: line.session.weekNumber,
     day: sessionDay(line.session),
-    told: line.state.kind === "told",
+    // Their own word, not an admin's approval: a line an approval wrote is no
+    // tick of theirs to take off, and is not one of the days they said.
+    told: line.state.kind === "told" && !setByApproval(line, input.user.uid),
   }));
   return {
     groupId: group.id,
     groupName: group.name.trim(),
     when: sessionWhenLabel(group.session),
     campus: group.campus,
-    answer: currentTimeAnswer(seat),
+    answer: currentTimeAnswer(seat, timeQuestionSinceOf(group)),
     sessions,
   };
 }
@@ -200,6 +205,15 @@ export async function recordTimeAnswer(
     if (!request.sessionKeys.every((key) => known.has(key))) return refuse(400, CANT_MAKE_IT_REFUSAL.noSession);
     const lines = await readSessionLines(tx, db, { run, group, uid: user.uid, sessions, now });
     const ticked = new Set(request.sessionKeys);
+    // WEEKS ARE TICKED WHILE THE QUESTION IS ASKED: in the first answer to
+    // the asking that is current (the group's `timeQuestionSince`, moved by a
+    // new regular time). Once that asking has an answer, ticks only come off:
+    // a week more is asked for like anybody else's, as a request to be
+    // excused. And a session with a request to be excused waiting, or
+    // declined, is never excused here on the person's own word.
+    const answered = currentTimeAnswer(seat, timeQuestionSinceOf(group)) !== null;
+    const adds = lines.some((line) => ticked.has(line.session.sessionKey) && line.state.kind === "open");
+    const holdOf = adds ? await excuseHoldsIn(tx, db, user.uid, run.id) : () => null;
 
     // Everything decided before anything is written: a ticked session that
     // can no longer be told about refuses the whole answer, naming its day.
@@ -208,13 +222,19 @@ export async function recordTimeAnswer(
       const day = sessionDay(line.session);
       if (line.state.kind === "closed") return refuse(409, sessionRefusalWords(day, closedWords(line.state)));
       if (line.state.kind === "marked") return refuse(409, sessionRefusalWords(day, CANT_MAKE_IT_REFUSAL.marked));
+      if (line.state.kind === "open") {
+        const hold = holdOf(line.session.sessionKey);
+        if (hold) return refuse(409, sessionRefusalWords(day, hold === "waiting" ? CANT_MAKE_IT_REFUSAL.askedWaiting : CANT_MAKE_IT_REFUSAL.askedDeclined));
+        if (answered) return refuse(409, sessionRefusalWords(day, ANSWER_REFUSAL.addLater));
+      }
       if (line.state.kind === "open" && !registerHasRoom(line)) return refuse(409, sessionRefusalWords(day, CANT_MAKE_IT_REFUSAL.full));
     }
     for (const line of lines) {
       if (ticked.has(line.session.sessionKey)) {
         if (line.state.kind === "open") writeExcusedInAdvance(tx, line, { run, group, uid: user.uid, told: FieldValue.serverTimestamp() });
       } else if (line.state.kind === "told") {
-        // Told before and unticked now: their own word, taken back.
+        // Told before and unticked now: their own word, taken back. A line an
+        // approval wrote is not their word, and stays (`setByApproval`).
         writeTakenBack(tx, line, user.uid);
       }
     }

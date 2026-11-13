@@ -16,6 +16,8 @@ import { useTasks } from "@/features/tasks/hooks/useTasks";
 import { formatSiteDate, isSameSiteDay } from "@/lib/datetime/siteTime";
 import { ChevronRight } from "./icons";
 import type { HomeEvent } from "./homeData";
+import { requestsWaitingLine, requestsWaitingTitle } from "@/lib/courses/registerCorrection/pageWords";
+import { REQUESTS_PATH } from "@/lib/courses/requests/paths";
 import { firstName } from "./homeWords";
 import styles from "./home.module.css";
 
@@ -172,6 +174,10 @@ type Facts = {
   weekEndsAt: string;
   /** Server-rendered: the admin's own applications, when they have any. */
   applications: ReactNode;
+  /** Requests waiting for somebody to decide them (`loadRequestsPage`'s waiting and being handled), read on the server; 0 with none. */
+  requestsWaiting?: number;
+  /** How many of them are requests to be excused, so the line says what waits. */
+  excusedWaiting?: number;
 };
 
 export default function HomeAdmin({
@@ -185,6 +191,8 @@ export default function HomeAdmin({
   weekStartsAt,
   weekEndsAt,
   applications,
+  requestsWaiting = 0,
+  excusedWaiting = 0,
 }: Facts) {
   const pending = usePendingCount();
   const bounces = useBounces();
@@ -206,6 +214,18 @@ export default function HomeAdmin({
       line: "People waiting for the committee to approve their account.",
       action: "Review",
       href: "/admin",
+    });
+  }
+  // A facilitator asked for a register to be corrected, or somebody asked to
+  // be excused: the Requests page.
+  if (requestsWaiting > 0) {
+    todo.push({
+      key: "requests",
+      figure: String(requestsWaiting),
+      title: requestsWaitingTitle(requestsWaiting),
+      line: requestsWaitingLine(requestsWaiting, excusedWaiting),
+      action: "Open",
+      href: REQUESTS_PATH,
     });
   }
   if (applicationsInHand) {

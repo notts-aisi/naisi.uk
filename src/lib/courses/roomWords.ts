@@ -38,4 +38,14 @@ export const ROOM_REFUSAL = {
   runGone: "The course run this programme names is no longer on the site.",
   noGroup: "That group isn’t one of this programme’s groups.",
   archived: "That group has been archived, so its room can’t change.",
+  tell: "Choose whether to tell the group.",
+  emailCount: "Say how many people the button said it would email.",
+  roomLink: "A room can’t be a link. Set the meeting link instead.",
+  overCap: "Too many people to email in one send. Turn off Tell the group, then tell them with an update from Messages.",
+  nobodyToEmail: "Nobody in the group can be emailed yet. Turn off Tell the group to change it without telling them.",
 } as const;
+
+/** The count on the button is a promise, as a change's is. */
+export function roomCountChangedWords(emails: number): string {
+  return `The number of people this emails has changed to ${emails}. Check it, then press again.`;
+}

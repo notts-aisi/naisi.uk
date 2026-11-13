@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import Link from "next/link";
 import Chip from "@/components/ui/Chip";
 import PageEnter from "@/components/motion/PageEnter";
@@ -34,6 +34,7 @@ import {
 } from "@/lib/courses/memberPageWords";
 import { CANCELLED_CARD, ONLINE_NOTICE_LINK_LINE, dayRangeWords } from "@/lib/courses/sessionChange/words";
 import type { WeekSharedNotes } from "@/lib/courses/sharedNotes/views";
+import type { AskedWords } from "@/lib/courses/weekEdit/wordsThen";
 import type { GuideLinks } from "@/lib/courses/guide/model";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
 import {
@@ -104,16 +105,9 @@ import {
 import type { OwnFeedbackCard } from "@/lib/courses/feedback/model";
 import { FEEDBACK_HEADING, feedbackLinkWords } from "@/lib/courses/feedback/words";
 import WeekFeedback, { FEEDBACK_ANCHOR } from "../feedback/WeekFeedback";
-import type { SubmitWeekAnswer } from "@/app/api/courses/runs/[runId]/weeks/[weekId]/submit/route";
-import {
-  weekAsksForWriting,
-  weekCheck,
-  weekWorkStateOf,
-  type CheckState,
-  type WeekWorkWire,
-} from "@/lib/courses/weekWork/model";
-import { NOT_SUBMITTED, lockLineWords } from "@/lib/courses/weekWork/words";
-import SubmitWeek from "./SubmitWeek";
+import { weekDone, weekWorkStateOf, weekWritingNeeds, type WeekDue, type WeekWorkWire } from "@/lib/courses/weekWork/model";
+import { dueOfWire, latestOf, restOfWeekOnceSent } from "@/lib/courses/weekWork/pageFacts";
+import { allTickedWords, ownWorkWords, sessionMetWords, untilWhenWords } from "@/lib/courses/weekWork/words";
 import WeekStatus from "./WeekStatus";
 import { WeekSavesProvider, useWeekSaves } from "./weekSaves";
 import weekWorkStyles from "./weekWork.module.css";
@@ -147,10 +141,11 @@ import fillIn from "./fillIn.module.css";
  * column, each scrolling sideways on its own when it is wider than the page.
  *
  * THE WRITTEN ANSWER (`WrittenAnswerCard`): the question, the box, the count
- * against its range, Send, the day it is due and who reads it. Its part
- * carries "Draft" or "Sent" where another part carries Done, and This week's
- * task for it says where it stands ("Draft · 241 words", "Sent Mon 16 Nov",
- * "Feedback from Rahul"). Never "Late": that is staff's alone.
+ * against its range, its own Send ("Send my answer", and "Change my answer"
+ * after), the day it is due and who reads it. Its part carries "Draft" or
+ * "Sent" where another part carries Done, and This week's task for it says
+ * where it stands ("Draft · 241 words", "Sent Mon 16 Nov", "Feedback from
+ * Rahul"). Never "After its deadline": that is staff's alone.
  *
  * A CHOOSE ONE: its packs, the person's own open and ticked as
  * one, given out by a facilitator or picked here until the session starts
@@ -187,16 +182,22 @@ import fillIn from "./fillIn.module.css";
  * save. When each task is due comes from the overview payload, worked out on
  * the server from the reader's group's own calendar (`due.ts`).
  *
- * THE WEEK YOU SUBMIT (`src/lib/courses/weekWork/`), for somebody taking
- * part: under the title, until when the work can change (privacy v15: "The
- * week's page says until when you can change your work"); a status box
- * ("1 of 3 done · Saved as you go", or Submitted or Locked and whom to ask to
- * reopen it); Submit at the end of the work, with the check before it
- * (`SubmitWeek`); and, once the week is submitted or locked, every tick, box,
- * pack and ready mark read only until somebody running the group reopens it.
- * Where the week stands comes from the overview payload (`work`), and from
- * Submit's own answer once they press it here. A tick shows when it was
- * ticked ("Ticked Sun 15 Nov"), from the reader's own live rows.
+ * THE WEEK STAYS OPEN (`src/lib/courses/weekWork/`), for somebody taking
+ * part: under the title, until when the work can change (privacy v17: "The
+ * week's page says until when you can change your work"): before their
+ * session, the session and that the work stays open after it, then the day
+ * the programme closes. A box at the top: "1 of 3 done · Saved as you go";
+ * once the session has started, one neutral line that the group met, that
+ * they can still finish it and that anything added or changed now shows as
+ * late to the people who read their work (`sessionMetWords`); for a
+ * facilitator's own work, who reads it and that what they add after their
+ * group's session shows those people as late (`ownWorkWords`). Beside each
+ * thing they did, when, and once the session has started whether it was
+ * before it or how long after ("Ticked Sat 7 Nov: 3 days after your
+ * session", "Saved Tue 3 Nov, 8:15pm, before the session."). Nothing closes
+ * at the session or at a send: only once the programme has closed is every
+ * tick, box, pack and ready mark read only, and the line says so. Where the
+ * week stands comes from the overview payload (`work`).
  *
  * WHO TAKES PART on the page: somebody placed in a group, and (Zach, Mon 26
  * Oct) a facilitator of a group of the run, as themselves: each ticks the
@@ -241,6 +242,8 @@ type Props = {
     loading: boolean;
     reload: () => void;
     apply: (row: ExerciseResponseWire) => void;
+    /** The words a question had when the reader first answered it, by item id, only where reworded since. */
+    askedThen?: Readonly<Record<string, AskedWords>>;
   };
   sharedNotes: WeekSharedNotes;
   /** The programme's lead's first name, for who reads a reflection; null when no programme names the run. */
@@ -294,10 +297,8 @@ export default function BlockWeek({
   const runHomeHref = `/learn/${encodeURIComponent(runId)}`;
   const todayKey = londonDateKey(new Date());
   const blocks = week.blocks;
-  // Every box's waiting save, written before the week is submitted.
+  // Every box's waiting save, written before anything on the page sends.
   const saves = useWeekSaves();
-  // Where the week stands once Submit answered here, for this week only.
-  const [submitted, setSubmitted] = useState<{ weekId: string; work: WeekWorkWire } | null>(null);
 
   // Who is reading. Somebody placed in a group takes part: an active
   // enrolment writes, a finished one reads what it wrote. A facilitator of a
@@ -312,17 +313,15 @@ export default function BlockWeek({
   const beforeGroups = Boolean(payload.beforeGroups);
   const participant = learner !== null || asFacilitator || beforeGroups;
   const overviewWeek = payload.weeks.find((entry) => entry.weekNumber === weekNumber) ?? null;
-  // Where the reader's own week stands: open and reopened weeks take work,
-  // submitted and locked ones are read only until somebody reopens them.
-  const work: WeekWorkWire | null = participant
-    ? submitted?.weekId === week.id
-      ? submitted.work
-      : (overviewWeek?.work ?? null)
-    : null;
-  const shut = work !== null && (work.state === "submitted" || work.state === "locked");
+  // Where the reader's own week stands: open until the programme closes, then read only.
+  const work: WeekWorkWire | null = participant ? (overviewWeek?.work ?? null) : null;
+  const closed = work?.closed === true;
+  // The session they are due at this week, which late is told against.
+  const due: WeekDue = dueOfWire(work);
+  const now = new Date();
   // Their place is active (or they take part as a facilitator, or before groups go out).
   const mayWrite = learner ? learner.status === "active" : asFacilitator || beforeGroups;
-  const canWrite = mayWrite && !shut;
+  const canWrite = mayWrite && !closed;
   // The person's own packs, cases and ready marks, as handed in and as changed here.
   const picks = usePicks(runId, week.id, participant ? (overviewWeek?.picks ?? null) : null, NOT_SAVED);
 
@@ -376,9 +375,9 @@ export default function BlockWeek({
   const firstFeedbackOn = (answerId: string): OwnFeedbackCard | null => feedbackCards.find((card) => card.itemId === answerId) ?? null;
   /**
    * This week's line for a task that covers a written answer: "Draft · 241
-   * words" with "Due tonight" on its last day, "Submitted Mon 16 Nov", then
-   * "Feedback from Rahul", leading to the week's Feedback; "Not submitted"
-   * once the week locked before it was. Nothing before anything is written.
+   * words" with "Due tonight" on its last day, "Sent Mon 16 Nov", then
+   * "Feedback from Rahul", leading to the week's Feedback. Nothing before
+   * anything is written.
    */
   const answerTaskLine = (answerIds: readonly string[], dueKey: string | null): ReactNode => {
     if (!participant || answerIds.length === 0) return null;
@@ -396,14 +395,6 @@ export default function BlockWeek({
     }
     if (own.firstSentAt) return <p className={styles.taskWhen}>{sentOnWords(new Date(own.firstSentAt))}</p>;
     if (own.words === 0) return null;
-    // Locked at the session before it was submitted: never sent, and no draft any more.
-    if (work?.state === "locked") {
-      return (
-        <p className={answerStyles.taskState}>
-          <span>{NOT_SUBMITTED}</span>
-        </p>
-      );
-    }
     const dueToday = dueKey !== null && dueKey === todayKey;
     return (
       <p className={answerStyles.taskState}>
@@ -420,7 +411,7 @@ export default function BlockWeek({
     if (!answer || !participant) return null;
     const own = ownRows.byId.get(answer.id)?.written ?? null;
     if (own?.firstSentAt) return SENT;
-    if (own && own.words > 0) return work?.state === "locked" ? NOT_SUBMITTED : DRAFT;
+    if (own && own.words > 0) return DRAFT;
     return null;
   };
   // Who reads the reader's own fill-in boxes: the group's
@@ -441,46 +432,40 @@ export default function BlockWeek({
     .map((row) => taskNeeds(blocks, row));
   const counts = tasksDone(taskNeedsList, state);
 
-  // The check before Submit: what isn't done, from the same count and the reader's own saved boxes.
-  const everythingInWeek = allBlocks(blocks);
-  const checkState: CheckState = {
-    ...state,
-    answerOf: (answerId) => {
-      const written = ownRows.byId.get(answerId)?.written ?? null;
-      const block = everythingInWeek.find((candidate) => candidate.type === "writtenAnswer" && candidate.id === answerId);
-      const boxes = block?.type === "writtenAnswer" ? block.boxes : [];
-      return {
-        words: written?.words ?? 0,
-        emptyBoxes: boxes.filter((box) => !(written?.boxes?.[box.id] ?? "").trim()).length,
-      };
-    },
+  // Done, as everywhere (`weekDone`): every counted tick, and the old Submit or everything written sent.
+  const asks = weekWritingNeeds(blocks);
+  const weekIsDone = participant && weekDone({ tasks: taskNeedsList, state, submitted: Boolean(work?.submittedAt), asks });
+  /** What the rest of the week needs once this answer is sent, for the line under Send. */
+  const restOf = (answerId: string) =>
+    participant ? restOfWeekOnceSent({ tasks: taskNeedsList, asks, state, submitted: Boolean(work?.submittedAt), answerId }) : null;
+  /** When a task that is only ticks was all ticked, for "All ticked by Tue 3 Nov."; null otherwise. */
+  const allTickedAt = (needs: TaskNeeds): Date | null => {
+    if (needs.promptIds.length + needs.fillInIds.length + needs.answerIds.length + needs.talkIds.length > 0) return null;
+    const ids = [...needs.tickIds, ...needs.chooseOneIds.map((id) => (participant ? picks.packOf(id) : null))];
+    if (ids.length === 0) return null;
+    return latestOf(ids.map((id) => (id && ticks.isDone(id) ? (ticks.byItemId.get(id)?.completedAt ?? null) : null)));
   };
-  const writes = weekAsksForWriting(blocks);
-  const hasAnswer = everythingInWeek.some((candidate) => candidate.type === "writtenAnswer");
-  const wroteAnything = [...ownRows.byId.values()].some((row) => Boolean(row.text?.trim()) || (row.written?.words ?? 0) > 0);
-  const lastPartId = partsOf(blocks).at(-1)?.id ?? null;
-  const showSubmit = participant && canWrite && writes && work !== null;
-  const onSubmitted = (answer: SubmitWeekAnswer) => {
-    setSubmitted({ weekId: week.id, work: answer.work });
-    for (const sent of answer.sent) {
-      const row = ownRows.byId.get(sent.id);
-      if (row?.written) ownRows.apply({ ...row, submittedAt: sent.at, written: { ...row.written, firstSentAt: sent.at } });
-    }
+  // The box at the top of the week: a facilitator's own work, or once the session has started, that it met.
+  const placementGroupName = learner ? (payload.group?.name ?? null) : null;
+  const facilitatedGroups = payload.groups.filter((group) => group.id !== placementGroupId);
+  const ownRuns = facilitatedGroups.length === 1 ? facilitatedGroups[0].name : facilitatedGroups.length === 0 ? placementGroupName : null;
+  const statusLine = !work
+    ? null
+    : ownWorkIsTheLeads
+      ? ownWorkWords({
+          due,
+          runs: ownRuns,
+          meets: placementGroupName ?? (facilitatedGroups.length === 1 ? facilitatedGroups[0].name : null),
+          readers: leadFirstName ? `${leadFirstName} and admins` : "admins",
+          now,
+        })
+      : sessionMetWords({ due, weekNumber, groupName: payload.group?.name ?? null, done: weekIsDone, now });
+
+  /** A written answer's labelled boxes, in the week's order, for the version a piece of feedback was about. */
+  const answerBoxLabels = (answerId: string): Array<{ id: string; label: string }> => {
+    const found = allBlocks(blocks).find((candidate) => candidate.type === "writtenAnswer" && candidate.id === answerId);
+    return found?.type === "writtenAnswer" ? found.boxes.map((box) => ({ id: box.id, label: box.label })) : [];
   };
-  const submitCard = showSubmit ? (
-    <SubmitWeek
-      key="submit-week"
-      runId={runId}
-      weekId={week.id}
-      weekNumber={weekNumber}
-      notDone={weekCheck(blocks, taskNeedsList, checkState)}
-      hasAnswer={hasAnswer}
-      ownIsTheLeads={ownWorkIsTheLeads}
-      flushAll={saves.flushAll}
-      onSubmitted={onSubmitted}
-    />
-  ) : null;
-  let submitPlaced = submitCard === null;
 
   // The page's first stop and first sources carry who reads and who sees.
   const everything = allBlocks(blocks);
@@ -501,11 +486,7 @@ export default function BlockWeek({
         })}
       </p>
       <h1 className={styles.title}>{week.title || `Week ${weekNumber}`}</h1>
-      {work && (
-        <p className={weekWorkStyles.lockLine}>
-          {lockLineWords(weekWorkStateOf(work), { room: schedule?.location ?? "", reopenedBy: work.reopened?.byName ?? "" })}
-        </p>
-      )}
+      {work && <p className={weekWorkStyles.untilLine}>{untilWhenWords(weekWorkStateOf(work), { room: schedule?.location ?? "", now })}</p>}
       <WeekGuideLinks runId={runId} links={guide} />
       {(forked || !week.published) && (
         <p className={styles.chips}>
@@ -549,6 +530,10 @@ export default function BlockWeek({
             key={block.id}
             block={block}
             answerLine={(answerIds, dueKey) => answerTaskLine(answerIds, dueKey)}
+            tickedLine={(needs) => {
+              const at = allTickedAt(needs);
+              return at ? allTickedWords(at, due, now) : null;
+            }}
             rows={overviewWeek?.thisWeek?.rows ?? []}
             dayBeforeTime={overviewWeek?.thisWeek?.dayBeforeTime ?? null}
             blocks={blocks}
@@ -647,6 +632,8 @@ export default function BlockWeek({
                   : ticksSeenByWords(facilitatorNames, leadFirstName),
                 privateNoteHint: ownWorkIsTheLeads ? PRIVATE_NOTE_HINT_FACILITATOR : PRIVATE_NOTE_HINT,
                 canRate: !beforeGroups,
+                due,
+                now,
                 answer: {
                   readers: answerReaders,
                   leadName: leadFirstName,
@@ -655,7 +642,7 @@ export default function BlockWeek({
                   dayBeforeTime: overviewWeek?.thisWeek?.dayBeforeTime ?? null,
                   first,
                   todayKey,
-                  work,
+                  restOf,
                 },
                 picks,
                 askToSwap: payload.askToSwap ?? [],
@@ -665,10 +652,6 @@ export default function BlockWeek({
             }
           />,
         );
-        if (block.id === lastPartId && !submitPlaced) {
-          body.push(submitCard);
-          submitPlaced = true;
-        }
         break;
       }
       case "inTheSession":
@@ -707,7 +690,6 @@ export default function BlockWeek({
   }
 
   placePredictions();
-  if (!submitPlaced) body.push(submitCard);
 
   const sections = sharedNotes?.sections ?? [];
   if (sections.length > 0) rail.push({ id: "shared-notes", label: SHARED_NOTES_SHORT, count: null, mark: null, indent: false });
@@ -732,10 +714,8 @@ export default function BlockWeek({
       <div className={styles.layout}>
         <PageEnter direction="up" className={styles.main}>
           {header}
-          {work && (
-            <WeekStatus work={work} counts={counts} readers={answerReaders} wroteAnything={wroteAnything} />
-          )}
-          <WeekFeedback cards={feedbackCards} programme={payload.programme?.name ?? ""} />
+          {work && <WeekStatus work={work} counts={counts} line={statusLine} />}
+          <WeekFeedback cards={feedbackCards} programme={payload.programme?.name ?? ""} answerBoxes={answerBoxLabels} />
           <PacingBanner
             runId={runId}
             viewedWeek={weekNumber}
@@ -855,6 +835,7 @@ function NoneMark() {
 function ThisWeekBox({
   block,
   answerLine,
+  tickedLine,
   rows,
   dayBeforeTime,
   blocks,
@@ -869,6 +850,8 @@ function ThisWeekBox({
   block: ThisWeekBlock;
   /** A task's line about the reader's own written answer, when it covers one. */
   answerLine: (answerIds: readonly string[], dueKey: string | null) => ReactNode;
+  /** "All ticked by Tue 3 Nov." for a done task that is only ticks, with how late once the session has started; null otherwise. */
+  tickedLine: (needs: TaskNeeds) => string | null;
   /** The overview's rows for this week, for when each task is due. */
   rows: OverviewThisWeekRow[];
   /** The course's time for work due the day before a session, or null for by the end of that day. */
@@ -946,7 +929,7 @@ function ThisWeekBox({
                 {needs.answerIds.length > 0 ? (
                   answerLine(needs.answerIds, due?.dateKey ?? null)
                 ) : done ? (
-                  <p className={styles.taskDone}>{TASK_DONE}</p>
+                  <p className={styles.taskDone}>{tickedLine(needs) ?? TASK_DONE}</p>
                 ) : (
                   draftOf(needs, done) && (
                     <p className={fillIn.taskDraft}>{draftFilledWords(boxesFilled(needs, state.isWritten).filled, needs.fillInIds.length)}</p>
@@ -1128,6 +1111,10 @@ type ChildContext = {
   privateNoteHint: string;
   /** A ticked reading opens "Rate it or leave a note": not before groups go out, when nobody it names reads it yet. */
   canRate: boolean;
+  /** The session the reader is due at this week, which when each thing was done is told against. */
+  due: WeekDue;
+  /** The moment the page was drawn. */
+  now: Date;
   /** What the written answer's card needs beside its block. */
   answer: {
     readers: AnswerReaders;
@@ -1138,8 +1125,8 @@ type ChildContext = {
     dayBeforeTime: string | null;
     first: boolean;
     todayKey: string;
-    /** Where the reader's own week stands. */
-    work: WeekWorkWire | null;
+    /** What the rest of the week needs once this answer is sent, for the line under Send. */
+    restOf: (answerId: string) => ReturnType<typeof restOfWeekOnceSent>;
   };
   /** The person's own packs, cases and ready marks. */
   picks: Picks;
@@ -1178,6 +1165,8 @@ function renderPartChild(child: PartChild, rest: PartChild[], ctx: ChildContext)
             canNote={ctx.mayWrite}
             isDone={ctx.ticks.isDone}
             rows={ctx.ticks.byItemId}
+            due={ctx.due}
+            now={ctx.now}
             onTick={ctx.onTick}
             ticksLine={ctx.learner && run.some((source) => source.id === ctx.firstSourceId) ? ctx.ticksLine : null}
             privateNoteHint={ctx.privateNoteHint}
@@ -1201,6 +1190,9 @@ function renderPartChild(child: PartChild, rest: PartChild[], ctx: ChildContext)
             ownBoxes={ctx.learner}
             canWrite={ctx.canWrite}
             readers={child.id === ctx.firstStopId ? ctx.readers : null}
+            due={ctx.due}
+            now={ctx.now}
+            askedThen={ctx.ownRows.askedThen}
             onSaved={ctx.ownRows.apply}
           />
         ),
@@ -1225,6 +1217,7 @@ function renderPartChild(child: PartChild, rest: PartChild[], ctx: ChildContext)
             block={child}
             runId={ctx.runId}
             weekId={ctx.weekId}
+            weekNumber={ctx.weekNumber}
             row={ctx.ownRows.byId.get(child.id) ?? null}
             loaded={ctx.ownRows.loaded}
             loading={ctx.ownRows.loading}
@@ -1234,11 +1227,13 @@ function renderPartChild(child: PartChild, rest: PartChild[], ctx: ChildContext)
             readers={ctx.answer.readers}
             leadName={ctx.answer.leadName}
             feedback={ctx.answer.feedbackOf(child.id)}
-            due={ctx.answer.dueOf(child.id)}
+            dueDay={ctx.answer.dueOf(child.id)}
             dayBeforeTime={ctx.answer.dayBeforeTime}
             first={ctx.answer.first}
             todayKey={ctx.answer.todayKey}
-            work={ctx.answer.work}
+            due={ctx.due}
+            rest={ctx.answer.restOf(child.id)}
+            askedThen={ctx.ownRows.askedThen?.[child.id] ?? null}
             onSaved={ctx.ownRows.apply}
           />
         ),
@@ -1298,6 +1293,8 @@ function renderPartChild(child: PartChild, rest: PartChild[], ctx: ChildContext)
             ownBoxes={ctx.learner}
             canWrite={ctx.canWrite}
             readers={ctx.fillInReaders(child.title)}
+            due={ctx.due}
+            now={ctx.now}
             onSaved={ctx.ownRows.apply}
           />
         ),

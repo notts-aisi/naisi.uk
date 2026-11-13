@@ -1,0 +1,329 @@
+/* ============================================================
+   Correcting a register: one line's sheet (ask, withdraw, the
+   correction itself), the whole column's sheet, and the story
+   of a corrected line. Every control is at least 44px tall;
+   focus is the solid 3px outline the dark ground needs.
+   ============================================================ */
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: 1.3;
+  color: var(--color-text);
+}
+
+.lede {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.lede strong {
+  font-weight: 600;
+}
+
+.chip {
+  display: inline-block;
+  margin-top: var(--space-1);
+  padding: 0.125rem var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+
+.note {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text);
+}
+
+.noteWaiting {
+  border-color: var(--color-warning-line);
+  background: var(--color-warning-soft);
+}
+
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.legend {
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: var(--text-ui);
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.choiceOn {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.choiceWide {
+  align-items: flex-start;
+}
+
+.choiceText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.choiceLine {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.radio {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.radio:focus-visible,
+.box:focus-visible,
+.textarea:focus-visible,
+.select:focus-visible,
+.link:focus-visible,
+.button:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.textarea {
+  width: 100%;
+  min-height: 4.5rem;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.count {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
+.select {
+  min-height: 2.75rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-ui);
+}
+
+.tick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 2.75rem;
+  font-size: var(--text-ui);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.box {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.before {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.beforeTitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.beforeRow {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.beforeRow dt {
+  color: var(--color-text-muted);
+}
+
+.beforeRow dd {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.people {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.person {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.personName {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.personChoices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.footLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-danger-text);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--color-accent-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-ui);
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (max-width: 36rem) {
+  .choices {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .beforeRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+
+  .actions > * {
+    flex: 1 1 100%;
+  }
+}

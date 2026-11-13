@@ -727,8 +727,48 @@ const REGISTRY = {
   "src/app/api/courses/runs/[runId]/updates/route.ts#sendEmail": T(
     "\"Send a test to me\" on the update composer: the update's own email, marked [TEST], to the address on the presser's own account and nobody else. Nobody's preference is passed over and nothing is posted, so it is no notice.",
   ),
+  "src/app/api/courses/runs/[runId]/weeks/[weekId]/tell/route.ts#sendNotice": N(
+    "Telling people about a change to a live week, a choice the editor makes after a save and never automatic: the programme's lead or an admin telling the people who have started the week, everyone it is open for, or everyone on the programme, about the programme they are on. It goes to those of the run's people holding a place whose group has gone out (`resolveNoticeAudience`), whatever they unsubscribed from and whatever the courses row says, never to the presser and never with a meeting link, with the marker (surface course-run), under the lane's caps. Email only: no push leg.",
+  ),
+  "src/app/api/courses/runs/[runId]/weeks/[weekId]/tell/route.ts#sendEmail": T(
+    "\"Send me a test first\" beside that notice: the notice's own email, marked [TEST], to the address on the presser's own account and nobody else. Nobody's preference is passed over and nobody is told, so it is no notice.",
+  ),
   "src/app/api/courses/runs/[runId]/email/route.ts#sendNoticePush": N(
     "The notification beside that notice. The ordinary announcement lane has no push leg at all, deliberately: a scheduled cohort mail that also buzzed every phone is how people turn notifications off for good.",
+  ),
+  "src/lib/courses/groupChange/notice.ts#sendNotice": N(
+    "A change to a group's regular time or room, told by the person who made it (an admin, the programme's lead, or a run's track lead for the time): one message to each of the group's told people and its facilitators with standing, never the presser, whatever their settings, with the marker (surface course-group), the count on the button checked and a group's ten-a-day counter claimed before anything changes. Never a meeting link. Email only: no push leg.",
+  ),
+  "src/app/api/courses/groups/[groupId]/session/regular/route.ts#sendGroupChangeNotice": N(
+    "A new regular time from a week onwards, told to the group with \"Can you make this time?\" for the people holding a place: the people running the programme telling the people on it something they need in order to take part.",
+    1,
+    "src/lib/courses/groupChange/notice.ts",
+  ),
+  "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room/route.ts#sendGroupChangeNotice": N(
+    "A room set or changed, told to the group only when the press asks: where they meet, from the programme's lead or an admin.",
+    1,
+    "src/lib/courses/groupChange/notice.ts",
+  ),
+  "src/lib/email/coverGivenEmail.ts#sendEmail": T(
+    "The door of the one email to somebody an admin or a programme's lead gave one session's register, check-in and report to (\"You're covering Group E today at 4pm\"): to that person alone, about a session handed to them, so no setting of theirs switches it off. The suppression list still holds it back. Never a meeting link.",
+  ),
+  "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts#sendCoverGivenEmail": T(
+    "Giving one session to somebody covering: the one email they are sent, to them alone, about the session handed to them, through its door (`src/lib/email/coverGivenEmail.ts`). Never the presser, never the group.",
+  ),
+  "src/lib/email/excusedEmail.ts#sendEmail": T(
+    "The door of the emails of a request to be excused: approved, to the person with the reply and to each of the group's facilitators without the reason; declined, to the person with the reply; a reply without a decision, to the person; and a new request, to each admin who decides them and has not switched it off on the Requests page. Each is about a request the person made, a line of a register the facilitator takes, or a request the admin decides, so no row of the grid switches it off; the suppression list still holds it back. Never the reason, never a meeting link.",
+  ),
+  "src/lib/courses/excused/alert.ts#sendExcusedEmail": T(
+    "A request to be excused has arrived: one email to each admin who decides them, once the request is written, through its door (`src/lib/email/excusedEmail.ts`). It is owed to the admins who decide these, as the reminder to a group's facilitators is owed to them, so no row of the profile grid gates it; the admin's own switch on the Requests page does (`users/{uid}.requestEmails.excused`, on unless a stored false), and the suppression list still holds it back. Never the person asking, a facilitator or the lead; never the reason, never a meeting link.",
+  ),
+  "src/lib/courses/excused/decide.ts#sendExcusedEmail": T(
+    "An admin deciding or replying to a request to be excused, through its door (`src/lib/email/excusedEmail.ts`): approving one week emails the person, with the reply, and, while the register says excused, each of the group's facilitators with standing, never the reason and never the presser; declining one week emails the person, with the reply; a reply without deciding emails the person. Withdrawing and waiting email nobody; asking emails the admins (`alert.ts`).",
+    4,
+  ),
+  "src/app/api/courses/groups/[groupId]/attendance/cover/route.ts#sendGroupChangeNotice": N(
+    "The optional notice that somebody else is running a session (\"Ola is running today's session\"), off unless ticked: the people running the programme telling the group's told people who is running their session, never the presser and never the person given it, with the count on the tick checked first and the group's ten-a-day counter claimed. Never the reason, never a meeting link. Email only: no push leg.",
+    1,
+    "src/lib/courses/groupChange/notice.ts",
   ),
   "src/lib/courses/nextWeekEmail.ts#sendNotice": N(
     "\"Week N is open\" to one group, the one send both of its lanes go through: the register's push while it is not on its schedule (and an admin's resend), and the `courses-next-week-email` job 6 days before each session while it is. It was next week's email, a grid send that honoured the courses row and the cohort list's unsubscribe; it is now the people running the programme telling everybody holding a place in the group (`resolveNoticeAudience`) what this week is, whatever they unsubscribed from, with the marker (surface course-week). Once per group per session, by the group's claim. Email only: no push leg. An explainer an admin scheduled at the start of the session is a line in it, read when it is built, so it rides this notice and never sends one of its own: a group whose email has gone is told on its tickets alone.",
@@ -745,6 +785,14 @@ const REGISTRY = {
   ),
   "src/lib/scheduler/jobs/weekReminders.ts#sendNotice": N(
     "The reminders 3 days and 1 day before a session (`courses-week-reminders`): one email to each person holding a place in the group whose week is not done, listing what is left of it, whatever their courses row says or which list they left (privacy v15, \"Reminders\": part of running the programme, and they stop once the week is done), with the marker (surface course-week-reminder). One per person per reminder, by a scheduler marker; nobody whose week is done is sent one. Email only: no push leg.",
+  ),
+  "src/lib/courses/groupWeekWork/remind.ts#sendNotice": N(
+    "Remind by hand (`POST /api/courses/groups/[groupId]/remind`): somebody who reads the group's work (its facilitators, the programme's lead, admins; never a run's track lead by that alone) reminding each person holding a told place whose week is not done, before its session or after it (privacy v17, \"Reminders\": \"the people running your group may remind you about a week that isn't done\"), whatever their settings, with the marker (surface course-week-remind-by-hand, its own: its line names the week, \"our records show week 1 isn't done\", and its labels say it was by hand). Never anybody who facilitates a live group of the run, never the presser, never anybody whose week is done or who joined after its session. The lane's caps (3 an hour per presser and audience, 10 a day per group), the count on the button checked first, and a retry of the same press sending nothing more. Never a meeting link. Email only: no push leg.",
+  ),
+  "src/app/api/courses/groups/[groupId]/remind/route.ts#sendHandReminders": N(
+    "Remind by hand, pressed on a group's page or its facilitators' page: the reminders the route has counted, capped and checked, sent as the notice they are.",
+    1,
+    "src/lib/courses/groupWeekWork/remind.ts",
   ),
   "src/lib/surveys/sending.ts#sendNotice": N(
     "A programme survey and its reminder (docs/surveys.md): an admin writing to everybody holding a place on the programme the survey is about, each with their own link, whatever their courses row says, with the marker and the lane's caps. Email only: no push leg.",

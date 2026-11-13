@@ -17,6 +17,7 @@ import {
   type GroupSession,
 } from "@/lib/firestore/courseGroups";
 import { weekDocId } from "@/lib/firestore/courses";
+import { OLDER_EDITORS } from "@/lib/courses/weekEdit/pageWords";
 
 /**
  * Server shell for the facilitator's editing surface: the group's weeks, its
@@ -206,8 +207,7 @@ export default async function GroupEditIndexPage({
         <h1 style={{ margin: "var(--space-2) 0 0" }}>Edit {groupLabel}</h1>
         <p style={subStyle}>
           What {groupLabel} reads each week, when it meets, and how to tell
-          everyone when that changes. Your group follows the course until you
-          change something — and only the things you change stop following it.{" "}
+          everyone when that changes. {OLDER_EDITORS.groupLine}{" "}
           <Link href={groupPath} style={linkStyle}>
             Back to the group
           </Link>

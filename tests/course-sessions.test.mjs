@@ -659,17 +659,22 @@ test("the push recomputes the rollup rather than incrementing it", () => {
   }
 });
 
-test("a post-push edit is admin-only and writes an audit row per changed mark", () => {
+// CHANGED ON PURPOSE (November 2026): a finished register is corrected by
+// admins and the people leading the programme (`leads` on the gate), with a
+// reason, and one history row per line, written by the one module an
+// approved request also corrects through. Each check below replaces one that
+// pinned the admin-only lane, at the same strength or stronger.
+test("a post-push edit is for admins and leads, needs a reason, and writes an audit row per changed line", () => {
   const text = source(REGISTER_ROUTE);
   const at = text.indexOf("export async function PATCH(");
   assert.ok(at > 0, "the post-push lane is PATCH");
   // The BODY of PATCH, not the file: `COURSE_AUDIT_COLLECTION` appearing
   // somewhere in a 1000-line route says nothing about the handler that has to
-  // carry it, and neither does an admin check that lives in another function.
+  // carry it, and neither does a check that lives in another function.
   const body = text.slice(at);
 
-  const refusal = body.indexOf("if (!isAdmin) {");
-  assert.ok(refusal > 0, "PATCH refuses a non-admin caller in its own body");
+  const refusal = body.indexOf("if (!isAdmin && !leads) {");
+  assert.ok(refusal > 0, "PATCH refuses everybody but an admin or a lead in its own body");
   assert.match(
     body.slice(refusal, refusal + 400),
     /status:\s*403/,
@@ -678,13 +683,18 @@ test("a post-push edit is admin-only and writes an audit row per changed mark", 
   // Before the request body is looked at any further: a 403 that arrives after
   // a payload-shape error has already described the API to someone who may not
   // use it.
-  assert.ok(
-    refusal < body.indexOf("parseMarks(body.marks)"),
-    "the admin check runs before the marks are parsed",
-  );
+  const reason = body.indexOf("parseCorrectionReason(body.reason");
+  assert.ok(reason > 0, "PATCH asks for a reason");
+  assert.ok(refusal < reason, "the who check runs before the reason is read");
+  assert.ok(reason < body.indexOf("parseMarks(body.marks)"), "the reason is checked before the marks are parsed");
 
-  assert.match(body, /COURSE_AUDIT_COLLECTION/);
-  assert.match(body, /kind: "attendance-edit"/);
+  assert.match(body, /readLineCorrection\(tx, db,/, "the correction reads inside the transaction");
+  assert.match(body, /writeLineCorrection\(tx, db, plan,/, "and writes in the same one");
+  const line = source("lib/courses/registerCorrection/line.ts");
+  assert.match(line, /COURSE_AUDIT_COLLECTION/);
+  assert.match(line, /kind: "attendance-edit"/);
+  assert.match(line, /for \(const line of moved\) \{\n\s*tx\.set\(db\.collection\(COURSE_AUDIT_COLLECTION\)\.doc\(\), \{/, "one row per line moved");
+  assert.match(line, /reason: input\.reason,/, "each row keeps the reason");
 });
 
 test("the empty-held guard cannot be defeated by a note", () => {

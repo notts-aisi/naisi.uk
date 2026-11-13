@@ -842,10 +842,40 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/features/applications/groups/GroupFacilitators.tsx",
+    {
+      built: ["groupPagePath(model.roundId, model.programmeId, each.id)"],
+      from: "a group's own page under the Groups tab, from the form's, the programme's and the group's ids, encoded (`groupPagePath`). Nothing anybody typed",
+    },
+  ],
+  [
+    "src/features/applications/groups/PeopleInGroups.tsx",
+    {
+      built: ["groupPagePath(view.roundId, view.programmeId, group.id)"],
+      from: "a group's own page under the Groups tab, from the form's, the programme's and the group's ids, encoded (`groupPagePath`). Nothing anybody typed",
+    },
+  ],
+  [
+    "src/features/applications/times/TimesActions.tsx",
+    {
+      built: ["groupPagePath(setup.roundId, setup.programmeId, group.id)"],
+      from: "a group's own page under the Groups tab, from the form's, the programme's and the group's ids, encoded (`groupPagePath`). Nothing anybody typed",
+    },
+  ],
+  [
+    "src/features/applications/times/TimesPicture.tsx",
+    {
+      built: ["groupPagePath(view.roundId, view.programmeId, group.id)"],
+      from: "a group's own page under the Groups tab, from the form's, the programme's and the group's ids, encoded (`groupPagePath`). Nothing anybody typed",
+    },
+  ],
+  [
     "src/features/applications/circles/Circles.tsx",
     {
-      built: ["settingsHref"],
-      from: "the programme's Settings tab, from the form's and the programme's ids, encoded",
+      built: ["groupPagePath(live.roundId, live.programmeId, ring.id)", "settingsHref"],
+      from:
+        "the programme's Settings tab, from the form's and the programme's ids, encoded; and a told group's own page " +
+        "under the Groups tab, from the form's, the programme's and the group's ids, encoded (`groupPagePath`). Nothing anybody typed",
     },
   ],
   [
@@ -1015,6 +1045,20 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/features/applications/weeks/edit/EditWeekView.tsx",
+    {
+      built: ["historyHref"],
+      from: "the week's history on the Weeks tab (weekHistoryPath), handed in by the week's page, made from the form's and the programme's ids and the week's document id, each encoded",
+    },
+  ],
+  [
+    "src/features/applications/weeks/edit/WeekBlockView.tsx",
+    {
+      built: ["safeSourceUrl(item.url)"],
+      from: "a Go further item's own address in the week's stored blocks, put through safeSourceUrl (https only, or nothing), as the member's week page draws it: written by the programme's lead or an admin in the week's Markdown, never by an applicant",
+    },
+  ],
+  [
     "src/features/applications/weeks/WeekControls.tsx",
     {
       built: ["`${previewHref}?group=${encodeURIComponent(group.id)}`"],
@@ -1040,6 +1084,13 @@ const BUILT = new Map([
     {
       built: ["review", "weeksPath(view.roundId, view.programmeId)", "weeksPath(view.roundId, view.programmeId, form.weekId)"],
       from: "the way back to the week's review (`weekReviewPath`), the Weeks tab and the week's page on it, made from the form's and the programme's ids and the week's document id, each encoded",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/history/page.tsx",
+    {
+      built: ["weeksPath(view.roundId, view.programmeId, week.weekId)"],
+      from: "the way back to the week's page on the Weeks tab, made from the form's and the programme's ids and the week's document id, each encoded",
     },
   ],
   [
@@ -1237,8 +1288,29 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/page.tsx",
+    { built: ["tabPath"], from: "the programme's Groups tab, from the form's and the programme's ids, encoded (`groupsPath`)" },
+  ],
+  // ADDED (November 2026), with covering a register.
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/register/page.tsx",
+    {
+      built: ["groupPage", "tabPath"],
+      from: "the group's page and the programme's Groups tab, from the form's, the programme's and the group's ids, encoded",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/report/page.tsx",
+    {
+      built: ["tabPath"],
+      from: "the programme's Groups tab, from the form's and the programme's ids, encoded (`groupsPath`)",
+    },
+  ],
+  [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/layout.tsx",
-    { built: ["home"], from: "the term's own page, from the form's id" },
+    // ADDED (November 2026), with correcting a register: the way to the
+    // Requests page while something waits, a fixed address.
+    { built: ["REQUESTS_PATH", "home"], from: "the term's own page, from the form's id; and the Requests page, a fixed address in the code (`REQUESTS_PATH`)" },
   ],
   [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/messages/page.tsx",

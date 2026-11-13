@@ -46,6 +46,11 @@ export type EmailSendKind =
   // left get their confirmation" is a question the deliverability tab has to
   // answer without reading subject lines.
   | "course-enrolment"
+  // A request to be excused has arrived: one email to each admin who decides
+  // them and has not switched it off on the Requests page. Its own kind so
+  // "were the admins told about Tuesday's request" is answerable without
+  // reading subject lines. Its `referenceId` is the RUN id. Never the reason.
+  | "course-request"
   // The "you have feedback" email: an admin's batch tells each person that
   // feedback a facilitator, the programme's lead or an admin saved on their
   // week is on the site, one message a person however many pieces it
@@ -175,6 +180,10 @@ export type EmailSendSurface =
   // The reminders 3 days and 1 day before a group's session, to each person
   // in it whose week is not done (`courses-week-reminders`).
   | "course-week-reminder"
+  // Remind, by hand: somebody who reads a group's work reminding the people
+  // whose week is not done, about any week, before its session or after it
+  // (`src/lib/courses/groupWeekWork/remind.ts`).
+  | "course-week-remind-by-hand"
   // An event for chosen people that is part of a programme: its invitation, to
   // the people holding a place on that programme (src/lib/events/invitations.ts).
   | "event-invitation"

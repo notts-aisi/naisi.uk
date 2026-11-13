@@ -7,7 +7,6 @@ import type { ReviewPageModel, ReviewPerson } from "@/lib/courses/writtenAnswers
 import { FEEDBACK_HINT, YOUR_FEEDBACK } from "@/lib/courses/feedback/words";
 import {
   GROUP,
-  LATE,
   NOBODY_HERE,
   NOBODY_SENT_YET,
   NOT_SENT_YET,
@@ -19,7 +18,7 @@ import {
   WRITTEN_ANSWERS,
   answerHeadWords,
   byWords,
-  listLockedWords,
+  listReadSinceWords,
   listSentWords,
   nextWords,
   positionWords,
@@ -30,17 +29,26 @@ import {
   wordCountWords,
 } from "@/lib/courses/writtenAnswerWords";
 import {
-  BEFORE_THEY_JOINED,
+  AFTER_ITS_DEADLINE,
+  AS_IT_STOOD_AT_THE_SESSION,
+  JOINED_LATE,
+  LATE,
   NOT_STARTED,
-  REOPENED_NOT_SUBMITTED,
   STARTED,
+  lateAfterSessionWords,
+  staffChangedSinceSentWords,
+  staffChangedWords,
+  staffSentWords,
 } from "@/lib/courses/weekWork/words";
 import { pangramChipWords } from "@/lib/courses/workRatings/words";
+import { proseText } from "@/lib/courses/weekBlocks/prose";
+import { THE_QUESTION_WHEN_WRITTEN, earlierQuestionWords } from "@/lib/courses/weekEdit/wordsThen";
+import EarlierVersion, { versionBoxes } from "../feedback/EarlierVersion";
 import FeedbackWriter from "../feedback/FeedbackWriter";
 import StaffFeedbackCards from "../feedback/StaffFeedbackCards";
+import EarlierWording from "../weekBlocks/EarlierWording";
 import Prose from "../weekBlocks/Prose";
 import RatingForTheTeam from "./RatingForTheTeam";
-import ReopenWeekButton from "./ReopenWeekButton";
 import SessionReportLines from "./SessionReportLines";
 import weekly from "../weekly/weekly.module.css";
 import styles from "./written.module.css";
@@ -49,13 +57,20 @@ import styles from "./written.module.css";
  * THE REVIEW PAGE (at 1440 and 390): one
  * answer at a time with Previous and Next, the group's written answers for
  * the week as the board groups them ("To give feedback on", "With
- * feedback", "Not submitted yet"), the question with its range, the answer
- * with its count, when its week was submitted or locked and "Reopen week 3
- * for Amara", "Your feedback" (a signed comment, saved to the person's week
- * page straight away and emailed later in an admin's batch), and every other
- * piece of feedback on their week. "Late" beside an answer is shown here, to
- * staff, and nowhere its writer reads. No rubric level is given here: the
- * rubric stays on Start here, as guidance for writing.
+ * feedback", "Not sent yet"), the question with its range, the answer with
+ * its count, when it was sent ("Late: 3 days after the session" when that was
+ * after the session, or, staff only, "After its deadline" when it was first
+ * sent after its own deadline but before the session), when the words shown
+ * last changed and how late, the answer as it stood at the session stacked
+ * under it when the words have changed since, "Your feedback" (a signed
+ * comment, saved to the person's week page straight away and emailed later
+ * in an admin's batch), and every other piece of feedback on their week,
+ * each with the version it was about when the answer has changed since.
+ * Where the question was reworded after the answer was first written, "The
+ * question when this was written:" and its words then, under the answer. No
+ * rubric level is given here: the rubric stays on Start here, as guidance
+ * for writing. Nothing is reopened: the week stays open until the programme
+ * closes.
  *
  * For an admin or the programme's lead alone, "Rating for the team" and
  * "What the team said" sit under the feedback (`RatingForTheTeam`, privacy
@@ -70,9 +85,12 @@ import styles from "./written.module.css";
  *
  * Drawn from `loadWrittenReview` on the server, after the page's gate; every
  * person here is somebody the reader may review by the one gate, and an
- * answer is opened here only once its readers may read it (privacy v15: its
- * week submitted or locked). Until then the list says only that it is
- * started. Opening an answer locks nothing: the week locks.
+ * answer is opened here only once its readers may read it (privacy v17: sent,
+ * or the session it is due at has started). Before the session the loader
+ * hands the words as last sent and never a change not sent yet; until
+ * anything may be read the list says only that it is started. A
+ * facilitator's own answer reaches only the programme's lead and admins, so
+ * nothing of it, its lateness included, is drawn for a co-facilitator.
  *
  * NOT DRAWN, though the board draws it: the person's reflections this week,
  * folded under the answer. The reflections half of the review is the
@@ -280,7 +298,7 @@ function AnswerList({ model, linkBase }: { model: ReviewPageModel; linkBase: str
                 <span className={styles.listName}>{person.name}</span>
                 <span className={styles.listMeta}>
                   {line(person)}
-                  {person.late && <span className={styles.lateChip}>{LATE}</span>}
+                  {link && lateChipOf(person)}
                 </span>
               </span>
             </>
@@ -315,10 +333,10 @@ function AnswerList({ model, linkBase }: { model: ReviewPageModel; linkBase: str
         TO_GIVE_FEEDBACK_ON,
         model.toGive,
         (person) =>
-          person.firstSentAt
-            ? listSentWords(new Date(person.firstSentAt))
-            : person.week.state === "locked" && person.week.at
-              ? listLockedWords(new Date(person.week.at))
+          person.sentAt
+            ? listSentWords(new Date(person.sentAt))
+            : person.readable && person.due.at
+              ? listReadSinceWords(new Date(person.due.at))
               : "",
         true,
       )}
@@ -328,17 +346,28 @@ function AnswerList({ model, linkBase }: { model: ReviewPageModel; linkBase: str
         (person) => byWords(person.feedbackByUids.map((uid, index) => (uid === viewer ? "you" : person.feedbackByNames[index] ?? ""))),
         true,
       )}
-      {group(NOT_SENT_YET, model.notSent, notSubmittedLine, false)}
+      {group(NOT_SENT_YET, model.notSent, notSentLine, false)}
     </section>
   );
 }
 
 /** Where an answer not to be read yet stands: started, or not, never what it says or how long it is. */
-function notSubmittedLine(person: ReviewPerson): string {
-  if (person.week.state === "reopened") return REOPENED_NOT_SUBMITTED;
+function notSentLine(person: ReviewPerson): string {
   const started = person.state !== "not-started";
-  if (!started && person.week.joinedLate) return BEFORE_THEY_JOINED;
+  if (!started && person.due.by === "joined-late") return JOINED_LATE;
   return started ? STARTED : NOT_STARTED;
+}
+
+/**
+ * The chip beside a readable answer in the list: "Late" when it was sent, or
+ * its words shown last changed, after the session; otherwise, staff only,
+ * "After its deadline" for one first sent after its own deadline but before
+ * the session; nothing otherwise.
+ */
+function lateChipOf(person: ReviewPerson) {
+  if (person.sentLateMs !== null || person.changedLateMs !== null) return <span className={styles.lateChip}>{LATE}</span>;
+  if (person.afterDeadline) return <span className={styles.lateChip}>{AFTER_ITS_DEADLINE}</span>;
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -377,7 +406,11 @@ function Review({ model }: { model: ReviewPageModel }) {
   const selected = model.selected!;
   const person = selected.person;
   const answer = model.answer!;
-  const weekShut = person.week.state === "submitted" || person.week.state === "locked";
+  const sentAt = person.sentAt ? new Date(person.sentAt) : null;
+  const shownAt = selected.shown.savedAt ? new Date(selected.shown.savedAt) : null;
+  // The words shown changed after they were last sent (or were never sent): when, and how late.
+  const changedAfterSend = shownAt !== null && (sentAt === null || shownAt.getTime() > sentAt.getTime());
+  const atSession = selected.atSession;
 
   return (
     <div className={styles.reviewGrid}>
@@ -387,10 +420,14 @@ function Review({ model }: { model: ReviewPageModel }) {
           <h2 className={styles.answerTitle}>{answerHeadWords(person.firstName)}</h2>
           <p className={styles.answerCount}>{wordCountWords(person.words, answer.words)}</p>
         </div>
-        {(person.firstSentAt || selected.pangram) && (
+        {(sentAt || selected.pangram) && (
           <p className={styles.sentLine}>
-            {person.firstSentAt && <span>{listSentWords(new Date(person.firstSentAt))}</span>}
-            {person.late && <span className={styles.lateChip}>{LATE}</span>}
+            {sentAt && <span>{staffSentWords(sentAt)}</span>}
+            {person.sentLateMs !== null ? (
+              <span className={styles.lateChip}>{lateAfterSessionWords(person.sentLateMs)}</span>
+            ) : (
+              person.afterDeadline && <span className={styles.lateChip}>{AFTER_ITS_DEADLINE}</span>
+            )}
             {selected.pangram && (
               <span className={selected.pangram.worthALook && !selected.pangram.outOfDate ? styles.pangramChipFlag : styles.pangramChip}>
                 {pangramChipWords(selected.pangram)}
@@ -398,6 +435,13 @@ function Review({ model }: { model: ReviewPageModel }) {
             )}
           </p>
         )}
+        {changedAfterSend && shownAt && (
+          <p className={styles.sentLine}>
+            <span>{staffChangedWords(shownAt, sentAt !== null)}</span>
+            {person.changedLateMs !== null && <span className={styles.lateChip}>{lateAfterSessionWords(person.changedLateMs)}</span>}
+          </p>
+        )}
+        {person.changedSinceSent && !selected.shown.latest && <p className={styles.sentLine}>{staffChangedSinceSentWords(person.firstName)}</p>}
         <div className={styles.answerBody}>
           {selected.boxes && answer.boxes.length > 0
             ? answer.boxes.map((box) => (
@@ -410,12 +454,15 @@ function Review({ model }: { model: ReviewPageModel }) {
               ))
             : paragraphs(selected.text).map((line, index) => <p key={index}>{line}</p>)}
         </div>
-        <div className={styles.openedRow}>
-          <p className={styles.openedLine}>{reviewWeekLineWords(person.week, person.firstName)}</p>
-          {weekShut && selected.role.mayReview && (
-            <ReopenWeekButton runId={model.runId} weekNumber={model.weekNumber} uid={person.uid} firstName={person.firstName} quiet />
-          )}
-        </div>
+        <EarlierWording label={THE_QUESTION_WHEN_WRITTEN} words={earlierQuestionWords(selected.askedThen, proseText(answer.prompt))} />
+        {atSession && (
+          <EarlierVersion
+            label={AS_IT_STOOD_AT_THE_SESSION}
+            text={atSession.text}
+            boxes={versionBoxes(atSession.boxes, answer.boxes)}
+          />
+        )}
+        <p className={styles.openedLine}>{reviewWeekLineWords(person.firstName)}</p>
       </div>
 
       <div className={styles.sideColumn}>
@@ -437,6 +484,7 @@ function Review({ model }: { model: ReviewPageModel }) {
           firstName={person.firstName}
           weekNumber={model.weekNumber}
           programme={model.programme}
+          answerBoxes={answer.boxes}
         />
         {selected.reportLines && <SessionReportLines view={selected.reportLines} firstName={person.firstName} />}
         {selected.team && (

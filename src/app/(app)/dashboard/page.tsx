@@ -13,6 +13,7 @@ import { InstallCard } from "@/features/pwa/InstallCard";
 import { fetchPublicTerm } from "@/features/term/fetchPublicTerm";
 import { termCivilDay } from "@/features/term/termWords";
 import { policyUpdateLine } from "@/lib/legal/updateLine";
+import { NO_REQUESTS_WAITING, requestsWaitingFor } from "@/lib/courses/requests/home";
 import ComingUp from "./ComingUp";
 import ForYou from "./ForYou";
 import FullNameCard from "./FullNameCard";
@@ -20,6 +21,7 @@ import { FinishProfile, NoApplicationsYet } from "./HomeAside";
 import HomeAdmin from "./HomeAdmin";
 import HomeMember from "./HomeMember";
 import PolicyUpdate from "./PolicyUpdate";
+import RequestsWaiting from "./RequestsWaiting";
 import TermCard from "./TermCard";
 import { forYouEvents, fullNameQuestion, homeEvents, profileSteps, type ForYouEvent } from "./homeData";
 import { firstName } from "./homeWords";
@@ -146,7 +148,8 @@ export default async function DashboardPage() {
   const viewingAs = markerIsLive(await getImpersonator(), user?.uid ?? null);
   const applications = user ? await applicationsOf(user.uid, viewingAs) : [];
   const now = new Date();
-  const [term, events, steps, held, cards, surveys, askFullName, forYou] = await Promise.all([
+  const db = getAdminDb();
+  const [term, events, steps, held, cards, surveys, askFullName, forYou, requestsWaiting] = await Promise.all([
     fetchPublicTerm(now),
     homeEvents(now),
     user ? profileSteps(user.uid) : null,
@@ -163,6 +166,10 @@ export default async function DashboardPage() {
     // "For you": the events for chosen people they were invited to. Their own
     // list, so not read in a view-as session, as their surveys are not.
     user && !viewingAs ? forYouEvents(user.uid, now) : NO_FOR_YOU,
+    // "Requests waiting", for an admin and a programme's lead: facilitators'
+    // asks for a register to be corrected, decided on the Requests page. Not
+    // in a view-as session, whose admin area is closed.
+    user && db && !viewingAs ? requestsWaitingFor(db, user, now) : NO_REQUESTS_WAITING,
   ]);
   const given = firstName(user?.displayName);
 
@@ -189,6 +196,7 @@ export default async function DashboardPage() {
       <ForYou events={forYou} />
       {user && askFullName && <FullNameCard uid={user.uid} suggestion={askFullName.suggestion} />}
       <InstallCard />
+      {user?.role !== "admin" && <RequestsWaiting count={requestsWaiting.count} />}
     </>
   );
 
@@ -206,6 +214,8 @@ export default async function DashboardPage() {
           weekStartsAt={events.week.startsAt}
           weekEndsAt={events.week.endsAt}
           applications={yourApplications}
+          requestsWaiting={requestsWaiting.count}
+          excusedWaiting={requestsWaiting.excused}
         />
       ) : (
         <HomeMember

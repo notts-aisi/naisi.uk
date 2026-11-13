@@ -581,7 +581,7 @@ describe("2. what comes back is held to what was sent", () => {
 // ---------------------------------------------------------------------------
 
 describe("3. what the site already knows, never sent", () => {
-  test("two absences in a row, a week not started or locked unsent, and a report's picks; nothing for somebody who is no fellow", () => {
+  test("two absences in a row, a week not started or not done by the session, and a report's picks; nothing for somebody who is no fellow", () => {
     const found = facts.handFacts({
       weekNumber: 3,
       fellows: ["grace", "leo", "finn", "maya"],
@@ -600,7 +600,7 @@ describe("3. what the site already knows, never sent", () => {
         { source: "report", text: "Might need a hand: “Quiet”" },
       ],
       leo: [
-        { source: "week", text: "Week 3 not submitted before it locked." },
+        { source: "week", text: "Week 3 not done by the session." },
         { source: "report", text: "Hadn’t done the readings." },
       ],
     });
@@ -627,8 +627,8 @@ describe("4. the page: an admin's alone, saying what would be sent before any pr
     assert.match(drawn.text, /Check with Pangram/);
     // The site's own facts, with where each came from, before Claude is asked anything.
     assert.match(drawn.text, /Tariq Mensah · Group A Missed the last 2 sessions without saying\. · The register Week 3 not started when their group met\. · Their week Hadn’t done the readings\. · A facilitator’s report/);
-    assert.match(drawn.text, /Dev Patel · Group B Week 3 not submitted before it locked\. · Their week Might need a hand: “Not seen for two weeks” · A facilitator’s report/);
-    assert.match(drawn.text, /Bea Lindqvist · Group A Week 3 not submitted before it locked\. · Their week Might need a hand: “Quiet all session” · A facilitator’s report/);
+    assert.match(drawn.text, /Dev Patel · Group B Week 3 not done by the session\. · Their week Might need a hand: “Not seen for two weeks” · A facilitator’s report/);
+    assert.match(drawn.text, /Bea Lindqvist · Group A Week 3 not done by the session\. · Their week Might need a hand: “Quiet all session” · A facilitator’s report/);
     assert.ok(!/Bea Lindqvist · Group A Missed/.test(drawn.text), "an excused session counted as an absence");
     assert.ok(!/Amara Okafor · Group A/.test(drawn.text), "a submitted week was said not to be");
     // Somebody with no place on the programme is never a row.

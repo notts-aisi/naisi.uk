@@ -375,6 +375,29 @@ const ROUND_SURFACES = {
       "one programme's Groups tab, Publish's own page for the run it names. It reaches the round only through " +
       "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]": {
+    kind: "form",
+    why:
+      "one group's own page under the programme's Groups tab, the programme's lead's and an admin's. It reaches the " +
+      "round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round " +
+      "that is not a form, and the page then says there is no programme here",
+  },
+  // ADDED (November 2026), with covering a register: the group's register,
+  // and the report its writer writes in a facilitator's place, under its page.
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/register": {
+    kind: "form",
+    why:
+      "one group's register under its page in the programme's Groups tab, the programme's lead's and an admin's. It " +
+      "reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' " +
+      "for a round that is not a form, and the page then says there is no programme here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/report": {
+    kind: "form",
+    why:
+      "one session's report, written by whoever took its register in a facilitator's place, under the group's page in " +
+      "the programme's Groups tab. It reaches the round only through loadProgrammeRun, which starts from the form's own " +
+      "loader and answers 'none' for a round that is not a form, and the page then says there is no programme here",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": {
     kind: "form",
     why:
@@ -563,6 +586,12 @@ const ROUND_SURFACES = {
     kind: "form",
     why:
       "one week's page on a programme's Weeks tab. " +
+      "It reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/history": {
+    kind: "form",
+    why:
+      "A week's history, from a week's page on a programme's Weeks tab. " +
       "It reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview": {

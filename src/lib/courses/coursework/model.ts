@@ -2,9 +2,10 @@ import { partWritten, reflectionPartsOf, tickedSourcesOf, type ReflectionPart, t
 import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds, type TaskNeeds } from "@/lib/courses/weekBlocks/progress";
 import { weekFillInBoxes, weekWrittenAnswers, type ReadableWeek } from "@/lib/courses/weekBlocks/reader";
-import { weekAsksForWriting, weekDone } from "@/lib/courses/weekWork/model";
+import { lateBy, weekAsksForWriting, weekDone, weekDoneAt, weekWritingNeeds, type WeekDue } from "@/lib/courses/weekWork/model";
 import type { AnswerState } from "@/lib/courses/writtenAnswers/model";
 import type { StaffFeedbackCard } from "@/lib/courses/feedback/model";
+import type { PieceFacts } from "@/lib/courses/weekWork/versions";
 
 /**
  * A PROGRAMME'S COURSEWORK, AS ITS LEAD AND ADMINS READ IT (Zach, Fri 30
@@ -35,9 +36,11 @@ import type { StaffFeedbackCard } from "@/lib/courses/feedback/model";
  * counted against the run's week 1, where their week 1 work was written.
  *
  * WHAT A CELL SAYS, never a word anybody wrote: first, whether the week is
- * done, by the one meaning of done every page uses (`weekDone`: the week is
- * submitted, where it asks for anything written, and every tick it counts
- * is ticked, the person's own pack among them); then how many of the week's
+ * done, by the one meaning of done every page uses (`weekDone`: every tick it
+ * counts ticked, the person's own pack among them, and either the old Submit
+ * pressed or every box it counts written and every answer it counts sent),
+ * when it became done and how long after the session they were due at (done
+ * on time, or done late); then how many of the week's
  * reflection parts are written (`partWritten`, as This week's work counts
  * them), how many of its ticked sources are ticked (`tickedSourcesOf`),
  * where its written answer stands, and how many of its fill-in boxes have
@@ -65,8 +68,10 @@ export type CourseworkWeek = {
   boxes: Array<{ id: string; heading: string; label: string }>;
   /** This week's tasks, by what each needs (`weekTaskNeeds`), for whether the week is done. */
   tasks: TaskNeeds[];
-  /** The week asks for something written, so it is done only once it is submitted. */
+  /** The week asks for something written. */
   writes: boolean;
+  /** Everything the week asks to be written (`weekWritingNeeds`): what done asks when its tasks count nothing. Absent: nothing. */
+  asks?: TaskNeeds;
 };
 
 /** A stored week, read for the tab: null for a week not written as blocks, which has no coursework here. */
@@ -83,6 +88,7 @@ export function courseworkWeekOf(week: (ReadableWeek & { weekNumber: number; tit
     boxes: weekFillInBoxes(week).map((box) => ({ id: box.id, heading: box.heading, label: box.label })),
     tasks: weekTaskNeeds(blocks),
     writes: weekAsksForWriting(blocks),
+    asks: weekWritingNeeds(blocks),
   };
 }
 
@@ -119,6 +125,12 @@ export type PersonWork = {
   answers: ReadonlyMap<string, AnswerState>;
   /** Item ids of every source ticked. */
   ticked: ReadonlySet<string>;
+  /** `workKey` of every written answer ever sent, to when it was first sent: what done asks. Absent, none is. */
+  sentAt?: ReadonlyMap<string, Date>;
+  /** Item id of every source ticked, to when (`completedAt`); absent, no time is known. */
+  tickedAt?: ReadonlyMap<string, Date | null>;
+  /** `workKey` of every reflection and fill-in box written, to when it first held something; absent, no time is known. */
+  writtenAt?: ReadonlyMap<string, Date | null>;
   /**
    * The pack each Choose one gave them or let them pick, by the Choose one's
    * id: what done asks of a pathway. Read by the tab's loader beside the rest;
@@ -140,11 +152,17 @@ export type CourseworkCell = {
   /** False for a week the person reads that is not written as blocks: nothing to count. */
   counted: boolean;
   /**
-   * The one meaning of done (`weekDone`): the week submitted, where it asks
-   * for anything written, and every tick it counts ticked. Null for a week
-   * not counted.
+   * The one meaning of done (`weekDone`): every tick it counts ticked, and
+   * the old Submit pressed or everything written it counts written and sent.
+   * Null for a week not counted.
    */
   done: boolean | null;
+  /** ISO 8601: when it became done (`weekDoneAt`); null while not done, or with nothing to tell it by. */
+  doneAt: string | null;
+  /** How long after the session they were due at it became done (ms): "Done late". Null when on time, or no session. */
+  doneLateMs: number | null;
+  /** The session they were due at that week (ISO 8601), or null with none; `by` says why ("joined-late": "Joined late"). */
+  due: { at: string | null; by: WeekDue["by"] };
   /** The week has begun for them, on the calendar of the group whose weeks they read. */
   reached: boolean;
   /** Reflection parts written, of the week's parts; null for a week with none. */
@@ -247,27 +265,60 @@ export function chosenWeek(
   return { weekNumber: latest ?? columns[0].weekNumber, asked: false };
 }
 
+/** Where a person's week stands, for its cell: when the old Submit was pressed, the session they were due at, and whether it has begun. */
+export type CellStanding = { submittedAt: Date | null; due: WeekDue; reached: boolean };
+
+const NO_STANDING: CellStanding = { submittedAt: null, due: { at: null, by: "no-group" }, reached: false };
+
+/** The session they were due at, as a cell carries it. */
+function dueWire(due: WeekDue): CourseworkCell["due"] {
+  return { at: due.at ? due.at.toISOString() : null, by: due.by };
+}
+
 /**
  * One cell, worked out from the week the person reads, what they wrote and
- * ticked, and where their week stands: `submitted` (`loadRunWeekStates`)
- * and `reached`, whether it has begun for them.
+ * ticked, and where their week stands (`loadRunWeekStates`): when the old
+ * Submit was pressed, the session they were due at, and `reached`, whether
+ * it has begun for them.
  */
 export function cellOf(
   week: CourseworkWeek | null,
   weekNumber: number,
   work: PersonWork,
   links: { person: string; written: string | null },
-  standing: { submitted: boolean; reached: boolean } = { submitted: false, reached: false },
+  standing: CellStanding = NO_STANDING,
 ): CourseworkCell {
   const href = `${links.person}#week-${weekNumber}`;
   const reached = standing.reached;
-  if (!week) return { weekNumber, counted: false, done: null, reached, reflections: null, ticks: null, answer: null, boxes: null, href };
+  if (!week) {
+    return { weekNumber, counted: false, done: null, doneAt: null, doneLateMs: null, due: dueWire(standing.due), reached, reflections: null, ticks: null, answer: null, boxes: null, href };
+  }
+  const key = (id: string) => workKey(weekNumber, id);
+  const packOf = (id: string) => work.packs?.get(id) ?? null;
   const done = weekDone({
     tasks: week.tasks,
-    state: { isTicked: (id) => work.ticked.has(id), packOf: (id) => work.packs?.get(id) ?? null },
-    writes: week.writes,
-    submitted: standing.submitted,
+    state: {
+      isTicked: (id) => work.ticked.has(id),
+      packOf,
+      isWritten: (id) => work.reflections.has(key(id)) || work.boxes.has(key(id)),
+      isSent: (id) => work.sentAt?.has(key(id)) ?? false,
+    },
+    submitted: standing.submittedAt !== null,
+    asks: week.asks,
   });
+  const doneAt = done
+    ? weekDoneAt({
+        tasks: week.tasks,
+        times: {
+          tickedAt: (id) => (work.ticked.has(id) ? (work.tickedAt?.get(id) ?? null) : null),
+          writtenAt: (id) => work.writtenAt?.get(key(id)) ?? null,
+          sentAt: (id) => work.sentAt?.get(key(id)) ?? null,
+          packOf,
+        },
+        submittedAt: standing.submittedAt,
+        asks: week.asks,
+      })
+    : null;
   const reflections =
     week.parts.length > 0
       ? {
@@ -282,7 +333,20 @@ export function cellOf(
     : null;
   const boxes =
     week.boxes.length > 0 ? { filled: week.boxes.filter((box) => work.boxes.has(workKey(weekNumber, box.id))).length, of: week.boxes.length } : null;
-  return { weekNumber, counted: true, done, reached, reflections, ticks, answer, boxes, href };
+  return {
+    weekNumber,
+    counted: true,
+    done,
+    doneAt: doneAt ? doneAt.toISOString() : null,
+    doneLateMs: lateBy(doneAt, standing.due),
+    due: dueWire(standing.due),
+    reached,
+    reflections,
+    ticks,
+    answer,
+    boxes,
+    href,
+  };
 }
 
 /**
@@ -300,8 +364,8 @@ export function courseworkSections(input: {
   personHref: (uid: string) => string;
   /** The review page for a person's answer in a week, or null where there is none to open. */
   writtenHref: (person: CourseworkPerson, weekNumber: number) => string | null;
-  /** Whether a person's week is submitted (`loadRunWeekStates`). */
-  submittedOf: (uid: string, weekNumber: number) => boolean;
+  /** When a person pressed a week's old Submit, and the session they were due at (`loadRunWeekStates`). */
+  standingOf: (uid: string, weekNumber: number) => { submittedAt: Date | null; due: WeekDue };
   /** The last week that has begun for a person, on the calendar of the group whose weeks they read; 0 before any. */
   reachedOf: (person: CourseworkPerson) => number;
   filter: CourseworkFilter;
@@ -317,7 +381,7 @@ export function courseworkSections(input: {
         column.weekNumber,
         work,
         { person: href, written: input.writtenHref(person, column.weekNumber) },
-        { submitted: input.submittedOf(person.uid, column.weekNumber), reached: column.weekNumber <= reached },
+        { ...input.standingOf(person.uid, column.weekNumber), reached: column.weekNumber <= reached },
       ),
     );
     return {
@@ -353,11 +417,21 @@ export function courseworkSections(input: {
 // One person's page
 // ---------------------------------------------------------------------------
 
+/**
+ * What a reflection or fill-in box holds on a person's page: the words, when
+ * they last changed, how long after the session the person was due at
+ * (null when not after it), and the words as they stood when it started,
+ * when they have changed since.
+ */
+export type WrittenBox = { text: string; at: Date | null; lateMs: number | null; atSession: string | null };
+
 /** One reflection prompt on a person's page, with what they wrote and when. */
-export type PersonPrompt = { id: string; text: string; answer: { text: string; at: Date | null } | null };
+export type PersonPrompt = { id: string; text: string; answer: WrittenBox | null };
 
 /** A written answer on a person's page. */
 export type PersonAnswer = {
+  /** The written answer's id in the week, which its work is keyed by (`workKey`). */
+  id: string;
   prompt: string;
   state: CellAnswerState;
   words: number;
@@ -365,7 +439,18 @@ export type PersonAnswer = {
   text: string;
   /** An answer in labelled boxes, in the week's order; empty for an answer of one box. */
   boxes: Array<{ label: string; text: string }>;
+  /** When it was first sent. */
   sentAt: Date | null;
+  /** When it was last sent; changed since, its readers read it as sent until the session. */
+  lastSentAt: Date | null;
+  /** When the words shown last changed, while they may be read. */
+  changedAt: Date | null;
+  /** How long after the session they were due at the words shown last changed (ms); null when not after it. */
+  changedLateMs: number | null;
+  /** How long after that session it was last sent (ms); null when not after it, or never sent. */
+  sentLateMs: number | null;
+  /** The answer as it stood when the session started, when it differs from the words shown; null otherwise. */
+  atSession: { text: string; boxes: Array<{ label: string; text: string }> } | null;
   /** The review page for it, where feedback on it is written, or null where the person is in no group to give feedback in. */
   href: string | null;
 };
@@ -387,31 +472,54 @@ export type PersonWeek = {
   counted: boolean;
   parts: Array<{ number: number; title: string; prompts: PersonPrompt[] }>;
   answer: PersonAnswer | null;
-  /** Each fill-in box, its words or null; null for a week with none, or a reader the boxes' gate refused. */
-  boxes: Array<{ heading: string; label: string; text: string | null }> | null;
+  /** Each fill-in box, its words or null, with how late; null for a week with none, or a reader the boxes' gate refused. */
+  boxes: Array<{ heading: string; label: string; text: string | null; lateMs: number | null; atSession: string | null }> | null;
   sources: Array<{ id: string; title: string; kindLabel: string; partNumber: number | null; ticked: boolean; note: string | null }>;
   ticked: number;
   /** The feedback on the week; null for a week not written as blocks. */
   feedback: PersonWeekFeedback | null;
 };
 
-/** One written answer of the person whose page is drawn, as their page reads it. */
+/** One written answer of the person whose page is drawn, as their page reads it: the words its readers read. */
 export type PersonAnswerWrite = {
   state: AnswerState;
   words: number;
   text: string;
   boxes: Record<string, string> | null;
   sentAt: Date | null;
+  lastSentAt: Date | null;
+  changedAt: Date | null;
+  changedLateMs: number | null;
+  sentLateMs: number | null;
+  atSession: { text: string; boxes: Record<string, string> | null } | null;
+  /** The stored answer, for the version each piece of feedback was about; null while it may not be read. Never on a page. */
+  piece: PieceFacts | null;
   feedback: { levels: Array<{ row: string; level: string; descriptor: string }>; comment: string; byUid: string; sentAt: Date | null } | null;
 };
 
 /** What a person wrote on the run, for their page: their words, read on the server after the page's gate, keyed by `workKey`. */
 export type PersonWrites = {
-  reflections: ReadonlyMap<string, { text: string; at: Date | null }>;
-  boxes: ReadonlyMap<string, string>;
+  reflections: ReadonlyMap<string, WrittenBox>;
+  boxes: ReadonlyMap<string, WrittenBox>;
   answers: ReadonlyMap<string, PersonAnswerWrite>;
   ticked: ReadonlySet<string>;
 };
+
+/**
+ * The keys (`workKey`) of the person's reflections and written answers whose
+ * words their page shows: a reflection they wrote, and a written answer whose
+ * words its readers may read (`words` is 0 for one they may not read yet,
+ * when the page says only that it is started). The earlier words of a
+ * question are read and shown beside these alone.
+ */
+export function shownWorkKeys(weeks: readonly PersonWeek[]): Set<string> {
+  const out = new Set<string>();
+  for (const week of weeks) {
+    for (const part of week.parts) for (const prompt of part.prompts) if (prompt.answer?.text.trim()) out.add(workKey(week.weekNumber, prompt.id));
+    if (week.answer && week.answer.words > 0) out.add(workKey(week.weekNumber, week.answer.id));
+  }
+  return out;
+}
 
 /**
  * A person's weeks, NEWEST FIRST: each reflection under its prompt, the
@@ -442,12 +550,23 @@ export function personWeeks(input: {
       const stored = week.answer ? (writes.answers.get(workKey(n, week.answer.id)) ?? null) : null;
       const answer: PersonAnswer | null = week.answer
         ? {
+            id: week.answer.id,
             prompt: week.answer.prompt,
             state: cellAnswerState(stored?.state ?? "not-started"),
             words: stored?.words ?? 0,
             text: stored && !stored.boxes ? stored.text : "",
             boxes: stored?.boxes ? week.answer.boxes.map((box) => ({ label: box.label, text: stored.boxes?.[box.id] ?? "" })) : [],
             sentAt: stored?.sentAt ?? null,
+            lastSentAt: stored?.lastSentAt ?? null,
+            changedAt: stored?.changedAt ?? null,
+            changedLateMs: stored?.changedLateMs ?? null,
+            sentLateMs: stored?.sentLateMs ?? null,
+            atSession: stored?.atSession
+              ? {
+                  text: stored.atSession.boxes ? "" : stored.atSession.text,
+                  boxes: stored.atSession.boxes ? week.answer.boxes.map((box) => ({ label: box.label, text: stored.atSession?.boxes?.[box.id] ?? "" })) : [],
+                }
+              : null,
             href: input.writtenHref(n),
           }
         : null;
@@ -471,7 +590,10 @@ export function personWeeks(input: {
         answer,
         boxes:
           week.boxes.length > 0 && input.boxesRead
-            ? week.boxes.map((box) => ({ heading: box.heading, label: box.label, text: writes.boxes.get(workKey(n, box.id)) ?? null }))
+            ? week.boxes.map((box) => {
+                const written = writes.boxes.get(workKey(n, box.id)) ?? null;
+                return { heading: box.heading, label: box.label, text: written?.text ?? null, lateMs: written?.lateMs ?? null, atSession: written?.atSession ?? null };
+              })
             : null,
         sources,
         ticked: sources.filter((source) => source.ticked).length,

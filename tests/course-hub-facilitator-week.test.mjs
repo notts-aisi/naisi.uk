@@ -30,7 +30,11 @@
  *     under their name, and the Attendance tab's way to each group's week.
  *  7. WHAT THE WEEK PAGE SAYS IS TRUE: the lines a fellow and a facilitator
  *     read under their boxes, their sources and their notes name exactly the
- *     people the pages show that work to, run against the pages.
+ *     people the pages show that work to, run against the pages. And (7b)
+ *     somebody who facilitates another group of the run and holds a place in
+ *     this one is a facilitator here too: no fellow on any of the three pages,
+ *     read apart by the lead and admins, by the rule the written answers'
+ *     review asks.
  *  8. NAMES NEVER REACH A PAGE A FELLOW CAN OPEN.
  *  9. THE TREE: every file that addresses the progress store, and every file
  *     that reads a private note, is listed with what it does, both ways; the
@@ -58,7 +62,11 @@ import {
   SAID,
   facilitatorWeekSeed,
   makeFacilitatorWeekWorld,
+  reflection,
+  tick,
 } from "./lib/facilitatorWeekWorld.mjs";
+import { enrolment } from "./lib/hubAttendanceWorld.mjs";
+import { C } from "./lib/facilitatorPagesWorld.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 const inSrc = (path) => relative(SRC, path).split(sep).join("/");
@@ -438,7 +446,7 @@ describe("4. This week's work and the review queue's counts", () => {
       assert.equal(queueOf(drawn).href, `${RUN_HOME}/group/${B}/reflections?week=3`);
       assert.match(drawn.text, /Review queue Reflections Part 1, 2 of 3 · Part 2, 1 of 3 · Part 3, 0 of 3 Read them/);
       // The head says when the group's week locks, and the week's own column where each person's week stands (the week you submit).
-    assert.match(drawn.text, /This week’s work Week 3 · Thu 12 to Wed 18 Nov · Locks Tue 6pm Name Part 1 reflection Part 2 reflection Part 3 reflection Week 3 CN Chloe Nguyen Written Not yet Not yet Started/);
+    assert.match(drawn.text, /This week’s work Week 3 · Thu 12 to Wed 18 Nov · Meets Tue 6pm Name Part 1 reflection Part 2 reflection Part 3 reflection Week 3 CN Chloe Nguyen Written Not yet Not yet Started/);
       // The phone's lines, as the facilitator's group page draws them.
       assert.match(drawn.text, /FH Farah Hussain Reflections Part 1 written · part 2 written · part 3 not yet Week 3 Started KA Kofi Asante Reflections Not yet/);
       assert.match(drawn.text, /Facilitators’ own work is for Claudia and admins to read, so it isn’t listed here\./);
@@ -479,7 +487,7 @@ describe("4. This week's work and the review queue's counts", () => {
     const asFacilitator = await groupPage("sofia");
     assert.deepEqual(weekOf(asFacilitator).rows, []);
     assert.equal(queueOf(asFacilitator), null);
-    assert.match(asFacilitator.text, /This week’s work Week 3 · Thu 12 to Wed 18 Nov · Locks Tue 6pm You’ll see your group’s names when groups go out\./);
+    assert.match(asFacilitator.text, /This week’s work Week 3 · Thu 12 to Wed 18 Nov · Meets Tue 6pm You’ll see your group’s names when groups go out\./);
     const asAdmin = await groupPage("zach");
     assert.deepEqual(weekOf(asAdmin).rows.map(said), ["Chloe Nguyen", "Farah Hussain", "Kofi Asante", "Rahul Mehta (facilitator)", "Sofia Rossi (facilitator)"]);
     assert.ok(queueOf(asAdmin));
@@ -579,7 +587,12 @@ describe("6. the lead's and admins' view of a group's week", () => {
     assert.match(asLead.text, /Only you and admins read these\. They’re never read out\./);
     assert.match(asLead.text, new RegExp(`Chloe Nguyen Sun 15 Nov, 4:12pm ${SAID.chloe["k3-rp1"]} Farah Hussain Sun 15 Nov, 4:12pm ${SAID.farah["k3-rp1"]}`));
     assert.match(asLead.text, /2 of 3 wrote one · Kofi Asante hasn’t/);
-    assert.match(asLead.text, new RegExp(`Facilitators’ own reflections Rahul Mehta Facilitator Sun 15 Nov, 4:12pm ${SAID.rahul["k3-rp1"]} Sofia Rossi Facilitator Sun 15 Nov, 4:12pm ${SAID.sofia["k3-rp1"]}`));
+    // A facilitator's own lateness is the lead's and admins' alone: Sofia's group (Group A) met on Thursday,
+    // so what she wrote on Sunday is late from it; Rahul's group meets on Tuesday, so his is not.
+    assert.match(
+      asLead.text,
+      new RegExp(`Facilitators’ own reflections Rahul Mehta Facilitator Sun 15 Nov, 4:12pm ${SAID.rahul["k3-rp1"]} Sofia Rossi Facilitator Sun 15 Nov, 4:12pm Late: 2 days after the session ${SAID.sofia["k3-rp1"]}`),
+    );
     assert.doesNotMatch(asLead.html, /Read this out|To read out|Copy for the session/);
     // Nobody who left and nobody of another group, and never a private note.
     for (const uid of ["isaac", "amara"]) for (const text of Object.values(SAID[uid])) assert.ok(!asLead.html.includes(text), `the lead is shown ${uid}'s reflection`);
@@ -610,6 +623,8 @@ describe("6. the lead's and admins' view of a group's week", () => {
         for (const text of Object.values(SAID[uid])) assert.ok(!drawn.html.includes(text) && !JSON.stringify(drawn.element).includes(text), `${who} is shown ${uid}'s reflection`);
       }
       for (const [, text] of ALL_NOTES) assert.ok(!drawn.html.includes(text), `${who} is shown a private note`);
+      // Nor how late a facilitator's own was: nothing on a facilitator's page says a co-facilitator's work was late.
+      assert.doesNotMatch(drawn.text, /Late:/, `${who} is told how late somebody's reflection was, though the group's fellows wrote before the session`);
       assert.match(drawn.text, /Group B’s facilitators, Claudia and admins read reflections with names\. Fellows can’t see each other’s\./);
       assert.match(drawn.html, new RegExp(`href="${RUN_HOME}/group/${B}/reflections\\?week=3"[^>]*>Pick lines to read out<`));
     }
@@ -699,6 +714,215 @@ describe("7. the lines on a fellow's and a facilitator's week page name exactly 
 });
 
 // ---------------------------------------------------------------------------
+// 7b. Somebody who facilitates another group and holds a place in this one
+// ---------------------------------------------------------------------------
+
+describe("7b. somebody who facilitates another group of the run and holds a place in this one", () => {
+  // Tom facilitates Group C. Here he also holds a fellow's place in Group B,
+  // wrote both prompts of part 1, ticked the film and left a note on it.
+  const TOM_SAID = { "k3-rp1": "Sixty, counting the ones on the piers.", "k3-rp2": "Whoever owns the cliff it stands on." };
+  const TOM_NOTE = "The film ran long for a weeknight.";
+  const TOM_TEXTS = [...Object.values(TOM_SAID), TOM_NOTE];
+  function tomSeed() {
+    const seed = facilitatorWeekSeed();
+    seed[`courseEnrolments/${RUN.agi}__tom`] = enrolment("tom", B);
+    for (const [promptId, text] of Object.entries(TOM_SAID)) seed[`courseExerciseResponses/${RUN.agi}__tom__w03__${promptId}`] = reflection("tom", promptId, text);
+    seed[`courseProgress/${RUN.agi}__tom__k3-s2`] = tick("tom", "k3-s2", { privateNote: TOM_NOTE });
+    return seed;
+  }
+  /** Whether a drawn page holds anything of Tom's, in its markup or in what its components were handed. */
+  const holdsTom = (drawn) => {
+    const handed = `${drawn.html}\n${JSON.stringify(drawn.element ?? null)}`;
+    return TOM_TEXTS.some((text) => handed.includes(text));
+  };
+
+  test("the page of the week's work: Group B's facilitators are shown none of it and count him nowhere; the lead and admins read it apart", async () => {
+    reset(tomSeed());
+    // The model the page draws from lists him: he holds a place.
+    for (const who of ["rahul", "sofia"]) {
+      const drawn = await groupPage(who);
+      const week = weekOf(drawn);
+      assert.deepEqual(week.rows.map(said), ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"], who);
+      assert.equal(week.of, 3, who);
+      assert.deepEqual(week.counts.map((count) => [count.number, count.written, count.of]), [[1, 2, 3], [2, 1, 3], [3, 0, 3]], who);
+      assert.deepEqual(ticksOf(week), [["A keeper's diary", ["Chloe Nguyen", "Farah Hussain"], 3], ["Lamps at night", ["Farah Hussain"], 3]], who);
+      assert.deepEqual(week.sources.map((source) => source.fellowsTicked), [2, 1], who);
+      assert.deepEqual(notesOf(week), [["A keeper's diary", [["Chloe Nguyen", NOTED.chloe[1]]]], ["Lamps at night", [["Kofi Asante", NOTED.kofi[1]]]]], who);
+      assert.ok(!JSON.stringify(week).includes('"tom"'), `${who} is handed Tom's week`);
+      assert.equal(holdsTom(drawn), false, `${who} is shown Tom's work`);
+      assert.deepEqual(queueOf(drawn).counts, [{ number: 1, written: 2, of: 3 }, { number: 2, written: 1, of: 3 }, { number: 3, written: 0, of: 3 }], who);
+    }
+    const OWN_ROWS = [
+      ["Chloe Nguyen", [true, false, false]],
+      ["Farah Hussain", [true, true, false]],
+      ["Kofi Asante", [false, false, false]],
+      ["Rahul Mehta (facilitator)", [true, false, false]],
+      ["Sofia Rossi (facilitator)", [false, false, false]],
+      ["Tom Fletcher (facilitator)", [true, false, false]],
+    ];
+    for (const [who, drawn] of [
+      ["an admin on the group page", await groupPage("zach")],
+      ["an admin on the lead's page", await leadWeekPage("zach")],
+      ["the lead", await leadWeekPage("claudia")],
+    ]) {
+      const week = weekOf(drawn);
+      assert.deepEqual(week.rows.map((row) => [said(row), row.written]), OWN_ROWS, who);
+      assert.equal(week.of, 3, who);
+      assert.deepEqual(week.counts.map((count) => [count.number, count.written, count.of]), [[1, 2, 3], [2, 1, 3], [3, 0, 3]], who);
+      assert.deepEqual(ticksOf(week)[1], ["Lamps at night", ["Farah Hussain", "Sofia Rossi (facilitator)", "Tom Fletcher (facilitator)"], 3], who);
+      assert.deepEqual(week.sources.map((source) => source.fellowsTicked), [2, 1], who);
+      assert.match(drawn.text, /Every number here counts the group’s 3 fellows\./, who);
+    }
+    // His private note: an admin's alone, marked as his own; the lead reads no note.
+    assert.deepEqual(notesOf(weekOf(await groupPage("zach")))[1], ["Lamps at night", [["Kofi Asante", NOTED.kofi[1]], ["Tom Fletcher (facilitator)", TOM_NOTE]]]);
+    assert.deepEqual(notesOf(weekOf(await leadWeekPage("claudia"))).map(([, notes]) => notes), [null, null]);
+  });
+
+  test("the reflections with names: Group B's facilitators read the fellows' alone; the lead and admins read his apart, under his name", async () => {
+    reset(tomSeed());
+    const FELLOWS = [
+      [["Chloe Nguyen", "Farah Hussain"], ["Kofi Asante"], 3],
+      [["Chloe Nguyen", "Farah Hussain"], ["Kofi Asante"], 3],
+      [["Chloe Nguyen", "Farah Hussain"], ["Kofi Asante"], 3],
+      [["Farah Hussain"], ["Chloe Nguyen", "Kofi Asante"], 3],
+      [[], ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"], 3],
+      [[], ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"], 3],
+    ];
+    const fellowsOf = (props) => props.prompts.map((prompt) => [prompt.answers.map((answer) => answer.name), prompt.notYet, prompt.of]);
+    // The group's page with names: its facilitators and an admin, fellows only.
+    for (const who of ["rahul", "sofia", "zach"]) {
+      const drawn = await namedReflectionsPage(who);
+      assert.deepEqual(fellowsOf(namedOf(drawn)), FELLOWS, who);
+      for (const prompt of namedOf(drawn).prompts) assert.equal(prompt.own, null, who);
+      assert.equal(holdsTom(drawn), false, `${who} is shown Tom's work on the group's page with names`);
+    }
+    // The lead's page with names: the lead and an admin, his reflections apart, beside the group's own facilitators'.
+    for (const who of ["claudia", "zach"]) {
+      const drawn = await leadReflectionsPage(who);
+      const props = namedOf(drawn);
+      assert.deepEqual(fellowsOf(props), FELLOWS, who);
+      assert.deepEqual(
+        props.prompts.map((prompt) => prompt.own.map((person) => [person.name, person.text])),
+        [
+          [["Rahul Mehta", SAID.rahul["k3-rp1"]], ["Sofia Rossi", SAID.sofia["k3-rp1"]], ["Tom Fletcher", TOM_SAID["k3-rp1"]]],
+          [["Rahul Mehta", SAID.rahul["k3-rp2"]], ["Sofia Rossi", null], ["Tom Fletcher", TOM_SAID["k3-rp2"]]],
+          [["Rahul Mehta", null], ["Sofia Rossi", null], ["Tom Fletcher", null]],
+          [["Rahul Mehta", null], ["Sofia Rossi", null], ["Tom Fletcher", null]],
+          [["Rahul Mehta", null], ["Sofia Rossi", null], ["Tom Fletcher", null]],
+          [["Rahul Mehta", null], ["Sofia Rossi", null], ["Tom Fletcher", null]],
+        ],
+        who,
+      );
+      assert.ok(!drawn.html.includes(TOM_NOTE), `${who} is shown Tom's private note on the page with names`);
+    }
+  });
+
+  test("the page to read lines out: never his words, and he is not among those who haven't written; the lead has no such page", async () => {
+    reset(tomSeed());
+    for (const who of ["rahul", "sofia", "zach"]) {
+      const drawn = await reflectionsPage(who);
+      const props = readOutOf(drawn);
+      assert.deepEqual(
+        props.prompts.map((prompt) => [prompt.wrote, prompt.of, prompt.notYet]),
+        [
+          [2, 3, ["Kofi"]],
+          [2, 3, ["Kofi"]],
+          [2, 3, ["Kofi"]],
+          [1, 3, ["Chloe", "Kofi"]],
+          [0, 3, ["Chloe", "Farah", "Kofi"]],
+          [0, 3, ["Chloe", "Farah", "Kofi"]],
+        ],
+        who,
+      );
+      assert.equal(holdsTom(drawn), false, `${who} is handed Tom's words to read out`);
+      assert.doesNotMatch(drawn.text, /\bTom\b/, `${who} is told Tom hasn't written`);
+    }
+    assert.equal(readOutOf(await reflectionsPage("claudia")), null, "the lead is drawn the page to read lines out");
+  });
+
+  test("who is shown his work at all: the lead and admins his ticks and reflections, admins alone his note", async () => {
+    reset(tomSeed());
+    const VIEWERS = ["rahul", "sofia", "zach", "claudia", "tess", "lloyd", "yusuf", "tom", "chloe", "amara", "isaac", "nobody", null];
+    const out = { ticks: [], reflections: [], notes: [] };
+    for (const who of VIEWERS) {
+      const pages = [await groupPage(who), await reflectionsPage(who), await namedReflectionsPage(who), await leadWeekPage(who), await leadReflectionsPage(who)];
+      const seen = pages.map((drawn) => `${drawn.html}\n${JSON.stringify(drawn.element ?? null)}`).join("\n");
+      const weeks = pages.map(weekOf).filter(Boolean);
+      if (weeks.some((week) => week.sources.some((source) => source.ticked.some((person) => person.uid === "tom")))) out.ticks.push(who ?? "signed out");
+      if (Object.values(TOM_SAID).some((text) => seen.includes(text))) out.reflections.push(who ?? "signed out");
+      if (seen.includes(TOM_NOTE)) out.notes.push(who ?? "signed out");
+    }
+    assert.deepEqual(out, { ticks: ["zach", "claudia"], reflections: ["zach", "claudia"], notes: ["zach"] });
+  });
+
+  test("once the group he facilitates is archived he facilitates nothing live, and reads as one of Group B's fellows again", async () => {
+    reset(tomSeed());
+    world.db.poke(`courseGroups/${C}`, { archived: true });
+    for (const who of ["rahul", "sofia"]) {
+      const week = weekOf(await groupPage(who));
+      const tom = week.rows.find((row) => row.uid === "tom");
+      assert.ok(tom && tom.own === false, `${who} is not shown Tom as a fellow`);
+      assert.deepEqual(tom.written, [true, false, false], who);
+      assert.equal(week.of, 4, who);
+      assert.deepEqual(week.counts.map((count) => [count.number, count.written, count.of]), [[1, 3, 4], [2, 1, 4], [3, 0, 4]], who);
+      assert.ok(week.sources[1].ticked.some((person) => person.uid === "tom" && !person.own), `${who} is not shown Tom's tick`);
+      assert.ok(notesOf(week)[1][1].some(([, text]) => text === TOM_NOTE), `${who} is not shown Tom's note, a fellow's`);
+    }
+    const named = namedOf(await namedReflectionsPage("rahul"));
+    assert.ok(named.prompts[0].answers.some((answer) => answer.text === TOM_SAID["k3-rp1"]), "Tom's reflection is not among the fellows'");
+  });
+
+  test("somebody listed among Group B's facilitators without the standing the role needs, who holds a place, is still no fellow of it", async () => {
+    // Rahul is listed and holds a place; his account no longer stands, so the group's
+    // facilitators the page draws leave him out, and the run's set still names him.
+    reset(tomSeed());
+    world.db.poke("users/rahul", { role: "rejected" });
+    for (const who of ["sofia"]) {
+      const week = weekOf(await groupPage(who));
+      assert.deepEqual(week.rows.map(said), ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"], who);
+      assert.equal(week.of, 3, who);
+      for (const text of Object.values(SAID.rahul)) assert.ok(!JSON.stringify(week).includes(text), `${who} is handed Rahul's work`);
+    }
+    const asAdmin = weekOf(await groupPage("zach"));
+    // Sofia comes first as the one standing facilitator; Rahul after her, from his place, by the run's set.
+    assert.deepEqual(asAdmin.rows.map(said), [
+      "Chloe Nguyen",
+      "Farah Hussain",
+      "Kofi Asante",
+      "Sofia Rossi (facilitator)",
+      "Rahul Mehta (facilitator)",
+      "Tom Fletcher (facilitator)",
+    ]);
+    assert.equal(asAdmin.of, 3);
+  });
+
+  test("the written answers' review asks the same rule: his answer is the lead's and admins' to review, never Group B's facilitators'", async () => {
+    reset(tomSeed());
+    const access = await w.loadTs(join("lib", "courses", "writtenAnswers", "access.ts"));
+    const liveGroups = await access.liveGroupsOf(world.courseDb, RUN.agi);
+    const groupB = liveGroups.find((group) => group.id === B);
+    // The one set the week's card and the week's readers ask, and the review gate's own question, agree for everybody.
+    const onRun = access.facilitatingOnRunOf(groupB, liveGroups);
+    for (const uid of ["rahul", "sofia", "tom", "grace", "chloe", "farah", "kofi", "amara", "claudia", "zach"]) {
+      assert.equal(onRun.has(uid), access.facilitatesOnRun(uid, liveGroups), uid);
+    }
+    assert.ok(onRun.has("tom"));
+    const owner = { uid: "tom", placedGroupId: B };
+    const fellows = ["chloe", "farah", "kofi"].map((uid) => ({ uid, placedGroupId: B }));
+    const reviews = {};
+    for (const who of ["rahul", "sofia", "claudia", "zach"]) {
+      const actor = w.sessionFor(who);
+      const facts = await access.reviewerFactsOf(world.courseDb, actor, RUN.agi);
+      reviews[who] = [
+        access.writtenReviewRole(actor, facts, owner, liveGroups).mayReview,
+        access.reviewableIn(actor, facts, groupB, [...fellows, owner], liveGroups).some((each) => each.uid === "tom"),
+      ];
+    }
+    assert.deepEqual(reviews, { rahul: [false, false], sofia: [false, false], claudia: [true, true], zach: [true, true] });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 8. Names never reach a page a fellow can open
 // ---------------------------------------------------------------------------
 
@@ -738,6 +962,7 @@ const PROGRESS_ADDRESSERS = {
   "app/api/courses/runs/[runId]/retrospective/route.ts": ["aggregate", "ratings and finishes as totals, read through a projection with no uid"],
   "app/api/courses/runs/[runId]/ticks/[itemId]/route.ts": ["own", "every tick and untick, the one writer of a tick: a person's own row by their own uid, a holder's week 1 before groups go out among them"],
   "lib/courses/weekPaste.ts": ["count", "a paste counts the rows on items it would take out, for the run's week and a group's copy alike: a number for whoever is pasting"],
+  "lib/courses/weekEdit/counts.ts": ["count", "the in-place editor counts the people who ticked each block of a week and who has started it: numbers for the lead or an admin, never a name"],
   "features/courses/progressMutations.ts": ["own", "a person writes their own tick, rating and note, on their own row"],
   "features/courses/useRunProgress.ts": ["own", "a person's own rows, in their browser, by their own uid"],
   "lib/courses/facilitatorWeek/readers.ts": ["staff", "who ticked each source by name, for a group's facilitators, the programme's lead and admins, and the private notes, for its facilitators and admins, after each page's gate"],
@@ -792,7 +1017,8 @@ describe("9. the tree", () => {
     const asked = person.indexOf("if (!privateNotesOf(viewer, person)) return null;");
     assert.ok(asked !== -1 && person.indexOf("readPrivateNotes(db, runId, week.weekNumber, readable, week.sourceIds)") > asked, "a person's page reads a note before asking whose notes the viewer reads");
     // The run-wide read for the Coursework tab and a person's page: ticks through a projection with no note.
-    assert.match(code, /db\.collection\("courseProgress"\)\.where\("runId", "==", runId\)\.select\("uid", "itemId", "completed"\)\.get\(\)/);
+    // The run-wide read for the Coursework tab and a person's page: ticks and when, through a projection with no note.
+    assert.match(code, /db\.collection\("courseProgress"\)\.where\("runId", "==", runId\)\.select\("uid", "itemId", "completed", "completedAt"\)\.get\(\)/);
     assert.match(code, /if \(!isReflectionResponse\(data\) \|\| data\.runId !== runId\) continue;/);
     // The page to read lines out reads reflections, never a note.
     const readOut = code.slice(code.indexOf("export async function loadReadOutWeek("));
@@ -865,8 +1091,14 @@ describe("9. the tree", () => {
     assert.deepEqual(["facilitator", "lead", "admin"].map(model.readsFacilitatorsPrivateNotes), [false, false, true]);
     const people = [{ uid: "chloe", name: "Chloe Nguyen" }, { uid: "rahul", name: "Rahul Mehta" }];
     const facilitators = [{ uid: "rahul", name: "Rahul Mehta", firstName: "Rahul" }, { uid: "sofia", name: "Sofia Rossi", firstName: "Sofia" }];
-    assert.deepEqual(model.peopleShown("facilitator", people, facilitators).map(said), ["Chloe Nguyen"]);
-    assert.deepEqual(model.peopleShown("lead", people, facilitators).map(said), ["Chloe Nguyen", "Rahul Mehta (facilitator)", "Sofia Rossi (facilitator)"]);
+    const onRun = new Set(["rahul", "sofia"]);
+    assert.deepEqual(model.peopleShown("facilitator", people, facilitators, onRun).map(said), ["Chloe Nguyen"]);
+    assert.deepEqual(model.peopleShown("lead", people, facilitators, onRun).map(said), ["Chloe Nguyen", "Rahul Mehta (facilitator)", "Sofia Rossi (facilitator)"]);
+    // Somebody holding a place who facilitates another group of the run: never a fellow, and the lead's and admins' apart.
+    const placed = [...people, { uid: "tom", name: "Tom Fletcher" }];
+    const withTom = new Set([...onRun, "tom"]);
+    assert.deepEqual(model.peopleShown("facilitator", placed, facilitators, withTom).map(said), ["Chloe Nguyen"]);
+    assert.deepEqual(model.peopleShown("admin", placed, facilitators, withTom).map(said), ["Chloe Nguyen", "Rahul Mehta (facilitator)", "Sofia Rossi (facilitator)", "Tom Fletcher (facilitator)"]);
     assert.deepEqual(model.readOutCards("p1", ["b", " ", "A", "c"]), [{ key: "p1-1", text: "A" }, { key: "p1-2", text: "b" }, { key: "p1-3", text: "c" }]);
   });
 });

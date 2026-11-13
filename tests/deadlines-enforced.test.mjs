@@ -126,19 +126,21 @@ const DEADLINE_NAMES = new Map([
       files: ["src/lib/courses/weekWork/model.ts"],
       promises: [
         {
-          of: "the week you submit: when a person's week locks, or locks again after a reopen",
+          of: "the week stays open: the programme's close, on the old wire field a page open since before reads",
           binds: "somebody taking part in a programme's week",
           why:
-            "Not stored: worked out from the group's own calendar (`weekLockOf`, `nextSessionAfter`) every " +
-            "time it is asked, so the line the week page prints and the moment every write to the week is " +
-            "refused past are one reading of the same sessions.",
-          told: ["src/features/courses/weekBlocks/BlockWeek.tsx", "src/lib/courses/weekWork/words.ts"],
+            "Not stored: the week wire's old `locksAt` field now carries the programme's close (`closesAt`, " +
+            "`workClosesAt` in `src/lib/courses/weekWork/closes.ts`), the one moment after which a week takes no " +
+            "work, so a page drawn before the week stayed open reads a true moment there.",
+          told: ["src/lib/courses/weekWork/words.ts"],
           enforced: [
             "src/app/api/courses/runs/[runId]/ticks/[itemId]/route.ts",
             "src/app/api/courses/runs/[runId]/reflections/[promptId]/route.ts",
             "src/app/api/courses/runs/[runId]/fill-in-boxes/[boxId]/route.ts",
             "src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts",
+            "src/app/api/courses/runs/[runId]/written-answers/[answerId]/send/route.ts",
             "src/app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts",
+            "src/app/api/courses/runs/[runId]/weeks/[weekId]/submit/route.ts",
           ],
           predicate: "assertWeekTakesWork(",
         },
@@ -151,14 +153,14 @@ const DEADLINE_NAMES = new Map([
       files: ["src/lib/courses/weekWork/model.ts"],
       promises: [
         {
-          of: "the week you submit: when a person's week locked, on the wire to their page",
+          of: "the week stays open: when the programme closed, on the old wire field a page open since before reads",
           binds: null,
           why:
-            "A record of a lock that has happened, carried to the person's own page to say when it locked; " +
-            "the lock itself is `locksAt`'s promise, refused past by every write to the week.",
+            "A record of a close that has happened, carried to the person's own page as it was drawn before " +
+            "the week stayed open; the close itself is `closesAt`'s promise, refused past by every write to the week.",
           told: ["src/features/courses/weekBlocks/BlockWeek.tsx"],
           notEnforced:
-            "It names a moment already past: what refuses a write after it is the week's own state, asked by every write route through `assertWeekTakesWork`.",
+            "It names a moment already past: what refuses a write after it is the programme's close, asked by every write route through `assertWeekTakesWork`.",
         },
       ],
     },
@@ -220,8 +222,41 @@ const DEADLINE_NAMES = new Map([
         "src/lib/surveys/checkIns/open.ts",
         "src/lib/surveys/checkIns/remind.ts",
         "src/lib/surveys/checkIns/words.ts",
+        // The programme's close for its weeks' work (the week stays open):
+        // `weekWork/model.ts` declares it on where a week stands and on the
+        // wire, `own.ts` hands it to every route that writes a week,
+        // `readers.ts` to the pages that list people, and the overview and the
+        // old Submit hand it on to the person's own page.
+        "src/lib/courses/weekWork/model.ts",
+        "src/lib/courses/weekWork/own.ts",
+        "src/lib/courses/weekWork/readers.ts",
+        // The same close, for asking to be excused from a week: `excused/own.ts`
+        // hands it to the person's own view, and the ask route
+        // (`excused/ask.ts`) refuses an ask past it through `runClosesAt`.
+        "src/lib/courses/excused/own.ts",
+        "src/app/api/courses/runs/[runId]/overview/route.ts",
+        "src/app/api/courses/runs/[runId]/weeks/[weekId]/submit/route.ts",
       ],
       promises: [
+        {
+          of: "a programme's weeks of work: the week stays open until the programme closes",
+          binds: "somebody taking part in a programme's week",
+          why:
+            "Not stored: worked out from every live group's calendar (`workClosesAt`, the end of the London day N " +
+            "days after the run's last session, 14 unless the run's own `workClosesAfterDays` says otherwise) each " +
+            "time it is asked, so the line the week page prints and the moment every write is refused past are one reading.",
+          told: ["src/lib/courses/weekWork/words.ts", "src/features/courses/weekBlocks/BlockWeek.tsx"],
+          enforced: [
+            "src/app/api/courses/runs/[runId]/ticks/[itemId]/route.ts",
+            "src/app/api/courses/runs/[runId]/reflections/[promptId]/route.ts",
+            "src/app/api/courses/runs/[runId]/fill-in-boxes/[boxId]/route.ts",
+            "src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts",
+            "src/app/api/courses/runs/[runId]/written-answers/[answerId]/send/route.ts",
+            "src/app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts",
+            "src/app/api/courses/runs/[runId]/weeks/[weekId]/submit/route.ts",
+          ],
+          predicate: "assertWeekTakesWork(",
+        },
         {
           of: "an event's door list",
           binds: "the people who run check-in, and anybody checking themselves in with the door code",
@@ -480,8 +515,27 @@ const DEADLINE_NAMES = new Map([
         "src/lib/scheduler/jobs/admissionsReminders.ts",
         "src/lib/scheduler/jobs/unmarkedRegisters.ts",
         "src/lib/scheduler/jobs/worksheetDueReminders.ts",
+        // The session a person is due at in a week (the week stays open):
+        // `weekWork/model.ts` carries it on the week's wire, `own.ts` and
+        // `versions.ts` take it in, to keep the version as it stood then.
+        "src/lib/courses/weekWork/model.ts",
+        "src/lib/courses/weekWork/own.ts",
+        "src/lib/courses/weekWork/versions.ts",
       ],
       promises: [
+        {
+          of: "the session a person is due at in a week, which late is told against (the week stays open)",
+          binds: null,
+          why:
+            "Not stored: worked out from the group's own calendar (`weekDueOf`, `src/lib/courses/weekWork/sessionDue.ts`). " +
+            "It closes nothing: what is added after it is labelled late, with how late, and from it an unsent " +
+            "written answer may be read and earlier versions are kept.",
+          told: ["src/lib/courses/weekWork/words.ts"],
+          notEnforced:
+            "On purpose: the owner decided nothing closes at the session (the week stays open until the programme " +
+            "closes, which is `closesAt`'s promise and refused past by every write). This moment labels late work and " +
+            "opens an unsent answer to its readers; it refuses no write.",
+        },
         {
           of: "one slot of a reminder schedule",
           binds: null,

@@ -697,14 +697,26 @@ async function countRows(state) {
   return { ...counts, checkInWeeks, total: counts.total + checkInWeeks };
 }
 
-/** The fixed weeks first, by their constructed ids; then the term, which removes every survey with every row under it. */
-async function teardown(state) {
-  if (state.runId) {
-    for (let week = 1; week <= WEEK_COUNT; week += 1) {
-      await fixtureDoc("checkInWeeks", checkInWeekId(state.runId, week)).delete();
-    }
+/** Remove every week of the run the scheduler could have fixed, by its constructed id. */
+async function deleteCheckInWeeks(state) {
+  if (!state.runId) return;
+  for (let week = 1; week <= WEEK_COUNT; week += 1) {
+    await fixtureDoc("checkInWeeks", checkInWeekId(state.runId, week)).delete();
   }
+}
+
+/**
+ * The fixed weeks first, by their constructed ids; then the term, which
+ * removes every survey with every row under it; then the weeks AGAIN,
+ * because a tick of the scheduler's `surveys-check-in-weeks` job that lands
+ * while the term is being torn down still finds the run and writes them
+ * back. Once the run is gone the job has nothing to write them for, so only
+ * then are they counted.
+ */
+async function teardown(state) {
+  await deleteCheckInWeeks(state);
   const counts = await teardownTerm(state);
+  await deleteCheckInWeeks(state);
   const checkInWeeks = state.runId ? await checkInWeeksLeft(state) : 0;
   return { ...counts, checkInWeeks, total: counts.total + checkInWeeks };
 }

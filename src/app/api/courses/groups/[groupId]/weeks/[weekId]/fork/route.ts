@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { groupWeekRef, runWeekRef } from "@/lib/courses/groupResolve";
+import { programmeLedBy } from "@/lib/courses/programmeLead";
+import { EDIT_REFUSAL } from "@/lib/courses/weekEdit/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
@@ -40,13 +42,13 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * `create()` is the atomicity (the sync-tasks precedent).
  *
  * ── WHO MAY FORK ────────────────────────────────────────────────────────────
- * A facilitator of THIS group while it is LIVE, ∪ admins — the group email
- * route's gate, down to the ordering: AUTHORIZATION BEFORE EXISTENCE, so a
- * missing group, an archived group and someone else's group collapse onto ONE
- * indistinguishable 403. Run facilitators, track leads and admissions
- * reviewers get nothing here: forking is an act of running THIS room. (Track
- * leads edit forks through the PATCH — editing content is their lane;
- * splitting a group off canonical is the facilitator's or an admin's call.)
+ * Admins, and the lead of the programme that names the group's run while the
+ * group still meets: a group's own copy of a week is made and changed only
+ * by them, on the programme's Weeks page. A facilitator of THIS live group
+ * (an old tab) is refused in one plain sentence; anybody else, a missing
+ * group and an archived one collapse onto ONE indistinguishable 403
+ * (AUTHORIZATION BEFORE EXISTENCE). Track leads and admissions reviewers get
+ * nothing here.
  *
  * ── PROVENANCE ──────────────────────────────────────────────────────────────
  * `forkedAt` / `forkedByUid` stamp the split; `forkedFromRunWeekAt` records
@@ -100,8 +102,12 @@ export async function POST(
       !group.archived &&
       isNamedWithStanding(actor, "courseGroups.facilitatorUids", group.facilitatorUids),
   );
-  if (!isAdmin && !facilitatesLiveGroup) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const leadsProgramme = Boolean(!isAdmin && group && !group.archived && group.runId && (await programmeLedBy(db, actor, group.runId)) !== null);
+  if (!isAdmin && !leadsProgramme) {
+    // A facilitator of this group knows it is there: told why, plainly. Anybody else: one 403.
+    return facilitatesLiveGroup
+      ? NextResponse.json({ error: EDIT_REFUSAL.groupCopyLeadOnly }, { status: 403 })
+      : NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   if (!group) {
     return NextResponse.json({ error: "Group not found" }, { status: 404 });
