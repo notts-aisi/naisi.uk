@@ -8,7 +8,7 @@
  *   node scripts/run-e2e.mjs --local               against a server it starts
  *   node scripts/run-e2e.mjs --local --skip-build  reuse the previous build
  *   node scripts/run-e2e.mjs --spec applicant-funnel,events-rsvp
- *   node scripts/run-e2e.mjs --local --shard 2/3  one part of three, as CI runs it
+ *   node scripts/run-e2e.mjs --local --shard 2/6  one part of six, as CI runs it
  *   node scripts/run-e2e.mjs --list                what it can run
  *   node scripts/run-e2e.mjs --teardown            tear down whatever the ledgers name, nothing else
  *   node scripts/run-e2e.mjs --sweep <runId,...>   remove a run's rows and accounts WITHOUT a ledger
@@ -560,7 +560,7 @@ async function main() {
   }
   if (argv.shard) {
     if (!argv.shard.parsed) {
-      console.error(`[e2e:browser] --shard takes a part and a count, like 2/3; got "${argv.shard.raw}".`);
+      console.error(`[e2e:browser] --shard takes a part and a count, like 2/6; got "${argv.shard.raw}".`);
       return 1;
     }
     const { index, count } = argv.shard.parsed;

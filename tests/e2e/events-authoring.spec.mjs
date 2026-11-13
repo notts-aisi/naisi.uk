@@ -163,13 +163,17 @@ test(
         await page.getByText("How was it?", { exact: true }).first().waitFor({ timeout: WAIT_MS });
         await page.getByText("Publishing sets this up:", { exact: false }).first().waitFor({ timeout: WAIT_MS });
 
-        // Who's it for: only the invitee, by name.
+        // Who's it for: only the invitee, by their whole name, which carries
+        // this run's id. The picker lists every approved account and offers
+        // eight matches at most, and another run seeding this database at the
+        // same time has an invitee of its own: so the whole name is typed,
+        // and the one button that adds it is pressed.
         await page.getByRole("button", { name: /Who’s it for/ }).first().click();
         await page.getByRole("radio", { name: /Only people you choose/ }).check();
         const box = page.getByLabel("Add a tag or a name");
         await box.waitFor({ timeout: WAIT_MS });
-        await box.fill(state.invitee.name.split(" ")[0]);
-        await page.getByRole("button", { name: new RegExp(`^Add ${state.invitee.name.split(" ")[0]}`) }).first().click();
+        await box.fill(state.invitee.name);
+        await page.getByRole("button", { name: new RegExp(`^Add ${state.invitee.name}\\b`) }).click();
         await page.getByText("1 person", { exact: false }).first().waitFor({ timeout: WAIT_MS });
         // The step's own count: one Home, and an invitation by their settings, which are off.
         await page.getByText("Publishing shows it on 1 person’s Home", { exact: false }).waitFor({ timeout: WAIT_MS });
