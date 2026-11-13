@@ -1857,9 +1857,11 @@ test(
               continue;
             }
             const words = await textOf(cell);
-            // A week not done says whether it was started: either word says it is not done, and neither is a word for done.
+            // A week not done says whether it was started, or, before it has begun for their group, the day it opens: each
+            // says it is not done, and none is a word for done. (The cell's words run together in its text, so no word after.)
             const word = staffWord(person, week) ?? (doneOrNot === "done" ? WORDS.done : said === "joined late" ? WORDS.joinedLate : null);
-            expectEqual(word === null ? /^(Started|Not started)( |$)/.test(words) : words.startsWith(word), true, `the Coursework tab, ${person.first} week ${week} reads ${doneOrNot} (${words})`);
+            const notDone = /^(Not started|Started|Not open yet|Opens [A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2})/;
+            expectEqual(word === null ? notDone.test(words) : words.startsWith(word), true, `the Coursework tab, ${person.first} week ${week} reads ${doneOrNot} (${words})`);
           }
         }
         for (const person of [ben, ada]) {
