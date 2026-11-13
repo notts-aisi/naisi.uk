@@ -8,6 +8,7 @@ import type { SessionUser } from "@/lib/firebase/session";
 import {
   ATTENDANCE_LIMITS,
   CORRECTED,
+  EXCUSAL_KEPT,
   ONLINE,
   SET_BY,
   attendanceDocId,
@@ -15,6 +16,7 @@ import {
   normalizeCourseAttendance,
   type AttendanceStatus,
   type CourseAttendanceDoc,
+  type ExcusalKept,
 } from "@/lib/firestore/courseAttendance";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -197,6 +199,13 @@ export function writeLineCorrection(
     now: Date;
     /** Made by approving a request to be excused: see `ApprovalCorrection`. */
     approval?: ApprovalCorrection;
+    /**
+     * Made by somebody who does not decide excusals (a run's track lead):
+     * an excusal standing on a line they correct is kept (`excusalKept`), as
+     * the marking route keeps it, so their next correction cannot make it an
+     * absence either. Absent: an admin's or the lead's, and an approval.
+     */
+    excusalHeld?: boolean;
   },
 ): number {
   const { ref, register, moved, mirror } = plan;
@@ -209,8 +218,19 @@ export function writeLineCorrection(
     const where: Record<string, boolean | FieldValue> = {};
     const stamps: Record<string, { byUid: string; at: Date; how: "correction" | "approval" } | FieldValue> = {};
     const corrected: Record<string, { at: Date; byUid: string } | FieldValue> = {};
+    // An admin's or the lead's correction decides the line: an excusal kept
+    // beside it goes. Anybody else's keeps it, and sets it when they record
+    // that the person came over an excused line (they never set excused: the
+    // route refuses it).
+    const kept: Record<string, ExcusalKept | FieldValue> = {};
     for (const line of moved) {
       const { uid, after } = line;
+      if (!input.excusalHeld) {
+        if (register.excusalKept[uid]) kept[uid] = FieldValue.delete();
+      } else if (cameBy(after.mark) && line.before.mark === "excused") {
+        // With the stamp of the excused line it displaces, as the marking route keeps it.
+        kept[uid] = register.setBy[uid] ?? true;
+      }
       records[uid] = after.mark === null ? FieldValue.delete() : after.mark;
       if (cameBy(after.mark)) where[uid] = after.online;
       else if (Object.hasOwn(register.online, uid)) where[uid] = FieldValue.delete();
@@ -231,6 +251,7 @@ export function writeLineCorrection(
         ...(Object.keys(where).length > 0 ? { [ONLINE]: where } : {}),
         ...(Object.keys(stamps).length > 0 ? { [SET_BY]: stamps } : {}),
         ...(Object.keys(corrected).length > 0 ? { [CORRECTED]: corrected } : {}),
+        ...(Object.keys(kept).length > 0 ? { [EXCUSAL_KEPT]: kept } : {}),
         ...(input.notes ? { notes: input.notes.value } : {}),
         updatedAt: FieldValue.serverTimestamp(),
         // `markedByUid` and the finished stamps are NOT moved: they record who

@@ -566,7 +566,11 @@ test(
     for (const { key } of statuses) {
       assert.ok(MARK_LETTER[key], `the member's marks restated here carry no letter for ${JSON.stringify(key)}`);
     }
-    const fernMarks = { [ada.key]: statuses[0].key, [ben.key]: statuses[statuses.length - 1].key };
+    // Excused is an admin's or the programme's lead's (src/lib/courses/excused/marking.ts):
+    // the register a facilitator takes offers every other state, in the same order.
+    const offered = statuses.filter((status) => status.key !== "excused");
+    assert.equal(offered.length, statuses.length - 1, "the register's states no longer include Excused");
+    const fernMarks = { [ada.key]: offered[0].key, [ben.key]: offered[offered.length - 1].key };
     /** A person's mark in a week, from the world's plan and, for this week, Fern's. */
     const markOf = (person, weekNumber) =>
       weekNumber === thisWeek && person.groupKey === facilitated.key
@@ -1188,10 +1192,22 @@ test(
         await tap(adaCell);
         assert.equal(await statusOf(adaCell), statuses[0].label, `${ada.first}'s first tap did not land on ${statuses[0].label}`);
         const benCell = cellOf(ben, thisWeek);
-        for (const status of statuses) {
+        for (const status of offered) {
           await tap(benCell);
           assert.equal(await statusOf(benCell), status.label, `${ben.first}'s cell did not land on ${status.label}`);
         }
+        // Excused is not among them: the next tap on Ben's line would clear
+        // it, and the register says who marks somebody excused.
+        assert.match(
+          (await benCell.getAttribute("aria-label")) ?? "",
+          /\. Sets not marked\.$/,
+          `${ben.first}'s cell offers the facilitator a state after ${offered[offered.length - 1].label}`,
+        );
+        assert.equal(
+          await textOf(facilitatorPage.getByTestId("attendance-excused-who")),
+          "Only an admin or the programme’s lead can excuse somebody, or take an excusal away. People ask on their programme page.",
+          "the register does not tell the facilitator who marks somebody excused",
+        );
         // Every tap saves, and says so with the time, in London.
         await facilitatorPage
           .locator('[role="status"]')

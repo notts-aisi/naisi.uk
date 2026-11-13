@@ -761,6 +761,12 @@ const REGISTRY = {
   "src/lib/courses/excused/alert.ts#sendExcusedEmail": T(
     "A request to be excused has arrived: one email to each admin who decides them, once the request is written, through its door (`src/lib/email/excusedEmail.ts`). It is owed to the admins who decide these, as the reminder to a group's facilitators is owed to them, so no row of the profile grid gates it; the admin's own switch on the Requests page does (`users/{uid}.requestEmails.excused`, on unless a stored false), and the suppression list still holds it back. Never the person asking, a facilitator or the lead; never the reason, never a meeting link.",
   ),
+  "src/lib/email/joiningOnlineEmail.ts#sendEmail": T(
+    "The door of the email that tells a group's facilitators somebody in the group is joining a session online (\"Daniel Kim is joining week 2 online\"), with its own kind in the log (`course-joining-online`). It is about a session its reader runs, so no row of the grid switches it off; the suppression list still holds it back. Never a meeting link: the one link is the group's page on this site.",
+  ),
+  "src/lib/courses/joiningOnline/tell.ts#sendJoiningOnlineEmail": T(
+    "Somebody pressed Joining online for a session: one email to each of the group's facilitators with standing and an address, never the person who said it, once per person per session (decided by the press's own transaction and stamped on the register as `onlineEmailed`), after the word is written, through its door (`src/lib/email/joiningOnlineEmail.ts`). It is about a session its reader runs, so no row of the profile grid gates it; the suppression list still holds it back. Taking the word back emails nobody. Never a meeting link.",
+  ),
   "src/lib/courses/excused/decide.ts#sendExcusedEmail": T(
     "An admin deciding or replying to a request to be excused, through its door (`src/lib/email/excusedEmail.ts`): approving one week emails the person, with the reply, and, while the register says excused, each of the group's facilitators with standing, never the reason and never the presser; declining one week emails the person, with the reply; a reply without deciding emails the person. Withdrawing and waiting email nobody; asking emails the admins (`alert.ts`).",
     4,

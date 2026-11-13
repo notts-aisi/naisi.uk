@@ -457,7 +457,8 @@ const toType = Object.entries(SESSIONS)
 /**
  * Move the clock to `when`, typing and finishing every register that falls
  * before it on the way, each at its own time and through its own routes, by
- * the group's facilitator, for the people taking part in the group then.
+ * the group's facilitator (the lead marks an excused line before Finish),
+ * for the people taking part in the group then.
  */
 async function upTo(when) {
   while (toType.length > 0 && toType[0].when <= new Date(when).toISOString()) {
@@ -469,7 +470,17 @@ async function upTo(when) {
       .map((seat) => seat.uid)
       .sort();
     const marks = people.map((uid) => ({ uid, status: markOf(uid, week) }));
-    const saved = await call(TYPIST[tag], R.register.POST, { groupId }, { body: { weekNumber: week, marks }, course: true });
+    // Excused is an admin's or the programme's lead's: the facilitator types
+    // every other line, and the lead marks the excused ones before Finish.
+    const saved = await call(TYPIST[tag], R.register.POST, { groupId }, {
+      body: { weekNumber: week, marks: marks.filter((mark) => mark.status !== "excused") },
+      course: true,
+    });
+    const excused = marks.filter((mark) => mark.status === "excused");
+    if (excused.length > 0) {
+      const byLead = await call("claudia", R.register.POST, { groupId }, { body: { weekNumber: week, marks: excused }, course: true });
+      seen.excusedByLead.push([tag, week, byLead.status, excused.map((mark) => mark.uid).join(" ")]);
+    }
     const pushed = await call(TYPIST[tag], R.registerPush.POST, { groupId }, { body: { weekNumber: week }, course: true });
     seen.registers.push([tag, week, saved.status, pushed.status, people.join(" ")]);
   }
@@ -494,6 +505,7 @@ async function tellTheStory() {
   await loadRoutes();
   await loadPages();
   seen.registers = [];
+  seen.excusedByLead = [];
 
   // ---- A. Before groups go out: Mon 26 Oct ---------------------------------
   at(MONDAY);
@@ -1447,9 +1459,11 @@ describe("D. VR games night: Check-in, the organiser's tab and the night's surve
 });
 
 describe("E. The term's end: registers, Who finished, the head, the Kairos report and This term in numbers count the same people", () => {
-  test("every register typed and finished by its facilitator, for the people taking part that week", () => {
+  test("every register typed and finished by its facilitator, with the excused line marked by the lead, for the people taking part that week", () => {
     assert.equal(seen.registers.length, 18);
     assert.ok(seen.registers.every(([, , saved, pushed]) => saved === 200 && pushed === 200), JSON.stringify(seen.registers));
+    // Kofi's excused week is the lead's to mark, and she marks it before Finish.
+    assert.deepEqual(seen.excusedByLead, [["B", 2, 200, "kofi"]]);
     assert.deepEqual(
       seen.registers.filter(([tag]) => tag === "B").map(([, week, , , people]) => [week, people]),
       [

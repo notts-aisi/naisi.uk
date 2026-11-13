@@ -21,7 +21,8 @@
  * the card offers, a week added is refused, and week 6 is asked about on
  * Can't make it instead (the sheet offers it; nothing is sent, because
  * asking emails the admins and this spec runs where mail is real); then she
- * says she is joining week 4 online, one thing at a time on the ticket -> the box at the top of Fern's group page asks
+ * says she is joining week 4 online, one thing at a time on the ticket, and
+ * the email log holds the one email that tells Fern so -> the box at the top of Fern's group page asks
  * for a meeting link for week 4, Fern adds one, and the box and the register
  * say Ada is joining online -> Ada's ticket, on the programme page and on
  * Home, carries the link for anybody joining online, beside Add to calendar
@@ -45,9 +46,11 @@
  *
  *   npm run e2e:browser -- --local --spec course-hub-sessions-and-work
  *
- * It reads no mail, so it runs against a deployed target too. Every account
- * it signs in as is the harness's own, and the only email it can cause (the
- * approvals, the week 4 email the finished register may send) goes to the
+ * It reads no mail (of the mail, only the email log's row for the email that
+ * tells Fern Ada is joining online), so it runs against a deployed target
+ * too. Every account it signs in as is the harness's own, and the only email
+ * it can cause (the approvals, the email that tells Fern Ada is joining
+ * online, the week 4 email the finished register may send) goes to the
  * fixture's own addresses. CHROMIUM ONLY:
  * a green run is a regression net, never a substitute for the manual Safari
  * pass.
@@ -137,6 +140,8 @@ const WORDS = Object.freeze({
     "You’ve said you’re joining online, and your facilitators can see that. The link to join will be on this ticket, not in your emails.",
   saidOnlineLinked: "You’ve said you’re joining online, and your facilitators can see that. The link to join is on this ticket.",
   inTheRoomAfterAll: "I’ll be in the room after all",
+  // The email that tells the group's facilitators (src/lib/courses/joiningOnline/words.ts).
+  toldFacilitators: (name, week) => `${name} is joining week ${week} online`,
   whereChoice: (name, week, online) =>
     `Where ${name} was in week ${week}: ${online ? "joined online" : "in the room"}. Sets ${online ? "in the room" : "joined online"}.`,
   boxAsks: (count, day, week) =>
@@ -659,7 +664,7 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
     });
 
     await step(
-      "the member can make next week's session after all and unticks it, all an answer takes once given, asks about another week on Can't make it instead, and says they are joining online, one thing at a time",
+      "the member can make next week's session after all and unticks it, all an answer takes once given, asks about another week on Can't make it instead, and says they are joining online, one thing at a time, and the group's facilitator is emailed that they are",
       async () => {
         activePage = adaPage;
         const day = dayLabel(nextSession.dateKey);
@@ -741,6 +746,19 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
         assert.equal(register?.records?.[ada.uid], undefined, "saying it wrote a mark");
         assert.equal(register?.excusedInAdvance?.[ada.uid], undefined, "Ada's word that Ada can't make it is still there");
         assert.equal(register?.onlineSaid?.[ben.uid], undefined, "Ada's press wrote somebody else's word");
+        assert.ok(register?.onlineEmailed?.[ada.uid], "the register does not keep that Fern was told");
+        // Fern, the group's facilitator, is emailed once, with its own kind in the log, and Ada is not.
+        const told = await waitFor("the email that tells Fern Ada is joining online, in the email log", async () => {
+          const rows = (await fixtureQuery("emailSends").where("referenceId", "==", state.runId).get()).docs
+            .map((doc) => doc.data())
+            .filter((row) => row.kind === "course-joining-online");
+          return rows.length > 0 ? rows : null;
+        });
+        assert.deepEqual(
+          told.map((row) => [String(row.to ?? "").toLowerCase(), row.subject]),
+          [[fern.email.toLowerCase(), WORDS.toldFacilitators(ada.first, nextWeek)]],
+          "the email that tells the facilitators went to somebody else, or said something else",
+        );
         await adaPage.reload({ waitUntil: "domcontentloaded" });
         await ticket.getByRole("status").filter({ hasText: WORDS.saidOnline }).waitFor({ timeout: WAIT_MS });
         await ticket.getByRole("button", { name: WORDS.inTheRoomAfterAll, exact: true }).waitFor({ timeout: WAIT_MS });

@@ -47,6 +47,8 @@ export default function LineSheet({
   requestHref = null,
   sessionLabelOf,
   onDone,
+  marksExcused = true,
+  excusalStands = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -59,6 +61,10 @@ export default function LineSheet({
   sessionLabelOf?: (sessionKey: string) => string;
   /** A press went through: the sentence to show, and the register reads again. */
   onDone: (said: string) => void;
+  /** The reader marks somebody excused, and changes an excusal that stands (`caller.marksExcused`). */
+  marksExcused?: boolean;
+  /** An excusal stands on this line (`excusalStands`). */
+  excusalStands?: boolean;
 }) {
   const [choice, setChoice] = useState<string | null>(null);
   const [reason, setReason] = useState("");
@@ -69,7 +75,10 @@ export default function LineSheet({
   if (!target) return null;
   const { person, session, line, setBy, story, request } = target;
   const says = line.status ? lineWords(line.status, line.online) : "Not set";
-  const choices = P.choicesOtherThan(line.status, line.online);
+  // A correction offers only what the route takes from this reader on this
+  // line; an ask is decided by an admin or the lead, and offers every line.
+  const others = P.choicesOtherThan(line.status, line.online);
+  const choices = mode === "correct" ? P.choicesFor(others, { marksExcused, excusalStands, restores: false }) : others;
   const chosen = P.choiceOf(choice);
   const waiting = request?.state === "waiting" ? request : null;
   const asking = mode === "ask" && !waiting;

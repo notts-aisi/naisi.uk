@@ -58,6 +58,7 @@ export default function AskForm({
   locked = false,
   onSent,
   onlineControl = null,
+  certificateNeeds = null,
 }: {
   groupId: string;
   /** The weeks offered, the card's own first. */
@@ -68,6 +69,8 @@ export default function AskForm({
   onSent?: () => void;
   /** Today's "Joining online" for the card's own session, drawn beside the line it asks them to confirm. */
   onlineControl?: ReactNode;
+  /** What a certificate needs, where the run has a rule (`certificateNeedsWords`): said before they ask. */
+  certificateNeeds?: string | null;
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -145,6 +148,11 @@ export default function AskForm({
         void send();
       }}
     >
+      {certificateNeeds && (
+        <p className={styles.line}>
+          {certificateNeeds}
+        </p>
+      )}
       {mode === "before" && weeks.length > 1 ? (
         <fieldset className={styles.weeks}>
           <legend className={styles.legend}>{O.WEEKS_THIS_COVERS}</legend>

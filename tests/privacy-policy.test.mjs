@@ -4446,7 +4446,7 @@ describe("the course hub passage", () => {
     assert.ok(existsSync(join(REPO_ROOT, "tests", "course-hub-facilitator-week.test.mjs")), "tests/course-hub-facilitator-week.test.mjs is gone");
   });
 
-  test("who finished: the number is shown to the programme's lead and admins, and a member is told only whether they finished", () => {
+  test("who finished: the list is shown to the programme's lead and admins; a learner is told the rule's number before the end, and after it only whether they finished", () => {
     // "Only the lead and admins see the list", and somebody who did not
     // finish is "not told". v14 also said only they see the number the lead
     // set, and that arriving late or leaving early counts as coming; v15
@@ -4455,13 +4455,16 @@ describe("the course hub passage", () => {
     for (const sentence of [" Only the lead and admins see the list.", " If you did not finish, you are not sent one and not told."]) {
       assert.ok(finished.includes(sentence), `the policy's Who finished no longer says: ${sentence}`);
     }
-    // The words, run: the lead's sentences say who sees the rule, and a
-    // member's carry a programme's name and nothing else.
+    // The words, run: the lead's sentences say who sees who is ticked
+    // ("Only the lead and admins see the list"), and a member's once it is
+    // over carry a programme's name and nothing else. (Before the end a
+    // learner is told the rule's number, never the list:
+    // tests/course-hub-finishing-member.test.mjs.)
     assert.equal(
       finishingWords.ruleSentence(4, 6),
-      "We’ve ticked everyone who came to at least 4 of 6 sessions. Change any you disagree with. Only you and admins see this rule.",
+      "We’ve ticked everyone who came to at least 4 of 6 sessions. Change any you disagree with. Only you and admins see who’s ticked.",
     );
-    assert.match(finishingWords.RULE_HINT, /Only you and admins see this\.$/);
+    assert.match(finishingWords.RULE_HINT, /The people taking part are told the number; only you and admins see who’s ticked\.$/);
     assert.equal(finishingWords.youFinished("AGI Strategy Fellowship"), "You finished AGI Strategy Fellowship.");
     assert.equal(finishingWords.hasEnded("AGI Strategy Fellowship"), "AGI Strategy Fellowship has ended.");
     // Arriving late or leaving early counts as coming (v14's words; v15 says
@@ -4480,6 +4483,10 @@ describe("the course hub passage", () => {
         ["src/lib/applications/handover/finishingAct.ts", "the one writer, which answers anybody but the lead and admins first (loadProgrammeRun)"],
         ["src/lib/courses/finishing/record.ts", "where the rule is read"],
         ["src/lib/courses/finishing/whoFinished.ts", "where the lead's list is built"],
+        [
+          "src/app/api/courses/runs/[runId]/overview/route.ts",
+          "the run home's route, which reads the rule alone, never the list, to tell a learner what a certificate needs before the end (November 2026: v19 says only the lead and admins see the list; since v15 it says nothing of who sees the number)",
+        ],
       ]),
       "reading the rule or the list of who finished",
       "The policy says only the programme's lead and admins see the list (and " +
@@ -4497,13 +4504,19 @@ describe("the course hub passage", () => {
     }
     assert.match(read("src/lib/applications/handover/finishingAct.ts"), /if \(outcome\.status === "not-yours"\) return refuse\(403, LEADS_AND_ADMINS\);/);
     // A member's own pages are sent whether they finished, as true or false,
-    // and nothing else of who finished.
+    // and, on the run home before the end, what a certificate needs as one
+    // sentence (the rule's number and their group's count); nothing else of
+    // who finished.
     assert.match(read("src/lib/courses/finishing/record.ts"), /export async function finishedForMember\([\s\S]*?\): Promise<boolean> \{/);
-    for (const route of ["src/app/api/courses/me/route.ts", "src/app/api/courses/runs/[runId]/overview/route.ts"]) {
+    for (const [route, reads] of [
+      ["src/app/api/courses/me/route.ts", ["finishedForMember"]],
+      ["src/app/api/courses/runs/[runId]/overview/route.ts", ["certificateNeedsFor", "finishedForMember, readFinishRule"]],
+    ]) {
       const imported = [...read(route).matchAll(/import \{([^}]*)\} from "@\/lib\/courses\/finishing\/[A-Za-z]+";/g)].map((match) => match[1].trim());
-      assert.deepEqual(imported, ["finishedForMember"], `${route} reads more of who finished than whether the caller finished`);
+      assert.deepEqual(imported, reads, `${route} reads more of who finished than whether the caller finished and what a certificate needs`);
       assert.match(read(route), /\bfinished: boolean;/);
     }
+    assert.match(read("src/app/api/courses/runs/[runId]/overview/route.ts"), /\bcertificateNeeds: string \| null;/, "the run home is sent more than one sentence about the rule");
   });
 
   test("a deletion takes somebody off pitching week, out of their team and out of who finished, and a partner keeps a shared pitch", () => {
@@ -11355,6 +11368,7 @@ describe("v16 says a register records the room or online, and you may tell us in
   const route = withoutComments(read("src/app/api/courses/groups/[groupId]/joining-online/route.ts"));
   const marking = withoutComments(read("src/app/api/courses/groups/[groupId]/attendance/route.ts"));
   const box = withoutComments(read("src/lib/courses/meetingLink/box.ts"));
+  const tell = withoutComments(read("src/lib/courses/joiningOnline/tell.ts"));
   const NEW_REGISTERS = "absent or excused, and whether you were in the room or joined online.";
   const NEW_IN_ADVANCE =
     "You can also tell us in advance that you&apos;re joining a session online: your facilitators see it, and are asked to add a link to join it to your programme page.";
@@ -11400,7 +11414,7 @@ describe("v16 says a register records the room or online, and you may tell us in
     assert.match(marking, /return \{ ok: false, error: "online is only for somebody marked present, late or left early\." \};/);
   });
 
-  test("telling us in advance: your own line, by your own uid, and nothing is sent", () => {
+  test("telling us in advance: your own line, by your own uid, and only your group's facilitators are emailed", () => {
     assertExactlyTheseFiles(
       sourceFilesNaming(/\[ONLINE_SAID\]:|FieldPath\(ONLINE_SAID,/),
       new Map([
@@ -11415,7 +11429,26 @@ describe("v16 says a register records the room or online, and you may tell us in
     assert.match(seat, /\[ONLINE_SAID\]: \{ \[user\.uid\]: FieldValue\.serverTimestamp\(\) \},/);
     assert.match(seat, /tx\.set\(ref, \{ \[ONLINE_SAID\]: \{ \[user\.uid\]: FieldValue\.delete\(\) \} \}, \{ merge: true \}\);/);
     assert.match(route, /const outcome = await recordJoiningOnline\(db, user, groupId, parsed\.value, new Date\(\)\);/);
-    assert.doesNotMatch(seat + route, /sendEmail|sendNotice|dispatchSends|mirrorCourse/, "saying you are joining online now emails or notifies somebody");
+    assert.doesNotMatch(seat + route, /sendEmail|sendNotice|dispatchSends|mirrorCourse/, "saying you are joining online emails or notifies somebody outside the facilitators' email");
+    // CHANGED ON PURPOSE (November 2026): the policy says "your facilitators
+    // see it, and are asked to add a link to join it to your programme page",
+    // and since then they are also told by email, once per person per
+    // session, which is them seeing it and being asked. The email goes to
+    // the group's facilitators and nobody else: never the person who said
+    // it, never anybody in the group, and never with the link.
+    assert.match(seat, /if \(outcome\.ok && tell\) await tellFacilitatorsJoiningOnline\(db, tell\);/);
+    assert.match(tell, /facilitatorsToTell\(db, said\.group, \[said\.uid\]\)/);
+    assert.equal((tell.match(/\bsendJoiningOnlineEmail\(/g) ?? []).length, 1, "Joining online sends more than the facilitators' email");
+    assert.doesNotMatch(tell, /sendEmail\(|sendNotice|dispatchSends|mirror|Push|meetingUrl/, "Joining online reaches somebody another way, or names the link");
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\[ONLINE_EMAILED\]:|FieldPath\(ONLINE_EMAILED,/),
+      new Map([
+        ["src/lib/courses/joiningOnline/seat.ts", "Joining online: when the group's facilitators were emailed about the caller's own word, stamped once and never taken away"],
+        ["src/lib/firestore/accountDeletion.ts", "account deletion clears the person's own stamp, key by key, and nobody else's"],
+      ]),
+      "writing that a group's facilitators were emailed about somebody joining online",
+      "The stamp is about the person's own word. Nobody may write it for anybody else.",
+    );
   });
 
   test("your facilitators see it, and are asked for a link to join it: the box on their group page and register", () => {

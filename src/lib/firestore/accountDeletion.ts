@@ -26,7 +26,7 @@ import { TEAM_ENTRIES_COLLECTION } from "@/lib/courses/teamPage/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
 import { TEAMS_MARKERS, TEAMS_TEST_KIND } from "@/lib/courses/teams/told";
 import { ASSESSMENTS_COLLECTION } from "./admissionAssessments";
-import { CORRECTED, EXCUSED_IN_ADVANCE, FACILITATOR_RECORD, ONLINE, ONLINE_SAID, SET_BY } from "./courseAttendance";
+import { CORRECTED, EXCUSAL_KEPT, EXCUSED_IN_ADVANCE, FACILITATOR_RECORD, ONLINE, ONLINE_EMAILED, ONLINE_SAID, SET_BY } from "./courseAttendance";
 import { normalizeCourseEnrolment } from "./courseEnrolments";
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
@@ -1300,12 +1300,13 @@ export async function clearCourseAttendanceMarks(
       if (snap.empty) break;
       cursor = snap.docs[snap.docs.length - 1];
 
-      // FIVE map keys per register, not one. `participantNotes` (V3 W1 PR5)
+      // SIX map keys per register, not one. `participantNotes` (V3 W1 PR5)
       // is post-session prose ABOUT this member, written by their facilitator,
       // and it is personal data of exactly the kind an account deletion has to
       // take with it; `excusedInAdvance` is when they told us they could not
       // make the session ("Can't make it"); `onlineSaid` is when they said
-      // they were joining it online ("Joining online"); `online` is whether
+      // they were joining it online ("Joining online"), and `onlineEmailed`
+      // when the group's facilitators were emailed that they were; `online` is whether
       // the register records them as having joined online or in the room.
       // Every key is cleared by FieldPath
       // on the SAME document, in the same batch, for the same reason
@@ -1330,17 +1331,21 @@ export async function clearCourseAttendanceMarks(
       // as `markedByUid` and `pushedByUid` always have been: they record who
       // ran the session, not anything about the person deleted. And one
       // more: when their own line was corrected (`corrected`), keyed by them,
-      // whose `byUid` (who corrected it) is kept the same way.
+      // whose `byUid` (who corrected it) is kept the same way. And that an
+      // excusal stood on their line when somebody recorded that they came
+      // after all (`excusalKept`), keyed by them.
       const marked = snap.docs.filter(
         (d) =>
           holds(d, "records") ||
           holds(d, "participantNotes") ||
           holds(d, EXCUSED_IN_ADVANCE) ||
           holds(d, ONLINE_SAID) ||
+          holds(d, ONLINE_EMAILED) ||
           holds(d, ONLINE) ||
           holds(d, SET_BY) ||
           holds(d, FACILITATOR_RECORD) ||
-          holds(d, CORRECTED),
+          holds(d, CORRECTED) ||
+          holds(d, EXCUSAL_KEPT),
       );
       if (marked.length > 0) {
         const batch = db.batch();
@@ -1361,6 +1366,9 @@ export async function clearCourseAttendanceMarks(
           if (holds(d, ONLINE_SAID)) {
             batch.update(d.ref, new FieldPath(ONLINE_SAID, uid), FieldValue.delete());
           }
+          if (holds(d, ONLINE_EMAILED)) {
+            batch.update(d.ref, new FieldPath(ONLINE_EMAILED, uid), FieldValue.delete());
+          }
           if (holds(d, ONLINE)) {
             batch.update(d.ref, new FieldPath(ONLINE, uid), FieldValue.delete());
           }
@@ -1372,6 +1380,9 @@ export async function clearCourseAttendanceMarks(
           }
           if (holds(d, CORRECTED)) {
             batch.update(d.ref, new FieldPath(CORRECTED, uid), FieldValue.delete());
+          }
+          if (holds(d, EXCUSAL_KEPT)) {
+            batch.update(d.ref, new FieldPath(EXCUSAL_KEPT, uid), FieldValue.delete());
           }
         }
         await batch.commit();

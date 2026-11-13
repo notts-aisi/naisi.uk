@@ -2021,6 +2021,12 @@ export const ROUTES = {
         "covers",
         "facilitatorRecord",
         "facilitators",
+        // What the reader may do. `caller.marksExcused` is true for an admin
+        // and for the programme's lead (whether or not they also facilitate
+        // the group), and false for a run's track lead by that alone, a
+        // facilitator, a co-facilitator and somebody given a session, whose
+        // register offers no Excused (tests/course-register-cover.test.mjs
+        // holds each persona).
         "caller",
         // Each corrected line's story and each request about a line. A
         // reason, and a reply, only for the people who correct registers and
@@ -2033,6 +2039,11 @@ export const ROUTES = {
         // reason, the reply or how often (tests/course-excused-weeks.test.mjs
         // holds what each reader is sent).
         "excuseRequests",
+        // Where an excusal stands, per session and person, rows only: for a
+        // reader who is not an admin or the programme's lead, those cells
+        // offer only excused and the marks that say the person came. Never
+        // who decided anything (tests/course-register-cover.test.mjs).
+        "excusalStands",
       ],
       why:
         "The register gate (gateGroupRegisterRead) collapses missing, archived and not-yours onto " +
@@ -2203,7 +2214,9 @@ export const ROUTES = {
       why:
         "View-as is refused first, then the session, then the address and the body (a session of the group and " +
         "whether they are joining it online) are checked before anything is read, so every signed-in persona meets " +
-        "the same 400 on an empty one. The caller's own seat is read once a whole body arrives.",
+        "the same 400 on an empty one. The caller's own seat is read once a whole body arrives. The first time a " +
+        "caller says it for a session, the group's facilitators are emailed after the write (never the caller); " +
+        "no refused press reaches that far.",
     },
   },
   "/api/courses/groups/[groupId]/check-in": {
@@ -2847,7 +2860,11 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/overview": {
     GET: {
       expect: signedIn(404),
-      fields: ["run", "calendarSource", "currentWeek", "weeks", "askToSwap", "weekSchedule", "programme", "shownCrest", "forkedWeekIds", "enrolment", "group", "groups", "ownAttendance", "finished", "access", "beforeGroups", "whatsNext"],
+      // `certificateNeeds`: what a certificate needs, one sentence, for a
+      // learner on a run with a rule (the rule's number and their group's
+      // count, never their own); null for everybody else
+      // (tests/course-hub-finishing-pages.test.mjs).
+      fields: ["run", "calendarSource", "currentWeek", "weeks", "askToSwap", "weekSchedule", "programme", "shownCrest", "forkedWeekIds", "enrolment", "group", "groups", "ownAttendance", "finished", "access", "beforeGroups", "whatsNext", "certificateNeeds"],
       why:
         "Session required, then the document is read and its own membership decides. The " +
         "battery's id addresses nothing, so every signed-in persona is told that the document " +
@@ -6435,7 +6452,8 @@ export const REAL_ROUTES = {
         facilitator: c(
           ACTS,
           "Holds a told seat in this group as well as facilitating it, so admitted: a whole body is never sent to " +
-            "somebody the gate admits, so it is not sent (it would write their word on a register).",
+            "somebody the gate admits, so it is not sent (it would write their word on a register and email the " +
+            "group's other facilitators).",
         ),
         participant: c(404, "Holds a place in the run's other group: answered as a group they are not in."),
       },

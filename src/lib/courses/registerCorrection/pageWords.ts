@@ -52,6 +52,30 @@ export function choicesOtherThan(status: AttendanceStatus | null, online: boolea
   return LINE_CHOICES.filter((choice) => choice.key !== now);
 }
 
+/**
+ * THE LINES A CORRECTION OFFERS ONE READER ON ONE LINE, so a sheet offers
+ * nothing the route would refuse them: an admin or the programme's lead
+ * (`marksExcused`) every one; anybody else no Absent where an excusal stands
+ * on the line, and no Excused but where one stands and the sheet puts lines
+ * back (`restores`: "It did happen" does, a line's correction never). An
+ * ask for a correction is decided by an admin or the lead, and is offered
+ * every line.
+ */
+export function choicesFor(
+  choices: readonly LineChoice[],
+  reader: { marksExcused: boolean; excusalStands: boolean; restores: boolean },
+): LineChoice[] {
+  if (reader.marksExcused) return [...choices];
+  return choices.filter((choice) =>
+    choice.status === "excused" ? reader.restores && reader.excusalStands : choice.status !== "absent" || !reader.excusalStands,
+  );
+}
+
+/** The line "It did happen" gives somebody nobody chose one for: Excused where an excusal stands, Absent anywhere else. */
+export function didHappenFill(excusalStands: boolean): "excused" | "absent" {
+  return excusalStands ? "excused" : "absent";
+}
+
 /** A choice by its key, or null. */
 export function choiceOf(key: string | null): LineChoice | null {
   return LINE_CHOICES.find((choice) => choice.key === key) ?? null;
@@ -488,6 +512,12 @@ export function didNotHappenPreviewLines(preview: Record<string, unknown>): Befo
   const lines: BeforeYouSave = [];
   const facts = preview.didNotHappen as { checkIn: boolean; reports: number } | undefined;
   const clearing = (preview.clearing as NamedLine[] | undefined) ?? [];
+  const puttingBack = (preview.puttingBack as NamedLine[] | undefined) ?? [];
+  // A line that said somebody came over an excusal goes back to excused, named as a cleared one is.
+  const backWords =
+    puttingBack.length > 0
+      ? ` ${namesWords(puttingBack.map((each) => `${firstOf(each.name)} (${each.line.toLowerCase()})`))} ${puttingBack.length === 1 ? "goes" : "go"} back to excused.`
+      : "";
   // The one-week change's own words for the cancel chosen: kept pace, the week
   // leaves everyone's attendance; pushed back, it meets a week later and its
   // register is taken then.
@@ -500,9 +530,11 @@ export function didNotHappenPreviewLines(preview: Record<string, unknown>): Befo
   lines.push({
     label: "Register",
     text:
-      clearing.length === 0
+      clearing.length === 0 && puttingBack.length === 0
         ? "Nothing was set on its register, so nothing is cleared."
-        : `${linesWords(clearing.length)} cleared: ${namesWords(clearing.map((each) => `${firstOf(each.name)} (${each.line.toLowerCase()})`))}. The group’s history keeps what each said.`,
+        : clearing.length === 0
+          ? `Nothing set for it is cleared.${backWords} The group’s history keeps what each said.`
+          : `${linesWords(clearing.length)} cleared: ${namesWords(clearing.map((each) => `${firstOf(each.name)} (${each.line.toLowerCase()})`))}.${backWords} The group’s history keeps what each said.`,
   });
   // Whose cover of a later session the press takes off (only a push moves one), in the route's own sentences: one line.
   const coversEnd = ((preview.coversEnd as string[] | undefined) ?? []).filter((text) => typeof text === "string" && text.trim());

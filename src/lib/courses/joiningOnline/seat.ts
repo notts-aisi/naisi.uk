@@ -6,6 +6,7 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import {
   ATTENDANCE_LIMITS,
+  ONLINE_EMAILED,
   ONLINE_SAID,
   SET_BY,
   attendanceDocId,
@@ -34,6 +35,7 @@ import {
   type JoiningOnlineView,
   type OnlineLine,
 } from "./model";
+import { tellFacilitatorsJoiningOnline, type JoiningOnlineTell } from "./tell";
 import { JOINING_ONLINE_REFUSAL } from "./words";
 
 /**
@@ -53,14 +55,23 @@ import { JOINING_ONLINE_REFUSAL } from "./words";
  * ## What it writes
  *
  * On the session's register, `courseAttendance/{runId}__{groupId}__{key}`,
- * the caller's entry in `onlineSaid` and nothing else: when they said it, in
- * one write, in a transaction, while `joiningOnlineState` says it is open.
- * Taking it back deletes that entry. Never a mark: `records`, the held
- * switch, the push, the notes and who marked it last are never touched, so a
- * register made this way is still a draft nobody has marked, and no job,
- * task or reminder reads it differently.
+ * the caller's entry in `onlineSaid`: when they said it, in one write, in a
+ * transaction, while `joiningOnlineState` says it is open. Taking it back
+ * deletes that entry. Never a mark: `records`, the held switch, the push, the
+ * notes and who marked it last are never touched, so a register made this
+ * way is still a draft nobody has marked, and no job, task or reminder reads
+ * it differently.
  *
- * Nobody is emailed, and nothing is sent later because of it.
+ * ## Who is emailed
+ *
+ * The group's facilitators, once per person per session, the first time the
+ * person says it (`tell.ts`): never the person, nobody when it is taken
+ * back, and nothing a second time when it is said again. The same write
+ * decides it, from the caller's entry in `onlineEmailed` on that register,
+ * and stamps it when it tells them; taking the word back leaves the stamp.
+ * The email goes after the write, outside its transaction, and the press is
+ * answered the same whether it was sent or not. Nothing else is sent, then
+ * or later.
  */
 
 /** Whether this seat is one of the group's people the register shows, by the caller's own uid. */
@@ -157,6 +168,8 @@ const CLOSED: Record<Extract<JoiningOnlineState, { kind: "closed" }>["why"], str
  * session's register. Saying it twice, or taking back what is not there,
  * changes nothing and answers where they stand. `hasLink` is whether the
  * session has a meeting link, so the ticket says where it is; never the link.
+ * Once it is written, the group's facilitators are told, when the write
+ * decided to tell them.
  */
 export async function recordJoiningOnline(
   db: Firestore,
@@ -165,47 +178,74 @@ export async function recordJoiningOnline(
   request: JoiningOnlineRequest,
   now: Date,
 ): Promise<JoiningOnlineOutcome> {
+  const { outcome, tell } = await writeJoiningOnline(db, user, groupId, request, now);
+  // After the write and outside its transaction. It never throws, and what
+  // it sends never changes the answer.
+  if (outcome.ok && tell) await tellFacilitatorsJoiningOnline(db, tell);
+  return outcome;
+}
+
+/** What the transaction decides: the answer, and who to tell when this press is the first time the caller says it for the session. */
+type Written = { outcome: JoiningOnlineOutcome; tell: JoiningOnlineTell | null };
+
+/** An answer that tells nobody. */
+const only = (outcome: JoiningOnlineOutcome): Written => ({ outcome, tell: null });
+
+async function writeJoiningOnline(
+  db: Firestore,
+  user: SessionUser,
+  groupId: string,
+  request: JoiningOnlineRequest,
+  now: Date,
+): Promise<Written> {
   const groupRef = db.collection("courseGroups").doc(groupId);
-  return db.runTransaction(async (tx) => {
+  return db.runTransaction(async (tx): Promise<Written> => {
     const groupSnap = await tx.get(groupRef);
     // A group that is not there is answered as one that is not theirs, so
     // probing ids says nothing about which groups exist.
-    if (!groupSnap.exists) return refuse(404, JOINING_ONLINE_REFUSAL.notYours);
+    if (!groupSnap.exists) return only(refuse(404, JOINING_ONLINE_REFUSAL.notYours));
     const group = normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {});
-    if (!group.runId || group.runId.includes("/")) return refuse(404, JOINING_ONLINE_REFUSAL.notYours);
+    if (!group.runId || group.runId.includes("/")) return only(refuse(404, JOINING_ONLINE_REFUSAL.notYours));
     const [runSnap, seatSnap] = await Promise.all([
       tx.get(db.collection("courseRuns").doc(group.runId)),
       tx.get(db.collection("courseEnrolments").doc(courseEnrolmentId(group.runId, user.uid))),
     ]);
     // A run being destroyed is gone already for everybody it served.
     if (!runSnap.exists || runSnap.data()?.destroying === true || !seatSnap.exists) {
-      return refuse(404, JOINING_ONLINE_REFUSAL.notYours);
+      return only(refuse(404, JOINING_ONLINE_REFUSAL.notYours));
     }
     const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
     const seat = normalizeCourseEnrolment(seatSnap.id, seatSnap.data() ?? {});
-    if (!takesPartIn(user, seat, group, run.id)) return refuse(404, JOINING_ONLINE_REFUSAL.notYours);
+    if (!takesPartIn(user, seat, group, run.id)) return only(refuse(404, JOINING_ONLINE_REFUSAL.notYours));
 
     // The session is one this group holds, by the group's own calendar.
     const session = resolveSessions(run, group).find((each) => each.sessionKey === request.sessionKey);
-    if (!session) return refuse(400, JOINING_ONLINE_REFUSAL.noSession);
+    if (!session) return only(refuse(400, JOINING_ONLINE_REFUSAL.noSession));
     const ref = db.collection("courseAttendance").doc(attendanceDocId(run.id, group.id, session.weekNumber, session.occurrence));
     const registerSnap = await tx.get(ref);
     const data = registerSnap.exists ? (registerSnap.data() ?? {}) : undefined;
     const state = stateOn(group, session, lineOf(data, ref.id, user.uid), now);
-    if (state.kind === "closed") return refuse(409, CLOSED[state.why]);
-    if (state.kind === "told") return refuse(409, JOINING_ONLINE_REFUSAL.told);
-    if (state.kind === "marked") return refuse(409, JOINING_ONLINE_REFUSAL.marked);
+    if (state.kind === "closed") return only(refuse(409, CLOSED[state.why]));
+    if (state.kind === "told") return only(refuse(409, JOINING_ONLINE_REFUSAL.told));
+    if (state.kind === "marked") return only(refuse(409, JOINING_ONLINE_REFUSAL.marked));
     // Whether the ticket can say the link is on it: asked, with the check
     // the ticket makes before it draws one, and never handed back.
     const link = session.session.meetingUrl;
     const hasLink = Boolean(link) && validateSubmissionUrl(link ?? "", GROUP_FIELD_LIMITS.meetingUrl) === null;
 
     if (request.online) {
-      if (state.kind === "said") return { ok: true, online: true, hasLink };
+      if (state.kind === "said") return only({ ok: true, online: true, hasLink });
       // Capped as the register's marks are: a map of every row's word.
       const said = (data?.[ONLINE_SAID] ?? {}) as Record<string, unknown>;
-      if (Object.keys(said).length + 1 > ATTENDANCE_LIMITS.maxRecords) return refuse(409, JOINING_ONLINE_REFUSAL.full);
+      if (Object.keys(said).length + 1 > ATTENDANCE_LIMITS.maxRecords) return only(refuse(409, JOINING_ONLINE_REFUSAL.full));
       const { startsAt } = sessionInstants(session);
+      // The group's facilitators are emailed the first time this person says
+      // it for this session, and never again: a stamp nobody takes away, so
+      // taking the word back and saying it again tells nobody twice. Capped
+      // as the word is, so a register can never be made to hold more stamps
+      // than rows.
+      const emailed = (data?.[ONLINE_EMAILED] ?? {}) as Record<string, unknown>;
+      const tells = !Object.hasOwn(emailed, user.uid) && Object.keys(emailed).length < ATTENDANCE_LIMITS.maxRecords;
       // `set` with `merge`: it makes the register when this is the session's
       // first line, and otherwise merges this one key into the map, so
       // nobody else's word is ever written. The parts of the id live as
@@ -220,21 +260,34 @@ export async function recordJoiningOnline(
           [ONLINE_SAID]: { [user.uid]: FieldValue.serverTimestamp() },
           // Their line says who set it: their own word, before the session.
           [SET_BY]: { [user.uid]: { byUid: user.uid, at: FieldValue.serverTimestamp(), how: "self" } },
+          ...(tells ? { [ONLINE_EMAILED]: { [user.uid]: FieldValue.serverTimestamp() } } : {}),
           ...(startsAt ? { sessionAt: startsAt } : {}),
         },
         { merge: true },
       );
-      return { ok: true, online: true, hasLink };
+      const tell: JoiningOnlineTell | null = tells
+        ? {
+            runId: run.id,
+            group: { id: group.id, name: group.name, facilitatorUids: group.facilitatorUids },
+            uid: user.uid,
+            weekNumber: session.weekNumber,
+            occurrence: session.occurrence,
+            dateKey: session.dateKey,
+            startTimeLocal: session.session.startTimeLocal,
+            hasLink,
+          }
+        : null;
+      return { outcome: { ok: true, online: true, hasLink }, tell };
     }
 
     // Taking it back: only their own word.
-    if (state.kind === "open") return { ok: true, online: false, hasLink };
+    if (state.kind === "open") return only({ ok: true, online: false, hasLink });
     // The line is empty again, so it says nobody set it.
     if (Object.hasOwn((data?.[SET_BY] ?? {}) as Record<string, unknown>, user.uid)) {
       tx.set(ref, { [ONLINE_SAID]: { [user.uid]: FieldValue.delete() }, [SET_BY]: { [user.uid]: FieldValue.delete() } }, { merge: true });
-      return { ok: true, online: false, hasLink };
+      return only({ ok: true, online: false, hasLink });
     }
     tx.set(ref, { [ONLINE_SAID]: { [user.uid]: FieldValue.delete() } }, { merge: true });
-    return { ok: true, online: false, hasLink };
+    return only({ ok: true, online: false, hasLink });
   });
 }

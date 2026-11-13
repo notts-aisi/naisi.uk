@@ -29,7 +29,12 @@ import { getCurrentUser } from "@/lib/firebase/session";
  * else: there is no way to spell another person here. A group that is not
  * there, and one they are not in, are the same 404.
  *
- * Nobody is emailed, and the answer never carries the meeting link.
+ * The first time somebody says it for a session, the group's facilitators
+ * are emailed that they are joining it online, and where to add a link if it
+ * has none; never the person, nobody when it is taken back, and nothing a
+ * second time (`src/lib/courses/joiningOnline/tell.ts`). The email never
+ * carries the meeting link, nor does the answer, which is the same whether
+ * the email went or not.
  */
 
 type Ctx = { params: Promise<{ groupId: string }> };

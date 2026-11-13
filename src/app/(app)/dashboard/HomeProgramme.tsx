@@ -281,7 +281,7 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
           {data && lastWeek && endSurvey && (
             <EndSurveyCard survey={{ state: "open", card: endSurvey }} look="card" lastSession={lastSession} />
           )}
-          {data && lastWeek && <AfterLastSession heading={afterLastSessionHeading(onTheDay ?? "around")} />}
+          {data && lastWeek && <AfterLastSession heading={afterLastSessionHeading(onTheDay ?? "around")} certificateNeeds={data.certificateNeeds ?? null} />}
           {data && lastWeek && <WhatsNextCard whatsNext={data.whatsNext} look="card" />}
           {data && facts && weekNumber >= 1 && (
             <section className={`${weekly.card} ${weekly.cardTight}`} aria-labelledby="home-before">

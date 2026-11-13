@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { gateGroupRegister, isAddressableId, loadRegisterMembers } from "@/lib/courses/registerAccess";
+import { gateGroupRegister, isAddressableId, loadRegisterMembers, marksExcused } from "@/lib/courses/registerAccess";
 import { correctColumn, parseColumnPress, sessionOfPress } from "@/lib/courses/registerCorrection/column";
 import { CORRECTION_REFUSAL } from "@/lib/courses/registerCorrection/words";
 import { resolveSessions } from "@/lib/courses/sessions";
@@ -19,7 +19,12 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * leads: `leads` on the register's gate). A facilitator of the group is told
  * to ask for a correction instead; anybody else, a missing group and an
  * archived one are the register gate's one 403 (an admin is told a group is
- * missing).
+ * missing). A run's track lead by that alone (not `marksExcused`) is held to
+ * the excusal rule: excused among the lines "It did happen" writes only
+ * where an excusal stands, and no press of theirs leaves a line where one
+ * stands absent or not marked, on this session or on the one a move takes
+ * its lines to. Either is refused in one sentence before anything is
+ * written.
  *
  * ── ORDER ───────────────────────────────────────────────────────────────────
  * View-as is refused first, then the session, then the register's own gate,
@@ -68,6 +73,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
+  // Who decides excusals, handed on: a run's track lead by that alone sets
+  // excused only where an excusal stands, and leaves no line where one
+  // stands absent or not marked; either is refused before anything is
+  // written (`excusalRefusal` in `registerCorrection/column.ts`).
+  const decidesExcusals = await marksExcused(db, actor, gated, run);
   const sessions = resolveSessions(run, gated.group);
   const session = sessionOfPress(sessions, press);
   if (!session) {
@@ -80,7 +90,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
 
   try {
     const answer = await correctColumn(
-      { db, actor, run, group: gated.group, sessions, session, members, now: new Date() },
+      { db, actor, run, group: gated.group, sessions, session, members, now: new Date(), decidesExcusals },
       press,
     );
     return NextResponse.json(answer.body, { status: answer.status });

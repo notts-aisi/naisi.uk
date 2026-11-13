@@ -443,7 +443,10 @@ const RECIPIENT_SOURCES = new Map([
       why:
         "The group's facilitators an approved request to be excused tells (never the reason): each named on the " +
         "group, held to the standing the role is appointed behind, with an address, never the person the request " +
-        "is about and never the admin pressing. The press names nobody: the request names its group.",
+        "is about and never the admin pressing. The press names nobody: the request names its group. The same " +
+        "function (`facilitatorsToTell`) gives the facilitators Joining online tells " +
+        "(`src/lib/courses/joiningOnline/tell.ts`), never the person who said it: the press names nobody there " +
+        "either, only a session of the caller's own group.",
     },
   ],
   [

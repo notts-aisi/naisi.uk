@@ -44,12 +44,15 @@ export default function LastSessionCard({
   groupName,
   facilitatorFirstNames,
   locked = false,
+  certificateNeeds = null,
 }: {
   session: OwnExcusedSession;
   groupId: string;
   groupName: string;
   facilitatorFirstNames: readonly string[];
   locked?: boolean;
+  /** What a certificate needs, said in the form (`certificateNeedsWords`), or null. */
+  certificateNeeds?: string | null;
 }) {
   const state = cardStateOf(session);
   const now = new Date();
@@ -82,6 +85,7 @@ export default function LastSessionCard({
         facilitatorFirstNames={facilitatorFirstNames}
         mode="after"
         locked={locked}
+        certificateNeeds={certificateNeeds}
       />
     </>
   );

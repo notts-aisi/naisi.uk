@@ -51,6 +51,12 @@ export type EmailSendKind =
   // "were the admins told about Tuesday's request" is answerable without
   // reading subject lines. Its `referenceId` is the RUN id. Never the reason.
   | "course-request"
+  // Somebody in a group said they are joining a session online: one email to
+  // each of the group's facilitators, once per person per session. Its own
+  // kind so "was Rahul told Chloe is joining online" is answerable without
+  // reading subject lines. Its `referenceId` is the RUN id. Never the meeting
+  // link.
+  | "course-joining-online"
   // The "you have feedback" email: an admin's batch tells each person that
   // feedback a facilitator, the programme's lead or an admin saved on their
   // week is on the site, one message a person however many pieces it

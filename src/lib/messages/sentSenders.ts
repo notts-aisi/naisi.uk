@@ -53,6 +53,9 @@ export const SENT_KINDS: Record<EmailSendKind, SentEntry> = {
   "course-notice": { listed: { label: "Room notice", byPerson: true } },
   "course-enrolment": { notListed: "Somebody joining or leaving a run: their own confirmation." },
   "course-request": { notListed: "One email to each admin who decides them, saying a request to be excused has arrived. Never the reason." },
+  "course-joining-online": {
+    notListed: "One email to each of a group’s facilitators, saying somebody in the group is joining a session online. Never the meeting link.",
+  },
   "course-feedback": { notListed: "One email to each person saying feedback on their own week is waiting." },
   "course-certificate": { notListed: "One email to each person with their own certificates." },
   admissions: { notListed: "Somebody’s own application to a round: its receipt, a decision or an invitation." },

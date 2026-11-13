@@ -873,7 +873,11 @@ describe("deciding: admins only, each week on its own, and the register follows 
     at(DURING_W2);
     assert.equal((await mark("rahul", 2, [{ uid: "amara", status: "present" }])).status, 200);
     assert.equal(stored().records.amara, "present");
-    assert.equal(stored().excusedInAdvance?.amara, undefined);
+    // CHANGED ON PURPOSE (November 2026): somebody who does not decide
+    // excusals only records that the person came, so the word the approval
+    // wrote stays with the line, and the register keeps that an excusal stood.
+    assert.ok(stored().excusedInAdvance?.amara, "the approval's word went with the facilitator's mark");
+    assert.equal(stored().excusalKept?.amara?.how, "approval", "the marker keeps the approval's stamp it displaced");
     assert.equal(requestDocs()[0].status, "approved");
     const asRahul = await readRegister("rahul");
     assert.equal(asRahul.body.excuseRequests.w02.amara, "excused");
@@ -1000,7 +1004,9 @@ describe("who is sent what: the reason and how often to admins only, one of two 
 
     // After Finish: a correction made by an approval tells its story the same way.
     at(DURING_W2);
-    assert.equal((await mark("rahul", 2, [{ uid: "amara", status: "absent" }, { uid: "dev", status: "absent" }])).status, 200);
+    // Absent over an approval is an admin's or the lead's to mark (November 2026).
+    assert.equal((await mark("rahul", 2, [{ uid: "dev", status: "absent" }])).status, 200);
+    assert.equal((await mark("zach", 2, [{ uid: "amara", status: "absent" }])).status, 200);
     assert.equal((await finish("rahul", 2)).status, 200);
     at(AFTER_W2);
     const devAsked = await ask("dev", { sessionKeys: ["w02"], reason: REASON });
@@ -1549,12 +1555,17 @@ describe("a line an approval wrote is taken back by nothing but a correction", (
     assert.equal(world.db.read(`courseAttendance/${RUN.agi}__${B}__w04`).records.amara, "excused");
   });
 
-  test("a facilitator marks Absent over an approval and finishes: the person's card says what the register says, and that an admin can correct it", async () => {
+  test("the lead marks Absent over an approval and the facilitator finishes: the person's card says what the register says, and that an admin can correct it", async () => {
     const cardLib = await loadTs("lib/courses/excused/card.ts");
     const ownWords = await loadTs("lib/courses/excused/ownWords.ts");
     await approvedWeek3();
     at(new Date("2026-11-17T18:20:00Z"));
-    assert.equal((await mark("rahul", 3, [{ uid: "amara", status: "absent" }, { uid: "dev", status: "present" }])).status, 200);
+    // CHANGED ON PURPOSE (November 2026): turning an approved excusal into an
+    // absence is an admin's or the programme's lead's; the facilitator is refused.
+    const refused = await mark("rahul", 3, [{ uid: "amara", status: "absent" }, { uid: "dev", status: "present" }]);
+    assert.deepEqual([refused.status, refused.body.error], [403, "Only an admin or the programme’s lead can change an excused line to absent or not marked."]);
+    assert.equal((await mark("rahul", 3, [{ uid: "dev", status: "present" }])).status, 200);
+    assert.equal((await mark("claudia", 3, [{ uid: "amara", status: "absent" }])).status, 200);
     assert.equal((await finish("rahul", 3)).status, 200);
     const week3 = await amaraWeek3();
     assert.deepEqual([week3.register, week3.excuse.kind], ["absent", "approved"]);
@@ -1572,7 +1583,10 @@ describe("a line an approval wrote is taken back by nothing but a correction", (
     assert.equal((await mark("rahul", 3, [{ uid: "amara", status: "present" }])).status, 200);
     const line = world.db.read(W3);
     assert.equal(line.records.amara, "present");
-    assert.equal(line.excusedInAdvance?.amara, undefined);
+    // CHANGED ON PURPOSE (November 2026): the word the approval wrote stays
+    // with the line when the facilitator records that the person came.
+    assert.ok(line.excusedInAdvance?.amara, "the approval's word went with the facilitator's mark");
+    assert.equal(line.excusalKept?.amara?.how, "approval", "the marker keeps the approval's stamp it displaced");
     assert.equal(requestDocs()[0].change.weeks[0].status, "approved", "the request stays approved");
   });
 });

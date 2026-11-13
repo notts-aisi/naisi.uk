@@ -383,12 +383,15 @@ function YourMarks({
   joinedWeekNumber,
   nextDateKey,
   className,
+  certificateNeeds = null,
 }: {
   ownAttendance: OverviewPayload["ownAttendance"];
   schedule: OverviewWeekSchedule[];
   joinedWeekNumber: number;
   nextDateKey: string | null;
   className?: string;
+  /** What a certificate needs, where the run has a rule (`certificateNeedsWords`), said under the marks. */
+  certificateNeeds?: string | null;
 }) {
   const marks = ownAttendance?.sessions ?? [];
   const byWeek = new Map<number, (typeof marks)[number]>();
@@ -485,6 +488,11 @@ function YourMarks({
           )}
           <p className={`${weekly.cardLine} ${weekly.marksLine}`}>{MARKS_LINE}</p>
         </>
+      )}
+      {certificateNeeds && (
+        <p className={weekly.cardLine}>
+          {certificateNeeds}
+        </p>
       )}
     </section>
   );
@@ -684,6 +692,7 @@ export default function RunHome({
         joiningOnline={ticketJoiningOnline}
         hasLink={facts.joinUrl !== null}
         locked={viewAs}
+        certificateNeeds={data.certificateNeeds ?? null}
       />
     ) : ticketJoiningOnline || (entry === "instant" && ticketCantMakeIt) ? (
       <TicketAnswers
@@ -705,6 +714,7 @@ export default function RunHome({
           groupName={group?.name ?? ""}
           facilitatorFirstNames={facilitatorFirstNames}
           locked={viewAs}
+          certificateNeeds={data.certificateNeeds ?? null}
         />
       </div>
     ) : null;
@@ -879,6 +889,7 @@ export default function RunHome({
                 data.programme?.kind === "incubator" ? { ...timeQuestion, groupName: "" } : timeQuestion
               }
               locked={viewAs}
+              certificateNeeds={data.certificateNeeds ?? null}
             />
           )}
           {weekCard}
@@ -927,6 +938,7 @@ export default function RunHome({
               schedule={data.weekSchedule}
               joinedWeekNumber={data.enrolment?.joinedWeekNumber ?? 1}
               nextDateKey={facts?.dateKey ?? null}
+              certificateNeeds={data.certificateNeeds ?? null}
             />
           )}
 

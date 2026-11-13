@@ -18,7 +18,7 @@
  * ## What this guards
  *
  *  1. WHO says it: somebody taking part in the group, told their group, by
- *     their own uid, and nobody else; nothing is emailed.
+ *     their own uid, and nobody else; the group's facilitators are emailed.
  *  2. WHEN: before the session starts, on a session of the group that is not
  *     cancelled, finished, not held or online for everybody, and never over a
  *     line a facilitator filled in. ONE THING AT A TIME with Can't make it:
@@ -42,20 +42,30 @@
  *     before any of this reads as in the room.
  *  7. THE WORDS: no dash, and nothing a member reads says mark, grade or
  *     score.
+ *  8. THE FACILITATORS' EMAIL: the first time somebody says it for a
+ *     session, each of the group's facilitators with standing is emailed,
+ *     never the person, in its exact words and never with the link; nobody
+ *     when it is taken back, nothing a second time across a take-back, held
+ *     back for an address on the do-not-email list, and the press answered
+ *     the same when the send fails. The record of having told is server only
+ *     and goes with the account.
  *
- * Real: every route, loader, library and component named above. Faked: what
- * the member pages world fakes (the session, the Admin SDK handle, the
- * view-as guard, the clock, the stylesheets, the browser's data hooks), and,
- * to draw the register, its hook.
+ * Real: every route, loader, library and component named above, and the
+ * facilitators' email template. Faked: what the member pages world fakes (the
+ * session, the Admin SDK handle, the view-as guard, the mail door, the clock,
+ * the stylesheets, the browser's data hooks), and, to draw the register, its
+ * hook.
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { render } from "@react-email/render";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { walkSource } from "./lib/functionScan.mjs";
+import { stripSource } from "./lib/stripSource.mjs";
 import { B, NOW, RUN, makeMemberPagesWorld, textOf } from "./lib/memberPagesWorld.mjs";
 import { A, register, registerPath } from "./lib/hubAttendanceWorld.mjs";
 import { pressedBefore } from "./lib/saidBefore.mjs";
@@ -84,6 +94,8 @@ const cardFacts = await loadTs(join("features", "courses", "sessionChange", "car
 const courses = await loadTs(join("lib", "firestore", "courses.ts"));
 const groupsLib = await loadTs(join("lib", "firestore", "courseGroups.ts"));
 const enrolments = await loadTs(join("lib", "firestore", "courseEnrolments.ts"));
+const attendanceLib = await loadTs(join("lib", "firestore", "courseAttendance.ts"));
+const tellLib = await loadTs(join("lib", "courses", "joiningOnline", "tell.ts"));
 
 const at = (iso) => mock.timers.setTime(new Date(iso).getTime());
 
@@ -117,6 +129,8 @@ const markAs = (who, week, marks, method = "POST") =>
   });
 /** A register as stored. */
 const stored = (groupId, week) => world.db.read(registerPath(groupId, week));
+/** An account's address, as stored. */
+const address = (uid) => world.db.read(`users/${uid}`).email;
 /** A stored stamp, as a Date, whichever the store kept. */
 const instant = (value) => (value instanceof Date ? value : typeof value?.toDate === "function" ? value.toDate() : new Date(value));
 
@@ -225,7 +239,7 @@ const draw = (component, props) => {
 // ---------------------------------------------------------------------------
 
 describe("1. who may say it", () => {
-  test("somebody taking part in the group, told their group: the register keeps their word beside its marks, and nobody is emailed", async () => {
+  test("somebody taking part in the group, told their group: the register keeps their word beside its marks, and the group's facilitators are emailed", async () => {
     const answer = await online("chloe", "w03");
     assert.deepEqual(answer, { status: 200, body: { ok: true, online: true, message: words.saidOnlineWords(false) } });
     const doc = stored(B, 3);
@@ -238,7 +252,12 @@ describe("1. who may say it", () => {
     assert.equal(doc.pushedAt ?? null, null);
     assert.equal(doc.held, undefined);
     assert.equal(doc.markedByUid, undefined);
-    assert.deepEqual(world.mail, [], "somebody was emailed");
+    // The group's two facilitators, and nobody else: never Chloe.
+    assert.deepEqual(world.mail.map((message) => [message.to, message.kind]).sort(), [
+      [address("rahul"), "course-joining-online"],
+      [address("sofia"), "course-joining-online"],
+    ]);
+    assert.deepEqual(Object.keys(doc.onlineEmailed), ["chloe"], "the record of having told them");
   });
 
   test("as every other kind of caller: refused, and nothing is written", async () => {
@@ -361,11 +380,13 @@ describe("3. the box asks the facilitators for a link, and the link route saves 
     // In a view-as session the box says who, and offers nothing to press.
     assert.doesNotMatch(draw(JoiningOnlineBox, { groupId: B, sessions: await boxOfB(), canAdd: false }).html, /<form/);
 
+    // The two presses told the facilitators; adding the link tells nobody.
+    const mailed = world.mail.length;
     const saved = await giveLink("rahul", { sessionKey: "w03", url: LINK, everyWeek: false });
     assert.deepEqual(saved, { status: 200, body: { ok: true, sessionKey: "w03", everyWeek: false } });
     assert.equal(world.db.read(`courseGroups/${B}`).sessionOverrides.w03.meetingUrl, LINK, "the week's own link");
     assert.equal(world.db.read(`courseGroups/${B}`).session.meetingUrl, null, "the standing link is untouched");
-    assert.deepEqual(world.mail, [], "somebody was emailed");
+    assert.equal(world.mail.length, mailed, "adding the link emailed somebody");
     const linked = await boxOfB();
     assert.equal(linked[0].hasLink, true);
     const said = draw(JoiningOnlineBox, { groupId: B, sessions: linked, canAdd: true });
@@ -620,7 +641,11 @@ describe("6. the register keeps in the room or online beside the marks", () => {
     // Week 1 and 2's registers are finished and locked for a facilitator; week 3 has two marks, one that says came.
     assert.deepEqual(choices, ["Where Chloe Nguyen was in week 3: joined online. Sets in the room."]);
     assert.match(drawn.html, /aria-label="Chloe Nguyen, week 3: Present\. Joined online\. Sets Late\."/);
-    assert.match(drawn.html, /aria-label="Kofi Asante, week 3: Absent\. Sets Excused\."/);
+    // CHANGED ON PURPOSE (November 2026): Excused is an admin's or the
+    // programme's lead's to set, so a facilitator's tap after Absent clears the
+    // line; an admin's grid offers Excused there as before.
+    assert.match(drawn.html, /aria-label="Kofi Asante, week 3: Absent\. Sets not marked\."/);
+    assert.match(drawRegister((await registerAs("zach")).body).html, /aria-label="Kofi Asante, week 3: Absent\. Sets Excused\."/);
     // Never a second control whose name starts as a cell's does: one cell button per marked week of Chloe's.
     assert.equal([...drawn.html.matchAll(/aria-label="Chloe Nguyen, week 3: /g)].length, 1);
     assert.ok(drawn.text.includes("Not marked Online"), "the legend says what the screen is");
@@ -812,5 +837,246 @@ describe("8. the words", () => {
     assert.equal(words.sessionsWhereWords(1, 0), "1 session: 1 in the room, 0 online");
     // The link is on the site, never promised by email.
     for (const line of [...toThePerson, ...toStaff]) assert.doesNotMatch(line, /send(?:s|ing)? (?:you )?the (?:joining|meeting|join) link/i, line);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. The facilitators' email
+// ---------------------------------------------------------------------------
+
+describe("8. the group's facilitators are emailed, once per person per session, never with the link", () => {
+  /** Group B's page, the one link the email may carry. */
+  const GROUP_PAGE = `https://naisi.invalid/learn/${RUN.agi}/group/${B}`;
+
+  /** Every message handed to the mail door, rendered. */
+  const sent = () =>
+    Promise.all(
+      world.mail.map(async (message) => {
+        const html = await render(message.react);
+        return { ...message, html, text: textOf(html) };
+      }),
+    );
+  /** Who was emailed, by uid, in order. */
+  const emailedUids = () => world.mail.map((message) => ["rahul", "sofia", "chloe", "farah", "kofi"].find((uid) => address(uid) === message.to) ?? message.to);
+
+  /** A seat in Group B for `uid`, told, as Chloe's is. */
+  const seatInB = (uid) => {
+    const seat = structuredClone(world.db.read(`courseEnrolments/${RUN.agi}__chloe`));
+    world.db.seed(`courseEnrolments/${RUN.agi}__${uid}`, { ...seat, uid, groupId: B });
+  };
+
+  test("the words, word for word: the two bodies, the field and the button taken from the box's own words", () => {
+    const base = { personName: "Daniel Kim", groupName: "Group C", weekNumber: 2, occurrence: 1, day: "Wed 11 Nov", time: "3pm" };
+    const asking = words.joiningOnlineEmailWords({ ...base, hasLink: false });
+    assert.deepEqual(asking, {
+      subject: "Daniel Kim is joining week 2 online",
+      lines: [
+        "Daniel Kim will join Group C’s week 2 session online, on Wed 11 Nov at 3pm.",
+        "The session has no meeting link yet. To add one, open your group page: the box at the top has a field “Meeting link for week 2”. Paste the link there and press “Add the link”. Everybody in Group C then sees it on their programme page. It is never sent by email.",
+      ],
+      button: "Open your group",
+      footnote: "This is an automated email, sent because somebody in your group said they’re joining online.",
+    });
+    const linked = words.joiningOnlineEmailWords({ ...base, hasLink: true });
+    assert.deepEqual(linked.lines, [
+      "Daniel Kim will join Group C’s week 2 session online, on Wed 11 Nov at 3pm.",
+      "The session already has a meeting link, so there’s nothing to add. Everybody in Group C sees it on their programme page.",
+    ]);
+    assert.deepEqual([linked.subject, linked.button, linked.footnote], [asking.subject, asking.button, asking.footnote]);
+    // The field and the button are the box's own: the email can never name a control the page does not have.
+    assert.ok(asking.lines[1].includes(`“${words.linkFieldLabel(2)}”`));
+    assert.ok(asking.lines[1].includes(`“${words.ADD_LINK}”`));
+    // With no time set, the day alone; a week's second session as the house names one.
+    assert.equal(words.joiningOnlineEmailWords({ ...base, time: "", hasLink: true }).lines[0], "Daniel Kim will join Group C’s week 2 session online, on Wed 11 Nov.");
+    const second = words.joiningOnlineEmailWords({ ...base, occurrence: 2, hasLink: true });
+    assert.equal(second.subject, "Daniel Kim is joining week 2’s session 2 online");
+    assert.equal(second.lines[0], "Daniel Kim will join Group C’s week 2’s session 2 online, on Wed 11 Nov at 3pm.");
+    for (const line of [asking.subject, ...asking.lines, ...linked.lines, asking.button, asking.footnote, second.subject, second.lines[0]]) {
+      assert.doesNotMatch(line, /[\u2013\u2014]/, line);
+      assert.doesNotMatch(line, /https?:|www\.|send(?:s|ing)? (?:you )?the (?:joining|meeting|join) link/i, line);
+    }
+  });
+
+  test("the box draws the field and the button the email names", async () => {
+    assert.equal((await online("chloe", "w03")).status, 200);
+    const box = draw(JoiningOnlineBox, { groupId: B, sessions: await boxOfB(), canAdd: true });
+    const [message] = await sent();
+    assert.match(box.html, new RegExp(`<label[^>]*>${words.linkFieldLabel(3)}</label>`));
+    assert.match(box.html, new RegExp(`<button type="submit"[^>]*>${words.ADD_LINK}</button>`));
+    assert.ok(message.text.includes(`the box at the top has a field “${words.linkFieldLabel(3)}”`), message.text);
+    assert.ok(message.text.includes(`press “${words.ADD_LINK}”`), message.text);
+  });
+
+  test("the group's facilitators and nobody else, each by their own first name, in the exact words, with no link but the group's page", async () => {
+    const answer = await online("chloe", "w03");
+    assert.deepEqual(answer, { status: 200, body: { ok: true, online: true, message: words.saidOnlineWords(false) } });
+    assert.deepEqual(emailedUids().sort(), ["rahul", "sofia"]);
+    const messages = await sent();
+    for (const message of messages) {
+      const first = message.to === address("rahul") ? "Rahul" : "Sofia";
+      assert.equal(message.subject, "Chloe Nguyen is joining week 3 online");
+      assert.deepEqual([message.kind, message.referenceId, message.actorUid], ["course-joining-online", RUN.agi, "chloe"]);
+      assert.equal(message.sender, undefined, "the email comes from the newsletter's address");
+      // In this order, each said once.
+      const said = [
+        `Chloe Nguyen is joining week 3 online Hi ${first},`,
+        "Chloe Nguyen will join Group B’s week 3 session online, on Tue 17 Nov at 6pm.",
+        "The session has no meeting link yet. To add one, open your group page: the box at the top has a field “Meeting link for week 3”. " +
+          "Paste the link there and press “Add the link”. Everybody in Group B then sees it on their programme page. It is never sent by email.",
+        "Open your group",
+        `Or paste this into your browser: ${GROUP_PAGE}`,
+        "This is an automated email, sent because somebody in your group said they’re joining online.",
+      ];
+      let from = 0;
+      for (const words_ of said) {
+        const at_ = message.text.indexOf(words_, from);
+        assert.ok(at_ >= from, `${message.to} is not sent, in order: ${words_}\n${message.text}`);
+        from = at_ + words_.length;
+      }
+      assert.equal(message.text.split("Chloe Nguyen will join").length, 2, "the first line is said twice");
+      // The one page it links to is the group's, and the only other address is the site's own logo.
+      assert.deepEqual([...new Set([...message.html.matchAll(/href="([^"]+)"/g)].map((match) => match[1]))], [GROUP_PAGE]);
+      const body = message.html.slice(message.html.indexOf("<body"));
+      assert.ok(body.length > 0 && body.length < message.html.length, "the email has no body");
+      for (const [web] of body.matchAll(/https?:\/\/[^"'<\s)]+/g)) {
+        assert.ok(web === GROUP_PAGE || web.startsWith("https://naisi.invalid/brand/"), `the email carries ${web}`);
+      }
+    }
+  });
+
+  test("with a link already, there is nothing to add, and the link is never in the email", async () => {
+    assert.equal((await giveLink("sofia", { sessionKey: "w03", url: LINK, everyWeek: false })).status, 200);
+    assert.deepEqual(world.mail, [], "adding the link emailed somebody");
+    assert.deepEqual((await online("kofi", "w03")).body, { ok: true, online: true, message: words.saidOnlineWords(true) });
+    const messages = await sent();
+    assert.equal(messages.length, 2);
+    for (const message of messages) {
+      assert.ok(
+        message.text.includes(
+          "Kofi Asante will join Group B’s week 3 session online, on Tue 17 Nov at 6pm. " +
+            "The session already has a meeting link, so there’s nothing to add. Everybody in Group B sees it on their programme page.",
+        ),
+        message.text,
+      );
+      assert.ok(!message.html.includes("meet.example"), "the email carries the meeting link");
+      assert.ok(!message.text.includes("no meeting link yet"), message.text);
+    }
+  });
+
+  test("never the person: a facilitator holding a place in the group says it, and only their co-facilitator is told", async () => {
+    seatInB("rahul");
+    assert.equal((await online("rahul", "w03")).status, 200);
+    assert.deepEqual(emailedUids(), ["sofia"]);
+    const [message] = await sent();
+    // Named as the group page names him to its readers: the name he goes by.
+    assert.equal(world.db.read("users/rahul").profile.preferredName, "Rahul");
+    assert.equal(message.subject, "Rahul is joining week 3 online");
+    assert.ok(message.text.includes("Hi Sofia,"), message.text);
+  });
+
+  test("nobody when it is taken back, and nothing a second time for the same person and session, across a take-back", async () => {
+    assert.equal((await online("chloe", "w03")).status, 200);
+    assert.equal(world.mail.length, 2);
+    const stamp = stored(B, 3).onlineEmailed.chloe;
+    assert.equal(instant(stamp).toISOString(), NOW.toISOString(), "when they were told");
+    assert.deepEqual((await inTheRoom("chloe", "w03")).body, { ok: true, online: false, message: words.onlineSavedWords(false, false) });
+    assert.equal(world.mail.length, 2, "taking it back emailed somebody");
+    assert.equal(stored(B, 3).onlineSaid.chloe, undefined, "the word stayed");
+    assert.equal(instant(stored(B, 3).onlineEmailed.chloe).toISOString(), NOW.toISOString(), "taking it back took the record of having told them");
+    at("2026-11-17T13:00:00Z");
+    assert.deepEqual((await online("chloe", "w03")).body, { ok: true, online: true, message: words.saidOnlineWords(false) });
+    assert.equal((await online("chloe", "w03")).status, 200, "saying it twice");
+    assert.equal(world.mail.length, 2, "saying it again emailed the facilitators again");
+    assert.equal(instant(stored(B, 3).onlineEmailed.chloe).toISOString(), NOW.toISOString(), "saying it again moved the record");
+  });
+
+  test("two people on one session are two emails to each facilitator, and another session is its own", async () => {
+    assert.equal((await online("chloe", "w03")).status, 200);
+    assert.equal((await online("farah", "w03")).status, 200);
+    assert.deepEqual(emailedUids(), ["rahul", "sofia", "rahul", "sofia"]);
+    assert.deepEqual(world.mail.map((message) => message.subject), [
+      "Chloe Nguyen is joining week 3 online",
+      "Chloe Nguyen is joining week 3 online",
+      "Farah Hussain is joining week 3 online",
+      "Farah Hussain is joining week 3 online",
+    ]);
+    assert.deepEqual(Object.keys(stored(B, 3).onlineEmailed).sort(), ["chloe", "farah"]);
+    assert.equal((await online("chloe", "w04")).status, 200);
+    assert.equal(world.mail.length, 6);
+    assert.equal(world.mail[5].subject, "Chloe Nguyen is joining week 4 online");
+    assert.deepEqual(Object.keys(stored(B, 4).onlineEmailed), ["chloe"]);
+  });
+
+  test("a refused press emails nobody", async () => {
+    world.db.seed(registerPath(B, 4), register(B, 4, {}, { pushed: true }));
+    assert.equal((await online("chloe", "w04")).status, 409);
+    assert.equal((await online("amara", "w03")).status, 404);
+    assert.equal((await online("chloe", "w03", { viewAs: true })).status, 403);
+    assert.equal((await cantMake("kofi", "w03")).status, 200);
+    assert.equal((await online("kofi", "w03")).status, 409);
+    assert.deepEqual(world.mail, []);
+    assert.equal(stored(B, 4).onlineEmailed, undefined);
+  });
+
+  test("an address on the do-not-email list is held back, and a send that fails leaves the press answered as today", async () => {
+    // The door answers what the chokepoint answered: Rahul's address is on the list.
+    world.mailFate = (args) => (args.to === address("rahul") ? "suppressed" : "sent");
+    const said = { runId: RUN.agi, group: { id: B, name: "Group B", facilitatorUids: ["rahul", "sofia"] }, uid: "chloe", weekNumber: 3, occurrence: 1, dateKey: "2026-11-17", startTimeLocal: "18:00", hasLink: false };
+    world.course = true;
+    try {
+      assert.deepEqual(await tellLib.tellFacilitatorsJoiningOnline(world.courseDb, said), { sent: 1, suppressed: 1, failed: 0 });
+    } finally {
+      world.course = false;
+    }
+    world.mail.length = 0;
+
+    // Every send throws: the press is answered exactly as it is when they go, and the record is kept.
+    world.mailFate = () => "fail";
+    const answer = await online("chloe", "w03");
+    assert.deepEqual(answer, { status: 200, body: { ok: true, online: true, message: words.saidOnlineWords(false) } });
+    assert.deepEqual(world.mail, []);
+    assert.deepEqual(Object.keys(stored(B, 3).onlineEmailed), ["chloe"], "a failed send gave the email back to be sent again");
+    world.course = true;
+    try {
+      assert.deepEqual(await tellLib.tellFacilitatorsJoiningOnline(world.courseDb, said), { sent: 0, suppressed: 0, failed: 2 });
+      // A read that throws is one failure, never a throw.
+      const broken = {
+        collection: () => {
+          throw new Error("unavailable");
+        },
+        getAll: () => Promise.reject(new Error("unavailable")),
+      };
+      assert.deepEqual(await tellLib.tellFacilitatorsJoiningOnline(broken, said), { sent: 0, suppressed: 0, failed: 1 });
+    } finally {
+      world.course = false;
+    }
+  });
+
+  test("the record of having told is additive, and never in anything a browser is sent", async () => {
+    // A register written before the map existed reads as today.
+    const before = { runId: RUN.agi, groupId: B, weekNumber: 3, records: { chloe: "present" }, onlineSaid: { chloe: NOW } };
+    const read = attendanceLib.normalizeCourseAttendance("x", before);
+    assert.deepEqual(read.onlineEmailed, {});
+    assert.deepEqual(read.records, { chloe: "present" });
+    assert.deepEqual(Object.keys(read.onlineSaid), ["chloe"]);
+    assert.deepEqual(Object.keys(attendanceLib.normalizeCourseAttendance("x", { ...before, onlineEmailed: { chloe: NOW, kofi: "not a time" } }).onlineEmailed), ["chloe"]);
+
+    const answer = await online("chloe", "w03");
+    assert.ok(!JSON.stringify(answer).includes("onlineEmailed"), "the press's answer carries the record");
+    for (const who of ["rahul", "claudia", "zach"]) {
+      const register = await registerAs(who);
+      assert.equal(register.status, 200, who);
+      assert.ok(!JSON.stringify(register.body).includes("onlineEmailed"), `the register sends ${who} the record`);
+    }
+    assert.ok(!JSON.stringify(await ticketFor("chloe")).includes("onlineEmailed"), "the ticket carries the record");
+    assert.ok(!JSON.stringify(await boxOfB()).includes("onlineEmailed"), "the box carries the record");
+
+    // The tree: the field is named by its record, the one write and account deletion, and no browser module.
+    const naming = [...walkSource(SRC)]
+      .filter((file) => /\bonlineEmailed\b|\bONLINE_EMAILED\b/.test(stripSource(readFileSync(file, "utf8"), { keepStrings: true })))
+      .map((file) => file.slice(SRC.length + 1).split("\\").join("/"))
+      .sort();
+    assert.deepEqual(naming, ["lib/courses/joiningOnline/seat.ts", "lib/firestore/accountDeletion.ts", "lib/firestore/courseAttendance.ts"]);
+    for (const file of naming) assert.doesNotMatch(readFileSync(join(SRC, file), "utf8"), /^["']use client["']/m, file);
   });
 });

@@ -12,7 +12,8 @@
  * facilitators read it in the box at the top of the group page and of the
  * register, which asks them for a meeting link for that week, and the
  * register puts them down as online when they are marked as having come.
- * Nobody is emailed.
+ * The group's facilitators are emailed once per person per session, the
+ * first time it is said, never with the link (`tell.ts`).
  *
  * ONE THING AT A TIME. Somebody who has told us they can't make the session
  * (excused in advance, "Can't make it") cannot also say they are joining it
