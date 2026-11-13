@@ -295,5 +295,49 @@ export function walkModulesFrom(entries) {
   return { sources, unresolved, reached };
 }
 
+/**
+ * The same reading of imports and the same resolver, run the other way: every
+ * file under `src` that reaches one of `targets` (absolute paths) through value
+ * imports, however deep, each with the shortest chain from it down to a
+ * target, the targets themselves among them. For a guard that asks who can
+ * ever be handed what a module reads (the times an answer was first read, say).
+ * `unresolved` is each `file -> specifier` anywhere under `src` the resolver
+ * could not place, which a caller reports rather than skips.
+ */
+export function importersOf(targets) {
+  const allFiles = sourceFilesUnder(SRC);
+  const sources = new Map(allFiles.map((file) => [file, readFileSync(file, "utf8")]));
+  const unresolved = [];
+  const importers = new Map();
+  for (const file of allFiles) {
+    for (const specifier of valueSpecifiers(sources.get(file) ?? "")) {
+      if (!specifier.startsWith(".") && !specifier.startsWith("@/")) continue;
+      if (NOT_CODE.test(specifier)) continue;
+      const target = resolveLocal(specifier, file);
+      if (!target) {
+        unresolved.push(`${repoPath(file)} -> ${specifier}`);
+        continue;
+      }
+      if (!importers.has(target)) importers.set(target, new Set());
+      importers.get(target).add(file);
+    }
+  }
+  const reached = new Map();
+  const queue = [];
+  for (const target of targets) {
+    reached.set(target, [target]);
+    queue.push(target);
+  }
+  while (queue.length > 0) {
+    const file = queue.shift();
+    for (const importer of importers.get(file) ?? []) {
+      if (reached.has(importer)) continue;
+      reached.set(importer, [importer, ...reached.get(file)]);
+      queue.push(importer);
+    }
+  }
+  return { sources, unresolved, reached };
+}
+
 /** A module's text with its comments taken out, strings kept: what a guard reads code from. */
 export { stripComments };

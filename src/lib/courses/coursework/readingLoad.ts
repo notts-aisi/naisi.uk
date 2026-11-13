@@ -2,7 +2,15 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { readPersonPrivateNotes, readRunCoursework } from "@/lib/courses/facilitatorWeek/readers";
 import type { WeekViewer } from "@/lib/courses/facilitatorWeek/model";
-import { byOldest, staffCardOf, staffLegacyCardOf, type AboutVersion, type StaffFeedbackCard } from "@/lib/courses/feedback/model";
+import {
+  byOldest,
+  changedSinceFeedback,
+  staffCardOf,
+  staffLegacyCardOf,
+  type AboutVersion,
+  type CardNames,
+  type StaffFeedbackCard,
+} from "@/lib/courses/feedback/model";
 import { cardNamesOf, legacyRoleOf } from "@/lib/courses/feedback/readers";
 import { boxesReaderFor } from "@/lib/courses/fillInBoxes/access";
 import { resolveGroupCalendar, resolveWeekDoc } from "@/lib/courses/groupResolve";
@@ -29,10 +37,12 @@ import {
 import type { SessionUser } from "@/lib/firebase/session";
 import { normalizeCourseEnrolment, placementIsShownTo, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { exerciseResponseId } from "@/lib/firestore/courseExercises";
+import type { CourseFeedbackDoc } from "@/lib/firestore/courseFeedback";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import { writtenAnswerWords } from "./input";
-import { personWeeks, shownWorkKeys, workKey, type PersonWeek, type PersonWeekFeedback } from "./model";
+import { personWeeks, shownWorkKeys, workKey, type PersonAnswerWrite, type PersonWeek, type PersonWeekFeedback } from "./model";
+import { personAnchorId, questionHref, shownAnswerIds } from "./question";
 import { byShownName, neighboursOf, openingWeek, readingHref } from "./reading";
 import { columnsOf, namesOf, weeksRead } from "./reads";
 import { personAskedThen } from "../weekEdit/askedThen";
@@ -69,7 +79,11 @@ import type { AskedWords } from "../weekEdit/wordsThen";
  *  - ratings for the team only for a reader `mayRateWorkOf` admits (an admin
  *    or the programme's lead on work they may review), never a facilitator;
  *  - Claude's draft grade for an admin alone, on an answer they may review,
- *    and only while the words it graded are still the words read;
+ *    only while the words it graded are still the words read, and only once
+ *    that admin has saved their own rating for the team of those words (Zach,
+ *    Fri 13 Nov 2026; a rating of earlier words does not count): before then
+ *    the view is handed only the review's line saying it shows then
+ *    (`draftGradeWaits`), never anything of the grade;
  *  - the sealed prediction as a row for an admin alone, never on their own
  *    week: the card is opened through its own route, which records the
  *    opening first. This file reads nothing of the card (not even which week
@@ -141,11 +155,34 @@ export type PersonWeekView = {
    * it was about: that version, who wrote the piece and the ids of every card
    * about that same version (drawn under it). Null otherwise.
    */
-  changed: { about: AboutVersion; byName: string; cardIds: string[] } | null;
+  changed: ChangedSince | null;
+  /**
+   * The page of one question across the person's group, on this door, on this
+   * week (the switch "One question, whole group"); null for somebody in no
+   * group this reader may open.
+   */
+  questionHref: string | null;
+  /**
+   * The answers this page puts in front of its reader in full, which the page
+   * names once drawn so the time each was first read is kept
+   * (`/api/courses/runs/[runId]/first-read`); null for a reader who may not
+   * act on the person's work (their own page among them) or nothing shown.
+   */
+  firstRead: { weekId: string; ids: string[] } | null;
   /** Ratings for the team, for an admin or the programme's lead on work they may review; null for everybody else. */
   team: TeamRatingsView | null;
-  /** Claude's draft grade, for an admin alone, with the review's own words; null when there is none or it is out of date. */
+  /**
+   * Claude's draft grade, for an admin alone, with the review's own words,
+   * once that admin has saved their own rating of the answer; null when there
+   * is none, it is out of date, or they have not rated it yet.
+   */
   draftGrade: { line: string; grade: string } | null;
+  /**
+   * A grade in date waits for the admin's own rating: the review's own line
+   * saying so, drawn in the grade's place; null otherwise. A fixed line, never
+   * anything of the grade.
+   */
+  draftGradeWaits: string | null;
   /** The sealed prediction's row, for an admin alone, on the weeks the course's card is filled in and opened on. */
   prediction: { runId: string; uid: string; name: string } | null;
   /** Whether private notes were read for this reader. */
@@ -189,6 +226,8 @@ export type ReadingDoor = {
   base: string;
   /** The person's written answer's review page on this door for a week, or null where this reader has none to open. */
   reviewHref: (weekNumber: number) => string | null;
+  /** The page of one question across the person's group on this door for a week, or null with no group to open. */
+  questionHref: (weekNumber: number) => string | null;
   /** Every place on the run, as the door has read them already for its own gate: not read again. */
   enrolments: readonly CourseEnrolmentDoc[];
   back: ReadingStep;
@@ -250,22 +289,16 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
   const stored = answerId ? (coursework.writes.answers.get(workKey(n, answerId)) ?? null) : null;
   const pieces = coursework.feedback.filter((piece) => piece.weekNumber === n);
   const cardNames = await cardNamesOf(db, [uid, actor.uid, stored?.feedback?.byUid ?? "", ...pieces.map((piece) => piece.byUid)]);
-  const reader = { uid: actor.uid, isAdmin: facts.isAdmin, now };
-  const cards: StaffFeedbackCard[] = byOldest([
-    ...(answerId && stored?.feedback
-      ? [staffLegacyCardOf(answerId, stored.feedback, legacyRoleOf(stored.feedback.byUid, shownGroup?.facilitatorUids ?? []), cardNames, reader)]
-      : []),
-    // Each piece with the version of the answer it was about, when the answer has changed since.
-    ...pieces.map((piece) => staffCardOf(piece, cardNames, reader, stored?.piece ?? null)),
-  ]);
-  const onTheAnswer = cards.filter((each) => each.on === "writtenAnswer");
-  const onTheWeek = cards.filter((each) => each.on === "week");
-  const ownAnswerPiece = [...onTheAnswer].reverse().find((each) => each.mine && each.mayChange && !each.legacy) ?? null;
-  const ownWeekPiece = [...onTheWeek].reverse().find((each) => each.mine && each.mayChange) ?? null;
+  const { onTheAnswer, onTheWeek, ownAnswerPiece, ownWeekPiece, readSavedAt, changed, answerReadable } = feedbackOnAWeek({
+    answerId,
+    stored,
+    pieces,
+    cardNames,
+    reader: { uid: actor.uid, isAdmin: facts.isAdmin, now },
+    groupFacilitatorUids: shownGroup?.facilitatorUids ?? [],
+  });
   // Feedback on the week once it may be read: the session has started, the answer may be read, or the old Submit was pressed.
   const weekReadable = sessionHasStarted(due, now) || stored?.piece != null || coursework.states.submittedOf(uid, n) !== null;
-  // Feedback on the answer once its readers may read it and what they read holds words.
-  const answerReadable = stored?.piece != null && stored.words > 0;
 
   const [week] = personWeeks({
     columns: [column],
@@ -277,20 +310,6 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
     writtenHref: () => null,
     feedbackOf: () => ({ cards: onTheWeek.filter((each) => each !== ownWeekPiece), own: ownWeekPiece, open: mayWrite && weekReadable }),
   });
-
-  // The newest piece on the answer whose version is no longer the words read: the version it was about.
-  // A card's `about` is told against the answer's newest save, and before the session its readers may be
-  // reading an earlier, sent version (`readableAnswer`): a piece about the very words read is about no change.
-  const readSavedAt = stored?.changedAt ? stored.changedAt.toISOString() : null;
-  const outdated = [...onTheAnswer].reverse().find((each) => each.about !== null && each.about.savedAt !== readSavedAt) ?? null;
-  const changed =
-    outdated?.about && answerReadable
-      ? {
-          about: outdated.about,
-          byName: outdated.byName,
-          cardIds: onTheAnswer.filter((each) => each.about?.savedAt === outdated.about?.savedAt).map((each) => each.id),
-        }
-      : null;
 
   const answerBoxes = weekOf(n)?.answer?.boxes ?? [];
   const [team, draft, askedThen, state] = await Promise.all([
@@ -318,6 +337,9 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
     personAskedThen(db, run.id, uid, person.readsGroupId, shownWorkKeys([week])),
     weekStateOf(db, { runId: run.id, weekNumber: n, uid, blocks: blockWeek.week && isBlockWeek(blockWeek.week) ? (blockWeek.week.blocks as WeekBlock[]) : null, submittedAt: coursework.states.submittedOf(uid, n), due }),
   ]);
+
+  // The admin's own rating of the words read now: a rating of earlier words (`changedSince`) does not count.
+  const ratedNow = team?.mine != null && !team.mine.changedSince;
 
   // Nothing of the week written, sent or ticked: the empty state, and Remind where it reaches them.
   const nothing =
@@ -366,9 +388,7 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
     answerFeedback: answerId
       ? {
           // A piece about the very words read carries no earlier version to stack under it.
-          cards: onTheAnswer
-            .filter((each) => each !== ownAnswerPiece)
-            .map((each) => (each.about && each.about.savedAt === readSavedAt ? { ...each, about: null } : each)),
+          cards: sideCardsOf(onTheAnswer, ownAnswerPiece, readSavedAt),
           own: ownAnswerPiece,
           open: mayWrite && answerReadable,
         }
@@ -376,8 +396,13 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
     // The answer's review page, where Pangram (for an admin) and the session reports' lines are beside it.
     reviewHref: answerReadable ? input.reviewHref(n) : null,
     changed,
+    questionHref: input.questionHref(n),
+    // What the page shows in full, named to be kept as first read: only by somebody who may act on the work.
+    firstRead: mayWrite && shownAnswerIds(week).length > 0 ? { weekId: weekDocId(n), ids: shownAnswerIds(week) } : null,
     team,
-    draftGrade: draft ? { line: REVIEW_WORDS.gradesLine, grade: REVIEW_WORDS.gradeOf(draft.grade) } : null,
+    // The grade only once the admin has saved their own rating of the words read now; before then, only that one waits.
+    draftGrade: draft && ratedNow ? { line: REVIEW_WORDS.gradesLine, grade: REVIEW_WORDS.gradeOf(draft.grade) } : null,
+    draftGradeWaits: draft !== null && !ratedNow ? REVIEW_WORDS.gradeAfterYourRating : null,
     prediction: card && (n === card.sealWeek || n === card.openWeek) ? { runId: run.id, uid, name: person.name } : null,
     notesShown: notes !== null,
     askedThen,
@@ -391,6 +416,82 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
       crumb: input.crumb,
     },
   };
+}
+
+/** What changed since feedback on a written answer: the version the newest out-of-date piece was about, who wrote it, and every card about that version. */
+export type ChangedSince = { about: AboutVersion; byName: string; cardIds: string[] };
+
+/**
+ * THE FEEDBACK ON ONE PERSON'S WEEK, as the reading pages draw it (one
+ * person's week, and one question across a group): every piece, feedback
+ * given before pieces existed among them, oldest first, split into those on
+ * the written answer and those on the week as a whole; the reader's own
+ * pieces while they may change; whether the answer may take feedback (its
+ * readers may read it and what they read holds words); and, when the answer
+ * has changed since the version the newest piece on it was about, that
+ * version and the cards about it. `pieces` are the person's pieces of that
+ * week, read after the page's gate.
+ */
+export function feedbackOnAWeek(input: {
+  answerId: string | null;
+  stored: PersonAnswerWrite | null;
+  pieces: readonly CourseFeedbackDoc[];
+  cardNames: CardNames;
+  reader: { uid: string; isAdmin: boolean; now: Date };
+  /** The person's group's facilitators, for who signed feedback given before pieces existed. */
+  groupFacilitatorUids: readonly string[];
+}): {
+  onTheAnswer: StaffFeedbackCard[];
+  onTheWeek: StaffFeedbackCard[];
+  ownAnswerPiece: StaffFeedbackCard | null;
+  ownWeekPiece: StaffFeedbackCard | null;
+  /** ISO 8601: when the words read were saved, or null. */
+  readSavedAt: string | null;
+  /**
+   * The newest piece on the answer whose version is no longer the words read,
+   * and the cards about that version: what the reading view stacks under the
+   * earlier version. It may be an older piece than the newest.
+   */
+  changed: ChangedSince | null;
+  /** The answer's state, as a row says it: the NEWEST piece on it was about earlier words (`changedSinceFeedback`). */
+  changedSinceNewest: boolean;
+  answerReadable: boolean;
+} {
+  const { answerId, stored, cardNames, reader } = input;
+  const cards: StaffFeedbackCard[] = byOldest([
+    ...(answerId && stored?.feedback
+      ? [staffLegacyCardOf(answerId, stored.feedback, legacyRoleOf(stored.feedback.byUid, input.groupFacilitatorUids), cardNames, reader)]
+      : []),
+    // Each piece with the version of the answer it was about, when the answer has changed since.
+    ...input.pieces.map((piece) => staffCardOf(piece, cardNames, reader, stored?.piece ?? null)),
+  ]);
+  const onTheAnswer = cards.filter((each) => each.on === "writtenAnswer");
+  const onTheWeek = cards.filter((each) => each.on === "week");
+  const ownAnswerPiece = [...onTheAnswer].reverse().find((each) => each.mine && each.mayChange && !each.legacy) ?? null;
+  const ownWeekPiece = [...onTheWeek].reverse().find((each) => each.mine && each.mayChange) ?? null;
+  // Feedback on the answer once its readers may read it and what they read holds words.
+  const answerReadable = stored?.piece != null && stored.words > 0;
+  // The newest piece on the answer whose version is no longer the words read: the version it was about.
+  // A card's `about` is told against the answer's newest save, and before the session its readers may be
+  // reading an earlier, sent version (`readableAnswer`): a piece about the very words read is about no change.
+  const readSavedAt = stored?.changedAt ? stored.changedAt.toISOString() : null;
+  const outdated = [...onTheAnswer].reverse().find((each) => each.about !== null && each.about.savedAt !== readSavedAt) ?? null;
+  const changed =
+    outdated?.about && answerReadable
+      ? {
+          about: outdated.about,
+          byName: outdated.byName,
+          cardIds: onTheAnswer.filter((each) => each.about?.savedAt === outdated.about?.savedAt).map((each) => each.id),
+        }
+      : null;
+  // Whether the answer has changed since feedback, as a row says it: by the newest piece on it alone.
+  const changedSinceNewest = answerReadable && changedSinceFeedback(onTheAnswer, readSavedAt);
+  return { onTheAnswer, onTheWeek, ownAnswerPiece, ownWeekPiece, readSavedAt, changed, changedSinceNewest, answerReadable };
+}
+
+/** The cards beside an answer: all but the reader's own changeable piece, a piece about the very words read with no earlier version stacked under it. */
+export function sideCardsOf(onTheAnswer: readonly StaffFeedbackCard[], own: StaffFeedbackCard | null, readSavedAt: string | null): StaffFeedbackCard[] {
+  return onTheAnswer.filter((each) => each !== own).map((each) => (each.about && each.about.savedAt === readSavedAt ? { ...each, about: null } : each));
 }
 
 /**
@@ -455,20 +556,24 @@ export type GroupPersonWeekOutcome = { status: "refused" } | { status: "blank" }
  * `writtenReviewRole` person by person), over every placement on the run
  * this reader is shown (`placementIsShownTo`: an admin sees one before it is
  * told). The group's page asks it for which names lead to the reading view,
- * and the reading view's own door asks it before reading anybody's week, so
- * a link is never drawn to a page that would refuse it. One equality on the
- * run.
+ * and the reading view's own door and the page of one question across the
+ * group (`./questionLoad.ts`) ask it before reading anybody's work, so a link
+ * is never drawn to a page that would refuse it. `told` is whose placement
+ * Publish has told them, asked about a caller who is no admin. One equality
+ * on the run.
  */
 export async function readableInGroup(
   db: Firestore,
   actor: SessionUser,
   input: { run: CourseRunDoc; group: CourseGroupDoc; liveGroups: readonly CourseGroupDoc[]; facts: ReviewerFacts },
-): Promise<{ owners: OwnerFacts[]; seats: Map<string, CourseEnrolmentDoc>; enrolments: CourseEnrolmentDoc[] }> {
+): Promise<{ owners: OwnerFacts[]; seats: Map<string, CourseEnrolmentDoc>; told: Set<string>; enrolments: CourseEnrolmentDoc[] }> {
   const { run, group, liveGroups, facts } = input;
   const enrolSnap = await db.collection("courseEnrolments").where("runId", "==", run.id).get();
   const enrolments = enrolSnap.docs.map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}));
   const live = new Set(liveGroups.map((each) => each.id));
   const seats = new Map<string, CourseEnrolmentDoc>();
+  // Whose placement Publish has told them: they read their group's copy of a week only then.
+  const told = new Set<string>();
   for (const seat of enrolments) {
     if (
       seat.runId === run.id &&
@@ -479,10 +584,11 @@ export async function readableInGroup(
       placementIsShownTo(seat, { isAdmin: facts.isAdmin })
     ) {
       seats.set(seat.uid, seat);
+      if (placementIsShownTo(seat, { isAdmin: false })) told.add(seat.uid);
     }
   }
   const owners: OwnerFacts[] = [...seats.values()].map((seat) => ({ uid: seat.uid, placedGroupId: seat.groupId }));
-  return { owners: reviewableIn(actor, facts, group, owners, liveGroups), seats, enrolments };
+  return { owners: reviewableIn(actor, facts, group, owners, liveGroups), seats, told, enrolments };
 }
 
 /**
@@ -510,7 +616,7 @@ export async function loadGroupPersonWeek(
   },
 ): Promise<GroupPersonWeekOutcome> {
   const { run, group, liveGroups, facts } = input;
-  const { owners: readable, seats, enrolments } = await readableInGroup(db, actor, { run, group, liveGroups, facts });
+  const { owners: readable, seats, told: toldSeats, enrolments } = await readableInGroup(db, actor, { run, group, liveGroups, facts });
   if (!readable.some((owner) => owner.uid === input.uid)) return { status: "refused" };
 
   const names = await namesOf(db, readable.map((owner) => owner.uid), actor);
@@ -521,7 +627,7 @@ export async function loadGroupPersonWeek(
   const facilitating = facilitatesOnRun(input.uid, liveGroups);
   // The group whose weeks a facilitator reads: the first live group they run, in the run's order, as the Coursework tab counts them.
   const runs = liveGroups.find((each) => each.facilitatorUids.includes(input.uid)) ?? null;
-  const told = seat !== null && placementIsShownTo(seat, { isAdmin: false });
+  const told = seat !== null && toldSeats.has(seat.uid);
   const groupPath = input.groupPath;
   // The group's page admits its live facilitators and admins; the lead goes back to the written answers.
   const back = input.facilitatesThisGroup || facts.isAdmin ? groupPath : `${groupPath}/written`;
@@ -548,6 +654,8 @@ export async function loadGroupPersonWeek(
     enrolments,
     // The group's written answers page: the same readers as this page.
     reviewHref: (weekNumber) => `${groupPath}/written?week=${weekNumber}&person=${encodeURIComponent(input.uid)}`,
+    // One question across this group, on the same week, landing on this person.
+    questionHref: (weekNumber) => `${questionHref(`${groupPath}/question`, { weekNumber, questionId: null })}#${personAnchorId(input.uid)}`,
     back: { label: groupLabel, href: back },
     crumb: { label: groupLabel, href: back },
   });

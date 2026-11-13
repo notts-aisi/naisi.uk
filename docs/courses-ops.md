@@ -3106,7 +3106,8 @@ answer as its readers may read it, with where it stands ("No feedback yet",
 Pangram, for an admin, and the session reports' lines sit beside it), and the
 feedback on it beside it (and, for an admin or
 the lead, the ratings for the team; for an admin, Claude's draft grade while
-the words graded are the words read), the feedback on the week as a whole,
+the words graded are the words read, once that admin has saved their own
+rating of those words), the feedback on the week as a whole,
 the sealed prediction's row for an admin (opened through its own route,
 which records the opening first), and the private notes on the material
 where `privateNotesOf` allows: the group's facilitators and admins, never
@@ -3125,8 +3126,124 @@ team keeps"). Survey answers never appear on the tab or the page.
 It is reached from each cell of the Coursework tab, each name in the week's
 people on the programme's page for a group, each name in Feedback to write
 and This week's work on the facilitator's group page (only where its own gate
-would admit the reader), and from under the answer on both written review
-pages.
+would admit the reader), from under the answer on both written review
+pages, and from the page of one question across a group.
+
+### One question, the whole group
+
+The same week read the other way: one question, asked once at the top, with
+every person of one group this reader may read and their answer to it in
+full, in the group's order. One loader (`loadGroupQuestion` in
+`src/lib/courses/coursework/questionLoad.ts`) and one page
+(`src/features/courses/coursework/QuestionView.tsx`), from two places:
+
+- **The programme's side**, `.../programmes/[programmeId]/question?group=G&week=N&question=ID`:
+  an admin or the programme's lead (`openLeadDoor`), any live group of the
+  programme's run, as the programme's other pages about one group are
+  addressed.
+- **The group's side**, `/learn/[runId]/group/[groupId]/question?week=N&question=ID`:
+  the reading view's own gate on that side (the group's live facilitator, the
+  programme's lead, an admin); anybody else goes to the run's home.
+
+Whose answers it lists is `readableInGroup` (`reviewableIn`, so
+`writtenReviewRole` person by person): a facilitator their group's fellows,
+never a co-facilitator's own answer; the lead and admins the facilitators'
+own too; nobody their own. A fill-in box only for the people `boxesReaderFor`
+admits. With no week named it opens the newest week anybody listed has
+written in, else the newest that has begun for the group; with no question
+named, the week's first. Previous and next step through the week's questions
+in its own order: its reflections, its fill-in boxes and its written answer.
+
+Each person shows their answer in full (a written answer as `readableAnswer`
+hands it: before their session the words as last sent, once it has started
+the latest), when it was written or sent, Late, "Not sent yet" for an answer
+never sent, "Nothing written yet" where there is none, and the way to their
+week at that question. Two states, at a glance and apart: "Not read yet"
+until somebody on the team has opened the answer (see below), and, on the
+written answer, which alone takes feedback, "No feedback yet", "Feedback
+given" or "Changed since feedback" (the newest piece of feedback on the
+answer is about earlier words than the words shown, `changedSinceFeedback`,
+with "See what changed" leading to both versions on the person's week). Beside a written answer: the feedback on it with who wrote it
+and when, the existing writer behind "Add feedback", and for an admin or the
+lead the rating for the team. No draft grade is shown on this page. Filters,
+each with its count of the people this reader may read: everybody, not read
+yet, no feedback yet (on the written answer) and late, any of them together.
+
+The switch "One person, one week" and "One question, whole group" is drawn on
+both pages, landing on the same week and the same person or question. It is
+not drawn for somebody in no group this reader may see.
+
+### When an answer was first read
+
+**What is kept**: for each answer of a person's week (a reflection, a fill-in
+box, the written answer), the day it was first put in front of somebody on the
+team who may read it, in full, on the reading view of one person's week, on
+the page of one question, or (the written answer) on its review page. Once set
+it never changes. Never who read it, and no count of readings. The day, as the
+start of the London day, not the moment: nothing shows or compares it finer
+than whether there is one, and a moment could be laid beside a host's request
+log to say who made the request.
+
+**Where**: on the person's week record, `courseWeekWork`, as the map
+`firstReadAt` from the answer's id to the day, beside `reviewedVersions`.
+Browsers are refused that record by the rules, and nothing the person's own
+pages and routes read hands it on: `normalizeCourseWeekWork`, which every
+reader of a person's own record goes through, leaves the field out. An answer
+missing from the map has no time kept (see "What counts as read" for what that
+says). The account deletion sweep (by `uid`) and a run's destroy (by `runId`)
+take the record whole, the days with it; a record the route makes carries both
+fields for that reason.
+
+**When the site began keeping them**: one server-only document,
+`config/firstReadTimes`, field `keptSince`, in the `config` collection every
+browser is refused. The route makes it, with the server's time, the first time
+a call gets past its refusals and before any day is kept on anybody's record,
+and never moves it; the loaders read it through
+`readFirstReadsKeptFrom` in `src/lib/courses/weekWork/firstRead.ts`, which a
+server keeps in memory once found, since it never changes. It is the exact
+instant, not a day: a day's start would call answers saved earlier that same
+day "not read yet", when somebody may have read them on the pages before. It
+names nobody and is about no run, so no deletion sweep touches it. Each
+environment makes its own.
+
+**How it is written**: the three pages, once drawn in the browser and looked
+at, name the answers they showed in full (`MarkFirstRead`; on a written
+answer's review page, `WrittenReview` behind both its doors, the one answer it
+opens) to `POST /api/courses/runs/[runId]/first-read`; never the page's GET
+and never while it renders, so a link preview or a prefetch marks nothing. The
+route refuses a view-as session first, then anybody signed out, a body that
+does not say (an id over 128 characters among it), a call naming the caller's
+own work, and anybody who reads nobody's work on the run. For each answer
+named it asks what reading it asks (`src/lib/courses/weekWork/firstRead.ts`):
+the one gate on whose work (`feedbackGate`); for a box, `boxesReaderFor`; for
+the written answer, that its readers may read it and it holds words
+(`feedbackStandingIn`, `feedbackRefusalFor`), so an answer still hidden before
+the session is never marked. It writes only the days that are missing, and
+answers `{ ok: true }` and nothing else.
+
+**What counts as read** (`readStateOf` in
+`src/lib/courses/coursework/question.ts`, held against `keptSince`): an answer
+with a day kept is read; a written answer with feedback on it, on any version,
+is read whatever is kept, because somebody on the team opened it to write that
+(a rating never counts); an answer with nothing written, or not shown to its
+readers in full yet, is neither read nor unread; and so is an answer with
+neither a day nor feedback that became readable in the words shown before the
+site began keeping read times, or while it has not begun (no document yet),
+because the team read and gave feedback on answers before then and nobody can
+say which. When an answer became readable in the words shown
+(`readableSinceOf`): a reflection or a box, its last change; a written answer,
+the later of the save of the words shown and either their send (when they were
+sent as they are) or the start of the session they are read from (when they
+never were). Any other answer is "Not read yet". Neither of the two kinds
+with no state is counted by a filter.
+
+**Who sees it**: the people who may read the answer, as "Not read yet" on
+the page of one question and as its filter, as things stood when they
+arrived (their own opening marks it read for the next reader). The person
+whose answer it is never sees it, on any page or in anything they can fetch.
+`tests/course-question-view.test.mjs` runs the route as every kind of caller,
+reads what the person's own routes and week page send them, and walks the
+tree for every page and route that can reach the store of the times.
 
 ### Reads
 
@@ -3139,7 +3256,8 @@ pack in the pathways their weeks count, by id (`readPackCaseRecords`), for
 whether a week is done; never the ready box for a talk. One person's week
 also reads where it stands as counts and times (`loadPeopleWeekFacts`), and,
 for an empty week, when they were last reminded. No query needs a composite
-index. Nothing on any of these pages writes.
+index. Nothing on any of these pages writes while it is drawn; the three
+reading pages name what they showed to the first-read route afterwards.
 
 ## Editing a week in place
 
@@ -4917,11 +5035,21 @@ and who might need a hand. `src/lib/courses/weekReview/` holds it.
 - **Beside the team's rating of an answer**: on the reading view of one
   person's week, an admin who may review the answer is shown Claude's draft
   grade for it under the rating for the team, with the review's own line that
-  grades are for choosing what to read first. It is read through the review's
-  store (`readDraftGrade` in `src/lib/courses/weekReview/store.ts`), by the
-  reading view's loader alone and after its admin check, and there is no row
-  while the words read are not the words graded.
-  `tests/claude-output-readers.test.mjs` lists the reader.
+  grades are for choosing what to read first, ONLY ONCE THAT ADMIN HAS SAVED
+  THEIR OWN RATING of the words read now (Zach, Fri 13 Nov 2026; a rating of
+  earlier words, the answer changed since, does not count), so the grade never
+  leads the rating. Before then the grade's place says "Claude's draft grade
+  shows here once you've saved your own rating." and the page is handed
+  nothing of the grade; somebody else's rating does not count. Saving a
+  rating, or taking it back, draws the page again, so the grade appears and
+  goes by itself. It is read through the review's store (`readDraftGrade` in
+  `src/lib/courses/weekReview/store.ts`), by the reading view's loader alone
+  and after its admin check, and there is no row, and no line, while the
+  words read are not the words graded. The week's review page still shows its
+  draft grades as it always has, and the page of one question across a group
+  shows none. `tests/claude-output-readers.test.mjs` lists the reader and holds
+  the rating rule; `tests/course-reading-view.test.mjs` runs it (not rated,
+  rated, taken back, the lead's rating).
 
 `tests/week-review.test.mjs` reads every message that would go, the checkers,
 the facts, the page as every reader, every press and the follow-up as every

@@ -121,6 +121,10 @@ const READERS = {
     why: "the words a question had when it was answered: a person's rows read only for which question each answers and when it was first written",
   },
   "lib/courses/weekWork/readers.ts": { treats: "no-words", why: "how far each person has got: which answers are sent and how many words they hold, projected so no word is read" },
+  "lib/courses/weekWork/firstRead.ts": {
+    treats: "no-words",
+    why: "when an answer was first read: a reflection's or a fill-in box's row is read only for whether it holds words, and a written answer only through feedbackStandingIn, which asks readableAnswer; nothing is read out or sent back",
+  },
   "lib/applications/nextTerm/load.ts": {
     treats: "no-words",
     why: "a term's Next term page: each written answer a rating for the team rates, read by its id only for when it was first written, and nothing else of it kept",
@@ -249,6 +253,8 @@ const PIECE_HOLDERS = {
   "lib/courses/coursework/readingLoad.ts":
     "server-only: the reading view's one loader; reads `.piece` for the version each feedback card was about, whether the week and the answer take feedback, and the ratings' changes; hands the page `personWeeks`' answers, never the stored one",
   "lib/courses/coursework/model.ts": "pure: `personWeeks` copies an answer's named fields into what the page is handed, and never `piece` (run below)",
+  "lib/courses/coursework/questionLoad.ts":
+    "server-only: the loader of one question across a group; words for the people the one gate lets the reader read, through `readRunCoursework`, `.piece` read for the version each feedback card was about and the ratings' changes; hands the page each answer's named fields, never the stored one (tests/course-question-view.test.mjs runs it with a change not sent)",
 };
 
 test("the stored answer behind a person's Coursework page (PersonAnswerWrite.piece) is held only by the files listed, both ways", () => {

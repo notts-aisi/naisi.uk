@@ -63,6 +63,12 @@ const pages = {
 const reading = await w.loadTs(join("lib", "courses", "coursework", "reading.ts"));
 const words = await w.loadTs(join("lib", "courses", "coursework", "words.ts"));
 const feedbackRoute = await w.courseRoute("runs", "[runId]", "feedback");
+const ratingsRoute = await w.courseRoute("runs", "[runId]", "work-ratings");
+const reviewWords = (await w.loadTs(join("lib", "courses", "weekReview", "words.ts"))).REVIEW_WORDS;
+/** A rating for the team saved, or taken back, through its own route, as the reading view's control does. */
+const rateAnswer = (who, uid, rating) =>
+  w.call(who, ratingsRoute.PUT, { runId: RUN.agi }, { body: { uid, weekId: "w03", itemId: "k3-wa", rating, comment: "Clear, and takes a side." }, course: true });
+const unrate = (who, uid) => w.call(who, ratingsRoute.DELETE, { runId: RUN.agi }, { body: { uid, weekId: "w03" }, course: true });
 
 const run = (text, marks = {}) => ({ text, ...marks });
 const p = (...runs) => ({ type: "p", runs });
@@ -254,14 +260,17 @@ describe("2. what each reader is sent", () => {
       const view = viewOf(drawn);
       assert.ok(view, `${uid}'s own page is not drawn`);
       assert.equal(view.self, true);
-      assert.deepEqual([view.team, view.draftGrade, view.prediction], [null, null, null], `${uid}'s own page carries what is never theirs`);
-      assert.doesNotMatch(drawn.html, /Rating for the team|Draft grade|Sealed predictions|What the team said/);
+      assert.deepEqual([view.team, view.draftGrade, view.draftGradeWaits, view.prediction], [null, null, null, null], `${uid}'s own page carries what is never theirs`);
+      assert.doesNotMatch(drawn.html, /Rating for the team|Draft grade|draft grade|Sealed predictions|What the team said/);
       // Nor feedback to write on their own work.
       assert.equal(view.answerFeedback?.open, false);
     }
-    // The same answers to somebody else: the admin is sent all three for the lead's answer.
+    // The same answers to somebody else: the admin is sent all three for the lead's answer, the grade once they have rated it.
+    const before = viewOf(await programmePage("zach", "claudia", { week: 3 }));
+    assert.deepEqual([before.team !== null, before.draftGrade, before.draftGradeWaits, before.prediction?.uid], [true, null, reviewWords.gradeAfterYourRating, "claudia"]);
+    assert.equal((await rateAnswer("zach", "claudia", 6)).status, 200);
     const other = viewOf(await programmePage("zach", "claudia", { week: 3 }));
-    assert.deepEqual([other.team !== null, other.draftGrade?.grade, other.prediction?.uid], [true, "Draft grade 6", "claudia"]);
+    assert.deepEqual([other.team !== null, other.draftGrade?.grade, other.draftGradeWaits, other.prediction?.uid], [true, "Draft grade 6", null, "claudia"]);
   });
 
   test("private notes: the group's facilitators and admins; never the lead, on either side", async () => {
@@ -280,10 +289,54 @@ describe("2. what each reader is sent", () => {
     assert.ok((await groupPage("zach", "rahul", { week: 3 })).html.includes(NOTED.rahul[1]));
   });
 
-  test("Claude's draft grade and the sealed prediction's row: admins alone, on the card's weeks, and the grade only while its words are the words read", async () => {
+  test("Claude's draft grade waits for the admin's own rating: a line in its place before, the grade once rated, the line again once the rating is taken back", async () => {
     w.at("2026-11-18T10:00:00Z");
+    // Not rated yet: the line, never the grade, on either side.
     for (const drawn of [await groupPage("zach", "chloe", { week: 3 }), await programmePage("zach", "chloe", { week: 3 })]) {
       const view = viewOf(drawn);
+      assert.equal(view.draftGrade, null, "an admin who has not rated is sent the grade");
+      assert.equal(view.draftGradeWaits, "Claude\u2019s draft grade shows here once you\u2019ve saved your own rating.");
+      assert.ok(!JSON.stringify(view).includes("Draft grade 7"), "the grade travels to an admin who has not rated");
+      assert.match(drawn.text, /Claude’s draft grade shows here once you’ve saved your own rating\./);
+      assert.doesNotMatch(drawn.text, /Draft grade 7/);
+    }
+    // Rated: the grade, and the line gone.
+    assert.equal((await rateAnswer("zach", "chloe", 8)).status, 200);
+    const rated = viewOf(await groupPage("zach", "chloe", { week: 3 }));
+    assert.deepEqual([rated.draftGrade?.grade, rated.draftGradeWaits], ["Draft grade 7", null]);
+    // Taken back: the line again.
+    assert.equal((await unrate("zach", "chloe")).status, 200);
+    const unrated = viewOf(await groupPage("zach", "chloe", { week: 3 }));
+    assert.deepEqual([unrated.draftGrade, unrated.draftGradeWaits], [null, reviewWords.gradeAfterYourRating]);
+    // Somebody else's rating is not the admin's own: the lead rates, the admin still waits.
+    assert.equal((await rateAnswer("claudia", "chloe", 6)).status, 200);
+    assert.equal(viewOf(await groupPage("zach", "chloe", { week: 3 })).draftGrade, null, "the lead's rating opened the admin's grade");
+    // A rating of earlier words is not a rating of the words read now: Chloe changes her answer after the admin rated it,
+    // Claude's grade is of the new words, and the line shows again until the admin rates those.
+    assert.equal((await rateAnswer("zach", "chloe", 8)).status, 200);
+    assert.equal(viewOf(await groupPage("zach", "chloe", { week: 3 })).draftGrade?.grade, "Draft grade 7");
+    const NEW_WORDS = "Keepers should, and the town should pay them.";
+    w.world.db.poke(`courseExerciseResponses/${RUN.agi}__chloe__w03__k3-wa`, { text: NEW_WORDS, words: 8, updatedAt: new Date("2026-11-18T09:30:00Z") });
+    w.world.db.seed(`courseWeekReviews/${RUN.agi}__w03`, review(NEW_WORDS));
+    const changed = viewOf(await groupPage("zach", "chloe", { week: 3 }));
+    assert.equal(changed.team.mine?.changedSince, true, "the admin's rating is not about earlier words");
+    assert.deepEqual([changed.draftGrade, changed.draftGradeWaits], [null, reviewWords.gradeAfterYourRating], "a rating of earlier words opened the grade of the new ones");
+    assert.equal((await rateAnswer("zach", "chloe", 7)).status, 200);
+    assert.deepEqual([viewOf(await groupPage("zach", "chloe", { week: 3 })).draftGrade?.grade, viewOf(await groupPage("zach", "chloe", { week: 3 })).draftGradeWaits], ["Draft grade 7", null]);
+    // Nobody but an admin is sent the grade or the line, rated or not.
+    for (const drawn of [await groupPage("claudia", "chloe", { week: 3 }), await groupPage("rahul", "chloe", { week: 3 }), await programmePage("claudia", "chloe", { week: 3 })]) {
+      assert.deepEqual([viewOf(drawn).draftGrade, viewOf(drawn).draftGradeWaits], [null, null]);
+      assert.doesNotMatch(drawn.html, /Draft grade|draft grade/);
+    }
+  });
+
+  test("Claude's draft grade and the sealed prediction's row: admins alone, on the card's weeks, and the grade only while its words are the words read", async () => {
+    w.at("2026-11-18T10:00:00Z");
+    // The grade shows once the admin has saved their own rating of the answer.
+    assert.equal((await rateAnswer("zach", "chloe", 8)).status, 200);
+    for (const drawn of [await groupPage("zach", "chloe", { week: 3 }), await programmePage("zach", "chloe", { week: 3 })]) {
+      const view = viewOf(drawn);
+      assert.equal(view.draftGradeWaits, null);
       assert.deepEqual(view.draftGrade, {
         grade: "Draft grade 7",
         line: "Grades help you choose what to read first. They’re never shown to the person, a lead or a facilitator, never become feedback, and never go into anyone’s notes or profile.",
@@ -299,14 +352,16 @@ describe("2. what each reader is sent", () => {
       await programmePage("claudia", "chloe", { week: 3 }),
     ]) {
       const view = viewOf(drawn);
-      assert.deepEqual([view.draftGrade, view.prediction], [null, null]);
-      assert.doesNotMatch(drawn.html, /Draft grade|Sealed predictions/);
+      assert.deepEqual([view.draftGrade, view.draftGradeWaits, view.prediction], [null, null, null]);
+      assert.doesNotMatch(drawn.html, /Draft grade|draft grade|Sealed predictions/);
     }
     // Only on the weeks the course's card is filled in and opened on.
     assert.equal(viewOf(await groupPage("zach", "chloe", { week: 1 })).prediction, null);
-    // A changed answer leaves its draft grade out: the words read are not the words graded.
+    // A changed answer leaves its draft grade out, and says nothing waits: the words read are not the words graded.
     w.world.db.seed(`courseWeekReviews/${RUN.agi}__w03`, review("Some other words."));
-    assert.equal(viewOf(await groupPage("zach", "chloe", { week: 3 })).draftGrade, null);
+    assert.deepEqual([viewOf(await groupPage("zach", "chloe", { week: 3 })).draftGrade, viewOf(await groupPage("zach", "chloe", { week: 3 })).draftGradeWaits], [null, null]);
+    assert.equal((await unrate("zach", "chloe")).status, 200);
+    assert.equal(viewOf(await groupPage("zach", "chloe", { week: 3 })).draftGradeWaits, null, "a line says a grade waits where none is in date");
     // Nothing of the person's card is read to draw the row.
     assert.ok(!codeOf("lib/courses/coursework/readingLoad.ts").includes("ownRecordOf("));
   });
@@ -770,7 +825,7 @@ describe("8. the tree", () => {
     const door = loader.slice(loader.indexOf("export async function loadGroupPersonWeek("));
     const refused = door.indexOf('if (!readable.some((owner) => owner.uid === input.uid)) return { status: "refused" };');
     assert.ok(refused !== -1 && refused < door.indexOf("readPersonWeek("), "the group's door reads a week before the one gate");
-    assert.match(loader, /return \{ owners: reviewableIn\(actor, facts, group, owners, liveGroups\), seats, enrolments \};/);
+    assert.match(loader, /return \{ owners: reviewableIn\(actor, facts, group, owners, liveGroups\), seats, told, enrolments \};/);
     // The run's places are read once a request: the door hands what its gate read to the run-wide read.
     assert.match(loader, /readRunCoursework\(db, \{ run, liveGroups, now, enrolments: input\.enrolments \}, uid\)/);
     assert.equal((loader.match(/\.collection\("courseEnrolments"\)/g) ?? []).length, 1, "the reading view reads the run's places more than once");

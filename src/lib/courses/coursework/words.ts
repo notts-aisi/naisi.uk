@@ -296,3 +296,61 @@ export function wholeWeekWords(firstName: string, weekNumber: number): string {
 export function reviewPageLinkWords(firstName: string): string {
   return `Open ${firstName ? `${firstName}’s` : "the"} answer on the written answers page`;
 }
+
+// One question, the whole group ---------------------------------------------------
+
+/**
+ * The words of the page of one question across a group, and of the switch
+ * between it and one person's week, that the code had no words for already.
+ * Where it had (the question, Late, "No feedback yet", "Not sent yet", the
+ * feedback cards and writer, the rating for the team), the page uses those,
+ * from their own files.
+ */
+
+/** The two ways to read a week, drawn on both views. */
+export const ONE_PERSON_ONE_WEEK = "One person, one week";
+export const ONE_QUESTION_WHOLE_GROUP = "One question, whole group";
+/** The switch between them, for a screen reader. */
+export const WAYS_TO_READ = "Ways to read";
+
+/** The page's title. */
+export const ONE_QUESTION_TITLE = "One question, the whole group";
+
+/** An answer nobody on the team has opened yet, and the filter of them. */
+export const NOT_READ_YET = "Not read yet";
+
+/** The person's answer was changed after feedback on it was written. */
+export const CHANGED_SINCE_FEEDBACK = "Changed since feedback";
+
+/** Under an answer changed since feedback: the way to both versions, on the person's week. */
+export const SEE_WHAT_CHANGED = "See what changed";
+
+/** Somebody who has written nothing to the question. */
+export const NOTHING_WRITTEN_YET = "Nothing written yet";
+
+/** The filters over the people, for a screen reader. */
+export const SHOW_WHOSE_ANSWERS = "Show whose answers";
+
+/** Stepping through the week's questions. */
+export const PREVIOUS_QUESTION = "Previous question";
+export const NEXT_QUESTION = "Next question";
+export const PREVIOUS_AND_NEXT_QUESTION = "Previous and next question";
+
+/** Opens the writer of feedback on one person's answer. */
+export const ADD_FEEDBACK = "Add feedback";
+
+/** Opens the rating for the team of one person's answer, for an admin or the programme's lead, before they have rated it. */
+export const RATE = "Rate";
+
+/** "Open Aisha’s week": the reading view of the person's week, at this question. */
+export function openWeekWords(firstName: string): string {
+  return firstName ? `Open ${firstName}’s week` : "Open their week";
+}
+
+/** A group with nobody this reader may read. */
+export const NOBODY_TO_READ = "There’s nobody in this group whose work is yours to read.";
+
+/** "Question 2 of 5": where the question sits in the week. */
+export function questionOfWords(at: number, of: number): string {
+  return `Question ${at} of ${of}`;
+}

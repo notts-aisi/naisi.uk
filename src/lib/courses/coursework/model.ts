@@ -72,7 +72,46 @@ export type CourseworkWeek = {
   writes: boolean;
   /** Everything the week asks to be written (`weekWritingNeeds`): what done asks when its tasks count nothing. Absent: nothing. */
   asks?: TaskNeeds;
+  /**
+   * Every question the week asks to be written, in the week's own order: each
+   * reflection prompt, each fill-in box and the written answer, as the page of
+   * one question across a group steps through them. Absent: none.
+   */
+  order?: QuestionStep[];
 };
+
+/** One question a week asks to be written: a reflection's prompt, a fill-in box or the written answer, by its id. */
+export type QuestionStep = { kind: "reflection" | "box" | "answer"; id: string };
+
+/**
+ * The questions a week asks, in the week's own order, as the week page asks
+ * them: a reflection prompt only inside a part (as `reflectionPartsOf` reads
+ * them), each fill-in box, and the week's written answer (`answerId`, the one
+ * the coursework pages read). An id once only.
+ */
+export function questionOrderOf(blocks: readonly WeekBlock[], answerId: string | null): QuestionStep[] {
+  const out: QuestionStep[] = [];
+  const seen = new Set<string>();
+  const add = (kind: QuestionStep["kind"], id: string) => {
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    out.push({ kind, id });
+  };
+  const visit = (block: WeekBlock, inPart: boolean) => {
+    if (block.type === "reflection") {
+      if (inPart) for (const prompt of block.prompts) add("reflection", prompt.id);
+    } else if (block.type === "fillIn") {
+      for (const group of block.groups) for (const box of group.boxes) add("box", box.id);
+    } else if (block.type === "writtenAnswer") {
+      if (block.id === answerId) add("answer", block.id);
+    }
+  };
+  for (const block of blocks) {
+    if (block.type === "part") for (const child of block.blocks) visit(child, true);
+    else visit(block, false);
+  }
+  return out;
+}
 
 /** A stored week, read for the tab: null for a week not written as blocks, which has no coursework here. */
 export function courseworkWeekOf(week: (ReadableWeek & { weekNumber: number; title?: string; blocks?: WeekBlock[] }) | null): CourseworkWeek | null {
@@ -89,6 +128,7 @@ export function courseworkWeekOf(week: (ReadableWeek & { weekNumber: number; tit
     tasks: weekTaskNeeds(blocks),
     writes: weekAsksForWriting(blocks),
     asks: weekWritingNeeds(blocks),
+    order: questionOrderOf(blocks, answer?.id ?? null),
   };
 }
 
@@ -474,7 +514,7 @@ export type PersonWeek = {
   parts: Array<{ number: number; title: string; prompts: PersonPrompt[] }>;
   answer: PersonAnswer | null;
   /** Each fill-in box, its words or null, when they last changed, with how late; null for a week with none, or a reader the boxes' gate refused. */
-  boxes: Array<{ heading: string; label: string; text: string | null; at: Date | null; lateMs: number | null; atSession: string | null }> | null;
+  boxes: Array<{ id: string; heading: string; label: string; text: string | null; at: Date | null; lateMs: number | null; atSession: string | null }> | null;
   sources: Array<{ id: string; title: string; kindLabel: string; partNumber: number | null; ticked: boolean; note: string | null }>;
   ticked: number;
   /** The feedback on the week; null for a week not written as blocks. */
@@ -594,6 +634,7 @@ export function personWeeks(input: {
             ? week.boxes.map((box) => {
                 const written = writes.boxes.get(workKey(n, box.id)) ?? null;
                 return {
+                  id: box.id,
                   heading: box.heading,
                   label: box.label,
                   text: written?.text ?? null,

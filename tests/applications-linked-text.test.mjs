@@ -1288,6 +1288,13 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/question/page.tsx",
+    {
+      built: ["`${programmePath}/coursework`", "`${programmePath}/groups/${encodeURIComponent(group.id)}`", "tab.href"],
+      from: "the way back to the programme's own Coursework tab and to its page for the group, and this page's own address before a week (`?group=`), each from the form's and the programme's ids in the address and a live group's id, encoded. Nothing anybody typed",
+    },
+  ],
+  [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/page.tsx",
     { built: ["tabPath"], from: "the programme's Groups tab, from the form's and the programme's ids, encoded (`groupsPath`)" },
   ],

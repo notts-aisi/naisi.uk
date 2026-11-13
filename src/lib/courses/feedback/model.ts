@@ -251,6 +251,28 @@ export function byOldest<T extends { at: string | null; id: string }>(cards: rea
   return [...cards].sort((a, b) => (a.at ?? "").localeCompare(b.at ?? "") || a.id.localeCompare(b.id));
 }
 
+/**
+ * WHETHER A WRITTEN ANSWER HAS CHANGED SINCE FEEDBACK, as a row or a cell
+ * says it ("Changed since feedback"): the NEWEST piece of feedback on the
+ * answer alone decides. It has changed when that piece was about earlier
+ * words than the words read now (its `about` is a version whose save is not
+ * `readSavedAt`, or the version it was about is no longer kept); a newer piece
+ * about the words read now says it has feedback on them, whatever an older
+ * piece was about. `pieces` are the cards on the answer, oldest first
+ * (`byOldest`); `readSavedAt` is when the words read now were saved (ISO
+ * 8601), or null. Feedback given before pieces existed carries no version and
+ * reads as about the words read. No pieces: no change to speak of.
+ */
+export function changedSinceFeedback(
+  pieces: ReadonlyArray<Pick<OwnFeedbackCard, "about" | "aboutGone">>,
+  readSavedAt: string | null,
+): boolean {
+  const newest = pieces.at(-1);
+  if (!newest) return false;
+  if (newest.aboutGone) return true;
+  return newest.about !== null && newest.about.savedAt !== readSavedAt;
+}
+
 // ---------------------------------------------------------------------------
 // The batch email
 // ---------------------------------------------------------------------------

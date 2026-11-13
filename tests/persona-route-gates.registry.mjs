@@ -3284,6 +3284,19 @@ export const ROUTES = {
         "email has gone, an admin whenever.",
     },
   },
+  "/api/courses/runs/[runId]/first-read": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Keeping when answers were first read by somebody on the team (called by the reading view of one person's " +
+        "week, the page of one question across a group and a written answer's review page, once drawn): view-as is refused first, then the " +
+        "session, then the body is checked before anything is read (which week, whose answers and which of " +
+        "them), so every signed-in persona meets the same 400 on an empty one. Once a valid body arrives, " +
+        "somebody naming their own work is refused, then anybody who reads nobody's work on the run, and each " +
+        "answer named is marked only where the one gate on whose work a reader may act on, and the answer's own " +
+        "readers, let the caller read it in full. It answers ok and nothing else, never a time or who.",
+    },
+  },
   "/api/courses/runs/[runId]/feedback/send": {
     POST: {
       expect: adminOnly(400),
@@ -4691,6 +4704,17 @@ export const PAGES = {
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
       "and with an address that names nothing is drawn the same not-here state.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/question": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The admissions tree's gate, then the page's own door (openLeadDoor, decided from the form before the run is " +
+      "read): one question across a group, every person's answer to it with when it was first read and its " +
+      "feedback, is the programme's lead's and an admin's here, so a reviewer on the form is told the page is " +
+      "theirs, and a programme the caller has no role on, or one that does not exist, renders 'there is no " +
+      "programme here' with a 200. Whose answers it lists is the one gate on whose work a reader may act on. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
@@ -5411,6 +5435,14 @@ export const PAGES = {
       "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
       "missing, and the page sends anybody who is not the group's live facilitator, the programme's " +
       "lead or an admin to the run's home.",
+  },
+  "/(app)/learn/[runId]/group/[groupId]/question": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page (one question across the group, from the group's side) sends anybody who is " +
+      "not the group's live facilitator, the programme's lead or an admin to the run's home; it lists only " +
+      "the people the reader may read in the group (writtenReviewRole), and writes nothing.",
   },
   "/(app)/learn/[runId]/group/[groupId]/coursework/[uid]": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
@@ -7374,6 +7406,24 @@ export const REAL_ROUTES = {
     PATCH: bodyFirst("Then the piece, and the one gate on whose work it is about, every refusal before the gate the same 404."),
     DELETE: bodyFirst("Then the piece, and the one gate on whose work it is about, every refusal before the gate the same 404."),
   },
+  "/api/courses/runs/[runId]/first-read": {
+    POST: {
+      realDrive: {
+        body: { weekId: "w01", people: [{ uid: "e2e-battery-person", ids: ["e2e-battery-answer"] }] },
+        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Reads nobody's work on the run (no admin, no lead of the programme naming it, no facilitator of one of its groups): refused before anybody named is read."),
+        admin: c(ACTS, "An admin reads work on any run, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "Leads the programme naming the run, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(ACTS, "Facilitates one of the run's groups, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        participant: c(403, "Holding a place reads nobody else's work: refused before anybody named is read."),
+      },
+    },
+  },
   "/api/courses/runs/[runId]/feedback/send": {
     POST: adminAlone("Sending the feedback emails", c(400, "Admitted on the session, then the body is checked: an empty one names no feedback and no numbers, so nothing is read or sent.")),
   },
@@ -7753,6 +7803,7 @@ export const REAL_PAGES = {
     ["noProgramme", "notReviewed"],
   ),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written": programmePage("the review page for its written answers."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/question": programmePage("one question across a group of its run, or its calm page for a run with nothing to read."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
     another: {
       ...PAGE_BASE,
@@ -7952,6 +8003,7 @@ export const REAL_PAGES = {
     leadWhy: LEAD_LEARN_ONLY_WHY,
   }),
   "/(app)/learn/[runId]/group/[groupId]/written": groupLearnPage("the group's written answers"),
+  "/(app)/learn/[runId]/group/[groupId]/question": groupLearnPage("one question across the group, or its calm page for a run with nothing to read"),
   "/(app)/learn/[runId]/group/[groupId]/coursework/[uid]": learnPage({
     admin: c("run", "An admin passes the page's gate, but the set's person holds a place in the run's other group, not this one: nobody of this group to read, so the run's home."),
     facilitator: c("run", "A live facilitator of this group, but the set's person holds a place in the other group, whose work is not theirs to read: the run's home."),

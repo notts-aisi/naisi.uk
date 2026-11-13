@@ -4,6 +4,7 @@ import type { WordChange } from "@/lib/courses/coursework/reading";
 import { afterOf, beforeOf, changeCounts, wordChanges } from "@/lib/courses/coursework/reading";
 import type { PersonWeekView, ReadingStep } from "@/lib/courses/coursework/readingLoad";
 import { workKey } from "@/lib/courses/coursework/model";
+import { questionAnchorId } from "@/lib/courses/coursework/question";
 import {
   ADDED,
   ANSWER_STATE_WORDS,
@@ -64,8 +65,10 @@ import FeedbackWriter from "../feedback/FeedbackWriter";
 import StaffFeedbackCards from "../feedback/StaffFeedbackCards";
 import EarlierWording from "../weekBlocks/EarlierWording";
 import RatingForTheTeam from "../written/RatingForTheTeam";
+import MarkFirstRead from "./MarkFirstRead";
 import RemindOne from "./RemindOne";
 import SealedPredictionRow from "./SealedPredictionRow";
+import ViewSwitch from "./ViewSwitch";
 import styles from "./reading.module.css";
 
 /**
@@ -78,7 +81,8 @@ import styles from "./reading.module.css";
  * ticked; each reflection and fill-in box under its question with when it was
  * written; the written answer as its readers may read it, with the feedback on
  * it beside it, and for an admin or the programme's lead the ratings for the
- * team (and for an admin Claude's draft grade); the feedback on the week as a
+ * team (and for an admin Claude's draft grade, once they have saved their own
+ * rating; before then a line saying it shows then); the feedback on the week as a
  * whole; for an admin the sealed prediction's row; the private notes on the
  * material where the reader reads them; and the way back.
  *
@@ -91,6 +95,15 @@ import styles from "./reading.module.css";
  * when the person was last reminded about it, and Remind, the group's own,
  * for one person and one week, where its rule reaches them.
  *
+ * THE SWITCH between this way of reading the week and one question across
+ * the person's group (`ViewSwitch`), on the same week and landing on the
+ * person; each question's answer carries an id the other way lands on.
+ *
+ * WHEN AN ANSWER WAS FIRST READ: once in the browser, the page names the
+ * answers it drew in full (`MarkFirstRead`), for a reader who may act on the
+ * person's work. It shows nothing of it: "Not read yet" is the page of one
+ * question's.
+ *
  * Drawn on the server from what the loader handed it: a reader is handed
  * nothing their gates refuse (no rating for a facilitator, no private note
  * for the lead, no draft grade or sealed prediction for anybody but an
@@ -99,14 +112,14 @@ import styles from "./reading.module.css";
  */
 
 /** Words as written: one paragraph per line, blank lines dropped. */
-function paragraphs(text: string): string[] {
+export function paragraphs(text: string): string[] {
   return text
     .split(/\n+/)
     .map((line) => line.trim())
     .filter(Boolean);
 }
 
-function Words({ text, className = styles.words }: { text: string; className?: string }) {
+export function Words({ text, className = styles.words }: { text: string; className?: string }) {
   return (
     <div className={className}>
       {paragraphs(text).map((line, index) => (
@@ -116,7 +129,7 @@ function Words({ text, className = styles.words }: { text: string; className?: s
   );
 }
 
-function Late({ ms }: { ms: number | null }) {
+export function Late({ ms }: { ms: number | null }) {
   return ms !== null ? <span className={styles.lateChip}>{lateAfterSessionWords(ms)}</span> : null;
 }
 
@@ -129,7 +142,7 @@ function Question({ text }: { text: string }) {
   );
 }
 
-function Step({ step, words }: { step: ReadingStep | null; words: (label: string) => string }) {
+export function Step({ step, words }: { step: ReadingStep | null; words: (label: string) => string }) {
   if (!step) return null;
   return (
     <Link href={step.href} className={styles.step}>
@@ -339,6 +352,8 @@ export default function ReadingView({ view, beside = null }: { view: PersonWeekV
         </div>
       </nav>
 
+      {view.questionHref && <ViewSwitch current="person" other={view.questionHref} />}
+
       {(view.state || met) && (
         <p className={styles.chips}>
           {view.state && (
@@ -402,7 +417,7 @@ export default function ReadingView({ view, beside = null }: { view: PersonWeekV
                 <div key={part.number} className={styles.part}>
                   <p className={styles.partTitle}>{partHeadingWords(part.number, part.title)}</p>
                   {part.prompts.map((prompt) => (
-                    <div key={prompt.id} className={styles.piece}>
+                    <div key={prompt.id} id={questionAnchorId(prompt.id)} className={styles.piece}>
                       <Question text={prompt.text} />
                       {prompt.answer ? (
                         <>
@@ -431,8 +446,8 @@ export default function ReadingView({ view, beside = null }: { view: PersonWeekV
               <h2 id="reading-boxes" className={styles.cardTitle}>
                 {BOXES}
               </h2>
-              {week.boxes.map((box, index) => (
-                <div key={index} className={styles.piece}>
+              {week.boxes.map((box) => (
+                <div key={box.id} id={questionAnchorId(box.id)} className={styles.piece}>
                   <Question text={box.label ? `${box.heading}: ${box.label}` : box.heading} />
                   {box.text ? (
                     <>
@@ -454,7 +469,7 @@ export default function ReadingView({ view, beside = null }: { view: PersonWeekV
           )}
 
           {answer && (
-            <section className={styles.card} aria-labelledby="reading-answer">
+            <section id={questionAnchorId(answer.id)} className={styles.card} aria-labelledby="reading-answer">
               <div className={styles.cardHead}>
                 <h2 id="reading-answer" className={styles.cardTitle}>
                   {WRITTEN_ANSWER}
@@ -498,7 +513,7 @@ export default function ReadingView({ view, beside = null }: { view: PersonWeekV
                     </Link>
                   )}
                 </div>
-                {(feedback || view.team || view.draftGrade) && (
+                {(feedback || view.team || view.draftGrade || view.draftGradeWaits) && (
                   <div className={styles.side}>
                     {feedback && (feedback.open || feedback.own) && (
                       <FeedbackWriter
@@ -529,6 +544,11 @@ export default function ReadingView({ view, beside = null }: { view: PersonWeekV
                       <div className={styles.draft}>
                         <p className={styles.draftGrade}>{view.draftGrade.grade}</p>
                         <p className={styles.meta}>{view.draftGrade.line}</p>
+                      </div>
+                    )}
+                    {view.draftGradeWaits && (
+                      <div className={styles.draft}>
+                        <p className={styles.meta}>{view.draftGradeWaits}</p>
                       </div>
                     )}
                   </div>
@@ -597,6 +617,8 @@ export default function ReadingView({ view, beside = null }: { view: PersonWeekV
       )}
 
       {beside && <aside className={styles.beside}>{beside}</aside>}
+
+      {view.firstRead && <MarkFirstRead runId={view.runId} weekId={view.firstRead.weekId} people={[{ uid: person.uid, ids: view.firstRead.ids }]} />}
 
       <nav className={styles.foot} aria-label={PREVIOUS_AND_NEXT_PERSON}>
         <Step step={nav.previousPerson} words={previousPersonWords} />

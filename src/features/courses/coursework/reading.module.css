@@ -1,4 +1,5 @@
-/* The reading view: one person, one week. Answers at 18px with a line height
+/* The reading view: one person, one week, and one question across a group,
+   which draws its answers the same way. Answers at 18px with a line height
    of 1.7 (17px on a phone); every pair of text and ground at 4.5:1 or more;
    44px targets; the solid focus outline; the page never scrolls sideways. */
 
@@ -537,6 +538,152 @@
   padding-top: 4px;
 }
 
+/* ── The two ways to read a week, and the filters ─────────────────────── */
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  list-style: none;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.segment,
+.segmentOn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: var(--radius-row);
+  font-size: 15px;
+  line-height: 1.25;
+  text-decoration: none;
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.segment {
+  color: var(--color-text-body);
+  font-weight: 400;
+}
+
+.segment:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.segmentOn {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--color-accent-line);
+}
+
+.segment:focus-visible,
+.segmentOn:focus-visible,
+.disclosure > summary:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
+.count {
+  font-family: var(--font-meta);
+  font-size: 13px;
+  color: inherit;
+}
+
+/* ── One question, the whole group ─────────────────────────────────────── */
+
+.person {
+  scroll-margin-top: 16px;
+}
+
+.personHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  min-width: 0;
+}
+
+.personName {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+/* An answer nobody on the team has opened: said in words, set apart by its edge as well as its tone. */
+.unreadChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border: 1px solid var(--color-accent-text);
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-accent-text);
+}
+
+.disclosure {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.disclosure > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 8px 18px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-row);
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.25;
+  cursor: pointer;
+  list-style: none;
+  box-sizing: border-box;
+}
+
+.disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure > summary:hover {
+  background: var(--color-surface-hover);
+}
+
+.disclosure[open] > summary {
+  background: var(--color-surface-hover);
+}
+
 @media (max-width: 60rem) {
   .grid {
     grid-template-columns: minmax(0, 1fr);
@@ -568,5 +715,20 @@
 
   .step {
     flex: 1 1 0;
+  }
+
+  .bar,
+  .segments {
+    width: 100%;
+  }
+
+  .segment,
+  .segmentOn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .disclosure > summary {
+    align-self: stretch;
   }
 }

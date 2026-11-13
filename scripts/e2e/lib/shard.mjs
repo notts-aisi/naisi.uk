@@ -58,49 +58,49 @@ export function parseShard(raw) {
 }
 
 /**
- * How long each spec takes, in seconds, to drive and to clear up after
- * itself, to the nearest ten: read off one whole run of the suite in CI
- * (13 November 2026). Only the proportions matter, so a number here is right
+ * How long each spec takes, in seconds, to seed, to drive and to clear up
+ * after itself, to the nearest ten: read off one whole run of the suite in
+ * CI, the first in six parts (13 November 2026). Only the proportions matter, so a number here is right
  * for as long as it is roughly right; refresh the table from a run's log when
  * the parts drift apart. A spec that is not listed is taken as
  * `DEFAULT_SPEC_SECONDS`, so a new spec needs no entry to be placed.
  */
 export const SPEC_SECONDS = new Map([
   ["applicant-funnel", 40],
-  ["applicant-one-flow", 20],
+  ["applicant-one-flow", 40],
   ["applicant-signup", 20],
-  ["appointment-queue", 20],
-  ["course-hub-before-survey", 150],
+  ["appointment-queue", 10],
+  ["course-hub-before-survey", 210],
   ["course-hub-check-in", 120],
-  ["course-hub-correct-register", 190],
-  ["course-hub-coursework", 70],
-  ["course-hub-cover-register", 210],
-  ["course-hub-edit-a-week", 180],
-  ["course-hub-excused-weeks", 250],
+  ["course-hub-correct-register", 170],
+  ["course-hub-coursework", 110],
+  ["course-hub-cover-register", 260],
+  ["course-hub-edit-a-week", 190],
+  ["course-hub-excused-weeks", 200],
   ["course-hub-explainers-and-lead-notes", 140],
-  ["course-hub-facilitators-week", 150],
-  ["course-hub-group-time", 60],
-  ["course-hub-groups-go-out", 160],
-  ["course-hub-incubator-pitching-and-teams", 140],
-  ["course-hub-lead-week-three", 90],
-  ["course-hub-leaving", 260],
-  ["course-hub-programme-end", 220],
-  ["course-hub-programme-surveys", 60],
-  ["course-hub-remind", 130],
+  ["course-hub-facilitators-week", 130],
+  ["course-hub-group-time", 90],
+  ["course-hub-groups-go-out", 130],
+  ["course-hub-incubator-pitching-and-teams", 120],
+  ["course-hub-lead-week-three", 160],
+  ["course-hub-leaving", 330],
+  ["course-hub-programme-end", 190],
+  ["course-hub-programme-surveys", 90],
+  ["course-hub-remind", 160],
   ["course-hub-sessions-and-work", 320],
-  ["course-hub-survey-admin", 90],
-  ["course-hub-week-one-before-groups", 270],
-  ["course-hub-week-review", 130],
-  ["course-hub-whole-term", 730],
-  ["course-hub-work-loop", 100],
-  ["coursework-notes", 90],
-  ["events-at-the-door", 90],
-  ["events-authoring", 60],
+  ["course-hub-survey-admin", 100],
+  ["course-hub-week-one-before-groups", 300],
+  ["course-hub-week-review", 100],
+  ["course-hub-whole-term", 750],
+  ["course-hub-work-loop", 130],
+  ["coursework-notes", 70],
+  ["events-at-the-door", 100],
+  ["events-authoring", 70],
   ["events-rsvp", 10],
-  ["member-journey", 70],
+  ["member-journey", 80],
   ["membership-console", 20],
-  ["messages", 60],
-  ["register-push", 100],
+  ["messages", 70],
+  ["register-push", 90],
   ["round-authoring", 30],
 ]);
 
