@@ -4388,7 +4388,11 @@ describe("the course hub passage", () => {
       sourceFilesNaming(/\b(?:loadGroupWeek|loadReadOutWeek|loadNamedReflections|readRunCoursework)\(/),
       new Map([
         ["src/lib/courses/facilitatorWeek/readers.ts", "the loaders and the run-wide read, which ask nobody who is reading, so each caller decides that first"],
-        ["src/lib/courses/coursework/load.ts", "the Coursework tab and one person's page: everybody's reflections and ticks on a programme's run, for its lead and admins, after the programme's own gate"],
+        ["src/lib/courses/coursework/load.ts", "the Coursework tab: everybody's reflections and ticks on a programme's run, as counts, for its lead and admins, after the programme's own gate"],
+        [
+          "src/lib/courses/coursework/readingLoad.ts",
+          "one person's week in the reading view, after its door's gate (the programme's: its lead and admins; the group's: its live facilitators, the lead and admins) and, on the group's side, the one gate on whose work a reader may act on, so a facilitator never reads a facilitator's own",
+        ],
         ["src/app/(app)/learn/[runId]/group/[groupId]/page.tsx", "the group's page, for its live facilitators and admins"],
         ["src/app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx", "the page to read lines out, for the group's live facilitators and admins"],
         ["src/app/(app)/learn/[runId]/group/[groupId]/reflections/names/page.tsx", "the group's fellows' reflections with names, for the group's live facilitators and admins, never a facilitator's own"],
@@ -5553,7 +5557,10 @@ describe("the course hub passage", () => {
         [gateFile, "the gate itself: admins and the programme's lead for anybody's, a live facilitator of a fellow's own group for theirs, and nobody else for a facilitator's own"],
         [readerFile, "the one reader of somebody else's boxes, which asks the gate before a box is read"],
         ["src/lib/courses/facilitatorWeek/readers.ts", "a group's week for its facilitators, the programme's lead and admins: each person's boxes on the week the page shows, the gate asked person by person before a box is read, for exactly the people it admits"],
-        ["src/lib/courses/coursework/load.ts", "one person's coursework page, for the programme's lead and admins: the gate asked for that person, and their boxes drawn only when it answers"],
+        [
+          "src/lib/courses/coursework/readingLoad.ts",
+          "one person's week in the reading view, on the programme's side or the group's: the gate asked for that person, and their boxes drawn only when it answers",
+        ],
       ]),
       "deciding who reads somebody's fill-in boxes",
       "The policy says a person's boxes are read by them, their group's " +
@@ -10660,6 +10667,10 @@ describe("v15 lets the people running a programme rate written work for each oth
         [
           "src/lib/courses/weekNotes/gather.ts",
           "what a note's draft is built from, for an admin alone (the week's notes door, or `gateNotes` on the profile), never about the admin drafting; tests/course-work-ratings.test.mjs holds its callers",
+        ],
+        [
+          "src/lib/courses/coursework/readingLoad.ts",
+          "the reading view of one person's week, for an admin or the programme's lead alone (`mayRateWorkOf`, which never admits a facilitator or the person themselves); tests/course-work-ratings.test.mjs holds the call",
         ],
       ]),
       "reading ratings for the team",

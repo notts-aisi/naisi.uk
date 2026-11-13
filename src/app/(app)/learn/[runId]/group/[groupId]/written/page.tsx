@@ -69,6 +69,7 @@ export default async function WrittenAnswersPage({
       model={model}
       basePath={`${groupPath}/written`}
       back={{ href: groupPath, label: group.name.trim() || "Your group" }}
+      readBase={`${groupPath}/coursework`}
     />
   );
 }

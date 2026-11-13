@@ -26,11 +26,14 @@ import { lateAfterSessionWords } from "@/lib/courses/weekWork/words";
 export default function ReviewQueueCard({
   rows,
   hrefFor,
+  readHrefFor = null,
   reflections = null,
 }: {
   rows: WrittenQueueRow[];
   /** Where Give feedback leads for one row: the review page on that person and week. */
   hrefFor: (row: WrittenQueueRow) => string;
+  /** The reading view of that person's week, where the name leads; left out, the name is plain text. */
+  readHrefFor?: ((row: WrittenQueueRow) => string) | null;
   reflections?: ReactNode;
 }) {
   return (
@@ -51,7 +54,13 @@ export default function ReviewQueueCard({
               <li key={`${row.uid} ${row.weekNumber}`} className={facilitator.review}>
                 <InitialsChip name={row.name} uid={row.uid} size="md" />
                 <span className={facilitator.reviewText}>
-                  <span className={facilitator.personName}>{row.name}</span>
+                  {readHrefFor ? (
+                    <Link href={readHrefFor(row)} className={`${facilitator.personName} ${facilitator.personLink}`}>
+                      {row.name}
+                    </Link>
+                  ) : (
+                    <span className={facilitator.personName}>{row.name}</span>
+                  )}
                   <span className={facilitator.queueMeta}>
                     {row.locked ? listReadSinceWords(new Date(row.firstSentAt)) : listSentWords(new Date(row.firstSentAt))}
                   </span>

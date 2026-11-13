@@ -168,3 +168,131 @@ export const PERSON_NOT_HERE_TITLE = "There’s no coursework to show here";
 export function personNotHereWords(programmeName: string): string {
   return `This person doesn’t hold a place on ${programmeName} or facilitate one of its groups.`;
 }
+
+// One person's week: the reading view --------------------------------------------
+
+/**
+ * The words of the reading view of one person's week that the code had no
+ * words for already. Where it had (the week's state, Late, feedback, the
+ * ratings for the team, the question as it was worded, the sealed predictions,
+ * Remind), the view uses those, from their own files.
+ */
+
+/** Over the view: "AGI Strategy · Group C · week 1 of 6", "AGI Strategy · Not in a group yet · week 1". */
+export function readingEyebrowWords(programme: string, group: string | null, weekNumber: number, weeksTotal: number): string {
+  const week = weeksTotal > 0 ? `week ${weekNumber} of ${weeksTotal}` : `week ${weekNumber}`;
+  return [programme.trim(), group ?? NOT_IN_A_GROUP_YET, week].filter(Boolean).join(" · ");
+}
+
+/** "Previous person: Grace Chen". */
+export function previousPersonWords(name: string): string {
+  return `Previous person: ${name}`;
+}
+
+/** "Next person: Kwame Asante". */
+export function nextPersonWords(name: string): string {
+  return `Next person: ${name}`;
+}
+
+/** "Previous week: week 1". */
+export function previousWeekWords(weekNumber: number): string {
+  return `Previous week: week ${weekNumber}`;
+}
+
+/** "Next week: week 2". */
+export function nextWeekWords(weekNumber: number): string {
+  return `Next week: week ${weekNumber}`;
+}
+
+/** "Back to Group C". */
+export function backToWords(label: string): string {
+  return `Back to ${label}`;
+}
+
+/** The way between people and weeks at the top, and between people at the foot, for a screen reader. */
+export const PEOPLE_AND_WEEKS = "People and weeks";
+export const PREVIOUS_AND_NEXT_PERSON = "Previous and next person";
+
+export const READINGS = "Readings";
+
+/** "3 of 3": readings ticked, of the week's readings. */
+export function ofWords(done: number, of: number): string {
+  return `${done} of ${of}`;
+}
+
+/** "Ticked Mon 2 Nov, 9:10pm", under a reading, on a staff page. */
+export function tickedWhenWords(at: Date): string {
+  return `${TICKED} ${dayAndClockWords(at)}`;
+}
+
+/**
+ * When the group met for the week, against the session the person was due at:
+ * "Group C met Wed 4 Nov, 3pm", "Group C meets Wed 11 Nov, 3pm", "Group C’s
+ * week 2 session, Wed 11 Nov, 3pm, was cancelled", "Group C’s time isn’t set
+ * yet". Null when there is nothing to say: no group, or told their group after
+ * that week's session (the week's state says "Joined late").
+ */
+export function groupMetWords(group: string | null, weekNumber: number, due: { at: Date | null; by: string }, now: Date): string | null {
+  if (!group) return null;
+  if (due.by === "undated") return `${group}’s time isn’t set yet`;
+  if (!due.at || (due.by !== "session" && due.by !== "cancelled")) return null;
+  const when = dayAndClockWords(due.at);
+  if (due.by === "cancelled") return `${group}’s week ${weekNumber} session, ${when}, was cancelled`;
+  return `${group} ${now.getTime() >= due.at.getTime() ? "met" : "meets"} ${when}`;
+}
+
+/** Over the empty state. */
+export const NOTHING_TO_READ_YET = "Nothing to read yet";
+
+/** "Grace hasn’t started week 2. Readings 0 of 3, nothing written." */
+export function notStartedWords(firstName: string, weekNumber: number, readings: { ticked: number; of: number }): string {
+  const ticks = readings.of > 0 ? ` ${READINGS} ${ofWords(readings.ticked, readings.of)}, nothing written.` : " Nothing written.";
+  return `${firstName || "They"} ${firstName ? "hasn’t" : "haven’t"} started week ${weekNumber}.${ticks}`;
+}
+
+/** Over the earlier version of a written answer and its words now, when it has changed since feedback. */
+export const NOW = "Now";
+
+/** The line under the two versions: words, not colour, carry the change. */
+export const CHANGE_LEGEND = "Struck through: taken out. Underlined: added.";
+
+/** Before words taken out and words added, for a screen reader. */
+export const TAKEN_OUT = "Taken out:";
+export const ADDED = "Added:";
+
+/** What changed, in words: "6 words taken out and 14 added." */
+export function changeCountWords(counts: { out: number; in: number }): string {
+  const words = (n: number) => (n === 1 ? "1 word" : `${n} words`);
+  if (counts.out > 0 && counts.in > 0) return `${words(counts.out)} taken out and ${counts.in} added.`;
+  if (counts.out > 0) return `${words(counts.out)} taken out.`;
+  if (counts.in > 0) return `${words(counts.in)} added.`;
+  return "Only the spacing changed.";
+}
+
+/** "As Rahul read it": the earlier version, by whoever wrote the feedback about it. */
+export function asReadWords(name: string): string {
+  return name ? `As ${name} read it` : "As it was read";
+}
+
+/** Over the private notes on the week's material. */
+export const PRIVATE_NOTES_ON_THE_MATERIAL = "Private notes on the material";
+
+/** A week the person reads that has no reading to tick. */
+export const NO_READINGS = "No readings to tick this week.";
+
+/** A week with no reflection, no box and no written answer. */
+export const NOTHING_TO_WRITE_THIS_WEEK = "This week asks for nothing written.";
+
+/** Under an answer on its review page: the way to the reading view of the person's whole week. "Read all of Chloe’s week 3". */
+export function wholeWeekWords(firstName: string, weekNumber: number): string {
+  return `Read all of ${firstName ? `${firstName}’s` : "their"} week ${weekNumber}`;
+}
+
+/**
+ * Under a written answer in the reading view: the way to its review page,
+ * where Pangram's reading (for an admin) and what the week's session reports
+ * say about the person sit beside it. "Open Chloe’s answer on the written answers page".
+ */
+export function reviewPageLinkWords(firstName: string): string {
+  return `Open ${firstName ? `${firstName}’s` : "the"} answer on the written answers page`;
+}

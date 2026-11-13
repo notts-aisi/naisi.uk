@@ -1,0 +1,572 @@
+/* The reading view: one person, one week. Answers at 18px with a line height
+   of 1.7 (17px on a phone); every pair of text and ground at 4.5:1 or more;
+   44px targets; the solid focus outline; the page never scrolls sideways. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.crumb,
+.backLink,
+.reviewLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  min-height: 44px;
+  color: var(--color-accent-text);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.crumb:hover,
+.backLink:hover,
+.reviewLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.crumb:focus-visible,
+.backLink:focus-visible,
+.reviewLink:focus-visible,
+.step:focus-visible,
+.buttonGhost:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
+/* ── The head ─────────────────────────────────────────────────────────── */
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.weekTitle {
+  margin: 4px 0 0;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--color-text-soft);
+  overflow-wrap: anywhere;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.marks,
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin: 0;
+}
+
+.marks {
+  margin-top: 6px;
+}
+
+.chip,
+.lateChip,
+.doneChip,
+.waitingChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.chip {
+  background: var(--color-surface-hover);
+  color: var(--color-text-soft);
+}
+
+.lateChip {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.doneChip {
+  background: var(--color-success-soft);
+  color: var(--color-ok);
+}
+
+/* A written answer waiting for feedback stands out, in words and in tone. */
+.waitingChip {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+
+/* Under the written answer: the way to its review page, a link in words. */
+.reviewLink {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ── Previous and next ────────────────────────────────────────────────── */
+
+.steps,
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.stepGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+
+.step,
+.buttonGhost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 18px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-row);
+  background: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-decoration: none;
+  box-sizing: border-box;
+  cursor: pointer;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.step:hover,
+.buttonGhost:hover {
+  background: var(--color-surface-hover);
+}
+
+.buttonGhost:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+/* ── Cards ────────────────────────────────────────────────────────────── */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-sizing: border-box;
+}
+
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+.line {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--color-text);
+}
+
+.meta,
+.legend {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.quiet {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.said {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-ok);
+}
+
+.error {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-danger-text);
+}
+
+.when {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+/* ── Readings and notes ───────────────────────────────────────────────── */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row,
+.note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-top: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+.note {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.rowMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 18rem;
+}
+
+.rowTitle {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.noteText {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--color-text-body);
+  overflow-wrap: anywhere;
+}
+
+.noteLabel {
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* ── Reflections, boxes and the written answer ───────────────────────── */
+
+.part {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.part + .part {
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.partTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-soft);
+}
+
+.piece {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.question {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+  min-width: 0;
+}
+
+.questionLabel {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.questionText {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--color-text-body);
+  overflow-wrap: anywhere;
+}
+
+.words {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 68ch;
+  min-width: 0;
+}
+
+.words p,
+.changeWords {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.7;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.changeWords {
+  white-space: pre-wrap;
+}
+
+.boxes {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.answerBox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.boxLabel {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-soft);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 380px);
+  gap: 28px;
+  align-items: start;
+}
+
+.main,
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.draft {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+
+.draftGrade {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* ── An answer changed since feedback ─────────────────────────────────── */
+
+.changed {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.changedLine {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--color-warning-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text);
+}
+
+.versions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  min-width: 0;
+}
+
+.version {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.versionLabel {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* Words carry the change: struck through and underlined, and said to a screen reader. */
+.out {
+  color: var(--color-danger-text);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+
+.in {
+  color: var(--color-ok);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+/* ── The rows at the foot ─────────────────────────────────────────────── */
+
+.pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 20px;
+  min-width: 0;
+}
+
+.beside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.foot {
+  padding-top: 4px;
+}
+
+@media (max-width: 60rem) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 36rem) {
+  .title {
+    font-size: 28px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .words p,
+  .changeWords {
+    font-size: 17px;
+  }
+
+  .steps,
+  .foot {
+    justify-content: stretch;
+  }
+
+  .stepGroup {
+    width: 100%;
+  }
+
+  .step {
+    flex: 1 1 0;
+  }
+}

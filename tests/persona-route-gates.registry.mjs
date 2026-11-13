@@ -4708,7 +4708,7 @@ export const PAGES = {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the page's own (loadProgrammeRun, decided from the form before the run is read): " +
-      "one person's coursework is the programme's lead's and an admin's, so a reviewer on the form is told it is theirs, " +
+      "one person's week, the reading view on the programme's side, is the programme's lead's and an admin's, so a reviewer on the form is told it is theirs, " +
       "a programme the caller has no role on renders 'there is no programme here', and somebody who holds no place on it " +
       "and facilitates none of its groups renders a calm not-here page, each with a 200. " +
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
@@ -5394,6 +5394,14 @@ export const PAGES = {
       "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
       "missing, and the page sends anybody who is not the group's live facilitator, the programme's " +
       "lead or an admin to the run's home.",
+  },
+  "/(app)/learn/[runId]/group/[groupId]/coursework/[uid]": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page (the reading view of one person's week, from the group's side) sends anybody " +
+      "who is not the group's live facilitator, the programme's lead or an admin to the run's home, and " +
+      "anybody they may not read in this group (writtenReviewRole) there too.",
   },
   "/(app)/learn/[runId]/weeks/[n]": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
@@ -7744,7 +7752,9 @@ export const REAL_PAGES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": programmePage("its groups' reflections, its facilitators' own among them."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": programmePage("a group's week, who ticked what by name."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/coursework": programmePage("the Coursework tab, everybody's work by week."),
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]": programmePage("one person's coursework page, or its calm not-here for an id that is nobody's."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]": programmePage(
+    "the reading view of one person's week (the set's participant, a row of the Coursework tab), or its calm not-here for an id that is nobody's.",
+  ),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": programmePage("People in groups, the run's allocation board."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": programmePage("Publish's own page."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]": programmePage(
@@ -7924,6 +7934,11 @@ export const REAL_PAGES = {
     leadWhy: LEAD_LEARN_ONLY_WHY,
   }),
   "/(app)/learn/[runId]/group/[groupId]/written": groupLearnPage("the group's written answers"),
+  "/(app)/learn/[runId]/group/[groupId]/coursework/[uid]": learnPage({
+    admin: c("run", "An admin passes the page's gate, but the set's person holds a place in the run's other group, not this one: nobody of this group to read, so the run's home."),
+    facilitator: c("run", "A live facilitator of this group, but the set's person holds a place in the other group, whose work is not theirs to read: the run's home."),
+    participant: c("run", "Admitted to the run, but facilitates no group, leads nothing and is no admin: the page's own gate sends them to the run's home."),
+  }),
   "/(app)/learn/[runId]/weeks/[n]": learnPage({
     admin: c(200, "An admin can learn on any run: week 1."),
     facilitator: c(200, "Can learn on the run: week 1."),

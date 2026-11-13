@@ -15,13 +15,22 @@
  *    submitted a week here) and then in counts, never in words, Ada's answer
  *    with no feedback yet and opening its review page, and the filters as
  *    links, "Not done" among them;
- *  - opens Dan's page and Ada's: reflections under their prompts with when
- *    they were written, the answer waiting, and, because the lead here is an
- *    admin, Ada's private note;
+ *  - opens Dan's week and Ada's in the reading view (one person, one week):
+ *    Dan's from his name, on the newest week he wrote in, Ada's from her
+ *    week 3 cell; reflections under their questions with when they were
+ *    written, the answer as sent, and, because the lead here is an admin,
+ *    Ada's private note;
+ *  - writes a piece of feedback on Ada's week as a whole there and reads it
+ *    back;
  *  - reads Group A's reflections with each writer's whole name;
  *  - Fern reads the same group's reflections with names from the page to
  *    read lines out, never a private note, and that page still names nobody
- *    beside an answer.
+ *    beside an answer;
+ *  - Fern opens Ada's week from Feedback to write on the group's page, the
+ *    reading view on the group's side: the answer, the private note, never a
+ *    rating; writes feedback on the answer beside it and reads it back;
+ *  - the lead reads Fern's feedback beside the answer on the programme's
+ *    side.
  *
  * A lead who is not an admin is never signed in by the harness, so that the
  * lead never sees a private note, an untold placement or the panels under
@@ -29,8 +38,9 @@
  * v15) is held by `tests/course-hub-coursework.test.mjs` instead.
  *
  * Every name and word is the fixture's own (`COURSEWORK` and friends in
- * `scripts/e2e-fixtures/worlds/course-hub-term.mjs`). Nothing here reads
- * mail.
+ * `scripts/e2e-fixtures/worlds/course-hub-term.mjs`), or the two pieces of
+ * feedback below. Nothing here reads mail, and saving feedback emails nobody
+ * (an admin's batch does, which this spec never presses).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -50,6 +60,7 @@ import {
   COURSEWORK,
   COURSEWORK_ANSWER_PROMPT,
   COURSEWORK_PROMPTS,
+  COURSEWORK_SOURCES,
   compareGroupsByMeeting,
 } from "../../scripts/e2e-fixtures/worlds/course-hub-term.mjs";
 
@@ -65,6 +76,10 @@ const POLL_MS = 500;
 
 /** The one reason this file may record for a step it did not run. */
 const DEPLOYED_TARGET_SKIP = RECAPTCHA_SKIP_REASON;
+
+/** The admin's piece on Ada's week as a whole, and Fern's on her written answer: the spec's own words. */
+const LEAD_SAYS = "A clear week: say which lamp you would keep first.";
+const FERN_SAYS = "Good reason. Which ships pay the most?";
 
 /** "Mon 2 Nov, 5:30pm": when a reflection was last written, as the pages date it (`dayAndClockWords`). */
 const WHEN = /(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec), \d{1,2}(?::\d{2})?(?:am|pm)/;
@@ -308,6 +323,8 @@ test(
           // written of two parts, one source of two, waiting for feedback.
           const adaCell = adminPage.getByRole("link", { name: `Week 3, not done: ${ada.displayName}’s coursework`, exact: true });
           assert.equal(await wordsIn(adaCell), "Not done Reflections 1 of 2 Sources 1 of 2", "Ada's week 3 cell");
+          // The cell opens the reading view of Ada's week 3.
+          assert.equal(await adaCell.getAttribute("href"), `${programmePathOnSite}/coursework/${enc(ada.uid)}?week=3`, "Ada's week 3 cell");
           const adaAnswer = adminPage.getByRole("link", { name: `Week 3 written answer, No feedback yet: ${ada.displayName}`, exact: true });
           assert.equal(
             await adaAnswer.getAttribute("href"),
@@ -350,35 +367,92 @@ test(
           adminPage.getByRole("link", { name: dan.displayName, exact: true }).click(),
         ]);
         await adminPage.getByRole("heading", { name: dan.displayName, level: 1 }).waitFor({ timeout: WAIT_MS });
-        assert.match(await wordsIn(adminPage.locator("header").filter({ hasText: dan.displayName })), /· Not in a group yet/);
-        const words = await wordsIn(adminPage.locator("#week-1"));
-        assert.ok(words.includes(`${COURSEWORK_PROMPTS.rp1} ${danSaid}`), `Dan's week 1 does not show his reflection under its prompt: ${words}`);
-        assert.match(words, WHEN, "Dan's reflection does not say when it was written");
-        assert.ok(words.includes("Ticked 1 of 2"), `Dan's week 1 does not count his tick: ${words}`);
-        // Newest week first.
-        const order = await adminPage.locator("section[id^='week-']").evaluateAll((sections) => sections.map((section) => section.id));
-        assert.deepEqual(order, ["week-3", "week-2", "week-1"], "the weeks are not newest first");
+        // The reading view, opened with no week named on the newest week Dan wrote in: week 1.
+        assert.match(await wordsIn(adminPage.locator("header").filter({ hasText: dan.displayName })), /· Not in a group yet · week 1 of \d+/);
+        const reflections = await wordsIn(adminPage.locator('section[aria-labelledby="reading-reflections"]'));
+        // Each reflection under its question, with when it was last saved.
+        assert.ok(reflections.includes(`The question ${COURSEWORK_PROMPTS.rp1} Saved `), `Dan's reflection is not under its question: ${reflections}`);
+        assert.ok(reflections.includes(danSaid), `Dan's week 1 does not show his reflection: ${reflections}`);
+        assert.match(reflections, WHEN, "Dan's reflection does not say when it was written");
+        const readings = await wordsIn(adminPage.locator('section[aria-labelledby="reading-readings"]'));
+        assert.ok(readings.startsWith("Readings 1 of 2 "), `Dan's week 1 does not count his tick: ${readings}`);
+        // One week at a time, with the way to the next.
+        assert.equal(
+          await adminPage.getByRole("link", { name: "Next week: week 2", exact: true }).first().getAttribute("href"),
+          `${programmePathOnSite}/coursework/${enc(dan.uid)}?week=2`,
+        );
       });
 
       await step(
         "the lead opens a fellow's page: reflections with when, the answer waiting for feedback, and as an admin the private note",
         async () => {
           activePage = adminPage;
-          await adminPage.goto(`${courseworkUrl}/${enc(ada.uid)}`, { waitUntil: "domcontentloaded" });
+          // From her week 3 cell on the tab: the reading view of that week.
+          await adminPage.goto(courseworkUrl, { waitUntil: "domcontentloaded" });
+          await Promise.all([
+            adminPage.waitForURL((url) => url.pathname.endsWith(`/coursework/${ada.uid}`) && url.searchParams.get("week") === "3", { timeout: WAIT_MS }),
+            adminPage.getByRole("link", { name: `Week 3, not done: ${ada.displayName}’s coursework`, exact: true }).click(),
+          ]);
           await adminPage.getByRole("heading", { name: ada.displayName, level: 1 }).waitFor({ timeout: WAIT_MS });
-          assert.match(await wordsIn(adminPage.locator("header").filter({ hasText: ada.displayName })), new RegExp(`· ${escapeRegExp(facilitated.name)}`));
-          const weekThree = await wordsIn(adminPage.locator("#week-3"));
-          assert.ok(weekThree.includes(`${COURSEWORK_PROMPTS.rp1} ${adaSaid}`), `Ada's reflection is not under its prompt: ${weekThree}`);
-          assert.match(weekThree, WHEN);
-          assert.ok(weekThree.includes(`${COURSEWORK_ANSWER_PROMPT} No feedback yet`), `Ada's answer is not waiting: ${weekThree}`);
-          assert.ok(weekThree.includes(adaAnswer), "Ada's answer is not on her page");
-          assert.ok(weekThree.includes(`Private note ${adaNote}`), `an admin is not shown Ada's private note: ${weekThree}`);
+          const head = await wordsIn(adminPage.locator("header").filter({ hasText: ada.displayName }));
+          assert.match(head, new RegExp(`· ${escapeRegExp(facilitated.name)} · week 3 of \\d+`));
+          // The week's title under the name.
+          assert.ok(head.includes("Week 3 · "), `the week's title is not drawn: ${head}`);
+          const reflections = await wordsIn(adminPage.locator('section[aria-labelledby="reading-reflections"]'));
+          assert.ok(reflections.includes(`The question ${COURSEWORK_PROMPTS.rp1} Saved `), `Ada's reflection is not under its question: ${reflections}`);
+          assert.ok(reflections.includes(adaSaid), `Ada's reflection is not on her week: ${reflections}`);
+          assert.match(reflections, WHEN);
+          const answer = await wordsIn(adminPage.locator('section[aria-labelledby="reading-answer"]'));
+          assert.ok(answer.includes(`The question ${COURSEWORK_ANSWER_PROMPT} ${adaAnswer}`), `Ada's answer is not under its question: ${answer}`);
+          // Where it stands and how long it is, at a glance, then when it was sent.
+          assert.match(answer, /^Written answer No feedback yet \d+ words Sent /, `the answer does not say it waits, its length and when it was sent: ${answer}`);
+          // Waiting for feedback: nobody has given any, and it is written here, beside the answer.
+          assert.ok(answer.includes("Your feedback") && answer.includes("Save feedback"), `Ada's answer offers no feedback to write: ${answer}`);
+          assert.ok(!answer.includes("Feedback from"), `Ada's answer is not waiting for feedback: ${answer}`);
+          // An admin rates it for the team beside it, and may write feedback on it there.
+          assert.ok(answer.includes("Rating for the team"), "an admin is not offered the rating for the team");
+          // The way to the answer's review page, where Pangram and the session reports' lines sit beside it.
           assert.equal(
-            await adminPage.locator("#week-3").getByRole("link", { name: "Write feedback on the answer", exact: true }).getAttribute("href"),
+            await adminPage.getByRole("link", { name: `Open ${ada.first}’s answer on the written answers page`, exact: true }).getAttribute("href"),
             `${programmePathOnSite}/written?group=${enc(facilitated.id)}&week=3&person=${enc(ada.uid)}`,
           );
+          const notes = await wordsIn(adminPage.locator('section[aria-labelledby="reading-notes"]'));
+          assert.ok(notes.includes(`${COURSEWORK_SOURCES.s1} Private note ${adaNote}`), `an admin is not shown Ada's private note: ${notes}`);
+          // The way back to the group's page, and on to the next person of the group.
+          assert.equal(
+            await adminPage.getByRole("link", { name: `Back to ${facilitated.name}`, exact: true }).getAttribute("href"),
+            `${programmePathOnSite}/groups/${enc(facilitated.id)}`,
+          );
+          // The group's people in the tab's order (by name, Fern among them as facilitating): whoever follows Ada.
+          const groupOrder = [ada, ben, fern].sort((a, b) => a.displayName.localeCompare(b.displayName, "en-GB", { sensitivity: "base" }));
+          const after = groupOrder[groupOrder.indexOf(ada) + 1];
+          if (after) {
+            assert.equal(
+              await adminPage.getByRole("link", { name: `Next person: ${after.displayName}`, exact: true }).first().getAttribute("href"),
+              `${programmePathOnSite}/coursework/${enc(after.uid)}?week=3`,
+            );
+          }
         },
       );
+
+      await step("the lead writes feedback on a fellow's week in the reading view, and reads it back", async () => {
+        activePage = adminPage;
+        const section = adminPage.locator('section[aria-labelledby="reading-week-feedback"]');
+        await section.waitFor({ timeout: WAIT_MS });
+        await section.getByLabel("Comment", { exact: true }).fill(LEAD_SAYS);
+        const [response] = await Promise.all([
+          responseTo(adminPage, `/runs/${state.runId}/feedback`, "POST"),
+          section.getByRole("button", { name: "Save feedback", exact: true }).click(),
+        ]);
+        await okBody(response, "Saving feedback on the week");
+        await section.getByRole("button", { name: "Save changes", exact: true }).waitFor({ timeout: WAIT_MS });
+        // Read back from the server: the piece is the admin's own, not emailed yet.
+        await adminPage.reload({ waitUntil: "domcontentloaded" });
+        const again = adminPage.locator('section[aria-labelledby="reading-week-feedback"]');
+        await again.getByRole("button", { name: "Save changes", exact: true }).waitFor({ timeout: WAIT_MS });
+        assert.equal(await again.getByLabel("Comment", { exact: true }).inputValue(), LEAD_SAYS);
+        assert.ok((await wordsIn(again)).includes("Not emailed yet"), "the admin's piece does not say it is not emailed yet");
+      });
 
       await step("the lead reads the group's reflections with each writer's name", async () => {
         activePage = adminPage;
@@ -428,6 +502,60 @@ test(
         assert.ok(!said.includes(ada.displayName), "the page to read lines out names Ada");
         assert.ok(!new RegExp(`\\b${escapeRegExp(ada.first)}\\b`).test(said), "the page to read lines out names Ada");
         assert.ok(!WHEN.test(said), "the page to read lines out says when an answer was written");
+      });
+
+      await step(
+        "the facilitator opens a person's week from the group page, reads it with the private note and no rating, and writes feedback there",
+        async () => {
+          activePage = facilitatorPage;
+          await facilitatorPage.goto(`${origin}${groupPath}`, { waitUntil: "domcontentloaded" });
+          // Feedback to write: Ada's name leads to the reading view of her week 3.
+          const toAda = facilitatorPage.locator(`section[aria-labelledby="group-review-queue"] a[href="${groupPath}/coursework/${enc(ada.uid)}?week=3"]`);
+          await toAda.waitFor({ timeout: WAIT_MS });
+          await Promise.all([
+            facilitatorPage.waitForURL((url) => url.pathname.endsWith(`${groupPath}/coursework/${ada.uid}`), { timeout: WAIT_MS }),
+            toAda.click(),
+          ]);
+          const answer = facilitatorPage.locator('section[aria-labelledby="reading-answer"]');
+          await answer.waitFor({ timeout: WAIT_MS });
+          const answerWords = await wordsIn(answer);
+          assert.ok(answerWords.includes(`The question ${COURSEWORK_ANSWER_PROMPT} ${adaAnswer}`), `Ada's answer is not under its question: ${answerWords}`);
+          // A facilitator writes feedback; never a rating.
+          assert.ok(!(await mainOf(facilitatorPage)).includes("Rating for the team"), "a facilitator is offered a rating");
+          const notes = await wordsIn(facilitatorPage.locator('section[aria-labelledby="reading-notes"]'));
+          assert.ok(
+            notes.includes(`Only ${facilitated.name}’s facilitators and admins read private notes.`) && notes.includes(`Private note ${adaNote}`),
+            `the group's facilitator is not shown Ada's private note: ${notes}`,
+          );
+          // The draft grade and the sealed prediction are an admin's alone.
+          assert.ok(!(await mainOf(facilitatorPage)).includes("Draft grade"), "a facilitator is shown a draft grade");
+          await answer.getByLabel("Comment", { exact: true }).fill(FERN_SAYS);
+          const [response] = await Promise.all([
+            responseTo(facilitatorPage, `/runs/${state.runId}/feedback`, "POST"),
+            answer.getByRole("button", { name: "Save feedback", exact: true }).click(),
+          ]);
+          const body = await okBody(response, "Saving feedback on the answer");
+          assert.ok(body.ok, "the feedback was not saved");
+          await answer.getByRole("button", { name: "Save changes", exact: true }).waitFor({ timeout: WAIT_MS });
+          await facilitatorPage.reload({ waitUntil: "domcontentloaded" });
+          const again = facilitatorPage.locator('section[aria-labelledby="reading-answer"]');
+          await again.getByRole("button", { name: "Save changes", exact: true }).waitFor({ timeout: WAIT_MS });
+          assert.equal(await again.getByLabel("Comment", { exact: true }).inputValue(), FERN_SAYS);
+        },
+      );
+
+      await step("the lead reads the facilitator's feedback beside the answer on the programme's side", async () => {
+        activePage = adminPage;
+        await adminPage.goto(`${courseworkUrl}/${enc(ada.uid)}?week=3`, { waitUntil: "domcontentloaded" });
+        const answer = adminPage.locator('section[aria-labelledby="reading-answer"]');
+        await answer.waitFor({ timeout: WAIT_MS });
+        const said = await wordsIn(answer);
+        assert.ok(
+          said.includes(`Feedback from ${fern.first} ${ada.first}’s facilitator · `) && said.includes(`${FERN_SAYS} Not emailed yet`),
+          `the facilitator's feedback is not beside Ada's answer: ${said}`,
+        );
+        // And the answer now says, at a glance, that it has feedback.
+        assert.match(said, /^Written answer Feedback given \d+ words Sent /, `the answer does not say it has feedback: ${said}`);
       });
     } finally {
       await Promise.allSettled([facilitatorContext.close(), context.close()]);

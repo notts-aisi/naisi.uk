@@ -523,6 +523,28 @@
   color: var(--color-text-muted);
 }
 
+/* The way to the reading view of the person's whole week. */
+.weekLink {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 2.75rem;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.weekLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.weekLink:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
 .quiet {
   margin: 0;
   font-size: var(--text-sm);
