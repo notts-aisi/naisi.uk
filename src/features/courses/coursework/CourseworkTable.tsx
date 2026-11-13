@@ -120,12 +120,12 @@ function Cell({ cell, name, now }: { cell: CourseworkCell; name: string; now: Da
   );
 }
 
-/** A row's marks: facilitating, and to an admin a placement not told yet. */
 /** A row's marks, in words: facilitating a group of the run, and, to an admin, placed and not told yet. */
 function marksOf(row: CourseworkRow): string[] {
   return [...(row.facilitating ? [FACILITATING] : []), ...(row.notToldYet ? [NOT_TOLD_YET] : [])];
 }
 
+/** A row's marks, drawn as chips beside the name. */
 function Marks({ row }: { row: CourseworkRow }) {
   const marks = marksOf(row);
   if (marks.length === 0) return null;
