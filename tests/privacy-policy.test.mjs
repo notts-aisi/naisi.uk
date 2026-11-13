@@ -4,17 +4,25 @@
  *
  * Run with `npm test`.
  *
- * The current version is v18: v17 with the sentence about the short note
+ * The current version is v19: v18 with a fifth small preference named under
+ * "Cookies and local storage" (that somebody dismissed the line on Home
+ * saying the policy changed), and "What's changed in version 19" at the top
+ * with version 18's and version 17's lines kept under it, dated. It changes
+ * nothing about how anybody's information is used, so it is neither asked
+ * nor told on Home. Every other word is v18's, so the sections below that
+ * name v15, v16, v17 or v18 hold v19's text, and the describe for version 19
+ * holds its one change to the code.
+ *
+ * v18 is v17 with the sentence about the short note
  * Claude may draft each week changed (each week or when an admin asks,
  * drafted after the person's session, from their work on that week as it
  * stands then, sent or not, no longer "only the work they submitted"), a
  * sentence added to "Changing your work" saying so of an unsent answer, the
  * names sentence made exact ("a number or a label"), and "What's changed in
  * version 18" at the top with version 17's line kept under it, dated. Told, not asked. Every
- * other word is v17's, so the sections below that name v15, v16 or v17 hold
- * v18's text, the describe for version 18 holds its change to the code, and
- * each replaced sentence's pin moved to the sentence that replaced it, with
- * the old sentence held in frozen v17.
+ * other word is v17's; the describe for version 18 holds its change to the
+ * code, and each replaced sentence's pin moved to the sentence that replaced
+ * it, with the old sentence held in frozen v17.
  *
  * v17 is v16 with "What's changed in version 17" at the
  * top, and new words for taking part (who takes and corrects a register,
@@ -55,7 +63,7 @@
  * promise, held in the frozen files themselves.
  *
  * Every version behind the current one is frozen byte for byte (§1b): v1 to
- * v17. Editing an accepted version changes what somebody sees at the archive
+ * v18. Editing an accepted version changes what somebody sees at the archive
  * URL for the wording they agreed to, without anybody being asked, so new
  * wording goes in a new file, every time. From v15 a new version is told,
  * not asked (`needsPolicyAcceptance`, §3), which makes the freeze matter
@@ -181,15 +189,17 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v18.tsx");
+const CURRENT = read("src/content/legal/privacy/v19.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
  * no pattern written as a sentence would ever match the raw source. Every
- * content check below runs against this, because v18 is the text the site
+ * content check below runs against this, because v19 is the text the site
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v18, frozen: read by the version 18 describe, which proves v18 is v17 with its changes, and by the version 19 describe, which proves v19 is v18 with its one. */
+const V18_FLAT = read("src/content/legal/privacy/v18.tsx").replace(/\s+/g, " ");
 /** v17, frozen: read by the version 17 describe, which proves v17 is v16 with its changes, and by the version 18 describe, which proves v18 is v17 with its one. */
 const V17_FLAT = read("src/content/legal/privacy/v17.tsx").replace(/\s+/g, " ");
 /** v16, frozen: read by the version 17 describe, which proves the sentences v17 replaced are still in the words v16 published, and v17's are not. */
@@ -243,13 +253,16 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v18 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 18);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.18");
+  test("privacy v19 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 19);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.19");
   });
 
-  test("privacy v18 is dated the day its words last changed", () => {
-    // Provisional: set again to the day v18 goes live, as v17's, v16's and v15's were.
+  test("privacy v19 is dated the day its words last changed", () => {
+    // Provisional: set again to the day v19 goes live, as v18's, v17's, v16's and v15's were.
+    const nineteen = POLICIES.privacy.versions.find((v) => v.version === 19);
+    assert.equal(nineteen?.lastUpdated, "13 November 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 19).length, 1);
     const eighteen = POLICIES.privacy.versions.find((v) => v.version === 18);
     assert.equal(eighteen?.lastUpdated, "13 November 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 18).length, 1);
@@ -405,6 +418,13 @@ describe("policy versions", () => {
  * identical. Anything that changes a word needs a new version instead.
  */
 const FROZEN_VERSIONS = new Map([
+  [
+    "privacy/v18",
+    {
+      sha256: "698ef23a0604cf49201fa8629de400bbe748e2788ccc52946aae7003bb1a5dcc",
+      why: "the weekly note drafted from the work as it stands after the session, current from 13 November 2026 until v19 replaced it; told rather than asked, and the wording that listed four small preferences kept in the browser, frozen when v19 named a fifth rather than editing it in place",
+    },
+  ],
   [
     "privacy/v17",
     {
@@ -1447,9 +1467,10 @@ describe("the courses section", () => {
       // accept, and says a change to how it uses somebody's information is
       // told on the site and by email before it takes effect.
       // CHANGED ON PURPOSE (v17): told on the site, saying what changed, and
-      // no longer by email before it takes effect (Home and /privacy carry a
-      // line for 14 days from a version's date, `policyUpdateLine`). v16's
-      // words are held in frozen v16 by the version 17 describe.
+      // no longer by email before it takes effect (Home carries one short
+      // line with a link to the policy's own "What's changed", which says
+      // what did, `policyUpdateLine`). v16's words are held in frozen v16 by
+      // the version 17 describe.
       ["a change is told on the site, and this is the last version anybody is asked to accept", /If a change affects how we use your information \(a new use, a new outside service, or keeping something longer\), we tell you on the site, saying what changed\. Anything that relies on your consent asks you for that one thing on its own\. New members accept this policy when they join, and anybody who had not accepted version 15 is asked to accept it once\. If you decline it, you are signed out, and you can email us to have your account removed; an external collaborator can delete theirs there and then\. We will not ask you to accept later versions\./],
       ["the statutory response time", /We aim to answer within 30 days\./],
       ["no solely automated decisions", /No decision about you is made solely by automated means\./],
@@ -2912,19 +2933,26 @@ describe("what loads from Google, and what the browser keeps", () => {
     );
   });
 
-  test("the browser's local storage holds the four preferences and the one copy the page describes, and nothing else", () => {
-    assert.match(PAGE_FLAT, /In your browser&apos;s own storage the site keeps four small preferences that never leave your device:/);
+  test("the browser's local storage holds the five preferences and the one copy the page describes, and nothing else", () => {
+    // CHANGED ON PURPOSE (v19): five, not four. The fifth is that somebody
+    // dismissed the line on Home saying the policy changed; v18's "four" is
+    // held in frozen v18 by the version 19 describe.
+    assert.match(PAGE_FLAT, /In your browser&apos;s own storage the site keeps five small preferences that never leave your device:/);
     const users = new Map([
       ["src/layout/AppShell.tsx", "naisi.sidebar.collapsed"],
       ["src/features/pwa/lastRoute.ts", "naisi.lastRoute"],
       ["src/features/pwa/installPrompt.ts", "naisi.installCard.dismissed"],
+      ["src/lib/legal/updateLineDismissal.ts", "naisi.policyNotice.dismissed"],
       ["src/app/(auth)/AuthEntry.tsx", "naisi.auth.loaderOpen"],
     ]);
     for (const [file, key] of users) {
       assert.ok(read(file).includes(`"${key}"`), `${file} no longer keeps ${key} in local storage`);
       assert.ok(PAGE_FLAT.includes(`<code>${key}</code>`), `the policy no longer lists ${key}`);
     }
-    // The fifth thing is not a preference: what somebody typed on the
+    // The list is those five and no sixth: every `naisi.` key the sentence names is one of them.
+    const listed = PAGE_FLAT.slice(PAGE_FLAT.indexOf("In your browser&apos;s own storage the site keeps five small preferences"), PAGE_FLAT.indexOf("Signing in also stores your session"));
+    assert.deepEqual([...listed.matchAll(/<code>(naisi\.[A-Za-z.]+)<\/code>/g)].map((match) => match[1]).sort(), [...users.values()].sort());
+    // The sixth thing is not a preference: what somebody typed on the
     // application form's first step, for the tab an emailed link opens. The
     // page says so in a paragraph of its own, with the key it is under, and
     // §2d holds that paragraph's three limits to the one function that
@@ -2947,7 +2975,7 @@ describe("what loads from Google, and what the browser keeps", () => {
         ["src/features/courses/PacingBanner.tsx", "a comment saying a dismissal is deliberately not kept there"],
       ]),
       "naming the browser's local storage",
-      "The policy lists exactly what the site keeps there: four preferences " +
+      "The policy lists exactly what the site keeps there: five preferences " +
         "by name, and one copy of the application form's first step with the " +
         "key it is under. Something kept there that the page does not say " +
         "makes the page wrong: say it in a new version, or keep it somewhere " +
@@ -9341,7 +9369,7 @@ describe("the re-consent gate", () => {
     for (const frozen of [V17_FLAT, V15_FLAT]) {
       assert.ok(frozen.includes("Once a week Claude may also draft a short note on how each person is doing, using only the work they submitted and the feedback, ratings and comments people on the team gave it."));
     }
-    assert.ok(!PAGE_FLAT.includes("using only the work they submitted"), "version 18 still says the weekly note uses only submitted work");
+    assert.ok(!PAGE_FLAT.includes("using only the work they submitted"), "the current version still says the weekly note uses only submitted work");
     // "Only admins see what comes back" is the code's: Claude's best answers,
     // Pangram on coursework, the week review and its follow-up, and the
     // end-of-week notes' draft, save and discard refuse anybody but an admin
@@ -9414,9 +9442,9 @@ describe("the re-consent gate", () => {
   });
 
   test("the accept page says what version 18 changes, after version 17's line, in version 18's own words", () => {
-    // Asked only of an agreement older than v15, which accepts v18: so the
-    // page says each version's change, oldest first, version 18's last. Its
-    // line is the policy's own "What's changed in version 18".
+    // Asked only of an agreement older than v15, which accepts the current
+    // version: so the page says each version's change, oldest first, version
+    // 18's last. Its line is version 18's own "What's changed in version 18".
     const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
     const seventeen = accept.indexOf("What changed in version 17.</strong>");
     const eighteen = accept.indexOf("What changed in version 18.</strong>");
@@ -9425,8 +9453,22 @@ describe("the re-consent gate", () => {
     const CHANGED =
       "the short note Claude may draft each week, or when an admin asks for one, now uses your work as it stands after your session, so it may use a written answer you haven&apos;t sent; and we say that the tools get a number or a label in place of each name.";
     assert.ok(said.includes(`T${CHANGED.slice(1)}`), "the accept page's line for version 18 is no longer the policy's own words");
-    assert.ok(PAGE_FLAT.includes(`<p id="whats-changed"> <strong>What&apos;s changed in version 18:</strong> ${CHANGED} </p>`), "the policy no longer says what changed in version 18, in those words, at the anchor the line on Home links to");
+    // Version 18's own "What's changed", and version 19 keeping it under its own, dated.
+    assert.ok(V18_FLAT.includes(`<p id="whats-changed"> <strong>What&apos;s changed in version 18:</strong> ${CHANGED} </p>`), "v18 no longer says what changed in version 18, in those words");
+    assert.ok(PAGE_FLAT.includes(`<strong>What changed in version 18, on 13 November 2026:</strong> ${CHANGED}`), "the policy no longer keeps what changed in version 18, with its date, in those words");
     assert.ok(!V17_FLAT.includes("What&apos;s changed in version 18"));
+  });
+
+  test("the accept page says nothing of version 19, which changes nothing about how information is used", () => {
+    // A line on the accept page is for a version that changed how
+    // information is used: 15 to 18, oldest first, and version 18's is the
+    // last before the links. Version 19 names one more small preference kept
+    // in the browser, and its own first paragraph on the policy says so.
+    const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
+    const lines = [...accept.matchAll(/What changed in version (\d+)\.<\/strong>/g)].map((match) => Number(match[1]));
+    assert.deepEqual(lines, [15, 16, 17, 18]);
+    assert.ok(accept.indexOf("Read the full") > accept.indexOf("What changed in version 18.</strong>"));
+    assert.ok(PAGE_FLAT.includes("<strong>What&apos;s changed in version 19:</strong> the site keeps one more small preference in your browser: that you dismissed the line saying this policy changed. Nothing about how we use your information has changed."));
   });
 
   test("is not left behind on the dashboard layout alone", () => {
@@ -11587,17 +11629,19 @@ describe("v17 rewrites taking part, work after a session, reminders and conduct,
     assert.ok(control.includes("Don&apos;t include medical details or describe an alleged crime. Take anything that might be a crime to the head admin instead."));
   });
 
-  test("changes are told on the site: a line on Home and /privacy for 14 days from the date, and nobody is asked to accept", async () => {
+  test("changes are told on the site: version 17 is told on Home, and nobody is asked to accept", async () => {
     const acceptance = await loadTs("lib/legal/acceptance.ts");
     assert.equal(acceptance.LAST_PRIVACY_VERSION_ASKED, 15);
     assert.equal(acceptance.needsPolicyAcceptance("terms.1+privacy.15"), false);
     assert.equal(acceptance.needsPolicyAcceptance("terms.1+privacy.16"), false);
-    const updated = POLICIES.privacy.versions.find((v) => v.version === 17);
-    assert.equal(
-      updated?.updateLine,
-      "We've updated our privacy policy. It now also covers registers and corrections, requests and messages to the team, work added after a session and reminders after it, anonymous feedback and conduct records.",
-    );
-    // The window and the two places that draw it are run in tests/policy-update-line.test.mjs.
+    // CHANGED ON PURPOSE: the line on Home is one short sentence, the same
+    // for every version, with a link to what changed, for a week from the
+    // version's date or until its reader dismisses it. Version 17 carried a
+    // sentence of its own, on Home and /privacy, for 14 days. What it changed
+    // is said by the policy's own "What's changed" alone.
+    const seventeen = POLICIES.privacy.versions.find((v) => v.version === 17);
+    assert.deepEqual(seventeen, { version: 17, lastUpdated: "12 November 2026", toldOnHome: true });
+    // The week, the words and the dismissal are run in tests/policy-update-line.test.mjs.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
   });
 
@@ -11705,13 +11749,15 @@ describe("v18 changes the sentence about the weekly note, adds one to Changing y
   ];
 
   test("v18 is v17 with these changes and no others", () => {
+    // Read from frozen v18 since v19 replaced it; v19 is v18 with its own
+    // change, held by the version 19 describe.
     let text = bodyOf(V17_FLAT);
     for (const [what, before, after] of V18_CHANGES) {
       assert.equal(text.split(before).length, 2, `v17 does not say, exactly once, what v18 changes (${what}): ${before}`);
-      assert.ok(!bodyOf(CURRENT_FLAT).includes(before) || after.includes(before), `v18 still says what it was meant to replace (${what})`);
+      assert.ok(!bodyOf(V18_FLAT).includes(before) || after.includes(before), `v18 still says what it was meant to replace (${what})`);
       text = text.replace(before, after);
     }
-    assert.equal(text, bodyOf(CURRENT_FLAT), "v18 differs from v17 somewhere outside the changes listed here");
+    assert.equal(text, bodyOf(V18_FLAT), "v18 differs from v17 somewhere outside the changes listed here");
   });
 
   test("the two sentences the owner approved beside it, word for word, and neither in v17", () => {
@@ -11745,20 +11791,101 @@ describe("v18 changes the sentence about the weekly note, adds one to Changing y
     assert.ok(V17_FLAT.includes(`${OLD_NOTE} ${after}`));
   });
 
-  test("told, not asked: nobody is asked to accept it, and Home and /privacy say what both versions changed while version 17's days run", async () => {
+  test("told, not asked: nobody is asked to accept it, and it is told on Home", async () => {
     const acceptance = await loadTs("lib/legal/acceptance.ts");
     assert.equal(acceptance.LAST_PRIVACY_VERSION_ASKED, 15);
     for (const stored of ["terms.1+privacy.15", "terms.1+privacy.16", "terms.1+privacy.17", "terms.1+privacy.18"]) {
       assert.equal(acceptance.needsPolicyAcceptance(stored), false, stored);
     }
+    // CHANGED ON PURPOSE: version 18 carried a sentence of its own for Home,
+    // and a clause joined to version 17's while both ran. The line is one
+    // short sentence for every version, and what version 18 changed is said
+    // by the policy's own "What's changed" alone.
     const eighteen = POLICIES.privacy.versions.find((v) => v.version === 18);
-    assert.equal(
-      eighteen?.updateLine,
-      "We've updated our privacy policy. The short note Claude may draft each week now uses your work as it stands after your session, sent or not.",
-    );
-    assert.equal(eighteen?.updateLineAdds, "and the short note Claude may draft each week now uses your work as it stands after your session, sent or not.");
-    // The three periods, worked out from the two dates, are run in tests/policy-update-line.test.mjs.
+    assert.deepEqual(eighteen, { version: 18, lastUpdated: "13 November 2026", toldOnHome: true });
+    // Which version's line shows on which day is run in tests/policy-update-line.test.mjs.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
+  });
+});
+
+describe("v19 names a fifth small preference kept in the browser, and keeps v18's and v17's What's changed under its own; every other word is v18's, and the code agrees", () => {
+  /**
+   * A version's file from the end of its notes on: its imports, its contents
+   * list, the address of the services page and its words as served. The
+   * header comment is notes, not policy.
+   */
+  const FIRST_IMPORT = 'import type { ReactNode } from "react";';
+  const bodyOf = (flat) => {
+    assert.equal(flat.split(FIRST_IMPORT).length, 2, "a version file does not open, after its notes, with the import this check starts from");
+    return flat.slice(flat.indexOf(FIRST_IMPORT));
+  };
+  /** "What's changed in version 19", as the owner approved it. */
+  const CHANGED =
+    "the site keeps one more small preference in your browser: that you dismissed the line saying this policy changed. Nothing about how we use your information has changed.";
+  /** What version 18 changed, in version 18's own words. */
+  const CHANGED_18 =
+    "the short note Claude may draft each week, or when an admin asks for one, now uses your work as it stands after your session, so it may use a written answer you haven&apos;t sent; and we say that the tools get a number or a label in place of each name.";
+  /** "Cookies and local storage": v18's sentence, and v19's, as the owner approved it. */
+  const OLD_KEPT =
+    'In your browser&apos;s own storage the site keeps four small preferences that never leave your device:{" "} <code>naisi.sidebar.collapsed</code> (whether you collapsed the sidebar), <code>naisi.lastRoute</code> (the last page you had open, so the installed app can return you to it),{" "} <code>naisi.installCard.dismissed</code> (that you dismissed the prompt to install the app) and{" "} <code>naisi.auth.loaderOpen</code> (whether the sign-in panel was open).';
+  const NEW_KEPT =
+    'In your browser&apos;s own storage the site keeps five small preferences that never leave your device:{" "} <code>naisi.sidebar.collapsed</code> (whether you collapsed the sidebar), <code>naisi.lastRoute</code> (the last page you had open, so the installed app can return you to it),{" "} <code>naisi.installCard.dismissed</code> (that you dismissed the prompt to install the app),{" "} <code>naisi.policyNotice.dismissed</code> (that you dismissed the line saying this policy changed) and{" "} <code>naisi.auth.loaderOpen</code> (whether the sign-in panel was open).';
+  /**
+   * EVERY CHANGE v19 MAKES TO v18, as [what, v18's words, v19's words], each
+   * a run of the flattened text. Applied to frozen v18 in turn, each found
+   * exactly once, they give v19 exactly: so nothing else in v18 changed.
+   */
+  const V19_CHANGES = [
+    ["the component's name", "export default function PrivacyContentV18(", "export default function PrivacyContentV19("],
+    [
+      "what changed, at the top, with version 18's line kept under it and dated",
+      `<p id="whats-changed"> <strong>What&apos;s changed in version 18:</strong> ${CHANGED_18} </p>`,
+      `<p id="whats-changed"> <strong>What&apos;s changed in version 19:</strong> ${CHANGED} </p> <p> <strong>What changed in version 18, on 13 November 2026:</strong> ${CHANGED_18} </p>`,
+    ],
+    ["the small preferences kept in the browser: five, the dismissal among them", OLD_KEPT, NEW_KEPT],
+  ];
+
+  test("v19 is v18 with these changes and no others", () => {
+    let text = bodyOf(V18_FLAT);
+    for (const [what, before, after] of V19_CHANGES) {
+      assert.equal(text.split(before).length, 2, `v18 does not say, exactly once, what v19 changes (${what}): ${before}`);
+      assert.ok(!bodyOf(CURRENT_FLAT).includes(before) || after.includes(before), `v19 still says what it was meant to replace (${what})`);
+      text = text.replace(before, after);
+    }
+    assert.equal(text, bodyOf(CURRENT_FLAT), "v19 differs from v18 somewhere outside the changes listed here");
+  });
+
+  test("what changed is at the top, newest first, each earlier version's line under it with its date", () => {
+    const nineteen = PAGE_FLAT.indexOf(`<p id="whats-changed"> <strong>What&apos;s changed in version 19:</strong> ${CHANGED} </p>`);
+    const eighteen = PAGE_FLAT.indexOf(`<strong>What changed in version 18, on 13 November 2026:</strong> ${CHANGED_18}`);
+    const seventeen = PAGE_FLAT.indexOf("<strong>What changed in version 17, on 12 November 2026:</strong>");
+    assert.ok(nineteen !== -1 && nineteen < eighteen && eighteen < seventeen && seventeen < PAGE_FLAT.indexOf('<h2 id="in-short">'));
+    // Each date is the day that version went live, as the policy list has it.
+    assert.equal(POLICIES.privacy.versions.find((v) => v.version === 18)?.lastUpdated, "13 November 2026");
+    assert.equal(POLICIES.privacy.versions.find((v) => v.version === 17)?.lastUpdated, "12 November 2026");
+    assert.ok(!V18_FLAT.includes("What&apos;s changed in version 19") && !V18_FLAT.includes("naisi.policyNotice.dismissed"));
+  });
+
+  test("\"that you dismissed the line saying this policy changed\": Dismiss on Home's line keeps it in the browser's own storage, under that key, and nothing sends it anywhere", () => {
+    const store = withoutComments(read("src/lib/legal/updateLineDismissal.ts"));
+    assert.match(store, /export const UPDATE_LINE_DISMISSED_KEY = "naisi\.policyNotice\.dismissed";/);
+    assert.match(store, /window\.localStorage\.setItem\(UPDATE_LINE_DISMISSED_KEY, String\(dismissedUpdateLineVersion\(\)\)\);/);
+    // "that never leave your device": the store imports nothing, makes no request and sets no cookie.
+    assert.doesNotMatch(store, /\bimport\b|fetch\(|sendBeacon|XMLHttpRequest|document\.cookie/);
+    // Home's line is the one thing that writes it, at Dismiss.
+    assert.match(withoutComments(read("src/app/(app)/dashboard/PolicyUpdate.tsx")), /onClick=\{\(\) => dismissUpdateLine\(line\.version\)\}/);
+    // tests/policy-update-line.test.mjs runs the store against a browser's storage.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
+  });
+
+  test("neither asked nor told on Home: nobody is asked to accept it, and it has no line", async () => {
+    const acceptance = await loadTs("lib/legal/acceptance.ts");
+    assert.equal(acceptance.LAST_PRIVACY_VERSION_ASKED, 15);
+    for (const stored of ["terms.1+privacy.15", "terms.1+privacy.16", "terms.1+privacy.17", "terms.1+privacy.18", "terms.1+privacy.19"]) {
+      assert.equal(acceptance.needsPolicyAcceptance(stored), false, stored);
+    }
+    // "Nothing about how we use your information has changed": so no mark, and Home says nothing of it.
+    assert.deepEqual(Object.keys(POLICIES.privacy.versions.find((v) => v.version === 19) ?? {}).sort(), ["lastUpdated", "version"]);
   });
 });
 

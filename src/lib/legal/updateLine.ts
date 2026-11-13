@@ -1,41 +1,39 @@
 import { siteDayKey } from "@/lib/datetime/siteTime";
-import { POLICIES, type PolicyVersion } from "./policies";
+import { POLICIES } from "./policies";
 
 /**
- * THE LINE THAT SAYS THE PRIVACY POLICY CHANGED, on Home and at the top of
- * /privacy, for 14 days from the current version's date.
+ * THE LINE ON HOME THAT SAYS THE PRIVACY POLICY CHANGED.
  *
- * From version 17 a change to how we use somebody's information is told on the
- * site, not by email and not by asking anybody to accept it again
+ * A change to how we use somebody's information is told on the site, not by
+ * email and not by asking anybody to accept it again
  * (`needsPolicyAcceptance` in `./acceptance.ts`). This is how the site tells
- * it: the current version's own `updateLine` (`./policies.ts`), with a link to
- * the top of the policy, where it says what changed.
+ * it: one short sentence on Home, the same for every version, and a link to
+ * the top of the policy, where "What's changed" says what did. Home says
+ * nothing of the change itself.
  *
- * WORKED OUT FROM THE DATE ALONE. Nothing is stored about who saw it, in the
- * database or a cookie, and nobody can dismiss it: it shows to everybody from
- * the version's `lastUpdated` day, London time, for `UPDATE_LINE_DAYS` days,
- * and then to nobody. A version with no `updateLine`, or a date that cannot
- * be read, shows no line at all.
+ * WHICH VERSIONS. Only a version marked `toldOnHome` in `./policies.ts`: one
+ * that changed how people's information is used. A version without the mark
+ * has no line, and does not end the line of the version before it.
  *
- * TWO VERSIONS AT ONCE. While the version before the current one is still
- * inside its own days, the line says what both changed: that version's line
- * with the current version's `updateLineAdds` in place of its full stop
- * (version 18 within version 17's days). After them, the current version's
- * own line, until its days end too. A current version with no
- * `updateLineAdds` says only its own line.
+ * FOR HOW LONG. From the version's `lastUpdated` day, London time, for
+ * `UPDATE_LINE_DAYS` days, and then to nobody. When two marked versions are
+ * inside their days at once, the line is the newer one's. A date that cannot
+ * be read shows no line.
  *
- * BEFORE THE CURRENT VERSION'S DATE (it can be served a day or two before
- * the date it carries, the day it goes live): the version before it says
- * its own line, under its own number, while that version is inside its
- * days, so a line people should still be seeing never goes missing. After
- * those days, and before the current version's date, no line.
+ * DISMISSED ONCE. The line carries its version's number, so Home can leave
+ * it out for somebody who dismissed it. That is kept in their own browser
+ * (`./updateLineDismissal.ts`), never by us. A later marked version is a
+ * line of its own, shown to them again.
  *
  * Pure: the clock is the caller's, so a page reads it once and a test can
- * hand it any day.
+ * hand it any day, and nothing here reads or keeps anything about a person.
  */
 
 /** How many days the line shows for, the version's own date the first of them. */
-export const UPDATE_LINE_DAYS = 14;
+export const UPDATE_LINE_DAYS = 7;
+
+/** What the line says, whichever version it is about. */
+export const UPDATE_LINE_WORDS = "We've updated our privacy policy.";
 
 /** Where the link goes: the top of the current policy, which says what changed. */
 export const UPDATE_LINE_HREF = "/privacy#whats-changed";
@@ -44,7 +42,7 @@ export const UPDATE_LINE_HREF = "/privacy#whats-changed";
 export const UPDATE_LINE_LINK = "Read what's changed";
 
 export type PolicyUpdateLine = {
-  /** The version the line is about. */
+  /** The version the line is about: what a dismissal is remembered against. */
   version: number;
   /** What it says, before the link. */
   words: string;
@@ -90,35 +88,19 @@ function daysAfter(day: string, days: number): string {
   return new Date(Date.UTC(year, month - 1, date + days)).toISOString().slice(0, 10);
 }
 
-/** A version's line when `today` is inside its days, or null: none, a date that cannot be read, or outside them. */
-function lineOn(version: PolicyVersion | undefined, today: string): string | null {
-  const words = version?.updateLine?.trim();
-  if (!version || !words) return null;
-  const from = civilDayOf(version.lastUpdated);
-  if (!from) return null;
-  if (today < from || today >= daysAfter(from, UPDATE_LINE_DAYS)) return null;
-  return words;
-}
-
 /**
- * The line for `now`, or null when there is none: the current privacy
- * version's `updateLine`, from its date to the day before `UPDATE_LINE_DAYS`
- * days later, in London; while the version before it is inside its own days
- * too, that version's line joined to the current one's `updateLineAdds`;
- * and before the current version's date, the version before it's own line
- * while that version is inside its days.
+ * The line for `now`, or null when there is none: the newest privacy version
+ * marked `toldOnHome` whose days `now` is inside, in London, from its date to
+ * the day before `UPDATE_LINE_DAYS` days later.
  */
 export function policyUpdateLine(now: Date): PolicyUpdateLine | null {
-  const [current, previous] = POLICIES.privacy.versions;
   const today = siteDayKey(now);
-  const before = previous ? lineOn(previous, today) : null;
-  const own = lineOn(current, today);
-  if (!own) {
-    const from = civilDayOf(current.lastUpdated);
-    if (before && from && today < from) return { version: previous.version, words: before, link: UPDATE_LINE_LINK, href: UPDATE_LINE_HREF };
-    return null;
-  }
-  const adds = current.updateLineAdds?.trim();
-  const words = adds && before ? `${before.replace(/\.$/, "")}, ${adds}` : own;
-  return { version: current.version, words, link: UPDATE_LINE_LINK, href: UPDATE_LINE_HREF };
+  // Newest first, so the first marked version inside its days is the newest.
+  const told = POLICIES.privacy.versions.find((version) => {
+    if (version.toldOnHome !== true) return false;
+    const from = civilDayOf(version.lastUpdated);
+    return from !== null && today >= from && today < daysAfter(from, UPDATE_LINE_DAYS);
+  });
+  if (!told) return null;
+  return { version: told.version, words: UPDATE_LINE_WORDS, link: UPDATE_LINE_LINK, href: UPDATE_LINE_HREF };
 }

@@ -12,7 +12,7 @@
   checking every version file.
 
   What a version file renders, in order, inside .inner:
-    a Badge, .heading, the banner slot (.archivedBanner or .updateBanner), .lede, the meta
+    a Badge, .heading, the banner slot (.archivedBanner), .lede, the meta
     slot (.meta), .tocCard (with .tocTitle and .tocList), .sections (of
     .section), .contactCard.
 
@@ -59,17 +59,12 @@
   color: var(--color-accent-text-hover);
 }
 
-/* The archived notice, and on the current privacy policy the line saying it
-   changed, for 14 days from its date. They share a place: a page carries one
-   or the other, never both. */
-.archivedBanner,
-.updateBanner {
+.archivedBanner {
   margin-top: 1rem;
   max-width: 44rem;
 }
 
-.archivedBanner a,
-.updateBanner a {
+.archivedBanner a {
   color: var(--color-accent-text);
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -139,7 +134,7 @@
   the file renders it after. The Badge is the one child with no row of its
   own, and takes the first free one, which is the top.
 
-    1 the Badge   2 the title   3 version and date   4 the archived notice, or the line saying the policy changed
+    1 the Badge   2 the title   3 version and date   4 the archived notice
     5 the lede    6 the rule    7 contents | sections   8 contents | questions
 */
 .inner {
@@ -160,8 +155,7 @@
 
 .inner > .heading { grid-row: 2; }
 .inner > .meta { grid-row: 3; }
-.inner > .archivedBanner,
-.inner > .updateBanner { grid-row: 4; }
+.inner > .archivedBanner { grid-row: 4; }
 .inner > .lede { grid-row: 5; }
 
 /* The rule between the head and the policy, across both columns. */
@@ -330,7 +324,6 @@
 .section a:hover,
 .lede a:hover,
 .archivedBanner a:hover,
-.updateBanner a:hover,
 .contactCard a:hover {
   color: var(--color-accent-text-hover);
 }

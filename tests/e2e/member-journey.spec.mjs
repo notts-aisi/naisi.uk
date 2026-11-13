@@ -4,6 +4,8 @@
  * The admin approves a waiting applicant on the real Approvals page -> a
  * second account takes the last place in the one-place session -> the new
  * member signs in -> answers Home's question about their full name, once ->
+ * is shown Home's line saying the privacy policy changed, on the days one is
+ * due, follows it to what changed and dismisses it, once ->
  * reads their own subscription grid on /profile -> unticks
  * a channel and watches it stick -> drives the notification grid's column
  * master and its locked notices row -> measures that grid in the narrow band
@@ -81,6 +83,7 @@ import {
   acceptReConsentIfAsked,
   signInWithPassword,
   stubRecaptchaOnLoopback,
+  waitForHydration,
 } from "../../scripts/e2e/lib/browser.mjs";
 import {
   ARTIFACTS_DIR,
@@ -97,9 +100,11 @@ import {
   GRID_CHANNELS,
   GRID_CHANNEL_LABELS,
   GRID_ROW_LABELS,
+  POLICY_LINE,
   RECAPTCHA_DEPENDENT_STEPS,
   SPEC,
   TOGGLED_CHANNEL,
+  policyLineAt,
 } from "../../scripts/e2e-fixtures/member-journey.mjs";
 
 /**
@@ -118,6 +123,14 @@ const WAIT_MS = 30_000;
 
 /** How often a poll re-asks. Small enough to be quick, big enough to be cheap. */
 const POLL_MS = 500;
+
+/**
+ * How long Home is watched for a line that should not be there. The line is
+ * drawn in the render straight after the page comes alive, so its absence is
+ * read by watching for it that long once the page is live, never by a look
+ * taken before.
+ */
+const LINE_WATCH_MS = 3_000;
 
 /**
  * Why a step may not run in this mode, or null.
@@ -548,6 +561,83 @@ test(
           (await memberPage.locator("#full-name").inputValue().catch(() => "")) === MEMBER_FULL_NAME ? true : null,
         );
       });
+
+      await step(
+        "Home says the privacy policy changed only in a told version's week, and Dismiss is remembered",
+        async () => {
+          activePage = memberPage;
+          // Which Home this should be is the product's own rule, worked out
+          // again from the product's own list (`policyLineAt`): the line, for
+          // a week from the date of a version that changed how information is
+          // used, or no line at all. So the step holds Home to one or the
+          // other on every day it runs, and drives Dismiss whenever a line is
+          // due.
+          const expected = policyLineAt(new Date());
+          const line = memberPage.locator("p").filter({ hasText: POLICY_LINE.words });
+          /** Home, live: the line is drawn only once the browser has been asked what it dismissed. */
+          const openHome = async () => {
+            await memberPage.goto(`${origin}/dashboard`, { waitUntil: "domcontentloaded" });
+            await memberPage.getByRole("heading", { level: 1 }).first().waitFor({ timeout: WAIT_MS });
+            await waitForHydration(memberPage, "h1", { timeout: WAIT_MS });
+          };
+          /** Whether the line turns up on a live Home within the watch. */
+          const turnsUp = () =>
+            line.waitFor({ state: "visible", timeout: LINE_WATCH_MS }).then(
+              () => true,
+              () => false,
+            );
+
+          await openHome();
+          if (!expected.settled) {
+            // Within ten minutes of a London midnight at which the answer
+            // changes: this clock and the server's may sit either side of it.
+            console.log("[journey-spec] the policy line's week turns over at this London midnight: Home was opened and held to neither answer");
+            return;
+          }
+          if (expected.version === null) {
+            assert.equal(await turnsUp(), false, "Home says the privacy policy changed outside every told version's week");
+            return;
+          }
+
+          // One line: the sentence, the way to what changed, and Dismiss.
+          // Nothing of what changed is said on Home.
+          await line.waitFor({ timeout: WAIT_MS }).catch((err) => {
+            throw new Error(
+              `privacy version ${expected.version} is inside its week and Home does not say the policy changed. ${err.message}`,
+            );
+          });
+          assert.equal(await line.textContent(), `${POLICY_LINE.words}${POLICY_LINE.link}${POLICY_LINE.dismiss}`);
+          const link = line.getByRole("link", { name: POLICY_LINE.link, exact: true });
+          assert.equal(await link.getAttribute("href"), POLICY_LINE.href);
+
+          // The link lands on the policy's own first paragraph, which says
+          // what changed. The policy page carries no line of its own.
+          await link.click();
+          await memberPage.waitForURL((url) => url.pathname === "/privacy", { timeout: WAIT_MS, waitUntil: "domcontentloaded" });
+          const changed = memberPage.locator("#whats-changed");
+          await changed.waitFor({ timeout: WAIT_MS });
+          assert.match(await changed.innerText(), /^What's changed in version \d+:/);
+          assert.equal(new URL(memberPage.url()).hash, "#whats-changed");
+          assert.equal(await memberPage.getByText(POLICY_LINE.words, { exact: false }).count(), 0, "the policy page says the policy changed above its own words");
+
+          // Reading it is not dismissing it: Home still says so.
+          await openHome();
+          await line.waitFor({ timeout: WAIT_MS });
+          assert.equal(await memberPage.evaluate((key) => window.localStorage.getItem(key), POLICY_LINE.dismissedKey), null);
+
+          // Dismissed once: gone at the press, kept in this browser against
+          // the line's version, and not drawn on the next visit.
+          await line.getByRole("button", { name: POLICY_LINE.dismiss, exact: true }).click();
+          await line.waitFor({ state: "detached", timeout: WAIT_MS });
+          assert.equal(
+            await memberPage.evaluate((key) => window.localStorage.getItem(key), POLICY_LINE.dismissedKey),
+            String(expected.version),
+            "Dismiss did not keep the line's version in the browser",
+          );
+          await openHome();
+          assert.equal(await turnsUp(), false, "Home showed the line again to somebody who had dismissed it");
+        },
+      );
 
       await step("the profile grid shows the member their own subscriptions", async () => {
         activePage = memberPage;
