@@ -1,19 +1,28 @@
 /**
  * WHICH BROWSER SPECS RUN ON WHICH MACHINE, when CI splits the suite.
  *
- * `node scripts/run-e2e.mjs --local --shard 2/3` runs the second of three
+ * `node scripts/run-e2e.mjs --local --shard 2/6` runs the second of six
  * parts. Every spec lands in exactly one part, decided from the spec names
- * alone, so the same names always split the same way and a new spec module is
- * placed without anybody editing a list.
+ * and how long each takes (`SPEC_SECONDS`), so the same names always split
+ * the same way and a new spec module is placed without anybody editing a
+ * list.
  *
- * ONE RULE OVERRIDES THE ROUND ROBIN. A spec that borrows a setting the whole
- * dev project shares (`BORROWS_A_SHARED_SETTING`) always runs in part 1, and
+ * THE PARTS ARE DEALT BY TIME, NOT BY COUNT. A run waits for its slowest
+ * part, so the specs are handed out longest first, each to the part with the
+ * least work so far. One spec that takes twelve minutes then shares its part
+ * with a few short ones, and no part is left holding all the long ones.
+ *
+ * ONE RULE COMES BEFORE THAT. A spec that borrows a setting the whole dev
+ * project shares (`BORROWS_A_SHARED_SETTING`) always runs in part 1, and
  * part 1 is the one leg of the CI job that waits in the shared queue with
  * every other run that drives the dev project (`.github/workflows/e2e.yml`).
- * The other parts write only rows that carry their own run id, so they may run
- * beside anything. `tests/e2e-shards.test.mjs` walks the fixtures for a module
- * reaching a shared document a fixture may address (`config/membership`, the
- * end of a programme's question set), and fails one that is not on the list.
+ * Because it may wait there behind another run's part 1, it is dealt as if it
+ * already held `SHARED_QUEUE_SECONDS` of work, which keeps it the shortest
+ * part. The other parts write only rows that carry their own run id, so they
+ * may run beside anything. `tests/e2e-shards.test.mjs` walks the fixtures for
+ * a module reaching a shared document a fixture may address
+ * (`config/membership`, the end of a programme's question set), and fails one
+ * that is not on the list.
  *
  * Pure: no imports, no I/O.
  */
@@ -49,9 +58,72 @@ export function parseShard(raw) {
 }
 
 /**
- * The names that run in part `index` of `count`. The borrowers go to part 1;
- * the rest, in name order, are dealt round the parts starting from part 2, so
- * part 1 is not given a full share on top of them.
+ * How long each spec takes, in seconds, to drive and to clear up after
+ * itself, to the nearest ten: read off one whole run of the suite in CI
+ * (13 November 2026). Only the proportions matter, so a number here is right
+ * for as long as it is roughly right; refresh the table from a run's log when
+ * the parts drift apart. A spec that is not listed is taken as
+ * `DEFAULT_SPEC_SECONDS`, so a new spec needs no entry to be placed.
+ */
+export const SPEC_SECONDS = new Map([
+  ["applicant-funnel", 40],
+  ["applicant-one-flow", 20],
+  ["applicant-signup", 20],
+  ["appointment-queue", 20],
+  ["course-hub-before-survey", 150],
+  ["course-hub-check-in", 120],
+  ["course-hub-correct-register", 190],
+  ["course-hub-coursework", 70],
+  ["course-hub-cover-register", 210],
+  ["course-hub-edit-a-week", 180],
+  ["course-hub-excused-weeks", 250],
+  ["course-hub-explainers-and-lead-notes", 140],
+  ["course-hub-facilitators-week", 150],
+  ["course-hub-group-time", 60],
+  ["course-hub-groups-go-out", 160],
+  ["course-hub-incubator-pitching-and-teams", 140],
+  ["course-hub-lead-week-three", 90],
+  ["course-hub-leaving", 260],
+  ["course-hub-programme-end", 220],
+  ["course-hub-programme-surveys", 60],
+  ["course-hub-remind", 130],
+  ["course-hub-sessions-and-work", 320],
+  ["course-hub-survey-admin", 90],
+  ["course-hub-week-one-before-groups", 270],
+  ["course-hub-week-review", 130],
+  ["course-hub-whole-term", 730],
+  ["course-hub-work-loop", 100],
+  ["coursework-notes", 90],
+  ["events-at-the-door", 90],
+  ["events-authoring", 60],
+  ["events-rsvp", 10],
+  ["member-journey", 70],
+  ["membership-console", 20],
+  ["messages", 60],
+  ["register-push", 100],
+  ["round-authoring", 30],
+]);
+
+/** What a spec with no recorded time is taken to cost: about the middle of the table. */
+export const DEFAULT_SPEC_SECONDS = 120;
+
+/**
+ * What part 1 is taken to hold before any spec is dealt to it: it waits in
+ * the shared queue behind part 1 of any other run, so it is kept short.
+ */
+export const SHARED_QUEUE_SECONDS = 600;
+
+/** A spec's recorded seconds, or the default. */
+export function secondsFor(name) {
+  return SPEC_SECONDS.get(name) ?? DEFAULT_SPEC_SECONDS;
+}
+
+/**
+ * The names that run in part `index` of `count`, in name order. The borrowers
+ * go to part 1. The rest are dealt longest first (name order between equals),
+ * each to the part with the least work so far (the lowest part between
+ * equals), with part 1 starting at the borrowers' time and the shared queue's
+ * allowance.
  * @param {readonly string[]} names
  * @param {number} index 1-based
  * @param {number} count
@@ -61,9 +133,16 @@ export function namesInShard(names, index, count) {
   const sorted = [...new Set(names)].sort();
   const pinned = sorted.filter((name) => BORROWS_A_SHARED_SETTING.has(name));
   const dealt = sorted.filter((name) => !BORROWS_A_SHARED_SETTING.has(name));
-  const part = (position) => ((position + (count > 1 ? 1 : 0)) % count) + 1;
-  return [
-    ...(index === 1 ? pinned : []),
-    ...dealt.filter((_, position) => part(position) === index),
-  ];
+  if (count === 1) return index === 1 ? sorted : [];
+  const longestFirst = [...dealt].sort((a, b) => secondsFor(b) - secondsFor(a) || (a < b ? -1 : 1));
+  const work = Array.from({ length: count }, () => 0);
+  work[0] = SHARED_QUEUE_SECONDS + pinned.reduce((sum, name) => sum + secondsFor(name), 0);
+  const parts = Array.from({ length: count }, () => []);
+  for (const name of longestFirst) {
+    let least = 0;
+    for (let part = 1; part < count; part += 1) if (work[part] < work[least]) least = part;
+    parts[least].push(name);
+    work[least] += secondsFor(name);
+  }
+  return [...(index === 1 ? pinned : []), ...(parts[index - 1] ?? [])].sort();
 }

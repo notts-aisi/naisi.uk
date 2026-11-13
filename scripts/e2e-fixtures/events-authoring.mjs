@@ -58,9 +58,20 @@ export const AUTHORING_STEPS = [
 /** Asking for a place presses the sign-up form's Submit, which is reCAPTCHA-gated. */
 export const RECAPTCHA_DEPENDENT_STEPS = ["the invitee finds it on Home, for them, and asks for a place"];
 
-/** The two accounts' names, which the picker and the admins' list show. */
-export const INVITEE_NAMES = { preferred: "Inez", display: "Inez Fixture" };
-export const STRANGER_NAMES = { preferred: "Saul", display: "Saul Fixture" };
+/**
+ * The two accounts' names, which the picker and the admins' list show.
+ *
+ * Each carries its run's id. Every run seeds the one database, two can be
+ * running at once, and the picker lists every approved account by name: a
+ * name of its own is what lets the spec pick this run's person and no other
+ * run's. A run id is letters and digits, which a fixture's name may hold.
+ */
+export function namesFor(fixtureRunId) {
+  return {
+    invitee: { preferred: "Inez", display: `Inez Fixture ${fixtureRunId}` },
+    stranger: { preferred: "Saul", display: `Saul Fixture ${fixtureRunId}` },
+  };
+}
 
 async function seed({ runId: fixtureRunId, suppress = true, onState } = {}) {
   const target = assertFixtureTarget();
@@ -81,13 +92,14 @@ async function seed({ runId: fixtureRunId, suppress = true, onState } = {}) {
   onState?.(state);
 
   log(`Seeding fixture ${fixtureRunId} into ${target.projectId}.`);
-  for (const [key, index, names] of [
-    ["invitee", 0, INVITEE_NAMES],
-    ["stranger", 1, STRANGER_NAMES],
+  const names = namesFor(fixtureRunId);
+  for (const [key, index] of [
+    ["invitee", 0],
+    ["stranger", 1],
   ]) {
-    const account = await createFixtureUser({ runId: fixtureRunId, index, suppress, names });
+    const account = await createFixtureUser({ runId: fixtureRunId, index, suppress, names: names[key] });
     if (account.suppressionId) state.suppressed.push(account.suppressionId);
-    state[key] = { uid: account.uid, email: account.email, password: account.password, name: names.display };
+    state[key] = { uid: account.uid, email: account.email, password: account.password, name: names[key].display };
   }
   log("Seeded two waiting accounts. The event is the browser's job.");
   return state;

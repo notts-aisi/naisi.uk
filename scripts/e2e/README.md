@@ -1057,18 +1057,23 @@ local job because they build the app; the browser step then reuses that build
 with `--skip-build`, and `run.mjs` rebuilds anyway if the values baked in
 differ from what it wants.
 
-**The local job runs on four machines at once.** The fetch batteries run on
-one, and a third of the browser specs on each of three
-(`node scripts/run-e2e.mjs --local --shard N/3`, split by
-`scripts/e2e/lib/shard.mjs`). Each machine builds and boots its own loopback
-server and Mailpit, so they share nothing but the dev project, where every row
-carries its run id. The exceptions are the specs that borrow a document the
-whole project shares, `config/membership` (the membership console) and the end
-of a programme's question set (the survey admin spec): each always runs in
-part 1 (`BORROWS_A_SHARED_SETTING`), and part 1 is the only part that waits in
-the shared queue described next. `tests/e2e-shards.test.mjs` holds that every
-spec lands in exactly one part and that a fixture reaching either shared
-document is on the list.
+**The local job runs on seven machines at once.** The fetch batteries run on
+one, and one part of the browser specs on each of six
+(`node scripts/run-e2e.mjs --local --shard N/6`, split by
+`scripts/e2e/lib/shard.mjs`). A run waits for its slowest part, so the specs
+are dealt by how long each takes (`SPEC_SECONDS`, read off a run's log),
+longest first, each to the part with the least work so far; a spec with no
+recorded time is taken as two minutes, so a new one needs no entry. Each
+machine builds and boots its own loopback server and Mailpit, so they share
+nothing but the dev project, where every row carries its run id. The
+exceptions are the specs that borrow a document the whole project shares,
+`config/membership` (the membership console) and the end of a programme's
+question set (the survey admin spec): each always runs in part 1
+(`BORROWS_A_SHARED_SETTING`), and part 1 is the only part that waits in the
+shared queue described next, which is why it is dealt the least work.
+`tests/e2e-shards.test.mjs` holds that every spec lands in exactly one part,
+that a fixture reaching either shared document is on the list, and that the
+parts CI runs are level.
 
 **Every run that borrows the shared setting waits behind the last one.** The
 nightly `dev` job and part 1 of the local job share one concurrency group, not
