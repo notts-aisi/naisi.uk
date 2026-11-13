@@ -819,6 +819,8 @@ describe("6. the member's side: nothing the person is sent names a read time", (
       .filter((rel) => rel.startsWith("app/") && /\/(?:page|route|layout)\.tsx?$/.test(rel))
       .sort();
     const READERS = {
+      "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/coursework/page.tsx":
+        "the Coursework tab: an admin or the programme's lead, the flags and the list of what waits worked out on the server for the people the one gate lets them read, never their own row; handed whether a flag is true, never a time or who",
       "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/question/page.tsx":
         "one question across a group on the programme's side: an admin or the programme's lead, and only the answers the one gate lets them read, never their own",
       "app/(app)/learn/[runId]/group/[groupId]/question/page.tsx":

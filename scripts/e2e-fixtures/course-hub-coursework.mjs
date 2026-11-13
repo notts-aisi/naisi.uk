@@ -7,7 +7,8 @@
  * written as blocks, Publish having told Ada and Ben their place in Group A and
  * Cleo hers in Group B, and Dan holding a place in no group. Ada has written
  * two reflections, ticked a source with a private note on it and sent her
- * week 3 written answer; Cleo has written one reflection; Dan has written his
+ * week 3 written answer; Cleo has written one reflection and, here alone, sent
+ * her week 3 written answer (`cleoSendsHerAnswer`); Dan has written his
  * week 1 reflections and ticked a week 1 source before any group.
  *
  * The spec (`tests/e2e/course-hub-coursework.spec.mjs`) is the programme's
@@ -21,7 +22,10 @@
  * there, which the lead reads beside it. Both read one question across the
  * group too: an answer not read yet, read once opened, the answers with no
  * feedback yet, feedback written from that page, and the switch between the
- * two ways of reading a week.
+ * two ways of reading a week. Then the lead's filters on the Coursework tab,
+ * feedback written on Cleo's answer from the tab's list of what waits for
+ * feedback, and Ada, signed in, changing her written answer, which comes back
+ * on that list and on Fern's card as changed since feedback.
  *
  * WHAT IT CANNOT PROVE: that the programme's lead, when the lead is not an
  * admin, is never shown a private note or a placement Publish has not told.
@@ -42,8 +46,8 @@
  *
  * Nothing it drives sends an email but the approvals, which go to addresses
  * the fixture suppressed first: saving feedback emails nobody (an admin's
- * batch does, which the spec never presses). So it runs wherever the harness
- * runs, against a deployed target too.
+ * batch does, which the spec never presses), and nor does changing a written
+ * answer. So it runs wherever the harness runs, against a deployed target too.
  *
  * ## What its feedback and its reading leave behind
  *
@@ -66,18 +70,22 @@ export const COURSEWORK_STEPS = [
   "the admin approves the facilitator and the two people of the group they will facilitate",
   "the admin names the running course run on the programme's Settings tab",
   "the admin appoints the facilitator to Group A on the Facilitators view",
-  "the lead opens the Coursework tab: everybody in their group, the person in no group last, and each cell in counts",
+  "the lead opens the Coursework tab: everybody in their group, the person in no group last, and each cell in words",
   "the lead opens the person in no group: their week 1 reflections under their prompts",
   "the lead opens one question across the group from a person's week: an answer not read yet, then read once opened",
   "the facilitator opens the written answer across the group: not read yet, no feedback yet, the person's week and back, and read",
   "the lead opens a fellow's page: reflections with when, the answer waiting for feedback, and as an admin the private note",
   "the lead writes feedback on a fellow's week in the reading view, and reads it back",
+  "the lead keeps, with the filters, the people with something not read yet and the people with no feedback yet",
+  "the lead opens an answer from the waiting list, writes feedback on it, and finds it gone from the list",
   "the lead reads the group's reflections with each writer's name",
   "the facilitator reads the group's reflections with names, and never a private note",
   "the facilitator's page to read lines out still names nobody beside an answer",
   "the facilitator opens a person's week from the group page, reads it with the private note and no rating, and writes feedback there",
   "the lead reads the facilitator's feedback beside the answer on the programme's side",
   "the lead writes feedback from the page of one question and reads it back, then switches to the person's week and back",
+  "the person changes the written answer the lead and the facilitator gave feedback on",
+  "the lead finds it back on the waiting list as changed since feedback, and so does the facilitator's card",
 ];
 
 /**
@@ -112,6 +120,39 @@ async function savedSinceReadTimesAreKept(state) {
   }
 }
 
+/**
+ * CLEO'S WEEK 3 WRITTEN ANSWER, SENT, a minute after Ada's: the second answer
+ * on the lead's list of what waits for feedback, which the lead opens from the
+ * list, gives feedback on and sees go, while Ada's waits for her facilitator.
+ * Written beside the term's own rows, with the run's id on it, so the term's
+ * teardown drains it. Its time is told from Ada's as stored, after the step
+ * above may have moved it, so it is saved since read times are kept too.
+ */
+export const CLEO_ANSWER = "The harbour board, since it already keeps the buoys.";
+
+async function cleoSendsHerAnswer(state) {
+  const [ada, cleo] = ["ada", "cleo"].map((key) => state.people.find((person) => person.key === key));
+  const answerId = courseworkItemId(3, "wa");
+  const adas = (await fixtureDoc("courseExerciseResponses", `${state.runId}__${ada.uid}__${weekDocId(3)}__${answerId}`).get()).data();
+  const adaAt = adas?.firstSentAt?.toDate?.() ?? adas?.updatedAt?.toDate?.() ?? new Date();
+  const at = new Date(adaAt.getTime() + 60_000);
+  await fixtureDoc("courseExerciseResponses", `${state.runId}__${cleo.uid}__${weekDocId(3)}__${answerId}`).set({
+    e2eTermRunId: state.termRunId,
+    runId: state.runId,
+    uid: cleo.uid,
+    weekId: weekDocId(3),
+    weekNumber: 3,
+    exerciseId: answerId,
+    responseType: "text",
+    text: CLEO_ANSWER,
+    words: CLEO_ANSWER.trim().split(/\s+/).length,
+    firstSentAt: at,
+    submittedAt: at,
+    reviewStatus: "unreviewed",
+    updatedAt: at,
+  });
+}
+
 /** The pieces of feedback the spec saves, each with the run's id on it. */
 async function countFeedback(state) {
   return (await fixtureQuery("courseFeedback").where("runId", "==", state.runId).get()).size;
@@ -144,6 +185,7 @@ export const SPEC = {
       "/api/courses/groups/[groupId]/facilitators",
       "/api/courses/runs/[runId]/feedback",
       "/api/courses/runs/[runId]/first-read",
+      "/api/courses/runs/[runId]/written-answers/[answerId]",
     ],
     pages: [
       "/(auth)/login",
@@ -159,6 +201,7 @@ export const SPEC = {
       "/(app)/learn/[runId]/group/[groupId]/coursework/[uid]",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/question",
       "/(app)/learn/[runId]/group/[groupId]/question",
+      "/(app)/learn/[runId]/weeks/[n]",
     ],
   },
   /**
@@ -175,12 +218,18 @@ export const SPEC = {
    * yet; feedback written from that page; the switch both ways) were added on
    * 13 November 2026 and run the same way: all fifteen steps ran, 50 rows
    * existed before teardown (one week record holding when answers were first
-   * read among them), and the fixture manifest read zero after it.
+   * read among them), and the fixture manifest read zero after it. The steps
+   * reading the Coursework tab in words (its filters, feedback written from its
+   * list of what waits, and an answer changed since feedback coming back on the
+   * list and on the facilitator's card) were added on 13 November 2026 and
+   * have not yet run in a browser: the pull request's end-to-end job runs them
+   * first.
    */
   status: "verified",
   seed: async ({ runId, suppress, onState }) => {
     const state = await seedTerm({ runId, suppress, onState, point: "coursework" });
     await savedSinceReadTimesAreKept(state);
+    await cleoSendsHerAnswer(state);
     return state;
   },
   countRows: async (state) => {

@@ -7,6 +7,7 @@ import type { WrittenQueueRow } from "@/lib/courses/writtenAnswers/queue";
 import { FEEDBACK_TO_WRITE, TO_WRITE_LINE, WRITE_FEEDBACK, toWriteWords } from "@/lib/courses/feedback/words";
 import { listReadSinceWords, listSentWords } from "@/lib/courses/writtenAnswerWords";
 import { lateAfterSessionWords } from "@/lib/courses/weekWork/words";
+import { changedOnWords } from "@/lib/courses/coursework/words";
 
 /**
  * FEEDBACK TO WRITE ON A GROUP'S PAGE (the facilitator's group page, at 1440
@@ -17,7 +18,10 @@ import { lateAfterSessionWords } from "@/lib/courses/weekWork/words";
  * after the session, and Write feedback, oldest first.
  * Who is listed is the one gate's, bounded by the week's session
  * (`loadWrittenQueue`): a facilitator never sees a co-facilitator's own
- * answer, or their own.
+ * answer, or their own. An answer changed since the newest feedback on it
+ * (Fri 13 Nov 2026) is marked "Changed since feedback" with when it was
+ * changed, for seven days from the change; where its row leads is the page's
+ * to say (the reading view at that answer, which shows both versions).
  *
  * THE REFLECTIONS HALF is the facilitator's week's, a later piece:
  * `reflections` is where it goes, drawn under this half when it is handed
@@ -30,7 +34,7 @@ export default function ReviewQueueCard({
   reflections = null,
 }: {
   rows: WrittenQueueRow[];
-  /** Where Give feedback leads for one row: the review page on that person and week. */
+  /** Where a row's button leads: the review page on that person and week, or, for an answer changed since its feedback, the reading view of their week at the answer. */
   hrefFor: (row: WrittenQueueRow) => string;
   /** The reading view of that person's week, where the name leads; left out, the name is plain text. */
   readHrefFor?: ((row: WrittenQueueRow) => string) | null;
@@ -61,10 +65,16 @@ export default function ReviewQueueCard({
                   ) : (
                     <span className={facilitator.personName}>{row.name}</span>
                   )}
-                  <span className={facilitator.queueMeta}>
-                    {row.locked ? listReadSinceWords(new Date(row.firstSentAt)) : listSentWords(new Date(row.firstSentAt))}
-                  </span>
-                  {row.lateMs !== null && <span className={facilitator.queueMeta}>{lateAfterSessionWords(row.lateMs)}</span>}
+                  {row.changed && row.changedAt ? (
+                    <span className={facilitator.queueChanged}>{changedOnWords(new Date(row.changedAt))}</span>
+                  ) : (
+                    <>
+                      <span className={facilitator.queueMeta}>
+                        {row.locked ? listReadSinceWords(new Date(row.firstSentAt)) : listSentWords(new Date(row.firstSentAt))}
+                      </span>
+                      {row.lateMs !== null && <span className={facilitator.queueMeta}>{lateAfterSessionWords(row.lateMs)}</span>}
+                    </>
+                  )}
                 </span>
                 <Link
                   href={hrefFor(row)}

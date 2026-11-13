@@ -246,31 +246,72 @@ export function staffLegacyCardOf(
   };
 }
 
-/** Cards oldest first, as the person's page lists them; ties by id so the order never wobbles. */
-export function byOldest<T extends { at: string | null; id: string }>(cards: readonly T[]): T[] {
-  return [...cards].sort((a, b) => (a.at ?? "").localeCompare(b.at ?? "") || a.id.localeCompare(b.id));
-}
+/**
+ * One piece of feedback on a written answer, as the rule of "changed since
+ * feedback" reads it: when it was given (ISO 8601), and the version of the
+ * answer it was about, as a card carries it (`aboutOf`): `about` null and not
+ * gone for the answer's latest words, `about` set for an earlier version still
+ * kept, gone for one no longer kept. A staff card is one. Feedback given
+ * before pieces existed carries no version and counts as about the words it
+ * was given on.
+ */
+export type FeedbackVersion = { id: string; at: string | null; about: { savedAt: string | null } | null; aboutGone: boolean };
 
 /**
- * WHETHER A WRITTEN ANSWER HAS CHANGED SINCE FEEDBACK, as a row or a cell
- * says it ("Changed since feedback"): the NEWEST piece of feedback on the
- * answer alone decides. It has changed when that piece was about earlier
- * words than the words read now (its `about` is a version whose save is not
- * `readSavedAt`, or the version it was about is no longer kept); a newer piece
- * about the words read now says it has feedback on them, whatever an older
- * piece was about. `pieces` are the cards on the answer, oldest first
- * (`byOldest`); `readSavedAt` is when the words read now were saved (ISO
- * 8601), or null. Feedback given before pieces existed carries no version and
- * reads as about the words read. No pieces: no change to speak of.
+ * CHANGED SINCE FEEDBACK (Fri 13 Nov 2026), as a row, a cell or a queue says
+ * it: the person changed the answer after the NEWEST piece of feedback on it,
+ * and that newest piece alone decides. It has changed when that piece is
+ * about words other than those its readers read now (`readSavedAt`, ISO
+ * 8601): an earlier version still kept, or one no longer kept. A newer piece
+ * about the words read now means nothing has changed since the newest
+ * feedback, whatever older pieces were about; feedback given before pieces
+ * existed carries no version and reads as about the words read; with no
+ * feedback at all there is none to have changed since.
+ *
+ * The newest is found here, by when each piece was given and then by id, as
+ * the cards are ordered (`byOldest`), so the pieces may come in any order;
+ * pieces that say neither keep the order they came in, oldest first. The page
+ * of one question, the Coursework tab's flag and its list of what waits for
+ * feedback, and Feedback to write on a group's page all ask it.
  */
 export function changedSinceFeedback(
-  pieces: ReadonlyArray<Pick<OwnFeedbackCard, "about" | "aboutGone">>,
+  pieces: ReadonlyArray<Pick<FeedbackVersion, "about" | "aboutGone"> & Partial<Pick<FeedbackVersion, "id" | "at">>>,
   readSavedAt: string | null,
 ): boolean {
-  const newest = pieces.at(-1);
+  const newest = [...pieces].sort((a, b) => (a.at ?? "").localeCompare(b.at ?? "") || (a.id ?? "").localeCompare(b.id ?? "")).at(-1);
   if (!newest) return false;
   if (newest.aboutGone) return true;
   return newest.about !== null && newest.about.savedAt !== readSavedAt;
+}
+
+/**
+ * The feedback on one written answer as `changedSinceFeedback` reads it, with
+ * no words and no names: for each piece on the answer, when it was given and
+ * the version it was about (`aboutOf`, as its card carries it); feedback given
+ * before pieces existed as one more, about the words it was given on. For the
+ * pages that read no cards: the Coursework tab and Feedback to write.
+ */
+export function feedbackVersionsOf(
+  answerId: string,
+  pieces: readonly Pick<CourseFeedbackDoc, "id" | "on" | "aboutSavedAt" | "createdAt">[],
+  legacy: Pick<LegacyFeedback, "sentAt"> | null,
+  answer: PieceFacts | null,
+): FeedbackVersion[] {
+  return [
+    ...(legacy ? [{ id: legacyCardId(answerId), at: iso(legacy.sentAt), about: null, aboutGone: false }] : []),
+    ...pieces
+      .filter((piece) => piece.on.kind === "writtenAnswer" && piece.on.itemId === answerId)
+      .map((piece) => {
+        // The version's mark alone: never its words.
+        const { about, aboutGone } = aboutOf(piece, answer);
+        return { id: piece.id, at: iso(piece.createdAt), about: about ? { savedAt: about.savedAt } : null, aboutGone };
+      }),
+  ];
+}
+
+/** Cards oldest first, as the person's page lists them; ties by id so the order never wobbles. */
+export function byOldest<T extends { at: string | null; id: string }>(cards: readonly T[]): T[] {
+  return [...cards].sort((a, b) => (a.at ?? "").localeCompare(b.at ?? "") || a.id.localeCompare(b.id));
 }
 
 // ---------------------------------------------------------------------------

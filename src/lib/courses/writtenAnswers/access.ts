@@ -6,6 +6,7 @@ import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
   placementIsShownTo,
+  type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { programmeLedBy } from "../programmeLead";
@@ -92,6 +93,20 @@ export async function ownerFactsOf(
 ): Promise<OwnerFacts | null> {
   const snap = await db.collection("courseEnrolments").doc(courseEnrolmentId(runId, uid)).get();
   const enrolment = snap.exists ? normalizeCourseEnrolment(snap.id, snap.data() ?? {}) : null;
+  return ownerFactsFromSeat(uid, enrolment, liveGroups, viewer);
+}
+
+/**
+ * The same answer from a seat a caller has read already (one equality on the
+ * run, for a page that lists everybody): the one rule, asked of the seat
+ * `ownerFactsOf` would have read.
+ */
+export function ownerFactsFromSeat(
+  uid: string,
+  enrolment: CourseEnrolmentDoc | null,
+  liveGroups: readonly CourseGroupDoc[],
+  viewer: { isAdmin: boolean },
+): OwnerFacts | null {
   const placed =
     enrolment !== null &&
     enrolment.role === "learner" &&

@@ -10,10 +10,12 @@ import { weekFillInBoxes } from "@/lib/courses/weekBlocks/reader";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { answerPiece, answerState, instantOf, isWordCountedAnswer, readWrittenAnswer, type AnswerState } from "@/lib/courses/writtenAnswers/model";
 import { lateBy, type WeekDue } from "@/lib/courses/weekWork/model";
-import { loadRunWeekStates, type RunWeekStates } from "@/lib/courses/weekWork/readers";
+import { loadRunWeekStates, type RunWeekStates, type RunWeekWork } from "@/lib/courses/weekWork/readers";
 import { lastSentAt, readPieceFacts, readableAnswer, sameWords, versionAtSession, type PieceFacts } from "@/lib/courses/weekWork/versions";
 import { facilitatingOnRunOf, liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
-import { workKey, type PersonAnswerWrite, type PersonWork, type PersonWrites, type WrittenBox } from "@/lib/courses/coursework/model";
+import { workKey, type AnswerFacts, type PersonAnswerWrite, type PersonWork, type PersonWrites, type WrittenBox } from "@/lib/courses/coursework/model";
+import { readableSinceOf } from "@/lib/courses/coursework/question";
+import { changedSinceFeedback, feedbackVersionsOf } from "@/lib/courses/feedback/model";
 import { readRunFeedback } from "@/lib/courses/feedback/readers";
 import type { CourseFeedbackDoc } from "@/lib/firestore/courseFeedback";
 import { isFillInResponse, isOwnBoxResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
@@ -643,6 +645,12 @@ export async function loadNamedReflections(
  *  - The run's feedback (`courseFeedback`): an answer with a piece on it, or
  *    with feedback given before pieces existed, has feedback. The pieces
  *    about the people in `wordsOf` travel back for their page.
+ *  - For everybody, as facts and never words (`savedAt`, `answerFacts`):
+ *    when each reflection and box was last saved, and of each written answer
+ *    whether its readers may read it, when the words they read were saved,
+ *    how many pieces of feedback are on it and whether it was changed since
+ *    the newest of them (`changedSinceFeedback`). What the Coursework tab's
+ *    flags and its list of answers waiting for feedback are worked out from.
  *  - From the progress store, who ticked which item, through a projection
  *    with no rating, no comment and no private note.
  *  - Where each person's every week stands (`states`), which the tab's one
@@ -658,6 +666,8 @@ export async function readRunCoursework(
     now: Date;
     /** The run's places, when the caller has read them already: not read again. */
     enrolments?: readonly CourseEnrolmentDoc[] | null;
+    /** The run's stored weeks, when the caller has read them already (the Coursework tab, beside the first reads): not read again. */
+    weekRecords?: RunWeekWork | null;
   },
   wordsOf: string | readonly string[] | null,
 ): Promise<{
@@ -675,13 +685,17 @@ export async function readRunCoursework(
     db.collection("courseExerciseResponses").where("runId", "==", runId).get(),
     // The projection is the boundary: who, which item, whether it is ticked and when.
     db.collection("courseProgress").where("runId", "==", runId).select("uid", "itemId", "completed", "completedAt").get(),
-    loadRunWeekStates(db, { run: on.run, liveGroups: on.liveGroups, enrolments: on.enrolments ?? null, now: on.now }),
+    loadRunWeekStates(db, { run: on.run, liveGroups: on.liveGroups, enrolments: on.enrolments ?? null, records: on.weekRecords ?? null, now: on.now }),
     readRunFeedback(db, runId),
   ]);
-  // Every written answer somebody has left a piece of feedback on.
-  const given = new Set(
-    pieces.flatMap((piece) => (piece.on.kind === "writtenAnswer" ? [`${piece.uid} ${workKey(piece.weekNumber, piece.on.itemId)}`] : [])),
-  );
+  // Every written answer somebody has left a piece of feedback on, with the pieces on it.
+  const onAnswer = new Map<string, CourseFeedbackDoc[]>();
+  for (const piece of pieces) {
+    if (piece.on.kind !== "writtenAnswer") continue;
+    const key = `${piece.uid} ${workKey(piece.weekNumber, piece.on.itemId)}`;
+    onAnswer.set(key, [...(onAnswer.get(key) ?? []), piece]);
+  }
+  const given = new Set(onAnswer.keys());
   type Work = {
     reflections: Set<string>;
     boxes: Set<string>;
@@ -690,12 +704,24 @@ export async function readRunCoursework(
     sentAt: Map<string, Date>;
     tickedAt: Map<string, Date | null>;
     writtenAt: Map<string, Date | null>;
+    savedAt: Map<string, Date | null>;
+    answerFacts: Map<string, AnswerFacts>;
   };
   const work = new Map<string, Work>();
   const of = (uid: string) => {
     let found = work.get(uid);
     if (!found) {
-      found = { reflections: new Set(), boxes: new Set(), answers: new Map(), ticked: new Set(), sentAt: new Map(), tickedAt: new Map(), writtenAt: new Map() };
+      found = {
+        reflections: new Set(),
+        boxes: new Set(),
+        answers: new Map(),
+        ticked: new Set(),
+        sentAt: new Map(),
+        tickedAt: new Map(),
+        writtenAt: new Map(),
+        savedAt: new Map(),
+        answerFacts: new Map(),
+      };
       work.set(uid, found);
     }
     return found;
@@ -728,11 +754,13 @@ export async function readRunCoursework(
       if (!text.trim()) continue;
       of(uid).reflections.add(key);
       of(uid).writtenAt.set(key, firstWrittenAt);
+      of(uid).savedAt.set(key, instantOf(data.updatedAt));
       wordsOfUid(uid)?.reflections.set(key, boxOf(uid, weekNumber, data, text.trim()));
     } else if (isFillInResponse(data)) {
       if (!text.trim()) continue;
       of(uid).boxes.add(key);
       of(uid).writtenAt.set(key, firstWrittenAt);
+      of(uid).savedAt.set(key, instantOf(data.updatedAt));
       wordsOfUid(uid)?.boxes.set(key, boxOf(uid, weekNumber, data, text));
     } else if (!isOwnBoxResponse(data) && isWordCountedAnswer(data)) {
       // A block week's written answer; the summer's exercise answers have no words count.
@@ -755,6 +783,26 @@ export async function readRunCoursework(
               : answerState(record)
             : "not-started";
       of(uid).answers.set(key, state);
+      // Facts, never words: what the Coursework tab's flags and its list of answers waiting for feedback ask.
+      const onThis = onAnswer.get(`${uid} ${key}`) ?? [];
+      const takesFeedback = readable && read.words > 0;
+      // Readable in these words since the later of their save and their send as they are, or, not sent as they are, the
+      // start of the session they are read from: the page of one question's own rule (`readableSinceOf`).
+      const since = takesFeedback
+        ? readableSinceOf({ kind: "answer", savedAt: read.savedAt, lastSentAt: lastSentAt(piece), sessionStart: due.at })
+        : null;
+      of(uid).answerFacts.set(key, {
+        readable: takesFeedback,
+        savedAt: takesFeedback ? read.savedAt : null,
+        readableSince: since,
+        firstSentAt: record.firstSentAt,
+        sentLateMs: lateBy(record.firstSentAt, due),
+        sessionStart: due.at,
+        pieces: onThis.length + (record.feedback ? 1 : 0),
+        changed:
+          takesFeedback &&
+          changedSinceFeedback(feedbackVersionsOf(id, onThis, record.feedback, piece), read.savedAt ? read.savedAt.toISOString() : null),
+      });
       const own = wordsOfUid(uid);
       if (own) {
         const lastSent = lastSentAt(piece);

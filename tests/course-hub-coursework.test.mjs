@@ -15,15 +15,16 @@
  *     people in no group last.
  *  3. A PLACEMENT PUBLISH HAS NOT TOLD is shown to admins alone: to the lead
  *     that person is not in a group yet.
- *  4. A CELL leads with whether the week is done, by the one meaning of done
- *     every page uses (submitted where it asks for anything written, and
- *     every tick it counts ticked, the pathway's own reading among them),
- *     then counts and states, never a word: reflection parts written,
- *     sources ticked, the written answer (waiting stands out and opens the
- *     feedback page), boxes filled. Somebody in no group is counted on the
- *     run's own week 1, where their week 1 work was written.
- *  5. THE FILTERS are plain links, "Not done" among them: the people with a
- *     week that has begun for them and is not done.
+ *  4. A CELL says one thing in words, by the one meaning of done every page
+ *     uses (submitted where it asks for anything written, and every tick it
+ *     counts ticked, the pathway's own reading among them), then the
+ *     reader's flags, never a word anybody wrote and no counts drawn; the
+ *     whole cell opens the reading view of that week. Somebody in no group is
+ *     counted on the run's own week 1, where their week 1 work was written.
+ *     (The flags, the filters' counts and the list of what waits for
+ *     feedback are held in full by `tests/course-coursework-overview.test.mjs`.)
+ *  5. THE FILTERS are plain links, one at a time, "Week not done" among
+ *     them: the people with a week that has begun for them and is not done.
  *  6. A PERSON'S PAGE: newest week first, each reflection under its prompt
  *     with when it was written, the written answer and its feedback, the
  *     boxes and the ticks. A PRIVATE NOTE is an admin's alone, never the
@@ -66,6 +67,7 @@ const pages = {
   person: (await w.loadTs(join(PROGRAMME, "coursework", "[uid]", "page.tsx"))).default,
 };
 const model = await w.loadTs(join("lib", "courses", "coursework", "model.ts"));
+const overview = await w.loadTs(join("lib", "courses", "coursework", "overview.ts"));
 const words = await w.loadTs(join("lib", "courses", "coursework", "words.ts"));
 
 const PROGRAMME_PATH = `/admin/admissions/forms/${ROUND}/programmes/${AGI}`;
@@ -134,6 +136,8 @@ function answer(uid, { sent = null, feedback = null, text = `${uid} wrote a plan
     words: text.split(/\s+/).length,
     submittedAt: sent,
     firstSentAt: sent,
+    // A sent answer carries the save its send made, as the route stores one.
+    ...(sent ? { updatedAt: sent } : {}),
     reviewStatus: "unreviewed",
     ...(feedback ? { feedback } : {}),
   };
@@ -151,6 +155,8 @@ const FARAH_FEEDBACK = { levels: [{ row: "Argument", level: "Strong", descriptor
 /** The world for this suite: Tariq holds a place in no group, with week 1 work; Group B's answers and boxes. */
 function courseworkSeed() {
   const seed = facilitatorWeekSeed({
+    // The site began keeping when answers were first read at the start of Fri 13 Nov.
+    "config/firstReadTimes": { keptSince: new Date("2026-11-13T00:00:00Z") },
     [`courseRuns/${RUN.agi}/weeks/w03`]: weekThree(),
     [`courseRuns/${RUN.agi}/weeks/w01`]: weekOne(),
     [`courseExerciseResponses/${RUN.agi}__chloe__w03__k3-wa`]: answer("chloe", { sent: SENT }),
@@ -326,25 +332,50 @@ describe("4. a cell", () => {
         // The session Chloe was due at, which "Done on time" and "Done late" are told against.
         due: { at: "2026-11-17T18:00:00.000Z", by: "session" },
         reached: true,
+        // The first day of week 3's slot on Group B's calendar: the day it began for her.
+        opensOn: "2026-11-12",
+        // She has done something in it: a reflection, a tick, a box, the answer sent.
+        started: true,
+        // The counts stay for the panels under the table, and are not drawn.
         reflections: { written: 1, of: 3 },
         ticks: { ticked: 1, of: 2 },
-        answer: { state: "waiting", href: written("chloe") },
+        answer: { state: "waiting" },
         boxes: { filled: 1, of: 2 },
+        // Her reflections, saved since read times were kept, are opened by nobody; her answer, sent, has no feedback.
+        flags: { unread: true, noFeedback: true, changed: false },
+        waiting: { kind: "none", at: SENT.toISOString(), notSent: false, late: false, unread: true },
         // The reading view of Chloe's week 3.
         href: `${PROGRAMME_PATH}/coursework/chloe?week=3`,
       });
-      assert.deepEqual([cellOf(view, "Farah Hussain", 3).reflections, cellOf(view, "Farah Hussain", 3).answer.state], [{ written: 2, of: 3 }, "feedback"]);
+      assert.deepEqual(
+        [cellOf(view, "Farah Hussain", 3).reflections, cellOf(view, "Farah Hussain", 3).answer.state, cellOf(view, "Farah Hussain", 3).flags.noFeedback],
+        [{ written: 2, of: 3 }, "feedback", false],
+      );
       assert.equal(cellOf(view, "Kofi Asante", 3).answer.state, "started");
-      // A facilitator's own work, counted on the group they facilitate, its answer on the lead's feedback page.
-      assert.deepEqual([cellOf(view, "Rahul Mehta", 3).reflections, cellOf(view, "Rahul Mehta", 3).answer.href], [{ written: 1, of: 3 }, written("rahul")]);
-      // Tariq is in no group: his week 1 work, on the run's own week 1, is counted, and his answer opens no feedback page.
+      // A facilitator's own work, counted on the group they facilitate, and the lead's and an admin's to read: flagged.
+      assert.deepEqual([cellOf(view, "Rahul Mehta", 3).reflections, cellOf(view, "Rahul Mehta", 3).flags], [{ written: 1, of: 3 }, { unread: true, noFeedback: false, changed: false }]);
+      // Tariq is in no group: his week 1 work, on the run's own week 1, is counted, and nobody may review his work, so no flag.
       assert.deepEqual(cellOf(view, "Tariq Mensah", 1).reflections, { written: 1, of: 3 });
       assert.deepEqual(cellOf(view, "Tariq Mensah", 1).ticks, { ticked: 1, of: 2 });
-      assert.equal(cellOf(view, "Tariq Mensah", 3).answer.href, null);
+      assert.deepEqual([cellOf(view, "Tariq Mensah", 1).flags, cellOf(view, "Tariq Mensah", 1).waiting], [{ unread: false, noFeedback: false, changed: false }, null]);
       // Never a word.
       const handed = JSON.stringify(view);
       for (const text of ALL_WORDS) assert.ok(!handed.includes(text) && !drawn.html.includes(text), `${who}'s tab holds "${text}"`);
-      assert.match(drawn.html, new RegExp(`<a href="${writtenInHtml("chloe")}"[^>]*class="answer answerWaiting"[^>]*>No feedback yet</a>`));
+      // The whole cell opens Chloe's week 3 in the reading view, and says its state and flags in words, to a screen reader too.
+      assert.match(
+        drawn.html,
+        new RegExp(
+          `<a href="${PROGRAMME_PATH}/coursework/chloe\\?week=3" class="cellLink" aria-label="Chloe Nguyen, week 3: Started, Not read yet, No feedback yet"><span class="startedChip">Started</span><span class="unreadChip">Not read yet</span><span class="waitingChip">No feedback yet</span></a>`,
+        ),
+      );
+      // Her answer waits on the list under the table, and Read opens the reading view at it; its review page is a link there.
+      assert.match(
+        drawn.html,
+        new RegExp(`<a href="${PROGRAMME_PATH}/coursework/chloe\\?week=3#reading-answer" class="readLink" aria-label="Read Chloe Nguyen’s week 3 written answer">Read</a>`),
+      );
+      assert.doesNotMatch(drawn.html, new RegExp(writtenInHtml("chloe")), "a cell still opens the review page");
+      // No count is drawn in a cell.
+      assert.doesNotMatch(drawn.text, /Reflections \d+ of \d+|Sources \d+ of \d+|Boxes \d+ of \d+/);
     }
   });
 });
@@ -360,8 +391,9 @@ describe("5. the filters", () => {
     assert.match((await tab("zach", { group: C, waiting: "1" })).text, /Nobody here matches that\./);
     const html = (await tab("claudia", { group: B })).html;
     assert.match(html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?group=${B}" class="filter filterOn" aria-current="page">Group B</a>`));
-    assert.match(html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?group=${B}&amp;waiting=1" class="filter filterWaiting">No feedback yet</a>`));
-    assert.match(html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework" class="filter">Everybody</a>`));
+    // Each filter a link that keeps the group, with its count of the group's people.
+    assert.match(html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?group=${B}&amp;waiting=1" class="show">No feedback yet <span class="count">1</span></a>`));
+    assert.match(html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework" class="filter">All groups</a>`));
   });
 });
 
@@ -467,15 +499,18 @@ describe("6. a person's page: the reading view of one week", () => {
 describe("7. the model", () => {
   test("an answer's state as a cell says it, the filter as the address reads it, and a cell of a week with nothing to count", () => {
     assert.deepEqual(["not-started", "draft", "sent", "opened", "feedback"].map(model.cellAnswerState), ["not-started", "started", "waiting", "waiting", "feedback"]);
-    assert.deepEqual(model.readFilter({ group: "g1", waiting: "1" }, ["g1"]), { group: "g1", waiting: true, notDone: false });
-    assert.deepEqual(model.readFilter({ group: "nope" }, ["g1"]), { group: "all", waiting: false, notDone: false });
-    assert.deepEqual(model.readFilter({ group: "none" }, []), { group: "none", waiting: false, notDone: false });
-    assert.deepEqual(model.readFilter({ notdone: "1" }, []), { group: "all", waiting: false, notDone: true });
-    assert.deepEqual(model.readFilter({ notdone: ["1"] }, []), { group: "all", waiting: false, notDone: false });
-    assert.equal(model.filterHref("/c", { group: "all", waiting: false, notDone: false }), "/c");
-    assert.equal(model.filterHref("/c", { group: "none", waiting: true, notDone: false }), "/c?group=none&waiting=1");
-    assert.equal(model.filterHref("/c", { group: "g1", waiting: true, notDone: true }, 3), "/c?group=g1&waiting=1&notdone=1&week=3");
-    assert.deepEqual(model.cellOf(null, 2, model.NO_WORK, { person: "/p", written: null }), {
+    // Today's addresses keep opening what they opened: `?waiting=1` is No feedback yet, `?notdone=1` Week not done.
+    assert.deepEqual(model.readFilter({ group: "g1", waiting: "1" }, ["g1"]), { group: "g1", show: "noFeedback" });
+    assert.deepEqual(model.readFilter({ group: "nope" }, ["g1"]), { group: "all", show: "everyone" });
+    assert.deepEqual(model.readFilter({ group: "none" }, []), { group: "none", show: "everyone" });
+    assert.deepEqual(model.readFilter({ notdone: "1" }, []), { group: "all", show: "notDone" });
+    assert.deepEqual(model.readFilter({ notdone: ["1"] }, []), { group: "all", show: "everyone" });
+    // One at a time: of two asked for, the first in the filters' own order.
+    assert.deepEqual(model.readFilter({ waiting: "1", notdone: "1" }, []), { group: "all", show: "notDone" });
+    assert.equal(model.filterHref("/c", { group: "all", show: "everyone" }), "/c");
+    assert.equal(model.filterHref("/c", { group: "none", show: "noFeedback" }), "/c?group=none&waiting=1");
+    assert.equal(model.filterHref("/c", { group: "g1", show: "notDone" }, 3), "/c?group=g1&notdone=1&week=3");
+    assert.deepEqual(model.cellOf(null, 2, model.NO_WORK, { person: "/p" }), {
       weekNumber: 2,
       counted: false,
       done: null,
@@ -483,10 +518,14 @@ describe("7. the model", () => {
       doneLateMs: null,
       due: { at: null, by: "no-group" },
       reached: false,
+      opensOn: null,
+      started: false,
       reflections: null,
       ticks: null,
       answer: null,
       boxes: null,
+      flags: { unread: false, noFeedback: false, changed: false },
+      waiting: null,
       href: "/p?week=2",
     });
   });
@@ -501,35 +540,44 @@ describe("7. the model", () => {
     // One task: the written answer, sent.
     const sendIt = { tickIds: [], promptIds: [], answerIds: ["wa"], chooseOneIds: [], talkIds: [], fillInIds: [], unseenIds: [] };
     const week = { weekNumber: 1, title: "", parts: [], sources: [], answer: { id: "wa", prompt: "", boxes: [] }, boxes: [], tasks: [sendIt], writes: true };
+    // Ana's answer may be read and has no feedback; nobody else wrote one.
+    const anaAnswer = { readable: true, savedAt: null, readableSince: null, firstSentAt: null, sentLateMs: null, sessionStart: null, pieces: 0, changed: false };
     const sections = (filter) =>
-      model.courseworkSections({
-        columns: [{ weekNumber: 1 }],
-        groups: [{ id: "g1", name: "One" }, { id: "g2", name: "Two" }, { id: "g3", name: "Three" }],
-        people,
-        workOf: (uid) => (uid === "a" ? { ...model.NO_WORK, answers: new Map([["1 wa", "sent"]]) } : model.NO_WORK),
-        weekOf: () => week,
-        personHref: (uid) => `/p/${uid}`,
-        writtenHref: () => null,
-        // Fay and Zed pressed the old Submit for week 1 (Ana's answer waits, never sent); it has begun for everybody but Nia.
-        standingOf: (uid) => ({ submittedAt: uid === "f" || uid === "z" ? new Date("2026-11-02T20:00:00Z") : null, due: { at: null, by: "undated" } }),
-        reachedOf: (person) => (person.uid === "n" ? 0 : 1),
-        filter,
-        notInAGroupTitle: "Nobody's",
-      }).map((section) => [section.title, section.rows.map((row) => row.name)]);
-    assert.deepEqual(sections({ group: "all", waiting: false, notDone: false }), [["One", ["Fay"]], ["Two", ["Ana", "Zed"]], ["Nobody's", ["Nia"]]]);
-    assert.deepEqual(sections({ group: "all", waiting: true, notDone: false }), [["Two", ["Ana"]]]);
-    assert.deepEqual(sections({ group: "none", waiting: false, notDone: false }), [["Nobody's", ["Nia"]]]);
+      overview
+        .courseworkSections({
+          columns: [{ weekNumber: 1 }],
+          groups: [{ id: "g1", name: "One" }, { id: "g2", name: "Two" }, { id: "g3", name: "Three" }],
+          people,
+          workOf: (uid) =>
+            uid === "a" ? { ...model.NO_WORK, answers: new Map([["1 wa", "sent"]]), answerFacts: new Map([["1 wa", anaAnswer]]) } : model.NO_WORK,
+          weekOf: () => week,
+          personHref: (uid) => `/p/${uid}`,
+          // Fay and Zed pressed the old Submit for week 1 (Ana's answer waits, never sent); it has begun for everybody but Nia.
+          standingOf: (uid) => ({ submittedAt: uid === "f" || uid === "z" ? new Date("2026-11-02T20:00:00Z") : null, due: { at: null, by: "undated" } }),
+          reachedOf: (person) => (person.uid === "n" ? 0 : 1),
+          readingOf: () => ({ boxes: true }),
+          keptFrom: null,
+          filter,
+          notInAGroupTitle: "Nobody's",
+        })
+        .map((section) => [section.title, section.rows.map((row) => row.name)]);
+    assert.deepEqual(sections({ group: "all", show: "everyone" }), [["One", ["Fay"]], ["Two", ["Ana", "Zed"]], ["Nobody's", ["Nia"]]]);
+    assert.deepEqual(sections({ group: "all", show: "noFeedback" }), [["Two", ["Ana"]]]);
+    assert.deepEqual(sections({ group: "none", show: "everyone" }), [["Nobody's", ["Nia"]]]);
     // Not done: Ana's week has begun and is not done (nothing sent, the old Submit not pressed); Nia's has not begun, so is nobody's to chase yet.
-    assert.deepEqual(sections({ group: "all", waiting: false, notDone: true }), [["Two", ["Ana"]]]);
-    assert.deepEqual(sections({ group: "g1", waiting: false, notDone: true }), []);
-    assert.deepEqual(sections({ group: "all", waiting: true, notDone: true }), [["Two", ["Ana"]]], "the filters combine");
+    assert.deepEqual(sections({ group: "all", show: "notDone" }), [["Two", ["Ana"]]]);
+    assert.deepEqual(sections({ group: "g1", show: "notDone" }), []);
+    // One filter at a time, with the group: the group's people the filter keeps.
+    assert.deepEqual(sections({ group: "g2", show: "noFeedback" }), [["Two", ["Ana"]]]);
+    assert.deepEqual(sections({ group: "g1", show: "noFeedback" }), []);
   });
 
   test("the words", () => {
     assert.equal(words.courseworkSummaryWords(28, 4, 3), "28 holding a place · 4 facilitating · 3 with no feedback yet");
     assert.equal(words.courseworkSummaryWords(5, 0, 0), "5 holding a place · 0 with no feedback yet");
-    assert.equal(words.reflectionsCellWords(2, 3), "Reflections 2 of 3");
-    assert.equal(words.answerLinkLabelWords("Chloe Nguyen", 3, "waiting"), "Week 3 written answer, No feedback yet: Chloe Nguyen");
+    // A cell, to a screen reader: the person, the week, the state, then its flags.
+    assert.equal(words.cellLabelWords("Chloe Nguyen", 3, ["Started", "Not read yet", "No feedback yet"]), "Chloe Nguyen, week 3: Started, Not read yet, No feedback yet");
+    assert.equal(words.readAnswerLabelWords("Chloe Nguyen", 3), "Read Chloe Nguyen’s week 3 written answer");
     assert.equal(words.courseworkWhoLine({ firstName: "Claudia", isReader: false }), "Only Claudia and admins can open Coursework. Open a name to read everything that person wrote.");
   });
 });
@@ -572,7 +620,7 @@ describe("9. Claude, Pangram and the notes the team keeps", () => {
     // A week the tab has no column for is the latest written in, and the filters carry no week.
     const unknown = await tab("zach", { week: "9" });
     assert.deepEqual(panelsOf(unknown).props.week, { weekNumber: 3, asked: false });
-    assert.match(unknown.html, new RegExp(`<a href="${COURSEWORK_PATH}\\?waiting=1" class="filter filterWaiting">No feedback yet</a>`));
+    assert.match(unknown.html, new RegExp(`<a href="${COURSEWORK_PATH}\\?waiting=1" class="show">No feedback yet <span class="count">\\d+</span></a>`));
   });
 
   test("a person's page: beside the weeks an admin has notes from this run, Claude's draft and Pangram; the lead has the notes kept for leads alone", async () => {
@@ -624,8 +672,8 @@ describe("9. Claude, Pangram and the notes the team keeps", () => {
     assert.deepEqual(model.chosenWeek({}, columns, sections([cell(1, { boxes: { filled: 1, of: 2 } }), cell(4, { answer: { state: "started", href: null } })])), { weekNumber: 4, asked: false });
     assert.deepEqual(model.chosenWeek({}, columns, sections([cell(4, { answer: { state: "not-started", href: null } })])), { weekNumber: 1, asked: false });
     assert.equal(model.chosenWeek({ week: "1" }, [], []), null);
-    assert.equal(model.filterHref("/c", { group: "g1", waiting: true }, 3), "/c?group=g1&waiting=1&week=3");
-    assert.equal(model.filterHref("/c", { group: "all", waiting: false }, 2), "/c?week=2");
+    assert.equal(model.filterHref("/c", { group: "g1", show: "noFeedback" }, 3), "/c?group=g1&waiting=1&week=3");
+    assert.equal(model.filterHref("/c", { group: "all", show: "everyone" }, 2), "/c?week=2");
   });
 });
 
@@ -641,19 +689,30 @@ describe("8. the tree", () => {
       assert.doesNotMatch(code, /\.collection\(/, `${page} reads the store itself`);
     }
     const load = codeOf("lib/courses/coursework/load.ts");
-    for (const name of ["loadCourseworkTab", "loadPersonCoursework"]) {
-      const body = load.slice(load.indexOf(`export async function ${name}(`));
+    // The tab is read by its own loader, behind the same gate the person's page asks.
+    const tabLoad = codeOf("lib/courses/coursework/tabLoad.ts");
+    for (const [code, name] of [
+      [tabLoad, "loadCourseworkTab"],
+      [load, "loadPersonCoursework"],
+    ]) {
+      const body = code.slice(code.indexOf(`export async function ${name}(`));
       const gate = body.indexOf("const gate = await openCoursework(db, actor, roundId, programmeId);");
       const refused = body.indexOf('if (gate.status !== "ok") return gate;');
-      const firstRead = Math.min(...["listPlaceHolders(", "readRunCoursework(", ".collection("].map((needle) => body.indexOf(needle)).filter((at) => at !== -1));
+      const firstRead = Math.min(
+        ...["listPlaceHolders(", "readRunCoursework(", ".collection(", "readRunWeekRecords(", "readFirstReadsKeptFrom(", "reviewerFactsOf("]
+          .map((needle) => body.indexOf(needle))
+          .filter((at) => at !== -1),
+      );
       assert.ok(gate !== -1 && refused > gate && firstRead > refused, `${name} reads before its gate`);
     }
     assert.match(load, /const outcome = await loadProgrammeRun\(db, actor, roundId, programmeId\);/);
     // Never a survey, never a note on the tab, and no word leaves for the tab.
     assert.doesNotMatch(load, /survey/i);
-    assert.match(load, /readRunCoursework\(db, \{ run, liveGroups: groups, now: new Date\(\) \}, null\)/);
+    assert.doesNotMatch(tabLoad, /survey/i);
+    assert.match(tabLoad, /readRunCoursework\(db, \{ run, liveGroups: groups, now, enrolments, weekRecords: weekRecords\.records \}, null\)/);
     // Private notes are read on one person's week alone, by the reading view's loader, and never for the tab.
     assert.equal((load.match(/readPersonPrivateNotes\(/g) ?? []).length, 0, "the tab's loader reads private notes");
+    assert.equal((tabLoad.match(/readPersonPrivateNotes\(|readPrivateNotes\(/g) ?? []).length, 0, "the tab's loader reads private notes");
     const reading = codeOf("lib/courses/coursework/readingLoad.ts");
     assert.equal((reading.match(/readPersonPrivateNotes\(/g) ?? []).length, 1, "private notes are read anywhere but one person's week");
     // The programme's door hands the reading view the person only after its own gate.
@@ -666,6 +725,8 @@ describe("8. the tree", () => {
       "lib/courses/coursework/model.ts",
       "lib/courses/coursework/words.ts",
       "lib/courses/coursework/load.ts",
+      "lib/courses/coursework/tabLoad.ts",
+      "lib/courses/coursework/overview.ts",
       "features/courses/coursework/CourseworkTable.tsx",
       "features/courses/coursework/ReadingView.tsx",
       "features/courses/coursework/RemindOne.tsx",
@@ -832,22 +893,28 @@ describe("10. done, by the one meaning every page uses, and the Not done filter"
     // Farah's week 3 is done too now, with no Submit: both boxes its task counts are written. Kofi wrote neither.
     assert.deepEqual(cellOf(view, "Farah Hussain", 3).done, true);
     assert.deepEqual(cellOf(view, "Kofi Asante", 3).done, false);
-    // Drawn: the first line of each cell, in its own words and tone, and said to a screen reader.
-    assert.match(drawn.html, /aria-label="Week 3, done: Chloe Nguyen’s coursework"><span class="weekDone">Done<\/span>/);
-    assert.match(drawn.html, /aria-label="Week 4, not done: Chloe Nguyen’s coursework"><span class="weekToCome">Not done<\/span>/);
-    assert.match(drawn.html, /aria-label="Week 3, not done: Kofi Asante’s coursework"><span class="weekNotDone">Not done<\/span>/);
+    // Drawn: what each cell says first, in its own words and tone, and said to a screen reader with its flags.
+    assert.match(drawn.html, /aria-label="Chloe Nguyen, week 3: Done, Not read yet, No feedback yet"><span class="doneChip">Done<\/span>/);
+    // A week still to come says, quietly, the day it opens on her group's calendar.
+    assert.match(drawn.html, /aria-label="Chloe Nguyen, week 4: Opens Thu 19 Nov"><span class="quiet">Opens Thu 19 Nov<\/span><\/a>/);
+    assert.deepEqual(cellOf(view, "Chloe Nguyen", 4).opensOn, "2026-11-19");
+    // Begun and not done: Kofi has started his answer.
+    assert.match(drawn.html, /aria-label="Kofi Asante, week 3: Started"><span class="startedChip">Started<\/span>/);
     // Not done: everybody behind on week 1 or week 3, facilitators' own weeks and Tariq's included; never Chloe.
     const behind = await names({ notdone: "1" });
     assert.deepEqual(behind, (await names({})).filter((name) => name !== "Chloe Nguyen"));
     // Facilitators by the names rule for the lead, who is on the committee, as everywhere on the tab.
     assert.deepEqual(await names({ group: B, notdone: "1" }), ["Farah Hussain", "Kofi Asante", "Rahul Mehta", "Sofia Rossi"]);
-    assert.deepEqual(await names({ group: B, waiting: "1", notdone: "1" }), [], "Chloe waits for feedback and is done");
-    // The filter is a plain link that keeps the others, says when it is on, and when on, turns it off.
-    assert.match(drawn.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?notdone=1" class="filter filterNotDone">Not done</a>`));
+    // Chloe waits for feedback and is done: kept by No feedback yet, never by Week not done.
+    assert.ok((await names({ group: B, waiting: "1" })).includes("Chloe Nguyen"), "Chloe does not wait for feedback");
+    assert.ok(!(await names({ group: B, notdone: "1" })).includes("Chloe Nguyen"), "Chloe is not done");
+    // The filter is a plain link with its count; on, it says so; the others keep the group, one at a time.
+    assert.match(drawn.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?notdone=1" class="show">Week not done <span class="count">${behind.length}</span></a>`));
     const on = await tab("claudia", { group: B, notdone: "1" });
-    assert.match(on.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?group=${B}" class="filter filterNotDone filterOn" aria-current="page">Not done</a>`));
-    assert.match(on.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?group=${B}&amp;waiting=1&amp;notdone=1" class="filter filterWaiting">No feedback yet</a>`));
-    assert.match(on.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?notdone=1" class="filter">Everybody</a>`));
+    assert.match(on.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?group=${B}&amp;notdone=1" class="show showOn" aria-current="page">Week not done <span class="count">4</span></a>`));
+    assert.match(on.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?group=${B}&amp;waiting=1" class="show">No feedback yet <span class="count">1</span></a>`));
+    assert.match(on.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?group=${B}" class="show">Everyone <span class="count">5</span></a>`));
+    assert.match(on.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?notdone=1" class="filter">All groups</a>`));
     // Who is behind is never a word anybody wrote.
     for (const text of ALL_WORDS) assert.ok(!JSON.stringify(view).includes(text) && !drawn.html.includes(text), `the tab holds "${text}"`);
   });
@@ -859,7 +926,7 @@ describe("10. done, by the one meaning every page uses, and the Not done filter"
     let chloe = rows(tableOf(after)).find((row) => row.name === "Chloe Nguyen");
     assert.deepEqual(chloe.cells.map((cell) => [cell.weekNumber, cell.done, cell.reached]), [[1, true, true], [3, true, true], [4, false, true]]);
     // Once the session she was due at has passed, done says whether it was on time.
-    assert.match(after.html, /aria-label="Week 3, done: Chloe Nguyen’s coursework"><span class="weekDone">Done on time<\/span>/);
+    assert.match(after.html, /aria-label="Chloe Nguyen, week 3: Done on time[^"]*"><span class="doneChip">Done on time<\/span>/);
     assert.ok((await names({ notdone: "1" })).includes("Chloe Nguyen"));
     // Submitted with the week's reading ticked, but no pathway yet: still not done.
     w.world.db.seed(`courseProgress/${RUN.agi}__chloe__k4-s1`, tick("chloe", "k4-s1", { weekNumber: 4 }));
@@ -877,9 +944,9 @@ describe("10. done, by the one meaning every page uses, and the Not done filter"
     assert.ok(!(await names({ notdone: "1" })).includes("Chloe Nguyen"));
   });
 
-  test("the words: Done and Not done, sentence case, and never a mark, a grade or a score", () => {
-    assert.deepEqual([words.DONE, words.NOT_DONE], ["Done", "Not done"]);
-    assert.equal(words.cellLinkLabelWords("Chloe Nguyen", 3, false), "Week 3, not done: Chloe Nguyen’s coursework");
+  test("the words: Done, Started and Not started, sentence case, and never a mark, a grade or a score", () => {
+    assert.deepEqual([words.DONE, words.STARTED, words.NOT_STARTED, words.WEEK_NOT_DONE], ["Done", "Started", "Not started", "Week not done"]);
+    assert.equal(words.cellLabelWords("Chloe Nguyen", 3, ["Not started"]), "Chloe Nguyen, week 3: Not started");
     for (const value of Object.values(words).filter((entry) => typeof entry === "string")) {
       assert.doesNotMatch(value, /\b(?:marks?|marked|grades?|scores?)\b/i, value);
     }

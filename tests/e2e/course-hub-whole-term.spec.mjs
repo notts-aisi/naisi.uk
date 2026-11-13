@@ -277,6 +277,8 @@ async function waitFor(what, predicate, { timeout = WAIT_MS } = {}) {
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const flat = (text) => text.replace(/\s+/g, " ").trim();
 const textOf = async (locator) => flat((await locator.textContent()) ?? "");
+/** A person's cell on the Coursework tab, by the start of its label: "Ada Fixture ..., week 3: ", after which come its state and its flags. */
+const tabCell = (page, person, week) => page.getByRole("link", { name: new RegExp(`^${escapeRegExp(person.displayName)}, week ${week}: `) });
 /** What an element says, as written: every text node in it, a space between each. */
 const wordsIn = async (locator) =>
   flat(
@@ -1210,13 +1212,13 @@ test(
         // The lead: the Coursework tab.
         const pg = await as(gus);
         await pg.goto(`${formBase}/coursework`, { waitUntil: "domcontentloaded" });
-        const benCell = pg.getByRole("link", { name: `Week ${LATE_WEEK}, done: ${ben.displayName}’s coursework`, exact: true });
+        const benCell = tabCell(pg, ben, LATE_WEEK);
         await benCell.waitFor({ timeout: WAIT_MS });
         const benSays = await textOf(benCell);
         assert.ok(benSays.startsWith(WORDS.doneLate) && benSays.includes(`Late: ${lateWords(benLate)} after the session`), `the lead does not read Ben's week 2 as late: ${benSays}`);
-        const danCell = pg.getByRole("link", { name: `Week ${LATE_WEEK}, done: ${dan.displayName}’s coursework`, exact: true });
+        const danCell = tabCell(pg, dan, LATE_WEEK);
         assert.ok((await textOf(danCell)).startsWith(WORDS.doneOnTime), `the lead does not read Dan's week 2 as on time: ${await textOf(danCell)}`);
-        const adaCell = pg.getByRole("link", { name: `Week ${ON_TIME_WEEK}, done: ${ada.displayName}’s coursework`, exact: true });
+        const adaCell = tabCell(pg, ada, ON_TIME_WEEK);
         assert.ok((await textOf(adaCell)).startsWith(WORDS.done), `the lead does not read Ada's week 3 as done: ${await textOf(adaCell)}`);
         assert.ok(!(await textOf(adaCell)).startsWith(WORDS.doneLate), "Ada's week 3 reads as late");
       });
@@ -1233,7 +1235,7 @@ test(
         for (const reader of [gus, "admin"]) {
           const pg = await as(reader);
           await pg.goto(`${formBase}/coursework`, { waitUntil: "domcontentloaded" });
-          const cell = pg.getByRole("link", { name: `Week ${LATE_WEEK}, done: ${ivo.displayName}’s coursework`, exact: true });
+          const cell = tabCell(pg, ivo, LATE_WEEK);
           await cell.waitFor({ timeout: WAIT_MS });
           const said = await textOf(cell);
           assert.ok(said.startsWith(WORDS.doneLate) && said.includes(`Late: ${lateWords(ivoLate)} after the session`), `${reader === "admin" ? "the admin" : "the lead"} does not read Ivo's week 2 as late: ${said}`);
@@ -1844,19 +1846,22 @@ test(
 
         // 3. The Coursework tab, every fellow and every week; 4. one person's page.
         await pg.goto(`${formBase}/coursework`, { waitUntil: "domcontentloaded" });
-        await pg.getByRole("link", { name: `Week 1, done: ${ada.displayName}’s coursework`, exact: true }).waitFor({ timeout: WAIT_MS });
+        await tabCell(pg, ada, 1).waitFor({ timeout: WAIT_MS });
         for (const person of [...fellows, ivo]) {
           for (const week of [1, 2, 3]) {
             const said = stateOf(person, week);
             const doneOrNot = said === "on time" || said === "late" ? "done" : "not done";
-            const cell = pg.getByRole("link", { name: `Week ${week}, ${doneOrNot}: ${person.displayName}’s coursework`, exact: true });
+            const cell = tabCell(pg, person, week);
             if ((await cell.count()) === 0) {
-              problems.push(`the Coursework tab, ${person.first} week ${week}: no cell reads ${doneOrNot}`);
+              problems.push(`the Coursework tab, ${person.first} week ${week}: no cell`);
               continue;
             }
             const words = await textOf(cell);
-            const word = staffWord(person, week) ?? (doneOrNot === "done" ? WORDS.done : said === "joined late" ? WORDS.joinedLate : "Not done");
-            expectEqual(words.startsWith(word), true, `the Coursework tab, ${person.first} week ${week} (${words})`);
+            // A week not done says whether it was started, or, before it has begun for their group, the day it opens: each
+            // says it is not done, and none is a word for done. (The cell's words run together in its text, so no word after.)
+            const word = staffWord(person, week) ?? (doneOrNot === "done" ? WORDS.done : said === "joined late" ? WORDS.joinedLate : null);
+            const notDone = /^(Not started|Started|Not open yet|Opens [A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2})/;
+            expectEqual(word === null ? notDone.test(words) : words.startsWith(word), true, `the Coursework tab, ${person.first} week ${week} reads ${doneOrNot} (${words})`);
           }
         }
         for (const person of [ben, ada]) {

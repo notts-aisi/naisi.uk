@@ -3055,28 +3055,79 @@ admins, and promises no names only on the read-out page.
 For the programme's lead and admins (the Groups and Attendance tabs' gate,
 `loadProgrammeRun`); a reviewer is told it is theirs. A row per person holding
 a place (the People tab's set, in a group or not yet), anybody else placed in
-one of the run's live groups, and each facilitator, marked as facilitating. A
-column per week of the run's plan written as blocks. Each cell leads with
-"Done" or "Not done", by the one meaning of done every page uses
+one of the run's live groups, and each facilitator, marked as facilitating;
+grouped by group, each group's head naming its facilitators. A column per
+week of the run's plan written as blocks, read in the week the person reads
+(their group's copy once Publish has told them their group, the run's own
+week before that). The loader is `loadCourseworkTab` in
+`src/lib/courses/coursework/tabLoad.ts`; its rules are pure, in `model.ts`
+and `overview.ts` beside it.
+
+**A cell says one thing, in words** (`cellStateOf`): "Done", "Done on time"
+or "Done late" (with how late), by the one meaning of done every page uses
 (`weekDone`: every tick its tasks count is ticked, the person's own pathway
 reading among them, and either the old Submit was pressed or every box its
-tasks count is written and every answer it counts sent), with when it became
-done and how long after the session (`doneAt`, `doneLateMs`). Then it counts
-what the person did in the week they read
-(their group's copy once Publish has told them their group, the run's own
-week before that, so week 1 work written before groups go out is counted):
-reflection parts written, sources ticked, where the written answer stands
-("No feedback yet" stands out and opens the answer's review page, where
-feedback is written), boxes filled in. Never anybody's words in a cell.
-Filters are plain links: a group, "Not in a group yet", "No feedback yet",
-and "Not done": the
-people with a week that has begun for them (on the calendar of the group
-whose weeks they read) and is not done. A week still to come reads "Not
-done" quietly and puts nobody under the filter. A week with nothing its
-tasks count reads as done for everybody.
+tasks count is written and every answer it counts sent), against the session
+they were due at; "Joined late" for a week before they were told their group;
+"Opens Thu 12 Nov" for a week not begun for them, the first day of its slot on
+the calendar of the group whose weeks they read (`weekOpensOn`, the day
+`currentWeekFor` first anchors to it, which also decides whether a week has
+begun); otherwise "Started" where they have done anything in it (a tick, a
+reflection, a box, an answer begun) and "Not started" where nothing. No counts
+are drawn: the reading view one click away has them. The whole cell opens the
+reading view of that person's week; the name opens the person's page. Never
+anybody's words in a cell.
+
+**Beside the state, up to three flags**, each only where it is true, and only
+for a reader who may read that person's work (`writtenReviewRole` over the
+person's seat, the gate the first-read route asks): never on the reader's own
+row, an admin and the lead included, and to the lead never on a placement
+Publish has not told. "Not read yet": something of the week its readers may
+read in full is unread, by `readStateOf` (see "When an answer was first
+read"; a box counts only for a reader the boxes' gate admits). "No feedback
+yet": the week's written answer may be read, holds words and has no feedback
+from anyone. "Changed since feedback": the person changed it after the newest
+piece of feedback on it, decided by that newest piece alone
+(`changedSinceFeedback` in `src/lib/courses/feedback/model.ts`), so feedback
+written on the new words takes the flag off. The page is handed whether each
+flag is true, never a time anything was read and never who read it.
+
+**Filters, one at a time, as plain links, each with its count** of the people
+of the chosen group: Everyone; Week not done (a week that has begun for them
+and is not done); Late (a week done late); Not read yet; No feedback yet;
+Changed since feedback. Their addresses are `?notdone=1`, `?late=1`,
+`?unread=1`, `?waiting=1` and `?changed=1`, so the two kept from before still
+open what they opened; of two asked for, the first in that order. The group
+filter is its own row of links: All groups, each group, Not in a group yet.
+"Read one question" opens the page of one question across the chosen group
+(the first group when none is), on the week the tab is on. A key to the words
+sits above the table.
+
+**At phone width** the table gives way to one week at a time: the week the
+address names, else the newest week that has begun for anybody of the chosen
+group, as a list of its people with each one's state and flags, and the way to
+the week before and after. The table scrolls inside its own card on a wide
+screen; the page never scrolls sideways.
 
 A placement Publish has not told is shown to admins alone (marked "Not told
 yet"); the lead sees that person under "Not in a group yet".
+
+### Waiting for feedback, oldest first
+
+Under the table, one list for the reader: every written answer of the people
+of the chosen group that this reader may review (never their own), that its
+readers may read and that holds words, with no feedback from anyone or changed
+since the newest feedback (the same rules as the flags). Not bounded by any
+date: it is the complete list. Oldest first, by when it was first sent (one
+never sent and read since its session: when that session started), or, for a
+changed answer, by when the words its readers read were saved. Each row: the
+person's name (opening their page), "week N written answer", when it was sent
+("· late" where it was late), never sent and read since the session, or
+"Changed since feedback" with the day, "Not read yet" where the answer is,
+and "Read", which opens the reading view at the answer (`#reading-answer`).
+Ten are drawn, with "Show all N" (`?list=all`) when there are more; with none,
+one sentence says so. A reflection or a fill-in box is never on it: nobody
+gives feedback on one alone.
 
 ### One person's week: the reading view
 
@@ -3239,7 +3290,11 @@ with no state is counted by a filter.
 
 **Who sees it**: the people who may read the answer, as "Not read yet" on
 the page of one question and as its filter, as things stood when they
-arrived (their own opening marks it read for the next reader). The person
+arrived (their own opening marks it read for the next reader), and as a flag
+and a filter on the Coursework tab and beside an answer on its list of what
+waits for feedback (an admin or the lead, never on their own row). The tab
+reads the run's week records once, through the store's own run-wide reader
+(`readRunWeekRecords`), and is handed only whether something is unread. The person
 whose answer it is never sees it, on any page or in anything they can fetch.
 `tests/course-question-view.test.mjs` runs the route as every kind of caller,
 reads what the person's own routes and week page send them, and walks the
@@ -3590,9 +3645,14 @@ nothing in it is a mark.
   the newest of those weeks' pages at `#feedback`, never the feedback itself.
 - **Feedback to write** (the group page, Home, the lead's Attendance tab):
   written answers its reader may give feedback on, readable, with words and no
-  feedback from anyone, whose week's session started in the last seven days.
-  Feedback is optional, so a count of every answer without any would never
-  reach zero.
+  feedback from anyone, whose week's session started in the last seven days;
+  and each such answer that has feedback and was changed after the newest of
+  it (`changedSinceFeedback`, the Coursework tab's rule), for seven days from
+  that change, marked "Changed since feedback" with when, and opening the
+  reading view at that answer, where both versions are drawn. Feedback is
+  optional, so a count of every answer without any would never reach zero;
+  Home's line and the lead's line per group count what the card counts. The
+  Coursework tab's own list is the complete one, with no window.
 - **Feedback given before pieces existed** (the answer row's `feedback`, with
   rubric levels, emailed when it was given) is never migrated. It reads as one
   more signed card, its comment or, with none, its levels as plain lines, and

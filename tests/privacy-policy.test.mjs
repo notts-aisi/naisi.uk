@@ -4388,7 +4388,7 @@ describe("the course hub passage", () => {
       sourceFilesNaming(/\b(?:loadGroupWeek|loadReadOutWeek|loadNamedReflections|readRunCoursework)\(/),
       new Map([
         ["src/lib/courses/facilitatorWeek/readers.ts", "the loaders and the run-wide read, which ask nobody who is reading, so each caller decides that first"],
-        ["src/lib/courses/coursework/load.ts", "the Coursework tab: everybody's reflections and ticks on a programme's run, as counts, for its lead and admins, after the programme's own gate"],
+        ["src/lib/courses/coursework/tabLoad.ts", "the Coursework tab: everybody's reflections and ticks on a programme's run, as states and flags, never words, for its lead and admins, after the programme's own gate"],
         [
           "src/lib/courses/coursework/readingLoad.ts",
           "one person's week in the reading view, after its door's gate (the programme's: its lead and admins; the group's: its live facilitators, the lead and admins) and, on the group's side, the one gate on whose work a reader may act on, so a facilitator never reads a facilitator's own",

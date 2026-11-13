@@ -252,6 +252,18 @@ export function currentWeekFor(
   };
 }
 
+/**
+ * The civil date (`"YYYY-MM-DD"`, London) a taught week opens on: the first
+ * day of its slot, which is the day `currentWeekFor` first anchors to it
+ * (`anchorWeekNumber`, "the last taught week that has started"). Null for a
+ * week the plan does not teach, or a start date that is not a usable date.
+ */
+export function weekOpensOn(run: { startDate: string; weekPlan: readonly WeekPlanEntry[] }, weekNumber: number): string | null {
+  if (!isValidDateKey(run.startDate)) return null;
+  const index = run.weekPlan.findIndex((entry) => entry.kind === "week" && entry.weekNumber === weekNumber);
+  return index === -1 ? null : addDaysToKey(run.startDate, index * DAYS_PER_WEEK);
+}
+
 /** An instant's London wall clock, re-encoded as if it were UTC. */
 function londonWallAsUtcMs(instant: Date): number {
   let year = 1970;
