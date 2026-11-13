@@ -20,20 +20,14 @@ export type PolicyVersion = {
   version: number;
   lastUpdated: string;
   /**
-   * What Home and /privacy say about this version for 14 days from
-   * `lastUpdated` (`policyUpdateLine` in `./updateLine.ts`), before the link
-   * to what changed. Worked out from the date alone: nothing is stored about
-   * who saw it. Absent on a version that was not announced this way.
+   * True on a version that changed how people's information is used. For a
+   * week from `lastUpdated`, Home says the policy changed, with a link to
+   * what changed, to anybody who has not dismissed the line
+   * (`policyUpdateLine` in `./updateLine.ts`). Absent on a version that
+   * changed nothing about that: its date and the policy's own "What's
+   * changed" are what tell it, and Home says nothing.
    */
-  updateLine?: string;
-  /**
-   * What this version adds to the line of the version before it, while that
-   * version's own 14 days still run: a clause that takes the place of its
-   * closing full stop, after a comma ("and the short note ..."), so the line
-   * says both changes. After that, the line is this version's `updateLine`
-   * alone. Absent: never joined to an earlier line.
-   */
-  updateLineAdds?: string;
+  toldOnHome?: true;
 };
 
 export const POLICIES: Record<
@@ -174,9 +168,8 @@ export const POLICIES: Record<
     // reminders after it, a second anonymous form, and conduct records, each
     // opening of which is recorded first. It also says a change to how we use
     // somebody's information is told on the site, and no longer by email. Told,
-    // not asked, like v16: `LAST_PRIVACY_VERSION_ASKED` stays 15. For 14 days
-    // from its date, Home and /privacy carry its `updateLine`. Its date is the
-    // day it goes live, set when it is promoted.
+    // not asked, like v16: `LAST_PRIVACY_VERSION_ASKED` stays 15. Told on Home
+    // (`toldOnHome`). Its date is the day it went live.
     //
     // v18 is the short note Claude may draft each week: it is drafted after
     // the person's session and uses their work on that week as it stands
@@ -184,11 +177,17 @@ export const POLICIES: Record<
     // your work" says an unsent answer may be used in it from the session on,
     // and the tools are said to get a number or a label for each name.
     // "What's changed" keeps v17's line under v18's.
-    // Told, not asked: `LAST_PRIVACY_VERSION_ASKED` stays 15. For 14 days
-    // from its date, Home and /privacy carry its `updateLine`, and while
-    // v17's own 14 days still run, v17's line with `updateLineAdds` in place
-    // of its full stop; before its date, v17's own line. Its date is the day
-    // it goes live, set when it is promoted.
+    // Told, not asked: `LAST_PRIVACY_VERSION_ASKED` stays 15. Told on Home
+    // (`toldOnHome`). Its date is the day it went live.
+    //
+    // v19 names a fifth small preference kept in the browser: that somebody
+    // dismissed the line on Home saying the policy changed
+    // (`naisi.policyNotice.dismissed`, `./updateLineDismissal.ts`). Nothing
+    // about how anybody's information is used changes, so Home says nothing
+    // of it: no `toldOnHome`, and its date and "What's changed in version 19"
+    // tell it. "What's changed" keeps v18's and v17's lines under v19's, each
+    // with its date. Told, not asked: `LAST_PRIVACY_VERSION_ASKED` stays 15.
+    // Its date is the day it goes live, set when it is promoted.
     //
     // Keep this comment ABOVE `versions:`, never between the `[` and the first
     // `{`: tests/funnel-harness-guards.test.mjs reads the current version out
@@ -196,19 +195,9 @@ export const POLICIES: Record<
     // so a comment sitting there leaves the guard unable to read the very
     // number it exists to pin. Anywhere else in the file is fine.
     versions: [
-      {
-        version: 18,
-        lastUpdated: "13 November 2026",
-        updateLine:
-          "We've updated our privacy policy. The short note Claude may draft each week now uses your work as it stands after your session, sent or not.",
-        updateLineAdds: "and the short note Claude may draft each week now uses your work as it stands after your session, sent or not.",
-      },
-      {
-        version: 17,
-        lastUpdated: "12 November 2026",
-        updateLine:
-          "We've updated our privacy policy. It now also covers registers and corrections, requests and messages to the team, work added after a session and reminders after it, anonymous feedback and conduct records.",
-      },
+      { version: 19, lastUpdated: "13 November 2026" },
+      { version: 18, lastUpdated: "13 November 2026", toldOnHome: true },
+      { version: 17, lastUpdated: "12 November 2026", toldOnHome: true },
       { version: 16, lastUpdated: "6 November 2026" },
       { version: 15, lastUpdated: "2 November 2026" },
       { version: 14, lastUpdated: "30 October 2026" },

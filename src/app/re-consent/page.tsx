@@ -106,7 +106,11 @@ export default async function ReConsentPage() {
         {/* What changed in version 15, said before Accept: the last version
             anybody is asked to accept (`needsPolicyAcceptance`), so these four
             paragraphs replace what every earlier version said here, and each
-            later version adds one line after them for anybody still asked.
+            later version that changes how information is used adds one line
+            after them for anybody still asked. A version that changes nothing
+            about that adds none (version 19, which names one more small
+            preference kept in the browser): the policy's own first paragraph
+            says what it changed.
             Each clause is held to the current policy's own sentence by
             tests/privacy-policy.test.mjs. */}
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>

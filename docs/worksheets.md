@@ -192,7 +192,7 @@ minute. No keystrokes, no paste events, no per-question timing. Shown to
 staff on the circulation page and to the recipient on their own task and
 respond page ("You first opened this on ..."). The privacy notice carries a
 line for it, under "Your account", "On the committee", in the current policy
-(`src/content/legal/privacy/v18.tsx`).
+(`src/content/legal/privacy/v19.tsx`).
 
 ## Firestore rules
 

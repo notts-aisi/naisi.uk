@@ -121,10 +121,11 @@
   text-wrap: pretty;
 }
 
-/* The line saying the privacy policy changed, under the greeting for 14 days
-   from a version's date (PolicyUpdate.tsx). Quiet: muted words and a link, no
-   card, so it reads as a note and not a task. The link keeps its 44px row; on
-   a narrow screen it drops under the words. */
+/* The line saying the privacy policy changed, under the greeting until its
+   reader dismisses it or its days end (PolicyUpdate.tsx). Quiet: muted words,
+   a link and Dismiss, no card, so it reads as a note and not a task. The link
+   and Dismiss each keep a 44px row; on a narrow screen they drop under the
+   words. */
 .policyLine {
   display: flex;
   flex-wrap: wrap;
@@ -135,6 +136,36 @@
   line-height: 1.45;
   color: var(--color-text-muted);
   text-wrap: pretty;
+}
+
+/* Dismiss is a button that reads as words: the link beside it is the thing
+   to press, so this one stays muted. The browser's own button face is taken
+   off (Safari paints one over a custom background otherwise). */
+.policyDismiss {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  box-shadow: none;
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.policyDismiss:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .srOnly {
@@ -267,6 +298,10 @@
   .headLink:hover,
   .inlineLink:hover {
     color: var(--color-accent-text-hover);
+  }
+
+  .policyDismiss:hover {
+    color: var(--color-text);
   }
 }
 

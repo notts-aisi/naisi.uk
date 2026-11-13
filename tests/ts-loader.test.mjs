@@ -1400,7 +1400,7 @@ const USERS = new Map([
     "it executes `needsPolicyAcceptance` (src/lib/legal/acceptance.ts) on a table of stored agreements, because " +
       "who the member area and a collaborator's space send to accept the policies is decided by comparing a stored " +
       "string with the versions the site serves, and only running it shows the answer; it runs again with " +
-      "`./policies` stubbed to a list where privacy has moved on to 19 and the terms to 2, so the promise that a " +
+      "`./policies` stubbed to a list where privacy has moved on to 20 and the terms to 2, so the promise that a " +
       "later privacy version is told rather than asked is held before a later version exists",
   ],
   [
@@ -1412,9 +1412,12 @@ const USERS = new Map([
   [
     "policy-update-line.test.mjs",
     "it executes `policyUpdateLine` (src/lib/legal/updateLine.ts) against the real policy list and against lists " +
-      "with `./policies` stubbed to other dates, because whether Home and /privacy say the policy changed is worked " +
-      "out from a date and the London clock alone, and only running it on days either side of the window, in summer " +
-      "and in winter, shows the answer",
+      "with `./policies` stubbed to other dates and marks, because whether Home says the policy changed is worked " +
+      "out from a date and the London clock alone, and only running it on days either side of the week, in summer " +
+      "and in winter, shows the answer; and it executes the store that keeps a dismissal " +
+      "(src/lib/legal/updateLineDismissal.ts) against a browser's storage, one that refuses and another tab's " +
+      "change, and renders Home's line as the server does, because what is written under which key, and that the " +
+      "server's markup carries no line, are shown only by running them",
   ],
   [
     "coursework-use-cut-off.test.mjs",

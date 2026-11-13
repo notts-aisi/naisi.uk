@@ -89,6 +89,7 @@ export const JOURNEY_STEPS = [
   "the new member signs in and lands past the pending gate",
   "a legacy account accepts the updated policy once and is not asked again",
   "Home asks the member their full name once, and the answer is on their profile",
+  "Home says the privacy policy changed only in a told version's week, and Dismiss is remembered",
   "the profile grid shows the member their own subscriptions",
   "unticking a channel writes it through and survives a reload",
   "the column masters move every cell, and the locked row moves for nobody",
@@ -195,6 +196,147 @@ function productSource(relPath) {
         "update this fixture rather than deleting the check.",
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// The line on Home that says the privacy policy changed
+// ---------------------------------------------------------------------------
+
+/** The product files the line is worked out from, and the one that keeps its dismissal. */
+const POLICIES_MODULE = "src/lib/legal/policies.ts";
+const UPDATE_LINE_MODULE = "src/lib/legal/updateLine.ts";
+const DISMISSAL_MODULE = "src/lib/legal/updateLineDismissal.ts";
+
+/**
+ * What Home's line says, where its link goes, what its button is called and
+ * the key its dismissal is kept under in the browser.
+ *
+ * Restatements of the product's constants, which are TypeScript and cannot be
+ * imported from plain Node. PINNED, not merely commented: `policyLineAt()`
+ * reads the product's own values on every call and refuses a run where one
+ * has drifted, so a reworded line fails with the two strings side by side
+ * rather than as a locator timing out.
+ */
+export const POLICY_LINE = {
+  words: "We've updated our privacy policy.",
+  link: "Read what's changed",
+  href: "/privacy#whats-changed",
+  dismiss: "Dismiss the note that our privacy policy changed",
+  dismissedKey: "naisi.policyNotice.dismissed",
+};
+
+const POLICY_MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+/** The civil day `days` after `day` ("YYYY-MM-DD"). */
+function policyDayAfter(day, days) {
+  const [year, month, date] = day.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, date + days)).toISOString().slice(0, 10);
+}
+
+/** The London day an instant falls on, as "YYYY-MM-DD". */
+function londonDay(at) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
+}
+
+/**
+ * Which privacy version's line Home shows at `now`, or none: the product's
+ * own rule (`policyUpdateLine`), worked out again from the product's own
+ * policy list, so the spec knows which of two pages it should be looking at.
+ *
+ * The line is there for a week from the date of a version marked
+ * `toldOnHome`, by London days, and the newest such version wins. Outside
+ * every such week Home says nothing, and a run then holds Home to that: so
+ * the step asserts something on every day, and drives Dismiss on the days a
+ * line is due.
+ *
+ * `settled` is false within ten minutes of a London midnight at which the
+ * answer changes. The runner's clock and the server's can sit on either side
+ * of that midnight, so the spec reads Home then without holding it to either
+ * answer, and says so.
+ *
+ * Read at call time, never at import: the coverage guard imports this module
+ * and must stay offline and side-effect free.
+ */
+export function policyLineAt(now = new Date()) {
+  const lineSource = productSource(UPDATE_LINE_MODULE);
+  const constant = (source, name, file) => {
+    const found = source.match(new RegExp(`export const ${name} = (?:"([^"]*)"|(\\d+));`));
+    if (!found) {
+      throw new Error(
+        `${name} could not be read out of ${file}. The member journey reads Home's line about the ` +
+          "privacy policy by that value: re-read the file and fix this reader.",
+      );
+    }
+    return found[1] ?? Number(found[2]);
+  };
+  const product = {
+    words: constant(lineSource, "UPDATE_LINE_WORDS", UPDATE_LINE_MODULE),
+    link: constant(lineSource, "UPDATE_LINE_LINK", UPDATE_LINE_MODULE),
+    href: constant(lineSource, "UPDATE_LINE_HREF", UPDATE_LINE_MODULE),
+    dismissedKey: constant(productSource(DISMISSAL_MODULE), "UPDATE_LINE_DISMISSED_KEY", DISMISSAL_MODULE),
+  };
+  for (const [name, value] of Object.entries(product)) {
+    if (value !== POLICY_LINE[name]) {
+      throw new Error(
+        `Home's line about the privacy policy has moved: the product's ${name} is ${JSON.stringify(value)} and ` +
+          `this fixture says ${JSON.stringify(POLICY_LINE[name])}. The spec finds the line by these, so update POLICY_LINE.`,
+      );
+    }
+  }
+  const days = constant(lineSource, "UPDATE_LINE_DAYS", UPDATE_LINE_MODULE);
+  if (!Number.isInteger(days) || days < 1) {
+    throw new Error(`UPDATE_LINE_DAYS in ${UPDATE_LINE_MODULE} is not a number of days this fixture can count.`);
+  }
+
+  // The privacy list alone: the terms come first in the file and are never told this way.
+  const policies = productSource(POLICIES_MODULE);
+  const from = policies.indexOf("privacy: {");
+  const list = from === -1 ? null : policies.slice(from).match(/versions:\s*\[([\s\S]*?)\n\s*\],/);
+  if (!list) {
+    throw new Error(`the privacy versions could not be read out of ${POLICIES_MODULE}: re-read the file and fix this reader.`);
+  }
+  const entries = [...list[1].matchAll(/\{\s*version:\s*(\d+),\s*lastUpdated:\s*"([^"]+)"(?:,\s*toldOnHome:\s*(true))?,?\s*\}/g)];
+  const written = (list[1].match(/\bversion:/g) ?? []).length;
+  if (entries.length === 0 || entries.length !== written) {
+    throw new Error(
+      `${POLICIES_MODULE} lists ${written} privacy versions and this fixture could read ${entries.length} of them. ` +
+        "An entry is written in a shape this reader does not know (a new field, perhaps): re-read the file and fix this reader.",
+    );
+  }
+  const told = entries
+    .filter((entry) => entry[3] === "true")
+    .map((entry) => {
+      const date = /^(\d{1,2}) ([A-Z][a-z]+) (\d{4})$/.exec(entry[2]);
+      const month = date ? POLICY_MONTHS.indexOf(date[2]) : -1;
+      if (!date || month === -1) {
+        throw new Error(`privacy version ${entry[1]} is told on Home and its date, ${JSON.stringify(entry[2])}, is not one this fixture can read.`);
+      }
+      const day = new Date(Date.UTC(Number(date[3]), month, Number(date[1]))).toISOString().slice(0, 10);
+      return { version: Number(entry[1]), from: day, until: policyDayAfter(day, days) };
+    })
+    // Newest first, as the product's list is, so the first match is the newest.
+    .sort((a, b) => b.version - a.version);
+  const toldOn = (day) => told.find((version) => day >= version.from && day < version.until)?.version ?? null;
+
+  const version = toldOn(londonDay(now));
+  const TEN_MINUTES = 10 * 60 * 1000;
+  const settled =
+    toldOn(londonDay(new Date(now.getTime() - TEN_MINUTES))) === version &&
+    toldOn(londonDay(new Date(now.getTime() + TEN_MINUTES))) === version;
+  return { version, settled };
 }
 
 /**

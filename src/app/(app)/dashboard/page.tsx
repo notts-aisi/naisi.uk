@@ -184,9 +184,11 @@ export default async function DashboardPage() {
       <NoApplicationsYet closesAt={term.closesAt} />
     ) : null;
 
-  // Under the greeting on every form, the admins' too: for 14 days from a
-  // privacy policy version's date, the line saying it changed (worked out
-  // from the date, `policyUpdateLine`); an event for chosen people they were
+  // Under the greeting on every form, the admins' too: for a week from the
+  // date of a privacy policy version that changed how information is used,
+  // the line saying the policy changed, until its reader dismisses it (which
+  // version, from the date, is `policyUpdateLine`'s; the dismissal is
+  // `PolicyUpdate`'s, in the browser); an event for chosen people they were
   // invited to ("For you"), the question about a full name while it is
   // unanswered, then the quiet install invitation (phones only, dismissible
   // once, hidden when already installed; see src/features/pwa/InstallCard.tsx).
