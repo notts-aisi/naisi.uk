@@ -247,9 +247,10 @@ export function sentWords(sentAt: Date | null, updatedAt: Date | null): string {
 // ---------------------------------------------------------------------------
 
 /**
- * The card on a written answer's review page (`./beside.ts`). Each line is
- * named as the lead's page names its answer (`RUN_REPORTS_WORDS.engaged`,
- * `notRead`, `needsHand`), so the two pages say one thing.
+ * The card beside a written answer in the reading view (`./beside.ts`). Each
+ * line is named as the lead's page names its answer
+ * (`RUN_REPORTS_WORDS.engaged`, `notRead`, `needsHand`), so the two pages
+ * say one thing.
  */
 export const BESIDE_WORDS = {
   /** The title for the programme's lead and admins, who read every report. */

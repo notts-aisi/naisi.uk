@@ -19,8 +19,8 @@ import { COURSEWORK_DOOR_WORDS, PANGRAM_WORDS } from "./claudeWords";
  * PANGRAM ON COURSEWORK (privacy v13): ADMINS ONLY, everywhere. The lead is
  * turned away at the door (`adminOnly`) before anything is read, and no page
  * or route a lead reaches carries a reading: the chip beside a written answer
- * on its review page (`readAnswerReading`, `./pangramReadings.ts`) is read
- * for an admin alone.
+ * in the reading view of the person's week (`readAnswerReading`,
+ * `./pangramReadings.ts`) is read for an admin alone.
  *
  * What is sent: one person's counted written answers and reflections of 50
  * words or more (`pangramPartsOf`), never a fill-in box, joined into ONE

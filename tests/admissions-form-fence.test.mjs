@@ -247,6 +247,11 @@ const OLDER_PLUMBING = [
  *    form's own code and never reads one with the older plumbing.
  *  - `both`: it serves a form and an older round alike, on purpose. `proof`
  *    is what the file still has to contain for the reason to be about it.
+ *  - `forwards`: a retired page whose address forwards to the page that
+ *    replaced it, worked out from the address alone. It reads no round of
+ *    either kind and nothing else, so it can neither take a form for an
+ *    older round nor the reverse; the page it forwards to answers with its
+ *    own entry here. Held to calling `redirect` and to reading nothing.
  *
  * A NEW ENTRY IS A DECISION. A route added under the older tree has to say
  * what it does when the round is a form before it can merge, which is the
@@ -337,10 +342,11 @@ const ROUND_SURFACES = {
       "and the page says there is nothing here",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written": {
-    kind: "form",
+    kind: "forwards",
     why:
-      "the programme's lead's review page for the written answers of the run it names. It reaches the round only " +
-      "through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+      "the programme's lead's review page for written answers, retired: its address forwards, from the address alone, to " +
+      "the reading view of one person's week (`./coursework/[uid]`) or the page of one question (`./question`), each with " +
+      "its own entry here, reading nothing",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
     kind: "form",
@@ -444,10 +450,10 @@ const ROUND_SURFACES = {
       "through openLeadDoor, which calls loadProgrammeRun, starting from the form's own loader and answering 'none' for a round that is not a form",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": {
-    kind: "form",
+    kind: "forwards",
     why:
-      "the lead's and admins' reading of one group's reflections. It reaches the round only through openLeadDoor, " +
-      "which calls loadProgrammeRun, starting from the form's own loader and answering 'none' for a round that is not a form",
+      "the lead's and admins' reading of one group's reflections, retired: its address forwards, from the address alone, " +
+      "to the page of one question across the group (`./question`, its own entry above), reading nothing",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": {
     kind: "form",
@@ -1495,7 +1501,7 @@ describe("every route, page and layout with a round id in its address", () => {
       [],
       "These take a round id and are not in ROUND_SURFACES. Decide what each does when the round " +
         "is an application form: `older` (it refuses one, see src/lib/admissions/formFence.ts), " +
-        "`form` (it is the form's own) or `both`, with the reason.",
+        "`form` (it is the form's own), `both`, or `forwards` (a retired page that only forwards), with the reason.",
     );
     assert.deepEqual(
       Object.keys(ROUND_SURFACES).filter((key) => !found.includes(key)),
@@ -1506,7 +1512,7 @@ describe("every route, page and layout with a round id in its address", () => {
 
   test("every entry says what it is and why", () => {
     for (const [key, entry] of Object.entries(ROUND_SURFACES)) {
-      assert.ok(["older", "form", "both"].includes(entry.kind), `${key}: \`${entry.kind}\` is not a kind`);
+      assert.ok(["older", "form", "both", "forwards"].includes(entry.kind), `${key}: \`${entry.kind}\` is not a kind`);
       // An `older` route answers per handler and an `older` page once.
       // Everything else gives one reason for the file.
       const reasons =
@@ -1532,7 +1538,8 @@ describe("every route, page and layout with a round id in its address", () => {
         assert.equal(kind, "form", `${key} is under the application form's own routes and is not listed as \`form\``);
       }
       if (key.startsWith(FORM_PAGES)) {
-        assert.equal(kind, "form", `${key} is under the application form's own pages and is not listed as \`form\``);
+        // A retired page there may only forward, reading nothing (held below).
+        assert.ok(kind === "form" || kind === "forwards", `${key} is under the application form's own pages and is not listed as \`form\``);
       }
     }
   });
@@ -1579,6 +1586,27 @@ describe("every route, page and layout with a round id in its address", () => {
     if (entry.kind === "form") {
       test(`${key} reaches a round only through the application form's own code`, () => {
         assert.deepEqual(formProblems(read(file)), [], `${key} is listed as \`form\``);
+      });
+    }
+
+    if (entry.kind === "forwards") {
+      test(`${key} forwards from its address alone, reading no round of either kind`, () => {
+        const reading = read(file);
+        assert.match(reading.bare, /\bredirect\(/, `${key} is listed as \`forwards\` and does not forward`);
+        assert.doesNotMatch(
+          reading.bare,
+          /\bgetAdminDb\b|\.collection\(|\.doc\(|\bnormalizeAdmissionRound\s*\(|\bloadProgrammeRun\b|\bopenLeadDoor\b|\bloadForm\b|\bfetch\(/,
+          `${key} is listed as \`forwards\` and reads something before it forwards`,
+        );
+        assert.ok(!REFUSES.test(reading.bare), `${key} is listed as \`forwards\` and refuses an application form`);
+        for (const [name, from] of reading.scope.imports) {
+          assert.ok(!OLDER_PLUMBING.includes(from), `${key} imports ${name} from ${from}, the older plumbing`);
+        }
+        assert.deepEqual(
+          [...reading.scope.imports.values()].filter((from) => from !== "next/navigation" && from !== "@/lib/courses/coursework/forwards"),
+          [],
+          `${key} is listed as \`forwards\` and imports more than the forward`,
+        );
       });
     }
 

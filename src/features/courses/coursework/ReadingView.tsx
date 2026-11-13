@@ -38,7 +38,6 @@ import {
   notStartedWords,
   ofWords,
   partHeadingWords,
-  reviewPageLinkWords,
   weekHeadingWords,
   wordsWords,
   previousPersonWords,
@@ -53,18 +52,23 @@ import { lastRemindedLine } from "@/lib/courses/groupWeekWork/words";
 import { PANEL_HINT, PANEL_TITLE } from "@/lib/courses/predictions/words";
 import { THE_QUESTION_WHEN_WRITTEN, earlierQuestionWords } from "@/lib/courses/weekEdit/wordsThen";
 import {
+  AFTER_ITS_DEADLINE,
   AS_IT_STOOD_AT_THE_SESSION,
   THE_VERSION_THIS_FEEDBACK_WAS_ABOUT,
   answerChangedSinceWords,
   lateAfterSessionWords,
+  staffChangedSinceSentWords,
   staffChangedWords,
 } from "@/lib/courses/weekWork/words";
-import { theQuestionWords } from "@/lib/courses/writtenAnswerWords";
+import { pangramChipWords } from "@/lib/courses/workRatings/words";
+import type { WordRange } from "@/lib/courses/weekBlocks/model";
+import { reviewWeekLineWords, theQuestionWords } from "@/lib/courses/writtenAnswerWords";
 import EarlierVersion, { versionBoxes } from "../feedback/EarlierVersion";
 import FeedbackWriter from "../feedback/FeedbackWriter";
 import StaffFeedbackCards from "../feedback/StaffFeedbackCards";
 import EarlierWording from "../weekBlocks/EarlierWording";
 import RatingForTheTeam from "../written/RatingForTheTeam";
+import SessionReportLines from "../written/SessionReportLines";
 import MarkFirstRead from "./MarkFirstRead";
 import RemindOne from "./RemindOne";
 import SealedPredictionRow from "./SealedPredictionRow";
@@ -79,10 +83,18 @@ import styles from "./reading.module.css";
  * with the person and the way to the previous and next person and week; where
  * the week stands and when the group met; the readings, each with when it was
  * ticked; each reflection and fill-in box under its question with when it was
- * written; the written answer as its readers may read it, with the feedback on
- * it beside it, and for an admin or the programme's lead the ratings for the
- * team (and for an admin Claude's draft grade, once they have saved their own
- * rating; before then a line saying it shows then); the feedback on the week as a
+ * written; the written answer as its readers may read it, under its question
+ * with its range of words, with when it was sent and how late (or, staff only,
+ * "After its deadline"), for an admin Pangram's last reading of it beside
+ * that, when the words shown last changed, that it has changed since it was
+ * sent while its readers still read it as sent, the question as it was when
+ * the answer was written and the answer as it stood at the session; beside it
+ * the feedback on it, what the week's session reports say about the person
+ * (`SessionReportLines`: every report's lines for an admin or the lead, a
+ * facilitator's own reports' for a facilitator), and for an admin or the
+ * programme's lead the ratings for the team (and for an admin Claude's draft
+ * grade, once they have saved their own rating; before then a line saying it
+ * shows then); the feedback on the week as a
  * whole; for an admin the sealed prediction's row; the private notes on the
  * material where the reader reads them; and the way back.
  *
@@ -106,9 +118,13 @@ import styles from "./reading.module.css";
  *
  * Drawn on the server from what the loader handed it: a reader is handed
  * nothing their gates refuse (no rating for a facilitator, no private note
- * for the lead, no draft grade or sealed prediction for anybody but an
- * admin), so nothing here decides who sees what. `beside` is the programme
+ * for the lead, no draft grade, sealed prediction or Pangram reading for
+ * anybody but an admin, no co-facilitator's report lines), so nothing here
+ * decides who sees what. `beside` is the programme
  * side's column for what the team keeps about a person.
+ *
+ * It replaced the written answer's review page: that page's address for one
+ * person's answer forwards here, at the answer (`#reading-answer`).
  */
 
 /** Words as written: one paragraph per line, blank lines dropped. */
@@ -133,10 +149,10 @@ export function Late({ ms }: { ms: number | null }) {
   return ms !== null ? <span className={styles.lateChip}>{lateAfterSessionWords(ms)}</span> : null;
 }
 
-function Question({ text }: { text: string }) {
+function Question({ text, range = null }: { text: string; range?: WordRange | null }) {
   return (
     <div className={styles.question}>
-      <p className={styles.questionLabel}>{theQuestionWords(null)}</p>
+      <p className={styles.questionLabel}>{theQuestionWords(range)}</p>
       <p className={styles.questionText}>{text}</p>
     </div>
   );
@@ -483,11 +499,15 @@ export default function ReadingView({ view, beside = null }: { view: PersonWeekV
                   {answer.words > 0 && <span>{wordsWords(answer.words)}</span>}
                   {sentAt && <span>{sentWhenWords(sentAt)}</span>}
                   <Late ms={answer.sentLateMs} />
+                  {answer.sentLateMs === null && view.afterDeadline && <span className={styles.lateChip}>{AFTER_ITS_DEADLINE}</span>}
+                  {view.pangram && (
+                    <span className={view.pangram.worthALook && !view.pangram.outOfDate ? styles.lateChip : styles.chip}>{pangramChipWords(view.pangram)}</span>
+                  )}
                 </p>
               </div>
               <div className={styles.grid}>
                 <div className={styles.main}>
-                  <Question text={answer.prompt} />
+                  <Question text={answer.prompt} range={view.answerRange} />
                   {answer.words > 0 ? (
                     view.changed ? (
                       <Changed view={view} />
@@ -503,17 +523,14 @@ export default function ReadingView({ view, beside = null }: { view: PersonWeekV
                       </>
                     )
                   ) : null}
+                  {answer.words > 0 && answer.changedSinceSent && <p className={styles.meta}>{staffChangedSinceSentWords(person.firstName)}</p>}
                   {answer.words > 0 && <EarlierWording label={THE_QUESTION_WHEN_WRITTEN} words={earlier(answer.id, answer.prompt)} />}
                   {answer.atSession && (
                     <EarlierVersion label={AS_IT_STOOD_AT_THE_SESSION} text={answer.atSession.text} boxes={answer.atSession.boxes} />
                   )}
-                  {view.reviewHref && (
-                    <Link href={view.reviewHref} className={styles.reviewLink}>
-                      {reviewPageLinkWords(person.firstName)}
-                    </Link>
-                  )}
+                  {answer.words > 0 && <p className={styles.meta}>{reviewWeekLineWords(person.firstName)}</p>}
                 </div>
-                {(feedback || view.team || view.draftGrade || view.draftGradeWaits) && (
+                {(feedback || view.team || view.reportLines || view.draftGrade || view.draftGradeWaits) && (
                   <div className={styles.side}>
                     {feedback && (feedback.open || feedback.own) && (
                       <FeedbackWriter
@@ -537,6 +554,7 @@ export default function ReadingView({ view, beside = null }: { view: PersonWeekV
                       programme={view.programmeName}
                       answerBoxes={view.answerBoxes}
                     />
+                    {view.reportLines && <SessionReportLines view={view.reportLines} firstName={person.firstName} />}
                     {view.team && (
                       <RatingForTheTeam runId={view.runId} uid={person.uid} firstName={person.firstName} weekNumber={view.weekNumber} team={view.team} />
                     )}

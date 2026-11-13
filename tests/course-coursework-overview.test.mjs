@@ -652,10 +652,10 @@ describe("3. Feedback to write learns Changed since feedback", () => {
     assert.equal(card.hrefFor(farah), `${GROUP_PATH}/coursework/farah?week=3#reading-answer`);
     assert.equal(card.readHrefFor(farah), `${GROUP_PATH}/coursework/farah?week=3#reading-answer`);
     assert.match((await w.groupPage("rahul")).text, /Farah Hussain Changed since feedback, Wed 18 Nov, 9am Write feedback/);
-    // An answer with no feedback keeps its own way, to the review page.
+    // An answer with no feedback opens the reading view at the answer too, where feedback is written.
     const chloe = card.rows.find((row) => row.uid === "chloe");
     assert.deepEqual([chloe.changed, chloe.changedAt], [false, null]);
-    assert.equal(card.hrefFor(chloe), `${GROUP_PATH}/written?week=3&person=chloe`);
+    assert.equal(card.hrefFor(chloe), `${GROUP_PATH}/coursework/chloe?week=3#reading-answer`);
     // Oldest first, a changed answer by when it was changed.
     assert.deepEqual(card.rows.map((row) => row.uid), ["chloe", "farah"]);
     // Seven days from the change, and a moment more: gone.

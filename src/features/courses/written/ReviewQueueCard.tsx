@@ -34,7 +34,7 @@ export default function ReviewQueueCard({
   reflections = null,
 }: {
   rows: WrittenQueueRow[];
-  /** Where a row's button leads: the review page on that person and week, or, for an answer changed since its feedback, the reading view of their week at the answer. */
+  /** Where a row's button leads: the reading view of that person's week at the written answer. */
   hrefFor: (row: WrittenQueueRow) => string;
   /** The reading view of that person's week, where the name leads; left out, the name is plain text. */
   readHrefFor?: ((row: WrittenQueueRow) => string) | null;

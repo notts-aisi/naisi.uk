@@ -17,17 +17,23 @@ import { resolveGroupCalendar, resolveWeekDoc } from "@/lib/courses/groupResolve
 import { readGroupWeek, readLastReminded, remindableOf } from "@/lib/courses/groupWeekWork/load";
 import { personWeekStateOf, weekPiecesOf, type Bucket, type LastReminded } from "@/lib/courses/groupWeekWork/model";
 import { courseCardOf } from "@/lib/courses/predictions/own";
-import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
+import { besideScopeOf, type ReportLinesView } from "@/lib/courses/sessionReports/beside";
+import { readReportLinesAbout } from "@/lib/courses/sessionReports/readers";
+import { resolveSessions } from "@/lib/courses/sessions";
+import { dueMoment } from "@/lib/courses/weekBlocks/due";
+import { isBlockWeek, type WeekBlock, type When, type WordRange } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds } from "@/lib/courses/weekBlocks/progress";
+import { weekWrittenAnswers } from "@/lib/courses/weekBlocks/reader";
 import { readDraftGrade } from "@/lib/courses/weekReview/store";
 import { REVIEW_WORDS } from "@/lib/courses/weekReview/words";
-import { lateBy, sessionHasStarted, weekWritingNeeds, type WeekDue } from "@/lib/courses/weekWork/model";
+import { afterItsDeadline, lateBy, sessionHasStarted, weekWritingNeeds, type WeekDue } from "@/lib/courses/weekWork/model";
 import { loadPeopleWeekFacts } from "@/lib/courses/weekWork/readers";
 import { mayRateWorkOf, workRatingRoleOf } from "@/lib/courses/workRatings/access";
 import type { TeamRatingsView } from "@/lib/courses/workRatings/model";
 import { loadTeamRatings } from "@/lib/courses/workRatings/readers";
 import {
   facilitatesOnRun,
+  facilitatingOnRunOf,
   ownerFactsOf,
   reviewableIn,
   writtenReviewRole,
@@ -39,8 +45,9 @@ import { normalizeCourseEnrolment, placementIsShownTo, type CourseEnrolmentDoc }
 import { exerciseResponseId } from "@/lib/firestore/courseExercises";
 import type { CourseFeedbackDoc } from "@/lib/firestore/courseFeedback";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
-import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
+import { normalizeCourse, weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import { writtenAnswerWords } from "./input";
+import { readAnswerReading, type AnswerReading } from "./pangramReadings";
 import { personWeeks, shownWorkKeys, workKey, type PersonAnswerWrite, type PersonWeek, type PersonWeekFeedback } from "./model";
 import { personAnchorId, questionHref, shownAnswerIds } from "./question";
 import { byShownName, neighboursOf, openingWeek, readingHref } from "./reading";
@@ -59,7 +66,7 @@ import type { AskedWords } from "../weekEdit/wordsThen";
  *    programme's Coursework tab.
  *  - THE FACILITATOR'S SIDE (`loadGroupPersonWeek` below, at
  *    `/learn/[runId]/group/[groupId]/coursework/[uid]?week=N`): the group's
- *    written review page's own gate (the group's live facilitator, the
+ *    the group's reading pages' own gate (the group's live facilitator, the
  *    programme's lead, an admin), then, for the person named, the one gate
  *    on whose work a reader may act on (`reviewableIn`, which asks
  *    `writtenReviewRole`): a facilitator never reads a co-facilitator's own
@@ -88,7 +95,19 @@ import type { AskedWords } from "../weekEdit/wordsThen";
  *    week: the card is opened through its own route, which records the
  *    opening first. This file reads nothing of the card (not even which week
  *    it opens in for the person: that is on the card), only the course's two
- *    weeks it is filled in and opened on.
+ *    weeks it is filled in and opened on;
+ *  - beside the written answer, as the written answer's review page read them
+ *    before this view replaced it (its address forwards here): Pangram's last
+ *    reading of it for an admin alone (privacy v13: what Pangram returns is
+ *    seen by admins only), never the lead or a facilitator, on an answer they
+ *    may review and its readers may read, read as it is kept and never sent
+ *    (`readAnswerReading`); and what the week's session reports say about the
+ *    person (privacy v15, "Session reports"), their own lines and nothing
+ *    else of a report, every report's for an admin or the programme's lead,
+ *    a facilitator's own reports' alone for a facilitator (`besideScopeOf`,
+ *    `readReportLinesAbout`), never on the reader's own page;
+ *  - "After its deadline" (staff only): first sent after the answer's own
+ *    deadline but before the session (`afterItsDeadline`).
  *
  * Nothing here writes, sends or records that anything was read.
  */
@@ -148,8 +167,6 @@ export type PersonWeekView = {
   due: WeekDue;
   /** Feedback on the written answer: its cards, the reader's own changeable piece, and whether they may write one now. */
   answerFeedback: PersonWeekFeedback | null;
-  /** The written answer's review page (Pangram for an admin, the session reports' lines), once its words may be read; null otherwise. */
-  reviewHref: string | null;
   /**
    * The answer has changed since the version the newest piece of feedback on
    * it was about: that version, who wrote the piece and the ids of every card
@@ -171,6 +188,31 @@ export type PersonWeekView = {
   firstRead: { weekId: string; ids: string[] } | null;
   /** Ratings for the team, for an admin or the programme's lead on work they may review; null for everybody else. */
   team: TeamRatingsView | null;
+  /**
+   * The written answer's range of words, for "The question · 250 to 350
+   * words"; null with none set or no answer.
+   */
+  answerRange: WordRange | null;
+  /**
+   * The written answer was first sent after its own deadline but before the
+   * session ("After its deadline", staff only); false otherwise, and when it
+   * was late.
+   */
+  afterDeadline: boolean;
+  /**
+   * Pangram's last reading of the written answer, as the chip beside when it
+   * was sent: for an admin alone, on an answer they may review and its readers
+   * may read; null for everybody else, and when it was never checked.
+   */
+  pangram: AnswerReading | null;
+  /**
+   * What the week's session reports say about the person, beside an answer
+   * its readers may read (`besideScopeOf`): every report's lines for an admin
+   * or the programme's lead, the lines of the reports the reader wrote for a
+   * facilitator, never the rest of a report; null for a reader handed no line,
+   * the person themselves among them.
+   */
+  reportLines: ReportLinesView | null;
   /**
    * Claude's draft grade, for an admin alone, with the review's own words,
    * once that admin has saved their own rating of the answer; null when there
@@ -224,8 +266,6 @@ export type ReadingDoor = {
   programmeName: string;
   /** The door's path before a person (".../coursework"). */
   base: string;
-  /** The person's written answer's review page on this door for a week, or null where this reader has none to open. */
-  reviewHref: (weekNumber: number) => string | null;
   /** The page of one question across the person's group on this door for a week, or null with no group to open. */
   questionHref: (weekNumber: number) => string | null;
   /** Every place on the run, as the door has read them already for its own gate: not read again. */
@@ -306,13 +346,18 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
     writes: coursework.writes,
     boxesRead: boxesReader !== null,
     notes,
-    // Feedback on the answer is written beside it here, not on its review page.
+    // Feedback on the answer is written beside it here.
     writtenHref: () => null,
     feedbackOf: () => ({ cards: onTheWeek.filter((each) => each !== ownWeekPiece), own: ownWeekPiece, open: mayWrite && weekReadable }),
   });
 
   const answerBoxes = weekOf(n)?.answer?.boxes ?? [];
-  const [team, draft, askedThen, state] = await Promise.all([
+  // The written answer's block as the person's copy of the week asks it: its range of words and its own deadline's rule.
+  const answerBlock =
+    answerId && blockWeek.week && isBlockWeek(blockWeek.week) ? (weekWrittenAnswers(blockWeek.week).find((each) => each.id === answerId) ?? null) : null;
+  // What the week's session reports say about the person: whose reports' lines this reader sees, by the review page's own rule.
+  const beside = role ? besideScopeOf({ uid: actor.uid, isAdmin: facts.isAdmin, isLead: facts.isLead }, uid, role.mayReview) : null;
+  const [team, draft, askedThen, state, pangram, reportLines, afterDeadline] = await Promise.all([
     owner && answerId && answerReadable && mayRateWorkOf(actor, facts, owner, liveGroups)
       ? loadTeamRatings(db, {
           runId: run.id,
@@ -336,6 +381,19 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
     // Only beside words this page shows: never a written answer its readers may not read yet.
     personAskedThen(db, run.id, uid, person.readsGroupId, shownWorkKeys([week])),
     weekStateOf(db, { runId: run.id, weekNumber: n, uid, blocks: blockWeek.week && isBlockWeek(blockWeek.week) ? (blockWeek.week.blocks as WeekBlock[]) : null, submittedAt: coursework.states.submittedOf(uid, n), due }),
+    // Pangram's last reading of the answer: an admin's alone, on an answer they may review and its readers may read,
+    // against the words read now. Read as it is kept: nothing is sent to Pangram.
+    facts.isAdmin && mayWrite && answerId && answerReadable && stored
+      ? readAnswerReading(db, {
+          runId: run.id,
+          uid,
+          rowId: exerciseResponseId(run.id, uid, weekDocId(n), answerId),
+          words: writtenAnswerWords(answerBoxes, { text: stored.text, boxes: stored.boxes }),
+        })
+      : Promise.resolve(null),
+    // The person's own lines in the week's session reports, beside an answer its readers may read, as `besideScopeOf` lets this reader see them.
+    beside && answerId && answerReadable ? readReportLinesAbout(db, { runId: run.id, uid, weekNumber: n, scope: beside }) : Promise.resolve(null),
+    afterDeadlineOf(db, { run, group: readsGroup, weekNumber: n, rule: answerBlock?.due ?? null, firstSentAt: stored?.sentAt ?? null, due }),
   ]);
 
   // The admin's own rating of the words read now: a rating of earlier words (`changedSince`) does not count.
@@ -393,13 +451,15 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
           open: mayWrite && answerReadable,
         }
       : null,
-    // The answer's review page, where Pangram (for an admin) and the session reports' lines are beside it.
-    reviewHref: answerReadable ? input.reviewHref(n) : null,
     changed,
     questionHref: input.questionHref(n),
     // What the page shows in full, named to be kept as first read: only by somebody who may act on the work.
     firstRead: mayWrite && shownAnswerIds(week).length > 0 ? { weekId: weekDocId(n), ids: shownAnswerIds(week) } : null,
     team,
+    answerRange: answerBlock?.words ?? null,
+    afterDeadline,
+    pangram,
+    reportLines,
     // The grade only once the admin has saved their own rating of the words read now; before then, only that one waits.
     draftGrade: draft && ratedNow ? { line: REVIEW_WORDS.gradesLine, grade: REVIEW_WORDS.gradeOf(draft.grade) } : null,
     draftGradeWaits: draft !== null && !ratedNow ? REVIEW_WORDS.gradeAfterYourRating : null,
@@ -522,6 +582,27 @@ async function weekStateOf(
 }
 
 /**
+ * "AFTER ITS DEADLINE" (staff only), as the written answer's review page
+ * worked it out: first sent after the answer's own deadline (`dueMoment` with
+ * its block's rule, on the calendar of the group whose copy of the week the
+ * person reads, with the course's time for work due the day before), but
+ * before the session they were due at. Sent after that session it is late
+ * instead; never sent, or with no session, it is neither. The course is read
+ * only for an answer first sent before its session.
+ */
+async function afterDeadlineOf(
+  db: Firestore,
+  input: { run: CourseRunDoc; group: CourseGroupDoc | null; weekNumber: number; rule: When | null; firstSentAt: Date | null; due: WeekDue },
+): Promise<boolean> {
+  const { run, firstSentAt, due } = input;
+  if (!input.rule || !firstSentAt || due.at === null || firstSentAt.getTime() >= due.at.getTime()) return false;
+  const courseSnap = run.courseId ? await db.collection("courses").doc(run.courseId).get() : null;
+  const dayBefore = courseSnap?.exists ? normalizeCourse(courseSnap.id, courseSnap.data() ?? {}).dayBeforeDueTime : null;
+  const deadline = dueMoment(resolveSessions(run, input.group), input.weekNumber, input.rule, dayBefore);
+  return afterItsDeadline(firstSentAt, deadline?.at ?? null, due);
+}
+
+/**
  * THE EMPTY STATE: how many readings are ticked, of how many, when they were
  * last reminded about the week, and whether Remind reaches them (by hand,
  * this person and this week, through its own route and panel). Remind is
@@ -592,8 +673,59 @@ export async function readableInGroup(
 }
 
 /**
+ * AN ARCHIVED GROUP'S FELLOWS, for the page of one question behind its door
+ * alone (`./questionLoad.ts`), and only for an admin. Admins bypass
+ * archiving, and the archived group's reflections with names, the page that
+ * page replaced, showed an admin its fellows' reflections under their names,
+ * in the weeks the group taught: nothing else of theirs, and nobody else. So
+ * this answers, for an admin on an archived group, everybody holding a place
+ * in it, as that page listed them (`loadFacilitatorGroup`'s people), but
+ * anybody whose work is a facilitator's own (`facilitatingOnRunOf`), the
+ * people `readableInGroup` already answers and the admin themselves; and
+ * nobody for anybody else or on a live group. They are never readable
+ * through `readableInGroup`: the reading view of one person's week refuses
+ * them, as it always did, and nothing of theirs can be written or noted as
+ * read. Pure: it asks the run's places `readableInGroup` read already.
+ */
+export function archivedGroupFellows(
+  actor: Pick<SessionUser, "uid">,
+  input: {
+    run: CourseRunDoc;
+    group: CourseGroupDoc;
+    liveGroups: readonly CourseGroupDoc[];
+    facts: ReviewerFacts;
+    enrolments: readonly CourseEnrolmentDoc[];
+    /** Whose work the reader may read in the group already (`readableInGroup`): never listed again. */
+    readable: readonly OwnerFacts[];
+  },
+): OwnerFacts[] {
+  const { run, group, liveGroups, facts } = input;
+  if (!group.archived || !facts.isAdmin) return [];
+  const own = facilitatingOnRunOf(group, liveGroups);
+  const listed = new Set(input.readable.map((owner) => owner.uid));
+  const out: OwnerFacts[] = [];
+  for (const seat of input.enrolments) {
+    if (
+      seat.runId !== run.id ||
+      seat.role !== "learner" ||
+      !(seat.status === "active" || seat.status === "completed") ||
+      seat.groupId !== group.id ||
+      !placementIsShownTo(seat, { isAdmin: facts.isAdmin }) ||
+      own.has(seat.uid) ||
+      seat.uid === actor.uid ||
+      listed.has(seat.uid)
+    ) {
+      continue;
+    }
+    listed.add(seat.uid);
+    out.push({ uid: seat.uid, placedGroupId: group.id });
+  }
+  return out;
+}
+
+/**
  * ONE PERSON OF A GROUP, ONE WEEK, from the group's side. The page has asked
- * its own gate (the group's written review page's: the group's live
+ * its own gate (the group's reading pages': the group's live
  * facilitator, the programme's lead, an admin) and hands what it read.
  * `uid` must then be somebody this reader may review in this group
  * (`reviewableIn`: its fellows, and for the lead and admins its facilitators'
@@ -613,6 +745,8 @@ export async function loadGroupPersonWeek(
     askedWeek: unknown;
     programmeName: string;
     groupPath: string;
+    /** The run's home under /learn, the lead's way back. */
+    runHome: string;
   },
 ): Promise<GroupPersonWeekOutcome> {
   const { run, group, liveGroups, facts } = input;
@@ -629,9 +763,10 @@ export async function loadGroupPersonWeek(
   const runs = liveGroups.find((each) => each.facilitatorUids.includes(input.uid)) ?? null;
   const told = seat !== null && toldSeats.has(seat.uid);
   const groupPath = input.groupPath;
-  // The group's page admits its live facilitators and admins; the lead goes back to the written answers.
-  const back = input.facilitatesThisGroup || facts.isAdmin ? groupPath : `${groupPath}/written`;
+  // The group's page admits its live facilitators and admins; the lead, who has no page for the group here, goes back to the run's home.
   const groupLabel = group.name.trim() || "Your group";
+  const back: ReadingStep =
+    input.facilitatesThisGroup || facts.isAdmin ? { label: groupLabel, href: groupPath } : { label: input.programmeName, href: input.runHome };
   const view = await readPersonWeek(db, actor, {
     door: "group",
     run,
@@ -652,12 +787,10 @@ export async function loadGroupPersonWeek(
     programmeName: input.programmeName,
     base: `${groupPath}/coursework`,
     enrolments,
-    // The group's written answers page: the same readers as this page.
-    reviewHref: (weekNumber) => `${groupPath}/written?week=${weekNumber}&person=${encodeURIComponent(input.uid)}`,
     // One question across this group, on the same week, landing on this person.
     questionHref: (weekNumber) => `${questionHref(`${groupPath}/question`, { weekNumber, questionId: null })}#${personAnchorId(input.uid)}`,
-    back: { label: groupLabel, href: back },
-    crumb: { label: groupLabel, href: back },
+    back,
+    crumb: back,
   });
   return view ? { status: "ok", view } : { status: "blank" };
 }

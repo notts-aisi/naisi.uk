@@ -94,8 +94,8 @@ const KIND_WORDS: Record<CourseworkKind, string> = {
 /**
  * A written answer's words as Claude and Pangram are sent them: an answer of
  * one box, its words; an answer in boxes, each box with words under its
- * label. `boxes` are the question's, in order. The review page's Pangram chip
- * hashes the same words to say whether a reading is out of date.
+ * label. `boxes` are the question's, in order. The reading view's Pangram
+ * chip hashes the same words to say whether a reading is out of date.
  */
 export function writtenAnswerWords(
   boxes: ReadonlyArray<{ id: string; label: string }>,

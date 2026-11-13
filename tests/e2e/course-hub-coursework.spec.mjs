@@ -25,10 +25,15 @@
  *    Ada's private note;
  *  - writes a piece of feedback on Ada's week as a whole there and reads it
  *    back;
- *  - reads Group A's reflections with each writer's whole name;
+ *  - reads Group A's reflections with each writer's whole name, on the page
+ *    of one question at the week's first reflection, Fern's own marked as
+ *    hers, and chooses the other group there, on the same week and question;
  *  - Fern reads the same group's reflections with names from the page to
- *    read lines out, never a private note, and that page still names nobody
- *    beside an answer;
+ *    read lines out (the page of one question, on the group's side), never a
+ *    private note, and that page still names nobody beside an answer;
+ *  - the older pages' addresses (the written answer's review page and
+ *    reflections with names, on the programme's side as the lead and on the
+ *    group's as Fern) forward to the reading views that replaced them;
  *  - Fern opens Ada's week from Feedback to write on the group's page, the
  *    reading view on the group's side: the answer, the private note, never a
  *    rating; writes feedback on the answer beside it and reads it back;
@@ -128,6 +133,28 @@ const WORDS = Object.freeze({
   yourAnswer: "Your answer",
   changeMyAnswer: "Change my answer",
 });
+
+/**
+ * Over the written answer, on both reading pages: the question with its range of words, as the term writes it
+ * (`words: { min: 1, max: 300 }`). `theQuestionWords` in src/lib/courses/writtenAnswerWords.ts;
+ * tests/course-reading-view.test.mjs holds it to the product's own and to the term's range.
+ */
+const ANSWER_QUESTION = "The question · 1 to 300 words";
+
+/**
+ * Under a written answer in the reading view, what its writer may still do: `reviewWeekLineWords` in
+ * src/lib/courses/writtenAnswerWords.ts, held by tests/course-reading-view.test.mjs.
+ */
+const mayChangeItLine = (first) => `${first} can change it until the programme closes. Before the session you read it as last sent; from the session, as it stands.`;
+
+/**
+ * Under a group's reflection on the page of one question, on the group's side, for a programme with no lead
+ * (the term's has none): `namedReadersLine` in src/lib/courses/facilitatorWeek/words.ts, and under the lead's
+ * rows when a facilitator's own work is listed, `facilitatorsOwnLine`. Both held by tests/course-question-view.test.mjs.
+ */
+const namedReadersLine = (group) =>
+  `${group}’s facilitators and admins read reflections with names. Fellows can’t see each other’s. To read a line out in the session, pick it on the page without names.`;
+const OWN_WORK_LINE = "Only admins read these. They’re never read out.";
 
 /** "Mon 2 Nov, 5:30pm": when a reflection was last written, as the pages date it (`dayAndClockWords`). */
 const WHEN = /(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec), \d{1,2}(?::\d{2})?(?:am|pm)/;
@@ -312,6 +339,8 @@ test(
     const answerId = courseworkItemId(3, "wa");
     /** One person's row on the page of one question across a group: a section carrying their id. */
     const rowOn = (pg, person) => pg.locator(`section[id="p-${person.uid}"]`);
+    /** The name heading that row's section is labelled by. */
+    const nameOn = (pg, person) => pg.locator(`[id="p-${person.uid}-name"]`);
     /** The two ways to read a week, drawn on both pages. */
     const waysOn = (pg) => pg.getByRole("navigation", { name: "Ways to read", exact: true });
     /** The filters over the people of one question. */
@@ -630,19 +659,18 @@ test(
           assert.ok(reflections.includes(adaSaid), `Ada's reflection is not on her week: ${reflections}`);
           assert.match(reflections, WHEN);
           const answer = await wordsIn(adminPage.locator('section[aria-labelledby="reading-answer"]'));
-          assert.ok(answer.includes(`The question ${COURSEWORK_ANSWER_PROMPT} ${adaAnswer}`), `Ada's answer is not under its question: ${answer}`);
+          assert.ok(answer.includes(`${ANSWER_QUESTION} ${COURSEWORK_ANSWER_PROMPT} ${adaAnswer}`), `Ada's answer is not under its question: ${answer}`);
           // Where it stands and how long it is, at a glance, then when it was sent.
           assert.match(answer, /^Written answer No feedback yet \d+ words Sent /, `the answer does not say it waits, its length and when it was sent: ${answer}`);
+          // Under it, what Ada may still do and how its readers read it, as the written answer's review page said it.
+          assert.ok(answer.includes(mayChangeItLine(ada.first)), `the answer does not say Ada may change it: ${answer}`);
           // Waiting for feedback: nobody has given any, and it is written here, beside the answer.
           assert.ok(answer.includes("Your feedback") && answer.includes("Save feedback"), `Ada's answer offers no feedback to write: ${answer}`);
           assert.ok(!answer.includes("Feedback from"), `Ada's answer is not waiting for feedback: ${answer}`);
           // An admin rates it for the team beside it, and may write feedback on it there.
           assert.ok(answer.includes("Rating for the team"), "an admin is not offered the rating for the team");
-          // The way to the answer's review page, where Pangram and the session reports' lines sit beside it.
-          assert.equal(
-            await adminPage.getByRole("link", { name: `Open ${ada.first}’s answer on the written answers page`, exact: true }).getAttribute("href"),
-            `${programmePathOnSite}/written?group=${enc(facilitated.id)}&week=3&person=${enc(ada.uid)}`,
-          );
+          // This is where the team reads an answer now: nothing on the page leads to the older review page.
+          assert.equal(await adminPage.locator('main a[href*="/written"]').count(), 0, "the reading view still leads to the written answers page");
           const notes = await wordsIn(adminPage.locator('section[aria-labelledby="reading-notes"]'));
           assert.ok(notes.includes(`${COURSEWORK_SOURCES.s1} Private note ${adaNote}`), `an admin is not shown Ada's private note: ${notes}`);
           // The way back to the group's page, and on to the next person of the group.
@@ -732,40 +760,96 @@ test(
         assert.ok(await showFilter(adminPage, `${WORDS.notReadYet} 0`).isVisible(), "opening Cleo's answer did not read it");
       });
 
-      await step("the lead reads the group's reflections with each writer's name", async () => {
+      await step("the lead reads the group's reflections with each writer's name, on the page of one question", async () => {
         activePage = adminPage;
-        await adminPage.goto(`${formBase}/reflections?group=${enc(facilitated.id)}&week=3`, { waitUntil: "domcontentloaded" });
-        await adminPage.getByRole("heading", { name: "Week 3 reflections", level: 1 }).waitFor({ timeout: WAIT_MS });
-        const prompt = adminPage.locator("section").filter({ has: adminPage.getByRole("heading", { name: COURSEWORK_PROMPTS.rp1, level: 2 }) });
-        const words = await wordsIn(prompt);
+        // The week's first reflection, asked for without its id, as the older page's address now asks for it.
+        await adminPage.goto(`${formBase}/question?group=${enc(facilitated.id)}&week=3&first=reflection`, { waitUntil: "domcontentloaded" });
+        await adminPage.getByRole("heading", { name: "One question, the whole group", level: 1 }).waitFor({ timeout: WAIT_MS });
+        assert.equal(
+          await wordsIn(adminPage.locator("section[aria-labelledby=question-asked]")),
+          `The question · Part 1: Start with what you think · Question 1 of 4 ${COURSEWORK_PROMPTS.rp1}`,
+        );
         // Each by the names rule for an admin: the full name, the fixture's display name.
-        assert.ok(words.includes(`1 of 2 wrote one · ${ben.displayName} hasn’t`), `the prompt does not name who has not written: ${words}`);
-        assert.ok(new RegExp(`${escapeRegExp(ada.displayName)} ${WHEN.source} ${escapeRegExp(adaSaid)}`).test(words), `Ada's reflection is not under her name: ${words}`);
-        // Fern's own reflections are the lead's to read, marked as hers.
-        assert.ok(words.includes(`Facilitators’ own reflections ${fern.displayName} Facilitator Not written yet.`), `Fern's own reflection is not marked: ${words}`);
+        assert.equal(await wordsIn(nameOn(adminPage, ada)), ada.displayName);
+        const adaRow = await wordsIn(rowOn(adminPage, ada));
+        assert.ok(adaRow.includes(adaSaid), `Ada's reflection is not under her name: ${adaRow}`);
+        assert.match(adaRow, new RegExp(`Saved ${WHEN.source}`), `Ada's reflection does not say when it was written: ${adaRow}`);
+        // Who has not written one says so, under their name.
+        assert.equal(await wordsIn(nameOn(adminPage, ben)), ben.displayName);
+        assert.ok((await wordsIn(rowOn(adminPage, ben))).endsWith("Nothing written yet"), "Ben's row does not say nothing is written");
+        // Fern's own reflections are the lead's to read, marked as hers, with who reads them.
+        assert.equal(await wordsIn(nameOn(adminPage, fern)), fern.displayName);
+        const fernRow = await wordsIn(rowOn(adminPage, fern));
+        assert.ok(fernRow.includes("Facilitator") && fernRow.endsWith("Nothing written yet"), `Fern's own reflection is not marked: ${fernRow}`);
+        const said = await mainOf(adminPage);
+        assert.ok(said.includes(OWN_WORK_LINE), `the page does not say who reads a facilitator's own: ${said}`);
         // Another group's never.
-        assert.ok(!(await mainOf(adminPage)).includes(cleoSaid), "Group B's reflection is on Group A's page");
+        assert.ok(!said.includes(cleoSaid), "Group B's reflection is on Group A's page");
       });
 
-      await step("the facilitator reads the group's reflections with names, and never a private note", async () => {
+      await step("the lead chooses the other group on the page of one question, and the week and the question stay", async () => {
+        activePage = adminPage;
+        // Where the step before left the lead: Group A's week 3, at its first reflection, asked for without its id.
+        const chooser = adminPage.getByRole("navigation", { name: "Group", exact: true });
+        await chooser.waitFor({ timeout: WAIT_MS });
+        // A link per group of the run, in the one order the tabs list them, each keeping the week and the question
+        // the address named; the group shown marked for a screen reader as well as by eye.
+        const links = chooser.getByRole("link");
+        assert.equal(await links.count(), ordered.length, "the choice of group does not hold every group of the run");
+        for (const [index, group] of ordered.entries()) {
+          const link = links.nth(index);
+          assert.equal(await wordsIn(link), group.name);
+          assert.equal(await link.getAttribute("href"), `${programmePathOnSite}/question?group=${enc(group.id)}&week=3&first=reflection`, `${group.name}'s link`);
+          assert.equal(await link.getAttribute("aria-current"), group === facilitated ? "page" : null, `${group.name}'s link is marked wrongly`);
+        }
+        const toOther = chooser.getByRole("link", { name: otherGroup.name, exact: true });
+        await Promise.all([
+          adminPage.waitForURL(
+            (url) => url.pathname.endsWith("/question") && url.searchParams.get("group") === otherGroup.id && url.searchParams.get("week") === "3" && url.searchParams.get("first") === "reflection",
+            { timeout: WAIT_MS },
+          ),
+          toOther.click(),
+        ]);
+        await adminPage.getByRole("heading", { name: "One question, the whole group", level: 1 }).waitFor({ timeout: WAIT_MS });
+        // The same week and its first reflection, across the other group now: Cleo's, and nobody of Group A's.
+        assert.ok((await wordsIn(adminPage.locator("section[aria-labelledby=question-asked]"))).endsWith(COURSEWORK_PROMPTS.rp1), "the other group's page is not on the week's first reflection");
+        assert.ok((await wordsIn(rowOn(adminPage, cleo))).includes(cleoSaid), "Cleo's reflection is not on her group's page");
+        assert.equal(await rowOn(adminPage, ada).count(), 0, "Group A's people are on the other group's page");
+        assert.equal(await chooser.getByRole("link", { name: otherGroup.name, exact: true }).getAttribute("aria-current"), "page", "the group shown is not marked");
+        assert.equal(await chooser.getByRole("link", { name: facilitated.name, exact: true }).getAttribute("aria-current"), null);
+      });
+
+      await step("the facilitator reads the group's reflections with names from the page to read lines out, and never a private note", async () => {
         activePage = facilitatorPage;
         // Fern signed in on the step that read one question across the group.
         await facilitatorPage.goto(`${origin}${groupPath}/reflections?week=3`, { waitUntil: "domcontentloaded" });
         const withNames = facilitatorPage.getByRole("link", { name: "Read them with names", exact: true });
         await withNames.waitFor({ timeout: WAIT_MS });
+        assert.equal(await withNames.getAttribute("href"), `${groupPath}/question?week=3&first=reflection`);
         await Promise.all([
-          facilitatorPage.waitForURL((url) => url.pathname.endsWith("/reflections/names"), { timeout: WAIT_MS }),
+          facilitatorPage.waitForURL((url) => url.pathname.endsWith(`${groupPath}/question`) && url.searchParams.get("first") === "reflection", { timeout: WAIT_MS }),
           withNames.click(),
         ]);
-        await facilitatorPage.getByRole("heading", { name: "Week 3 reflections", level: 1 }).waitFor({ timeout: WAIT_MS });
+        await facilitatorPage.getByRole("heading", { name: "One question, the whole group", level: 1 }).waitFor({ timeout: WAIT_MS });
+        assert.ok((await wordsIn(facilitatorPage.locator("section[aria-labelledby=question-asked]"))).endsWith(COURSEWORK_PROMPTS.rp1), "the page is not on the week's first reflection");
+        // Fern is not on the committee, so each fellow is named as they go by.
+        assert.equal(await wordsIn(nameOn(facilitatorPage, ada)), ada.first);
+        const adaRow = await wordsIn(rowOn(facilitatorPage, ada));
+        assert.ok(adaRow.includes(adaSaid), `Ada's reflection is not under her name: ${adaRow}`);
+        assert.match(adaRow, new RegExp(`Saved ${WHEN.source}`), `Ada's reflection does not say when it was written: ${adaRow}`);
+        assert.equal(await wordsIn(nameOn(facilitatorPage, ben)), ben.first);
+        assert.ok((await wordsIn(rowOn(facilitatorPage, ben))).endsWith("Nothing written yet"), "Ben's row does not say nothing is written");
+        // Never a facilitator's own work, a private note, the written answer or another group's.
+        assert.equal(await rowOn(facilitatorPage, fern).count(), 0, "a facilitator is shown their own reflections");
         const said = await mainOf(facilitatorPage);
-        assert.ok(new RegExp(`${escapeRegExp(ada.first)} ${WHEN.source} ${escapeRegExp(adaSaid)}`).test(said), `Ada's reflection is not under her name: ${said}`);
-        assert.ok(said.includes(`1 of 2 wrote one · ${ben.first} hasn’t`), "the prompt does not name who has not written");
         for (const words of [adaNote, adaAnswer, cleoSaid]) assert.ok(!said.includes(words), `the facilitator is shown ${JSON.stringify(words)}`);
-        assert.ok(!said.includes("Facilitators’ own reflections"), "a facilitator is shown facilitators' own reflections");
+        assert.ok(!said.includes(OWN_WORK_LINE), "a facilitator is told who reads facilitators' own reflections");
         assert.ok(!said.includes("Private note"), "a facilitator's page with names shows a private note");
-        assert.ok(
-          await facilitatorPage.getByRole("link", { name: "Pick lines to read out", exact: true }).isVisible(),
+        // Under the reflections, who reads them with names, and the way back to reading lines out.
+        assert.ok(said.includes(namedReadersLine(facilitated.name)), `the page does not say who reads reflections with names: ${said}`);
+        assert.equal(
+          await facilitatorPage.getByRole("link", { name: "Pick lines to read out", exact: true }).getAttribute("href"),
+          `${groupPath}/reflections?week=3`,
           "the page with names offers no way back to reading lines out",
         );
       });
@@ -780,6 +864,57 @@ test(
         assert.ok(!said.includes(ada.displayName), "the page to read lines out names Ada");
         assert.ok(!new RegExp(`\\b${escapeRegExp(ada.first)}\\b`).test(said), "the page to read lines out names Ada");
         assert.ok(!WHEN.test(said), "the page to read lines out says when an answer was written");
+      });
+
+      await step("the older pages' addresses forward to the reading views, for the lead and for the facilitator", async () => {
+        // Each older address answers with a forward worked out from the address alone; where it lands answers with its own gate.
+        const follow = async (pg, from, lands, what) => {
+          await pg.goto(from, { waitUntil: "domcontentloaded" });
+          await pg.waitForURL(lands, { timeout: WAIT_MS }).catch(() => assert.fail(`${what} forwarded to ${pg.url()}`));
+        };
+        const atAnswer = (url, path) => url.pathname.endsWith(path) && url.searchParams.get("week") === "3" && url.hash === "#reading-answer";
+        const atFirst = (url, path, kind) => url.pathname.endsWith(path) && url.searchParams.get("week") === "3" && url.searchParams.get("first") === kind;
+        /** The question the page of one question asks, once the page is drawn. */
+        const asked = async (pg) => {
+          await pg.getByRole("heading", { name: "One question, the whole group", level: 1 }).waitFor({ timeout: WAIT_MS });
+          return wordsIn(pg.locator("section[aria-labelledby=question-asked]"));
+        };
+        /** The written answer in the reading view, once the page is drawn. */
+        const answerOn = async (pg) => {
+          const section = pg.locator('section[aria-labelledby="reading-answer"]');
+          await section.waitFor({ timeout: WAIT_MS });
+          return wordsIn(section);
+        };
+
+        // The lead, on the programme's side: a person's written answer, the group's, and its reflections with names.
+        activePage = adminPage;
+        const group = `group=${enc(facilitated.id)}&week=3`;
+        await follow(adminPage, `${formBase}/written?${group}&person=${enc(ada.uid)}`, (url) => atAnswer(url, `/coursework/${ada.uid}`), "Ada's written answer on the programme's side");
+        assert.ok((await answerOn(adminPage)).includes(adaAnswer), "the forward does not open Ada's answer");
+        assert.equal(await adminPage.getByRole("heading", { name: ada.displayName, level: 1 }).count(), 1, "the forward does not open Ada's week");
+        await follow(
+          adminPage,
+          `${formBase}/written?${group}`,
+          (url) => atFirst(url, `${programmePathOnSite}/question`, "answer") && url.searchParams.get("group") === facilitated.id,
+          "the group's written answers on the programme's side",
+        );
+        assert.ok((await asked(adminPage)).startsWith(`${ANSWER_QUESTION} · `), "the forward does not open the week's written answer");
+        await follow(
+          adminPage,
+          `${formBase}/reflections?${group}`,
+          (url) => atFirst(url, `${programmePathOnSite}/question`, "reflection") && url.searchParams.get("group") === facilitated.id,
+          "the group's reflections with names on the programme's side",
+        );
+        assert.ok((await asked(adminPage)).endsWith(COURSEWORK_PROMPTS.rp1), "the forward does not open the week's first reflection");
+
+        // The facilitator, on the group's side: the same three, from the group's own addresses.
+        activePage = facilitatorPage;
+        await follow(facilitatorPage, `${origin}${groupPath}/written?week=3&person=${enc(ada.uid)}`, (url) => atAnswer(url, `${groupPath}/coursework/${ada.uid}`), "Ada's written answer on the group's side");
+        assert.ok((await answerOn(facilitatorPage)).includes(adaAnswer), "the forward does not open Ada's answer");
+        await follow(facilitatorPage, `${origin}${groupPath}/written?week=3`, (url) => atFirst(url, `${groupPath}/question`, "answer"), "the group's written answers");
+        assert.ok((await asked(facilitatorPage)).startsWith(`${ANSWER_QUESTION} · `), "the forward does not open the week's written answer");
+        await follow(facilitatorPage, `${origin}${groupPath}/reflections/names?week=3`, (url) => atFirst(url, `${groupPath}/question`, "reflection"), "the group's reflections with names");
+        assert.ok((await asked(facilitatorPage)).endsWith(COURSEWORK_PROMPTS.rp1), "the forward does not open the week's first reflection");
       });
 
       await step(
@@ -797,7 +932,7 @@ test(
           const answer = facilitatorPage.locator('section[aria-labelledby="reading-answer"]');
           await answer.waitFor({ timeout: WAIT_MS });
           const answerWords = await wordsIn(answer);
-          assert.ok(answerWords.includes(`The question ${COURSEWORK_ANSWER_PROMPT} ${adaAnswer}`), `Ada's answer is not under its question: ${answerWords}`);
+          assert.ok(answerWords.includes(`${ANSWER_QUESTION} ${COURSEWORK_ANSWER_PROMPT} ${adaAnswer}`), `Ada's answer is not under its question: ${answerWords}`);
           // A facilitator writes feedback; never a rating.
           assert.ok(!(await mainOf(facilitatorPage)).includes("Rating for the team"), "a facilitator is offered a rating");
           const notes = await wordsIn(facilitatorPage.locator('section[aria-labelledby="reading-notes"]'));

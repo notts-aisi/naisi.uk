@@ -1251,12 +1251,16 @@ test(
         for (const words of Object.values(WRITES.ivo)) assert.ok(!main.includes(words), `the facilitator's group page carries Ivo's words: ${words}`);
         const table = fernPage.getByRole("region", { name: "This week’s work" }).first();
         assert.equal(await table.getByRole("row").filter({ hasText: ivo.first }).count(), 0, "the facilitator's table has a row for Ivo's own week");
-        await fernPage.goto(`${origin}${learnGroupPath(groupA)}/reflections/names?week=${LATE_WEEK}`, { waitUntil: "domcontentloaded" });
-        const names = await waitFor("the facilitator's reflections with names to show Ben's", async () => {
-          const said = await textOf(fernPage.locator("main"));
-          return said.includes(WRITES.ben.rp1) ? said : null;
-        });
-        for (const words of [WRITES.ivo.rp1, WRITES.ivo.rp2, WRITES.ivo.rp3]) assert.ok(!names.includes(words), "the facilitator reads Ivo's own reflections");
+        // The group's reflections with names: the page of one question across the group, at each of the week's three reflections.
+        for (const key of ["rp1", "rp2", "rp3"]) {
+          await fernPage.goto(`${origin}${learnGroupPath(groupA)}/question?week=${LATE_WEEK}&question=${enc(courseworkItemId(LATE_WEEK, key))}`, { waitUntil: "domcontentloaded" });
+          const names = await waitFor(`the facilitator's reflections with names to show Ben's ${key}`, async () => {
+            const said = await textOf(fernPage.locator("main"));
+            return said.includes(WRITES.ben[key]) ? said : null;
+          });
+          for (const words of [WRITES.ivo.rp1, WRITES.ivo.rp2, WRITES.ivo.rp3]) assert.ok(!names.includes(words), "the facilitator reads Ivo's own reflections");
+          assert.equal(await fernPage.locator(`section[id="p-${ivo.uid}"]`).count(), 0, "the facilitator is shown a row for Ivo's own reflections");
+        }
         // In no count on the lead's page of the group either.
         const pg = await as(gus);
         await pg.goto(`${origin}${groupPagePath(groupA)}?week=${LATE_WEEK}`, { waitUntil: "domcontentloaded" });
@@ -1533,8 +1537,9 @@ test(
         assert.equal(await wordsIn(own.locator("xpath=..")), `${WORDS.ownEarlier} ${REFLECTION.label}`);
 
         const fernPage = await as(fern);
-        await fernPage.goto(`${origin}${learnGroupPath(groupA)}/reflections/names?week=${EDITED_WEEK}`, { waitUntil: "domcontentloaded" });
-        const answer = fernPage.locator("li").filter({ hasText: WRITES.ada.rp1 });
+        // On the page of one question across the group, at the week's first reflection (this one): Ada's row, a section carrying her id.
+        await fernPage.goto(`${origin}${learnGroupPath(groupA)}/question?week=${EDITED_WEEK}&first=reflection`, { waitUntil: "domcontentloaded" });
+        const answer = fernPage.locator(`section[id="p-${ada.uid}"]`).filter({ hasText: WRITES.ada.rp1 });
         await answer.first().waitFor({ timeout: WAIT_MS });
         const said = await wordsIn(answer.first());
         assert.ok(said.includes(`${WORDS.staffEarlier} ${REFLECTION.label}`), `the facilitator does not read the question when it was written: ${said}`);

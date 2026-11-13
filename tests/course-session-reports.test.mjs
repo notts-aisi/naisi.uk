@@ -1124,10 +1124,13 @@ const READER_CALLERS = {
   // CHANGED ON PURPOSE: was the Surveys tab's page, which counted the run's reports for its row.
   "lib/surveys/leadOverview.ts":
     "the Surveys tab's Overview, made after its page's gate for its lead and admins: a week's count, its average and the parts named, never what a report says",
-  // The report beside the work: tests/course-report-beside-work.test.mjs draws it as every caller.
-  "lib/courses/writtenAnswers/reviewPage.ts":
-    "the review page's loader, once its gate lets the reader review a written answer: the person's own lines in that week's reports and " +
-    "nothing else of one, every report's for the programme's lead and admins, a facilitator's own report's for that facilitator (besideScopeOf)",
+  // The report beside the work: on the reading view of one person's week, behind both its doors
+  // (tests/course-report-beside-work.test.mjs draws it as every caller). The written answer's review page's loader,
+  // kept as the reader behind This week's work's Written answer column after its page was retired, no longer reads
+  // any: that column draws its lists of people alone.
+  "lib/courses/coursework/readingLoad.ts":
+    "the reading view's loader, once its door's gate and the one gate on whose work let the reader review the person, beside an answer its readers may read: " +
+    "the person's own lines in that week's reports and nothing else of one, every report's for the programme's lead and admins, a facilitator's own report's for that facilitator (besideScopeOf), never on the reader's own page",
   // The admins' week review (privacy v15): a week's reports, held to their
   // writers' and each named person's version 15 moment, labelled before any
   // of it goes to Claude, and the site's own Might need a hand.

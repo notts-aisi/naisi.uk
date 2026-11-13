@@ -249,6 +249,7 @@ export const SPEC = {
       "/api/courses/runs/[runId]/weeks/[weekId]/history/[saveId]",
       "/api/courses/runs/[runId]/weeks/[weekId]/history/[saveId]/restore",
       "/api/courses/runs/[runId]/my-exercises",
+      "/api/courses/runs/[runId]/first-read",
     ],
     pages: [
       "/(auth)/login",
@@ -272,7 +273,7 @@ export const SPEC = {
       "/(app)/learn/[runId]/weeks/[n]",
       "/(app)/learn/[runId]/group/[groupId]",
       "/(app)/learn/[runId]/group/[groupId]/register",
-      "/(app)/learn/[runId]/group/[groupId]/reflections/names",
+      "/(app)/learn/[runId]/group/[groupId]/question",
     ],
   },
   /**
@@ -283,6 +284,9 @@ export const SPEC = {
    * sends, 11 accounts and their documents among them, and 5 of the counters
    * this fixture keeps), and the manifest read zero afterwards, on two runs of
    * the same head. The pull request's end-to-end job is its first CI run.
+   * The facilitator's two readings of the group's reflections with names
+   * moved to the page of one question on 13 Nov 2026, when the page with
+   * names was retired; not yet run in a browser.
    */
   status: "verified",
   seed,

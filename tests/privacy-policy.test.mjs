@@ -4388,6 +4388,7 @@ describe("the course hub passage", () => {
     // the passage above says: "You, your group's facilitators, the
     // programme's lead and admins, and nobody else taking part".
     assertExactlyTheseFiles(
+      // The older pages with names forward to the page of one question (questionLoad.ts, below), reading nothing.
       sourceFilesNaming(/\b(?:loadGroupWeek|loadReadOutWeek|loadNamedReflections|readRunCoursework)\(/),
       new Map([
         ["src/lib/courses/facilitatorWeek/readers.ts", "the loaders and the run-wide read, which ask nobody who is reading, so each caller decides that first"],
@@ -4402,9 +4403,7 @@ describe("the course hub passage", () => {
         ],
         ["src/app/(app)/learn/[runId]/group/[groupId]/page.tsx", "the group's page, for its live facilitators and admins"],
         ["src/app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx", "the page to read lines out, for the group's live facilitators and admins"],
-        ["src/app/(app)/learn/[runId]/group/[groupId]/reflections/names/page.tsx", "the group's fellows' reflections with names, for the group's live facilitators and admins, never a facilitator's own"],
         ["src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week/page.tsx", "the lead's view of a group's week, for the programme's lead and admins"],
-        ["src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections/page.tsx", "the lead's reading of a group's reflections with names, for the programme's lead and admins"],
       ]),
       "reading a group's reflections and ticks",
       "The policy says a person's reflections and ticks are read by their group's facilitators, the programme's lead and admins. A new reader is a new sentence.",
@@ -5110,10 +5109,11 @@ describe("the course hub passage", () => {
         [leadPage, "the programme's session reports, for its lead and admins (loadProgrammeRun)"],
         // CHANGED ON PURPOSE: was the Surveys tab's page, which counted the run's reports for its row.
         ["src/lib/surveys/leadOverview.ts", "the Surveys tab's Overview, made only by its page after the tab's gate (loadProgrammeRun): each week's count, how it went on average and the parts named, never what a report says"],
-        // The report beside the work: held by the test after this one.
+        // The report beside the work: held by the test after this one. (The written answer's review page's loader,
+        // kept behind This week's work's Written answer column after its page was retired, reads none now.)
         [
-          "src/lib/courses/writtenAnswers/reviewPage.ts",
-          "the review page beside a written answer, after its gate: the person's own lines, every report's for the lead and admins (besideScopeOf), a facilitator's own report's for that facilitator",
+          "src/lib/courses/coursework/readingLoad.ts",
+          "the reading view of one person's week beside a written answer its readers may read, after its door's gate and the one gate on whose work: the person's own lines, every report's for the lead and admins (besideScopeOf), a facilitator's own report's for that facilitator, never on the reader's own page",
         ],
       ]),
       "reading session reports",
@@ -5202,17 +5202,17 @@ describe("the course hub passage", () => {
     assert.match(rule, /if \(!mayReview \|\| !reader\.uid \|\| reader\.uid === ownerUid\) return null;/);
     assert.match(rule, /return \{ whose: reader\.isAdmin \|\| reader\.isLead \? "every" : "own", readerUid: reader\.uid \};/);
 
-    // The page asks it with its own gate's answer, for the person open on it
-    // and nobody else, after everybody on the page passed the one gate.
+    // The written answer's review page's loader, kept behind This week's work's Written answer column after its page
+    // was retired, opens nobody's answer and reads no report's lines: the reading view below is where they are read.
     const page = withoutComments(read(REVIEW_PAGE));
-    const gated = page.indexOf("const people = reviewableIn(actor, facts, group, owners, liveGroups);");
-    const opened = page.indexOf("if (chosen && answer && chosen.readable) {");
-    const scoped = page.indexOf(
-      "const beside = besideScopeOf({ uid: actor.uid, isAdmin: facts.isAdmin, isLead: facts.isLead }, chosen.uid, role.mayReview);",
-    );
-    const asked = page.indexOf("beside ? readReportLinesAbout(db, { runId: run.id, uid: chosen.uid, weekNumber, scope: beside }) : Promise.resolve(null),");
-    assert.ok(gated !== -1 && opened > gated && scoped > opened && asked > scoped, "the review page reads report lines before its gate and the rule");
-    assert.ok(page.indexOf("const role = writtenReviewRole(actor, facts, owner, liveGroups);") < scoped, "the rule is asked before the page knows what the reader may do");
+    assert.doesNotMatch(page, /besideScopeOf\(|readReportLinesAbout\(|sessionReports\//, "the review page's loader reads a report's lines again");
+    // The reading view of one person's week asks the same rule with the same gate's answer, for the person whose
+    // week it is, and reads the lines only beside an answer its readers may read.
+    const reading = withoutComments(read("src/lib/courses/coursework/readingLoad.ts"));
+    const role = reading.indexOf("const role = owner ? writtenReviewRole(actor, facts, owner, liveGroups) : null;");
+    const scope = reading.indexOf("const beside = role ? besideScopeOf({ uid: actor.uid, isAdmin: facts.isAdmin, isLead: facts.isLead }, uid, role.mayReview) : null;");
+    const lines = reading.indexOf("beside && answerId && answerReadable ? readReportLinesAbout(db, { runId: run.id, uid, weekNumber: n, scope: beside }) : Promise.resolve(null),");
+    assert.ok(role !== -1 && scope > role && lines > scope, "the reading view reads report lines before its gate and the rule");
 
     // A facilitator's read names the reports they wrote, so a co-facilitator's
     // is never read for them; the lead's and admins' read the reports that
@@ -9118,10 +9118,16 @@ describe("the last pass before version 7 goes live, held to v15", () => {
     assert.equal(writtenModel.answerState(record({ text: "Half a thought", words: 3 })), "draft");
     assert.equal(writtenModel.answerState(null), "not-started");
     assert.equal(writtenModel.answerState(record({ text: "Sent", words: 1, firstSentAt: new Date("2026-11-03T10:00:00Z") })), "sent");
-    // The review page opens only an answer its readers may read, and feedback is refused on any other work.
+    // No page opens an answer its readers may not read, and feedback is refused on any other work. The reading view
+    // of one person's week reads the words as `readableAnswer` hands them (through `readRunCoursework`, held by
+    // tests/course-written-answer-readers.test.mjs) and offers feedback only beside an answer its readers may read;
+    // the written answer's review page's loader, kept behind This week's work's Written answer column, opens none.
+    const reading = withoutComments(read("src/lib/courses/coursework/readingLoad.ts"));
+    assert.match(reading, /const answerReadable = stored\?\.piece != null && stored\.words > 0;/);
+    assert.match(reading, /open: mayWrite && answerReadable,/);
+    assert.match(withoutComments(read("src/lib/courses/facilitatorWeek/readers.ts")), /const read = readableAnswer\(piece, due\.at, on\.now\);/);
     const page = withoutComments(read("src/lib/courses/writtenAnswers/reviewPage.ts"));
-    assert.match(page, /const readable = \[\.\.\.toGive, \.\.\.feedbackSent\];/);
-    assert.match(page, /\(askedPerson \? readable\.find\(\(person\) => person\.uid === askedPerson\) : undefined\) \?\? toGive\[0\] \?\? feedbackSent\[0\] \?\? null;/);
+    assert.doesNotMatch(page, /\btext\b|askedPerson|selected/, "the review page's loader opens somebody's answer again");
     assert.match(
       withoutComments(read("src/lib/courses/feedback/access.ts")),
       /if \(on === "writtenAnswer"\) \{\s*if \(at\.read\) return at\.read\.words === 0 \? words\.answerEmpty : null;\s*if \(weekReadable && \(!at\.answer \|\| at\.answer\.words === 0\)\) return words\.answerEmpty;\s*return words\.notReadable;\s*\}/,
@@ -10690,7 +10696,6 @@ describe("v15 lets the people running a programme rate written work for each oth
           READERS_FILE,
           "the reader itself, which reads one person's answer and the names of whoever rated it, the ratings about the people a note suggests, or one person's ratings on a run and a week's for a note's draft",
         ],
-        [REVIEW_PAGE, "the review page, for an admin or the programme's lead alone (`mayRateWorkOf`)"],
         ["src/lib/applications/nextTerm/load.ts", "a term's Next term page, for an admin alone (`canRunTerm`, asked before anything is read), never about the admin looking"],
         [
           "src/lib/courses/weekNotes/gather.ts",
@@ -10711,9 +10716,10 @@ describe("v15 lets the people running a programme rate written work for each oth
     // The Next term page never shows the person their own: the admin looking is never a row.
     assert.match(strip(read("src/lib/applications/nextTerm/load.ts")), /if \(!canRunTerm\(viewer\)\) return \{ status: "admins-only" \};/);
     assert.match(strip(read("src/lib/applications/nextTerm/rows.ts")), /if \(note\.uid === input\.viewerUid \|\| note\.suggest\.length === 0\) continue;/);
+    // The written answer's review page's loader, kept behind This week's work's Written answer column after its page
+    // was retired, reads no rating; its lists are of people who pass the one gate, which refuses yourself.
     const page = strip(read(REVIEW_PAGE));
-    assert.match(page, /mayRateWorkOf\(actor, facts, owner, liveGroups\)\s*\?\s*loadTeamRatings\(db, \{/, "the review page reads ratings for somebody who may not read them");
-    // The page never opens its reader's own answer: everybody on it passes the one gate, which refuses yourself.
+    assert.doesNotMatch(page, /loadTeamRatings\(|workRatings\//, "the review page's loader reads ratings again");
     assert.match(page, /const people = reviewableIn\(actor, facts, group, owners, liveGroups\);/);
     // What the route hands back is that it went, and nothing of a rating.
     const route = strip(read(ROUTE));
@@ -10726,18 +10732,28 @@ describe("v15 lets the people running a programme rate written work for each oth
     assert.ok(existsSync(join(REPO_ROOT, "tests", "course-work-ratings.test.mjs")));
   });
 
-  test("\"What comes back is seen by admins only\": Pangram's reading beside an answer on its review page is read for an admin alone, never the lead", () => {
+  test("\"What comes back is seen by admins only\": Pangram's reading beside an answer in the reading view is read for an admin alone, never the lead", () => {
     v15Says(["What comes back is seen by admins only,"]);
     assertExactlyTheseFiles(
       sourceFilesNaming(/\breadAnswerReading\(/),
       new Map([
         ["src/lib/courses/coursework/pangramReadings.ts", "the reader of one kept reading, which asks nobody who is reading, so its one caller decides that first"],
-        [REVIEW_PAGE, "the review page, which asks for it for an admin alone (`facts.isAdmin`)"],
+        [
+          "src/lib/courses/coursework/readingLoad.ts",
+          "the reading view of one person's week, which asks for it for an admin alone (`facts.isAdmin`), on an answer they may review (`writtenReviewRole`, never their own) and its readers may read",
+        ],
       ]),
       "reading Pangram's reading of one answer",
       "The policy says what Pangram returns is seen by admins only. A new caller shows it somewhere new: decide it is an admin's alone first.",
     );
-    assert.match(strip(read(REVIEW_PAGE)), /facts\.isAdmin && record\s*\?\s*readAnswerReading\(db, \{/, "the review page reads Pangram's reading for somebody who is not an admin");
+    // The written answer's review page's loader, kept behind This week's work's Written answer column after its page was retired, reads none.
+    assert.doesNotMatch(strip(read(REVIEW_PAGE)), /readAnswerReading\(|pangramReadings/, "the review page's loader reads Pangram's reading again");
+    assert.match(
+      strip(read("src/lib/courses/coursework/readingLoad.ts")),
+      /facts\.isAdmin && mayWrite && answerId && answerReadable && stored\s*\?\s*readAnswerReading\(db, \{/,
+      "the reading view reads Pangram's reading for somebody who is not an admin, or of an answer they may not review or read",
+    );
+    // tests/course-work-ratings.test.mjs draws the reading view as an admin, the lead, a facilitator and on an admin's own page.
   });
 
   test("Kairos receives the ratings at a programme's end, and nothing of these", () => {

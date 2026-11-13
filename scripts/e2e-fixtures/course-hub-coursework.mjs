@@ -1,6 +1,7 @@
 /**
  * The course hub's browser spec for reading coursework: the Coursework tab, a
- * person's page, and a group's reflections read with names.
+ * person's page, a group's reflections read with names on the page of one
+ * question, and the older pages' addresses forwarding to the reading views.
  *
  * The term the earlier course hub specs stand on (`./worlds/course-hub-term.mjs`),
  * at its coursework point: three weeks into a running run whose weeks are
@@ -16,9 +17,12 @@
  * committee, which only an admin makes, on the real pages) reading the Coursework tab and
  * two people's weeks in the reading view, writing feedback on one week there
  * and reading it back, then Fern, appointed to Group A on the real page,
- * reading the group's reflections with names and the page to read lines out,
- * which still names nobody, then opening Ada's week from the group's page,
- * the reading view on the group's side, and writing feedback on her answer
+ * reading the group's reflections with names (the page of one question at the
+ * week's first reflection, as the lead does too) and the page to read lines
+ * out, which still names nobody; both follow the older pages' addresses (the
+ * written answer's review page and reflections with names, on each side) to
+ * where they forward; then Fern opens Ada's week from the group's page,
+ * the reading view on the group's side, and writes feedback on her answer
  * there, which the lead reads beside it. Both read one question across the
  * group too: an answer not read yet, read once opened, the answers with no
  * feedback yet, feedback written from that page, and the switch between the
@@ -78,9 +82,11 @@ export const COURSEWORK_STEPS = [
   "the lead writes feedback on a fellow's week in the reading view, and reads it back",
   "the lead keeps, with the filters, the people with something not read yet and the people with no feedback yet",
   "the lead opens an answer from the waiting list, writes feedback on it, and finds it gone from the list",
-  "the lead reads the group's reflections with each writer's name",
-  "the facilitator reads the group's reflections with names, and never a private note",
+  "the lead reads the group's reflections with each writer's name, on the page of one question",
+  "the lead chooses the other group on the page of one question, and the week and the question stay",
+  "the facilitator reads the group's reflections with names from the page to read lines out, and never a private note",
   "the facilitator's page to read lines out still names nobody beside an answer",
+  "the older pages' addresses forward to the reading views, for the lead and for the facilitator",
   "the facilitator opens a person's week from the group page, reads it with the private note and no rating, and writes feedback there",
   "the lead reads the facilitator's feedback beside the answer on the programme's side",
   "the lead writes feedback from the page of one question and reads it back, then switches to the person's week and back",
@@ -195,7 +201,9 @@ export const SPEC = {
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/coursework",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections",
+      "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written",
       "/(app)/learn/[runId]/group/[groupId]/reflections/names",
+      "/(app)/learn/[runId]/group/[groupId]/written",
       "/(app)/learn/[runId]/group/[groupId]/reflections",
       "/(app)/learn/[runId]/group/[groupId]",
       "/(app)/learn/[runId]/group/[groupId]/coursework/[uid]",
@@ -223,7 +231,13 @@ export const SPEC = {
    * list of what waits, and an answer changed since feedback coming back on the
    * list and on the facilitator's card) were added on 13 November 2026 and
    * have not yet run in a browser: the pull request's end-to-end job runs them
-   * first.
+   * first. The two steps reading reflections with names moved to the page of
+   * one question, and the step following the older pages' addresses to where
+   * they forward was added, on 13 November 2026, when those pages were
+   * retired; they have not yet run in a browser either. The step choosing the
+   * other group on the programme's page of one question was added on 13
+   * November 2026 with that page's choice of group, and has not yet run in a
+   * browser either.
    */
   status: "verified",
   seed: async ({ runId, suppress, onState }) => {

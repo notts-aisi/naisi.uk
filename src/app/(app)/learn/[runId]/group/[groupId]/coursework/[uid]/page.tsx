@@ -12,14 +12,16 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 /**
  * ONE PERSON OF A GROUP, ONE WEEK (the reading view, Fri 13 Nov 2026), from
  * the group's side: `/learn/[runId]/group/[groupId]/coursework/[uid]?week=N`,
- * reached from the group page's Feedback to write and This week's work, and
- * from the group's written answers. With no week named it opens the newest
- * week the person has anything in, else the newest that has begun for them.
+ * reached from the group page's Feedback to write and This week's work, from
+ * the page of one question across the group, and from the older address of a
+ * person's written answer, which forwards here. With no week named it opens
+ * the newest week the person has anything in, else the newest that has begun
+ * for them.
  *
- * THE GATE is the group's written review page's, as it is: the run's layout
- * has decided the caller holds some role on the run; this page admits the
- * group's live facilitators, the lead of the programme that names the run and
- * admins, and the group must belong to this run. Then, for the person named,
+ * THE GATE is the one the group's written answer review page had: the run's
+ * layout has decided the caller holds some role on the run; this page admits
+ * the group's live facilitators, the lead of the programme that names the run
+ * and admins, and the group must belong to this run. Then, for the person named,
  * the one gate on whose work a reader may act on (`loadGroupPersonWeek`
  * asks `reviewableIn`, which asks `writtenReviewRole`): somebody placed in
  * this group, or one of its facilitators for the lead and admins; a
@@ -77,6 +79,7 @@ export default async function GroupPersonWeekPage({
     askedWeek: query.week ?? null,
     programmeName: programme?.shortName || access.run.courseTitle,
     groupPath: `${runHome}/group/${encodeURIComponent(groupId)}`,
+    runHome,
   });
   // Nobody this reader may read in this group, or a run with no week to read: the run's home.
   if (outcome.status !== "ok") redirect(runHome);

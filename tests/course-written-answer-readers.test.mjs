@@ -70,7 +70,7 @@ const READERS = {
   // ---- others: each asks workIsReadable ------------------------------------
   "lib/courses/writtenAnswers/reviewPage.ts": {
     treats: "others",
-    why: "the review page: an answer is listed to give feedback on, opened and shown with its count only as its readers may read it, as last sent before the session",
+    why: "the written answer's review page's loader, kept as the reader behind This week's work's Written answer column (its own page is retired): an answer is listed to give feedback on, and counted, only as its readers may read it, as last sent before the session",
   },
   "lib/courses/writtenAnswers/queue.ts": {
     treats: "others",
@@ -215,11 +215,12 @@ test("the one answer: as last sent before the session, the latest once it has st
   const review = codeOf(join(SRC, "lib", "courses", "writtenAnswers", "reviewPage.ts"));
   assert.match(review, /const read = record \? readableAnswer\(answerPiece\(record\), due\.at, now\) : null;/);
   assert.match(review, /words: readable \? \(read\?\.words \?\? 0\) : 0,/);
-  assert.match(review, /if \(chosen && answer && chosen\.readable\) \{/);
-  // The answer shown is the words handed back, never the row's own latest words.
-  assert.match(review, /text: shown\?\.text \?\? "",/);
-  assert.match(review, /boxes: shown\?\.boxes \?\? null,/);
-  assert.doesNotMatch(review, /text: record\?\.text/, "the review page shows the row's latest words, sent or not");
+  // Kept only behind This week's work's Written answer column, which draws its lists of people: it hands on no
+  // words of anybody's answer at all, as read or not (the reading view of one person's week shows them, through the
+  // same reader: `readRunCoursework` above).
+  const QUESTION_BOXES = "boxes: fullBlock.boxes.map((box) => ({ id: box.id, label: box.label, hint: box.hint })),";
+  assert.ok(review.includes(QUESTION_BOXES), "the question's own boxes (their labels, never anybody's words) are no longer read as they were");
+  assert.doesNotMatch(review.replace(QUESTION_BOXES, ""), /\btext\b|\.boxes\b/, "the review page's loader hands on somebody's words");
   // Claude and Pangram are handed the words as read, never the row's own.
   const gather = codeOf(join(SRC, "lib", "courses", "coursework", "gather.ts"));
   assert.match(gather, /rows\.push\(\{ id: doc\.id, uid, question, data: read \? \{ \.\.\.data, text: read\.text, boxes: read\.boxes \?\? undefined \} : data \}\);/);

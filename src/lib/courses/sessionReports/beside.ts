@@ -2,9 +2,10 @@ import type { CourseSessionReportDoc } from "@/lib/firestore/courseSessionReport
 import { RUN_REPORTS_WORDS } from "./words";
 
 /**
- * THE REPORT BESIDE THE WORK (privacy v15, "Session reports"): on a written
- * answer's review page, what that week's session reports say about the
- * person whose answer it is, and nothing else of a report.
+ * THE REPORT BESIDE THE WORK (privacy v15, "Session reports"): beside a
+ * written answer in the reading view of the person's week, what that week's
+ * session reports say about the person whose answer it is, and nothing else
+ * of a report.
  *
  *  - WHAT. Only the person's own lines: picked as having engaged well (with
  *    what made them stand out), as seeming not to have done the readings, or
@@ -12,18 +13,18 @@ import { RUN_REPORTS_WORDS } from "./words";
  *    the session went, what went well or didn't, what seemed unclear, the
  *    note for the lead, or anybody else a report picks.
  *  - WHOSE REPORTS. The programme's lead and admins read every report, so
- *    they see every report's lines about the person. Anybody else the review
- *    page lets review the answer is a facilitator of the person's group, and
+ *    they see every report's lines about the person. Anybody else the one
+ *    gate lets review the answer is a facilitator of the person's group, and
  *    sees only the lines of the reports they wrote themselves, which they
  *    read whole on their own report page already: never a co-facilitator's.
  *    Nobody sees what the reports say about themselves, and somebody who may
  *    not review the answer sees nothing.
  *  - READ ONLY. Nothing here writes, and nothing is emailed.
  *
- * Pure (the record's type and the report's words), so the review page in the
+ * Pure (the record's type and the report's words), so the card in the
  * browser reads the view's shape here. The server's reader is
- * `readReportLinesAbout` in `./readers.ts`, called only by the review page's
- * loader, after its gate.
+ * `readReportLinesAbout` in `./readers.ts`, called only by the reading view's
+ * loader and the written answers' review loader, each after its gate.
  */
 
 /**
@@ -34,7 +35,7 @@ import { RUN_REPORTS_WORDS } from "./words";
 export type BesideScope = { whose: "every" | "own"; readerUid: string };
 
 /**
- * THE RULE, in one place. `mayReview` is the review page's own answer for
+ * THE RULE, in one place. `mayReview` is the one gate's answer for
  * this reader and this answer (`writtenReviewRole`); `reader` says whether
  * they are an admin or the programme's lead (`reviewerFactsOf`). Null for
  * the person themselves and for anybody who may not review the answer: they
@@ -70,7 +71,7 @@ export type ReportLinesOf = {
 };
 
 /**
- * What the review page is handed: whose reports' lines these are, and each
+ * What the reading view is handed: whose reports' lines these are, and each
  * report that says something about the person, in the order of the week's
  * sessions, then oldest first. No report that says nothing about them.
  */

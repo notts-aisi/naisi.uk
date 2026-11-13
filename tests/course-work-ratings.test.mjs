@@ -16,9 +16,11 @@
  *     or the person), as what, on what, one per rater, and that it emails
  *     nobody.
  *  2. Clearing one: the rater's own, and nobody else's.
- *  3. The review page: "Rating for the team" and "What the team said" for an
- *     admin and the lead, the Pangram chip for an admin alone, none of it in
- *     a facilitator's page.
+ *  3. Beside the answer, on the reading view of the person's week behind
+ *     both doors (where the written answer's review page's addresses now
+ *     forward): "Rating for the team" and "What the team said" for an admin
+ *     and the lead, the Pangram chip for an admin alone, none of it in a
+ *     facilitator's page, and nothing about the reader's own answer.
  *  4. Never to the person or a facilitator: their pages, the one reader and
  *     every file that addresses the record, and never the Kairos file or the
  *     Ratings tab.
@@ -195,19 +197,19 @@ describe("1. rating an answer: admins and the programme's lead, on readable work
     assert.doesNotMatch(JSON.stringify(row), /rating|rated|"reviewed"/i);
     assert.equal(w.world.db.read(ratingPath("chloe", 2, "zach")).rating, 8, "a change keeps the rating given");
     // Kofi changes his week 3 after the session, is rated, and changes it again: nothing more is kept, and
-    // the review page tells staff his answer has changed since the rating.
+    // the reading view of his week tells staff his answer has changed since the rating.
     w.at("2026-11-17T19:00:00Z");
     assert.equal((await w.write("kofi", 3, { boxes: { "wb-what": "Light the lamp at dusk.", "wb-who": "", "wb-next": "" } })).status, 200);
     const keptBefore = w.world.db.read(w.rowPath("kofi", 3)).earlierVersions;
     w.at("2026-11-17T19:30:00Z");
     assert.equal((await w.rate("zach", "kofi", 3, 5, "Better at dusk.")).status, 200);
-    let team = (await w.writtenPage("zach", { week: "3", person: "kofi" })).element.props.model.selected.team;
+    let team = w.readingViewOf(await w.readingPage("zach", "kofi", { week: "3" })).team;
     assert.deepEqual(team.said.map((said) => [said.rating, said.changedSince]), [[5, false]]);
     w.at("2026-11-17T20:00:00Z");
     assert.equal((await w.write("kofi", 3, { boxes: { "wb-what": "Light the lamp at dusk, every night.", "wb-who": "", "wb-next": "" } })).status, 200);
     assert.deepEqual(w.world.db.read(w.rowPath("kofi", 3)).earlierVersions, keptBefore, "a version was kept for the rating");
-    const page = await w.writtenPage("zach", { week: "3", person: "kofi" });
-    team = page.element.props.model.selected.team;
+    const page = await w.readingPage("zach", "kofi", { week: "3" });
+    team = w.readingViewOf(page).team;
     assert.deepEqual(team.said.map((said) => [said.rating, said.changedSince]), [[5, true]]);
     assert.match(page.text, /“Better at dusk\.” Kofi’s answer has changed since this rating\./);
   });
@@ -333,92 +335,148 @@ function pangramReading({ worthALook, words: answered }) {
   });
 }
 
-describe("3. the review page: for an admin and the lead, the Pangram chip for an admin alone, none of it for a facilitator", () => {
-  test("an admin reads Rating for the team, What the team said and the Pangram chip beside the answer", async () => {
+/** What the reading view of the week was handed beside the answer (the review page's addresses forward there), or null where none was drawn. */
+const besideOf = (page) => w.readingViewOf(page) ?? null;
+/** Whose week the reading view is open on, or undefined with none drawn. */
+const openOf = (page) => w.readingViewOf(page)?.person.uid;
+/** The whole payload a page hands the browser: the reading view's view, or the review page's props. */
+const payloadOf = (page) => JSON.stringify(w.readingViewOf(page) ?? page.element?.props ?? null);
+/** `uid`'s week 2 answer in front of `who` from the group's side: the reading view of the week, where the review page's address forwards. */
+const groupSides = async (who, uid = "chloe") => [await w.readingPage(who, uid, { week: "2" })];
+/** The same from the programme's side. */
+const programmeSides = async (who, uid = "chloe") => [await w.leadReadingPage(who, uid, { week: "2" })];
+
+describe("3. beside the answer, on the reading view of the week: for an admin and the lead, the Pangram chip for an admin alone, none of it for a facilitator", () => {
+  test("the written answer's review page's addresses forward to the reading view at the answer, reading nothing", async () => {
+    await weekTwoWritten();
+    pangramReading({ worthALook: true, words: sentence(25) });
+    await w.rate("claudia", "chloe", 2, 8, "Takes a side and defends it.");
+    for (const who of ["zach", "claudia", "rahul", null]) {
+      for (const page of [await w.writtenPage(who, { week: "2", person: "chloe" }), await w.leadPage(who, { group: B, week: "2", person: "chloe" })]) {
+        assert.match(page.to ?? "", /\/coursework\/chloe\?week=2#reading-answer$/, `${who}`);
+        assert.equal(page.element, null);
+        assert.equal(page.wrote, false);
+      }
+    }
+  });
+
+  test("an admin reads Rating for the team, What the team said and the Pangram chip beside the answer, behind both doors", async () => {
     await weekTwoWritten();
     pangramReading({ worthALook: false, words: sentence(25) });
     w.at("2026-11-15T10:02:00Z");
     await w.rate("claudia", "chloe", 2, 8, "Takes a side and defends it.");
     w.at(NOW);
-    const page = await w.writtenPage("zach", { week: "2", person: "chloe" });
-    const { team, pangram } = page.element.props.model.selected;
-    assert.deepEqual(pangram, { worthALook: false, outOfDate: false });
-    assert.equal(team.mine, null);
-    assert.deepEqual(
-      team.said.map((row) => [row.raterUid, row.name, row.role, row.rating, row.comment, row.mine]),
-      [["claudia", "Claudia", "lead", 8, "Takes a side and defends it.", false]],
-    );
-    assert.deepEqual(team.viewer, { uid: "zach", name: "Zach", role: "admin" });
-    assert.match(page.text, /Pangram: nothing to flag/);
-    assert.match(
-      page.text,
-      new RegExp(
-        `${escape(words.RATING_FOR_THE_TEAM)} ${escape(words.WHO_READS_RATINGS)} ${escape(words.YOUR_RATING)} 1 2 3 4 5 6 7 8 9 10 ` +
-          `${escape(words.RATING_SCALE_LINE)} ${escape(words.COMMENT_FOR_THE_TEAM)} Never shown to Chloe\\. 0 words ${escape(words.SAVE_RATING)}`,
-      ),
-    );
-    assert.match(page.text, /What the team said Claudia Lead 8 of 10 Sun 15 Nov “Takes a side and defends it\.” Zach Admin Not rated yet/);
+    for (const page of [...(await groupSides("zach")), ...(await programmeSides("zach"))]) {
+      const { team, pangram } = besideOf(page);
+      assert.deepEqual(pangram, { worthALook: false, outOfDate: false });
+      assert.equal(team.mine, null);
+      assert.deepEqual(
+        team.said.map((row) => [row.raterUid, row.name, row.role, row.rating, row.comment, row.mine]),
+        [["claudia", "Claudia", "lead", 8, "Takes a side and defends it.", false]],
+      );
+      assert.deepEqual(team.viewer, { uid: "zach", name: "Zach", role: "admin" });
+      assert.match(page.text, /Pangram: nothing to flag/);
+      assert.match(
+        page.text,
+        new RegExp(
+          `${escape(words.RATING_FOR_THE_TEAM)} ${escape(words.WHO_READS_RATINGS)} ${escape(words.YOUR_RATING)} 1 2 3 4 5 6 7 8 9 10 ` +
+            `${escape(words.RATING_SCALE_LINE)} ${escape(words.COMMENT_FOR_THE_TEAM)} Never shown to Chloe\\. 0 words ${escape(words.SAVE_RATING)}`,
+        ),
+      );
+      assert.match(page.text, /What the team said Claudia Lead 8 of 10 Sun 15 Nov “Takes a side and defends it\.” Zach Admin Not rated yet/);
+    }
     // The admin's own rating fills the form, and the list says so in its place.
     await w.rate("zach", "chloe", 2, 9, "Best in the group this week.");
-    const again = await w.writtenPage("zach", { week: "2", person: "chloe" });
-    assert.match(again.html, /<input[^>]*type="radio"[^>]*value="9"[^>]*checked=""|<input[^>]*checked=""[^>]*value="9"/);
-    assert.match(again.html, /<textarea[^>]*>Best in the group this week\.<\/textarea>/);
-    assert.match(again.text, /Clear my rating/);
-    assert.match(again.text, /Rated Tue 17 Nov, 12pm/);
-    assert.doesNotMatch(again.text, /Not rated yet/);
-    // Oldest first, the reader's own among them.
-    const listed = again.element.props.model.selected.team;
-    assert.deepEqual(listed.said.map((row) => [row.raterUid, row.mine]), [["claudia", false], ["zach", true]]);
-    assert.equal(listed.mine.rating, 9);
-    assert.match(again.text, /What the team said Claudia Lead 8 of 10 Sun 15 Nov “Takes a side and defends it\.” Zach Admin 9 of 10 Tue 17 Nov “Best in the group this week\.”/);
+    for (const again of await groupSides("zach")) {
+      assert.match(again.html, /<input[^>]*type="radio"[^>]*value="9"[^>]*checked=""|<input[^>]*checked=""[^>]*value="9"/);
+      assert.match(again.html, /<textarea[^>]*>Best in the group this week\.<\/textarea>/);
+      assert.match(again.text, /Clear my rating/);
+      assert.match(again.text, /Rated Tue 17 Nov, 12pm/);
+      assert.doesNotMatch(again.text, /Not rated yet/);
+      // Oldest first, the reader's own among them.
+      const listed = besideOf(again).team;
+      assert.deepEqual(listed.said.map((row) => [row.raterUid, row.mine]), [["claudia", false], ["zach", true]]);
+      assert.equal(listed.mine.rating, 9);
+      assert.match(again.text, /What the team said Claudia Lead 8 of 10 Sun 15 Nov “Takes a side and defends it\.” Zach Admin 9 of 10 Tue 17 Nov “Best in the group this week\.”/);
+    }
     // A reading of words that have since changed says so.
     pangramReading({ worthALook: true, words: "Something Chloe wrote before." });
-    assert.match((await w.writtenPage("zach", { week: "2", person: "chloe" })).text, /Pangram: changed since it checked/);
+    for (const page of await groupSides("zach")) {
+      assert.match(page.text, /Pangram: changed since it checked/);
+      assert.deepEqual(besideOf(page).pangram, { worthALook: true, outOfDate: true });
+    }
     pangramReading({ worthALook: true, words: sentence(25) });
-    assert.match((await w.writtenPage("zach", { week: "2", person: "chloe" })).text, /Pangram: worth a look/);
+    for (const page of await groupSides("zach")) assert.match(page.text, /Pangram: worth a look/);
+    // Never checked: nothing, and nothing is sent to Pangram to find out.
+    w.world.db.seed(`coursePangramChecks/${RUN.agi}__chloe`, { runId: RUN.agi, uid: "chloe", parts: {} });
+    for (const page of [...(await groupSides("zach")), ...(await programmeSides("zach"))]) {
+      assert.equal(besideOf(page).pangram, null);
+      // The chip's words: the programme's side keeps its admins' Pangram panel about the person, apart from the answer.
+      assert.doesNotMatch(page.text, /Pangram: /);
+      assert.equal(page.wrote, false);
+    }
   });
 
-  test("the lead reads the ratings on both review pages, and never a Pangram reading", async () => {
+  test("the lead reads the ratings behind both doors, and never a Pangram reading", async () => {
     await weekTwoWritten();
     pangramReading({ worthALook: true, words: sentence(25) });
     await w.rate("zach", "chloe", 2, 9, "Best in the group this week.");
-    for (const page of [await w.writtenPage("claudia", { week: "2", person: "chloe" }), await w.leadPage("claudia", { group: B, week: "2", person: "chloe" })]) {
-      const { team, pangram } = page.element.props.model.selected;
+    for (const page of [...(await groupSides("claudia")), ...(await programmeSides("claudia"))]) {
+      const { team, pangram } = besideOf(page);
       assert.equal(pangram, null, "the lead is handed a Pangram reading");
       assert.doesNotMatch(page.html, /Pangram/);
+      assert.doesNotMatch(payloadOf(page), /worthALook|outOfDate/);
       assert.deepEqual(team.said.map((row) => [row.name, row.role, row.rating]), [["Zach", "admin", 9]]);
       assert.deepEqual(team.viewer, { uid: "claudia", name: "Claudia", role: "lead" });
       assert.match(page.text, /What the team said Zach Admin 9 of 10 Tue 17 Nov “Best in the group this week\.” Claudia Lead Not rated yet/);
     }
   });
 
-  test("a facilitator's review page carries no rating, no comment for the team and no Pangram reading, and draws none of it", async () => {
+  test("a facilitator's pages beside the answer carry no rating, no comment for the team and no Pangram reading, and draw none of it", async () => {
     await weekTwoWritten();
     pangramReading({ worthALook: true, words: sentence(25) });
     await w.rate("zach", "chloe", 2, 9, "A comment Rahul must never read.");
     await w.rate("claudia", "chloe", 2, 4, "Another one.");
     for (const who of ["rahul", "sofia"]) {
-      const page = await w.writtenPage(who, { week: "2", person: "chloe" });
-      const { selected } = page.element.props.model;
-      assert.equal(selected.person.uid, "chloe");
-      assert.equal(selected.team, null, `${who} is handed the ratings`);
-      assert.equal(selected.pangram, null, `${who} is handed a Pangram reading`);
-      // Nothing of either reaches the page's payload, which is the model.
-      const payload = JSON.stringify(page.element.props);
-      assert.doesNotMatch(payload, /A comment Rahul must never read|Another one|of 10|worthALook|raterUid/);
-      assert.doesNotMatch(page.text, new RegExp(`${escape(words.RATING_FOR_THE_TEAM)}|${escape(words.WHAT_THE_TEAM_SAID)}|Pangram`));
+      for (const page of await groupSides(who)) {
+        const handed = besideOf(page);
+        assert.equal(openOf(page), "chloe");
+        assert.equal(handed.team, null, `${who} is handed the ratings`);
+        assert.equal(handed.pangram, null, `${who} is handed a Pangram reading`);
+        // Nothing of either reaches the page's payload.
+        assert.doesNotMatch(payloadOf(page), /A comment Rahul must never read|Another one|of 10|worthALook|raterUid/);
+        assert.doesNotMatch(page.text, new RegExp(`${escape(words.RATING_FOR_THE_TEAM)}|${escape(words.WHAT_THE_TEAM_SAID)}|Pangram`));
+      }
     }
   });
 
-  test("the person's own answer is never open on their page, so nobody reads the ratings about themselves", async () => {
+  test("the person's own answer is never open on their page, so nobody reads the ratings or a Pangram reading about themselves", async () => {
     // Rahul's own answer, rated by the lead: Rahul reviews Group B, and his own answer is never his to open.
     w.at(BEFORE_DUE_2);
     assert.equal((await w.write("rahul", 2, { text: sentence(25) }, { send: true })).status, 200);
     w.at(NOW);
     await w.rate("claudia", "rahul", 2, 7, "About Rahul.");
-    const page = await w.writtenPage("rahul", { week: "2", person: "rahul" });
-    assert.notEqual(page.element.props.model.selected?.person.uid, "rahul");
-    assert.doesNotMatch(JSON.stringify(page.element.props), /About Rahul/);
+    for (const page of await groupSides("rahul", "rahul")) {
+      assert.notEqual(openOf(page), "rahul");
+      assert.doesNotMatch(payloadOf(page), /About Rahul/);
+    }
+    // Sofia, his co-facilitator, never opens it either.
+    for (const page of await groupSides("sofia", "rahul")) assert.notEqual(openOf(page), "rahul");
+    // An admin's own page on the programme's side: Zach holds a place in Group B, and his answer has a Pangram reading.
+    w.world.db.seed(`courseEnrolments/${RUN.agi}__zach`, { ...w.world.db.read(`courseEnrolments/${RUN.agi}__chloe`), uid: "zach" });
+    w.at(BEFORE_DUE_2);
+    assert.equal((await w.write("zach", 2, { text: sentence(25) }, { send: true })).status, 200);
+    w.at(NOW);
+    const rowId = `${RUN.agi}__zach__w02__${ONE_BOX.id}`;
+    w.world.db.seed(`coursePangramChecks/${RUN.agi}__zach`, {
+      runId: RUN.agi,
+      uid: "zach",
+      parts: { [rowId]: { label: "AI", headline: "", fractionAi: 0.9, fractionAiAssisted: 0, fractionHuman: 0.1, hash: pangramInput.fingerprintOf(sentence(25)), worthALook: true, at: "2026-11-16T10:00:00.000Z" } },
+    });
+    const own = await w.leadReadingPage("zach", "zach", { week: "2" });
+    assert.equal(openOf(own), "zach", "an admin's own page on the programme's side is not drawn");
+    assert.deepEqual([besideOf(own).pangram, besideOf(own).team], [null, null], "an admin is handed what is never theirs about their own answer");
+    assert.doesNotMatch(own.text, /Pangram: |Rating for the team/);
   });
 });
 
@@ -440,9 +498,16 @@ describe("4. never to the person or a facilitator, and never to Kairos", () => {
     await weekTwoWritten();
     await w.rate("zach", "chloe", 2, 9, "Never for Chloe.");
     await w.rate("claudia", "chloe", 2, 3, "Nor this.");
+    // A Pangram reading of her answer is kept too, read beside it for an admin alone: nothing of it reaches her either.
+    pangramReading({ worthALook: true, words: sentence(25) });
     for (const who of ["chloe", "farah"]) {
       const page = await w.weekPage(who, 2);
-      assert.doesNotMatch(`${page.html} ${JSON.stringify(page.overview)} ${JSON.stringify(page.own)}`, /Never for Chloe|Nor this|of 10|Rating for the team/, who);
+      assert.doesNotMatch(`${page.html} ${JSON.stringify(page.overview)} ${JSON.stringify(page.own)}`, /Never for Chloe|Nor this|of 10|Rating for the team|Pangram|worthALook|outOfDate/, who);
+    }
+    // Nor the reading view of her own week, through either door.
+    for (const page of [await w.readingPage("chloe", "chloe", { week: "2" }), await w.leadReadingPage("chloe", "chloe", { week: "2" })]) {
+      assert.equal(w.readingViewOf(page), null, "Chloe is drawn the reading view of her own week");
+      assert.doesNotMatch(`${page.html} ${JSON.stringify(page.element?.props ?? null)}`, /Never for Chloe|Nor this|worthALook/);
     }
     const home = await w.programmeHome("chloe");
     assert.doesNotMatch(`${home.html} ${JSON.stringify(home.overview)}`, /Never for Chloe|Nor this/);
@@ -465,7 +530,7 @@ describe("4. never to the person or a facilitator, and never to Kairos", () => {
     assert.deepEqual(found, [...EXPECTED.keys()].sort(), "a file addresses courseWorkRatings that this list does not know: decide who it shows ratings to first");
   });
 
-  test("the one reader is called by the review page, the reading view of one person's week, one question across a group, a term's Next term page and what a note is drafted from alone, each after its own gate and only for an admin or the lead", () => {
+  test("the one reader is called by the reading view of one person's week, one question across a group, a term's Next term page and what a note is drafted from alone, each after its own gate and only for an admin or the lead", () => {
     // Every function the reader exports is a way in, read off the file rather than listed here.
     const exported = [...codeOf("src/lib/courses/workRatings/readers.ts").matchAll(/\bexport\s+(?:async\s+)?function\s+(\w+)\s*\(/g)]
       .map((m) => m[1])
@@ -478,16 +543,19 @@ describe("4. never to the person or a facilitator, and never to Kairos", () => {
       "src/lib/courses/coursework/readingLoad.ts",
       "src/lib/courses/weekNotes/gather.ts",
       "src/lib/courses/workRatings/readers.ts",
-      "src/lib/courses/writtenAnswers/reviewPage.ts",
     ]);
     // What a note is drafted from calls only the two readers made for it, held in the next test.
     assert.doesNotMatch(codeOf("src/lib/courses/weekNotes/gather.ts"), /loadTeamRatings\(|readAnswerRatings\(|readRatingsAbout\(/);
+    // The written answer's review page's loader, kept behind This week's work's Written answer column after its page
+    // was retired, reads no rating and no Pangram reading: the column draws its lists of people alone.
     const page = codeOf("src/lib/courses/writtenAnswers/reviewPage.ts");
-    assert.match(page, /mayRateWorkOf\(actor, facts, owner, liveGroups\)\s*\?\s*loadTeamRatings\(db, \{/);
-    assert.match(page, /facts\.isAdmin && record\s*\?\s*readAnswerReading\(db, \{/);
+    assert.doesNotMatch(page, /workRatings\/|loadTeamRatings\(|readAnswerReading\(|pangramReadings/);
     // The reading view of one person's week: the same gate, on an answer its readers may read, never a facilitator's.
     const reading = codeOf("src/lib/courses/coursework/readingLoad.ts");
     assert.match(reading, /owner && answerId && answerReadable && mayRateWorkOf\(actor, facts, owner, liveGroups\)\s*\?\s*loadTeamRatings\(db, \{/);
+    // Pangram's reading beside it: an admin's alone, on an answer they may review and its readers may read, as the review page reads it.
+    assert.match(reading, /facts\.isAdmin && mayWrite && answerId && answerReadable && stored\s*\?\s*readAnswerReading\(db, \{/);
+    assert.equal((reading.match(/readAnswerReading\(/g) ?? []).length, 1, "the reading view reads Pangram's reading in more than one place");
     assert.doesNotMatch(reading, /readAnswerRatings\(|readRatingsAbout\(|readPersonRatings\(|readWeekRatings\(/);
     // One question across a group: the same gate, person by person, on an answer its readers may read, never a facilitator's.
     const question = codeOf("src/lib/courses/coursework/questionLoad.ts");
@@ -505,7 +573,6 @@ describe("4. never to the person or a facilitator, and never to Kairos", () => {
       assert.ok(
         [
           "src/lib/courses/workRatings/readers.ts",
-          "src/lib/courses/writtenAnswers/reviewPage.ts",
           // The reading view of one person's week: the ratings for an admin or the lead, by the gate held above.
           "src/lib/courses/coursework/readingLoad.ts",
           // One question across a group: the same, person by person, by the gate held above.

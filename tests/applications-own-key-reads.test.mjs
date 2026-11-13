@@ -339,6 +339,12 @@ const HELD = new Map([
       why: "a course application's answers: the apply form reads them by the run's question ids, and the admissions queue by the answers' own keys",
     },
   ],
+  [
+    "src/lib/courses/coursework/question.ts",
+    {
+      why: "which of a person's fill-in boxes under This week's work to name as first read: their words by box id, read by the week's own box ids",
+    },
+  ],
 ]);
 
 /**

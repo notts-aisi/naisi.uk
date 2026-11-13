@@ -143,11 +143,12 @@ const READERS = {
   },
   "lib/courses/coursework/readingLoad.ts": {
     kind: "shown",
-    asks: 2,
+    asks: 3,
     why:
       "the reading view of one person's week from the group's side: whose weeks a reader may open in a group are the run's " +
       "placements this reader may be shown (an admin sees an untold one, a facilitator or the lead never), then the one gate; " +
-      "asked a second time about a caller who is no admin, to know whether the person was told and so reads the group's copy of a week",
+      "asked a second time about a caller who is no admin, to know whether the person was told and so reads the group's copy of a week; " +
+      "and once more of an archived group's fellows, listed to an admin alone on the page of one question, as its reflections with names listed them",
   },
   "lib/courses/updates/readers.ts": {
     kind: "shown",
@@ -363,7 +364,7 @@ const READERS = {
   "lib/courses/writtenAnswers/reviewPage.ts": {
     kind: "shown",
     asks: 1,
-    why: "the review page's people: an untold seat is not a row for anybody but an admin",
+    why: "the written answer's review page's loader, kept as the reader behind This week's work's Written answer column (its own page is retired): its people, where an untold seat is not a row for anybody but an admin",
   },
   "app/api/courses/runs/[runId]/sync-tasks/route.ts": {
     kind: "shown",

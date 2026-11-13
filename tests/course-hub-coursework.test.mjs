@@ -411,9 +411,11 @@ describe("6. a person's page: the reading view of one week", () => {
     assert.match(drawn.text, new RegExp(`How many lighthouses are still lit, do you think\\? Saved Sun 15 Nov, 4:12pm ${SAID.farah["k3-rp1"]}`));
     assert.match(drawn.text, /Readings 2 of 2 A keeper's diary Ticked Sun 15 Nov, 4:12pm Lamps at night Ticked Sun 15 Nov, 4:12pm/);
     // Where the answer stands and how long it is, at a glance, then when it was sent.
-    assert.match(drawn.text, /Written answer Feedback given 4 words Sent Mon 16 Nov, 9am The question Who should keep the lamps lit, and why\? farah wrote a plan\./);
-    // The way to its review page, where Pangram (an admin's) and the session reports' lines sit beside it.
-    assert.match(drawn.html, new RegExp(`<a href="${PROGRAMME_PATH}/written\\?group=${B}&amp;week=3&amp;person=farah" class="reviewLink">Open Farah’s answer on the written answers page</a>`));
+    // The question with its range of words, as the review page asked it.
+    assert.match(drawn.text, /Written answer Feedback given 4 words Sent Mon 16 Nov, 9am The question · 1 to 200 words Who should keep the lamps lit, and why\? farah wrote a plan\./);
+    // No way to a review page: what it showed beside the answer is here (Pangram for an admin, the session reports' lines).
+    assert.doesNotMatch(drawn.html, /\/written\?|written answers page/);
+    assert.match(drawn.text, /Farah can change it until the programme closes\. Before the session you read it as last sent; from the session, as it stands\./);
     // Feedback given before pieces existed sits beside the answer it was on: a signed card, already emailed, its
     // comment shown; with no comment it reads as its levels, one plain line each.
     assert.match(drawn.text, /R Feedback from Rahul Farah’s facilitator · Mon 16 Nov Clear and short\. Emailed to Farah on Mon 16 Nov/);
@@ -439,7 +441,8 @@ describe("6. a person's page: the reading view of one week", () => {
     assert.equal(personOf(tariq).weekNumber, 1);
     assert.match(tariq.text, new RegExp(`AGI Strategy · Not in a group yet · week 1 of \\d+ Tariq Mensah Week 1 · The first lamps .*Reflections Part 1: Start with what you think The question How many lighthouses are still lit, do you think\\? Saved Sun 15 Nov, 4:12pm ${TARIQ_SAID}`));
     assert.equal(find(drawnView(tariq), "FeedbackWriter").length, 0);
-    assert.equal(personOf(tariq).reviewHref, null, "somebody in no group has no review page to open");
+    // And no page of one question to switch to: he is in no group this reader may see.
+    assert.equal(personOf(tariq).questionHref, null, "somebody in no group has a group's page of one question to open");
   });
 
   test("the week the address names, when it is one of the run's weeks written as blocks; any other is the week it would open on", async () => {

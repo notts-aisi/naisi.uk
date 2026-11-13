@@ -51,7 +51,7 @@ import { programmeLabelOf } from "@/lib/memberNotes/words";
  * stamps nothing on the person's week, so the answer's next change keeps no
  * version for it. That version would sit on the answer's own row, which its
  * writer reads, and tell them a rating exists. When the answer has changed
- * since, the review page tells staff so (`teamRatingsOf`).
+ * since, the reading pages tell staff so (`teamRatingsOf`).
  *
  * View-as is refused first, so a view-as session never rates in the member's
  * name. Every refusal before the gate has passed says nothing about whose

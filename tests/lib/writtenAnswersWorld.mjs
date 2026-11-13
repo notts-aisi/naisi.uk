@@ -334,6 +334,12 @@ export async function makeWrittenAnswersWorld(key = "__writtenAnswers") {
     group: (await loadTs(join(GROUP, "page.tsx"))).default,
     oldReview: (await loadTs(join(GROUP, "review", "page.tsx"))).default,
     leadWritten: (await loadTs(join(PROGRAMME, "written", "page.tsx"))).default,
+    // The reading view of one person's week, behind both doors.
+    reading: (await loadTs(join(GROUP, "coursework", "[uid]", "page.tsx"))).default,
+    leadReading: (await loadTs(join(PROGRAMME, "coursework", "[uid]", "page.tsx"))).default,
+    // One question across a group, behind both doors: where a group's written answers for a week now forward.
+    question: (await loadTs(join(GROUP, "question", "page.tsx"))).default,
+    leadQuestion: (await loadTs(join(PROGRAMME, "question", "page.tsx"))).default,
     attendance: (await loadTs(join(PROGRAMME, "(tabs)", "attendance", "page.tsx"))).default,
     overviewTab: (await loadTs(join(PROGRAMME, "(tabs)", "overview", "page.tsx"))).default,
   };
@@ -358,6 +364,8 @@ export async function makeWrittenAnswersWorld(key = "__writtenAnswers") {
     workRatingsRecord: await loadTs(join("lib", "firestore", "courseWorkRatings.ts")),
     whoFinished: await loadTs(join("lib", "courses", "finishing", "whoFinished.ts")),
     worksheets: await loadTs(join("lib", "firestore", "worksheets.ts")),
+    reviewPage: await loadTs(join("lib", "courses", "writtenAnswers", "reviewPage.ts")),
+    groups: await loadTs(join("lib", "firestore", "courseGroups.ts")),
   };
 
   /** Move every clock the routes and the store read. */
@@ -567,6 +575,49 @@ export async function makeWrittenAnswersWorld(key = "__writtenAnswers") {
   const writtenPage = (who, query = {}, groupId = B) => draw(pages.written, who, { runId: RUN.agi, groupId }, query);
   /** The lead's review page, as `who`. */
   const leadPage = (who, query = {}) => draw(pages.leadWritten, who, { roundId: ROUND, programmeId: AGI }, query);
+  /** The reading view of `uid`'s week from the group's side, as `who`. */
+  const readingPage = (who, uid, query = {}, groupId = B) => draw(pages.reading, who, { runId: RUN.agi, groupId, uid }, query);
+  /** The reading view of `uid`'s week from the programme's side, as `who`. */
+  const leadReadingPage = (who, uid, query = {}) => draw(pages.leadReading, who, { roundId: ROUND, programmeId: AGI, uid }, query);
+  /** One question across `groupId` from the group's side, as `who`. */
+  const questionPage = (who, query = {}, groupId = B) => draw(pages.question, who, { runId: RUN.agi, groupId }, query);
+  /** One question across a group from the programme's side, as `who`. */
+  const leadQuestionPage = (who, query = {}) => draw(pages.leadQuestion, who, { roundId: ROUND, programmeId: AGI }, query);
+  /** What a drawn page of one question was handed (`view`), or null where none was drawn. */
+  const questionViewOf = (page) => {
+    const found = [];
+    const walk = (element) => {
+      if (!element || typeof element !== "object") return;
+      if (Array.isArray(element)) return element.forEach(walk);
+      if (typeof element.type === "function" && element.type.name === "QuestionView") found.push(element);
+      if (element.props?.children !== undefined) walk(element.props.children);
+    };
+    walk(page.element);
+    return found[0]?.props.view ?? null;
+  };
+  /**
+   * What the written answer's review page's loader, kept as the reader behind
+   * This week's work's Written answer column, works out for `who` on a group's
+   * week `n`: its lists of people.
+   */
+  function reviewModel(who, n, groupId = B) {
+    const run = lib.courses.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+    const group = lib.groups.normalizeCourseGroup(groupId, world.db.read(`courseGroups/${groupId}`));
+    return lib.reviewPage.loadWrittenReview(world.db, sessionFor(who), run, group, n, new Date());
+  }
+
+  /** What a drawn reading view was handed (`view`), or null where none was drawn. */
+  const readingViewOf = (page) => {
+    const found = [];
+    const walk = (element) => {
+      if (!element || typeof element !== "object") return;
+      if (Array.isArray(element)) return element.forEach(walk);
+      if (typeof element.type === "function" && element.type.name === "ReadingView") found.push(element);
+      if (element.props?.children !== undefined) walk(element.props.children);
+    };
+    walk(page.element);
+    return found[0]?.props.view ?? null;
+  };
   /** The old feedback page for week `n`, as `who`: it only sends its reader on. */
   const feedbackPage = (who, n) => draw(pages.feedback, who, { runId: RUN.agi, n: String(n) });
   /** The programme's Overview tab, as `who`. */
@@ -626,6 +677,13 @@ export async function makeWrittenAnswersWorld(key = "__writtenAnswers") {
     programmeHome,
     writtenPage,
     leadPage,
+    readingPage,
+    leadReadingPage,
+    readingViewOf,
+    questionPage,
+    leadQuestionPage,
+    questionViewOf,
+    reviewModel,
     feedbackPage,
     overviewTab,
     groupPage,

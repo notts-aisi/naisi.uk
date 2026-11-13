@@ -138,7 +138,7 @@
   color: var(--color-accent-text);
 }
 
-/* Under the written answer: the way to its review page, a link in words. */
+/* A link in words: a person's week from the page of one question, and the page to read lines out. */
 .reviewLink {
   text-decoration: underline;
   text-underline-offset: 3px;

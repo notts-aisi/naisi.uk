@@ -1,89 +1,33 @@
-import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
-import NotYours from "@/features/applications/groups/NotYours";
-import RunBlank from "@/features/applications/groups/RunBlank";
-import WrittenReview from "@/features/courses/written/WrittenReview";
-import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
-import { isAddressableId } from "@/lib/addressableId";
-import { groupTagOf } from "@/lib/courses/programmeAttendance";
-import { liveGroupsOf, reviewerFactsOf } from "@/lib/courses/writtenAnswers/access";
-import { loadWrittenReview } from "@/lib/courses/writtenAnswers/reviewPage";
-import { getAdminDb } from "@/lib/firebase/admin";
-import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
-import { normalizeCourseRun } from "@/lib/firestore/courses";
+import { redirect } from "next/navigation";
+import { programmeWrittenForward } from "@/lib/courses/coursework/forwards";
 
 /**
- * THE PROGRAMME'S LEAD GIVING FEEDBACK ON WRITTEN ANSWERS (Zach, Mon 26 Oct:
- * a facilitator's own answer is read, and given feedback, by the lead or an
- * admin): the review page for one group
- * of the run the programme names, at
- * `.../programmes/[programmeId]/written?group=&week=&person=`, reached from
- * the Attendance tab's "Written answers" card.
+ * THE WRITTEN ANSWER'S REVIEW PAGE ON THE PROGRAMME'S SIDE, RETIRED (Fri 13
+ * Nov 2026): `.../programmes/[programmeId]/written?group=&week=&person=` now
+ * forwards, worked out from the address alone, to the page that replaced it:
+ * a person's answer to the reading view of their week at the written answer
+ * (`./coursework/[uid]?week=N#reading-answer`), a group's answers for a week
+ * to the page of one question across the group at the week's written answer
+ * (`./question?group=G&week=N&first=answer`). See
+ * `src/lib/courses/coursework/forwards.ts`.
  *
- * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`loadProgrammeRun`), decided from
- * the form before the run is read; a reviewer is told it is the lead's and
- * an admin's. Then the one gate, person by person (`loadWrittenReview`): the
- * lead and admins may review every answer of the group, its facilitators'
- * own among them. The routes behind the page ask the same gate again.
- *
- * Outside the tabs, as a single application is: a screen of its own, with
- * the way back to the Attendance tab.
- *
- * THE LEAD CHOOSES THE GROUP HERE TOO (A10), with the Attendance tab's own
- * control: a pill a group of the run that still meets, in the one order, each
- * that group's page here (its own week), the one shown marked. Opened with no
- * group, it shows the first, as before; the pills say which.
+ * It reads nothing and asks nobody anything: the page it forwards to answers
+ * with its own gate, as it does for anybody who typed its address, so an
+ * address already sent keeps working and tells nobody whether anything
+ * exists.
  */
 
 export const dynamic = "force-dynamic";
 
-export default async function LeadWrittenAnswersPage({
+type Query = { group?: string | string[]; week?: string | string[]; person?: string | string[] };
+
+export default async function ProgrammeWrittenForward({
   params,
   searchParams,
 }: {
   params: Promise<{ roundId: string; programmeId: string }>;
-  searchParams?: Promise<{ group?: string | string[]; week?: string | string[]; person?: string | string[] }>;
+  searchParams?: Promise<Query>;
 }) {
-  const [{ roundId, programmeId }, query, user] = await Promise.all([
-    params,
-    searchParams ?? Promise.resolve({} as { group?: string | string[]; week?: string | string[]; person?: string | string[] }),
-    requireAdmissionsPage(),
-  ]);
-  const db = getAdminDb();
-  const outcome = db ? await loadProgrammeRun(db, user, roundId, programmeId) : null;
-  if (!db || !outcome || outcome.status === "none") return <NoProgrammeHere roundId={roundId} />;
-  if (outcome.status === "not-yours") return <NotYours roundId={roundId} programmeId={programmeId} tab="Attendance" />;
-  const { view } = outcome;
-  if (!view.run) return <RunBlank view={view} />;
-
-  const runSnap = await db.collection("courseRuns").doc(view.run.id).get();
-  if (!runSnap.exists || (runSnap.data() ?? {}).destroying === true) return <RunBlank view={{ ...view, blank: "run-gone" }} />;
-  const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
-  const [liveGroups, facts] = await Promise.all([liveGroupsOf(db, run.id), reviewerFactsOf(db, user, run.id)]);
-  // The run's live groups, in the one order every tab lists them in.
-  const askedGroup = typeof query.group === "string" && isAddressableId(query.group) ? query.group : null;
-  const group = liveGroups.find((candidate) => candidate.id === askedGroup) ?? liveGroups[0] ?? null;
-  if (!group) return <RunBlank view={view} />;
-
-  const asked = typeof query.week === "string" && /^\d{1,2}$/.test(query.week) ? Number(query.week) : null;
-  const person = typeof query.person === "string" && isAddressableId(query.person) ? query.person : null;
-  const model = await loadWrittenReview(db, user, run, group, asked, person, new Date(), { liveGroups, facts });
-
-  const programmePath = `/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}`;
-  // Every address here is a page of this site written out from ids, never from stored text.
-  const groups = liveGroups.map((candidate) => ({
-    id: candidate.id,
-    name: candidate.name.trim() || "Untitled group",
-    tag: groupTagOf(candidate.name),
-    href: `${programmePath}/written?group=${encodeURIComponent(candidate.id)}`,
-  }));
-  return (
-    <WrittenReview
-      model={model}
-      basePath={`${programmePath}/written`}
-      groupParam={group.id}
-      groups={groups}
-      back={{ href: `${programmePath}/attendance`, label: "Attendance" }}
-      readBase={`${programmePath}/coursework`}
-    />
-  );
+  const [{ roundId, programmeId }, query] = await Promise.all([params, searchParams ?? Promise.resolve({} as Query)]);
+  redirect(programmeWrittenForward(`/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}`, query));
 }

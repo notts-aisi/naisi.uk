@@ -45,11 +45,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { importersOf } from "./lib/clientGraph.mjs";
 import { find } from "./lib/facilitatorPagesWorld.mjs";
 import { walkSource } from "./lib/functionScan.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
-import { AGI, B, NOW, ROUND, RUN, SAID, facilitatorWeekSeed, makeFacilitatorWeekWorld } from "./lib/facilitatorWeekWorld.mjs";
+import { AGI, B, NOTED, NOW, ROUND, RUN, SAID, facilitatorWeekSeed, makeFacilitatorWeekWorld, reflection as reflectionRow } from "./lib/facilitatorWeekWorld.mjs";
 import { enrolment } from "./lib/hubAttendanceWorld.mjs";
 import { weekOneBlocks } from "./lib/weekBlocksPageWorld.mjs";
 
@@ -77,6 +79,7 @@ const routes = {
   myExercises: await w.courseRoute("runs", "[runId]", "my-exercises"),
   reflection: await w.courseRoute("runs", "[runId]", "reflections", "[promptId]"),
   written: await w.courseRoute("runs", "[runId]", "written-answers", "[answerId]"),
+  ratings: await w.courseRoute("runs", "[runId]", "work-ratings"),
 };
 
 const run = (text, marks = {}) => ({ text, ...marks });
@@ -282,6 +285,164 @@ describe("1. who opens the page, and whose answers each reader is sent", () => {
   });
 });
 
+describe("1b. an archived group, behind its door, reads for an admin exactly as its own pages read it", () => {
+  // The group's reflections with names, which this page replaced, showed an admin its fellows' reflections under
+  // their names, in the weeks the group taught, and nothing else of theirs; no page opened a fellow's week. The lead
+  // read only its facilitators' own work here; everybody else was sent away.
+  const archive = (over = {}) => w.world.db.poke(`courseGroups/${B}`, { archived: true, ...over });
+  const weekOf = (who, uid, week = "3") => w.draw(pages.groupWeek, who, { runId: RUN.agi, groupId: B, uid }, { week });
+  const FELLOWS = ["chloe", "farah", "kofi"];
+  /** A week written as blocks in week 3's shape, its ids prefixed `k<n>`: reflections, readings, a written answer and a box. */
+  const blockWeek = (n) => {
+    const three = weekThree();
+    const k = `k${n}`;
+    return JSON.parse(JSON.stringify({ ...three, weekNumber: n, title: `Week ${n}` }).replaceAll('"k3-', `"${k}-`));
+  };
+  const WEEK2_SAID = "Week two: the keepers went home early.";
+  const WEEK4_ANSWER = "A begun answer for week four, never shown.";
+  const WEEK4_BOX = "A begun box for week four, never shown.";
+  /** Week 2, written as blocks, with Chloe's reflection, box, answer and private note in it. */
+  function seedWeekTwo() {
+    w.world.db.seed(`courseRuns/${RUN.agi}/weeks/w02`, blockWeek(2));
+    w.world.db.seed(`courseExerciseResponses/${RUN.agi}__chloe__w02__k2-rp1`, reflectionRow("chloe", "k2-rp1", WEEK2_SAID, 2));
+    w.world.db.seed(`courseExerciseResponses/${RUN.agi}__chloe__w02__k2-fb1`, { ...box("chloe", "k2-fb1", "WEEK2 BOX"), weekId: "w02", weekNumber: 2 });
+    w.world.db.seed(`courseExerciseResponses/${RUN.agi}__chloe__w02__k2-wa`, { ...answer("chloe", "WEEK2 ANSWER sent"), weekId: "w02", weekNumber: 2, exerciseId: "k2-wa" });
+    w.world.db.seed(`courseProgress/${RUN.agi}__chloe__k2-s1`, { runId: RUN.agi, uid: "chloe", weekNumber: 2, itemKind: "material", itemId: "k2-s1", completed: true, completedAt: SENT, hasPublicComment: false, updatedAt: SENT, privateNote: "WEEK2 NOTE" });
+  }
+  /** Everything of a fellow's that no page of the archived group showed an admin, and their told state. */
+  const NEVER = [CHLOE_ANSWER, CHLOE_BOX, NOTED.chloe[1], NOTED.kofi[1], "WEEK2 BOX", "WEEK2 ANSWER", "WEEK2 NOTE", WEEK4_ANSWER, WEEK4_BOX];
+  const holdsNone = (out, what) => {
+    const payload = JSON.stringify(viewOf(out) ?? null);
+    for (const words of NEVER) assert.ok(!out.html.includes(words) && !payload.includes(words), `${what}: an admin is handed ${words}`);
+    assert.doesNotMatch(out.text, /Not told yet/, `${what}: a fellow is marked as not told`);
+  };
+
+  test("as an admin, a reflection in a week the group teaches: the fellows under their names, one with nothing written, and the facilitators' own as before", async () => {
+    // Kofi was placed and never told: the reflections with names marked nobody, and neither does this page.
+    w.world.db.poke(`courseEnrolments/${RUN.agi}__kofi`, { allocatedEmailAt: null });
+    archive();
+    const out = await drawn("zach", { week: "3", first: "reflection" });
+    const view = viewOf(out);
+    assert.equal(view.question.id, "k3-rp1");
+    assert.deepEqual(
+      view.rows.map((row) => [row.uid, row.answer?.text ?? null]),
+      [
+        ["chloe", SAID.chloe["k3-rp1"]],
+        ["farah", SAID.farah["k3-rp1"]],
+        ["kofi", null],
+        ["rahul", SAID.rahul["k3-rp1"]],
+        ["sofia", SAID.sofia["k3-rp1"]],
+      ],
+    );
+    // What the reflections with names drew of each: the name, the words, when it was saved, and nothing written.
+    assert.match(out.text, /Chloe Nguyen Saved Sun 15 Nov, 4:12pm Forty lamps are still lit/);
+    assert.match(out.text, /Kofi Asante Nothing written yet/);
+    assert.ok(rowOf(view, "chloe").answer.savedAt instanceof Date);
+    // Nothing else of theirs: no link to a week that would refuse, no told state, no read state, nothing named.
+    for (const uid of FELLOWS) {
+      const row = rowOf(view, uid);
+      assert.deepEqual([row.weekHref, row.notToldYet, row.read, row.facilitating, row.joinedLate, row.mayWrite, row.team], [null, false, null, false, false, false, null], uid);
+      assert.ok(!out.html.includes(`/coursework/${uid}`), `${uid}'s name leads to their week`);
+    }
+    assert.deepEqual(view.firstRead.people.map((person) => person.uid), ["rahul", "sofia"]);
+    assert.equal(view.counts.unread, 2);
+    // The facilitators' own work, as before, each leading to their week; the switch to one person's week lands on one.
+    for (const uid of ["rahul", "sofia"]) assert.equal(rowOf(view, uid).weekHref, `${GROUP_PATH}/coursework/${uid}?week=3#q-k3-rp1`);
+    assert.equal(view.nav.personWeek, `${GROUP_PATH}/coursework/rahul?week=3#q-k3-rp1`);
+    holdsNone(out, "a reflection");
+  });
+
+  test("as an admin, a week the group does not teach, a fill-in box and the written answer: the facilitators' own alone", async () => {
+    seedWeekTwo();
+    // Group B's own plan leaves out week 2.
+    const plan = w.world.db.read(`courseRuns/${RUN.agi}`).weekPlan.filter((entry) => !(entry.kind === "week" && entry.weekNumber === 2));
+    archive({ paceWeekPlan: plan });
+    const untaught = await drawn("zach", { week: "2", first: "reflection" });
+    assert.equal(viewOf(untaught).weekNumber, 2);
+    assert.ok(!uidsOf(viewOf(untaught)).some((uid) => FELLOWS.includes(uid)), "a fellow is listed in a week the group does not teach");
+    assert.ok(!untaught.html.includes(WEEK2_SAID));
+    holdsNone(untaught, "a week the group does not teach");
+    for (const query of [{ week: "3", question: "k3-fb1" }, { week: "3", question: "k3-wa" }]) {
+      const out = await drawn("zach", query);
+      assert.deepEqual(uidsOf(viewOf(out)), ["rahul", "sofia"], JSON.stringify(query));
+      holdsNone(out, JSON.stringify(query));
+    }
+  });
+
+  test("as an admin, no fellow's week opens, the week the group page is on or another, as the reading view always refused them", async () => {
+    seedWeekTwo();
+    archive();
+    for (const uid of FELLOWS) {
+      for (const week of ["3", "2"]) {
+        const out = await weekOf("zach", uid, week);
+        assert.equal(out.to, RUN_HOME, `${uid}'s week ${week} opens`);
+        assert.equal(readingOf(out), null);
+      }
+    }
+    // The facilitators' own weeks open as before.
+    for (const uid of ["rahul", "sofia"]) assert.equal((await weekOf("zach", uid)).to, null, uid);
+  });
+
+  test("as an admin, the week the page opens on by default is the same with and without a fellow's begun answer and box in a later week", async () => {
+    w.world.db.seed(`courseRuns/${RUN.agi}/weeks/w04`, blockWeek(4));
+    archive();
+    const before = viewOf(await drawn("zach", {}));
+    w.world.db.seed(`courseExerciseResponses/${RUN.agi}__chloe__w04__k4-wa`, { ...answer("chloe", WEEK4_ANSWER, { sent: null }), weekId: "w04", weekNumber: 4, exerciseId: "k4-wa" });
+    w.world.db.seed(`courseExerciseResponses/${RUN.agi}__chloe__w04__k4-fb1`, { ...box("chloe", "k4-fb1", WEEK4_BOX), weekId: "w04", weekNumber: 4 });
+    const after = await drawn("zach", {});
+    assert.equal(viewOf(after).weekNumber, before.weekNumber, "a fellow's begun answer or box moves the week the page opens on");
+    holdsNone(after, "the page opened with no week named");
+    // On a live group, where everybody's work is the reader's to read, the same answer does move it, as it always did.
+    w.world.db.poke(`courseGroups/${B}`, { archived: false });
+    assert.equal(viewOf(await drawn("zach", {})).weekNumber, 4);
+  });
+
+  test("as the programme's lead: the facilitators' own work as before, never the fellows'", async () => {
+    archive();
+    for (const query of [{ week: "3", first: "reflection" }, { week: "3", question: "k3-wa" }, { week: "3", question: "k3-fb1" }]) {
+      const out = await drawn("claudia", query);
+      assert.deepEqual(uidsOf(viewOf(out)), ["rahul", "sofia"], JSON.stringify(query));
+      for (const words of [SAID.chloe["k3-rp1"], CHLOE_ANSWER, CHLOE_BOX]) assert.ok(!out.html.includes(words), `the lead is shown ${words}`);
+    }
+    for (const uid of FELLOWS) assert.equal((await weekOf("claudia", uid)).to, RUN_HOME, `the lead opens ${uid}'s week`);
+  });
+
+  test("as its former facilitators, a fellow and anybody else: sent away, as its pages always sent them", async () => {
+    archive();
+    for (const who of ["rahul", "sofia", "chloe", "farah", "tom", "amara", "yusuf", "nobody"]) {
+      assert.equal((await drawn(who, { week: "3", first: "reflection" })).to, RUN_HOME, who);
+      assert.equal((await weekOf(who, "chloe")).to, RUN_HOME, who);
+    }
+  });
+
+  test("a live group is unchanged: the admin's rows, their links, read states and what the page names", async () => {
+    const reflection = viewOf(await drawn("zach", { week: "3", first: "reflection" }));
+    assert.deepEqual(uidsOf(reflection), ["chloe", "farah", "kofi", "rahul", "sofia"]);
+    assert.deepEqual(reflection.rows.filter((row) => row.facilitating).map((row) => row.uid), ["rahul", "sofia"]);
+    assert.deepEqual(reflection.firstRead.people.map((person) => person.uid), ["chloe", "farah", "rahul", "sofia"]);
+    assert.equal(rowOf(reflection, "chloe").read, "unread");
+    assert.equal(rowOf(reflection, "chloe").weekHref, `${GROUP_PATH}/coursework/chloe?week=3#q-k3-rp1`);
+    const answerView = viewOf(await drawn("zach", { week: "3", question: "k3-wa" }));
+    assert.deepEqual(uidsOf(answerView), ["chloe", "farah", "kofi", "rahul", "sofia"]);
+    assert.deepEqual([rowOf(answerView, "chloe").answer.text, rowOf(answerView, "chloe").mayWrite, rowOf(answerView, "chloe").team?.itemId], [CHLOE_ANSWER, true, "k3-wa"]);
+    assert.equal(readingOf(await weekOf("zach", "chloe")).week.answer.text, CHLOE_ANSWER);
+  });
+
+  test("the tree: an archived group's fellows are listed by the page of one question alone", () => {
+    // The people `archivedGroupFellows` returns are people the one gate
+    // refuses. They become rows in one place, a reflection in a week the
+    // group taught, so a second caller would widen who is shown what.
+    const naming = [];
+    for (const file of walkSource(SRC)) {
+      const rel = relative(SRC, file).split(sep).join("/");
+      if (/\barchivedGroupFellows\b/.test(stripSource(readFileSync(file, "utf8")))) naming.push(rel);
+    }
+    assert.deepEqual(naming.sort(), ["lib/courses/coursework/questionLoad.ts", "lib/courses/coursework/readingLoad.ts"]);
+    const calls = codeOf("lib/courses/coursework/questionLoad.ts").match(/\barchivedGroupFellows\s*\(/g) ?? [];
+    assert.equal(calls.length, 1, "the page of one question asks for an archived group's fellows once");
+  });
+});
+
 describe("2. what a row says", () => {
   test("the written answer before Group B's session: sent ones in full, a draft said to be not sent and not shown", async () => {
     const out = await drawn("rahul", { week: "3", question: "k3-wa" });
@@ -476,23 +637,23 @@ describe("3. when an answer was first read", () => {
     assert.equal(rowOf(viewOf(await drawn("sofia", { week: "3", question: "k3-rp1" })), "chloe").read, "read");
   });
 
-  test("a written answer's review page names the one answer it shows in full; the person can never mark their own", async () => {
+  test("a written answer's review page's address forwards to the reading view at the answer, which names it once drawn; the person can never mark their own", async () => {
+    // The review page is retired: its address for one person's answer forwards, reading nothing, to the reading view of their week.
     const written = (await w.loadTs(join(GROUP, "written", "page.tsx"))).default;
-    const page = await w.draw(written, "rahul", { runId: RUN.agi, groupId: B }, { week: "3", person: "chloe" });
-    assert.equal(page.wrote, false, "drawing the review page kept a time");
-    const model = find(page.element, "WrittenReview")[0].props.model;
-    const named = question.reviewPageFirstRead(model);
-    assert.deepEqual(named, { weekId: "w03", people: [{ uid: "chloe", ids: ["k3-wa"] }] });
-    assert.equal((await mark("rahul", named.people)).status, 200);
-    assert.deepEqual(Object.keys(readAt("chloe")), ["k3-wa"]);
-    // Farah's draft cannot be read before the session: the page opens nothing of it, so never names it.
-    const farah = find((await w.draw(written, "rahul", { runId: RUN.agi, groupId: B }, { week: "3", person: "farah" })).element, "WrittenReview")[0].props.model;
-    assert.notEqual(farah.selected?.person.uid, "farah");
-    assert.ok(!(question.reviewPageFirstRead(farah)?.people ?? []).some((person) => person.uid === "farah"), "the review page names a draft nobody may read yet");
+    const forwarded = await w.draw(written, "rahul", { runId: RUN.agi, groupId: B }, { week: "3", person: "chloe" });
+    assert.equal(forwarded.wrote, false, "the forward kept a time");
+    assert.equal(forwarded.to, `${GROUP_PATH}/coursework/chloe?week=3#reading-answer`);
+    const view = readingOf(await w.draw(pages.groupWeek, "rahul", { runId: RUN.agi, groupId: B, uid: "chloe" }, { week: "3" }));
+    assert.ok(view.firstRead.ids.includes("k3-wa"), "the reading view does not name the answer the forward lands on");
+    assert.equal((await mark("rahul", [{ uid: "chloe", ids: view.firstRead.ids }])).status, 200);
+    assert.ok(Object.keys(readAt("chloe")).includes("k3-wa"));
+    // Farah's draft cannot be read before the session: the reading view opens nothing of it, so never names it.
+    const farah = readingOf(await w.draw(pages.groupWeek, "rahul", { runId: RUN.agi, groupId: B, uid: "farah" }, { week: "3" }));
+    assert.ok(!farah.firstRead.ids.includes("k3-wa"), "a draft nobody may read yet is named");
     // The person's own call is refused, whatever names it.
-    assert.equal((await mark("chloe", named.people)).status, 403);
-    // A reader who may not act on it names nothing.
-    assert.equal(question.reviewPageFirstRead({ ...model, selected: { ...model.selected, role: { ...model.selected.role, mayReview: false } } }), null);
+    assert.equal((await mark("chloe", [{ uid: "chloe", ids: ["k3-wa"] }])).status, 403);
+    // A reader who may not act on the work names nothing: Sofia never reads Rahul's own week, so is never drawn it.
+    assert.equal((await w.draw(pages.groupWeek, "sofia", { runId: RUN.agi, groupId: B, uid: "rahul" }, { week: "3" })).to, RUN_HOME);
   });
 
   test("the reading view of one person's week names every answer it shows in full, for a reader who may act on the work", async () => {
@@ -621,7 +782,7 @@ describe("3. when an answer was first read", () => {
     }
     assert.deepEqual(callers, ["app/api/courses/runs/[runId]/first-read/route.ts"]);
     assert.deepEqual(fetchers, ["features/courses/coursework/MarkFirstRead.tsx"]);
-    // The pages that draw the beacon: the two reading pages and a written answer's review page.
+    // The components that draw the beacon: the two reading views, and This week's work's boxes.
     const beacons = [];
     for (const file of walkSource(SRC)) {
       const rel = relative(SRC, file).split(sep).join("/");
@@ -630,9 +791,18 @@ describe("3. when an answer was first read", () => {
     assert.deepEqual(beacons.sort(), [
       "features/courses/coursework/QuestionView.tsx",
       "features/courses/coursework/ReadingView.tsx",
-      "features/courses/written/WrittenReview.tsx",
+      // A person's boxes under This week's work, once their Read it is opened: the group page and the programme's page for a group's week.
+      "features/courses/facilitatorWeek/ThisWeeksWork.tsx",
     ]);
-    assert.match(codeOf("features/courses/written/WrittenReview.tsx"), /const firstRead = reviewPageFirstRead\(model\);/);
+    // What the boxes name is worked out on the server (never the reader's own), and drawn only once Read it is opened.
+    const work = codeOf("features/courses/facilitatorWeek/ThisWeeksWork.tsx");
+    assert.match(work, /whenOpened=\{firstRead && named \? <MarkFirstRead runId=\{firstRead\.runId\} weekId=\{firstRead\.weekId\} people=\{\[named\]\} \/> : null\}/);
+    const disclosure = codeOf("features/courses/facilitatorWeek/Disclosure.tsx");
+    assert.match(disclosure, /\{opened && whenOpened\}/);
+    assert.ok(disclosure.indexOf("setOpened(true)") > disclosure.indexOf("onClick="), "what waits for Read it is drawn before it is opened");
+    for (const page of ["app/(app)/learn/[runId]/group/[groupId]/page.tsx", "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week/page.tsx"]) {
+      assert.match(codeOf(page), /groupBoxesFirstRead\(\{ weekId: weekDocId\([^)]*\), readerUid: (?:access\.user|user)\.uid, boxIds: /, `${page} names the boxes some other way`);
+    }
     // The beacon is a client component that sends from an effect, never while the page is drawn.
     const beacon = codeOf("features/courses/coursework/MarkFirstRead.tsx");
     assert.match(beacon, /^"use client";/);
@@ -652,6 +822,148 @@ describe("3. when an answer was first read", () => {
     // The route asks the one gate on whose work, and each answer's own readers.
     const store = codeOf("lib/courses/weekWork/firstRead.ts");
     for (const reader of ["feedbackGate(", "feedbackWeekOf(", "boxesReaderFor(", "feedbackStandingIn(", "feedbackRefusalFor("]) assert.ok(store.includes(reader), `the writer no longer asks ${reader}`);
+  });
+});
+
+describe("3b. the two other pages that put an answer in full under a name: the fill-in boxes under This week's work", () => {
+  const RAHUL_BOX = "Ask the harbour board first.";
+  const CLAUDIA_BOX = "Read the lamp records.";
+  const tabPage = (async () => (await w.loadTs(join(PROGRAMME, "(tabs)", "coursework", "page.tsx"))).default)();
+  /** This week's work as a page hands it: its props. */
+  const workOf = (drawn) => find(drawn.element, "ThisWeeksWork")[0]?.props ?? null;
+  /**
+   * Each person's Read it under This week's work, rendered one level down as
+   * the browser holds it: whose it is, and what it names once first opened
+   * (`whenOpened`, a MarkFirstRead), or null.
+   */
+  function readIts(drawn) {
+    const work = find(drawn.element, "ThisWeeksWork")[0];
+    if (!work) return [];
+    const boxes = find(work.type(work.props), "GroupBoxes")[0];
+    if (!boxes) return [];
+    return find(boxes.type(boxes.props), "Disclosure").map((disclosure) => ({
+      name: disclosure.props.name,
+      named: disclosure.props.whenOpened ? { type: disclosure.props.whenOpened.type.name, ...disclosure.props.whenOpened.props } : null,
+    }));
+  }
+  /** Chloe's week 3 cell on the Coursework tab, as `who` is handed it. */
+  const chloeFlags = async (who) => {
+    const view = find((await w.draw(await tabPage, who, { roundId: ROUND, programmeId: AGI }, { week: "3" })).element, "CourseworkTable")[0].props.view;
+    return view.sections.flatMap((section) => section.rows).find((row) => row.uid === "chloe").cells.find((cell) => cell.weekNumber === 3).flags;
+  };
+
+  beforeEach(() => {
+    // Rahul, who holds a place in Group B and facilitates it, wrote in a box too.
+    w.world.db.seed(`courseExerciseResponses/${RUN.agi}__rahul__w03__k3-fb1`, box("rahul", "k3-fb1", RAHUL_BOX));
+  });
+
+  test("the facilitator's group page names exactly the boxes it draws under a name, each person's once their Read it is opened", async () => {
+    const drawn = await w.groupPage("rahul");
+    assert.equal(drawn.wrote, false, "drawing the group page kept a time");
+    assert.ok(drawn.html.includes(CHLOE_BOX), "the group page does not draw Chloe's box");
+    // Chloe's box, the only one with words of the people Rahul is shown; never his own, never anybody with nothing written.
+    assert.deepEqual(workOf(drawn).boxesFirstRead, { runId: RUN.agi, weekId: "w03", people: [{ uid: "chloe", ids: ["k3-fb1"] }] });
+    const opened = readIts(drawn);
+    assert.deepEqual(
+      opened.map((each) => [each.name, each.named]),
+      [
+        ["Read it: Chloe Nguyen’s keeper's plan", { type: "MarkFirstRead", runId: RUN.agi, weekId: "w03", people: [{ uid: "chloe", ids: ["k3-fb1"] }] }],
+        ["Read it: Farah Hussain’s keeper's plan", null],
+        ["Read it: Kofi Asante’s keeper's plan", null],
+      ],
+    );
+    // The beacon waits for Read it: what waits is not drawn until the button is first pressed.
+    const { default: Disclosure } = await w.loadTs(join("features", "courses", "facilitatorWeek", "Disclosure.tsx"));
+    const closed = renderToStaticMarkup(
+      createElement(Disclosure, { label: "Read it", hideLabel: "Hide it", name: "Read it: x", hideName: "Hide it: x", whenOpened: createElement("i", { id: "waits-for-read-it" }) }, "Their boxes."),
+    );
+    assert.ok(closed.includes("Their boxes.") && !closed.includes("waits-for-read-it"), "what waits for Read it is drawn before it is opened");
+    // Sofia, the co-facilitator, is never shown Rahul's own, so it is never named for her.
+    assert.deepEqual(workOf(await w.groupPage("sofia")).boxesFirstRead.people, [{ uid: "chloe", ids: ["k3-fb1"] }]);
+    // An admin reads a facilitator's own boxes too: both are named.
+    assert.deepEqual(workOf(await w.groupPage("zach")).boxesFirstRead.people, [
+      { uid: "chloe", ids: ["k3-fb1"] },
+      { uid: "rahul", ids: ["k3-fb1"] },
+    ]);
+  });
+
+  test("an archived group's page, which an admin alone opens, names nobody to the route, and otherwise draws its one week as it always did", async () => {
+    w.world.db.poke(`courseGroups/${B}`, { archived: true });
+    const drawn = await w.groupPage("zach");
+    assert.equal(drawn.to, null, "an admin is sent away from an archived group's page");
+    assert.equal(drawn.wrote, false);
+    // Its one week's boxes, under each person's Read it, as before; nobody named once one is opened.
+    assert.ok(drawn.html.includes(CHLOE_BOX) && drawn.html.includes(RAHUL_BOX), "the archived group's page no longer draws its week's boxes");
+    assert.equal(workOf(drawn).boxesFirstRead, null);
+    const opened = readIts(drawn);
+    assert.ok(opened.length > 0, "no Read it is drawn");
+    assert.deepEqual(opened.map((each) => each.named), opened.map(() => null), "an archived group's page names somebody to the first-read route");
+    assert.equal(find(drawn.element, "MarkFirstRead").length, 0);
+    // Live again, the same page names them as it does for a live group.
+    w.world.db.poke(`courseGroups/${B}`, { archived: false });
+    assert.deepEqual(workOf(await w.groupPage("zach")).boxesFirstRead.people.map((person) => person.uid), ["chloe", "rahul"]);
+  });
+
+  test("the route keeps a day for each box named and nothing else; opened again, nothing moves; the other reading pages then say it is read", async () => {
+    // Everything else of Chloe's week 3 has been read, so the box alone is not read yet.
+    assert.equal((await mark("rahul", [{ uid: "chloe", ids: ["k3-rp1", "k3-rp2", "k3-rp3", "k3-wa"] }])).status, 200);
+    assert.equal(rowOf(viewOf(await drawn("sofia", { week: "3", question: "k3-fb1" })), "chloe").read, "unread");
+    assert.equal((await chloeFlags("claudia")).unread, true);
+    // Rahul opens Chloe's Read it on the group page: the browser names what it holds.
+    const named = readIts(await w.groupPage("rahul")).find((each) => each.named)?.named;
+    const sent = await mark("rahul", named.people);
+    assert.equal(sent.status, 200, JSON.stringify(sent.body));
+    assert.deepEqual(sent.body, { ok: true });
+    assert.deepEqual(Object.keys(readAt("chloe")).sort(), ["k3-fb1", "k3-rp1", "k3-rp2", "k3-rp3", "k3-wa"]);
+    assert.equal(weekWork("rahul"), null, "a box nobody opened was kept as read");
+    // Opened a second time, nothing moves.
+    const before = w.everything();
+    assert.equal((await mark("rahul", named.people)).status, 200);
+    assert.equal(w.everything(), before);
+    // The page of one question and the Coursework tab no longer say it is not read.
+    assert.equal(rowOf(viewOf(await drawn("sofia", { week: "3", question: "k3-fb1" })), "chloe").read, "read");
+    assert.equal((await chloeFlags("claudia")).unread, false);
+  });
+
+  test("the programme's page for a group's week names the same boxes for the lead and admins, a facilitator's own among them, never the reader's own", async () => {
+    // Claudia, the lead, holds a place in Group B and wrote in a box.
+    w.world.db.seed(`courseEnrolments/${RUN.agi}__claudia`, enrolment("claudia", B));
+    w.world.db.seed(`courseExerciseResponses/${RUN.agi}__claudia__w03__k3-fb2`, box("claudia", "k3-fb2", CLAUDIA_BOX));
+    const lead = await w.leadWeekPage("claudia");
+    assert.equal(lead.wrote, false, "drawing the programme's week page kept a time");
+    assert.ok(lead.html.includes(CLAUDIA_BOX), "the lead is not drawn her own box, so this proves nothing about it");
+    const named = workOf(lead).boxesFirstRead;
+    assert.deepEqual(named, {
+      runId: RUN.agi,
+      weekId: "w03",
+      people: [
+        { uid: "chloe", ids: ["k3-fb1"] },
+        { uid: "rahul", ids: ["k3-fb1"] },
+      ],
+    });
+    // The route, called with exactly that as the lead, keeps both and refuses nothing.
+    assert.equal((await mark("claudia", named.people)).status, 200);
+    assert.deepEqual([Object.keys(readAt("chloe")), Object.keys(readAt("rahul"))], [["k3-fb1"], ["k3-fb1"]]);
+    assert.equal(weekWork("claudia"), null, "the lead's own box was kept as read");
+    // An admin is named all three, the lead's among them.
+    assert.deepEqual(
+      workOf(await w.leadWeekPage("zach")).boxesFirstRead.people.map((person) => person.uid),
+      ["chloe", "claudia", "rahul"],
+    );
+  });
+
+  test("the page where lines are picked to read out hands no uid and names nothing to the route, in the tree as on the page", async () => {
+    const out = await w.reflectionsPage("rahul", { week: 3 });
+    assert.equal(out.to, null);
+    assert.ok(out.html.includes(SAID.chloe["k3-rp1"]), "the read-out page does not draw Chloe's reflection, so this proves nothing");
+    assert.doesNotMatch(out.html, /\b(?:chloe|farah|kofi|rahul|sofia)\b/, "the read-out page hands a uid");
+    assert.equal(find(out.element, "MarkFirstRead").length, 0);
+    assert.ok(!out.html.includes("first-read"));
+    // In the tree: no import of the read-out page reaches the beacon.
+    const beacon = join(SRC, "features", "courses", "coursework", "MarkFirstRead.tsx");
+    const { reached } = importersOf([beacon]);
+    const readOut = join(SRC, "app", "(app)", "learn", "[runId]", "group", "[groupId]", "reflections", "page.tsx");
+    assert.ok(!reached.has(readOut), `the read-out page reaches the beacon: ${(reached.get(readOut) ?? []).join(" -> ")}`);
   });
 });
 
@@ -836,6 +1148,229 @@ describe("6. the member's side: nothing the person is sent names a read time", (
     }
     assert.deepEqual(naming, ["lib/courses/weekWork/firstRead.ts"], "a file other than the store names the field");
   });
+
+  test("the tree: every page that can draw the beacon naming answers to the route is one for the people who may read them, and the read-out page is none of them", () => {
+    const beacon = join(SRC, "features", "courses", "coursework", "MarkFirstRead.tsx");
+    const { reached, unresolved } = importersOf([beacon]);
+    assert.deepEqual(unresolved, [], "the walk could not place an import: it would go quiet past it");
+    const doors = [...reached.keys()]
+      .map((file) => relative(SRC, file).split(sep).join("/"))
+      .filter((rel) => rel.startsWith("app/") && /\/(?:page|route|layout)\.tsx?$/.test(rel))
+      .sort();
+    const NAMERS = {
+      "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/page.tsx":
+        "the reading view of one person's week on the programme's side: an admin or the programme's lead, the answers it shows in full for a reader who may act on the person's work, never their own",
+      "app/(app)/learn/[runId]/group/[groupId]/coursework/[uid]/page.tsx":
+        "the reading view of one person's week on the group's side: the group's live facilitators, the lead and admins, the person by the one gate on whose work, never their own",
+      "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/question/page.tsx":
+        "one question across a group on the programme's side: the answers it draws in full of the people the one gate lets the reader read",
+      "app/(app)/learn/[runId]/group/[groupId]/question/page.tsx":
+        "one question across a group on the group's side: the answers it draws in full of the people the one gate lets the reader read",
+      "app/(app)/learn/[runId]/group/[groupId]/page.tsx":
+        "the facilitator's group page: a person's fill-in boxes under This week's work, once their Read it is opened, for exactly the people the boxes' own gate lets the reader read, never their own",
+      "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week/page.tsx":
+        "the programme's page for a group's week, for its lead and admins: a person's fill-in boxes under This week's work, once their Read it is opened, never the reader's own",
+      "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance/page.tsx":
+        "the Attendance tab imports each group's week card from This week's work's file and draws no boxes, so hands the beacon nothing to name",
+    };
+    assert.deepEqual(doors, Object.keys(NAMERS).sort(), "a page can now draw the beacon that names answers to the first-read route: say who it names them for");
+    for (const [page, why] of Object.entries(NAMERS)) assert.ok(why.length > 40, `${page}: say why`);
+    // The page where lines are picked to read out is never one: it carries no names, no uids and no row ids. Nor are the
+    // older pages' addresses, which forward from the address alone and draw nothing.
+    for (const page of [
+      "app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx",
+      "app/(app)/learn/[runId]/group/[groupId]/reflections/names/page.tsx",
+      "app/(app)/learn/[runId]/group/[groupId]/written/page.tsx",
+      "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written/page.tsx",
+      "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections/page.tsx",
+    ]) {
+      assert.ok(!doors.includes(page), `${page} can draw the beacon`);
+    }
+    // The Attendance tab draws no This week's work, so no box and no beacon.
+    assert.doesNotMatch(codeOf("app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance/page.tsx"), /<ThisWeeksWork\b|boxesFirstRead/);
+  });
+});
+
+describe("6b. the older pages' addresses forward here, from the address alone", () => {
+  const forwards = (async () => ({
+    groupWritten: (await w.loadTs(join(GROUP, "written", "page.tsx"))).default,
+    groupNames: (await w.loadTs(join(GROUP, "reflections", "names", "page.tsx"))).default,
+    programmeWritten: (await w.loadTs(join(PROGRAMME, "written", "page.tsx"))).default,
+    programmeReflections: (await w.loadTs(join(PROGRAMME, "reflections", "page.tsx"))).default,
+  }))();
+  const lib = (async () => w.loadTs(join("lib", "courses", "coursework", "forwards.ts")))();
+
+  test("the mapping, pure: a person's answer to their week at the answer; a group's answers, or its reflections, to one question across it; a week or group left out, the new page's own", async () => {
+    const f = await lib;
+    const P = "/admin/admissions/forms/r/programmes/p";
+    const G = "/learn/run/group/g";
+    assert.equal(f.programmeWrittenForward(P, { group: "g", week: "3", person: "chloe" }), `${P}/coursework/chloe?week=3#reading-answer`);
+    assert.equal(f.programmeWrittenForward(P, { person: "chloe" }), `${P}/coursework/chloe#reading-answer`);
+    assert.equal(f.programmeWrittenForward(P, { group: "g", week: "3" }), `${P}/question?group=g&week=3&first=answer`);
+    assert.equal(f.programmeWrittenForward(P, {}), `${P}/question?first=answer`);
+    assert.equal(f.programmeReflectionsForward(P, { group: "g", week: "3" }), `${P}/question?group=g&week=3&first=reflection`);
+    assert.equal(f.programmeReflectionsForward(P, { week: "3" }), `${P}/question?week=3&first=reflection`);
+    assert.equal(f.groupWrittenForward(G, { week: "3", person: "chloe" }), `${G}/coursework/chloe?week=3#reading-answer`);
+    assert.equal(f.groupWrittenForward(G, { week: "3" }), `${G}/question?week=3&first=answer`);
+    assert.equal(f.groupNamedReflectionsForward(G, { week: "3" }), `${G}/question?week=3&first=reflection`);
+    assert.equal(f.groupNamedReflectionsForward(G, {}), `${G}/question?first=reflection`);
+    // Only an id or a week number is carried over; anything else is left out, and the new page opens its own.
+    assert.equal(f.groupWrittenForward(G, { week: "three", person: "a/b" }), `${G}/question?first=answer`);
+    assert.equal(f.groupWrittenForward(G, { week: ["3", "4"], person: ["chloe"] }), `${G}/question?first=answer`);
+    assert.equal(f.programmeWrittenForward(P, { group: "..", week: "123" }), `${P}/question?first=answer`);
+    // An id is encoded, never read as a path.
+    assert.equal(f.groupWrittenForward(G, { week: "3", person: "a b" }), `${G}/coursework/a%20b?week=3#reading-answer`);
+    // The forwarding pages read nothing and decide nothing: the address, the forward, and nothing else.
+    for (const page of [
+      "app/(app)/learn/[runId]/group/[groupId]/written/page.tsx",
+      "app/(app)/learn/[runId]/group/[groupId]/reflections/names/page.tsx",
+      "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written/page.tsx",
+      "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections/page.tsx",
+    ]) {
+      const code = codeOf(page);
+      assert.match(code, /redirect\(\w+Forward\(/, `${page} does not forward`);
+      assert.doesNotMatch(code, /getAdminDb|getRunAccess|getSessionUser|getCurrentUser|requireAdmissionsPage|openLeadDoor|loadProgrammeRun|\.collection\(|permanentRedirect/, `${page} reads or decides something`);
+    }
+    assert.doesNotMatch(codeOf("lib/courses/coursework/forwards.ts"), /firebase|\.collection\(|server-only|fetch\(/);
+  });
+
+  test("each forward as each persona: forwarded before any gate, and the new page then answers as the older page did, but for the differences named", async () => {
+    const pagesOf = await forwards;
+    const RUN_ENC = encodeURIComponent(RUN.agi);
+    /** Where an address the forward handed lands: the page it names, drawn as `who`. */
+    async function land(who, address) {
+      const url = new URL(address, "https://naisi.invalid");
+      const query = Object.fromEntries(url.searchParams);
+      let m;
+      if ((m = /^\/learn\/([^/]+)\/group\/([^/]+)\/coursework\/([^/]+)$/.exec(url.pathname))) {
+        return w.draw(pages.groupWeek, who, { runId: decodeURIComponent(m[1]), groupId: decodeURIComponent(m[2]), uid: decodeURIComponent(m[3]) }, query);
+      }
+      if ((m = /^\/learn\/([^/]+)\/group\/([^/]+)\/question$/.exec(url.pathname))) {
+        return w.draw(pages.group, who, { runId: decodeURIComponent(m[1]), groupId: decodeURIComponent(m[2]) }, query);
+      }
+      if ((m = /^\/admin\/admissions\/forms\/([^/]+)\/programmes\/([^/]+)\/coursework\/([^/]+)$/.exec(url.pathname))) {
+        return w.draw(pages.programmeWeek, who, { roundId: decodeURIComponent(m[1]), programmeId: decodeURIComponent(m[2]), uid: decodeURIComponent(m[3]) }, query);
+      }
+      if ((m = /^\/admin\/admissions\/forms\/([^/]+)\/programmes\/([^/]+)\/question$/.exec(url.pathname))) {
+        return w.draw(pages.programme, who, { roundId: decodeURIComponent(m[1]), programmeId: decodeURIComponent(m[2]) }, query);
+      }
+      throw new Error(`the forward led somewhere this suite cannot draw: ${address}`);
+    }
+    const outcome = (drawn) =>
+      drawn.to ? `to ${drawn.to}` : ["ReadingView", "QuestionView", "NotYours", "NoProgrammeHere"].find((name) => find(drawn.element, name).length > 0) ?? `text ${drawn.text.slice(0, 60)}`;
+    const ASKED = {
+      groupWrittenPerson: [pagesOf.groupWritten, { runId: RUN.agi, groupId: B }, { week: "3", person: "chloe" }, `${GROUP_PATH}/coursework/chloe?week=3#reading-answer`],
+      groupWritten: [pagesOf.groupWritten, { runId: RUN.agi, groupId: B }, { week: "3" }, `${GROUP_PATH}/question?week=3&first=answer`],
+      groupNames: [pagesOf.groupNames, { runId: RUN.agi, groupId: B }, { week: "3" }, `${GROUP_PATH}/question?week=3&first=reflection`],
+      programmeWrittenPerson: [pagesOf.programmeWritten, { roundId: ROUND, programmeId: AGI }, { group: B, week: "3", person: "chloe" }, `${PROGRAMME_PATH}/coursework/chloe?week=3#reading-answer`],
+      programmeWritten: [pagesOf.programmeWritten, { roundId: ROUND, programmeId: AGI }, { group: B, week: "3" }, `${PROGRAMME_PATH}/question?group=${B}&week=3&first=answer`],
+      programmeReflections: [pagesOf.programmeReflections, { roundId: ROUND, programmeId: AGI }, { group: B, week: "3" }, `${PROGRAMME_PATH}/question?group=${B}&week=3&first=reflection`],
+    };
+    const home = `to /learn/${RUN_ENC}`;
+    const learnRefused = { groupWrittenPerson: home, groupWritten: home, groupNames: home };
+    const programmeRefused = { programmeWrittenPerson: "to /dashboard", programmeWritten: "to /dashboard", programmeReflections: "to /dashboard" };
+    const drawnBoth = {
+      groupWrittenPerson: "ReadingView",
+      groupWritten: "QuestionView",
+      groupNames: "QuestionView",
+      programmeWrittenPerson: "ReadingView",
+      programmeWritten: "QuestionView",
+      programmeReflections: "QuestionView",
+    };
+    // What the older pages answered, drawn on this world before they went (the review page for the written
+    // answers, the page with names for the reflections), and where it differs now, said beside it.
+    const EXPECTED = {
+      zach: drawnBoth,
+      // DIFFERENT: the group's reflections with names sent the lead to the run's home; the page of one question
+      // admits the lead on the group's side, as it already did on the programme's.
+      claudia: drawnBoth,
+      rahul: { groupWrittenPerson: "ReadingView", groupWritten: "QuestionView", groupNames: "QuestionView", ...programmeRefused },
+      sofia: { groupWrittenPerson: "ReadingView", groupWritten: "QuestionView", groupNames: "QuestionView", ...programmeRefused },
+      tom: { ...learnRefused, ...programmeRefused },
+      yusuf: { ...learnRefused, ...programmeRefused },
+      lloyd: { ...learnRefused, programmeWrittenPerson: "NotYours", programmeWritten: "NotYours", programmeReflections: "NotYours" },
+      tess: { ...learnRefused, programmeWrittenPerson: "NoProgrammeHere", programmeWritten: "NoProgrammeHere", programmeReflections: "NoProgrammeHere" },
+      chloe: { ...learnRefused, ...programmeRefused },
+      farah: { ...learnRefused, ...programmeRefused },
+      amara: { ...learnRefused, ...programmeRefused },
+      nobody: { ...learnRefused, ...programmeRefused },
+      "signed out": { groupWrittenPerson: "to /login", groupWritten: "to /login", groupNames: "to /login", ...programmeRefused },
+    };
+    const seen = {};
+    for (const who of ["zach", "claudia", "rahul", "sofia", "tom", "yusuf", "lloyd", "tess", "chloe", "farah", "amara", "nobody", null]) {
+      const row = {};
+      for (const [name, [Page, params, query, address]] of Object.entries(ASKED)) {
+        // Forwarded before any gate: the same address for everybody, and nothing written.
+        const forwarded = await w.draw(Page, who, params, query);
+        assert.equal(forwarded.to, address, `${who} on ${name}`);
+        assert.equal(forwarded.wrote, false);
+        const landed = await land(who, forwarded.to);
+        assert.equal(landed.wrote, false, `${who} on ${name}: the page forwarded to wrote something`);
+        row[name] = outcome(landed);
+      }
+      seen[who ?? "signed out"] = row;
+    }
+    assert.deepEqual(seen, EXPECTED);
+    // The reviewer told the page is the lead's and an admin's is now told so of the Coursework tab, where these pages sit.
+    assert.match((await land("lloyd", ASKED.programmeWritten[3])).text, /Only the programme’s lead and admins can open Coursework/);
+    // DIFFERENT: a person the reader may not read, named in the address, is no longer quietly swapped for another answer:
+    // the reading view sends a co-facilitator asking for a facilitator's own week to the run's home.
+    const own = await w.draw(pagesOf.groupWritten, "sofia", { runId: RUN.agi, groupId: B }, { week: "3", person: "rahul" });
+    assert.equal(outcome(await land("sofia", own.to)), home);
+  });
+
+  test("the page of one question opens on the week's written answer, or its first reflection, when asked without an id", async () => {
+    const answer = viewOf(await drawn("rahul", { week: "3", first: "answer" }));
+    assert.equal(answer.question.id, "k3-wa");
+    const reflection = viewOf(await drawn("rahul", { week: "3", first: "reflection" }));
+    assert.equal(reflection.question.id, "k3-rp1");
+    // A question named wins; a kind the week does not ask, or one that is not a kind, opens the week's first.
+    assert.equal(viewOf(await drawn("rahul", { week: "3", question: "k3-rp2", first: "answer" })).question.id, "k3-rp2");
+    assert.equal(viewOf(await drawn("rahul", { week: "3", first: "nonsense" })).question.id, "k3-rp1");
+    assert.equal(viewOf(await drawn("zach", { week: "3", first: "answer" }, "programme")).question.id, "k3-wa");
+    assert.deepEqual([question.readFirstOfKind("answer"), question.readFirstOfKind("reflection"), question.readFirstOfKind("box"), question.readFirstOfKind(["answer"])], ["answer", "reflection", null, null]);
+  });
+
+  test("what the written answer's review page and the reflections with names showed of each answer is on the page of one question, with the same words", async () => {
+    const weekWords = await w.loadTs(join("lib", "courses", "weekWork", "words.ts"));
+    const wordsThen = await w.loadTs(join("lib", "courses", "weekEdit", "wordsThen.ts"));
+    const facilitatorWords = await w.loadTs(join("lib", "courses", "facilitatorWeek", "words.ts"));
+    // The question's range, on the written answer alone.
+    const answer = await drawn("rahul", { week: "3", first: "answer" });
+    assert.match(answer.text, /The question · 1 to 200 words · Written answer/);
+    assert.match((await drawn("rahul", { week: "3", first: "reflection" })).text, /The question · Part 1: /);
+    // After its deadline: Chloe first sends hers the morning of Group B's session (Tue 17 Nov), after the end of the
+    // day before (its deadline) and before the session: after its deadline, to staff, and never late.
+    w.world.db.poke(`courseExerciseResponses/${RUN.agi}__chloe__w03__k3-wa`, { firstSentAt: new Date("2026-11-17T09:00:00Z"), sentAt: new Date("2026-11-17T09:00:00Z") });
+    const late = viewOf(await drawn("rahul", { week: "3", first: "answer" }));
+    assert.equal(rowOf(late, "chloe").afterDeadline, true, "first sent the morning of the session, after the end of the day before");
+    assert.match((await drawn("rahul", { week: "3", first: "answer" })).text, new RegExp(`Chloe Nguyen Sent Tue 17 Nov, 9am ${weekWords.AFTER_ITS_DEADLINE}`));
+    // Joined late: Kofi wrote nothing and was told his group after its week 3 session.
+    w.world.db.poke(`courseEnrolments/${RUN.agi}__kofi`, { allocatedEmailAt: new Date("2026-11-18T09:00:00Z") });
+    w.at("2026-11-18T10:00:00Z");
+    const joined = await drawn("zach", { week: "3", first: "answer" });
+    assert.equal(rowOf(viewOf(joined), "kofi").joinedLate, true);
+    assert.match(joined.text, new RegExp(`Kofi Asante ${weekWords.JOINED_LATE}`));
+    w.at(NOW);
+    // The answer as it stood at the session, and the question as it was when the answer was written, under the answer:
+    // drawn as every reader by tests/course-hub-written-answers.test.mjs and tests/course-week-edit-words-then-pages.test.mjs.
+    assert.equal(wordsThen.THE_QUESTION_WHEN_WRITTEN, "The question when this was written:");
+    assert.equal(weekWords.AS_IT_STOOD_AT_THE_SESSION, "As it stood at the session");
+    // Who reads a facilitator's own work, under the rows, for the lead (and an admin, by the lead's name); never a facilitator.
+    assert.ok((await drawn("claudia", { week: "3", first: "answer" }, "programme")).text.includes(facilitatorWords.facilitatorsOwnLine({ firstName: "", isReader: true })));
+    assert.ok((await drawn("zach", { week: "3", first: "answer" }, "programme")).text.includes(facilitatorWords.facilitatorsOwnLine({ firstName: "Claudia", isReader: false })));
+    assert.equal(viewOf(await drawn("rahul", { week: "3", first: "answer" })).ownLine, null);
+    // On a reflection, on the group's side: who reads reflections with names, and the way to pick lines to read out,
+    // for the readers the page where lines are read out admits (its facilitators and admins), never the lead.
+    for (const who of ["rahul", "zach"]) {
+      const read = await drawn(who, { week: "3", first: "reflection" });
+      assert.ok(read.text.includes(facilitatorWords.namedReadersLine("Group B", "Claudia")), who);
+      assert.match(read.html, new RegExp(`href="${GROUP_PATH}/reflections\\?week=3"[^>]*>${facilitatorWords.PICK_LINES_TO_READ_OUT}<`), who);
+    }
+    assert.equal(viewOf(await drawn("claudia", { week: "3", first: "reflection" })).readOut, null, "the lead is led to a page that sends her away");
+    assert.equal(viewOf(await drawn("zach", { week: "3", first: "reflection" }, "programme")).readOut, null);
+    assert.equal(viewOf(await drawn("rahul", { week: "3", first: "answer" })).readOut, null, "the way to read lines out beside a written answer");
+  });
 });
 
 describe("7. the filters and counts, as pure functions", () => {
@@ -927,6 +1462,24 @@ describe("8. the words the browser spec reads, as the product says them", () => 
     assert.equal(words.questionOfWords(1, 4), "Question 1 of 4");
     assert.equal(words.partHeadingWords(1, "Start with what you think"), "Part 1: Start with what you think");
     assert.deepEqual([words.WAYS_TO_READ, words.SHOW_WHOSE_ANSWERS, words.NOBODY_HERE, words.NOTHING_WRITTEN_YET], ["Ways to read", "Show whose answers", "Nobody here matches that.", "Nothing written yet"]);
+    // The lead's choice of group on the programme's side: the navigation the spec finds it by, the Coursework tab's own word.
+    assert.equal(words.GROUP, "Group");
+    assert.match(codeOf("features/courses/coursework/QuestionView.tsx"), /<nav aria-label=\{GROUP\} className=\{tab\.groupsNav\}>/);
+    // Reflections read with names here: the mark on a facilitator's own row, the lines under the rows for a
+    // programme with no lead (the term's has none), and the links between this page and the one to read lines out.
+    const week = await w.loadTs(join("lib", "courses", "facilitatorWeek", "words.ts"));
+    const forwards = await w.loadTs(join("lib", "courses", "coursework", "forwards.ts"));
+    assert.equal(words.FACILITATING, "Facilitator");
+    assert.equal(week.facilitatorsOwnLine(null), "Only admins read these. They\u2019re never read out.");
+    assert.equal(
+      week.namedReadersLine("Group A", null),
+      "Group A\u2019s facilitators and admins read reflections with names. Fellows can\u2019t see each other\u2019s. To read a line out in the session, pick it on the page without names.",
+    );
+    assert.deepEqual([week.READ_WITH_NAMES, week.PICK_LINES_TO_READ_OUT], ["Read them with names", "Pick lines to read out"]);
+    assert.equal(forwards.firstQuestionHref("/learn/r/group/g/question", 3, "reflection"), "/learn/r/group/g/question?week=3&first=reflection");
+    assert.match(codeOf("app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx"), /firstQuestionHref\(`\$\{groupPath\}\/question`, week\.weekNumber, "reflection"\)/);
+    // The way back from a reflection on the group's side to the page to read lines out.
+    assert.match(codeOf("app/(app)/learn/[runId]/group/[groupId]/question/page.tsx"), /readOutHref: .*\(weekNumber\) => `\$\{groupPath\}\/reflections\?week=\$\{weekNumber\}`/);
     // The spec's fixture makes sure the site has begun keeping read times: the document the site reads.
     const core = await import("../scripts/e2e-fixtures/core.mjs");
     const store = await w.loadTs(join("lib", "courses", "weekWork", "firstRead.ts"));

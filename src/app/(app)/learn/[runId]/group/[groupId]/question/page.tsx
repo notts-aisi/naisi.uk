@@ -4,7 +4,7 @@ import { NoWeekToRead } from "@/features/courses/coursework/ReadingView";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import { isAddressableId } from "@/lib/addressableId";
-import { readQuestionFilter } from "@/lib/courses/coursework/question";
+import { readFirstOfKind, readQuestionFilter } from "@/lib/courses/coursework/question";
 import { loadGroupQuestion } from "@/lib/courses/coursework/questionLoad";
 import { ONE_QUESTION_TITLE } from "@/lib/courses/coursework/words";
 import { liveGroupsOf, reviewerFactsOf } from "@/lib/courses/writtenAnswers/access";
@@ -18,8 +18,15 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
  * reading view of one person's week (`./coursework/[uid]`) and reached from
  * it ("One question, whole group"). With no week named it opens the newest
  * week anybody in the group has written in, else the newest that has begun
- * for the group; with no question named, the week's first. `unread=1`,
- * `nofeedback=1` and `late=1` keep only those answers, together or apart.
+ * for the group; with no question named, the week's first of the kind
+ * `first=` asks for (`answer`, `reflection`) when it asks one, else the
+ * week's first. `unread=1`, `nofeedback=1` and `late=1` keep only those
+ * answers, together or apart.
+ *
+ * It is where the group's written answers for a week and its reflections with
+ * names now forward to (`src/lib/courses/coursework/forwards.ts`), and the
+ * page where lines are picked to read out leads here ("Read them with
+ * names"); on a reflection, a reader that page admits is led back to it.
  *
  * THE GATE is the reading view's on this side, as it is: the run's layout has
  * decided the caller holds some role on the run; this page admits the group's
@@ -36,7 +43,14 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 
 export const dynamic = "force-dynamic";
 
-type Query = { week?: string | string[]; question?: string | string[]; unread?: string | string[]; nofeedback?: string | string[]; late?: string | string[] };
+type Query = {
+  week?: string | string[];
+  question?: string | string[];
+  first?: string | string[];
+  unread?: string | string[];
+  nofeedback?: string | string[];
+  late?: string | string[];
+};
 
 export default async function GroupQuestionPage({
   params,
@@ -72,8 +86,9 @@ export default async function GroupQuestionPage({
   const programme = await runProgrammeOf(db, runId).catch(() => null);
   const groupPath = `${runHome}/group/${encodeURIComponent(groupId)}`;
   const groupLabel = group.name.trim() || "Your group";
-  // The group's page admits its live facilitators and admins; the lead goes back to the written answers.
-  const back = { label: groupLabel, href: facilitatesThisGroup || facts.isAdmin ? groupPath : `${groupPath}/written` };
+  // The group's page admits its live facilitators and admins; the lead, who has no page for the group here, goes back to the run's home.
+  const programmeName = programme?.shortName || access.run.courseTitle;
+  const back = facilitatesThisGroup || facts.isAdmin ? { label: groupLabel, href: groupPath } : { label: programmeName, href: runHome };
   const view = await loadGroupQuestion(db, access.user, {
     door: "group",
     run: access.run,
@@ -83,14 +98,20 @@ export default async function GroupQuestionPage({
     viewer: facts.isAdmin ? "admin" : facilitatesThisGroup ? "facilitator" : "lead",
     askedWeek: query.week ?? null,
     askedQuestion: query.question ?? null,
+    askedFirst: readFirstOfKind(query.first),
     filter: readQuestionFilter(query),
-    programmeName: programme?.shortName || access.run.courseTitle,
+    programmeName,
     base: `${groupPath}/question`,
     personBase: `${groupPath}/coursework`,
     back,
     crumb: back,
+    leadFirstName: programme?.leadFirstName ?? null,
+    // The page where lines are picked to read out admits the group's live facilitators and admins, never the lead.
+    readOutHref: facilitatesThisGroup || facts.isAdmin ? (weekNumber) => `${groupPath}/reflections?week=${weekNumber}` : null,
+    // A facilitator's page is the one group's own: nothing to choose between here.
+    groupChoice: null,
   });
   // A run with none of its weeks written as blocks: nothing to read one question at a time, said calmly.
-  if (!view) return <NoWeekToRead name={ONE_QUESTION_TITLE} eyebrow={[programme?.shortName || access.run.courseTitle, groupLabel].join(" · ")} marks={[]} crumb={back} />;
+  if (!view) return <NoWeekToRead name={ONE_QUESTION_TITLE} eyebrow={[programmeName, groupLabel].join(" · ")} marks={[]} crumb={back} />;
   return <QuestionView view={view} />;
 }

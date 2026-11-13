@@ -243,6 +243,10 @@ const READERS = {
     kind: "now",
     why: "Publish tells people the group they are in now, and its facilitators who is in it now",
   },
+  "lib/courses/coursework/readingLoad.ts": {
+    kind: "now",
+    why: "who may be read behind a group's door is the people whose place names it now, and a written answer's own deadline is dated on the calendar of the group whose copy of the week they read, which is their group's now; the session they were due at comes from sessionSourceFor, which asks each week's group",
+  },
   "lib/courses/excused/page.ts": {
     kind: "now",
     why: "reads the group a request to be excused names, the register it was made on, and never a place's group",

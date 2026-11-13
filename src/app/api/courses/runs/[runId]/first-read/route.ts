@@ -8,10 +8,11 @@ import { getCurrentUser } from "@/lib/firebase/session";
 /**
  * WHEN AN ANSWER WAS FIRST READ: `POST /api/courses/runs/[runId]/first-read`
  * `{ weekId, people: [{ uid, ids }] }`, made by the reading view of one
- * person's week, the page of one question across a group and a written
- * answer's review page once they have drawn the answers named, never by their
- * GET and never while they render, so a link preview or a prefetch marks
- * nothing.
+ * person's week and the page of one question across a group once they have
+ * drawn the answers named, and by This week's work (the facilitator's group
+ * page, the programme's page for a group's week) once a person's boxes are
+ * opened; never by their GET and never while they render, so a link preview
+ * or a prefetch marks nothing.
  *
  * It keeps, on each person's week record, the day each answer named was
  * first put in front of somebody who may read it in full, where no time is

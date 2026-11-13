@@ -18,13 +18,13 @@ import { RUN_REPORTS_WORDS, REPORT_WORDS } from "./words";
  * A RUN'S SESSION REPORTS, read on the server for the programme's lead and
  * admins: the reports page under the programme's Surveys tab, and the counts
  * on the tab's Overview that lead there, which name nobody. And, beside a
- * written answer on its review page, one person's lines in one week's
- * reports (`readReportLinesAbout`), for whoever that page lets review the
- * answer, each as `besideScopeOf` says.
+ * written answer in the reading view of the person's week, one person's
+ * lines in one week's reports (`readReportLinesAbout`), for whoever the one
+ * gate lets review the answer, each as `besideScopeOf` says.
  *
  * Who may read them is decided by the page that calls this, before it does
  * (`loadProgrammeRun`: the lead of the programme that names the run, or an
- * admin; for one person's lines, the review page's own gate and then
+ * admin; for one person's lines, the reading view's own gate and then
  * `besideScopeOf`). Nothing here asks who is reading, so nothing here may be
  * called before that decision, and no route hands these rows to a browser.
  *
@@ -302,11 +302,12 @@ export async function ownReportView(
 }
 
 /**
- * ONE PERSON'S LINES IN ONE WEEK'S REPORTS, for the review page beside their
- * written answer: what each report says about them (engaged well and why,
- * seemed not to have done the readings, might need a hand and the word about
- * them), and nothing else of a report. Called only by the review page's
- * loader, once its gate has let the reader review the answer and
+ * ONE PERSON'S LINES IN ONE WEEK'S REPORTS, for the reading view beside
+ * their written answer: what each report says about them (engaged well and
+ * why, seemed not to have done the readings, might need a hand and the word
+ * about them), and nothing else of a report. Called only by the reading
+ * view's loader and the written answers' review loader, once its gate has
+ * let the reader review the answer and
  * `besideScopeOf` has said whose reports' lines they see.
  *
  * One clause on one field per read, so neither needs a declared index: for

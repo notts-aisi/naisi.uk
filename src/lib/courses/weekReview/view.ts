@@ -1,3 +1,4 @@
+import { readingAnswerHref } from "@/lib/courses/coursework/forwards";
 import { londonClockLabel, londonDayLabel } from "@/lib/courses/londonLabels";
 import type { CourseWeekReviewDoc, StoredGrade } from "@/lib/firestore/courseWeekReviews";
 import type { FactLine } from "./facts";
@@ -147,17 +148,15 @@ export function weekReviewView(input: ViewInput): WeekReviewView {
       return { grade, count: current.filter((item) => item.grade === grade).length };
     });
     const entry = (item: StoredGrade): GradeEntry => {
-      const groupId = input.groupOf.get(item.uid) ?? "";
       const at = input.writtenKeys.indexOf(item.questionKey);
-      const query = new URLSearchParams({ week: String(input.weekNumber), person: item.uid });
-      if (groupId) query.set("group", groupId);
       return {
         key: item.rowId,
         name: input.fellowNames.get(item.uid) ?? "",
         group: groupOfName(item.uid),
         question: input.writtenKeys.length > 1 && at !== -1 ? `Written answer ${at + 1}` : null,
         grade: item.grade,
-        href: `${input.programmePath}/written?${query.toString()}`,
+        // The reading view of the person's week, at the written answer.
+        href: readingAnswerHref(`${input.programmePath}/coursework`, item.uid, input.weekNumber),
       };
     };
     const byName = (a: StoredGrade, b: StoredGrade) =>

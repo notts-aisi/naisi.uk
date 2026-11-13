@@ -37,6 +37,7 @@ import {
   toReviewWords,
   whosComingSentence,
 } from "@/lib/courses/facilitatorPageWords";
+import { firstQuestionHref, readingAnswerHref } from "@/lib/courses/coursework/forwards";
 import { facilitatorGuidePath } from "@/lib/courses/facilitatorGuide/model";
 import { STARTS_WITH_AN_EXPLAINER, facilitatorLineWords, scheduledByWords } from "@/lib/courses/explainers/words";
 import { FACILITATOR_GUIDE, guideForWeekWords } from "@/lib/courses/facilitatorGuide/words";
@@ -402,9 +403,10 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
                   </p>
                   <Link
                     href={
+                      // The oldest answer waiting, sent or changed since its feedback, on the reading view of the person's week at the answer.
                       known.writtenNext
-                        ? `${groupHref}/written?week=${known.writtenNext.weekNumber}&person=${encodeURIComponent(known.writtenNext.uid)}`
-                        : `${groupHref}/written`
+                        ? readingAnswerHref(`${groupHref}/coursework`, known.writtenNext.uid, known.writtenNext.weekNumber)
+                        : firstQuestionHref(`${groupHref}/question`, null, "answer")
                     }
                     className={styles.textLink}
                   >

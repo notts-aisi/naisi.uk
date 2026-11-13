@@ -8,7 +8,8 @@ import { useEffect } from "react";
  * (`/api/courses/runs/[runId]/first-read`): once the page is in the browser
  * and in front of its reader, never while it is drawn on the server, so a
  * link preview or a prefetch marks nothing. A page opened in a tab nobody is
- * looking at waits until it is looked at.
+ * looking at waits until it is looked at. Under This week's work it is drawn
+ * for one person's boxes only once their "Read it" is first opened.
  *
  * It draws nothing and says nothing: whether anything was kept is nobody's to
  * be told, and a refusal (a view-as session among them) changes nothing on

@@ -1735,12 +1735,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed a form after decision day with a place given back and a pooled applicant told no offer.",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written": {
-    reason:
-      "Course hub: the programme's lead's way to the review page, where a facilitator's own answer gets feedback, and where the lead rates an answer for the team and reads what the week's session reports say about the person; drawn as the lead, another programme's lead and somebody signed out in tests/course-hub-written-answers.test.mjs, with the ratings in tests/course-work-ratings.test.mjs, and with the report's lines as every caller in tests/course-report-beside-work.test.mjs.",
-    coverWhen:
-      "When a browser spec signs in as the programme's lead and gives feedback on a facilitator's own answer.",
-  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/ratings": {
     reason:
       "Course hub: a programme's ratings for its lead and admins; tests/course-ratings.test.mjs renders it as the lead, an admin, a reviewer and another programme's lead, before and after the run's last session.",

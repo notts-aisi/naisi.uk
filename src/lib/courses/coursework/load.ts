@@ -168,12 +168,6 @@ export function programmePathOf(view: Pick<ProgrammeRunView, "roundId" | "progra
   return `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}`;
 }
 
-/** The review page for one person's answer in one week, where feedback on it is written: a person in a group this viewer sees, or a facilitator's own. */
-function writtenHrefOf(programmePath: string, person: Pick<CourseworkPerson, "uid" | "groupId">, weekNumber: number): string | null {
-  if (!person.groupId) return null;
-  return `${programmePath}/written?group=${encodeURIComponent(person.groupId)}&week=${weekNumber}&person=${encodeURIComponent(person.uid)}`;
-}
-
 // ---------------------------------------------------------------------------
 // One person's week: the reading view's programme door
 // ---------------------------------------------------------------------------
@@ -265,8 +259,6 @@ export async function loadPersonCoursework(
     programmeName: programme?.shortName || view.programmeName,
     base: `${programmePath}/coursework`,
     enrolments,
-    // The programme's review page for the person's group: the lead's and admins', as this page is. None for somebody in no group.
-    reviewHref: (weekNumber) => writtenHrefOf(programmePath, person, weekNumber),
     // One question across the person's group, on the same week, landing on them. None for somebody in no group.
     questionHref: (weekNumber) =>
       person.groupId

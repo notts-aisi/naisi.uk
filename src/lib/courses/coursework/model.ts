@@ -1,5 +1,5 @@
 import { partWritten, reflectionPartsOf, tickedSourcesOf, type ReflectionPart, type TickedSource } from "@/lib/courses/facilitatorWeek/model";
-import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
+import { isBlockWeek, type WeekBlock, type When, type WordRange } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds, type TaskNeeds } from "@/lib/courses/weekBlocks/progress";
 import { weekFillInBoxes, weekWrittenAnswers, type ReadableWeek } from "@/lib/courses/weekBlocks/reader";
 import { lateBy, weekAsksForWriting, weekDone, weekDoneAt, weekWritingNeeds, type WeekDue } from "@/lib/courses/weekWork/model";
@@ -62,8 +62,11 @@ export type CourseworkWeek = {
   title: string;
   parts: ReflectionPart[];
   sources: TickedSource[];
-  /** The week's one written answer, or null for a week with none. */
-  answer: { id: string; prompt: string; boxes: Array<{ id: string; label: string }> } | null;
+  /**
+   * The week's one written answer, or null for a week with none: its range of
+   * words and its own deadline's rule where the week says them.
+   */
+  answer: { id: string; prompt: string; boxes: Array<{ id: string; label: string }>; words?: WordRange | null; due?: When | null } | null;
   /** The week's fill-in boxes, in page order. */
   boxes: Array<{ id: string; heading: string; label: string }>;
   /** This week's tasks, by what each needs (`weekTaskNeeds`), for whether the week is done. */
@@ -123,7 +126,7 @@ export function courseworkWeekOf(week: (ReadableWeek & { weekNumber: number; tit
     title: typeof week.title === "string" ? week.title.trim() : "",
     parts: reflectionPartsOf(blocks),
     sources: tickedSourcesOf(week),
-    answer: answer ? { id: answer.id, prompt: answer.prompt, boxes: answer.boxes } : null,
+    answer: answer ? { id: answer.id, prompt: answer.prompt, boxes: answer.boxes, words: answer.words, due: answer.due } : null,
     boxes: weekFillInBoxes(week).map((box) => ({ id: box.id, heading: box.heading, label: box.label })),
     tasks: weekTaskNeeds(blocks),
     writes: weekAsksForWriting(blocks),
@@ -639,9 +642,11 @@ export type PersonAnswer = {
   changedLateMs: number | null;
   /** How long after that session it was last sent (ms); null when not after it, or never sent. */
   sentLateMs: number | null;
+  /** Changed since it was last sent, while its readers still read it as sent (before the session): said in words, never what changed. */
+  changedSinceSent: boolean;
   /** The answer as it stood when the session started, when it differs from the words shown; null otherwise. */
   atSession: { text: string; boxes: Array<{ label: string; text: string }> } | null;
-  /** The review page for it, where feedback on it is written, or null where the person is in no group to give feedback in. */
+  /** A page of its own for it, or null: the reading view's loader hands none, since feedback on it is written beside it. */
   href: string | null;
 };
 
@@ -681,6 +686,10 @@ export type PersonAnswerWrite = {
   changedAt: Date | null;
   changedLateMs: number | null;
   sentLateMs: number | null;
+  /** Changed since it was last sent, while its readers still read it as sent (before the session). */
+  changedSinceSent?: boolean;
+  /** When it first held something, for the words its question had then. */
+  writtenAt?: Date | null;
   atSession: { text: string; boxes: Record<string, string> | null } | null;
   /** The stored answer, for the version each piece of feedback was about; null while it may not be read. Never on a page. */
   piece: PieceFacts | null;
@@ -751,6 +760,7 @@ export function personWeeks(input: {
             changedAt: stored?.changedAt ?? null,
             changedLateMs: stored?.changedLateMs ?? null,
             sentLateMs: stored?.sentLateMs ?? null,
+            changedSinceSent: stored?.changedSinceSent === true,
             atSession: stored?.atSession
               ? {
                   text: stored.atSession.boxes ? "" : stored.atSession.text,

@@ -24,13 +24,13 @@
  *    writes nothing here: what the mark makes a save keep lands on the
  *    answer's own row, which its writer can read, and a version kept for a
  *    rating would tell them a rating exists. A rating keeps its own pointer
- *    (the rating's `aboutSavedAt`), and the review page tells staff
+ *    (the rating's `aboutSavedAt`), and the reading pages tell staff
  *    when the answer has changed since it.
  *  - `firstReadAt`: answer id (a reflection's prompt, a fill-in box, the
  *    written answer's block) to the start of the London day it was first put
  *    in front of somebody on the team who may read it, in full, on the
  *    reading view of one person's week, the page of one question across a
- *    group or a written answer's review page. Written by
+ *    group, or This week's work's boxes once opened. Written by
  *    `/api/courses/runs/[runId]/first-read`, only where no time is there
  *    yet, and never who read it. Optional: an answer missing from it has no
  *    time kept, which says it is unread only where it became readable after

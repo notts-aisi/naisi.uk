@@ -14,7 +14,8 @@ import { teamRatingsOf, type TeamRatingsView } from "./model";
  * THE ONE READER OF RATINGS FOR THE TEAM, on the server, for three callers,
  * each after its own gate:
  *
- *  - the review page, after `readsWorkRatings` (`./access.ts`): the ratings
+ *  - the reading pages (the reading view of a person's week and the page of
+ *    one question), after `readsWorkRatings` (`./access.ts`): the ratings
  *    on one person's written answer, and the names they are listed by. One
  *    query, equalities only (`uid` and `runId`), filtered again in memory to
  *    the week and the answer;

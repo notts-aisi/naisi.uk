@@ -489,7 +489,7 @@ const READERS = new Map([
   ["src/lib/courses/writtenAnswers/reviewPage.ts", {
     who: "rule",
     proof: ['shownName.set(snap.id, nameForViewer(actor, accountNamesOf(data), "NAISI member"));'],
-    why: "the review page's people, named for the facilitator, lead or admin reading it; feedback on it stays signed with the name its writer goes by",
+    why: "the written answer's review page's loader, kept as the reader behind This week's work's Written answer column (its own page is retired): its people, named for the facilitator, lead or admin reading it; who left feedback, by the first word of the name they go by",
   }],
   ["src/lib/ratings/view.ts", {
     who: "rule",

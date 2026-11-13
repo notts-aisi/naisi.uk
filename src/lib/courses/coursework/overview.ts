@@ -14,6 +14,7 @@ import {
   type PersonWork,
 } from "./model";
 import { feedbackStateOf, readStateOf } from "./question";
+import { READING_ANSWER_ANCHOR } from "./reading";
 import type { WeekDue } from "@/lib/courses/weekWork/model";
 
 /**
@@ -237,8 +238,8 @@ export type WaitingRow = CellWaiting & {
   readHref: string;
 };
 
-/** The id the written answer's heading carries in the reading view, which "Read" lands on. */
-export const READING_ANSWER_ANCHOR = "reading-answer";
+/** The id the written answer's heading carries in the reading view, which "Read" lands on (`./reading.ts`). */
+export { READING_ANSWER_ANCHOR };
 
 /** How many rows of the list are drawn before "Show all". */
 export const WAITING_SHOWN = 10;

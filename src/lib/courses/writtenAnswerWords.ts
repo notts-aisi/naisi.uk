@@ -40,7 +40,7 @@ export function namesOr(names: readonly string[]): string {
   return `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`;
 }
 
-/** "Mon 16 Nov, 10:42pm", an instant as the review page dates it. */
+/** "Mon 16 Nov, 10:42pm", an instant as the reading pages date it. */
 export function dayAndClockWords(at: Date): string {
   return `${londonDayLabel(at)}, ${londonClockLabel(at)}`;
 }
@@ -153,46 +153,12 @@ export function sentOnWords(at: Date): string {
 }
 
 // ---------------------------------------------------------------------------
-// The review page
+// Written answers, as the people running a group read them
 // ---------------------------------------------------------------------------
 
-export const WRITTEN_ANSWERS = "Written answers";
-/**
- * Over the lead's choice of group on the lead's own review page: the
- * Attendance tab's word for its own choice of group, with each group's tag
- * ("A") in a round pill and its name for a screen reader.
- */
-export const GROUP = "Group";
-export const TO_GIVE_FEEDBACK_ON = "To give feedback on";
-export const WITH_FEEDBACK = "With feedback";
 export const NOT_SENT_YET = "Not sent yet";
 export const NOT_STARTED = "Not started";
 export const LATE = "Late";
-export const PREVIOUS = "Previous";
-export const SHOW_ALL_OF_IT = "Show all of it";
-export const NO_WRITTEN_ANSWER_THIS_WEEK = "This week has no written answer.";
-export const NOBODY_HERE = "Nobody’s written answer is yours to give feedback on in this group.";
-export const NOBODY_SENT_YET = "Nobody has sent this week’s written answer yet.";
-
-/** "Group B · Week 3 · Written answers". */
-export function reviewEyebrowWords(groupName: string, weekNumber: number): string {
-  return `${groupName} · Week ${weekNumber} · ${WRITTEN_ANSWERS}`;
-}
-
-/** "Amara Okafor’s threat model", from the answer's name in running text ("your threat model"). */
-export function reviewTitleWords(name: string, answerName: string): string {
-  return `${name}’s ${answerName.replace(/^your\s+/i, "")}`;
-}
-
-/** "Next: Isaac". */
-export function nextWords(firstName: string): string {
-  return `Next: ${firstName}`;
-}
-
-/** "1 of 3 to give feedback on" (the review page's bar). */
-export function positionWords(at: number, of: number): string {
-  return `${at} of ${of} to give feedback on`;
-}
 
 /** "Sent Mon 16 Nov, 10:42pm": when an answer to give feedback on was sent. */
 export function listSentWords(at: Date): string {
@@ -205,27 +171,17 @@ export function listReadSinceWords(at: Date): string {
 }
 
 /**
- * The review page's line under an answer (the week stays open): "Amara can
- * change it until the programme closes. Before the session you read it as
- * last sent; from the session, as it stands."
+ * The line under a written answer on the reading view of a person's week (the
+ * week stays open): "Amara can change it until the programme closes. Before
+ * the session you read it as last sent; from the session, as it stands."
  */
 export function reviewWeekLineWords(firstName: string): string {
   return `${firstName} can change it until the programme closes. Before the session you read it as last sent; from the session, as it stands.`;
 }
 
-/** "By Sofia", "By you and Claudia": who left feedback on it, each once. */
-export function byWords(names: readonly string[]): string {
-  return `By ${namesAnd(names.filter(Boolean))}`;
-}
-
 /** "The question · 250 to 350 words". */
 export function theQuestionWords(range: WordRange | null): string {
   return range ? `The question · ${rangeWords(range)}` : "The question";
-}
-
-/** "Amara’s answer". */
-export function answerHeadWords(firstName: string): string {
-  return `${firstName}’s answer`;
 }
 
 /** "43 words". */
