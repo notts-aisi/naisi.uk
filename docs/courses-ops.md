@@ -4570,7 +4570,7 @@ certificate was sent in error, and tell its owner.
 
 Privacy policy version 13 took back version 12's promise that nothing
 written in a course is used outside its programme, from its own agreement on,
-and the current policy (`src/content/legal/privacy/v18.tsx`) keeps those
+and the current policy (`src/content/legal/privacy/v19.tsx`) keeps those
 words. Three features rest on that, each an admin's press and never
 automatic, all built like the applications' second reader
 (`docs/applications.md`, "Claude and Pangram"): labels to Claude, names put
