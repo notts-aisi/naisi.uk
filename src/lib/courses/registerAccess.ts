@@ -4,9 +4,12 @@ import { holdsStanding, isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import {
   ENROLMENT_STATUSES,
+  groupForWeek,
   normalizeCourseEnrolment,
   placementIsShownTo,
+  type CourseEnrolmentStatus,
 } from "@/lib/firestore/courseEnrolments";
+import { everInGroup, hasGroupsByWeek, isRowForWeek, stretchesIn } from "./groupsByWeek";
 import {
   attendanceDocId,
   normalizeCourseAttendance,
@@ -528,12 +531,29 @@ export type MirrorMember = {
 /** One row of the register: a person, and the week their record starts at. */
 export type RegisterMember = MirrorMember & {
   displayName: string;
+  /**
+   * The stretches of weeks they were in THIS group, for somebody whose place
+   * records a move (`groupsByWeek`): a row of this group's register for those
+   * weeks and no other (`isRowForWeek`). Absent for everybody else, whose row
+   * is the group's for every week from the week they joined, as always.
+   */
+  inGroupWeeks?: Array<{ fromWeek: number; untilWeek: number | null }>;
 };
+
+// Whether a row is one of the register's rows in a week: `isRowForWeek`, in
+// `./groupsByWeek.ts` so the register's page asks the same function.
+export { isRowForWeek };
 
 /**
  * EVERY ENROLMENT ON THE GROUP WHOSE ATTENDANCE IS READ DOWNSTREAM, for the
  * rollup recompute. Not the register's rows: those are the ACTIVE members,
  * because they are who a facilitator can mark.
+ *
+ * ON THE GROUP means in it now, OR in it for any week their place records
+ * (`everInGroup`): somebody moved from this group from week 3 still has
+ * weeks 1 and 2 on its registers, and a correction of one of those registers
+ * has to rebuild their figures too. With no record of groups by week
+ * anywhere, exactly the people in the group now.
  *
  * All four statuses are included, and each one is here for a reason rather
  * than by default:
@@ -546,9 +566,10 @@ export type RegisterMember = MirrorMember & {
  * they were before an admin's correction, which is the one moment the numbers
  * were known to be wrong. Nothing is excluded, so there is nothing to name.
  *
- * `status in [...]` rather than dropping the filter: it is the same
- * (runId, groupId, status) composite index the roster and the register query
- * already use, so this needs no new index.
+ * The run's places are read whole, one equality on `runId` (no declared
+ * index), because a place in another group now can still hold weeks in this
+ * one; a stored status outside the four is left out, as the query on the
+ * four statuses left it out.
  *
  * NO NAMES ARE RESOLVED. The mirror never renders anybody, so this skips the
  * `users` read the register's own loader does.
@@ -558,18 +579,15 @@ export async function loadMirrorMembers(
   runId: string,
   groupId: string,
 ): Promise<MirrorMember[]> {
-  const snap = await db
-    .collection("courseEnrolments")
-    .where("runId", "==", runId)
-    .where("groupId", "==", groupId)
-    .where("status", "in", ENROLMENT_STATUSES)
-    .limit(MAX_REGISTER_MEMBERS)
-    .get();
+  const snap = await db.collection("courseEnrolments").where("runId", "==", runId).get();
 
   const byUid = new Map<string, MirrorMember>();
   for (const d of snap.docs) {
-    const e = normalizeCourseEnrolment(d.id, d.data() ?? {});
-    if (e.uid && !byUid.has(e.uid)) {
+    const data = d.data() ?? {};
+    if (!ENROLMENT_STATUSES.includes(data.status as CourseEnrolmentStatus)) continue;
+    const e = normalizeCourseEnrolment(d.id, data);
+    if (e.runId !== runId || (e.groupId !== groupId && !everInGroup(e, groupId))) continue;
+    if (e.uid && !byUid.has(e.uid) && byUid.size < MAX_REGISTER_MEMBERS) {
       byUid.set(e.uid, { uid: e.uid, joinedWeekNumber: e.joinedWeekNumber });
     }
   }
@@ -606,9 +624,18 @@ export type RegisterViewer = { isAdmin: boolean; role?: string | null };
 
 /**
  * The group's ACTIVE members, name-sorted, with the joined week that scopes
- * their row. Scoped by the GROUP's own `runId`, never a caller parameter, so
- * it is an exact match for the existing (runId, groupId, status) composite
- * index, the same query the roster and exercises routes run.
+ * their row. Scoped by the GROUP's own `runId`, never a caller parameter.
+ *
+ * THE ROWS ARE THE PEOPLE IN THE GROUP FOR A WEEK OF ITS REGISTERS: the
+ * people in it now, and somebody whose place records weeks in it while they
+ * are in another group now (`everInGroup`). A row of somebody whose place
+ * records a move carries the weeks they were in this group
+ * (`inGroupWeeks`), and its joined week is the first of them; `forWeek`
+ * keeps only the rows of one week's session (`isRowForWeek`). The run's
+ * active places are read whole, one equality on `runId` and one on `status`
+ * (no declared index), since a place in another group now can still hold
+ * weeks here. With no record of groups by week anywhere, the rows are the
+ * people in the group now, every week, exactly as before.
  *
  * ONLY PEOPLE WHO HAVE BEEN TOLD, for anybody but an admin. Somebody an admin
  * has placed and Publish has not yet emailed is not on a facilitator's
@@ -621,13 +648,12 @@ export async function loadRegisterMembers(
   runId: string,
   groupId: string,
   viewer: RegisterViewer,
+  forWeek: number | null = null,
 ): Promise<RegisterRoster> {
   const memberSnap = await db
     .collection("courseEnrolments")
     .where("runId", "==", runId)
-    .where("groupId", "==", groupId)
     .where("status", "==", "active")
-    .limit(MAX_REGISTER_MEMBERS)
     .get();
 
   // Deduplicated by uid. `courseEnrolmentId` binds (run, uid), so a second row
@@ -638,11 +664,14 @@ export async function loadRegisterMembers(
   let notYetTold = false;
   for (const d of memberSnap.docs) {
     const e = normalizeCourseEnrolment(d.id, d.data() ?? {});
-    if (!e.uid || byUid.has(e.uid)) continue;
+    if (!e.uid || byUid.has(e.uid) || e.runId !== runId || e.status !== "active") continue;
+    if (e.groupId !== groupId && !everInGroup(e, groupId)) continue;
+    if (forWeek !== null && hasGroupsByWeek(e) && groupForWeek(e, forWeek) !== groupId) continue;
     if (!placementIsShownTo(e, viewer)) {
       notYetTold = true;
       continue;
     }
+    if (byUid.size >= MAX_REGISTER_MEMBERS) break;
     byUid.set(e.uid, e);
   }
 
@@ -660,11 +689,20 @@ export async function loadRegisterMembers(
   }
 
   const members = [...byUid.values()]
-    .map((e) => ({
-      uid: e.uid,
-      displayName: nameByUid.get(e.uid) ?? "NAISI member",
-      joinedWeekNumber: e.joinedWeekNumber,
-    }))
+    .map((e): RegisterMember => {
+      const row: RegisterMember = {
+        uid: e.uid,
+        displayName: nameByUid.get(e.uid) ?? "NAISI member",
+        joinedWeekNumber: e.joinedWeekNumber,
+      };
+      if (!hasGroupsByWeek(e)) return row;
+      const inGroupWeeks = stretchesIn(e, groupId).map(({ fromWeek, untilWeek }) => ({ fromWeek, untilWeek }));
+      return {
+        ...row,
+        joinedWeekNumber: Math.max(e.joinedWeekNumber, inGroupWeeks[0]?.fromWeek ?? e.joinedWeekNumber),
+        inGroupWeeks,
+      };
+    })
     .sort(
       (a, b) =>
         a.displayName.localeCompare(b.displayName) || a.uid.localeCompare(b.uid),
@@ -681,6 +719,11 @@ export async function loadRegisterMembers(
  * group, even when an admin presses. It can only narrow what a caller sees,
  * which is why it takes no role.
  */
-export function loadToldRegisterMembers(db: Firestore, runId: string, groupId: string): Promise<RegisterRoster> {
-  return loadRegisterMembers(db, runId, groupId, { isAdmin: false });
+export function loadToldRegisterMembers(
+  db: Firestore,
+  runId: string,
+  groupId: string,
+  forWeek: number | null = null,
+): Promise<RegisterRoster> {
+  return loadRegisterMembers(db, runId, groupId, { isAdmin: false }, forWeek);
 }

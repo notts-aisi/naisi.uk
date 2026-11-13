@@ -21,6 +21,7 @@ import { normalizeCourseRun, validateSubmissionUrl, type CourseRunDoc } from "@/
 import { campusLabel } from "./campus";
 import { couldBeFollowed } from "./followable";
 import { programmePageAddress } from "./calendarLink";
+import { groupStretchesOf, hasGroupsByWeek, type GroupStretch } from "./groupsByWeek";
 import { JOIN_ON_SITE, cancelledTitle, joinWords, sessionTitle, type CalendarLineGroup } from "./calendarWords";
 import { sessionsFromJoinWeek } from "./ownAttendance";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "./sessions";
@@ -36,7 +37,11 @@ import { resolveSessions, sessionInstants, type ResolvedSession } from "./sessio
  *    placement Publish has not told them about adds nothing of that run), from
  *    the week they joined. A seat that has LEFT (withdrawn by them, or removed
  *    by staff) keeps only the sessions that started before the day it left,
- *    and none when no day is recorded.
+ *    and none when no day is recorded. EACH WEEK'S SESSION IS THE GROUP'S
+ *    THEY WERE IN THAT WEEK (`groupStretchesOf`): somebody moved from a week
+ *    has their old group's sessions for the weeks before it and their new
+ *    group's from it, past and future alike. With no record of groups by
+ *    week, the group they are in now for every week, as always.
  *  - A GROUP THEY FACILITATE: every session of it. One more query
  *    (`facilitatorUids` array-contains, the automatic index), because a
  *    facilitator sees their group, its day, time and room, from the moment
@@ -87,11 +92,26 @@ type Seat = {
   groupId: string;
   /** The first week of theirs, for a learner; 1 for a facilitator. */
   fromWeek: number;
+  /**
+   * The stretches of weeks they spent in this group (`GroupStretch`), for a
+   * learner whose place records a move; every week for anybody else.
+   */
+  weeks: Array<Pick<GroupStretch, "fromWeek" | "untilWeek">>;
   /** A session starting at or after this is not theirs: the day they left. Null for no end. */
   until: Date | null;
   /** Still in the group: counted on the dialog's line. */
   live: boolean;
 };
+
+/** Every week, for a seat whose weeks are all in one group. */
+const EVERY_WEEK: Seat["weeks"] = [{ fromWeek: 1, untilWeek: null }];
+
+/** Whether a session falls in one of the seat's stretches of weeks in its group. */
+function inSeatWeeks(seat: Seat, session: ResolvedSession): boolean {
+  return seat.weeks.some(
+    (stretch) => session.weekNumber >= stretch.fromWeek && (stretch.untilWeek === null || session.weekNumber < stretch.untilWeek),
+  );
+}
 
 /** A run whose sessions a calendar may show: dated and not called off. */
 function runShows(run: CourseRunDoc, raw: Record<string, unknown>): boolean {
@@ -177,26 +197,51 @@ export async function readCalendarFeed(db: Firestore, owner: SessionUser): Promi
     if (group.archived) continue;
     if (!isNamedWithStanding(owner, "courseGroups.facilitatorUids", group.facilitatorUids)) continue;
     groupById.set(group.id, group);
-    seats.set(group.id, { runId: group.runId, groupId: group.id, fromWeek: 1, until: null, live: true });
+    seats.set(group.id, { runId: group.runId, groupId: group.id, fromWeek: 1, weeks: EVERY_WEEK, until: null, live: true });
   }
 
   // Their seats: told, from the week they joined, and up to the day they left.
+  const facilitated = new Set(seats.keys());
   for (const doc of enrolSnap.docs) {
     const seat = normalizeCourseEnrolment(doc.id, doc.data() ?? {});
     if (seat.uid !== owner.uid || seat.role !== "learner" || !seat.groupId) continue;
     if (!placementIsTold(seat)) continue;
     if (!isNamedWithStanding(owner, "courseEnrolments.uid", seat.uid)) continue;
-    // A group they facilitate is already theirs whole.
-    if (seats.has(seat.groupId)) continue;
     const live = seat.status === "active" || seat.status === "completed";
     if (!live && !seat.droppedOutAt) continue;
-    seats.set(seat.groupId, {
-      runId: seat.runId,
-      groupId: seat.groupId,
-      fromWeek: seat.joinedWeekNumber,
-      until: live ? null : seat.droppedOutAt,
-      live,
-    });
+    if (!hasGroupsByWeek(seat)) {
+      // A group they facilitate is already theirs whole.
+      if (seats.has(seat.groupId)) continue;
+      seats.set(seat.groupId, {
+        runId: seat.runId,
+        groupId: seat.groupId,
+        fromWeek: seat.joinedWeekNumber,
+        weeks: EVERY_WEEK,
+        until: live ? null : seat.droppedOutAt,
+        live,
+      });
+      continue;
+    }
+    // Moved from a week: each group for the weeks they were in it. Only the
+    // group they are in now is one they are still in, for the dialog's line.
+    for (const stretch of groupStretchesOf(seat)) {
+      if (facilitated.has(stretch.groupId)) continue;
+      const weeks = { fromWeek: stretch.fromWeek, untilWeek: stretch.untilWeek };
+      // Back in a group they were in before: one more stretch of it.
+      const again = seats.get(stretch.groupId);
+      if (again) {
+        again.weeks = [...again.weeks, weeks];
+        continue;
+      }
+      seats.set(stretch.groupId, {
+        runId: seat.runId,
+        groupId: stretch.groupId,
+        fromWeek: seat.joinedWeekNumber,
+        weeks: [weeks],
+        until: live ? null : seat.droppedOutAt,
+        live: live && stretch.groupId === seat.groupId,
+      });
+    }
   }
   if (seats.size === 0) return { events: [], groups: [] };
 
@@ -242,6 +287,7 @@ export async function readCalendarFeed(db: Firestore, owner: SessionUser): Promi
     let count = 0;
     let first: { at: number; dateKey: string } | null = null;
     for (const session of sessionsFromJoinWeek(resolveSessions(run, group), seat.fromWeek)) {
+      if (!inSeatWeeks(seat, session)) continue;
       const { startsAt, endsAt } = sessionInstants(session);
       if (!startsAt || !endsAt) continue;
       if (seat.until && startsAt.getTime() >= seat.until.getTime()) continue;

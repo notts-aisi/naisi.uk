@@ -26,7 +26,12 @@ import {
   type ExcusedRequestDoc,
   type ExcusedWeek,
 } from "@/lib/firestore/courseExcusedRequests";
-import { courseEnrolmentId, normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
+import {
+  courseEnrolmentId,
+  groupForWeek,
+  normalizeCourseEnrolment,
+  type CourseEnrolmentDoc,
+} from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { COURSE_REQUESTS_COLLECTION, type CourseRequestStatus } from "@/lib/firestore/courseRequests";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
@@ -226,12 +231,22 @@ async function readRunAndGroup(db: Firestore, request: ExcusedRequestDoc): Promi
 
 const appUrl = (): string => process.env.NEXT_PUBLIC_APP_URL ?? "";
 
-/** Whether the person holds an active learner's place in this group, and the group is not archived. */
+/**
+ * Whether the person holds an active learner's place in this group, and the
+ * group is not archived. With `weekNumber`, in this group FOR THAT WEEK
+ * (`groupForWeek`): a request about a week belongs to the group they were in
+ * that week, so a request asked before a move about a week that stays with
+ * the old group is still that group's to decide. Without it, the group they
+ * are in now. With no record of groups by week the two are the same.
+ */
 export function stillBelongs(
-  seat: { role: string; status: string; groupId: string | null } | null,
+  seat: Pick<CourseEnrolmentDoc, "role" | "status" | "groupId" | "groupsByWeek"> | null,
   group: { id: string; archived: boolean },
+  weekNumber: number | null = null,
 ): boolean {
-  return Boolean(seat && seat.role === "learner" && seat.status === "active" && seat.groupId === group.id && !group.archived);
+  if (!seat || seat.role !== "learner" || seat.status !== "active" || group.archived) return false;
+  const groupId = weekNumber === null ? seat.groupId : groupForWeek(seat, weekNumber);
+  return Boolean(seat.groupId) && groupId === group.id;
 }
 
 // ---------------------------------------------------------------------------
@@ -329,12 +344,13 @@ export async function approveExcusedWeek(
       const groupSnap = await tx.get(db.collection("courseGroups").doc(fresh.groupId));
       if (!groupSnap.exists) throw new Refused(409, EXCUSED_REFUSAL.gone);
       const group = normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {});
-      // The person still belongs: an active place in this group, which is
-      // still a group. Somebody who left, was moved or whose group was
-      // archived is nobody on its register, and nothing is written or sent.
+      // The person still belongs: an active place in this group for the
+      // week asked about, which is still a group. Somebody who left, was
+      // moved for that week or whose group was archived is nobody on its
+      // register, and nothing is written or sent.
       const seatSnap = await tx.get(db.collection("courseEnrolments").doc(courseEnrolmentId(run.id, fresh.subjectUid)));
       const seat = seatSnap.exists ? normalizeCourseEnrolment(seatSnap.id, seatSnap.data() ?? {}) : null;
-      if (!stillBelongs(seat, group)) throw new Refused(409, EXCUSED_REFUSAL.left);
+      if (!stillBelongs(seat, group, week.weekNumber)) throw new Refused(409, EXCUSED_REFUSAL.left);
       const sessions = resolveSessions(run, group);
       const session = sessions.find((each) => each.sessionKey === week.sessionKey) ?? null;
       const registerRef = db

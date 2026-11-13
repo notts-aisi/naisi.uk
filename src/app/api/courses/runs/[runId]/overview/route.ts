@@ -19,6 +19,7 @@ import { certificateNeedsFor } from "@/lib/courses/finishing/needs";
 import { finishedForMember, readFinishRule } from "@/lib/courses/finishing/record";
 import { inLastWeek } from "@/lib/courses/programmeEnd";
 import { whatsNextFor, type WhatsNext } from "@/lib/courses/whatsNext";
+import { hasGroupsByWeek, sessionsByWeekGroup, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
 import { memberExplainerOn, type MemberExplainer } from "@/lib/courses/explainers/model";
@@ -744,6 +745,26 @@ export type OverviewPayload = {
 const MAX_OWN_ATTENDANCE_SESSIONS = 90;
 
 /**
+ * THE CALLER'S OWN SESSIONS ACROSS THE GROUPS THEIR PLACE RECORDS, each with
+ * the group whose register holds its mark (`sessionsWithGroup`): from the
+ * week they joined and capped, as their own group's are. Only ever asked of
+ * the caller's own place, so the registers it names are their own weeks'.
+ */
+function ownSessionsAcrossGroups(
+  place: CourseEnrolmentDoc,
+  sessionsOf: (groupId: string) => readonly ResolvedSession[] | null,
+): Array<{ groupId: string; session: ResolvedSession }> {
+  const paired = sessionsWithGroup(place, sessionsOf);
+  const kept = new Set(
+    sessionsFromJoinWeek(
+      paired.map((each) => each.session),
+      place.joinedWeekNumber,
+    ).slice(0, MAX_OWN_ATTENDANCE_SESSIONS),
+  );
+  return paired.filter((each) => kept.has(each.session));
+}
+
+/**
  * The caller's own rows of the run's answers read for their reflection boxes:
  * a run's weeks of answers and boxes for one person, with room to spare.
  */
@@ -1312,10 +1333,11 @@ export async function GET(
    * of documents nobody needed.
    *
    * ADDRESSED, never queried: the ids are `attendanceDocId`, which is
-   * construct-only by contract, and there is no way to spell another group's
-   * register from here. Bounded by the group's own taught sessions and capped
-   * again below, so a corrupt plan cannot turn one page load into a hundred
-   * reads.
+   * construct-only by contract, and the only registers spelled here are the
+   * caller's own weeks' (their group's, or, for a week their place records
+   * them in another group, that group's register for that week alone). Bounded by the
+   * taught sessions and capped again below, so a corrupt plan cannot turn one
+   * page load into a hundred reads.
    */
   /*
    * THEIR OWN PLACEMENT, never merely `ownGroup`. `ownGroup` falls back to the
@@ -1334,12 +1356,28 @@ export async function GET(
   // From the week they JOINED, then capped: a mid-run joiner has no row for
   // the weeks before their placement, and the read is bounded from that week
   // too rather than spending the cap on sessions about to be dropped.
-  const ownSessions = ownLearnerGroup
-    ? sessionsFromJoinWeek(
-        resolveSessions(run, ownLearnerGroup, own.calendar),
-        liveEnrolment?.joinedWeekNumber ?? 1,
-      ).slice(0, MAX_OWN_ATTENDANCE_SESSIONS)
-    : [];
+  //
+  // EACH WEEK FROM THE GROUP THEY WERE IN THAT WEEK (`sessionsWithGroup`):
+  // somebody whose place records a move reads their earlier weeks off their
+  // old group's registers and the rest off their group's now, as one record,
+  // from the week they joined and capped the same way. A week in a group that
+  // no longer meets has no session here. With no such record, their own
+  // group's sessions, as always.
+  const ownSessionsWithGroup: Array<{ groupId: string; session: ResolvedSession }> =
+    !ownLearnerGroup || !liveEnrolment
+      ? []
+      : hasGroupsByWeek(liveEnrolment)
+        ? ownSessionsAcrossGroups(liveEnrolment, (groupId) => {
+            const group = groups.find((each) => each.id === groupId);
+            return group ? resolveSessions(run, group, group.id === ownLearnerGroup.id ? own.calendar : undefined) : null;
+          })
+        : sessionsFromJoinWeek(
+            resolveSessions(run, ownLearnerGroup, own.calendar),
+            liveEnrolment?.joinedWeekNumber ?? 1,
+          )
+            .slice(0, MAX_OWN_ATTENDANCE_SESSIONS)
+            .map((session) => ({ groupId: ownLearnerGroup.id, session }));
+  const ownSessions = ownSessionsWithGroup.map((each) => each.session);
 
   // The caller's own rows of the run's answers, for which reflection boxes
   // they have written in and where their written answers stand (a block
@@ -1354,13 +1392,13 @@ export async function GET(
     resolveWeekDocs(db, runId, ownGroup?.id ?? null),
     ownLearnerGroup && ownSessions.length
       ? db.getAll(
-          ...ownSessions.map((s) =>
+          ...ownSessionsWithGroup.map(({ groupId, session: s }) =>
             db
               .collection("courseAttendance")
               .doc(
                 attendanceDocId(
                   runId,
-                  ownLearnerGroup.id,
+                  groupId,
                   s.weekNumber,
                   s.occurrence,
                 ),
@@ -1555,6 +1593,20 @@ export async function GET(
     };
   };
   const weekSchedule = ownSessionsAll.filter((session) => session.occurrence === 1).map(scheduleOf);
+  /*
+   * THE SESSIONS EACH WEEK'S WORK IS DUE BY: the session they are due at that
+   * week, from the group they were in that week (`sessionsByWeekGroup`), for
+   * somebody whose place records a move; `ownSessionsAll` for everybody else,
+   * as always. This week's due dates and whether a pick is still open both
+   * go by it. The schedule above stays the group they are in now.
+   */
+  const ownDueSessions: readonly ResolvedSession[] =
+    ownLearnerGroup && liveEnrolment && hasGroupsByWeek(liveEnrolment)
+      ? sessionsByWeekGroup(liveEnrolment, (groupId) => {
+          const each = groups.find((candidate) => candidate.id === groupId);
+          return each ? resolveSessions(run, each, each.id === ownLearnerGroup.id ? calendar : undefined) : null;
+        })
+      : ownSessionsAll;
 
   /*
    * THIS WEEK OF EACH WEEK WRITTEN AS BLOCKS (`OverviewThisWeek`): what each
@@ -1595,7 +1647,7 @@ export async function GET(
       entry.feedback = ownFeedbackCards(work, entry.id, blocks, ownLearnerGroupFacilitators);
       // A pick stays open until the caller's group's session for the week
       // starts (the week's own, or the next one when it is cancelled).
-      const startsAt = ownGroup ? dueMoment(ownSessionsAll, entry.weekNumber, "before") : null;
+      const startsAt = ownGroup ? dueMoment(ownDueSessions, entry.weekNumber, "before") : null;
       entry.picks = { ...(ownPicks.get(entry.id) ?? NO_PICKS), open: !startsAt || now.getTime() < startsAt.at.getTime() };
     }
     if (!blocks) continue;
@@ -1606,7 +1658,7 @@ export async function GET(
       work,
       ownPicks.get(entry.id) ?? NO_PICKS,
       facilitates.length > 0 ? "lead" : "facilitators",
-      (when) => (ownGroup ? dueMoment(ownSessionsAll, entry.weekNumber, when, course.dayBeforeTime) : null),
+      (when) => (ownGroup ? dueMoment(ownDueSessions, entry.weekNumber, when, course.dayBeforeTime) : null),
     );
   }
 
@@ -1622,9 +1674,11 @@ export async function GET(
    */
   const ownRegisters = new Map<string, Record<string, unknown>>();
   if (ownLearnerGroup) {
+    // One session a week key, each from the group they were in that week, so
+    // two groups' registers never land under one key.
     const sessionByDocId = new Map(
-      ownSessions.map((s) => [
-        attendanceDocId(runId, ownLearnerGroup.id, s.weekNumber, s.occurrence),
+      ownSessionsWithGroup.map(({ groupId, session: s }) => [
+        attendanceDocId(runId, groupId, s.weekNumber, s.occurrence),
         s.sessionKey,
       ]),
     );
@@ -1684,6 +1738,8 @@ export async function GET(
     // Their group's registers, already read: one that says its session was
     // not held (the old switch) counts for nothing, as the record counts it.
     registers: ownRegisters,
+    // Each week's group, for a place that records a move.
+    liveGroups: groups,
   });
 
   const payload: OverviewPayload = {

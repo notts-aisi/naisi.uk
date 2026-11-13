@@ -164,7 +164,7 @@ export async function checkInRegisterView(
   } else if (window && !session.cancelled && windowState(window, now) === "now") {
     const [register, roster] = await Promise.all([
       readRegisterMarks(db, runId, group.id, session),
-      loadToldRegisterMembers(db, runId, group.id),
+      loadToldRegisterMembers(db, runId, group.id, session.weekNumber),
     ]);
     if (register.held) {
       const facilitators = new Set(group.facilitatorUids);

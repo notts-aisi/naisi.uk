@@ -292,6 +292,10 @@ export async function readRemindAudience(
 ): Promise<{ people: RemindPerson[]; refusal: string | null }> {
   const { run, group, read, presserUid } = input;
   if (read.closed) return { people: [], refusal: null };
+  // The people in the group NOW, never those in it for the week asked about:
+  // Remind is the group's facilitators asking for work they read, and who
+  // reads whose work is the group somebody is in now, as the page's rows
+  // are. When each is due is their own week's session (`dueOf`).
   const audience = await resolveNoticeAudience(db, run.id, LANE, { groupId: group.id });
   if (audience.refusal) return { people: [], refusal: audience.refusal };
   const people: RemindPerson[] = [];

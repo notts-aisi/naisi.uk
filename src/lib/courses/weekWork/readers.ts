@@ -14,6 +14,7 @@ import {
   normalizeCourseWeekWork,
   type CourseWeekWorkDoc,
 } from "@/lib/firestore/courseWeekWork";
+import { hasGroupsByWeek, sessionsByWeekGroup } from "@/lib/courses/groupsByWeek";
 import { readPackCaseRecords, recordBlocksOf } from "@/lib/courses/packsAndCases/readers";
 import type { WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds } from "@/lib/courses/weekBlocks/progress";
@@ -50,6 +51,14 @@ import {
  * admin's view of a placement never counts: the session is the person's
  * own), told at `allocatedEmailAt`, or when they took the seat themselves;
  * otherwise each live group they facilitate; otherwise none.
+ *
+ * EACH WEEK FROM THE GROUP THEY WERE IN THAT WEEK (`groupForWeek`): somebody
+ * moved from a week is due at their old group's sessions before it and their
+ * new group's from it (`sessionsByWeekGroup`), so Late and the reminders
+ * before a session are told against the session they were really due at. A
+ * week spent in a group that no longer meets has no session to be due at.
+ * With no record of groups by week, the group they are in now for every
+ * week, exactly as before.
  */
 export function sessionSourceFor(
   run: CourseRunDoc,
@@ -69,7 +78,13 @@ export function sessionSourceFor(
       : null;
   if (placed && enrolment) {
     const toldAt = enrolment.selfEnrolled ? (enrolment.createdAt ?? null) : (enrolment.allocatedEmailAt ?? null);
-    return { sessionLists: [sessionsOf(placed)], toldAt };
+    const sessions = hasGroupsByWeek(enrolment)
+      ? sessionsByWeekGroup(enrolment, (groupId) => {
+          const group = liveGroups.find((each) => each.id === groupId);
+          return group ? sessionsOf(group) : null;
+        })
+      : sessionsOf(placed);
+    return { sessionLists: [sessions], toldAt };
   }
   const facilitated = liveGroups.filter((group) => group.facilitatorUids.includes(uid));
   if (facilitated.length > 0) return { sessionLists: facilitated.map((group) => sessionsOf(group)), toldAt: null };

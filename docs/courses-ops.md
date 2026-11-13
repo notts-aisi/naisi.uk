@@ -1774,6 +1774,105 @@ Each press that puts anybody on a run appends one line to the course log
 programme, and how many people. It names none of them. Destroying the run
 clears it with the run's other lines.
 
+## Which group somebody was in, week by week
+
+A place on a run (`courseEnrolments/{runId}__{uid}`) has one group,
+`groupId`: the group the person is in NOW. A place can also carry a record of
+which group it was in from which week, `groupsByWeek`, a list of
+`{ groupId, fromWeek }` in week order whose last entry is the group they are in
+now. Somebody moved from Group C to Group F from week 3 has
+`[{ C, 1 }, { F, 3 }]`: weeks 1 and 2 are Group C's, and every week from 3 is
+Group F's.
+
+**Nobody has one yet.** The record is written only by `moveFromWeek`
+(`src/lib/courses/moveFromWeek.ts`), which sets the group and the record in one
+transaction, and no route calls it (a test fails if one does). A place with no
+record, which is every place on both projects, reads exactly as it always has:
+the group it is in now, for every week. That includes everybody moved before
+the record existed, whose earlier weeks read the group they are in now, as
+they did.
+
+**The one question.** `groupForWeek(place, weekNumber)`
+(`src/lib/firestore/courseEnrolments.ts`) answers which group a person was in
+for a week: the record's last entry from that week or earlier, the first
+entry's group for a week before it, and the place's group when there is no
+record. The helpers in `src/lib/courses/groupsByWeek.ts` are made of it. It
+answers the group the record names whether or not that group still meets; a
+week in a group that no longer meets has no session, no register and no mark
+for anybody reading it.
+
+**Kept true.** The normaliser reads a record whole or not at all: every entry a
+group id and a whole week, weeks rising, and the last group the place's group.
+A record that contradicts the place reads as none. The writer keeps it that
+way, and every other writer of a place's group deletes the record whenever it
+changes the group: a move on the allocation board (to another group, or to
+none), Remove, somebody changing the session of a seat they took on an open
+run, and placing a facilitator who holds a place in the group they facilitate.
+Each of those is a move for every week, so the place then reads the group it
+is in now for every week, as every such move always has. A write that leaves
+the group where it is (a press on the board that changes nothing, reinstate,
+Publish) keeps the record. Deleting an account and destroying a run delete the
+place whole; an account's marks are cleared from every register of the run,
+whichever group.
+
+**Who reads a week's group, and who reads now.** Every reader about one
+session or one week of a person asks `groupForWeek`, whether the session is
+past or still to come, and `tests/course-groups-by-week-readers.test.mjs`
+lists every file that reads a place's group (or a group's people, through
+the notice audience) beside a week's mark, a due session, a group's sessions
+or register rows, and runs each reader for a mover with a record and without.
+`tests/course-groups-by-week-sessions.test.mjs` runs the readers about one
+session three ways: moved from the next week to meet, moved from two weeks
+ahead, and moved with no record. The readers:
+
+- *The session they were due at*: `sessionSourceFor`, so Late, Feedback to
+  write's seven days and the reminders before a session, which reach the
+  people whose group for the session's week is the session's group (the
+  notice audience's `weekNumber`).
+- *Their mark for a week*: their own attendance on the run home, their row of
+  the Attendance tab and of the group page's grid, who finished, what a
+  certificate needs, and the rollup on their place. A mover is ONE row, under
+  the group they are in now, each week read off the register of the group they
+  were in that week; a group's figure for a week counts the marks on its own
+  register. A session of their new group finished before they were in it is
+  never an absence of theirs. "Of your group's 6 sessions" is not said to
+  somebody whose sessions were more than one group's.
+- *Which register a week's line is on*: a group's register lists everybody in
+  it for a week of its registers, and a mover's row carries the weeks they
+  were in it (`inGroupWeeks`): their cells in other weeks are inert, and a
+  mark there is refused. The check-ins, the session report, Ask for a
+  correction and the participant notes take the rows of their session's week.
+  The rollup's people for a group are everybody with a week in it, so a
+  correction of an old group's register reaches a mover's figures.
+- *Everything else about one session*: their calendar link (each week's
+  session from that week's group, past and future); their own excused weeks
+  (each session and its outcome off that week's group's register, with
+  nothing offered to ask of the group they are in now about another group's
+  week); deciding a request to be excused (it belongs to the group they were
+  in for its week, so one asked before a move about a week that stays with
+  the old group is still decided, and written on that group's register);
+  "Can't make it" and "Joining online" (on the register of the group the
+  session's week was spent in, and the ticket's session is the next one they
+  are due at; "Joining online" tells that group's facilitators); when a pick
+  closes and This week's due dates on the run home; when a sealed prediction
+  opens; a new regular time, which takes back ticks only for the weeks the
+  person is in that group; and the group's "Week N is open" email, with what
+  a register's button says of it, which reach the people in the group for the
+  session's week.
+
+Everything that means the group they are in NOW keeps reading `groupId`: their
+facilitators, the roster, who reads their work and gives feedback on it, which
+copy of a week they work in, who Publish tells what, "Can you make this
+time?", Remind (the people the group's page lists, whose work its
+facilitators read), and the group a leaver no register marked is named under.
+Asking to be excused is asked of the group they are in now, and so is the
+request page's Approve button, which is offered while the person is in the
+request's group now. A move does not change who reads whose work here. With
+no record of groups by week, every reader answers as it always has, because
+every week reads the group they are in now. The readers of one session above
+read a move dated further ahead than the next week to meet as it is, the
+weeks in between staying with the old group.
+
 ## A programme's lead on the run their programme names
 
 Each programme's lead does, for their own programme, what an admin does from

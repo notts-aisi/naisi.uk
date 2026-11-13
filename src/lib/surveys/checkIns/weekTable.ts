@@ -199,7 +199,7 @@ export async function readWeekTable(
   // The register's told rows, the people an opening reaches: read once a group, and only where one can be opened.
   const told = new Map<string, Promise<{ uid: string }[]>>();
   const toldOf = (group: CourseGroupDoc) => {
-    if (!told.has(group.id)) told.set(group.id, loadToldRegisterMembers(db, runId, group.id).then((roster) => roster.members));
+    if (!told.has(group.id)) told.set(group.id, loadToldRegisterMembers(db, runId, group.id, weekNumber).then((roster) => roster.members));
     return told.get(group.id) as Promise<{ uid: string }[]>;
   };
 

@@ -4197,7 +4197,10 @@ describe("the course hub passage", () => {
     const registerAccess = withoutComments(read("src/lib/courses/registerAccess.ts"));
     const members = registerAccess.slice(registerAccess.indexOf("export async function loadRegisterMembers("));
     const membersBody = members.slice(0, members.indexOf("\n}\n"));
-    assert.match(membersBody, /\.where\("groupId", "==", groupId\)\s*\.where\("status", "==", "active"\)/);
+    // Every active row on the run that is in the group (now, or for a week
+    // its place records in it), and nothing else asked of it.
+    assert.match(membersBody, /\.where\("runId", "==", runId\)\s*\.where\("status", "==", "active"\)/);
+    assert.match(membersBody, /if \(e\.groupId !== groupId && !everInGroup\(e, groupId\)\) continue;/);
     assert.ok(!/\brole\b/.test(membersBody), "the register now asks people's roles, so a facilitator who holds a place may be left off it");
 
     // "Counted for who finished": who finished is the run's learner rows, and
@@ -11198,7 +11201,9 @@ describe("v15 says reminders before a session are about what is left, are part o
 
   test("part of running the programme, so the settings don't switch them off: a notice, to everybody holding a place", () => {
     assert.match(job, /surface: "course-week-reminder",/);
-    assert.match(job, /resolveNoticeAudience\(db, runState\.run\.id, LANE, \{ groupId: group\.id \}\)/);
+    // Everybody holding a place in the group for the session's week (with no
+    // record of groups by week anywhere, the people in it now).
+    assert.match(job, /resolveNoticeAudience\(db, runState\.run\.id, LANE, \{ groupId: group\.id, weekNumber \}\)/);
     assert.doesNotMatch(job, /resolveCohortAudience|wantsEmailForProfile|hasOptedOut|listUnsubscribe/, "a reminder reads somebody's settings, or offers to switch itself off");
   });
 

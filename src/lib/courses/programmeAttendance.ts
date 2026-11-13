@@ -18,10 +18,12 @@ import {
 } from "@/lib/firestore/courseAttendance";
 import {
   enrolmentHasLeft,
+  groupForWeek,
   normalizeCourseEnrolment,
   placementIsShownTo,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
+import { hasGroupsByWeek } from "@/lib/courses/groupsByWeek";
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { readSchedulerConfig } from "@/lib/firestore/schedulerConfig";
@@ -55,6 +57,15 @@ import { registerSwitchesIn, type RegisterSwitches } from "@/lib/scheduler/regis
  *    (`droppedOutAt`; a row removed before Remove recorded it has none, and
  *    reads "Left"). A withdrawn row keeps its group; a removed row does not,
  *    so it is listed in the group whose register last marked it.
+ *  - ONE ROW A PERSON, in the group they are in now, whichever groups their
+ *    weeks were spent in. Each week's cell reads the register of the group
+ *    they were in THAT week (`groupForWeek`): somebody moved from Group C to
+ *    Group F from week 3 is one row under Group F, their weeks 1 and 2 as
+ *    Group C's registers marked them, and a Group F session finished before
+ *    they were in it is never an absence of theirs. A group's own figures
+ *    for a week count the marks on that group's register, whichever row they
+ *    are drawn on. With no record of groups by week, every week is the
+ *    group's they are listed in, exactly as before.
  *
  * ── WHAT COUNTS ─────────────────────────────────────────────────────────────
  * "Came" counts present, late and left early, as the board says; "of" counts
@@ -493,24 +504,46 @@ function lastMarkedWeek(sessions: Map<number, GroupSessionFacts>, uid: string): 
   return last;
 }
 
-/** One person's row in one group. `over`: the run's last session is over (`runEndOf`). */
+/** One person's sessions by week, each from the group they were in that week. */
+export type WeekSessions = (weekNumber: number) => GroupSessionFacts | undefined;
+
+/** The latest of `weeks` in which the register of the group they were in that week marks this person, or 0. */
+function lastMarkedWeekOf(sessionOf: WeekSessions, weeks: readonly number[], uid: string): number {
+  let last = 0;
+  for (const weekNumber of weeks) {
+    if (sessionOf(weekNumber)?.register?.records[uid] && weekNumber > last) last = weekNumber;
+  }
+  return last;
+}
+
+/**
+ * THE GROUP WHOSE SESSION AND REGISTER ONE WEEK OF A ROW READS: the group they
+ * were in that week (`groupForWeek`), or, with no record of groups by week,
+ * the group the row is listed in, as it always was (a removed row has no
+ * group of its own, and is listed where a register last marked it).
+ */
+function weekGroupOf(enrolment: CourseEnrolmentDoc, listedIn: string, weekNumber: number): string | null {
+  return hasGroupsByWeek(enrolment) ? groupForWeek(enrolment, weekNumber) : listedIn;
+}
+
+/** One person's row. `over`: the run's last session is over (`runEndOf`). */
 function personRow(
   enrolment: CourseEnrolmentDoc,
   name: string,
   weeks: readonly number[],
-  sessions: Map<number, GroupSessionFacts>,
+  sessionOf: WeekSessions,
   over: boolean,
 ): GridPerson {
   const left = hasLeft(enrolment);
   const leftAt = left ? enrolment.droppedOutAt : null;
-  const lastMarked = left && !leftAt ? lastMarkedWeek(sessions, enrolment.uid) : 0;
+  const lastMarked = left && !leftAt ? lastMarkedWeekOf(sessionOf, weeks, enrolment.uid) : 0;
   const cells: GridCell[] = [];
   let came = 0;
   let of = 0;
   let online = 0;
   let groupHeld = 0;
   for (const weekNumber of weeks) {
-    const facts = sessions.get(weekNumber);
+    const facts = sessionOf(weekNumber);
     if (!facts) {
       cells.push({ weekNumber, state: "none", mark: null, saved: false });
       continue;
@@ -559,7 +592,7 @@ function personRow(
   if (!left && !over) {
     for (let at = cells.length - 1; at >= 0; at -= 1) {
       const cell = cells[at];
-      const facts = sessions.get(cell.weekNumber);
+      const facts = sessionOf(cell.weekNumber);
       if (cell.state !== "mark" || !facts || !happened(facts)) continue;
       if (cell.mark !== "absent") break;
       absentWeeks.unshift(cell.weekNumber);
@@ -614,8 +647,13 @@ export type ListedGroup = {
   group: CourseGroupDoc;
   sessions: Map<number, GroupSessionFacts>;
   facilitators: StandingFacilitator[];
-  /** Everybody listed: taking part and left, name order. */
-  people: { enrolment: CourseEnrolmentDoc; row: GridPerson }[];
+  /**
+   * Everybody listed: taking part and left, name order. `sessionOf` is the
+   * session, and the register, each week of the row was read from: the group
+   * they were in that week (`groupForWeek`), which is this group unless
+   * their place records a move.
+   */
+  people: { enrolment: CourseEnrolmentDoc; row: GridPerson; sessionOf: WeekSessions }[];
   notYetTold: boolean;
 };
 
@@ -657,14 +695,19 @@ export function listGroups(
       const inGroup =
         enrolment.status === "removed" ? removedHome.get(enrolment.uid) === group.id : enrolment.groupId === group.id;
       if (!inGroup || !(takesPart(enrolment) || hasLeft(enrolment))) continue;
-      const marked = lastMarkedWeek(sessions, enrolment.uid) > 0;
+      // Each week from the group they were in that week (see "Who is a row").
+      const sessionOf: WeekSessions = (weekNumber) => {
+        const weekGroup = weekGroupOf(enrolment, group.id, weekNumber);
+        return weekGroup ? sessionsByGroup.get(weekGroup)?.get(weekNumber) : undefined;
+      };
+      const marked = lastMarkedWeekOf(sessionOf, weeks, enrolment.uid) > 0;
       if (!isListed(enrolment, viewer, marked)) {
         if (takesPart(enrolment)) notYetTold = true;
         continue;
       }
       seen.add(enrolment.uid);
       const name = personName(viewer, records.accounts.get(enrolment.uid));
-      people.push({ enrolment, row: personRow(enrolment, name, weeks, sessions, over) });
+      people.push({ enrolment, row: personRow(enrolment, name, weeks, sessionOf, over), sessionOf });
     }
     people.sort((a, b) => a.row.name.localeCompare(b.row.name, "en-GB") || a.row.uid.localeCompare(b.row.uid));
     return { group, sessions, facilitators: facilitatorsOf(records, group, viewer), people, notYetTold };
@@ -723,8 +766,15 @@ function needsLooking(listed: ListedGroup): boolean {
  * sessions that have happened, present, late and left early counted as came.
  * "So far" while one of those groups' sessions that week is still to come or
  * its register is not finished.
+ *
+ * A group's marks are the marks on its own register: each listed person's
+ * cell counts for the group they were in that week (`groupForWeek`), which
+ * is the group they are listed in unless their place records a move.
+ * `everyone` is every group's listed people, so a mark drawn on a mover's
+ * row under their group now still counts for the group whose register holds
+ * it, and once.
  */
-function weekTotal(entries: readonly ListedGroup[], weekNumber: number): GridWeekTotal {
+function weekTotal(entries: readonly ListedGroup[], weekNumber: number, everyone: readonly ListedGroup[]): GridWeekTotal {
   let came = 0;
   let of = 0;
   let online = 0;
@@ -736,7 +786,12 @@ function weekTotal(entries: readonly ListedGroup[], weekNumber: number): GridWee
     if (!facts.finished) soFar = true;
     if (!happened(facts)) continue;
     let counted = 0;
-    for (const { row } of entry.people) {
+    const rows = everyone.flatMap((listed) =>
+      listed.people
+        .filter(({ enrolment }) => weekGroupOf(enrolment, listed.group.id, weekNumber) === entry.group.id)
+        .map(({ row }) => row),
+    );
+    for (const row of rows) {
       const cell = row.cells.find((c) => c.weekNumber === weekNumber);
       if (!cell || cell.state !== "mark" || !cell.mark) continue;
       counted += 1;
@@ -784,11 +839,11 @@ export function buildRunAttendance(records: RunRecords, viewer: GridViewer, now:
       people: rows,
       shown: needsLooking(entry) || rows.length <= QUIET_ROWS ? rows.length : QUIET_ROWS,
       notYetTold: entry.notYetTold,
-      totals: weeks.map((weekNumber) => weekTotal([entry], weekNumber)),
+      totals: weeks.map((weekNumber) => weekTotal([entry], weekNumber, listed)),
     };
   });
 
-  const totals: GridWeekTotal[] = weeks.map((weekNumber) => weekTotal(listed, weekNumber));
+  const totals: GridWeekTotal[] = weeks.map((weekNumber) => weekTotal(listed, weekNumber, listed));
 
   return {
     weeks: weeks.map((weekNumber) => ({ weekNumber, thisWeek: weekNumber === thisWeek })),

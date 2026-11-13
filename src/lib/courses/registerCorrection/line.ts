@@ -93,7 +93,8 @@ export async function readLineCorrection(
   tx: Transaction,
   db: Firestore,
   input: {
-    run: Pick<CourseRunDoc, "id">;
+    /** The run: whose groups a member's other weeks are resolved by, for the figures. */
+    run: CourseRunDoc;
     groupId: string;
     session: ResolvedSession;
     sessions: ResolvedSession[];
@@ -147,6 +148,7 @@ export async function readLineCorrection(
   ]);
   const mirror = await readMirrorPlan(tx, db, {
     runId: run.id,
+    run,
     groupId,
     sessions: input.sessions,
     members: input.mirrorMembers,

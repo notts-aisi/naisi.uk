@@ -583,6 +583,15 @@ const READERS = {
       "told places are read only to count whose reminders before a session have gone, and the preview answers with " +
       "counts. A placement nobody has told is no reminder and is not counted; nobody's group is shown",
   },
+  "lib/courses/moveFromWeek.ts": {
+    kind: "writer",
+    proof: ["if (!placementIsTold(place)) return { ok: false, refusal: \"not-told\" };", "patch.toldGroupId = fromGroupId;"],
+    told: 1,
+    why:
+      "moving somebody to another group from a week, which no route calls yet: it moves only a seat Publish has told " +
+      "(a seat nobody has told is the board's to move), keeps it told, and writes the group it was told about the first " +
+      "time a seat told before that was kept moves. It shows nobody anything and emails nobody",
+  },
   "lib/courses/regularTime/apply.ts": {
     kind: "writer",
     proof: [
@@ -841,9 +850,11 @@ describe("every reader of placements says what it does about a placement Publish
       for (const [, args] of calls) {
         // Whether the caller is an admin, from the gate; and, where the rows
         // are named for the caller, the session's own role (the names rule).
+        // A caller about one session may hand its week after it, for the rows
+        // of that week (`forWeek`).
         assert.match(
           args,
-          /,\s*\{\s*isAdmin\s*:\s*gated\.isAdmin\s*(?:,\s*role\s*:\s*(?:actor|gated)\.role\s*)?\}\s*$/,
+          /,\s*\{\s*isAdmin\s*:\s*gated\.isAdmin\s*(?:,\s*role\s*:\s*(?:actor|gated)\.role\s*)?\}\s*(?:,\s*(?:session\.)?weekNumber\s*)?$/,
           `${file} calls it without the caller's role`,
         );
       }

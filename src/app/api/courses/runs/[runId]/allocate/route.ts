@@ -487,6 +487,12 @@ export async function POST(req: Request, ctx: Ctx) {
           const told =
             enrolment.role === "learner" && !enrolmentHasLeft(enrolment.status) && placementIsTold(enrolment);
           if (enrolment.groupId !== groupId) {
+            // A move here is for every week: the record of which group they
+            // were in from which week (`groupsByWeek`, written only by a move
+            // from a week) goes, so it can never disagree with the group, and
+            // they read the group they are in now for every week, as every
+            // move here always has.
+            patch.groupsByWeek = FieldValue.delete();
             if (told) {
               // THEY STAY TOLD (see the note at the top). A seat told before
               // the group it was told about was kept was told about the group

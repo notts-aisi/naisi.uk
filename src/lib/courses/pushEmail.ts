@@ -4,7 +4,7 @@ import { previewNextWeekEmails, type NextWeekEmailPreview } from "@/lib/courses/
 import type { ResolvedSession } from "@/lib/courses/sessions";
 import { dayWords } from "@/lib/courses/sessionChange/words";
 import type { CoursesConfig } from "@/lib/firestore/config";
-import { normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
+import { groupForWeek, normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 
@@ -83,20 +83,30 @@ export function sessionAfter(
 }
 
 /**
- * How many people are placed in the group and have been told it: the people a
- * group's email is for, before anybody's choice or address leaves them out.
- * One equality, the rest in memory.
+ * How many people are placed in the group and have been told it, for each
+ * week asked about: the people a group's email about a session of that week
+ * is for, before anybody's choice or address leaves them out. In the group
+ * FOR THAT WEEK (`groupForWeek`), as the email's own audience is, so the
+ * run's places are read (one equality) and each is asked; with no record of
+ * groups by week, the people in the group now, for every week.
  */
-async function peopleInGroup(db: Firestore, runId: string, groupId: string): Promise<number> {
-  const snap = await db.collection("courseEnrolments").where("groupId", "==", groupId).get();
-  const told = new Set<string>();
+async function peopleInGroupByWeek(
+  db: Firestore,
+  runId: string,
+  groupId: string,
+  weekNumbers: readonly number[],
+): Promise<Map<number, number>> {
+  const snap = await db.collection("courseEnrolments").where("runId", "==", runId).get();
+  const told = new Map(weekNumbers.map((weekNumber) => [weekNumber, new Set<string>()] as const));
   for (const doc of snap.docs) {
     const enrolment = normalizeCourseEnrolment(doc.id, doc.data() ?? {});
-    if (enrolment.runId !== runId || enrolment.groupId !== groupId) continue;
+    if (enrolment.runId !== runId || !enrolment.groupId) continue;
     if (enrolment.status !== "active" || !enrolment.uid || !placementIsTold(enrolment)) continue;
-    told.add(enrolment.uid);
+    for (const [weekNumber, uids] of told) {
+      if (groupForWeek(enrolment, weekNumber) === groupId) uids.add(enrolment.uid);
+    }
   }
-  return told.size;
+  return new Map([...told].map(([weekNumber, uids]) => [weekNumber, uids.size] as const));
 }
 
 /**
@@ -149,7 +159,9 @@ export async function readPushEmails(
     appUrl: args.appUrl,
   });
   const goes = [...previews.values()].some((preview) => preview.goes);
-  const people = goes ? await peopleInGroup(db, run.id, group.id) : 0;
+  const people = goes
+    ? await peopleInGroupByWeek(db, run.id, group.id, [...new Set([...after.values()].map((next) => next.weekNumber))])
+    : new Map<number, number>();
   for (const [key, next] of after) {
     const preview = previews.get(next.sessionKey);
     if (!preview) continue;
@@ -161,7 +173,7 @@ export async function readPushEmails(
           cancelled: next.cancelled,
           emails: preview.emails,
           // Never fewer than it reaches: everyone it reaches is placed and told.
-          people: Math.max(people, preview.emails),
+          people: Math.max(people.get(next.weekNumber) ?? 0, preview.emails),
         }
       : { kind: "held", why: preview.why, weekNumber: next.weekNumber };
   }

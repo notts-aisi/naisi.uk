@@ -11,6 +11,7 @@ import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
   placementIsTold,
+  groupForWeek,
   type CourseEnrolmentRole,
 } from "@/lib/firestore/courseEnrolments";
 import {
@@ -403,6 +404,14 @@ export type CohortAudienceLane = {
 export type CohortAudienceScope = {
   /** Keep only members whose active enrolment names this group. */
   groupId?: string | null;
+  /**
+   * With `groupId`, and for a notice only: keep the people whose group FOR
+   * THIS WEEK is that group (`groupForWeek`), rather than the people in it
+   * now. Somebody moved from a later week is still due at their old group's
+   * session before it. With no record of groups by week anywhere this is
+   * exactly the people in the group now.
+   */
+  weekNumber?: number | null;
 };
 
 /** Hard ceiling per request. Beyond this a send FAILS — see below. */
@@ -743,6 +752,9 @@ export async function resolveNoticeAudience(
   scope: CohortAudienceScope = {},
 ): Promise<CohortAudience> {
   const onlyGroupId = scope.groupId ?? null;
+  // A week's group is read off each place, so the read is not narrowed to the
+  // group there: somebody whose week is spent in it may be in another now.
+  const forWeek = onlyGroupId && typeof scope.weekNumber === "number" ? scope.weekNumber : null;
   const gmailOnly = process.env.EMAIL_GMAIL_ONLY_MODE === "true";
 
   // The run's active places, narrowed to the group when there is one. Equality
@@ -752,7 +764,7 @@ export async function resolveNoticeAudience(
     .collection("courseEnrolments")
     .where("runId", "==", runId)
     .where("status", "==", "active");
-  if (onlyGroupId) places = places.where("groupId", "==", onlyGroupId);
+  if (onlyGroupId && forWeek === null) places = places.where("groupId", "==", onlyGroupId);
   const placeSnap = await places.get();
   if (placeSnap.docs.length > MAX_NOTICE_ENROLMENT_ROWS) {
     console.error(`[${lane.logTag}] enrolment read exceeds ceiling`, runId, placeSnap.docs.length);
@@ -783,7 +795,7 @@ export async function resolveNoticeAudience(
       continue;
     }
     if (!NOTICE_ROLES.includes(enrolment.role)) continue;
-    if (onlyGroupId && enrolment.groupId !== onlyGroupId) continue;
+    if (onlyGroupId && (forWeek === null ? enrolment.groupId : groupForWeek(enrolment, forWeek)) !== onlyGroupId) continue;
     if (!placementIsTold(enrolment)) {
       notYetTold += 1;
       continue;

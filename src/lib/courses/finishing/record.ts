@@ -6,6 +6,7 @@ import {
   type GridPerson,
   type RunRecords,
 } from "@/lib/courses/programmeAttendance";
+import { groupsOfWeeks } from "@/lib/courses/groupsByWeek";
 import { normalizeCourseAttendance, type CourseAttendanceDoc } from "@/lib/firestore/courseAttendance";
 import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -40,7 +41,8 @@ export { liveGroupsOf, runEndOf, type RunEnd };
  *    out. Before then every member's record answers "not finished".
  *  - "CAME" IS THE ATTENDANCE TAB'S. A person's count is their row of the
  *    run's grid (`listGroups` in `programmeAttendance.ts`): present, late and
- *    left early on the registers of their group, from the week they joined.
+ *    left early on the registers of their group, from the week they joined,
+ *    each week's from the group they were in that week (`groupForWeek`).
  *    The member's own answer builds that same row from the same function, so
  *    the lead's list and the member's page cannot count differently.
  *
@@ -217,12 +219,19 @@ export async function finishedForMember(
     decisions: new Map(decision && decision.runId === run.id && decision.uid === enrolment.uid ? [[decision.uid, decision]] : []),
   };
 
-  // The registers of their own group: one equality on `groupId`.
-  const registerSnap = await db.collection("courseAttendance").where("groupId", "==", enrolment.groupId).get();
+  // The registers of the groups their weeks were spent in (`groupsOfWeeks`:
+  // their own group alone, unless their place records a move), one equality
+  // on `groupId` each, so their row reads each week from the right register.
+  const weekGroups = groupsOfWeeks(enrolment);
+  const registerSnaps = await Promise.all(
+    weekGroups.map((groupId) => db.collection("courseAttendance").where("groupId", "==", groupId).get()),
+  );
   const registers = new Map<string, CourseAttendanceDoc>();
-  for (const doc of registerSnap.docs) {
-    const register = normalizeCourseAttendance(doc.id, doc.data() ?? {});
-    if (register.runId === run.id && register.groupId === enrolment.groupId) registers.set(doc.id, register);
+  for (const snap of registerSnaps) {
+    for (const doc of snap.docs) {
+      const register = normalizeCourseAttendance(doc.id, doc.data() ?? {});
+      if (register.runId === run.id && weekGroups.includes(register.groupId)) registers.set(doc.id, register);
+    }
   }
   const records: RunRecords = {
     run,

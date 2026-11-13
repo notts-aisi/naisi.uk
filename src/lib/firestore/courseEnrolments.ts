@@ -196,6 +196,34 @@ export type StoredTimeAnswer =
       at: Date | null;
     };
 
+/**
+ * ONE ENTRY OF A PLACE'S RECORD OF GROUPS BY WEEK: the group they were in
+ * from `fromWeek` (a cohort week, 1 and up) until the next entry's week, or
+ * for good when it is the last.
+ *
+ * THE RECORD (`groupsByWeek`) is what lets a person's group differ from week
+ * to week: moved from Group C to Group F from week 3, their weeks 1 and 2 are
+ * Group C's (the session they were due at, their marks, the register their
+ * line is on) and their weeks from 3 are Group F's. Written only by
+ * `moveFromWeek` (`src/lib/courses/moveFromWeek.ts`), which sets the place's
+ * group and the record in one transaction, and kept consistent there:
+ * entries in week order, no two from the same week, no two in a row naming
+ * the same group, and the last entry's group the place's group. Every other
+ * writer of a place's group deletes the record whenever it changes the
+ * group, so the record can never disagree with it.
+ *
+ * Who reads whose work is NOT this record's business: their facilitators
+ * now, the roster and who reads their work read the place's group
+ * (`groupId`), the group they are in now.
+ */
+export type GroupFromWeek = { groupId: string; fromWeek: number };
+
+/**
+ * Bounds on a stored record: a run's plan holds at most 60 weeks, so no
+ * real record has more entries than that, nor a week past it.
+ */
+export const GROUPS_BY_WEEK_LIMITS = { entries: 60, week: 60 } as const;
+
 export type CourseEnrolmentDoc = {
   /** Firestore doc id: `courseEnrolmentId(runId, uid)`. */
   id: string;
@@ -315,6 +343,15 @@ export type CourseEnrolmentDoc = {
    * a seat writes the group it leaves here, in the same write.
    */
   toldGroupId: string | null;
+  /**
+   * WHICH GROUP THEY WERE IN, FROM WHICH WEEK (see `GroupFromWeek`): the
+   * groups of a place moved during the run, in week order, the last being
+   * the group they are in now. Absent on every place nobody has moved from a
+   * week, and on a stored value that is not a whole record: such a place
+   * reads as it always has, the group it is in now for every week
+   * (`groupForWeek`).
+   */
+  groupsByWeek?: GroupFromWeek[];
   /**
    * The person's answer to "can you make this time?" (see
    * `StoredTimeAnswer`). Absent until they answer, and on a stored value
@@ -445,7 +482,79 @@ export function movedSinceTold(
   );
 }
 
+/**
+ * WHICH GROUP A PERSON WAS IN FOR ONE WEEK OF THE RUN: the one question every
+ * reader of a WEEK's group asks (the session they were due at, their mark
+ * for the week, the register their line is on).
+ *
+ *  - No record (every place nobody has moved from a week, and every place
+ *    moved before the record existed): the group they are in now, for every
+ *    week, exactly as every reader read it before.
+ *  - A record: the group of its last entry from that week or earlier; a week
+ *    before its first entry reads the first entry's group, the group they
+ *    joined, since nothing says they were anywhere else. Whether they had
+ *    joined by then is the reader's own floor (`joinedWeekNumber`), as it
+ *    always was.
+ *
+ * It answers the group the record names whether or not that group still
+ * meets: a reader that finds no live group for the answer has no session,
+ * no register and no mark for that week. A reader that means the group they
+ * are in NOW (their facilitators, the roster, who reads their work) reads
+ * `groupId` and never this.
+ */
+export function groupForWeek(
+  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek">,
+  weekNumber: number,
+): string | null {
+  const record = place.groupsByWeek;
+  if (!record || record.length === 0 || !Number.isFinite(weekNumber)) return place.groupId;
+  let found = record[0].groupId;
+  for (const entry of record) {
+    if (entry.fromWeek > weekNumber) break;
+    found = entry.groupId;
+  }
+  return found;
+}
+
 type Raw = Record<string, unknown>;
+
+/** A group id a document can be addressed by: some text, and no path separator. */
+function isGroupId(v: unknown): v is string {
+  return typeof v === "string" && v !== "" && !v.includes("/") && v !== "." && v !== "..";
+}
+
+/**
+ * A stored record of groups by week, or undefined to read the place as it
+ * always has. A RECORD IS READ WHOLE OR NOT AT ALL: every entry a group id
+ * and a whole week from 1 to `GROUPS_BY_WEEK_LIMITS.week`, the weeks rising
+ * strictly in the stored order, no more entries than the limit, and the last
+ * entry's group the place's group. A record that contradicts the place (its
+ * last group is not the group they are in now, or they are in no group) is
+ * not read: the place's group is the truth every reader of "now" goes by,
+ * and a record that disagrees with it cannot be trusted about the weeks
+ * before. Two entries in a row naming one group are read as one, and a
+ * record naming one group says nothing the place does not, so it reads as
+ * none.
+ */
+function asGroupsByWeek(v: unknown, groupId: string | null): GroupFromWeek[] | undefined {
+  if (!Array.isArray(v) || v.length === 0 || v.length > GROUPS_BY_WEEK_LIMITS.entries) return undefined;
+  if (!isGroupId(groupId)) return undefined;
+  const out: GroupFromWeek[] = [];
+  let lastWeek = 0;
+  for (const item of v) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return undefined;
+    const entry = item as Raw;
+    const week = entry.fromWeek;
+    if (!isGroupId(entry.groupId)) return undefined;
+    if (typeof week !== "number" || !Number.isInteger(week) || week < 1 || week > GROUPS_BY_WEEK_LIMITS.week) return undefined;
+    if (week <= lastWeek) return undefined;
+    lastWeek = week;
+    if (out.length > 0 && out[out.length - 1].groupId === entry.groupId) continue;
+    out.push({ groupId: entry.groupId, fromWeek: week });
+  }
+  if (out[out.length - 1].groupId !== groupId) return undefined;
+  return out.length > 1 ? out : undefined;
+}
 
 function tsToDate(v: unknown): Date | null {
   if (!v) return null;
@@ -566,5 +675,7 @@ export function normalizeCourseEnrolment(id: string, data: Raw): CourseEnrolment
   }
   const timeAnswer = asTimeAnswer(data.timeAnswer);
   if (timeAnswer) doc.timeAnswer = timeAnswer;
+  const groupsByWeek = asGroupsByWeek(data.groupsByWeek, doc.groupId);
+  if (groupsByWeek) doc.groupsByWeek = groupsByWeek;
   return doc;
 }

@@ -1281,13 +1281,18 @@ test("GUARD — a placed member is NEVER mailed another group's session time", (
   // were placed still names it on their place. The week's emails are sent
   // group by group, each from that group's OWN sessions to that group's OWN
   // people, and an archived group is skipped, so that member is mailed
-  // nothing rather than another group's time and room.
-  assert.match(WEEK_EMAIL, /resolveNoticeAudience\(db, run\.id, LANE, \{ groupId: group\.id \}\)/);
+  // nothing rather than another group's time and room. Its people are that
+  // group's for the session's week (with no record of groups by week, the
+  // people in it now).
+  assert.match(WEEK_EMAIL, /resolveNoticeAudience\(db, run\.id, LANE, \{ groupId: group\.id, weekNumber: session\.weekNumber \}\)/);
   assert.match(WEEK_EMAIL, /const sessions = resolveSessions\(run, group\);/);
   assert.match(WEEK_EMAIL, /sessionAt: sessionInstants\(session\)\.startsAt,/);
   assert.match(WEEK_EMAIL, /where: courseNudgeSessionWhere\(session\.session, sessionModeForWeek\(group, session\.weekId\)\),/);
   assert.match(WEEK_EMAIL_JOB, /if \(group\.archived\) continue;/);
-  assert.match(REMINDERS_JOB, /resolveNoticeAudience\(db, runState\.run\.id, LANE, \{ groupId: group\.id \}\)/);
+  // The reminders: that group's people for the session's week (with no
+  // record of groups by week, the people in it now), from its own sessions.
+  assert.match(REMINDERS_JOB, /resolveNoticeAudience\(db, runState\.run\.id, LANE, \{ groupId: group\.id, weekNumber \}\)/);
+  assert.match(REMINDERS_JOB, /const weekNumber = reminder\.session\.weekNumber;/);
   assert.match(REMINDERS_JOB, /\.filter\(\(group\) => !group\.archived\)/);
 });
 
