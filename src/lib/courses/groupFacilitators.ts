@@ -263,10 +263,12 @@ export function writeFacilitatorChange(
       // keep, and the next Publish tells them.
       const seat = snap?.exists ? normalizeCourseEnrolment(snap.id, snap.data() ?? {}) : null;
       const told = seat !== null && seat.role === "learner" && placementIsTold(seat);
+      // A place in no group has no record of groups by week to keep, and a
+      // move here is for every week, so any stored one goes.
       writer.update(
         ref,
         told
-          ? { groupId: input.groupRef.id, updatedAt: FieldValue.serverTimestamp() }
+          ? { groupId: input.groupRef.id, groupsByWeek: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() }
           : {
               groupId: input.groupRef.id,
               allocatedEmailAt: FieldValue.delete(),
@@ -274,6 +276,7 @@ export function writeFacilitatorChange(
               // And any answer to "can you make this time?", which was about
               // no group of theirs now.
               timeAnswer: FieldValue.delete(),
+              groupsByWeek: FieldValue.delete(),
               updatedAt: FieldValue.serverTimestamp(),
             },
       );

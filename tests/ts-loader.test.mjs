@@ -1246,6 +1246,13 @@ const USERS = new Map([
       "under src/lib/courses are loaded together",
   ],
   [
+    "course-groups-by-week.test.mjs",
+    "executes the record of which group a place was in from which week: the enrolment normaliser and " +
+      "groupForWeek (src/lib/firestore/courseEnrolments.ts) and the helpers made of them " +
+      "(src/lib/courses/groupsByWeek.ts) on stored records whole and malformed, because which group a week " +
+      "reads, and which record is read at all, is decided by the code that runs. Nothing is stubbed",
+  ],
+  [
     "course-guide-format.test.mjs",
     "executes a programme's Start here and Glossary model, its Markdown reader and writer (src/lib/courses/guide/) " +
       "and the week reader's own reading of text on a synthetic Start here and Glossary in the fellow guide's " +

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { isRowForWeek } from "@/lib/courses/groupsByWeek";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ActionToast, { useActionToast } from "@/components/ui/ActionToast";
 import Button from "@/components/ui/Button";
@@ -668,6 +669,7 @@ export default function AttendanceGrid({
         .filter(
           (m) =>
             session.weekNumber >= m.joinedWeekNumber &&
+            isRowForWeek(m, session.weekNumber) &&
             statusOf(session.sessionKey, m.uid) === null,
         )
         .map((m) => ({ uid: m.uid, status: "present" as const, online: saidOnline(session.sessionKey, m.uid) })),
@@ -818,7 +820,7 @@ export default function AttendanceGrid({
       let marked = 0;
       let eligible = 0;
       for (const member of members) {
-        if (session.weekNumber < member.joinedWeekNumber) continue;
+        if (session.weekNumber < member.joinedWeekNumber || !isRowForWeek(member, session.weekNumber)) continue;
         eligible += 1;
         if (statusOf(session.sessionKey, member.uid) !== null) marked += 1;
       }
@@ -1273,6 +1275,9 @@ export default function AttendanceGrid({
                 </th>
                 {sessions.map((session) => {
                   const notYet = session.weekNumber < member.joinedWeekNumber;
+                  // A week their place records them in another group: inert
+                  // the same way. Only a row whose place records a move.
+                  const elsewhere = !notYet && !isRowForWeek(member, session.weekNumber);
                   const status = statusOf(session.sessionKey, member.uid);
                   const key = cellKey(session.sessionKey, member.uid);
                   const hasNote = Boolean(
@@ -1283,15 +1288,17 @@ export default function AttendanceGrid({
                   // stored status here can only come from a `joinedWeekNumber`
                   // edited after the fact; it is shown rather than hidden, and
                   // stays uneditable.
-                  if (notYet) {
+                  if (notYet || elsewhere) {
                     return (
                       <td key={key} className={styles.cell}>
                         <span
                           className={styles.notYet}
                           role="img"
-                          aria-label={`Not in the group yet: joined in week ${member.joinedWeekNumber}${
-                            status ? `, recorded ${ATTENDANCE_STATUS_LABEL[status]}` : ""
-                          }`}
+                          aria-label={`${
+                            elsewhere
+                              ? `In another group in week ${session.weekNumber}`
+                              : `Not in the group yet: joined in week ${member.joinedWeekNumber}`
+                          }${status ? `, recorded ${ATTENDANCE_STATUS_LABEL[status]}` : ""}`}
                         >
                           {status ? GLYPH[status] : "—"}
                         </span>

@@ -573,7 +573,7 @@ describe("4. who reads the table, and who presses its reminder", () => {
     const gate = route.indexOf('if (outcome.status === "not-yours" || outcome.view.viewer !== "admin") {');
     assert.ok(gate > 0 && gate < route.indexOf("await readRunRecords(db, view.run.id)"), "the reminder reads the run before it refuses the lead");
     // What an opening reaches is the register's told rows, as every opening's.
-    assert.match(strip(readFileSync(join(SRC, "lib", "surveys", "checkIns", "weekTable.ts"), "utf8")), /\bloadToldRegisterMembers\(db, runId, group\.id\)/);
+    assert.match(strip(readFileSync(join(SRC, "lib", "surveys", "checkIns", "weekTable.ts"), "utf8")), /\bloadToldRegisterMembers\(db, runId, group\.id, weekNumber\)/);
   });
 
   test("the table's words and the reminders' are plain: no dash, and nothing that marks anybody in what a member reads", () => {

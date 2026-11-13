@@ -7,6 +7,7 @@ import {
   gateGroupRegisterRead,
   isAddressableId,
   loadMirrorMembers,
+  isRowForWeek,
   loadRegisterMembers,
   marksExcused,
   readsFacilitatorRecord as readsFacilitatorRecordOf,
@@ -225,7 +226,9 @@ export type AttendancePayload = {
    * by the names rule for the caller (`nameForViewer`: the committee and
    * admins see "Priya Shah (Pri)", a facilitator who is not on it the name
    * people go by). For anybody but an admin, only people Publish has told
-   * their group.
+   * their group. Somebody whose place records weeks in this group while they
+   * are in another now is a row too, carrying those weeks (`inGroupWeeks`):
+   * their cells in any other week are inert, and a mark there is refused.
    */
   members: RegisterMember[];
   /**
@@ -586,8 +589,9 @@ function onlineAfter(given: boolean | undefined, kept: unknown, said: unknown): 
 }
 
 /**
- * Every uid must be an ACTIVE member of THIS group, and no mark may land
- * before the week they joined. Unknown uids are REFUSED, not silently dropped:
+ * Every uid must be an ACTIVE member of THIS group, a row of it for this
+ * week (somebody whose place records a move is a row only in the weeks they
+ * were in it), and no mark may land before the week they joined. Unknown uids are REFUSED, not silently dropped:
  * a register that quietly ignored half a batch would read as "marked" to the
  * facilitator who sent it.
  *
@@ -603,6 +607,13 @@ function checkMarksAgainstRoster(
   for (const [uid, status] of marks) {
     const member = byUid.get(uid);
     if (!member) return "Someone in that batch isn't an active member of this group.";
+    // A row of this register for some weeks and not this one: their place
+    // records them in another group this week (`isRowForWeek`).
+    if (status !== null && !isRowForWeek(member, weekNumber)) {
+      return weekNumber < member.joinedWeekNumber
+        ? `${member.displayName} hadn't joined the group in week ${weekNumber}.`
+        : `${member.displayName} wasn't in this group in week ${weekNumber}.`;
+    }
     if (status !== null && weekNumber < member.joinedWeekNumber) {
       return `${member.displayName} hadn't joined the group in week ${weekNumber}.`;
     }
@@ -1659,7 +1670,7 @@ export async function PATCH(
   try {
     await db.runTransaction(async (tx) => {
       const plan = await readLineCorrection(tx, db, {
-        run: { id: runId },
+        run: prepared.ctx.run,
         groupId,
         session,
         sessions,

@@ -444,6 +444,7 @@ async function heldOnline(ctx: ColumnContext, press: ColumnPress): Promise<Colum
     if (lines.length === 0) throw new Refused(409, CORRECTION_REFUSAL.nothingInTheRoom);
     const plan = await readMirrorPlan(tx, db, {
       runId: ctx.run.id,
+      run: ctx.run,
       groupId: ctx.group.id,
       sessions: ctx.sessions,
       members: mirrorMembers,
@@ -682,6 +683,7 @@ async function moveColumn(ctx: ColumnContext, press: ColumnPress): Promise<Colum
 
     const plan = await readMirrorPlan(tx, db, {
       runId: run.id,
+      run,
       groupId: group.id,
       sessions: ctx.sessions,
       members: mirrorMembers,
@@ -846,6 +848,7 @@ async function clearColumn(ctx: ColumnContext, press: ColumnPress): Promise<Colu
     const lines = linesSetForSession(fresh).uids;
     const plan = await readMirrorPlan(tx, db, {
       runId: run.id,
+      run,
       groupId: group.id,
       sessions: ctx.sessions,
       members: mirrorMembers,
@@ -1120,6 +1123,7 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
     const lines = linesCalledOff(stored).uids;
     const plan = await readMirrorPlan(tx, db, {
       runId: run.id,
+      run,
       groupId: group.id,
       sessions: after,
       members: mirrorMembers,
@@ -1349,6 +1353,7 @@ async function didHappen(ctx: ColumnContext, press: ColumnPress): Promise<Column
     if (!back || back.cancelled) throw new Refused(409, CORRECTION_REFUSAL.changed);
     const plan = await readMirrorPlan(tx, db, {
       runId: run.id,
+      run,
       groupId: group.id,
       sessions: afterSessions,
       members: mirrorMembers,

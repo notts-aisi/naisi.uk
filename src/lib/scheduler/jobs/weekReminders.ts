@@ -396,13 +396,23 @@ async function remindForGroup(
   const sessions = resolveSessions(runState.run, group);
   const due = dueReminders(sessions, ctx.now, ctx.maxLateHours);
   if (due.length === 0) return "done";
-  // Everybody holding a place in the group, read once for its reminders.
-  const audience = await resolveNoticeAudience(db, runState.run.id, LANE, { groupId: group.id });
-  if (audience.refusal) {
-    ctx.log("reminders not sent", { runId: runState.run.id, groupId: group.id, refusal: audience.refusal });
-    return "done";
-  }
+  // Everybody whose group FOR THE SESSION'S WEEK is this one, read once a
+  // week for its reminders (`groupForWeek`): somebody moved from a later week
+  // is reminded by their old group's session before it, and by their new
+  // group's from it. With no record of groups by week anywhere, the people in
+  // the group now.
+  const audiences = new Map<number, CohortAudience>();
   for (const reminder of due) {
+    const weekNumber = reminder.session.weekNumber;
+    let audience = audiences.get(weekNumber);
+    if (!audience) {
+      audience = await resolveNoticeAudience(db, runState.run.id, LANE, { groupId: group.id, weekNumber });
+      audiences.set(weekNumber, audience);
+      if (audience.refusal) {
+        ctx.log("reminders not sent", { runId: runState.run.id, groupId: group.id, refusal: audience.refusal });
+      }
+    }
+    if (audience.refusal) continue;
     if ((await remindForSession(state, runState, group, sessions, reminder, audience, pass)) === "out-of-time") {
       return "out-of-time";
     }

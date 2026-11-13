@@ -377,6 +377,8 @@ function leaversOfRun(records: RunRecords, listed: readonly ListedGroup[], viewe
   for (const enrolment of records.enrolments) {
     if (!hasLeft(enrolment) || named.has(enrolment.uid)) continue;
     named.add(enrolment.uid);
+    // The group their place names: the one they were in when they left. No
+    // register marked them, so no week of theirs is read.
     unmarked.push({
       enrolment,
       name: nameForViewer(viewer, accountNamesOf(records.accounts.get(enrolment.uid) ?? {}), "NAISI member"),

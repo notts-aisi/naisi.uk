@@ -86,7 +86,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ groupId: strin
       { status: 400 },
     );
   }
-  const { members } = await loadRegisterMembers(db, run.id, groupId, { isAdmin: gated.isAdmin, role: actor.role });
+  const { members } = await loadRegisterMembers(db, run.id, groupId, { isAdmin: gated.isAdmin, role: actor.role }, session.weekNumber);
 
   try {
     const answer = await correctColumn(

@@ -627,9 +627,13 @@ describe("7. the send", () => {
   });
 
   test("both emails are read off the places, through the notice door, with no unsubscribe anywhere", () => {
-    assert.match(send, /resolveNoticeAudience\(db, run\.id, LANE, \{ groupId: group\.id \}\)/);
+    // The week's email: the group's people for the session's week, and the
+    // register's preview the same, once a week asked about.
+    assert.match(send, /resolveNoticeAudience\(db, run\.id, LANE, \{ groupId: group\.id, weekNumber: session\.weekNumber \}\)/);
+    assert.match(send, /resolveNoticeAudience\(db, run\.id, LANE, \{ groupId: group\.id, weekNumber \}\)/);
     assert.match(send, /surface: "course-week",/);
-    assert.match(job, /resolveNoticeAudience\(db, runState\.run\.id, LANE, \{ groupId: group\.id \}\)/);
+    // The reminders: the group's people for the session's week.
+    assert.match(job, /resolveNoticeAudience\(db, runState\.run\.id, LANE, \{ groupId: group\.id, weekNumber \}\)/);
     assert.match(job, /surface: "course-week-reminder",/);
     for (const [name, code] of [["the week's email", send], ["the reminders", job]]) {
       assert.doesNotMatch(code, /resolveCohortAudience|listUnsubscribe|unsubscribe|signToken/, `${name} reads the cohort list or offers to unsubscribe`);

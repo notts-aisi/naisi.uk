@@ -228,6 +228,9 @@ export async function POST(_req: Request, ctx: Ctx) {
         // An answer about the group's time was about a group they are no
         // longer in.
         timeAnswer: FieldValue.delete(),
+        // And the record of which group they were in from which week: with
+        // no group it would disagree with the place.
+        groupsByWeek: FieldValue.delete(),
         // WHEN THEY WERE TAKEN OFF, in the field leaving writes, so the
         // programme's Overview, its Attendance tab and the register say
         // "Left Fri 13 Nov" for both kinds of leaving. Somebody who left by

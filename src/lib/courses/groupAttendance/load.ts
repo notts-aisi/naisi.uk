@@ -6,6 +6,7 @@ import {
   readRunRecords,
   type GridCellState,
   type GridPerson,
+  type WeekSessions,
 } from "@/lib/courses/programmeAttendance";
 import { gateGroupRegister, readsFacilitatorRecord } from "@/lib/courses/registerAccess";
 import { resolveSessions } from "@/lib/courses/sessions";
@@ -129,10 +130,14 @@ export type GroupAttendanceView = {
 
 export type LoadedAttendance = { status: "ok"; view: GroupAttendanceView } | { status: "none" };
 
-/** A row's cells as facts, beside the registers they came from. */
-function cellsOf(row: GridPerson, registers: ReadonlyMap<number, CourseAttendanceDoc | null>): AttendanceCell[] {
+/**
+ * A row's cells as facts, beside the registers they came from: each week's
+ * the register of the group the person was in that week (`sessionOf`, from
+ * the grid), which is this group's unless their place records a move.
+ */
+function cellsOf(row: GridPerson, sessionOf: WeekSessions): AttendanceCell[] {
   return row.cells.map((cell) => {
-    const register = registers.get(cell.weekNumber) ?? null;
+    const register = sessionOf(cell.weekNumber)?.register ?? null;
     return {
       weekNumber: cell.weekNumber,
       state: cell.state,
@@ -209,19 +214,21 @@ export async function loadGroupAttendance(
   });
 
   const facilitatorUids = new Set(group.facilitatorUids);
-  const rowOf = (row: GridPerson): AttendancePersonRow => ({
+  const rowOf = (row: GridPerson, sessionOf: WeekSessions): AttendancePersonRow => ({
     uid: row.uid,
     name: row.name,
     left: row.left,
-    cells: cellsOf(row, registerByWeek),
+    cells: cellsOf(row, sessionOf),
     room: Math.max(0, row.came - row.online),
     online: row.online,
   });
-  const people = listed.people.filter(({ row }) => !facilitatorUids.has(row.uid)).map(({ row }) => rowOf(row));
+  const people = listed.people.filter(({ row }) => !facilitatorUids.has(row.uid)).map(({ row, sessionOf }) => rowOf(row, sessionOf));
 
   let facilitators: AttendanceFacilitatorRow[] | null = null;
   if (staff) {
-    const places = new Map(listed.people.filter(({ row }) => facilitatorUids.has(row.uid)).map(({ row }) => [row.uid, rowOf(row)]));
+    const places = new Map(
+      listed.people.filter(({ row }) => facilitatorUids.has(row.uid)).map(({ row, sessionOf }) => [row.uid, rowOf(row, sessionOf)]),
+    );
     facilitators = facilitatorsOf(records, group, viewer).map((facilitator) => {
       const place = places.get(facilitator.uid) ?? null;
       const out: AttendanceFacilitatorRow = {

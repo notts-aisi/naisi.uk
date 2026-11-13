@@ -1,7 +1,9 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { nextSessionByWeek } from "@/lib/courses/cantMakeIt/seat";
+import { everInGroup, inGroupForWeek } from "@/lib/courses/groupsByWeek";
 import { londonDayLabel } from "@/lib/courses/londonLabels";
-import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
+import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
 import {
@@ -50,7 +52,10 @@ import { JOINING_ONLINE_REFUSAL } from "./words";
  * is not being destroyed, told their group (`placementIsTold`), on an account
  * that stands. The register's rows, a facilitator who holds a place in the
  * group included. Nobody can say it for anybody else: the seat is read by the
- * caller's own uid.
+ * caller's own uid. A session's group is the group they were in for its week
+ * (`groupForWeek`), as for "Can't make it": somebody whose place records a
+ * move says it on their old group's register for the weeks before it, and
+ * that group's facilitators are the ones told.
  *
  * ## What it writes
  *
@@ -74,11 +79,25 @@ import { JOINING_ONLINE_REFUSAL } from "./words";
  * or later.
  */
 
-/** Whether this seat is one of the group's people the register shows, by the caller's own uid. */
-function takesPartIn(user: SessionUser, seat: CourseEnrolmentDoc, group: CourseGroupDoc, runId: string): boolean {
+/**
+ * Whether this seat is one of the group's people the register shows, by the
+ * caller's own uid: for ONE SESSION, the group they were in for its week
+ * (`groupForWeek`); with `weekNumber` null, whether any week of theirs was
+ * spent in the group, which a press asks before it knows which session it
+ * names. With no record of groups by week, the group they are in now for
+ * every week.
+ */
+function takesPartIn(
+  user: SessionUser,
+  seat: CourseEnrolmentDoc,
+  group: CourseGroupDoc,
+  runId: string,
+  weekNumber: number | null,
+): boolean {
   if (seat.uid !== user.uid || seat.runId !== runId) return false;
   if (seat.role !== "learner" || seat.status !== "active") return false;
-  if (!seat.groupId || seat.groupId !== group.id || group.runId !== runId || group.archived) return false;
+  if (!seat.groupId || group.runId !== runId || group.archived) return false;
+  if (weekNumber === null ? !everInGroup(seat, group.id) : !inGroupForWeek(seat, group.id, weekNumber)) return false;
   if (!placementIsTold(seat)) return false;
   return isNamedWithStanding(user, "courseEnrolments.uid", seat.uid);
 }
@@ -129,10 +148,12 @@ export async function joiningOnlineFor(
 ): Promise<JoiningOnlineView | null> {
   const seat = input.enrolment;
   if (!seat?.groupId) return null;
-  const group = input.groups.find((each) => each.id === seat.groupId);
-  if (!group || !takesPartIn(input.user, seat, group, input.run.id)) return null;
-  const next = sessionRange(resolveSessions(input.run, group), input.now).next;
-  if (!next) return null;
+  const own = input.groups.find((each) => each.id === seat.groupId);
+  if (!own || !takesPartIn(input.user, seat, own, input.run.id, null)) return null;
+  // Their next session, from the group they are in for its week.
+  const found = nextSessionByWeek(input.run, seat, own, input.groups, input.now);
+  if (!found) return null;
+  const { group, session: next } = found;
   const id = attendanceDocId(input.run.id, group.id, next.weekNumber, next.occurrence);
   const snap = await db.collection("courseAttendance").doc(id).get();
   const state = stateOn(group, next, lineOf(snap.exists ? snap.data() : undefined, id, input.user.uid), input.now);
@@ -216,11 +237,16 @@ async function writeJoiningOnline(
     }
     const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
     const seat = normalizeCourseEnrolment(seatSnap.id, seatSnap.data() ?? {});
-    if (!takesPartIn(user, seat, group, run.id)) return only(refuse(404, JOINING_ONLINE_REFUSAL.notYours));
+    // A week of theirs was spent in this group: asked before the session is
+    // known, so the refusals come in the order they always have.
+    if (!takesPartIn(user, seat, group, run.id, null)) return only(refuse(404, JOINING_ONLINE_REFUSAL.notYours));
 
-    // The session is one this group holds, by the group's own calendar.
+    // The session is one this group holds, by the group's own calendar, in a
+    // week they are in this group: its register is the one their word is on,
+    // and its facilitators are the ones told.
     const session = resolveSessions(run, group).find((each) => each.sessionKey === request.sessionKey);
     if (!session) return only(refuse(400, JOINING_ONLINE_REFUSAL.noSession));
+    if (!takesPartIn(user, seat, group, run.id, session.weekNumber)) return only(refuse(404, JOINING_ONLINE_REFUSAL.notYours));
     const ref = db.collection("courseAttendance").doc(attendanceDocId(run.id, group.id, session.weekNumber, session.occurrence));
     const registerSnap = await tx.get(ref);
     const data = registerSnap.exists ? (registerSnap.data() ?? {}) : undefined;

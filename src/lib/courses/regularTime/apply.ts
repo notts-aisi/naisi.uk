@@ -5,6 +5,7 @@ import { cantMakeItState } from "@/lib/courses/cantMakeIt/model";
 import { coverHolderNames, coversOffOf, coversOffWords, writeCoversOff } from "@/lib/courses/registerCover/moves";
 import { writeTakenBack } from "@/lib/courses/cantMakeIt/seat";
 import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
+import { inGroupForWeek } from "@/lib/courses/groupsByWeek";
 import { historyDetail, momentWords, regularHeadline } from "@/lib/courses/groupChange/words";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { currentTimeAnswer, timeQuestionSinceOf } from "@/lib/courses/timeAnswer/model";
@@ -43,7 +44,9 @@ import { REGULAR_REFUSAL } from "./words";
  *     this change moves, that has not started on the new dates and whose
  *     line is still their own word, is taken back, through the writer "I can
  *     make it after all" uses. A week that keeps its time keeps the word. A
- *     one-off "can't make it" or "joining online" is left as it is;
+ *     one-off "can't make it" or "joining online" is left as it is. Only the
+ *     weeks they are in this group (`groupForWeek`): a week their place
+ *     records them in another group is not this group's session;
  *  7. one row of the group's history.
  *
  * The caller has already read the run and admitted the presser.
@@ -214,6 +217,9 @@ export async function applyRegularChange(
         for (const key of answer.sessionKeys) {
           const session = plan.sessionsAfter.find((each) => each.sessionKey === key && each.occurrence === 1);
           if (!session || !timeMoves.has(session.weekNumber)) continue;
+          // Only a week they are in this group (`groupForWeek`): a week their
+          // place records them in another group is that group's session.
+          if (!inGroupForWeek(seat, group.id, session.weekNumber)) continue;
           const ref = refOf.get(session.weekNumber);
           const data = registers.get(session.weekNumber);
           if (!ref || !data) continue;
