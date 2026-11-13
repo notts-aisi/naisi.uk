@@ -510,7 +510,8 @@ async function fetchAs(pg, path, init = {}) {
 
 /**
  * A download fetched with a page's own session: its status, the headers a
- * download is judged by, its length, and its first bytes as text.
+ * download is judged by, its length where the server states one, its size,
+ * and its first and last bytes as text.
  */
 async function fetchFileAs(pg, path) {
   return pg.evaluate(async (target) => {
@@ -526,6 +527,7 @@ async function fetchFileAs(pg, path) {
       length: header("content-length"),
       size: bytes.length,
       head: String.fromCharCode(...bytes.slice(0, 5)),
+      tail: String.fromCharCode(...bytes.slice(-16)),
     };
   }, path);
 }
@@ -1480,7 +1482,10 @@ test(
           },
           "the certificate's PDF, to its owner",
         );
-        assert.equal(Number(file.length), file.size, "the PDF's length is not what it says");
+        // The file arrives whole. The server sets the response's framing, so a
+        // length is there only when the server states one, and then it is true.
+        assert.ok(file.tail.includes("%%EOF"), `the PDF does not end as a PDF ends: ${JSON.stringify(file.tail)}`);
+        if (file.length !== null) assert.equal(Number(file.length), file.size, "the PDF's length is not what it says");
         const [saved] = await Promise.all([adaPage.waitForEvent("download", { timeout: WAIT_MS }), download.click()]);
         assert.equal(saved.suggestedFilename(), CERTIFICATE.pdfName(adaCode), "the PDF downloads under another name");
         assert.equal(await saved.failure(), null, "the PDF did not download");

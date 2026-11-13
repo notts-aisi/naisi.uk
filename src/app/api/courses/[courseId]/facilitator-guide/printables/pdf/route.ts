@@ -99,12 +99,13 @@ export async function GET(req: Request, ctx: Ctx) {
 
   const doc = asked === null ? loaded.doc : printablesOfSession(loaded.doc, asked);
   const { bytes } = await renderPrintablesPdf(doc, printablesPdfTitle(reader.courseTitle, asked));
+  // No Content-Length: the server sets a response's framing, and Next.js
+  // drops a length, an encoding or a transfer encoding that a route sets.
   return new Response(new Uint8Array(bytes), {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="${printablesFileName(reader.courseTitle, asked)}"`,
-      "Content-Length": String(bytes.length),
       "Cache-Control": "private, no-store",
       "X-Robots-Tag": "noindex",
     },
