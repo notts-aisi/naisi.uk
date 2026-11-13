@@ -88,6 +88,23 @@ export async function loadWrittenQueues(
   groups: readonly CourseGroupDoc[],
   now: Date = new Date(),
 ): Promise<Map<string, WrittenQueueRow[]> | null> {
+  return (await readWrittenQueues(db, actor, run, groups, now))?.queues ?? null;
+}
+
+/**
+ * The queues, and with them whose answers each group's list may hold: the
+ * people the one gate lets `actor` review in each group (`reviewableIn`), each
+ * under the first group that holds them. The group page asks it so that the
+ * names it leads to the reading view of somebody's week are exactly the
+ * people that view's own door admits, with no second read of the run.
+ */
+async function readWrittenQueues(
+  db: Firestore,
+  actor: SessionUser,
+  run: CourseRunDoc,
+  groups: readonly CourseGroupDoc[],
+  now: Date,
+): Promise<{ queues: Map<string, WrittenQueueRow[]>; reviewable: Map<string, string> } | null> {
   if (!(await runHasBlockWeek(db, run.id))) return null;
   const [liveGroups, facts, enrolSnap, answerSnap, feedback] = await Promise.all([
     liveGroupsOf(db, run.id),
@@ -163,7 +180,7 @@ export async function loadWrittenQueues(
       lateMs: row.lateMs,
     });
   }
-  return out;
+  return { queues: out, reviewable: groupOf };
 }
 
 /** One group's written answers waiting for `actor`'s feedback, or null for a run with no week written as blocks. */
@@ -176,4 +193,24 @@ export async function loadWrittenQueue(
 ): Promise<WrittenQueueRow[] | null> {
   const queues = await loadWrittenQueues(db, actor, run, [group], now);
   return queues ? (queues.get(group.id) ?? []) : null;
+}
+
+/**
+ * One group's queue, and whose weeks `actor` may open in the reading view of
+ * that group (`reviewableIn`, the gate the view's own door asks), from the one
+ * set of reads; null for a run with no week written as blocks.
+ */
+export async function loadWrittenQueueAndReadable(
+  db: Firestore,
+  actor: SessionUser,
+  run: CourseRunDoc,
+  group: CourseGroupDoc,
+  now: Date = new Date(),
+): Promise<{ rows: WrittenQueueRow[]; readable: Set<string> } | null> {
+  const read = await readWrittenQueues(db, actor, run, [group], now);
+  if (!read) return null;
+  return {
+    rows: read.queues.get(group.id) ?? [],
+    readable: new Set([...read.reviewable].filter(([, groupId]) => groupId === group.id).map(([uid]) => uid)),
+  };
 }

@@ -126,6 +126,8 @@ export default async function ProgrammeGroupPage({
           times: groupsViewPath(view.roundId, view.programmeId, "times"),
           people: tabPath,
           requests: REQUESTS_PATH,
+          // Each name in the week's people opens that person's week in the reading view.
+          coursework: `${base}/coursework`,
           roomPath: `/api/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/${encodeURIComponent(group.id)}/room`,
         }}
       />

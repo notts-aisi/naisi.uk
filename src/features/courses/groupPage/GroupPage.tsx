@@ -75,6 +75,8 @@ export type GroupPageLinks = {
   roomPath: string;
   /** The Requests page, where a line's waiting ask is decided; null where the reader has no way there. */
   requests?: string | null;
+  /** The programme's reading view of one person's week, before the person (".../coursework"); left out, names are plain text. */
+  coursework?: string | null;
 };
 
 type Panel =
@@ -605,6 +607,7 @@ export default function GroupPage({
               said={new Map(week.people.map((person) => [person.uid, person.said]))}
               facilitatorsApart={view.facilitatorsWithPlaces}
               onRemind={(only) => open({ kind: "remind", weekNumber: week.weekNumber, only })}
+              readBase={links.coursework ?? null}
             />
           ) : (
             week &&

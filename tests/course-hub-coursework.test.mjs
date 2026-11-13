@@ -167,9 +167,14 @@ function courseworkSeed() {
 }
 
 const tab = (who, query = {}) => w.draw(pages.tab, who, { roundId: ROUND, programmeId: AGI }, query);
-const person = (who, uid) => w.draw(pages.person, who, { roundId: ROUND, programmeId: AGI, uid });
+const person = (who, uid, query = {}) => w.draw(pages.person, who, { roundId: ROUND, programmeId: AGI, uid }, query);
 const tableOf = (drawn) => find(drawn.element, "CourseworkTable")[0]?.props.view ?? null;
-const personOf = (drawn) => find(drawn.element, "PersonCoursework")[0]?.props.view ?? null;
+const personOf = (drawn) => find(drawn.element, "ReadingView")[0]?.props.view ?? null;
+/** What the reading view draws, one level down: the client components and their props. */
+const drawnView = (drawn) => {
+  const view = find(drawn.element, "ReadingView")[0];
+  return view ? view.type(view.props) : null;
+};
 
 beforeEach(() => w.reset(courseworkSeed()));
 
@@ -325,7 +330,8 @@ describe("4. a cell", () => {
         ticks: { ticked: 1, of: 2 },
         answer: { state: "waiting", href: written("chloe") },
         boxes: { filled: 1, of: 2 },
-        href: `${PROGRAMME_PATH}/coursework/chloe#week-3`,
+        // The reading view of Chloe's week 3.
+        href: `${PROGRAMME_PATH}/coursework/chloe?week=3`,
       });
       assert.deepEqual([cellOf(view, "Farah Hussain", 3).reflections, cellOf(view, "Farah Hussain", 3).answer.state], [{ written: 2, of: 3 }, "feedback"]);
       assert.equal(cellOf(view, "Kofi Asante", 3).answer.state, "started");
@@ -359,31 +365,75 @@ describe("5. the filters", () => {
   });
 });
 
-describe("6. a person's page", () => {
-  test("newest week first: reflections under their prompts with when, the answer, its week's feedback, boxes and ticks", async () => {
+describe("6. a person's page: the reading view of one week", () => {
+  test("one week, the newest with work: readings with when, reflections under their questions with when, the answer and the feedback beside it, boxes", async () => {
     const drawn = await person("claudia", "farah");
     const view = personOf(drawn);
-    assert.deepEqual(view.weeks.map((week) => week.weekNumber), [3, 1]);
+    // Farah wrote in week 3 alone, so it opens on week 3, with the way to week 1.
+    assert.equal(view.weekNumber, 3);
     assert.deepEqual(view.person, { uid: "farah", name: "Farah Hussain", firstName: "Farah", facilitating: false, groupName: "Group B", notToldYet: false });
-    assert.match(drawn.text, new RegExp(`How many lighthouses are still lit, do you think\\? ${SAID.farah["k3-rp1"]} Sun 15 Nov, 4:12pm`));
-    assert.match(drawn.text, /Written answer Who should keep the lamps lit, and why\? Feedback given 4 words Sent Mon 16 Nov, 9am farah wrote a plan\. Write feedback on the answer/);
-    // The week's Feedback: feedback given before pieces existed is a signed card, already emailed, its comment
-    // shown; with no comment it reads as its levels, one plain line each.
-    assert.match(drawn.text, /Feedback R Feedback from Rahul Farah’s facilitator · Mon 16 Nov Clear and short\. Emailed to Farah on Mon 16 Nov/);
+    // The week's title under the name, as the page it replaced headed each week.
+    assert.match(drawn.text, /AGI Strategy · Group B · week 3 of \d+ Farah Hussain Week 3 · The lamp makers/);
+    assert.equal(view.nav.previousWeek.href, `${PROGRAMME_PATH}/coursework/farah?week=1`);
+    assert.equal(view.nav.nextWeek, null);
+    assert.match(drawn.text, new RegExp(`How many lighthouses are still lit, do you think\\? Saved Sun 15 Nov, 4:12pm ${SAID.farah["k3-rp1"]}`));
+    assert.match(drawn.text, /Readings 2 of 2 A keeper's diary Ticked Sun 15 Nov, 4:12pm Lamps at night Ticked Sun 15 Nov, 4:12pm/);
+    // Where the answer stands and how long it is, at a glance, then when it was sent.
+    assert.match(drawn.text, /Written answer Feedback given 4 words Sent Mon 16 Nov, 9am The question Who should keep the lamps lit, and why\? farah wrote a plan\./);
+    // The way to its review page, where Pangram (an admin's) and the session reports' lines sit beside it.
+    assert.match(drawn.html, new RegExp(`<a href="${PROGRAMME_PATH}/written\\?group=${B}&amp;week=3&amp;person=farah" class="reviewLink">Open Farah’s answer on the written answers page</a>`));
+    // Feedback given before pieces existed sits beside the answer it was on: a signed card, already emailed, its
+    // comment shown; with no comment it reads as its levels, one plain line each.
+    assert.match(drawn.text, /R Feedback from Rahul Farah’s facilitator · Mon 16 Nov Clear and short\. Emailed to Farah on Mon 16 Nov/);
     // Signed with the name Rahul goes by, as Farah reads it: his chip's initial is that name's, not his full name's.
     assert.doesNotMatch(drawn.text, /\bRM\b|Mehta/);
-    // The lead may write a piece on the week as a whole, once its readers may read it.
-    assert.match(drawn.text, /Feedback on the week For the week as a whole, not one answer\. It’s signed with your name and shows on their week page as soon as you save it\. Comment/);
+    // The lead writes feedback on the answer beside it, and on the week as a whole once its readers may read it.
+    const writers = find(drawnView(drawn), "FeedbackWriter");
+    assert.deepEqual(
+      writers.map((writer) => [writer.props.on, writer.props.mayWrite]),
+      [
+        [{ kind: "writtenAnswer", itemId: "k3-wa" }, true],
+        [{ kind: "week" }, true],
+      ],
+    );
+    assert.match(drawn.text, /Feedback on the week Your feedback For the week as a whole, not one answer\. It’s signed with your name and shows on their week page as soon as you save it\. Comment/);
     w.world.db.poke(`courseExerciseResponses/${RUN.agi}__farah__w03__k3-wa`, { "feedback.comment": "" });
     assert.match((await person("claudia", "farah")).text, /Feedback from Rahul Farah’s facilitator · Mon 16 Nov Argument: Strong Emailed to Farah on Mon 16 Nov/);
-    assert.match(drawn.html, new RegExp(`href="${PROGRAMME_PATH}/written\\?group=${B}&amp;week=3&amp;person=farah"`));
-    assert.match(drawn.text, /Sources · Ticked 2 of 2 Ticked A keeper's diary Ticked Lamps at night/);
     const chloe = await person("claudia", "chloe");
-    assert.match(chloe.text, /Boxes My next step Clean the lens on Sundays\. My next step: And after that Not filled in yet\./);
-    // Tariq, in no group: his week 1 reflections, and no review page to open.
+    // The box's row holds no time it was written (as its route stored it), so none is said.
+    assert.match(chloe.text, /Boxes The question My next step Clean the lens on Sundays\. The question My next step: And after that Not filled in yet\./);
+    // Tariq, in no group: his week 1 reflections, and nobody to give feedback to him through.
     const tariq = await person("claudia", "tariq");
-    assert.match(tariq.text, new RegExp(`Tariq Mensah AGI Strategy · Not in a group yet .*Week 1 · The first lamps Reflections Part 1: Start with what you think How many lighthouses are still lit, do you think\\? ${TARIQ_SAID}`));
-    assert.doesNotMatch(tariq.html, /Write feedback on the answer/);
+    assert.equal(personOf(tariq).weekNumber, 1);
+    assert.match(tariq.text, new RegExp(`AGI Strategy · Not in a group yet · week 1 of \\d+ Tariq Mensah Week 1 · The first lamps .*Reflections Part 1: Start with what you think The question How many lighthouses are still lit, do you think\\? Saved Sun 15 Nov, 4:12pm ${TARIQ_SAID}`));
+    assert.equal(find(drawnView(tariq), "FeedbackWriter").length, 0);
+    assert.equal(personOf(tariq).reviewHref, null, "somebody in no group has no review page to open");
+  });
+
+  test("the week the address names, when it is one of the run's weeks written as blocks; any other is the week it would open on", async () => {
+    assert.equal(personOf(await person("claudia", "farah", { week: "1" })).weekNumber, 1);
+    assert.equal(personOf(await person("claudia", "farah", { week: "9" })).weekNumber, 3);
+    assert.equal(personOf(await person("claudia", "farah", { week: ["1"] })).weekNumber, 3);
+    // Farah wrote nothing in week 1: the page says so, and nothing written is shown from week 3.
+    const one = await person("claudia", "farah", { week: "1" });
+    assert.match(one.text, /Nothing to read yet Farah hasn’t started week 1\./);
+    for (const text of Object.values(SAID.farah)) assert.ok(!one.html.includes(text), `week 1 shows Farah's week 3 words: ${text}`);
+  });
+
+  test("previous and next: the people of the same section of the tab, by name, on the same week", async () => {
+    const view = personOf(await person("zach", "kofi", { week: "3" }));
+    assert.deepEqual(
+      [view.nav.previousPerson, view.nav.nextPerson],
+      [
+        { label: "Farah Hussain", href: `${PROGRAMME_PATH}/coursework/farah?week=3` },
+        { label: "Rahul Mehta", href: `${PROGRAMME_PATH}/coursework/rahul?week=3` },
+      ],
+    );
+    assert.deepEqual(view.nav.back, { label: "Group B", href: `${PROGRAMME_PATH}/groups/${B}` });
+    // Tariq is the only one in no group: nobody either side, and back to the tab.
+    const tariq = personOf(await person("zach", "tariq"));
+    assert.deepEqual([tariq.nav.previousPerson, tariq.nav.nextPerson], [null, null]);
+    assert.deepEqual(tariq.nav.back, { label: "Coursework", href: `${PROGRAMME_PATH}/coursework` });
   });
 
   test("a private note: an admin reads it, the lead never; a facilitator's own note an admin's alone", async () => {
@@ -393,8 +443,7 @@ describe("6. a person's page", () => {
     assert.equal(personOf(asLead).notesShown, false);
     assert.doesNotMatch(asLead.text, /Private note/);
     const asAdmin = await person("zach", "chloe");
-    assert.match(asAdmin.text, new RegExp(`Ticked A keeper's diary Private note ${chloeNote}`));
-    assert.match(asAdmin.text, /Private notes are shown here to admins only\. The programme’s lead never sees them\./);
+    assert.match(asAdmin.text, new RegExp(`Private notes on the material Private notes are shown here to admins only\\. The programme’s lead never sees them\\. A keeper's diary Private note ${chloeNote}`));
     // Rahul facilitates: his own note is an admin's alone.
     assert.ok(!(await person("claudia", "rahul")).html.includes(rahulNote), "the lead reads a facilitator's own private note");
     assert.ok((await person("zach", "rahul")).html.includes(rahulNote), "an admin is not shown a facilitator's own private note");
@@ -405,10 +454,10 @@ describe("6. a person's page", () => {
   test("a facilitator's own page is marked, and the column for notes about a person is drawn only when handed something", async () => {
     const drawn = await person("claudia", "rahul");
     assert.deepEqual([personOf(drawn).person.facilitating, personOf(drawn).person.groupName], [true, "Group B"]);
-    assert.match(drawn.text, /Rahul Mehta AGI Strategy · Group B Facilitator/);
+    assert.match(drawn.text, /AGI Strategy · Group B · week 3 of \d+ Rahul Mehta Week 3 · The lamp makers Facilitator/);
     // The lead is handed the column with the notes kept for leads (section 9), so it is drawn;
     // handed nothing, the same page draws no column at all.
-    const page = find(drawn.element, "PersonCoursework")[0];
+    const page = find(drawn.element, "ReadingView")[0];
     assert.equal(page.props.beside.props.viewer, "lead");
     assert.match(drawn.html, /<aside/);
     assert.doesNotMatch(renderToStaticMarkup(createElement(page.type, { ...page.props, beside: null })), /<aside/);
@@ -438,7 +487,7 @@ describe("7. the model", () => {
       ticks: null,
       answer: null,
       boxes: null,
-      href: "/p#week-2",
+      href: "/p?week=2",
     });
   });
 
@@ -529,7 +578,7 @@ describe("9. Claude, Pangram and the notes the team keeps", () => {
   test("a person's page: beside the weeks an admin has notes from this run, Claude's draft and Pangram; the lead has the notes kept for leads alone", async () => {
     for (const uid of ["chloe", "tariq", "rahul"]) {
       const asLead = await person("claudia", uid);
-      const beside = find(asLead.element, "PersonCoursework")[0].props.beside;
+      const beside = find(asLead.element, "ReadingView")[0].props.beside;
       assert.equal(beside.type.name, "PersonBeside", `the lead's column beside ${uid}'s weeks`);
       assert.equal(beside.props.viewer, "lead");
       const inside = beside.type(beside.props);
@@ -544,7 +593,7 @@ describe("9. Claude, Pangram and the notes the team keeps", () => {
       assert.doesNotMatch(asLead.html, /Draft a note|Pangram|\/api\/admin\/members/, `the lead's page for ${uid}`);
     }
     const asAdmin = await person("zach", "chloe");
-    const beside = find(asAdmin.element, "PersonCoursework")[0].props.beside;
+    const beside = find(asAdmin.element, "ReadingView")[0].props.beside;
     assert.equal(beside.type.name, "PersonBeside");
     assert.deepEqual(beside.props, { roundId: ROUND, programmeId: AGI, runId: RUN.agi, uid: "chloe", name: "Chloe Nguyen", viewer: "admin", self: false });
     const inside = beside.type(beside.props);
@@ -603,7 +652,13 @@ describe("8. the tree", () => {
     // Never a survey, never a note on the tab, and no word leaves for the tab.
     assert.doesNotMatch(load, /survey/i);
     assert.match(load, /readRunCoursework\(db, \{ run, liveGroups: groups, now: new Date\(\) \}, null\)/);
-    assert.equal((load.match(/readPersonPrivateNotes\(/g) ?? []).length, 1, "private notes are read anywhere but a person's page");
+    // Private notes are read on one person's week alone, by the reading view's loader, and never for the tab.
+    assert.equal((load.match(/readPersonPrivateNotes\(/g) ?? []).length, 0, "the tab's loader reads private notes");
+    const reading = codeOf("lib/courses/coursework/readingLoad.ts");
+    assert.equal((reading.match(/readPersonPrivateNotes\(/g) ?? []).length, 1, "private notes are read anywhere but one person's week");
+    // The programme's door hands the reading view the person only after its own gate.
+    const door = load.slice(load.indexOf("export async function loadPersonCoursework("));
+    assert.ok(door.indexOf('if (gate.status !== "ok") return gate;') < door.indexOf("readPersonWeek("), "the programme's door reads a week before its gate");
   });
 
   test("no dash of either kind, and no word the house does not use, in any file of this piece", () => {
@@ -612,7 +667,14 @@ describe("8. the tree", () => {
       "lib/courses/coursework/words.ts",
       "lib/courses/coursework/load.ts",
       "features/courses/coursework/CourseworkTable.tsx",
-      "features/courses/coursework/PersonCoursework.tsx",
+      "features/courses/coursework/ReadingView.tsx",
+      "features/courses/coursework/RemindOne.tsx",
+      "features/courses/coursework/SealedPredictionRow.tsx",
+      "features/courses/coursework/reading.module.css",
+      "lib/courses/coursework/reading.ts",
+      "lib/courses/coursework/readingLoad.ts",
+      "lib/courses/coursework/reads.ts",
+      "app/(app)/learn/[runId]/group/[groupId]/coursework/[uid]/page.tsx",
       "features/courses/coursework/coursework.module.css",
       "features/courses/courseworkClaude/CourseworkWeekPanels.tsx",
       "features/courses/courseworkClaude/PersonBeside.tsx",
@@ -624,6 +686,7 @@ describe("8. the tree", () => {
       assert.doesNotMatch(source, /\bcollate\b|\bwaitlist\b|\brejected\b|dropped out/i, file);
     }
     assert.match(readFileSync(join(SRC, "features/courses/coursework/coursework.module.css"), "utf8"), /@media \(max-width: 48rem\) \{[^]*\}\s*$/);
+    assert.match(readFileSync(join(SRC, "features/courses/coursework/reading.module.css"), "utf8"), /@media \(max-width: 36rem\) \{[^]*\}\s*$/);
   });
 });
 

@@ -18,6 +18,7 @@ import { readRunFeedback } from "@/lib/courses/feedback/readers";
 import type { CourseFeedbackDoc } from "@/lib/firestore/courseFeedback";
 import { isFillInResponse, isOwnBoxResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import type { SessionUser } from "@/lib/firebase/session";
+import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { weekDocId, type CourseRunDoc, type CourseWeekDoc } from "@/lib/firestore/courses";
 import {
@@ -648,7 +649,13 @@ export async function loadNamedReflections(
  */
 export async function readRunCoursework(
   db: Firestore,
-  on: { run: CourseRunDoc; liveGroups: readonly CourseGroupDoc[]; now: Date },
+  on: {
+    run: CourseRunDoc;
+    liveGroups: readonly CourseGroupDoc[];
+    now: Date;
+    /** The run's places, when the caller has read them already: not read again. */
+    enrolments?: readonly CourseEnrolmentDoc[] | null;
+  },
   wordsOf: string | null,
 ): Promise<{ work: Map<string, PersonWork>; writes: PersonWrites; states: RunWeekStates; feedback: CourseFeedbackDoc[] }> {
   const runId = on.run.id;
@@ -656,7 +663,7 @@ export async function readRunCoursework(
     db.collection("courseExerciseResponses").where("runId", "==", runId).get(),
     // The projection is the boundary: who, which item, whether it is ticked and when.
     db.collection("courseProgress").where("runId", "==", runId).select("uid", "itemId", "completed", "completedAt").get(),
-    loadRunWeekStates(db, { run: on.run, liveGroups: on.liveGroups, now: on.now }),
+    loadRunWeekStates(db, { run: on.run, liveGroups: on.liveGroups, enrolments: on.enrolments ?? null, now: on.now }),
     readRunFeedback(db, runId),
   ]);
   // Every written answer somebody has left a piece of feedback on.

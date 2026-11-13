@@ -2995,22 +2995,55 @@ tasks count reads as done for everybody.
 A placement Publish has not told is shown to admins alone (marked "Not told
 yet"); the lead sees that person under "Not in a group yet".
 
-### A person's page, `.../programmes/[programmeId]/coursework/[uid]`
+### One person's week: the reading view
 
-For the same two, and only for somebody who is a row of the tab (otherwise a
-calm not-here page). Newest week first: each reflection under its prompt with
-when it was written, the written answer with its state and the way to its
-review page, the fill-in boxes (after their own gate, `boxesReaderFor`),
-which sources they ticked, and the week's Feedback: every piece, signed as
-the person reads it, with whether its email went, and, once the week may be
-read, "Feedback on the week" for the lead or an admin to write a piece on the
-week as a whole (see "Feedback").
-PRIVATE NOTES are shown to admins only, never to the lead, through the one
-reader of private notes. Survey answers never appear on the tab or the page.
-The page keeps a column beside the weeks for the notes the team keeps about a
+One person's coursework is read one week at a time, from two places, both
+drawn by one loader (`readPersonWeek` in
+`src/lib/courses/coursework/readingLoad.ts`) and one page
+(`src/features/courses/coursework/ReadingView.tsx`):
+
+- **The programme's side**, `.../programmes/[programmeId]/coursework/[uid]?week=N`:
+  for the same two, and only for somebody who is a row of the tab (otherwise
+  a calm not-here page). Previous and next are the people of the same section
+  of the tab.
+- **The group's side**, `/learn/[runId]/group/[groupId]/coursework/[uid]?week=N`:
+  the group's written review page's gate (its live facilitator, the
+  programme's lead, an admin), then, for the person named, `reviewableIn`
+  (`writtenReviewRole`): a facilitator never reads a co-facilitator's own
+  work, and nobody reads their own. Anybody else goes to the run's home.
+  Previous and next are the group's people this reader may read, by name.
+
+With no week named, it opens the newest week the person has anything in,
+else the newest that has begun on their group's calendar, else the first.
+It shows the week's title, the week's state in the group page's words, when
+the group met, the readings with when each was ticked, each reflection and
+box under its question with when it was last saved and how late, the written
+answer as its readers may read it, with where it stands ("No feedback yet",
+"Feedback given") and how many words, the way to its review page (where
+Pangram, for an admin, and the session reports' lines sit beside it), and the
+feedback on it beside it (and, for an admin or
+the lead, the ratings for the team; for an admin, Claude's draft grade while
+the words graded are the words read), the feedback on the week as a whole,
+the sealed prediction's row for an admin (opened through its own route,
+which records the opening first), and the private notes on the material
+where `privateNotesOf` allows: the group's facilitators and admins, never
+the lead. An answer changed since the version a piece of feedback was about
+shows both versions, what changed struck through and underlined and said in
+words; the change is told against the words its readers read, so before the
+session a change not sent yet is no change to them. A week with nothing in it says so, when the person was last reminded,
+and offers the group's own Remind for that one person and week. A run with no
+week written as blocks keeps the person's page, with the column below.
+
+The programme's side keeps the column for the notes the team keeps about a
 person: for an admin, with Claude's draft and Pangram; for the lead, only the
 notes kept for leads (see "Claude and Pangram on coursework, and the notes the
-team keeps").
+team keeps"). Survey answers never appear on the tab or the page.
+
+It is reached from each cell of the Coursework tab, each name in the week's
+people on the programme's page for a group, each name in Feedback to write
+and This week's work on the facilitator's group page (only where its own gate
+would admit the reader), and from under the answer on both written review
+pages.
 
 ### Reads
 
@@ -3020,8 +3053,10 @@ the answers store whole, the progress store through a projection with no
 rating, comment or private note, and where each week stands
 (`loadRunWeekStates`, one equality on the run). For the tab, each person's
 pack in the pathways their weeks count, by id (`readPackCaseRecords`), for
-whether a week is done; never the ready box for a talk. No query needs a
-composite index. Nothing on either page writes.
+whether a week is done; never the ready box for a talk. One person's week
+also reads where it stands as counts and times (`loadPeopleWeekFacts`), and,
+for an empty week, when they were last reminded. No query needs a composite
+index. Nothing on any of these pages writes.
 
 ## Editing a week in place
 
@@ -4780,10 +4815,14 @@ and who might need a hand. `src/lib/courses/weekReview/` holds it.
   deletion deletes it, because it names them.
 - **Schedule an explainer**, from each theme and with a typed topic: see
   "Explainers" below.
-- **Not built here**: Claude's grade beside the team's own rating of an
-  answer, which is to show only once the admin has saved theirs. It joins the
-  review's own code and `tests/claude-output-readers.test.mjs`'s list when it
-  lands.
+- **Beside the team's rating of an answer**: on the reading view of one
+  person's week, an admin who may review the answer is shown Claude's draft
+  grade for it under the rating for the team, with the review's own line that
+  grades are for choosing what to read first. It is read through the review's
+  store (`readDraftGrade` in `src/lib/courses/weekReview/store.ts`), by the
+  reading view's loader alone and after its admin check, and there is no row
+  while the words read are not the words graded.
+  `tests/claude-output-readers.test.mjs` lists the reader.
 
 `tests/week-review.test.mjs` reads every message that would go, the checkers,
 the facts, the page as every reader, every press and the follow-up as every

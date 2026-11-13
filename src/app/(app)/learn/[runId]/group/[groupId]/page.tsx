@@ -23,7 +23,8 @@ import { ticketFacts } from "@/features/courses/sessionChange/cardFacts";
 import SessionNotice from "@/features/courses/sessionChange/SessionNotice";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
 import ReviewQueueCard from "@/features/courses/written/ReviewQueueCard";
-import { loadWrittenQueue } from "@/lib/courses/writtenAnswers/queue";
+import { loadWrittenQueueAndReadable } from "@/lib/courses/writtenAnswers/queue";
+import { readingHref } from "@/lib/courses/coursework/reading";
 import { StaffUpdatesSection } from "@/features/courses/updates/UpdatesList";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
@@ -371,15 +372,17 @@ export default async function GroupHomePage({
   // counts, and the updates this group's page shows, through the one reader.
   // An archived group has no count, so no way to write to it.
   const runGroups = await loadRunGroups(db, runId);
-  const [[groupCount], reading, model, programme, notes, writtenQueue] = await Promise.all([
+  const [[groupCount], reading, model, programme, notes, queueRead] = await Promise.all([
     updateAudienceCounts(db, access.run, runGroups, { groupIds: [groupId] }, access.user.uid),
     updateReadingOf(db, access.user, access.run, runGroups),
     loadFacilitatorGroup(db, access.run, group, { isAdmin: access.isAdmin, actor: access.user }, now),
     runProgrammeOf(db, runId),
     readGroupNotes(db, group, access.user),
-    // The review queue's written answers half: null on a run of the summer's weeks.
-    loadWrittenQueue(db, access.user, access.run, group),
+    // The review queue's written answers half: null on a run of the summer's weeks. With it, whose weeks this
+    // reader may open in the reading view.
+    loadWrittenQueueAndReadable(db, access.user, access.run, group),
   ]);
+  const writtenQueue = queueRead?.rows ?? null;
   // The box at the top: who is joining a session online, named as this
   // reader is shown the group's people, and where a link is still wanted.
   // Nothing is offered to press in a view-as session, where nothing is written.
@@ -449,6 +452,11 @@ export default async function GroupHomePage({
   // gate lets this reader read: a fellow's, to the group's facilitators and admins; a facilitator's own, to
   // admins alone.
   const boxes = groupWeek ? await loadGroupWeekBoxes(db, { run: access.run, actor: access.user, week: groupWeek }) : [];
+  // Whose week this reader may open in the reading view, by the one gate the reading view's own door asks
+  // (read with the queue, from its own reads): each name in This week's work and in Feedback to write leads
+  // there only for them.
+  const readable = queueRead?.readable ?? new Set<string>();
+  const readHref = (uid: string, week: number) => (readable.has(uid) ? readingHref(`${groupPath}/coursework`, uid, week) : null);
 
   // The head: the group, its week, its programme, its usual day, time and
   // room, and the group's other facilitators by the names rule for this
@@ -574,7 +582,13 @@ export default async function GroupHomePage({
   // half, on a run whose weeks are written as blocks (null on a run of the
   // summer's weeks), and its reflections half, on a week written as blocks
   // with something to reflect on.
-  const writtenCard = writtenQueue ? <ReviewQueueCard rows={writtenQueue} hrefFor={writtenHref} /> : null;
+  const writtenCard = writtenQueue ? (
+    <ReviewQueueCard
+      rows={writtenQueue}
+      hrefFor={writtenHref}
+      readHrefFor={(row) => readHref(row.uid, row.weekNumber) ?? writtenHref(row)}
+    />
+  ) : null;
   // Once the run's last session is over, the way to rate the group: its
   // facilitators and admins, about two minutes a person. First in the side
   // column, whichever shape the page takes.
@@ -698,6 +712,7 @@ export default async function GroupHomePage({
           <ThisWeeksWork
             week={groupWeek}
             groupName={groupName}
+            personHref={(uid) => readHref(uid, groupWeek.weekNumber)}
             columns={workColumnsOf(workColumns)}
             boxes={boxes}
             ownLine={

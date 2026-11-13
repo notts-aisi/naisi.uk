@@ -1303,6 +1303,29 @@
   overflow-wrap: break-word;
 }
 
+/* A name that opens the reading view of that person's week: a link in the
+   accent's text colour, a 44px target, the solid focus outline. */
+.wkPersonLink,
+.personLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wkPersonLink:hover,
+.personLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.wkPersonLink:focus-visible,
+.personLink:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
 /* "Facilitator", beside a facilitator's own row: their coursework, as theirs. */
 .wkOwnChip {
   display: inline-flex;

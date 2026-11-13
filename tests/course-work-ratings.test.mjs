@@ -465,7 +465,7 @@ describe("4. never to the person or a facilitator, and never to Kairos", () => {
     assert.deepEqual(found, [...EXPECTED.keys()].sort(), "a file addresses courseWorkRatings that this list does not know: decide who it shows ratings to first");
   });
 
-  test("the one reader is called by the review page, a term's Next term page and what a note is drafted from alone, each after its own gate and only for an admin or the lead", () => {
+  test("the one reader is called by the review page, the reading view of one person's week, a term's Next term page and what a note is drafted from alone, each after its own gate and only for an admin or the lead", () => {
     // Every function the reader exports is a way in, read off the file rather than listed here.
     const exported = [...codeOf("src/lib/courses/workRatings/readers.ts").matchAll(/\bexport\s+(?:async\s+)?function\s+(\w+)\s*\(/g)]
       .map((m) => m[1])
@@ -474,6 +474,7 @@ describe("4. never to the person or a facilitator, and never to Kairos", () => {
     const callers = filesMatching(new RegExp(`\\b(?:${exported.join("|")})\\(`));
     assert.deepEqual(callers, [
       "src/lib/applications/nextTerm/load.ts",
+      "src/lib/courses/coursework/readingLoad.ts",
       "src/lib/courses/weekNotes/gather.ts",
       "src/lib/courses/workRatings/readers.ts",
       "src/lib/courses/writtenAnswers/reviewPage.ts",
@@ -483,6 +484,10 @@ describe("4. never to the person or a facilitator, and never to Kairos", () => {
     const page = codeOf("src/lib/courses/writtenAnswers/reviewPage.ts");
     assert.match(page, /mayRateWorkOf\(actor, facts, owner, liveGroups\)\s*\?\s*loadTeamRatings\(db, \{/);
     assert.match(page, /facts\.isAdmin && record\s*\?\s*readAnswerReading\(db, \{/);
+    // The reading view of one person's week: the same gate, on an answer its readers may read, never a facilitator's.
+    const reading = codeOf("src/lib/courses/coursework/readingLoad.ts");
+    assert.match(reading, /owner && answerId && answerReadable && mayRateWorkOf\(actor, facts, owner, liveGroups\)\s*\?\s*loadTeamRatings\(db, \{/);
+    assert.doesNotMatch(reading, /readAnswerRatings\(|readRatingsAbout\(|readPersonRatings\(|readWeekRatings\(/);
     // Next term is an admin's alone, asked before anything is read, and its reader asks for nobody else's page.
     const nextTerm = codeOf("src/lib/applications/nextTerm/load.ts");
     const body = nextTerm.slice(nextTerm.indexOf("export async function loadNextTerm("));
@@ -495,6 +500,8 @@ describe("4. never to the person or a facilitator, and never to Kairos", () => {
         [
           "src/lib/courses/workRatings/readers.ts",
           "src/lib/courses/writtenAnswers/reviewPage.ts",
+          // The reading view of one person's week: the ratings for an admin or the lead, by the gate held above.
+          "src/lib/courses/coursework/readingLoad.ts",
           "src/features/courses/written/RatingForTheTeam.tsx",
           "src/app/api/courses/runs/[runId]/work-ratings/route.ts",
           "src/lib/applications/nextTerm/load.ts",

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useHydrated } from "@/hooks/useHydrated";
+import { readingHref } from "@/lib/courses/coursework/reading";
 import { countBuckets, doneCount, filterRows, type Bucket, type WorkFilterKey } from "@/lib/courses/groupWeekWork/model";
 import type { GroupWeekWorkView } from "@/lib/courses/groupWeekWork/view";
 import * as R from "@/lib/courses/groupWeekWork/words";
@@ -40,6 +42,7 @@ export default function WeekWorkCard({
   said,
   facilitatorsApart,
   onRemind,
+  readBase = null,
 }: {
   groupName: string;
   work: GroupWeekWorkView;
@@ -49,6 +52,12 @@ export default function WeekWorkCard({
   facilitatorsApart: readonly string[];
   /** Open Remind: for everybody whose week isn't done, or one person. */
   onRemind: (only: { uid: string; firstName: string } | null) => void;
+  /**
+   * The programme's reading view, before a person (".../coursework"): each
+   * name, a facilitator's own week among them, opens that person's week
+   * there. Null: names are plain text.
+   */
+  readBase?: string | null;
 }) {
   const hydrated = useHydrated();
   const [filter, setFilter] = useState<WorkFilterKey>("everyone");
@@ -142,7 +151,15 @@ export default function WeekWorkCard({
               ) : (
                 shown.map((row) => (
                   <tr key={row.uid}>
-                    <td>{row.name}</td>
+                    <td>
+                      {readBase ? (
+                        <Link href={readingHref(readBase, row.uid, work.weekNumber)} className={styles.personLink}>
+                          {row.name}
+                        </Link>
+                      ) : (
+                        row.name
+                      )}
+                    </td>
                     {work.pieces.map((piece) => {
                       const cell = row.pieces.find((each) => each.key === piece.key);
                       return (
@@ -208,7 +225,13 @@ export default function WeekWorkCard({
             {work.own.map((row) => (
               <li key={row.uid} className={styles.lateRow}>
                 <span className={styles.lateMain}>
-                  <span className={styles.lateName}>{row.name}</span>
+                  {readBase ? (
+                    <Link href={readingHref(readBase, row.uid, work.weekNumber)} className={`${styles.lateName} ${styles.personLink}`}>
+                      {row.name}
+                    </Link>
+                  ) : (
+                    <span className={styles.lateName}>{row.name}</span>
+                  )}
                   <span className={styles.cardLine}>{row.line}</span>
                 </span>
                 {row.late && <span className={styles.lateChip}>{row.late}</span>}

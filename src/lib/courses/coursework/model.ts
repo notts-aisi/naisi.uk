@@ -173,7 +173,7 @@ export type CourseworkCell = {
   answer: { state: CellAnswerState; href: string | null } | null;
   /** Boxes filled in, of the week's boxes; null for a week with none. */
   boxes: { filled: number; of: number } | null;
-  /** The person's page, at this week. */
+  /** The reading view of this person and this week (`?week=`). */
   href: string;
 };
 
@@ -288,7 +288,8 @@ export function cellOf(
   links: { person: string; written: string | null },
   standing: CellStanding = NO_STANDING,
 ): CourseworkCell {
-  const href = `${links.person}#week-${weekNumber}`;
+  // The reading view of this person and this week.
+  const href = `${links.person}?week=${weekNumber}`;
   const reached = standing.reached;
   if (!week) {
     return { weekNumber, counted: false, done: null, doneAt: null, doneLateMs: null, due: dueWire(standing.due), reached, reflections: null, ticks: null, answer: null, boxes: null, href };
@@ -472,8 +473,8 @@ export type PersonWeek = {
   counted: boolean;
   parts: Array<{ number: number; title: string; prompts: PersonPrompt[] }>;
   answer: PersonAnswer | null;
-  /** Each fill-in box, its words or null, with how late; null for a week with none, or a reader the boxes' gate refused. */
-  boxes: Array<{ heading: string; label: string; text: string | null; lateMs: number | null; atSession: string | null }> | null;
+  /** Each fill-in box, its words or null, when they last changed, with how late; null for a week with none, or a reader the boxes' gate refused. */
+  boxes: Array<{ heading: string; label: string; text: string | null; at: Date | null; lateMs: number | null; atSession: string | null }> | null;
   sources: Array<{ id: string; title: string; kindLabel: string; partNumber: number | null; ticked: boolean; note: string | null }>;
   ticked: number;
   /** The feedback on the week; null for a week not written as blocks. */
@@ -592,7 +593,14 @@ export function personWeeks(input: {
           week.boxes.length > 0 && input.boxesRead
             ? week.boxes.map((box) => {
                 const written = writes.boxes.get(workKey(n, box.id)) ?? null;
-                return { heading: box.heading, label: box.label, text: written?.text ?? null, lateMs: written?.lateMs ?? null, atSession: written?.atSession ?? null };
+                return {
+                  heading: box.heading,
+                  label: box.label,
+                  text: written?.text ?? null,
+                  at: written?.at ?? null,
+                  lateMs: written?.lateMs ?? null,
+                  atSession: written?.atSession ?? null,
+                };
               })
             : null,
         sources,

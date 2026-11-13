@@ -33,9 +33,13 @@
  * and no draft ever reaching a note except through the notes' own store,
  * when an admin saves it.
  *
- * The rating page's own block for an admin, Claude's grade beside the
- * team's rating once the admin has saved theirs, is not built: when it is,
- * it joins `REACHERS` with its gate, and nothing else here changes.
+ * ONE DRAFT GRADE BESIDE ONE ANSWER (the reading view of one person's week,
+ * Fri 13 Nov 2026): the reading view's loader asks the review's own store
+ * for the grade of one answer (`readDraftGrade`), for an admin alone and only
+ * on an answer the one gate lets that admin read, and only while the words
+ * read are the words graded. It is in `REACHERS` with that gate, and the test
+ * below holds the order: the admin's check before the call, the call in that
+ * loader alone. The words it carries are the review's own.
  *
  * EXPLAINERS (`src/lib/courses/explainers/`) start from a theme: the admin's
  * form reads one theme through the review's own store, behind its door
@@ -126,6 +130,8 @@ const REACHERS = {
     "scheduling an explainer, an admin's alone: the review's door, and one theme's title, groups and counts for the admin's form, read through the review's own store; the record it writes holds the admin's topic and nothing of the review",
   "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review/explainer/page.tsx":
     "the explainer's form, under the review: the programme's lead is drawn the review's calm refusal before anything is read, and an admin's form is loaded behind the review's door",
+  "lib/courses/coursework/readingLoad.ts":
+    "the reading view of one person's week: one draft grade through the review's store (`readDraftGrade`), asked only for an admin who may read the answer and only while its words are the words graded, with the review's own words; handed to nobody else",
 };
 
 /**
@@ -209,6 +215,24 @@ describe("Claude's week reviews: read by admins, on the run, never on a record",
     assert.deepEqual(callers(/(?<!function )\bloadExplainerForm\s*\(/), [
       "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review/explainer/page.tsx",
     ]);
+  });
+
+  test("one draft grade is read by the reading view's loader alone, for an admin who may read the answer, and the record by the store", () => {
+    const callers = files
+      .filter(([file]) => !file.startsWith("lib/courses/weekReview/"))
+      .filter(([, code]) => /\breadDraftGrade\s*\(/.test(withoutComments(code)))
+      .map(([file]) => file);
+    assert.deepEqual(callers, ["lib/courses/coursework/readingLoad.ts"]);
+    const loader = withoutComments(files.find(([file]) => file === "lib/courses/coursework/readingLoad.ts")[1]);
+    const call = loader.indexOf("readDraftGrade(db,");
+    const gate = loader.lastIndexOf("facts.isAdmin && mayWrite && answerId && answerReadable && stored", call);
+    assert.ok(call !== -1 && gate !== -1 && call - gate < 200, "the draft grade is read without the admin's and the one gate's check right before it");
+    // The reading view's page and its screen never reach the review: the loader hands them two lines of words.
+    for (const file of ["features/courses/coursework/ReadingView.tsx", "app/(app)/learn/[runId]/group/[groupId]/coursework/[uid]/page.tsx"]) {
+      const found = files.find(([path]) => path === file);
+      assert.ok(found, `${file} is gone`);
+      assert.doesNotMatch(withoutComments(found[1]), REACHES, `${file} reaches Claude's week review`);
+    }
   });
 
   test("an explainer, and everything that reads one, reaches nothing of the review: only the admin's topic leaves it", () => {

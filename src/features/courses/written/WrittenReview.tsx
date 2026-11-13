@@ -43,6 +43,8 @@ import {
 import { pangramChipWords } from "@/lib/courses/workRatings/words";
 import { proseText } from "@/lib/courses/weekBlocks/prose";
 import { THE_QUESTION_WHEN_WRITTEN, earlierQuestionWords } from "@/lib/courses/weekEdit/wordsThen";
+import { readingHref } from "@/lib/courses/coursework/reading";
+import { wholeWeekWords } from "@/lib/courses/coursework/words";
 import EarlierVersion, { versionBoxes } from "../feedback/EarlierVersion";
 import FeedbackWriter from "../feedback/FeedbackWriter";
 import StaffFeedbackCards from "../feedback/StaffFeedbackCards";
@@ -111,6 +113,12 @@ type Props = {
   groups?: ReviewGroupLink[];
   /** The way back: "Group B" to the group's page, or the lead's tab. */
   back: { href: string; label: string };
+  /**
+   * The reading view of one person's week on this page's own side, before
+   * the person (".../coursework"): under the answer, the way to everything
+   * else they did that week. Left out, there is none.
+   */
+  readBase?: string | null;
 };
 
 /** One group to choose on the lead's page: "A" in its pill, "Group A" for a screen reader, and its page. */
@@ -133,7 +141,7 @@ function paragraphs(text: string): string[] {
     .filter(Boolean);
 }
 
-export default function WrittenReview({ model, basePath, groupParam, groups, back }: Props) {
+export default function WrittenReview({ model, basePath, groupParam, groups, back, readBase = null }: Props) {
   const linkBase = linkBaseOf(basePath, groupParam);
   const selected = model.selected;
   const person = selected?.person ?? null;
@@ -230,7 +238,7 @@ export default function WrittenReview({ model, basePath, groupParam, groups, bac
               <p className={styles.quiet}>{ordered.length === 0 && model.notSent.length === 0 ? NOBODY_HERE : NOBODY_SENT_YET}</p>
             </>
           ) : (
-            <Review key={`${person.uid} ${model.weekNumber}`} model={model} />
+            <Review key={`${person.uid} ${model.weekNumber}`} model={model} readBase={readBase} />
           )}
         </div>
       </div>
@@ -402,7 +410,7 @@ function Question({ model }: { model: ReviewPageModel }) {
 // One answer, and the feedback on it
 // ---------------------------------------------------------------------------
 
-function Review({ model }: { model: ReviewPageModel }) {
+function Review({ model, readBase }: { model: ReviewPageModel; readBase: string | null }) {
   const selected = model.selected!;
   const person = selected.person;
   const answer = model.answer!;
@@ -463,6 +471,11 @@ function Review({ model }: { model: ReviewPageModel }) {
           />
         )}
         <p className={styles.openedLine}>{reviewWeekLineWords(person.firstName)}</p>
+        {readBase && (
+          <Link href={readingHref(readBase, person.uid, model.weekNumber)} className={styles.weekLink}>
+            {wholeWeekWords(person.firstName, model.weekNumber)}
+          </Link>
+        )}
       </div>
 
       <div className={styles.sideColumn}>

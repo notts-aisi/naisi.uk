@@ -116,7 +116,8 @@ export default function SealedPredictionsPanel({ runId }: { runId: string }) {
   );
 }
 
-function OpenedCard({ card, onClose }: { card: AdminPredictionsCard; onClose: () => void }) {
+/** One opened card: both weeks' answers to each question, and that the opening is recorded. The reading view draws it too. */
+export function OpenedCard({ card, onClose }: { card: AdminPredictionsCard; onClose: () => void }) {
   const questions = card.card?.questions ?? [];
   const first = card.sealWeek ? weekColumnWords(card.sealWeek) : PANEL_FIRST;
   const second = card.openWeek ? weekColumnWords(card.openWeek) : PANEL_AGAIN;

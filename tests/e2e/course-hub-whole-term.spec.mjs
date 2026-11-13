@@ -1860,10 +1860,15 @@ test(
           }
         }
         for (const person of [ben, ada]) {
-          await pg.goto(`${formBase}/coursework/${enc(person.uid)}`, { waitUntil: "domcontentloaded" });
           const week = person === ben ? LATE_WEEK : ON_TIME_WEEK;
-          // The person's page draws each week in a section of its own: wait for the one being read.
-          await pg.locator(`#week-${week}`).waitFor({ timeout: WAIT_MS });
+          // The person's page is the reading view of one week, named in the address: wait for its reflections.
+          await pg.goto(`${formBase}/coursework/${enc(person.uid)}?week=${week}`, { waitUntil: "domcontentloaded" });
+          await pg.locator('section[aria-labelledby="reading-reflections"]').waitFor({ timeout: WAIT_MS });
+          expectEqual(
+            (await textOf(pg.locator("header").filter({ hasText: person.displayName }))).includes(`week ${week} of `),
+            true,
+            `${person.first}'s page opens on week ${week}`,
+          );
           const page = await textOf(pg.locator("main"));
           const did = work.get(workKey(person, week));
           expectEqual(page.includes(WRITES[person.key].rp2), true, `${person.first}'s page has their week ${week} reflection`);

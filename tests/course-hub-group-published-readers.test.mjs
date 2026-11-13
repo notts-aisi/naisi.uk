@@ -137,9 +137,17 @@ const READERS = {
     kind: "shown",
     asks: 2,
     why:
-      "the Coursework tab and a person's page, for the programme's lead and admins: a person sits in their group only where " +
+      "the Coursework tab and a person's week on the programme's side, for the programme's lead and admins: a person sits in their group only where " +
       "their placement may be shown to the caller, so the lead sees an untold one as not in a group yet; asked a second time " +
       "about a caller who is no admin, to know whether the person was told and so reads the group's copy of a week",
+  },
+  "lib/courses/coursework/readingLoad.ts": {
+    kind: "shown",
+    asks: 2,
+    why:
+      "the reading view of one person's week from the group's side: whose weeks a reader may open in a group are the run's " +
+      "placements this reader may be shown (an admin sees an untold one, a facilitator or the lead never), then the one gate; " +
+      "asked a second time about a caller who is no admin, to know whether the person was told and so reads the group's copy of a week",
   },
   "lib/courses/updates/readers.ts": {
     kind: "shown",

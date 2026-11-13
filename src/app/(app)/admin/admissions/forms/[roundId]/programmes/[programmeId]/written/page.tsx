@@ -83,6 +83,7 @@ export default async function LeadWrittenAnswersPage({
       groupParam={group.id}
       groups={groups}
       back={{ href: `${programmePath}/attendance`, label: "Attendance" }}
+      readBase={`${programmePath}/coursework`}
     />
   );
 }

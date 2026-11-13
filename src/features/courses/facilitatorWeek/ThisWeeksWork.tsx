@@ -120,11 +120,17 @@ export function workColumnsOf(columns: readonly WorkColumnData[]): WorkColumn[] 
   }));
 }
 
-function Person({ name, uid, own, size = "md" }: { name: string; uid: string; own: boolean; size?: "sm" | "md" }) {
+function Person({ name, uid, own, size = "md", href = null }: { name: string; uid: string; own: boolean; size?: "sm" | "md"; href?: string | null }) {
   return (
     <>
       <InitialsChip name={name} uid={uid} size={size} />
-      <span className={styles.wkPersonName}>{name}</span>
+      {href ? (
+        <Link href={href} className={`${styles.wkPersonName} ${styles.wkPersonLink}`}>
+          {name}
+        </Link>
+      ) : (
+        <span className={styles.wkPersonName}>{name}</span>
+      )}
       {own && <span className={styles.wkOwnChip}>{FACILITATOR}</span>}
     </>
   );
@@ -248,6 +254,7 @@ export default function ThisWeeksWork({
   emptyLine = NOBODY_LISTED,
   headingId = "this-weeks-work",
   children = null,
+  personHref = null,
 }: {
   week: GroupWeek;
   groupName: string;
@@ -261,6 +268,12 @@ export default function ThisWeeksWork({
   headingId?: string;
   /** The spread across pathways, under the table (the packs' piece). */
   children?: ReactNode;
+  /**
+   * The reading view of one person's week, for each row this reader may open
+   * it for (the page asks the reading view's own gate), or null: the name is
+   * then plain text. Left out, no name is a link.
+   */
+  personHref?: ((uid: string) => string | null) | null;
 }) {
   return (
     <section className={weekly.card} aria-labelledby={headingId}>
@@ -303,7 +316,7 @@ export default function ThisWeeksWork({
                     <tr key={row.uid}>
                       <th scope="row" className={styles.wkRowHead}>
                         <span className={styles.wkPerson}>
-                          <Person name={row.name} uid={row.uid} own={row.own} />
+                          <Person name={row.name} uid={row.uid} own={row.own} href={personHref ? personHref(row.uid) : null} />
                         </span>
                       </th>
                       {row.written.map((written, index) => (
@@ -326,7 +339,7 @@ export default function ThisWeeksWork({
             {week.rows.map((row) => (
               <li key={row.uid} className={styles.wkPersonCard}>
                 <div className={styles.wkPersonCardHead}>
-                  <Person name={row.name} uid={row.uid} own={row.own} />
+                  <Person name={row.name} uid={row.uid} own={row.own} href={personHref ? personHref(row.uid) : null} />
                 </div>
                 {week.parts.length > 0 && (
                   <p className={styles.wkFact}>
