@@ -15,7 +15,8 @@ import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import { runCrests } from "@/lib/crests/runs";
 import type { ShownCrest } from "@/lib/crests/resolve";
 import type { ProgrammeKind } from "@/lib/applications/model";
-import { finishedForMember } from "@/lib/courses/finishing/record";
+import { certificateNeedsFor } from "@/lib/courses/finishing/needs";
+import { finishedForMember, readFinishRule } from "@/lib/courses/finishing/record";
 import { inLastWeek } from "@/lib/courses/programmeEnd";
 import { whatsNextFor, type WhatsNext } from "@/lib/courses/whatsNext";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
@@ -717,6 +718,16 @@ export type OverviewPayload = {
    * every other week, and when it could not be read.
    */
   whatsNext: WhatsNext | null;
+  /**
+   * WHAT A CERTIFICATE NEEDS, for a learner on a run with a rule for who
+   * finished: "To get your certificate you need to come to at least 5 of
+   * your group’s 6 sessions. A session you’re excused from doesn’t count as
+   * coming." (`certificateNeedsFor`). The rule's number and their group's
+   * count, never their own count against it. Null for everybody else: no
+   * rule, a facilitator's place, a learner who facilitates a group of the
+   * run, an admin reading, and once their programme is over.
+   */
+  certificateNeeds: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -1086,6 +1097,7 @@ async function beforeGroupsPayload(
       isTrackLead: roles.isTrackLead,
     },
     whatsNext: null,
+    certificateNeeds: null,
     beforeGroups: {
       line: weekOneOpenWords(groupsGoOutDay(place.groupsGoOutOn, londonDateKey(new Date())), place.kind),
     },
@@ -1656,6 +1668,24 @@ export async function GET(
   const atTheEnd = currentWeek?.phase === "after" || inLastWeek(currentWeek, own.totalWeeks);
   const whatsNext = takingPart && atTheEnd ? await whatsNextFor(db, new Date()).catch(() => null) : null;
 
+  // What a certificate needs, for somebody taking part on a run with a rule,
+  // until their programme is over (then they are told whether they
+  // finished): one read, of the rule by its address. A read that fails says
+  // nothing.
+  const certificateRule =
+    takingPart && facilitates.length === 0 && currentWeek?.phase !== "after" ? await readFinishRule(db, run.id).catch(() => null) : null;
+  const certificateNeeds = certificateNeedsFor({
+    rule: certificateRule,
+    run,
+    group: liveEnrolment?.groupId ? (groups.find((each) => each.id === liveEnrolment.groupId) ?? null) : null,
+    enrolment: liveEnrolment,
+    facilitates: facilitates.length > 0,
+    incubator: programme?.kind === "incubator",
+    // Their group's registers, already read: one that says its session was
+    // not held (the old switch) counts for nothing, as the record counts it.
+    registers: ownRegisters,
+  });
+
   const payload: OverviewPayload = {
     run: {
       id: run.id,
@@ -1707,6 +1737,7 @@ export async function GET(
     },
     beforeGroups: null,
     whatsNext,
+    certificateNeeds,
   };
 
   return NextResponse.json(payload);

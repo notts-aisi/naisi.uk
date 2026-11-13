@@ -8,6 +8,7 @@ import {
   isAddressableId,
   loadMirrorMembers,
   loadRegisterMembers,
+  marksExcused,
   readsFacilitatorRecord as readsFacilitatorRecordOf,
   registerSessionAccess,
   type RegisterMember,
@@ -31,6 +32,7 @@ import {
   ATTENDANCE_LIMITS,
   ATTENDANCE_STATUSES,
   COVER,
+  EXCUSAL_KEPT,
   EXCUSED_IN_ADVANCE,
   FACILITATOR_RECORD,
   ONLINE,
@@ -41,6 +43,7 @@ import {
   normalizeCourseAttendance,
   type AttendanceStatus,
   type CourseAttendanceDoc,
+  type ExcusalKept,
   type LineSetterHow,
 } from "@/lib/firestore/courseAttendance";
 import { groupHistoryRow } from "@/lib/courses/groupChange/facts";
@@ -71,6 +74,7 @@ import {
 import { parseCorrectionReason } from "@/lib/courses/registerCorrection/model";
 import { registerCorrectionExtras, type RegisterCorrectionExtras } from "@/lib/courses/registerCorrection/view";
 import { excuseFactsForGroup, type ExcuseFacts } from "@/lib/courses/excused/facts";
+import { EXCUSAL_STANDS, EXCUSED_BY_ADMIN_OR_LEAD, excusalStandsFor } from "@/lib/courses/excused/marking";
 import { CORRECTION_REFUSAL } from "@/lib/courses/registerCorrection/words";
 import {
   normalizeCourseRun,
@@ -148,6 +152,26 @@ import { reachLateMarks } from "@/lib/surveys/checkIns/lateMark";
  * register's words for a session that did not happen (the push route refuses
  * it the same way). Putting the session back is "Change a session"'s own
  * "Hold it as usual", never the register's switch.
+ *
+ * ── EXCUSED IS AN ADMIN'S OR THE PROGRAMME'S LEAD'S ─────────────────────────
+ * Only an admin or the programme's lead (`marksExcused`, whether or not they
+ * also facilitate the group; never a run's track lead by that alone) sets a
+ * line to excused by hand, or changes a line where an excusal stands to
+ * absent or not marked. An excusal stands for a person on a session when an
+ * approved request to be excused covers it, their line is excused, or the
+ * register keeps that it was when somebody recorded that they came
+ * (`excusalKept`). There, a facilitator, a co-facilitator and somebody given
+ * the session record only that the person came (present, late, left early)
+ * or put the line back to excused; a line already excused goes through their
+ * save untouched, and the person's word in advance stays with it. Anywhere
+ * else they save every mark but excused, as before. Anything else in their
+ * save is refused in one sentence, and nothing of the save is written. A save
+ * that only sets or clears excused never takes the register in a
+ * facilitator's place, and leaves who took it as it was. PATCH and the
+ * column's correction hold a run's track lead to the same rule: no excused
+ * set, and no line where an excusal stands left absent or not marked.
+ * The GET tells the page which reader is which (`caller.marksExcused`) and
+ * where an excusal stands (`excusalStands`).
  */
 
 // ---------------------------------------------------------------------------
@@ -316,6 +340,17 @@ export type AttendancePayload = {
    * the reason, never how often. Absent sessions and rows have none.
    */
   excuseRequests: ExcuseFacts;
+  /**
+   * WHERE AN EXCUSAL STANDS, `sessionKey -> uids`, for each column, rows
+   * only, in the rows' order: an approved request to be excused covers the
+   * person and the session, their line is excused, or somebody who does not
+   * decide excusals recorded that they came over an excused line (the
+   * register's `excusalKept`, read only beside a mark that says they came).
+   * For a reader who is not an admin or the programme's lead
+   * (`caller.marksExcused` false), such a cell offers only excused and the
+   * marks that say the person came. Never who decided anything.
+   */
+  excusalStands: Record<string, string[]>;
 };
 
 /** What the reader is on this register, and what they may do on each session of it. */
@@ -331,6 +366,14 @@ export type AttendanceCaller = {
    * archived. A facilitator of the group asks for a correction instead.
    */
   corrects: boolean;
+  /**
+   * Marks somebody excused by hand, and changes an excusal that stands: an
+   * admin, or the programme's lead, whether or not they also facilitate the
+   * group (`marksExcused`); never a run's track lead by that alone. Anybody
+   * else's register offers no Excused, and on a cell where an excusal stands
+   * (`excusalStands`) only Excused and the marks that say the person came.
+   */
+  marksExcused: boolean;
   /** By session key, for each column. */
   sessions: Record<string, { writes: boolean; checksIn: boolean; readsCheckInTotals: boolean; reports: boolean; holdsCover: boolean }>;
 };
@@ -595,6 +638,8 @@ type WriteContext = {
   facilitates: boolean;
   /** Leads the programme naming the run, or a track lead of it (not an admin). */
   leads: boolean;
+  /** Leads the programme naming the run, and does not facilitate the group (not an admin, never a track lead by that alone). */
+  leadsProgramme: boolean;
   /** The sessions the caller was given, while each holds. */
   givenSessions: string[];
   /** The group's facilitators and admins: the register's notes are theirs. */
@@ -680,6 +725,7 @@ async function prepareWrite(
       isAdmin: gated.isAdmin,
       facilitates: gated.facilitates,
       leads: gated.leads,
+      leadsProgramme: gated.leadsProgramme,
       givenSessions: gated.givenSessions,
       readsNotes: gated.readsNotes,
       sessions,
@@ -979,7 +1025,7 @@ export async function GET(
   // Who corrects a finished register: admins, and the people leading the
   // programme while the group is not archived (the write gate's own rule).
   const corrects = gated.isAdmin || (gated.leads && !group.archived);
-  const [extras, facilitators, corrections, excuseRequests] = await Promise.all([
+  const [extras, facilitators, corrections, excuseRequests, marksExcusedHere] = await Promise.all([
     registerCoverExtras(db, {
       registers: columnRegisters,
       rows: memberUids,
@@ -1010,13 +1056,28 @@ export async function GET(
       uids: memberUids,
       sessionKeys: [...columns, ...ahead].map((session) => session.sessionKey),
     }).then((facts) => (onlyGiven ? excusedOnly(facts) : facts)),
+    // Whether the reader marks somebody excused by hand, so the page offers
+    // Excused only to the people the marking route lets write it.
+    marksExcused(db, actor, gated, run),
   ]);
+  // Where an excusal stands, per column: the facts, the marks and the
+  // register's `excusalKept`, rows only.
+  const excusalStands: AttendancePayload["excusalStands"] = {};
+  for (const column of columns) {
+    const marks = records[column.sessionKey] ?? {};
+    const kept = registerBySessionKey.get(column.sessionKey)?.excusalKept ?? {};
+    const uids = members
+      .map((m) => m.uid)
+      .filter((uid) => excusalStandsFor({ approved: excuseRequests[column.sessionKey]?.[uid] === "excused", mark: marks[uid], kept: Object.hasOwn(kept, uid) }));
+    if (uids.length > 0) excusalStands[column.sessionKey] = uids;
+  }
   const caller: AttendanceCaller = {
     standing: gated.isAdmin ? "admin" : gated.facilitates ? "facilitator" : gated.leads ? "lead" : "given",
     facilitates: gated.facilitates,
     readsNotes: gated.readsNotes,
     readsFacilitatorRecord,
     corrects,
+    marksExcused: marksExcusedHere,
     sessions: Object.fromEntries(
       columns.map((column) => {
         const access = registerSessionAccess(gated, {
@@ -1072,6 +1133,7 @@ export async function GET(
     corrections: corrections.corrections,
     requests: corrections.requests,
     excuseRequests,
+    excusalStands,
   };
 
   return NextResponse.json(payload);
@@ -1089,6 +1151,8 @@ class RegisterLockedError extends Error {}
 class RegisterNotYoursError extends Error {}
 /** POST asked a session to be marked as not held, which Change this week now does. */
 class NotHeldMovedError extends Error {}
+/** A save by somebody who does not decide excusals set excused where none stands, or absent or not marked where one does; its message is the sentence. */
+class ExcusedRefusedError extends Error {}
 /** POST met a session the group, read in the transaction, no longer holds as it did. */
 class SessionChangedError extends Error {
   constructor(
@@ -1158,6 +1222,20 @@ export async function POST(
   const rosterError = checkMarksAgainstRoster(wanted, members, session.weekNumber);
   if (rosterError) return NextResponse.json({ error: rosterError }, { status: 400 });
 
+  // EXCUSED, AND AN EXCUSAL THAT STANDS, ARE AN ADMIN'S OR THE PROGRAMME'S
+  // LEAD'S (`marksExcused`). Anybody else's save may carry a line that is
+  // already excused, which goes through untouched; where an excusal stands
+  // for a person (an approved request, an excused line, or `excusalKept`)
+  // they record only that the person came, or put the line back to excused;
+  // and they set excused nowhere else. Whether an approved request stands is
+  // read only for the lines whose mark could need one.
+  const decidesExcusals = wanted.size === 0 || (await marksExcused(db, actor, prepared.ctx, prepared.ctx.run));
+  const notCame = decidesExcusals ? [] : [...wanted].filter(([, status]) => !cameBy(status)).map(([uid]) => uid);
+  const approved =
+    notCame.length > 0
+      ? await excuseFactsForGroup(db, { runId, groupId, uids: new Set(notCame), sessionKeys: [session.sessionKey] })
+      : {};
+
   // Somebody who is not one of the group's facilitators may take the register
   // in their place with this save: the facilitators whose place it would take
   // are the ones who stand behind the role now, read before the transaction.
@@ -1207,8 +1285,30 @@ export async function POST(
       }
 
       const raw = (data.records ?? {}) as Record<string, unknown>;
+      const keptBefore = stored.excusalKept;
+      // WHERE AN EXCUSAL STANDS for a person on this session: an approved
+      // request covers it, their line is excused now, or the register keeps
+      // that it was when somebody recorded that they came.
+      const stands = (uid: string): boolean =>
+        excusalStandsFor({
+          approved: approved[session.sessionKey]?.[uid] === "excused",
+          mark: stored.records[uid],
+          kept: Object.hasOwn(keptBefore, uid),
+        });
+      // The lines this save writes. For somebody who does not decide
+      // excusals, a line excused before it and excused in it is left as it
+      // was; excused where no excusal stands, and absent or not marked where
+      // one does, are refused, whole.
+      const lines = decidesExcusals
+        ? wanted
+        : new Map([...wanted].filter(([uid, status]) => !(status === "excused" && raw[uid] === "excused")));
+      for (const [uid, status] of decidesExcusals ? [] : lines) {
+        if (cameBy(status)) continue;
+        if (status === "excused" && !stands(uid)) throw new ExcusedRefusedError(EXCUSED_BY_ADMIN_OR_LEAD);
+        if (status !== "excused" && stands(uid)) throw new ExcusedRefusedError(EXCUSAL_STANDS);
+      }
       const keys = new Set(Object.keys(raw));
-      for (const [uid, status] of wanted) {
+      for (const [uid, status] of lines) {
         if (status === null) keys.delete(uid);
         else keys.add(uid);
       }
@@ -1221,20 +1321,34 @@ export async function POST(
       // `update()` a uid would be parsed as a field PATH, whereas nested keys
       // in `set()` are literal field names.
       const records: Record<string, AttendanceStatus | FieldValue> = {};
-      for (const [uid, status] of wanted) {
+      for (const [uid, status] of lines) {
         // Clearing removes the MAP KEY (never the document): the register is
         // shared, and "not marked" is the absence of a key, not a status.
         records[uid] = status === null ? FieldValue.delete() : status;
       }
-      // A facilitator's mark makes the line theirs. The note that the person
-      // told us in advance they can't make it ("Can't make it") goes with the
-      // excused mark it came with, so the person's "I can make it after all"
-      // can never clear a mark a facilitator made. Only a key that is there
-      // is deleted, so a register nobody told keeps no such map.
+      // An admin's or the lead's mark makes the line theirs. The note that the
+      // person told us in advance they can't make it ("Can't make it") goes
+      // with the excused mark it came with, so the person's "I can make it
+      // after all" can never clear a mark they made. Anybody else's mark keeps
+      // it: they only record that the person came, or put the line back to
+      // excused, which restores it as it was (and while the line says they
+      // came, the person's own page reads it as filled in, not as their word).
+      // Only a key that is there is deleted, so a register nobody told keeps
+      // no such map.
       const toldBefore = (data[EXCUSED_IN_ADVANCE] ?? {}) as Record<string, unknown>;
       const toldTakenOver: Record<string, FieldValue> = {};
-      for (const uid of wanted.keys()) {
+      for (const uid of decidesExcusals ? lines.keys() : []) {
         if (Object.hasOwn(toldBefore, uid)) toldTakenOver[uid] = FieldValue.delete();
+      }
+      // AN EXCUSAL THAT STOOD (`excusalKept`): kept, with the stamp of the
+      // excused line it displaced, when somebody who does not decide
+      // excusals records that a person came over it; taken away when they put
+      // the line back to excused (which restores that stamp, below), and by
+      // any write of the line by an admin or the lead.
+      const kept: Record<string, ExcusalKept | FieldValue> = {};
+      for (const [uid, status] of lines) {
+        if (!decidesExcusals && cameBy(status) && raw[uid] === "excused") kept[uid] = stored.setBy[uid] ?? true;
+        else if (Object.hasOwn(keptBefore, uid) && (decidesExcusals || status === "excused")) kept[uid] = FieldValue.delete();
       }
       // Where each person marked as having come was (`onlineAfter`): kept
       // only beside a mark that said they came before this write. Any other
@@ -1243,7 +1357,7 @@ export async function POST(
       const onlineBefore = (data[ONLINE] ?? {}) as Record<string, unknown>;
       const saidBefore = (data[ONLINE_SAID] ?? {}) as Record<string, unknown>;
       const where: Record<string, boolean | FieldValue> = {};
-      for (const [uid, status] of wanted) {
+      for (const [uid, status] of lines) {
         if (cameBy(status)) {
           const kept = cameBy(recordsBefore[uid] as AttendanceStatus) ? onlineBefore[uid] : undefined;
           where[uid] = onlineAfter(givenOnline.get(uid), kept, saidBefore[uid]);
@@ -1256,21 +1370,38 @@ export async function POST(
       // who came was) is stamped with who saved it and when; a line it cleared
       // loses its stamp; a line it did not move keeps the one it had.
       const stamps: Record<string, LineSetterStamp | FieldValue> = {};
+      // Lines this save moved that say who came or not (what can take the
+      // register in a facilitator's place), and how many moved at all and
+      // only set or cleared excused: marking somebody excused by hand is an
+      // admin's or the lead's job, and never takes the register.
       let changedLines = 0;
-      for (const [uid, status] of wanted) {
+      let movedLines = 0;
+      let excusalLines = 0;
+      for (const [uid, status] of lines) {
         const beforeMark = ATTENDANCE_STATUSES.includes(recordsBefore[uid] as AttendanceStatus)
           ? (recordsBefore[uid] as AttendanceStatus)
           : null;
         const beforeOnline = typeof onlineBefore[uid] === "boolean" ? (onlineBefore[uid] as boolean) : undefined;
         const afterOnline = cameBy(status) ? (where[uid] as boolean) : undefined;
         if (!lineMoved({ mark: beforeMark, online: beforeOnline }, { mark: status, online: afterOnline })) continue;
+        movedLines += 1;
+        if (status === "excused" || (status === null && beforeMark === "excused")) excusalLines += 1;
+        // A line put back to excused by somebody who does not decide
+        // excusals gets back the stamp its excused line had: an approval's
+        // stays an approval's.
+        const restored = !decidesExcusals && status === "excused" ? keptBefore[uid] : undefined;
         if (status === null) {
           if (stored.setBy[uid]) stamps[uid] = FieldValue.delete();
+        } else if (restored && restored !== true) {
+          stamps[uid] = restored;
         } else {
           stamps[uid] = { byUid: actor.uid, at: now, how: setterHow(facilitates) };
-          changedLines += 1;
+          if (status !== "excused") changedLines += 1;
         }
       }
+      // A save that only sets or clears excused leaves the register as it
+      // was taken, or not: the first take is still somebody's register save.
+      const excusalOnly = movedLines > 0 && excusalLines === movedLines && !hasHeld && !hasNotes;
 
       // TAKEN IN A FACILITATOR'S PLACE: an admin's or a lead's first line on a
       // register nobody covered and none of its facilitators has started
@@ -1319,13 +1450,18 @@ export async function POST(
           occurrence: session.occurrence,
           records,
           ...(Object.keys(toldTakenOver).length > 0 ? { [EXCUSED_IN_ADVANCE]: toldTakenOver } : {}),
+          ...(Object.keys(kept).length > 0 ? { [EXCUSAL_KEPT]: kept } : {}),
           ...(Object.keys(where).length > 0 ? { [ONLINE]: where } : {}),
           ...(Object.keys(stamps).length > 0 ? { [SET_BY]: stamps } : {}),
           ...(takesCover
             ? { [COVER]: { kind: "self", byUid: actor.uid, at: now, covering: coverable.map((each) => each.uid) } }
             : {}),
           ...(Object.keys(presence).length > 0 ? { [FACILITATOR_RECORD]: presence } : {}),
-          markedByUid: actor.uid,
+          ...(excusalOnly
+            ? {}
+            : {
+                markedByUid: actor.uid,
+              }),
           updatedAt: FieldValue.serverTimestamp(),
           ...(hasHeld ? { held: body.held === true } : {}),
           ...(hasNotes ? { notes } : {}),
@@ -1353,6 +1489,9 @@ export async function POST(
   } catch (err) {
     if (err instanceof RegisterNotYoursError) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (err instanceof ExcusedRefusedError) {
+      return NextResponse.json({ error: err.message }, { status: 403 });
     }
     if (err instanceof SessionChangedError) {
       return NextResponse.json(
@@ -1495,6 +1634,18 @@ export async function PATCH(
   if (rosterError) return NextResponse.json({ error: rosterError }, { status: 400 });
 
   const now = new Date();
+  // Excused is set only by an admin or the programme's lead, on a finished
+  // register as on a draft, and only they change a line where an excusal
+  // stands to absent or not marked: a run's track lead corrects every other
+  // line. Asked of the gate's answer alone here (a facilitator never reaches
+  // this), and whether an approved request stands only for the lines whose
+  // mark could need one.
+  const decidesExcusals = await marksExcused(db, actor, prepared.ctx, prepared.ctx.run);
+  const notCame = decidesExcusals ? [] : [...wanted].filter(([, line]) => !cameBy(line.mark)).map(([uid]) => uid);
+  const approved =
+    notCame.length > 0
+      ? await excuseFactsForGroup(db, { runId, groupId, uids: new Set(notCame), sessionKeys: [session.sessionKey] })
+      : {};
   // Read OUTSIDE the transaction: who the figures belong to, and the name
   // each person goes by for the history's sentence. Neither is a value the
   // correction races with, and a transaction that queries cannot then write.
@@ -1516,6 +1667,18 @@ export async function PATCH(
         wanted,
         now,
       });
+      if (!decidesExcusals && plan.moved.some((line) => line.after.mark === "excused")) {
+        throw new ExcusedRefusedError(EXCUSED_BY_ADMIN_OR_LEAD);
+      }
+      const leavesExcusal = (line: (typeof plan.moved)[number]): boolean =>
+        !cameBy(line.after.mark) &&
+        line.after.mark !== "excused" &&
+        excusalStandsFor({
+          approved: approved[session.sessionKey]?.[line.uid] === "excused",
+          mark: plan.register.records[line.uid],
+          kept: Object.hasOwn(plan.register.excusalKept, line.uid),
+        });
+      if (!decidesExcusals && plan.moved.some(leavesExcusal)) throw new ExcusedRefusedError(EXCUSAL_STANDS);
       changed = plan.moved.length;
       const notesBefore = plan.register.notes ?? "";
       const notesMoved = hasNotes && notes !== notesBefore;
@@ -1529,6 +1692,7 @@ export async function PATCH(
         asked: null,
         notes: notesMoved ? { value: notes } : null,
         now,
+        excusalHeld: !decidesExcusals,
       });
     });
   } catch (err) {
@@ -1540,6 +1704,9 @@ export async function PATCH(
     }
     if (err instanceof CorrectionNotHeldError) {
       return NextResponse.json({ error: CORRECTION_REFUSAL.alreadyNotHeld }, { status: 409 });
+    }
+    if (err instanceof ExcusedRefusedError) {
+      return NextResponse.json({ error: err.message }, { status: 403 });
     }
     if (err instanceof CorrectionFullError) {
       return NextResponse.json(

@@ -458,6 +458,22 @@ describe("3. the person's programme page: their own card, sent and drawn for the
     assert.match(declined.text, /Not excused for week 3\. Zach: “You could have joined online\.” Week 3 · Thu 12 Nov Absent What the register says for this session\./);
   });
 
+  test("where they ask to be excused, the form says what a certificate needs when it is handed the sentence, and nothing when it is not", () => {
+    const NEEDS = "To get your certificate you need to come to at least 5 of your group’s 6 sessions. A session you’re excused from doesn’t count as coming.";
+    const weeks = [{ sessionKey: "w04", weekNumber: 4, occurrence: 1, dateKey: "2026-11-19", upcoming: true, onlineOffered: false }];
+    const said = draws(AskForm, { groupId: A, weeks, facilitatorFirstNames: ["Sofia"], mode: "before", certificateNeeds: NEEDS });
+    assert.ok(said.text.includes(NEEDS), said.text);
+    for (const certificateNeeds of [null, undefined]) {
+      assert.doesNotMatch(draws(AskForm, { groupId: A, weeks, facilitatorFirstNames: ["Sofia"], mode: "before", certificateNeeds }).text, /To get your certificate/);
+    }
+    // The ticket's sheet and the last session's card hand it on; the programme page hands them the run home's own.
+    const read_ = (path) => readSource(path);
+    assert.match(read_("src/features/courses/excused/ExcuseSheet.tsx"), /certificateNeeds=\{certificateNeeds\}/);
+    assert.match(read_("src/features/courses/excused/TicketExcuse.tsx"), /certificateNeeds=\{certificateNeeds\}/);
+    assert.match(read_("src/features/courses/excused/LastSessionCard.tsx"), /certificateNeeds=\{certificateNeeds\}/);
+    assert.equal((read_("src/features/courses/RunHome.tsx").match(/certificateNeeds=\{data\.certificateNeeds \?\? null\}/g) ?? []).length, 4);
+  });
+
   test("before asking, the form asks them to confirm, in order: three ticks in a room with online offered, two and a sentence where it isn't", () => {
     const week = (key, n, online) => ({ sessionKey: key, weekNumber: n, occurrence: 1, dateKey: "2026-11-19", ...online });
     const ROOM = { upcoming: true, onlineOffered: true };
@@ -580,6 +596,28 @@ describe("4. the register: one of two facts, for everybody who reads it, and not
     assert.equal(approved.body.records.w03.tariq, "excused", "the finished register's Absent became Excused");
     assert.match(approved.html, /data-testid="attendance-excuse-chip"[^>]*>Excused</);
     assert.ok(!JSON.stringify(approved.body).includes("I was ill."));
+  });
+
+  test("who marks somebody excused, as the grid draws it: the facilitator's cycle names no Excused but where somebody is excused, and a line says who does; the lead's and an admin's are as before", async () => {
+    const asFacilitator = await registerAs("sofia");
+    assert.equal(asFacilitator.body.caller.marksExcused, false);
+    assert.match(
+      asFacilitator.text,
+      /Each cell cycles through present, late, left early, absent and back to not marked; a cell where somebody is excused, through excused, present, late and left early\./,
+    );
+    assert.match(
+      asFacilitator.html,
+      /data-testid="attendance-excused-who"[^>]*>Only an admin or the programme’s lead can excuse somebody, or take an excusal away\. People ask on their programme page\.</,
+    );
+    // An excused line still shows as excused, and the legend still says what E is.
+    assert.match(asFacilitator.html, /, week 2: Excused\./);
+    assert.match(asFacilitator.html, />E<\/span>Excused<\/li>/);
+    for (const who of ["claudia", "zach"]) {
+      const read = await registerAs(who);
+      assert.equal(read.body.caller.marksExcused, true, who);
+      assert.match(read.text, /Each cell cycles through present, late, left early, absent, excused and back to not marked\./, who);
+      assert.doesNotMatch(read.html, /attendance-excused-who|Only an admin or the programme’s lead/, who);
+    }
   });
 });
 

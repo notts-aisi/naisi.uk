@@ -1,18 +1,21 @@
 import "server-only";
 import { FieldValue, type DocumentReference, type Firestore, type Transaction } from "firebase-admin/firestore";
 import { displayNameOf } from "@/lib/courses/registerAccess";
-import { linesSetForSession } from "@/lib/courses/registerCover/didNotHappen";
+import { linesCalledOff } from "@/lib/courses/registerCover/didNotHappen";
 import { countSessionReports, sessionKeysWithReports } from "@/lib/courses/sessionReports/readers";
 import { sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { registerFollowUpTaskId } from "@/lib/courses/unmarkedRegisters";
 import type { SessionUser } from "@/lib/firebase/session";
 import {
   COVER,
+  EXCUSAL_KEPT,
   FACILITATOR_RECORD,
   ONLINE,
   SET_BY,
   normalizeCourseAttendance,
+  type AttendanceStatus,
   type CourseAttendanceDoc,
+  type LineSetter,
 } from "@/lib/firestore/courseAttendance";
 import { COURSE_AUDIT_COLLECTION, type CourseAuditValue } from "@/lib/firestore/courseAudit";
 import { coverClearedDetail } from "@/lib/courses/registerCover/words";
@@ -66,9 +69,10 @@ export type DidNotHappenFacts = {
   /**
    * How many lines set for the session would be cleared, with what each said
    * and the name each person goes by (both by uid), so the panel can say
-   * whose lines go.
+   * whose lines go; and, by uid, what each line said that goes back to
+   * excused because an excusal stood under it (`back`).
    */
-  lines: { cleared: number; said: Record<string, string>; names: Record<string, string> };
+  lines: { cleared: number; said: Record<string, string>; names: Record<string, string>; back: Record<string, string> };
 };
 
 export async function didNotHappenFacts(
@@ -81,13 +85,18 @@ export async function didNotHappenFacts(
     countSessionReports(db, run.id, group.id, session.sessionKey),
     clearedNames(db, input.register),
   ]);
-  const lines = input.register ? linesSetForSession(normalizeCourseAttendance("register", input.register)) : { uids: [], said: {} };
+  const lines = input.register ? linesCalledOff(normalizeCourseAttendance("register", input.register)) : { uids: [], said: {}, back: [], backSaid: {} };
   return {
     leavesAttendance: true,
     chaseStops: true,
     checkIn,
     reports,
-    lines: { cleared: lines.uids.length, said: lines.said, names: Object.fromEntries(lines.uids.map((uid) => [uid, named.get(uid) ?? "NAISI member"])) },
+    lines: {
+      cleared: lines.uids.length,
+      said: lines.said,
+      names: Object.fromEntries([...lines.uids, ...lines.back].map((uid) => [uid, named.get(uid) ?? "NAISI member"])),
+      back: lines.backSaid,
+    },
   };
 }
 
@@ -123,9 +132,9 @@ export async function clearedNames(db: Firestore, register: Readonly<Record<stri
   const names = new Map<string, string>();
   if (!register) return names;
   const stored = normalizeCourseAttendance("register", register);
-  const { uids } = linesSetForSession(stored);
+  const { uids, back } = linesCalledOff(stored);
   // And who was covering it, for a push back that clears the cover with the lines.
-  const wanted = [...new Set([...uids, ...(stored.cover ? [stored.cover.byUid] : [])])].filter((uid) => uid && !uid.includes("/"));
+  const wanted = [...new Set([...uids, ...back, ...(stored.cover ? [stored.cover.byUid] : [])])].filter((uid) => uid && !uid.includes("/"));
   if (wanted.length === 0) return names;
   const snaps = await db.getAll(...wanted.map((uid) => db.collection("users").doc(uid)));
   for (const snap of snaps) names.set(snap.id, snap.exists ? displayNameOf(snap.data() ?? {}) : "NAISI member");
@@ -155,7 +164,11 @@ export function clearedCoverValues(register: Pick<CourseAttendanceDoc, "cover" |
 /**
  * CLEAR THE LINES SET FOR A SESSION THAT DID NOT HAPPEN, inside the change's
  * transaction (every read is done), and write the history row that keeps
- * what each said. `register` is the draft as read in the transaction.
+ * what each said. `register` is the draft as read in the transaction. An
+ * excusal that stands is never cleared (`linesCalledOff`): an excused line
+ * stays, and a line that says the person came over one goes back to excused
+ * with the stamp its excused line had, so a session brought back finds every
+ * excusal where it was.
  */
 export function writeDidNotHappen(
   tx: Transaction,
@@ -177,14 +190,21 @@ export function writeDidNotHappen(
   },
 ): void {
   const stored = normalizeCourseAttendance(input.ref.id, input.register);
-  const { uids, said } = linesSetForSession(stored);
-  const records: Record<string, FieldValue> = {};
+  const { uids, said, back, backSaid } = linesCalledOff(stored);
+  const records: Record<string, AttendanceStatus | FieldValue> = {};
   const online: Record<string, FieldValue> = {};
-  const stamps: Record<string, FieldValue> = {};
+  const stamps: Record<string, LineSetter | FieldValue> = {};
   for (const uid of uids) {
     records[uid] = FieldValue.delete();
     if (Object.hasOwn(stored.online, uid)) online[uid] = FieldValue.delete();
     if (stored.setBy[uid]) stamps[uid] = FieldValue.delete();
+  }
+  for (const uid of back) {
+    records[uid] = "excused";
+    if (Object.hasOwn(stored.online, uid)) online[uid] = FieldValue.delete();
+    const was = stored.excusalKept[uid];
+    if (was !== true) stamps[uid] = was;
+    else if (stored.setBy[uid]) stamps[uid] = FieldValue.delete();
   }
   const raw = input.register as Record<string, unknown>;
   const pushed = input.kind === "push";
@@ -192,9 +212,12 @@ export function writeDidNotHappen(
   tx.set(
     input.ref,
     {
-      ...(uids.length > 0 ? { records } : {}),
+      ...(Object.keys(records).length > 0 ? { records } : {}),
       ...(Object.keys(online).length > 0 ? { [ONLINE]: online } : {}),
       ...(Object.keys(stamps).length > 0 ? { [SET_BY]: stamps } : {}),
+      // An excusal kept beside a line that said the person came goes, its
+      // line put back to excused above: only those lines carry it.
+      ...(Object.keys(stored.excusalKept).length > 0 ? { [EXCUSAL_KEPT]: FieldValue.delete() } : {}),
       // Nobody has taken it any more: the register is not taken.
       ...(raw.markedByUid !== undefined ? { markedByUid: FieldValue.delete() } : {}),
       // Pushed back, the register is the next session's: nothing of this one stays.
@@ -206,13 +229,17 @@ export function writeDidNotHappen(
     { merge: true },
   );
   const lines = uids.map((uid) => `${input.names.get(uid) ?? "NAISI member"} ${said[uid]}`);
+  // A line that said the person came over an excusal goes back to excused:
+  // named as a cleared line is, with what it said, in the sentence and in `before`.
+  const putBack = back.map((uid) => `${input.names.get(uid) ?? "NAISI member"} ${backSaid[uid]}`);
+  const putBackWords = putBack.length > 0 ? ` Put back to excused: ${putBack.join(", ")}.` : "";
   const what = pushed ? "the rest pushed back a week" : "the group keeping pace";
   // Pushed back, the cover and the record of who was there go with the lines:
   // the row keeps them beside what each line said, as plain values (a row's
   // `before` is flat), so the evening that did not happen is not lost. Kept
   // pace, they stay on the register.
   const cleared = pushed ? clearedCoverValues(stored) : {};
-  const before: Record<string, CourseAuditValue> = { ...said, ...cleared };
+  const before: Record<string, CourseAuditValue> = { ...said, ...backSaid, ...cleared };
   const covering = pushed && stored.cover ? ` ${coverClearedDetail(input.names.get(stored.cover.byUid) ?? "NAISI member")}` : "";
   tx.set(
     db.collection(COURSE_AUDIT_COLLECTION).doc(),
@@ -224,7 +251,9 @@ export function writeDidNotHappen(
       detail:
         (uids.length > 0
           ? `Week ${input.weekNumber} didn’t happen, ${what}. Cleared ${uids.length === 1 ? "1 line" : `${uids.length} lines`} of its register: ${lines.join(", ")}.`
-          : `Week ${input.weekNumber} didn’t happen, ${what}.`) + covering,
+          : `Week ${input.weekNumber} didn’t happen, ${what}.`) +
+        putBackWords +
+        covering,
       weekId: input.weekId,
       before: Object.keys(before).length > 0 ? before : null,
       after: { kind: input.kind, cleared: uids.length },

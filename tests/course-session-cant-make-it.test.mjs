@@ -335,23 +335,34 @@ describe("3. the register says it to the group's facilitators, the lead and admi
     assert.doesNotMatch(drawn.html, /aria-label="(?:Farah Hussain|Kofi Asante), week 3: [^"]*They told us/);
   });
 
-  test("a facilitator who fills in the line takes it over, and the register stops saying it", async () => {
+  test("a facilitator who records that the person came keeps their word with the line and the register stops saying it; only an admin or the lead takes the line over", async () => {
     assert.equal((await cantMake("chloe", "w03")).status, 200);
     assert.equal((await cantMake("kofi", "w03")).status, 200);
-    const markAs = (status) =>
-      call("rahul", registerRoute.POST, { groupId: B }, { body: { weekNumber: 3, marks: [{ uid: "chloe", status }] }, course: true });
+    const markAs = (status, who = "rahul") =>
+      call(who, registerRoute.POST, { groupId: B }, { body: { weekNumber: 3, marks: [{ uid: "chloe", status }] }, course: true });
     const marked = await markAs("present");
     assert.equal(marked.status, 200, JSON.stringify(marked.body));
-    // Her note goes with the mark it came with; Kofi's stays with his.
-    assert.deepEqual(Object.keys(stored(B, 3).excusedInAdvance), ["kofi"]);
+    // CHANGED ON PURPOSE (November 2026): a facilitator only records that she
+    // came, so her word stays with the line (and the register keeps that an
+    // excusal stood); while the line says she came, nothing reads it as her word.
+    assert.deepEqual(Object.keys(stored(B, 3).excusedInAdvance).sort(), ["chloe", "kofi"]);
+    assert.equal(stored(B, 3).excusalKept.chloe.how, "self", "the marker keeps her own word's stamp");
     const answer = await registerAs("rahul");
     assert.deepEqual(answer.body.cantMakeIt.map((entry) => entry.uids), [["kofi"]]);
     const drawn = drawRegister(answer.body);
     assert.doesNotMatch(drawn.text, /Chloe Nguyen can’t make it/);
     assert.ok(drawn.text.includes("Tue 17 Nov: Kofi Asante can’t make it."), drawn.text);
-    // Tapped on to excused, the mark is still the facilitator's: she is asked
-    // to tell them, and "I can make it after all" cannot clear it.
+    assert.deepEqual(await canAfterAll("chloe", "w03"), { status: 409, body: { error: words.CANT_MAKE_IT_REFUSAL.marked } });
+    // Her excusal stands: the facilitator may not make it an absence, and may put it back, word and all.
+    assert.equal((await markAs("absent")).status, 403, "a facilitator turned an excusal into an absence");
     assert.equal((await markAs("excused")).status, 200);
+    assert.deepEqual((await registerAs("rahul")).body.cantMakeIt.map((entry) => entry.uids), [["chloe", "kofi"]]);
+    // The lead's mark takes the line over, and her word goes with it: tapped
+    // on to excused, the mark is the register's, she is asked to tell them,
+    // and "I can make it after all" cannot clear it.
+    assert.equal((await markAs("present", "claudia")).status, 200);
+    assert.deepEqual(Object.keys(stored(B, 3).excusedInAdvance), ["kofi"]);
+    assert.equal((await markAs("excused", "claudia")).status, 200);
     assert.deepEqual((await registerAs("rahul")).body.cantMakeIt.map((entry) => entry.uids), [["kofi"]]);
     assert.equal(await ticketFor("chloe"), null);
     assert.deepEqual(await canAfterAll("chloe", "w03"), { status: 409, body: { error: words.CANT_MAKE_IT_REFUSAL.marked } });

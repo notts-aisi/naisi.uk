@@ -156,10 +156,14 @@ export type CourseAttendanceDoc = {
    * or the sessions staff recorded from their own words under "They meant
    * some weeks"; one write for all three, `writeExcusedInAdvance` in
    * `src/lib/courses/cantMakeIt/seat.ts`). Each one's mark in `records` is
-   * `excused`, set by the same write, before the session started. A facilitator who marks the person afterwards takes the line
+   * `excused`, set by the same write, before the session started. An admin
+   * or the programme's lead who marks the person afterwards takes the line
    * over: the marking route deletes their entry with the mark it came with.
-   * The register shows it to the group's facilitators, the lead and admins,
-   * and nobody else reads it.
+   * Anybody else may only record that the person came after all, and their
+   * entry is KEPT, so putting the line back to excused restores it as it was;
+   * every reader asks for the mark to be excused as well, so a kept entry
+   * beside another mark says nothing. The register shows it to the group's
+   * facilitators, the lead and admins, and nobody else reads it.
    *
    * Keyed by uid, so account deletion clears it key by key with a
    * `FieldPath`, as it does `records` and `participantNotes`.
@@ -177,6 +181,20 @@ export type CourseAttendanceDoc = {
    * `FieldPath`, as it does `records`.
    */
   onlineSaid: Record<string, Date>;
+  /**
+   * WHEN THE GROUP'S FACILITATORS WERE EMAILED THAT EACH PERSON IS JOINING
+   * THIS SESSION ONLINE, keyed by the uid of the person it is about. Written
+   * only by the "Joining online" press (`src/lib/courses/joiningOnline/seat.ts`),
+   * in the transaction that writes their word, the first time they say it
+   * for this session; never taken away by taking the word back, so saying it,
+   * taking it back and saying it again emails nobody a second time. Server
+   * only: no route or page sends it to a browser. A register written before
+   * this map existed has none, and reads as today.
+   *
+   * Keyed by uid, so account deletion clears it key by key with a
+   * `FieldPath`, as it does `onlineSaid`.
+   */
+  onlineEmailed: Record<string, Date>;
   /**
    * WHERE EACH PERSON WHO CAME WAS: `true` joined online, `false` in the
    * room, keyed by uid. Only somebody marked present, late or left early
@@ -237,7 +255,29 @@ export type CourseAttendanceDoc = {
    * kept as `pushedByUid` is.
    */
   corrected: Record<string, LineCorrection>;
+  /**
+   * AN EXCUSAL STOOD ON THIS LINE, keyed by the uid of the person the line
+   * is about: the stamp of the excused line (who set it, when, how) that was
+   * displaced when somebody who is not an admin or the programme's lead
+   * changed it to present, late or left early, or `true` when that line had
+   * no stamp (and on a register written while the map held only `true`).
+   * Later taps by them can then only move the line between those and back to
+   * excused (`src/lib/courses/excused/marking.ts`), and putting it back, or
+   * a session that did not happen, restores the stamp. Read only beside a
+   * mark that says the person came. Cleared when the line goes back to
+   * excused, and by any write or correction of the line by an admin or the
+   * lead. Never sent to anybody. A register written before the map existed
+   * has none, and reads as today.
+   *
+   * Keyed by uid, so account deletion clears it key by key, as it does
+   * `records`. The `byUid` inside a stamp names who acted, and is kept as
+   * `setBy`'s is.
+   */
+  excusalKept: Record<string, ExcusalKept>;
 };
+
+/** What the register keeps of an excusal that stood: the stamp it displaced, or `true` with none. */
+export type ExcusalKept = LineSetter | true;
 
 /** One corrected line's stamp: when, and who corrected it. */
 export type LineCorrection = { at: Date; byUid: string };
@@ -327,10 +367,24 @@ export const CORRECTED = "corrected";
 export const EXCUSED_IN_ADVANCE = "excusedInAdvance";
 
 /**
+ * The register's map of the lines on which an excusal stood when somebody
+ * who does not mark excused recorded that the person came. One name for the
+ * field, for the write, the readers and account deletion.
+ */
+export const EXCUSAL_KEPT = "excusalKept";
+
+/**
  * The register's map of who said they are joining the session online. One
  * name for the field, for the write, the readers and account deletion.
  */
 export const ONLINE_SAID = "onlineSaid";
+
+/**
+ * The register's map of when the group's facilitators were emailed that
+ * somebody is joining the session online. One name for the field, for the
+ * write, the reader and account deletion.
+ */
+export const ONLINE_EMAILED = "onlineEmailed";
 
 /**
  * The register's map of where each person who came was, online or in the
@@ -485,6 +539,28 @@ function asOnline(v: unknown): Record<string, boolean> {
   return out;
 }
 
+/** The lines an excusal stood on: only a `true` counts, so anything else stored reads as none. */
+function asKept(v: unknown): Record<string, ExcusalKept> {
+  if (!v || typeof v !== "object") return {};
+  const out: Record<string, ExcusalKept> = {};
+  let count = 0;
+  for (const uid of Object.keys(v as Record<string, unknown>).sort()) {
+    if (count >= ATTENDANCE_LIMITS.maxRecords) break;
+    const value = (v as Record<string, unknown>)[uid];
+    if (!uid) continue;
+    if (value === true) {
+      out[uid] = true;
+    } else {
+      // A stamp read as `setBy` reads one: one it would not keep is no entry.
+      const stamp = asSetBy({ [uid]: value })[uid];
+      if (!stamp) continue;
+      out[uid] = stamp;
+    }
+    count += 1;
+  }
+  return out;
+}
+
 /** A uid as a map key or a field holds it: a non-empty string that names one document. */
 function isUid(v: unknown): v is string {
   return typeof v === "string" && v.length > 0 && v.length <= 128 && !v.includes("/");
@@ -628,6 +704,9 @@ export function normalizeCourseAttendance(id: string, data: Raw): CourseAttendan
     // Read as the word in advance above is: a stamp that is not a time is
     // no entry.
     onlineSaid: asStamps(data[ONLINE_SAID]),
+    // Absent on every register written before the facilitators were emailed
+    // about it, and absent reads as today: nobody's word has emailed anybody.
+    onlineEmailed: asStamps(data[ONLINE_EMAILED]),
     // Absent means everybody who came was in the room, which is what every
     // register written before the map existed recorded.
     online: asOnline(data[ONLINE]),
@@ -642,6 +721,9 @@ export function normalizeCourseAttendance(id: string, data: Raw): CourseAttendan
     // Absent on every register written before corrections were stamped, and
     // absent reads as today: no line on it reads as corrected.
     corrected: asCorrected(data[CORRECTED]),
+    // Absent on every register written before it, and absent reads as today:
+    // no line carries an excusal that stood.
+    excusalKept: asKept(data[EXCUSAL_KEPT]),
   };
   const sessionAt = tsToDate(data.sessionAt);
   if (sessionAt) doc.sessionAt = sessionAt;

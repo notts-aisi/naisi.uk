@@ -18,7 +18,7 @@ import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { firstNameOfUser } from "./programmeLead";
 import { holdsCover, holdsGivenCover } from "./registerCover/model";
 import { runsThingsOn } from "./registerCover/runsThings";
-import { doesTrackLeadWork, runStaffingOf } from "./runStaffing";
+import { doesTrackLeadWork, readsTimeAnswers, runStaffingOf, type StaffedRun } from "./runStaffing";
 
 /**
  * WHO MAY TOUCH A GROUP'S REGISTER, in one place.
@@ -491,6 +491,29 @@ export function readsFacilitatorRecord(
   gated: Pick<Extract<RegisterGate, { ok: true }>, "isAdmin" | "facilitates" | "leadsProgramme">,
 ): boolean {
   return (gated.isAdmin || gated.leadsProgramme) && !gated.facilitates;
+}
+
+/**
+ * WHO MARKS SOMEBODY EXCUSED BY HAND, AND WHO CHANGES AN EXCUSAL THAT
+ * STANDS: an admin, or the lead of the programme that names the group's run
+ * (`leadsProgramme`, `readsTimeAnswers`), whether or not they also facilitate
+ * the group. Never a run's track lead by that alone, a facilitator, a
+ * co-facilitator or somebody given a session: people ask to be excused, and
+ * an admin decides. The gate does not ask a facilitator of the group whether
+ * they also lead the programme, so this asks it of them, the one read it
+ * costs (`runStaffingOf`). The marking route and both corrections of a
+ * finished register ask it, and the register's read sends the answer to the
+ * page (`src/lib/courses/excused/marking.ts`).
+ */
+export async function marksExcused(
+  db: Firestore,
+  actor: SessionUser,
+  gated: Pick<Extract<RegisterGate, { ok: true }>, "isAdmin" | "facilitates" | "leadsProgramme">,
+  run: StaffedRun,
+): Promise<boolean> {
+  if (gated.isAdmin || gated.leadsProgramme) return true;
+  if (!gated.facilitates) return false;
+  return readsTimeAnswers(await runStaffingOf(db, actor, run));
 }
 
 /**

@@ -52,6 +52,34 @@ export function linesSetForSession(register: CourseAttendanceDoc | null): Cleare
   return { uids, said };
 }
 
+/** The lines a session called off clears, and those it puts back to excused. */
+export type CalledOffLines = ClearedLines & {
+  /** The uids whose line says they came over an excusal (`excusalKept`): it goes back to excused. */
+  back: string[];
+  /** What each of those said, by uid, as `said` words a cleared line: the history row's `before` keeps it. */
+  backSaid: Record<string, string>;
+};
+
+/**
+ * THE LINES A SESSION CALLED OFF CLEARS: every line set for the session
+ * (`linesSetForSession`) but those an excusal stands on, so calling a
+ * session off never ends an excusal. An excused line stays as it is, with
+ * its stamp; a line that says the person came over an excusal goes back to
+ * excused (`back`), with the stamp its excused line had. An approved request
+ * stands on its own record, whatever the line says.
+ */
+export function linesCalledOff(register: CourseAttendanceDoc | null): CalledOffLines {
+  const set = linesSetForSession(register);
+  if (!register) return { ...set, back: [], backSaid: {} };
+  const back = set.uids.filter((uid) => Object.hasOwn(register.excusalKept, uid) && cameBy(register.records[uid]));
+  const uids = set.uids.filter((uid) => register.records[uid] !== "excused" && !back.includes(uid));
+  const said: Record<string, string> = {};
+  for (const uid of uids) said[uid] = set.said[uid];
+  const backSaid: Record<string, string> = {};
+  for (const uid of back) backSaid[uid] = set.said[uid];
+  return { uids, said, back, backSaid };
+}
+
 /**
  * Whether this press calls off a session whose register is a draft somebody
  * marked: a cancel or a push of a session not called off already, on a

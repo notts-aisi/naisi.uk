@@ -1263,10 +1263,13 @@ It is still a draft nobody has marked: nothing has been finished, and the
 reminder and the task chase it after the session exactly as they chase a
 register with no document. The register's page says who told us, in a line
 over the grid for each session still to come, and on that person's cell for a
-screen reader. A facilitator marks the person as usual, and their mark takes
-the line over: the marking route deletes the person's `excusedInAdvance`
-entry, and the person is asked to tell their facilitators rather than press
-again.
+screen reader. A facilitator may record that the person came after all, or
+put the line back to excused, and nothing else (see "Excused is an admin's or
+the programme's lead's" under Covering a register): the person's
+`excusedInAdvance` entry stays with the line, so putting it back restores
+their word. An admin's or the lead's mark takes the line over: the marking
+route deletes the entry. While the line says somebody else's mark, the person
+is asked to tell their facilitators rather than press again.
 
 The press is refused once the session has started, on a session called off
 through Change a session, and on a register that is finished or says the
@@ -1279,6 +1282,38 @@ is refused, as it is for any mark on that register: ask the person to take it
 back first. "Most weeks, not all" can record weeks well ahead, so this refusal
 is likelier after people answer it: the register's line over the grid names
 who told us, for each session still to come.
+
+### "Joining online", before a session
+
+Somebody taking part in a group can press **Joining online** on the ticket
+of their group's next session, on their programme page, until the session
+starts (`POST /api/courses/groups/[groupId]/joining-online`,
+`src/lib/courses/joiningOnline/`). It keeps their word on that session's
+register (`onlineSaid.<uid>`, when they said it), never as a mark; **I'll be
+in the room after all** takes it back. The box at the top of the
+facilitators' group page and register asks for a meeting link for that week
+while the session has none.
+
+The first time somebody says it for a session, each of the group's
+facilitators named on the group, with standing and an address, is emailed
+("Daniel Kim is joining week 2 online"): who, the group, the week, its day
+and time, and, with no link yet, that the box at the top of their group page
+has a field "Meeting link for week 2" and a button "Add the link"; with a
+link already, that there is nothing to add. It says it is automated and why
+it was sent, and its one button opens the group's page. NEVER THE MEETING
+LINK. Never the person who said it: a facilitator who holds a place in the
+group they run tells only their co-facilitators. Taking the word back emails
+nobody.
+
+Once per person per session, ever: the press decides it in the transaction
+that writes the word, from `onlineEmailed.<uid>` on the register, and stamps
+it when it tells them. Taking the word back leaves the stamp, so saying it
+again emails nobody a second time. The stamp is server only (no route or
+page sends it to a browser) and goes with the account. The email is sent
+after the write, outside its transaction (`tell.ts`); a failed send never
+fails the press, and the press is answered the same either way. Its rows in
+the log carry `kind: "course-joining-online"`, the run as the reference
+(docs/notifications.md).
 
 ### Excused weeks: asking, and an admin deciding
 
@@ -2288,6 +2323,49 @@ register records who did and in whose place. The rules are in one place,
 An admin's correction of a finished register (PATCH) stays an admin's. The note
 drawer (`participant-notes`) stays the facilitators' and admins'.
 
+**Excused is an admin's or the programme's lead's.** Only an admin or the
+programme's lead (whether or not they also facilitate the group; never a run's
+track lead by that alone: `marksExcused` in `registerAccess.ts`) sets a line to
+excused by hand, on any session, on a draft register or in a correction of a
+finished one, and only they change a line where an excusal stands to absent or
+not marked. An excusal stands for a person on a session when an approved
+request to be excused covers it, their line is excused now, or the register
+keeps (`excusalKept`, one optional map, keyed by person, cleared by account
+deletion) that it was excused when somebody else recorded that they came.
+There, a facilitator, a co-facilitator and somebody given the session record
+only that the person came (present, late, left early) or put the line back to
+excused; the person's own word in advance (`excusedInAdvance`) stays with the
+line through that, so putting it back restores it. Anywhere else they mark
+everything but excused, as before. A line already excused goes through their
+save untouched. Anything else is refused in one sentence ("Only an admin or
+the programme’s lead can mark somebody excused." or "Only an admin or the
+programme’s lead can change an excused line to absent or not marked."), and
+nothing of the save is written. On a finished register a run's track lead is
+held to the same rule: a line correction to Absent or not marked, a move or
+a clear that would leave such a line absent or not marked (or would move a
+line that does not say the person came onto one, on the week it goes to), or
+an Absent line in "It did happen", is refused in the second sentence before
+anything is written, while present, late and left early stay theirs. A
+session called off keeps every excusal that stands.
+`excusalKept` holds the stamp of the excused line it displaced, so putting the
+line back gives an approval's line back its approval's stamp. Any write of a
+line by an admin or the lead, and every correction they make, clears it; a
+track lead's correction keeps it, and a track lead's move of a line that says
+the person came onto a line excused on the week it goes to writes it there,
+with that line's stamp. A save that only
+sets or clears excused never takes the register in a facilitator's place and
+leaves who took it as it was. On the page, their cycle skips Excused; a cell
+where an excusal stands cycles Excused, Present, Late, Left early and back;
+the caption says both; and a line under the legend says "Only an admin or the
+programme’s lead can excuse somebody, or take an excusal away. People ask on
+their programme page." The sheets that correct a finished register offer a
+track lead only what the route takes from them on each line. The register's
+GET says which reader is which
+(`caller.marksExcused`) and where an excusal stands (`excusalStands`). A
+person's own word ("Can't make it", the weeks ticked under "Most weeks, not
+all"), an approved request and a correction an admin or the lead approves
+still write excused, as before.
+
 ### Taking it, and giving it
 
 `POST /api/courses/groups/[groupId]/attendance/cover`, for admins and the
@@ -2490,8 +2568,8 @@ how many).
 
 ### Deleting an account
 
-A register's `records`, `participantNotes`, `excusedInAdvance`, `onlineSaid`
-and `online` are keyed by the person they are about and go with the account,
+A register's `records`, `participantNotes`, `excusedInAdvance`, `onlineSaid`,
+`onlineEmailed` and `online` are keyed by the person they are about and go with the account,
 key by key; `markedByUid` and `pushedByUid` name who acted and stay. The new
 fields follow that: `setBy.<uid>` and `facilitatorRecord.<uid>` go, and the
 uids naming who acted (a stamp's `byUid`, a cover's `byUid`, `covering` and
@@ -2518,7 +2596,11 @@ asked with a reason, previewed, and with an optional notice:
   so the register is no longer taken, and one `session-did-not-happen` history
   row (registers) keeps what each line said in its `before`, beside the
   change's own row. What people said in advance stays, as for any cancelled or
-  pushed week. Pushed back, the register becomes the next session's, so its
+  pushed week, and so does every excusal that stands: an excused line stays
+  excused, and a line that says somebody came over one goes back to excused
+  with the stamp it displaced (`linesCalledOff`), named with what it said in
+  the row's sentence ("Put back to excused: ...") and `before`, and in both
+  previews ("Dev (in the room) goes back to excused."). Pushed back, the register becomes the next session's, so its
   cover and its facilitator record go too (the row's `before` keeps them
   beside the lines, as plain values: `cover`, `coverByUid`, `coverUntil`,
   `facilitator:<uid>`, and its sentence says who was covering) and its
@@ -2675,7 +2757,8 @@ none, being no line.
   is refused: the later weeks have moved, which is a change of time. The
   preview sends each person's line as it is now, and the sheet starts each
   from it: somebody who said in advance they couldn't make it starts as
-  Excused, one of the four it offers.
+  Excused, one of the four it offers. A run's track lead is offered Excused
+  only where an excusal stands, and Absent only where none does.
 
 Whether a session happened is changed for a week's first session only, as a
 week's change of time is: `did-not-happen` and `did-happen` on a week's second
@@ -4430,8 +4513,24 @@ meets the rule by coming to every session it held; a group that held none
 while they were in it meets nobody's. There is no default: with no number
 the site ticks nobody, and the lead ticks people by hand. A number above the most
 sessions any of the run's groups is due to hold is refused. It can be set or
-changed at any time, before the end or after it. Only the lead and admins are
-ever shown it: no member's page and no member's payload carries it.
+changed at any time, before the end or after it. The people taking part are
+told what a certificate needs, in one sentence (`certificateNeedsWords` in
+`finishing/words.ts`, the overview route's `certificateNeeds`): "To get your
+certificate you need to come to at least 5 of your group’s 6 sessions. A
+session you’re excused from doesn’t count as coming." It is drawn under their
+marks on the programme page, beside the certificate line on Home's last week,
+where "Most weeks, not all" asks which sessions they can't make, and where
+they ask to be excused. 6 is the sessions their group is due to hold from the
+week they joined, each week's first, none called off and none whose register
+says it was not held; a group due fewer than the rule asks says its own number
+for both; with no group yet, for somebody who joined after their group began,
+or where their group meets more than once in a week, it says "at least 5
+sessions";
+an incubator's people are told of no group ("of your 6 sessions"). Never
+their own count against the rule, never to a facilitator's place or to a
+learner who facilitates a group of the run, nothing once their programme is
+over (they are told whether they finished), and nothing with no rule. Only
+the lead and admins see who is ticked.
 
 ### What counts
 

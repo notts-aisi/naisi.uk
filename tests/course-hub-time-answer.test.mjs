@@ -548,6 +548,8 @@ describe("9b. weeks are ticked while the question is asked, and only taken off a
     assert.match(card, /const untickOnly = answer !== null;\s*const offered = ticksOffered\(sessions, untickOnly\);/);
     assert.match(card, /\{untickOnly \? UNTICK_ONLY : sessions\.length > 0 \? MOST_WEEKS_INTRO : NONE_TO_TICK\}/);
     assert.match(card, /\{offered\.map\(\(each\) => \(/);
+    // Where they tick the weeks they will miss: what a certificate needs, when the run home hands it over.
+    assert.match(card, /\{certificateNeeds && \(\s*<p className=\{styles\.note\}>\s*\{certificateNeeds\}\s*<\/p>\s*\)\}\s*<p className=\{styles\.note\}>\{MOST_WEEKS_WHO_READS\}<\/p>/);
   });
 });
 

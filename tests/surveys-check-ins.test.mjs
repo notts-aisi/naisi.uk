@@ -474,7 +474,9 @@ describe("2. opening it from the register", () => {
   });
 
   test("the number on the button is the register's: a moved count is refused with the new one", async () => {
-    await mark({ amara: "present", chloe: "absent", farah: "excused" });
+    await mark({ amara: "present", chloe: "absent" });
+    // Excused is an admin's or the programme's lead's to set.
+    await mark({ farah: "excused" }, "zach");
     const moved = await open("rahul", { session: "w02", people: 3 });
     assert.equal(moved.status, 409);
     assert.deepEqual(moved.body, { error: "Nothing was sent: the register now marks 1 here. Check it and press again.", people: 1 });

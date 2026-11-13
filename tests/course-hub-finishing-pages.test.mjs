@@ -111,7 +111,7 @@ describe("1. the section, once the last session is over", () => {
   test("leads the Overview in the board's words, for the lead", async () => {
     const drawn = await renderPage(pages.overview, "claudia");
     const text = drawn.text;
-    assert.ok(text.startsWith("Who finished We’ve ticked everyone who came to at least 4 of 6 sessions. Change any you disagree with. Only you and admins see this rule. 6 finished · 4 not Saved Fewest sessions first Name Group Came to Written answers Finished"), text.slice(0, 400));
+    assert.ok(text.startsWith("Who finished We’ve ticked everyone who came to at least 4 of 6 sessions. Change any you disagree with. Only you and admins see who’s ticked. 6 finished · 4 not Saved Fewest sessions first Name Group Came to Written answers Finished"), text.slice(0, 400));
     // The rest of the Overview stays below it.
     assert.ok(text.indexOf("Who finished") < text.indexOf("Sessions this week"));
     assert.match(text, /Needs attention/);
@@ -200,7 +200,7 @@ describe("1. the section, once the last session is over", () => {
 
   test("with a rule, the sentence has no link: the rule is set", async () => {
     const html = sectionHtml((await renderPage(pages.overview, "claudia")).html);
-    assert.match(html, /<p class="wfSentence">We’ve ticked everyone who came to at least 4 of 6 sessions\. Change any you disagree with\. Only you and admins see this rule\.<\/p>/);
+    assert.match(html, /<p class="wfSentence">We’ve ticked everyone who came to at least 4 of 6 sessions\. Change any you disagree with\. Only you and admins see who’s ticked\.<\/p>/);
   });
 
   test("a reviewer, the lead of another programme and everybody else are drawn no section", async () => {
@@ -247,7 +247,7 @@ describe("3. the rule's card on Settings", () => {
     for (const who of ["claudia", "zach"]) {
       const drawn = await renderPage(pages.setup, who);
       assert.match(drawn.html, /<section id="who-finished"/, who);
-      assert.match(drawn.text, /Who finished Saved Came to at least sessions Of the sessions their group held: a cancelled session doesn’t count against anyone\. After the last session, we tick everyone who came to this many, and you can change any\. Only you and admins see this\./);
+      assert.match(drawn.text, /Who finished Saved Came to at least sessions Of the sessions their group held: a cancelled session doesn’t count against anyone\. After the last session, we tick everyone who came to this many, and you can change any\. The people taking part are told the number; only you and admins see who’s ticked\./);
       assert.match(drawn.html, /<input[^>]*inputMode="numeric"[^>]*value="4"|<input[^>]*value="4"[^>]*inputMode="numeric"/);
     }
   });

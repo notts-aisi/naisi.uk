@@ -387,9 +387,10 @@ export async function approveExcusedWeek(
         });
       } else if (plan.write === "draft") {
         // A register still being taken: the line says excused, set by the
-        // approval. Its facilitators' own entry still wins afterwards. The
-        // line said nothing, or Absent, so it keeps no place in the room or
-        // online to clear.
+        // approval. Its facilitators may still record that the person came
+        // (and put it back, with this stamp); absent is an admin's or the
+        // programme's lead's. The line said nothing, or Absent, so it keeps
+        // no place in the room or online to clear.
         tx.set(
           registerRef,
           {

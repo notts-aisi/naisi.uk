@@ -411,7 +411,7 @@ export type DidNotHappenPreview = {
   chaseStops: boolean;
   checkIn: boolean;
   reports: number;
-  lines: { cleared: number; said: Record<string, string>; names?: Record<string, string> };
+  lines: { cleared: number; said: Record<string, string>; names?: Record<string, string>; back?: Record<string, string> };
 };
 
 /** "Week 2 didn't happen". */
@@ -469,13 +469,22 @@ export function didNotHappenLines(
     });
   }
   const said = Object.entries(facts.lines.said);
-  if (facts.lines.cleared === 0 || said.length === 0) {
+  // A line that said somebody came over an excusal goes back to excused: named
+  // as a cleared line is, "Amara Okafor (present)".
+  const back = Object.entries(facts.lines.back ?? {}).map(([uid, words]) => `${facts.lines.names?.[uid] ?? "Somebody"} (${words.toLowerCase()})`);
+  const backWords = back.length > 0 ? ` ${namesWords(back)} ${back.length === 1 ? "goes" : "go"} back to excused.` : "";
+  if ((facts.lines.cleared === 0 || said.length === 0) && back.length === 0) {
     lines.push({ label: "Register", text: "Nothing was set on its register, so nothing is cleared." });
+  } else if (facts.lines.cleared === 0 || said.length === 0) {
+    lines.push({
+      label: "Register",
+      text: `Nothing set for it is cleared.${backWords} The group’s history keeps what each said, and what people said in advance stays.`,
+    });
   } else {
     const each = said.map(([uid, words]) => `${facts.lines.names?.[uid] ?? "Somebody"} (${words.toLowerCase()})`);
     lines.push({
       label: "Register",
-      text: `${facts.lines.cleared === 1 ? "1 line set for it is" : `${facts.lines.cleared} lines set for it are`} cleared: ${namesWords(each)}. The group’s history keeps what each said, and what people said in advance stays.`,
+      text: `${facts.lines.cleared === 1 ? "1 line set for it is" : `${facts.lines.cleared} lines set for it are`} cleared: ${namesWords(each)}.${backWords} The group’s history keeps what each said, and what people said in advance stays.`,
     });
   }
   const made = [facts.checkIn ? "its check-in was opened" : "", facts.reports > 0 ? `${facts.reports === 1 ? "1 session report was" : `${facts.reports} session reports were`} written` : ""].filter(Boolean);

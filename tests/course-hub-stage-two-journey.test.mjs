@@ -1467,9 +1467,18 @@ const LEAD_OF = { [RUN]: "claudia", [INC_RUN]: "tess" };
 async function aSession(who, groupId, weekNumber, marks, label, { finish = true } = {}) {
   const lead = LEAD_OF[groupDoc(groupId).runId];
   const r = {};
+  // Excused is an admin's or the programme's lead's: a facilitator marks
+  // every other line, and the lead marks the excused ones.
+  const excused = (status) => status === "excused" && who !== lead;
   r.marked = await courseStep(`${label}: ${who} marks week ${weekNumber}`, 200, who, courseRoutes.register.POST, { groupId }, {
-    body: { weekNumber, marks: Object.entries(marks).map(([uid, status]) => ({ uid, status })) },
+    body: { weekNumber, marks: Object.entries(marks).filter(([, status]) => !excused(status)).map(([uid, status]) => ({ uid, status })) },
   });
+  const leadsExcused = Object.entries(marks).filter(([, status]) => excused(status));
+  if (leadsExcused.length > 0) {
+    r.leadExcuses = await courseStep(`${label}: ${lead} marks week ${weekNumber}'s excused`, 200, lead, courseRoutes.register.POST, { groupId }, {
+      body: { weekNumber, marks: leadsExcused.map(([uid, status]) => ({ uid, status })) },
+    });
+  }
   r.beforeFinish = await eachOf(Object.keys(marks), async (uid) => (await memberSees(uid)).marks);
   r.leadReadsDraft = await registerOf(lead, groupId);
   // CHANGED ON PURPOSE (November 2026): the lead may now take a register in

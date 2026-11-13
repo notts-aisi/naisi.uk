@@ -93,6 +93,12 @@ export type AttendanceRequests = AttendancePayload["requests"];
  * one of two facts and nothing else (never the reason, the reply or a count).
  */
 export type AttendanceExcuseRequests = AttendancePayload["excuseRequests"];
+/**
+ * `sessionKey -> uids`: where an excusal stands, so a reader who does not
+ * decide excusals is offered there only excused and the marks that say the
+ * person came.
+ */
+export type AttendanceExcusalStands = AttendancePayload["excusalStands"];
 
 export type AttendanceState = {
   group: AttendancePayload["group"] | null;
@@ -137,6 +143,8 @@ export type AttendanceState = {
   requests: AttendanceRequests;
   /** Requests to be excused, one of two facts per person per session. */
   excuseRequests: AttendanceExcuseRequests;
+  /** Where an excusal stands, by session. */
+  excusalStands: AttendanceExcusalStands;
   /** True on the first load of a group AND on a manual refresh. */
   loading: boolean;
   /** A fetch for the CURRENT group has landed, so the grid is real. */
@@ -197,6 +205,7 @@ const NO_FACILITATORS: AttendanceFacilitator[] = [];
 const NO_CORRECTIONS: AttendanceCorrections = {};
 const NO_REQUESTS: AttendanceRequests = {};
 const NO_EXCUSE_REQUESTS: AttendanceExcuseRequests = {};
+const NO_EXCUSAL_STANDS: AttendanceExcusalStands = {};
 
 /**
  * A separator that cannot occur in a group id, so the composite stamp can
@@ -577,6 +586,7 @@ export function useAttendance(groupId: string, options: { week?: number | null }
     corrections: data?.corrections ?? NO_CORRECTIONS,
     requests: data?.requests ?? NO_REQUESTS,
     excuseRequests: data?.excuseRequests ?? NO_EXCUSE_REQUESTS,
+    excusalStands: data?.excusalStands ?? NO_EXCUSAL_STANDS,
     loading,
     loaded: !idle && !loading && data !== null,
     error: fresh?.error ?? null,

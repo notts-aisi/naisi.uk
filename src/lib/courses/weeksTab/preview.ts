@@ -118,6 +118,8 @@ export async function loadWeekPreview(
     beforeGroups: null,
     // A preview is of a week, never of the end of a programme.
     whatsNext: null,
+    // A preview is nobody's place: nothing about a certificate.
+    certificateNeeds: null,
   };
   return { runId: run.id, weekNumber, week, payload };
 }

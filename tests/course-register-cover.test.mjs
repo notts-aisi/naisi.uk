@@ -54,6 +54,18 @@
  * 10. A REGISTER SOMEBODY TOOK THEMSELVES opens its check-in and its report
  *     to them only while they are an admin or lead the run; a session given
  *     to them opens while the grant holds and stands.
+ * 11. WHO MARKS SOMEBODY EXCUSED, AND WHO CHANGES AN EXCUSAL THAT STANDS:
+ *     an admin and the programme's lead, a lead who facilitates the group
+ *     included; never a run's track lead by that alone, a facilitator, a
+ *     co-facilitator or somebody given the session. Where an excusal stands
+ *     (an approved request, an excused line, or one they recorded the person
+ *     came over) those people record only that the person came, or put the
+ *     line back; absent and not marked are refused in one sentence and nothing
+ *     is written; the person's word in advance stays through it. A save that
+ *     only excuses somebody never takes the register. On a finished register
+ *     a track lead's correction to excused is refused the same way. The
+ *     register's read says which reader is which and where an excusal stands,
+ *     and the grid's cycle follows it.
  *
  * Deleting an account (a person's own stamp and entry go, who acted stays)
  * is held in tests/account-deletion-attendance.test.mjs.
@@ -88,6 +100,9 @@ const register = await courseRoute("groups", "[groupId]", "attendance");
 const push = await courseRoute("groups", "[groupId]", "attendance", "push");
 const cover = await courseRoute("groups", "[groupId]", "attendance", "cover");
 const record = await courseRoute("groups", "[groupId]", "attendance", "facilitators");
+const columnRoute = await courseRoute("groups", "[groupId]", "attendance", "column");
+const sessionChange = await courseRoute("groups", "[groupId]", "session", "change");
+const cantMakeItRoute = await courseRoute("groups", "[groupId]", "cant-make-it");
 const checkIn = await courseRoute("groups", "[groupId]", "check-in");
 const checkInClose = await courseRoute("groups", "[groupId]", "check-in", "close");
 const report = await courseRoute("groups", "[groupId]", "session-report");
@@ -101,6 +116,10 @@ const reminderEmail = await loadTs("lib/email/registerReminderEmail.ts");
 const history = await loadTs("lib/courses/groupHistory/load.ts");
 const registerAccessLib = await loadTs("lib/courses/registerAccess.ts");
 const pageWords = await loadTs("lib/courses/registerCover/pageWords.ts");
+const marking = await loadTs("lib/courses/excused/marking.ts");
+const correctionWords = await loadTs("lib/courses/registerCorrection/pageWords.ts");
+const cantMakeItSeat = await loadTs("lib/courses/cantMakeIt/seat.ts");
+const cantMakeItWords = await loadTs("lib/courses/cantMakeIt/words.ts");
 
 const PLACED_ON = new Date("2026-10-27T17:38:00Z");
 /** Group B's week 1 session: Tue 3 Nov, 6pm to 8pm in London (GMT). */
@@ -1276,5 +1295,607 @@ describe("10. a register somebody took themselves opens its check-in and its rep
     }
     await told();
     assert.deepEqual(await doorsOn("rahul", "w01"), THROUGH);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11. Who marks somebody excused, and who changes an excusal that stands
+// ---------------------------------------------------------------------------
+
+describe("11. only an admin or the programme's lead marks somebody excused, or turns an excusal into an absence", () => {
+  /** When Dev told us in advance, on the line laid as their own word. */
+  const SAID = new Date("2026-11-02T09:00:00Z");
+  /** Claudia leads the programme, and facilitates Group B as well. */
+  const leadFacilitates = () => world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia", "claudia"] });
+  /** A request to be excused about `uid` from `sessionKey`, decided (or not) as `status` says. */
+  const excuseRequest = (uid, status, sessionKey = "w01") =>
+    world.db.seed(`courseRequests/excused-${uid}-${sessionKey}-${status}`, {
+      kind: "excused",
+      status,
+      runId: RUN.agi,
+      groupId: B,
+      subjectUid: uid,
+      askedByUid: uid,
+      askedAt: new Date("2026-10-30T09:00:00Z"),
+      change: {
+        weeks: [
+          {
+            sessionKey,
+            status,
+            ...(status === "waiting" ? {} : { decidedByUid: "zach", decidedAt: new Date("2026-10-31T09:00:00Z") }),
+          },
+        ],
+      },
+    });
+  /** Week 1's register, made if nobody has made it yet, with `fields` laid on it by path. */
+  const lay = (fields) => {
+    if (!stored()) world.db.seed(W1, { runId: RUN.agi, groupId: B, weekNumber: 1, occurrence: 1, records: {} });
+    world.db.poke(W1, fields);
+  };
+  /** The six people of the rule, and what makes each who they are on week 1. */
+  const PEOPLE = {
+    "an admin": { who: "zach", decides: true },
+    "the programme's lead": { who: "claudia", decides: true },
+    "the lead, facilitating the group": { who: "claudia", decides: true, setUp: leadFacilitates },
+    "a run's track lead": { who: "yusuf", decides: false },
+    "the group's facilitator": { who: "rahul", decides: false },
+    "a co-facilitator": { who: "sofia", decides: false },
+    "somebody given the session": {
+      who: "tom",
+      decides: false,
+      setUp: async () => assert.equal((await take("claudia", { person: "tom" })).status, 200),
+    },
+  };
+  /** The four lines an excusal stands on, each laid on Dev's line of week 1. */
+  const LINES = {
+    "an approved request": async () => {
+      excuseRequest("dev", "approved");
+      lay({ "records.dev": "present" });
+    },
+    "excused by an admin's hand": async () => {
+      assert.equal((await mark("zach", [{ uid: "dev", status: "excused" }])).status, 200);
+    },
+    "the person's own word in advance": async () => {
+      lay({ "records.dev": "excused", "excusedInAdvance.dev": SAID, "setBy.dev": { byUid: "dev", at: SAID, how: "self" } });
+    },
+    "kept after a facilitator recorded that the person came": async () => {
+      assert.equal((await mark("zach", [{ uid: "dev", status: "excused" }])).status, 200);
+      assert.equal((await mark("rahul", [{ uid: "dev", status: "present" }])).status, 200);
+      // Recording that Dev came over an excused line keeps that it was, with the admin's stamp it displaced.
+      assert.deepEqual([stored().excusalKept.dev.byUid, stored().excusalKept.dev.how], ["zach", "cover"]);
+    },
+  };
+
+  for (const [label, person] of Object.entries(PEOPLE).filter(([, each]) => !each.decides)) {
+    test(`${label}: where an excusal stands, that the person came is written, absent and not marked are refused with nothing written, and excused goes back`, async () => {
+      for (const [kind, layLine] of Object.entries(LINES)) {
+        await told();
+        await person.setUp?.();
+        await layLine();
+        const toldBefore = stored().excusedInAdvance?.dev;
+        for (const status of ["absent", null]) {
+          const before = everything();
+          const refused = await mark(person.who, [{ uid: "dev", status }]);
+          assert.deepEqual([refused.status, refused.body.error], [403, marking.EXCUSAL_STANDS], `${kind}: ${status}`);
+          assert.equal(everything(), before, `${kind}: a refused ${status} wrote something`);
+        }
+        for (const status of ["present", "late", "left-early"]) {
+          const saved = await mark(person.who, [{ uid: "dev", status }]);
+          assert.equal(saved.status, 200, `${kind}: ${status}: ${JSON.stringify(saved.body)}`);
+          assert.equal(stored().records.dev, status, kind);
+          assert.deepEqual(stored().excusedInAdvance?.dev, toldBefore, `${kind}: the person's word went with ${status}`);
+        }
+        // Still standing after three taps: absent is refused again.
+        assert.equal((await mark(person.who, [{ uid: "dev", status: "absent" }])).status, 403, kind);
+        const back = await mark(person.who, [{ uid: "dev", status: "excused" }]);
+        assert.equal(back.status, 200, `${kind}: ${JSON.stringify(back.body)}`);
+        assert.equal(stored().records.dev, "excused", kind);
+        assert.deepEqual(stored().excusedInAdvance?.dev, toldBefore, `${kind}: putting the line back lost the person's word`);
+        assert.equal(stored().excusalKept?.dev, undefined, `${kind}: an excused line keeps no marker`);
+      }
+    });
+  }
+
+  for (const [label, person] of Object.entries(PEOPLE).filter(([, each]) => each.decides)) {
+    test(`${label}: any mark is written over an excusal that stands, and what was kept of it goes`, async () => {
+      for (const [kind, layLine] of Object.entries(LINES)) {
+        await told();
+        await person.setUp?.();
+        await layLine();
+        for (const status of ["absent", null, "late", "excused"]) {
+          const saved = await mark(person.who, [{ uid: "dev", status }]);
+          assert.equal(saved.status, 200, `${kind}: ${status}: ${JSON.stringify(saved.body)}`);
+          assert.equal(stored().records.dev, status ?? undefined, `${kind}: ${status}`);
+          assert.equal(stored().excusalKept?.dev, undefined, `${kind}: the marker stayed after ${status}`);
+        }
+        assert.equal(stored().excusedInAdvance?.dev, undefined, `${kind}: an admin's or the lead's mark takes the person's word over`);
+        assert.equal((await read(person.who)).body.caller.marksExcused, true, label);
+      }
+    });
+  }
+
+  test("the two saves: a facilitator records that the excused person came, then absent and not marked are refused, late is written, and excused goes back", async () => {
+    assert.equal((await mark("zach", [{ uid: "dev", status: "excused" }])).status, 200);
+    assert.equal((await mark("rahul", [{ uid: "dev", status: "present" }])).status, 200);
+    assert.equal(stored().records.dev, "present");
+    for (const status of ["absent", null]) {
+      const before = everything();
+      const refused = await mark("rahul", [{ uid: "dev", status }]);
+      assert.deepEqual([refused.status, refused.body.error], [403, marking.EXCUSAL_STANDS], String(status));
+      assert.equal(everything(), before, `a refused ${status} wrote something`);
+    }
+    assert.equal((await mark("rahul", [{ uid: "dev", status: "late" }])).status, 200);
+    assert.equal(stored().records.dev, "late");
+    assert.equal((await mark("rahul", [{ uid: "dev", status: "excused" }])).status, 200);
+    assert.equal(stored().records.dev, "excused");
+  });
+
+  test("excused where no excusal stands: an admin, the lead and a lead who facilitates write it; a run's track lead, a facilitator, a co-facilitator and somebody given the session are refused, and nothing is written", async () => {
+    for (const [label, person] of Object.entries(PEOPLE)) {
+      await told();
+      await person.setUp?.();
+      if (person.decides) {
+        const answer = await mark(person.who, [{ uid: "dev", status: "excused" }]);
+        assert.equal(answer.status, 200, `${label}: ${JSON.stringify(answer.body)}`);
+        assert.deepEqual([stored().records.dev, stored().setBy.dev.byUid], ["excused", person.who], label);
+        const caller = (await read(person.who)).body.caller;
+        assert.equal(caller.marksExcused, true, label);
+        assert.equal(caller.facilitates, Boolean(person.setUp), `${label}: facilitates the group`);
+        continue;
+      }
+      const before = everything();
+      const refused = await mark(person.who, [{ uid: "amara", status: "present" }, { uid: "dev", status: "excused" }]);
+      assert.deepEqual([refused.status, refused.body.error], [403, marking.EXCUSED_BY_ADMIN_OR_LEAD], label);
+      assert.equal(everything(), before, `${label}'s refused save wrote something`);
+      // The rest of the same save, without the excused line, goes as before.
+      assert.equal((await mark(person.who, [{ uid: "amara", status: "present" }, { uid: "dev", status: "absent" }])).status, 200, label);
+      assert.equal((await read(person.who)).body.caller.marksExcused, false, label);
+    }
+    // A run's track lead takes the register, and marks every line but excused.
+    await told();
+    const before = everything();
+    const refused = await mark("yusuf", [{ uid: "dev", status: "excused" }]);
+    assert.deepEqual([refused.status, refused.body.error], [403, marking.EXCUSED_BY_ADMIN_OR_LEAD], "a run's track lead");
+    assert.equal(everything(), before, "the track lead's refused save wrote something");
+    assert.equal((await mark("yusuf", [{ uid: "dev", status: "absent" }])).status, 200);
+    assert.equal((await read("yusuf")).body.caller.marksExcused, false);
+  });
+
+  test("a line already excused goes through a facilitator's save untouched, and the person's word stays through the person coming and the line going back", async () => {
+    lay({ "records.dev": "excused", "excusedInAdvance.dev": SAID, "setBy.dev": { byUid: "dev", at: SAID, how: "self" } });
+    for (const who of ["rahul", "sofia"]) {
+      const saved = await mark(who, [{ uid: "amara", status: "present" }, { uid: "dev", status: "excused" }]);
+      assert.equal(saved.status, 200, `${who}: ${JSON.stringify(saved.body)}`);
+      assert.equal(stored().records.dev, "excused", who);
+      assert.deepEqual(stored().excusedInAdvance.dev, SAID, `${who}'s save took Dev's own word over`);
+      assert.deepEqual([stored().setBy.dev.byUid, stored().setBy.dev.how], ["dev", "self"], `${who}'s save touched Dev's line`);
+    }
+    // A mis-tap and its undo: the word is still Dev's, and Dev may still take it back.
+    assert.equal((await mark("rahul", [{ uid: "dev", status: "present" }])).status, 200);
+    assert.deepEqual([stored().records.dev, stored().excusedInAdvance.dev, stored().excusalKept.dev], ["present", SAID, { byUid: "dev", at: SAID, how: "self" }]);
+    assert.equal((await mark("rahul", [{ uid: "dev", status: "excused" }])).status, 200);
+    assert.deepEqual([stored().records.dev, stored().excusedInAdvance.dev], ["excused", SAID]);
+    // An admin's mark takes the line over, and the word goes with it.
+    assert.equal((await mark("zach", [{ uid: "dev", status: "absent" }])).status, 200);
+    assert.equal(stored().excusedInAdvance?.dev, undefined);
+  });
+
+  test("a facilitator puts a line back to excused where an approved request stands for that person and that session", async () => {
+    excuseRequest("dev", "approved");
+    assert.equal((await mark("rahul", [{ uid: "dev", status: "present" }])).status, 200);
+    const restored = await mark("rahul", [{ uid: "dev", status: "excused" }]);
+    assert.equal(restored.status, 200, JSON.stringify(restored.body));
+    assert.equal(stored().records.dev, "excused");
+  });
+
+  test("a request that does not stand behind the line lets nobody but an admin or the lead set excused: waiting, declined, or approved for another week", async () => {
+    for (const [label, setUp] of [
+      ["waiting", () => excuseRequest("dev", "waiting")],
+      ["declined", () => excuseRequest("dev", "declined")],
+      ["approved for week 2", () => excuseRequest("dev", "approved", "w02")],
+    ]) {
+      await told();
+      setUp();
+      assert.equal((await mark("rahul", [{ uid: "dev", status: "present" }])).status, 200, label);
+      const before = everything();
+      const refused = await mark("rahul", [{ uid: "dev", status: "excused" }]);
+      assert.deepEqual([refused.status, refused.body.error], [403, marking.EXCUSED_BY_ADMIN_OR_LEAD], label);
+      assert.equal(everything(), before, `${label}: a refused save wrote something`);
+      // Nor does it hold an absence back: no excusal stands here.
+      assert.equal((await mark("rahul", [{ uid: "dev", status: "absent" }])).status, 200, label);
+    }
+  });
+
+  test("a save that only excuses somebody never takes the register: no cover, nobody recorded not there, and the facilitator's later save is its first take", async () => {
+    assert.equal((await mark("zach", [{ uid: "dev", status: "excused" }])).status, 200);
+    let doc = stored();
+    assert.equal(doc.records.dev, "excused");
+    assert.equal(doc.cover, undefined, "an excusal stamped a cover");
+    assert.equal(doc.facilitatorRecord, undefined, "an excusal recorded a facilitator as not there");
+    assert.equal(attendanceLib.registerIsTaken(doc), false, "an excusal took the register");
+    // The lead clearing it, and setting it again, takes nothing either.
+    assert.equal((await mark("claudia", [{ uid: "dev", status: null }])).status, 200);
+    assert.equal((await mark("claudia", [{ uid: "dev", status: "excused" }])).status, 200);
+    doc = stored();
+    assert.deepEqual([doc.cover, doc.facilitatorRecord, attendanceLib.registerIsTaken(doc)], [undefined, undefined, false]);
+    assert.equal(auditRows("register-covered").length, 0);
+    // The facilitator's save, during the session: the first take, theirs, with nobody covered and nobody arriving late.
+    assert.equal((await mark("rahul", [{ uid: "amara", status: "present" }])).status, 200);
+    doc = stored();
+    assert.equal(doc.markedByUid, "rahul");
+    assert.deepEqual([doc.cover, doc.facilitatorRecord], [undefined, undefined]);
+    assert.equal(model.startedByFacilitator(attendanceLib.normalizeCourseAttendance("w", doc), ["rahul", "sofia"]), true);
+    assert.equal(auditRows("register-covered").length, 0);
+  });
+
+  test("on a finished register, a run's track lead's correction to excused, of a line or a whole column, is refused in the same sentence and writes nothing; the lead's is written", async () => {
+    assert.equal((await mark("rahul", [{ uid: "amara", status: "present" }, { uid: "dev", status: "absent" }])).status, 200);
+    assert.equal((await finish("rahul")).status, 200);
+    const correct = (who, marks) =>
+      call(who, register.PATCH, { groupId: B }, { body: { weekNumber: 1, marks, reason: "Dev told us before the session." }, course: true });
+    const before = everything();
+    const refused = await correct("yusuf", [{ uid: "dev", status: "excused" }]);
+    assert.deepEqual([refused.status, refused.body.error], [403, marking.EXCUSED_BY_ADMIN_OR_LEAD]);
+    assert.equal(everything(), before, "the track lead's refused correction wrote something");
+    // The track lead corrects every other line as before; the lead corrects it to excused.
+    assert.equal((await correct("yusuf", [{ uid: "dev", status: "late" }])).status, 200);
+    assert.equal((await correct("claudia", [{ uid: "dev", status: "excused" }])).status, 200);
+    assert.equal(stored().records.dev, "excused");
+    // "It did happen", for the whole column, with an excused line where no
+    // excusal stands (Dev's stands now, by the lead's correction: Amara's does not).
+    const press = {
+      weekNumber: 1,
+      kind: "did-happen",
+      reason: "It went ahead after all.",
+      lines: [
+        { uid: "amara", status: "excused" },
+        { uid: "dev", status: "excused" },
+      ],
+    };
+    const beforeColumn = everything();
+    const columnRefused = await call("yusuf", columnRoute.POST, { groupId: B }, { body: press, course: true });
+    assert.deepEqual([columnRefused.status, columnRefused.body.error], [403, marking.EXCUSED_BY_ADMIN_OR_LEAD]);
+    assert.equal(everything(), beforeColumn, "the track lead's refused column wrote something");
+    const byLead = await call("claudia", columnRoute.POST, { groupId: B }, { body: press, course: true });
+    assert.notEqual(byLead.body.error, marking.EXCUSED_BY_ADMIN_OR_LEAD, "the lead is refused an excused line");
+  });
+
+  test("on a finished register, where an excusal stands, a run's track lead's correction to absent or not marked, of a line or a whole column, is refused and writes nothing; the person came is written; an admin's and the lead's absent is written and the marker goes", async () => {
+    const correct = (who, marks) =>
+      call(who, register.PATCH, { groupId: B }, { body: { weekNumber: 1, marks, reason: "From the sign-in sheet." }, course: true });
+    const column = (who, press) => call(who, columnRoute.POST, { groupId: B }, { body: { weekNumber: 1, reason: "Taken for the wrong week.", ...press }, course: true });
+    /** Dev excused by an admin, recorded as having come by the facilitator, and the register finished. */
+    const finishedWithExcusal = async () => {
+      await told();
+      assert.equal((await mark("zach", [{ uid: "dev", status: "excused" }])).status, 200);
+      assert.equal((await mark("rahul", [{ uid: "dev", status: "present" }, { uid: "amara", status: "present" }])).status, 200);
+      assert.equal((await finish("rahul")).status, 200);
+      assert.equal(stored().excusalKept.dev.byUid, "zach");
+    };
+    await finishedWithExcusal();
+    for (const status of ["absent", null]) {
+      const before = everything();
+      const refused = await correct("yusuf", [{ uid: "dev", status }]);
+      assert.deepEqual([refused.status, refused.body.error], [403, marking.EXCUSAL_STANDS], `a line to ${status}`);
+      assert.equal(everything(), before, `the track lead's refused correction to ${status} wrote something`);
+    }
+    for (const [label, press] of [
+      ["not marked: the column cleared", { kind: "clear" }],
+      ["absent: It did happen, asked before it is written", { kind: "did-happen", preview: true, lines: [{ uid: "dev", status: "absent" }] }],
+    ]) {
+      const before = everything();
+      const refused = await column("yusuf", press);
+      assert.deepEqual([refused.status, refused.body.error], [403, marking.EXCUSAL_STANDS], label);
+      assert.equal(everything(), before, `${label}: the track lead's refused column wrote something`);
+    }
+    // That Dev came stays the track lead's to correct, and the excusal still stands after it.
+    assert.equal((await correct("yusuf", [{ uid: "dev", status: "late" }])).status, 200);
+    assert.equal((await correct("yusuf", [{ uid: "dev", status: "present" }])).status, 200);
+    assert.deepEqual([stored().records.dev, stored().excusalKept.dev.byUid], ["present", "zach"]);
+    assert.equal((await correct("yusuf", [{ uid: "dev", status: "absent" }])).status, 403, "a correction of theirs let the excusal go");
+    // An admin's absent, and the lead's, are written, and what was kept of the excusal goes.
+    for (const who of ["zach", "claudia"]) {
+      if (who === "claudia") await finishedWithExcusal();
+      const decided = await correct(who, [{ uid: "dev", status: "absent" }]);
+      assert.equal(decided.status, 200, `${who}: ${JSON.stringify(decided.body)}`);
+      assert.deepEqual([stored().records.dev, stored().excusalKept?.dev], ["absent", undefined], who);
+    }
+  });
+
+  test("a move does not write a line that is not that the person came over an excusal on the week its lines go to: a track lead is refused, an admin moves as before", async () => {
+    const W2 = `courseAttendance/${RUN.agi}__${B}__w02`;
+    const markWeek2 = (who, marks) => call(who, register.POST, { groupId: B }, { body: { weekNumber: 2, marks }, course: true });
+    const move = (who) =>
+      call(who, columnRoute.POST, { groupId: B }, { body: { weekNumber: 1, kind: "move", to: { weekNumber: 2, occurrence: 1 }, reason: "These lines belong to week 2." }, course: true });
+    // Week 1 finished with Dev absent; week 2 under way, nobody has taken it, and an admin has excused Dev from it.
+    assert.equal((await mark("rahul", [{ uid: "amara", status: "present" }, { uid: "dev", status: "absent" }])).status, 200);
+    assert.equal((await finish("rahul")).status, 200);
+    at("2026-11-10T18:30:00Z");
+    assert.equal((await markWeek2("zach", [{ uid: "dev", status: "excused" }])).status, 200);
+    assert.equal(attendanceLib.registerIsTaken(world.db.read(W2)), false, "an excusal took week 2's register");
+    const before = everything();
+    const refused = await move("yusuf");
+    assert.deepEqual([refused.status, refused.body.error], [403, marking.EXCUSAL_STANDS]);
+    assert.equal(everything(), before, "the track lead's refused move wrote something");
+    const moved = await move("zach");
+    assert.equal(moved.status, 200, JSON.stringify(moved.body));
+    assert.equal(world.db.read(W2).records.dev, "absent", "an admin's move writes the line as before");
+  });
+
+  test("a run's track lead moving a line that says the person came onto a line excused there keeps that the excusal stands, so a second correction to absent is refused; an admin's move decides the line", async () => {
+    const W2 = `courseAttendance/${RUN.agi}__${B}__w02`;
+    const markWeek2 = (who, marks) => call(who, register.POST, { groupId: B }, { body: { weekNumber: 2, marks }, course: true });
+    const move = (who) =>
+      call(who, columnRoute.POST, { groupId: B }, { body: { weekNumber: 1, kind: "move", to: { weekNumber: 2, occurrence: 1 }, reason: "These lines belong to week 2." }, course: true });
+    const correctWeek2 = (who, marks) =>
+      call(who, register.PATCH, { groupId: B }, { body: { weekNumber: 2, marks, reason: "From the sign-in sheet." }, course: true });
+    for (const [who, decides] of [
+      ["yusuf", false],
+      ["zach", true],
+    ]) {
+      await told();
+      // 1. Week 1 finished with Dev present. 2. Week 2 under way, nobody has taken it, and an admin has excused Dev from it.
+      assert.equal((await mark("rahul", [{ uid: "amara", status: "present" }, { uid: "dev", status: "present" }])).status, 200);
+      assert.equal((await finish("rahul")).status, 200);
+      at("2026-11-10T18:30:00Z");
+      assert.equal((await markWeek2("zach", [{ uid: "dev", status: "excused" }])).status, 200);
+      const excusedBy = world.db.read(W2).setBy.dev;
+      // 3. The move: Dev's line on week 2 now says they came.
+      const moved = await move(who);
+      assert.equal(moved.status, 200, `${who}: ${JSON.stringify(moved.body)}`);
+      assert.equal(world.db.read(W2).records.dev, "present", who);
+      if (!decides) {
+        // The excusal still stands under it, with the stamp it displaced.
+        assert.deepEqual(
+          [world.db.read(W2).excusalKept?.dev?.byUid, world.db.read(W2).excusalKept?.dev?.how],
+          [excusedBy.byUid, excusedBy.how],
+          "the track lead's move ended the excusal",
+        );
+        // 4. A second correction, to absent and to not marked: refused, and nothing written.
+        for (const status of ["absent", null]) {
+          const before = everything();
+          const refused = await correctWeek2(who, [{ uid: "dev", status }]);
+          assert.deepEqual([refused.status, refused.body.error], [403, marking.EXCUSAL_STANDS], `${who}: to ${status}`);
+          assert.equal(everything(), before, `${who}: the refused correction to ${status} wrote something`);
+        }
+      } else {
+        // An admin's move decides the line: no marker is left, and their absent is written.
+        assert.equal(world.db.read(W2).excusalKept?.dev, undefined, "an admin's move left a marker");
+        const written = await correctWeek2(who, [{ uid: "dev", status: "absent" }]);
+        assert.equal(written.status, 200, JSON.stringify(written.body));
+        assert.deepEqual([world.db.read(W2).records.dev, world.db.read(W2).excusalKept?.dev], ["absent", undefined]);
+      }
+    }
+  });
+
+  test("a session called off names every line it puts back to excused, with what it said, in the panel's preview, the column sheet's, and the history row", async () => {
+    const press = (who, body) =>
+      call(who, sessionChange.POST, { groupId: B }, { body: { week: 1, dateKey: "2026-11-03", reason: "The room flooded.", tell: false, ...body }, course: true });
+    /** An admin excused Dev; the facilitator recorded that Dev came after all, and Amara came. */
+    assert.equal((await mark("zach", [{ uid: "dev", status: "excused" }])).status, 200);
+    assert.equal((await mark("rahul", [{ uid: "dev", status: "present" }, { uid: "amara", status: "present" }])).status, 200);
+    assert.ok(stored().excusalKept?.dev, "the facilitator's came mark kept no marker");
+    // The group page's panel: Amara's line is cleared and Dev's goes back to excused, each named with what it said.
+    const preview = await press("rahul", { kind: "cancel", preview: true });
+    assert.equal(preview.status, 200, JSON.stringify(preview.body));
+    const facts = preview.body.preview?.didNotHappen ?? preview.body.didNotHappen ?? preview.body.preview;
+    const lines = pageWords.didNotHappenLines(facts, 1, "cancel");
+    const said = lines.find((row) => row.label === "Register")?.text ?? "";
+    assert.match(said, /^1 line set for it is cleared: Amara [^(]*\(present\)\. Dev [^(]*\(present\) goes back to excused\. /, said);
+    // Only Dev's line goes back: nothing set for it is cleared, and it is still named.
+    const onlyBack = pageWords.didNotHappenLines({ ...facts, lines: { ...facts.lines, cleared: 0, said: {} } }, 1, "cancel");
+    assert.match(onlyBack.find((row) => row.label === "Register")?.text ?? "", /^Nothing set for it is cleared\. Dev [^(]*\(present\) goes back to excused\. /);
+    // The history row: Dev named as put back, with what the line said, in the sentence and in `before`.
+    const cancelled = await press("rahul", { kind: "cancel" });
+    assert.equal(cancelled.status, 200, JSON.stringify(cancelled.body));
+    const [row] = auditRows("session-did-not-happen");
+    assert.ok(row, "no history row for the session called off");
+    assert.match(row.detail, /Cleared 1 line of its register: Amara[^.,]* Present\. Put back to excused: Dev[^.,]* Present\./, row.detail);
+    assert.deepEqual([row.before.amara, row.before.dev], ["Present", "Present"], "the row's before lost a line it changed");
+    assert.equal(stored().records.dev, "excused");
+
+    // The same register finished, called off from the column sheet: its preview names Dev's line, and so does its row.
+    await told();
+    assert.equal((await mark("zach", [{ uid: "dev", status: "excused" }])).status, 200);
+    assert.equal((await mark("rahul", [{ uid: "dev", status: "present" }, { uid: "amara", status: "present" }])).status, 200);
+    assert.equal((await finish("rahul")).status, 200);
+    const column = (body) =>
+      call("claudia", columnRoute.POST, { groupId: B }, { body: { weekNumber: 1, kind: "did-not-happen", pace: "keep", dateKey: "2026-11-03", ...body }, course: true });
+    const sheet = await column({ preview: true });
+    assert.equal(sheet.status, 200, JSON.stringify(sheet.body));
+    assert.deepEqual(
+      [sheet.body.preview.clearing.map((each) => [each.uid, each.line]), sheet.body.preview.puttingBack.map((each) => [each.uid, each.line])],
+      [[["amara", "In the room"]], [["dev", "In the room"]]],
+    );
+    assert.match(
+      correctionWords.didNotHappenPreviewLines(sheet.body.preview).find((each) => each.label === "Register")?.text ?? "",
+      /^1 line cleared: Amara \(in the room\)\. Dev \(in the room\) goes back to excused\. /,
+    );
+    const off = await column({ tell: false, reason: "Only two people came." });
+    assert.equal(off.status, 200, JSON.stringify(off.body));
+    const [fromColumn] = auditRows("session-did-not-happen");
+    assert.match(fromColumn.detail, /Put back to excused: Dev[^.,]* Present\./, fromColumn.detail);
+    assert.equal(fromColumn.before.dev, "Present");
+    assert.equal(stored().records.dev, "excused");
+  });
+
+  test("the column sheet's It didn't happen names a line it puts back to excused as it names a cleared one", () => {
+    const preview = {
+      weekNumber: 1,
+      pace: "keep",
+      clearing: [{ uid: "amara", name: "Amara Okafor", line: "In the room" }],
+      puttingBack: [{ uid: "dev", name: "Dev Shah", line: "Online" }],
+    };
+    const text = (each) => correctionWords.didNotHappenPreviewLines(each).find((row) => row.label === "Register")?.text;
+    assert.equal(text(preview), "1 line cleared: Amara (in the room). Dev (online) goes back to excused. The group’s history keeps what each said.");
+    assert.equal(text({ ...preview, clearing: [] }), "Nothing set for it is cleared. Dev (online) goes back to excused. The group’s history keeps what each said.");
+    assert.equal(
+      text({ ...preview, puttingBack: [...preview.puttingBack, { uid: "tariq", name: "Tariq Aziz", line: "In the room" }] }),
+      "1 line cleared: Amara (in the room). Dev (online) and Tariq (in the room) go back to excused. The group’s history keeps what each said.",
+    );
+    assert.equal(text({ ...preview, clearing: [], puttingBack: [] }), "Nothing was set on its register, so nothing is cleared.");
+  });
+
+  test("a session called off keeps every excusal that stands, and brought back, absent is still refused: after the facilitator's own Move it to when it met, and in a track lead's It did happen", async () => {
+    const press = (who, body) =>
+      call(who, sessionChange.POST, { groupId: B }, { body: { week: 1, dateKey: "2026-11-03", reason: "The room flooded.", tell: false, ...body }, course: true });
+    /** An admin excused Amara and Dev by hand; the facilitator recorded that Amara came after all, and so took the register. */
+    const takenWithExcusals = async () => {
+      await told();
+      assert.equal((await mark("zach", [{ uid: "amara", status: "excused" }, { uid: "dev", status: "excused" }])).status, 200);
+      const byZach = stored().setBy.amara;
+      assert.equal((await mark("rahul", [{ uid: "amara", status: "present" }])).status, 200);
+      assert.equal(attendanceLib.registerIsTaken(stored()), true);
+      const cancelled = await press("rahul", { kind: "cancel" });
+      assert.equal(cancelled.status, 200, JSON.stringify(cancelled.body));
+      const doc = stored();
+      assert.deepEqual(doc.records, { amara: "excused", dev: "excused" }, "calling the session off cleared an excusal");
+      assert.deepEqual([doc.setBy.amara.byUid, doc.setBy.amara.how], [byZach.byUid, byZach.how], "Amara's line went back without the stamp it had");
+      assert.equal(doc.setBy.dev.byUid, "zach");
+      assert.deepEqual(doc.excusalKept ?? {}, {}, "a marker was left half there");
+      assert.equal(doc.online?.amara, undefined, "where Amara was is left beside an excused line");
+    };
+
+    // The facilitator brings it back ("Move it to when it met"), and is refused absent on both.
+    await takenWithExcusals();
+    const back = await press("rahul", { kind: "move", metAtAnotherTime: true, move: { dateKey: "2026-11-03", time: "6pm", room: "Hallward B12" } });
+    assert.equal(back.status, 200, JSON.stringify(back.body));
+    for (const uid of ["amara", "dev"]) {
+      const refused = await mark("rahul", [{ uid, status: "absent" }]);
+      assert.deepEqual([refused.status, refused.body.error], [403, marking.EXCUSAL_STANDS], uid);
+    }
+
+    // A track lead says it did happen: absent over an excusal is refused, the excusal kept is written.
+    await takenWithExcusals();
+    at("2026-11-03T20:30:00Z");
+    const happened = (lines) =>
+      call("yusuf", columnRoute.POST, { groupId: B }, { body: { weekNumber: 1, kind: "did-happen", reason: "It went ahead in another room.", lines }, course: true });
+    const before = everything();
+    const refused = await happened([{ uid: "amara", status: "present" }, { uid: "dev", status: "absent" }]);
+    assert.deepEqual([refused.status, refused.body.error], [403, marking.EXCUSAL_STANDS]);
+    assert.equal(everything(), before, "the track lead's refused It did happen wrote something");
+    const written = await happened([{ uid: "amara", status: "present" }, { uid: "dev", status: "excused" }]);
+    assert.equal(written.status, 200, JSON.stringify(written.body));
+    assert.deepEqual([stored().records.amara, stored().records.dev], ["present", "excused"]);
+    assert.ok(stored().excusalKept?.amara, "the track lead recorded Amara came over an excusal, and the register no longer keeps that it stood");
+  });
+
+  test("putting a line back gives it back its approval's stamp, and the person's own three ways of taking a word back still leave it alone", async () => {
+    const asked = new Date("2026-11-01T09:00:00Z");
+    at("2026-11-02T12:00:00Z");
+    excuseRequest("dev", "approved");
+    lay({ "records.dev": "excused", "excusedInAdvance.dev": asked, "setBy.dev": { byUid: "zach", at: asked, how: "approval" } });
+    assert.equal((await mark("rahul", [{ uid: "dev", status: "present" }])).status, 200);
+    assert.equal(stored().setBy.dev.how, "facilitator");
+    assert.equal((await mark("rahul", [{ uid: "dev", status: "excused" }])).status, 200);
+    assert.deepEqual([stored().setBy.dev.byUid, stored().setBy.dev.how], ["zach", "approval"], "putting the line back lost the approval's stamp");
+    assert.deepEqual(stored().excusedInAdvance.dev, asked);
+    // "I can make it after all", from an old page: refused, and the line stays.
+    const takenBack = await call("dev", cantMakeItRoute.POST, { groupId: B }, { body: { sessionKey: "w01", cantMakeIt: false }, course: true });
+    assert.deepEqual([takenBack.status, takenBack.body.error], [409, cantMakeItWords.CANT_MAKE_IT_REFUSAL.approved]);
+    assert.equal(stored().records.dev, "excused");
+    // Unticking "Most weeks, not all" and a new regular time take a word back only through the one write, which leaves this line.
+    const writes = [];
+    const tx = { set: (...args) => writes.push(args) };
+    assert.equal(cantMakeItSeat.writeTakenBack(tx, { data: stored(), ref: {} }, "dev"), false);
+    assert.deepEqual(writes, [], "the take-back wrote over a line an admin approved");
+    for (const file of ["lib/courses/timeAnswer/seat.ts", "lib/courses/regularTime/apply.ts"]) {
+      const source = readFileSync(join(fileURLToPath(new URL("..", import.meta.url)), "src", file), "utf8");
+      assert.match(source, /writeTakenBack\(tx, /, `${file} takes a word back another way`);
+      assert.doesNotMatch(source, /records: \{ \[/, `${file} writes a register line of its own`);
+    }
+  });
+
+  test("a sheet that corrects a finished register offers a track lead only what the route takes, and It did happen fills Excused where an excusal stands", () => {
+    const keys = (choices) => choices.map((choice) => choice.key);
+    const all = correctionWords.LINE_CHOICES;
+    // An admin and the programme's lead: every line, wherever an excusal stands.
+    assert.deepEqual(keys(correctionWords.choicesFor(all, { marksExcused: true, excusalStands: true, restores: false })), keys(all));
+    // A track lead correcting a line: never Excused, and no Absent where an excusal stands.
+    assert.deepEqual(keys(correctionWords.choicesFor(all, { marksExcused: false, excusalStands: false, restores: false })), keys(all).filter((key) => key !== "excused"));
+    assert.deepEqual(
+      keys(correctionWords.choicesFor(all, { marksExcused: false, excusalStands: true, restores: false })),
+      keys(all).filter((key) => key !== "excused" && key !== "absent"),
+    );
+    // It did happen restates every line: Excused where an excusal stands, Absent where none does.
+    const happen = correctionWords.DID_HAPPEN_CHOICES;
+    assert.deepEqual(keys(correctionWords.choicesFor(happen, { marksExcused: false, excusalStands: true, restores: true })), ["present", "present-online", "excused"]);
+    assert.deepEqual(keys(correctionWords.choicesFor(happen, { marksExcused: false, excusalStands: false, restores: true })), ["present", "present-online", "absent"]);
+    assert.equal(correctionWords.didHappenFill(true), "excused");
+    assert.equal(correctionWords.didHappenFill(false), "absent");
+    // The two sheets ask these, and the grid hands them who the reader is and where an excusal stands.
+    const read_ = (path) => readFileSync(join(fileURLToPath(new URL("..", import.meta.url)), "src", path), "utf8");
+    assert.match(read_("features/courses/registerCorrection/ColumnSheet.tsx"), /P\.didHappenFill\(excusalStands\.includes\(each\.uid\)\)/);
+    assert.match(read_("features/courses/registerCorrection/ColumnSheet.tsx"), /P\.choicesFor\(P\.didHappenChoicesFor\(each\.line\), \{/);
+    assert.match(read_("features/courses/registerCorrection/LineSheet.tsx"), /mode === "correct" \? P\.choicesFor\(others, \{ marksExcused, excusalStands, restores: false \}\) : others/);
+    const grid = read_("features/courses/AttendanceGrid.tsx");
+    assert.equal((grid.match(/marksExcused=\{marksExcused\}/g) ?? []).length, 2, "a sheet is not told who the reader is");
+  });
+
+  test("the register's read says who decides excusals and where one stands, rows only, and nothing of who decided", async () => {
+    assert.equal((await take("claudia", { person: "tom" })).status, 200);
+    const said = {};
+    for (const who of ["zach", "claudia", "yusuf", "rahul", "sofia", "tom"]) said[who] = (await read(who)).body.caller.marksExcused;
+    leadFacilitates();
+    said["claudia, facilitating"] = (await read("claudia")).body.caller.marksExcused;
+    assert.deepEqual(said, { zach: true, claudia: true, yusuf: false, rahul: false, sofia: false, tom: false, "claudia, facilitating": true });
+
+    await told();
+    excuseRequest("amara", "approved");
+    assert.equal((await mark("zach", [{ uid: "dev", status: "excused" }])).status, 200);
+    const first = (await read("rahul")).body.excusalStands;
+    assert.deepEqual(first, { w01: ["amara", "dev"] });
+    assert.doesNotMatch(JSON.stringify(first), /zach|approv|decid/, "who decided reached the register's read");
+    assert.equal((await mark("rahul", [{ uid: "dev", status: "present" }])).status, 200);
+    assert.deepEqual((await read("rahul")).body.excusalStands, { w01: ["amara", "dev"] }, "Dev came, over an excused line");
+    assert.equal((await mark("zach", [{ uid: "dev", status: "absent" }])).status, 200);
+    assert.deepEqual((await read("rahul")).body.excusalStands, { w01: ["amara"] }, "an admin decided Dev's line");
+  });
+
+  test("a register with no marker reads as before; a marker is the stamp it displaced, or true from before", () => {
+    assert.deepEqual(attendanceLib.normalizeCourseAttendance("x", { records: { amara: "present" } }).excusalKept, {});
+    assert.deepEqual(attendanceLib.normalizeCourseAttendance("x", { excusalKept: { amara: true, dev: "yes", tariq: 1 } }).excusalKept, { amara: true });
+    assert.deepEqual(attendanceLib.normalizeCourseAttendance("x", { excusalKept: "garbled" }).excusalKept, {});
+    const at = new Date("2026-11-01T09:00:00Z");
+    assert.deepEqual(
+      attendanceLib.normalizeCourseAttendance("x", {
+        excusalKept: { amara: { byUid: "zach", at, how: "approval" }, dev: { byUid: "zach", at, how: "sideways" }, tariq: { at, how: "cover" } },
+      }).excusalKept,
+      { amara: { byUid: "zach", at, how: "approval" } },
+      "a stamp that would not read as a line's stamp is no marker",
+    );
+  });
+
+  test("the register's cycle on each kind of cell, and the words that list it", () => {
+    const taps = (cell, from = null) => {
+      const seen = [];
+      let at = from;
+      for (let i = 0; i < 6; i += 1) seen.push((at = marking.nextMark(at, cell)));
+      return seen;
+    };
+    // An admin and the programme's lead: every mark, then back to not marked.
+    assert.equal(marking.cellMarks(true, true), "every");
+    assert.equal(marking.cellMarks(true, false), "every");
+    assert.deepEqual(taps("every"), ["present", "late", "left-early", "absent", "excused", null]);
+    // Anybody else, where no excusal stands: no Excused. An excused line they tap says the person came.
+    assert.equal(marking.cellMarks(false, false), "no-excused");
+    assert.deepEqual(taps("no-excused"), ["present", "late", "left-early", "absent", null, "present"]);
+    assert.equal(marking.nextMark("excused", "no-excused"), "present");
+    // Anybody else, where an excusal stands: excused and the marks that say the person came, never absent or not marked.
+    assert.equal(marking.cellMarks(false, true), "excusal-stands");
+    assert.deepEqual(taps("excusal-stands", "excused"), ["present", "late", "left-early", "excused", "present", "late"]);
+    assert.equal(marking.nextMark("absent", "excusal-stands"), "excused");
+    assert.equal(marking.nextMark(null, "excusal-stands"), "excused");
+    assert.equal(marking.cycleWords(true), "present, late, left early, absent, excused and back to not marked");
+    assert.equal(
+      marking.cycleWords(false),
+      "present, late, left early, absent and back to not marked; a cell where somebody is excused, through excused, present, late and left early",
+    );
+    assert.equal(marking.EXCUSED_WHO_CAN, "Only an admin or the programme’s lead can excuse somebody, or take an excusal away. People ask on their programme page.");
+    assert.equal(marking.EXCUSAL_STANDS, "Only an admin or the programme’s lead can change an excused line to absent or not marked.");
+    // The grid asks these, per cell, from the reader's answer and the cell's excusal.
+    const grid = readFileSync(join(fileURLToPath(new URL("..", import.meta.url)), "src", "features", "courses", "AttendanceGrid.tsx"), "utf8");
+    assert.match(grid, /cellMarks\(marksExcused, excusalStands\[sessionKey\]\?\.includes\(uid\) \?\? false\)/);
+    assert.equal((grid.match(/nextMark\([a-z]+, marksOn\(session\.sessionKey, member\.uid\)\)/g) ?? []).length, 2, "a tap and its label ask different cycles");
   });
 });

@@ -1186,7 +1186,9 @@ const USERS = new Map([
     "course-session-joining-online.test.mjs",
     "renders the register's grid, the ticket's Joining online beside Can't make it, the facilitators' box, the " +
       "session ticket and the Attendance tab (.tsx) to HTML with the press's, the link's and the register's " +
-      "handlers behind them, because what each one offers and says is decided by the components as they run",
+      "handlers behind them, because what each one offers and says is decided by the components as they run; " +
+      "and the facilitators' email (.tsx) the press sends, because its words and its one link are only right if " +
+      "rendering it says so",
   ],
   [
     "course-time-question-email.test.mjs",

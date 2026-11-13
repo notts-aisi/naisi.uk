@@ -51,6 +51,7 @@ export const SEND_DOOR_NAMES = [
   "sendCoverGivenEmail",
   "sendHandReminders",
   "sendExcusedEmail",
+  "sendJoiningOnlineEmail",
 ];
 
 /** Any of the doors, as a call. */

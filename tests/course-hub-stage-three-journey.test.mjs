@@ -1212,7 +1212,17 @@ async function aSession(groupId, session) {
     if (letter !== "-") marks.push({ uid: member.uid, status: STATUS[letter] });
   }
   const label = `${groupId === GROUP.A ? "Group A" : "Group B"} week ${week}`;
-  await courseStep(`${label}: ${facilitator} marks`, 200, facilitator, courseRoutes.register.POST, { groupId }, { body: { weekNumber: week, marks } });
+  // Excused is an admin's or the programme's lead's: the facilitator marks
+  // every other line, and the lead marks the excused ones before Finish.
+  const excused = marks.filter((mark) => mark.status === "excused");
+  await courseStep(`${label}: ${facilitator} marks`, 200, facilitator, courseRoutes.register.POST, { groupId }, {
+    body: { weekNumber: week, marks: marks.filter((mark) => mark.status !== "excused") },
+  });
+  if (excused.length > 0) {
+    await courseStep(`${label}: the lead marks ${excused.map((mark) => mark.uid).join(" and ")} excused`, 200, "claudia", courseRoutes.register.POST, { groupId }, {
+      body: { weekNumber: week, marks: excused },
+    });
+  }
   later(30);
   const before = world.mail.length;
   await courseStep(`${label}: ${facilitator} finishes`, 200, facilitator, courseRoutes.finish.POST, { groupId }, { body: { weekNumber: week } });
@@ -1600,7 +1610,7 @@ const HOME = `/learn/${RUN}`;
 /** The run's head, as the lead's tabs draw it once the last session is over ("stayed to the end", was "took part"). */
 const HEAD_AFTER = (n) => `Programmes AGI Strategy Fellowship Finished · Tue 8 Dec C Lead: Claudia · ${n} stayed to the end Overview`;
 const RULE_SENTENCE = (n) =>
-  `We’ve ticked everyone who came to at least ${n} of 6 sessions. Change any you disagree with. Only you and admins see this rule.`;
+  `We’ve ticked everyone who came to at least ${n} of 6 sessions. Change any you disagree with. Only you and admins see who’s ticked.`;
 const NO_RULE =
   "There’s no rule for who finished yet, so we haven’t ticked anybody. Set one in Settings, or tick people yourself. Only you and admins see this.";
 const NOTE = "Group B met 5 times. Its session on Tue 24 Nov was cancelled, and it doesn’t count against anyone.";

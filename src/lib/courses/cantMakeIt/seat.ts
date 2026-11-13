@@ -59,9 +59,12 @@ import { CANT_MAKE_IT_REFUSAL } from "./words";
  * the caller's line and nothing else: `records.<uid>` as `excused`, and
  * `excusedInAdvance.<uid>` as when they said so, made in one write, in a
  * transaction, while `cantMakeItState` says it is open. Taking it back
- * deletes both, and only while the line is still the one they wrote: a
- * facilitator's mark deletes `excusedInAdvance.<uid>` (the marking route),
- * so from then on the line is theirs. The register's own fields (the held
+ * deletes both, and only while the line is still the one they wrote: an
+ * admin's or the programme's lead's mark deletes `excusedInAdvance.<uid>`
+ * (the marking route), so from then on the line is theirs; a facilitator's
+ * mark that they came keeps it beside a line that is no longer excused, so
+ * nothing reads it as their word until the line is put back. The register's
+ * own fields (the held
  * switch, the push, its notes, who marked it last) are never touched, so a
  * register made this way is still a draft nobody has marked: no job, task or
  * reminder reads it differently.
@@ -261,7 +264,9 @@ export function writeExcusedInAdvance(
  * is not the person's own word, so nothing that takes a word back touches it:
  * not an old page's "I can make it after all", not unticking "Most weeks, not
  * all", not a new regular time. Only somebody correcting the register changes
- * it, and a facilitator's own mark on the day wins over it, as over any line.
+ * it. A facilitator's mark on the day that they came wins over it, and
+ * putting the line back to excused gives it back its approval's stamp
+ * (`excusalKept`); only an admin or the programme's lead marks it otherwise.
  */
 export function setByApproval(line: Pick<SessionLine, "data">, uid: string): boolean {
   const stamps = (line.data?.[SET_BY] ?? {}) as Record<string, unknown>;
