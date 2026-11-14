@@ -200,5 +200,6 @@ test("course hub: an admin moves somebody to another group for good, mid-term", 
   } finally {
     await context.close().catch(() => {});
     await browser.close().catch(() => {});
+    recorder.writeMarker();
   }
 });
