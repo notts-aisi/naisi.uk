@@ -1082,6 +1082,10 @@ describe("6. the person, the programme's lead and admins read it; nobody else do
       "features/applications/groups/PeopleInGroups.tsx",
       "the board's card for the lead and admins: why, and what would work, under a can't (with They meant some weeks) and under a most weeks that kept them",
     ],
+    [
+      "lib/courses/staffMove/plan.ts",
+      "moving somebody for good, for the lead and admins: a most weeks answer about the old group names the sessions from the week of the move on that no longer apply, on the page only; the answer itself is left as it is",
+    ],
     ["lib/applications/arrange/load.ts", "Circles' read of each seat, an admin's alone, through the stale-answer rule"],
     ["lib/applications/arrange/plan.ts", "the arranged person's type, which carries the answer for the screen and is never sent to Claude"],
     ["lib/applications/arrange/view.ts", "Circles' person as the admin's screen is sent it"],

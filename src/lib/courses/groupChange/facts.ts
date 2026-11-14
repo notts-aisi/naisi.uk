@@ -224,10 +224,12 @@ export async function toldFacts(
   run: CourseRunDoc,
   group: CourseGroupDoc,
   writerUid: string,
+  /** A change to ONE session: its week, so its people are that week's (`updateEmailAudience`). Null for a regular time. */
+  weekNumber: number | null = null,
 ): Promise<ToldFacts> {
   const [members, everyone, facilitatorUids] = await Promise.all([
-    updateEmailAudience(db, run, [group], "group", group.id, writerUid),
-    updateEmailAudience(db, run, [group], "group", group.id, writerUid, { withFacilitators: true }),
+    updateEmailAudience(db, run, [group], "group", group.id, writerUid, { weekNumber }),
+    updateEmailAudience(db, run, [group], "group", group.id, writerUid, { withFacilitators: true, weekNumber }),
     standingFacilitatorUidsOf(db, group, writerUid),
   ]);
   const memberUids = new Set(members.recipients.map((recipient) => recipient.uid));

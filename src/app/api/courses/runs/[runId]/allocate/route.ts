@@ -19,6 +19,7 @@ import {
   normalizeCourseEnrolment,
   placementIsTold,
 } from "@/lib/firestore/courseEnrolments";
+import { hasGroupsByWeek } from "@/lib/courses/groupsByWeek";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
@@ -129,6 +130,9 @@ const MAX_PLACEMENTS = 500;
  *  - "facilitates-another-group": they facilitate one of the run's other
  *    live groups, and somebody who holds a place sits in the group they
  *    facilitate
+ *  - "moved-mid-term": the place was moved mid-term and has weeks with two
+ *    groups (`groupsByWeek`); a move here would lose them, so the staff move
+ *    on the person's row is the way
  */
 type Rejection = { uid: string; reason: string };
 
@@ -413,6 +417,23 @@ export async function POST(req: Request, ctx: Ctx) {
             enrolment.groupId === groupId &&
             enrolment.status === "active"
           ) {
+            continue;
+          }
+
+          // A place moved mid-term HAS WEEKS WITH TWO GROUPS (`groupsByWeek`):
+          // a move on the board is for every week, and would throw the weeks
+          // spent with the old group away. Moving it to another group here is
+          // refused; the staff move on the person's row keeps them. Taking it
+          // out of every group, and every place with no record, are as always.
+          if (
+            enrolment &&
+            !facilitatorRow &&
+            enrolment.status === "active" &&
+            groupId !== null &&
+            groupId !== enrolment.groupId &&
+            hasGroupsByWeek(enrolment)
+          ) {
+            chunkRejected.push({ uid, reason: "moved-mid-term" });
             continue;
           }
 

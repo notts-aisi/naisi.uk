@@ -1436,6 +1436,13 @@ const USERS = new Map([
       "row falls. Only `server-only` is stubbed; `firebase-admin/firestore` is the real one",
   ],
   [
+    "account-deletion-move-reasons.test.mjs",
+    "it runs the account deletion cascade over the History rows a move to another group writes, because which rows lose " +
+      "their reason, and which stay as they were, is decided by the cascade's step and the move's own sentences together. " +
+      "`firebase-admin/firestore` is stubbed with the cascade store's sentinels, and `server-only`, `next/server` and the " +
+      "Firebase handles the cascade's graph imports are stubbed so that nothing reaches a project",
+  ],
+  [
     "course-explainers.test.mjs",
     "it drives scheduling and cancelling an explainer, its page, the review's list, both kinds of session ticket, " +
       "Home, the overview, \"Week N is open\" and the week's page on the facilitator week's world, and runs the " +

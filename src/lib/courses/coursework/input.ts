@@ -47,6 +47,13 @@ export type CourseworkQuestion = {
   text: string;
   /** A written answer's labelled boxes, or none. */
   boxes: Array<{ id: string; label: string }>;
+  /**
+   * A question no copy of a live group or of the run asks, only the own
+   * copies of these groups, archived since, that somebody moved mid-term
+   * worked in: gathered only for the people whose own record names one of
+   * them for its week (`loadAnswers`). Absent on every other question.
+   */
+  askedOnlyIn?: string[];
 };
 
 export type CourseworkWeek = {

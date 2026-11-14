@@ -1,4 +1,6 @@
 import "server-only";
+import { inGroupForWeek } from "@/lib/courses/groupsByWeek";
+import { joinsLaterOf, type JoinsLater } from "@/lib/courses/staffMove/joins";
 import type { Firestore } from "firebase-admin/firestore";
 import { resolveGroupCalendar } from "@/lib/courses/groupResolve";
 import {
@@ -82,6 +84,12 @@ export type GroupPersonRow = {
   left: string | null;
   /** One box per finished register, in week order. */
   marks: GroupMark[];
+  /**
+   * Somebody moved into the group mid-term whose first week in it is after
+   * the group's next session (`joinsLaterOf`): from which week, and the
+   * weeks before it to read. Absent for everybody else.
+   */
+  joins?: JoinsLater;
 };
 
 /** A register's state, as the Registers card says it. */
@@ -130,6 +138,13 @@ export type FacilitatorGroupModel = {
   firstSessionDateKey: string;
   /** The people taking part: who is expected at the next session. */
   expected: number;
+  /**
+   * Who is expected at a session of each week, by week: the people taking
+   * part whose group for that week is this one, so somebody moved into the
+   * group mid-term is not expected at a session before the week they joined
+   * it. Equal to `expected` for every week when nobody's place records a move.
+   */
+  expectedIn: Record<number, number>;
   /** True while next week's email is on its schedule: "Finished", not "Pushed". */
   scheduled: boolean;
   toReview: GroupReviewRow[];
@@ -267,6 +282,7 @@ const EMPTY: FacilitatorGroupModel = {
   registers: [],
   firstSessionDateKey: "",
   expected: 0,
+  expectedIn: {},
   scheduled: false,
   toReview: [],
   weeksBehind: null,
@@ -292,13 +308,21 @@ export async function loadFacilitatorGroup(
   const ordered = [...listed.sessions.values()].sort((a, b) => a.session.weekNumber - b.session.weekNumber);
   const finishedWeeks = ordered.filter((facts) => facts.finished).map((facts) => facts.session.weekNumber);
   const rows = listed.people.map(({ row }) => row);
-  const toRow = (row: (typeof rows)[number]): GroupPersonRow => ({
-    uid: row.uid,
-    name: row.name,
-    firstName: firstNameOfUser(records.accounts.get(row.uid) ?? {}) || row.name,
-    left: row.left,
-    marks: marksOf(row.cells, finishedWeeks),
-  });
+  // The week of the group's next session: somebody moved in from a later week is joining, not there yet.
+  const nextWeek = ordered.find((facts) => !facts.finished)?.session.weekNumber ?? null;
+  const enrolmentOf = new Map(listed.people.map(({ row, enrolment }) => [row.uid, enrolment] as const));
+  const toRow = (row: (typeof rows)[number]): GroupPersonRow => {
+    const enrolment = enrolmentOf.get(row.uid);
+    const joins = nextWeek !== null && enrolment && row.left === null ? joinsLaterOf(enrolment, group.id, nextWeek) : null;
+    return {
+      uid: row.uid,
+      name: row.name,
+      firstName: firstNameOfUser(records.accounts.get(row.uid) ?? {}) || row.name,
+      left: row.left,
+      marks: marksOf(row.cells, finishedWeeks),
+      ...(joins ? { joins } : {}),
+    };
+  };
   const people = rows.filter((row) => row.left === null).map(toRow);
   const leavers = rows.filter((row) => row.left !== null).map(toRow);
   const registers = ordered
@@ -325,6 +349,12 @@ export async function loadFacilitatorGroup(
     registers,
     firstSessionDateKey: ordered[0]?.session.dateKey ?? "",
     expected: people.length,
+    expectedIn: Object.fromEntries(
+      ordered.map((facts) => [
+        facts.session.weekNumber,
+        listed.people.filter(({ row, enrolment }) => row.left === null && inGroupForWeek(enrolment, group.id, facts.session.weekNumber)).length,
+      ]),
+    ),
     scheduled: records.switches.scheduled,
     // A facilitator who holds a place is one of the group's people, and their
     // own answers wait for the programme's lead and admins, never for their

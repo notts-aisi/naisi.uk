@@ -516,6 +516,21 @@ export function groupForWeek(
   return found;
 }
 
+/** The group the place BELONGS to in that week: its copy of the week, and whose member they are. Never a one-week visit's host. */
+export function ownGroupForWeek(
+  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek">,
+  weekNumber: number,
+): string | null {
+  const record = place.groupsByWeek;
+  if (!record || record.length === 0 || !Number.isFinite(weekNumber)) return place.groupId;
+  let found = record[0].groupId;
+  for (const entry of record) {
+    if (entry.fromWeek > weekNumber) break;
+    found = entry.groupId;
+  }
+  return found;
+}
+
 type Raw = Record<string, unknown>;
 
 /** A group id a document can be addressed by: some text, and no path separator. */

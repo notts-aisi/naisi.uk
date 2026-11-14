@@ -1,4 +1,5 @@
 import "server-only";
+import { readsGroupIdFor } from "@/lib/courses/weekCopy";
 import type { Firestore } from "firebase-admin/firestore";
 import type { ProgrammeRunView } from "@/lib/applications/handover/programmeRun";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
@@ -144,6 +145,14 @@ export async function loadCourseworkTab(
   const weeksOf = new Map(groupWeeks);
   const columns = columnsOf(run, runWeeks);
   const people = peopleOf({ viewer, groups, holders, seats, names });
+  // The copies of every group a shown person's weeks name and that no longer meets: somebody moved mid-term out of a
+  // group archived since is still read, week by week, on that group's copy (`copiesOf`). Nothing for everybody else.
+  const archivedCopies = [...new Set(people.flatMap((person) => (person.readsCopies ?? []).map((entry) => entry.groupId)))].filter(
+    (id) => !weeksOf.has(id),
+  );
+  for (const [id, weeks] of await Promise.all(archivedCopies.map(async (id) => [id, await weeksRead(db, run.id, id)] as const))) {
+    weeksOf.set(id, weeks);
+  }
   const weekOf = (groupId: string | null, weekNumber: number) =>
     groupId ? (weeksOf.get(groupId)?.get(weekNumber) ?? null) : (runWeeks.get(weekNumber) ?? null);
   // Each person's pack in the Choose ones the weeks they read count, by id: a
@@ -152,7 +161,7 @@ export async function loadCourseworkTab(
     db,
     run.id,
     people.flatMap((person) =>
-      columns.flatMap((column) => chooseOneIdsOf(weekOf(person.readsGroupId, column.weekNumber)).map((blockId) => ({ uid: person.uid, blockId }))),
+      columns.flatMap((column) => chooseOneIdsOf(weekOf(readsGroupIdFor(person, column.weekNumber), column.weekNumber)).map((blockId) => ({ uid: person.uid, blockId }))),
     ),
   );
   const packs = new Map<string, Map<string, string>>();

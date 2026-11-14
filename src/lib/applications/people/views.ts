@@ -82,6 +82,12 @@ export type PersonRow = {
   applicationHref: string | null;
   /** People in groups, where somebody holding a place is put in a group or moved. Null otherwise. */
   groupsHref: string | null;
+  /**
+   * Their page for moving them to another group for good, mid-term: offered
+   * for somebody in a group of the run whom Publish has told, on a run with
+   * more than one group that is not an incubator's. Null otherwise.
+   */
+  moveHref: string | null;
 };
 
 export type PeopleCounts = Record<PeopleFilter, number>;

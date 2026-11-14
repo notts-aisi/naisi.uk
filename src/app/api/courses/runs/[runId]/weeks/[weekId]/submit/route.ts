@@ -104,7 +104,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ runId: string;
   }
 
   // ---- Which week: a week written as blocks, as they read it -----------------
-  const { week } = await resolveWeekDoc(db, runId, seat.ownGroup?.id ?? null, weekId);
+  const { week } = await resolveWeekDoc(db, runId, seat.copyGroupId, weekId);
   if (!week || !isBlockWeek(week)) return NextResponse.json({ error: NOT_A_SUBMIT_WEEK }, { status: 404 });
   if (!weekAsksForWriting(week.blocks)) return NextResponse.json({ error: NOTHING_TO_SUBMIT }, { status: 409 });
   const answers = weekWrittenAnswers(week);

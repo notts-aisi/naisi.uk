@@ -77,7 +77,9 @@ import type { JobContext, JobRegistration, JobResult } from "../registry";
  * takes work (submitted, or locked) is never reminded about: nothing listed
  * could be done in it. A session that covers two weeks (the one after a
  * cancelled session, keeping pace) reminds about each week not done, each
- * with its own list.
+ * with its own list, for the people whose week it was this group's: somebody
+ * moved here mid-term is never reminded here about a covered week they spent
+ * in another group.
  *
  * ── ONE EACH ────────────────────────────────────────────────────────────────
  * One marker per person per reminder
@@ -249,7 +251,16 @@ export function reminderVerdict(
   return { send: false, why: why ?? "done" };
 }
 
-/** The weeks one session's reminder is about: each it covers, written as blocks and published. */
+/**
+ * The weeks one session's reminder is about: each it covers, written as
+ * blocks and published, on the group's copy. A covered week is this
+ * session's work only for the people whose week it was this group's
+ * (`RunWeekStates.belongsTo`, the rule This week's work and Remind use):
+ * somebody moved here mid-term is not reminded here about a week they spent
+ * in another group, whose work was due at that group's session ("Week N is
+ * open" names it, on their own copy, if it is not done). With no record,
+ * everybody for every week, as always.
+ */
 async function reminderWeeks(
   db: Firestore,
   run: CourseRunDoc,
@@ -257,12 +268,15 @@ async function reminderWeeks(
   sessions: readonly ResolvedSession[],
   session: ResolvedSession,
   uids: readonly string[],
+  weekStates: RunWeekStates,
 ): Promise<ReminderWeekInfo[]> {
   const out: ReminderWeekInfo[] = [];
   for (const weekNumber of coveredWeeks(sessions, session)) {
+    const theirs = uids.filter((uid) => weekStates.belongsTo(uid, group.id, weekNumber));
+    if (theirs.length === 0) continue;
     const { week } = await resolveWeekDoc(db, run.id, group.id, weekDocId(weekNumber));
     if (!week || !week.published || !isBlockWeek(week)) continue;
-    const facts = await loadPeopleWeekFacts(db, { runId: run.id, weekNumber, blocks: week.blocks, uids });
+    const facts = await loadPeopleWeekFacts(db, { runId: run.id, weekNumber, blocks: week.blocks, uids: theirs });
     out.push({
       weekNumber,
       blocks: week.blocks,
@@ -309,13 +323,14 @@ async function remindForSession(
   });
   if (people.length === 0) return "done";
 
-  const weeks = due.stale
-    ? []
-    : await reminderWeeks(db, run, group, sessions, due.session, people.map((person) => person.uid));
-  if (!due.stale && weeks.length === 0) return "done";
+  // Everybody's weeks on the run, once a pass, before the weeks: whose week each covered week was this group's.
   if (!due.stale && !runState.weekStates) {
     runState.weekStates = await loadRunWeekStates(db, { run, liveGroups: runState.liveGroups, now: ctx.now });
   }
+  const weeks = due.stale
+    ? []
+    : await reminderWeeks(db, run, group, sessions, due.session, people.map((person) => person.uid), runState.weekStates as RunWeekStates);
+  if (!due.stale && weeks.length === 0) return "done";
   const where = courseNudgeSessionWhere(due.session.session, sessionModeForWeek(group, due.session.weekId));
 
   for (const person of people) {

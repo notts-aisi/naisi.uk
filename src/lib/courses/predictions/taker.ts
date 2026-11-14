@@ -1,4 +1,5 @@
 import "server-only";
+import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import type { Firestore } from "firebase-admin/firestore";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -73,6 +74,12 @@ export type PredictionsTaker = {
    * whose clock reads each calendar group's own sessions, as always.
    */
   sessionsByWeek: ResolvedSession[] | null;
+  /**
+   * The group whose copy of ONE week they read: for somebody whose place
+   * records a move, the group it belonged to that week, whether or not it
+   * still meets (`copyGroupIdFor`); otherwise `ownGroup`, as always.
+   */
+  copyGroupIdOf: (weekNumber: number) => string | null;
 };
 
 export type TakerAnswer =
@@ -124,12 +131,14 @@ export async function predictionsTakerOf(db: Firestore, actor: SessionUser, runI
           return group ? resolveSessions(run, group) : null;
         })
       : null;
-  return { ok: true, taker: { actor, run, enrolment, ownGroup, calendarGroups, sessionsByWeek } };
+  const copyGroupIdOf = (weekNumber: number): string | null =>
+    placed && enrolment ? copyGroupIdFor(enrolment, weekNumber, ownGroup?.id ?? null) : (ownGroup?.id ?? null);
+  return { ok: true, taker: { actor, run, enrolment, ownGroup, calendarGroups, sessionsByWeek, copyGroupIdOf } };
 }
 
 /** Whether week `weekNumber` is published as `taker` reads it (their group's copy, else the run's): theirs to work in. */
 export async function weekPublishedTo(db: Firestore, taker: PredictionsTaker, weekNumber: number): Promise<boolean> {
-  const resolved = await resolveWeekDoc(db, taker.run.id, taker.ownGroup?.id ?? null, weekDocId(weekNumber));
+  const resolved = await resolveWeekDoc(db, taker.run.id, taker.copyGroupIdOf(weekNumber), weekDocId(weekNumber));
   return resolved.week?.published === true;
 }
 

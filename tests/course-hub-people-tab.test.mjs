@@ -200,6 +200,7 @@ describe("2. nothing a lead may not read", () => {
         "free",
         "group",
         "groupsHref",
+        "moveHref",
         "name",
         "status",
         "uid",
@@ -397,6 +398,7 @@ describe("3. one count", () => {
       status: { kind: "holding" },
       applicationHref: `/x/${n}`,
       groupsHref: null,
+      moveHref: null,
       ...over,
     });
     const rows = [...Array.from({ length: 13 }, (_, n) => row(n)), row(13, { coming: { kind: "not-yet" } })];

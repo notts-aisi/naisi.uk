@@ -843,10 +843,16 @@ test("GUARD: every card is dated by ITS OWN group's week, not the caller's", () 
   // The whole bug in one line: the slot fields resolve through the card's own
   // calendar. A single shared `weekId` computed once from the caller's current
   // week is what put the wrong week's room on a second group's card.
+  // The card's own calendar, read once at the head of each card; the week of its
+  // slot is that calendar's current week, or on the caller's own card when their
+  // place records a move mid-term, the week of the next session they are due at
+  // in the group: never a week computed from the caller's calendar.
+  assert.match(OVERVIEW, /const toCard = \(source: CourseGroupDoc\): OverviewGroup => \{\s*const groupCalendar = calendarFor\(source\);/);
   assert.match(
     OVERVIEW,
-    /const groupCalendar = calendarFor\(source\);\s*const session = sessionForWeek\(source, currentWeekId\(groupCalendar\.currentWeek\)\);/,
+    /const slotWeekId = movedHere && range\.next \? range\.next\.weekId : currentWeekId\(groupCalendar\.currentWeek\);\s*const session = sessionForWeek\(source, slotWeekId\);/,
   );
+  assert.equal((OVERVIEW.match(/\bsessionForWeek\(source,/g) ?? []).length, 1, "one slot per card");
   assert.doesNotMatch(OVERVIEW, /const weekId = currentWeekId\(currentWeek\)/);
   // Its range comes from the sessions resolved off the SAME calendar object,
   // never a second resolution of the same thing.

@@ -98,6 +98,14 @@ export type GroupWeekRead = {
    * and never somebody Remind reaches.
    */
   runFacilitatorUids: ReadonlySet<string>;
+  /**
+   * Whether the person's week is this group's: for somebody whose place
+   * records a move mid-term, the group their place belonged to in this week
+   * (`RunWeekStates.belongsTo`); true for everybody else. Somebody moved into
+   * the group from a later week is not one of this week's rows, counts or
+   * Remind's people, and somebody moved out of it is not in the group now.
+   */
+  belongs: (uid: string) => boolean;
 };
 
 /** Why a week cannot be read for its card or reminded about. */
@@ -147,6 +155,7 @@ export async function readGroupWeek(
       sessionAt: own ? sessionInstants(own).startsAt : null,
       facts: new Map([...facts].map(([uid, each]) => [uid, each as PersonFacts])),
       runFacilitatorUids: facilitatingOnRunOf(group, liveGroups),
+      belongs: (uid) => states.belongsTo(uid, group.id, weekNumber),
     },
   };
 }
@@ -277,7 +286,8 @@ export type RemindPerson = {
 
 /**
  * WHO A REMIND ABOUT ONE WEEK REACHES NOW: the group's notice audience (its
- * told places at their addresses, deduped and unsuppressed), each held to
+ * told places at their addresses, deduped and unsuppressed) whose week asked
+ * about is the group's (`read.belongs`), each held to
  * `notRemindedBecause` (never the presser, never anybody who facilitates a
  * live group of the run, this one or another, never somebody whose week is
  * done or who joined it late, nobody once the programme has closed),
@@ -292,10 +302,13 @@ export async function readRemindAudience(
 ): Promise<{ people: RemindPerson[]; refusal: string | null }> {
   const { run, group, read, presserUid } = input;
   if (read.closed) return { people: [], refusal: null };
-  // The people in the group NOW, never those in it for the week asked about:
-  // Remind is the group's facilitators asking for work they read, and who
-  // reads whose work is the group somebody is in now, as the page's rows
-  // are. When each is due is their own week's session (`dueOf`).
+  // The people in the group NOW whose week asked about is the group's
+  // (`remindableOf` asks `read.belongs`): Remind is the group's facilitators
+  // asking for work they read, and who reads whose work is the group
+  // somebody is in now, as the page's rows are; somebody moved in from a
+  // later week did this week elsewhere, against another copy, and is never
+  // reminded about it here. When each is due is their own week's session
+  // (`dueOf`).
   const audience = await resolveNoticeAudience(db, run.id, LANE, { groupId: group.id });
   if (audience.refusal) return { people: [], refusal: audience.refusal };
   const people: RemindPerson[] = [];
@@ -312,11 +325,13 @@ export async function readRemindAudience(
 
 /**
  * Whether Remind reaches one person of the group about the week, by
- * `notRemindedBecause`, before any address is asked: the preview's audience
- * and the page's rows both ask this.
+ * `notRemindedBecause`, and only when the week is the group's for them
+ * (`read.belongs`), before any address is asked: the preview's audience, the
+ * page's rows and the reading view's empty week all ask this.
  */
 export function remindableOf(read: GroupWeekRead, person: { uid: string; told: boolean; presserUid: string }): boolean {
   return (
+    read.belongs(person.uid) &&
     notRemindedBecause({
       uid: person.uid,
       presserUid: person.presserUid,
@@ -415,7 +430,10 @@ export function groupWeekWorkView(
   const { viewerUid, readsOwnWork, leadFirstName, now } = input;
   const weekNumber = read.weekNumber;
   const sessionStarted = Boolean(read.sessionAt && read.sessionAt.getTime() <= now.getTime());
-  const fellows = input.people.filter((person) => !read.runFacilitatorUids.has(person.uid));
+  // The week's rows are the group's people whose week this is: somebody moved
+  // into the group from a later week is on neither group's card for a week
+  // before the move (`read.belongs`), and is read through their name instead.
+  const fellows = input.people.filter((person) => !read.runFacilitatorUids.has(person.uid) && read.belongs(person.uid));
   // Somebody holding a place here who facilitates another group: apart, as the group's own facilitators are.
   const facilitatingElsewhere = input.people.filter((person) => read.runFacilitatorUids.has(person.uid));
   const ownPeople = readsOwnWork

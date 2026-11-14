@@ -1,4 +1,6 @@
 import "server-only";
+import { inGroupForWeek } from "@/lib/courses/groupsByWeek";
+import { joinsLaterOf } from "@/lib/courses/staffMove/joins";
 import type { Firestore } from "firebase-admin/firestore";
 import { firstNameOfUser, readNamingProgramme, readRunLead, standingUserOf } from "@/lib/courses/programmeLead";
 import { displayNameOf } from "@/lib/courses/registerAccess";
@@ -20,7 +22,7 @@ import {
   normalizeCourseAttendance,
   registerIsTaken,
 } from "@/lib/firestore/courseAttendance";
-import { normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
+import { normalizeCourseEnrolment, ownGroupForWeek, placementIsTold, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import {
   campusForWeek,
   sessionChangeForWeek,
@@ -189,8 +191,12 @@ export async function loadGroupPage(
         run,
         group,
         weekNumber: workWeek,
-        // A facilitator's own week is read only for the programme's lead and admins.
-        uids: [...seats.map((seat) => seat.uid), ...(staff ? group.facilitatorUids : [])],
+        // A facilitator's own week is read only for the programme's lead and
+        // admins. Somebody moved into the group mid-term is in its week's
+        // work only from the week they joined it: the week is the group's
+        // when their place belonged to it that week (`ownGroupForWeek`, the
+        // card's own rule, `GroupWeekRead.belongs`).
+        uids: [...seats.filter((seat) => ownGroupForWeek(seat, workWeek) === group.id).map((seat) => seat.uid), ...(staff ? group.facilitatorUids : [])],
         now,
       });
     })
@@ -263,7 +269,11 @@ export async function loadGroupPage(
     // A word in advance still stands while the line is still theirs: excused, on their word.
     const cantUids = new Set(keysOf(register?.[EXCUSED_IN_ADVANCE]).filter((uid) => records[uid] === "excused"));
     const saidOf = (uid: string): WeekSaid => (cantUids.has(uid) ? "cant" : onlineUids.has(uid) ? "online" : "coming");
-    const everyone = [...seats.map((seat) => seat.uid)];
+    // Somebody moved into the group mid-term is one of a week's people only
+    // from the week they joined it: before it they are listed as joining
+    // later (`joinsLaterOf`), with no word said, in no count of who said what.
+    const inWeek = (seat: CourseEnrolmentDoc) => inGroupForWeek(seat, group.id, session.weekNumber);
+    const everyone = [...seats.filter(inWeek).map((seat) => seat.uid)];
     return {
       weekNumber: session.weekNumber,
       weekId: session.weekId,
@@ -299,6 +309,8 @@ export async function loadGroupPage(
       people: staff
         ? fellows
             .map((seat) => {
+              const joins = inWeek(seat) ? null : joinsLaterOf(seat, group.id, session.weekNumber);
+              if (joins) return { uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: "coming" as const, joins };
               const excuse = excuseFacts[session.sessionKey]?.[seat.uid];
               return { uid: seat.uid, name: nameOf(seat.uid) || "NAISI member", said: saidOf(seat.uid), ...(excuse ? { excuse } : {}) };
             })

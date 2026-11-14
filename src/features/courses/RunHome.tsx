@@ -641,6 +641,8 @@ export default function RunHome({
   const weekSource = {
     groupId: data.enrolment?.groupId ?? group?.id ?? null,
     forkedWeekIds: data.forkedWeekIds,
+    // Somebody moved mid-term: the group whose copy each listed week is, as the server says.
+    forkedWeekGroups: data.forkedWeekGroups,
   };
 
   const showAdmissions = access.isReviewer || access.isTrackLead || isAdmin;

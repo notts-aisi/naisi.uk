@@ -1,4 +1,5 @@
 import "server-only";
+import { copiesOf } from "@/lib/courses/weekCopy";
 import type { Firestore } from "firebase-admin/firestore";
 import type { PlaceHolder } from "@/lib/applications/handover/holders";
 import { loadProgrammeRun, type ProgrammeRunView } from "@/lib/applications/handover/programmeRun";
@@ -136,6 +137,8 @@ export function peopleOf(input: {
       facilitating: false,
       groupId: shown && placed ? placed.groupId : null,
       readsGroupId: told && placed ? placed.groupId : null,
+      // Somebody moved mid-term is read, week by week, on the copy they saw.
+      readsCopies: told && placed ? copiesOf(placed, input.groups) : null,
       notToldYet: shown && !told,
     });
   };

@@ -169,6 +169,10 @@ const READERS = {
     answers: true,
     why: "who finished counts written answers sent; reflections and fill-in boxes are left out",
   },
+  "lib/courses/staffMove/plan.ts": {
+    treats: "tells",
+    why: "the move page asks only whether a week from the move on holds something the person wrote: a box by whether it is written, any other row by what it holds; nothing is reviewed, counted as sent or shown",
+  },
   "lib/courses/writtenAnswers/queue.ts": {
     treats: "tells",
     why: "the review queue's written answers half: reflections, and the summer's answers, are left out before anything is counted",

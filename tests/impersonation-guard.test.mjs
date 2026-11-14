@@ -426,6 +426,10 @@ const MUST_GUARD = [
     "adds a group to the run a programme names, from the Times view",
   ],
   [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move/route.ts",
+    "moves one person to another group for good on the run a programme names, mid-term, and emails them and both groups' facilitators",
+  ],
+  [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room/route.ts",
     "sets the room a group meets in every week on the run a programme names, from the Groups tab",
   ],

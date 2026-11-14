@@ -1,5 +1,5 @@
 import "server-only";
-import type { Firestore } from "firebase-admin/firestore";
+import type { Firestore, QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import {
   dayLabel,
@@ -9,6 +9,8 @@ import {
   type RunRecords,
 } from "@/lib/courses/programmeAttendance";
 import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
+import { groupsOfWeeks, hasGroupsByWeek } from "@/lib/courses/groupsByWeek";
+import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import { attendanceDocId } from "@/lib/firestore/courseAttendance";
 import { isOwnBoxResponse, normalizeExerciseResponse } from "@/lib/firestore/courseExercises";
 import { normalizeGroupWeek } from "@/lib/firestore/courseGroups";
@@ -125,6 +127,13 @@ export type ExerciseTally = { done: number; of: number };
  * published, since nobody can answer a week they cannot open. Then each
  * person's answers that were sent, from the responses the run already
  * records. Two reads for the run, and one for each group's own weeks.
+ *
+ * Somebody whose place records a move is counted week by week against the
+ * copy they read that week (`copyGroupIdFor`: a week spent in another group
+ * is that group's copy, whether or not it still meets), over the weeks the
+ * group they are in now teaches; one more read for each group a record names
+ * that no longer meets. Everybody else is counted against their group's set,
+ * as always.
  */
 export async function readExerciseTallies(
   db: Firestore,
@@ -138,45 +147,71 @@ export async function readExerciseTallies(
   ]);
   const canonical = new Map<string, CourseWeekDoc>();
   for (const doc of canonicalSnap.docs) canonical.set(doc.id, normalizeCourseWeek(doc.id, doc.data() ?? {}));
+  const forksOf = (docs: readonly QueryDocumentSnapshot[]) =>
+    new Map<string, CourseWeekDoc>(docs.map((doc) => [doc.id, normalizeGroupWeek(doc.id, doc.data() ?? {})]));
+  const forksByGroup = new Map<string, Map<string, CourseWeekDoc>>();
+  records.groups.forEach((group, index) => forksByGroup.set(group.id, forksOf(forkSnaps[index]?.docs ?? [])));
+  // A group a moved person's record names that no longer meets keeps its own copies too.
+  const moved = records.enrolments.filter((enrolment) => enrolment.groupId && hasGroupsByWeek(enrolment));
+  const named = [...new Set(moved.flatMap((enrolment) => groupsOfWeeks(enrolment)))].filter(
+    (id) => !forksByGroup.has(id) && id !== "" && !id.includes("/"),
+  );
+  const namedSnaps = await Promise.all(named.map((id) => db.collection("courseGroups").doc(id).collection("weeks").get()));
+  named.forEach((id, index) => forksByGroup.set(id, forksOf(namedSnaps[index]?.docs ?? [])));
+
+  /** The answers a week asks, "weekId::exerciseId", from one group's copy (its own, else the run's), when published. */
+  const keysOf = (groupId: string | null, weekId: string): string[] => {
+    const week = (groupId ? forksByGroup.get(groupId)?.get(weekId) : undefined) ?? canonical.get(weekId);
+    if (!week || !week.published) return [];
+    // The week's written answers through the one reader: a block week's
+    // Written answer blocks, or a week written before blocks' exercises.
+    return weekWrittenAnswers(week).map((answer) => `${weekId}::${answer.id}`);
+  };
 
   // Each group's set: "weekId::exerciseId".
   const setByGroup = new Map<string, Set<string>>();
-  records.groups.forEach((group, index) => {
-    const forks = new Map<string, CourseWeekDoc>();
-    for (const doc of forkSnaps[index]?.docs ?? []) forks.set(doc.id, normalizeGroupWeek(doc.id, doc.data() ?? {}));
-    const set = new Set<string>();
-    const taught = new Set(resolveSessions(records.run, group).map((session) => session.weekId));
-    for (const weekId of taught) {
-      const week = forks.get(weekId) ?? canonical.get(weekId);
-      if (!week || !week.published) continue;
-      // The week's written answers through the one reader: a block week's
-      // Written answer blocks, or a week written before blocks' exercises.
-      for (const answer of weekWrittenAnswers(week)) set.add(`${weekId}::${answer.id}`);
-    }
-    setByGroup.set(group.id, set);
-  });
-
-  const groupOf = new Map<string, string>();
-  for (const enrolment of records.enrolments) {
-    if (enrolment.groupId) groupOf.set(enrolment.uid, enrolment.groupId);
+  const sessionsByGroup = new Map<string, ReturnType<typeof resolveSessions>>();
+  for (const group of records.groups) {
+    const sessions = resolveSessions(records.run, group);
+    sessionsByGroup.set(group.id, sessions);
+    const taught = new Set(sessions.map((session) => session.weekId));
+    setByGroup.set(group.id, new Set([...taught].flatMap((weekId) => keysOf(group.id, weekId))));
   }
+
+  // Each person's set: their group's, or, for somebody whose place records a
+  // move, each week the group now teaches from the copy they read that week.
+  const setOf = new Map<string, Set<string>>();
+  for (const enrolment of records.enrolments) {
+    if (!enrolment.groupId) continue;
+    const groupId = enrolment.groupId;
+    const sessions = sessionsByGroup.get(groupId);
+    if (!sessions || !hasGroupsByWeek(enrolment)) {
+      setOf.set(enrolment.uid, setByGroup.get(groupId) ?? new Set());
+      continue;
+    }
+    const weeks = new Map<string, number>();
+    for (const session of sessions) if (!weeks.has(session.weekId)) weeks.set(session.weekId, session.weekNumber);
+    setOf.set(
+      enrolment.uid,
+      new Set([...weeks].flatMap(([weekId, weekNumber]) => keysOf(copyGroupIdFor(enrolment, weekNumber, groupId), weekId))),
+    );
+  }
+
   const answered = new Map<string, Set<string>>();
   for (const doc of responseSnap.docs) {
     const response = normalizeExerciseResponse(doc.id, (doc.data() ?? {}) as Record<string, unknown>);
     // A reflection or a fill-in box is never sent and is not a written answer (courseExercises.ts).
     if (response.runId !== runId || !response.submittedAt || isOwnBoxResponse(response)) continue;
-    const groupId = groupOf.get(response.uid);
     const key = `${response.weekId}::${response.exerciseId}`;
-    if (!groupId || !setByGroup.get(groupId)?.has(key)) continue;
+    if (!setOf.get(response.uid)?.has(key)) continue;
     const mine = answered.get(response.uid) ?? new Set<string>();
     mine.add(key);
     answered.set(response.uid, mine);
   }
 
   const out = new Map<string, ExerciseTally>();
-  for (const [uid, groupId] of groupOf) {
-    const of = setByGroup.get(groupId)?.size ?? 0;
-    out.set(uid, { done: answered.get(uid)?.size ?? 0, of });
+  for (const [uid, set] of setOf) {
+    out.set(uid, { done: answered.get(uid)?.size ?? 0, of: set.size });
   }
   return out;
 }

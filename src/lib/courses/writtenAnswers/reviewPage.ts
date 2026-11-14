@@ -8,7 +8,7 @@ import {
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
 import { exerciseResponseId, isReflectionResponse } from "@/lib/firestore/courseExercises";
-import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourse, weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { memberCurrentWeek, resolveCalendar, resolveWeekDoc } from "../groupResolve";
@@ -19,6 +19,7 @@ import { isBlockWeek, partsOf, type When, type WordRange } from "../weekBlocks/m
 import type { Prose } from "../weekBlocks/prose";
 import { weekWrittenAnswers } from "../weekBlocks/reader";
 import { londonDateKey } from "../weekPlan";
+import { copyGroupIdFor } from "../weekCopy";
 import { liveGroupsOf, reviewableIn, reviewerFactsOf, type OwnerFacts, type ReviewerFacts } from "./access";
 import {
   answerNameOf,
@@ -75,11 +76,20 @@ import { readWeekFeedback } from "../feedback/readers";
  * always from the session), and whether it was first sent after its own
  * deadline but before the session ("After its deadline", staff only).
  *
+ * SOMEBODY MOVED HERE MID-TERM is listed for every week, as everybody in the
+ * group now is, though This week's work draws a row only for the people
+ * whose place belonged to the group that week, so the column never shows a
+ * week they did with another group. Their own deadline for such a week is
+ * still dated as the reading view dates it, on the calendar of the group
+ * whose copy they read (`deadlinesAway`), so the lists are true whoever
+ * draws them. With no record of groups by week nothing more is read.
+ *
  * Reads: the run's groups and the reader's standing (the gate's), the run's
  * enrolments by one equality, the group's own copy of the week, each
  * person's row by its id, the week's feedback by two equalities, the names,
- * and the course's time for work due the day before. No query needs a
- * declared index.
+ * and the course's time for work due the day before; for somebody moved
+ * here, the copy and the document of each other group their week names. No
+ * query needs a declared index.
  */
 
 export type ReviewPerson = {
@@ -287,12 +297,15 @@ export async function loadWrittenReview(
     firstName.set(snap.id, firstNameOfUser(data) || fullNameOfUser(data));
   }
 
-  // The block's own deadline, for "After its deadline" (staff only).
+  // The block's own deadline, for "After its deadline" (staff only), on this group's calendar; for somebody moved
+  // here who did this week with another group, on that group's (`deadlinesAway`).
   const deadline = answer ? dueMoment(resolveSessions(run, group), weekNumber, answer.due, dayBeforeTime) : null;
+  const away = answer ? await deadlinesAway(db, { run, group, liveGroups, enrolments, people, weekNumber, weekId, answer, dayBeforeTime }) : new Map<string, Date | null>();
   const personOf = (owner: OwnerFacts): ReviewPerson => {
     const record = records.get(owner.uid) ?? null;
     const facilitates = liveGroups.some((candidate) => candidate.facilitatorUids.includes(owner.uid));
     const due = states.dueOf(owner.uid, weekNumber);
+    const ownDeadline = away.has(owner.uid) ? (away.get(owner.uid) ?? null) : (deadline?.at ?? null);
     // What its readers read of it, if anything: the one answer.
     const read = record ? readableAnswer(answerPiece(record), due.at, now) : null;
     const readable = read !== null;
@@ -320,7 +333,7 @@ export async function loadWrittenReview(
       changedLateMs: read ? lateBy(read.savedAt, due) : null,
       sentLateMs: lateBy(sent, due),
       late: lateBy(record?.firstSentAt ?? null, due) !== null,
-      afterDeadline: afterItsDeadline(record?.firstSentAt ?? null, deadline?.at ?? null, due),
+      afterDeadline: afterItsDeadline(record?.firstSentAt ?? null, ownDeadline, due),
       words: readable ? (read?.words ?? 0) : 0,
       openedAt: record?.openedAt ? record.openedAt.toISOString() : null,
       openedByUid: record?.openedAt ? record.openedByUid || null : null,
@@ -359,4 +372,62 @@ export async function loadWrittenReview(
     programme: programme?.shortName ?? "",
     todayKey: londonDateKey(now),
   };
+}
+
+/**
+ * THE DEADLINES OF THE WEEK SOMEBODY MOVED HERE DID WITH ANOTHER GROUP, by
+ * uid: the written answer's own deadline dated as the reading view dates it,
+ * on the calendar of the group whose copy of the week they read
+ * (`copyGroupIdFor`, the one helper; the group the session they were due at
+ * comes from, looked up among all the run's groups, an archived one too),
+ * by that copy's own rule for the answer where it asks it. Only for a
+ * learner whose place names this group and who facilitates no live group;
+ * nobody else is in the map (nor anybody whose group cannot be found), and
+ * so is dated on this group's calendar as always. Empty, with nothing read, when nobody listed has a record of
+ * groups by week.
+ */
+async function deadlinesAway(
+  db: Firestore,
+  input: {
+    run: CourseRunDoc;
+    group: CourseGroupDoc;
+    liveGroups: readonly CourseGroupDoc[];
+    enrolments: readonly CourseEnrolmentDoc[];
+    people: readonly OwnerFacts[];
+    weekNumber: number;
+    weekId: string;
+    answer: { id: string; due: When };
+    dayBeforeTime: string | null;
+  },
+): Promise<Map<string, Date | null>> {
+  const { run, group, liveGroups } = input;
+  const out = new Map<string, Date | null>();
+  const listed = new Set(input.people.map((owner) => owner.uid));
+  const copies = new Map<string, string>();
+  for (const place of input.enrolments) {
+    if (!listed.has(place.uid) || place.role !== "learner" || place.groupId !== group.id) continue;
+    if ((place.groupsByWeek?.length ?? 0) < 2 || liveGroups.some((each) => each.facilitatorUids.includes(place.uid))) continue;
+    const copy = copyGroupIdFor(place, input.weekNumber, group.id);
+    if (copy && copy !== group.id) copies.set(place.uid, copy);
+  }
+  if (copies.size === 0) return out;
+  const ids = [...new Set(copies.values())];
+  const found = await Promise.all(
+    ids.map(async (id) => {
+      const live = liveGroups.find((each) => each.id === id) ?? null;
+      const [snap, resolved] = await Promise.all([live ? Promise.resolve(null) : db.collection("courseGroups").doc(id).get(), resolveWeekDoc(db, run.id, id, input.weekId)]);
+      const doc = live ?? (snap?.exists ? normalizeCourseGroup(snap.id, snap.data() ?? {}) : null);
+      // A group that cannot be found leaves them on this group's calendar, as the reading view does.
+      if (!doc || doc.runId !== run.id) return [id, undefined] as const;
+      // That copy's own rule for the answer, where it asks it; else this group's.
+      const theirs = resolved.week && isBlockWeek(resolved.week) ? weekWrittenAnswers(resolved.week).find((each) => each.id === input.answer.id) : undefined;
+      return [id, dueMoment(resolveSessions(run, doc), input.weekNumber, theirs?.due ?? input.answer.due, input.dayBeforeTime)?.at ?? null] as const;
+    }),
+  );
+  const byGroup = new Map(found);
+  for (const [uid, copy] of copies) {
+    const at = byGroup.get(copy);
+    if (at !== undefined) out.set(uid, at);
+  }
+  return out;
 }

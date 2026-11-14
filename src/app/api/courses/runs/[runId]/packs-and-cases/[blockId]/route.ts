@@ -5,6 +5,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { hasGroupsByWeek, sessionsByWeekGroup } from "@/lib/courses/groupsByWeek";
 import { findCase, findPack } from "@/lib/courses/packsAndCases/model";
@@ -170,7 +171,12 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string; 
   const ownGroup =
     (takesPart && enrolment?.groupId ? (liveGroups.find((g) => g.id === enrolment.groupId) ?? null) : null) ??
     (facilitates.length === 1 ? facilitates[0] : null);
-  const { week } = await resolveWeekDoc(db, runId, ownGroup?.id ?? null, weekId);
+  // The copy of the week: the group their place belonged to in THIS week
+  // (`copyGroupIdFor`), so somebody moved mid-term works in the copy they
+  // saw, whether or not that group still meets.
+  const copyGroupId =
+    takesPart && enrolment?.groupId ? copyGroupIdFor(enrolment, weekNumber, ownGroup?.id ?? null) : (ownGroup?.id ?? null);
+  const { week } = await resolveWeekDoc(db, runId, copyGroupId, weekId);
   const block = week && isBlockWeek(week) ? (allBlocks(week.blocks).find((candidate) => candidate.id === blockId) ?? null) : null;
 
   const ref = db.collection(COURSE_PACKS_AND_CASES_COLLECTION).doc(packCaseRecordId(runId, actor.uid, blockId));

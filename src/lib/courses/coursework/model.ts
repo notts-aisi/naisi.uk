@@ -1,4 +1,5 @@
 import { partWritten, reflectionPartsOf, tickedSourcesOf, type ReflectionPart, type TickedSource } from "@/lib/courses/facilitatorWeek/model";
+import type { GroupFromWeek } from "@/lib/firestore/courseEnrolments";
 import { isBlockWeek, type WeekBlock, type When, type WordRange } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds, type TaskNeeds } from "@/lib/courses/weekBlocks/progress";
 import { weekFillInBoxes, weekWrittenAnswers, type ReadableWeek } from "@/lib/courses/weekBlocks/reader";
@@ -313,6 +314,13 @@ export type CourseworkPerson = {
   groupId: string | null;
   /** The group whose copy of each week they read: their told group, or the one they facilitate; null reads the run's own. */
   readsGroupId: string | null;
+  /**
+   * For somebody moved mid-term, which group's copy each week is read on
+   * (`copiesOf` in `src/lib/courses/weekCopy.ts`): the weeks before the move
+   * on their old group's. Absent or null for everybody else, who read
+   * `readsGroupId` for every week (`readsGroupIdFor`).
+   */
+  readsCopies?: GroupFromWeek[] | null;
   /** To an admin: placed in a group Publish has not told them about yet. Always false for the lead. */
   notToldYet: boolean;
 };
