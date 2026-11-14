@@ -33,7 +33,7 @@ import { readRunFeedback } from "../feedback/readers";
  * reach zero: the week's session (the group's, `sessionOf`) bounds it. An
  * answer submitted before its session waits until the session has started;
  * one whose session started more than a week ago, or that has none to date,
- * waits for nobody here, and the review page still lists it. An answer
+ * waits for nobody here, and the page of one question still lists it. An answer
  * changed since feedback is bounded the same way, by the change: it waits for
  * seven days from when the words its readers read were saved, and the
  * Coursework tab's list still holds it after.

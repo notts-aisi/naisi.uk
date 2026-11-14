@@ -13,7 +13,7 @@ import { programmeLedBy } from "../programmeLead";
 
 /**
  * WHO READS A WRITTEN ANSWER AND GIVES FEEDBACK ON IT, IN ONE PLACE
- * (Zach, Mon 26 Oct, on facilitators taking part). The review page, the
+ * (Zach, Mon 26 Oct, on facilitators taking part). The reading pages, the
  * review route and the review queue card all ask `writtenReviewRole`; none
  * of them decides it again.
  *
@@ -192,7 +192,7 @@ export function writtenReviewRole(
  * Whose answers in one group `actor` may review: its fellows (for a
  * facilitator, every fellow but the group's facilitators), and, for the
  * lead and admins, the group's facilitators' own answers too. The list a
- * review page and a queue card draw from, by the same gate.
+ * reading page and a queue card draw from, by the same gate.
  */
 export function reviewableIn(
   actor: SessionUser,

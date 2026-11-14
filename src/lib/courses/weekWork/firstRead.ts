@@ -19,7 +19,9 @@ import { runWeekWorkOf, type RunWeekWork } from "./readers";
  * person's week (a reflection, a fill-in box, the written answer), the time it
  * was first put in front of somebody who may read it, in full, on the reading
  * view of one person's week, on the page of one question across a group, or,
- * for the written answer, on its review page.
+ * for a fill-in box, under This week's work on the facilitator's group page
+ * and the programme's page for a group's week once that person's "Read it"
+ * is opened.
  * NEVER WHO read it, and no count of readings. Once set, a time never changes.
  *
  * WHERE: the person's week record (`courseWeekWork`, which every browser is
@@ -59,8 +61,8 @@ import { runWeekWorkOf, type RunWeekWork } from "./readers";
  * through, never carries the field, so nothing the person's own pages and
  * routes are sent can name it.
  *
- * HOW IT IS WRITTEN: by a POST the reading pages (the two above, and a
- * written answer's review page) make once they have drawn the answers
+ * HOW IT IS WRITTEN: by a POST the reading pages (the two above, and This
+ * week's work's boxes once opened) make once they have drawn the answers
  * (`/api/courses/runs/[runId]/first-read`), never by a page's GET and
  * never while rendering, so a link preview or a prefetch marks nothing. For
  * each answer named, exactly what reading it asks, through the gates every

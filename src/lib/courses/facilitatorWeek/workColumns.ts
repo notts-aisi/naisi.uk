@@ -47,12 +47,13 @@ import { NOT_CHOSEN_YET, TO_GIVE_FEEDBACK, feedbackByWords, weekColumnWords } fr
  *    drawn only for a week that has its block: a Choose one for Pathway (its
  *    own title heads it, as its week page heads it), a talk that hands out
  *    cases for Case.
- *  - WRITTEN ANSWER: `loadWrittenReview`, the review page's reader, so each
- *    cell says what the review page says of the same answer, to the same
- *    reader, by the one gate: "Not started", "Started" (never how long, nor
- *    what it says, until it is sent or the session has started: privacy v17), "To
- *    give feedback" (a link to it on the review page), "Feedback · Rahul"
- *    (who has left feedback on it, a link to it too). A person the reader may
+ *  - WRITTEN ANSWER: `loadWrittenReview`, the reader the written answer's
+ *    review page had, so each cell says what that page said of the same
+ *    answer, to the same reader, by the one gate: "Not started", "Started"
+ *    (never how long, nor what it says, until it is sent or the session has
+ *    started: privacy v17), "To give feedback" (a link to the reading view of
+ *    the person's week at the answer), "Feedback · Rahul" (who has left
+ *    feedback on it, a link there too). A person the reader may
  *    not review gets no cell. Drawn only for a week with a written answer.
  *
  * Who the rows are is This week's work's own (`loadGroupWeek`): a facilitator
@@ -83,7 +84,7 @@ export type WorkColumnData = {
   note?: string | null;
 };
 
-/** What a written answer's cell says, as the review page groups the same answer. */
+/** What a written answer's cell says, as the written answers' review loader groups the same answer. */
 function writtenCell(person: ReviewPerson, href: string): WorkCell {
   if (person.readable && person.hasFeedback) return { text: feedbackByWords(person.feedbackByNames), href, lateMs: person.sentLateMs };
   if (person.readable && person.words > 0) return { text: TO_GIVE_FEEDBACK, href, lateMs: person.sentLateMs };
@@ -102,7 +103,7 @@ export async function loadWorkColumns(
     weekNumber: number;
     /** Everybody in the group's draw, its facilitators too. */
     people: readonly DrawPerson[];
-    /** The review page's address for one person's answer that week, as this reader reaches it. */
+    /** The reading view of one person's week at the written answer, as this reader reaches it. */
     reviewHref: (uid: string, weekNumber: number) => string;
     now: Date;
   },
@@ -114,7 +115,7 @@ export async function loadWorkColumns(
   const givesCases = talksOf(week.blocks).some((talk) => talk.groups.some((caseGroup) => caseGroup.cases.length > 0));
   const [work, review] = await Promise.all([
     chooseOne || givesCases ? weekWorkOf(db, run.id, week, people, viewer) : Promise.resolve(null),
-    loadWrittenReview(db, actor, run, group, weekNumber, null, now),
+    loadWrittenReview(db, actor, run, group, weekNumber, now),
   ]);
 
   const columns: WorkColumnData[] = [];
@@ -125,7 +126,7 @@ export async function loadWorkColumns(
     // A facilitator's own week, and so whether it was late, is the lead's and
     // admins' alone: this group's facilitators, and anybody holding a place
     // here who facilitates another of the run's live groups, as the card
-    // above and the written answers' review page (`facilitatesOnRun`) have it.
+    // above and the written answers' review loader (`facilitatesOnRun`) have it.
     const seesOwnWork = viewer.isAdmin || viewer.leadOf !== null;
     const shown = people.filter((person) => seesOwnWork || !(person.facilitates || facilitatesOnRun(person.uid, liveGroups)));
     const facts = await loadPeopleWeekFacts(db, {

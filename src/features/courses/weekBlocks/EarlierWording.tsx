@@ -9,8 +9,9 @@ import styles from "./earlierWording.module.css";
  * when this was written:". The words alone, one paragraph a line written;
  * nothing at all when the words are the same.
  *
- * Neither a client nor a server module: the week page's boxes, the written
- * answer's review page and the server pages with names all draw it.
+ * Neither a client nor a server module: the week page's boxes, the reading
+ * view of a person's week and the page of one question across a group all
+ * draw it.
  */
 export default function EarlierWording({ label, words }: { label: string; words: string | null }) {
   if (!words) return null;

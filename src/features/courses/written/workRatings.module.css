@@ -1,7 +1,7 @@
 /*
- * Ratings for the team on a written answer's review page: "Rating for the
- * team" (ten 44px choices, two rows of five, a comment and Save) and "What
- * the team said", in the column beside the answer. Every colour, radius and
+ * Ratings for the team beside a written answer on the reading pages: "Rating
+ * for the team" (ten 44px choices, two rows of five, a comment and Save) and
+ * "What the team said", in the column beside the answer. Every colour, radius and
  * gap is a token from src/theme/tokens.css.
  */
 

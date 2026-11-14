@@ -2,9 +2,10 @@
  * The words a question had when it was answered, ON THE PAGES: under a
  * person's own reflection and written answer on their week page ("You
  * answered an earlier wording:"), and under the answer on the pages of the
- * people who read it ("The question when this was written:"): the written
- * answer's review page, the reflections with names on the lead's page and on
- * the facilitator's, and a person's coursework page. Nothing when the words
+ * people who read it ("The question when this was written:"): the page of
+ * one question across a group on the lead's side and on the facilitator's
+ * (where the written answer's review page and the reflections with names now
+ * forward), and a person's coursework page. Nothing when the words
  * are the same, and nothing where a reader is told only that an answer is
  * started (before the person's session).
  *
@@ -35,10 +36,13 @@ const wordsThen = await loadTs(join("lib", "courses", "weekEdit", "wordsThen.ts"
 const blockRoute = await courseRoute("runs", "[runId]", "weeks", "[weekId]", "blocks", "[blockId]");
 const PROGRAMME = join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]");
 const page = async (...parts) => (await loadTs(join(...parts))).default;
+// The older pages' addresses, which now forward, and the pages they forward to.
 const WrittenPage = await page(PROGRAMME, "written", "page.tsx");
 const LeadReflections = await page(PROGRAMME, "reflections", "page.tsx");
 const CourseworkPerson = await page(PROGRAMME, "coursework", "[uid]", "page.tsx");
 const FacilitatorNames = await page("app", "(app)", "learn", "[runId]", "group", "[groupId]", "reflections", "names", "page.tsx");
+const LeadQuestion = await page(PROGRAMME, "question", "page.tsx");
+const GroupQuestion = await page("app", "(app)", "learn", "[runId]", "group", "[groupId]", "question", "page.tsx");
 const { default: ReflectStop } = await loadTs(join("features", "courses", "weekBlocks", "ReflectStop.tsx"));
 const { default: WrittenAnswerCard } = await loadTs(join("features", "courses", "weekBlocks", "WrittenAnswerCard.tsx"));
 
@@ -261,30 +265,36 @@ describe("2. the person's own week page: under their own words", () => {
 // ---------------------------------------------------------------------------
 
 describe("3. the staff pages: under the answer", () => {
-  test("the written answer's review page: the question when it was written, only once it was reworded", async () => {
+  test("one question across the group, at the written answer (where the review page's address forwards): the question when it was written, only once it was reworded", async () => {
     const at = { roundId: ROUND, programmeId: AGI };
-    const query = { searchParams: { group: B, week: "3", person: "chloe" } };
-    const before = await draw("claudia", WrittenPage, at, query);
+    // The review page's address for a group's answers forwards here.
+    assert.equal((await draw("claudia", WrittenPage, at, { searchParams: { group: B, week: "3" } })).to, `/admin/admissions/forms/${ROUND}/programmes/${AGI}/question?group=${B}&week=3&first=answer`);
+    const query = { searchParams: { group: B, week: "3", first: "answer" } };
+    const before = await draw("claudia", LeadQuestion, at, query);
     assert.equal(before.to, null);
     assert.ok(before.text.includes(CHLOE_ANSWER), "the answer is shown");
     assert.equal(before.text.includes(STAFF), false, "never reworded: nothing");
     await rewordQuestion();
-    const { text } = await draw("claudia", WrittenPage, at, query);
+    const { text } = await draw("claudia", LeadQuestion, at, query);
     assert.ok(text.includes(NEW_QUESTION), "the question as it is now, above");
     assert.match(after(text, STAFF) ?? "", new RegExp(`^ ${OLD_QUESTION}`), "the question then, under the answer");
     assert.ok(text.indexOf(STAFF) > text.indexOf(CHLOE_ANSWER), "under the answer");
+    // Kofi's answer, started and not sent before the session, is shown not at all, and nothing beside it.
+    assert.equal(text.split(STAFF).length - 1, 1, "beside an answer the page does not show");
   });
 
-  test("the review page: a range changed alone shows nothing", async () => {
+  test("one question across the group: a range changed alone shows nothing", async () => {
     await reword("wa-1", { words: { min: 250, max: 400 } });
-    const { text } = await draw("claudia", WrittenPage, { roundId: ROUND, programmeId: AGI }, { searchParams: { group: B, week: "3", person: "chloe" } });
+    const { text } = await draw("claudia", LeadQuestion, { roundId: ROUND, programmeId: AGI }, { searchParams: { group: B, week: "3", first: "answer" } });
     assert.ok(text.includes(CHLOE_ANSWER));
     assert.equal(text.includes(STAFF), false);
   });
 
-  test("the reflections with names, on the lead's page and on the facilitator's", async () => {
-    const lead = () => draw("claudia", LeadReflections, { roundId: ROUND, programmeId: AGI }, { searchParams: { group: B, week: "3" } });
-    const facilitator = () => draw("rahul", FacilitatorNames, { runId: RUN.agi, groupId: B }, { searchParams: { week: "3" } });
+  test("the reflections with names (one question across the group, where the older pages forward), on the lead's side and on the facilitator's", async () => {
+    assert.equal((await draw("claudia", LeadReflections, { roundId: ROUND, programmeId: AGI }, { searchParams: { group: B, week: "3" } })).to, `/admin/admissions/forms/${ROUND}/programmes/${AGI}/question?group=${B}&week=3&first=reflection`);
+    assert.equal((await draw("rahul", FacilitatorNames, { runId: RUN.agi, groupId: B }, { searchParams: { week: "3" } })).to, `/learn/${RUN.agi}/group/${B}/question?week=3&first=reflection`);
+    const lead = () => draw("claudia", LeadQuestion, { roundId: ROUND, programmeId: AGI }, { searchParams: { group: B, week: "3", question: "rp-1" } });
+    const facilitator = () => draw("rahul", GroupQuestion, { runId: RUN.agi, groupId: B }, { searchParams: { week: "3", question: "rp-1" } });
     for (const drawn of [await lead(), await facilitator()]) {
       assert.equal(drawn.to, null);
       assert.ok(drawn.text.includes(CHLOE_REFLECTION), "the reflection is shown");

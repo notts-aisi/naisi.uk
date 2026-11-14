@@ -31,15 +31,17 @@
  * and on Home, carries the link for anybody joining online. Ada
  * writes week 4's written answer and sends it with its own Send (the week
  * stays open: nothing locks at a send or at the session), then changes it
- * before the session, and Fern's review page still shows it as sent, never
- * the change. Then the programme's lead opens the Surveys tab from the
+ * before the session, and Fern's reading view of Ada's week still shows it
+ * as sent, never the change. Then the programme's lead opens the Surveys tab from the
  * programme's head and follows the Overview's link to the programme's
  * session reports, where Fern's report is, with names, and the lead's
  * Attendance tab says Ada came to one of three sessions online. Last, Group
  * A's week 4 session starts (`startGroupSession`, below): Ada's page says the
  * group met, and what she adds and changes now says how late; Fern's pages
- * say "Late" with how late and show the answer as it stood at the session;
- * and Ben, another fellow of the group, reads none of it.
+ * (the reading view, the page of one question, This week's work) say "Late"
+ * with how late and show the answer as it stood at the session; and Ben,
+ * another fellow of the group, reads none of it, nor through the older
+ * pages' addresses, which forward to those pages.
  *
  * ## Every grant is made on a real page, by the admin the harness is given
  *
@@ -89,7 +91,7 @@ export const SESSIONS_AND_WORK_STEPS = [
   "the member's ticket carries the week's link for anybody joining online, beside Add to calendar, on the programme page and on Home",
   "the member writes the week's written answer and sends it with its own Send, and the week stays open, saying when it was sent",
   "the member changes the answer before the session, and the page says the people who read it still see the version sent",
-  "the facilitator's review page shows the answer as it was sent, never the change",
+  "the facilitator's reading view shows the answer as it was sent, never the change",
   "the programme's lead follows the Surveys tab's link to the session reports and reads the facilitator's report, with names",
   "the programme's lead reads on the Attendance tab how many sessions the member came to in the room and online",
   "once the group's session has started, the member's page says the group met, and what the member adds, changes and sends now says how late",
@@ -138,6 +140,7 @@ export const SPEC = {
       "/api/courses/runs/[runId]/written-answers/[answerId]",
       "/api/courses/runs/[runId]/written-answers/[answerId]/send",
       "/api/courses/runs/[runId]/reflections/[promptId]",
+      "/api/courses/runs/[runId]/first-read",
     ],
     pages: [
       "/(auth)/login",
@@ -148,6 +151,8 @@ export const SPEC = {
       "/(app)/learn/[runId]/group/[groupId]",
       "/(app)/learn/[runId]/group/[groupId]/register",
       "/(app)/learn/[runId]/group/[groupId]/report",
+      "/(app)/learn/[runId]/group/[groupId]/coursework/[uid]",
+      "/(app)/learn/[runId]/group/[groupId]/question",
       "/(app)/learn/[runId]/group/[groupId]/written",
       "/(app)/learn/[runId]/group/[groupId]/reflections/names",
       "/(app)/learn/[runId]/weeks/[n]",
@@ -194,6 +199,12 @@ export const SPEC = {
    * to Fern, by its kind and its subject, and the box still asks for the
    * link. All eighteen steps against the loopback server on a laptop, 58
    * rows before teardown (6 sends), and zero after.
+   * The facilitator's three readings moved on 2026-11-13, when the written
+   * answer's review page and the group's reflections with names were
+   * retired, to the reading view of the member's week and the page of one
+   * question, and the other fellow now also tries the older addresses, which
+   * forward to them; not yet run in a browser: the pull request's
+   * end-to-end job runs them first.
    */
   status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three-work" }),

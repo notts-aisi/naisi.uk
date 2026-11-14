@@ -323,8 +323,8 @@ export async function GET(
     // A reflection or a fill-in box is never reviewed, so it is never this
     // queue's: each is a box its writer fills in (courseExercises.ts).
     .filter((r) => !isOwnBoxResponse(r))
-    // Nor is a block week's written answer: it gets its feedback on the
-    // group's written answers page, by the rubric.
+    // Nor is a block week's written answer: it gets its feedback in the
+    // reading view of the person's week and on the page of one question.
     .filter((r) => !writtenIds.has(r.id));
 
   // One `getAll` for every name the payload needs: the group's members, plus

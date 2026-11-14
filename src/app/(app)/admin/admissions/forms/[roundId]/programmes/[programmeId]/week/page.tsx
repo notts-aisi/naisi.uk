@@ -5,6 +5,8 @@ import RunBlank from "@/features/applications/groups/RunBlank";
 import facilitator from "@/features/courses/facilitator/facilitator.module.css";
 import ThisWeeksWork, { ReflectionsQueueCard, workColumnsOf } from "@/features/courses/facilitatorWeek/ThisWeeksWork";
 import weekly from "@/features/courses/weekly/weekly.module.css";
+import { firstQuestionHref, readingAnswerHref } from "@/lib/courses/coursework/forwards";
+import { groupBoxesFirstRead } from "@/lib/courses/coursework/question";
 import { loadFacilitatorGroup } from "@/lib/courses/facilitatorGroup";
 import { openLeadDoor } from "@/lib/courses/facilitatorWeek/leadDoor";
 import { loadGroupWeek, loadGroupWeekBoxes } from "@/lib/courses/facilitatorWeek/readers";
@@ -13,6 +15,7 @@ import { drawPeople } from "@/lib/courses/packsAndCases/readers";
 import { ATTENDANCE, NO_WEEK_TO_SHOW, groupWeekTitleWords, noGroupsWords, ownCountedApartLine } from "@/lib/courses/facilitatorWeek/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
+import { weekDocId } from "@/lib/firestore/courses";
 
 /**
  * THE LEAD'S AND ADMINS' VIEW OF ONE GROUP'S WEEK, at
@@ -33,7 +36,9 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`openLeadDoor`), decided from the
  * form before the run is read; a reviewer is told it is the lead's and an
  * admin's. Outside the tabs, as a single application is: a screen of its own,
- * with the way back to the Attendance tab. Nothing here writes.
+ * with the way back to the Attendance tab. Nothing here writes: once a
+ * person's boxes are opened in the browser, the page names them to the
+ * first-read route, so the day each was first read is kept, never who.
  */
 
 export const dynamic = "force-dynamic";
@@ -78,8 +83,8 @@ export default async function LeadGroupWeekPage({
   const model = await loadFacilitatorGroup(db, run, group, { isAdmin: viewer === "admin", actor: user }, now);
   const week = await loadGroupWeek(db, { run, group, model, viewer, now });
   // Pathway, Written answer and Case for the same week, as the group's page draws them: a facilitator's own
-  // pick and answer are the lead's and admins', so both are shown here, and feedback is given on the lead's
-  // own review page.
+  // pick and answer are the lead's and admins', so both are shown here, and feedback is given on the reading
+  // view of the person's week, at the answer.
   const columns = week
     ? await loadWorkColumns(db, {
         run,
@@ -88,13 +93,18 @@ export default async function LeadGroupWeekPage({
         viewer: { isAdmin: viewer === "admin", leadOf: viewer === "lead" ? { roundId, programmeId } : null },
         weekNumber: week.weekNumber,
         people: drawPeople(model.people, model.facilitators),
-        reviewHref: (uid, n) =>
-          `/admin/admissions/forms/${round}/programmes/${programmeKey}/written?group=${encodeURIComponent(group.id)}&week=${n}&person=${encodeURIComponent(uid)}`,
+        reviewHref: (uid, n) => readingAnswerHref(`/admin/admissions/forms/${round}/programmes/${programmeKey}/coursework`, uid, n),
         now,
       })
     : [];
   // Each person's fill-in boxes on that week, a facilitator's own included: the lead and admins read them all.
   const boxes = week ? await loadGroupWeekBoxes(db, { run, actor: user, week }) : [];
+  // Each person's boxes are drawn in full under their name once their Read it is opened: the ones with words are
+  // named then as first read, never the reader's own; the route asks its own gates again.
+  const boxesRead =
+    week && week.fillIn
+      ? groupBoxesFirstRead({ weekId: weekDocId(week.weekNumber), readerUid: user.uid, boxIds: week.fillIn.boxes.map((box) => box.id), people: boxes })
+      : null;
 
   return (
     <div className={facilitator.page}>
@@ -109,7 +119,7 @@ export default async function LeadGroupWeekPage({
           {week.counts.length > 0 && week.counts[0].of > 0 && (
             <ReflectionsQueueCard
               counts={week.counts}
-              href={`/admin/admissions/forms/${round}/programmes/${programmeKey}/reflections?group=${encodeURIComponent(group.id)}&week=${week.weekNumber}`}
+              href={firstQuestionHref(`/admin/admissions/forms/${round}/programmes/${programmeKey}/question?group=${encodeURIComponent(group.id)}`, week.weekNumber, "reflection")}
               lead
             />
           )}
@@ -118,6 +128,7 @@ export default async function LeadGroupWeekPage({
             groupName={group.name}
             columns={workColumnsOf(columns)}
             boxes={boxes}
+            boxesFirstRead={boxesRead ? { runId: run.id, ...boxesRead } : null}
             ownLine={week.ownApart ? ownCountedApartLine(week.of) : null}
           />
         </div>

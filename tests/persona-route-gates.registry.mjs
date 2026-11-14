@@ -294,6 +294,10 @@ export const REDIRECTS = {
   run: "/learn/[runId]",
   /** A week of a run under /learn (second pass). */
   week: "/learn/[runId]/weeks/[n]",
+  /** One question across a group, from the group's side: where its older reading pages' addresses forward. */
+  groupQuestion: "/learn/[runId]/group/[groupId]/question",
+  /** One question across a group, from the programme's side: where its older reading pages' addresses forward. */
+  programmeQuestion: "/admin/admissions/forms/[roundId]/programmes/[programmeId]/question",
 };
 
 /** Anonymous is refused for having no session; everyone signed in gets `rest`. */
@@ -3289,7 +3293,8 @@ export const ROUTES = {
       expect: signedIn(400),
       why:
         "Keeping when answers were first read by somebody on the team (called by the reading view of one person's " +
-        "week, the page of one question across a group and a written answer's review page, once drawn): view-as is refused first, then the " +
+        "week and the page of one question across a group, once drawn, and by This week's work on the facilitator's " +
+        "group page and the programme's page for a group's week once a person's boxes are opened): view-as is refused first, then the " +
         "session, then the body is checked before anything is read (which week, whose answers and which of " +
         "them), so every signed-in persona meets the same 400 on an empty one. Once a valid body arrives, " +
         "somebody naming their own work is refused, then anybody who reads nobody's work on the run, and each " +
@@ -4695,14 +4700,19 @@ export const PAGES = {
       "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    expect: everyone(["dashboard", "programmeQuestion"], {
+      anonymous: "login",
+      pending: "pendingApproval",
+      rejected: "home",
+      admin: "programmeQuestion",
+      approveCourse: "programmeQuestion",
+      lead: "programmeQuestion",
+    }),
     why:
-      "The admissions tree's gate, then the page's own: the review page for the programme's lead and " +
-      "admins, so a reviewer on the form is told it is the lead's and an admin's before the run is read, " +
-      "and a programme the caller has no role on, or one that does not exist, renders 'there is no " +
-      "programme here' with a 200. " +
-      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
-      "and with an address that names nothing is drawn the same not-here state.",
+      "The written answer's review page, retired: the page reads nothing and forwards from the address alone, to one " +
+      "person's week when it names a person and otherwise (the battery's address names none) to one question across " +
+      "the group, which keeps its own gate. Whoever the admissions tree admits is forwarded; the tree sends everybody " +
+      "else to the dashboard, and the page renders beside it, so both redirects can be in the stream and either is accepted.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/question": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
@@ -4726,14 +4736,19 @@ export const PAGES = {
       "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    expect: everyone(["dashboard", "programmeQuestion"], {
+      anonymous: "login",
+      pending: "pendingApproval",
+      rejected: "home",
+      admin: "programmeQuestion",
+      approveCourse: "programmeQuestion",
+      lead: "programmeQuestion",
+    }),
     why:
-      "The admissions tree's gate, then the page's own door (openLeadDoor, decided from the form before the " +
-      "run is read): a group's reflections, its facilitators' own among them, are the programme's lead's and " +
-      "an admin's to read here, so a reviewer on the form is told the page is theirs, and a programme the caller " +
-      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200. " +
-      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
-      "and with an address that names nothing is drawn the same not-here state.",
+      "A group's reflections with names, retired: the page reads nothing and forwards from the address alone to one " +
+      "question across the group, at the week's first reflection, which keeps its own gate (openLeadDoor). Whoever the " +
+      "admissions tree admits is forwarded; the tree sends everybody else to the dashboard, and the page renders beside " +
+      "it, so both redirects can be in the stream and either is accepted.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/coursework": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
@@ -5338,11 +5353,12 @@ export const PAGES = {
       "sends everybody else to the run's home.",
   },
   "/(app)/learn/[runId]/group/[groupId]/reflections/names": {
-    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    expect: everyone(["learn", "groupQuestion"], { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
     why:
-      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
-      "missing, and the page's own gate (the page to read lines out's: a live facilitator of the group, or an " +
-      "admin) sends everybody else to the run's home before a reflection is read.",
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is missing. " +
+      "The page, retired, reads nothing and renders beside the layout, forwarding from the address alone to one " +
+      "question across the group at the week's first reflection, which keeps its own gate. Both redirects can be " +
+      "in the stream, so either is accepted.",
   },
   "/(app)/learn/[runId]/group/[groupId]/review": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
@@ -5431,11 +5447,13 @@ export const PAGES = {
       "where the week page sends them.",
   },
   "/(app)/learn/[runId]/group/[groupId]/written": {
-    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    expect: everyone(["learn", "groupQuestion"], { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
     why:
-      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
-      "missing, and the page sends anybody who is not the group's live facilitator, the programme's " +
-      "lead or an admin to the run's home.",
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is missing. " +
+      "The page, the written answer's review page retired, reads nothing and renders beside the layout, forwarding " +
+      "from the address alone to one person's week when it names a person and otherwise (the battery's address names " +
+      "none) to one question across the group, each of which keeps its own gate. Both redirects can be in the stream, " +
+      "so either is accepted.",
   },
   "/(app)/learn/[runId]/group/[groupId]/question": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
@@ -5795,6 +5813,52 @@ function programmePage(page, state = "noProgramme") {
       participant: c("dashboard", "Holding a place is not a role on the form: the admissions tree sends a plain member to the dashboard."),
     },
   };
+}
+
+/**
+ * A retired page under a programme on an application form that forwards,
+ * reading nothing, to one question across a group (the battery's address
+ * names no person). The admissions tree admits an admin, an approveCourse
+ * holder and anybody appointed (the lead), and each is forwarded whatever the
+ * programme, the page that answers being the one forwarded to; everybody else
+ * is sent to the dashboard, the page rendering beside the tree's refusal.
+ */
+function programmeForward(what) {
+  const forwarded = (who) => c("programmeQuestion", `${who}, so the admissions tree admits them: ${what} reads nothing and forwards to one question across the group, which keeps its own gate.`);
+  const refused = (who) =>
+    c(["dashboard", "programmeQuestion"], `${who}: the admissions tree sends them to the dashboard, and ${what}, rendering beside it, forwards from the address alone; either is accepted.`);
+  return {
+    another: {
+      ...PAGE_BASE,
+      "*": refused("Not an admin, an approveCourse holder or anybody appointed on a form"),
+      admin: forwarded("An admin"),
+      approveCourse: forwarded("Authors application forms"),
+      lead: forwarded("Appointed to lead a programme on another form"),
+    },
+    theirs: {
+      lead: forwarded("The programme's own lead"),
+      facilitator: refused("Facilitating one of the run's groups is not a role on the form"),
+      participant: refused("Holding a place is not a role on the form"),
+    },
+  };
+}
+
+/**
+ * A retired page under one group of a run in /learn that forwards, reading
+ * nothing, to one question across the group (the battery's address names no
+ * person). Whoever the run layout admits is forwarded; everybody else is sent
+ * to /learn, the page rendering beside the layout's refusal.
+ */
+function groupForward(what) {
+  const forwarded = (who) => c("groupQuestion", `${who}: ${what} reads nothing and forwards to one question across the group, which keeps its own gate.`);
+  return learnPage({
+    admin: forwarded("An admin"),
+    facilitator: forwarded("Admitted to the run"),
+    participant: forwarded("Admitted to the run"),
+    refused: ["learn", "groupQuestion"],
+    why: `Holds no role on this run, so the run layout sends them to /learn; ${what}, rendering beside it, forwards from the address alone, so either is accepted.`,
+    leadWhy: `The run layout does not admit a programme's lead, who works from the programme's own tabs, so it sends the lead to /learn; ${what}, rendering beside it, forwards from the address alone, so either is accepted.`,
+  });
 }
 
 /** Anybody the run layout refuses: no role on the run. Both its redirect and the page's own can be in the stream. */
@@ -7803,7 +7867,7 @@ export const REAL_PAGES = {
     "the freed places, with the lead told the offer is an admin's.",
     ["noProgramme", "notReviewed"],
   ),
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written": programmePage("the review page for its written answers."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written": programmeForward("the written answer's review page"),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/question": programmePage("one question across a group of its run, or its calm page for a run with nothing to read."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
     another: {
@@ -7819,7 +7883,7 @@ export const REAL_PAGES = {
       participant: c("dashboard", "A plain member, and the application is their own: the admissions tree still sends them to the dashboard."),
     },
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": programmePage("its groups' reflections, its facilitators' own among them."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": programmeForward("a group's reflections with names"),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": programmePage("a group's week, who ticked what by name."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/coursework": programmePage(
     "the Coursework tab, everybody's work by week with the caller's flags, and the answers waiting for the caller's feedback.",
@@ -7947,7 +8011,7 @@ export const REAL_PAGES = {
     participant: c("run", "Admitted to the run, but facilitates no group and this group is not theirs: sent to the run's home instead of a report."),
   }),
   "/(app)/learn/[runId]/group/[groupId]/reflections": groupLearnPage("the group's reflections"),
-  "/(app)/learn/[runId]/group/[groupId]/reflections/names": groupLearnPage("the group's reflections read with names"),
+  "/(app)/learn/[runId]/group/[groupId]/reflections/names": groupForward("the group's reflections read with names"),
   "/(app)/learn/[runId]/group/[groupId]/review": groupLearnPage("the group's exercises to review (week 1 is a plain week, so the page draws)"),
   "/(app)/learn/[runId]/group/[groupId]/sessions": groupLearnPage("the group's sessions"),
   "/(app)/learn/[runId]/group/[groupId]/update": groupLearnPage("an update to the group"),
@@ -8005,7 +8069,7 @@ export const REAL_PAGES = {
     why: LEARN_ONLY_WHY,
     leadWhy: LEAD_LEARN_ONLY_WHY,
   }),
-  "/(app)/learn/[runId]/group/[groupId]/written": groupLearnPage("the group's written answers"),
+  "/(app)/learn/[runId]/group/[groupId]/written": groupForward("the group's written answers"),
   "/(app)/learn/[runId]/group/[groupId]/question": groupLearnPage("one question across the group, or its calm page for a run with nothing to read"),
   "/(app)/learn/[runId]/group/[groupId]/coursework/[uid]": learnPage({
     admin: c("run", "An admin passes the page's gate, but the set's person holds a place in the run's other group, not this one: nobody of this group to read, so the run's home."),

@@ -193,6 +193,9 @@ export async function makeFacilitatorWeekWorld(key = "__facilitatorWeek") {
     namedReflections: (await w.loadTs(join(GROUP, "reflections", "names", "page.tsx"))).default,
     leadWeek: (await w.loadTs(join(PROGRAMME, "week", "page.tsx"))).default,
     leadReflections: (await w.loadTs(join(PROGRAMME, "reflections", "page.tsx"))).default,
+    // One question across a group, behind both doors: where the reflections with names now forward.
+    groupQuestion: (await w.loadTs(join(GROUP, "question", "page.tsx"))).default,
+    leadQuestion: (await w.loadTs(join(PROGRAMME, "question", "page.tsx"))).default,
   };
   const lib = {
     model: await w.loadTs(join("lib", "courses", "facilitatorWeek", "model.ts")),
@@ -208,7 +211,7 @@ export async function makeFacilitatorWeekWorld(key = "__facilitatorWeek") {
   const reflectionsPage = (who, { groupId = B, week } = {}) =>
     w.draw(pages.reflections, who, { runId: RUN.agi, groupId }, week === undefined ? {} : { week: String(week) });
 
-  /** The group's facilitators' page that reads its reflections with names, as `who`, on `week` when given. */
+  /** The group's reflections with names' older address, which now forwards, as `who`, on `week` when given. */
   const namedReflectionsPage = (who, { groupId = B, week } = {}) =>
     w.draw(pages.namedReflections, who, { runId: RUN.agi, groupId }, week === undefined ? {} : { week: String(week) });
 
@@ -216,7 +219,7 @@ export async function makeFacilitatorWeekWorld(key = "__facilitatorWeek") {
   const leadWeekPage = (who, { groupId = B } = {}) =>
     w.draw(pages.leadWeek, who, { roundId: ROUND, programmeId: AGI }, { group: groupId });
 
-  /** The lead's reading of a group's reflections as `who`. */
+  /** The lead's reading of a group's reflections' older address, which now forwards, as `who`. */
   const leadReflectionsPage = (who, { groupId = B, week } = {}) =>
     w.draw(
       pages.leadReflections,
@@ -225,5 +228,16 @@ export async function makeFacilitatorWeekWorld(key = "__facilitatorWeek") {
       week === undefined ? { group: groupId } : { group: groupId, week: String(week) },
     );
 
-  return { ...w, pages, lib, reset, reflectionsPage, namedReflectionsPage, leadWeekPage, leadReflectionsPage };
+  /** The address's own query: only what is given. */
+  const queryOf = (given) => Object.fromEntries(Object.entries(given).filter(([, value]) => value !== undefined).map(([key, value]) => [key, String(value)]));
+
+  /** One question across a group from the group's side, as `who`. */
+  const groupQuestionPage = (who, { groupId = B, week, question, first } = {}) =>
+    w.draw(pages.groupQuestion, who, { runId: RUN.agi, groupId }, queryOf({ week, question, first }));
+
+  /** One question across a group from the programme's side, as `who`. */
+  const leadQuestionPage = (who, { groupId = B, week, question, first } = {}) =>
+    w.draw(pages.leadQuestion, who, { roundId: ROUND, programmeId: AGI }, queryOf({ group: groupId, week, question, first }));
+
+  return { ...w, pages, lib, reset, reflectionsPage, namedReflectionsPage, leadWeekPage, leadReflectionsPage, groupQuestionPage, leadQuestionPage };
 }

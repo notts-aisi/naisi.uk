@@ -38,10 +38,10 @@ import styles from "./workRatings.module.css";
 
 /**
  * RATING FOR THE TEAM, AND WHAT THE TEAM SAID (privacy v15, "Ratings for the
- * team"): on a written answer's review page, beside the feedback, for an
- * admin or the programme's lead alone. The page hands it `team` only for
- * them (`loadWrittenReview`), so a facilitator's page draws none of it and
- * carries no rating.
+ * team"): beside a written answer on the reading view of the person's week
+ * and on the page of one question, for an admin or the programme's lead
+ * alone. The page hands it `team` only for them (`mayRateWorkOf`), so a
+ * facilitator's page draws none of it and carries no rating.
  *
  * "Rating for the team" is the reader's own rating of the answer: a whole
  * number from 1 to 10 (ten radio buttons, each a 44px target) and a comment

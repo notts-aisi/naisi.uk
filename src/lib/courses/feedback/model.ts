@@ -94,9 +94,9 @@ export type OwnFeedbackCard = {
 };
 
 /**
- * ONE PIECE AS THE PEOPLE RUNNING THE GROUP READ IT (the review page, the
- * Coursework tab's person page): the card, who wrote it, whether its email
- * has gone, and what the reader may do with it.
+ * ONE PIECE AS THE PEOPLE RUNNING THE GROUP READ IT (the reading view of a
+ * person's week, the page of one question): the card, who wrote it, whether
+ * its email has gone, and what the reader may do with it.
  */
 export type StaffFeedbackCard = OwnFeedbackCard & {
   byUid: string;

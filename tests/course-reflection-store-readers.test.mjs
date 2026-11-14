@@ -175,7 +175,7 @@ const READERS = {
   },
   "lib/courses/writtenAnswers/reviewPage.ts": {
     treats: "tells",
-    why: "the review page's answers, each read by its id: a reflection's row reads as no answer",
+    why: "the written answer's review page's loader, kept as the reader behind This week's work's Written answer column (its own page is retired): its answers, each read by its id: a reflection's row reads as no answer",
   },
   "lib/applications/nextTerm/load.ts": {
     treats: "tells",

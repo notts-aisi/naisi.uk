@@ -260,20 +260,6 @@ export const NO_READINGS = "No readings to tick this week.";
 /** A week with no reflection, no box and no written answer. */
 export const NOTHING_TO_WRITE_THIS_WEEK = "This week asks for nothing written.";
 
-/** Under an answer on its review page: the way to the reading view of the person's whole week. "Read all of Chloe’s week 3". */
-export function wholeWeekWords(firstName: string, weekNumber: number): string {
-  return `Read all of ${firstName ? `${firstName}’s` : "their"} week ${weekNumber}`;
-}
-
-/**
- * Under a written answer in the reading view: the way to its review page,
- * where Pangram's reading (for an admin) and what the week's session reports
- * say about the person sit beside it. "Open Chloe’s answer on the written answers page".
- */
-export function reviewPageLinkWords(firstName: string): string {
-  return `Open ${firstName ? `${firstName}’s` : "the"} answer on the written answers page`;
-}
-
 // One question, the whole group ---------------------------------------------------
 
 /**

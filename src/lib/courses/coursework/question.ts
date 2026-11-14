@@ -1,3 +1,4 @@
+import { own } from "@/lib/applications/keys";
 import type { CourseworkWeek, PersonWeek, QuestionStep } from "./model";
 import { workKey } from "./model";
 
@@ -20,8 +21,9 @@ import { workKey } from "./model";
  *    combined with the others; each count is of the people this reader may
  *    read, whatever else is chosen.
  *  - WHICH ANSWERS A PAGE NAMES as put in front of its reader in full
- *    (`shownAnswerIds` for one person's week, `reviewPageFirstRead` for a
- *    written answer's review page), for the time each was first read; and
+ *    (`shownAnswerIds` for one person's week, `groupBoxesFirstRead` for the
+ *    boxes under a group's This week's work), for the time each was first
+ *    read; and
  *    what counts as read (`readStateOf`, `readableSinceOf`).
  *
  * Who may open the page, and whose answers it lists, is decided by the gates
@@ -58,10 +60,31 @@ export function weekQuestionsOf(week: CourseworkWeek, words: { part: (number: nu
   return out;
 }
 
-/** The question the address names, when the week asks it; otherwise its first. Null for a week that asks nothing written. */
-export function chosenQuestion(questions: readonly WeekQuestion[], asked: unknown): WeekQuestion | null {
+/**
+ * The week's first question of a kind, as an address may ask for it without
+ * its id (`first=answer`, `first=reflection`): its written answer, or its
+ * first reflection. What the older pages' addresses forward to.
+ */
+export type FirstOfKind = "answer" | "reflection";
+
+/** The kind of question an address asks to open on, or null. */
+export function readFirstOfKind(value: unknown): FirstOfKind | null {
+  return value === "answer" || value === "reflection" ? value : null;
+}
+
+/**
+ * The question the address names, when the week asks it; else the week's
+ * first question of the kind it asks for (`first`), when it asks one; else
+ * the week's first. Null for a week that asks nothing written.
+ */
+export function chosenQuestion(questions: readonly WeekQuestion[], asked: unknown, first: FirstOfKind | null = null): WeekQuestion | null {
   const wanted = typeof asked === "string" ? asked : null;
-  return questions.find((question) => question.id === wanted) ?? questions[0] ?? null;
+  return (
+    questions.find((question) => question.id === wanted) ??
+    (first ? questions.find((question) => question.kind === first) : undefined) ??
+    questions[0] ??
+    null
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -178,13 +201,19 @@ export function filterCounts(rows: readonly FilterRow[]): { everybody: number; u
 
 /**
  * The page's address with a week, a question and a filter. `base` already
- * carries what the door needs (`?group=` on the programme's side).
+ * carries what the door needs (`?group=` on the programme's side). With no
+ * week, the page opens its own; with no question, the week's first of the
+ * kind `first` asks for, else its first.
  */
-export function questionHref(base: string, at: { weekNumber: number; questionId: string | null; filter?: QuestionFilter }): string {
+export function questionHref(
+  base: string,
+  at: { weekNumber: number | null; questionId: string | null; filter?: QuestionFilter; first?: FirstOfKind | null },
+): string {
   const [path, existing = ""] = base.split("?");
   const params = new URLSearchParams(existing);
-  params.set("week", String(at.weekNumber));
+  if (at.weekNumber !== null) params.set("week", String(at.weekNumber));
   if (at.questionId) params.set("question", at.questionId);
+  else if (at.first) params.set("first", at.first);
   const filter = at.filter ?? EVERYBODY_FILTER;
   if (filter.unread) params.set("unread", "1");
   if (filter.noFeedback) params.set("nofeedback", "1");
@@ -217,19 +246,27 @@ export function shownAnswerIds(week: PersonWeek): string[] {
 }
 
 /**
- * What a written answer's review page names as first read once drawn: the one
- * answer it puts in front of its reader in full, for a reader who may act on
- * it and an answer that holds words; null otherwise. The route asks its own
+ * What a group's week names as first read, person by person, once that
+ * person's boxes under This week's work are opened ("Read it"): for each
+ * person whose boxes the page draws (`loadGroupWeekBoxes`, the boxes' own
+ * gate), the boxes they wrote in, in the week's order. Never the reader's own,
+ * and nobody with nothing written. Null with nobody. The route asks its own
  * gates again.
  */
-export function reviewPageFirstRead(model: {
+export function groupBoxesFirstRead(input: {
   weekId: string;
-  answer: { id: string } | null;
-  selected: { person: { uid: string; words: number }; role: { mayReview: boolean } } | null;
+  readerUid: string;
+  /** The week's boxes, in its order. */
+  boxIds: readonly string[];
+  /** The people whose boxes the page draws, with their words by box id. */
+  people: ReadonlyArray<{ person: { uid: string }; answers: Readonly<Record<string, string>> }>;
 }): { weekId: string; people: Array<{ uid: string; ids: string[] }> } | null {
-  const { selected, answer } = model;
-  if (!selected || !answer || !selected.role.mayReview || selected.person.words <= 0) return null;
-  return { weekId: model.weekId, people: [{ uid: selected.person.uid, ids: [answer.id] }] };
+  const people = input.people.flatMap(({ person, answers }) => {
+    if (!person.uid || person.uid === input.readerUid) return [];
+    const ids = [...new Set(input.boxIds)].filter((id) => (own(answers, id) ?? "").trim() !== "");
+    return ids.length > 0 ? [{ uid: person.uid, ids }] : [];
+  });
+  return people.length > 0 ? { weekId: input.weekId, people } : null;
 }
 
 /** The id a person's row carries on the page of one question, for the switch from their week to land on them. */

@@ -21,11 +21,12 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 /**
  * ONE PERSON'S WEEK ON A PROGRAMME (the reading view, Fri 13 Nov 2026), at
  * `.../programmes/[programmeId]/coursework/[uid]?week=N`, reached from a
- * name or a cell on the Coursework tab, from the group's page and from the
- * review page: one week of everything they did (`ReadingView`), with the way
- * to the previous and next person of their section of the tab and to the
- * previous and next week. With no week named it opens the newest week they
- * have anything in, else the newest that has begun for them.
+ * name or a cell on the Coursework tab, from the group's page, from the page
+ * of one question and from the older address of a person's written answer,
+ * which forwards here: one week of everything they did (`ReadingView`), with
+ * the way to the previous and next person of their section of the tab and to
+ * the previous and next week. With no week named it opens the newest week
+ * they have anything in, else the newest that has begun for them.
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`loadPersonCoursework`, through
  * `loadProgrammeRun`), decided from the form before the run is read, as it

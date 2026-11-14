@@ -30,17 +30,20 @@
  * says when it was sent, with Change my answer, and the week stays open,
  * after a reload too -> Ada changes it before the session, and the page says
  * the people who read her work still see the version she sent -> Fern's
- * review page shows the answer as sent, never the change -> the programme's
+ * reading view of Ada's week shows the answer as sent, never the change, and
+ * says Ada has changed it since sending it -> the programme's
  * lead (the admin) opens the Surveys tab from the programme's head, follows
  * the Overview's "Read the report" to the session reports, and reads Fern's
  * report with names -> the lead's Attendance tab says Ada came to one session
  * online -> Group A's week 4 session starts (the fixture moves Group A's own
  * calendar so it started minutes ago): Ada's page says Group A met and that
  * she can still finish it; she writes a reflection, changes her answer and
- * sends it, and each says how many minutes after her session -> Fern's review
- * page says "Late" with how late and shows the answer as it stood at the
- * session; her reflections page and This week's work say how late too -> Ben,
- * another fellow of Group A, reads none of Ada's work on any of those pages.
+ * sends it, and each says how many minutes after her session -> Fern's reading
+ * view says "Late" with how late and shows the answer as it stood at the
+ * session; the group's reflections with names (the page of one question) and
+ * This week's work say how late too -> Ben, another fellow of Group A, reads
+ * none of Ada's work on any of those pages, nor through the older pages'
+ * addresses, which forward to them.
  *
  * ## How to run it
  *
@@ -397,9 +400,16 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
     return body;
   }
 
-  /** The review page on Ada's week 4, as `pg`'s reader opens it. */
-  const reviewUrl = `${origin}${groupPath}/written?week=${nextWeek}&person=${enc(ada.uid)}`;
-  const namesUrl = `${origin}${groupPath}/reflections/names?week=${nextWeek}`;
+  /** The reading view of Ada's week 4 on the group's side, at her written answer, as `pg`'s reader opens it. */
+  const readingUrl = `${origin}${groupPath}/coursework/${enc(ada.uid)}?week=${nextWeek}#reading-answer`;
+  /** The group's week 4 reflections with names: the page of one question across the group, at the week's first reflection. */
+  const namesUrl = `${origin}${groupPath}/question?week=${nextWeek}&first=reflection`;
+  /** The older addresses of the same two, which forward to them. */
+  const olderUrls = [`${origin}${groupPath}/written?week=${nextWeek}&person=${enc(ada.uid)}`, `${origin}${groupPath}/reflections/names?week=${nextWeek}`];
+  /** The written answer in the reading view: the answer, and what is said beside it. */
+  const answerOn = (pg) => pg.locator('section[aria-labelledby="reading-answer"]');
+  /** Ada's row on the page of one question: a section carrying her id. */
+  const adaRowOn = (pg) => pg.locator(`section[id="p-${ada.uid}"]`);
 
   try {
     await step("the admin approves the facilitator and the member of the group who signs in", async () => {
@@ -871,15 +881,15 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
       assert.equal(await answerBox(adaPage).inputValue(), `${ANSWER.first}${ANSWER.added}`);
     });
 
-    await step("the facilitator's review page shows the answer as it was sent, never the change", async () => {
+    await step("the facilitator's reading view shows the answer as it was sent, never the change", async () => {
       activePage = fernPage;
-      await fernPage.goto(reviewUrl, { waitUntil: "domcontentloaded" });
-      await fernPage.getByRole("heading", { name: `${ada.first}’s answer`, level: 2 }).waitFor({ timeout: WAIT_MS });
-      await fernPage.getByText(WORDS.staffChangedBefore(ada.first), { exact: true }).waitFor({ timeout: WAIT_MS });
+      await fernPage.goto(readingUrl, { waitUntil: "domcontentloaded" });
+      await answerOn(fernPage).waitFor({ timeout: WAIT_MS });
+      await answerOn(fernPage).getByText(WORDS.staffChangedBefore(ada.first), { exact: true }).waitFor({ timeout: WAIT_MS });
       const said = flat(await fernPage.locator("main").innerText());
-      assert.ok(said.includes(ANSWER.first), `the review page does not show the answer as sent: ${said}`);
-      assert.ok(!said.includes(ANSWER.added.trim()), "the review page shows a change Ada has not sent, before the session");
-      assert.doesNotMatch(said, /Late|After its deadline|Reopen/, "the review page calls an answer sent before the session late, or offers a reopen");
+      assert.ok(flat(await answerOn(fernPage).innerText()).includes(ANSWER.first), `the reading view does not show the answer as sent: ${said}`);
+      assert.ok(!said.includes(ANSWER.added.trim()), "the reading view shows a change Ada has not sent, before the session");
+      assert.doesNotMatch(said, /Late|After its deadline|Reopen/, "the reading view calls an answer sent before the session late, or offers a reopen");
     });
 
     await step("the programme's lead follows the Surveys tab's link to the session reports and reads the facilitator's report, with names", async () => {
@@ -973,23 +983,28 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
 
     await step("the facilitator's pages say late with how late, and show the answer as it stood at the session", async () => {
       activePage = fernPage;
-      await fernPage.goto(reviewUrl, { waitUntil: "domcontentloaded" });
-      await fernPage.getByRole("heading", { name: `${ada.first}’s answer`, level: 2 }).waitFor({ timeout: WAIT_MS });
-      await fernPage.getByText(WORDS.atSession, { exact: true }).waitFor({ timeout: WAIT_MS });
-      const said = flat(await fernPage.locator("main").innerText());
-      assert.match(said, WORDS.staffLate, `the review page does not say how late the answer was sent: ${said}`);
+      // This page is still at this address from before the session, and going
+      // again to an address that ends in a fragment moves within the page
+      // without asking the server for it. Load it again.
+      await fernPage.goto(readingUrl, { waitUntil: "domcontentloaded" });
+      await fernPage.reload({ waitUntil: "domcontentloaded" });
+      await answerOn(fernPage).waitFor({ timeout: WAIT_MS });
+      await answerOn(fernPage).getByText(WORDS.atSession, { exact: true }).waitFor({ timeout: WAIT_MS });
+      const said = flat(await answerOn(fernPage).innerText());
+      assert.match(said, WORDS.staffLate, `the reading view does not say how late the answer was sent: ${said}`);
       const latest = said.indexOf(ANSWER.more.trim());
       const atSession = said.indexOf(WORDS.atSession);
       assert.ok(latest >= 0 && atSession > latest, "the latest words are not shown above the answer as it stood at the session");
       assert.ok(said.slice(atSession).includes(`${ANSWER.first}${ANSWER.added}`), "the answer as it stood at the session is not shown");
       assert.ok(!said.slice(atSession).includes(ANSWER.more.trim()), "the version at the session holds a change made after it");
 
-      // The reflections page, with names: Ada's reflection, said late with how late.
+      // The group's reflections with names, on the page of one question at the week's first reflection: Ada's, said late with how late.
       await fernPage.goto(namesUrl, { waitUntil: "domcontentloaded" });
-      const answer = fernPage.getByRole("listitem").filter({ hasText: REFLECTION });
-      await answer.first().waitFor({ timeout: WAIT_MS });
-      // Its own text, not as drawn: the time line is set in capitals by the stylesheet.
-      assert.match(await textOf(answer.first()), WORDS.staffLate, "the reflections page does not say how late Ada's reflection was");
+      const answer = adaRowOn(fernPage);
+      await answer.waitFor({ timeout: WAIT_MS });
+      // Its own text, not as drawn, whatever the stylesheet sets in capitals.
+      assert.ok((await textOf(answer)).includes(REFLECTION), "the page of one question does not show Ada's reflection");
+      assert.match(await textOf(answer), WORDS.staffLate, "the page of one question does not say how late Ada's reflection was");
 
       // This week's work on the group page: the written answer's cell says how late it was sent.
       await fernPage.goto(`${origin}${groupPath}`, { waitUntil: "domcontentloaded" });
@@ -1010,13 +1025,14 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
       await openWeek(benPage);
       const own = flat(await benPage.locator("main").innerText());
       for (const words of adasWords) assert.ok(!own.includes(words), `Ben's week page shows Ada's "${words}"`);
-      // The facilitators' pages refuse a fellow: no answer, no reflection, no lateness of Ada's.
-      for (const url of [reviewUrl, namesUrl, `${origin}${groupPath}`]) {
+      // The facilitators' pages refuse a fellow, and so do the older addresses that forward to them: no answer, no reflection, no lateness of Ada's.
+      for (const url of [readingUrl, namesUrl, ...olderUrls, `${origin}${groupPath}`]) {
         await benPage.goto(url, { waitUntil: "domcontentloaded" });
         await benPage.waitForLoadState("networkidle", { timeout: WAIT_MS }).catch(() => {});
         const html = await benPage.content();
         for (const words of adasWords) assert.ok(!html.includes(words), `${url} shows Ben Ada's "${words}"`);
-        assert.equal(await benPage.getByRole("heading", { name: `${ada.first}’s answer` }).count(), 0, `${url} draws Ada's answer for Ben`);
+        assert.equal(await answerOn(benPage).count(), 0, `${url} draws a written answer for Ben`);
+        assert.equal(await adaRowOn(benPage).count(), 0, `${url} draws Ada's row for Ben`);
         assert.doesNotMatch(flat(await benPage.locator("body").innerText()), WORDS.staffLate, `${url} tells Ben how late somebody's work was`);
       }
     });

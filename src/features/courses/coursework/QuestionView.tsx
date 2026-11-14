@@ -6,6 +6,7 @@ import {
   CHANGED_SINCE_FEEDBACK,
   EVERYBODY,
   FACILITATING,
+  GROUP,
   NEXT_QUESTION,
   NOBODY_HERE,
   NOBODY_TO_READ,
@@ -27,16 +28,21 @@ import {
   sentWhenWords,
   weekHeadingWords,
 } from "@/lib/courses/coursework/words";
+import { PICK_LINES_TO_READ_OUT } from "@/lib/courses/facilitatorWeek/words";
 import { FEEDBACK_HINT, YOUR_FEEDBACK } from "@/lib/courses/feedback/words";
-import { LATE, staffChangedWords } from "@/lib/courses/weekWork/words";
+import { THE_QUESTION_WHEN_WRITTEN } from "@/lib/courses/weekEdit/wordsThen";
+import { AFTER_ITS_DEADLINE, AS_IT_STOOD_AT_THE_SESSION, JOINED_LATE, LATE, staffChangedWords } from "@/lib/courses/weekWork/words";
 import { YOUR_RATING } from "@/lib/courses/workRatings/words";
 import { NOT_SENT_YET, theQuestionWords } from "@/lib/courses/writtenAnswerWords";
+import EarlierVersion from "../feedback/EarlierVersion";
 import FeedbackWriter from "../feedback/FeedbackWriter";
 import StaffFeedbackCards from "../feedback/StaffFeedbackCards";
+import EarlierWording from "../weekBlocks/EarlierWording";
 import RatingForTheTeam from "../written/RatingForTheTeam";
 import MarkFirstRead from "./MarkFirstRead";
 import { Late, Words } from "./ReadingView";
 import ViewSwitch from "./ViewSwitch";
+import tab from "./coursework.module.css";
 import styles from "./reading.module.css";
 
 /**
@@ -51,6 +57,22 @@ import styles from "./reading.module.css";
  * when, the existing writer behind "Add feedback", and for an admin or the
  * programme's lead the rating for the team. Each person leads to their whole
  * week, and previous and next step through the week's questions.
+ *
+ * What the written answer's review page and the reflections read with names
+ * showed of each answer is here too, with the same words: the question's range
+ * of words, "After its deadline" (staff only), "Joined late", the question as
+ * it was when the answer was written, the answer as it stood at the session,
+ * under the rows the line saying who reads a facilitator's own work (to the
+ * lead and admins), and on a reflection, on the group's side, who reads
+ * reflections with names and the way to the page where lines are picked to
+ * read out.
+ *
+ * On the programme's side, the lead and admins choose the group here as on
+ * the Coursework tab, with its Group filter's own look and words: a link per
+ * live group, keeping the week, the question and the filters the address
+ * named, the one shown marked (`aria-current`) as well as by eye. Plain
+ * links, so they work before the page has its scripts. Behind the group's
+ * door there is none: a facilitator's page is the one group's own.
  *
  * Drawn on the server from what the loader handed it: a reader is handed
  * nothing their gates refuse (no rating for a facilitator, nobody whose work
@@ -98,13 +120,18 @@ function Person({ row, view }: { row: QuestionRow; view: View }) {
           {row.notToldYet && <span className={styles.chip}>{NOT_TOLD_YET}</span>}
           {answer?.sentAt && <span className={styles.when}>{sentWhenWords(answer.sentAt)}</span>}
           <Late ms={answer?.sentLateMs ?? null} />
+          {answer && answer.sentLateMs === null && row.afterDeadline && <span className={styles.lateChip}>{AFTER_ITS_DEADLINE}</span>}
           {row.notSent && <span className={styles.chip}>{NOT_SENT_YET}</span>}
+          {row.joinedLate && <span className={styles.chip}>{JOINED_LATE}</span>}
           {row.read === "unread" && <span className={styles.unreadChip}>{NOT_READ_YET}</span>}
           <FeedbackChip row={row} />
         </div>
-        <Link href={row.weekHref} className={styles.reviewLink}>
-          {openWeekWords(row.firstName)}
-        </Link>
+        {/* An archived group's fellow's week never opens, so no link is drawn to it. */}
+        {row.weekHref && (
+          <Link href={row.weekHref} className={styles.reviewLink}>
+            {openWeekWords(row.firstName)}
+          </Link>
+        )}
       </div>
       {answer ? (
         <div className={styles.grid}>
@@ -127,7 +154,9 @@ function Person({ row, view }: { row: QuestionRow; view: View }) {
             ) : (
               <Words text={answer.text} />
             )}
-            {row.feedback === "changed" && (
+            <EarlierWording label={THE_QUESTION_WHEN_WRITTEN} words={answer.askedThen} />
+            {answer.atSession && <EarlierVersion label={AS_IT_STOOD_AT_THE_SESSION} text={answer.atSession.text} boxes={answer.atSession.boxes} />}
+            {row.feedback === "changed" && row.weekHref && (
               <Link href={row.weekHref} className={styles.reviewLink}>
                 {SEE_WHAT_CHANGED}
               </Link>
@@ -194,6 +223,27 @@ export default function QuestionView({ view }: { view: View }) {
         <p className={styles.weekTitle}>{weekHeadingWords(view.weekNumber, view.weekTitle)}</p>
       </header>
 
+      {view.groups && (
+        <nav aria-label={GROUP} className={tab.groupsNav}>
+          <p className={tab.groupLabel} aria-hidden="true">
+            {GROUP}
+          </p>
+          <ul className={tab.filters} role="list">
+            {view.groups.map((each) => (
+              <li key={each.id}>
+                <Link
+                  href={each.href}
+                  className={each.current ? `${tab.filter} ${tab.filterOn}` : tab.filter}
+                  aria-current={each.current ? "page" : undefined}
+                >
+                  {each.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
+
       {(nav.previousQuestion || nav.nextQuestion) && (
         <nav className={styles.steps} aria-label={PREVIOUS_AND_NEXT_QUESTION}>
           <div className={styles.stepGroup}>
@@ -214,7 +264,7 @@ export default function QuestionView({ view }: { view: View }) {
       {question ? (
         <section className={styles.question} aria-labelledby="question-asked">
           <p className={styles.questionLabel}>
-            {[theQuestionWords(null), question.where, questionOfWords(view.position.at, view.position.of)].join(" · ")}
+            {[theQuestionWords(view.range), question.where, questionOfWords(view.position.at, view.position.of)].join(" · ")}
           </p>
           <p id="question-asked" className={styles.questionText}>
             {question.text}
@@ -252,6 +302,17 @@ export default function QuestionView({ view }: { view: View }) {
         ) : (
           view.rows.map((row) => <Person key={row.uid} row={row} view={view} />)
         ))}
+
+      {view.ownLine && <p className={styles.meta}>{view.ownLine}</p>}
+
+      {view.readOut && (
+        <p className={styles.meta}>
+          {view.readOut.line}{" "}
+          <Link href={view.readOut.href} className={styles.reviewLink}>
+            {PICK_LINES_TO_READ_OUT}
+          </Link>
+        </p>
+      )}
 
       {view.firstRead && <MarkFirstRead runId={view.runId} weekId={view.firstRead.weekId} people={view.firstRead.people} />}
 

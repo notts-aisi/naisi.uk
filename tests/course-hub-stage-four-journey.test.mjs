@@ -147,6 +147,7 @@ const lib = {
   ending: await loadTs(join("features", "courses", "registerEndingWords.ts")),
   startHereRubric: await loadTs(join("lib", "courses", "guide", "startHereRubric.ts")),
   workColumns: await loadTs(join("lib", "courses", "facilitatorWeek", "workColumns.ts")),
+  reviewPage: await loadTs(join("lib", "courses", "writtenAnswers", "reviewPage.ts")),
   packs: await loadTs(join("lib", "courses", "packsAndCases", "readers.ts")),
   groupWeek: await loadTs(join("lib", "courses", "facilitatorWeek", "readers.ts")),
   facilitatorGroup: await loadTs(join("lib", "courses", "facilitatorGroup.ts")),
@@ -286,6 +287,19 @@ async function threeCounts(who, n) {
 }
 
 /** A server page as `who` reads it: its words, or where it sent them. */
+/** What a drawn page of one question across a group was handed, or null. */
+function questionViewOf(page) {
+  const found = [];
+  const walk = (element) => {
+    if (!element || typeof element !== "object") return;
+    if (Array.isArray(element)) return element.forEach(walk);
+    if (typeof element.type === "function" && element.type.name === "QuestionView") found.push(element);
+    if (element.props?.children !== undefined) walk(element.props.children);
+  };
+  walk(page.element);
+  return found[0]?.props.view ?? null;
+}
+
 async function serverPage(file, params, who, searchParams = {}) {
   const page = (await loadTs(join("app", "(app)", "learn", ...file))).default;
   world.user = w.sessionOf(who);
@@ -845,7 +859,10 @@ describe("4. week 2 (Group B meets on Tue 10 Nov): a written answer, sent and gi
   test("each reads their feedback on the site, from who gave it", async () => {
     const amara = await w.weekPage("amara", 2, ticksOf("amara"));
     const bea = await w.weekPage("bea", 2, ticksOf("bea"));
-    const rahulReview = await serverPage(["[runId]", "group", "[groupId]", "written", "page.tsx"], { runId: RUN.agi, groupId: B }, "rahul", { week: "2" });
+    // The group's written answers for week 2: the review page's address forwards to one question across the group, at the written answer.
+    const forwarded = await serverPage(["[runId]", "group", "[groupId]", "written", "page.tsx"], { runId: RUN.agi, groupId: B }, "rahul", { week: "2" });
+    assert.equal(forwarded.to, `/learn/${RUN.agi}/group/${B}/question?week=2&first=answer`);
+    const rahulReview = await serverPage(["[runId]", "group", "[groupId]", "question", "page.tsx"], { runId: RUN.agi, groupId: B }, "rahul", { week: "2", first: "answer" });
     assert.match(amara.text, /Feedback from Rahul Your facilitator · Mon 9 Nov A lighthouse view anyone could argue with\./);
     assert.doesNotMatch(amara.text, /Strong|Solid|No marks/);
     // Bea facilitates the group she holds a place in: the lead's feedback on her own work is signed as the team's.
@@ -853,8 +870,10 @@ describe("4. week 2 (Group B meets on Tue 10 Nov): a written answer, sent and gi
     // The old feedback page sends each of them to their week's Feedback.
     const old = await serverPage(["[runId]", "weeks", "[n]", "feedback", "page.tsx"], { runId: RUN.agi, n: "2" }, "amara");
     assert.equal(old.to, `/learn/${RUN.agi}/weeks/2#feedback`);
-    // The group's review page lists the group's fellows: never Bea, who facilitates it.
-    assert.match(rahulReview.text, /A Amara By you/);
+    // The group's written answers list the group's fellows: Amara's with feedback, never Bea, who facilitates it.
+    const listed = questionViewOf(rahulReview).rows;
+    assert.deepEqual(listed.map((row) => [row.uid, row.feedback]), [["amara", "given"]]);
+    assert.match(rahulReview.text, /Amara .*Feedback given/);
     assert.doesNotMatch(rahulReview.text, /Bea/);
   });
 
@@ -1014,26 +1033,35 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     assert.doesNotMatch(page.text, /\bLate\b/);
   });
 
-  test("After its deadline is staff's: an admin's review page marks Bea's answer after its deadline and never late, and Amara's neither; Rahul's never lists Bea's", async () => {
-    const review = (who, person) => serverPage(["[runId]", "group", "[groupId]", "written", "page.tsx"], { runId: RUN.agi, groupId: B }, who, { week: "3", person });
-    const admin = await review("zach", "bea");
+  test("After its deadline is staff's: an admin's reading pages mark Bea's answer after its deadline and never late, and Amara's neither; Rahul's never list Bea's", async () => {
+    // A group's written answers for a week: the page of one question across the group, at the written answer; one person's: the reading view of their week.
+    const question = (who) => serverPage(["[runId]", "group", "[groupId]", "question", "page.tsx"], { runId: RUN.agi, groupId: B }, who, { week: "3", first: "answer" });
+    const reading = (who, uid) => serverPage(["[runId]", "group", "[groupId]", "coursework", "[uid]", "page.tsx"], { runId: RUN.agi, groupId: B, uid }, who, { week: "3" });
+    const admin = await question("zach");
     // An admin is shown each full name (the names rule); Rahul, the name each goes by.
-    assert.match(admin.text, /To give feedback on 2 AO Amara Okafor Sent Mon 16 Nov, 9pm BL Bea Lindqvist Sent Tue 17 Nov, 9am After its deadline /);
-    assert.match(admin.text, /Bea’s answer 200 words · 200 to 300 Sent Tue 17 Nov, 9am After its deadline /);
+    assert.match(admin.text, /Amara Okafor Sent Mon 16 Nov, 9pm .*Bea Lindqvist Facilitator Sent Tue 17 Nov, 9am After its deadline /);
+    assert.match((await reading("zach", "bea")).text, /Written answer No feedback yet 200 words Sent Tue 17 Nov, 9am After its deadline The question · 200 to 300 words/);
     // Sent after it was due (the end of the day before) but before the session: after its deadline, never late.
-    const model = admin.element.props.model;
+    const run = w.lib.courses.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+    const group = lib.groups.normalizeCourseGroup(B, world.db.read(`courseGroups/${B}`));
+    const model = await lib.reviewPage.loadWrittenReview(world.db, w.sessionOf("zach"), run, group, 3, new Date());
     const of = (uid) => [...model.toGive, ...model.feedbackSent].find((person) => person.uid === uid);
     assert.deepEqual([of("bea").afterDeadline, of("bea").late, of("bea").sentLateMs], [true, false, null]);
     assert.deepEqual([of("amara").afterDeadline, of("amara").late], [false, false]);
+    assert.deepEqual(questionViewOf(admin).rows.filter((row) => row.answer).map((row) => [row.uid, row.afterDeadline, row.late]), [["amara", false, false], ["bea", true, false]]);
     assert.doesNotMatch(admin.text, /9am Late /);
-    // Asked for Bea, Rahul's page opens on the one answer it may show him, Amara's.
-    const rahul = await review("rahul", "bea");
-    assert.match(rahul.text, /To give feedback on 1 A Amara Sent Mon 16 Nov, 9pm With feedback/);
-    assert.doesNotMatch(rahul.text, /B Bea Sent|Bea’s answer|\bLate\b|After its deadline/);
-    assert.ok(![...rahul.element.props.model.toGive, ...rahul.element.props.model.feedbackSent, ...rahul.element.props.model.notSent].some((person) => person.uid === "bea"));
-    // Nothing is locked now: the page says Amara can change it until the programme closes, and offers no reopen.
-    assert.match(rahul.text, /Amara can change it until the programme closes\. Before the session you read it as last sent; from the session, as it stands\./);
-    assert.doesNotMatch(rahul.text, /Reopen week/);
+    // Rahul's page lists the one answer it may show him, Amara's; Bea's own week is never his to open.
+    const rahul = await question("rahul");
+    assert.match(rahul.text, /Amara Sent Mon 16 Nov, 9pm/);
+    // (The page's filter "Late 0" counts nobody late.)
+    assert.doesNotMatch(rahul.text, /Bea|Late:|After its deadline/);
+    assert.ok(questionViewOf(rahul).rows.every((row) => !row.late && !row.afterDeadline));
+    assert.ok(!questionViewOf(rahul).rows.some((row) => row.uid === "bea"));
+    assert.equal((await reading("rahul", "bea")).to, `/learn/${RUN.agi}`);
+    // Nothing is locked now: the reading view says Amara can change it until the programme closes, and offers no reopen.
+    const amara = await reading("rahul", "amara");
+    assert.match(amara.text, /Amara can change it until the programme closes\. Before the session you read it as last sent; from the session, as it stands\./);
+    assert.doesNotMatch(amara.text, /Reopen week/);
   });
 
   test("W-work: in week 3, This week's work says each person's pack, written answer and case, to exactly the readers of each", async () => {
@@ -1045,7 +1073,7 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
       return talk.groups.flatMap((group) => group.cases).find((c) => c.id === caseId)?.title;
     };
     const groupPage = (who) => serverPage(["[runId]", "group", "[groupId]", "page.tsx"], { runId: RUN.agi, groupId: B }, who);
-    const review = (uid) => `href="/learn/${encodeURIComponent(RUN.agi)}/group/${B}/written?week=3&amp;person=${uid}"`;
+    const review = (uid) => `href="/learn/${encodeURIComponent(RUN.agi)}/group/${B}/coursework/${uid}?week=3#reading-answer"`;
     // Rahul, and Bea from a place in the group Bea runs: the group's fellow, with Amara's pack, the answer
     // waiting for feedback as a link to it on the review page, and Amara's case. Never Bea's own.
     for (const who of ["rahul", "bea"]) {

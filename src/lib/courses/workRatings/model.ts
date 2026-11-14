@@ -16,13 +16,13 @@ import { versionAbout, type PieceFacts } from "../weekWork/versions";
  * Not the ratings at a programme's end (`src/lib/ratings/`, the Ratings tab),
  * which facilitators give and which go to Kairos: these never do.
  *
- * Pure: no reads, no clock. The review page in the browser imports it.
+ * Pure: no reads, no clock. The rating's card in the browser imports it.
  */
 
 export { WORK_RATING_SCALE };
 export type { WorkRatingRole };
 
-/** One rating as the review page lists it under "What the team said". */
+/** One rating as the reading pages list it under "What the team said". */
 export type TeamRatingRow = {
   raterUid: string;
   /** The first word of the name the rater goes by, or "" when no account is on record. */

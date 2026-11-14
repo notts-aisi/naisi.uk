@@ -31,8 +31,9 @@ import { weekSources, type ReadableWeek } from "@/lib/courses/weekBlocks/reader"
  *    words and nothing else, and puts them in the order of the words.
  *  - READING is not reading out (Zach, Fri 30 Oct): the group's
  *    facilitators, the programme's lead and admins read the reflections they
- *    are shown WITH their writers' names, on pages of their own
- *    (`loadNamedReflections`). Only the page to read lines out stays without.
+ *    are shown WITH their writers' names, on the reading pages
+ *    (`src/lib/courses/coursework/`: one person's week, and one question
+ *    across a group). Only the page to read lines out stays without.
  *
  * Pure: no reads, no clock. The pages, the readers and the privacy policy's
  * test import it.

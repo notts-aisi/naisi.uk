@@ -18,9 +18,11 @@
  *  2. WHAT EACH READER IS SENT: ratings for the team never to a facilitator;
  *     private notes never to the lead; Claude's draft grade and the sealed
  *     prediction's row to admins alone, on either side.
- *  3. THE SAME ANSWERS AS THE OLD PAGES: the written answer's words as the
- *     group's review page reads them, the reflections as the page with names
- *     reads them, and the same week on both sides for the same reader.
+ *  3. THE SAME ANSWERS AS THE PAGES IT JOINS: the written answer's words as
+ *     the review page's loader (kept for This week's work) reads them, the
+ *     reflections as the page of one question reads them, and the same week
+ *     on both sides for the same reader; the older pages' addresses forward
+ *     here.
  *  4. FEEDBACK WRITTEN THERE IS READ BACK, through the feedback route.
  *  5. AN ANSWER CHANGED SINCE FEEDBACK: both versions, what changed said in
  *     words and marked, the feedback about the earlier version under it.
@@ -31,8 +33,8 @@
  *  8. THE TREE: the group's page gates before the loader, and the loader asks
  *     the one gate before it reads anybody's week.
  *
- * Real: both pages, the loaders, the review page and the page with names,
- * the feedback route, rendered to HTML. Faked: see
+ * Real: both pages, the loaders, the review page's loader, the page of one
+ * question, the older pages' forwards, the feedback route, rendered to HTML. Faked: see
  * `tests/lib/facilitatorWeekWorld.mjs`.
  */
 import { beforeEach, describe, mock, test } from "node:test";
@@ -58,7 +60,9 @@ const PROGRAMME = join("app", "(app)", "admin", "admissions", "forms", "[roundId
 const pages = {
   group: (await w.loadTs(join(GROUP, "coursework", "[uid]", "page.tsx"))).default,
   programme: (await w.loadTs(join(PROGRAMME, "coursework", "[uid]", "page.tsx"))).default,
+  // The written answer's review page's address, which now forwards here, and the page of one question.
   written: (await w.loadTs(join(GROUP, "written", "page.tsx"))).default,
+  question: (await w.loadTs(join(GROUP, "question", "page.tsx"))).default,
 };
 const reading = await w.loadTs(join("lib", "courses", "coursework", "reading.ts"));
 const words = await w.loadTs(join("lib", "courses", "coursework", "words.ts"));
@@ -368,32 +372,36 @@ describe("2. what each reader is sent", () => {
 });
 
 describe("3. the same answers as the pages it joins", () => {
-  test("the written answer's words as the group's review page reads them, before and after the session", async () => {
+  test("the written answer's words as one question across the group reads them, before and after the session: as last sent, then the latest", async () => {
     // Before the session: the words as last sent. Chloe changed it since, and the change is not read.
     w.world.db.poke(`courseExerciseResponses/${RUN.agi}__chloe__w03__k3-wa`, {
       text: "A change she has not sent.",
       updatedAt: new Date("2026-11-17T08:00:00Z"),
       earlierVersions: [{ text: CHLOE_ANSWER, words: 7, savedAt: SENT, replacedAt: new Date("2026-11-17T08:00:00Z"), sentAt: SENT, reasons: ["sent"] }],
     });
-    for (const at of [NOW, new Date("2026-11-18T10:00:00Z")]) {
+    // Before Group B's session the words as last sent; once it has started, the latest, sent or not.
+    for (const [at, expected] of [[NOW, CHLOE_ANSWER], [new Date("2026-11-18T10:00:00Z"), "A change she has not sent."]]) {
       w.at(at);
-      const written = await w.draw(pages.written, "rahul", { runId: RUN.agi, groupId: B }, { week: "3", person: "chloe" });
-      const model = find(written.element, "WrittenReview")[0].props.model;
       const view = viewOf(await groupPage("rahul", "chloe", { week: 3 }));
-      assert.equal(view.week.answer.text, model.selected.text, `the two pages read different words at ${at}`);
-      // And the review page leads to the reading view.
-      assert.equal(find(written.element, "WrittenReview")[0].props.readBase, `/learn/${RUN.agi}/group/${B}/coursework`);
+      const question = find((await w.draw(pages.question, "rahul", { runId: RUN.agi, groupId: B }, { week: "3", question: "k3-wa" })).element, "QuestionView")[0].props.view;
+      assert.equal(view.week.answer.text, expected, `the reading view reads the wrong words at ${at}`);
+      assert.equal(question.rows.find((row) => row.uid === "chloe").answer.text, expected, `the two read different words at ${at}`);
+      // And the review page's address forwards here, at the answer.
+      const written = await w.draw(pages.written, "rahul", { runId: RUN.agi, groupId: B }, { week: "3", person: "chloe" });
+      assert.equal(written.to, `/learn/${RUN.agi}/group/${B}/coursework/chloe?week=3#reading-answer`);
     }
     w.at(NOW);
     assert.equal(viewOf(await groupPage("rahul", "chloe", { week: 3 })).week.answer.text, CHLOE_ANSWER);
   });
 
-  test("the reflections as the page with names reads them, and the same week on both sides for the same reader", async () => {
-    const named = await w.namedReflectionsPage("rahul", { week: 3 });
+  test("the reflections as the page of one question reads them, and the same week on both sides for the same reader", async () => {
     const view = viewOf(await groupPage("rahul", "chloe", { week: 3 }));
     for (const part of view.week.parts) {
       for (const prompt of part.prompts) {
-        if (prompt.answer) assert.ok(named.text.includes(prompt.answer.text), `the page with names does not read "${prompt.answer.text}"`);
+        if (!prompt.answer) continue;
+        const question = find((await w.draw(pages.question, "rahul", { runId: RUN.agi, groupId: B }, { week: "3", question: prompt.id })).element, "QuestionView")[0].props.view;
+        const row = question.rows.find((each) => each.uid === "chloe");
+        assert.equal(row?.answer?.text, prompt.answer.text, `the page of one question does not read "${prompt.answer.text}"`);
       }
     }
     assert.deepEqual(
@@ -418,8 +426,9 @@ describe("3. the same answers as the pages it joins", () => {
     // The lead reads the facilitators' own weeks too, so they follow.
     assert.equal(viewOf(await groupPage("claudia", "kofi", { week: 3 })).nav.nextPerson?.label, "Rahul Mehta");
     assert.deepEqual(asFacilitator.nav.back, { label: "Group B", href: `/learn/${RUN.agi}/group/${B}` });
-    // The lead cannot open the group's page, so goes back to its written answers.
-    assert.deepEqual(viewOf(await groupPage("claudia", "kofi")).nav.back, { label: "Group B", href: `/learn/${RUN.agi}/group/${B}/written` });
+    // The lead cannot open the group's page, so goes back to the run's home, named by the programme.
+    const asLead = viewOf(await groupPage("claudia", "kofi"));
+    assert.deepEqual(asLead.nav.back, { label: asLead.programmeName, href: `/learn/${RUN.agi}` });
   });
 });
 
@@ -578,14 +587,13 @@ describe("5b. before the session, a change not sent yet is no change to its read
       assert.doesNotMatch(drawn.text, /The version this feedback was about/);
       assert.ok(!drawn.html.includes("A change she has not sent."), `${who} is shown words that were not sent`);
     }
-    // The team's ratings draw no comparison either, and say of the change what the review page says.
+    // The team's ratings draw no comparison either, and say of the change what one question across the group says.
     const view = viewOf(await groupPage("zach", "chloe", { week: 3 }));
-    const written = await w.draw(pages.written, "zach", { runId: RUN.agi, groupId: B }, { week: "3", person: "chloe" });
-    const team = find(written.element, "WrittenReview")[0].props.model.selected.team;
-    assert.deepEqual(
-      view.team.said.map((row) => [row.raterUid, row.rating, row.changedSince]),
-      team.said.map((row) => [row.raterUid, row.rating, row.changedSince]),
-    );
+    const question = find((await w.draw(pages.question, "zach", { runId: RUN.agi, groupId: B }, { week: "3", question: "k3-wa" })).element, "QuestionView")[0].props.view;
+    const team = question.rows.find((row) => row.uid === "chloe").team;
+    const said = (ratings) => ratings.said.map((row) => [row.raterUid, row.rating, row.changedSince]);
+    assert.deepEqual(said(view.team).map(([rater, rating]) => [rater, rating]), [["claudia", 6]]);
+    assert.deepEqual(said(view.team), said(team));
     assert.equal(view.changed, null);
     // Once the session has started the change is read, and then it is a change.
     w.at("2026-11-18T10:00:00Z");
@@ -595,19 +603,22 @@ describe("5b. before the session, a change not sent yet is no change to its read
   });
 });
 
-describe("5c. the week's title, the answer's state and length, and the way to its review page", () => {
-  test("drawn on both sides, the review page only once the answer may be read", async () => {
+describe("5c. the week's title, the answer's state and length, and no way to a review page", () => {
+  test("drawn on both sides; the review page is retired, so nothing leads there", async () => {
     const group = await groupPage("rahul", "chloe", { week: 3 });
     assert.match(group.text, /Chloe Nguyen Week 3 · The lamp makers/);
     assert.match(group.text, /Written answer No feedback yet 7 words Sent Mon 16 Nov, 9am/);
-    assert.equal(viewOf(group).reviewHref, `/learn/${RUN.agi}/group/${B}/written?week=3&person=chloe`);
-    assert.match(group.html, /class="reviewLink">Open Chloe’s answer on the written answers page<\/a>/);
-    assert.equal(viewOf(await programmePage("claudia", "chloe", { week: 3 })).reviewHref, `/admin/admissions/forms/${ROUND}/programmes/${AGI}/written?group=${B}&week=3&person=chloe`);
-    // Farah wrote reflections and no answer: no review page to open, and the state says so.
+    assert.equal("reviewHref" in viewOf(group), false, "the reading view is still handed a way to the review page");
+    assert.doesNotMatch(group.html, /\/written\?|written answers page/);
+    // The review page's own parts of the open answer: the question with its range, and how its readers read the answer.
+    const written = await w.loadTs(join("lib", "courses", "writtenAnswerWords.ts"));
+    assert.ok(group.text.includes(`${written.theQuestionWords({ min: 1, max: 200 })} Who should keep the lamps lit, and why?`), "the question's range is not drawn");
+    assert.ok(group.text.includes(written.reviewWeekLineWords("Chloe")));
+    assert.doesNotMatch((await programmePage("claudia", "chloe", { week: 3 })).html, /\/written\?|written answers page/);
+    // Farah wrote reflections and no answer: the state says so.
     const farah = await groupPage("rahul", "farah", { week: 3 });
-    assert.equal(viewOf(farah).reviewHref, null);
     assert.match(farah.text, /Written answer Answer not started The question/);
-    assert.doesNotMatch(farah.html, /class="reviewLink"/);
+    assert.doesNotMatch(farah.text, /can change it until the programme closes/, "a line about an answer nobody wrote");
     // Feedback on the answer: the state says it is given.
     w.world.db.seed("courseFeedback/piece-given", {
       runId: RUN.agi,
@@ -668,13 +679,13 @@ describe("6c. where it opens from", () => {
     }
   });
 
-  test("both written review pages lead under the answer to the person's whole week", async () => {
+  test("both written review pages' addresses for one person's answer forward to the person's week, at the answer", async () => {
     w.at("2026-11-18T10:00:00Z");
     const page = await programmePages.written;
     const drawn = await w.draw(page, "claudia", { roundId: ROUND, programmeId: AGI }, { group: B, week: "3", person: "chloe" });
-    assert.match(drawn.html, new RegExp(`<a href="/admin/admissions/forms/${ROUND}/programmes/${AGI}/coursework/chloe\\?week=3" class="weekLink">Read all of Chloe’s week 3</a>`));
+    assert.equal(drawn.to, `/admin/admissions/forms/${ROUND}/programmes/${AGI}/coursework/chloe?week=3#reading-answer`);
     const learn = await w.draw(pages.written, "rahul", { runId: RUN.agi, groupId: B }, { week: "3", person: "chloe" });
-    assert.match(learn.html, new RegExp(`<a href="/learn/${RUN.agi}/group/${B}/coursework/chloe\\?week=3" class="weekLink">Read all of Chloe’s week 3</a>`));
+    assert.equal(learn.to, `/learn/${RUN.agi}/group/${B}/coursework/chloe?week=3#reading-answer`);
   });
 });
 
@@ -761,11 +772,9 @@ describe("7. the pure pieces", () => {
       words.nextWeekWords(2),
       words.backToWords("Group C"),
       words.tickedWhenWords(NOW),
-      words.reviewPageLinkWords("Chloe"),
       words.groupMetWords("Group C", 1, { at: NOW, by: "session" }, NOW),
       words.notStartedWords("Grace", 2, { ticked: 0, of: 3 }),
       words.asReadWords("Rahul"),
-      words.wholeWeekWords("Chloe", 3),
     ];
     for (const line of said) {
       assert.doesNotMatch(line, /[–—]/, line);
@@ -778,7 +787,6 @@ describe("7. the pure pieces", () => {
     assert.equal(words.groupMetWords("Group C", 2, { at: new Date("2026-11-04T15:00:00Z"), by: "cancelled" }, NOW), "Group C’s week 2 session, Wed 4 Nov, 3pm, was cancelled");
     assert.equal(words.groupMetWords("Group C", 2, { at: null, by: "joined-late" }, NOW), null);
     assert.equal(words.notStartedWords("Grace", 2, { ticked: 0, of: 3 }), "Grace hasn’t started week 2. Readings 0 of 3, nothing written.");
-    assert.equal(words.wholeWeekWords("Chloe", 3), "Read all of Chloe’s week 3");
   });
 });
 
@@ -794,11 +802,22 @@ describe("7b. the words the browser spec reads, as the product says them", () =>
     assert.equal(words.nextPersonWords("Ben"), "Next person: Ben");
     assert.equal(words.backToWords("Group A"), "Back to Group A");
     assert.equal(written.theQuestionWords(null), "The question");
+    // Over the written answer, its range of words, as the term writes it.
+    assert.equal(written.theQuestionWords({ min: 1, max: 300 }), "The question \u00b7 1 to 300 words");
+    const term = readFileSync(join(SRC, "..", "scripts", "e2e-fixtures", "worlds", "course-hub-term.mjs"), "utf8");
+    assert.match(term, /type: "writtenAnswer",[^}]*?words: \{ min: 1, max: 300 \}/, "the term's written answer no longer takes 1 to 300 words");
+    // The specs (this one and course-hub-work-loop) find the answer by its section and land on it by its anchor.
+    assert.equal(reading.READING_ANSWER_ANCHOR, "reading-answer");
+    assert.match(codeOf("features/courses/coursework/ReadingView.tsx"), /className=\{styles\.card\} aria-labelledby="reading-answer">\s*<div className=\{styles\.cardHead\}>\s*<h2 id="reading-answer"/);
+    // Under it, what its writer may still do.
+    assert.equal(
+      written.reviewWeekLineWords("Ada"),
+      "Ada can change it until the programme closes. Before the session you read it as last sent; from the session, as it stands.",
+    );
     // A reflection's or a box's time is when it was last saved, in the site's words for a version's time.
     assert.match(weekWords.staffChangedWords(NOW, false), /^Saved /);
     assert.equal(words.weekHeadingWords(3, "The lamp makers"), "Week 3 \u00b7 The lamp makers");
     assert.deepEqual([words.ANSWER_STATE_WORDS.waiting, words.ANSWER_STATE_WORDS.feedback, words.wordsWords(23)], ["No feedback yet", "Feedback given", "23 words"]);
-    assert.equal(words.reviewPageLinkWords("Ada"), "Open Ada\u2019s answer on the written answers page");
     assert.equal(`${words.READINGS} ${words.ofWords(1, 2)}`, "Readings 1 of 2");
     assert.match(`${words.WRITTEN_ANSWER} ${words.sentWhenWords(NOW)}`, /^Written answer Sent /);
     assert.deepEqual(
@@ -811,7 +830,6 @@ describe("7b. the words the browser spec reads, as the product says them", () =>
     assert.match(review.REVIEW_WORDS.gradeOf(7), /^Draft grade /);
     assert.equal(feedback.cardHeadingWords({ byRole: "facilitator", byName: "Fern" }), "Feedback from Fern");
     assert.match(feedback.staffCardByWords({ byRole: "facilitator", byName: "Fern", at: NOW.toISOString() }, "AGI Strategy", "Ada"), /^Ada\u2019s facilitator \u00b7 /);
-    assert.equal(words.wholeWeekWords("Ada", 3), "Read all of Ada\u2019s week 3");
   });
 });
 

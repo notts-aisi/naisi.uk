@@ -543,10 +543,11 @@ describe("5. the pages", () => {
     assert.equal((await w.feedbackPage("chloe", 2)).wrote, false);
   });
 
-  test("the review page: Your feedback in place of the rubric, saved to the week page and emailed later, and every other piece signed with its email state", async () => {
+  test("the reading view of the person's week (where the review page's address forwards): Your feedback in place of the rubric, saved to the week page and emailed later, and every other piece signed with its email state", async () => {
     await weekTwoWritten();
     await w.give("sofia", "chloe", 2, "Sofia’s thoughts.");
-    const page = await w.writtenPage("rahul", { week: "2", person: "chloe" });
+    assert.match((await w.writtenPage("rahul", { week: "2", person: "chloe" })).to ?? "", /\/coursework\/chloe\?week=2#reading-answer$/);
+    const page = await w.readingPage("rahul", "chloe", { week: "2" });
     assert.match(page.text, new RegExp(`Your feedback ${escape(words.FEEDBACK_HINT)} Comment`));
     assert.match(page.text, /Shows on Chloe’s week 2 page as soon as you save\./);
     assert.match(page.text, /Save feedback/);
@@ -554,11 +555,11 @@ describe("5. the pages", () => {
     // The people running the group read each piece signed as Chloe does, by the name its writer goes by.
     assert.doesNotMatch(page.text, /Rossi|\bSR\b/);
     assert.doesNotMatch(page.text, /The rubric|A short comment|Send feedback to|The email Chloe gets|No marks/);
-    // The list puts Chloe under With feedback, by whoever left it.
-    assert.match(page.text, /With feedback 1 CN Chloe Nguyen By Sofia/);
+    // Her answer is said to have feedback, beside the card that says whose.
+    assert.match(page.text, /Written answer Feedback given/);
     // Rahul's own piece is what Your feedback changes, until its email goes.
     await w.give("rahul", "chloe", 2, "Rahul's own.");
-    const again = await w.writtenPage("rahul", { week: "2", person: "chloe" });
+    const again = await w.readingPage("rahul", "chloe", { week: "2" });
     assert.match(again.html, /<textarea[^>]*>Rahul&#x27;s own\.<\/textarea>/);
     assert.match(again.text, /Save changes/);
     assert.match(again.text, /Written by Rahul, Tue 17 Nov, 12pm · Not emailed yet/);

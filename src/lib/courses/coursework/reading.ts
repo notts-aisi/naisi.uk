@@ -61,6 +61,9 @@ export function byShownName<T extends { uid: string; name: string }>(people: rea
 }
 
 /** One person's week on a door: `base` is the door's path before the person (".../coursework"). */
+/** The id the written answer's heading carries in the reading view: where an address lands at the answer. */
+export const READING_ANSWER_ANCHOR = "reading-answer";
+
 export function readingHref(base: string, uid: string, weekNumber: number): string {
   return `${base}/${encodeURIComponent(uid)}?week=${weekNumber}`;
 }
