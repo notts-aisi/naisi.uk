@@ -77,8 +77,8 @@ export default function ExcusedRequestPage({ view }: { view: ExcusedRequestPageV
     const approveWords = approveButtonWords(week.approving.emails, week.approving.emails === 1 && week.approving.person ? first : "");
     return (
       <>
-        {/* Somebody no longer in the group: approving is refused, so it is not offered. */}
-        {view.belongs && (
+        {/* Somebody not in the group for this week: approving is refused, so it is not offered. */}
+        {week.belongs && (
           <Button
             onClick={() => void act("approve", week.sessionKey)}
             disabled={off}

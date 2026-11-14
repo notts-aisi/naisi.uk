@@ -9,7 +9,7 @@ import { COURSE_EXPLAINERS_COLLECTION } from "@/lib/firestore/courseExplainers";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { listDecisions, listSentApplications } from "@/lib/applications/staffRepo";
 import type { SessionUser } from "@/lib/firebase/session";
-import { loadAccountNames, loadRunPeople, loadRunWeeks, type RunPeople } from "./gather";
+import { archivedRecordGroupsOf, loadAccountNames, loadRunPeople, loadRunWeeks, type RunPeople } from "./gather";
 import type { CourseworkWeek, RunPerson } from "./input";
 import { COURSEWORK_DOOR_WORDS } from "./claudeWords";
 
@@ -40,7 +40,7 @@ export type CourseworkDoor = {
 };
 
 /** A run before decision day, as far as coursework goes: nobody. */
-const NOBODY: RunPeople = { facilitatorsOf: new Map(), facilitators: new Set(), groupOf: new Map() };
+const NOBODY: RunPeople = { facilitatorsOf: new Map(), facilitators: new Set(), groupOf: new Map(), recordGroups: new Set() };
 
 export async function openCourseworkDoor(
   db: Firestore,
@@ -69,7 +69,7 @@ export async function openCourseworkDoor(
     loadRunPeople(db, runId),
   ]);
   const holders = placeHoldersOn(form, programmeId, applications.filter(isInTerm), decisions);
-  const weeks = await loadRunWeeks(db, runId, [...people.facilitatorsOf.keys()]);
+  const weeks = await loadRunWeeks(db, runId, [...people.facilitatorsOf.keys()], archivedRecordGroupsOf(people));
   return { ok: true, viewer: view.viewer, runId, programmeName: view.programmeName, holders, people, weeks };
 }
 

@@ -111,19 +111,23 @@ function useRunWeekItems(runId: string, source: WeekSource | null): WeekItems {
   // module comment's note on which of the two fixes this is).
   const groupId = source?.groupId ?? "";
   const hasForks = Boolean(groupId) && (source?.forkedWeekIds.length ?? 0) > 0;
-  const key = runId && source ? `${runId}/${hasForks ? groupId : ""}` : "";
+  // Somebody moved mid-term: the overview names the group whose copy each
+  // listed week is (`forkedWeekGroups`), and each week is counted from exactly
+  // that copy. Empty for everybody else, who read their group's, as always.
+  const named = source?.forkedWeekGroups ? JSON.stringify(Object.entries(source.forkedWeekGroups).sort()) : "";
+  const key = runId && source ? `${runId}/${hasForks ? groupId : ""}${named}` : "";
 
   useEffect(() => {
     if (!key) return;
     let cancelled = false;
     const db = getClientDb();
+    const copies = new Map<string, string>(named ? (JSON.parse(named) as Array<[string, string]>) : []);
+    const forkGroups = copies.size > 0 ? [...new Set(copies.values())] : hasForks ? [groupId] : [];
     Promise.all([
       getDocs(collection(db, "courseRuns", runId, "weeks")),
-      hasForks
-        ? getDocs(collection(db, "courseGroups", groupId, "weeks"))
-        : Promise.resolve(null),
+      Promise.all(forkGroups.map((copyGroupId) => getDocs(collection(db, "courseGroups", copyGroupId, "weeks")))),
     ])
-      .then(([canonical, forks]) => {
+      .then(([canonical, forkLists]) => {
         if (cancelled) return;
         // Overlaid by DOC ID first, then projected — a fork and its canonical
         // share an id, so laying them into one map is what makes "the group's
@@ -132,9 +136,13 @@ function useRunWeekItems(runId: string, source: WeekSource | null): WeekItems {
         for (const doc of canonical.docs) {
           byId.set(doc.id, normalizeCourseWeek(doc.id, doc.data()));
         }
-        for (const doc of forks?.docs ?? []) {
-          byId.set(doc.id, normalizeCourseWeek(doc.id, doc.data()));
-        }
+        forkLists.forEach((forks, index) => {
+          for (const doc of forks.docs) {
+            // A moved person's week comes only from the group the overview names for it.
+            if (copies.size > 0 && copies.get(doc.id) !== forkGroups[index]) continue;
+            byId.set(doc.id, normalizeCourseWeek(doc.id, doc.data()));
+          }
+        });
         const byWeek = new Map<number, string[]>();
         for (const week of byId.values()) {
           byWeek.set(week.weekNumber, [
@@ -155,7 +163,7 @@ function useRunWeekItems(runId: string, source: WeekSource | null): WeekItems {
     return () => {
       cancelled = true;
     };
-  }, [key, runId, groupId, hasForks]);
+  }, [key, runId, groupId, hasForks, named]);
 
   if (!runId) return { byWeek: EMPTY_ITEMS, loading: false, error: null };
   if (!key || state.key !== key) {
@@ -225,6 +233,8 @@ export default function ProgressBody({ runId }: Props) {
     ? {
         groupId: overview.data.enrolment?.groupId ?? overview.data.group?.id ?? null,
         forkedWeekIds: overview.data.forkedWeekIds,
+        // Somebody moved mid-term: the group whose copy each listed week is, as the server says.
+        forkedWeekGroups: overview.data.forkedWeekGroups,
       }
     : null;
   const weekItems = useRunWeekItems(runId, weekSrc);

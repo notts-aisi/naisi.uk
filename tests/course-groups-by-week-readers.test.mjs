@@ -175,10 +175,15 @@ const READS_PLACE_GROUP = /\b(?:enrolment|seat|place|placement|learner|liveEnrol
 /**
  * A file READS A GROUP'S PEOPLE, and so the group each place names, when it
  * asks the notice audience for a group (`resolveNoticeAudience` reads each
- * place's group inside it) or reads the group an audience member's place
- * names (`member.groupId`).
+ * place's group inside it), or asks it through a wrapper
+ * (`updateEmailAudience`, which the group's notices, a cover's notice and a
+ * corrected column's tell go through), or reads the group an audience
+ * member's place names (`member.groupId`). It READS A PLACE'S GROUP through a
+ * wrapper when it asks whether somebody takes part in a group
+ * (`takesPartIn`, the group now) or still belongs to it (`stillBelongs`).
  */
-const READS_GROUP_PEOPLE = /\bresolveNoticeAudience\([^;]*\bgroupId\b|\bmember\.groupId\b/;
+const READS_GROUP_PEOPLE =
+  /\bresolveNoticeAudience\([^;]*\bgroupId\b|\bmember\.groupId\b|\bupdateEmailAudience\(|\btakesPartIn(?:Week)?\(|\bstillBelongs\(/;
 /**
  * A file READS A WEEK'S MARK, A WEEK'S DUE SESSION OR A REGISTER'S ROWS when
  * it addresses a register, resolves a group's sessions or is handed them,
@@ -186,10 +191,16 @@ const READS_GROUP_PEOPLE = /\bresolveNoticeAudience\([^;]*\bgroupId\b|\bmember\.
  * or the Attendance tab's rows.
  */
 const WEEK_READER =
-  /\.collection\(\s*["']courseAttendance["']\s*\)|\battendanceDocId\(|\bresolveSessions\(|\bResolvedSession\b|\bweekDueOf\(|\bdueMoment\(|\bsessionSourceFor\(|\bloadRegisterMembers\(|\bloadToldRegisterMembers\(|\bloadMirrorMembers\(|\blistGroups\(|\bbuildRunAttendance\(/;
-/** The one question, the helpers made of it, and the notice audience asked for a week. */
+  /\bfunction seesSessionLink\([\s\S]{0,600}?\bsessionKey\b|\.collection\(\s*["']courseAttendance["']\s*\)|\battendanceDocId\(|\bresolveSessions\(|\bResolvedSession\b|\bweekDueOf\(|\bdueMoment\(|\bsessionSourceFor\(|\bloadRegisterMembers\(|\bloadToldRegisterMembers\(|\bloadMirrorMembers\(|\blistGroups\(|\bbuildRunAttendance\(/;
+/**
+ * The one question, the helpers made of it, the question of which group a
+ * place BELONGS to in a week (`ownGroupForWeek`, and `copyGroupIdFor`, the
+ * week states' `.belongsTo(` and the reading views' `readsGroupIdFor(`, made
+ * of it), and the notice audience asked for a week. `belongsTo` counts only
+ * as the call on the object that answers it, never as a bare word.
+ */
 const ASKS_WEEK =
-  /\b(?:groupForWeek|hasGroupsByWeek|sessionsByWeekGroup|sessionsWithGroup|groupsOfWeeks|everInGroup|isRowForWeek|stretchesIn|groupStretchesOf|inGroupForWeek)\b|\bresolveNoticeAudience\([^;]*\bweekNumber\b/;
+  /\breadsGroupIdFor\(|\.belongsTo\(|\b(?:groupForWeek|ownGroupForWeek|copyGroupIdFor|hasGroupsByWeek|sessionsByWeekGroup|sessionsWithGroup|groupsOfWeeks|everInGroup|isRowForWeek|stretchesIn|groupStretchesOf|inGroupForWeek|takesPartInWeek)\b|\bresolveNoticeAudience\([^;]*\bweekNumber\b|\bupdateEmailAudience\([^;]*\bweekNumber\b|\btoldFacts\([^;]*\bweekNumber\b|\bstillBelongs\([^;]*\bweekNumber\b/;
 
 /**
  * Every file that reads a place's group and a week's mark, due session or
@@ -198,8 +209,9 @@ const ASKS_WEEK =
  *  - `week`: the group they were in THAT week. It asks `groupForWeek`, or a
  *    helper made of it, and is run for a mover above.
  *  - `now`: the group they are in now, rightly: their facilitators, the
- *    roster, who reads their work, who is told what, which copy of a week
- *    they work in, or a record kept whole.
+ *    roster, who reads their work, who is told what, or a record kept
+ *    whole. (Which copy of a week they work in is a `week` question: the
+ *    group their place belonged to that week, `copyGroupIdFor`.)
  *
  * There is no third kind. A reader about one session still to come asks
  * that session's week too: "the group they are in now" is wrong for it in
@@ -209,7 +221,7 @@ const ASKS_WEEK =
 const READERS = {
   "app/api/courses/runs/[runId]/overview/route.ts": {
     kind: "week",
-    why: "their own attendance off each week's group's registers, the session they were due at (through sessionSourceFor) and what a certificate needs; the copy of a week, the schedule shown and who gives feedback stay the group they are in now",
+    why: "their own attendance off each week's group's registers, the session they were due at (through sessionSourceFor), what a certificate needs, the schedule shown and the card's next session (each week's from that week's group), the card's slot and link from the week of that next session for somebody moved, and the copy of each week (resolveOwnWeekDocs, through copyGroupIdFor, named to the browser in forkedWeekGroups); who they ask to swap a pack stays the group they are in now",
   },
   "lib/courses/attendanceMirror.ts": {
     kind: "week",
@@ -229,7 +241,11 @@ const READERS = {
   },
   "lib/courses/weekWork/readers.ts": {
     kind: "week",
-    why: "the session somebody was due at each week (sessionSourceFor), so Late and the reminders before a session",
+    why: "the session somebody was due at each week (sessionSourceFor), so Late and the reminders before a session; and whether a person's week is one group's (belongsTo, the group their place belonged to that week), which a group's card and Remind ask; and the copy of a week a person reads (copyGroupOf, made of copyGroupIdFor), which the earlier weeks of \"Week N is open\" judge each person's week on",
+  },
+  "lib/courses/staffMove/plan.ts": {
+    kind: "week",
+    why: "the week a staff move is from goes by the person's own sessions, each week's from the group they were in that week (sessionsByWeekGroup), so a move back never counts a week they spent elsewhere; the weeks that stay say which group each was spent in; the group they leave is the group they are in now",
   },
   "app/api/courses/groups/[groupId]/pace/route.ts": {
     kind: "now",
@@ -243,25 +259,29 @@ const READERS = {
     kind: "now",
     why: "Publish tells people the group they are in now, and its facilitators who is in it now",
   },
+  "lib/courses/coursework/questionLoad.ts": {
+    kind: "week",
+    why: "the page of one question lists the people whose place names the group now (who reads whose work is the group they are in now); a week somebody did with another group (copyGroupIdFor) on another week document carries none of their answer, states or deadline, and a week they did with it on the same document dates their written answer's own deadline on that group's calendar; the session they were due at comes from sessionSourceFor, which asks each week's group",
+  },
   "lib/courses/coursework/readingLoad.ts": {
-    kind: "now",
-    why: "who may be read behind a group's door is the people whose place names it now, and a written answer's own deadline is dated on the calendar of the group whose copy of the week they read, which is their group's now; the session they were due at comes from sessionSourceFor, which asks each week's group",
+    kind: "week",
+    why: "who may be read behind a group's door is the people whose place names it now (who reads whose work is the group they are in now); each week is read on the copy of the group their place belonged to that week (readsGroupIdFor, made of ownGroupForWeek), and a written answer's own deadline is dated on that group's calendar, live or archived, the group the session they were due at comes from (sessionSourceFor, which asks each week's group)",
   },
   "lib/courses/excused/page.ts": {
-    kind: "now",
-    why: "reads the group a request to be excused names, the register it was made on, and never a place's group",
+    kind: "week",
+    why: "one request to be excused: whether Approve is offered for a week asks whether the person was in the request's group FOR THAT WEEK (stillBelongs with the week), as the approve route decides, so a request about a week spent in the old group before a move is still decided there; with nothing waiting, the group they are in now",
   },
   "lib/courses/finishing/whoFinished.ts": {
-    kind: "now",
-    why: "who finished counts written answers against the weeks of the group somebody is in now, whose copies their facilitators read; their attendance is their row of the grid, which reads each week's group",
+    kind: "week",
+    why: "who finished counts written answers over the weeks the group somebody is in now teaches, each week against the copy they read that week (copyGroupIdFor: a week spent in another group is that group's copy); their attendance is their row of the grid, which reads each week's group",
   },
   "lib/courses/groupChange/facts.ts": {
-    kind: "now",
-    why: "a change to a group's session tells the people in the group now, who are the people its sessions still to come are for",
+    kind: "week",
+    why: "who a change is told to: a change to ONE session tells the people whose group for that session's week is the group (toldFacts handed the week, through updateEmailAudience), so somebody moved is told about a session of a week they spent in it and not about one they did not; a change to the group's regular time, from a week onwards, tells the people in it now",
   },
   "lib/courses/groupPage/load.ts": {
-    kind: "now",
-    why: "a group's page lists the people in it now, whose work its facilitators read: who reads whose work is the group they are in now",
+    kind: "week",
+    why: "a group's page lists the people in it now, whose work its facilitators read (who reads whose work is the group they are in now); for one week, This week's work and Remind are those of them whose place belonged to the group that week (ownGroupForWeek), a session's people, words said and counts those in it for the session's week (inGroupForWeek), and somebody moved in from a later week is listed as joining",
   },
   "lib/courses/pitching/load.ts": {
     kind: "now",
@@ -276,12 +296,12 @@ const READERS = {
     why: "reading a \"no\" as \"most weeks, not all\" is about the group they are in now, as the answer it changes is",
   },
   "lib/courses/weekWork/own.ts": {
-    kind: "now",
-    why: "the copy of a week somebody works in is their group's now; the session they were due at comes from sessionSourceFor, which asks each week's group",
+    kind: "week",
+    why: "the copy of a week somebody works in is the group their place belonged to that week, whether or not it still meets (copyGroupIdFor), else the group they are in now; the session they were due at comes from sessionSourceFor, which asks each week's group",
   },
   "lib/courses/writtenAnswers/reviewPage.ts": {
-    kind: "now",
-    why: "who reads somebody's written answers is their group's facilitators now, and that does not change with a record of weeks",
+    kind: "week",
+    why: "This week's work's Written answer column lists the people whose place names the group now (who reads whose work is the group they are in now); each one's own deadline is dated on the calendar of the group whose copy of that week they read (copyGroupIdFor), and the session they were due at comes from sessionSourceFor, which asks each week's group",
   },
   "lib/firestore/accountDeletion.ts": {
     kind: "now",
@@ -297,7 +317,7 @@ const READERS = {
   },
   "app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts": {
     kind: "week",
-    why: "a pick stays open until the session they were due at that week starts, from that week's group; the copy of the week it is read on stays the group they are in now",
+    why: "a pick stays open until the session they were due at that week starts, from that week's group; the copy of the week it is read on is the group their place belonged to that week (copyGroupIdFor)",
   },
   "lib/courses/calendarFeed.ts": {
     kind: "week",
@@ -337,15 +357,35 @@ const READERS = {
   },
   "lib/scheduler/jobs/weekReminders.ts": {
     kind: "week",
-    why: "the reminders before a session reach the people whose group for the session's week is its group, through the notice audience asked for the week",
+    why: "the reminders before a session reach the people whose group for the session's week is its group, through the notice audience asked for the week, and remind each about a week the session covers only when that week was the group's for them (belongsTo)",
+  },
+  "app/api/courses/groups/[groupId]/session/change/route.ts": {
+    kind: "week",
+    why: "changing ONE session (moved, online, off, put right): the notice and the count on its button reach the people whose group for the changed session's week is the group (updateEmailAudience and toldFacts handed the week)",
+  },
+  "app/api/courses/groups/[groupId]/attendance/cover/route.ts": {
+    kind: "week",
+    why: "the optional notice that somebody else is running one session reaches the people whose group for that session's week is the group (updateEmailAudience handed the week)",
+  },
+  "lib/courses/registerCorrection/column.ts": {
+    kind: "week",
+    why: "a corrected column's tell (a session that did not happen, held online, moved or cleared) reaches the people whose group for that session's week is the group (updateEmailAudience and toldFacts handed the week); its rows are the register's, read for the week",
+  },
+  "lib/courses/excused/ask.ts": {
+    kind: "week",
+    why: "asking to be excused: the person takes part in the group for a week of theirs (takesPartInWeek), and each session asked about is held to its own week, so somebody moved asks the group they were in that week and cannot ask the new group about a week spent elsewhere",
+  },
+  "lib/courses/meetingLink/audience.ts": {
+    kind: "now",
+    why: "who sees a session's meeting link reads the group a seat is in now, and a session's key only for a session given to somebody; it is asked about the group's link and its next session, and the run overview hands a moved person as their next session and schedule only sessions they are due at, each week's from that week's group, and their card's slot and link are those of the week of that next session",
   },
   "lib/courses/groupsByWeek.ts": {
     kind: "week",
     why: "the helpers made of the one question: stretches, a register's rows for a week, and the sessions somebody was due at across their groups",
   },
   "lib/courses/groupWeekWork/load.ts": {
-    kind: "now",
-    why: "Remind reaches the people in the group now, as the group page's rows are: it asks for work the group's facilitators read, and who reads whose work is the group they are in now; when each is due is their own week's session",
+    kind: "week",
+    why: "a week's card (its rows, counts and button) and Remind are the people in the group now whose place belonged to the group in that week (belongs, through RunWeekStates.belongsTo): who reads whose work is the group they are in now, and a week somebody spent in another group is not this group's to count or chase; when each is due is their own week's session",
   },
   "lib/courses/programmeOverview.ts": {
     kind: "now",
@@ -365,7 +405,21 @@ describe("the tree: every reader of a week's group says which group it means", (
       )
       .map(([file]) => file)
       .sort();
-    assert.deepEqual(found, Object.keys(READERS).sort(), "A reader of a week reads a place's group and is not listed: say which group it means.");
+    const listed = Object.keys(READERS).sort();
+    assert.deepEqual(
+      { missing: found.filter((file) => !listed.includes(file)), extra: listed.filter((file) => !found.includes(file)) },
+      { missing: [], extra: [] },
+      "A reader of a week reads a place's group and is not listed (missing), or an entry is no such file (extra): say which group it means.",
+    );
+    assert.deepEqual(found, listed);
+  });
+
+  test("a helper counts as asked only where it is called: `belongsTo` never as a bare word", () => {
+    assert.equal(ASKS_WEEK.test("const belongsTo = true;"), false);
+    assert.equal(ASKS_WEEK.test("type T = { belongsTo: boolean };"), false);
+    assert.equal(ASKS_WEEK.test("belongs: (uid) => states.belongsTo(uid, group.id, weekNumber),"), true);
+    assert.equal(ASKS_WEEK.test("const copy = readsGroupIdFor;"), false);
+    assert.equal(ASKS_WEEK.test("readsGroupIdFor(person, n)"), true);
   });
 
   test("a `week` reader asks the one function; every reason is written down", () => {
@@ -383,11 +437,16 @@ describe("the tree: every reader of a week's group says which group it means", (
     assert.deepEqual(defining, ["lib/firestore/courseEnrolments.ts"]);
   });
 
-  test("nothing calls the writer yet: no route, no page, no job", () => {
+  test("one thing calls the writer: the staff move's save, behind its route; no page, no job, nothing else", () => {
     const calling = files
-      .filter(([file, code]) => file !== "lib/courses/moveFromWeek.ts" && /\bmoveFromWeek\(/.test(code))
+      .filter(([file, code]) => file !== "lib/courses/moveFromWeek.ts" && /\bmoveFromWeek\s*(?:<[^>]*>)?\s*\(/.test(code))
       .map(([file]) => file);
-    assert.deepEqual(calling, []);
+    assert.deepEqual(calling, ["lib/courses/staffMove/save.ts"]);
+    // And the save is reached from one route alone.
+    const reaching = files
+      .filter(([file, code]) => file !== "lib/courses/staffMove/save.ts" && /\bsaveMove\s*\(/.test(code))
+      .map(([file]) => file);
+    assert.deepEqual(reaching, ["app/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move/route.ts"]);
   });
 });
 

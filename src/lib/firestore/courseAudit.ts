@@ -188,7 +188,16 @@ export type CourseAuditKind =
    * naming nobody. Each person's own "Last reminded" is their record in
    * `courseNudges` (`src/lib/firestore/courseHandReminders.ts`).
    */
-  | "week-reminded";
+  | "week-reminded"
+  /**
+   * Somebody was moved to another group for good, mid-term, from a person's
+   * page: ONE ROW ON EACH GROUP (a row carries one group), each saying it
+   * from that group's side, about the person moved (`subjectUid`), with the
+   * week the move is from (`weekId`), the other group (`before` or `after`),
+   * how many were emailed, and the reason given, which only the programme's
+   * lead and admins read (`LEAD_ONLY_REASON_KINDS`).
+   */
+  | "member-moved";
 
 export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "attendance-edit",
@@ -227,6 +236,7 @@ export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "session-did-happen",
   "register-cover-removed",
   "week-reminded",
+  "member-moved",
 ];
 
 /** The label for a kind this build does not know. See `courseAuditKindLabel`. */
@@ -269,6 +279,7 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "session-did-happen": "Session did happen, register finished",
   "register-cover-removed": "Cover taken off a session that moved",
   "week-reminded": "Reminded about a week’s work",
+  "member-moved": "Moved to another group for good",
 };
 
 /**
@@ -305,6 +316,7 @@ const COURSE_AUDIT_CATEGORY: Partial<Record<CourseAuditKind, CourseAuditCategory
   "session-did-happen": "registers",
   "register-cover-removed": "registers",
   "week-reminded": "people",
+  "member-moved": "people",
 };
 
 /**
@@ -333,11 +345,13 @@ export const LEAD_ONLY_AUDIT_KINDS: readonly CourseAuditKind[] = ["facilitator-r
 /**
  * The kinds whose REASON a group's history shows to admins and the people
  * leading the programme only: why a facilitator's register was taken or
- * their session given to somebody is about that facilitator, so a history
- * drawn for anybody else keeps the row and leaves its reason out, the rule
- * `LEAD_ONLY_AUDIT_KINDS` follows for the record of who was there.
+ * their session given to somebody is about that facilitator, and why
+ * somebody was moved to another group is about that person (kept with their
+ * record, never emailed, never shown to them or to a facilitator), so a
+ * history drawn for anybody else keeps the row and leaves its reason out,
+ * the rule `LEAD_ONLY_AUDIT_KINDS` follows for the record of who was there.
  */
-export const LEAD_ONLY_REASON_KINDS: readonly CourseAuditKind[] = ["register-covered", "register-given"];
+export const LEAD_ONLY_REASON_KINDS: readonly CourseAuditKind[] = ["register-covered", "register-given", "member-moved"];
 
 export function courseAuditCategory(kind: CourseAuditKind | string): CourseAuditCategory {
   return isCourseAuditKind(kind) ? (COURSE_AUDIT_CATEGORY[kind] ?? "other") : "other";

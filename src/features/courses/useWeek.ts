@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { getClientDb } from "@/lib/firebase/client";
 import { normalizeCourseWeek, type CourseWeekDoc } from "@/lib/firestore/courses";
+import { weekCopyGroupOf, type WeekCopySource } from "@/lib/courses/weekCopySource";
 
 /**
  * One week's authored content, resolved GROUP-FIRST: a one-shot client-SDK get
@@ -43,15 +44,12 @@ import { normalizeCourseWeek, type CourseWeekDoc } from "@/lib/firestore/courses
 export type WeekStatus = "loading" | "ready" | "unpublished" | "missing" | "error";
 
 /**
- * Where this reader's copy of a week lives. Both fields come from the overview
- * payload; neither is guessable client-side.
+ * Where this reader's copy of a week lives. Every field comes from the overview
+ * payload; none is guessable client-side. For somebody moved mid-term,
+ * `forkedWeekGroups` names the group whose copy each listed week is
+ * (`weekCopyGroupOf` in `src/lib/courses/weekCopySource.ts`).
  */
-export type WeekSource = {
-  /** The reader's own group, or null when they have none (run canonical). */
-  groupId: string | null;
-  /** Week doc ids that exist under that group — `OverviewPayload.forkedWeekIds`. */
-  forkedWeekIds: readonly string[];
-};
+export type WeekSource = WeekCopySource;
 
 export type WeekResult = {
   status: WeekStatus;
@@ -67,23 +65,21 @@ export type WeekResult = {
   error: Error | null;
 };
 
-/** Group fork if this week has one, else the run canonical. THE resolution. */
-function isForked(weekId: string, source: WeekSource | null): boolean {
-  return Boolean(source?.groupId) && (source?.forkedWeekIds.includes(weekId) ?? false);
-}
-
 export function useWeek(
   runId: string,
   weekId: string,
   canSeeUnpublished: boolean,
   source: WeekSource | null,
 ): WeekResult {
-  const forked = isForked(weekId, source);
+  // Group fork if this week has one, else the run canonical. THE resolution,
+  // and the server's: the group whose copy it is comes off the overview.
+  const copyGroupId = weekCopyGroupOf(weekId, source);
+  const forked = copyGroupId !== null;
   // Key-tagged snapshot (the `useRunProgress` idiom): a run/week/source switch
   // reads as loading by derivation, with no setState in the effect body. The
   // source is part of the key so a member moved between groups mid-session
   // re-reads rather than keeping the previous group's copy on screen.
-  const groupId = source?.groupId ?? "";
+  const groupId = copyGroupId ?? "";
   const key =
     runId && weekId && source ? `${runId}/${weekId}/${forked ? groupId : ""}` : "";
 

@@ -1,3 +1,4 @@
+import { joinsLaterWords, newFromWeekWords } from "@/lib/courses/staffMove/joins";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import InitialsChip from "@/components/ui/InitialsChip";
@@ -257,11 +258,14 @@ export function GroupPeopleCard({
   leavers,
   finishedWeeks,
   notYetTold,
+  groupName = "",
 }: {
   people: GroupPersonRow[];
   leavers: GroupPersonRow[];
   finishedWeeks: number[];
   notYetTold: boolean;
+  /** The group's name, for the line under somebody joining it from a later week. */
+  groupName?: string;
 }) {
   const meta = finishedWeeksWords(finishedWeeks);
   return (
@@ -281,8 +285,9 @@ export function GroupPeopleCard({
               <InitialsChip name={person.name} uid={person.uid} size="lg" />
               <span className={styles.personText}>
                 <span className={styles.personName}>{person.name}</span>
+                {person.joins && <span className={styles.personNote}>{joinsLaterWords(groupName, person.joins)}</span>}
               </span>
-              <Marks marks={person.marks} />
+              {person.joins ? <span className={styles.personNote}>{newFromWeekWords(person.joins.fromWeek)}</span> : <Marks marks={person.marks} />}
             </li>
           ))}
           {leavers.map((person) => (

@@ -1,3 +1,4 @@
+import { readsGroupIdFor } from "@/lib/courses/weekCopy";
 import {
   NOT_IN_A_GROUP,
   NO_FLAGS,
@@ -136,7 +137,8 @@ export function courseworkRows(input: CourseworkRowsInput): CourseworkRow[] {
     const reached = input.reachedOf(person);
     const reads = input.readingOf ? input.readingOf(person) : null;
     const cells = input.columns.map((column) => {
-      const week = input.weekOf(person.readsGroupId, column.weekNumber);
+      // The copy of this week they worked in: somebody moved mid-term on the copy they saw.
+      const week = input.weekOf(readsGroupIdFor(person, column.weekNumber), column.weekNumber);
       const cell = cellOf(week, column.weekNumber, work, { person: href }, {
         ...input.standingOf(person.uid, column.weekNumber),
         reached: column.weekNumber <= reached,

@@ -1009,6 +1009,41 @@ a.pill {
   outline-offset: 2px;
 }
 
+/* Somebody joining the group from a later week: their name, the line under it and the chip. */
+.joinsLater {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.joinsLaterList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/* Under a name: the way to move them to another group for good. Its own line, a full target. */
+.moveLink {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.moveLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.moveLink:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
 .lateChip {
   padding: 2px var(--space-3);
   border-radius: var(--radius-pill);

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import { MOVE_LINK } from "@/lib/courses/staffMove/words";
 import { useHydrated } from "@/hooks/useHydrated";
 import { readingHref } from "@/lib/courses/coursework/reading";
 import { countBuckets, doneCount, filterRows, type Bucket, type WorkFilterKey } from "@/lib/courses/groupWeekWork/model";
@@ -20,6 +21,9 @@ const TONE: Record<Bucket, string> = {
   "not-started": styles.toneNone,
   "joined-late": styles.toneNone,
 };
+
+/** No row offered a move. */
+const NONE: readonly string[] = [];
 
 /**
  * THE CHOSEN WEEK'S WORK ON A GROUP'S PAGE, for admins and the programme's
@@ -43,6 +47,9 @@ export default function WeekWorkCard({
   facilitatorsApart,
   onRemind,
   readBase = null,
+  moveBase = null,
+  movable = NONE,
+  joinsLater = null,
 }: {
   groupName: string;
   work: GroupWeekWorkView;
@@ -58,6 +65,16 @@ export default function WeekWorkCard({
    * there. Null: names are plain text.
    */
   readBase?: string | null;
+  /**
+   * The programme's people, before a person (".../people"): each name gets
+   * the way to move them to another group for good (".../people/[uid]/move").
+   * Null: nothing is offered, as on a run with one group.
+   */
+  moveBase?: string | null;
+  /** Whose rows get that way: the places the move would not refuse for what is known of them (told, facilitating no group). */
+  movable?: readonly string[];
+  /** Somebody moved into the group mid-term, on a week before they joined it: listed under the table, never one of its rows. */
+  joinsLater?: ReactNode[] | null;
 }) {
   const hydrated = useHydrated();
   const [filter, setFilter] = useState<WorkFilterKey>("everyone");
@@ -159,6 +176,11 @@ export default function WeekWorkCard({
                       ) : (
                         row.name
                       )}
+                      {moveBase && movable.includes(row.uid) && (
+                        <Link href={`${moveBase}/${encodeURIComponent(row.uid)}/move`} className={styles.moveLink}>
+                          {MOVE_LINK}
+                        </Link>
+                      )}
                     </td>
                     {work.pieces.map((piece) => {
                       const cell = row.pieces.find((each) => each.key === piece.key);
@@ -193,6 +215,7 @@ export default function WeekWorkCard({
             </tbody>
           </table>
         </div>
+        {joinsLater && joinsLater.length > 0 && <div className={styles.joinsLaterList}>{joinsLater}</div>}
         {facilitatorsApart.length > 0 && <p className={styles.cardLine}>{W.facilitatorsApartLine(facilitatorsApart)}</p>}
       </section>
 

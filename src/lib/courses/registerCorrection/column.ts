@@ -1036,7 +1036,8 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
         sessions.filter((s) => !s.cancelled && s.dateKey).reduce((last, s) => (s.dateKey > last ? s.dateKey : last), "");
       const [facts, told, names, coversEnd] = await Promise.all([
         didNotHappenFacts(db, { run, group, session: first.session, register: snap.data() ?? {} }),
-        toldFacts(db, run, group, actor.uid),
+        // The people of the session's week (`updateEmailAudience`'s week).
+        toldFacts(db, run, group, actor.uid, session.weekNumber),
         namesForReader(ctx, Object.keys(register.records)),
         // Whose cover of a later session the press would take off, by the press's own rule.
         coversEndLines(db, laterMovedRegisters(before, after, refs, refSnaps, session.sessionKey)),
@@ -1071,7 +1072,11 @@ async function didNotHappen(ctx: ColumnContext, press: ColumnPress): Promise<Col
     }
 
     if (press.tell && press.emailCount > 0) {
-      const audience = await updateEmailAudience(db, run, [group], "group", group.id, actor.uid, { withFacilitators: true });
+      // The people of the corrected session's week: somebody moved mid-term is told about their own week's session.
+      const audience = await updateEmailAudience(db, run, [group], "group", group.id, actor.uid, {
+        withFacilitators: true,
+        weekNumber: session.weekNumber,
+      });
       if (audience.refused) return refuse(400, REFUSAL.overCap);
       if (audience.recipients.length === 0) return refuse(400, REFUSAL.nobodyToEmail);
       if (audience.recipients.length !== press.emailCount) {

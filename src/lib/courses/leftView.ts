@@ -1,7 +1,8 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
-import { resolveCalendar, resolveWeekDocs } from "@/lib/courses/groupResolve";
+import { resolveCalendar, resolveOwnWeekDocs, resolveWeekDocs, type ResolvedWeekEntry } from "@/lib/courses/groupResolve";
+import { hasGroupsByWeek } from "@/lib/courses/groupsByWeek";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { weekChecklistItems, weekSources, type WeekSource } from "@/lib/courses/weekBlocks/reader";
@@ -44,6 +45,22 @@ async function ownGroupOf(
   if (!snap.exists) return null;
   const group = normalizeCourseGroup(snap.id, snap.data() ?? {});
   return group.runId === run.id ? group : null;
+}
+
+/**
+ * The weeks as they read them: with no record of groups by week, their
+ * group's overlay, as always; for somebody moved mid-term, each week from the
+ * copy of the group they belonged to that week, whether or not it still
+ * meets (`resolveOwnWeekDocs`, through `copyGroupIdFor`).
+ */
+async function ownWeekDocsOf(
+  db: Firestore,
+  run: CourseRunDoc,
+  enrolment: CourseEnrolmentDoc,
+  group: CourseGroupDoc | null,
+): Promise<ResolvedWeekEntry[]> {
+  if (!hasGroupsByWeek(enrolment)) return resolveWeekDocs(db, run.id, group?.id ?? null);
+  return resolveOwnWeekDocs(db, run.id, enrolment, group?.id ?? null);
 }
 
 /** "AGI Strategy": the programme's short name, or the course's title on a run no programme names. */
@@ -221,7 +238,9 @@ export async function loadOwnNotes(
   const group = await ownGroupOf(db, run, enrolment);
   const [name, docs, rows] = await Promise.all([
     programmeNameOf(db, run),
-    resolveWeekDocs(db, run.id, group?.id ?? null),
+    // Each week from the copy they worked in: for somebody moved mid-term,
+    // the group their place belonged to that week (`resolveOwnWeekDocs`).
+    ownWeekDocsOf(db, run, enrolment, group),
     db.collection("courseProgress").where("uid", "==", enrolment.uid).limit(MAX_OWN_ROWS).get(),
   ]);
 

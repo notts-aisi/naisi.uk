@@ -243,6 +243,7 @@ const NOTICE = api("groups", "[groupId]", "notice", "route.ts");
 const GROUP_WEEK_PATCH = api("groups", "[groupId]", "weeks", "[weekId]", "route.ts");
 const COURSES_LIB = src("lib", "firestore", "courses.ts");
 const GROUP_RESOLVE = src("lib", "courses", "groupResolve.ts");
+const WEEK_COPY = src("lib", "courses", "weekCopy.ts");
 const RUN_STATUS_LIB = src("lib", "courses", "runStatus.ts");
 const RUN_EDITOR = src("features", "courses", "RunEditor.tsx");
 const GROUP_EDITOR = src("features", "courses", "GroupEditor.tsx");
@@ -867,13 +868,18 @@ test("GUARD — every member-facing surface addresses a week by weekDocId(number
     // the session it is dated to, addressed by that week's number.
     [CARD_FACTS, /sessionModes\[weekDocId\(next\.weekNumber\)\]/],
     // The reminders read each week they are about as the group sees it,
-    // addressed by its number.
+    // addressed by its number, for the people whose week it was the group's
+    // (`belongsTo`): somebody moved mid-term is not reminded here about a
+    // week they spent in another group.
     [REMINDERS_JOB, /resolveWeekDoc\(db, run\.id, group\.id, weekDocId\(weekNumber\)\)/],
+    [REMINDERS_JOB, /const theirs = uids\.filter\(\(uid\) => weekStates\.belongsTo\(uid, group\.id, weekNumber\)\);/],
     // V2-3 moved the mirror's read behind the group resolver, so the pattern
     // now pins BOTH doctrines at once: addressed by number, resolved
     // group-first. A mirror built from a different document than the member's
     // week page opens is exactly the bug this row exists to catch.
-    [SYNC_TASKS, /resolveWeekDoc\(db, runId, groupId, weekDocId\(weekNumber\)\)/],
+    // For somebody moved mid-term the group is the one their place belonged
+    // to in that week, through the one helper (`copyGroupIdFor`), else theirs.
+    [SYNC_TASKS, /resolveWeekDoc\(db, runId, copyGroupIdFor\(enrolment, weekNumber, groupId\), weekDocId\(weekNumber\)\)/],
     [OVERVIEW, /return n >= 1 \? weekDocId\(n\) : "";/],
     [GROUP_PAGE, /const weekId = weekNumber >= 1 \? weekDocId\(weekNumber\) : "";/],
     [GROUP_EXERCISES, /const weekId = weekDocId\(week\);/],
@@ -2390,20 +2396,46 @@ test("GUARD — exercise submission validates against the week the MEMBER was sh
     definitionFor("grpA", "x1").responseType, // → rejects against an unseen definition
   );
 
-  // THE SOURCE, both ends. The member's own placement, off the enrolment row
-  // the access gate already read — never a caller parameter.
+  // THE SOURCE, both ends: the submit route and the member's own week page.
+  // The copy a member was shown for a week is the copy of the group their
+  // place belonged to in THAT week (`ownGroupForWeek`: the group they are in
+  // now, unless their place records a move mid-term), off the enrolment row
+  // the access gate already read, never a caller parameter, and it is that
+  // group's copy whether or not the group still meets. ONE HELPER answers it
+  // (`copyGroupIdFor` in src/lib/courses/weekCopy.ts), and the submit route
+  // asks it for the week it is sent:
   assert.match(SUBMIT, /from "@\/lib\/courses\/groupResolve"/);
   assert.match(
     SUBMIT,
-    /const \{ week \} = await resolveWeekDoc\(db, runId, enrolment\.groupId, weekId\);/,
+    /const \{ week \} = await resolveWeekDoc\(db, runId, copyGroupIdFor\(enrolment, weekIdNumber, enrolment\.groupId\), weekId\);/,
   );
+  assert.match(MY_EXERCISES, /groupId = enrolment \? copyGroupIdFor\(enrolment, week, enrolment\.groupId\) : null;/);
   assert.doesNotMatch(
     SUBMIT,
     /\.collection\("courseRuns"\)/,
     "the submit route reads a run week directly again",
   );
-  // The review queue already resolved group-first; BOTH ends now name the same
-  // helper with the same arguments, which is what "they agree" means here.
+  // ...and the week page reads exactly the copy the SERVER names, never one it
+  // works out from the place: `resolveOwnWeekDocs` asks the same helper week
+  // by week (`copyGroupIdFor`, which asks `ownGroupForWeek`), the overview
+  // sends the group whose copy each listed week is (`forkedWeekGroups`, for
+  // somebody whose place records a move), and `useWeek` reads that group's
+  // document (`weekCopyGroupOf`). So the two ends agree for a week somebody
+  // spent in another group too: tests/course-staff-move-readers.test.mjs
+  // presses the saves from the page it draws.
+  assert.match(GROUP_RESOLVE, /const copyOf = \(id: string\) => copyGroupIdFor\(place, weekOf\(id\), /);
+  assert.match(WEEK_COPY, /const that = ownGroupForWeek\(place, weekNumber\);/);
+  assert.match(OVERVIEW, /forkedWeekGroups\[w\.id\] = entry\.copyGroupId;/);
+  assert.match(USE_WEEK, /const copyGroupId = weekCopyGroupOf\(weekId, source\);/);
+  assert.match(WEEK_VIEW, /forkedWeekGroups: overview\.data\.forkedWeekGroups,/);
+  // The review queue is the GROUP's page, not the member's: it heads every
+  // row with the page group's copy of the week. For everybody whose place
+  // records no move that is the copy they were shown (their group now is the
+  // page's group); for somebody moved mid-term, a week they spent in another
+  // group is headed with this group's copy here; on a week written as blocks
+  // it is read on their own copy in the reading view instead
+  // (tests/course-groups-by-week-readers.test.mjs lists the queue with that
+  // reason).
   assert.match(GROUP_EXERCISES, /resolveWeekDoc\(db, group\.runId, groupId, weekId\)/);
 
   // my-exercises needs no resolution and must not grow one: it returns the
@@ -2492,10 +2524,18 @@ test("GUARD — virtual/in-person reaches the member, on the card and in the ema
   // THE CARD'S OWN group's current week rather than the caller's: one shared
   // key computed once put a group paced three weeks behind the run under the
   // run's week's room. The map above is untouched by that and still travels
-  // whole.
+  // whole. One exception, on the caller's own card alone when their place
+  // records a move mid-term: the week of the next session they are due at in
+  // the group, so the new group's earlier week, still to come and not theirs,
+  // never lends the card its room or link.
   assert.match(
     OVERVIEW,
-    /const session = sessionForWeek\(source, currentWeekId\(groupCalendar\.currentWeek\)\);/,
+    /const slotWeekId = movedHere && range\.next \? range\.next\.weekId : currentWeekId\(groupCalendar\.currentWeek\);/,
+  );
+  assert.match(OVERVIEW, /const session = sessionForWeek\(source, slotWeekId\);/);
+  assert.match(
+    OVERVIEW,
+    /const movedHere = Boolean\(\s*ownLearnerGroup && liveEnrolment && source\.id === ownLearnerGroup\.id && hasGroupsByWeek\(liveEnrolment\),\s*\);/,
   );
   // Built per card now that the payload carries every group the caller
   // holds, so the map travels for each of them rather than only for the one
@@ -2930,7 +2970,12 @@ test("GUARD — progress denominators come from the GROUP's week definitions", (
 
   // THE SOURCE. Both collections, overlaid by id, keyed on the group.
   assert.match(PROGRESS_BODY, /collection\(db, "courseRuns", runId, "weeks"\)/);
-  assert.match(PROGRESS_BODY, /collection\(db, "courseGroups", groupId, "weeks"\)/);
+  // One read per group whose copy a week is: the reader's group, or, for
+  // somebody moved mid-term, each group the overview names (`forkedWeekGroups`),
+  // a week laid over only from the group named for it.
+  assert.match(PROGRESS_BODY, /collection\(db, "courseGroups", copyGroupId, "weeks"\)/);
+  assert.match(PROGRESS_BODY, /forkedWeekGroups: overview\.data\.forkedWeekGroups,/);
+  assert.match(PROGRESS_BODY, /if \(copies\.size > 0 && copies\.get\(doc\.id\) !== forkGroups\[index\]\) continue;/);
   assert.match(PROGRESS_BODY, /byId\.set\(doc\.id, normalizeCourseWeek\(doc\.id, doc\.data\(\)\)\)/);
   // The CHEAPER of the two honest fixes, pinned as a decision: the overview
   // already says which weeks are forked, so an unforked group pays for no

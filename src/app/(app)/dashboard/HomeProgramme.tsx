@@ -151,7 +151,12 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
   const doc = data?.weeks.find((week) => week.weekNumber === weekNumber) ?? null;
   const readable = schedule?.open === true;
   const weekSource = data
-    ? { groupId: data.enrolment?.groupId ?? data.group?.id ?? null, forkedWeekIds: data.forkedWeekIds }
+    ? {
+        groupId: data.enrolment?.groupId ?? data.group?.id ?? null,
+        forkedWeekIds: data.forkedWeekIds,
+        // Somebody moved mid-term: the group whose copy each listed week is, as the server says.
+        forkedWeekGroups: data.forkedWeekGroups,
+      }
     : null;
   // An unopened or unpublished week is not asked for: a learner may not read one.
   const week = useWeek(entry.runId, readable ? weekDocId(weekNumber) : "", false, weekSource);

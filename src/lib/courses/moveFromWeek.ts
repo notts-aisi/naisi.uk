@@ -1,13 +1,15 @@
 import "server-only";
-import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, type Firestore, type Transaction } from "firebase-admin/firestore";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
   placementIsTold,
+  type CourseEnrolmentDoc,
   type GroupFromWeek,
 } from "@/lib/firestore/courseEnrolments";
-import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
-import { normalizeCourseRun } from "@/lib/firestore/courses";
+import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
+import { joinedMarkerId, leftMarkerId } from "./allocationPublish";
 import { isMoveWeek, recordAfterMove } from "./groupsByWeek";
 import { lastTaughtWeek } from "./weekPlan";
 
@@ -31,10 +33,12 @@ import { lastTaughtWeek } from "./weekPlan";
  * about was kept, that group in `toldGroupId`, so the seat stays told and the
  * next Publish knows what changed.
  *
- * IT ASKS NO GATE AND EMAILS NOBODY. Its caller is a route behind its own
- * gate, and nothing calls it from a route yet. It refuses, with a reason a
- * caller can turn into words, and never throws for a document that is not
- * there:
+ * IT ASKS NO GATE AND EMAILS NOBODY. Its one caller is the staff move
+ * (`src/lib/courses/staffMove/save.ts`, behind the route
+ * `POST /api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move`
+ * and its own gate), which emails after this has committed. It refuses, with
+ * a reason a caller can turn into words, and never throws for a document
+ * that is not there:
  *  - `bad-week`: the week is not a whole week from 1 to the limit, or it is
  *    past the last week of the run's plan (`lastTaughtWeek`);
  *  - `no-place`: no learner's place on the run that is still taking part, or
@@ -49,8 +53,49 @@ import { lastTaughtWeek } from "./weekPlan";
  *  - `facilitates-another-group`: they facilitate a group of the run, and
  *    sit in that group and no other;
  *  - `group-full`: the group is at its capacity (raise it first);
- *  - `unchanged`: the place already reads that way for every week.
+ *  - `unchanged`: the place already reads that way for every week;
+ *  - `stopped`: the caller's own check inside the transaction stopped it
+ *    (`MoveFromWeekStaff.confirm`), with what it answered.
+ *
+ * A STAFF MOVE MADE MID-TERM (`staff`) is told by its own emails, sent once
+ * this has committed, so in the same transaction it also:
+ *  - asks the caller's check (`confirm`) with what the transaction read,
+ *    after every refusal above and before anything is written: the week the
+ *    move is from and the count of its emails are worked out again there, so
+ *    a session that started, or a facilitator who changed, between the page
+ *    and the press stops it;
+ *  - writes the group they move to as the group they were told about
+ *    (`toldGroupId`), so the next Publish owes them nothing for this move;
+ *  - does for them what Publish does after "You’ve moved"
+ *    (`forgetMoveMarkers` in `./allocationPublish.ts`): deletes the `joined__`
+ *    markers of the group they leave and the `left__` markers of the group
+ *    they join, so the next Publish says nothing about this move and a later
+ *    move back is announced afresh;
+ *  - writes the caller's own rows (`alsoWrite`: the two groups' history).
+ * It NEVER writes `allocatedEmailAt`: that is the instant Late is measured
+ * from, and restamping it would read every week met before the move as
+ * joined late.
  */
+
+/** What the transaction read, handed to a staff move's own check and writes. */
+export type MoveFromWeekRead = {
+  run: CourseRunDoc;
+  /** The run carries the destroy marker, as read in this transaction. */
+  destroying: boolean;
+  place: CourseEnrolmentDoc;
+  /** The run's groups, archived ones included. */
+  groups: CourseGroupDoc[];
+  from: CourseGroupDoc;
+  to: CourseGroupDoc;
+};
+
+/** A staff move made mid-term, told by its own emails (see the module header). */
+export type MoveFromWeekStaff<Stop> = {
+  /** Inside the transaction, before anything is written: null to go on, or what stopped the move. */
+  confirm: (tx: Transaction, read: MoveFromWeekRead) => Promise<Stop | null>;
+  /** Rows written in the same transaction once the move goes ahead. */
+  alsoWrite?: (tx: Transaction, read: MoveFromWeekRead) => void;
+};
 
 export type MoveFromWeekInput = {
   runId: string;
@@ -72,7 +117,7 @@ export type MoveFromWeekRefusal =
   | "group-full"
   | "unchanged";
 
-export type MoveFromWeekResult =
+export type MoveFromWeekResult<Stop = never> =
   | {
       ok: true;
       /** The group they were in before the move. */
@@ -81,7 +126,8 @@ export type MoveFromWeekResult =
       /** The record now stored, or null when the place needs none. */
       groupsByWeek: GroupFromWeek[] | null;
     }
-  | { ok: false; refusal: MoveFromWeekRefusal };
+  | { ok: false; refusal: MoveFromWeekRefusal }
+  | { ok: false; refusal: "stopped"; stop: Stop };
 
 /** An id a document can be addressed by. */
 function addressable(value: string): boolean {
@@ -94,12 +140,16 @@ function sameRecord(a: readonly GroupFromWeek[] | null, b: readonly GroupFromWee
   return a.length === b.length && a.every((entry, index) => entry.groupId === b[index].groupId && entry.fromWeek === b[index].fromWeek);
 }
 
-export async function moveFromWeek(db: Firestore, input: MoveFromWeekInput): Promise<MoveFromWeekResult> {
+export async function moveFromWeek<Stop = never>(
+  db: Firestore,
+  input: MoveFromWeekInput,
+  staff: MoveFromWeekStaff<Stop> | null = null,
+): Promise<MoveFromWeekResult<Stop>> {
   const { runId, uid, toGroupId, fromWeek } = input;
   if (!isMoveWeek(fromWeek)) return { ok: false, refusal: "bad-week" };
   if (!addressable(runId) || !addressable(uid) || !addressable(toGroupId)) return { ok: false, refusal: "no-place" };
 
-  return db.runTransaction(async (tx): Promise<MoveFromWeekResult> => {
+  return db.runTransaction(async (tx): Promise<MoveFromWeekResult<Stop>> => {
     const placeRef = db.collection("courseEnrolments").doc(courseEnrolmentId(runId, uid));
     // The run, for its plan's last week, and the run's groups, one equality:
     // the group they move to, the group they leave, and any group they
@@ -115,7 +165,8 @@ export async function moveFromWeek(db: Firestore, input: MoveFromWeekInput): Pro
       return { ok: false, refusal: "no-place" };
     }
     // A week of the run's plan: never one past its last taught week.
-    const lastWeek = lastTaughtWeek(normalizeCourseRun(runSnap.id, runSnap.data() ?? {}).weekPlan);
+    const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
+    const lastWeek = lastTaughtWeek(run.weekPlan);
     if (lastWeek === null || fromWeek > lastWeek) return { ok: false, refusal: "bad-week" };
     const fromGroupId = place.groupId;
     if (!fromGroupId) return { ok: false, refusal: "not-in-a-group" };
@@ -129,7 +180,8 @@ export async function moveFromWeek(db: Firestore, input: MoveFromWeekInput): Pro
     if (target.archived) return { ok: false, refusal: "group-archived" };
     // The group they leave, whose count the move takes one off: a document
     // that is not there is refused here, never left to fail the write.
-    if (!groups.some((group) => group.id === fromGroupId)) return { ok: false, refusal: "own-group-not-found" };
+    const from = groups.find((group) => group.id === fromGroupId) ?? null;
+    if (!from) return { ok: false, refusal: "own-group-not-found" };
     const facilitates = groups.filter((group) => !group.archived && group.facilitatorUids.includes(uid));
     if (facilitates.length > 0 && !facilitates.some((group) => group.id === toGroupId)) {
       return { ok: false, refusal: "facilitates-another-group" };
@@ -142,15 +194,38 @@ export async function moveFromWeek(db: Firestore, input: MoveFromWeekInput): Pro
       return { ok: false, refusal: "group-full" };
     }
 
+    // A staff move's own check, with what was read, before any write.
+    const read: MoveFromWeekRead = { run, destroying: (runSnap.data() ?? {}).destroying === true, place, groups, from, to: target };
+    if (staff) {
+      const stop = await staff.confirm(tx, read);
+      if (stop !== null) return { ok: false, refusal: "stopped", stop };
+    }
+
     const patch: Record<string, unknown> = {
       groupId: toGroupId,
       groupsByWeek: record ?? FieldValue.delete(),
       updatedAt: FieldValue.serverTimestamp(),
     };
-    // A seat told before the group it was told about was kept was told about
-    // the group it leaves, as a move on the board writes it.
-    if (moving && place.toldGroupId === null) patch.toldGroupId = fromGroupId;
+    if (staff && moving) {
+      // Told about the group they join by the staff move's own emails: the
+      // next Publish owes them nothing. `allocatedEmailAt` is never written.
+      patch.toldGroupId = toGroupId;
+    } else if (moving && place.toldGroupId === null) {
+      // A seat told before the group it was told about was kept was told about
+      // the group it leaves, as a move on the board writes it.
+      patch.toldGroupId = fromGroupId;
+    }
     tx.update(placeRef, patch);
+    if (staff && moving) {
+      // What Publish forgets after "You’ve moved": their time in the group they
+      // leave, and any earlier time out of the group they join.
+      for (const facilitatorUid of from.facilitatorUids) {
+        tx.delete(db.collection("courseNudges").doc(joinedMarkerId(runId, from.id, facilitatorUid, uid)));
+      }
+      for (const facilitatorUid of target.facilitatorUids) {
+        tx.delete(db.collection("courseNudges").doc(leftMarkerId(runId, target.id, facilitatorUid, uid)));
+      }
+    }
     if (moving) {
       tx.update(db.collection("courseGroups").doc(fromGroupId), {
         memberCount: FieldValue.increment(-1),
@@ -161,6 +236,7 @@ export async function moveFromWeek(db: Firestore, input: MoveFromWeekInput): Pro
         updatedAt: FieldValue.serverTimestamp(),
       });
     }
+    if (staff?.alsoWrite) staff.alsoWrite(tx, read);
     return { ok: true, fromGroupId, toGroupId, groupsByWeek: record };
   });
 }

@@ -22,6 +22,7 @@ import {
   SHOW_WHOSE_ANSWERS,
   WAITING_FOR_FEEDBACK,
   backToWords,
+  didWeekWithWords,
   openWeekWords,
   questionOfWords,
   readingEyebrowWords,
@@ -80,6 +81,15 @@ import styles from "./reading.module.css";
  * browser, it names the answers it drew in full so the time each was first
  * read is kept (`MarkFirstRead`); what it shows of that is as things stood
  * when the reader arrived.
+ *
+ * Somebody moved into the group mid-term who did the week with another group,
+ * on another week document than the one this page reads (`elsewhere`), keeps
+ * their row and the link to their week, which reads the right copy, and in
+ * place of an answer the row says they did the week with another group
+ * ("Chloe did week 3 with another group, on that group’s version of the
+ * week."), naming the group to an admin and the programme's lead alone; the
+ * loader hands such a row no words, no state and no control, and a
+ * facilitator not even the group's name.
  */
 
 /**
@@ -198,6 +208,9 @@ function Person({ row, view }: { row: QuestionRow; view: View }) {
             </div>
           )}
         </div>
+      ) : row.elsewhere ? (
+        // Somebody moved here who did this week with another group, on another document: who with, and nothing of theirs.
+        <p className={styles.quiet}>{didWeekWithWords(row.firstName, view.weekNumber, row.elsewhere.groupName, row.elsewhere.ownCopy)}</p>
       ) : (
         !row.notSent && <p className={styles.quiet}>{NOTHING_WRITTEN_YET}</p>
       )}

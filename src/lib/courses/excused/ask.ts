@@ -1,6 +1,6 @@
 import "server-only";
 import type { Firestore, Transaction } from "firebase-admin/firestore";
-import { facilitatesGroup, takesPartIn } from "@/lib/courses/cantMakeIt/seat";
+import { facilitatesGroup, takesPartInWeek } from "@/lib/courses/cantMakeIt/seat";
 import { heldOnline } from "@/lib/courses/joiningOnline/model";
 import { readNamingProgramme } from "@/lib/courses/programmeLead";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
@@ -43,9 +43,11 @@ import { EXCUSED_REFUSAL, askClosedWords, type NewRequestWeek } from "./words";
 /**
  * ASKING TO BE EXCUSED FROM ONE WEEK OR SEVERAL: the ask route's work.
  *
- * WHO. Somebody holding a told place in the group, by their own uid
- * (`takesPartIn`, the rule "Can't make it" asks), about sessions of their
- * own group they are due at (from the week they joined). Not somebody who
+ * WHO. Somebody holding a told place in the group for the week of each
+ * session asked about, by their own uid (`takesPartInWeek`, the rule "Can't
+ * make it" asks): the group they are in now, or, for somebody moved mid-term,
+ * the group they were in for a week before the move; about sessions of that
+ * group they are due at (from the week they joined). Not somebody who
  * facilitates the group, who keeps what they have today: the instant "Can't
  * make it" on their own place, which records them as excused on the spot.
  * Nobody asks for anybody else: there is no way to spell another person.
@@ -163,9 +165,11 @@ export async function askToBeExcused(
     if (!runSnap.exists || runSnap.data()?.destroying === true || !seatSnap.exists) return refuse(404, EXCUSED_REFUSAL.notYours);
     const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
     const seat = normalizeCourseEnrolment(seatSnap.id, seatSnap.data() ?? {});
-    // Their own place, told them by Publish and held to the live bar, here as
-    // `takesPartIn` holds it.
-    if (!takesPartIn(user, seat, group, run.id) || !placementIsTold(seat) || !isNamedWithStanding(user, "courseEnrolments.uid", seat.uid)) {
+    // Their own place, told them by Publish and held to the live bar, in this
+    // group for a week of theirs (`takesPartInWeek`): the group they are in
+    // now, or, for somebody moved mid-term, the group they were in for a week
+    // before the move. Each session asked about is then held to its own week.
+    if (!takesPartInWeek(user, seat, group, run.id, null) || !placementIsTold(seat) || !isNamedWithStanding(user, "courseEnrolments.uid", seat.uid)) {
       return refuse(404, EXCUSED_REFUSAL.notYours);
     }
     // Somebody who facilitates the group keeps today's "Can't make it": the
@@ -180,7 +184,7 @@ export async function askToBeExcused(
       const session = all.find((each) => each.sessionKey === key);
       const parts = /^w(\d{2})(?:-(\d))?$/.exec(key);
       const weekNumber = parts ? Number(parts[1]) : 0;
-      if (!session || session.weekNumber < seat.joinedWeekNumber) {
+      if (!session || session.weekNumber < seat.joinedWeekNumber || !takesPartInWeek(user, seat, group, run.id, session.weekNumber)) {
         return refuse(400, askClosedWords("not-yours", session?.weekNumber ?? weekNumber, session?.occurrence ?? 1));
       }
       sessions.push(session);

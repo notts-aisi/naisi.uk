@@ -1,9 +1,10 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { groupTagOf } from "@/lib/courses/programmeAttendance";
+import { runMoveRefusal } from "@/lib/courses/staffMove/plan";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import type { SessionUser } from "@/lib/firebase/session";
-import { enrolmentHasLeft, normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
+import { enrolmentHasLeft, normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
 import { compareGroupsByMeeting, normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { canReadApplication, opensProgrammeGroups, roleOnProgramme } from "../access";
 import { isInTerm } from "../decisions";
@@ -57,11 +58,14 @@ export type PeopleOutcome =
 const GROUPS_COLLECTION = "courseGroups";
 
 /** The run's live groups in the board's order, each with its letter and, if it has one, its weekly session. */
-async function groupsOf(db: Firestore, runId: string): Promise<PeopleGroup[]> {
+async function groupsOf(db: Firestore, runId: string): Promise<{ groups: PeopleGroup[]; facilitating: Set<string> }> {
   const snap = await db.collection(GROUPS_COLLECTION).where("runId", "==", runId).get();
-  return snap.docs
+  const live = snap.docs
     .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
-    .filter((group) => !group.archived && group.runId === runId)
+    .filter((group) => !group.archived && group.runId === runId);
+  // Who facilitates a group that still meets: they sit only in the group they run, so are never offered a move.
+  const facilitating = new Set(live.flatMap((group) => group.facilitatorUids));
+  const groups = live
     .sort(compareGroupsByMeeting)
     .map((group) => {
       const name = group.name.trim() || "Untitled group";
@@ -81,6 +85,7 @@ async function groupsOf(db: Firestore, runId: string): Promise<PeopleGroup[]> {
           : null,
       };
     });
+  return { groups, facilitating };
 }
 
 /**
@@ -90,7 +95,7 @@ async function groupsOf(db: Firestore, runId: string): Promise<PeopleGroup[]> {
  * see where they put them before Publish tells anybody, as the allocation
  * board shows them. Nobody else reaches this.
  */
-async function seatsOf(db: Firestore, runId: string): Promise<Map<string, PeopleSeat>> {
+async function seatsOf(db: Firestore, runId: string, facilitating: ReadonlySet<string>): Promise<Map<string, PeopleSeat>> {
   const snap = await db.collection("courseEnrolments").where("runId", "==", runId).get();
   const seats = new Map<string, PeopleSeat>();
   for (const doc of snap.docs) {
@@ -103,6 +108,9 @@ async function seatsOf(db: Firestore, runId: string): Promise<Map<string, People
       left: enrolmentHasLeft(seat.status)
         ? { at: seat.droppedOutAt, by: seat.status === "removed" ? "staff" : "themselves" }
         : null,
+      told: placementIsTold(seat),
+      facilitates: facilitating.has(seat.uid),
+      active: seat.status === "active",
     });
   }
   return seats;
@@ -168,18 +176,19 @@ export async function readProgrammePeople(
   db: Firestore,
   actor: SessionUser,
   form: ApplicationForm,
-  programme: Pick<ProgrammeSettings, "id" | "runId">,
+  programme: Pick<ProgrammeSettings, "id" | "runId"> & Partial<Pick<ProgrammeSettings, "kind">>,
 ): Promise<ProgrammePeopleRead | null> {
   if (form.decisionsSentAt === null) return null;
   const runSnap = programme.runId ? await db.collection(RUNS_COLLECTION).doc(programme.runId).get() : null;
   const read = runSnap?.exists ? readRun(runSnap.id, runSnap.data()) : null;
   // A run being destroyed is no run to read groups or seats from.
   const runId = read && !read.destroying ? read.run.id : null;
-  const [applications, decisions, groups, seats] = await Promise.all([
+  const groupsRead = runId ? groupsOf(db, runId) : Promise.resolve({ groups: [] as PeopleGroup[], facilitating: new Set<string>() });
+  const [applications, decisions, { groups }, seats] = await Promise.all([
     listSentApplications(db, form),
     listDecisions(db, form.round.id),
-    runId ? groupsOf(db, runId) : Promise.resolve<PeopleGroup[]>([]),
-    runId ? seatsOf(db, runId) : Promise.resolve(new Map<string, PeopleSeat>()),
+    groupsRead,
+    runId ? groupsRead.then(({ facilitating }) => seatsOf(db, runId, facilitating)) : Promise.resolve(new Map<string, PeopleSeat>()),
   ]);
 
   const programmePath = `/admin/admissions/forms/${encodeURIComponent(form.round.id)}/programmes/${encodeURIComponent(programme.id)}`;
@@ -197,6 +206,9 @@ export async function readProgrammePeople(
     seats,
     programmePath,
     runNamed: runId !== null,
+    // Moving somebody for good needs another group to go to: never on an incubator's run,
+    // and never on a run that is over or archived (`runMoveRefusal`, which the move route asks).
+    movable: runId !== null && read !== null && runMoveRefusal(read.run, read.destroying) === null && groups.length > 1 && programme.kind !== "incubator",
     today: londonDateKey(new Date()),
   });
   return { model, applications, groups };

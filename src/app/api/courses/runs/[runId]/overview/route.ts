@@ -7,8 +7,10 @@ import { londonDateKey, type CurrentWeek, type WeekPlanEntry } from "@/lib/cours
 import {
   resolveGroupCalendar,
   resolveGroupCalendars,
+  resolveOwnWeekDocs,
   resolveWeekDocs,
   type GroupCalendar,
+  type ResolvedWeekEntry,
   type WeekSource,
 } from "@/lib/courses/groupResolve";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
@@ -19,7 +21,7 @@ import { certificateNeedsFor } from "@/lib/courses/finishing/needs";
 import { finishedForMember, readFinishRule } from "@/lib/courses/finishing/record";
 import { inLastWeek } from "@/lib/courses/programmeEnd";
 import { whatsNextFor, type WhatsNext } from "@/lib/courses/whatsNext";
-import { hasGroupsByWeek, sessionsByWeekGroup, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
+import { hasGroupsByWeek, inGroupForWeek, sessionsByWeekGroup, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
 import { memberExplainerOn, type MemberExplainer } from "@/lib/courses/explainers/model";
@@ -326,7 +328,9 @@ export type OverviewGroup = {
   name: string;
   /**
    * THIS group's calendar, never the caller's. Every slot field below is
-   * resolved through it. See the module header.
+   * resolved through it, for the group's current week; on the caller's own
+   * card when their place records a move, for the week of the next session
+   * they are due at in the group. See the module header.
    */
   calendar: OverviewGroupCalendar;
   /** e.g. "Tuesdays 6pm to 7:30pm"; empty when the slot isn't set up yet. */
@@ -610,7 +614,9 @@ export type OverviewPayload = {
   /**
    * Week doc ids that exist under `courseGroups/{ownGroup}/weeks` — i.e. the
    * weeks this caller must read from their group rather than from the run.
-   * Always empty for a caller with no group of their own.
+   * Always empty for a caller with no group of their own. For somebody whose
+   * place records a move, a week they spent in another group is listed when
+   * THAT group has its own copy, and `forkedWeekGroups` names the group.
    *
    * The client CANNOT derive this: a group's forked weeks are the only thing
    * distinguishing "read the fork" from "read the canonical", and a wrong
@@ -619,6 +625,15 @@ export type OverviewPayload = {
    * there.
    */
   forkedWeekIds: string[];
+  /**
+   * For somebody whose place records a move mid-term, and nobody else: each id
+   * in `forkedWeekIds` with the group whose own copy it is. A week they spent
+   * in another group is that group's copy (`ownGroupForWeek`, the same answer
+   * every save route gives), so their week page reads, and saves against, the
+   * copy they worked in. ABSENT for everybody else: every week in
+   * `forkedWeekIds` is then their own group's, as it always was.
+   */
+  forkedWeekGroups?: Record<string, string>;
   /** The caller's OWN enrolment summary; null when they read as facilitator/admin. */
   enrolment: {
     status: CourseEnrolmentStatus;
@@ -1389,7 +1404,12 @@ export async function GET(
     facilitatorUids.length
       ? db.getAll(...facilitatorUids.map((uid) => db.collection("users").doc(uid)))
       : Promise.resolve([]),
-    resolveWeekDocs(db, runId, ownGroup?.id ?? null),
+    // Each week from the copy they saw: for somebody moved mid-term, the group
+    // their place belonged to that week (`resolveOwnWeekDocs`); otherwise
+    // their group's overlay, as always.
+    ownLearnerGroup && liveEnrolment && hasGroupsByWeek(liveEnrolment)
+      ? resolveOwnWeekDocs(db, runId, liveEnrolment, ownGroup?.id ?? null)
+      : resolveWeekDocs(db, runId, ownGroup?.id ?? null),
     ownLearnerGroup && ownSessions.length
       ? db.getAll(
           ...ownSessionsWithGroup.map(({ groupId, session: s }) =>
@@ -1440,9 +1460,19 @@ export async function GET(
   }
 
   const forkedWeekIds: string[] = [];
-  const weeks = weekEntries
-    .map(({ source, week: w }) => {
+  // For somebody whose place records a move, whose own copy each listed week
+  // is (`resolveOwnWeekDocs` says): the browser reads exactly that document.
+  // Absent for everybody else, whose every listed week is their group's.
+  const forkedWeekGroups: Record<string, string> | undefined =
+    ownLearnerGroup && liveEnrolment && hasGroupsByWeek(liveEnrolment) ? {} : undefined;
+  const entries: ReadonlyArray<ResolvedWeekEntry & { copyGroupId?: string | null }> = weekEntries;
+  const weeks = entries
+    .map((entry) => {
+      const { source, week: w } = entry;
       if (source === "group") forkedWeekIds.push(w.id);
+      if (forkedWeekGroups && source === "group" && entry.copyGroupId) {
+        forkedWeekGroups[w.id] = entry.copyGroupId;
+      }
       return {
         id: w.id,
         weekNumber: w.weekNumber,
@@ -1495,12 +1525,29 @@ export async function GET(
    */
   const toCard = (source: CourseGroupDoc): OverviewGroup => {
     const groupCalendar = calendarFor(source);
-    const session = sessionForWeek(source, currentWeekId(groupCalendar.currentWeek));
     // The group's own sessions, resolved off the calendar just resolved rather
     // than off a second one: `resolveSessions` would otherwise re-derive it,
     // and a second derivation is a second chance to disagree.
     const resolved = resolveSessions(run, source, groupCalendar.calendar);
-    const range = sessionRange(resolved, now);
+    // The caller's own group's card, for somebody whose place records a move:
+    // only the sessions of the weeks they are in it, so its next session is
+    // one they are due at (moved in from week 3, never its week 2), and the
+    // tickets beside it are offered for that one. With no record, every
+    // session, as always.
+    const movedHere = Boolean(
+      ownLearnerGroup && liveEnrolment && source.id === ownLearnerGroup.id && hasGroupsByWeek(liveEnrolment),
+    );
+    const theirs =
+      movedHere && liveEnrolment ? resolved.filter((each) => inGroupForWeek(liveEnrolment, source.id, each.weekNumber)) : resolved;
+    const range = sessionRange(theirs, now);
+    // The slot (when, where) and its link, of one week: the group's current
+    // week, as always; for that same card of somebody whose place records a
+    // move, the week of the next session they are due at in the group, so
+    // between a move and the week it starts the card never carries the new
+    // group's earlier week, a session they do not go to. The link stays
+    // behind the one gate below.
+    const slotWeekId = movedHere && range.next ? range.next.weekId : currentWeekId(groupCalendar.currentWeek);
+    const session = sessionForWeek(source, slotWeekId);
     // What "Change a session" did, told to the people this card is for: the
     // next session's own weeks, room and link, and any evening that is off.
     const changes = cardChangeFacts(resolved, source, range.next, londonDateKey(now));
@@ -1571,13 +1618,13 @@ export async function GET(
    */
   const ownSessionsAll = resolveSessions(run, ownGroup, calendar);
   const publishedWeeks = new Set(weeks.filter((w) => w.published).map((w) => w.weekNumber));
-  const ownModes = ownGroup ? sessionModesOf(ownGroup) : {};
-  const usualRoom = ownGroup?.session.location.trim() ?? "";
-  const scheduleOf = (session: ResolvedSession): OverviewWeekSchedule => {
+  const scheduleOf = (session: ResolvedSession, of: CourseGroupDoc | null = ownGroup): OverviewWeekSchedule => {
+    const ownModes = of ? sessionModesOf(of) : {};
+    const usualRoom = of?.session.location.trim() ?? "";
     const { endsAt } = sessionInstants(session);
     const open = publishedWeeks.has(session.weekNumber);
-    const dated = ownGroup !== null && session.dateKey !== "";
-    const room = ownGroup ? session.session.location.trim() : "";
+    const dated = of !== null && session.dateKey !== "";
+    const room = of ? session.session.location.trim() : "";
     return {
       weekNumber: session.weekNumber,
       slotStartKey: session.slotStartKey,
@@ -1592,13 +1639,25 @@ export async function GET(
       open,
     };
   };
-  const weekSchedule = ownSessionsAll.filter((session) => session.occurrence === 1).map(scheduleOf);
+  // Somebody whose place records a move is shown, each week, the session they
+  // are due at: from the group they were in that week (`sessionsWithGroup`),
+  // so never a session of the group they are in now from a week they spent
+  // elsewhere. With no record, their group's sessions, as always.
+  const weekSchedule =
+    ownLearnerGroup && liveEnrolment && hasGroupsByWeek(liveEnrolment)
+      ? sessionsWithGroup(liveEnrolment, (groupId) => {
+          const each = groups.find((candidate) => candidate.id === groupId);
+          return each ? resolveSessions(run, each, each.id === ownLearnerGroup.id ? calendar : undefined) : null;
+        })
+          .filter((each) => each.session.occurrence === 1)
+          .map((each) => scheduleOf(each.session, groups.find((candidate) => candidate.id === each.groupId) ?? null))
+      : ownSessionsAll.filter((session) => session.occurrence === 1).map((session) => scheduleOf(session));
   /*
    * THE SESSIONS EACH WEEK'S WORK IS DUE BY: the session they are due at that
    * week, from the group they were in that week (`sessionsByWeekGroup`), for
    * somebody whose place records a move; `ownSessionsAll` for everybody else,
    * as always. This week's due dates and whether a pick is still open both
-   * go by it. The schedule above stays the group they are in now.
+   * go by it, and so does the schedule above.
    */
   const ownDueSessions: readonly ResolvedSession[] =
     ownLearnerGroup && liveEnrolment && hasGroupsByWeek(liveEnrolment)
@@ -1772,6 +1831,7 @@ export async function GET(
       : null,
     shownCrest: shownCrests.get(run.id) ?? null,
     forkedWeekIds,
+    ...(forkedWeekGroups ? { forkedWeekGroups } : {}),
     enrolment: enrolment
       ? {
           status: enrolment.status,

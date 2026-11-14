@@ -527,7 +527,11 @@ export default async function GroupHomePage({
           })}
           heading={ticketHeading(facts.dateKey, facts.startTimeLocal)}
           roomChanged={Boolean(facts.room) && facts.room !== group.session.location.trim()}
-          expected={model.expected > 0 ? model.expected : null}
+          expected={(() => {
+            // Who is expected at THIS session: somebody moved in from a later week is not.
+            const expected = model.expectedIn[facts.weekNumber] ?? model.expected;
+            return expected > 0 ? expected : null;
+          })()}
           registerHref={registerHref}
           guide={guide}
           guideContents={guideContents}
@@ -562,6 +566,7 @@ export default async function GroupHomePage({
         leavers={model.leavers}
         finishedWeeks={model.finishedWeeks}
         notYetTold={model.notYetTold}
+        groupName={groupName}
       />
       <GroupRegistersCard
         registers={model.registers}

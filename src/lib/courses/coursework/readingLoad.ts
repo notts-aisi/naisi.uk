@@ -1,4 +1,6 @@
 import "server-only";
+import { copiesOf, readsGroupIdFor } from "@/lib/courses/weekCopy";
+import type { GroupFromWeek } from "@/lib/firestore/courseEnrolments";
 import type { Firestore } from "firebase-admin/firestore";
 import { readPersonPrivateNotes, readRunCoursework } from "@/lib/courses/facilitatorWeek/readers";
 import type { WeekViewer } from "@/lib/courses/facilitatorWeek/model";
@@ -44,7 +46,7 @@ import type { SessionUser } from "@/lib/firebase/session";
 import { normalizeCourseEnrolment, placementIsShownTo, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { exerciseResponseId } from "@/lib/firestore/courseExercises";
 import type { CourseFeedbackDoc } from "@/lib/firestore/courseFeedback";
-import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourse, weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import { writtenAnswerWords } from "./input";
 import { readAnswerReading, type AnswerReading } from "./pangramReadings";
@@ -107,7 +109,9 @@ import type { AskedWords } from "../weekEdit/wordsThen";
  *    a facilitator's own reports' alone for a facilitator (`besideScopeOf`,
  *    `readReportLinesAbout`), never on the reader's own page;
  *  - "After its deadline" (staff only): first sent after the answer's own
- *    deadline but before the session (`afterItsDeadline`).
+ *    deadline but before the session (`afterItsDeadline`), the deadline
+ *    dated on the calendar of the group whose copy of the week the person
+ *    read, the group the session they were due at comes from.
  *
  * Nothing here writes, sends or records that anything was read.
  */
@@ -123,6 +127,8 @@ export type ReadingPerson = {
   groupId: string | null;
   /** The group whose copy of each week they read; null reads the run's own. */
   readsGroupId: string | null;
+  /** For somebody moved mid-term, which group's copy each week is read on (`copiesOf`); absent for everybody else. */
+  readsCopies?: GroupFromWeek[] | null;
   /** To an admin: placed in a group Publish has not told them about yet. */
   notToldYet: boolean;
 };
@@ -275,6 +281,30 @@ export type ReadingDoor = {
 };
 
 /**
+ * One person's weeks as a reader reads them: each week from the copy they
+ * worked in (`readsGroupIdFor`), so somebody moved mid-term is read on their
+ * old group's copy of the weeks before the move. One `weeksRead` per group
+ * their weeks were in; with no record, the group they are read on, as before.
+ */
+async function personWeeksRead(
+  db: Firestore,
+  runId: string,
+  person: { readsGroupId: string | null; readsCopies?: readonly GroupFromWeek[] | null },
+): Promise<Awaited<ReturnType<typeof weeksRead>>> {
+  const base = await weeksRead(db, runId, person.readsGroupId);
+  if (!person.readsCopies) return base;
+  const others = [...new Set(person.readsCopies.map((entry) => entry.groupId))].filter((id) => id !== person.readsGroupId);
+  const lists = new Map(await Promise.all(others.map(async (id) => [id, await weeksRead(db, runId, id)] as const)));
+  const merged = new Map(base);
+  for (const weekNumber of base.keys()) {
+    const copy = readsGroupIdFor(person, weekNumber);
+    const theirs = copy && copy !== person.readsGroupId ? lists.get(copy)?.get(weekNumber) : undefined;
+    if (theirs) merged.set(weekNumber, theirs);
+  }
+  return merged;
+}
+
+/**
  * ONE PERSON'S WEEK, as `actor` may read it, through the door that let them
  * in. Null for a run with no week written as blocks.
  */
@@ -287,7 +317,7 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
     // Everything written and ticked on the run, the words only for this person: the answer as its readers may read it.
     readRunCoursework(db, { run, liveGroups, now, enrolments: input.enrolments }, uid),
   ]);
-  const weeks = person.readsGroupId ? await weeksRead(db, run.id, person.readsGroupId) : runWeeks;
+  const weeks = person.readsGroupId ? await personWeeksRead(db, run.id, person) : runWeeks;
   const columns = columnsOf(run, runWeeks);
   const work = coursework.work.get(uid);
   const withWork = new Set<number>(
@@ -307,10 +337,19 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
   });
   if (!opening) return null;
   const n = opening.weekNumber;
+  // THE GROUP WHOSE COPY OF THIS WEEK THE PERSON READS, the one place every
+  // read of week n below takes its group from: for somebody moved mid-term,
+  // the group their place belonged to that week (`readsGroupIdFor`); for
+  // everybody else `person.readsGroupId`, as always.
+  const copyGroupId = readsGroupIdFor(person, n);
   const column = columns.find((each) => each.weekNumber === n) ?? { weekNumber: n, title: "" };
   const weekOf = (weekNumber: number) => weeks.get(weekNumber) ?? null;
   const shownGroup = person.groupId ? (liveGroups.find((group) => group.id === person.groupId) ?? null) : null;
   const due = coursework.states.dueOf(uid, n);
+  // The calendar the written answer's own deadline is dated on: the group whose copy of week n they read, the group
+  // the session they were due at comes from, looked up among all the run's groups (it may have been archived since).
+  // With no record of groups by week, the group they are read on, as always.
+  const deadlineGroup = copyGroupId === person.readsGroupId ? readsGroup : ((await groupOfRun(db, run, liveGroups, copyGroupId)) ?? readsGroup);
 
   const [boxesReader, notes, owner, card, blockWeek] = await Promise.all([
     boxesReaderFor(db, actor, run.id, uid),
@@ -320,7 +359,7 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
     ownerFactsOf(db, run.id, uid, liveGroups, { isAdmin: facts.isAdmin }),
     // The sealed prediction's weeks: the course's card, never the person's own record.
     facts.isAdmin && actor.uid !== uid ? courseCardOf(db, run) : Promise.resolve(null),
-    resolveWeekDoc(db, run.id, person.readsGroupId, weekDocId(n)),
+    resolveWeekDoc(db, run.id, copyGroupId, weekDocId(n)),
   ]);
   const role = owner ? writtenReviewRole(actor, facts, owner, liveGroups) : null;
   const mayWrite = role?.mayReview === true;
@@ -379,7 +418,7 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
         })
       : Promise.resolve(null),
     // Only beside words this page shows: never a written answer its readers may not read yet.
-    personAskedThen(db, run.id, uid, person.readsGroupId, shownWorkKeys([week])),
+    personAskedThen(db, run.id, uid, copyGroupId, shownWorkKeys([week])),
     weekStateOf(db, { runId: run.id, weekNumber: n, uid, blocks: blockWeek.week && isBlockWeek(blockWeek.week) ? (blockWeek.week.blocks as WeekBlock[]) : null, submittedAt: coursework.states.submittedOf(uid, n), due }),
     // Pangram's last reading of the answer: an admin's alone, on an answer they may review and its readers may read,
     // against the words read now. Read as it is kept: nothing is sent to Pangram.
@@ -393,7 +432,7 @@ export async function readPersonWeek(db: Firestore, actor: SessionUser, input: R
       : Promise.resolve(null),
     // The person's own lines in the week's session reports, beside an answer its readers may read, as `besideScopeOf` lets this reader see them.
     beside && answerId && answerReadable ? readReportLinesAbout(db, { runId: run.id, uid, weekNumber: n, scope: beside }) : Promise.resolve(null),
-    afterDeadlineOf(db, { run, group: readsGroup, weekNumber: n, rule: answerBlock?.due ?? null, firstSentAt: stored?.sentAt ?? null, due }),
+    afterDeadlineOf(db, { run, group: deadlineGroup, weekNumber: n, rule: answerBlock?.due ?? null, firstSentAt: stored?.sentAt ?? null, due }),
   ]);
 
   // The admin's own rating of the words read now: a rating of earlier words (`changedSince`) does not count.
@@ -579,6 +618,21 @@ async function weekStateOf(
     due: input.due,
   });
   return { text: state.text, detail: state.detail, bucket: state.bucket };
+}
+
+/**
+ * One group of the run by id, live or archived: the live list first, else its
+ * document, read only when it is not live. Null for none, or a group of
+ * another run.
+ */
+async function groupOfRun(db: Firestore, run: CourseRunDoc, liveGroups: readonly CourseGroupDoc[], groupId: string | null): Promise<CourseGroupDoc | null> {
+  if (!groupId) return null;
+  const live = liveGroups.find((group) => group.id === groupId);
+  if (live) return live;
+  const snap = await db.collection("courseGroups").doc(groupId).get();
+  if (!snap.exists) return null;
+  const found = normalizeCourseGroup(snap.id, snap.data() ?? {});
+  return found.runId === run.id ? found : null;
 }
 
 /**
@@ -780,6 +834,8 @@ export async function loadGroupPersonWeek(
       groupId: group.id,
       // A facilitator reads the group they run; a fellow the group's copy once Publish has told them, the run's own before.
       readsGroupId: runs ? runs.id : told ? group.id : null,
+      // Somebody moved mid-term is read, week by week, on the copy they saw.
+      readsCopies: !runs && told && seat ? copiesOf(seat, liveGroups) : null,
       notToldYet: seat !== null && !told,
     },
     people: readable.map((owner) => ({ uid: owner.uid, name: nameOf(owner.uid) })),

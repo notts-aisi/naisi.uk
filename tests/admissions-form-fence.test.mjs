@@ -443,6 +443,12 @@ const ROUND_SURFACES = {
       "one person's coursework on the programme, for its lead and admins. It reaches the round only through " +
       "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": {
+    kind: "form",
+    why:
+      "moving one person on the programme to another group for good, for its lead and admins. It reaches the round " +
+      "only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/question": {
     kind: "form",
     why:
@@ -858,6 +864,13 @@ const ROUND_SURFACES = {
     why:
       "Pangram's readings of one person's coursework, an admin's alone, through openCourseworkDoor, which " +
       "answers 'none' (a 404) for a round that is not a form before their coursework is read",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": {
+    kind: "form",
+    why:
+      "moving one person on the programme to another group for good, for its lead and admins, through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' (a 404) for a round that is not " +
+      "a form, before anything about the person is read",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/notes": {
     kind: "form",

@@ -1784,13 +1784,13 @@ now. Somebody moved from Group C to Group F from week 3 has
 `[{ C, 1 }, { F, 3 }]`: weeks 1 and 2 are Group C's, and every week from 3 is
 Group F's.
 
-**Nobody has one yet.** The record is written only by `moveFromWeek`
+**Written by one thing.** The record is written only by `moveFromWeek`
 (`src/lib/courses/moveFromWeek.ts`), which sets the group and the record in one
-transaction, and no route calls it (a test fails if one does). A place with no
-record, which is every place on both projects, reads exactly as it always has:
-the group it is in now, for every week. That includes everybody moved before
-the record existed, whose earlier weeks read the group they are in now, as
-they did.
+transaction, and the one thing that calls it is the staff move made mid-term
+(below; a test fails if anything else does). A place with no record reads
+exactly as it always has: the group it is in now, for every week. That
+includes everybody moved before the record existed, whose earlier weeks read
+the group they are in now, as they did.
 
 **The one question.** `groupForWeek(place, weekNumber)`
 (`src/lib/firestore/courseEnrolments.ts`) answers which group a person was in
@@ -1860,11 +1860,21 @@ ahead, and moved with no record. The readers:
   a register's button says of it, which reach the people in the group for the
   session's week.
 
+Which copy of a week they work in, and are read on, is the group their place
+BELONGED to in that week (`ownGroupForWeek`, through `copyGroupIdFor` in
+`src/lib/courses/weekCopy.ts`): see "Moving somebody to another group
+mid-term" below. `tests/course-staff-move-readers.test.mjs` lists every file
+that reads a group's copy of a week (through the resolver, `weeksRead`, a
+seat's `copyGroupId` or the week states' `copyGroupOf`) where it handles
+places, works by people's ids or answers for a group's page, and says whose
+copy each reads.
+
 Everything that means the group they are in NOW keeps reading `groupId`: their
-facilitators, the roster, who reads their work and gives feedback on it, which
-copy of a week they work in, who Publish tells what, "Can you make this
-time?", Remind (the people the group's page lists, whose work its
-facilitators read), and the group a leaver no register marked is named under.
+facilitators, the roster, who reads their work and gives feedback on it, who
+Publish tells what, "Can you make this time?", and the group a leaver no
+register marked is named under. A group's This week's work and Remind are the
+people in it now whose place belonged to it in that week (see "Moving
+somebody to another group mid-term" below).
 Asking to be excused is asked of the group they are in now, and so is the
 request page's Approve button, which is offered while the person is in the
 request's group now. A move does not change who reads whose work here. With
@@ -1872,6 +1882,146 @@ no record of groups by week, every reader answers as it always has, because
 every week reads the group they are in now. The readers of one session above
 read a move dated further ahead than the next week to meet as it is, the
 weeks in between staying with the old group.
+
+## Moving somebody to another group mid-term
+
+An admin or the programme's lead moves one person to another group for good
+from the person's page under the programme
+(`.../programmes/[programmeId]/people/[uid]/move`), reached from their row's
+More menu on the People tab and from their name on the programme's page of a
+group. It is offered for somebody whose place is active, in a group whom
+Publish has told, and who facilitates no group of the run, on a run with
+more than one group that is not an incubator's and is not over, archived or
+being destroyed; the route refuses each of those in one sentence, and asks
+the run's state again inside the save's transaction. Somebody whose group no
+longer meets (it is archived) is refused in its own sentence ("Group C no
+longer meets, so there is nothing to move Leo from."). Moves made before groups go out are still made in
+Arrange and told at Publish.
+
+**The week is the server's** (`src/lib/courses/staffMove/week.ts`): a move
+takes effect from the week of the old group's next session still to come
+(week N; a session that has started counts as met, and a week counts as met
+once any of its sessions has started). Every week before N stays with the old
+group, where they met; week N and every later week go to the new group. It is
+offered only when the new group has a session for week N that has not
+started. So no week still to come is left with the old group, and no week the
+new group has already met is given to them. Each group is read in its own
+sessions and week numbers, never calendar weeks, and the old group's sessions
+are the person's own (each week's from the group they were in that week), so a
+move back is never from a week they spent elsewhere. When no week can be
+offered the page says why in place of the button: the new group has already
+met that week (and when to come back), the old group has no session left, the
+old group has no session set at all, the old group still has a session to
+come in a week before N (its weeks met out of order, or a second session of a
+week whose first has started: move them after that session), or the new
+group has no session that week. When the old group's week N is called off
+and it keeps pace, the move is from the week after, though the new group may
+meet in week N: they have no session that week either way. Likewise a week of
+the old group with no time set, between its last week met and the next dated
+one, stays with the old group: it has no session for anybody to go to, and
+the rule is left as it is. The press sends back the week and the
+count of emails the page showed; both are worked out again inside the save's
+transaction, and a change answers 409 with the facts as they now are.
+
+**What follows at once, in one transaction**: the group and the record of
+groups by week, both groups' counts, the group they join written as the group
+they were told about (so the next Publish says nothing about this move),
+Publish's markers for this move forgotten (so a later move back is announced
+afresh), and one row on EACH group's History (`member-moved`, under People),
+with the reason given, if any, which the programme's lead and admins read and
+a group's facilitators never see. The reason is kept, and put in the row's
+sentence, in one form (every run of white space one space), so taking it out
+of the sentence for a facilitator never misses it; and when the person's
+account is deleted it comes off both rows, which stay. `allocatedEmailAt` is never written: it is
+the instant Late is measured from, so a week done on time before the move
+stays on time. `timeAnswer` is left as it is, as the allocation board leaves a
+told seat's: it is about the group it was given about, and shows only while
+they are in that group. A move from the first week they would have met leaves
+no record: it is a plain move, and the emails still go.
+
+**The three emails**, after the commit (`src/lib/email/moveEmail.ts`, kind
+`course-move`; a failed send never fails the move, and the answer says what
+went): "You’re moving to Group F" to the person, "Leo Park joins Group F from
+week 3" to each of the new group's facilitators, and "Leo Park leaves Group C
+from week 3" to each of the old group's, each with standing and an address,
+never the person moved and never whoever pressed; somebody who facilitates
+both groups is told once, as the new group's. One function decides who, for
+the page's count and the send alike. Never the reason, never a meeting link.
+
+**Who reads whose work is the group now, at once**: the new group's
+facilitators read every week with its feedback, the old group's read nothing
+more. **Which copy of a week** is per week: weeks before N on the old group's
+copy, week N on on the new group's, so an answer keeps the question as they
+saw it and feedback given on an old week is given on that old copy. One
+helper answers it (`copyGroupIdFor`) for every save, the reading views, the
+feedback gate, the prediction card, exercise submit, who finished, the
+week's card in their tasks, the page of one question, the Coursework tab,
+the run's questions for Claude and Pangram and "Week N is open"; the person's own week page reads the copy the
+server names for each week (`forkedWeekGroups` on the overview), never one it
+works out in the browser. A week spent in a group that has since been
+archived is still that group's copy; a group with no copy of a week reads the
+run's own week, as any group does. The move page names, before the press,
+each week from N on that the person has already written in on the old
+group's version where the new group's version differs: that week is then
+read on the new group's version, and nothing is deleted. A group's page of
+one week (This week's work, the summer exercises' queue, the page of one
+question) reads that group's copy. On the page of one question, somebody
+moved in who did that week with another group, on another week document than
+the page reads (compared as documents, never as words), keeps their row and
+the link to their week, and the row says only "Leo did week 2 with Group C,
+on Group C’s version of the week." ("Leo did week 2 with Group C." where
+Group C read the run's own week) to the programme's lead and admins, who see
+the move on History and the People tab, and "Leo did week 2 with another
+group, on that group’s version of the week." ("Leo did week 2 with another
+group.") to a group's facilitator, whose view carries neither the old
+group's name nor its id: none of their words, no state, no control,
+nothing named as first read and no count of any filter, and their work that
+week does not choose the week the page opens on. A week both groups read from
+one document is an ordinary row. "After its deadline" is dated on the
+calendar of the group whose copy of the week the person read, the group the
+session they were due at comes from, on the reading view, the page of one
+question and the lists behind This week's work's Written answer column
+(which still list everybody in the group now for every week, though the
+column draws no row for a week spent elsewhere). "Week N is open"'s line
+about an earlier week not done judges each person's week on the copy they
+read it on, so a week finished on the old group's version is never called
+not done because the new group's asks something more. The reminders before
+a session remind somebody about a week the session covers only when that
+week was this group's for them (`belongsTo`): a week spent in another group
+was due at that group's session, finished or not. The Coursework tab reads
+the copies of a group archived since that somebody's record names, so a week
+spent there keeps its answers; such a week has no session for anybody
+reading it, so it reads as undated there, as everywhere. The run's questions
+for Claude and Pangram are the run's and the live groups' copies' for
+everybody, as before; a question only the own copy of a group archived since
+asks is gathered only for the people whose own record names that group for
+its week, never for anybody else who once answered it. The new group's pages, for a week before
+N, list them with that week's people as joining later ("Joins Group F from
+week 3, with weeks 1 and 2 to read", chip "New from week 3"), not in its work
+or its counts, never reached by its Remind for that week, not expected at its
+session, with no word said and no register line; and the old group's pages
+no longer list them at all. So for a week before the move they are on neither
+group's This week's work: the new group's facilitators read that week through
+their name, and the programme's lead and admins on the Coursework tab. The
+person's own programme page and Home show, as theirs, only sessions they are
+due at, and offer Can't make it and Joining online only for those; their own
+group's card takes its room, time and link from the week of the next session
+they are due at in it, so the new group's earlier week, still to come, never
+lends it its link. Their own week page says "Customised by your facilitator"
+only of a week read from the own copy of the group they are in now, and of a
+week read from another group's copy says nothing.
+
+**What stays behind on the old group**: a line excusing them from one of its
+sessions from week N on, a "Most weeks, not all" tick about one, and a request
+to be excused still waiting about one. The page names each before the press;
+none of them applies once they move, and a waiting request is declined with a
+line on the Requests page.
+
+**The allocation board refuses a place with weeks in two groups**: moving it
+there to another group is refused in one sentence ("Leo was moved mid-term and
+has weeks with two groups. Use Move on Leo’s row, which keeps them."), as a
+full group is reported. Taking it out of every group, Remove, a place with no
+record, and somebody changing their own session on an open run, are as before.
 
 ## A programme's lead on the run their programme names
 

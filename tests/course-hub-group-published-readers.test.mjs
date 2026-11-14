@@ -467,10 +467,12 @@ const READERS = {
   "lib/applications/people/load.ts": {
     kind: "staff",
     proof: ['if (!opensProgrammeGroups(role)) return { status: "not-yours" };'],
+    told: 1,
     why:
       "a programme's People tab, for its lead and admins, who place people: each person's group and whether they " +
       "left come from every seat on the run the programme names, as the allocation board shows them, and it shows " +
-      "no member a placement and names nobody to a facilitator",
+      "no member a placement and names nobody to a facilitator. It asks whether Publish has told a seat only to offer " +
+      "the way to move somebody for good, which a seat nobody has told is not offered",
   },
   "app/api/courses/runs/[runId]/allocation/route.ts": {
     kind: "board",
@@ -589,9 +591,27 @@ const READERS = {
     proof: ["if (!placementIsTold(place)) return { ok: false, refusal: \"not-told\" };", "patch.toldGroupId = fromGroupId;"],
     told: 1,
     why:
-      "moving somebody to another group from a week, which no route calls yet: it moves only a seat Publish has told " +
+      "moving somebody to another group from a week, called by the staff move alone: it moves only a seat Publish has told " +
       "(a seat nobody has told is the board's to move), keeps it told, and writes the group it was told about the first " +
-      "time a seat told before that was kept moves. It shows nobody anything and emails nobody",
+      "time a seat told before that was kept moves, or, for the staff move, the group they join, whose own email tells them. " +
+      "It shows nobody anything and emails nobody",
+  },
+  "lib/courses/staffMove/plan.ts": {
+    kind: "told",
+    asks: 2,
+    why:
+      "what moving somebody to another group for good would do, for an admin or the programme's lead (the page and the route " +
+      "ask the gate first): a seat Publish has not told is refused in a sentence, since a group that has not gone out is " +
+      "changed in Arrange and told at Publish; nobody is emailed about a group they were never told. The ways in ask the " +
+      "same of a seat (placeTakesMove) before they offer a move",
+  },
+  "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/page.tsx": {
+    kind: "staff",
+    proof: ['if (outcome.status === "not-yours") return <NotYours roundId={roundId} programmeId={programmeId} tab="Groups" />;'],
+    why:
+      "a group's page under the programme, for its lead and admins: it reads the group's active places only to say whose " +
+      "names get the way to move them to another group for good, asking placeTakesMove (a seat Publish has told, of somebody " +
+      "who facilitates no group), and shows no member a placement",
   },
   "lib/courses/regularTime/apply.ts": {
     kind: "writer",

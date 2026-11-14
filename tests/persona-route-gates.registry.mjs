@@ -706,7 +706,7 @@ export const ROUTES = {
   "/api/admin/registrations/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseExplainersCleared", "courseFacilitatingCleared", "courseFeedbackCleared", "courseFeedbackDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "courseHandRemindersDeleted", "courseNoteDraftsDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseRequestsDeleted", "courseSessionReportsCleared", "courseTeamEntriesCleared", "courseTeamsCleared", "courseWeekReviewsCleared", "courseWeekWorkDeleted", "courseWorkLogDeleted", "courseWorkRatingsDeleted", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "eventInvitationsDeleted", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "noteSourcesCleared", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "reviewFollowUpsDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseExplainersCleared", "courseFacilitatingCleared", "courseFeedbackCleared", "courseFeedbackDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "courseHandRemindersDeleted", "courseMoveReasonsCleared", "courseNoteDraftsDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseRequestsDeleted", "courseSessionReportsCleared", "courseTeamEntriesCleared", "courseTeamsCleared", "courseWeekReviewsCleared", "courseWeekWorkDeleted", "courseWorkLogDeleted", "courseWorkRatingsDeleted", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "eventInvitationsDeleted", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "noteSourcesCleared", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "reviewFollowUpsDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -795,7 +795,7 @@ export const ROUTES = {
   "/api/admin/users/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseExplainersCleared", "courseFacilitatingCleared", "courseFeedbackCleared", "courseFeedbackDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "courseHandRemindersDeleted", "courseNoteDraftsDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseRequestsDeleted", "courseSessionReportsCleared", "courseTeamEntriesCleared", "courseTeamsCleared", "courseWeekReviewsCleared", "courseWeekWorkDeleted", "courseWorkLogDeleted", "courseWorkRatingsDeleted", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "eventInvitationsDeleted", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "noteSourcesCleared", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "reviewFollowUpsDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseExplainersCleared", "courseFacilitatingCleared", "courseFeedbackCleared", "courseFeedbackDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "courseHandRemindersDeleted", "courseMoveReasonsCleared", "courseNoteDraftsDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseRequestsDeleted", "courseSessionReportsCleared", "courseTeamEntriesCleared", "courseTeamsCleared", "courseWeekReviewsCleared", "courseWeekWorkDeleted", "courseWorkLogDeleted", "courseWorkRatingsDeleted", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "eventInvitationsDeleted", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "noteSourcesCleared", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "reviewFollowUpsDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -1405,6 +1405,17 @@ export const ROUTES = {
         "When groups go out, from the Groups tab: view-as is refused first, then the session, then the " +
         "body (a whole date, or null) is checked before anything is read, then the role from the form. " +
         "Only the programme's lead and admins set it.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Moving one person to another group for good, mid-term: view-as is refused first, then the session, then " +
+        "the body (the group, and either preview or the week and the count the page was shown) is checked before " +
+        "anything is read, then the role from the form. Only the programme's lead and admins move people; a preview " +
+        "answers ok and preview, a press ok, the groups, the week, the message and what the emails did, and a 409 " +
+        "the error with the week and the count as they now are.",
     },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room": {
@@ -2867,8 +2878,11 @@ export const ROUTES = {
       // `certificateNeeds`: what a certificate needs, one sentence, for a
       // learner on a run with a rule (the rule's number and their group's
       // count, never their own); null for everybody else
-      // (tests/course-hub-finishing-pages.test.mjs).
-      fields: ["run", "calendarSource", "currentWeek", "weeks", "askToSwap", "weekSchedule", "programme", "shownCrest", "forkedWeekIds", "enrolment", "group", "groups", "ownAttendance", "finished", "access", "beforeGroups", "whatsNext", "certificateNeeds"],
+      // (tests/course-hub-finishing-pages.test.mjs). `forkedWeekGroups`:
+      // OPTIONAL, present only for a learner whose place records a move
+      // mid-term (which group's copy each forked week is) and absent for
+      // everybody else (tests/course-staff-move-readers.test.mjs).
+      fields: ["run", "calendarSource", "currentWeek", "weeks", "askToSwap", "weekSchedule", "programme", "shownCrest", "forkedWeekIds", "forkedWeekGroups", "enrolment", "group", "groups", "ownAttendance", "finished", "access", "beforeGroups", "whatsNext", "certificateNeeds"],
       why:
         "Session required, then the document is read and its own membership decides. The " +
         "battery's id addresses nothing, so every signed-in persona is told that the document " +
@@ -4771,6 +4785,15 @@ export const PAGES = {
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
       "and with an address that names nothing is drawn the same not-here state.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The admissions tree's gate, then the page's own (loadProgrammeRun, decided from the form before the run is read): " +
+      "moving one person to another group for good is the programme's lead's and an admin's, so a reviewer on the form is told it is theirs, " +
+      "a programme the caller has no role on renders 'there is no programme here', and somebody who holds no told place in a group " +
+      "of the run renders a calm refusal in one sentence, each with a 200. Nothing here writes. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads).",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
@@ -6200,6 +6223,21 @@ export const REAL_ROUTES = {
       },
       theirs: {
         lead: c(ACTS, "The programme's own lead sets the day its groups go out, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": {
+    POST: {
+      realDrive: { body: { toGroupId: "e2e-group", preview: true }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before the person is read."),
+        admin: c(ACTS, "An admin moves people on any programme, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "The programme's own lead moves its people, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
         facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
         participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
       },
@@ -7893,6 +7931,9 @@ export const REAL_PAGES = {
   ),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": programmePage("People in groups, the run's allocation board."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": programmePage("Publish's own page."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": programmePage(
+    "moving one person to another group for good (the set's participant), or its calm refusal for somebody with no told place in a group of the run.",
+  ),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]": programmePage(
     "one group's page, or its calm not-here for a group that is not a live group of the run the programme names.",
   ),

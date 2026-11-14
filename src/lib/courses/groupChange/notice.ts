@@ -58,8 +58,10 @@ export async function groupNoticeAudience(
   run: CourseRunDoc,
   group: CourseGroupDoc,
   writerUid: string,
+  /** A notice about ONE session: its week (`updateEmailAudience`). Left out for the group as a whole (its room, its regular time). */
+  weekNumber: number | null = null,
 ): Promise<{ recipients: UpdateRecipient[]; refused: boolean }> {
-  return updateEmailAudience(db, run, [group], "group", group.id, writerUid, { withFacilitators: true });
+  return updateEmailAudience(db, run, [group], "group", group.id, writerUid, { withFacilitators: true, weekNumber });
 }
 
 /** The group's ten notices a day, as a window to claim: one counter, whichever press sends the notice. */

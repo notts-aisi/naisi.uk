@@ -310,6 +310,23 @@ export function openWeekWords(firstName: string): string {
   return firstName ? `Open ${firstName}’s week` : "Open their week";
 }
 
+/**
+ * Staff only, on the page of one question, in place of the answer of
+ * somebody moved here mid-term who did the week with another group, on
+ * another week document than the page's. To an admin and the programme's
+ * lead, with the group: "Chloe did week 3 with Group B, on Group B’s version
+ * of the week.", or, where that group read the run's own week, "Chloe did
+ * week 3 with Group B.". To anybody else (`groupName` null), never naming
+ * it: "Chloe did week 3 with another group, on that group’s version of the
+ * week." and "Chloe did week 3 with another group."
+ */
+export function didWeekWithWords(firstName: string, weekNumber: number, groupName: string | null, ownCopy: boolean): string {
+  const who = firstName || "They";
+  const group = groupName ?? "another group";
+  const version = groupName ? `${groupName}’s version` : "that group’s version";
+  return ownCopy ? `${who} did week ${weekNumber} with ${group}, on ${version} of the week.` : `${who} did week ${weekNumber} with ${group}.`;
+}
+
 /** A group with nobody this reader may read. */
 export const NOBODY_TO_READ = "There’s nobody in this group whose work is yours to read.";
 

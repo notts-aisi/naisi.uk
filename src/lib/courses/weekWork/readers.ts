@@ -3,6 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { resolveSessions, type ResolvedSession } from "@/lib/courses/sessions";
 import {
   normalizeCourseEnrolment,
+  ownGroupForWeek,
   placementIsTold,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
@@ -15,6 +16,7 @@ import {
   type CourseWeekWorkDoc,
 } from "@/lib/firestore/courseWeekWork";
 import { hasGroupsByWeek, sessionsByWeekGroup } from "@/lib/courses/groupsByWeek";
+import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import { readPackCaseRecords, recordBlocksOf } from "@/lib/courses/packsAndCases/readers";
 import type { WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds } from "@/lib/courses/weekBlocks/progress";
@@ -340,6 +342,21 @@ export type RunWeekStates = {
    * counts from.
    */
   sessionOf: (uid: string, weekNumber: number) => Date | null;
+  /**
+   * Whether the person's week is one of `groupId`'s: their place records a
+   * move mid-term and belonged to that group in that week
+   * (`ownGroupForWeek`), or it records no move at all (true, as before any
+   * move was recorded), or they hold no place on the run.
+   */
+  belongsTo: (uid: string, groupId: string, weekNumber: number) => boolean;
+  /**
+   * The group whose copy of the week the person works in and is read on, as
+   * their own week page reads it: for a place that records a move mid-term,
+   * the group it belonged to that week, whether or not that group still meets
+   * (`copyGroupIdFor`, with their group now's copy for a week in it); for
+   * everybody else, `fallback`, the group the caller has always read.
+   */
+  copyGroupOf: (uid: string, weekNumber: number, fallback: string) => string;
 };
 
 function weekIdOf(weekNumber: number): string {
@@ -404,5 +421,14 @@ export async function loadRunWeekStates(
     recordOf,
     submittedOf: (uid, weekNumber) => submittedOnce(recordOf(uid, weekNumber)),
     sessionOf: (uid, weekNumber) => groupSessionAt(sourceOf(uid), weekNumber),
+    belongsTo: (uid, groupId, weekNumber) => {
+      const seat = seatOf.get(uid);
+      return !seat || !hasGroupsByWeek(seat) || ownGroupForWeek(seat, weekNumber) === groupId;
+    },
+    copyGroupOf: (uid, weekNumber, fallback) => {
+      const seat = seatOf.get(uid);
+      if (!seat || !hasGroupsByWeek(seat)) return fallback;
+      return copyGroupIdFor(seat, weekNumber, seat.groupId) ?? fallback;
+    },
   };
 }

@@ -766,8 +766,16 @@ export async function resolveNoticeAudience(
     .where("status", "==", "active");
   if (onlyGroupId && forWeek === null) places = places.where("groupId", "==", onlyGroupId);
   const placeSnap = await places.get();
-  if (placeSnap.docs.length > MAX_NOTICE_ENROLMENT_ROWS) {
-    console.error(`[${lane.logTag}] enrolment read exceeds ceiling`, runId, placeSnap.docs.length);
+  // The ceiling counts the places IN SCOPE, as it did when the read was the
+  // group's: for a week's group, the places whose group that week is this
+  // one, so a run with more places than one send carries still sends each
+  // group its own email.
+  const counted =
+    forWeek === null
+      ? placeSnap.docs.length
+      : placeSnap.docs.filter((doc) => groupForWeek(normalizeCourseEnrolment(doc.id, doc.data() ?? {}), forWeek) === onlyGroupId).length;
+  if (counted > MAX_NOTICE_ENROLMENT_ROWS) {
+    console.error(`[${lane.logTag}] enrolment read exceeds ceiling`, runId, counted);
     return {
       members: [],
       skipped: 0,

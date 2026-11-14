@@ -7,6 +7,7 @@ import {
   normalizeCourseEnrolment,
   placementIsShownTo,
 } from "@/lib/firestore/courseEnrolments";
+import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeExerciseResponse } from "@/lib/firestore/courseExercises";
 import { weekOneDoorFor } from "@/lib/courses/weekOne/door";
@@ -193,7 +194,10 @@ export async function GET(
     // Withdrawn / removed enrolments lose access the moment they are written,
     // whatever the member's open tab still shows. A placement Publish has not
     // told its owner about is no way in either: the run is shut to them.
-    groupId = enrolment?.groupId ?? null;
+    // The copy of this week they answered: the group they belonged to that
+    // week, whether or not it still meets (`copyGroupIdFor`, as exercise
+    // submit and the week page ask); with no record, their group now.
+    groupId = enrolment ? copyGroupIdFor(enrolment, week, enrolment.groupId) : null;
     const live =
       enrolment &&
       (enrolment.status === "active" || enrolment.status === "completed") &&

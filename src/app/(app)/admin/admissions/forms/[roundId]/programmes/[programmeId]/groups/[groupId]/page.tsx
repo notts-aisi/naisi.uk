@@ -16,6 +16,8 @@ import { messagesEntriesFor } from "@/lib/messages/handover";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
+import { placeTakesMove, runMoveRefusal } from "@/lib/courses/staffMove/plan";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 
 /**
@@ -97,7 +99,7 @@ export default async function ProgrammeGroupPage({
   if (group.runId !== run.id || group.archived) return notHere;
 
   const now = new Date();
-  const [page, messages, attendance] = await Promise.all([
+  const [page, messages, attendance, runGroups] = await Promise.all([
     loadGroupPage(db, { run, group, viewer: view.viewer, viewerUid: user.uid, now, week }),
     messagesEntriesFor(db, user, run.id, now).catch(() => null),
     // Attendance, all weeks: the register's own gate decides what it holds.
@@ -106,7 +108,29 @@ export default async function ProgrammeGroupPage({
     // facilitator, and a facilitator has their own register pages, so the
     // tab is left out for them.
     loadGroupAttendance(db, user, group.id, now).catch(() => ({ status: "none" as const })),
+    // Whether there is another group to move anybody to: one equality, no declared index.
+    db.collection("courseGroups").where("runId", "==", run.id).get(),
   ]);
+  const live = runGroups.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})).filter((each) => !each.archived && each.runId === run.id);
+  const liveGroups = live.length;
+  // Moving somebody for good: never on an incubator's run, one with no other
+  // group to go to, or one that is over, archived or being destroyed; and only
+  // for the places the move would not refuse for what is known of them now
+  // (`placeTakesMove`: told, and facilitating no group of the run).
+  const movesHere = !page.incubator && liveGroups > 1 && runMoveRefusal(run, (runSnap.data() ?? {}).destroying === true) === null;
+  const movable = movesHere
+    ? (
+        await db
+          .collection("courseEnrolments")
+          .where("runId", "==", run.id)
+          .where("groupId", "==", group.id)
+          .where("status", "==", "active")
+          .get()
+      ).docs
+        .map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}))
+        .filter((seat) => seat.runId === run.id && seat.groupId === group.id && placeTakesMove(seat, live))
+        .map((seat) => seat.uid)
+    : [];
   const base = `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}`;
 
   return (
@@ -128,6 +152,10 @@ export default async function ProgrammeGroupPage({
           requests: REQUESTS_PATH,
           // Each name in the week's people opens that person's week in the reading view.
           coursework: `${base}/coursework`,
+          // Each name gets the way to move them to another group for good: never
+          // on an incubator's run, or one with no other group to go to.
+          move: movesHere ? `${base}/people` : null,
+          movable,
           roomPath: `/api/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/${encodeURIComponent(group.id)}/room`,
         }}
       />

@@ -6056,7 +6056,9 @@ describe("the course hub passage", () => {
     const wire = withoutComments(read("src/lib/courses/writtenAnswers/wire.ts"));
     assert.doesNotMatch(wire, /\blate\b|deadline/i, "the wire a writer reads carries whether their answer was after its deadline");
     const reviewCode = withoutComments(read("src/lib/courses/writtenAnswers/reviewPage.ts"));
-    assert.match(reviewCode, /afterDeadline: afterItsDeadline\(record\?\.firstSentAt \?\? null, deadline\?\.at \?\? null, due\),/);
+    // The block's own deadline: this group's, or for somebody moved here, the one of the group whose copy they read.
+    assert.match(reviewCode, /const ownDeadline = away\.has\(owner\.uid\) \? \(away\.get\(owner\.uid\) \?\? null\) : \(deadline\?\.at \?\? null\);/);
+    assert.match(reviewCode, /afterDeadline: afterItsDeadline\(record\?\.firstSentAt \?\? null, ownDeadline, due\),/);
     // "...may see anything added or changed after the session as late, with how late": worked out when read.
     assert.match(reviewCode, /changedLateMs: read \? lateBy\(read\.savedAt, due\) : null,/);
     // ...and only of the words they may read: never when a change not sent yet was saved.

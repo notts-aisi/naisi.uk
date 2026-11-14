@@ -12,8 +12,10 @@
  *     keeps the record consistent (in week order, one entry a week, the last
  *     entry's group the place's), moves the two groups' counts as a move on
  *     the board does, keeps a told seat told, and refuses what it should.
- *     Nothing calls it from a route yet: `tests/course-groups-by-week-readers.test.mjs`
- *     holds that.
+ *     One thing calls it, the staff move made mid-term
+ *     (`src/lib/courses/staffMove/save.ts`, behind its route):
+ *     `tests/course-groups-by-week-readers.test.mjs` holds that, and
+ *     `tests/course-staff-move.test.mjs` runs the staff move's own writes.
  *  2. EVERY OTHER WRITER of a place's group deletes the record whenever it
  *     changes the group, in the same write, so a record can never disagree
  *     with the place: the place then reads the group it is in now for every
@@ -199,9 +201,21 @@ describe("1. the writer", () => {
 });
 
 describe("2. every other writer of a place's group", () => {
-  test("a move on the board deletes the record, and the place reads the group it is in now for every week", async () => {
+  test("a move on the board to another group is refused for a place with weeks in two groups, and the record and the counts stay", async () => {
     await steps.published();
     await move("dev", GROUP.thursday, 3);
+    const before = storedOf("dev");
+    const counts = [GROUP.monday, GROUP.thursday, GROUP.unset].map(countOf);
+    const placed = await steps.place([{ uid: "dev", groupId: GROUP.unset }]);
+    assert.equal(placed.status, 200, JSON.stringify(placed.body));
+    assert.deepEqual(placed.body.rejected, [{ uid: "dev", reason: "moved-mid-term" }]);
+    assert.deepEqual(storedOf("dev").groupsByWeek, before.groupsByWeek);
+    assert.equal(seatOf("dev").groupId, GROUP.thursday);
+    assert.deepEqual([GROUP.monday, GROUP.thursday, GROUP.unset].map(countOf), counts);
+  });
+
+  test("a place with no record is moved on the board exactly as before, and reads the group it is in now for every week", async () => {
+    await steps.published();
     const placed = await steps.place([{ uid: "dev", groupId: GROUP.unset }]);
     assert.equal(placed.status, 200, JSON.stringify(placed.body));
     assert.deepEqual(placed.body.rejected, []);

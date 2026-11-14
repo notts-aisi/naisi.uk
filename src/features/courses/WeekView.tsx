@@ -54,6 +54,7 @@ import { saveProgressReflection } from "./progressMutations";
 import { useMyExercises } from "./useMyExercises";
 import { useRunOverview } from "./useRunOverview";
 import { useSyncTasks } from "./useSyncTasks";
+import { readsOwnGroupsVersion } from "@/lib/courses/weekCopySource";
 import { useWeek, type WeekSource } from "./useWeek";
 import { useWeekComments, type WeekComments } from "./useWeekComments";
 import {
@@ -162,10 +163,15 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
     ? {
         groupId: overview.data.enrolment?.groupId ?? overview.data.group?.id ?? null,
         forkedWeekIds: overview.data.forkedWeekIds,
+        // Somebody moved mid-term: the group whose copy each listed week is, as the server says.
+        forkedWeekGroups: overview.data.forkedWeekGroups,
       }
     : null;
   const canSeeDrafts = viewerRole !== "learner";
   const week = useWeek(runId, weekDocId(weekNumber), canSeeDrafts, weekSrc);
+  // "Customised by your facilitator" only for the own copy of the group the reader is in now: never for a week
+  // somebody moved mid-term spent in another group, read from that group's copy (nothing is said in its place).
+  const ownGroupsVersion = week.forked && readsOwnGroupsVersion(weekDocId(weekNumber), weekSrc);
   const comments = useWeekComments(runId, weekNumber);
   // Own exercise answers for this week, for a learner only: "" is the hook's off switch.
   // On a week written as blocks a group's facilitator takes part too, and reads
@@ -321,7 +327,7 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
           weekNumber={weekNumber}
           uid={uid}
           week={weekDoc}
-          forked={week.forked}
+          forked={ownGroupsVersion}
           payload={payload}
           ticks={ticks}
           onTick={tickBlock}
@@ -427,9 +433,9 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
         <header>
           <p className={weekly.eyebrow}>{weekHeading(weekNumber, payload.run.totalWeeks, range)}</p>
           <h1 className={weekly.weekTitle}>{weekDoc.title || `Week ${weekNumber}`}</h1>
-          {(week.forked || !weekDoc.published) && (
+          {(ownGroupsVersion || !weekDoc.published) && (
             <p className={weekly.weekChips}>
-              {week.forked && (
+              {ownGroupsVersion && (
                 <Chip tone="neutral" size="sm" title={FORKED_HINT}>
                   Customised by your facilitator
                 </Chip>

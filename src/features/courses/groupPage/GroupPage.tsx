@@ -27,6 +27,9 @@ import GivePanel from "./GivePanel";
 import LinkPanel from "./LinkPanel";
 import RemindPanel from "./RemindPanel";
 import RoomPanel from "./RoomPanel";
+import { readingHref } from "@/lib/courses/coursework/reading";
+import { joinsLaterWords, newFromWeekWords, type JoinsLater } from "@/lib/courses/staffMove/joins";
+import { MOVE_LINK } from "@/lib/courses/staffMove/words";
 import WeekWorkCard from "./WeekWorkCard";
 import styles from "./GroupPage.module.css";
 
@@ -77,6 +80,15 @@ export type GroupPageLinks = {
   requests?: string | null;
   /** The programme's reading view of one person's week, before the person (".../coursework"); left out, names are plain text. */
   coursework?: string | null;
+  /**
+   * The programme's people, before the person (".../people"): a name gets
+   * the way to move them to another group for good. Left out on a run with
+   * one group or an incubator's (there is nothing to move to), or one that is
+   * over, archived or being destroyed.
+   */
+  move?: string | null;
+  /** Whose names get it: the places the move would not refuse for what is known of them (told, facilitating no group). */
+  movable?: readonly string[];
 };
 
 type Panel =
@@ -85,6 +97,41 @@ type Panel =
   | { kind: "room" }
   | { kind: "give"; weekNumber: number }
   | { kind: "remind"; weekNumber: number; only: { uid: string; firstName: string } | null };
+
+/**
+ * Somebody moved into the group mid-term, on a week before they joined it:
+ * their name (to the reading view, where there is one), the line saying
+ * from which week they join and what there is to read, and, beside the
+ * work's table, the chip.
+ */
+function JoinsLaterName({
+  person,
+  weekNumber,
+  groupName,
+  readBase,
+  chip = false,
+}: {
+  person: { uid: string; name: string; joins?: JoinsLater };
+  weekNumber: number;
+  groupName: string;
+  readBase: string | null;
+  chip?: boolean;
+}) {
+  if (!person.joins) return null;
+  return (
+    <span className={styles.joinsLater} data-testid="group-joins-later">
+      {readBase ? (
+        <Link href={readingHref(readBase, person.uid, person.joins.weeksToRead[0] ?? weekNumber)} className={styles.personLink}>
+          {person.name}
+        </Link>
+      ) : (
+        <span>{person.name}</span>
+      )}
+      <span className={styles.cellNote}>{joinsLaterWords(groupName, person.joins)}</span>
+      {chip && <span className={`${styles.excuseChip} ${styles.excuseWaiting}`}>{newFromWeekWords(person.joins.fromWeek)}</span>}
+    </span>
+  );
+}
 
 function chipsOf(week: GroupPageWeek): string[] {
   return [week.hasLink ? W.LINK_FOR_WEEK : W.NO_LINK_YET, W.joiningOnlineChip(week.joiningOnline), W.cantMakeItChip(week.cantMakeIt)];
@@ -608,6 +655,13 @@ export default function GroupPage({
               facilitatorsApart={view.facilitatorsWithPlaces}
               onRemind={(only) => open({ kind: "remind", weekNumber: week.weekNumber, only })}
               readBase={links.coursework ?? null}
+              moveBase={links.move ?? null}
+              movable={links.movable ?? []}
+              joinsLater={week.people
+                .filter((person) => person.joins)
+                .map((person) => (
+                  <JoinsLaterName key={person.uid} person={person} weekNumber={week.weekNumber} groupName={view.groupName} readBase={links.coursework ?? null} chip />
+                ))}
             />
           ) : (
             week &&
@@ -625,9 +679,26 @@ export default function GroupPage({
                     </tr>
                   </thead>
                   <tbody>
-                    {week.people.map((person) => (
+                    {week.people.map((person) =>
+                      person.joins ? (
+                        <tr key={person.uid}>
+                          <td>
+                            <JoinsLaterName person={person} weekNumber={week.weekNumber} groupName={view.groupName} readBase={links.coursework ?? null} />
+                          </td>
+                          <td>
+                            <span className={`${styles.excuseChip} ${styles.excuseWaiting}`}>{newFromWeekWords(person.joins.fromWeek)}</span>
+                          </td>
+                        </tr>
+                      ) : (
                       <tr key={person.uid}>
-                        <td>{person.name}</td>
+                        <td>
+                          {person.name}
+                          {links.move && (links.movable ?? []).includes(person.uid) && (
+                            <Link href={`${links.move}/${encodeURIComponent(person.uid)}/move`} className={styles.moveLink}>
+                              {MOVE_LINK}
+                            </Link>
+                          )}
+                        </td>
                         <td>
                           {/* A request to be excused is one of two facts, and
                               says it in place of what they said in advance. */}
@@ -642,7 +713,8 @@ export default function GroupPage({
                           )}
                         </td>
                       </tr>
-                    ))}
+                      ),
+                    )}
                   </tbody>
                 </table>
                 {view.facilitatorsWithPlaces.length > 0 && (

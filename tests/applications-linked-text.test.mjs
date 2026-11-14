@@ -830,8 +830,8 @@ const BUILT = new Map([
   [
     "src/features/applications/people/ProgrammePeople.tsx",
     {
-      built: ["item.href", "row.applicationHref", "row.groupsHref"],
-      from: "the People tab's More menu: the person's application on the programme's review screen and People in groups, each built on the server from the programme's own path and, for the application, the person's uid, encoded",
+      built: ["item.href", "row.applicationHref", "row.groupsHref", "row.moveHref"],
+      from: "the People tab's More menu: the person's application on the programme's review screen, People in groups, and the page for moving them to another group for good, each built on the server from the programme's own path and, for the application and the move, the person's uid, encoded",
     },
   ],
   [
@@ -1282,6 +1282,13 @@ const BUILT = new Map([
         'firstQuestionHref(`/admin/admissions/forms/${round}/programmes/${programmeKey}/question?group=${encodeURIComponent(group.id)}`, week.weekNumber, "reflection")',
       ],
       from: "the programme's own page of one question across the group, at the week's first reflection: its path from the form's and the programme's ids in the address, encoded, a live group's id and the week's number. Nothing anybody typed",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move/page.tsx",
+    {
+      built: ["backHref"],
+      from: "the way back to the programme's own People tab: its path from the form's and the programme's ids in the address, encoded. Nothing anybody typed",
     },
   ],
   [

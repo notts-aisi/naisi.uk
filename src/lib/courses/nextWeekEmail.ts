@@ -99,8 +99,10 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
  * ── AN EARLIER WEEK NOT DONE ────────────────────────────────────────────────
  * Each person's email adds one line for any earlier week of theirs that is
  * not done, whose session has passed and which they had joined by then
- * (`earlierWeeksNotDone`), read before the claim with everything else. A read
- * of it that fails leaves the line out rather than hold the group's email.
+ * (`earlierWeeksNotDone`), read before the claim with everything else, each
+ * week judged on the copy that person reads it on (for somebody moved here
+ * mid-term, the old group's copy of a week spent there). A read of it that
+ * fails leaves the line out rather than hold the group's email.
  *
  * ── WHAT A PRESS WOULD DO, SAID BEFORE IT ───────────────────────────────────
  * The register's page says what pressing its button emails before anybody

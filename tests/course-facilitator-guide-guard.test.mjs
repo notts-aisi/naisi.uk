@@ -195,6 +195,10 @@ const THROUGH = {
     via: "lib/firestore/courseDeletion.ts",
     why: "counts what a run's destroy would take, through the same engine, and no course's guide is in it",
   },
+  "app/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "moving somebody to another group for good mid-term forgets Publish's markers for the move by Publish's own marker ids, and reads nothing of the guide",
+  },
   "app/api/courses/runs/[runId]/allocation/route.ts": {
     via: "lib/courses/allocationPublish.ts",
     why: "the allocation board's account of what Publish would send, read through Publish's own plan: counts and names of people, never a word of an email or of the guide",
