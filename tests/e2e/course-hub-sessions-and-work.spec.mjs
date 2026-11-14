@@ -983,7 +983,11 @@ test("course hub: a group's sessions and a week's work, from Can't make it to wo
 
     await step("the facilitator's pages say late with how late, and show the answer as it stood at the session", async () => {
       activePage = fernPage;
+      // This page is still at this address from before the session, and going
+      // again to an address that ends in a fragment moves within the page
+      // without asking the server for it. Load it again.
       await fernPage.goto(readingUrl, { waitUntil: "domcontentloaded" });
+      await fernPage.reload({ waitUntil: "domcontentloaded" });
       await answerOn(fernPage).waitFor({ timeout: WAIT_MS });
       await answerOn(fernPage).getByText(WORDS.atSession, { exact: true }).waitFor({ timeout: WAIT_MS });
       const said = flat(await answerOn(fernPage).innerText());
