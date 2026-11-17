@@ -2879,6 +2879,15 @@ describe("what loads from Google, and what the browser keeps", () => {
         ["src/features/events/RsvpForm.tsx", "an event's sign-up form, for everybody who has it on screen"],
         ["src/features/admissions/ApplyFlow.tsx", "the application form of the older kind of round, a course application form"],
         ["src/features/applications/apply/JoinAccount.tsx", "the application form's first step, at the point somebody with no account makes one"],
+        // NOT YET IN THE TWO SENTENCES ABOVE. The AI at Nottingham survey is
+        // anonymous and has a privacy notice of its own, at /ai-survey/privacy,
+        // which names Google reCAPTCHA and its cookie and is linked from the
+        // survey's start screen, before the step that loads it. This policy's
+        // sentence and the services page's line name the survey from version
+        // 20, which goes out with the survey; until then the notice is where
+        // it is said. tests/ai-survey-no-trace.test.mjs holds the script to
+        // the email step alone.
+        ["src/features/aiSurvey/SurveyFlow.tsx", "the email step of the AI at Nottingham survey, said in that survey's own notice until version 20 of this policy names it"],
       ]),
       "rendering Google reCAPTCHA",
       "The policy and the services page name every form it runs on. Add the " +
@@ -2973,6 +2982,13 @@ describe("what loads from Google, and what the browser keeps", () => {
         ["src/features/pwa/LastRouteTracker.tsx", "a comment about the last-route key, which lastRoute.ts keeps"],
         ["src/features/admissions/ApplyFlow.tsx", "a comment saying the older form deliberately keeps no copy there"],
         ["src/features/courses/PacingBanner.tsx", "a comment saying a dismissal is deliberately not kept there"],
+        // NOT YET IN THE PARAGRAPH ABOVE. The AI at Nottingham survey keeps
+        // one key, naisi.aiSurvey.pass, while somebody is part way through, so
+        // a closed tab can be come back to: the pass and never an answer,
+        // removed on finishing (tests/ai-survey-no-trace.test.mjs holds all
+        // three). The policy lists it from version 20, which goes out with the
+        // survey.
+        ["src/features/aiSurvey/keptPass.ts", "keeps the pass to an unfinished AI at Nottingham survey under naisi.aiSurvey.pass, which version 20 of this policy lists"],
       ]),
       "naming the browser's local storage",
       "The policy lists exactly what the site keeps there: five preferences " +

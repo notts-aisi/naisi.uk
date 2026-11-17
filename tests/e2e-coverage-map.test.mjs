@@ -1517,6 +1517,30 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated and anonymous answers from an earlier day, so a spec can read them as the lead.",
   },
+  "/api/ai-survey/code": {
+    reason:
+      "Sending a code to a University address for the anonymous survey: tests/public-write-gating.test.mjs holds its bot check and limits, and tests/ai-survey-no-trace.test.mjs that it reads no session and leaves no row in the send log.",
+    coverWhen:
+      "When the end-to-end harness can pass a bot check for a University address and read the code out of its mail catcher (its bypass is for its own reserved domain, which this survey refuses by design), so a spec can go from the start screen to Thank you.",
+  },
+  "/api/ai-survey/code/check": {
+    reason:
+      "Checking the code and using the address up, in one transaction; tests/ai-survey-no-trace.test.mjs holds that this step never touches an answer and that no time is stored against the used-email list.",
+    coverWhen:
+      "When the end-to-end harness can pass a bot check for a University address and read the code out of its mail catcher (its bypass is for its own reserved domain, which this survey refuses by design), so a spec can go from the start screen to Thank you.",
+  },
+  "/api/ai-survey/save": {
+    reason:
+      "Saving one page of answers against a signed pass; tests/ai-survey.test.mjs holds what a page may carry and that a pass cannot be forged, tests/ai-survey-no-trace.test.mjs what an answer set holds.",
+    coverWhen:
+      "When the end-to-end harness can pass a bot check for a University address and read the code out of its mail catcher (its bypass is for its own reserved domain, which this survey refuses by design), so a spec can go from the start screen to Thank you.",
+  },
+  "/api/ai-survey/session": {
+    reason:
+      "Coming back to an unfinished survey: which pages are saved and never an answer, held by tests/ai-survey-no-trace.test.mjs.",
+    coverWhen:
+      "When the end-to-end harness can pass a bot check for a University address and read the code out of its mail catcher (its bypass is for its own reserved domain, which this survey refuses by design), so a spec can go from the start screen to Thank you.",
+  },
   "/api/feedback": {
     reason:
       "The anonymous keep, change and drop form: answering by the programme's one link; tests/anonymous-feedback.test.mjs answers signed out, signed in and in a view-as session, keeps only the three answers, the programme and the day, and refuses a wrong, malformed, closed or destroyed form's link and a flood past either limit.",
@@ -2169,6 +2193,24 @@ const NOT_COVERED = {
       "The links page is checked-in rows, one read of published events and the home page's subscribe form, whose route tests/subscriptions-consent.test.mjs executes; what is new on it is the source attribution, which tests/campaign-attribution.test.mjs pins as a pure function.",
     coverWhen:
       "When scan counting or an admin-editable list of rows lands on it, because then the page writes and its content stops being a checked-in file.",
+  },
+  "/ai-survey": {
+    reason:
+      "The anonymous AI at Nottingham survey: tests/ai-survey.test.mjs runs its definition, checks, export and pass, and tests/ai-survey-no-trace.test.mjs walks every file of it for a session, a cookie, a header, a log line or a time beside an answer. No spec drives it, because its email check takes only a University address.",
+    coverWhen:
+      "When the end-to-end harness can pass a bot check for a University address and read the code out of its mail catcher (its bypass is for its own reserved domain, which this survey refuses by design), so a spec can go from the start screen to Thank you.",
+  },
+  "/ai-survey/privacy": {
+    reason:
+      "The survey's own privacy notice, a static page drawn from the definition; tests/ai-survey.test.mjs holds that every sentence shown is filled and that a service is named only while the survey uses it.",
+    coverWhen:
+      "When the end-to-end harness can pass a bot check for a University address and read the code out of its mail catcher (its bypass is for its own reserved domain, which this survey refuses by design), so a spec can go from the start screen to Thank you.",
+  },
+  "/ai-survey/results": {
+    reason:
+      "Where the survey's totals will be published: one static sentence saying when, until the results page is designed.",
+    coverWhen:
+      "When the end-to-end harness can pass a bot check for a University address and read the code out of its mail catcher (its bypass is for its own reserved domain, which this survey refuses by design), so a spec can go from the start screen to Thank you.",
   },
   "/feedback/[token]": {
     reason:

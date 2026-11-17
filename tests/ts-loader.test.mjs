@@ -262,6 +262,12 @@ describe("the shared loader reads JSX", () => {
  */
 const USERS = new Map([
   [
+    "ai-survey.test.mjs",
+    "runs the AI at Nottingham survey's definition, address rule, page checks, export and browser pass as plain " +
+      "functions, with the server-only marker and the Admin SDK's module stubbed because the pass and the store " +
+      "import them",
+  ],
+  [
     "course-week-emails.test.mjs",
     "runs the week's emails' timing, words and what a week asks for as plain functions, and renders their one " +
       "template, a .tsx component, to read every combination of missing facts as an inbox would",

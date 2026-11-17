@@ -169,6 +169,8 @@ const DEADLINE_NAMES = new Map([
     "closesAt",
     {
       files: [
+        // The AI at Nottingham survey's close: a value of its definition.
+        "src/lib/aiSurvey/types.ts",
         "src/app/api/admissions/rounds/route.ts",
         "src/lib/admissions/applyRoutes.ts",
         "src/lib/admissions/applyTypes.ts",
@@ -238,6 +240,17 @@ const DEADLINE_NAMES = new Map([
         "src/app/api/courses/runs/[runId]/weeks/[weekId]/submit/route.ts",
       ],
       promises: [
+        {
+          of: "the AI at Nottingham survey's close",
+          binds: "a student answering the survey",
+          why:
+            "The moment after which nobody new may ask for a code and, thirty minutes later, nobody under way " +
+            "may save. A value of the survey's definition, not a stored field, so only a scan of declarations " +
+            "finds it. An open survey closes itself at this moment whether or not anybody presses anything.",
+          told: ["src/app/ai-survey/privacy/page.tsx"],
+          enforced: ["src/lib/aiSurvey/store.ts"],
+          predicate: "now < closesAt",
+        },
         {
           of: "a programme's weeks of work: the week stays open until the programme closes",
           binds: "somebody taking part in a programme's week",
@@ -403,9 +416,30 @@ const DEADLINE_NAMES = new Map([
     },
   ],
   [
+    "closingDate",
+    {
+      files: ["src/lib/aiSurvey/types.ts"],
+      promises: [
+        {
+          of: "the AI at Nottingham survey's close, as a student reads it",
+          binds: "a student answering the survey",
+          why:
+            "The closing day in words (`closesAt` is the same moment as a clock time, and the two are kept in " +
+            "step in the survey's definition). It is a value of the definition, not a stored field, so only a " +
+            "scan of declarations finds it.",
+          told: ["src/app/ai-survey/privacy/page.tsx"],
+          enforced: ["src/lib/aiSurvey/store.ts"],
+          predicate: "now < closesAt",
+        },
+      ],
+    },
+  ],
+  [
     "expiresAt",
     {
       files: [
+        // The pass a browser holds for the AI at Nottingham survey.
+        "src/lib/aiSurvey/pass.ts",
         "src/app/api/admin/site-notice/route.ts",
         "src/app/api/register/resend/route.ts",
         "src/app/api/scheduler/tick/route.ts",
@@ -417,6 +451,17 @@ const DEADLINE_NAMES = new Map([
         "src/lib/siteNotice.ts",
       ],
       promises: [
+        {
+          of: "the pass a browser holds while it answers the AI at Nottingham survey",
+          binds: "a student part way through the survey",
+          why:
+            "A pass works for 24 hours after its last save, and each save hands back a fresh one. The time " +
+            "travels inside the signed pass, in the browser, so that the server stores no time against " +
+            "anybody. NOBODY IS TOLD the 24 hours: the page says only to finish on this device.",
+          told: [],
+          enforced: ["src/lib/aiSurvey/pass.ts"],
+          predicate: "x <= now",
+        },
         {
           of: "a magic-link token in `emailVerifications`",
           binds: "the person holding the link",

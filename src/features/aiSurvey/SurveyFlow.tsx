@@ -1,0 +1,672 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
+import { RECAPTCHA_ENABLED, RecaptchaInvisible, type RecaptchaHandle } from "@/components/ui/RecaptchaInvisible";
+import { useHydrated } from "@/hooks/useHydrated";
+import { normaliseCode, normaliseUniversityAddress } from "@/lib/aiSurvey/address";
+import { own } from "@/lib/applications/keys";
+import { callSurvey } from "./api";
+import { forgetPass, keepPass, keptPass } from "./keptPass";
+import { sequenceOf, type PublicSurvey } from "./publicSurvey";
+import { PageOfQuestions, type PageAnswers } from "./Questions";
+import styles from "./survey.module.css";
+
+/**
+ * The AI at Nottingham survey, from the start screen to "Thank you".
+ *
+ * One component and one address. The start screen is in the first HTML that
+ * arrives, so somebody who scanned a code on a bad signal reads it before any
+ * script runs; everything after it needs the script, because everything after
+ * it is a conversation with the server.
+ *
+ * WHAT THIS PAGE HOLDS, AND WHERE:
+ *  - the address somebody types: in this component's memory, for the two
+ *    steps of the email check, and nowhere else. Never in storage.
+ *  - the pass: in memory, and in the browser's storage (keptPass.ts) so a
+ *    closed tab can be come back to.
+ *  - answers: in memory only, for this sitting, so Back works. They are NEVER
+ *    put in storage and never asked back from the server, so after coming
+ *    back, pages saved earlier stay closed: on a shared computer the next
+ *    person must not see the last person's.
+ *
+ * Nothing slides or fades.
+ */
+
+type Step =
+  | { at: "start" }
+  | { at: "comingBack" }
+  | { at: "address" }
+  | { at: "code" }
+  | { at: "already" }
+  | { at: "in" }
+  | { at: "page"; index: number }
+  | { at: "end" }
+  | { at: "closed" };
+
+type Session = { pass: string; order: string[]; savedPages: string[] };
+
+function ErrorLine({ id, children }: { id: string; children: string }) {
+  return (
+    <p id={id} role="alert" className={styles.error}>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16">
+        <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M8 4.5v4.2M8 10.9v.1" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+      <span>{children}</span>
+    </p>
+  );
+}
+
+/**
+ * A whole number below `n`, each equally likely, from the browser's own
+ * random source. A draw from the top of the range, where a remainder would
+ * make the low numbers likelier, is thrown away and drawn again.
+ */
+function randomBelow(n: number): number {
+  const limit = Math.floor(0x100000000 / n) * n;
+  const draw = new Uint32Array(1);
+  for (;;) {
+    crypto.getRandomValues(draw);
+    if (draw[0] < limit) return draw[0] % n;
+  }
+}
+
+/** A fair shuffle: every order of the lines is as likely as any other. */
+function shuffle<T>(items: readonly T[]): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = randomBelow(i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; closed: boolean }) {
+  const hydrated = useHydrated();
+  const words = survey.emailCheck;
+  const [step, setStep] = useState<Step>(closed ? { at: "closed" } : { at: "start" });
+  const [session, setSession] = useState<Session | null>(null);
+  /** Where Back stops: the first page of this sitting. */
+  const [floor, setFloor] = useState(0);
+  const [answers, setAnswers] = useState<Record<string, PageAnswers>>({});
+  const [lineOrders, setLineOrders] = useState<Record<string, string[]>>({});
+
+  const [ticked, setTicked] = useState(false);
+  const tickRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [address, setAddress] = useState("");
+  const [code, setCode] = useState("");
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
+
+  const recaptcha = useRef<RecaptchaHandle>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+
+  const go = useCallback((next: Step) => {
+    setFieldError(null);
+    setSaveFailed(false);
+    setStep(next);
+  }, []);
+
+  // Each new screen starts at its top, with its heading focused so a screen
+  // reader says where it is. Not on first load: the page should open as any
+  // page does.
+  const shown = useRef(step);
+  useEffect(() => {
+    if (shown.current === step) return;
+    shown.current = step;
+    window.scrollTo(0, 0);
+    heading.current?.focus({ preventScroll: true });
+  }, [step]);
+
+  // The two ticks are real, unmanaged boxes, so one ticked before the script
+  // arrived is still ticked: read them rather than reset them.
+  const readTicks = useCallback(() => {
+    setTicked(survey.start.ticks.every((tick) => tickRefs.current[tick.id]?.checked === true));
+  }, [survey.start.ticks]);
+  useEffect(() => {
+    readTicks();
+  }, [readTicks]);
+
+  // Coming back: is there a pass in this browser, and does it still work?
+  useEffect(() => {
+    if (closed) return;
+    const pass = keptPass();
+    if (!pass) return;
+    let cancelled = false;
+    void callSurvey<{ pass: string; order: string[]; savedPages: string[] }>("session", { pass }).then((reply) => {
+      if (cancelled) return;
+      if (reply.ok) {
+        setSession({ pass: reply.pass, order: reply.order, savedPages: reply.savedPages });
+        setStep({ at: "comingBack" });
+      } else if (reply.error === "gone" || reply.error === "closed") {
+        forgetPass();
+        if (reply.error === "closed") setStep({ at: "closed" });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [closed]);
+
+  const sequence = session ? sequenceOf(survey.pages, session.order) : [];
+
+  const sendCode = async () => {
+    if (busy) return false;
+    const typed = normaliseUniversityAddress(address);
+    if (!typed) {
+      setFieldError(words.errors.notUniversityAddress);
+      return false;
+    }
+    setBusy(true);
+    setFieldError(null);
+    const recaptchaToken = RECAPTCHA_ENABLED ? ((await recaptcha.current?.execute()) ?? null) : null;
+    if (RECAPTCHA_ENABLED && !recaptchaToken) {
+      setBusy(false);
+      setFieldError(words.errors.botCheckFailed);
+      return false;
+    }
+    const reply = await callSurvey<Record<string, never>>("code", { email: typed, recaptchaToken });
+    setBusy(false);
+    if (reply.ok) return true;
+    if (reply.error === "closed") {
+      go({ at: "closed" });
+      return false;
+    }
+    const known = words.errors as Record<string, string>;
+    setFieldError(known[reply.error] ?? words.errors.couldNotSend);
+    return false;
+  };
+
+  const onAddress = async (event: FormEvent) => {
+    event.preventDefault();
+    if (await sendCode()) {
+      setCode("");
+      go({ at: "code" });
+    }
+  };
+
+  const onCode = async (event: FormEvent) => {
+    event.preventDefault();
+    if (busy) return;
+    const typed = normaliseUniversityAddress(address);
+    const digits = normaliseCode(code);
+    if (!typed || !digits) {
+      setFieldError(words.errors.wrongCode);
+      return;
+    }
+    setBusy(true);
+    setFieldError(null);
+    const reply = await callSurvey<{ pass: string; order: string[] }>("code/check", { email: typed, code: digits });
+    setBusy(false);
+    if (reply.ok) {
+      keepPass(reply.pass);
+      setSession({ pass: reply.pass, order: reply.order, savedPages: [] });
+      setFloor(0);
+      setAnswers({});
+      // The address has done its one job. Drop it from the page's memory.
+      setAddress("");
+      setCode("");
+      go({ at: "in" });
+      return;
+    }
+    if (reply.error === "alreadyAnswered") {
+      setAddress("");
+      setCode("");
+      go({ at: "already" });
+    } else if (reply.error === "closed") {
+      go({ at: "closed" });
+    } else {
+      const known = words.errors as Record<string, string>;
+      setFieldError(known[reply.error] ?? words.errors.wrongCode);
+    }
+  };
+
+  /** Show a page, deciding the order of its lines the first time it is shown this sitting. */
+  const showPage = (index: number, order: string[]) => {
+    const pageId = sequenceOf(survey.pages, order)[index];
+    const page = survey.pages.find((p) => p.id === pageId);
+    if (page) {
+      setLineOrders((current) => {
+        const next = { ...current };
+        for (const question of page.questions) {
+          if (question.type === "lines" && !next[question.id]) {
+            const ids = question.lines.map((line) => line.id);
+            next[question.id] = question.shuffle ? shuffle(ids) : ids;
+          }
+        }
+        return next;
+      });
+    }
+    go({ at: "page", index });
+  };
+
+  const carryOn = () => {
+    if (!session) return;
+    const order = sequenceOf(survey.pages, session.order);
+    const next = order.findIndex((id) => !session.savedPages.includes(id));
+    const index = next === -1 ? order.length - 1 : next;
+    // Pages saved before this sitting stay closed: Back stops here.
+    setFloor(index);
+    showPage(index, session.order);
+  };
+
+  const startOwn = () => {
+    forgetPass();
+    setSession(null);
+    setAnswers({});
+    go({ at: "start" });
+  };
+
+  const save = async (index: number) => {
+    if (!session || busy) return;
+    const pageId = sequence[index];
+    const last = index === sequence.length - 1;
+    setBusy(true);
+    setSaveFailed(false);
+    const reply = await callSurvey<{ pass: string; finished: boolean }>("save", {
+      pass: session.pass,
+      pageId,
+      answers: own(answers, pageId) ?? {},
+      finish: last,
+    });
+    setBusy(false);
+    if (!reply.ok) {
+      if (reply.error === "closed") {
+        forgetPass();
+        go({ at: "closed" });
+        return;
+      }
+      // The page keeps its answers, and Next becomes Try again.
+      setSaveFailed(true);
+      return;
+    }
+    if (last) {
+      // Finished: the answer set is locked, and this browser keeps nothing.
+      forgetPass();
+      setSession(null);
+      setAnswers({});
+      go({ at: "end" });
+      return;
+    }
+    keepPass(reply.pass);
+    setSession({ ...session, pass: reply.pass, savedPages: [...new Set([...session.savedPages, pageId])] });
+    showPage(index + 1, session.order);
+  };
+
+  const bar = (
+    <div className={styles.stack}>
+      <p className={styles.eyebrow}>{survey.start.eyebrow}</p>
+      <h1 ref={heading} tabIndex={-1} className={styles.h1}>
+        {survey.title}
+      </h1>
+    </div>
+  );
+
+  if (step.at === "closed") {
+    return (
+      <main className={styles.column}>
+        {bar}
+        <section className={styles.card}>
+          <p className={`${styles.body} ${styles.bodyStrong}`}>{survey.start.closed}</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (step.at === "start") {
+    return (
+      <main className={styles.column}>
+        {bar}
+        <div className={styles.stackWide}>
+          <p className={styles.body}>{survey.start.intro}</p>
+          <p className={`${styles.body} ${styles.bodyStrong}`}>{survey.start.time}</p>
+          <p className={styles.small}>{survey.start.organiser}</p>
+        </div>
+        <section className={styles.answersCard}>
+          <h2 className={styles.answersHeading}>
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16">
+              <rect x="3" y="7" width="10" height="7" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
+            {survey.start.yourAnswersHeading}
+          </h2>
+          <ul className={styles.answersList}>
+            {survey.start.yourAnswers.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          <p className={styles.answersLink}>
+            <Link href="/ai-survey/privacy" prefetch={false}>
+              {survey.start.privacyLink}
+            </Link>
+          </p>
+        </section>
+        <div className={styles.ticks}>
+          {survey.start.ticks.map((tick) => (
+            <label key={tick.id} htmlFor={`tick-${tick.id}`} className={styles.tick}>
+              <span className={styles.tickBox}>
+                <input
+                  id={`tick-${tick.id}`}
+                  type="checkbox"
+                  ref={(node) => {
+                    tickRefs.current[tick.id] = node;
+                  }}
+                  onChange={readTicks}
+                />
+                <span aria-hidden="true" className={styles.tickFace}>
+                  <svg width="12" height="12" viewBox="0 0 12 12">
+                    <path d="M2 6.2 4.8 9 10 3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+              </span>
+              <span>{tick.label}</span>
+            </label>
+          ))}
+        </div>
+        <div className={styles.stack}>
+          <button
+            type="button"
+            className={`${styles.primary} ${styles.full}`}
+            disabled={!hydrated || !ticked}
+            aria-describedby="ticks-needed"
+            onClick={() => go({ at: "address" })}
+          >
+            {survey.start.button}
+          </button>
+          {/* Until both boxes are ticked. The ticks are not stored. */}
+          {!ticked && (
+            <p id="ticks-needed" className={styles.small}>
+              {survey.start.ticksNeeded}
+            </p>
+          )}
+        </div>
+      </main>
+    );
+  }
+
+  if (step.at === "comingBack") {
+    return (
+      <main className={styles.column}>
+        <div className={styles.stack}>
+          <p className={styles.eyebrow}>{survey.start.eyebrow}</p>
+          <h1 ref={heading} tabIndex={-1} className={styles.h1}>
+            {survey.start.comingBack.heading}
+          </h1>
+        </div>
+        <p className={`${styles.body} ${styles.bodyStrong}`}>{survey.start.comingBack.body}</p>
+        <div className={styles.stackWide}>
+          <button type="button" className={`${styles.primary} ${styles.full}`} onClick={carryOn}>
+            {survey.start.comingBack.carryOn}
+          </button>
+          <button type="button" className={`${styles.secondary} ${styles.full}`} onClick={startOwn}>
+            {survey.start.comingBack.startOwn}
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  if (step.at === "address" || step.at === "code" || step.at === "already") {
+    const stepHead = (
+      <div className={styles.stack}>
+        <p className={styles.eyebrow}>{step.at === "address" ? words.stepAddress : words.stepCode}</p>
+        <h1 ref={heading} tabIndex={-1} className={`${styles.h1} ${styles.h1Step}`}>
+          {words.heading}
+        </h1>
+      </div>
+    );
+    return (
+      <main className={styles.column}>
+        {stepHead}
+        {step.at === "address" && (
+          <form className={styles.form} onSubmit={onAddress} noValidate>
+            <div className={styles.field}>
+              <label htmlFor="email" className={styles.fieldLabel}>
+                {words.fieldLabel}
+              </label>
+              <p id="email-help" className={styles.small}>
+                {words.fieldHelp}
+              </p>
+              <input
+                id="email"
+                className={styles.input}
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                value={address}
+                onChange={(event) => setAddress(event.target.value)}
+                aria-invalid={fieldError ? "true" : "false"}
+                aria-describedby={fieldError ? "email-help email-err" : "email-help"}
+              />
+              {fieldError && <ErrorLine id="email-err">{fieldError}</ErrorLine>}
+            </div>
+            <button type="submit" className={`${styles.primary} ${styles.full}`} disabled={busy} data-busy={busy || undefined}>
+              {words.sendButton}
+            </button>
+            <RecaptchaLine />
+          </form>
+        )}
+        {step.at === "code" && (
+          <form className={styles.form} onSubmit={onCode} noValidate>
+            <p className={styles.info}>{words.codeSent}</p>
+            <div className={styles.field}>
+              <label htmlFor="code" className={styles.fieldLabel}>
+                {words.codeFieldLabel}
+              </label>
+              <input
+                id="code"
+                className={`${styles.input} ${styles.code}`}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]*"
+                maxLength={6}
+                value={code}
+                onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                aria-invalid={fieldError ? "true" : "false"}
+                aria-describedby={fieldError ? "code-err" : undefined}
+              />
+              {fieldError && <ErrorLine id="code-err">{fieldError}</ErrorLine>}
+            </div>
+            <button type="submit" className={`${styles.primary} ${styles.full}`} disabled={busy} data-busy={busy || undefined}>
+              {words.checkButton}
+            </button>
+            <div className={styles.stackWide}>
+              <p className={styles.small}>{words.noEmailArrived}</p>
+              <div className={styles.links}>
+                <button
+                  type="button"
+                  className={styles.link}
+                  disabled={busy}
+                  onClick={async () => {
+                    if (await sendCode()) setCode("");
+                  }}
+                >
+                  {words.newCodeLink}
+                </button>
+                <button type="button" className={styles.link} onClick={() => go({ at: "address" })}>
+                  {words.differentEmailLink}
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+        {step.at === "already" && (
+          <>
+            <section role="alert" className={styles.card}>
+              <p className={`${styles.body} ${styles.bodyStrong}`}>{words.errors.alreadyAnswered}</p>
+            </section>
+            <div>
+              <button type="button" className={styles.link} onClick={() => go({ at: "address" })}>
+                {words.differentEmailLink}
+              </button>
+            </div>
+          </>
+        )}
+        {/* The bot check's script loads on the email step and nowhere else in the survey. */}
+        {RECAPTCHA_ENABLED && step.at !== "already" && <RecaptchaInvisible ref={recaptcha} />}
+      </main>
+    );
+  }
+
+  if (step.at === "in") {
+    return (
+      <main className={styles.column}>
+        <div className={styles.stackWide}>
+          <div aria-hidden="true" className={styles.done}>
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <path d="M4 10.5 8.2 14.5 16 6" fill="none" stroke="var(--color-ok)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <h1 ref={heading} tabIndex={-1} className={styles.h1}>
+            {words.afterTheCodeHeading}
+          </h1>
+        </div>
+        <p className={`${styles.body} ${styles.bodyStrong}`}>{words.afterTheCode}</p>
+        <button
+          type="button"
+          className={`${styles.primary} ${styles.full}`}
+          onClick={() => session && showPage(0, session.order)}
+        >
+          {words.afterTheCodeButton}
+        </button>
+      </main>
+    );
+  }
+
+  if (step.at === "end") {
+    return (
+      <main className={styles.column}>
+        <div className={styles.stackWide}>
+          <h1 ref={heading} tabIndex={-1} className={`${styles.h1} ${styles.h1Thanks}`}>
+            {survey.end.heading}
+          </h1>
+          <p className={`${styles.body} ${styles.bodyStrong}`}>{survey.end.body}</p>
+        </div>
+        <section className={`${styles.card} ${styles.cardRoomy}`}>
+          <p className={`${styles.body} ${styles.bodyStrong}`}>{survey.end.petition}</p>
+          {/* A plain link in a new tab. Never a form here, and nothing in the
+              link, or sent with it, says where the person came from. */}
+          <a href={survey.end.newsletterHref} target="_blank" rel="noopener noreferrer" className={styles.linkButton}>
+            {survey.end.newsletterButton}
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14">
+              <path d="M5 2h7v7M12 2 4.5 9.5M10 12H2V4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </a>
+        </section>
+        <p className={styles.body}>{survey.end.passItOn}</p>
+      </main>
+    );
+  }
+
+  // A page of questions.
+  const pageId = sequence[step.index];
+  const page = survey.pages.find((p) => p.id === pageId);
+  if (!session || !page) return null;
+  const total = sequence.length;
+  const number = step.index + 1;
+  const last = number === total;
+  const firstProposal = sequence.findIndex((id) => survey.pages.find((p) => p.id === id)?.proposal);
+  const intro = page.proposal
+    ? step.index === firstProposal
+      ? survey.proposalsIntro.first
+      : survey.proposalsIntro.later
+    : page.intro;
+  // On a page whose lines have no question of their own, the intro IS the question.
+  const introAsks = page.questions.some((q) => q.type === "lines" && q.text === null);
+  const pageAnswers = own(answers, page.id) ?? {};
+
+  return (
+    <main className={`${styles.column} ${styles.columnPage}`}>
+      <h1 className="visually-hidden">{survey.title}</h1>
+      <div className={styles.stackWide}>
+        <div className={styles.pageHead}>
+          <h2 ref={heading} tabIndex={-1} className={styles.pageHeading}>
+            {page.heading}
+          </h2>
+          <span className={styles.pageOf}>
+            {survey.ui.progress.replace("{n}", String(number)).replace("{total}", String(total))}
+          </span>
+        </div>
+        <div aria-hidden="true" className={styles.track}>
+          <div className={styles.trackFill} style={{ width: `${Math.round((number / total) * 100)}%` }} />
+        </div>
+      </div>
+      {intro && <p className={`${styles.body} ${introAsks ? styles.bodyStrong : ""}`}>{intro}</p>}
+      <PageOfQuestions
+        key={page.id}
+        page={page}
+        scales={survey.scales}
+        lineOrders={lineOrders}
+        answers={pageAnswers}
+        charactersLeft={survey.ui.charactersLeft}
+        selectPlaceholder={survey.ui.selectPlaceholder}
+        onChange={(codeOf, value) =>
+          setAnswers((current) => {
+            const next = { ...(own(current, page.id) ?? {}) };
+            if (value === undefined) delete next[codeOf];
+            else next[codeOf] = value;
+            return { ...current, [page.id]: next };
+          })
+        }
+      />
+      <div className={styles.foot}>
+        {saveFailed && (
+          <p role="alert" className={styles.failed}>
+            {survey.ui.saveFailed}
+          </p>
+        )}
+        <div className={styles.footNotes}>
+          <p>{survey.ui.skipNote}</p>
+          <p>{survey.ui.savedNote}</p>
+        </div>
+        <div className={styles.footButtons}>
+          {step.index > floor && (
+            <button
+              type="button"
+              className={`${styles.secondary} ${styles.back}`}
+              disabled={busy}
+              onClick={() => showPage(step.index - 1, session.order)}
+            >
+              {survey.ui.back}
+            </button>
+          )}
+          <button
+            type="button"
+            className={`${styles.primary} ${styles.next}`}
+            disabled={busy}
+            data-busy={busy || undefined}
+            onClick={() => void save(step.index)}
+          >
+            {busy ? survey.ui.saving : saveFailed ? survey.ui.tryAgain : last ? survey.ui.finish : survey.ui.next}
+          </button>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+/**
+ * The site's own reCAPTCHA wording, as the join form and the application form
+ * show it, with Google's two links. Shown wherever the bot check runs.
+ */
+function RecaptchaLine() {
+  if (!RECAPTCHA_ENABLED) return null;
+  return (
+    <p className={styles.small}>
+      This site is protected by reCAPTCHA. Google’s{" "}
+      <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">
+        Privacy Policy
+      </a>{" "}
+      and{" "}
+      <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer">
+        Terms of Service
+      </a>{" "}
+      apply.
+    </p>
+  );
+}
