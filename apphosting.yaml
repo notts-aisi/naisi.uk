@@ -45,6 +45,22 @@ env:
   - variable: EVENTS_TOKEN_SECRET
     secret: EVENTS_TOKEN_SECRET
     availability: [RUNTIME]
+  # The AI at Nottingham survey (docs/ai-survey.md).
+  #
+  # The key its used-email list is hashed with: a secret used for nothing
+  # else. The survey's Pilot stage runs without it, on a stand-in, and the
+  # survey cannot be opened without it. Like every secret named here, it has
+  # to exist in BOTH projects before this file reaches either backend.
+  - variable: AI_SURVEY_EMAIL_KEY
+    secret: AI_SURVEY_EMAIL_KEY
+    availability: [RUNTIME]
+  # The second Firestore database the survey's records live in, kept with no
+  # point-in-time recovery and no backups: a copy of an earlier state is a
+  # record of when each answer arrived. It has to exist in both projects, with
+  # its rules deployed (firebase.ai-survey.json), before this value does.
+  - variable: AI_SURVEY_DATABASE
+    value: ai-survey
+    availability: [RUNTIME]
   # SMTP settings for outbound mail, read in src/lib/email/send.ts.
   - variable: SMTP_HOST
     value: smtp.resend.com
