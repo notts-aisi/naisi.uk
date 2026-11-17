@@ -20,6 +20,7 @@ export const SEND_DOOR_NAMES = [
   "mirrorTaskEmailToPush",
   "mirrorCourseDecisionToPush",
   "sendPushToUid",
+  "sendUnloggedText",
   // Named wrappers.
   "sendRsvpEmail",
   "sendCollaboratorEmail",

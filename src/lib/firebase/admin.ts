@@ -83,6 +83,18 @@ export function getAdminDb(): Firestore | undefined {
   return app ? getFirestore(app) : undefined;
 }
 
+/**
+ * A SECOND database in the same project, by its id. One caller: the AI at
+ * Nottingham survey (src/lib/aiSurvey/store.ts), whose records can be kept in
+ * a database of their own that holds no recovery copies, because a copy of an
+ * earlier state is a record of when each answer arrived. Everything else on
+ * the site uses `getAdminDb`.
+ */
+export function getAdminDbNamed(databaseId: string): Firestore | undefined {
+  const app = init();
+  return app ? getFirestore(app, databaseId) : undefined;
+}
+
 export function getAdminStorage(): Storage | undefined {
   const app = init();
   return app ? getStorage(app) : undefined;

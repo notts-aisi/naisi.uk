@@ -505,6 +505,9 @@ const REGISTRY = {
     "The verification link from /profile, and the already-registered variant that goes to the address instead of telling the browser who owns it.",
     2,
   ),
+  "src/lib/aiSurvey/emailCheck.ts#sendUnloggedText": T(
+    "The six-digit code somebody asked for in front of the anonymous AI at Nottingham survey, to the University address they typed: plain text, through the door that leaves no row in the send log.",
+  ),
 
   // -- Transactional: applications and decisions ---------------------------
   "src/app/api/admin/application-emails/send/route.ts#sendEmail": T(

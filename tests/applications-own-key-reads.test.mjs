@@ -214,6 +214,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/features/aiSurvey/",
+    {
+      why: "the AI at Nottingham survey's pages: a page's answers, held in the page's memory under each question's or line's code, read by the codes of the survey's own definition",
+    },
+  ],
+  [
     "src/lib/crests/runs.ts",
     {
       why: "the crest a course run shows: it reads the programme that names the run, by the programme id `namingProgrammeIn` found on that form's own programmeIds, to take its crest",

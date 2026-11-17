@@ -328,3 +328,76 @@ export async function sendEmail({
     held,
   };
 }
+
+/**
+ * THE SECOND DOOR: a plain-text message that leaves NO ROW in `emailSends`.
+ *
+ * One caller, the code email of the AI at Nottingham survey
+ * (src/lib/aiSurvey/emailCheck.ts). That survey is anonymous: it promises
+ * that the address a code was sent to is kept nowhere on this site but as a
+ * keyed hash, apart from every answer. A row in the send log would keep the
+ * address in the clear with the time beside it, and the subject of that
+ * message carries the code. So this door posts the message and writes
+ * nothing. The provider's own delivery record is the only record, and the
+ * survey's notice names it.
+ *
+ * Plain text only: no HTML part, no link and no image, because University
+ * mail scanners open links, which is why the survey sends a code.
+ *
+ * It is not a way round this file's two checks. The suppression list is asked
+ * first and the audience second, exactly as `sendEmail` asks them, and an
+ * address either refuses is not written to. The difference is only that the
+ * refusal is REPORTED to the caller and not recorded, for the same reason the
+ * send is not.
+ *
+ * Do not use it for anything else. A message with no row is invisible on the
+ * deliverability tab, which is the right trade for an anonymous survey and
+ * the wrong one for everything a member would ask us about.
+ */
+export async function sendUnloggedText({
+  to,
+  subject,
+  text,
+  fromName,
+  replyTo,
+}: {
+  to: string;
+  subject: string;
+  text: string;
+  fromName?: string;
+  replyTo?: string;
+}): Promise<"sent" | "suppressed" | "held"> {
+  const displayName = fromName ?? process.env.SMTP_FROM_NAME ?? "NAISI";
+  const fromEmail = fromAddressFor(undefined);
+  if (!fromEmail) throw new Error("SMTP_FROM_EMAIL or SMTP_USER must be set.");
+  const address = to.trim();
+  if (!address) throw new Error("sendUnloggedText was given no recipient address.");
+
+  const db = getAdminDb();
+  if (db) {
+    const verdict = await filterSuppressed(db, [address]);
+    if (verdict.allowed.length === 0) return "suppressed";
+  } else {
+    console.warn("[sendUnloggedText] no Admin SDK, so the suppression list was not consulted for this send.");
+  }
+
+  const audience = resolveEmailAudience(process.env);
+  if (splitByAudience([address], audience).allowed.length === 0) {
+    if (isMisconfiguredProduction(audience)) {
+      console.error(
+        "[sendUnloggedText] HELD a message on the production project: the audience setting " +
+          "does not say everyone. Nothing is reaching anybody until it does.",
+      );
+    }
+    return "held";
+  }
+
+  await transporter().sendMail({
+    from: `"${displayName}" <${fromEmail}>`,
+    to: address,
+    replyTo: replyTo ?? process.env.EMAIL_DEFAULT_REPLY_TO,
+    subject,
+    text,
+  });
+  return "sent";
+}
