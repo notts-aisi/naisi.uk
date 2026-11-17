@@ -1755,8 +1755,8 @@ export const ROUTES = {
       expect: everyone(400),
       why:
         "Saving a page of the anonymous AI at Nottingham survey: the signed pass in the body is the credential " +
-        "and the route reads no session, so every caller, signed in or not, meets the same 400 for a request " +
-        "with no body.",
+        "and the route reads no session, so every caller, signed in or not, meets the same 400 for a body " +
+        "with no pass in it, before anything is read.",
     },
   },
   "/api/ai-survey/session": {
@@ -1764,8 +1764,8 @@ export const ROUTES = {
       expect: everyone(400),
       why:
         "Coming back to an unfinished AI at Nottingham survey: the signed pass in the body is the credential, " +
-        "the route reads no session and writes nothing, so every caller meets the same 400 for a request with " +
-        "no body.",
+        "the route reads no session and writes nothing, so every caller meets the same 400 for a body with no " +
+        "pass in it.",
     },
   },
   "/api/audience": {

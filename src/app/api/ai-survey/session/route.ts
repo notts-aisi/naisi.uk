@@ -18,6 +18,8 @@ import { viewSession } from "@/lib/aiSurvey/saving";
 export async function POST(req: Request) {
   const body = await readSurveyBody(req);
   if (!body) return refuse("refused", 400);
+  // A body with no pass in it is a bad request, not a pass that has stopped working.
+  if (typeof body.pass !== "string" || body.pass.length === 0) return refuse("refused", 400);
   const view = await viewSession(body.pass);
   if (!view.ok) return refuse(view.error, statusOf(view.error));
   return accept({

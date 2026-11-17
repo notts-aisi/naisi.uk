@@ -25,6 +25,8 @@ import { savePage } from "@/lib/aiSurvey/saving";
 export async function POST(req: Request) {
   const body = await readSurveyBody(req);
   if (!body) return refuse("refused", 400);
+  // A body with no pass in it is a bad request, not a pass that has stopped working.
+  if (typeof body.pass !== "string" || body.pass.length === 0) return refuse("refused", 400);
   const result = await savePage(body.pass, body.pageId, body.answers, body.finish);
   if (!result.ok) return refuse(result.error, statusOf(result.error));
   return accept({ ok: true, pass: result.pass, finished: result.finished });
