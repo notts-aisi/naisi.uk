@@ -71,10 +71,19 @@ export function createWorld() {
   let clock = 0;
   let wall = Date.UTC(2026, 10, 17, 12, 0, 0);
   const now = () => wall;
-  const hooks = { afterQuery: null };
+  const hooks = { afterQuery: null, down: false };
+
+  /** With `hooks.down` set, the datastore does not answer: every read and every write throws, as an outage does. */
+  function answering() {
+    if (!hooks.down) return;
+    const error = new Error("14 UNAVAILABLE: the datastore did not answer");
+    error.code = 14;
+    throw error;
+  }
 
   /** Apply a list of operations as ONE commit: every document it touches gets the same update time. */
   function commit(operations) {
+    answering();
     for (const op of operations) {
       if ((op.kind === "update") && !docs.has(op.path)) {
         const error = new Error(`5 NOT_FOUND: no document to update: ${op.path}`);
@@ -129,7 +138,10 @@ export function createWorld() {
     const ref = {
       id,
       path: `${collection}/${id}`,
-      get: async () => snapOf(ref),
+      get: async () => {
+        answering();
+        return snapOf(ref);
+      },
       set: async (data, options) => commit([{ kind: "set", path: ref.path, data, merge: Boolean(options?.merge) }]),
       update: async (...args) => commit([{ kind: "update", path: ref.path, pairs: pairsOf(args) }]),
       // A delete may say which version it means to delete. If the document
@@ -169,6 +181,7 @@ export function createWorld() {
       where: (field, op, value) => query([...filters, [field, op, value]], max),
       limit: (n) => query(filters, n),
       get: async () => {
+        answering();
         const millis = (v) => (v instanceof Timestamp ? v.toMillis() : v);
         const matching = inCollection().filter((path) =>
           filters.every(([field, op, value]) => {
@@ -196,6 +209,7 @@ export function createWorld() {
       return { ...w, commit: async () => commit(w.operations) };
     },
     async runTransaction(fn) {
+      answering();
       const w = writer();
       const tx = {
         get: async (ref) => snapOf(ref),
@@ -208,7 +222,10 @@ export function createWorld() {
       commit(w.operations);
       return result;
     },
-    getAll: async (...args) => args.filter((arg) => typeof arg?.path === "string").map(snapOf),
+    getAll: async (...args) => {
+      answering();
+      return args.filter((arg) => typeof arg?.path === "string").map(snapOf);
+    },
     async recursiveDelete(collection) {
       for (const path of [...docs.keys()].filter((p) => p.startsWith(`${collection.name}/`))) docs.delete(path);
     },

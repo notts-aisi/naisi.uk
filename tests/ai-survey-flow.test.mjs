@@ -22,6 +22,9 @@
  *     locked.
  *  5. THE STAGES: clearing pilot data takes its passes with it; closing; the
  *     allowlist; opening needs everything set; the export is recorded.
+ *  6. THE ROUTES WHEN THINGS GO WRONG: a datastore that does not answer gets
+ *     "try again" from every public route and never a bare error, and a body
+ *     is read up to its limit and no further.
  *
  * The datastore is `tests/lib/aiSurveyWorld.mjs`. The mail door is a stub
  * that keeps what it was handed, which is how a test reads its code.
@@ -48,6 +51,9 @@ const { loadTs } = createLoader({
         "export async function sendEmail(message) { globalThis.__aiSurveyLogged.push(message); return { delivered: [].concat(message.to), suppressed: [], held: [] }; }",
     ],
     ["@/lib/firebase/session", "export const getCurrentUser = async () => globalThis.__aiSurveyUser ?? null;"],
+    // For the public routes themselves, run in section 6: an answer is its status and its body.
+    ["next/server", "export const NextResponse = { json: (body, init) => ({ body, status: init?.status ?? 200 }) };"],
+    ["@/lib/recaptcha/server", "export const verifyRecaptcha = async () => true;"],
   ]),
 });
 
@@ -732,5 +738,65 @@ describe("the stages", () => {
     assert.ok((await store.readState(world.db)).usedListDeleted, "the survey's state does not say the list was deleted");
     // The rewrite still works with the list gone.
     await store.levelAll(world.db, await store.readState(world.db));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. The public routes when things go wrong
+// ---------------------------------------------------------------------------
+
+const { readSurveyBody } = await loadTs("lib/aiSurvey/request.ts");
+const routes = {
+  code: await loadTs("app/api/ai-survey/code/route.ts"),
+  check: await loadTs("app/api/ai-survey/code/check/route.ts"),
+  save: await loadTs("app/api/ai-survey/save/route.ts"),
+  session: await loadTs("app/api/ai-survey/session/route.ts"),
+};
+const post = (body) => new Request("http://survey.invalid/", { method: "POST", body: JSON.stringify(body) });
+
+describe("the public routes when things go wrong", () => {
+  test("a datastore that does not answer gets \"try again\" from every route, and none of them throws", async () => {
+    const joined = await join(A);
+    world.hooks.down = true;
+    const replies = {
+      code: await routes.code.POST(post({ email: B })),
+      check: await routes.check.POST(post({ email: B, code: "123456", claim: newClaim() })),
+      save: await routes.save.POST(post({ pass: joined.pass, pageId: "about1", answers: ANSWERS.about1, finish: false })),
+      session: await routes.session.POST(post({ pass: joined.pass })),
+    };
+    assert.deepEqual(
+      Object.fromEntries(Object.entries(replies).map(([name, reply]) => [name, [reply.status, reply.body.error]])),
+      { code: [503, "couldNotSend"], check: [503, "failed"], save: [503, "failed"], session: [503, "failed"] },
+    );
+    assert.equal(globalThis.__aiSurveyMail.length, 1, "a code was sent while the datastore was not answering");
+    // Nothing was lost by it: the same pass saves once the datastore answers.
+    world.hooks.down = false;
+    const saved = await savePage(joined.pass, "about1", ANSWERS.about1, false, T0 + MINUTE);
+    assert.equal(saved.ok, true, JSON.stringify(saved));
+  });
+
+  test("a request body is read up to its limit and dropped there, and only an object is a body", async () => {
+    // Fifty pieces of 4,000 characters, handed over one read at a time.
+    let handed = 0;
+    const piece = new TextEncoder().encode("x".repeat(4000));
+    const endless = new ReadableStream(
+      {
+        pull(controller) {
+          handed += 1;
+          if (handed > 50) controller.close();
+          else controller.enqueue(piece);
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    assert.equal(await readSurveyBody({ body: endless }), null);
+    assert.ok(handed <= 6, `the body was read past its limit: ${handed} pieces of 50 were taken`);
+
+    assert.deepEqual(await readSurveyBody(post({ pass: "p", finish: true })), { pass: "p", finish: true });
+    for (const notABody of ["[1]", "null", '"words"', "7", "{"]) {
+      const req = new Request("http://survey.invalid/", { method: "POST", body: notABody });
+      assert.equal(await readSurveyBody(req), null, `${notABody} was taken for a body`);
+    }
+    assert.equal(await readSurveyBody(new Request("http://survey.invalid/", { method: "POST" })), null);
   });
 });
