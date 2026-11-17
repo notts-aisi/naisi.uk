@@ -4,13 +4,23 @@
  *
  * Run with `npm test`.
  *
- * The current version is v19: v18 with a fifth small preference named under
+ * The current version is v20: v19 with the AI at Nottingham survey named in
+ * three places (a paragraph under "Surveys and check-ins" saying it is
+ * anonymous and has a privacy notice of its own, the email step among the
+ * forms Google reCAPTCHA runs on, and the key to an unfinished survey among
+ * what the browser keeps), and "What's changed in version 20" at the top with
+ * version 19's, 18's and 17's lines kept under it, dated. reCAPTCHA's line on
+ * /privacy/services names the survey too. Told on Home, not asked. Every
+ * other word is v19's, so the sections below that name v15 to v19 hold v20's
+ * text, and the describe for version 20 holds its changes to the code.
+ *
+ * v19 is v18 with a fifth small preference named under
  * "Cookies and local storage" (that somebody dismissed the line on Home
  * saying the policy changed), and "What's changed in version 19" at the top
  * with version 18's and version 17's lines kept under it, dated. It changes
  * nothing about how anybody's information is used, so it is neither asked
  * nor told on Home. Every other word is v18's, so the sections below that
- * name v15, v16, v17 or v18 hold v19's text, and the describe for version 19
+ * name v15, v16, v17 or v18 held v19's text, and the describe for version 19
  * holds its one change to the code.
  *
  * v18 is v17 with the sentence about the short note
@@ -63,7 +73,7 @@
  * promise, held in the frozen files themselves.
  *
  * Every version behind the current one is frozen byte for byte (§1b): v1 to
- * v18. Editing an accepted version changes what somebody sees at the archive
+ * v19. Editing an accepted version changes what somebody sees at the archive
  * URL for the wording they agreed to, without anybody being asked, so new
  * wording goes in a new file, every time. From v15 a new version is told,
  * not asked (`needsPolicyAcceptance`, §3), which makes the freeze matter
@@ -189,15 +199,17 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v19.tsx");
+const CURRENT = read("src/content/legal/privacy/v20.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
  * no pattern written as a sentence would ever match the raw source. Every
- * content check below runs against this, because v19 is the text the site
+ * content check below runs against this, because v20 is the text the site
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v19, frozen: read by the version 19 describe, which proves v19 is v18 with its one change, and by the version 20 describe, which proves v20 is v19 with its changes. */
+const V19_FLAT = read("src/content/legal/privacy/v19.tsx").replace(/\s+/g, " ");
 /** v18, frozen: read by the version 18 describe, which proves v18 is v17 with its changes, and by the version 19 describe, which proves v19 is v18 with its one. */
 const V18_FLAT = read("src/content/legal/privacy/v18.tsx").replace(/\s+/g, " ");
 /** v17, frozen: read by the version 17 describe, which proves v17 is v16 with its changes, and by the version 18 describe, which proves v18 is v17 with its one. */
@@ -253,13 +265,16 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v19 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 19);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.19");
+  test("privacy v20 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 20);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.20");
   });
 
-  test("privacy v19 is dated the day its words last changed", () => {
-    // Provisional: set again to the day v19 goes live, as v18's, v17's, v16's and v15's were.
+  test("privacy v20 is dated the day its words last changed", () => {
+    // Provisional: set again to the day v20 goes live, as v19's, v18's, v17's, v16's and v15's were.
+    const twenty = POLICIES.privacy.versions.find((v) => v.version === 20);
+    assert.equal(twenty?.lastUpdated, "17 November 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 20).length, 1);
     const nineteen = POLICIES.privacy.versions.find((v) => v.version === 19);
     assert.equal(nineteen?.lastUpdated, "13 November 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 19).length, 1);
@@ -418,6 +433,13 @@ describe("policy versions", () => {
  * identical. Anything that changes a word needs a new version instead.
  */
 const FROZEN_VERSIONS = new Map([
+  [
+    "privacy/v19",
+    {
+      sha256: "046693efc77cd4653bd3a5a2663fe60cd118283768667b2be4eac29cc22a8114",
+      why: "the fifth small preference kept in the browser, current from 13 November 2026 until v20 replaced it; neither asked nor told on Home, and the wording that did not name the AI at Nottingham survey, frozen when v20 named it rather than editing it in place",
+    },
+  ],
   [
     "privacy/v18",
     {
@@ -1493,7 +1515,8 @@ describe("the courses section", () => {
     const { OUTSIDE_SERVICES } = await loadTs("content/legal/services.ts");
     const service = (id) => OUTSIDE_SERVICES.find((entry) => entry.id === id);
     assert.equal(service("recaptcha")?.name, "Google reCAPTCHA", "the services page no longer names Google reCAPTCHA");
-    assert.match(service("recaptcha").does, /^Checks that the person filling in our registration, event sign-up and application forms is not a bot\./);
+    // CHANGED ON PURPOSE (v20): the AI at Nottingham survey's email step is named too.
+    assert.match(service("recaptcha").does, /^Checks that the person filling in our registration, event sign-up and application forms, or asking for a code on the AI at Nottingham survey, is not a bot\./);
     assert.equal(service("youtube")?.name, "YouTube (Google)", "the services page no longer names YouTube");
     assert.match(
       service("youtube").receives,
@@ -2864,13 +2887,16 @@ describe("what loads from Google, and what the browser keeps", () => {
     const { OUTSIDE_SERVICES } = await loadTs("content/legal/services.ts");
     const recaptcha = OUTSIDE_SERVICES.find((service) => service.id === "recaptcha");
     assert.ok(recaptcha, "the services page no longer lists Google reCAPTCHA");
+    // CHANGED ON PURPOSE (v20): both sentences name the email step of the AI
+    // at Nottingham survey. v19's words are held in frozen v19 by the version
+    // 20 describe.
     assert.match(
       recaptcha.does,
-      /^Checks that the person filling in our registration, event sign-up and application forms is not a bot\./,
+      /^Checks that the person filling in our registration, event sign-up and application forms, or asking for a code on the AI at Nottingham survey, is not a bot\./,
     );
     assert.match(
       PAGE_FLAT,
-      /The one exception is Google reCAPTCHA, which sets a cookie of its own while it runs on our registration, event sign-up and application forms \(see\{" "\} <a href=\{SERVICES_HREF\}>Services we use<\/a>\)\./,
+      /The one exception is Google reCAPTCHA, which sets a cookie of its own while it runs on our registration, event sign-up and application forms, and on the email step of the AI at Nottingham survey \(see\{" "\} <a href=\{SERVICES_HREF\}>Services we use<\/a>\)\./,
     );
     assertExactlyTheseFiles(
       sourceFilesNaming(/<RecaptchaInvisible\b/),
@@ -2879,15 +2905,11 @@ describe("what loads from Google, and what the browser keeps", () => {
         ["src/features/events/RsvpForm.tsx", "an event's sign-up form, for everybody who has it on screen"],
         ["src/features/admissions/ApplyFlow.tsx", "the application form of the older kind of round, a course application form"],
         ["src/features/applications/apply/JoinAccount.tsx", "the application form's first step, at the point somebody with no account makes one"],
-        // NOT YET IN THE TWO SENTENCES ABOVE. The AI at Nottingham survey is
-        // anonymous and has a privacy notice of its own, at /ai-survey/privacy,
-        // which names Google reCAPTCHA and its cookie and is linked from the
-        // survey's start screen, before the step that loads it. This policy's
-        // sentence and the services page's line name the survey from version
-        // 20, which goes out with the survey; until then the notice is where
-        // it is said. tests/ai-survey-no-trace.test.mjs holds the script to
-        // the email step alone.
-        ["src/features/aiSurvey/SurveyFlow.tsx", "the email step of the AI at Nottingham survey, said in that survey's own notice until version 20 of this policy names it"],
+        // Named in both sentences above from version 20. The survey's own
+        // notice, at /ai-survey/privacy, says it as well.
+        // tests/ai-survey-no-trace.test.mjs holds the script to the email
+        // step alone.
+        ["src/features/aiSurvey/SurveyFlow.tsx", "the email step of the AI at Nottingham survey, which the page and the services page name"],
       ]),
       "rendering Google reCAPTCHA",
       "The policy and the services page name every form it runs on. Add the " +
@@ -2959,7 +2981,17 @@ describe("what loads from Google, and what the browser keeps", () => {
       assert.ok(PAGE_FLAT.includes(`<code>${key}</code>`), `the policy no longer lists ${key}`);
     }
     // The list is those five and no sixth: every `naisi.` key the sentence names is one of them.
-    const listed = PAGE_FLAT.slice(PAGE_FLAT.indexOf("In your browser&apos;s own storage the site keeps five small preferences"), PAGE_FLAT.indexOf("Signing in also stores your session"));
+    const listed = PAGE_FLAT.slice(PAGE_FLAT.indexOf("In your browser&apos;s own storage the site keeps five small preferences"), PAGE_FLAT.indexOf("While you are part way through the AI at Nottingham survey"));
+    assert.ok(listed.length > 0 && PAGE_FLAT.indexOf("While you are part way through the AI at Nottingham survey") < PAGE_FLAT.indexOf("Signing in also stores your session"));
+    // From v20, one key that is not a preference, in a sentence of its own
+    // after the five: the pass to an unfinished AI at Nottingham survey.
+    assert.ok(
+      PAGE_FLAT.includes(
+        "While you are part way through the AI at Nottingham survey, your browser also keeps a key to your unfinished answers, under <code>naisi.aiSurvey.pass</code>, so you can carry on in the same browser. It holds no answers and is removed when you finish. Signing in also stores your session",
+      ),
+      "the policy no longer names the key to an unfinished AI at Nottingham survey, in those words",
+    );
+    assert.ok(read("src/features/aiSurvey/keptPass.ts").includes('"naisi.aiSurvey.pass"'), "the survey no longer keeps its pass under the key the policy names");
     assert.deepEqual([...listed.matchAll(/<code>(naisi\.[A-Za-z.]+)<\/code>/g)].map((match) => match[1]).sort(), [...users.values()].sort());
     // The sixth thing is not a preference: what somebody typed on the
     // application form's first step, for the tab an emailed link opens. The
@@ -2982,13 +3014,13 @@ describe("what loads from Google, and what the browser keeps", () => {
         ["src/features/pwa/LastRouteTracker.tsx", "a comment about the last-route key, which lastRoute.ts keeps"],
         ["src/features/admissions/ApplyFlow.tsx", "a comment saying the older form deliberately keeps no copy there"],
         ["src/features/courses/PacingBanner.tsx", "a comment saying a dismissal is deliberately not kept there"],
-        // NOT YET IN THE PARAGRAPH ABOVE. The AI at Nottingham survey keeps
-        // one key, naisi.aiSurvey.pass, while somebody is part way through, so
-        // a closed tab can be come back to: the pass and never an answer,
-        // removed on finishing (tests/ai-survey-no-trace.test.mjs holds all
-        // three). The policy lists it from version 20, which goes out with the
-        // survey.
-        ["src/features/aiSurvey/keptPass.ts", "keeps the pass to an unfinished AI at Nottingham survey under naisi.aiSurvey.pass, which version 20 of this policy lists"],
+        // The AI at Nottingham survey keeps one key, naisi.aiSurvey.pass,
+        // while somebody is part way through, so a closed tab can be come
+        // back to: the pass and never an answer, removed on finishing
+        // (tests/ai-survey-no-trace.test.mjs holds all three). Named from
+        // version 20, in a sentence of its own after the five preferences,
+        // held above.
+        ["src/features/aiSurvey/keptPass.ts", "keeps the pass to an unfinished AI at Nottingham survey under naisi.aiSurvey.pass, which the page names"],
       ]),
       "naming the browser's local storage",
       "The policy lists exactly what the site keeps there: five preferences " +
@@ -9477,14 +9509,31 @@ describe("the re-consent gate", () => {
 
   test("the accept page says nothing of version 19, which changes nothing about how information is used", () => {
     // A line on the accept page is for a version that changed how
-    // information is used: 15 to 18, oldest first, and version 18's is the
-    // last before the links. Version 19 names one more small preference kept
-    // in the browser, and its own first paragraph on the policy says so.
+    // information is used: 15 to 18 and 20, oldest first. Version 19 names
+    // one more small preference kept in the browser, and its own first
+    // paragraph on the policy said so; version 20 keeps that line, dated.
     const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
     const lines = [...accept.matchAll(/What changed in version (\d+)\.<\/strong>/g)].map((match) => Number(match[1]));
-    assert.deepEqual(lines, [15, 16, 17, 18]);
-    assert.ok(accept.indexOf("Read the full") > accept.indexOf("What changed in version 18.</strong>"));
-    assert.ok(PAGE_FLAT.includes("<strong>What&apos;s changed in version 19:</strong> the site keeps one more small preference in your browser: that you dismissed the line saying this policy changed. Nothing about how we use your information has changed."));
+    assert.deepEqual(lines, [15, 16, 17, 18, 20]);
+    const NINETEEN = "the site keeps one more small preference in your browser: that you dismissed the line saying this policy changed. Nothing about how we use your information has changed.";
+    assert.ok(V19_FLAT.includes(`<strong>What&apos;s changed in version 19:</strong> ${NINETEEN}`));
+    assert.ok(PAGE_FLAT.includes(`<strong>What changed in version 19, on 13 November 2026:</strong> ${NINETEEN}`));
+  });
+
+  test("the accept page says what version 20 changes, after version 18's line, in version 20's own words", () => {
+    // Version 20 adds the AI at Nottingham survey, a use of information, so
+    // the accept page says it last, before the links. Its line is version
+    // 20's own "What's changed in version 20".
+    const accept = ACCEPT_PAGE.replace(/\s+/g, " ");
+    const eighteen = accept.indexOf("What changed in version 18.</strong>");
+    const twenty = accept.indexOf("What changed in version 20.</strong>");
+    assert.ok(eighteen !== -1 && twenty > eighteen && accept.indexOf("Read the full", twenty) > twenty, "the accept page no longer says what version 20 changed, after version 18");
+    const said = accept.slice(twenty, accept.indexOf("Read the full", twenty));
+    const CHANGED =
+      "This version adds the AI at Nottingham survey, an anonymous survey with a privacy notice of its own. It is now named where the policy describes surveys, Google reCAPTCHA and what your browser keeps.";
+    assert.ok(said.includes(CHANGED), "the accept page's line for version 20 is no longer the policy's own words");
+    assert.ok(PAGE_FLAT.includes(`<p id="whats-changed"> <strong>What&apos;s changed in version 20:</strong> ${CHANGED} </p>`), "the policy no longer says what changed in version 20, in those words");
+    assert.ok(!V19_FLAT.includes("What&apos;s changed in version 20"));
   });
 
   test("is not left behind on the dashboard layout alone", () => {
@@ -11862,20 +11911,22 @@ describe("v19 names a fifth small preference kept in the browser, and keeps v18'
   ];
 
   test("v19 is v18 with these changes and no others", () => {
+    // Read from frozen v19 since v20 replaced it; v20 is v19 with its own
+    // changes, held by the version 20 describe.
     let text = bodyOf(V18_FLAT);
     for (const [what, before, after] of V19_CHANGES) {
       assert.equal(text.split(before).length, 2, `v18 does not say, exactly once, what v19 changes (${what}): ${before}`);
-      assert.ok(!bodyOf(CURRENT_FLAT).includes(before) || after.includes(before), `v19 still says what it was meant to replace (${what})`);
+      assert.ok(!bodyOf(V19_FLAT).includes(before) || after.includes(before), `v19 still says what it was meant to replace (${what})`);
       text = text.replace(before, after);
     }
-    assert.equal(text, bodyOf(CURRENT_FLAT), "v19 differs from v18 somewhere outside the changes listed here");
+    assert.equal(text, bodyOf(V19_FLAT), "v19 differs from v18 somewhere outside the changes listed here");
   });
 
   test("what changed is at the top, newest first, each earlier version's line under it with its date", () => {
-    const nineteen = PAGE_FLAT.indexOf(`<p id="whats-changed"> <strong>What&apos;s changed in version 19:</strong> ${CHANGED} </p>`);
-    const eighteen = PAGE_FLAT.indexOf(`<strong>What changed in version 18, on 13 November 2026:</strong> ${CHANGED_18}`);
-    const seventeen = PAGE_FLAT.indexOf("<strong>What changed in version 17, on 12 November 2026:</strong>");
-    assert.ok(nineteen !== -1 && nineteen < eighteen && eighteen < seventeen && seventeen < PAGE_FLAT.indexOf('<h2 id="in-short">'));
+    const nineteen = V19_FLAT.indexOf(`<p id="whats-changed"> <strong>What&apos;s changed in version 19:</strong> ${CHANGED} </p>`);
+    const eighteen = V19_FLAT.indexOf(`<strong>What changed in version 18, on 13 November 2026:</strong> ${CHANGED_18}`);
+    const seventeen = V19_FLAT.indexOf("<strong>What changed in version 17, on 12 November 2026:</strong>");
+    assert.ok(nineteen !== -1 && nineteen < eighteen && eighteen < seventeen && seventeen < V19_FLAT.indexOf('<h2 id="in-short">'));
     // Each date is the day that version went live, as the policy list has it.
     assert.equal(POLICIES.privacy.versions.find((v) => v.version === 18)?.lastUpdated, "13 November 2026");
     assert.equal(POLICIES.privacy.versions.find((v) => v.version === 17)?.lastUpdated, "12 November 2026");
@@ -11902,6 +11953,117 @@ describe("v19 names a fifth small preference kept in the browser, and keeps v18'
     }
     // "Nothing about how we use your information has changed": so no mark, and Home says nothing of it.
     assert.deepEqual(Object.keys(POLICIES.privacy.versions.find((v) => v.version === 19) ?? {}).sort(), ["lastUpdated", "version"]);
+  });
+});
+
+describe("v20 names the AI at Nottingham survey under surveys, Google reCAPTCHA and what the browser keeps, and keeps v19's, v18's and v17's What's changed under its own; every other word is v19's, and the code agrees", () => {
+  /**
+   * A version's file from the end of its notes on: its imports, its contents
+   * list, the address of the services page and its words as served. The
+   * header comment is notes, not policy.
+   */
+  const FIRST_IMPORT = 'import type { ReactNode } from "react";';
+  const bodyOf = (flat) => {
+    assert.equal(flat.split(FIRST_IMPORT).length, 2, "a version file does not open, after its notes, with the import this check starts from");
+    return flat.slice(flat.indexOf(FIRST_IMPORT));
+  };
+  /** "What's changed in version 20", as the owner approved it. */
+  const CHANGED =
+    "This version adds the AI at Nottingham survey, an anonymous survey with a privacy notice of its own. It is now named where the policy describes surveys, Google reCAPTCHA and what your browser keeps.";
+  /** What version 19 changed, in version 19's own words. */
+  const CHANGED_19 =
+    "the site keeps one more small preference in your browser: that you dismissed the line saying this policy changed. Nothing about how we use your information has changed.";
+  /** "Surveys and check-ins": the paragraph after "Confidential.", as the owner approved it. */
+  const SURVEY =
+    '<p> One survey is different. The AI at Nottingham survey, open to every Nottingham student in November 2026, is anonymous. We check a University email address once, so that each student answers once, and we keep no name, email, account, date or time with the answers. It has its own privacy notice at{" "} <a href="/ai-survey/privacy">naisi.uk/ai-survey/privacy</a>, which says what it keeps and for how long. </p>';
+  /** "Cookies and local storage": the sentence after the five preferences, as the owner approved it. */
+  const KEPT_PASS =
+    "While you are part way through the AI at Nottingham survey, your browser also keeps a key to your unfinished answers, under <code>naisi.aiSurvey.pass</code>, so you can carry on in the same browser. It holds no answers and is removed when you finish.";
+  /**
+   * EVERY CHANGE v20 MAKES TO v19, as [what, v19's words, v20's words], each
+   * a run of the flattened text. Applied to frozen v19 in turn, each found
+   * exactly once, they give v20 exactly: so nothing else in v19 changed.
+   */
+  const V20_CHANGES = [
+    ["the component's name", "export default function PrivacyContentV19(", "export default function PrivacyContentV20("],
+    [
+      "what changed, at the top, with version 19's line kept under it and dated",
+      `<p id="whats-changed"> <strong>What&apos;s changed in version 19:</strong> ${CHANGED_19} </p>`,
+      `<p id="whats-changed"> <strong>What&apos;s changed in version 20:</strong> ${CHANGED} </p> <p> <strong>What changed in version 19, on 13 November 2026:</strong> ${CHANGED_19} </p>`,
+    ],
+    [
+      "surveys: the AI at Nottingham survey is anonymous and has its own notice, after Confidential.",
+      "on a programme or an application. </p> <p> <strong>What a survey records.</strong>",
+      `on a programme or an application. </p> ${SURVEY} <p> <strong>What a survey records.</strong>`,
+    ],
+    [
+      "Google reCAPTCHA also runs on the survey's email step",
+      'application forms (see{" "} <a href={SERVICES_HREF}>Services we use</a>).',
+      'application forms, and on the email step of the AI at Nottingham survey (see{" "} <a href={SERVICES_HREF}>Services we use</a>).',
+    ],
+    [
+      "the browser keeps the pass to an unfinished survey, in a sentence after the five preferences",
+      "(whether the sign-in panel was open). Signing in also stores your session",
+      `(whether the sign-in panel was open). ${KEPT_PASS} Signing in also stores your session`,
+    ],
+  ];
+
+  test("v20 is v19 with these changes and no others", () => {
+    let text = bodyOf(V19_FLAT);
+    for (const [what, before, after] of V20_CHANGES) {
+      assert.equal(text.split(before).length, 2, `v19 does not say, exactly once, what v20 changes (${what}): ${before}`);
+      assert.ok(!bodyOf(CURRENT_FLAT).includes(before) || after.includes(before), `v20 still says what it was meant to replace (${what})`);
+      text = text.replace(before, after);
+    }
+    assert.equal(text, bodyOf(CURRENT_FLAT), "v20 differs from v19 somewhere outside the changes listed here");
+  });
+
+  test("the three new passages, word for word, and none in v19", () => {
+    assert.ok(PAGE_FLAT.includes(`<strong>Confidential.</strong> Every survey is confidential: we`), "the survey section no longer has its Confidential paragraph");
+    assert.ok(PAGE_FLAT.indexOf(SURVEY) > PAGE_FLAT.indexOf("<strong>Confidential.</strong>") && PAGE_FLAT.indexOf(SURVEY) < PAGE_FLAT.indexOf("<strong>What a survey records.</strong>"), "the survey paragraph is not directly after Confidential.");
+    assert.ok(PAGE_FLAT.includes("while it runs on our registration, event sign-up and application forms, and on the email step of the AI at Nottingham survey (see"));
+    assert.ok(PAGE_FLAT.includes(KEPT_PASS));
+    for (const words of ["One survey is different.", "on the email step of the AI at Nottingham survey", "naisi.aiSurvey.pass", "AI at Nottingham"]) {
+      assert.ok(!V19_FLAT.includes(words), `v19 already said: ${words}`);
+    }
+  });
+
+  test("what the passages say is what the survey's code does", async () => {
+    // The link goes to the survey's own notice, which is a page.
+    assert.ok(existsSync(join(SRC, "app", "ai-survey", "privacy", "page.tsx")), "the survey's own privacy notice is not at /ai-survey/privacy");
+    // reCAPTCHA on its email step, and the pass kept under the key named.
+    assert.match(read("src/features/aiSurvey/SurveyFlow.tsx"), /<RecaptchaInvisible\b/);
+    assert.ok(read("src/features/aiSurvey/keptPass.ts").includes('"naisi.aiSurvey.pass"'));
+    // The services page says the same of reCAPTCHA, and moved its date.
+    const { OUTSIDE_SERVICES, SERVICES_LAST_UPDATED } = await loadTs("content/legal/services.ts");
+    assert.equal(
+      OUTSIDE_SERVICES.find((service) => service.id === "recaptcha")?.does,
+      "Checks that the person filling in our registration, event sign-up and application forms, or asking for a code on the AI at Nottingham survey, is not a bot. On the application form it runs only while somebody who is not signed in is making an account.",
+    );
+    assert.equal(SERVICES_LAST_UPDATED, "17 November 2026");
+  });
+
+  test("what changed is at the top, newest first, each earlier version's line under it with its date", () => {
+    const twenty = PAGE_FLAT.indexOf(`<p id="whats-changed"> <strong>What&apos;s changed in version 20:</strong> ${CHANGED} </p>`);
+    const nineteen = PAGE_FLAT.indexOf(`<strong>What changed in version 19, on 13 November 2026:</strong> ${CHANGED_19}`);
+    const eighteen = PAGE_FLAT.indexOf("<strong>What changed in version 18, on 13 November 2026:</strong>");
+    const seventeen = PAGE_FLAT.indexOf("<strong>What changed in version 17, on 12 November 2026:</strong>");
+    assert.ok(twenty !== -1 && twenty < nineteen && nineteen < eighteen && eighteen < seventeen && seventeen < PAGE_FLAT.indexOf('<h2 id="in-short">'));
+    // Each date is the day that version went live, as the policy list has it.
+    assert.equal(POLICIES.privacy.versions.find((v) => v.version === 19)?.lastUpdated, "13 November 2026");
+    assert.ok(!V19_FLAT.includes("What&apos;s changed in version 20"));
+  });
+
+  test("told on Home, not asked: nobody is asked to accept it", async () => {
+    const acceptance = await loadTs("lib/legal/acceptance.ts");
+    assert.equal(acceptance.LAST_PRIVACY_VERSION_ASKED, 15);
+    for (const stored of ["terms.1+privacy.15", "terms.1+privacy.16", "terms.1+privacy.17", "terms.1+privacy.18", "terms.1+privacy.19", "terms.1+privacy.20"]) {
+      assert.equal(acceptance.needsPolicyAcceptance(stored), false, stored);
+    }
+    // It adds a use of information, so Home's one short line says the policy changed, for a week from its date.
+    assert.deepEqual(POLICIES.privacy.versions.find((v) => v.version === 20), { version: 20, lastUpdated: "17 November 2026", toldOnHome: true });
+    // The week, the words and the dismissal are run in tests/policy-update-line.test.mjs.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "policy-update-line.test.mjs")));
   });
 });
 

@@ -340,6 +340,21 @@ describe("6. the pages", () => {
     for (const dir of new Set(pages.map((p) => dirname(p)))) assert.ok(!existsSync(join(REPO_ROOT, dir, "not-found.tsx")), `${dir} has a not-found page`);
   });
 
+  test("no answer and a survey that is over each have their own words, never the words for something else", () => {
+    const flow = codeOf("src/features/aiSurvey/SurveyFlow.tsx");
+    const words = read("src/content/aiSurvey/definition.ts");
+    // A code check that got no answer is the connection. "That code doesn't
+    // match" would send somebody back to their email for nothing.
+    assert.match(flow, /reply\.error === "failed" \? words\.errors\.couldNotCheck/);
+    assert.match(words, /"couldNotCheck": "[^"]{20,}"/);
+    // A page that cannot be saved because the unfinished survey is over is
+    // not a page to try again.
+    assert.match(flow, /reply\.error === "gone"[\s\S]{0,400}setEnded\(true\)/);
+    assert.match(flow, /ended \? survey\.ui\.sessionEnded : survey\.ui\.saveFailed/);
+    assert.match(flow, /disabled=\{busy \|\| ended\}/);
+    assert.match(words, /"sessionEnded": "[^"]{20,}"/);
+  });
+
   test("the survey's frame carries no link out of the survey", () => {
     const frame = codeOf("src/features/aiSurvey/SurveyFrame.tsx");
     assert.doesNotMatch(frame, /<a\b|<Link\b|PublicHeader|PublicFooter/, "the survey's bar now links somewhere");
