@@ -42,8 +42,9 @@ const { AI_SURVEY, answerColumns, closesAtInstant, fill, fillValues, isProposalO
 const { normaliseCode, normaliseUniversityAddress } = await loadTs("lib/aiSurvey/address.ts");
 const { checkPageAnswers } = await loadTs("lib/aiSurvey/answers.ts");
 const { buildExport, exportHeader, exportRow, shuffled } = await loadTs("lib/aiSurvey/exportCsv.ts");
-const { answerSetKey, newCode, newPassId, openPass, PASS_LIFETIME_MS, renewPass, sealPass } = await loadTs("lib/aiSurvey/pass.ts");
-const { CLOSING_GRACE_MS, hashAddress, PEOPLE_PER_GENERATION, shardsInUse, SMALL_SURVEY, stageAt } = await loadTs("lib/aiSurvey/store.ts");
+const { answerSetKey, claimHash, isClaim, newCode, newPassId, openPass, passFromClaim, PASS_LIFETIME_MS, renewPass, sealPass } =
+  await loadTs("lib/aiSurvey/pass.ts");
+const { CLOSING_GRACE_MS, hashAddress, passSigningKey, PEOPLE_PER_GENERATION, shardsInUse, stageAt } = await loadTs("lib/aiSurvey/store.ts");
 const { publicSurvey } = await loadTs("features/aiSurvey/projectSurvey.ts");
 const { sequenceOf } = await loadTs("features/aiSurvey/publicSurvey.ts");
 const { Timestamp } = await import("firebase-admin/firestore");
@@ -393,6 +394,9 @@ describe("the export", () => {
 // 5. The pass
 // ---------------------------------------------------------------------------
 
+/** What a browser makes for itself before it checks its code. */
+const newClaim = () => Array.from({ length: 64 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
+
 describe("the pass a browser holds", () => {
   const key = Buffer.from("k".repeat(32));
   const now = Date.UTC(2026, 10, 17, 12);
@@ -424,6 +428,48 @@ describe("the pass a browser holds", () => {
     assert.equal(openPass(renewed, key, later + PASS_LIFETIME_MS), null);
   });
 
+  test("a pass made from a browser's claim is the same every time it is asked for, and another claim's is another", () => {
+    const claim = newClaim(); // 32 random bytes as 64 hex characters: the shape a browser makes
+    const place = { epoch: "abc123", shards: { from: 0, count: 16 }, pageIds: ["d1", "d2", "d3", "d4", "d5"] };
+    const one = passFromClaim(claim, key, place, now);
+    assert.deepEqual(passFromClaim(claim, key, place, now), one);
+    assert.deepEqual({ ...passFromClaim(claim, key, place, now + 5000), expiresAt: 0 }, { ...one, expiresAt: 0 });
+    assert.equal(one.expiresAt, now + PASS_LIFETIME_MS);
+    assert.deepEqual([...one.order].sort(), place.pageIds);
+    assert.ok(one.shard >= 0 && one.shard < 16);
+    const other = passFromClaim(newClaim(), key, place, now);
+    assert.notEqual(other.id, one.id);
+    // Under another key the same claim leads somewhere else.
+    assert.notEqual(passFromClaim(claim, Buffer.from("j".repeat(32)), place, now).id, one.id);
+    // What the server keeps of a claim is a hash, and it is not the pass.
+    assert.match(claimHash(claim), /^[0-9a-f]{64}$/);
+    assert.ok(!one.id.includes(claim) && !claimHash(claim).includes(answerSetKey(one)));
+  });
+
+  test("the pages and the document a claim leads to are spread evenly", () => {
+    const firstPage = new Map();
+    const shard = new Map();
+    const place = { epoch: "e", shards: { from: 0, count: 16 }, pageIds: ["d1", "d2", "d3", "d4", "d5"] };
+    for (let n = 0; n < 4000; n++) {
+      const pass = passFromClaim(newClaim(), key, place, now);
+      firstPage.set(pass.order[0], (firstPage.get(pass.order[0]) ?? 0) + 1);
+      shard.set(pass.shard, (shard.get(pass.shard) ?? 0) + 1);
+    }
+    assert.equal(firstPage.size, 5);
+    assert.equal(shard.size, 16);
+    // 800 expected for each page and 250 for each document; far outside
+    // these bounds would be a draw that favours some.
+    for (const [page, count] of firstPage) assert.ok(count > 680 && count < 920, `${page} came first ${count} times in 4000`);
+    for (const [index, count] of shard) assert.ok(count > 180 && count < 320, `document ${index} took ${count} of 4000`);
+  });
+
+  test("a claim is 32 random bytes as 64 hex characters, and nothing else is one", () => {
+    assert.equal(isClaim(newClaim()), true);
+    for (const bad of ["", "short", "a".repeat(63), "a".repeat(65), "A".repeat(64), "g".repeat(64), `${"a".repeat(63)}/`, null, 7, ["a".repeat(64)]]) {
+      assert.equal(isClaim(bad), false);
+    }
+  });
+
   test("an answer set is kept under a hash of the pass, never the pass", () => {
     const stored = answerSetKey(pass);
     assert.match(stored, /^[A-Za-z0-9_-]{22}$/);
@@ -439,7 +485,7 @@ describe("the pass a browser holds", () => {
 
 describe("stages and storage", () => {
   const closes = closesAtInstant().getTime();
-  const state = (over) => ({ stage: "open", epoch: "e", passKey: "", pilotKey: "", accepted: 0, shardDocs: 16, adminUids: [], closedEarly: null, lastLevel: null, usedListDeleted: null, ...over });
+  const state = (over) => ({ stage: "open", epoch: "e", passKey: "", pilotKey: "", accepted: 0, shardDocs: 16, adminUids: [], closedEarly: null, lastLevel: null, usedListDeleted: null, codeCeiling: null, ...over });
 
   test("an open survey closes itself at its closing time, with thirty minutes for anybody under way", () => {
     assert.deepEqual(stageAt(state({}), closes - 1), { stage: "open", takesNewPeople: true, takesSaves: true });
@@ -460,14 +506,36 @@ describe("stages and storage", () => {
     assert.deepEqual(stageAt(state({ stage: "pilot" }), closes - 1), { stage: "pilot", takesNewPeople: true, takesSaves: true });
   });
 
-  test("few shared documents while there are few people, so each soon holds many", () => {
-    assert.deepEqual(shardsInUse(0), { from: 0, count: 2 });
-    assert.deepEqual(shardsInUse(47), { from: 0, count: 2 });
-    assert.deepEqual(shardsInUse(48), { from: 0, count: 4 });
-    assert.deepEqual(shardsInUse(SMALL_SURVEY), { from: 0, count: 8 });
-    assert.deepEqual(shardsInUse(320), { from: 0, count: 16 });
-    assert.deepEqual(shardsInUse(PEOPLE_PER_GENERATION - 1), { from: 0, count: 16 });
+  test("all sixteen shared documents from the first person on, so a document's number is not a clock", () => {
+    for (const accepted of [0, 1, 47, 48, 128, 320, PEOPLE_PER_GENERATION - 1]) {
+      assert.deepEqual(shardsInUse(accepted), { from: 0, count: 16 }, `after ${accepted} people`);
+    }
+    // A second sixteen only when the first is full.
     assert.deepEqual(shardsInUse(PEOPLE_PER_GENERATION), { from: 16, count: 16 });
+  });
+
+  test("the key that signs passes is made from the secret, never read from the survey's record", () => {
+    const record = state({ stage: "open", passKey: "cGFzcw==", pilotKey: "cGlsb3Q=" });
+    const before = process.env.AI_SURVEY_EMAIL_KEY;
+    try {
+      delete process.env.AI_SURVEY_EMAIL_KEY;
+      assert.equal(passSigningKey(record), null, "an open survey with no secret can still sign a pass");
+      process.env.AI_SURVEY_EMAIL_KEY = "a".repeat(48);
+      const one = passSigningKey(record);
+      process.env.AI_SURVEY_EMAIL_KEY = "b".repeat(48);
+      const two = passSigningKey(record);
+      assert.ok(one && two && !one.equals(two), "the signing key does not depend on the secret");
+      assert.ok(!one.equals(Buffer.from(record.passKey, "base64")));
+      // A record with no value of its own, or no epoch, signs nothing.
+      assert.equal(passSigningKey({ ...record, passKey: "" }), null);
+      assert.equal(passSigningKey({ ...record, epoch: "" }), null);
+      // Pilot, with no secret: the stand-in, so the survey can be tried.
+      delete process.env.AI_SURVEY_EMAIL_KEY;
+      assert.ok(passSigningKey({ ...record, stage: "pilot" }));
+    } finally {
+      if (before === undefined) delete process.env.AI_SURVEY_EMAIL_KEY;
+      else process.env.AI_SURVEY_EMAIL_KEY = before;
+    }
   });
 
   test("an address has three hashes that cannot be matched to each other, and none is the address", () => {

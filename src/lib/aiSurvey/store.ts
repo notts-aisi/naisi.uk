@@ -19,11 +19,14 @@ import type { AiSurveyAnswerSet, AiSurveyDefinition, AiSurveyPageAnswers, AiSurv
  *    of a few shared documents, and so is each entry in the used-email list.
  *  - A SHARED DOCUMENT'S UPDATE TIME MUST NOT DATE A SAVE. A document that
  *    holds two answer sets and was last written at 14:03 points at whoever was
- *    sent a code at 14:02. So new people are spread over FEW documents while
- *    there are few people (`shardsInUse`), and the documents are rewritten
- *    TOGETHER (`levelWrites`), so their times never differ for long: on every
- *    save while the survey is small, and at most `LEVEL_EVERY_MS` apart once
- *    it is busy.
+ *    sent a code at 14:02. So the documents are rewritten TOGETHER
+ *    (`levelWrites`), and then they all carry one time: by a save whenever
+ *    they were last levelled more than `LEVEL_EVERY_MS` ago, and by the job
+ *    when people stop. A save that is not due writes ONE document and nothing
+ *    else, because that is what keeps a room of people from queueing.
+ *  - WHICH DOCUMENT AN ANSWER SET IS IN SAYS NOTHING ABOUT WHEN. People are
+ *    spread at random over all sixteen from the first person on, so a
+ *    document's number is not a clock.
  *  - AN ADDRESS NEVER MEETS AN ANSWER. The used-email list holds keyed hashes
  *    and nothing else. Nothing here takes an address and an answer set in one
  *    call.
@@ -60,9 +63,17 @@ const USED_SHARDS = "0123456789abcdef".split("");
  * 1 MiB, so 350 to a document leaves room to spare.
  */
 export const PEOPLE_PER_GENERATION = SHARDS_PER_GENERATION * 350;
-/** Below this many people, every save levels the documents in use. */
-export const SMALL_SURVEY = 128;
-/** Once busy, the documents are levelled at most this far apart. */
+/**
+ * While people are saving, the shared documents are levelled at most this far
+ * apart, by whichever save finds them due.
+ *
+ * NOT ON EVERY SAVE, and this was measured, not guessed (dev's datastore, 17
+ * November 2026). A save that writes one document: 360 a second with forty at
+ * once, 95th percentile 180ms, none failed. A save that also rewrites the
+ * other fifteen: 5 a second however many arrive, because commits that share
+ * documents take turns, and fifty at once waited ten seconds each. A lecture
+ * theatre pressing Next is exactly that load.
+ */
 export const LEVEL_EVERY_MS = 20_000;
 /** A session under way when the survey closes can save for this much longer. */
 export const CLOSING_GRACE_MS = 30 * 60 * 1000;
@@ -89,6 +100,12 @@ export type SurveyState = {
   lastLevel: Timestamp | null;
   /** Set by the job once the used-email list has been deleted after closing. */
   usedListDeleted: Timestamp | null;
+  /**
+   * Codes an hour across the whole survey, when somebody has set one by hand
+   * on the survey's record; otherwise `CODE_CEILING_PER_HOUR`. Changed in the
+   * datastore, so raising it for a big room needs no deploy.
+   */
+  codeCeiling: number | null;
 };
 
 /**
@@ -124,6 +141,7 @@ function freshState(): Omit<SurveyState, "adminUids"> {
     closedEarly: null,
     lastLevel: null,
     usedListDeleted: null,
+    codeCeiling: null,
   };
 }
 
@@ -139,7 +157,14 @@ function asState(data: FirebaseFirestore.DocumentData): SurveyState {
     closedEarly: data.closedEarly instanceof Timestamp ? data.closedEarly : null,
     lastLevel: data.lastLevel instanceof Timestamp ? data.lastLevel : null,
     usedListDeleted: data.usedListDeleted instanceof Timestamp ? data.usedListDeleted : null,
+    codeCeiling:
+      typeof data.codeCeiling === "number" && Number.isInteger(data.codeCeiling) && data.codeCeiling > 0 ? data.codeCeiling : null,
   };
+}
+
+/** How many codes an hour the survey sends before it says it is busy. */
+export function ceilingOf(state: SurveyState): number {
+  return state.codeCeiling ?? CODE_CEILING_PER_HOUR;
 }
 
 /** Make the empty shared documents of one epoch, sixteen answer documents from `fromShard`. */
@@ -201,19 +226,21 @@ export function stageAt(state: SurveyState, now: number, def: AiSurveyDefinition
   return { stage: "closed", takesNewPeople: false, takesSaves: now < closedFrom + CLOSING_GRACE_MS };
 }
 
-/** How many of a generation's documents new people are spread over, by how many people there have been. */
+/**
+ * The answer documents new people are spread over: all sixteen of the current
+ * generation, from the first person on.
+ *
+ * NOT fewer documents while there are fewer people. That was tried, and it
+ * made the document's number a clock: an answer set in the third document
+ * could only belong to somebody who arrived after the forty-eighth person.
+ * Answers carry no timing of any kind, so the spread is flat. A new
+ * generation of sixteen is made only when this one is full
+ * (`PEOPLE_PER_GENERATION`), which is a capacity the survey is not expected
+ * to reach.
+ */
 export function shardsInUse(accepted: number): { from: number; count: number } {
   const generation = Math.floor(accepted / PEOPLE_PER_GENERATION);
-  if (generation > 0) return { from: generation * SHARDS_PER_GENERATION, count: SHARDS_PER_GENERATION };
-  const count = accepted < 48 ? 2 : accepted < SMALL_SURVEY ? 4 : accepted < 320 ? 8 : 16;
-  return { from: 0, count };
-}
-
-/** Every answer document that somebody may be writing to: all of them once past the first generation's growth. */
-function shardsToLevel(state: SurveyState): number[] {
-  const { from, count } = shardsInUse(state.accepted);
-  const upTo = state.accepted < 320 ? from + count : state.shardDocs;
-  return Array.from({ length: upTo }, (_, i) => i);
+  return { from: generation * SHARDS_PER_GENERATION, count: SHARDS_PER_GENERATION };
 }
 
 /**
@@ -236,6 +263,26 @@ export function hasRealEmailKey(): boolean {
   return Boolean(real && real.length >= 32);
 }
 
+/**
+ * The key a browser's pass is signed with (pass.ts), or null when there is
+ * none and so no pass can be made or read.
+ *
+ * MADE FROM THE SECRET, not kept in the datastore. The state holds a random
+ * value that names this epoch's passes (`passKey`), and the signing key is
+ * that value under the same secret the addresses are hashed with. So reading
+ * the datastore is not enough to write a pass, and with it an answer set that
+ * nobody's email check stands behind. In Pilot, where the stand-in is in use,
+ * it is the stand-in, and those passes go when the survey opens.
+ *
+ * A state with no `passKey` or no epoch (a record somebody made by hand) has
+ * no signing key: an empty value would be a key anybody could guess.
+ */
+export function passSigningKey(state: SurveyState): Buffer | null {
+  const secret = emailKey(state);
+  if (!secret || !state.passKey || !state.epoch) return null;
+  return createHmac("sha256", secret).update("ai-survey.pass-key.v1:").update(state.passKey).digest();
+}
+
 export type AddressHashes = { used: string; pending: string; limit: string };
 
 /**
@@ -252,44 +299,54 @@ export function hashAddress(address: string, key: Buffer): AddressHashes {
 const beat = () => randomBytes(4).readUInt32BE(0);
 
 /**
- * Add, to a batch or a transaction, a rewrite of every shared document
- * somebody may be writing to, so that after the commit they all carry one
- * update time and none of them dates a save.
+ * Add, to a batch, a rewrite of every shared document, so that after the
+ * commit they all carry one update time and none of them dates a save.
  */
 function levelWrites(
   db: Firestore,
-  writer: { update: (ref: FirebaseFirestore.DocumentReference, data: Record<string, unknown>) => unknown },
+  batch: FirebaseFirestore.WriteBatch,
   state: SurveyState,
-  options: { withAnswers: boolean; skipAnswers?: number; withUsedList: boolean; skipUsed?: string },
+  options: { skipAnswers?: number } = {},
 ) {
   const value = beat();
-  if (options.withAnswers) {
-    for (const shard of shardsToLevel(state)) {
-      if (shard !== options.skipAnswers) writer.update(answersRef(db, state.epoch, shard), { beat: value });
-    }
+  for (let shard = 0; shard < state.shardDocs; shard++) {
+    if (shard !== options.skipAnswers) batch.update(answersRef(db, state.epoch, shard), { beat: value });
   }
-  if (options.withUsedList) {
-    for (const first of USED_SHARDS) {
-      if (first !== options.skipUsed) writer.update(usedRef(db, state.epoch, first), { beat: value });
-    }
+  if (!state.usedListDeleted) {
+    for (const first of USED_SHARDS) batch.update(usedRef(db, state.epoch, first), { beat: value });
   }
+  batch.update(stateRef(db), { lastLevel: FieldValue.serverTimestamp() });
   return value;
 }
 
 /** Rewrite every shared document together. The job calls this on every tick. */
 export async function levelAll(db: Firestore, state: SurveyState): Promise<void> {
   const batch = db.batch();
-  const all = { ...state, accepted: Math.max(state.accepted, 320) };
-  levelWrites(db, batch, all, { withAnswers: true, withUsedList: !state.usedListDeleted });
-  batch.update(stateRef(db), { lastLevel: FieldValue.serverTimestamp() });
+  levelWrites(db, batch, state);
   await batch.commit();
+}
+
+/**
+ * When THIS server last levelled this epoch's documents, so a burst of saves
+ * on one server makes one levelling and not one each: every save in the burst
+ * read the state before the first levelling had been written to it.
+ */
+let levelledHere = { epoch: "", at: 0 };
+
+/** True when the documents are due a levelling and this server has not just done one. */
+function levelIsDue(state: SurveyState, now: number): boolean {
+  const here = levelledHere.epoch === state.epoch ? levelledHere.at : 0;
+  const last = Math.max(state.lastLevel ? state.lastLevel.toMillis() : 0, here);
+  return now - last > LEVEL_EVERY_MS;
 }
 
 // ---------------------------------------------------------------------------
 // The used-email list
 // ---------------------------------------------------------------------------
 
-export type AcceptOutcome = "accepted" | "alreadyAnswered" | "wrongCode" | "tooManyWrongTries" | "codeRunOut";
+export type AcceptOutcome =
+  | { outcome: "accepted"; first: boolean }
+  | { outcome: "alreadyAnswered" | "wrongCode" | "tooManyWrongTries" | "codeRunOut" };
 
 /** A pending code runs out after this long. */
 export const CODE_LIFETIME_MS = 15 * 60 * 1000;
@@ -298,58 +355,73 @@ export const MAX_WRONG_TRIES = 5;
 /**
  * Check a code, and on the right one use the address up, in ONE transaction.
  *
- * The pending code is deleted on the right code whatever follows, so a code
- * works once. Then the used-email list is read for this address's hash and
- * the hash added: two browsers with the same code, or two codes for one
- * address, cannot both get through, because whichever commits second finds no
- * pending code or finds the hash.
+ * The used-email list is read for this address's hash and the hash added in
+ * the transaction that accepts the code, so two browsers with the same code,
+ * or two codes for one address, cannot both get through.
  *
  * "Already answered" is only ever an outcome of THIS function, after the
- * right code, so typing somebody else's address tells you nothing.
+ * right code. And NOTHING SHORT OF THE RIGHT CODE SAYS ANYTHING ELSE: a wrong
+ * code gets "that code doesn't match" whether a code is waiting, was used a
+ * moment ago, or was never asked for. If a missing code answered differently,
+ * somebody could type a classmate's address with any six digits, twice, and
+ * learn from the change that the classmate had just got in.
+ *
+ * A CODE THAT HAS BEEN USED IS KEPT UNTIL IT RUNS OUT, marked done, with a
+ * hash of a value only the browser that used it holds (`claimHash`). That is
+ * for the phone whose request arrived and whose answer did not: it asks again
+ * with the same code and the same value, and is let in again as the same
+ * person. Without that, a lost reply would leave a student shut out for good,
+ * their address used and no pass to show for it. Another browser, with the
+ * same code and a value of its own, gets "that code doesn't match".
  */
 export async function acceptCode(
   db: Firestore,
   state: SurveyState,
   hashes: AddressHashes,
   codeMatches: (stored: string) => boolean,
+  claimHash: string,
   now: number,
 ): Promise<AcceptOutcome> {
   const pendingRef = db.collection(CODES_COLLECTION).doc(hashes.pending);
   const listRef = usedRef(db, state.epoch, hashes.used);
   const entry = new FieldPath("h", hashes.used);
 
-  return db.runTransaction(async (tx) => {
+  return db.runTransaction(async (tx): Promise<AcceptOutcome> => {
     const pending = await tx.get(pendingRef);
-    if (!pending.exists) return "codeRunOut";
+    if (!pending.exists) return { outcome: "wrongCode" };
     const data = pending.data() ?? {};
     const runsOut = data.runsOut instanceof Timestamp ? data.runsOut.toMillis() : 0;
     if (runsOut <= now) {
       tx.delete(pendingRef);
-      return "codeRunOut";
+      return { outcome: "codeRunOut" };
     }
-    if (!codeMatches(String(data.code ?? ""))) {
+    const matches = codeMatches(String(data.code ?? ""));
+    if (data.done === true) {
+      // Used already. The browser that used it may ask again; nobody else may.
+      return matches && data.claim === claimHash ? { outcome: "accepted", first: false } : { outcome: "wrongCode" };
+    }
+    if (!matches) {
       const tries = (typeof data.tries === "number" ? data.tries : 0) + 1;
       if (tries >= MAX_WRONG_TRIES) {
         tx.delete(pendingRef);
-        return "tooManyWrongTries";
+        return { outcome: "tooManyWrongTries" };
       }
       tx.update(pendingRef, { tries });
-      return "wrongCode";
+      return { outcome: "wrongCode" };
     }
 
     const [list] = await tx.getAll(listRef, { fieldMask: [entry] });
-    tx.delete(pendingRef);
-    if (!list.exists) return "codeRunOut"; // storage was cleared under this request
-    if (list.get(entry) === true) return "alreadyAnswered";
-
-    if (state.accepted < SMALL_SURVEY) {
-      // Small survey: every document of the list is rewritten with this one.
-      const value = levelWrites(db, tx, state, { withAnswers: false, withUsedList: true, skipUsed: hashes.used[0] });
-      tx.update(listRef, entry, true, "beat", value);
-    } else {
-      tx.update(listRef, entry, true);
+    if (!list.exists) {
+      tx.delete(pendingRef);
+      return { outcome: "codeRunOut" }; // storage was cleared under this request
     }
-    return "accepted";
+    if (list.get(entry) === true) {
+      tx.delete(pendingRef);
+      return { outcome: "alreadyAnswered" };
+    }
+    tx.update(listRef, entry, true);
+    tx.update(pendingRef, { done: true, claim: claimHash });
+    return { outcome: "accepted", first: true };
   });
 }
 
@@ -472,10 +544,10 @@ export async function readProgress(db: Firestore, epoch: string, shard: number, 
  * it. A blind write of a few fields, never a read-then-write, so a room of
  * people saving at once do not queue behind one another.
  *
- * While the survey is small the same write rewrites every other document in
- * use, and once it is busy it does so whenever they were last levelled more
- * than `LEVEL_EVERY_MS` ago, so this document's update time is one the others
- * share.
+ * When the shared documents were last levelled more than `LEVEL_EVERY_MS`
+ * ago, this write levels them: it and a rewrite of every other shared
+ * document go in one commit, so this document's update time is one they all
+ * share. Otherwise it writes this document alone.
  */
 export async function writePage(
   db: Firestore,
@@ -489,26 +561,20 @@ export async function writePage(
 ): Promise<void> {
   const ref = answersRef(db, state.epoch, target.shard);
   const at = (...rest: string[]) => new FieldPath("sets", target.setKey, ...rest);
-  const small = state.accepted < SMALL_SURVEY;
-  const due = !state.lastLevel || now - state.lastLevel.toMillis() > LEVEL_EVERY_MS;
 
   // `f` is written only by the save that finishes. A save that does not
   // finish never writes it, so one that crosses a finish in flight cannot
   // put an unfinished mark back over a finished one.
   const lock = finished ? [at("f"), true] : [];
 
-  if (!small && !due) {
+  if (!levelIsDue(state, now)) {
     await ref.update(at("v"), def.version, at("o"), target.order, at("p", pageId), answers, ...lock);
     return;
   }
+  levelledHere = { epoch: state.epoch, at: now };
   const batch = db.batch();
-  const value = levelWrites(db, batch, state, {
-    withAnswers: true,
-    skipAnswers: target.shard,
-    withUsedList: !small && !state.usedListDeleted,
-  });
+  const value = levelWrites(db, batch, state, { skipAnswers: target.shard });
   batch.update(ref, at("v"), def.version, at("o"), target.order, at("p", pageId), answers, "beat", value, ...lock);
-  if (!small) batch.update(stateRef(db), { lastLevel: FieldValue.serverTimestamp() });
   await batch.commit();
 }
 
@@ -551,10 +617,21 @@ export async function deleteCodeRecords(db: Firestore): Promise<void> {
  * lands on a document that no longer exists and fails: it can never write an
  * old answer into the new storage.
  */
-export async function restartStorage(db: Firestore, previous: SurveyState, stage: AiSurveyStage): Promise<SurveyState> {
-  const fresh = { ...freshState(), stage };
+export async function restartStorage(db: Firestore, previous: SurveyState, stage: AiSurveyStage): Promise<SurveyState | null> {
+  const fresh = { ...freshState(), stage, codeCeiling: previous.codeCeiling };
   await makeDocuments(db, fresh.epoch, 0, true);
-  await stateRef(db).set({ ...fresh, adminUids: previous.adminUids });
+  // Two presses at once (Open twice, or Open and Clear) must not both win: the
+  // state is switched only if it is still the one this press started from.
+  const switched = await db.runTransaction(async (tx) => {
+    const now = await tx.get(stateRef(db));
+    if (now.get("epoch") !== previous.epoch) return false;
+    tx.set(stateRef(db), { ...fresh, adminUids: previous.adminUids });
+    return true;
+  });
+  if (!switched) {
+    await deleteEpochDocuments(db, fresh.epoch, SHARDS_PER_GENERATION, true);
+    return null;
+  }
   await deleteEpochDocuments(db, previous.epoch, previous.shardDocs, true);
   await deleteCodeRecords(db);
   return { ...fresh, adminUids: previous.adminUids };
@@ -579,12 +656,13 @@ export async function sweepCodeRecords(db: Firestore, now: number, today: string
     db.collection(CODES_COLLECTION).where("runsOut", "<=", Timestamp.fromMillis(now)).limit(max).get(),
     db.collection(LIMITS_COLLECTION).where("day", "<", today).limit(max).get(),
   ]);
+  // Each record is deleted ONLY IF IT IS STILL THE ONE THAT WAS READ. Somebody
+  // may ask for a new code between the read and the delete, and that replaces
+  // the run-out record under the same id: an unconditional delete would take
+  // their new code with it.
   const docs = [...codes.docs, ...limits.docs].slice(0, 450);
-  if (docs.length > 0) {
-    const batch = db.batch();
-    for (const doc of docs) batch.delete(doc.ref);
-    await batch.commit();
-  }
+  const results = await Promise.allSettled(docs.map((doc) => doc.ref.delete({ lastUpdateTime: doc.updateTime })));
+  const deleted = results.filter((result) => result.status === "fulfilled").length;
   // Minute counts older than two hours.
   const counts = await countsRef(db).get();
   const minutes = (counts.data()?.m ?? {}) as Record<string, unknown>;
@@ -596,5 +674,5 @@ export async function sweepCodeRecords(db: Firestore, now: number, today: string
     const more = rest.flatMap((key) => [new FieldPath("m", key), FieldValue.delete()]);
     await countsRef(db).update(new FieldPath("m", first), FieldValue.delete(), ...more);
   }
-  return docs.length;
+  return deleted;
 }

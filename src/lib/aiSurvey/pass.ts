@@ -52,6 +52,77 @@ export function newPassId(): string {
   return b64url(randomBytes(32));
 }
 
+/**
+ * THE CLAIM: 32 random bytes a browser makes for itself before it checks its
+ * code, written as 64 hex characters, and keeps in memory only.
+ *
+ * It exists for one case. A phone sends the right code, the server uses the
+ * address up, and the answer never reaches the phone. Without a claim that
+ * student is shut out for good. With one, the pass is MADE FROM THE CLAIM
+ * (`passFromClaim`), so the same browser asking again gets the same pass, and
+ * a second pass for one address cannot be made by asking twice.
+ *
+ * The server keeps a hash of the claim beside the used code until the code
+ * runs out, and the pass's random bytes are the claim under the signing key.
+ * Neither can be worked out from the other without the claim itself, which
+ * never leaves the browser's memory, so the record that knows the address
+ * still cannot be matched to an answer set.
+ */
+export function isClaim(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
+}
+
+export function claimHash(claim: string): string {
+  return createHash("sha256").update("ai-survey.claim.v1:").update(claim).digest("hex");
+}
+
+/** Whole numbers below `n`, each equally likely, drawn from the claim under the key: the same draws every time. */
+function drawsFrom(claim: string, key: Buffer): (n: number) => number {
+  let block = Buffer.alloc(0);
+  let counter = 0;
+  let at = 0;
+  return (n) => {
+    if (n <= 1) return 0;
+    // A byte from the top of the range, where a remainder would make the low
+    // numbers likelier, is thrown away and the next one taken.
+    const limit = 256 - (256 % n);
+    for (;;) {
+      if (at >= block.length) {
+        block = createHmac("sha256", key).update(`ai-survey.pass-place.v1:${counter++}:`).update(claim).digest();
+        at = 0;
+      }
+      const byte = block[at++];
+      if (byte < limit) return byte % n;
+    }
+  };
+}
+
+/**
+ * The pass a claim leads to. Its random bytes, the document its answers go
+ * in and the order of its proposal pages all come from the claim under the
+ * signing key, so asking again with the same claim gives the same pass.
+ */
+export function passFromClaim(
+  claim: string,
+  key: Buffer,
+  place: { epoch: string; shards: { from: number; count: number }; pageIds: readonly string[] },
+  now: number,
+): AiSurveyPass {
+  const below = drawsFrom(claim, key);
+  const order = [...place.pageIds];
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = below(i + 1);
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return {
+    epoch: place.epoch,
+    id: b64url(createHmac("sha256", key).update("ai-survey.pass-id.v1:").update(claim).digest()),
+    shard: place.shards.from + below(place.shards.count),
+    order,
+    expiresAt: now + PASS_LIFETIME_MS,
+  };
+}
+
 export function sealPass(pass: AiSurveyPass, key: Buffer): string {
   const payload = b64url(
     Buffer.from(JSON.stringify({ e: pass.epoch, i: pass.id, s: pass.shard, o: pass.order, x: pass.expiresAt })),

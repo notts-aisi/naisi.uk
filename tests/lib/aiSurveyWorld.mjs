@@ -71,6 +71,7 @@ export function createWorld() {
   let clock = 0;
   let wall = Date.UTC(2026, 10, 17, 12, 0, 0);
   const now = () => wall;
+  const hooks = { afterQuery: null };
 
   /** Apply a list of operations as ONE commit: every document it touches gets the same update time. */
   function commit(operations) {
@@ -131,7 +132,17 @@ export function createWorld() {
       get: async () => snapOf(ref),
       set: async (data, options) => commit([{ kind: "set", path: ref.path, data, merge: Boolean(options?.merge) }]),
       update: async (...args) => commit([{ kind: "update", path: ref.path, pairs: pairsOf(args) }]),
-      delete: async () => commit([{ kind: "delete", path: ref.path }]),
+      // A delete may say which version it means to delete. If the document
+      // has been written since, it is refused, as the real datastore refuses.
+      delete: async (precondition) => {
+        const found = docs.get(ref.path);
+        if (precondition?.lastUpdateTime !== undefined && found && found.updated !== precondition.lastUpdateTime) {
+          const error = new Error(`9 FAILED_PRECONDITION: ${ref.path} was written after it was read`);
+          error.code = 9;
+          throw error;
+        }
+        commit([{ kind: "delete", path: ref.path }]);
+      },
     };
     return ref;
   }
@@ -169,6 +180,9 @@ export function createWorld() {
         );
         const taken = max === undefined ? matching : matching.slice(0, max);
         const snaps = taken.map((path) => snapOf(docRef(name, path.slice(name.length + 1))));
+        // For a suite that needs something to happen between a query's read
+        // and whatever its caller does with the result.
+        if (hooks.afterQuery) await hooks.afterQuery(name);
         return { docs: snaps, size: snaps.length, empty: snaps.length === 0 };
       },
     });
@@ -212,6 +226,7 @@ export function createWorld() {
     everything() {
       return JSON.stringify([...docs.entries()].map(([path, doc]) => [path, doc.data]));
     },
+    hooks,
     /** Move the wall clock the fake stamps server times with. */
     setNow(ms) {
       wall = ms;
