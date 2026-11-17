@@ -9,6 +9,9 @@
  * is:
  *  - a count is out of the answer sets that SAVED THE QUESTION'S PAGE. Somebody
  *    who stopped at page 3 is not counted as having skipped page 9;
+ *  - a ranking is out of the people who ranked at least one line or chose
+ *    "None of these". A line's points are 3 for each first place of three,
+ *    2 for each second and 1 for each third;
  *  - a SHARE on an agree or support scale is out of the people WHO GAVE A VIEW
  *    on that line: "Don't know" and "Don't know enough" sit outside the scale
  *    and are left out, and so are blanks. The number with a view is always
@@ -19,7 +22,7 @@
  */
 import { own } from "@/lib/applications/keys";
 import { AI_SURVEY } from "./definition";
-import type { AiSurveyAnswerSet, AiSurveyDefinition, AiSurveyPageAnswers } from "./types";
+import { plainText, type AiSurveyAnswerSet, type AiSurveyDefinition, type AiSurveyPageAnswers } from "./types";
 
 export type Count = { id: string; label: string; count: number };
 
@@ -38,6 +41,18 @@ export type LineTotals = {
 export type QuestionTotals =
   | { kind: "options"; id: string; text: string; multi: boolean; answered: number; counts: Count[] }
   | { kind: "lines"; id: string; text: string | null; scale: string; twoSided: boolean; lines: LineTotals[] }
+  | {
+      kind: "rank";
+      id: string;
+      text: string;
+      /** How many gave a ranking or chose an answer for the whole question. */
+      answered: number;
+      places: number;
+      /** For each line: how many put it in each place, and its points (3 for first of three, then 2, then 1). */
+      lines: { id: string; label: string; inPlace: number[]; points: number }[];
+      /** "None of these" and the like. */
+      alone: Count[];
+    }
   | { kind: "comments"; id: string; text: string; written: number }
   | { kind: "tick"; id: string; text: string; ticked: number };
 
@@ -68,7 +83,7 @@ export function surveyTotals(sets: readonly AiSurveyAnswerSet[], def: AiSurveyDe
           return {
             kind: "options",
             id: question.id,
-            text: question.text,
+            text: plainText(question.text),
             multi: question.type === "multi",
             answered,
             counts: question.options.map((o) => ({ id: o.id, label: o.label, count: counts.get(o.id) ?? 0 })),
@@ -80,24 +95,38 @@ export function surveyTotals(sets: readonly AiSurveyAnswerSet[], def: AiSurveyDe
           return {
             kind: "options",
             id: question.id,
-            text: question.text,
+            text: plainText(question.text),
             multi: false,
             answered,
             counts: options.map((o) => ({ id: o.id, label: o.label, count: counts.get(o.id) ?? 0 })),
           };
         }
-        case "mostOf": {
+        case "rank": {
           const source = page.questions.find((q) => q.id === question.linesFrom);
           const lines = source && source.type === "lines" ? source.lines : [];
-          const options = [...lines.map((l) => ({ id: l.id, label: l.short ?? l.text })), ...question.extraOptions];
-          const { counts, answered } = tally(question.id, options.map((o) => o.id));
+          const rankings = saved
+            .map((answers) => own(answers, question.id))
+            .filter((value): value is string[] => Array.isArray(value) && value.length > 0);
           return {
-            kind: "options",
+            kind: "rank",
             id: question.id,
-            text: question.text,
-            multi: false,
-            answered,
-            counts: options.map((o) => ({ id: o.id, label: o.label, count: counts.get(o.id) ?? 0 })),
+            text: plainText(question.text),
+            answered: rankings.length,
+            places: question.places,
+            lines: lines.map((line) => {
+              const inPlace = Array.from({ length: question.places }, (_, place) => rankings.filter((r) => r[place] === line.id).length);
+              return {
+                id: line.id,
+                label: line.short ?? line.text,
+                inPlace,
+                points: inPlace.reduce((sum, count, place) => sum + count * (question.places - place), 0),
+              };
+            }),
+            alone: question.extraOptions.map((o) => ({
+              id: o.id,
+              label: o.label,
+              count: rankings.filter((r) => r.length === 1 && r[0] === o.id).length,
+            })),
           };
         }
         case "lines": {
@@ -109,7 +138,7 @@ export function surveyTotals(sets: readonly AiSurveyAnswerSet[], def: AiSurveyDe
           return {
             kind: "lines",
             id: question.id,
-            text: question.text,
+            text: question.text === null ? null : plainText(question.text),
             scale: question.scale,
             twoSided,
             lines: question.lines.map((line) => {
@@ -130,14 +159,14 @@ export function surveyTotals(sets: readonly AiSurveyAnswerSet[], def: AiSurveyDe
           return {
             kind: "comments",
             id: question.id,
-            text: question.text,
+            text: plainText(question.text),
             written: saved.filter((answers) => typeof own(answers, question.id) === "string").length,
           };
         case "tick":
           return {
             kind: "tick",
             id: question.id,
-            text: question.text,
+            text: plainText(question.text),
             ticked: saved.filter((answers) => own(answers, question.id) === true).length,
           };
       }

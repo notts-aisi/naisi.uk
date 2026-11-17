@@ -120,7 +120,7 @@ export function pageSequence(proposalOrder: string[], def: AiSurveyDefinition = 
   return sequence;
 }
 
-/** The lines question a "which matters most" question draws its lines from. */
+/** The lines question a "rank your top three" question draws its lines from. */
 export function linesFor(page: AiSurveyPage, linesFrom: string): AiSurveyLines | null {
   const found = page.questions.find((q) => q.id === linesFrom);
   return found && found.type === "lines" ? found : null;
@@ -134,12 +134,14 @@ export function selectOptions(question: Extract<AiSurveyQuestion, { type: "selec
 export type AiSurveyColumn =
   | { name: string; pageId: string; kind: "value"; code: string }
   | { name: string; pageId: string; kind: "multiOption"; code: string; optionId: string }
+  | { name: string; pageId: string; kind: "rankPlace"; code: string; place: number }
   | { name: string; pageId: string; kind: "tick"; code: string };
 
 /**
  * The export's answer columns, in the DEFINITION's order (never a person's
- * shuffled order): one per question, one per line of a lines question, and one
- * per option of a multi-choice question, named like `B2_explain`.
+ * shuffled order): one per question, one per line of a lines question, one
+ * per option of a multi-choice question, named like `B2_explain`, and one per
+ * place of a ranking, named like `M1_1` for the first choice.
  */
 export function answerColumns(def: AiSurveyDefinition = AI_SURVEY): AiSurveyColumn[] {
   const columns: AiSurveyColumn[] = [];
@@ -156,6 +158,10 @@ export function answerColumns(def: AiSurveyDefinition = AI_SURVEY): AiSurveyColu
             code: question.id,
             optionId: option.id,
           });
+        }
+      } else if (question.type === "rank") {
+        for (let place = 1; place <= question.places; place++) {
+          columns.push({ name: `${question.id}_${place}`, pageId: page.id, kind: "rankPlace", code: question.id, place });
         }
       } else if (question.type === "tick") {
         columns.push({ name: question.id, pageId: page.id, kind: "tick", code: question.id });
@@ -175,7 +181,8 @@ export function answerColumns(def: AiSurveyDefinition = AI_SURVEY): AiSurveyColu
 export type AiSurveyCodeRule =
   | { kind: "oneOf"; allowed: string[] }
   | { kind: "anyOf"; allowed: string[]; exclusive: string[] }
-  | { kind: "text"; maxLength: number }
+  | { kind: "ranked"; allowed: string[]; places: number; alone: string[] }
+  | { kind: "text"; maxLength: number; showIf?: { code: string; is: string } }
   | { kind: "tick" };
 
 export function codeRules(page: AiSurveyPage, def: AiSurveyDefinition = AI_SURVEY): Map<string, AiSurveyCodeRule> {
@@ -200,16 +207,18 @@ export function codeRules(page: AiSurveyPage, def: AiSurveyDefinition = AI_SURVE
         for (const line of question.lines) rules.set(line.id, { kind: "oneOf", allowed });
         break;
       }
-      case "mostOf": {
+      case "rank": {
         const source = linesFor(page, question.linesFrom);
         rules.set(question.id, {
-          kind: "oneOf",
-          allowed: [...(source?.lines.map((l) => l.id) ?? []), ...question.extraOptions.map((o) => o.id)],
+          kind: "ranked",
+          allowed: source?.lines.map((l) => l.id) ?? [],
+          places: question.places,
+          alone: question.extraOptions.map((o) => o.id),
         });
         break;
       }
       case "text":
-        rules.set(question.id, { kind: "text", maxLength: question.maxLength });
+        rules.set(question.id, { kind: "text", maxLength: question.maxLength, showIf: question.showIf });
         break;
       case "tick":
         rules.set(question.id, { kind: "tick" });

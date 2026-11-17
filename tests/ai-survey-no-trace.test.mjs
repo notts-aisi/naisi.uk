@@ -314,6 +314,35 @@ describe("5. the browser sends nothing of the person, and keeps one key", () => 
     assert.ok(flow.indexOf('setAddress("");', flow.indexOf("if (reply.ok) {", flow.indexOf("const onCode"))) < flow.indexOf("if (keepPass(reply.pass)) {"));
   });
 
+  test("consent is answered on the start screen and goes nowhere: never sent, never kept", () => {
+    const flow = codeOf("src/features/aiSurvey/SurveyFlow.tsx");
+    // Every call the page makes, with what it sends: none of them carries the consent answer or the ticks.
+    const calls = [...flow.matchAll(/callSurvey(?:<[^(]*>)?\(([\s\S]*?)\);/g)].map((m) => m[1]);
+    assert.ok(calls.length >= 4, "the page's calls were not found");
+    for (const call of calls) assert.doesNotMatch(call, /consent|ticked/i, `a call sends the consent answer: ${call.slice(0, 80)}`);
+    assert.doesNotMatch(codeOf("src/features/aiSurvey/keptPass.ts"), /consent/i);
+    for (const file of OWN.filter((f) => f.startsWith("src/app/api/ai-survey/") || f.startsWith("src/lib/aiSurvey/"))) {
+      if (file.endsWith("/types.ts")) continue;
+      assert.doesNotMatch(codeOf(file), /\bconsent\b/i, `${file} reads the consent answer`);
+    }
+    // "No" leads to the closing screen and never to the email step.
+    assert.match(flow, /go\(consent === "no" \? \{ at: "declined" \} : \{ at: "address" \}\)/);
+    assert.match(flow, /const canStart = consent === "no" \|\| \(ticked && consent === "yes"\);/);
+  });
+
+  test("a support link opens in a new tab, says nothing about where the person came from, and is a plain address", () => {
+    const flow = codeOf("src/features/aiSurvey/SurveyFlow.tsx");
+    assert.match(flow, /<a href=\{link\.href\} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">/);
+    const definition = read("src/content/aiSurvey/definition.ts");
+    const links = [...definition.matchAll(/"href": "([^"]+)"/g)].map((m) => m[1]);
+    assert.ok(links.length >= 10, "the support links were not found");
+    for (const href of links) {
+      assert.match(href, /^https:\/\/[a-z0-9.-]+\/[^\s?#]*$/, `${href} is not a plain https address, or carries a query or a fragment`);
+      assert.doesNotMatch(href, /naisi\.uk|utm_|ref=/i);
+    }
+    assert.equal(new Set(links).size, links.length, "a support link is listed twice");
+  });
+
   test("the newsletter link opens in a new tab and says nothing about where the person came from", () => {
     const flow = codeOf("src/features/aiSurvey/SurveyFlow.tsx");
     assert.match(flow, /href=\{survey\.end\.newsletterHref\} target="_blank" rel="noopener noreferrer"/);
@@ -358,6 +387,33 @@ describe("6. the pages", () => {
   test("the survey's frame carries no link out of the survey", () => {
     const frame = codeOf("src/features/aiSurvey/SurveyFrame.tsx");
     assert.doesNotMatch(frame, /<a\b|<Link\b|PublicHeader|PublicFooter/, "the survey's bar now links somewhere");
+  });
+
+  test("no fieldset is an item of a flex column, which older Safari draws with an empty band under it", () => {
+    // Safari on iOS 26 gives a fieldset that sits directly in a flex column
+    // the height of its legend twice. Twelve lines on one page left a band
+    // some 770 pixels tall above Next. So every fieldset sits in a plain
+    // block, and a lines question's lines are blocks spaced by a margin.
+    const css = read("src/features/aiSurvey/survey.module.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    const rule = (name) => new RegExp(`\\n\\.${name} \\{([^}]*)\\}`).exec(css)?.[1] ?? null;
+    for (const name of ["block", "lines"]) {
+      assert.ok(rule(name) !== null, `.${name} is gone from the stylesheet`);
+      assert.match(rule(name), /display: block;/, `.${name} is not a plain block`);
+      assert.doesNotMatch(rule(name), /flex|grid/, `.${name} lays its children out as flex or grid items`);
+    }
+    let fieldsets = 0;
+    for (const file of ["src/features/aiSurvey/Questions.tsx", "src/features/aiSurvey/SurveyFlow.tsx"]) {
+      const source = codeOf(file);
+      for (const match of source.matchAll(/<fieldset\b[^>]*>/g)) {
+        fieldsets += 1;
+        const before = source.slice(0, match.index).trimEnd();
+        const inBlock = before.endsWith("<div className={styles.block}>") || /<div key=\{[^}]+\} className=\{styles\.block\}>$/.test(before);
+        // A line of a lines question: mapped straight inside the list of lines.
+        const isLine = /className=\{styles\.line\}/.test(match[0]) && /<div className=\{styles\.lines\}>\s*\{lines\.map\(\(line\) => \($/.test(before);
+        assert.ok(inBlock || isLine, `${file}: a fieldset is not inside a plain block: ...${before.slice(-70)}`);
+      }
+    }
+    assert.ok(fieldsets >= 5, "the fieldsets were not found");
   });
 
   test("the proxy does not stand in front of the survey", () => {

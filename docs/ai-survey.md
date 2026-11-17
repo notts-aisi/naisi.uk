@@ -1,7 +1,7 @@
 # The AI at Nottingham survey
 
 `/ai-survey`: "AI at Nottingham: what should students ask for?" An anonymous
-survey of Nottingham students, about ten minutes, one answer per student, with
+survey of Nottingham students, about fifteen minutes, one answer per student, with
 a University-email check in front of it. Built beside the Surveys feature
 (docs/surveys.md) and sharing nothing with it: no record, no route, no type.
 
@@ -28,6 +28,8 @@ Everything below exists to keep that sentence true.
 | Nothing is read back | Coming back says which pages are saved, never an answer | `tests/ai-survey-no-trace.test.mjs` |
 | The code email leaves no row in the send log | It goes through `sendUnloggedText` in `src/lib/email/send.ts`: plain text, no link, the suppression list and the audience still asked first | `tests/ai-survey-no-trace.test.mjs` |
 | Nobody is asked who they are | The public routes read no session, cookie, header or IP address, and the page calls them with no credentials and no referrer | `tests/ai-survey-no-trace.test.mjs` |
+| The consent answer goes nowhere | It is asked on the start screen, held in the page for that screen only, never sent and never stored. "No" leads to a closing screen and never to the email step | `tests/ai-survey-no-trace.test.mjs` |
+| A link out says nothing about where the person came from | The support links and the newsletter link open in a new tab with no referrer, and are plain addresses with no query | `tests/ai-survey-no-trace.test.mjs` |
 | No limit by IP address | One code a minute and five a day for an address, and a ceiling an hour across the survey, kept in the datastore | `tests/public-write-gating.test.mjs` |
 
 ## Where things are
@@ -58,6 +60,21 @@ admins included (`firestore.rules`, and `scripts/rules-tests/tests/ai-survey.tes
 | `aiSurveyCodeLimits` | For a hashed address: today's count of codes and when the last was sent |
 
 No index is needed: every read is by document id or a range on one field.
+`firestore.ai-survey.indexes.json` goes further and tells the survey's own
+database not to index the two shared maps at all (the answer sets and the
+used-email hashes), because a field nobody queries by is only a cost and a
+limit. It deploys with the rules, by the command below.
+
+### How many people one answers document holds
+
+An answer set is a field inside a shared document, so two of Firestore's
+limits on one document apply to the sum of the sets in it: 40,000 index
+entries (where the exemption above is not deployed: two for every answer, two
+for every group of answers and two for every item of a list, as measured) and
+1 MiB. `PEOPLE_PER_DOCUMENT` in `store.ts` is 80, which leaves room under
+both with every question answered and a long comment from everybody.
+`tests/ai-survey.test.mjs` works both sums out from the survey as it stands,
+so a longer survey that would not fit fails there and not on the day.
 
 They can live in a database of their own. `AI_SURVEY_DATABASE` names it; with
 the setting empty they live in the site's. A database of its own is kept with
@@ -117,13 +134,47 @@ handed nothing of anybody who asked for a code.
 For a room bigger than that, `codeCeiling` on `aiSurveyState/main` replaces
 the 600. It is set by hand, like the list, and a restart of storage keeps it.
 
+## The questions
+
+Seven kinds, all data in the words file: one answer, tick all that apply, a
+drop-down, lines answered on a scale, a ranking, a text box and a tick.
+
+- **A scale** is named in `scales`. An answer marked `outsideScale` ("Don't
+  know", "Not covered") is stored as itself and left out of every share.
+- **A ranking** ("Rank your top three") offers the lines of a lines question
+  on its own page, in the order just shown. It is stored as the lines in
+  order, because the order is the answer, or as "None of these" alone.
+- **A text box** takes 5,000 characters. One with `showIf` is shown, and
+  stored, only while another question on its page holds one answer: the page
+  empties it when that answer changes and the server refuses it otherwise.
+- **Emphasis**: question text may mark a word `**like this**`. The page draws
+  it bold; the totals and everything else read it plain (`plainText`).
+
+## The start screen
+
+Two ticks (a current student, 18 or over), a consent question, and a list of
+where to find support that stays closed until it is opened. All of it works
+before the page's script arrives. Start needs both ticks and "Yes"; "No"
+turns the button into Finish, which leads to a closing screen. None of these
+answers is sent anywhere.
+
+## Layout: no fieldset is a flex item
+
+Safari on iOS 26 gives a fieldset that sits directly in a flex column the
+height of its legend twice. With twelve lines on a page that left an empty
+band some 770 pixels tall above Next. So every fieldset sits in a plain block
+(`styles.block`), and the lines of a lines question are blocks spaced by a
+margin. `tests/ai-survey-no-trace.test.mjs` holds it.
+
 ## The export
 
 One row for each answer set, rows in a random order, no ids and no times.
 A page never reached is `not_seen` in each of its columns, a skipped question
 an empty cell, a multi-choice question one column an option holding 1 or 0,
-and "Don't know" its own value, `dk`, never a sixth point of a scale.
-`tests/ai-survey.test.mjs` holds the 87 columns by name and in order.
+and "Don't know" its own value, `dk`, never a sixth point of a scale. A
+ranking is one column for each place (`M1_1`, `M1_2`, `M1_3`) holding that
+place's line, with "None of these" alone in the first.
+`tests/ai-survey.test.mjs` holds the 116 columns by name and in order.
 
 ## The job
 

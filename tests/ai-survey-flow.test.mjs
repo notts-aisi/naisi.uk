@@ -102,7 +102,7 @@ const ANSWERS = {
   about1: { A1: "ug", A2: "maths" },
   use: { B1: "weekly", B2: ["explain", "code"] },
   stand: { C1: "a", C2: "dk" },
-  d1: { P1: "ss", M1: "P1" },
+  d1: { P1: "ss", M1: ["P1", "P6"], M1w: "Because it is my work." },
   last: { G1: "One thing.", G2: true, H1: "friend" },
 };
 
@@ -419,7 +419,7 @@ describe("what is kept", () => {
 
   test("a page that is not the survey's is refused and nothing is stored", async () => {
     const joined = await join(A);
-    for (const [pageId, answers] of [["about1", { A1: "phd" }], ["about1", { ZZ: "x" }], ["nowhere", {}], ["last", { G1: "x".repeat(501) }]]) {
+    for (const [pageId, answers] of [["about1", { A1: "phd" }], ["about1", { ZZ: "x" }], ["nowhere", {}], ["last", { G1: "x".repeat(5001) }], ["d1", { M1: "P1" }]]) {
       assert.deepEqual(await savePage(joined.pass, pageId, answers, false, T0 + MINUTE), { ok: false, error: "refused" });
     }
     assert.deepEqual(await savePage(joined.pass, "about1", {}, true, T0 + MINUTE), { ok: false, error: "refused" }, "finish on a page that is not the last");
@@ -443,7 +443,7 @@ describe("what is kept", () => {
     process.env.AI_SURVEY_DATABASE = "ai-survey";
     await admin.openSurvey(world.db, await store.readState(world.db), T0);
     const record = world.all(store.STATE_COLLECTION).find(([id]) => id === "main")[1];
-    const pass = { epoch: record.epoch, id: randomBytes(32).toString("base64url"), shard: 0, order: pageSequence(["d1", "d2", "d3", "d4", "d5"]).slice(5, 10), expiresAt: T0 + 60 * MINUTE };
+    const pass = { epoch: record.epoch, id: randomBytes(32).toString("base64url"), shard: 0, order: ["d1", "d2", "d3", "d4", "d5"], expiresAt: T0 + 60 * MINUTE };
     const guesses = [
       Buffer.from(record.passKey, "base64"),
       Buffer.from(record.passKey, "utf8"),
@@ -556,7 +556,7 @@ describe("a shared document's update time", () => {
   test("which document an answer set is in says nothing about when: all sixteen from the first person on", async () => {
     assert.deepEqual(store.shardsInUse(0), { from: 0, count: 16 });
     assert.deepEqual(store.shardsInUse(47), store.shardsInUse(0));
-    assert.deepEqual(store.shardsInUse(5000), store.shardsInUse(0));
+    assert.deepEqual(store.shardsInUse(store.PEOPLE_PER_GENERATION - 1), store.shardsInUse(0));
     const firstTen = new Set();
     const lastTen = new Set();
     for (let n = 0; n < 60; n++) {
@@ -585,7 +585,7 @@ describe("coming back and finishing", () => {
     for (const pageId of pageSequence(joined.order).slice(0, 5)) pass = (await savePage(pass, pageId, ANSWERS[pageId] ?? {}, false, T0 + MINUTE)).pass;
     const view = await viewSession(pass, T0 + 2 * MINUTE);
     assert.equal(view.ok, true);
-    assert.deepEqual([...view.savedPages].sort(), ["about1", "choices", "seen", "stand", "use"]);
+    assert.deepEqual([...view.savedPages].sort(), ["about1", "rules", "seen", "stand", "use"]);
     assert.deepEqual(view.order, joined.order);
     const told = JSON.stringify({ ...view, pass: null });
     for (const answer of ["maths", "weekly", '"ug"']) assert.ok(!told.includes(answer), `coming back returned an answer: ${answer}`);

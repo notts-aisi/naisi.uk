@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
-import type { AiSurveyOption, AiSurveyScaleAnswer } from "@/lib/aiSurvey/types";
+import type { AiSurveyDefinition, AiSurveyOption, AiSurveyScaleAnswer } from "@/lib/aiSurvey/types";
 import { own } from "@/lib/applications/keys";
 import type { PublicPage, PublicQuestion } from "./publicSurvey";
 import styles from "./survey.module.css";
@@ -16,17 +16,31 @@ import styles from "./survey.module.css";
  *
  * Nothing here is required. A question left alone is simply not in the page's
  * answers.
+ *
+ * NO FIELDSET IS A FLEX ITEM. The page's column is a flex column, and Safari
+ * on iOS 26 gives a fieldset that sits directly in one the height of its
+ * legend twice, which showed as a tall empty band under the last line of a
+ * page. So each fieldset sits in a plain block of its own (`styles.block`),
+ * and the lines of a lines question are blocks spaced by margins.
  */
 
 export type PageAnswers = Record<string, string | string[] | boolean>;
 
 type Change = (code: string, value: string | string[] | boolean | undefined) => void;
 
+/** Question text, with a word marked `**like this**` drawn as emphasis. */
+function Marked({ text }: { text: string }) {
+  const parts = text.split(/\*\*(.+?)\*\*/g);
+  return <>{parts.map((part, i) => (i % 2 ? <strong key={i}>{part}</strong> : part))}</>;
+}
+
 function Title({ code, text }: { code?: string; text: string }) {
   return (
     <h3 className={styles.title}>
       {code && <span className={styles.codeMark}>{code}</span>}
-      <span>{text}</span>
+      <span>
+        <Marked text={text} />
+      </span>
     </h3>
   );
 }
@@ -89,28 +103,123 @@ function Multi({
     onChange(question.id, next.length > 0 ? next : undefined);
   };
   return (
-    <fieldset className={styles.question}>
-      <legend className={styles.legend}>
-        <Title code={question.id} text={question.text} />
-      </legend>
-      <div className={styles.options}>
-        {question.options.map((option) => {
-          const on = value.includes(option.id);
-          return (
-            <Fragment key={option.id}>
-              {option.exclusive && <div aria-hidden="true" className={styles.rule} />}
-              <label className={styles.option} data-on={on || undefined}>
-                <input type="checkbox" name={question.id} value={option.id} checked={on} onChange={() => toggle(option)} />
-                <span aria-hidden="true" className={styles.check}>
-                  <Tick />
+    <div className={styles.block}>
+      <fieldset className={styles.question}>
+        <legend className={styles.legend}>
+          <Title code={question.id} text={question.text} />
+        </legend>
+        <div className={styles.options}>
+          {question.options.map((option) => {
+            const on = value.includes(option.id);
+            return (
+              <Fragment key={option.id}>
+                {option.exclusive && <div aria-hidden="true" className={styles.rule} />}
+                <label className={styles.option} data-on={on || undefined}>
+                  <input type="checkbox" name={question.id} value={option.id} checked={on} onChange={() => toggle(option)} />
+                  <span aria-hidden="true" className={styles.check}>
+                    <Tick />
+                  </span>
+                  <span>{option.label}</span>
+                </label>
+              </Fragment>
+            );
+          })}
+        </div>
+      </fieldset>
+    </div>
+  );
+}
+
+/**
+ * "Rank your top three". Each line is a tick box: ticking one gives it the
+ * next place, and unticking one closes the gap behind it, so the places are
+ * always 1, 2, 3 with none missing. The value is the lines IN ORDER.
+ */
+function Rank({
+  question,
+  lines,
+  value,
+  onChange,
+  words,
+}: {
+  question: { id: string; text: string; places: number; extra: AiSurveyOption[] };
+  lines: { id: string; text: string }[];
+  value: string[];
+  onChange: Change;
+  words: AiSurveyDefinition["ui"]["rank"];
+}) {
+  const alone = question.extra.map((option) => option.id);
+  const ranked = value.filter((id) => !alone.includes(id));
+  const full = ranked.length >= question.places;
+  const toggle = (id: string) => {
+    if (ranked.includes(id)) {
+      const next = ranked.filter((other) => other !== id);
+      onChange(question.id, next.length > 0 ? next : undefined);
+    } else if (!full) {
+      onChange(question.id, [...ranked, id]);
+    }
+  };
+  return (
+    <div className={styles.block}>
+      <fieldset className={styles.question}>
+        <legend className={styles.legend}>
+          <Title text={question.text} />
+        </legend>
+        {/* One line that says how, and changes to say why nothing more can be chosen. */}
+        <p id={`${question.id}-hint`} aria-live="polite" className={styles.small}>
+          {full ? words.full : words.hint}
+        </p>
+        <div className={styles.options}>
+          {lines.map((line) => {
+            const place = ranked.indexOf(line.id);
+            const on = place !== -1;
+            return (
+              <label key={line.id} className={styles.option} data-on={on || undefined} data-full={(full && !on) || undefined}>
+                <input
+                  type="checkbox"
+                  name={question.id}
+                  value={line.id}
+                  checked={on}
+                  aria-describedby={`${question.id}-hint`}
+                  // Not `disabled`: a disabled box cannot be reached to hear why.
+                  aria-disabled={(full && !on) || undefined}
+                  onChange={() => toggle(line.id)}
+                />
+                <span aria-hidden="true" className={styles.place}>
+                  {on ? place + 1 : ""}
                 </span>
-                <span>{option.label}</span>
+                <span>
+                  {line.text}
+                  {on && <span className="visually-hidden">. {words.chosen.replace("{place}", words.places[place] ?? String(place + 1))}</span>}
+                </span>
               </label>
-            </Fragment>
-          );
-        })}
-      </div>
-    </fieldset>
+            );
+          })}
+          {question.extra.map((option) => {
+            const on = value.length === 1 && value[0] === option.id;
+            return (
+              <Fragment key={option.id}>
+                <div aria-hidden="true" className={styles.rule} />
+                <label className={styles.option} data-on={on || undefined}>
+                  <input
+                    type="checkbox"
+                    name={question.id}
+                    value={option.id}
+                    checked={on}
+                    // An answer for the whole question: it replaces any ranking.
+                    onChange={() => onChange(question.id, on ? undefined : [option.id])}
+                  />
+                  <span aria-hidden="true" className={styles.check}>
+                    <Tick />
+                  </span>
+                  <span>{option.label}</span>
+                </label>
+              </Fragment>
+            );
+          })}
+        </div>
+      </fieldset>
+    </div>
   );
 }
 
@@ -173,6 +282,7 @@ export function PageOfQuestions({
   onChange,
   charactersLeft,
   selectPlaceholder,
+  rankWords,
 }: {
   page: PublicPage;
   scales: Record<string, AiSurveyScaleAnswer[]>;
@@ -183,6 +293,7 @@ export function PageOfQuestions({
   /** "{n} characters left". */
   charactersLeft: string;
   selectPlaceholder: string;
+  rankWords: AiSurveyDefinition["ui"]["rank"];
 }) {
   const textOf = (code: string): string | undefined => {
     const value = own(answers, code);
@@ -192,23 +303,33 @@ export function PageOfQuestions({
     const value = own(answers, code);
     return Array.isArray(value) ? value : [];
   };
+  // A box shown only for one answer of another question is emptied when that
+  // answer changes, so nothing typed into it is sent once it is out of sight.
+  const pick = (code: string, id: string) => {
+    onChange(code, id);
+    for (const other of page.questions) {
+      if (other.type === "text" && other.showIf?.code === code && other.showIf.is !== id) onChange(other.id, undefined);
+    }
+  };
   return (
     <>
       {page.questions.map((question) => {
         switch (question.type) {
           case "single":
             return (
-              <fieldset key={question.id} className={styles.question}>
-                <legend className={styles.legend}>
-                  <Title code={question.id} text={question.text} />
-                </legend>
-                <RadioRows
-                  name={question.id}
-                  options={question.options}
-                  value={textOf(question.id)}
-                  onPick={(id) => onChange(question.id, id)}
-                />
-              </fieldset>
+              <div key={question.id} className={styles.block}>
+                <fieldset className={styles.question}>
+                  <legend className={styles.legend}>
+                    <Title code={question.id} text={question.text} />
+                  </legend>
+                  <RadioRows
+                    name={question.id}
+                    options={question.options}
+                    value={textOf(question.id)}
+                    onPick={(id) => pick(question.id, id)}
+                  />
+                </fieldset>
+              </div>
             );
           case "multi":
             return (
@@ -281,8 +402,8 @@ export function PageOfQuestions({
                 onChange={onChange}
               />
             );
-          case "mostOf": {
-            // One of this page's lines, IN THE ORDER JUST SHOWN, then "None of these".
+          case "rank": {
+            // This page's lines, IN THE ORDER JUST SHOWN, then "None of these".
             const source = page.questions.find((q) => q.id === question.linesFrom);
             const lines = source && source.type === "lines" ? source.lines : [];
             const byId = new Map(lines.map((line) => [line.id, line]));
@@ -290,20 +411,18 @@ export function PageOfQuestions({
               .map((id) => byId.get(id))
               .filter((line): line is { id: string; text: string } => Boolean(line));
             return (
-              <fieldset key={question.id} className={styles.question}>
-                <legend className={styles.legend}>
-                  <Title text={question.text} />
-                </legend>
-                <RadioRows
-                  name={question.id}
-                  options={[...shown.map((line) => ({ id: line.id, label: line.text })), ...question.extra]}
-                  value={textOf(question.id)}
-                  onPick={(id) => onChange(question.id, id)}
-                />
-              </fieldset>
+              <Rank
+                key={question.id}
+                question={question}
+                lines={shown}
+                value={listOf(question.id)}
+                onChange={onChange}
+                words={rankWords}
+              />
             );
           }
           case "text": {
+            if (question.showIf && textOf(question.showIf.code) !== question.showIf.is) return null;
             const value = textOf(question.id) ?? "";
             return (
               <div key={question.id} className={styles.field}>

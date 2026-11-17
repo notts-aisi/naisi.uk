@@ -60,10 +60,27 @@ export const SHARDS_PER_GENERATION = 16;
 const USED_SHARDS = "0123456789abcdef".split("");
 /**
  * How many people one generation of answer documents takes before the next is
- * made. An answer set is about 1.2 KB and at most 2 KB, a document holds
- * 1 MiB, so 350 to a document leaves room to spare.
+ * made: 80 to a document, on average.
+ *
+ * Two of Firestore's limits on ONE document decide it, and an answer set is a
+ * field inside one:
+ *  - 40,000 index entries. Unless the database is told otherwise, every field
+ *    is indexed: two entries for each answer, two for each group that holds
+ *    answers (a set, a page), and two more for each item of a list (a
+ *    ranking, a tick-all-that-apply). Measured against the database on
+ *    17 November 2026: 19,999 plain fields fit in one document and 20,000 do
+ *    not. A set with every question answered is a little under 300 entries.
+ *  - 1 MiB. A full set is about 3 KB before its comment boxes, and each box
+ *    takes up to 5,000 characters.
+ * People are spread over the documents at random, so one document can hold a
+ * few dozen more than the average. tests/ai-survey.test.mjs works both sums
+ * out from the survey as it stands and fails when a longer survey would not
+ * fit. `firestore.ai-survey.indexes.json` also tells the survey's own
+ * database not to index the answers at all, which lifts the first limit
+ * where it has been deployed; the number here does not rely on it.
  */
-export const PEOPLE_PER_GENERATION = SHARDS_PER_GENERATION * 350;
+export const PEOPLE_PER_DOCUMENT = 80;
+export const PEOPLE_PER_GENERATION = SHARDS_PER_GENERATION * PEOPLE_PER_DOCUMENT;
 /**
  * While A ROOM is saving, the shared documents are levelled this far apart,
  * by whichever save finds them due.

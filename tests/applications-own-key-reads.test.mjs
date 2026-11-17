@@ -220,6 +220,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/aiSurvey/answers.ts",
+    {
+      why: "the AI at Nottingham survey's check of a page before it is stored: whether a box that is shown for one answer came with that answer, read from the answers it has just passed, by the codes of the survey's own definition",
+    },
+  ],
+  [
     "src/features/aiSurvey/",
     {
       why: "the AI at Nottingham survey's pages: a page's answers, held in the page's memory under each question's or line's code, read by the codes of the survey's own definition",
