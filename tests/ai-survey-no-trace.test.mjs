@@ -148,10 +148,22 @@ describe("1. nobody is asked who they are, and nothing is logged", () => {
 // ---------------------------------------------------------------------------
 
 describe("3. an address never meets an answer", () => {
-  test("no file of the survey names the site's send log, or sends through the door that writes it", () => {
-    for (const file of OWN) {
+  test("no file a student's request passes through names the site's send log, or sends through the door that writes it", () => {
+    for (const file of PUBLIC_SIDE) {
       assert.doesNotMatch(codeOf(file), /\bemailSends\b|\blogEmailSend\b|\blogHeldSend\b|\blogSuppressedSend\b|\bsendEmail\s*\(|\bsendNotice\s*\(/, file);
     }
+  });
+
+  test("the one logged email of the survey goes to the accounts that run it, and is handed no address but theirs", () => {
+    // The alert when the hourly ceiling is reached. It is ordinary mail to an
+    // account on the survey's own list, so it leaves its row like any other.
+    // What it must never be handed is anything of a student's.
+    const senders = OWN.filter((file) => /\bsendEmail\s*\(/.test(codeOf(file)));
+    assert.deepEqual(senders, ["src/lib/aiSurvey/adminAlert.ts"]);
+    const alert = codeOf("src/lib/aiSurvey/adminAlert.ts");
+    assert.match(alert, /export async function alertCeilingReached\(db: Firestore, state: SurveyState, now: number\)/, "the alert is now handed something more than the survey's state and the time");
+    assert.match(alert, /auth\.getUsers\(state\.adminUids\.map\(/, "the alert's recipients are no longer the survey's own list");
+    assert.doesNotMatch(alert, /hashAddress|\baddress\b|answers|readAllSets|pending|limit/i, "the alert touches an address or an answer");
   });
 
   test("the code email leaves through the door that writes no row, from one file", () => {

@@ -2,6 +2,7 @@ import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { sendUnloggedText } from "@/lib/email/send";
 import { londonDateKey } from "@/lib/courses/weekPlan";
+import { alertCeilingReached } from "./adminAlert";
 import { AI_SURVEY, fillValues, proposalPageIds } from "./definition";
 import { shuffled } from "./exportCsv";
 import { newCode, newPassId, PASS_LIFETIME_MS, randomBelow, sealPass } from "./pass";
@@ -67,6 +68,8 @@ export async function requestCode(address: string, now: number = Date.now()): Pr
   // The ceiling across the whole survey, before anything is stored or sent.
   if ((await codesInLastHour(db, now)) >= CODE_CEILING_PER_HOUR) {
     console.error("[ai-survey] the hourly ceiling on codes was reached.");
+    // The accounts that run the survey are told, at most once an hour.
+    await alertCeilingReached(db, state, now);
     return { ok: false, error: "busy" };
   }
 

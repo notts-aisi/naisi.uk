@@ -72,6 +72,7 @@ export const SENT_KINDS: Record<EmailSendKind, SentEntry> = {
   "message-test": { notListed: TEST },
   "course-test": { notListed: TEST },
   "admin-test": { notListed: TEST },
+  "admin-alert": { notListed: "A notice to the accounts that run something, about the site itself." },
   "subscription-confirm": { notListed: "The link that confirms somebody’s own subscription." },
   "subscription-welcome": { notListed: "The welcome to somebody who has just subscribed." },
   "subscription-added": { notListed: "The note to somebody an admin added to a list." },
