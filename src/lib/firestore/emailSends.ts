@@ -113,6 +113,10 @@ export type EmailSendKind =
   | "event-invitation"
   | "course-test"
   | "admin-test"
+  // A notice to the accounts that run something, about the site itself and
+  // about nobody: today, that the AI at Nottingham survey has reached its
+  // hourly ceiling on codes (`src/lib/aiSurvey/adminAlert.ts`).
+  | "admin-alert"
   | "subscription-confirm"
   | "subscription-welcome"
   | "subscription-added"
