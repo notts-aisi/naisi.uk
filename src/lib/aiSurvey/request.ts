@@ -20,11 +20,27 @@ const MAX_BODY_CHARS = 16_000;
 
 const NO_STORE = { "Cache-Control": "no-store" } as const;
 
-/** The body as an object, or null when it is too big, not JSON, or not an object. */
+/**
+ * The body as an object, or null when it is too big, not JSON, or not an
+ * object. It is read a piece at a time and DROPPED THE MOMENT IT PASSES ITS
+ * LIMIT, so nobody can make the server hold a body of megabytes by sending one.
+ */
 export async function readSurveyBody(req: Request): Promise<Record<string, unknown> | null> {
-  let text: string;
+  let text = "";
   try {
-    text = await req.text();
+    const reader = req.body?.getReader();
+    if (!reader) return null;
+    const decoder = new TextDecoder();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      text += decoder.decode(value, { stream: true });
+      if (text.length > MAX_BODY_CHARS) {
+        await reader.cancel().catch(() => undefined);
+        return null;
+      }
+    }
+    text += decoder.decode();
   } catch {
     return null;
   }

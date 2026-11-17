@@ -4,16 +4,16 @@ import { sendUnloggedText } from "@/lib/email/send";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { alertCeilingReached } from "./adminAlert";
 import { AI_SURVEY, fillValues, proposalPageIds } from "./definition";
-import { shuffled } from "./exportCsv";
-import { newCode, newPassId, PASS_LIFETIME_MS, randomBelow, sealPass } from "./pass";
+import { claimHash, newCode, passFromClaim, sealPass } from "./pass";
 import {
   acceptCode,
-  CODE_CEILING_PER_HOUR,
+  ceilingOf,
   codesInLastHour,
   countAccepted,
   countCodeSent,
   emailKey,
   hashAddress,
+  passSigningKey,
   readState,
   releaseCode,
   reserveCode,
@@ -34,7 +34,8 @@ import {
  *    NOT THE ADDRESS HAS ALREADY ANSWERED: it never reads the used-email list,
  *    so there is nothing for it to give away.
  *  - `checkCode` checks the code. Only here, after the right code, is "this
- *    email has already been used" ever said. On a new address it hands back a
+ *    email has already been used" ever said, and a wrong code is answered the
+ *    same way whatever is or is not waiting. On a new address it hands back a
  *    pass, and WRITES NOTHING TO THE ANSWERS: an answer set first exists when
  *    its first page is saved, from the pass alone, so this function, the only
  *    one that holds an address and a pass together, never touches an answer.
@@ -66,7 +67,7 @@ export async function requestCode(address: string, now: number = Date.now()): Pr
   }
 
   // The ceiling across the whole survey, before anything is stored or sent.
-  if ((await codesInLastHour(db, now)) >= CODE_CEILING_PER_HOUR) {
+  if ((await codesInLastHour(db, now)) >= ceilingOf(state)) {
     console.error("[ai-survey] the hourly ceiling on codes was reached.");
     // The accounts that run the survey are told, at most once an hour.
     await alertCeilingReached(db, state, now);
@@ -103,19 +104,25 @@ export async function requestCode(address: string, now: number = Date.now()): Pr
 
 export type CheckCodeResult =
   | { ok: true; pass: string; order: string[] }
-  | { ok: false; error: "closed" | "wrongCode" | "codeRunOut" | "tooManyWrongTries" | "alreadyAnswered" };
+  | { ok: false; error: "closed" | "wrongCode" | "codeRunOut" | "tooManyWrongTries" | "alreadyAnswered" | "failed" };
 
-export async function checkCode(address: string, code: string, now: number = Date.now()): Promise<CheckCodeResult> {
+/**
+ * `claim` is 32 random bytes the browser made for itself (pass.ts). The pass
+ * is made from it, so a browser whose first answer was lost on the way can
+ * ask again, with the same code and the same claim, and get the same pass.
+ */
+export async function checkCode(address: string, code: string, claim: string, now: number = Date.now()): Promise<CheckCodeResult> {
   const db = surveyDb();
-  if (!db) return { ok: false, error: "codeRunOut" };
+  if (!db) return { ok: false, error: "failed" };
   const state = await readState(db);
   if (!stageAt(state, now).takesNewPeople) return { ok: false, error: "closed" };
   const key = emailKey(state);
-  if (!key) return { ok: false, error: "codeRunOut" };
+  const signing = passSigningKey(state);
+  if (!key || !signing) return { ok: false, error: "failed" };
 
   const hashes = hashAddress(address, key);
   const expected = Buffer.from(codeHash(hashes.pending, code));
-  const outcome = await acceptCode(
+  const accepted = await acceptCode(
     db,
     state,
     hashes,
@@ -123,18 +130,22 @@ export async function checkCode(address: string, code: string, now: number = Dat
       const given = Buffer.from(stored);
       return given.length === expected.length && timingSafeEqual(given, expected);
     },
+    claimHash(claim),
     now,
   );
-  if (outcome !== "accepted") return { ok: false, error: outcome };
+  if (accepted.outcome !== "accepted") return { ok: false, error: accepted.outcome };
 
-  // From here the address is not used again. The pass is made from random
-  // bytes and from how many people there have been, and from nothing else.
-  const { from, count } = shardsInUse(state.accepted);
-  const order = shuffled(proposalPageIds(), randomBelow);
-  const pass = sealPass(
-    { epoch: state.epoch, id: newPassId(), shard: from + randomBelow(count), order, expiresAt: now + PASS_LIFETIME_MS },
-    Buffer.from(state.passKey, "base64"),
+  // From here the address is not used again. The pass is made from the
+  // browser's own claim and from how many people there have been, and from
+  // nothing else.
+  const pass = passFromClaim(
+    claim,
+    signing,
+    { epoch: state.epoch, shards: shardsInUse(state.accepted), pageIds: proposalPageIds() },
+    now,
   );
-  await countAccepted(db, state).catch(() => undefined);
-  return { ok: true, pass, order };
+  // Counted once: a browser asking again for the pass it never received is
+  // the same person.
+  if (accepted.first) await countAccepted(db, state).catch(() => undefined);
+  return { ok: true, pass: sealPass(pass, signing), order: pass.order };
 }

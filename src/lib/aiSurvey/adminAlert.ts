@@ -4,7 +4,7 @@ import AiSurveyCeilingEmail from "@/emails/AiSurveyCeilingEmail";
 import { sendEmail } from "@/lib/email/send";
 import { getAdminAuth } from "@/lib/firebase/admin";
 import { AI_SURVEY } from "./definition";
-import { CODE_CEILING_PER_HOUR, stateRef, type SurveyState } from "./store";
+import { ceilingOf, stateRef, type SurveyState } from "./store";
 
 /**
  * TELLING THE PEOPLE WHO RUN THE SURVEY THAT ITS CEILING WAS REACHED.
@@ -45,7 +45,7 @@ export async function alertCeilingReached(db: Firestore, state: SurveyState, now
     await sendEmail({
       to,
       subject,
-      react: AiSurveyCeilingEmail({ subject, ceiling: CODE_CEILING_PER_HOUR, busyWords: AI_SURVEY.emailCheck.errors.busy }),
+      react: AiSurveyCeilingEmail({ subject, ceiling: ceilingOf(state), busyWords: AI_SURVEY.emailCheck.errors.busy }),
       kind: "admin-alert",
     });
     return true;

@@ -72,6 +72,24 @@ function randomBelow(n: number): number {
   }
 }
 
+/**
+ * 32 random bytes, written as 64 hex characters, made in this browser and
+ * kept in this page's memory only. The pass is made from it on the server, so if the answer to
+ * "Check my code" is lost on the way, asking again with the same code and the
+ * same value gets the same pass, and nobody is shut out by a bad signal.
+ */
+function newClaim(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  // Two hex characters for each byte, whole: nothing is folded onto a smaller alphabet.
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** The mark left on the address for the one reload after the email check. Never sent anywhere. */
+const JUST_IN = "#in";
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /** A fair shuffle: every order of the lines is as likely as any other. */
 function shuffle<T>(items: readonly T[]): T[] {
   const out = [...items];
@@ -102,6 +120,7 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
 
   const recaptcha = useRef<RecaptchaHandle>(null);
   const heading = useRef<HTMLHeadingElement>(null);
+  const claim = useRef<string | null>(null);
 
   const go = useCallback((next: Step) => {
     setFieldError(null);
@@ -132,18 +151,35 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
   // Coming back: is there a pass in this browser, and does it still work?
   useEffect(() => {
     if (closed) return;
+    // The mark the page leaves on its own address for the one reload after
+    // the email check. It is taken off again as soon as it has been read, by a
+    // real change of the address's fragment, so the start screen it was
+    // hiding (survey.module.css, `.justIn`) is shown again if it has to be.
+    const justIn = window.location.hash === JUST_IN;
+    const clearMark = () => {
+      if (!justIn) return;
+      window.location.hash = "";
+      window.history.replaceState(null, "", window.location.href.split("#")[0]);
+    };
     const pass = keptPass();
-    if (!pass) return;
+    if (!pass) {
+      clearMark();
+      return;
+    }
     let cancelled = false;
     void callSurvey<{ pass: string; order: string[]; savedPages: string[] }>("session", { pass }).then((reply) => {
       if (cancelled) return;
       if (reply.ok) {
         setSession({ pass: reply.pass, order: reply.order, savedPages: reply.savedPages });
-        setStep({ at: "comingBack" });
+        // Straight after the email check the page reloads itself once (see
+        // onCode), and comes back here with nothing saved yet: "You're in".
+        // Any other time a pass is found, somebody is coming back.
+        setStep(justIn && reply.savedPages.length === 0 ? { at: "in" } : { at: "comingBack" });
       } else if (reply.error === "gone" || reply.error === "closed") {
         forgetPass();
         if (reply.error === "closed") setStep({ at: "closed" });
       }
+      clearMark();
     });
     return () => {
       cancelled = true;
@@ -198,19 +234,40 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
     }
     setBusy(true);
     setFieldError(null);
-    const reply = await callSurvey<{ pass: string; order: string[] }>("code/check", { email: typed, code: digits });
-    setBusy(false);
+    // One value for this page's whole email check, so that asking again is
+    // asking as the same person.
+    claim.current ??= newClaim();
+    const body = { email: typed, code: digits, claim: claim.current };
+    let reply = await callSurvey<{ pass: string; order: string[] }>("code/check", body);
+    // "failed" is the network or the server not answering, never a wrong
+    // code. The right code may already have been taken, so ask again rather
+    // than leave somebody with a used address and no way in.
+    for (let again = 0; again < 3 && !reply.ok && reply.error === "failed"; again++) {
+      await pause(900);
+      reply = await callSurvey<{ pass: string; order: string[] }>("code/check", body);
+    }
     if (reply.ok) {
-      keepPass(reply.pass);
-      setSession({ pass: reply.pass, order: reply.order, savedPages: [] });
-      setFloor(0);
-      setAnswers({});
       // The address has done its one job. Drop it from the page's memory.
       setAddress("");
       setCode("");
+      if (keepPass(reply.pass)) {
+        // RELOAD, once. The bot check's script was loaded for the email step
+        // and a page cannot unload a script: a fresh page is the only way the
+        // questions are answered with nothing of anybody else's running. The
+        // pass is kept, so the fresh page finds it and says "You're in".
+        window.location.hash = JUST_IN;
+        window.location.reload();
+        return;
+      }
+      // Storage refused (a private window): carry on in this page.
+      setBusy(false);
+      setSession({ pass: reply.pass, order: reply.order, savedPages: [] });
+      setFloor(0);
+      setAnswers({});
       go({ at: "in" });
       return;
     }
+    setBusy(false);
     if (reply.error === "alreadyAnswered") {
       setAddress("");
       setCode("");
@@ -318,6 +375,12 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
   if (step.at === "start") {
     return (
       <main className={styles.column}>
+        {/* For the one reload after the email check: while the address ends
+            #in, this is its target, and the start screen after it is hidden,
+            so nobody who has just got in is shown "Start" again while the
+            page finds their pass. No script is needed for that. */}
+        <span id="in" aria-hidden="true" className={styles.justIn} />
+        <div className={styles.startBody}>
         {bar}
         <div className={styles.stackWide}>
           <p className={styles.body}>{survey.start.intro}</p>
@@ -381,6 +444,7 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
               {survey.start.ticksNeeded}
             </p>
           )}
+        </div>
         </div>
       </main>
     );

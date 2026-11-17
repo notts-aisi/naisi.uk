@@ -59,6 +59,26 @@
   gap: 1.75rem;
 }
 
+/* The start screen's own column, and the mark that hides it for the one
+   reload after the email check (SurveyFlow.tsx): while the address ends #in,
+   the mark is its target and what follows it is not shown. */
+.startBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.justIn {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.justIn:target ~ .startBody {
+  visibility: hidden;
+}
+
 .form {
   display: flex;
   flex-direction: column;
