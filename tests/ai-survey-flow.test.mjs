@@ -782,6 +782,7 @@ const routes = {
   session: await loadTs("app/api/ai-survey/session/route.ts"),
 };
 const post = (body) => new Request("http://survey.invalid/", { method: "POST", body: JSON.stringify(body) });
+const { callSurvey, CALL_LIMIT_MS } = await loadTs("features/aiSurvey/api.ts");
 
 describe("the public routes when things go wrong", () => {
   test("a datastore that does not answer gets \"try again\" from every route, and none of them throws", async () => {
@@ -827,5 +828,41 @@ describe("the public routes when things go wrong", () => {
       assert.equal(await readSurveyBody(req), null, `${notABody} was taken for a body`);
     }
     assert.equal(await readSurveyBody(new Request("http://survey.invalid/", { method: "POST" })), null);
+  });
+
+  test("the page stops waiting for a call that never answers, and sends nothing of the person with any call", async () => {
+    const realFetch = globalThis.fetch;
+    const sent = [];
+    try {
+      // A request that is taken and never answered, as on one bar of signal.
+      globalThis.fetch = (url, init) => {
+        sent.push([url, init]);
+        return new Promise((resolve, reject) => {
+          init.signal.addEventListener("abort", () => reject(new DOMException("given up", "AbortError")));
+        });
+      };
+      const started = Date.now();
+      assert.deepEqual(await callSurvey("save", { pass: "p" }, 40), { ok: false, error: "failed" });
+      assert.ok(Date.now() - started < 2000, "the call waited far past its limit");
+      assert.ok(CALL_LIMIT_MS >= 10_000 && CALL_LIMIT_MS <= 30_000, "the usual limit is not one a slow phone can live with");
+
+      // One that answers: the answer comes through, and the limit's timer is gone with it.
+      globalThis.fetch = async (url, init) => {
+        sent.push([url, init]);
+        return { ok: true, json: async () => ({ ok: true, pass: "next" }) };
+      };
+      assert.deepEqual(await callSurvey("save", { pass: "p" }), { ok: true, pass: "next" });
+      // And a refusal by name.
+      globalThis.fetch = async () => ({ ok: false, json: async () => ({ error: "gone" }) });
+      assert.deepEqual(await callSurvey("save", { pass: "p" }), { ok: false, error: "gone" });
+
+      for (const [url, init] of sent) {
+        assert.equal(url, "/api/ai-survey/save");
+        assert.deepEqual([init.method, init.credentials, init.referrerPolicy, init.cache], ["POST", "omit", "no-referrer", "no-store"]);
+        assert.deepEqual(Object.keys(init.headers), ["content-type"]);
+      }
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
 });
