@@ -53,6 +53,15 @@ const AS_PRINTED = {
   join: "/links?q=join",
   movie: "/events/W2D1NwTZyNLLYtDQhzGg/calendar?q=movie",
   ig: "https://www.instagram.com/notts.ai.safety/",
+  // The AI at Nottingham survey's seven links, added 17 November 2026, as
+  // they were first handed out: each to the survey's start screen.
+  ai: "/ai-survey?q=ai",
+  "ai-mun": "/ai-survey?q=ai-mun",
+  "ai-forum": "/ai-survey?q=ai-forum",
+  "ai-naisi": "/ai-survey?q=ai-naisi",
+  "ai-su": "/ai-survey?q=ai-su",
+  "ai-posters": "/ai-survey?q=ai-posters",
+  "ai-reps": "/ai-survey?q=ai-reps",
 };
 
 // ---------------------------------------------------------------------------

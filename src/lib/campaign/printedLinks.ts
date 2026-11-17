@@ -35,6 +35,10 @@ export type PrintedLink = {
 };
 
 const FRESHERS_2026 = "Freshers 2026";
+/** The anonymous survey of November 2026 (`src/app/ai-survey`). */
+const AI_SURVEY_2026 = "AI at Nottingham survey";
+/** Every one of the survey's links lands on its start screen. */
+const AI_SURVEY_PAGE = "/ai-survey";
 
 export const PRINTED_LINKS: readonly PrintedLink[] = Object.freeze([
   {
@@ -73,6 +77,59 @@ export const PRINTED_LINKS: readonly PrintedLink[] = Object.freeze([
     type: "qr",
     campaign: FRESHERS_2026,
     destination: "https://www.instagram.com/notts.ai.safety/",
+  },
+  // The AI at Nottingham survey's seven links, one for each place it is
+  // handed out. They differ only so that scans can be counted per place: the
+  // link somebody arrived by is never kept with their answers, and the survey
+  // never reads it.
+  {
+    slug: "ai",
+    label: "The pass-it-on link on the survey's end screen",
+    type: "link",
+    campaign: AI_SURVEY_2026,
+    destination: AI_SURVEY_PAGE,
+  },
+  {
+    slug: "ai-mun",
+    label: "The NAISI x Model UN social, 17 November 2026",
+    type: "qr",
+    campaign: AI_SURVEY_2026,
+    destination: AI_SURVEY_PAGE,
+  },
+  {
+    slug: "ai-forum",
+    label: "The code on screen at the Students' Union's AI forum, 19 November 2026",
+    type: "qr",
+    campaign: AI_SURVEY_2026,
+    destination: AI_SURVEY_PAGE,
+  },
+  {
+    slug: "ai-naisi",
+    label: "The society's Instagram, WhatsApp and emails",
+    type: "link",
+    campaign: AI_SURVEY_2026,
+    destination: AI_SURVEY_PAGE,
+  },
+  {
+    slug: "ai-su",
+    label: "The Students' Union's emails, social media and campaigns team",
+    type: "link",
+    campaign: AI_SURVEY_2026,
+    destination: AI_SURVEY_PAGE,
+  },
+  {
+    slug: "ai-posters",
+    label: "Posters on campus",
+    type: "qr",
+    campaign: AI_SURVEY_2026,
+    destination: AI_SURVEY_PAGE,
+  },
+  {
+    slug: "ai-reps",
+    label: "Course reps and lecturers",
+    type: "link",
+    campaign: AI_SURVEY_2026,
+    destination: AI_SURVEY_PAGE,
   },
 ] satisfies PrintedLink[]);
 

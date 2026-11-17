@@ -1,0 +1,252 @@
+/*
+  The AI at Nottingham survey's admin page, from its board (drawn 1280 wide).
+  One account uses it, on a laptop, so the laptop is the design; below 48rem
+  the cards stack and the table scrolls inside its own box, never the page.
+  Nothing moves.
+*/
+
+.stages {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.stage {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0.875rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+}
+
+.stage[data-now] {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.stage[data-now="pilot"] {
+  border-color: var(--color-warning-line);
+  background: var(--color-warning-soft);
+}
+
+.stage[data-now="pilot"] .dot {
+  background: var(--color-warning);
+}
+
+.stage[data-now="open"] {
+  border-color: var(--color-ok-line);
+  background: var(--color-success-soft);
+}
+
+.stage[data-now="open"] .dot {
+  background: var(--color-ok);
+}
+
+.stage[data-now="closed"] {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface);
+}
+
+.stage[data-now="closed"] .dot {
+  background: var(--color-text-muted);
+}
+
+.counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.count {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 1.125rem var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  min-width: 0;
+}
+
+.number {
+  font-family: var(--font-display);
+  font-size: 2.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: 1.375rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  min-width: 0;
+}
+
+.panelDanger {
+  border-color: var(--color-danger-line);
+}
+
+.h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.checks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checks li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.checks code {
+  font-family: var(--font-meta);
+  font-size: var(--text-caption);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.checks span {
+  flex: none;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-warning);
+}
+
+.checks span[data-set] {
+  color: var(--color-ok);
+}
+
+.act {
+  min-height: 2.75rem;
+  padding: 0 var(--space-5);
+  font-size: var(--text-ui);
+  align-self: flex-start;
+}
+
+.download {
+  background: var(--color-surface);
+}
+
+.confirmLabel {
+  font-size: var(--text-sm);
+  color: var(--color-text-body);
+}
+
+.confirm {
+  min-height: 2.75rem;
+  box-sizing: border-box;
+  padding: 0.625rem var(--space-3);
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-ui);
+}
+
+.confirm:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+}
+
+.tableWrap {
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  text-align: left;
+  padding: 0 var(--space-3) var(--space-2);
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.table td {
+  padding: 0.625rem var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+  color: var(--color-text-body);
+}
+
+.table th:first-child,
+.table td:first-child {
+  padding-left: 0;
+}
+
+.table th:last-child,
+.table td:last-child {
+  padding-right: 0;
+}
+
+.table .slug {
+  font-family: var(--font-meta);
+  font-size: var(--text-caption);
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.table .scans {
+  text-align: right;
+  color: var(--color-text);
+}
+
+@media (max-width: 48rem) {
+  .counts,
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -1,7 +1,8 @@
 import "server-only";
 import { createHmac, randomBytes } from "node:crypto";
-import { FieldPath, FieldValue, Timestamp, type Firestore } from "firebase-admin/firestore";
-import { getAdminDb, getAdminDbNamed } from "@/lib/firebase/admin";
+import * as firestoreSdk from "firebase-admin/firestore";
+import type { Firestore } from "firebase-admin/firestore";
+import * as adminSdk from "@/lib/firebase/admin";
 import { AI_SURVEY, closesAtInstant } from "./definition";
 import type { AiSurveyAnswerSet, AiSurveyDefinition, AiSurveyPageAnswers, AiSurveyStage } from "./types";
 
@@ -31,6 +32,17 @@ import type { AiSurveyAnswerSet, AiSurveyDefinition, AiSurveyPageAnswers, AiSurv
  * Every collection is written by the server alone: `firestore.rules` locks
  * each one to everybody, and scripts/rules-tests holds that.
  */
+
+/*
+ * The SDK's values are read off the two modules' namespaces, on purpose, and
+ * not imported by name. The scheduler's registry imports every job by value
+ * and one job reaches this file, so this file is loaded by every suite that
+ * loads the registry, each with a small stand-in for the SDK. A named import
+ * of something a stand-in does not carry fails that whole suite as it loads;
+ * a namespace is simply missing the name until something here runs.
+ */
+const { FieldPath, FieldValue, Timestamp } = firestoreSdk;
+type Timestamp = firestoreSdk.Timestamp;
 
 export const STATE_COLLECTION = "aiSurveyState";
 export const ANSWERS_COLLECTION = "aiSurveyAnswers";
@@ -87,7 +99,7 @@ export type SurveyState = {
  */
 export function surveyDb(): Firestore | undefined {
   const named = process.env.AI_SURVEY_DATABASE?.trim();
-  return named ? getAdminDbNamed(named) : getAdminDb();
+  return named ? adminSdk.getAdminDbNamed(named) : adminSdk.getAdminDb();
 }
 
 export const stateRef = (db: Firestore) => db.collection(STATE_COLLECTION).doc("main");
@@ -162,6 +174,12 @@ export async function readState(db: Firestore): Promise<SurveyState> {
   return made;
 }
 
+/** The survey's state if it has one, and null if nobody has visited yet. Never makes it. */
+export async function peekState(db: Firestore): Promise<SurveyState | null> {
+  const snap = await stateRef(db).get();
+  return snap.exists ? asState(snap.data() ?? {}) : null;
+}
+
 export type StageNow = {
   stage: AiSurveyStage;
   /** Somebody new may ask for a code and start. */
@@ -203,7 +221,7 @@ function shardsToLevel(state: SurveyState): number[] {
  * nothing else (`AI_SURVEY_EMAIL_KEY`). In PILOT, on a copy of the site where
  * that secret has not been made yet, a stand-in kept with the state is used so
  * the survey can be tried: pilot hashes are thrown away when the survey opens,
- * and it CANNOT open without the real key (see `missingToOpen`). Outside
+ * and it CANNOT open without the real key (`openingChecks`). Outside
  * Pilot there is no stand-in: no key, no codes.
  */
 export function emailKey(state: SurveyState): Buffer | null {
