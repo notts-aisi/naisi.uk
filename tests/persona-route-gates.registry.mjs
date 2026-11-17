@@ -1717,6 +1717,41 @@ export const ROUTES = {
         "is forbidden before the read.",
     },
   },
+  "/api/ai-survey/admin": {
+    GET: {
+      expect: everyone(403, { anonymous: 401 }),
+      why:
+        "The totals on the AI at Nottingham survey's admin page. The survey's admin side answers to a list of accounts on the survey's own record and not to any role, so with nobody on that list every signed-in persona, the admin included, is forbidden, and a caller with no session meets the 401 first.",
+    },
+  },
+  "/api/ai-survey/admin/clear": {
+    POST: {
+      expect: everyone(403, { anonymous: 401 }),
+      why:
+        "Clearing the survey's pilot data. The survey's admin side answers to a list of accounts on the survey's own record and not to any role, so with nobody on that list every signed-in persona, the admin included, is forbidden, and a caller with no session meets the 401 first.",
+    },
+  },
+  "/api/ai-survey/admin/close": {
+    POST: {
+      expect: everyone(403, { anonymous: 401 }),
+      why:
+        "Closing the survey before its closing time. The survey's admin side answers to a list of accounts on the survey's own record and not to any role, so with nobody on that list every signed-in persona, the admin included, is forbidden, and a caller with no session meets the 401 first.",
+    },
+  },
+  "/api/ai-survey/admin/export": {
+    POST: {
+      expect: everyone(403, { anonymous: 401 }),
+      why:
+        "Downloading every answer set as a file. The survey's admin side answers to a list of accounts on the survey's own record and not to any role, so with nobody on that list every signed-in persona, the admin included, is forbidden, and a caller with no session meets the 401 first.",
+    },
+  },
+  "/api/ai-survey/admin/open": {
+    POST: {
+      expect: everyone(403, { anonymous: 401 }),
+      why:
+        "Opening the survey, which clears its pilot data. The survey's admin side answers to a list of accounts on the survey's own record and not to any role, so with nobody on that list every signed-in persona, the admin included, is forbidden, and a caller with no session meets the 401 first.",
+    },
+  },
   "/api/ai-survey/code": {
     POST: {
       expect: everyone(400),

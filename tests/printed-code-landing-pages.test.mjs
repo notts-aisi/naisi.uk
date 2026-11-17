@@ -44,6 +44,11 @@ const codeOf = (path) =>
  */
 const LANDING_PAGES = [
   {
+    file: "src/app/ai-survey/page.tsx",
+    matches: /^\/ai-survey$/,
+    whenMissing: "has no document of its own to be missing: its start screen is in the first HTML, and a closed survey says so there",
+  },
+  {
     file: "src/app/links/page.tsx",
     matches: /^\/links$/,
     whenMissing: "has no document of its own to be missing: it serves the built-in rows whatever is stored",

@@ -36,6 +36,7 @@ import {
 } from "@/lib/firestore/schedulerMarkers";
 import { admissionsRemindersJob } from "./jobs/admissionsReminders";
 import { admissionsStageReleaseJob } from "./jobs/admissionsStageRelease";
+import { aiSurveyTidyJob } from "./jobs/aiSurveyTidy";
 import { anonymousFeedbackMoveJob } from "./jobs/anonymousFeedbackMove";
 import { applicationInvitationRemindersJob } from "./jobs/applicationInvitationReminders";
 import { applicationPlaceConfirmationsJob } from "./jobs/applicationPlaceConfirmations";
@@ -66,6 +67,12 @@ export const SCHEDULER_JOB_IDS = [
   "heartbeat",
   "admissions-deadline-reminders",
   "admissions-stage-release",
+  // The anonymous AI at Nottingham survey's tidy-up
+  // (`src/lib/scheduler/jobs/aiSurveyTidy.ts`): run-out codes deleted, its
+  // shared documents rewritten together, and its used-email list deleted a
+  // week after it closes. It emails nobody, so it registers on: the survey's
+  // notice promises each of the three.
+  "ai-survey-tidy",
   // The anonymous keep, change and drop form's night move (docs/surveys.md):
   // a day's answers into the record kept, which holds the day and not the
   // time. It emails nobody, so it registers on: the form and the privacy
@@ -283,6 +290,7 @@ export function policyFor(job: JobRegistration): MarkerPolicy {
 export const JOBS: readonly JobRegistration[] = [
   admissionsRemindersJob,
   admissionsStageReleaseJob,
+  aiSurveyTidyJob,
   anonymousFeedbackMoveJob,
   applicationInvitationRemindersJob,
   applicationPlaceConfirmationsJob,
