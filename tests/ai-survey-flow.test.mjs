@@ -483,42 +483,71 @@ describe("a shared document's update time", () => {
   const times = (docs) => new Set(docs.map(([, , updated]) => updated));
   const shared = () => [...answerDocs(), ...world.all(store.USED_COLLECTION)];
 
-  test("a save that finds the documents due rewrites every one of them with it", async () => {
-    const joined = await join(A);
-    world.setNow(T0 + MINUTE);
-    await savePage(joined.pass, "about1", { A1: "ug" }, false, T0 + MINUTE);
-    assert.equal(shared().length, 32);
-    assert.equal(times(shared()).size, 1, "after a save that levelled, the shared documents carry different update times");
+  test("with few people saving, every save rewrites every shared document with it", async () => {
+    const one = await join(A);
+    const two = await join(B, T0 + 1000);
+    // Two people, six saves, seconds apart: after each, no document stands out.
+    const saves = [
+      [one, "about1", 0],
+      [one, "use", 3000],
+      [two, "about1", 4000],
+      [one, "stand", 9000],
+      [two, "use", 15_000],
+      [two, "stand", 18_000],
+    ];
+    for (const [person, pageId, after] of saves) {
+      world.setNow(T0 + MINUTE + after);
+      const saved = await savePage(person.pass, pageId, ANSWERS[pageId] ?? {}, false, T0 + MINUTE + after);
+      assert.equal(saved.ok, true, JSON.stringify(saved));
+      person.pass = saved.pass;
+      assert.equal(shared().length, 32);
+      assert.equal(times(shared()).size, 1, `after the save ${after / 1000}s in, a shared document's update time stands apart`);
+    }
   });
 
-  test("a save that is not due writes one document, and the next due save levels them again", async () => {
+  test("in a room a save writes one document, one save in twenty seconds levels them, and a room gone quiet levels on every save again", async () => {
     const people = [];
-    for (let n = 0; n < 6; n++) people.push(await join(`student${n}@nottingham.ac.uk`, T0 + n * 1000));
-    world.setNow(T0 + MINUTE);
-    await savePage(people[0].pass, "about1", { A1: "ug" }, false, T0 + MINUTE);
-    assert.equal(times(shared()).size, 1);
-    // Five more within twenty seconds: each writes its own document and
-    // nothing else, which is what keeps a room of people from queueing.
-    for (let n = 1; n < 6; n++) {
+    for (let n = 0; n < 14; n++) people.push(await join(`student${n}@nottingham.ac.uk`, T0 + n * 1000));
+    // Fourteen saves in seven seconds on one server. The first few each
+    // level, as they would for a few people; past `BUSY_SAVES` it is a room.
+    let alone = 0;
+    for (const [n, person] of people.entries()) {
       const before = new Map(answerDocs().map(([id, , updated]) => [id, updated]));
-      world.setNow(T0 + MINUTE + n * 2000);
-      await savePage(people[n].pass, "about1", { A1: "ug" }, false, T0 + MINUTE + n * 2000);
-      const changed = answerDocs().filter(([id, , updated]) => before.get(id) !== updated);
-      assert.equal(changed.length, 1, `save ${n + 1} wrote ${changed.length} answer documents`);
+      world.setNow(T0 + MINUTE + n * 500);
+      await savePage(person.pass, "about1", { A1: "ug" }, false, T0 + MINUTE + n * 500);
+      const changed = answerDocs().filter(([id, , updated]) => before.get(id) !== updated).length;
+      assert.ok(changed === 1 || changed === 16, `save ${n + 1} wrote ${changed} answer documents`);
+      if (n < store.BUSY_SAVES) assert.equal(changed, 16, `save ${n + 1} of a few did not level`);
+      else assert.equal(changed, 1, `save ${n + 1}, in a room, rewrote every document`);
+      if (changed === 1) alone += 1;
     }
-    // Past twenty seconds, whoever saves next levels all of them.
+    assert.equal(alone, 14 - store.BUSY_SAVES);
+    assert.ok(times(shared()).size > 1);
+    // Still a room, and twenty seconds since the last levelling: this save levels.
+    for (const [n, person] of people.entries()) {
+      world.setNow(T0 + MINUTE + 12_000 + n * 500);
+      await savePage(person.pass, "use", {}, false, T0 + MINUTE + 12_000 + n * 500);
+    }
     world.setNow(T0 + MINUTE + 25_000);
-    await savePage(people[0].pass, "use", {}, false, T0 + MINUTE + 25_000);
-    assert.equal(times(shared()).size, 1);
-    assert.equal(allSets().length, 6);
+    await savePage(people[0].pass, "stand", {}, false, T0 + MINUTE + 25_000);
+    assert.equal(times(shared()).size, 1, "a room's save, twenty seconds after the last levelling, did not level");
+    // The room empties. A minute on, one person saves twice: both level.
+    for (const after of [90_000, 93_000]) {
+      world.setNow(T0 + MINUTE + after);
+      await savePage(people[3].pass, after === 90_000 ? "use" : "stand", {}, false, T0 + MINUTE + after);
+      assert.equal(times(shared()).size, 1, "a save after the room went quiet left a document standing apart");
+    }
+    assert.equal(allSets().length, 14);
   });
 
   test("the job's rewrite gives every shared document one update time", async () => {
-    const joined = await join(A);
-    world.setNow(T0 + MINUTE);
-    await savePage(joined.pass, "about1", {}, false, T0 + MINUTE);
-    world.setNow(T0 + MINUTE + 3000);
-    await savePage(joined.pass, "use", {}, false, T0 + MINUTE + 3000);
+    const people = [];
+    for (let n = 0; n < 12; n++) people.push(await join(`student${n}@nottingham.ac.uk`, T0 + n * 1000));
+    for (const [n, person] of people.entries()) {
+      world.setNow(T0 + MINUTE + n * 500);
+      await savePage(person.pass, "about1", {}, false, T0 + MINUTE + n * 500);
+    }
+    // A room that stops all at once leaves its last few saves unlevelled.
     assert.ok(times(shared()).size > 1, "this test needs a document that stands out before the job runs");
     await store.levelAll(world.db, await store.readState(world.db));
     assert.equal(times(shared()).size, 1);
@@ -753,6 +782,7 @@ const routes = {
   session: await loadTs("app/api/ai-survey/session/route.ts"),
 };
 const post = (body) => new Request("http://survey.invalid/", { method: "POST", body: JSON.stringify(body) });
+const { callSurvey, CALL_LIMIT_MS } = await loadTs("features/aiSurvey/api.ts");
 
 describe("the public routes when things go wrong", () => {
   test("a datastore that does not answer gets \"try again\" from every route, and none of them throws", async () => {
@@ -798,5 +828,41 @@ describe("the public routes when things go wrong", () => {
       assert.equal(await readSurveyBody(req), null, `${notABody} was taken for a body`);
     }
     assert.equal(await readSurveyBody(new Request("http://survey.invalid/", { method: "POST" })), null);
+  });
+
+  test("the page stops waiting for a call that never answers, and sends nothing of the person with any call", async () => {
+    const realFetch = globalThis.fetch;
+    const sent = [];
+    try {
+      // A request that is taken and never answered, as on one bar of signal.
+      globalThis.fetch = (url, init) => {
+        sent.push([url, init]);
+        return new Promise((resolve, reject) => {
+          init.signal.addEventListener("abort", () => reject(new DOMException("given up", "AbortError")));
+        });
+      };
+      const started = Date.now();
+      assert.deepEqual(await callSurvey("save", { pass: "p" }, 40), { ok: false, error: "failed" });
+      assert.ok(Date.now() - started < 2000, "the call waited far past its limit");
+      assert.ok(CALL_LIMIT_MS >= 10_000 && CALL_LIMIT_MS <= 30_000, "the usual limit is not one a slow phone can live with");
+
+      // One that answers: the answer comes through, and the limit's timer is gone with it.
+      globalThis.fetch = async (url, init) => {
+        sent.push([url, init]);
+        return { ok: true, json: async () => ({ ok: true, pass: "next" }) };
+      };
+      assert.deepEqual(await callSurvey("save", { pass: "p" }), { ok: true, pass: "next" });
+      // And a refusal by name.
+      globalThis.fetch = async () => ({ ok: false, json: async () => ({ error: "gone" }) });
+      assert.deepEqual(await callSurvey("save", { pass: "p" }), { ok: false, error: "gone" });
+
+      for (const [url, init] of sent) {
+        assert.equal(url, "/api/ai-survey/save");
+        assert.deepEqual([init.method, init.credentials, init.referrerPolicy, init.cache], ["POST", "omit", "no-referrer", "no-store"]);
+        assert.deepEqual(Object.keys(init.headers), ["content-type"]);
+      }
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
 });

@@ -89,6 +89,10 @@ function newClaim(): string {
 const JUST_IN = "#in";
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/** One try at checking a code is given up after this long, so there is time to try again. */
+const CODE_CHECK_LIMIT_MS = 10_000;
+/** How long the page goes on asking again when a code check gets no answer. */
+const CODE_CHECK_PATIENCE_MS = 25_000;
 
 /** A fair shuffle: every order of the lines is as likely as any other. */
 function shuffle<T>(items: readonly T[]): T[] {
@@ -238,13 +242,16 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
     // asking as the same person.
     claim.current ??= newClaim();
     const body = { email: typed, code: digits, claim: claim.current };
-    let reply = await callSurvey<{ pass: string; order: string[] }>("code/check", body);
+    const check = () => callSurvey<{ pass: string; order: string[] }>("code/check", body, CODE_CHECK_LIMIT_MS);
+    let reply = await check();
     // "failed" is the network or the server not answering, never a wrong
     // code. The right code may already have been taken, so ask again rather
-    // than leave somebody with a used address and no way in.
-    for (let again = 0; again < 3 && !reply.ok && reply.error === "failed"; again++) {
-      await pause(900);
-      reply = await callSurvey<{ pass: string; order: string[] }>("code/check", body);
+    // than leave somebody with a used address and no way in: a little longer
+    // apart each time, for about half a minute in all.
+    const until = Date.now() + CODE_CHECK_PATIENCE_MS;
+    for (let again = 1; !reply.ok && reply.error === "failed" && Date.now() < until; again++) {
+      await pause(again * 1000);
+      reply = await check();
     }
     if (reply.ok) {
       // The address has done its one job. Drop it from the page's memory.
