@@ -1717,6 +1717,42 @@ export const ROUTES = {
         "is forbidden before the read.",
     },
   },
+  "/api/ai-survey/code": {
+    POST: {
+      expect: everyone(400),
+      why:
+        "Asking for a code in front of the anonymous AI at Nottingham survey, with no session on purpose: the " +
+        "route reads no cookie and nobody is asked who they are, so every caller meets the same 400 for a body " +
+        "with no University address in it, before the bot check, the limits or the send.",
+    },
+  },
+  "/api/ai-survey/code/check": {
+    POST: {
+      expect: everyone(400),
+      why:
+        "Checking a code for the anonymous AI at Nottingham survey: the six digits sent to the address are the " +
+        "credential, and the route reads no session, so every caller meets the same 400 for a body with no " +
+        "University address in it.",
+    },
+  },
+  "/api/ai-survey/save": {
+    POST: {
+      expect: everyone(400),
+      why:
+        "Saving a page of the anonymous AI at Nottingham survey: the signed pass in the body is the credential " +
+        "and the route reads no session, so every caller, signed in or not, meets the same 400 for a body " +
+        "with no pass in it, before anything is read.",
+    },
+  },
+  "/api/ai-survey/session": {
+    POST: {
+      expect: everyone(400),
+      why:
+        "Coming back to an unfinished AI at Nottingham survey: the signed pass in the body is the credential, " +
+        "the route reads no session and writes nothing, so every caller meets the same 400 for a body with no " +
+        "pass in it.",
+    },
+  },
   "/api/audience": {
     GET: {
       expect: approvedOnly(200),

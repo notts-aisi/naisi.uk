@@ -165,6 +165,18 @@ const PURE = {
     from: "@/lib/firebase/admin",
     why: "obtains the Firestore handle; nothing is read until a method is called on it",
   },
+  readSurveyBody: {
+    from: "@/lib/aiSurvey/request",
+    why: "reads the request's own body as text, refuses one too long, and parses it; no document, no cookie and no header",
+  },
+  refuse: {
+    from: "@/lib/aiSurvey/request",
+    why: "builds the answer for a named refusal, a status and a no-store header; reads nothing",
+  },
+  normaliseUniversityAddress: {
+    from: "@/lib/aiSurvey/address",
+    why: "a string test: trims, lower-cases and drops a plus tag, and refuses anything not at the University's own domain",
+  },
   getAdminAuth: {
     from: "@/lib/firebase/admin",
     why: "obtains the Auth handle, on the sign-in route that verifies the id token with it",
@@ -255,6 +267,40 @@ const PUBLIC = new Map([
         "random secret is the gate. One equality on the token, and an unknown or malformed one reads nothing " +
         "more; an in-memory per-IP throttle runs before it. The one write is the person's own row, in a " +
         "transaction.",
+    },
+  ],
+  [
+    "src/app/api/ai-survey/code/check/route.ts#POST",
+    {
+      touches: "reads the pending code for the address's keyed hash and, on the right code, deletes it and adds the hash to the used-email list",
+      gate: "checkCode(",
+      why:
+        "The second step of the email check in front of the anonymous AI at Nottingham survey, which reads no " +
+        "session by design: the six-digit code sent to the address is the gate. The address and the code are " +
+        "checked for shape first and touch no document; a wrong code is counted and the fifth kills it, in the " +
+        "same transaction that reads it.",
+    },
+  ],
+  [
+    "src/app/api/ai-survey/save/route.ts#POST",
+    {
+      touches: "reads whether the pass's answer set is finished, then writes one page of it inside a shared document",
+      gate: "savePage(",
+      why:
+        "One page of an anonymous answer set. The pass in the body is the gate: it is signed by this site and " +
+        "handed out only after the email check, and its signature is checked before any answer document is " +
+        "read. The survey's own state is read first, for the key that signs passes and for whether it has " +
+        "closed.",
+    },
+  ],
+  [
+    "src/app/api/ai-survey/session/route.ts#POST",
+    {
+      touches: "reads which pages of the pass's answer set are saved, and nothing of what they hold",
+      gate: "viewSession(",
+      why:
+        "Coming back to an unfinished survey in the same browser. The signed pass in the body is the gate, " +
+        "checked before any answer document is read; it writes nothing and never returns an answer.",
     },
   ],
   [

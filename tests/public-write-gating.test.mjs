@@ -544,6 +544,62 @@ const PUBLIC_HANDLERS = new Map([
   ],
 
   [
+    "src/app/api/ai-survey/code/route.ts#POST",
+    {
+      anonymous: true,
+      writes: true,
+      sends: true,
+      throttle: "requestCode(",
+      captcha: "verifyRecaptcha(",
+      why:
+        "\"Send my code\", in front of the anonymous AI at Nottingham survey: a six-digit code, in plain text, to a " +
+        "University address the caller types. Nobody is asked who they are, so there is no session to require. " +
+        "The address rule and reCAPTCHA come first; then `requestCode` holds a ceiling on codes an hour across " +
+        "the whole survey and, in one transaction, one code a minute and five a day for the address, both kept " +
+        "in the datastore under a keyed hash. NOT BY IP, on purpose: a room of students shares a few, and the " +
+        "survey keeps nothing against one. It answers the same whether or not the address has answered.",
+    },
+  ],
+  [
+    "src/app/api/ai-survey/code/check/route.ts#POST",
+    {
+      anonymous: true,
+      writes: true,
+      sends: false,
+      credential: "checkCode(",
+      why:
+        "The code is the credential: six digits from a cryptographic source, good for fifteen minutes, dead " +
+        "after five wrong tries, with five codes a day for an address, so guessing is twenty-five tries in a " +
+        "million. The right code is deleted and the address's keyed hash added to the used-email list in one " +
+        "transaction, which is the only place \"already answered\" is ever said.",
+    },
+  ],
+  [
+    "src/app/api/ai-survey/save/route.ts#POST",
+    {
+      anonymous: true,
+      writes: true,
+      sends: false,
+      credential: "savePage(",
+      why:
+        "One page of answers, saved whole. The pass in the body is the credential: 32 random bytes signed by " +
+        "this site and handed out only after the email check, so a browser cannot write one. The page is " +
+        "checked against the survey before anything is stored, a finished answer set is locked, and what is " +
+        "stored names nobody and carries no time.",
+    },
+  ],
+  [
+    "src/app/api/ai-survey/session/route.ts#POST",
+    {
+      anonymous: true,
+      writes: false,
+      sends: false,
+      why:
+        "Read-only. Coming back to an unfinished survey: it reads which pages are saved for the pass in the " +
+        "body, and never returns an answer. A POST only so that the pass is never in an address.",
+    },
+  ],
+  [
     "src/app/api/feedback/route.ts#POST",
     {
       anonymous: true,

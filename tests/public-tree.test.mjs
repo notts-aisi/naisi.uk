@@ -220,6 +220,19 @@ const fileName = (domain) => /\.(?:png|jpe?g|gif|svg|webp|avif|css|js|mjs|ts|tsx
  */
 const KNOWN_ADDRESSES = [
   {
+    why:
+      "Fixtures for the AI at Nottingham survey's address rule, which reduces a plus tag to one address and " +
+      "refuses a subdomain, another campus's domain and a malformed name. Made up, and nothing is sent to any.",
+    addresses: [
+      "someone+survey@nottingham.ac.uk",
+      "someone+a+b@nottingham.ac.uk",
+      "someone@cs.nottingham.ac.uk",
+      "someone@nottingham.edu.cn",
+      "+tag@nottingham.ac.uk",
+      "a..b@nottingham.ac.uk",
+    ],
+  },
+  {
     why: "Addresses the society publishes or sends from.",
     addresses: ["ai-safety@uonsu.com", "newsletter@naisi.uk", "notifications@naisi.uk", "accounts@naisi.uk"],
   },
