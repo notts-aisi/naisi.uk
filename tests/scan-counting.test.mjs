@@ -46,7 +46,21 @@ const codeOf = (path) =>
  * entry here is never edited or removed. Add a line when a new code is
  * printed.
  */
-const ON_PAPER = ["movie", "brochure", "poster", "join", "ig"];
+const ON_PAPER = [
+  "movie",
+  "brochure",
+  "poster",
+  "join",
+  "ig",
+  // The AI at Nottingham survey's, handed out from 17 November 2026.
+  "ai",
+  "ai-mun",
+  "ai-forum",
+  "ai-naisi",
+  "ai-su",
+  "ai-posters",
+  "ai-reps",
+];
 
 /** Every field `recordScan` may write. Widening this is a privacy decision. */
 const STORED_FIELDS = ["count", "date", "hours", "slug"];

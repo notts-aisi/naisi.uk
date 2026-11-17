@@ -214,6 +214,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/aiSurvey/totals.ts",
+    {
+      why: "the AI at Nottingham survey's totals: a saved page's answers, read by the codes of the survey's own definition, never by a name a stored page merely inherits",
+    },
+  ],
+  [
     "src/features/aiSurvey/",
     {
       why: "the AI at Nottingham survey's pages: a page's answers, held in the page's memory under each question's or line's code, read by the codes of the survey's own definition",

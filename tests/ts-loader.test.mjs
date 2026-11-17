@@ -262,6 +262,16 @@ describe("the shared loader reads JSX", () => {
  */
 const USERS = new Map([
   [
+    "ai-survey-totals.test.mjs",
+    "runs the AI at Nottingham survey's totals as a plain function, a .ts module, to hold what each count and each " +
+      "share is out of",
+  ],
+  [
+    "ai-survey-flow.test.mjs",
+    "runs the AI at Nottingham survey's email check, saving and admin actions, which are .ts modules, against an " +
+      "in-memory datastore, with the Admin SDK's module, the session and the mail door stubbed",
+  ],
+  [
     "ai-survey.test.mjs",
     "runs the AI at Nottingham survey's definition, address rule, page checks, export and browser pass as plain " +
       "functions, with the server-only marker and the Admin SDK's module stubbed because the pass and the store " +

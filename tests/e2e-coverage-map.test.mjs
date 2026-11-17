@@ -1517,6 +1517,36 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated and anonymous answers from an earlier day, so a spec can read them as the lead.",
   },
+  "/api/ai-survey/admin": {
+    reason:
+      "The admin page's totals; tests/ai-survey-flow.test.mjs holds that they are totals and that only the survey's own list reaches them.",
+    coverWhen:
+      "When the end-to-end fixtures can put a test account on the survey's own list of accounts and pass its email check, so a spec can pilot, clear, open and download.",
+  },
+  "/api/ai-survey/admin/clear": {
+    reason:
+      "Clearing pilot data: tests/ai-survey-flow.test.mjs holds that it works only in the pilot stage, only with the phrase typed, and takes every pilot pass with it.",
+    coverWhen:
+      "When the end-to-end fixtures can put a test account on the survey's own list of accounts and pass its email check, so a spec can pilot, clear, open and download.",
+  },
+  "/api/ai-survey/admin/close": {
+    reason:
+      "Closing the survey by hand: tests/ai-survey-flow.test.mjs holds nobody new at once and thirty minutes for somebody under way.",
+    coverWhen:
+      "When the end-to-end fixtures can put a test account on the survey's own list of accounts and pass its email check, so a spec can pilot, clear, open and download.",
+  },
+  "/api/ai-survey/admin/export": {
+    reason:
+      "The answers as a file: tests/ai-survey-flow.test.mjs holds one row a set, no ids and no times, and the download recorded first.",
+    coverWhen:
+      "When the end-to-end fixtures can put a test account on the survey's own list of accounts and pass its email check, so a spec can pilot, clear, open and download.",
+  },
+  "/api/ai-survey/admin/open": {
+    reason:
+      "Opening the survey: tests/ai-survey-flow.test.mjs holds that it refuses while anything it needs is missing and that it clears the pilot.",
+    coverWhen:
+      "When the end-to-end fixtures can put a test account on the survey's own list of accounts and pass its email check, so a spec can pilot, clear, open and download.",
+  },
   "/api/ai-survey/code": {
     reason:
       "Sending a code to a University address for the anonymous survey: tests/public-write-gating.test.mjs holds its bot check and limits, and tests/ai-survey-no-trace.test.mjs that it reads no session and leaves no row in the send log.",
@@ -2193,6 +2223,18 @@ const NOT_COVERED = {
       "The links page is checked-in rows, one read of published events and the home page's subscribe form, whose route tests/subscriptions-consent.test.mjs executes; what is new on it is the source attribution, which tests/campaign-attribution.test.mjs pins as a pure function.",
     coverWhen:
       "When scan counting or an admin-editable list of rows lands on it, because then the page writes and its content stops being a checked-in file.",
+  },
+  "/ai-survey/admin/totals": {
+    reason:
+      "The survey's totals, for the accounts on its own list; tests/ai-survey-totals.test.mjs holds what each count and share is out of, and that the page shows numbers and never a comment.",
+    coverWhen:
+      "When the end-to-end fixtures can put a test account on the survey's own list of accounts and pass its email check, so a spec can answer and then read the totals.",
+  },
+  "/ai-survey/admin": {
+    reason:
+      "The survey's own admin page, open to a list of accounts on the survey's record and not to a role; tests/ai-survey-flow.test.mjs runs its gate, its counts and each of its actions against an in-memory datastore.",
+    coverWhen:
+      "When the end-to-end fixtures can put a test account on the survey's own list of accounts and pass its email check, so a spec can pilot, clear, open and download.",
   },
   "/ai-survey": {
     reason:
