@@ -9,7 +9,7 @@
  * one data module; everything else is a shell around it. This file runs the
  * shipping code:
  *
- *  1. THE DEFINITION is what was agreed: twelve pages, five of
+ *  1. THE DEFINITION is what was agreed: thirteen pages, five of
  *     them proposals, every code used once, and an export of exactly the
  *     columns the people analysing it were promised, in that order. ONCE THE
  *     SURVEY IS OPEN THE QUESTIONS DO NOT CHANGE: a change that moves a code
@@ -44,7 +44,9 @@ const { checkPageAnswers } = await loadTs("lib/aiSurvey/answers.ts");
 const { buildExport, exportHeader, exportRow, shuffled } = await loadTs("lib/aiSurvey/exportCsv.ts");
 const { answerSetKey, claimHash, isClaim, newCode, newPassId, openPass, passFromClaim, PASS_LIFETIME_MS, renewPass, sealPass } =
   await loadTs("lib/aiSurvey/pass.ts");
-const { CLOSING_GRACE_MS, hashAddress, passSigningKey, PEOPLE_PER_GENERATION, shardsInUse, stageAt } = await loadTs("lib/aiSurvey/store.ts");
+const { CLOSING_GRACE_MS, hashAddress, passSigningKey, PEOPLE_PER_DOCUMENT, PEOPLE_PER_GENERATION, SHARDS_PER_GENERATION, shardsInUse, stageAt } =
+  await loadTs("lib/aiSurvey/store.ts");
+const { plainText } = await loadTs("lib/aiSurvey/types.ts");
 const { publicSurvey } = await loadTs("features/aiSurvey/projectSurvey.ts");
 const { sequenceOf } = await loadTs("features/aiSurvey/publicSurvey.ts");
 const { Timestamp } = await import("firebase-admin/firestore");
@@ -57,15 +59,17 @@ const { Timestamp } = await import("firebase-admin/firestore");
 const COLUMNS = [
   "finished", "A1", "A2", "B1",
   "B2_explain", "B2_summarise", "B2_ideas", "B2_plan", "B2_sources", "B2_draft", "B2_paste", "B2_media", "B2_grammar", "B2_code", "B2_none",
-  "B3", "B4", "B5a", "B5b", "B5c", "B6", "B7", "B8", "B9", "B10",
-  "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12",
-  "X1", "X2", "X3", "X4",
-  "P1", "P2a", "P2b", "P3", "P4", "P5", "P6", "M1",
-  "P7", "P8", "P9", "P10", "P11", "P12", "M2",
-  "P13", "P14", "P15", "P16", "P17", "M3",
-  "P18", "P30", "P19", "P20", "P21", "P22", "P23", "P24", "M4",
-  "P25", "P26", "P27", "P28", "P29", "M5",
-  "E1", "F1", "F2", "G1", "G2", "A3", "A4", "A5", "A6", "H1",
+  "B3a", "B3b", "B3c", "B3d",
+  "B4a", "B4b", "B4c", "B4d", "B4e", "B4f", "B4g", "B4h", "B4i", "B4j",
+  "B5a", "B5b", "B5c", "B6", "B7", "B8", "B8w", "B9", "B10",
+  "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13",
+  "X1", "X2", "X3", "X3o", "X4",
+  "P1", "P2a", "P2b", "P3", "P4", "P5", "P6", "M1_1", "M1_2", "M1_3", "M1w",
+  "P7", "P8", "P9", "P10", "P11", "P12", "M2_1", "M2_2", "M2_3", "M2w",
+  "P13", "P14", "P15", "P16", "P17", "M3_1", "M3_2", "M3_3", "M3w",
+  "P18", "P30", "P19", "P20", "P21", "P22", "P23", "P24", "M4_1", "M4_2", "M4_3", "M4w",
+  "P25", "P26", "P27", "P28", "P29", "M5_1", "M5_2", "M5_3", "M5w",
+  "F1", "F2", "G1", "G2", "A3", "A4", "A5", "A6", "H1",
 ];
 
 /** Every string anywhere in a value. */
@@ -77,23 +81,31 @@ function stringsIn(value, into = []) {
 }
 
 describe("the definition", () => {
-  test("twelve pages, five of them proposals shown as one block", () => {
-    assert.equal(AI_SURVEY.pages.length, 12);
+  test("thirteen pages, five of them proposals shown as one block", () => {
+    assert.equal(AI_SURVEY.pages.length, 13);
     assert.deepEqual(proposalPageIds(), ["d1", "d2", "d3", "d4", "d5"]);
     assert.deepEqual(
       pageSequence(["d3", "d1", "d5", "d2", "d4"]),
-      ["about1", "use", "seen", "stand", "choices", "d3", "d1", "d5", "d2", "d4", "priorities", "last"],
+      ["about1", "use", "rules", "seen", "stand", "choices", "d3", "d1", "d5", "d2", "d4", "priorities", "last"],
     );
   });
 
-  test("46 lines answered on a scale: 12 statements, 31 proposals and 3 yes or no", () => {
+  test("61 lines answered on a scale: 13 statements, 31 proposals, 3 yes or no, 4 effects and 10 uses the rules cover", () => {
     const lines = AI_SURVEY.pages.flatMap((p) => p.questions).filter((q) => q.type === "lines");
     const count = (scale) => lines.filter((q) => q.scale === scale).reduce((n, q) => n + q.lines.length, 0);
-    assert.deepEqual([count("agree"), count("support"), count("yesNoNotSure")], [12, 31, 3]);
+    assert.deepEqual(
+      [count("agree"), count("support"), count("yesNoNotSure"), count("effect"), count("clarity")],
+      [13, 31, 3, 4, 10],
+    );
+    // Every lines question names a scale the survey has.
+    for (const q of lines) assert.ok(AI_SURVEY.scales[q.scale]?.length > 0, `${q.id} is answered on "${q.scale}", which is not a scale`);
+    // The rules are asked about the same ten uses, in the same order, that B2 lists.
+    const uses = AI_SURVEY.pages.flatMap((p) => p.questions).find((q) => q.id === "B2").options.filter((o) => !o.exclusive).map((o) => o.label);
+    assert.deepEqual(lines.find((q) => q.id === "B4").lines.map((l) => l.text), uses);
   });
 
-  test("the export has exactly the promised 87 columns, in order", () => {
-    assert.equal(COLUMNS.length, 87);
+  test("the export has exactly the promised 116 columns, in order", () => {
+    assert.equal(COLUMNS.length, 116);
     assert.deepEqual(exportHeader(), COLUMNS);
   });
 
@@ -122,17 +134,79 @@ describe("the definition", () => {
     assert.deepEqual(AI_SURVEY.scales.support.filter((a) => a.outsideScale).map((a) => a.id), ["dk"]);
     assert.equal(AI_SURVEY.scales.agree.length, 6);
     assert.equal(AI_SURVEY.scales.support.length, 6);
+    // The rules: five points, and "Not covered" beside them. The effect of AI: five points and nothing beside.
+    assert.deepEqual(AI_SURVEY.scales.clarity.filter((a) => a.outsideScale).map((a) => a.id), ["not_covered"]);
+    assert.equal(AI_SURVEY.scales.clarity.length, 6);
+    assert.equal(AI_SURVEY.scales.effect.filter((a) => a.outsideScale).length, 0);
+    assert.equal(AI_SURVEY.scales.effect.length, 5);
+    // An answer's id is a cell of the export, and one scale never reuses another's word for a different thing on the same line.
+    for (const [name, answers] of Object.entries(AI_SURVEY.scales)) {
+      assert.equal(new Set(answers.map((a) => a.id)).size, answers.length, `${name} has an id twice`);
+      for (const answer of answers) assert.match(answer.id, /^[a-z0-9_]+$/, `${name}: ${answer.id}`);
+    }
   });
 
-  test("each 'which matters most' draws on a lines question of its own page", () => {
+  test("each 'rank your top three' draws on a lines question of its own page, and is followed by its 'why' box", () => {
+    let rankings = 0;
     for (const page of AI_SURVEY.pages) {
-      for (const q of page.questions) {
-        if (q.type !== "mostOf") continue;
+      for (const [at, q] of page.questions.entries()) {
+        if (q.type !== "rank") continue;
+        rankings += 1;
         const source = page.questions.find((other) => other.id === q.linesFrom);
         assert.equal(source?.type, "lines", `${q.id} points at ${q.linesFrom}`);
+        assert.equal(q.places, 3);
+        assert.ok(source.lines.length >= q.places, `${q.id} asks for more places than its page has lines`);
         assert.deepEqual(q.extraOptions.map((o) => o.id), ["none"]);
+        // "None of these" must never be mistaken for a line.
+        assert.ok(!source.lines.some((line) => line.id === "none"));
+        const why = page.questions[at + 1];
+        assert.deepEqual([why?.type, why?.id], ["text", `${q.id}w`]);
       }
     }
+    // Every proposal page ends with one, and no other page has one.
+    assert.equal(rankings, proposalPageIds().length);
+    for (const id of proposalPageIds()) assert.ok(AI_SURVEY.pages.find((p) => p.id === id).questions.some((q) => q.type === "rank"), id);
+  });
+
+  test("a box shown for one answer points at a question of its own page and an answer that question has", () => {
+    let conditional = 0;
+    for (const page of AI_SURVEY.pages) {
+      for (const q of page.questions) {
+        if (q.type !== "text" || !q.showIf) continue;
+        conditional += 1;
+        const asked = page.questions.find((other) => other.id === q.showIf.code);
+        assert.equal(asked?.type, "single", `${q.id} depends on ${q.showIf.code}`);
+        assert.ok(asked.options.some((o) => o.id === q.showIf.is), `${q.showIf.code} has no answer "${q.showIf.is}"`);
+      }
+    }
+    assert.equal(conditional, 1);
+  });
+
+  test("a word marked for emphasis is drawn bold on the page and read plain everywhere else", () => {
+    const B9 = AI_SURVEY.pages.flatMap((p) => p.questions).find((q) => q.id === "B9");
+    assert.match(B9.text, /\*\*required\*\*/);
+    assert.equal(plainText(B9.text), "Have you been required to use an AI tool for assessed work this year?");
+    assert.equal(plainText("no marks here"), "no marks here");
+    // Only question text is ever marked: an option, a line or a scale's answer with asterisks would be shown as typed.
+    const marked = [];
+    JSON.stringify(AI_SURVEY, (key, value) => {
+      if (typeof value === "string" && value.includes("**") && key !== "text") marked.push(`${key}: ${value}`);
+      return value;
+    });
+    assert.deepEqual(marked, []);
+    for (const page of AI_SURVEY.pages) for (const q of page.questions) for (const line of q.lines ?? []) assert.ok(!line.text.includes("**"), line.id);
+  });
+
+  test("every text box takes 5,000 characters, and a page with one still fits in a request", () => {
+    const boxes = AI_SURVEY.pages.flatMap((p) => p.questions.filter((q) => q.type === "text").map((q) => [p.id, q]));
+    assert.equal(boxes.length, 8);
+    for (const [, q] of boxes) assert.equal(q.maxLength, 5000, q.id);
+    // request.ts reads a body up to 16,000 characters. One box to a page, and
+    // even a box of quotation marks, which double when sent, leaves room.
+    const perPage = new Map();
+    for (const [pageId] of boxes) perPage.set(pageId, (perPage.get(pageId) ?? 0) + 1);
+    for (const [pageId, count] of perPage) assert.equal(count, 1, `${pageId} has ${count} text boxes`);
+    assert.ok(JSON.stringify({ pass: "p".repeat(1024), pageId: "choices", answers: { X3o: '"'.repeat(5000) }, finish: false }).length < 16_000);
   });
 
   test("every value a student's sentence needs is filled, and none shows a curly bracket", () => {
@@ -267,21 +341,42 @@ describe("a saved page", () => {
   });
 
   test("a skipped question is absent, however the page spelt 'nothing'", () => {
-    assert.deepEqual(ok("use", { B1: "", B2: [], B3: null }), {});
+    assert.deepEqual(ok("use", { B1: "", B2: [], B3a: null }), {});
+    assert.deepEqual(ok("d1", { M1: [], M1w: "  " }), {});
     assert.deepEqual(ok("last", { G1: "   ", G2: false }), {});
   });
 
   test("known codes and known answers are kept as given", () => {
     assert.deepEqual(ok("about1", { A1: "ug", A2: "maths" }), { A1: "ug", A2: "maths" });
     assert.deepEqual(ok("stand", { C1: "sa", C2: "dk" }), { C1: "sa", C2: "dk" });
-    assert.deepEqual(ok("d1", { P1: "ss", P2a: "dk", M1: "P2b" }), { P1: "ss", P2a: "dk", M1: "P2b" });
-    assert.deepEqual(ok("d1", { M1: "none" }), { M1: "none" });
+    assert.deepEqual(ok("d1", { P1: "ss", P2a: "dk", M1: ["P2b"] }), { P1: "ss", P2a: "dk", M1: ["P2b"] });
+    assert.deepEqual(ok("d1", { M1: ["none"] }), { M1: ["none"] });
+    assert.deepEqual(ok("use", { B3a: "better", B3d: "much_worse" }), { B3a: "better", B3d: "much_worse" });
+    assert.deepEqual(ok("rules", { B4a: "very_clear", B4j: "not_covered" }), { B4a: "very_clear", B4j: "not_covered" });
     assert.deepEqual(ok("last", { G1: " One thing. ", G2: true }), { G1: "One thing.", G2: true });
   });
 
   test("a multi-choice answer is stored in the survey's order, not the order of ticking", () => {
     assert.deepEqual(ok("use", { B2: ["code", "explain"] }), { B2: ["explain", "code"] });
     assert.deepEqual(ok("use", { B2: ["none"] }), { B2: ["none"] });
+  });
+
+  test("a ranking is kept in the order given, because the order is the answer", () => {
+    assert.deepEqual(ok("d1", { M1: ["P6", "P1", "P3"] }), { M1: ["P6", "P1", "P3"] });
+    assert.deepEqual(ok("d1", { M1: ["P3", "P6"] }), { M1: ["P3", "P6"] });
+    refused("d1", { M1: ["P1", "P2a", "P3", "P4"] }); // four, of three places
+    refused("d1", { M1: ["P1", "P1"] }); // a line twice
+    refused("d1", { M1: ["none", "P1"] }); // "None of these" beside a ranking
+    refused("d1", { M1: ["P7"] }); // another page's line
+    refused("d1", { M1: "P1" }); // not a list
+    refused("d1", { M1: [1, 2] });
+  });
+
+  test("a box shown for one answer is stored only with that answer", () => {
+    assert.deepEqual(ok("choices", { X3: "other", X3o: "Ask students first." }), { X3: "other", X3o: "Ask students first." });
+    assert.deepEqual(ok("choices", { X3: "stop" }), { X3: "stop" });
+    refused("choices", { X3: "stop", X3o: "Ask students first." });
+    refused("choices", { X3o: "Ask students first." });
   });
 
   test("anything else is refused whole, never trimmed to fit", () => {
@@ -292,11 +387,12 @@ describe("a saved page", () => {
     refused("about1", { C1: "sa" }); // a real code, on the wrong page
     refused("stand", { C1: "ss" }); // the other scale's answer
     refused("stand", { C1: 6 }); // "Don't know" is never a sixth point
-    refused("d1", { M1: "P7" }); // another page's line
+    refused("use", { B3a: "sa" }); // the agree scale's answer, on the effect scale
+    refused("rules", { B4a: "dk" });
     refused("use", { B2: ["none", "code"] });
     refused("use", { B2: ["code", "code"] });
     refused("use", { B2: "code" });
-    refused("last", { G1: "x".repeat(501) });
+    refused("last", { G1: "x".repeat(5001) });
     refused("last", { G2: "yes" });
     refused("about1", null);
     refused("about1", []);
@@ -305,8 +401,8 @@ describe("a saved page", () => {
   });
 
   test("the comment may be exactly its limit, counted as the page's box counts it", () => {
-    assert.equal(ok("last", { G1: "x".repeat(500) }).G1.length, 500);
-    assert.equal(ok("last", { G1: `${"x".repeat(249)}\r\n${"y".repeat(250)}` }).G1.length, 500);
+    assert.equal(ok("last", { G1: "x".repeat(5000) }).G1.length, 5000);
+    assert.equal(ok("last", { G1: `${"x".repeat(2499)}\r\n${"y".repeat(2500)}` }).G1.length, 5000);
   });
 
   test("a name every object carries is not a code", () => {
@@ -332,7 +428,7 @@ describe("the export", () => {
   test("a page never reached is not_seen in every one of its columns, and nowhere else", () => {
     const stopped = { ...whole, finished: false, pages: { about1: { A1: "ug" }, use: {} } };
     const row = exportRow(stopped);
-    assert.equal(row.length, 87);
+    assert.equal(row.length, COLUMNS.length);
     assert.equal(row[0], "0");
     for (const column of answerColumns()) {
       const value = row[COLUMNS.indexOf(column.name)];
@@ -356,23 +452,33 @@ describe("the export", () => {
   });
 
   test("a tick is 1 when ticked and empty when not, and 'Don't know' is dk", () => {
-    const set = { ...whole, pages: { ...whole.pages, last: { G2: true, G1: "said" }, stand: { C1: "dk" }, d1: { P1: "dk", M1: "none" } } };
+    const set = { ...whole, pages: { ...whole.pages, last: { G2: true, G1: "said" }, stand: { C1: "dk" }, d1: { P1: "dk", M1: ["none"] } } };
     assert.equal(cell(set, "G2"), "1");
     assert.equal(cell(whole, "G2"), "");
     assert.equal(cell(set, "C1"), "dk");
     assert.equal(cell(set, "P1"), "dk");
-    assert.equal(cell(set, "M1"), "none");
+    assert.deepEqual([cell(set, "M1_1"), cell(set, "M1_2"), cell(set, "M1_3")], ["none", "", ""]);
+  });
+
+  test("a ranking is one column a place, holding that place's line, and empty for a place left unranked", () => {
+    const set = { ...whole, pages: { ...whole.pages, d1: { M1: ["P6", "P1"], M1w: "Because of my data." }, d3: { M3: ["P15", "P13", "P17"] } } };
+    assert.deepEqual([cell(set, "M1_1"), cell(set, "M1_2"), cell(set, "M1_3"), cell(set, "M1w")], ["P6", "P1", "", "Because of my data."]);
+    assert.deepEqual([cell(set, "M3_1"), cell(set, "M3_2"), cell(set, "M3_3")], ["P15", "P13", "P17"]);
+    // Skipped on a saved page: empty. On a page never reached: not_seen.
+    assert.deepEqual([cell(set, "M2_1"), cell(set, "M2_3")], ["", ""]);
+    const stopped = { ...whole, pages: { about1: {} } };
+    assert.deepEqual([cell(stopped, "M1_1"), cell(stopped, "M1_3"), cell(stopped, "M1w")], ["not_seen", "not_seen", "not_seen"]);
   });
 
   test("the file has a header and a row a set, in an order that is not the order stored", () => {
-    const sets = ["ug", "pgt", "pgr", "other"].map((A1) => ({ ...whole, pages: { ...whole.pages, about1: { A1 } } }));
+    const sets = ["ug", "pgt", "pgr", "foundation"].map((A1) => ({ ...whole, pages: { ...whole.pages, about1: { A1 } } }));
     const csv = buildExport(sets, (n) => n - 1);
     const lines = csv.trimEnd().split("\n");
     assert.equal(lines.length, 5);
     assert.equal(lines[0], COLUMNS.join(","));
-    assert.deepEqual(lines.slice(1).map((l) => l.split(",")[1]).sort(), ["other", "pgr", "pgt", "ug"]);
+    assert.deepEqual(lines.slice(1).map((l) => l.split(",")[1]).sort(), ["foundation", "pgr", "pgt", "ug"]);
     const reversed = buildExport(sets, () => 0).trimEnd().split("\n").slice(1).map((l) => l.split(",")[1]);
-    assert.notDeepEqual(reversed, ["ug", "pgt", "pgr", "other"], "the rows came out in the order they were stored");
+    assert.notDeepEqual(reversed, ["ug", "pgt", "pgr", "foundation"], "the rows came out in the order they were stored");
     // The proposal-page order is kept on the set and never exported.
     assert.ok(!csv.includes("d3"));
   });
@@ -512,6 +618,56 @@ describe("stages and storage", () => {
     }
     // A second sixteen only when the first is full.
     assert.deepEqual(shardsInUse(PEOPLE_PER_GENERATION), { from: 16, count: 16 });
+  });
+
+  test("the most people one shared document can hold, each with every answer given, stays inside Firestore's limits", () => {
+    // The fullest answer set the survey allows: every question answered, every
+    // tick box ticked, every ranking full, with the longest answer each takes.
+    const longest = (ids) => ids.reduce((a, b) => (b.length > a.length ? b : a), "");
+    const pages = {};
+    for (const page of AI_SURVEY.pages) {
+      const answers = {};
+      for (const q of page.questions) {
+        if (q.type === "single") answers[q.id] = longest(q.options.map((o) => o.id));
+        else if (q.type === "select") answers[q.id] = longest([...q.optionGroups.flatMap((g) => g.options), ...(q.extraOptions ?? [])].map((o) => o.id));
+        else if (q.type === "multi") answers[q.id] = q.options.filter((o) => !o.exclusive).map((o) => o.id);
+        else if (q.type === "lines") for (const line of q.lines) answers[line.id] = longest(AI_SURVEY.scales[q.scale].map((a) => a.id));
+        else if (q.type === "rank") answers[q.id] = page.questions.find((o) => o.id === q.linesFrom).lines.slice(0, q.places).map((l) => l.id);
+        else if (q.type === "tick") answers[q.id] = true;
+        // Text boxes are left out here and budgeted below.
+      }
+      pages[page.id] = answers;
+    }
+    const full = { surveyVersion: AI_SURVEY.version, finished: true, proposalPageOrder: proposalPageIds(), pages };
+
+    // Index entries, as Firestore counts them when nothing is exempt. Measured
+    // against the database on 17 November 2026 with scratch documents: two
+    // for every field whatever it holds (19,999 plain fields fit in one map,
+    // 9,999 one-field maps do), and two more for every item of a list (4,999
+    // lists of three fit).
+    let entries = 2; // the set itself is a field of the shared document
+    let boxes = 0;
+    const walk = (value) => {
+      for (const inner of Object.values(value)) {
+        entries += 2;
+        if (Array.isArray(inner)) entries += 2 * inner.length;
+        else if (inner && typeof inner === "object") walk(inner);
+      }
+    };
+    walk(full);
+    for (const page of AI_SURVEY.pages) for (const q of page.questions) if (q.type === "text") boxes += 1;
+    entries += 2 * boxes;
+
+    // People are spread over a generation's documents at random, so one can
+    // hold more than its share: four standard deviations above the average.
+    assert.equal(PEOPLE_PER_GENERATION, SHARDS_PER_GENERATION * PEOPLE_PER_DOCUMENT);
+    const most = Math.ceil(PEOPLE_PER_DOCUMENT + 4 * Math.sqrt(PEOPLE_PER_DOCUMENT));
+    assert.ok(entries * most <= 40_000, `${entries} index entries a set, ${most} sets: ${entries * most} of 40,000`);
+
+    // Size: the answers themselves, and an average of 4,000 characters of
+    // comment for EVERY person in the fullest document, far above any survey.
+    const bytes = Buffer.byteLength(JSON.stringify(full)) + 4000;
+    assert.ok(bytes * most <= 1_000_000, `${bytes} bytes a set, ${most} sets: ${bytes * most} of 1,000,000`);
   });
 
   test("the key that signs passes is made from the secret, never read from the survey's record", () => {

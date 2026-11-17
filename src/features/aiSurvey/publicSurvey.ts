@@ -18,8 +18,8 @@ export type PublicQuestion =
   | { id: string; type: "single" | "multi"; text: string; options: AiSurveyOption[] }
   | { id: string; type: "select"; text: string; help?: string; groups: { label: string; options: AiSurveyOption[] }[]; extra: AiSurveyOption[] }
   | { id: string; type: "lines"; text: string | null; scale: string; shuffle: boolean; lines: { id: string; text: string }[] }
-  | { id: string; type: "mostOf"; text: string; linesFrom: string; extra: AiSurveyOption[] }
-  | { id: string; type: "text"; text: string; help?: string; maxLength: number }
+  | { id: string; type: "rank"; text: string; linesFrom: string; places: number; extra: AiSurveyOption[] }
+  | { id: string; type: "text"; text: string; help?: string; maxLength: number; showIf?: { code: string; is: string } }
   | { id: string; type: "tick"; text: string };
 
 export type PublicPage = {
@@ -47,7 +47,9 @@ export type PublicSurvey = {
     ticksNeeded: string;
     comingBack: AiSurveyDefinition["start"]["comingBack"];
     closed: string;
+    consent: AiSurveyDefinition["start"]["consent"];
   };
+  support: AiSurveyDefinition["support"];
   emailCheck: AiSurveyDefinition["emailCheck"];
   proposalsIntro: { first: string; later: string };
   scales: Record<string, AiSurveyScaleAnswer[]>;

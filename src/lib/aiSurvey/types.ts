@@ -6,8 +6,8 @@
  * survey. The words students read live in one data module
  * (src/content/aiSurvey/definition.ts); the pages are a shell around it.
  *
- * Pure types and no imports, so client components, server code and the test
- * loader can all read this file.
+ * Pure types, one small pure function and no imports, so client components,
+ * server code and the test loader can all read this file.
  */
 
 export type AiSurveyOption = {
@@ -54,15 +54,31 @@ export type AiSurveyLines = {
   shuffle: boolean;
   lines: AiSurveyLine[];
 };
-export type AiSurveyMostOf = {
+/**
+ * "Rank your top three": some of a page's lines, in order, most important
+ * first. Stored as a list whose ORDER IS THE ANSWER, or as one of
+ * `extraOptions` ("None of these") alone.
+ */
+export type AiSurveyRank = {
   id: string;
-  type: "mostOf";
+  type: "rank";
   text: string;
   /** The id of the `lines` question on the same page whose lines are offered. */
   linesFrom: string;
+  /** How many can be ranked. */
+  places: number;
+  /** Answers that stand for the whole question, such as "None of these". */
   extraOptions: AiSurveyOption[];
 };
-export type AiSurveyText = { id: string; type: "text"; text: string; help?: string; maxLength: number };
+export type AiSurveyText = {
+  id: string;
+  type: "text";
+  text: string;
+  help?: string;
+  maxLength: number;
+  /** Shown, and stored, only while another question on the page holds this answer. */
+  showIf?: { code: string; is: string };
+};
 export type AiSurveyTick = { id: string; type: "tick"; text: string };
 
 export type AiSurveyQuestion =
@@ -70,7 +86,7 @@ export type AiSurveyQuestion =
   | AiSurveyMulti
   | AiSurveySelect
   | AiSurveyLines
-  | AiSurveyMostOf
+  | AiSurveyRank
   | AiSurveyText
   | AiSurveyTick;
 
@@ -139,6 +155,8 @@ export type AiSurveyDefinition = {
     charactersLeft: string;
     selectPlaceholder: string;
     frameLabel: string;
+    /** The words of a "rank your top three" question. `chosen` takes `{place}`. */
+    rank: { hint: string; places: string[]; chosen: string; full: string };
   };
   start: {
     eyebrow: string;
@@ -154,7 +172,24 @@ export type AiSurveyDefinition = {
     ticksNeeded: string;
     comingBack: { heading: string; body: string; carryOn: string; startOwn: string };
     closed: string;
+    /**
+     * Asked on the start screen, before anything else. "No" ends there: no
+     * email is asked for and nothing is stored. The answer itself is never
+     * stored either way.
+     */
+    consent: {
+      heading: string;
+      asks: string;
+      points: string[];
+      yes: string;
+      no: string;
+      /** What the start button says once "No" is chosen. */
+      noButton: string;
+      declined: { heading: string; body: string; back: string };
+    };
   };
+  /** Where to find help, offered on the start screen and again at the end. */
+  support: { heading: string; links: { label: string; note?: string; href: string }[] };
   emailCheck: {
     heading: string;
     fieldLabel: string;
@@ -220,6 +255,14 @@ export type AiSurveyDefinition = {
     shortLinksWhere: string;
   };
 };
+
+/**
+ * Question text can mark a word for emphasis with two asterisks either side,
+ * `**like this**`. The page draws it bold; everything else reads it plain.
+ */
+export function plainText(text: string): string {
+  return text.replace(/\*\*(.+?)\*\*/g, "$1");
+}
 
 /** One saved page: a question's or a line's code against its answer. */
 export type AiSurveyPageAnswers = Record<string, string | string[] | boolean>;

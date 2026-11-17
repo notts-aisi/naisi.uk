@@ -29,7 +29,9 @@ export function publicSurvey(def: AiSurveyDefinition = AI_SURVEY): PublicSurvey 
       ticksNeeded: def.start.ticksNeeded,
       comingBack: def.start.comingBack,
       closed: fillValues(def.start.closed, {}, def),
+      consent: def.start.consent,
     },
+    support: def.support,
     emailCheck: def.emailCheck,
     proposalsIntro: { first: group?.introOnFirstShown ?? "", later: group?.introOnLater ?? "" },
     scales: def.scales,
@@ -54,10 +56,10 @@ export function publicSurvey(def: AiSurveyDefinition = AI_SURVEY): PublicSurvey 
               shuffle: q.shuffle,
               lines: q.lines.map((line) => ({ id: line.id, text: line.text })),
             };
-          case "mostOf":
-            return { id: q.id, type: "mostOf", text: q.text, linesFrom: q.linesFrom, extra: q.extraOptions };
+          case "rank":
+            return { id: q.id, type: "rank", text: q.text, linesFrom: q.linesFrom, places: q.places, extra: q.extraOptions };
           case "text":
-            return { id: q.id, type: "text", text: q.text, help: q.help, maxLength: q.maxLength };
+            return { id: q.id, type: "text", text: q.text, help: q.help, maxLength: q.maxLength, showIf: q.showIf };
           case "tick":
             return { id: q.id, type: "tick", text: q.text };
         }

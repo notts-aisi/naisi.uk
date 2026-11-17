@@ -37,6 +37,14 @@ const percent = (part: number, whole: number) => {
   return value === null ? "" : `${value}%`;
 };
 
+/** What the two halves of each five-point scale are called in a table's last two columns. */
+const SIDES: Record<string, [string, string]> = {
+  agree: ["Agree", "Disagree"],
+  support: ["Support", "Oppose"],
+  effect: ["Better", "Worse"],
+  clarity: ["Clear", "Unclear"],
+};
+
 function Lines({ lines, twoSided, favour, against }: { lines: LineTotals[]; twoSided: boolean; favour: string; against: string }) {
   const answers = lines[0]?.counts ?? [];
   return (
@@ -132,16 +140,72 @@ export default async function AiSurveyTotalsPage() {
             </div>
             {page.questions.map((question) => {
               if (question.kind === "lines") {
-                const agree = question.scale === "agree";
+                const [favour, against] = SIDES[question.scale] ?? ["Top two", "Bottom two"];
                 return (
                   <div key={question.id} className={frame.stack}>
                     {question.text && <h3 className={styles.h3}>{question.text}</h3>}
-                    <Lines
-                      lines={question.lines}
-                      twoSided={question.twoSided}
-                      favour={agree ? "Agree" : "Support"}
-                      against={agree ? "Disagree" : "Oppose"}
-                    />
+                    <Lines lines={question.lines} twoSided={question.twoSided} favour={favour} against={against} />
+                  </div>
+                );
+              }
+              if (question.kind === "rank") {
+                return (
+                  <div key={question.id} className={frame.stack}>
+                    <h3 className={styles.h3}>
+                      <span className={styles.code}>{question.id}</span> {question.text}
+                    </h3>
+                    <p className={frame.body}>
+                      {question.answered} of {page.saved} answered. Points are {question.places} for each first place,
+                      down to 1 for the last.
+                    </p>
+                    <div className={styles.tableWrap}>
+                      <table className={styles.table}>
+                        <thead>
+                          <tr>
+                            <th scope="col">Line</th>
+                            {Array.from({ length: question.places }, (_, place) => (
+                              <th key={place} scope="col" className={styles.num}>
+                                {AI_SURVEY.ui.rank.places[place] ?? place + 1}
+                              </th>
+                            ))}
+                            <th scope="col" className={styles.num}>
+                              Points
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {question.lines.map((line) => (
+                            <tr key={line.id}>
+                              <th scope="row">
+                                <span className={styles.code}>{line.id}</span> {line.label}
+                              </th>
+                              {line.inPlace.map((count, place) => (
+                                <td key={place} className={styles.num}>
+                                  {count}
+                                </td>
+                              ))}
+                              <td className={`${styles.num} ${styles.strong}`}>{line.points}</td>
+                            </tr>
+                          ))}
+                          {question.alone.map((answer) => (
+                            <tr key={answer.id}>
+                              <th scope="row">{answer.label}</th>
+                              <td className={styles.num} colSpan={question.places + 1}>
+                                {answer.count}
+                              </td>
+                            </tr>
+                          ))}
+                          <tr>
+                            <th scope="row" className={styles.quiet}>
+                              Skipped
+                            </th>
+                            <td className={`${styles.num} ${styles.quiet}`} colSpan={question.places + 1}>
+                              {page.saved - question.answered}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 );
               }
