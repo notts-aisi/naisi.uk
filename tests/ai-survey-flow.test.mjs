@@ -36,11 +36,15 @@ const { loadTs } = createLoader({
     ["server-only", "export {};"],
     [
       "@/lib/firebase/admin",
-      "export const getAdminDb = () => globalThis.__aiSurveyWorld.db; export const getAdminDbNamed = () => globalThis.__aiSurveyWorld.db;",
+      "export const getAdminDb = () => globalThis.__aiSurveyWorld.db; export const getAdminDbNamed = () => globalThis.__aiSurveyWorld.db;\n" +
+        // The accounts on the survey's list, looked up for the ceiling's alert.
+        "export const getAdminAuth = () => ({ getUsers: async (ids) => ({ users: ids.map(({ uid }) => ({ uid, email: globalThis.__aiSurveyAccounts?.[uid] })) }) });",
     ],
     [
       "@/lib/email/send",
-      'export async function sendUnloggedText(message) { globalThis.__aiSurveyMail.push(message); return globalThis.__aiSurveyMailOutcome ?? "sent"; }',
+      'export async function sendUnloggedText(message) { globalThis.__aiSurveyMail.push(message); return globalThis.__aiSurveyMailOutcome ?? "sent"; }\n' +
+        // The site's usual door, which the alert to the survey's own accounts leaves by.
+        "export async function sendEmail(message) { globalThis.__aiSurveyLogged.push(message); return { delivered: [].concat(message.to), suppressed: [], held: [] }; }",
     ],
     ["@/lib/firebase/session", "export const getCurrentUser = async () => globalThis.__aiSurveyUser ?? null;"],
   ]),
@@ -64,6 +68,8 @@ beforeEach(() => {
   world = createWorld();
   globalThis.__aiSurveyWorld = world;
   globalThis.__aiSurveyMail = [];
+  globalThis.__aiSurveyLogged = [];
+  globalThis.__aiSurveyAccounts = {};
   globalThis.__aiSurveyMailOutcome = "sent";
   globalThis.__aiSurveyUser = null;
   delete process.env.AI_SURVEY_EMAIL_KEY;
@@ -188,6 +194,32 @@ describe("the email check", () => {
     assert.equal(world.all(store.CODES_COLLECTION).length, 0);
     // An hour on, those codes no longer count.
     assert.deepEqual(await requestCode(A, T0 + 61 * MINUTE), { ok: true });
+  });
+
+  test("reaching the ceiling tells the accounts that run the survey, once an hour, and says nothing about anybody", async () => {
+    await store.readState(world.db);
+    await world.db.collection(store.STATE_COLLECTION).doc("main").update({ adminUids: ["owner1"] });
+    globalThis.__aiSurveyAccounts = { owner1: "owner@example.org" };
+    for (let n = 0; n < store.CODE_CEILING_PER_HOUR; n++) await store.countCodeSent(world.db, T0 - (n % 50) * MINUTE);
+    for (let n = 0; n < 5; n++) assert.deepEqual(await requestCode(`s${n}@nottingham.ac.uk`, T0 + n * 1000), { ok: false, error: "busy" });
+    assert.equal(globalThis.__aiSurveyLogged.length, 1, "a hundred refusals in a minute must be one email");
+    const [alert] = globalThis.__aiSurveyLogged;
+    assert.deepEqual(alert.to, ["owner@example.org"]);
+    assert.equal(alert.kind, "admin-alert");
+    assert.doesNotMatch(JSON.stringify(alert.subject), /nottingham\.ac\.uk|@/, "the alert names an address");
+    // Nothing was sent to the people who asked.
+    assert.equal(globalThis.__aiSurveyMail.length, 0);
+    // The next hour, still at the ceiling: one more.
+    for (let n = 0; n < store.CODE_CEILING_PER_HOUR; n++) await store.countCodeSent(world.db, T0 + 60 * MINUTE);
+    await requestCode(A, T0 + 61 * MINUTE);
+    await requestCode(B, T0 + 62 * MINUTE);
+    assert.equal(globalThis.__aiSurveyLogged.length, 2);
+  });
+
+  test("with nobody on the survey's list, the ceiling still says busy and nothing breaks", async () => {
+    for (let n = 0; n < store.CODE_CEILING_PER_HOUR; n++) await store.countCodeSent(world.db, T0);
+    assert.deepEqual(await requestCode(A, T0), { ok: false, error: "busy" });
+    assert.equal(globalThis.__aiSurveyLogged.length, 0);
   });
 
   test("five wrong tries kill a code, and the right code is then too late", async () => {

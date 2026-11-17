@@ -99,6 +99,16 @@ The download is a POST, because each one is recorded before the file is handed
 over. It is recorded in the survey's own record and not in `dataExports`: the
 privacy policy names each kind of download kept there.
 
+## The ceiling
+
+The survey sends at most 600 codes an hour across everybody
+(`CODE_CEILING_PER_HOUR`). Past that it tells people it is busy and sends
+nothing, and it emails the accounts on its own list, at most once an hour
+(`src/lib/aiSurvey/adminAlert.ts`). That email is ordinary mail to an account
+that runs the survey, so it goes through `sendEmail` and leaves its row in the
+send log. It is the survey's only logged email, it says a count, and it is
+handed nothing of anybody who asked for a code.
+
 ## The export
 
 One row for each answer set, rows in a random order, no ids and no times.
