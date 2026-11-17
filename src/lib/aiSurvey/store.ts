@@ -20,10 +20,11 @@ import type { AiSurveyAnswerSet, AiSurveyDefinition, AiSurveyPageAnswers, AiSurv
  *  - A SHARED DOCUMENT'S UPDATE TIME MUST NOT DATE A SAVE. A document that
  *    holds two answer sets and was last written at 14:03 points at whoever was
  *    sent a code at 14:02. So the documents are rewritten TOGETHER
- *    (`levelWrites`), and then they all carry one time: by a save whenever
- *    they were last levelled more than `LEVEL_EVERY_MS` ago, and by the job
- *    when people stop. A save that is not due writes ONE document and nothing
- *    else, because that is what keeps a room of people from queueing.
+ *    (`levelWrites`), and then they all carry one time: by EVERY save while
+ *    few people are saving, by one save in each `LEVEL_EVERY_MS` once a room
+ *    is (`BUSY_SAVES`), and by the job when people stop. In a room a save
+ *    that is not due writes ONE document and nothing else, because that is
+ *    what keeps the room from queueing, and there no one save stands out.
  *  - WHICH DOCUMENT AN ANSWER SET IS IN SAYS NOTHING ABOUT WHEN. People are
  *    spread at random over all sixteen from the first person on, so a
  *    document's number is not a clock.
@@ -64,17 +65,26 @@ const USED_SHARDS = "0123456789abcdef".split("");
  */
 export const PEOPLE_PER_GENERATION = SHARDS_PER_GENERATION * 350;
 /**
- * While people are saving, the shared documents are levelled at most this far
- * apart, by whichever save finds them due.
+ * While A ROOM is saving, the shared documents are levelled this far apart,
+ * by whichever save finds them due.
  *
- * NOT ON EVERY SAVE, and this was measured, not guessed (dev's datastore, 17
- * November 2026). A save that writes one document: 360 a second with forty at
- * once, 95th percentile 180ms, none failed. A save that also rewrites the
- * other fifteen: 5 a second however many arrive, because commits that share
- * documents take turns, and fifty at once waited ten seconds each. A lecture
- * theatre pressing Next is exactly that load.
+ * NOT ON EVERY SAVE THEN, and this was measured, not guessed (dev's
+ * datastore, 17 November 2026). A save that writes one document: 360 a second
+ * with forty at once, 95th percentile 180ms, none failed. A save that also
+ * rewrites the other fifteen: 5 a second however many arrive, because commits
+ * that share documents take turns, and fifty at once waited ten seconds each.
+ * A lecture theatre pressing Next is exactly that load.
  */
 export const LEVEL_EVERY_MS = 20_000;
+/**
+ * How many saves one server takes inside `LEVEL_EVERY_MS` before it counts
+ * as a room. UP TO THIS MANY, EVERY SAVE LEVELS: with few people answering, a
+ * save that wrote its one document would leave that document's time standing
+ * apart until the next levelling, and with few people that time and the
+ * document point at one of them. Past it there are enough people saving at
+ * once that no one save stands out, and the saves stop queueing.
+ */
+export const BUSY_SAVES = 8;
 /** A session under way when the survey closes can save for this much longer. */
 export const CLOSING_GRACE_MS = 30 * 60 * 1000;
 /** Codes sent in an hour, across the whole survey, before "we're busy". */
@@ -340,6 +350,22 @@ function levelIsDue(state: SurveyState, now: number): boolean {
   return now - last > LEVEL_EVERY_MS;
 }
 
+/**
+ * How many saves THIS server has taken in the last `LEVEL_EVERY_MS`: a few
+ * moments in memory, of nobody in particular, never stored and gone when the
+ * server is. It is how a save tells a room from two people.
+ */
+let savesHere: { epoch: string; at: number[] } = { epoch: "", at: [] };
+
+/** Count this save, and say whether this server is busy enough that it need not level. */
+function busyHere(state: SurveyState, now: number): boolean {
+  const lately = savesHere.epoch === state.epoch ? savesHere.at.filter((at) => at <= now && now - at < LEVEL_EVERY_MS) : [];
+  lately.push(now);
+  // Only the newest few are kept: enough to tell busy from not.
+  savesHere = { epoch: state.epoch, at: lately.slice(-(BUSY_SAVES + 1)) };
+  return lately.length > BUSY_SAVES;
+}
+
 // ---------------------------------------------------------------------------
 // The used-email list
 // ---------------------------------------------------------------------------
@@ -544,10 +570,11 @@ export async function readProgress(db: Firestore, epoch: string, shard: number, 
  * it. A blind write of a few fields, never a read-then-write, so a room of
  * people saving at once do not queue behind one another.
  *
- * When the shared documents were last levelled more than `LEVEL_EVERY_MS`
- * ago, this write levels them: it and a rewrite of every other shared
- * document go in one commit, so this document's update time is one they all
- * share. Otherwise it writes this document alone.
+ * WITH FEW PEOPLE SAVING, EVERY SAVE LEVELS: it and a rewrite of every other
+ * shared document go in one commit, so this document's update time is one
+ * they all share and no save can be dated by it. In a room (`BUSY_SAVES`) a
+ * save writes this document alone, and the documents are levelled by
+ * whichever save finds them last levelled more than `LEVEL_EVERY_MS` ago.
  */
 export async function writePage(
   db: Firestore,
@@ -567,7 +594,8 @@ export async function writePage(
   // put an unfinished mark back over a finished one.
   const lock = finished ? [at("f"), true] : [];
 
-  if (!levelIsDue(state, now)) {
+  const busy = busyHere(state, now);
+  if (busy && !levelIsDue(state, now)) {
     await ref.update(at("v"), def.version, at("o"), target.order, at("p", pageId), answers, ...lock);
     return;
   }
