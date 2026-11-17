@@ -262,6 +262,22 @@ describe("the shared loader reads JSX", () => {
  */
 const USERS = new Map([
   [
+    "ai-survey-totals.test.mjs",
+    "runs the AI at Nottingham survey's totals as a plain function, a .ts module, to hold what each count and each " +
+      "share is out of",
+  ],
+  [
+    "ai-survey-flow.test.mjs",
+    "runs the AI at Nottingham survey's email check, saving and admin actions, which are .ts modules, against an " +
+      "in-memory datastore, with the Admin SDK's module, the session and the mail door stubbed",
+  ],
+  [
+    "ai-survey.test.mjs",
+    "runs the AI at Nottingham survey's definition, address rule, page checks, export and browser pass as plain " +
+      "functions, with the server-only marker and the Admin SDK's module stubbed because the pass and the store " +
+      "import them",
+  ],
+  [
     "course-week-emails.test.mjs",
     "runs the week's emails' timing, words and what a week asks for as plain functions, and renders their one " +
       "template, a .tsx component, to read every combination of missing facts as an inbox would",
@@ -1400,7 +1416,7 @@ const USERS = new Map([
     "it executes `needsPolicyAcceptance` (src/lib/legal/acceptance.ts) on a table of stored agreements, because " +
       "who the member area and a collaborator's space send to accept the policies is decided by comparing a stored " +
       "string with the versions the site serves, and only running it shows the answer; it runs again with " +
-      "`./policies` stubbed to a list where privacy has moved on to 20 and the terms to 2, so the promise that a " +
+      "`./policies` stubbed to a list where privacy has moved on to 21 and the terms to 2, so the promise that a " +
       "later privacy version is told rather than asked is held before a later version exists",
   ],
   [

@@ -1507,6 +1507,60 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated and anonymous answers from an earlier day, so a spec can read them as the lead.",
   },
+  "/api/ai-survey/admin": {
+    reason:
+      "The admin page's totals; tests/ai-survey-flow.test.mjs holds that they are totals and that only the survey's own list reaches them.",
+    coverWhen:
+      "When the end-to-end fixtures can put a test account on the survey's own list of accounts and pass its email check, so a spec can pilot, clear, open and download.",
+  },
+  "/api/ai-survey/admin/clear": {
+    reason:
+      "Clearing pilot data: tests/ai-survey-flow.test.mjs holds that it works only in the pilot stage, only with the phrase typed, and takes every pilot pass with it.",
+    coverWhen:
+      "When the end-to-end fixtures can put a test account on the survey's own list of accounts and pass its email check, so a spec can pilot, clear, open and download.",
+  },
+  "/api/ai-survey/admin/close": {
+    reason:
+      "Closing the survey by hand: tests/ai-survey-flow.test.mjs holds nobody new at once and thirty minutes for somebody under way.",
+    coverWhen:
+      "When the end-to-end fixtures can put a test account on the survey's own list of accounts and pass its email check, so a spec can pilot, clear, open and download.",
+  },
+  "/api/ai-survey/admin/export": {
+    reason:
+      "The answers as a file: tests/ai-survey-flow.test.mjs holds one row a set, no ids and no times, and the download recorded first.",
+    coverWhen:
+      "When the end-to-end fixtures can put a test account on the survey's own list of accounts and pass its email check, so a spec can pilot, clear, open and download.",
+  },
+  "/api/ai-survey/admin/open": {
+    reason:
+      "Opening the survey: tests/ai-survey-flow.test.mjs holds that it refuses while anything it needs is missing and that it clears the pilot.",
+    coverWhen:
+      "When the end-to-end fixtures can put a test account on the survey's own list of accounts and pass its email check, so a spec can pilot, clear, open and download.",
+  },
+  "/api/ai-survey/code": {
+    reason:
+      "Sending a code to a University address for the anonymous survey: tests/public-write-gating.test.mjs holds its bot check and limits, and tests/ai-survey-no-trace.test.mjs that it reads no session and leaves no row in the send log.",
+    coverWhen:
+      "When the end-to-end harness can pass a bot check for a University address and read the code out of its mail catcher (its bypass is for its own reserved domain, which this survey refuses by design), so a spec can go from the start screen to Thank you.",
+  },
+  "/api/ai-survey/code/check": {
+    reason:
+      "Checking the code and using the address up, in one transaction; tests/ai-survey-no-trace.test.mjs holds that this step never touches an answer and that no time is stored against the used-email list.",
+    coverWhen:
+      "When the end-to-end harness can pass a bot check for a University address and read the code out of its mail catcher (its bypass is for its own reserved domain, which this survey refuses by design), so a spec can go from the start screen to Thank you.",
+  },
+  "/api/ai-survey/save": {
+    reason:
+      "Saving one page of answers against a signed pass; tests/ai-survey.test.mjs holds what a page may carry and that a pass cannot be forged, tests/ai-survey-no-trace.test.mjs what an answer set holds.",
+    coverWhen:
+      "When the end-to-end harness can pass a bot check for a University address and read the code out of its mail catcher (its bypass is for its own reserved domain, which this survey refuses by design), so a spec can go from the start screen to Thank you.",
+  },
+  "/api/ai-survey/session": {
+    reason:
+      "Coming back to an unfinished survey: which pages are saved and never an answer, held by tests/ai-survey-no-trace.test.mjs.",
+    coverWhen:
+      "When the end-to-end harness can pass a bot check for a University address and read the code out of its mail catcher (its bypass is for its own reserved domain, which this survey refuses by design), so a spec can go from the start screen to Thank you.",
+  },
   "/api/feedback": {
     reason:
       "The anonymous keep, change and drop form: answering by the programme's one link; tests/anonymous-feedback.test.mjs answers signed out, signed in and in a view-as session, keeps only the three answers, the programme and the day, and refuses a wrong, malformed, closed or destroyed form's link and a flood past either limit.",
@@ -2165,6 +2219,36 @@ const NOT_COVERED = {
       "The links page is checked-in rows, one read of published events and the home page's subscribe form, whose route tests/subscriptions-consent.test.mjs executes; what is new on it is the source attribution, which tests/campaign-attribution.test.mjs pins as a pure function.",
     coverWhen:
       "When scan counting or an admin-editable list of rows lands on it, because then the page writes and its content stops being a checked-in file.",
+  },
+  "/ai-survey/admin/totals": {
+    reason:
+      "The survey's totals, for the accounts on its own list; tests/ai-survey-totals.test.mjs holds what each count and share is out of, and that the page shows numbers and never a comment.",
+    coverWhen:
+      "When the end-to-end fixtures can put a test account on the survey's own list of accounts and pass its email check, so a spec can answer and then read the totals.",
+  },
+  "/ai-survey/admin": {
+    reason:
+      "The survey's own admin page, open to a list of accounts on the survey's record and not to a role; tests/ai-survey-flow.test.mjs runs its gate, its counts and each of its actions against an in-memory datastore.",
+    coverWhen:
+      "When the end-to-end fixtures can put a test account on the survey's own list of accounts and pass its email check, so a spec can pilot, clear, open and download.",
+  },
+  "/ai-survey": {
+    reason:
+      "The anonymous AI at Nottingham survey: tests/ai-survey.test.mjs runs its definition, checks, export and pass, and tests/ai-survey-no-trace.test.mjs walks every file of it for a session, a cookie, a header, a log line or a time beside an answer. No spec drives it, because its email check takes only a University address.",
+    coverWhen:
+      "When the end-to-end harness can pass a bot check for a University address and read the code out of its mail catcher (its bypass is for its own reserved domain, which this survey refuses by design), so a spec can go from the start screen to Thank you.",
+  },
+  "/ai-survey/privacy": {
+    reason:
+      "The survey's own privacy notice, a static page drawn from the definition; tests/ai-survey.test.mjs holds that every sentence shown is filled and that a service is named only while the survey uses it.",
+    coverWhen:
+      "When the end-to-end harness can pass a bot check for a University address and read the code out of its mail catcher (its bypass is for its own reserved domain, which this survey refuses by design), so a spec can go from the start screen to Thank you.",
+  },
+  "/ai-survey/results": {
+    reason:
+      "Where the survey's totals will be published: one static sentence saying when, until the results page is designed.",
+    coverWhen:
+      "When the end-to-end harness can pass a bot check for a University address and read the code out of its mail catcher (its bypass is for its own reserved domain, which this survey refuses by design), so a spec can go from the start screen to Thank you.",
   },
   "/feedback/[token]": {
     reason:

@@ -1717,6 +1717,77 @@ export const ROUTES = {
         "is forbidden before the read.",
     },
   },
+  "/api/ai-survey/admin": {
+    GET: {
+      expect: everyone(403, { anonymous: 401 }),
+      why:
+        "The totals on the AI at Nottingham survey's admin page. The survey's admin side answers to a list of accounts on the survey's own record and not to any role, so with nobody on that list every signed-in persona, the admin included, is forbidden, and a caller with no session meets the 401 first.",
+    },
+  },
+  "/api/ai-survey/admin/clear": {
+    POST: {
+      expect: everyone(403, { anonymous: 401 }),
+      why:
+        "Clearing the survey's pilot data. The survey's admin side answers to a list of accounts on the survey's own record and not to any role, so with nobody on that list every signed-in persona, the admin included, is forbidden, and a caller with no session meets the 401 first.",
+    },
+  },
+  "/api/ai-survey/admin/close": {
+    POST: {
+      expect: everyone(403, { anonymous: 401 }),
+      why:
+        "Closing the survey before its closing time. The survey's admin side answers to a list of accounts on the survey's own record and not to any role, so with nobody on that list every signed-in persona, the admin included, is forbidden, and a caller with no session meets the 401 first.",
+    },
+  },
+  "/api/ai-survey/admin/export": {
+    POST: {
+      expect: everyone(403, { anonymous: 401 }),
+      why:
+        "Downloading every answer set as a file. The survey's admin side answers to a list of accounts on the survey's own record and not to any role, so with nobody on that list every signed-in persona, the admin included, is forbidden, and a caller with no session meets the 401 first.",
+    },
+  },
+  "/api/ai-survey/admin/open": {
+    POST: {
+      expect: everyone(403, { anonymous: 401 }),
+      why:
+        "Opening the survey, which clears its pilot data. The survey's admin side answers to a list of accounts on the survey's own record and not to any role, so with nobody on that list every signed-in persona, the admin included, is forbidden, and a caller with no session meets the 401 first.",
+    },
+  },
+  "/api/ai-survey/code": {
+    POST: {
+      expect: everyone(400),
+      why:
+        "Asking for a code in front of the anonymous AI at Nottingham survey, with no session on purpose: the " +
+        "route reads no cookie and nobody is asked who they are, so every caller meets the same 400 for a body " +
+        "with no University address in it, before the bot check, the limits or the send.",
+    },
+  },
+  "/api/ai-survey/code/check": {
+    POST: {
+      expect: everyone(400),
+      why:
+        "Checking a code for the anonymous AI at Nottingham survey: the six digits sent to the address are the " +
+        "credential, and the route reads no session, so every caller meets the same 400 for a body with no " +
+        "University address in it.",
+    },
+  },
+  "/api/ai-survey/save": {
+    POST: {
+      expect: everyone(400),
+      why:
+        "Saving a page of the anonymous AI at Nottingham survey: the signed pass in the body is the credential " +
+        "and the route reads no session, so every caller, signed in or not, meets the same 400 for a body " +
+        "with no pass in it, before anything is read.",
+    },
+  },
+  "/api/ai-survey/session": {
+    POST: {
+      expect: everyone(400),
+      why:
+        "Coming back to an unfinished AI at Nottingham survey: the signed pass in the body is the credential, " +
+        "the route reads no session and writes nothing, so every caller meets the same 400 for a body with no " +
+        "pass in it.",
+    },
+  },
   "/api/audience": {
     GET: {
       expect: approvedOnly(200),

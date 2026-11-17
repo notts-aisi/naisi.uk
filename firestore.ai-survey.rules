@@ -1,0 +1,24 @@
+rules_version = '2';
+
+// The AI at Nottingham survey's OWN database (src/lib/aiSurvey/store.ts).
+//
+// A second database in the same project, kept apart from the site's so that
+// it can hold no point-in-time recovery and no backups: a copy of an earlier
+// state is a record of when each answer arrived, and the survey promises
+// there is none.
+//
+// EVERYTHING IN IT IS WRITTEN BY THE SERVER ALONE. No browser reads or writes
+// anything here, at any role, so the whole database is one refusal. The same
+// five collections are locked by name in firestore.rules, for the site's own
+// database, where the survey's records live when no second database is named.
+//
+// Deployed on its own, with its own config, so the site's rules and their
+// deploy are untouched:
+//   firebase deploy --only firestore --config firebase.ai-survey.json
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

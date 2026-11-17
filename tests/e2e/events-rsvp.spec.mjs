@@ -547,7 +547,7 @@ test("events RSVP: a signed-out guest books a place and the page fits a phone", 
       const recaptcha = page.locator("li#recaptcha");
       await recaptcha.getByRole("heading", { level: 2, name: "Google reCAPTCHA", exact: true }).waitFor({ timeout: WAIT_MS });
       await recaptcha
-        .getByText("Checks that the person filling in our registration, event sign-up and application forms is not a bot.", {
+        .getByText("Checks that the person filling in our registration, event sign-up and application forms, or asking for a code on the AI at Nottingham survey, is not a bot.", {
           exact: false,
         })
         .waitFor({ timeout: WAIT_MS });

@@ -1,0 +1,15 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "aiSurveyAnswers",
+      "fieldPath": "sets",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "aiSurveyUsedEmails",
+      "fieldPath": "h",
+      "indexes": []
+    }
+  ]
+}

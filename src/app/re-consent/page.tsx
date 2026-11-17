@@ -110,7 +110,8 @@ export default async function ReConsentPage() {
             after them for anybody still asked. A version that changes nothing
             about that adds none (version 19, which names one more small
             preference kept in the browser): the policy's own first paragraph
-            says what it changed.
+            says what it changed. Version 20 adds the AI at Nottingham survey,
+            so it adds a line.
             Each clause is held to the current policy's own sentence by
             tests/privacy-policy.test.mjs. */}
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
@@ -169,6 +170,14 @@ export default async function ReConsentPage() {
           one, now uses your work as it stands after your session, so it may
           use a written answer you haven&apos;t sent; and we say that the tools
           get a number or a label in place of each name.
+        </p>
+        {/* Version 20's line is the policy's own "What's changed in version
+            20", word for word. */}
+        <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
+          <strong style={{ color: "var(--color-text)" }}>What changed in version 20.</strong>{" "}
+          This version adds the AI at Nottingham survey, an anonymous survey
+          with a privacy notice of its own. It is now named where the policy
+          describes surveys, Google reCAPTCHA and what your browser keeps.
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}

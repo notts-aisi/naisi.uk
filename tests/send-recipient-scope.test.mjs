@@ -186,6 +186,20 @@ const RECIPIENT_MARKERS = [
  *                halves of that are checked against the source.
  */
 const RECIPIENT_SOURCES = new Map([
+  // The AI at Nottingham survey's alert that its hourly ceiling on codes was
+  // reached: to the accounts on the survey's own list, and to nobody a
+  // request names.
+  [
+    "src/lib/aiSurvey/adminAlert.ts#state.adminUids",
+    {
+      reads: 2,
+      origin: "record",
+      why:
+        "The accounts that run the survey, kept on its own record and changed only by hand in the datastore. " +
+        "No route writes that list and nothing in a request reaches it, so a stranger asking for a code " +
+        "cannot choose who the alert goes to.",
+    },
+  ],
   // A week review's follow-up (privacy v15): the request names the PERSON to
   // have a word with, and the people it reaches are their group's live
   // facilitators, read on the server.

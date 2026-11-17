@@ -4098,5 +4098,49 @@ service cloud.firestore {
     match /pushSubscriptions/{subId} {
       allow read, write: if false;
     }
+
+    // === The AI at Nottingham survey ======================================
+    // An anonymous survey with a University-email check in front of it
+    // (src/lib/aiSurvey/store.ts). Five collections, every one written by
+    // the Admin SDK alone and LOCKED TO EVERYBODY, admins included:
+    //
+    //   aiSurveyState       the stage, and the key that signs a browser's pass
+    //   aiSurveyAnswers     answer sets, as fields inside shared documents
+    //   aiSurveyUsedEmails  keyed hashes of the addresses that have answered
+    //   aiSurveyCodes       pending codes
+    //   aiSurveyCodeLimits  how many codes a hashed address has asked for today
+    //
+    // No admin read on any of them, on purpose. The survey tells students
+    // that nobody can tell which answers are theirs and that only one person
+    // opens individual answers. A rule that let the admin ROLE read the
+    // answers would hand them to every admin's browser, and one that let a
+    // browser read the used-email list beside them would put the two halves
+    // of that promise in one place. The one account that may download the
+    // answers does so through a route that checks an allowlist on the server.
+    //
+    // With no `allow`, each match is identical to Firestore's implicit deny
+    // (the `pushSubscriptions` precedent above). They are written out so the
+    // lockdown is visible rather than inferred, and so a later wildcard
+    // cannot silently open one of them. scripts/rules-tests holds each one
+    // at every role.
+    match /aiSurveyState/{docId} {
+      allow read, write: if false;
+    }
+
+    match /aiSurveyAnswers/{docId} {
+      allow read, write: if false;
+    }
+
+    match /aiSurveyUsedEmails/{docId} {
+      allow read, write: if false;
+    }
+
+    match /aiSurveyCodes/{docId} {
+      allow read, write: if false;
+    }
+
+    match /aiSurveyCodeLimits/{docId} {
+      allow read, write: if false;
+    }
   }
 }

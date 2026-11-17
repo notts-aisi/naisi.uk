@@ -1,0 +1,7 @@
+{
+  "firestore": {
+    "database": "ai-survey",
+    "rules": "firestore.ai-survey.rules",
+    "indexes": "firestore.ai-survey.indexes.json"
+  }
+}
