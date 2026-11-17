@@ -30,7 +30,7 @@ export type OutsideService = {
 };
 
 /** The day this list last changed. Moves with every service added, changed or removed. */
-export const SERVICES_LAST_UPDATED = "31 October 2026";
+export const SERVICES_LAST_UPDATED = "17 November 2026";
 
 /** The words in a service's `does` that link to the policy's AI-assisted review, and where. */
 export const AI_REVIEW_LINK = { words: "AI-assisted review", href: "/privacy#ai-review" } as const;
@@ -56,7 +56,7 @@ export const OUTSIDE_SERVICES: readonly OutsideService[] = [
     id: "recaptcha",
     name: "Google reCAPTCHA",
     does:
-      "Checks that the person filling in our registration, event sign-up and application forms is not a bot. On the application form it runs only while somebody who is not signed in is making an account.",
+      "Checks that the person filling in our registration, event sign-up and application forms, or asking for a code on the AI at Nottingham survey, is not a bot. On the application form it runs only while somebody who is not signed in is making an account.",
     receives:
       "While it runs, Google receives information about your browser and how you used the page, and sets its own cookie. We see only its pass or fail.",
     policy: { href: "https://policies.google.com/privacy", label: "policies.google.com/privacy" },

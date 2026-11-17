@@ -121,6 +121,7 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
+  const [ended, setEnded] = useState(false);
 
   const recaptcha = useRef<RecaptchaHandle>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -282,8 +283,10 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
     } else if (reply.error === "closed") {
       go({ at: "closed" });
     } else {
+      // No answer at all is the connection, and is said so: "that code
+      // doesn't match" would send somebody back to their email for nothing.
       const known = words.errors as Record<string, string>;
-      setFieldError(known[reply.error] ?? words.errors.wrongCode);
+      setFieldError(reply.error === "failed" ? words.errors.couldNotCheck : (known[reply.error] ?? words.errors.wrongCode));
     }
   };
 
@@ -340,6 +343,14 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
       if (reply.error === "closed") {
         forgetPass();
         go({ at: "closed" });
+        return;
+      }
+      if (reply.error === "gone") {
+        // This browser's unfinished survey is over (a day since its last
+        // save, or finished in another tab): trying again cannot help, so
+        // the page says so, and the key that no longer works is not kept.
+        forgetPass();
+        setEnded(true);
         return;
       }
       // The page keeps its answers, and Next becomes Try again.
@@ -686,9 +697,9 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
         }
       />
       <div className={styles.foot}>
-        {saveFailed && (
+        {(saveFailed || ended) && (
           <p role="alert" className={styles.failed}>
-            {survey.ui.saveFailed}
+            {ended ? survey.ui.sessionEnded : survey.ui.saveFailed}
           </p>
         )}
         <div className={styles.footNotes}>
@@ -709,7 +720,7 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
           <button
             type="button"
             className={`${styles.primary} ${styles.next}`}
-            disabled={busy}
+            disabled={busy || ended}
             data-busy={busy || undefined}
             onClick={() => void save(step.index)}
           >

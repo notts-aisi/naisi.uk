@@ -187,6 +187,15 @@ export const POLICIES: Record<
     // of it: no `toldOnHome`, and its date and "What's changed in version 19"
     // tell it. "What's changed" keeps v18's and v17's lines under v19's, each
     // with its date. Told, not asked: `LAST_PRIVACY_VERSION_ASKED` stays 15.
+    // Its date is the day it went live.
+    //
+    // v20 names the AI at Nottingham survey (`/ai-survey`), which is anonymous
+    // and has a privacy notice of its own: in "Surveys and check-ins", in the
+    // forms Google reCAPTCHA runs on (its email step), and in what the browser
+    // keeps (`naisi.aiSurvey.pass` while somebody is part way through).
+    // "What's changed" keeps v19's, v18's and v17's lines under v20's, each
+    // with its date. It adds a use of information, so it is told on Home
+    // (`toldOnHome`). Told, not asked: `LAST_PRIVACY_VERSION_ASKED` stays 15.
     // Its date is the day it goes live, set when it is promoted.
     //
     // Keep this comment ABOVE `versions:`, never between the `[` and the first
@@ -195,6 +204,7 @@ export const POLICIES: Record<
     // so a comment sitting there leaves the guard unable to read the very
     // number it exists to pin. Anywhere else in the file is fine.
     versions: [
+      { version: 20, lastUpdated: "17 November 2026", toldOnHome: true },
       { version: 19, lastUpdated: "13 November 2026" },
       { version: 18, lastUpdated: "13 November 2026", toldOnHome: true },
       { version: 17, lastUpdated: "12 November 2026", toldOnHome: true },
