@@ -300,6 +300,20 @@ describe("5. the browser sends nothing of the person, and keeps one key", () => 
     }
   });
 
+  test("the questions are answered on a fresh page, after the bot check's script has gone", () => {
+    // A page cannot unload a script. So when the code is accepted and the
+    // pass is kept, the page reloads itself once, and the questions run in a
+    // document the bot check was never loaded into.
+    const flow = codeOf("src/features/aiSurvey/SurveyFlow.tsx");
+    const accepted = flow.slice(flow.indexOf("if (keepPass(reply.pass)) {"));
+    assert.ok(accepted.length > 0 && flow.includes("if (keepPass(reply.pass)) {"), "the page no longer reloads when the pass is kept");
+    assert.match(accepted.slice(0, 700), /window\.location\.hash = JUST_IN;\s*window\.location\.reload\(\);\s*return;/);
+    // The mark it leaves on its own address is a fragment, which is never sent to a server.
+    assert.match(flow, /const JUST_IN = "#in";/);
+    // The address typed for the email check is dropped before that.
+    assert.ok(flow.indexOf('setAddress("");', flow.indexOf("if (reply.ok) {", flow.indexOf("const onCode"))) < flow.indexOf("if (keepPass(reply.pass)) {"));
+  });
+
   test("the newsletter link opens in a new tab and says nothing about where the person came from", () => {
     const flow = codeOf("src/features/aiSurvey/SurveyFlow.tsx");
     assert.match(flow, /href=\{survey\.end\.newsletterHref\} target="_blank" rel="noopener noreferrer"/);

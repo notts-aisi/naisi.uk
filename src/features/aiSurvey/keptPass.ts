@@ -22,11 +22,13 @@ export function keptPass(): string | null {
   }
 }
 
-export function keepPass(pass: string): void {
+/** True when the browser kept it. False when storage is refused, and the pass lives in this page's memory for this sitting. */
+export function keepPass(pass: string): boolean {
   try {
     window.localStorage.setItem(KEY, pass);
+    return window.localStorage.getItem(KEY) === pass;
   } catch {
-    // Storage refused: the pass lives in this page's memory for this sitting.
+    return false;
   }
 }
 

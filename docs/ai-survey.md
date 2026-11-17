@@ -16,10 +16,15 @@ Everything below exists to keep that sentence true.
 |---|---|---|
 | An address never meets an answer | The step that checks a code writes the address's keyed hash to the used-email list and writes nothing to the answers. An answer set first exists when its first page is saved, from the browser's pass alone | `tests/ai-survey-no-trace.test.mjs`, `tests/ai-survey-flow.test.mjs` |
 | An answer set carries no date or time | It holds the survey's version, the order of the proposal pages, its pages, and that it is finished. Firestore stamps a time on every document, so an answer set is a field inside a shared document, never a document | both |
-| A shared document's update time does not date a save | New people are spread over 2 documents, growing to 16 as the survey grows. While it is small every save rewrites the documents in use together; once busy they are rewritten together at most 20 seconds apart, and by the job when people stop | `tests/ai-survey-flow.test.mjs` |
+| A shared document's update time does not date a save | A save writes its one document. When the documents were last rewritten together more than 20 seconds ago, the next save rewrites all of them in one batch, and the job does it when people stop, so they carry one time between them | `tests/ai-survey-flow.test.mjs` |
+| Which document an answer set is in says nothing about when | People are spread at random over all 16 documents from the first person on. Fewer documents while there were fewer people was tried, and it made the document's number a clock | `tests/ai-survey.test.mjs`, `tests/ai-survey-flow.test.mjs` |
 | The used-email list is hashes and nothing else | HMAC-SHA-256 under a secret used for nothing else, as fields in 16 shared documents, with no time | both |
 | "Already answered" is said only after the right code | Asking for a code never reads the list | `tests/ai-survey-flow.test.mjs` |
+| A wrong code says one thing | "That code doesn't match", whether a code is waiting, was used a moment ago or was never asked for | `tests/ai-survey-flow.test.mjs` |
 | The server keeps no session | The browser holds a signed pass, replaced on every save, good for 24 hours after the last one | `tests/ai-survey.test.mjs` |
+| Reading the datastore is not enough to write a pass | The key that signs passes is made from the secret and is never stored. The record holds only a value that names this generation's passes | `tests/ai-survey.test.mjs`, `tests/ai-survey-flow.test.mjs` |
+| A reply lost on the way does not shut a student out | Before it checks its code the browser makes 32 random bytes of its own, kept in memory only, and the pass is made from them. A used code is kept until it runs out, marked done, with a hash of those bytes; the same browser asking again is given the same pass, and anybody else is told the code doesn't match | `tests/ai-survey-flow.test.mjs` |
+| Finish pressed twice is one finish | A Finish that arrives again for a finished set is told it is finished, and nothing is written | `tests/ai-survey-flow.test.mjs` |
 | Nothing is read back | Coming back says which pages are saved, never an answer | `tests/ai-survey-no-trace.test.mjs` |
 | The code email leaves no row in the send log | It goes through `sendUnloggedText` in `src/lib/email/send.ts`: plain text, no link, the suppression list and the audience still asked first | `tests/ai-survey-no-trace.test.mjs` |
 | Nobody is asked who they are | The public routes read no session, cookie, header or IP address, and the page calls them with no credentials and no referrer | `tests/ai-survey-no-trace.test.mjs` |
@@ -46,10 +51,10 @@ admins included (`firestore.rules`, and `scripts/rules-tests/tests/ai-survey.tes
 
 | Collection | Holds |
 |---|---|
-| `aiSurveyState` | `main`: the stage, the storage generation, the key that signs passes, the allowlist. `codes`: codes sent a minute, for two hours. `downloads`: who downloaded the answers, when, how many rows |
+| `aiSurveyState` | `main`: the stage, the storage generation, a value that names this generation's passes (the key that signs them is that value under the secret), the allowlist, and the ceiling when it has been changed. `codes`: codes sent a minute, for two hours. `downloads`: who downloaded the answers, when, how many rows |
 | `aiSurveyAnswers` | Answer sets, as fields inside shared documents named `{generation}-{number}` |
 | `aiSurveyUsedEmails` | Keyed hashes of the addresses that have answered, in 16 shared documents |
-| `aiSurveyCodes` | Pending codes: a hash of the code, when it runs out, wrong tries |
+| `aiSurveyCodes` | Pending codes: a hash of the code, when it runs out, wrong tries. A used one stays until it runs out, marked done, with a hash of the value its browser made |
 | `aiSurveyCodeLimits` | For a hashed address: today's count of codes and when the last was sent |
 
 No index is needed: every read is by document id or a range on one field.
@@ -109,6 +114,9 @@ that runs the survey, so it goes through `sendEmail` and leaves its row in the
 send log. It is the survey's only logged email, it says a count, and it is
 handed nothing of anybody who asked for a code.
 
+For a room bigger than that, `codeCeiling` on `aiSurveyState/main` replaces
+the 600. It is set by hand, like the list, and a restart of storage keeps it.
+
 ## The export
 
 One row for each answer set, rows in a random order, no ids and no times.
@@ -120,8 +128,10 @@ and "Don't know" its own value, `dk`, never a sixth point of a scale.
 ## The job
 
 `ai-survey-tidy`, on every tick, on by default because it emails nobody:
-deletes codes that ran out, rewrites the shared documents together, and, a
-set number of days after the survey closes, deletes the used-email list.
+deletes codes that ran out (each only if it has not changed since it was
+read, so a code somebody has just asked for again is left alone), rewrites
+the shared documents together, and, a set number of days after the survey
+closes, deletes the used-email list.
 Destroying the key is done by a person: the site's own account cannot delete a
 secret.
 
@@ -136,4 +146,16 @@ answers, and the survey never reads it.
 
 Every page loads the site's sign-in code and its notice banner, which talk to
 Firebase. There is no analytics on the site. The one outside script the survey
-loads is the bot check, on the email step and nowhere else.
+loads is the bot check, on the email step and nowhere else: after the right
+code the page keeps its pass and loads itself again, once, so the questions
+are answered on a page that never loaded that script.
+
+## When something fails
+
+- **A save that does not land** keeps the page's answers and offers "Try
+  again". The routes answer 503 with `failed` and never a bare error page.
+- **A code check with no answer** is asked again by the page, up to three
+  times, with the same code and the same value of its own.
+- **Opening, or clearing pilot data, pressed twice** restarts storage once:
+  the second press finds the generation already replaced and is refused.
+- **A request body** is read up to a fixed size and dropped past it.

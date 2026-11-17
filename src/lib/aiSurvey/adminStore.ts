@@ -6,7 +6,7 @@ import { AI_SURVEY, closesAtInstant, missingBeforeOpening } from "./definition";
 import { buildExport } from "./exportCsv";
 import { randomBelow } from "./pass";
 import {
-  CODE_CEILING_PER_HOUR,
+  ceilingOf,
   closeNow,
   codesInLastHour,
   hasRealEmailKey,
@@ -126,7 +126,7 @@ export async function adminView(db: Firestore, state: SurveyState, now: number =
     started: sets.length,
     finished: sets.filter((set) => set.finished).length,
     codesLastHour: codes,
-    ceiling: CODE_CEILING_PER_HOUR,
+    ceiling: ceilingOf(state),
     checks,
     canOpen: stage === "pilot" && checks.every((check) => check.set) && now < closesAtInstant().getTime(),
     shortLinks: AI_SURVEY.shortLinks.map((link) => ({ slug: link.slug, where: link.where, scans: scans.get(link.slug) ?? 0 })),
@@ -145,7 +145,8 @@ export async function openSurvey(db: Firestore, state: SurveyState, now: number 
   if (stageAt(state, now).stage !== "pilot") return { ok: false, error: "wrongStage" };
   if (!openingChecks().every((check) => check.set)) return { ok: false, error: "notReady" };
   if (now >= closesAtInstant().getTime()) return { ok: false, error: "notReady" };
-  await restartStorage(db, state, "open");
+  // Null when another press got there first: the stage is no longer this one.
+  if (!(await restartStorage(db, state, "open"))) return { ok: false, error: "wrongStage" };
   return { ok: true };
 }
 
@@ -163,7 +164,7 @@ export const CLEAR_PHRASE = "clear pilot data";
 export async function clearPilot(db: Firestore, state: SurveyState, typed: unknown, now: number = Date.now()): Promise<ActionResult> {
   if (stageAt(state, now).stage !== "pilot") return { ok: false, error: "wrongStage" };
   if (typeof typed !== "string" || typed.trim().toLowerCase() !== CLEAR_PHRASE) return { ok: false, error: "notConfirmed" };
-  await restartStorage(db, state, "pilot");
+  if (!(await restartStorage(db, state, "pilot"))) return { ok: false, error: "wrongStage" };
   return { ok: true };
 }
 

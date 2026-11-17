@@ -2,7 +2,7 @@ import "server-only";
 import { checkPageAnswers } from "./answers";
 import { AI_SURVEY, isProposalOrder, pageSequence } from "./definition";
 import { answerSetKey, openPass, renewPass, sealPass, type AiSurveyPass } from "./pass";
-import { readProgress, readState, stageAt, surveyDb, writePage, type SurveyState } from "./store";
+import { passSigningKey, readProgress, readState, stageAt, surveyDb, writePage, type SurveyState } from "./store";
 import type { AiSurveyStage } from "./types";
 
 /**
@@ -19,7 +19,7 @@ import type { AiSurveyStage } from "./types";
 
 export type SessionView =
   | { ok: true; stage: AiSurveyStage; order: string[]; savedPages: string[]; finished: boolean; pass: string }
-  | { ok: false; error: "gone" | "closed" };
+  | { ok: false; error: "gone" | "closed" | "failed" };
 
 type Opened = { state: SurveyState; pass: AiSurveyPass; passKey: Buffer };
 
@@ -27,7 +27,10 @@ async function open(token: unknown, now: number): Promise<{ db: FirebaseFirestor
   const db = surveyDb();
   if (!db) return null;
   const state = await readState(db);
-  const passKey = Buffer.from(state.passKey, "base64");
+  // No signing key (an open survey whose secret is missing, or a state made
+  // by hand): no pass can be read, so nothing is saved.
+  const passKey = passSigningKey(state);
+  if (!passKey) return null;
   const pass = openPass(token, passKey, now);
   // A pass from storage that has since been cleared, or one whose page order
   // is not this survey's, is no pass.
@@ -38,12 +41,22 @@ async function open(token: unknown, now: number): Promise<{ db: FirebaseFirestor
 
 /** For a browser coming back to an unfinished survey: which pages are saved. */
 export async function viewSession(token: unknown, now: number = Date.now()): Promise<SessionView> {
-  const found = await open(token, now);
+  let found: Awaited<ReturnType<typeof open>>;
+  try {
+    found = await open(token, now);
+  } catch {
+    return { ok: false, error: "failed" };
+  }
   if (!found) return { ok: false, error: "gone" };
   const { db, opened } = found;
   const stage = stageAt(opened.state, now);
   if (!stage.takesSaves) return { ok: false, error: "closed" };
-  const progress = await readProgress(db, opened.state.epoch, opened.pass.shard, answerSetKey(opened.pass));
+  let progress: Awaited<ReturnType<typeof readProgress>>;
+  try {
+    progress = await readProgress(db, opened.state.epoch, opened.pass.shard, answerSetKey(opened.pass));
+  } catch {
+    return { ok: false, error: "failed" };
+  }
   if (!progress) return { ok: false, error: "gone" };
   if (progress.finished) return { ok: false, error: "gone" };
   return {
@@ -73,7 +86,13 @@ export async function savePage(
   finish: unknown,
   now: number = Date.now(),
 ): Promise<SaveResult> {
-  const found = await open(token, now);
+  let found: Awaited<ReturnType<typeof open>>;
+  try {
+    found = await open(token, now);
+  } catch {
+    // The datastore did not answer. The page keeps its answers and offers "Try again".
+    return { ok: false, error: "failed" };
+  }
   if (!found) return { ok: false, error: "gone" };
   const { db, opened } = found;
   if (!stageAt(opened.state, now).takesSaves) return { ok: false, error: "closed" };
@@ -86,11 +105,22 @@ export async function savePage(
   if (finishing && page !== sequence[sequence.length - 1]) return { ok: false, error: "refused" };
 
   const setKey = answerSetKey(opened.pass);
-  const progress = await readProgress(db, opened.state.epoch, opened.pass.shard, setKey);
+  let progress: Awaited<ReturnType<typeof readProgress>>;
+  try {
+    progress = await readProgress(db, opened.state.epoch, opened.pass.shard, setKey);
+  } catch {
+    return { ok: false, error: "failed" };
+  }
   if (!progress) return { ok: false, error: "gone" };
-  // Finished is locked. The browser cleared its pass when it finished, so
-  // this is a copy of the pass being used after the fact.
-  if (progress.finished) return { ok: false, error: "gone" };
+  if (progress.finished) {
+    // Finished is locked: nothing more is written to it. A Finish that
+    // arrives again is the phone whose first Finish got through and whose
+    // answer did not, so it is told what is true, that the set is finished,
+    // and nothing is written. Any other save against it is a copy of the pass
+    // being used after the fact.
+    if (finishing) return { ok: true, finished: true, pass: sealPass(opened.pass, opened.passKey) };
+    return { ok: false, error: "gone" };
+  }
 
   try {
     await writePage(

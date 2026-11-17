@@ -34,7 +34,12 @@ export async function POST(req: Request) {
     typeof body.recaptchaToken === "string" && body.recaptchaToken.length > 0 ? body.recaptchaToken : undefined;
   if (!(await verifyRecaptcha(recaptchaToken))) return refuse("botCheckFailed", 400);
 
-  const result = await requestCode(address);
-  if (!result.ok) return refuse(result.error, statusOf(result.error));
-  return accept({ ok: true });
+  try {
+    const result = await requestCode(address);
+    if (!result.ok) return refuse(result.error, statusOf(result.error));
+    return accept({ ok: true });
+  } catch {
+    // The datastore did not answer. Nothing was sent.
+    return refuse("couldNotSend", 503);
+  }
 }
