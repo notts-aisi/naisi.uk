@@ -111,10 +111,36 @@ describe("a share is out of those who gave a view", () => {
     assert.deepEqual(b5.lines[0].counts.map((c) => c.count), [1, 0, 1]);
   });
 
-  test("'which matters most' counts each line of its page and 'None of these'", () => {
-    const m1 = question(surveyTotals([set({ d1: { M1: "P4" } }), set({ d1: { M1: "P4" } }), set({ d1: { M1: "none" } }), set({ d1: {} })]), "d1", "M1");
-    assert.deepEqual([count(m1, "P4"), count(m1, "P1"), count(m1, "none"), m1.answered], [2, 0, 1, 3]);
-    assert.equal(m1.counts.length, 8);
+  test("'rank your top three' counts each line in each place, gives 3, 2 and 1 points, and counts 'None of these' apart", () => {
+    const m1 = question(
+      surveyTotals([
+        set({ d1: { M1: ["P4", "P1", "P6"] } }),
+        set({ d1: { M1: ["P4"] } }),
+        set({ d1: { M1: ["P1", "P4"] } }),
+        set({ d1: { M1: ["none"] } }),
+        set({ d1: {} }),
+      ]),
+      "d1",
+      "M1",
+    );
+    assert.equal(m1.kind, "rank");
+    const line = (id) => m1.lines.find((l) => l.id === id);
+    assert.deepEqual(line("P4").inPlace, [2, 1, 0]);
+    assert.equal(line("P4").points, 2 * 3 + 1 * 2);
+    assert.deepEqual(line("P1").inPlace, [1, 1, 0]);
+    assert.equal(line("P1").points, 3 + 2);
+    assert.deepEqual([line("P6").inPlace, line("P6").points], [[0, 0, 1], 1]);
+    assert.deepEqual([line("P3").inPlace, line("P3").points], [[0, 0, 0], 0]);
+    // Four answered (three rankings and one "None of these"); the empty page did not.
+    assert.equal(m1.answered, 4);
+    assert.deepEqual(m1.alone.map((a) => [a.id, a.count]), [["none", 1]]);
+    assert.equal(m1.lines.length, 7);
+    assert.equal(m1.places, 3);
+  });
+
+  test("a question's emphasis marks are not in the totals", () => {
+    const b9 = question(surveyTotals([set({ seen: { B9: "yes" } })]), "seen", "B9");
+    assert.equal(b9.text, "Have you been required to use an AI tool for assessed work this year?");
   });
 });
 

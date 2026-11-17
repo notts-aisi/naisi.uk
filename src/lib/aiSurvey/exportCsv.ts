@@ -10,6 +10,9 @@
  *  - a question skipped on a page that was saved: an empty cell;
  *  - a multi-choice question: one column for each option, 1 or 0, and empty
  *    cells when the whole question was skipped;
+ *  - a ranking: one column for each place, `M1_1` holding the first choice's
+ *    code, and empty cells for places left unranked. "None of these" is the
+ *    first place's value, alone;
  *  - a tick: 1 when ticked, empty when not;
  *  - "Don't know" and "Don't know enough": their own value, `dk`, never a
  *    sixth point of the scale.
@@ -50,6 +53,9 @@ export function exportRow(set: AiSurveyAnswerSet, def: AiSurveyDefinition = AI_S
     const value = page[column.code];
     if (column.kind === "multiOption") {
       row.push(Array.isArray(value) ? (value.includes(column.optionId) ? "1" : "0") : def.export.skipped);
+    } else if (column.kind === "rankPlace") {
+      const at = Array.isArray(value) ? value[column.place - 1] : undefined;
+      row.push(typeof at === "string" ? at : def.export.skipped);
     } else if (column.kind === "tick") {
       row.push(value === true ? "1" : def.export.skipped);
     } else {

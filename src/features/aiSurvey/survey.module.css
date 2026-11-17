@@ -555,6 +555,22 @@
   margin-bottom: var(--space-3);
 }
 
+/* What every fieldset on a page sits in, so that no fieldset is itself an
+   item of the page's flex column (see `.lines`, and Questions.tsx). */
+.block {
+  display: block;
+  min-width: 0;
+}
+
+/* A word a question marks for emphasis. The title is already semi-bold, so
+   the weight alone would not show. */
+.title strong {
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
 .title {
   margin: 0;
   display: flex;
@@ -665,6 +681,111 @@
   display: block;
 }
 
+/* A ranking's mark: empty until the line is chosen, then its place. */
+.place {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  box-sizing: border-box;
+  border: 1.5px solid var(--color-control-border);
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.option[data-on] .place {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+/* Three are chosen: the rest stay readable and reachable, and look set aside. */
+.option[data-full] {
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+/* A radio that is not driven by the page's script (the consent question on
+   the start screen, which has to work before the script arrives). */
+.option:has(input[type="radio"]:checked) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.option:has(input[type="radio"]:checked) .radio {
+  border-color: var(--color-accent);
+}
+
+.option:has(input[type="radio"]:checked) .radio::after {
+  content: "";
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+}
+
+/* Where to find help: closed until asked for, and it opens without script. */
+.support {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.support summary {
+  cursor: pointer;
+  padding: 0.875rem var(--space-4);
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-text);
+  min-height: 2.75rem;
+  box-sizing: border-box;
+}
+
+.support summary:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-md);
+}
+
+.supportList {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-4);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  font-size: var(--text-ui);
+  line-height: 1.5;
+}
+
+.supportList a {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+.supportList span {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+
+.consentPoints {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
 .rule {
   height: 1px;
   background: var(--color-border);
@@ -698,10 +819,15 @@
 /* Lines answered on one scale: each line is its statement with its answers
    under it, words always showing, three to a row. Never a table. */
 
+/* The lines are plain blocks spaced by a margin, never a flex column: a
+   fieldset that is a flex item gets its legend's height twice from Safari on
+   iOS 26, which left a tall empty band under the last line. */
 .lines {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
+  display: block;
+}
+
+.line + .line {
+  margin-top: var(--space-5);
 }
 
 .line {

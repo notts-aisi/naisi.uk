@@ -35,6 +35,7 @@ import styles from "./survey.module.css";
 
 type Step =
   | { at: "start" }
+  | { at: "declined" }
   | { at: "comingBack" }
   | { at: "address" }
   | { at: "code" }
@@ -85,6 +86,29 @@ function newClaim(): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * Where to find help: a list that stays closed until it is asked for, and
+ * opens without script. Each link opens in a new tab and says nothing about
+ * where the person came from.
+ */
+function Support({ support }: { support: PublicSurvey["support"] }) {
+  return (
+    <details className={styles.support}>
+      <summary>{support.heading}</summary>
+      <ul className={styles.supportList}>
+        {support.links.map((link) => (
+          <li key={link.href}>
+            <a href={link.href} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">
+              {link.label}
+            </a>
+            {link.note && <span>{link.note}</span>}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 /** The mark left on the address for the one reload after the email check. Never sent anywhere. */
 const JUST_IN = "#in";
 
@@ -116,6 +140,9 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
 
   const [ticked, setTicked] = useState(false);
   const tickRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  /** The consent question's answer. Held for this screen only: it is never sent and never stored. */
+  const [consent, setConsent] = useState<"yes" | "no" | null>(null);
+  const consentRefs = useRef<{ yes: HTMLInputElement | null; no: HTMLInputElement | null }>({ yes: null, no: null });
   const [address, setAddress] = useState("");
   const [code, setCode] = useState("");
   const [fieldError, setFieldError] = useState<string | null>(null);
@@ -149,9 +176,14 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
   const readTicks = useCallback(() => {
     setTicked(survey.start.ticks.every((tick) => tickRefs.current[tick.id]?.checked === true));
   }, [survey.start.ticks]);
+  // The consent question is two real, unmanaged radio buttons for the same reason.
+  const readConsent = useCallback(() => {
+    setConsent(consentRefs.current.yes?.checked ? "yes" : consentRefs.current.no?.checked ? "no" : null);
+  }, []);
   useEffect(() => {
     readTicks();
-  }, [readTicks]);
+    readConsent();
+  }, [readTicks, readConsent]);
 
   // Coming back: is there a pass in this browser, and does it still work?
   useEffect(() => {
@@ -326,6 +358,13 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
     go({ at: "start" });
   };
 
+  /** Back from "you chose not to take part": the start screen is drawn afresh, nothing ticked. */
+  const backToStart = () => {
+    setTicked(false);
+    setConsent(null);
+    go({ at: "start" });
+  };
+
   const save = async (index: number) => {
     if (!session || busy) return;
     const pageId = sequence[index];
@@ -390,6 +429,10 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
     );
   }
 
+  // "No" to consent is a complete answer: it leads to the closing screen. To
+  // start, both boxes are ticked and consent is given.
+  const canStart = consent === "no" || (ticked && consent === "yes");
+
   if (step.at === "start") {
     return (
       <main className={styles.column}>
@@ -446,24 +489,74 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
             </label>
           ))}
         </div>
+        {/* In a block of its own: a fieldset must not be an item of a flex column (Questions.tsx). */}
+        <div className={styles.block}>
+          <fieldset className={styles.question}>
+            <legend className={styles.legend}>
+              <span className={styles.title}>{survey.start.consent.heading}</span>
+            </legend>
+            <p className={styles.body}>{survey.start.consent.asks}</p>
+            <ul className={styles.consentPoints}>
+              {survey.start.consent.points.map((point) => (
+                <li key={point}>{point}</li>
+              ))}
+            </ul>
+            <div className={styles.options}>
+              {(["yes", "no"] as const).map((answer) => (
+                <label key={answer} className={styles.option}>
+                  <input
+                    type="radio"
+                    name="consent"
+                    value={answer}
+                    ref={(node) => {
+                      consentRefs.current[answer] = node;
+                    }}
+                    onChange={readConsent}
+                  />
+                  <span aria-hidden="true" className={styles.radio} />
+                  <span>{survey.start.consent[answer]}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </div>
+        <Support support={survey.support} />
         <div className={styles.stack}>
           <button
             type="button"
             className={`${styles.primary} ${styles.full}`}
-            disabled={!hydrated || !ticked}
+            disabled={!hydrated || !canStart}
             aria-describedby="ticks-needed"
-            onClick={() => go({ at: "address" })}
+            onClick={() => go(consent === "no" ? { at: "declined" } : { at: "address" })}
           >
-            {survey.start.button}
+            {consent === "no" ? survey.start.consent.noButton : survey.start.button}
           </button>
-          {/* Until both boxes are ticked. The ticks are not stored. */}
-          {!ticked && (
+          {/* Until both boxes are ticked and consent is given. Neither is stored. */}
+          {!canStart && (
             <p id="ticks-needed" className={styles.small}>
               {survey.start.ticksNeeded}
             </p>
           )}
         </div>
         </div>
+      </main>
+    );
+  }
+
+  if (step.at === "declined") {
+    const declined = survey.start.consent.declined;
+    return (
+      <main className={styles.column}>
+        <div className={styles.stackWide}>
+          <h1 ref={heading} tabIndex={-1} className={`${styles.h1} ${styles.h1Thanks}`}>
+            {declined.heading}
+          </h1>
+          <p className={`${styles.body} ${styles.bodyStrong}`}>{declined.body}</p>
+        </div>
+        <Support support={survey.support} />
+        <button type="button" className={`${styles.secondary} ${styles.full}`} onClick={backToStart}>
+          {declined.back}
+        </button>
       </main>
     );
   }
@@ -641,6 +734,7 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
           </a>
         </section>
         <p className={styles.body}>{survey.end.passItOn}</p>
+        <Support support={survey.support} />
       </main>
     );
   }
@@ -687,6 +781,7 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
         answers={pageAnswers}
         charactersLeft={survey.ui.charactersLeft}
         selectPlaceholder={survey.ui.selectPlaceholder}
+        rankWords={survey.ui.rank}
         onChange={(codeOf, value) =>
           setAnswers((current) => {
             const next = { ...(own(current, page.id) ?? {}) };

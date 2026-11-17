@@ -109,7 +109,7 @@ export const AI_SURVEY: AiSurveyDefinition = {
       },
       {
         "id": "s",
-        "label": "Support"
+        "label": "Slightly support"
       },
       {
         "id": "n",
@@ -117,7 +117,7 @@ export const AI_SURVEY: AiSurveyDefinition = {
       },
       {
         "id": "o",
-        "label": "Oppose"
+        "label": "Slightly oppose"
       },
       {
         "id": "so",
@@ -142,6 +142,55 @@ export const AI_SURVEY: AiSurveyDefinition = {
         "id": "not_sure",
         "label": "Not sure"
       }
+    ],
+    "effect": [
+      {
+        "id": "much_better",
+        "label": "Much better"
+      },
+      {
+        "id": "better",
+        "label": "Somewhat better"
+      },
+      {
+        "id": "same",
+        "label": "No real difference"
+      },
+      {
+        "id": "worse",
+        "label": "Somewhat worse"
+      },
+      {
+        "id": "much_worse",
+        "label": "Much worse"
+      }
+    ],
+    "clarity": [
+      {
+        "id": "very_clear",
+        "label": "Very clear"
+      },
+      {
+        "id": "mostly_clear",
+        "label": "Mostly clear"
+      },
+      {
+        "id": "neither",
+        "label": "Neither"
+      },
+      {
+        "id": "mostly_unclear",
+        "label": "Mostly unclear"
+      },
+      {
+        "id": "very_unclear",
+        "label": "Very unclear"
+      },
+      {
+        "id": "not_covered",
+        "label": "Not covered",
+        "outsideScale": true
+      }
     ]
   },
   "ui": {
@@ -157,12 +206,22 @@ export const AI_SURVEY: AiSurveyDefinition = {
     "sessionEnded": "We can't save this page: this browser's unfinished survey has ended. The pages you saved before are kept.",
     "charactersLeft": "{n} characters left",
     "selectPlaceholder": "Choose one",
-    "frameLabel": "Survey"
+    "frameLabel": "Survey",
+    "rank": {
+      "hint": "Tap up to three, most important first. Tap one again to take it out.",
+      "places": [
+        "1st",
+        "2nd",
+        "3rd"
+      ],
+      "chosen": "{place} choice",
+      "full": "You've chosen three. Take one out to choose another."
+    }
   },
   "start": {
     "eyebrow": "Student survey",
     "intro": "Students here are drawing up proposals on how AI is used at Nottingham: in teaching and marking, with your work and your data, and in the Students' Union itself. Before anything goes to a student vote, we want to know what you think, whether you use AI every day or never touch it.",
-    "time": "It takes about 10 minutes. You can skip any question.",
+    "time": "It takes about 15 minutes. You can skip any question.",
     "organiser": {
       "ifUnionCoBadged": "Run by the Students' Union campaigns team with the Nottingham AI Safety Initiative, a student society, on the society's website.",
       "otherwise": "Run by the Nottingham AI Safety Initiative, a student society, on the society's website."
@@ -187,14 +246,86 @@ export const AI_SURVEY: AiSurveyDefinition = {
       }
     ],
     "button": "Start",
-    "ticksNeeded": "Tick both boxes to start.",
+    "ticksNeeded": "Tick both boxes and answer the consent question to start.",
     "comingBack": {
       "heading": "Carry on where you left off?",
       "body": "This browser has an unfinished survey. Pages already saved stay closed.",
       "carryOn": "Carry on",
       "startOwn": "That wasn't me: start my own"
     },
-    "closed": "This survey has closed. Thank you to everyone who answered. Results will be published as totals on {resultsPage} by {resultsBy}."
+    "closed": "This survey has closed. Thank you to everyone who answered. Results will be published as totals on {resultsPage} by {resultsBy}.",
+    "consent": {
+      "heading": "Consent",
+      "asks": "Do you understand and agree to the following?",
+      "points": [
+        "I have read and understood the details of the research at the top of this page, and understand the purpose of the research and how my data will be used.",
+        "I consent to my data being used in the ways outlined at the top of this page.",
+        "I understand that if I have questions about this research, I can email ai-safety@uonsu.com."
+      ],
+      "yes": "Yes, I understand and consent.",
+      "no": "No, I do not understand and/or consent.",
+      "noButton": "Finish",
+      "declined": {
+        "heading": "Thank you",
+        "body": "You chose not to take part. You haven't been asked anything, and nothing about you has been kept. You can close this page.",
+        "back": "Go back to the start"
+      }
+    }
+  },
+  "support": {
+    "heading": "Support if you need it",
+    "links": [
+      {
+        "label": "SU Advice",
+        "note": "Free, confidential advice, including on money",
+        "href": "https://su.nottingham.ac.uk/advice"
+      },
+      {
+        "label": "UoN Report and Support",
+        "href": "https://reportandsupport.nottingham.ac.uk/"
+      },
+      {
+        "label": "UoN Financial and Funding Support",
+        "href": "https://www.nottingham.ac.uk/studentservices/support/financialsupport/index.aspx"
+      },
+      {
+        "label": "UoNSU Foodbank",
+        "href": "https://su.nottingham.ac.uk/advice/money/food-bank"
+      },
+      {
+        "label": "Mental health support",
+        "note": "Nottinghamshire Healthcare NHS",
+        "href": "https://www.nottinghamshirehealthcare.nhs.uk/mental-health-support/"
+      },
+      {
+        "label": "National Suicide Prevention Helpline",
+        "note": "Or call 0800 689 5652",
+        "href": "https://spuk.org.uk/national-suicide-prevention-helpline/"
+      },
+      {
+        "label": "Helplines and listening services",
+        "note": "Mind",
+        "href": "https://www.mind.org.uk/information-support/guides-to-support-and-services/crisis-services/helplines-listening-services/"
+      },
+      {
+        "label": "Nottingham Nightline",
+        "href": "https://www.nottinghamnightline.co.uk/"
+      },
+      {
+        "label": "Samaritans",
+        "href": "https://www.samaritans.org/how-we-can-help/contact-samaritan/"
+      },
+      {
+        "label": "Mental health and wellbeing",
+        "note": "University of Nottingham",
+        "href": "https://www.nottingham.ac.uk/studentservices/wellbeing/student-wellbeing.aspx"
+      },
+      {
+        "label": "Key Wellbeing Services",
+        "note": "University of Nottingham",
+        "href": "https://www.nottingham.ac.uk/studentservices/wellbeing/wellbeing-services.aspx"
+      }
+    ]
   },
   "emailCheck": {
     "heading": "Check you're a Nottingham student",
@@ -258,23 +389,23 @@ export const AI_SURVEY: AiSurveyDefinition = {
         {
           "id": "A1",
           "type": "single",
-          "text": "What are you studying for?",
+          "text": "What is your level of study?",
           "options": [
             {
+              "id": "foundation",
+              "label": "Foundation year"
+            },
+            {
               "id": "ug",
-              "label": "Undergraduate degree"
+              "label": "Undergraduate"
             },
             {
               "id": "pgt",
-              "label": "Taught postgraduate degree"
+              "label": "Postgraduate taught (e.g. Master's or PGCE)"
             },
             {
               "id": "pgr",
-              "label": "Research degree"
-            },
-            {
-              "id": "other",
-              "label": "Foundation or other"
+              "label": "Postgraduate research (e.g. PhD)"
             }
           ]
         },
@@ -462,7 +593,7 @@ export const AI_SURVEY: AiSurveyDefinition = {
         {
           "id": "B2",
           "type": "multi",
-          "text": "Which of these have you used AI for when preparing assessed work? Tick any.",
+          "text": "Which of these have you used AI for when preparing assessed work? Tick all that apply.",
           "options": [
             {
               "id": "explain",
@@ -513,59 +644,96 @@ export const AI_SURVEY: AiSurveyDefinition = {
         },
         {
           "id": "B3",
-          "type": "single",
-          "text": "Overall, what effect has AI had on your experience as a student?",
-          "options": [
+          "type": "lines",
+          "text": "What effect has AI had on each of these?",
+          "scale": "effect",
+          "shuffle": false,
+          "lines": [
             {
-              "id": "much_better",
-              "label": "Much better"
+              "id": "B3a",
+              "text": "Your academic experience",
+              "short": "Academic experience"
             },
             {
-              "id": "better",
-              "label": "Somewhat better"
+              "id": "B3b",
+              "text": "Your social experience",
+              "short": "Social experience"
             },
             {
-              "id": "same",
-              "label": "No real difference"
+              "id": "B3c",
+              "text": "Your lifestyle",
+              "short": "Lifestyle"
             },
             {
-              "id": "worse",
-              "label": "Somewhat worse"
-            },
-            {
-              "id": "much_worse",
-              "label": "Much worse"
+              "id": "B3d",
+              "text": "Your ability to achieve your full academic potential",
+              "short": "Full academic potential"
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "rules",
+      "heading": "The rules on AI",
+      "intro": "Think about your assessed work this year.",
+      "questions": [
         {
           "id": "B4",
-          "type": "single",
-          "text": "How clear are the rules on using AI in your assessments this year?",
-          "options": [
+          "type": "lines",
+          "text": "How clear do your School or your modules make the rules on using AI for each of these?",
+          "scale": "clarity",
+          "shuffle": false,
+          "lines": [
             {
-              "id": "all",
-              "label": "Clear for all of them"
+              "id": "B4a",
+              "text": "Having a concept explained",
+              "short": "Having a concept explained"
             },
             {
-              "id": "most",
-              "label": "Clear for most"
+              "id": "B4b",
+              "text": "Summarising a reading",
+              "short": "Summarising a reading"
             },
             {
-              "id": "some",
-              "label": "Clear for some"
+              "id": "B4c",
+              "text": "Getting ideas for what to research",
+              "short": "Getting ideas for what to research"
             },
             {
-              "id": "unclear",
-              "label": "Mostly unclear"
+              "id": "B4d",
+              "text": "Planning or organising my thoughts",
+              "short": "Planning or organising my thoughts"
             },
             {
-              "id": "not_looked",
-              "label": "I haven't looked"
+              "id": "B4e",
+              "text": "Searching for sources",
+              "short": "Searching for sources"
             },
             {
-              "id": "none_yet",
-              "label": "No assessments yet"
+              "id": "B4f",
+              "text": "Drafting text that I then edited",
+              "short": "Drafting text that I then edited"
+            },
+            {
+              "id": "B4g",
+              "text": "Putting AI-written text straight into my work",
+              "short": "Putting AI-written text straight into my work"
+            },
+            {
+              "id": "B4h",
+              "text": "Making images, audio or other media",
+              "short": "Making images, audio or other media"
+            },
+            {
+              "id": "B4i",
+              "text": "Checking grammar or wording",
+              "short": "Checking grammar or wording"
+            },
+            {
+              "id": "B4j",
+              "text": "Writing or checking code",
+              "short": "Writing or checking code"
             }
           ]
         }
@@ -603,20 +771,20 @@ export const AI_SURVEY: AiSurveyDefinition = {
           "text": "This academic year, have you had teaching materials or feedback that you believed were made with AI, without being told? Please don't name anyone.",
           "options": [
             {
+              "id": "both",
+              "label": "Yes, both teaching materials and feedback"
+            },
+            {
               "id": "materials",
-              "label": "Yes, teaching materials"
+              "label": "Yes, teaching materials only"
             },
             {
               "id": "feedback",
-              "label": "Yes, feedback"
-            },
-            {
-              "id": "both",
-              "label": "Both"
+              "label": "Yes, feedback only"
             },
             {
               "id": "no",
-              "label": "No"
+              "label": "No, neither"
             },
             {
               "id": "not_sure",
@@ -650,26 +818,33 @@ export const AI_SURVEY: AiSurveyDefinition = {
           "options": [
             {
               "id": "very",
-              "label": "Very"
+              "label": "Very worried"
             },
             {
               "id": "fairly",
-              "label": "Fairly"
+              "label": "Fairly worried"
             },
             {
-              "id": "not_very",
-              "label": "Not very"
+              "id": "a_little",
+              "label": "A little worried"
             },
             {
               "id": "not_at_all",
-              "label": "Not at all"
+              "label": "Not worried at all"
             }
           ]
         },
         {
+          "id": "B8w",
+          "type": "text",
+          "text": "Can you tell us more about why you feel this way?",
+          "help": "Please don't name anyone, or include anything that identifies you or someone else.",
+          "maxLength": 5000
+        },
+        {
           "id": "B9",
           "type": "single",
-          "text": "Have you been required to use an AI tool for assessed work this year?",
+          "text": "Have you been **required** to use an AI tool for assessed work this year?",
           "options": [
             {
               "id": "yes",
@@ -724,7 +899,7 @@ export const AI_SURVEY: AiSurveyDefinition = {
             },
             {
               "id": "C2",
-              "text": "The University should teach every student to use AI well."
+              "text": "The University should teach every student to use AI effectively."
             },
             {
               "id": "C3",
@@ -748,7 +923,7 @@ export const AI_SURVEY: AiSurveyDefinition = {
             },
             {
               "id": "C8",
-              "text": "The environmental cost of AI should count when the University decides whether to use it."
+              "text": "The environmental cost of AI should be considered when the University decides whether to use it."
             },
             {
               "id": "C9",
@@ -765,6 +940,10 @@ export const AI_SURVEY: AiSurveyDefinition = {
             {
               "id": "C12",
               "text": "I want to learn about the risks of advanced AI, not only how to use the tools."
+            },
+            {
+              "id": "C13",
+              "text": "When the University chooses to use AI, it must tell the students affected by that decision."
             }
           ]
         }
@@ -778,7 +957,7 @@ export const AI_SURVEY: AiSurveyDefinition = {
         {
           "id": "X1",
           "type": "single",
-          "text": "Which is closest to your view of how the University should treat AI?",
+          "text": "What should the University's approach to AI be?",
           "options": [
             {
               "id": "minimal",
@@ -786,7 +965,7 @@ export const AI_SURVEY: AiSurveyDefinition = {
             },
             {
               "id": "rules",
-              "label": "Use it, with firm rules and full openness about where"
+              "label": "Use it, with firm rules and full transparency about where"
             },
             {
               "id": "embrace",
@@ -801,7 +980,7 @@ export const AI_SURVEY: AiSurveyDefinition = {
         {
           "id": "X2",
           "type": "single",
-          "text": "And AI in marking?",
+          "text": "How do you think AI should be used in marking?",
           "options": [
             {
               "id": "never",
@@ -836,7 +1015,11 @@ export const AI_SURVEY: AiSurveyDefinition = {
             },
             {
               "id": "carry_on",
-              "label": "Carry on using it as now"
+              "label": "Carry on using it as we use it now"
+            },
+            {
+              "id": "other",
+              "label": "Other"
             },
             {
               "id": "not_sure",
@@ -845,9 +1028,20 @@ export const AI_SURVEY: AiSurveyDefinition = {
           ]
         },
         {
+          "id": "X3o",
+          "type": "text",
+          "text": "What should the University do instead?",
+          "help": "Please don't name anyone, or include anything that identifies you or someone else.",
+          "maxLength": 5000,
+          "showIf": {
+            "code": "X3",
+            "is": "other"
+          }
+        },
+        {
           "id": "X4",
           "type": "single",
-          "text": "Should the Students' Union use AI-made images, video or music in its own publicity and events?",
+          "text": "Should the Students' Union use AI-made images, video or other media in its promotions?",
           "options": [
             {
               "id": "no",
@@ -883,13 +1077,13 @@ export const AI_SURVEY: AiSurveyDefinition = {
           "lines": [
             {
               "id": "P1",
-              "text": "The University guarantees that no student's work is used to train or improve any AI system, AI detectors included, unless that student opts in.",
-              "short": "No AI training on student work without opt-in"
+              "text": "The University guarantees that no student's work is used to train or improve any AI system, AI detectors included, unless that student opts in when they hand in that piece of work.",
+              "short": "No AI training on student work without opt-in for each piece"
             },
             {
               "id": "P2a",
-              "text": "The University publishes its contract dates and settings for Turnitin.",
-              "short": "Publish Turnitin's contract dates and settings"
+              "text": "The University publishes its contract dates and obligations for Turnitin.",
+              "short": "Publish Turnitin's contract dates and obligations"
             },
             {
               "id": "P2b",
@@ -913,22 +1107,30 @@ export const AI_SURVEY: AiSurveyDefinition = {
             },
             {
               "id": "P6",
-              "text": "The University publishes a list of where AI is used on students or their data, such as marking, admissions, support services and survey analysis.",
+              "text": "The University publishes a list of where AI is used on students or their data, such as marking, admissions, support services and all forms of data analysis.",
               "short": "Register of AI used on students"
             }
           ]
         },
         {
           "id": "M1",
-          "type": "mostOf",
-          "text": "Which one of these matters most to you?",
+          "type": "rank",
+          "text": "Which of these matter most to you? Rank your top three.",
           "linesFrom": "D1",
+          "places": 3,
           "extraOptions": [
             {
               "id": "none",
               "label": "None of these"
             }
           ]
+        },
+        {
+          "id": "M1w",
+          "type": "text",
+          "text": "Why did you rank them this way?",
+          "help": "Please don't name anyone, or include anything that identifies you or someone else.",
+          "maxLength": 5000
         }
       ]
     },
@@ -978,15 +1180,23 @@ export const AI_SURVEY: AiSurveyDefinition = {
         },
         {
           "id": "M2",
-          "type": "mostOf",
-          "text": "Which one of these matters most to you?",
+          "type": "rank",
+          "text": "Which of these matter most to you? Rank your top three.",
           "linesFrom": "D2",
+          "places": 3,
           "extraOptions": [
             {
               "id": "none",
               "label": "None of these"
             }
           ]
+        },
+        {
+          "id": "M2w",
+          "type": "text",
+          "text": "Why did you rank them this way?",
+          "help": "Please don't name anyone, or include anything that identifies you or someone else.",
+          "maxLength": 5000
         }
       ]
     },
@@ -1009,8 +1219,8 @@ export const AI_SURVEY: AiSurveyDefinition = {
             },
             {
               "id": "P14",
-              "text": "No student is investigated or penalised on the strength of an AI detector score.",
-              "short": "No cases on detector scores"
+              "text": "No student is penalised on the strength of an AI detector score alone.",
+              "short": "No penalty on a detector score alone"
             },
             {
               "id": "P15",
@@ -1031,15 +1241,23 @@ export const AI_SURVEY: AiSurveyDefinition = {
         },
         {
           "id": "M3",
-          "type": "mostOf",
-          "text": "Which one of these matters most to you?",
+          "type": "rank",
+          "text": "Which of these matter most to you? Rank your top three.",
           "linesFrom": "D3",
+          "places": 3,
           "extraOptions": [
             {
               "id": "none",
               "label": "None of these"
             }
           ]
+        },
+        {
+          "id": "M3w",
+          "type": "text",
+          "text": "Why did you rank them this way?",
+          "help": "Please don't name anyone, or include anything that identifies you or someone else.",
+          "maxLength": 5000
         }
       ]
     },
@@ -1057,7 +1275,7 @@ export const AI_SURVEY: AiSurveyDefinition = {
           "lines": [
             {
               "id": "P18",
-              "text": "Optional teaching on how AI works, how to use it well and its risks is open to students on every course.",
+              "text": "Optional teaching on how AI works, how to use it effectively and its risks is open to students on every course.",
               "short": "Optional AI literacy and safety teaching"
             },
             {
@@ -1099,15 +1317,23 @@ export const AI_SURVEY: AiSurveyDefinition = {
         },
         {
           "id": "M4",
-          "type": "mostOf",
-          "text": "Which one of these matters most to you?",
+          "type": "rank",
+          "text": "Which of these matter most to you? Rank your top three.",
           "linesFrom": "D4",
+          "places": 3,
           "extraOptions": [
             {
               "id": "none",
               "label": "None of these"
             }
           ]
+        },
+        {
+          "id": "M4w",
+          "type": "text",
+          "text": "Why did you rank them this way?",
+          "help": "Please don't name anyone, or include anything that identifies you or someone else.",
+          "maxLength": 5000
         }
       ]
     },
@@ -1125,8 +1351,8 @@ export const AI_SURVEY: AiSurveyDefinition = {
           "lines": [
             {
               "id": "P25",
-              "text": "Elected Officers publish, each term, a list of where they used AI in work that reaches students.",
-              "short": "Officers' AI log"
+              "text": "The Students' Union publishes, each term, a list of where it used AI in work that reaches students.",
+              "short": "The Union's AI log"
             },
             {
               "id": "P26",
@@ -1152,52 +1378,11 @@ export const AI_SURVEY: AiSurveyDefinition = {
         },
         {
           "id": "M5",
-          "type": "mostOf",
-          "text": "Which one of these matters most to you?",
+          "type": "rank",
+          "text": "Which of these matter most to you? Rank your top three.",
           "linesFrom": "D5",
+          "places": 3,
           "extraOptions": [
-            {
-              "id": "none",
-              "label": "None of these"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "priorities",
-      "heading": "Priorities and the vote",
-      "intro": null,
-      "questions": [
-        {
-          "id": "E1",
-          "type": "single",
-          "text": "Which of these areas matters most to you?",
-          "options": [
-            {
-              "id": "work_data",
-              "label": "Your work and your data"
-            },
-            {
-              "id": "teaching",
-              "label": "Teaching and marking"
-            },
-            {
-              "id": "rules",
-              "label": "Rules for students"
-            },
-            {
-              "id": "learning",
-              "label": "Learning about AI"
-            },
-            {
-              "id": "stance",
-              "label": "The University's wider stance on AI"
-            },
-            {
-              "id": "union",
-              "label": "How the Students' Union uses AI"
-            },
             {
               "id": "none",
               "label": "None of these"
@@ -1205,25 +1390,39 @@ export const AI_SURVEY: AiSurveyDefinition = {
           ]
         },
         {
+          "id": "M5w",
+          "type": "text",
+          "text": "Why did you rank them this way?",
+          "help": "Please don't name anyone, or include anything that identifies you or someone else.",
+          "maxLength": 5000
+        }
+      ]
+    },
+    {
+      "id": "priorities",
+      "heading": "A student vote",
+      "intro": null,
+      "questions": [
+        {
           "id": "F1",
           "type": "single",
           "text": "If proposals like these went to a vote of all students this year, how likely would you be to vote?",
           "options": [
             {
-              "id": "definitely",
-              "label": "Definitely"
+              "id": "very",
+              "label": "Very likely"
             },
             {
-              "id": "probably",
-              "label": "Probably"
+              "id": "fairly",
+              "label": "Fairly likely"
             },
             {
-              "id": "probably_not",
-              "label": "Probably not"
+              "id": "not_very",
+              "label": "Not very likely"
             },
             {
-              "id": "definitely_not",
-              "label": "Definitely not"
+              "id": "not_at_all",
+              "label": "Not at all likely"
             },
             {
               "id": "not_sure",
@@ -1257,19 +1456,22 @@ export const AI_SURVEY: AiSurveyDefinition = {
           "id": "G1",
           "type": "text",
           "text": "What is the one thing about AI at Nottingham you would change? Please don't name anyone, or include anything that identifies you or someone else.",
-          "help": "Up to 500 characters.",
-          "maxLength": 500
+          "maxLength": 5000
         },
         {
           "id": "G2",
           "type": "tick",
-          "text": "You can quote this, without my name."
+          "text": "You can quote my comments, without my name."
         },
         {
           "id": "A3",
           "type": "single",
           "text": "Which year of your course are you in?",
           "options": [
+            {
+              "id": "foundation",
+              "label": "Foundation year"
+            },
             {
               "id": "1",
               "label": "1"
@@ -1333,7 +1535,7 @@ export const AI_SURVEY: AiSurveyDefinition = {
         {
           "id": "A6",
           "type": "single",
-          "text": "Have you been to an event or programme run by NAISI, the society running this survey?",
+          "text": "Have you been to an event or programme run by the Nottingham AI Safety Initiative (NAISI), the society running this survey?",
           "options": [
             {
               "id": "yes",
@@ -1450,7 +1652,7 @@ export const AI_SURVEY: AiSurveyDefinition = {
       },
       {
         "heading": "What we ask you to leave out",
-        "body": "Please don't put names, or anything that identifies you or someone else, in the comment box. If you do, we remove it before the comment goes any further. We don't ask about health, ethnicity, religion or other sensitive matters."
+        "body": "Please don't put names, or anything that identifies you or someone else, in the comment boxes. If you do, we remove it before the comment goes any further. We don't ask about health, ethnicity, religion or other sensitive matters."
       },
       {
         "heading": "Our lawful basis",
