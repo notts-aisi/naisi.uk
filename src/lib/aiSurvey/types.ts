@@ -134,6 +134,8 @@ export type AiSurveyDefinition = {
     saving: string;
     saveFailed: string;
     tryAgain: string;
+    /** Shown when a page cannot be saved because this browser's unfinished survey is over, not because of the connection. */
+    sessionEnded: string;
     charactersLeft: string;
     selectPlaceholder: string;
     frameLabel: string;
@@ -179,6 +181,8 @@ export type AiSurveyDefinition = {
       botCheckFailed: string;
       busy: string;
       couldNotSend: string;
+      /** The code check got no answer: the connection, never the code. */
+      couldNotCheck: string;
     };
     stepAddress: string;
     stepCode: string;

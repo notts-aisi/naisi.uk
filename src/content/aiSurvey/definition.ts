@@ -154,6 +154,7 @@ export const AI_SURVEY: AiSurveyDefinition = {
     "saving": "Saving",
     "saveFailed": "We couldn't save that page. Check your connection and try again.",
     "tryAgain": "Try again",
+    "sessionEnded": "We can't save this page: this browser's unfinished survey has ended. The pages you saved before are kept.",
     "charactersLeft": "{n} characters left",
     "selectPlaceholder": "Choose one",
     "frameLabel": "Survey"
@@ -220,7 +221,8 @@ export const AI_SURVEY: AiSurveyDefinition = {
       "tooManyCodesToday": "You've asked for several codes today. Try again tomorrow, or write to ai-safety@uonsu.com.",
       "botCheckFailed": "We couldn't check that you're a person. Try again in a moment.",
       "busy": "We're sending a lot of codes right now. Try again in a few minutes.",
-      "couldNotSend": "We couldn't send your code. Try again in a minute."
+      "couldNotSend": "We couldn't send your code. Try again in a minute.",
+      "couldNotCheck": "We couldn't check your code. Check your connection and try again."
     },
     "stepAddress": "Step 1 of 2",
     "stepCode": "Step 2 of 2"
@@ -1444,7 +1446,7 @@ export const AI_SURVEY: AiSurveyDefinition = {
       },
       {
         "heading": "How your answers stay anonymous",
-        "body": "Your email is checked on its own and is never stored with your answers. Answers are stored with no name, email, account or IP address, and with no date or time. Nobody, including us, can tell which answers are yours, so we can't show you, change or delete them after you send them. The newsletter link at the end goes to a separate sign-up, which is never linked to your answers."
+        "body": "Your email is checked on its own and is never stored with your answers. Answers are stored with no name, email, account or IP address, and with no date or time. Nobody, including us, can tell which answers are yours, so we can't show you, change or delete them after you send them. The newsletter link at the end goes to a separate sign-up, which is never linked to your answers. While you are part way through, your browser keeps a key to your unfinished answers so that you can carry on in the same browser. It holds no answers, and it is removed when you finish."
       },
       {
         "heading": "What we ask you to leave out",
