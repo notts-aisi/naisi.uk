@@ -400,7 +400,11 @@ describe("4. the Attendance tab is handed the run's grid, worked out on the serv
     assert.match(drawn.html, /aria-pressed="true"[^>]*>By person<\/button>/);
     assert.match(drawn.html, /aria-pressed="true"[^>]*>All<\/button>/);
     assert.match(said, /Group A Thursdays 6pm · Sofia/);
-    assert.match(said, /P Present L Late LE Left early E Excused A Absent · Not yet Tonight P Saved, not pushed Late and left early count as came\./);
+    // "Tonight" or "Today": the page reads the real clock against the fixture
+    // run's fixed dates, and the legend says "Today" on a day whose only
+    // session is in the daytime. Group C meets on Wednesdays at 1pm, so on a
+    // Wednesday of the run this line reads "Today", and "Tonight" otherwise.
+    assert.match(said, /P Present L Late LE Left early E Excused A Absent · Not yet (Tonight|Today) P Saved, not pushed Late and left early count as came\./);
     assert.match(
       said,
       /Each person sees their own marks on their programme page once their facilitator finishes the register\. Nobody sees a target, or how many they could miss\./,
