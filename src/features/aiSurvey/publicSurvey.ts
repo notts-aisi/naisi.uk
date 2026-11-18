@@ -54,7 +54,7 @@ export type PublicSurvey = {
   proposalsIntro: { first: string; later: string };
   scales: Record<string, AiSurveyScaleAnswer[]>;
   pages: PublicPage[];
-  end: { heading: string; body: string; passItOn: string; petition: string; newsletterButton: string; newsletterHref: string };
+  end: { heading: string; body: string; passItOn: string; newsletterLine: string; newsletterButton: string; newsletterHref: string };
 };
 
 /** The page ids in the order one person sees them, from the pages the browser was handed. */

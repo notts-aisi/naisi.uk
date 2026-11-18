@@ -36,7 +36,7 @@ Everything below exists to keep that sentence true.
 
 | | |
 |---|---|
-| The words | `src/content/aiSurvey/definition.ts`. Data, not code. Locked once the survey is open: a typo fix raises `version`, which is kept on each answer set |
+| The words | `src/content/aiSurvey/definition.ts`. Data, not code. The questions are locked once the survey is open: a change to one raises `version`, which is kept on each answer set. The words around them (the start screen, the end screen, the notice) can change without it, and [ai-survey-changes.md](ai-survey-changes.md) records each change |
 | Reading the definition, the checks, the export | `src/lib/aiSurvey/{definition,answers,exportCsv,address}.ts`, all pure |
 | Storage | `src/lib/aiSurvey/store.ts` |
 | The email check | `src/lib/aiSurvey/emailCheck.ts` |
