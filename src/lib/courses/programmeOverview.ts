@@ -38,7 +38,7 @@ import { OPEN_WEEK_ONE, WEEK_ONE_NOT_READY, weekOneLine } from "@/lib/courses/we
 import { weekIsReady } from "@/lib/courses/weekReady";
 import { courseNudgeSessionWhere } from "@/lib/email/courseNudgeEmail";
 import { readCoursesConfig, type CoursesConfig } from "@/lib/firestore/config";
-import { ownGroupForWeek, placementIsTold, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { ownGroupForWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { campusForWeek, sessionModeForWeek } from "@/lib/firestore/courseGroups";
 import { weekDocId } from "@/lib/firestore/courses";
 import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
@@ -828,7 +828,8 @@ async function readWorkCounts(
       out.set(group.id, got && !got.ok && got.why === "unpublished" ? { kind: "unpublished" } : { kind: "untracked" });
       continue;
     }
-    const people = seatsOf(group).map((seat) => ({ uid: seat.uid, name: "", firstName: "", told: placementIsTold(seat) }));
+    // `told` decides only who has a Remind, which the Overview neither offers nor counts.
+    const people = seatsOf(group).map((seat) => ({ uid: seat.uid, name: "", firstName: "", told: false }));
     const view = groupWeekWorkView(
       { read: got.read, reminded: NOT_REMINDED, automatic: { kind: "off" } },
       { viewerUid: viewer.uid, people, readsOwnWork: false, ownPeople: [], leadFirstName: null, now },

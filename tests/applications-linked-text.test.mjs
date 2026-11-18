@@ -986,6 +986,13 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/features/applications/overview/OverviewByWeek.tsx",
+    {
+      built: ["attendanceHref", "row.href", "row.href"],
+      from: "the programme's own Attendance tab, and each group's page on the chosen week, which `groupsInWeek` builds on the server from the programme's path, the group's id (encoded) and a week number",
+    },
+  ],
+  [
     "src/features/applications/overview/CertificatesSection.tsx",
     {
       built: ["model.preview.href", "model.email.href"],
@@ -1000,7 +1007,6 @@ const BUILT = new Map([
         "session.seeIt",
         "item.link.href",
         "item.link.href",
-        "`${programmePath}/attendance`",
         "`${programmePath}/messages`",
         "`${programmePath}/messages`",
         "`${programmePath}/setup#who-finished`",

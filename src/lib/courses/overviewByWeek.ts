@@ -126,7 +126,7 @@ export const NO_FACILITATOR_YET = "No facilitator yet";
 const CAME: ReadonlySet<AttendanceStatus> = new Set(["present", "late", "left-early"]);
 
 /** Whether a session's register counts here: held, happened and finished. */
-function counts(facts: GroupSessionFacts | undefined): facts is GroupSessionFacts {
+function counts(facts: GroupSessionFacts | undefined): boolean {
   return Boolean(facts && facts.held && facts.finished && happened(facts));
 }
 
@@ -145,7 +145,7 @@ export function weekCounts(listed: readonly ListedGroup[], weekNumber: number, g
   for (const entry of listed) {
     for (const { row, sessionOf } of entry.people) {
       const facts = sessionOf(weekNumber);
-      if (!counts(facts)) continue;
+      if (!facts || !counts(facts)) continue;
       if (groupId !== null && owners.get(facts) !== groupId) continue;
       const cell = row.cells.find((each) => each.weekNumber === weekNumber);
       if (!cell || cell.state !== "mark" || !cell.mark || cell.saved) continue;
