@@ -28,6 +28,7 @@ import {
   statusWords,
 } from "@/lib/applications/people/words";
 import { MOVE_LINK } from "@/lib/courses/staffMove/words";
+import { VISIT_LINK } from "@/lib/courses/visit/words";
 import styles from "./ProgrammePeople.module.css";
 
 /**
@@ -97,6 +98,10 @@ function moreItems(row: PersonRow): { href: string; label: string }[] {
   if (row.applicationHref) items.push({ href: row.applicationHref, label: seeApplicationWords(row.firstName) });
   if (row.groupsHref) items.push({ href: row.groupsHref, label: OPEN_PEOPLE_IN_GROUPS });
   if (row.moveHref) items.push({ href: row.moveHref, label: MOVE_LINK });
+  // A one-week visit is offered for exactly the place and the run a move is
+  // (`placeTakesVisit` is `placeTakesMove`, and the run's refusals are the
+  // same set), beside it, at the person's own address under the programme.
+  if (row.moveHref) items.push({ href: row.moveHref.replace(/\/move$/, "/visit"), label: VISIT_LINK });
   return items;
 }
 

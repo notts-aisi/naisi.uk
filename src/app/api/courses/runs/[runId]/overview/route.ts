@@ -21,8 +21,10 @@ import { certificateNeedsFor } from "@/lib/courses/finishing/needs";
 import { finishedForMember, readFinishRule } from "@/lib/courses/finishing/record";
 import { inLastWeek } from "@/lib/courses/programmeEnd";
 import { whatsNextFor, type WhatsNext } from "@/lib/courses/whatsNext";
-import { differsByWeek, groupsOfWeeks, hasGroupsByWeek, inGroupForWeek, sessionsByWeekGroup, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
+import { differsByWeek, groupsOfWeeks, hasGroupsByWeek, hasVisits, inGroupForWeek, sessionsByWeekGroup, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
 import { rawCountsFromArchivedGroup } from "@/lib/courses/archivedWeeks";
+import { ownVisitsOf } from "@/lib/courses/visit/card";
+import type { OverviewVisit } from "@/lib/courses/visit/view";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
 import { memberExplainerOn, type MemberExplainer } from "@/lib/courses/explainers/model";
@@ -635,6 +637,12 @@ export type OverviewPayload = {
    * `forkedWeekIds` is then their own group's, as it always was.
    */
   forkedWeekGroups?: Record<string, string>;
+  /**
+   * The caller's own one-week visits to another group's session still to
+   * come or under way, in week order, each as their programme page's card
+   * draws it (`OverviewVisit`). ABSENT for everybody with none.
+   */
+  visits?: OverviewVisit[];
   /** The caller's OWN enrolment summary; null when they read as facilitator/admin. */
   enrolment: {
     status: CourseEnrolmentStatus;
@@ -1617,6 +1625,16 @@ export async function GET(
   };
 
   const groupCardPayloads = groupCards.map(toCard);
+
+  // THE CALLER'S OWN ONE-WEEK VISITS, while the session they go to has not
+  // ended: the host's session that week (its day, room and link, behind the
+  // same gate as any link), the group they stay in and their next session
+  // there, who arranged it, and until when they can cancel it (the earlier of
+  // the two sessions' starts) with who is told. Absent with none.
+  const visits: OverviewVisit[] | undefined =
+    ownLearnerGroup && liveEnrolment && hasVisits(liveEnrolment)
+      ? await ownVisitsOf(db, { run, groups, place: liveEnrolment, actor, isAdmin, now })
+      : undefined;
   // `group` is the first card when there is one, which for every caller who
   // had a card before is the same object they had before. NULL for a
   // multi-group facilitator, because `ownGroup` is. See the wire type.
@@ -1851,6 +1869,7 @@ export async function GET(
     shownCrest: shownCrests.get(run.id) ?? null,
     forkedWeekIds,
     ...(forkedWeekGroups ? { forkedWeekGroups } : {}),
+    ...(visits && visits.length > 0 ? { visits } : {}),
     enrolment: enrolment
       ? {
           status: enrolment.status,

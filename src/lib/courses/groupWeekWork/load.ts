@@ -518,6 +518,13 @@ export function groupWeekWorkView(
     viewerUid: string;
     /** The group's people holding a place, named as the page names them, and whether Publish has told them. */
     people: ReadonlyArray<{ uid: string; name: string; firstName: string; told: boolean }>;
+    /**
+     * Somebody from another group at the week's session for one week (a
+     * one-week visit): a row of their own, marked as visiting, whose week its
+     * facilitators read through the row; never reached by this group's
+     * Remind, which is their own group's to press. Empty or absent with none.
+     */
+    visitors?: ReadonlyArray<{ uid: string; name: string; firstName: string }>;
     /** The programme's lead and admins: a facilitator's own week is theirs to read. */
     readsOwnWork: boolean;
     /**
@@ -558,7 +565,10 @@ export function groupWeekWorkView(
       due: read.states.dueOf(uid, weekNumber),
     });
 
-  const rows: WorkRow[] = fellows.map((person) => {
+  const rows: WorkRow[] = [
+    ...fellows.map((person) => ({ ...person, visiting: false })),
+    ...(input.visitors ?? []).filter((person) => !fellows.some((fellow) => fellow.uid === person.uid)).map((person) => ({ ...person, told: true, visiting: true })),
+  ].map((person) => {
     const state = stateOf(person.uid);
     const latePieces = state.pieces.filter((piece) => piece.bucket === "done-late");
     return {
@@ -574,7 +584,9 @@ export function groupWeekWorkView(
       })),
       lastReminded: reminded.last.get(person.uid) ?? null,
       recent: remindedRecently(reminded.last.get(person.uid) ?? null, now),
-      remindable: remindableOf(read, { uid: person.uid, told: person.told, presserUid: viewerUid }),
+      // Never this group's Remind for a visitor: their own group's reaches them.
+      remindable: !person.visiting && remindableOf(read, { uid: person.uid, told: person.told, presserUid: viewerUid }),
+      ...(person.visiting ? { visiting: true } : {}),
       late:
         state.bucket === "done-late"
           ? {

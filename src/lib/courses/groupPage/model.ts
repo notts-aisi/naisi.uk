@@ -82,9 +82,13 @@ export type GroupPageWeek = {
    * The week's people, for staff. Somebody moved into the group mid-term is
    * listed for a week before they joined it with `joins` (`joinsLaterOf` in
    * `src/lib/courses/staffMove/joins.ts`): not one of the week's people, with
-   * no word said.
+   * no word said. Somebody from another group coming to this session for one
+   * week (a one-week visit) is listed with `visiting`, its line ("Visiting
+   * from Group C, week 2 only. You can read Aisha’s week 2; Rahul gives the
+   * feedback."), and counted; a member of this group at another group's
+   * session that week with `awayAt`, that group's name, and not counted.
    */
-  people: { uid: string; name: string; said: WeekSaid; excuse?: ExcuseFact; joins?: JoinsLater }[];
+  people: { uid: string; name: string; said: WeekSaid; excuse?: ExcuseFact; joins?: JoinsLater; visiting?: { line: string }; awayAt?: string }[];
   /** Its register is finished. */
   finished: boolean;
   /** Its register says the session did not happen (the old switch). */

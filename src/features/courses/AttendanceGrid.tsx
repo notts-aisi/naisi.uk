@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { isRowForWeek } from "@/lib/courses/groupsByWeek";
+import { awayAtWords, visitingFromWords, visitorCorrectionWords } from "@/lib/courses/visit/words";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ActionToast, { useActionToast } from "@/components/ui/ActionToast";
 import Button from "@/components/ui/Button";
@@ -964,6 +965,16 @@ export default function AttendanceGrid({
       story: corrections[on.sessionKey]?.[member.uid] ?? null,
       request: requests[on.sessionKey]?.[member.uid] ?? null,
     };
+    // A visitor's line on this, the host's, register: where their week lives.
+    const visiting = member.visitingFrom?.find((each) => each.weekNumber === on.weekNumber) ?? null;
+    if (visiting) {
+      target.visitorNote = visitorCorrectionWords({
+        firstName: member.displayName.trim().split(/\s+/)[0] ?? "",
+        weekNumber: on.weekNumber,
+        homeName: visiting.groupName,
+        hostName: group?.name ?? "",
+      });
+    }
     return { sessionKey: on.sessionKey, target };
   })();
   const columnSession = columnTarget ? (sessionByKey.get(columnTarget) ?? null) : null;
@@ -1272,12 +1283,30 @@ export default function AttendanceGrid({
               <tr key={member.uid}>
                 <th scope="row" className={styles.nameCell}>
                   <MemberName name={member.displayName} />
+                  {/* At this group's session for one week, from another group: the board's line. */}
+                  {member.visitingFrom?.[0] && (
+                    <span className={styles.rowNote} data-testid="register-visiting">
+                      {visitingFromWords(member.visitingFrom[0].groupName)}
+                    </span>
+                  )}
                 </th>
                 {sessions.map((session) => {
                   const notYet = session.weekNumber < member.joinedWeekNumber;
                   // A week their place records them in another group: inert
-                  // the same way. Only a row whose place records a move.
+                  // the same way. Only a row whose place records a move or a visit.
                   const elsewhere = !notYet && !isRowForWeek(member, session.weekNumber);
+                  // A week they spend at another group's session (a one-week
+                  // visit): a line that cannot be marked, never counted.
+                  const awayAt = elsewhere ? (member.awayAt?.find((each) => each.weekNumber === session.weekNumber) ?? null) : null;
+                  if (awayAt) {
+                    return (
+                      <td key={cellKey(session.sessionKey, member.uid)} className={styles.cell}>
+                        <span className={styles.rowNote} data-testid="register-away">
+                          {awayAtWords(awayAt.groupName)}
+                        </span>
+                      </td>
+                    );
+                  }
                   const status = statusOf(session.sessionKey, member.uid);
                   const key = cellKey(session.sessionKey, member.uid);
                   const hasNote = Boolean(

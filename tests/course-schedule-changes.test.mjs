@@ -2531,9 +2531,10 @@ test("GUARD — virtual/in-person reaches the member, on the card and in the ema
   // key computed once put a group paced three weeks behind the run under the
   // run's week's room. The map above is untouched by that and still travels
   // whole. One exception, on the caller's own card alone when their place
-  // records a move mid-term: the week of the next session they are due at in
-  // the group, so the new group's earlier week, still to come and not theirs,
-  // never lends the card its room or link.
+  // records a move mid-term, or a one-week visit: the week of the next
+  // session they are due at in the group, so the new group's earlier week,
+  // still to come and not theirs, and their own group's week they spend at
+  // another group's session, never lend the card its room or link.
   assert.match(
     OVERVIEW,
     /const slotWeekId = movedHere && range\.next \? range\.next\.weekId : currentWeekId\(groupCalendar\.currentWeek\);/,
@@ -2541,7 +2542,7 @@ test("GUARD — virtual/in-person reaches the member, on the card and in the ema
   assert.match(OVERVIEW, /const session = sessionForWeek\(source, slotWeekId\);/);
   assert.match(
     OVERVIEW,
-    /const movedHere = Boolean\(\s*ownLearnerGroup && liveEnrolment && source\.id === ownLearnerGroup\.id && hasGroupsByWeek\(liveEnrolment\),\s*\);/,
+    /const movedHere = Boolean\(\s*ownLearnerGroup && liveEnrolment && source\.id === ownLearnerGroup\.id && differsByWeek\(liveEnrolment\),\s*\);/,
   );
   // Built per card now that the payload carries every group the caller
   // holds, so the map travels for each of them rather than only for the one

@@ -69,3 +69,27 @@ export type VisitPageView = {
   /** The People tab, where Cancel goes back to. */
   backHref: string;
 };
+
+/** One of the person's own visits, as their programme page's card draws it (`src/lib/courses/visit/card.ts`). */
+export type OverviewVisit = {
+  weekNumber: number;
+  hostGroupId: string;
+  /** The host's session's key and day: the two tickets act on it. */
+  sessionKey: string;
+  dateKey: string;
+  startTimeLocal: string;
+  durationMinutes: number;
+  chip: string;
+  /** "Wed 11 Nov, 6pm to 8pm". */
+  when: string;
+  /** "Monica Partridge C12, University Park", or "" with neither. */
+  place: string;
+  withLine: string;
+  stillIn: string;
+  /** "Arranged by Zach, Tue 10 Nov, 1:40pm.", or null when it can't be said who. */
+  arrangedBy: string | null;
+  /** Until the earlier of the two sessions starts; null after, when nothing is offered. */
+  cancel: { until: string; question: string; done: string } | null;
+  /** The host's link for that session, for somebody joining online; null with none, or none to show. */
+  meetingUrl: string | null;
+};

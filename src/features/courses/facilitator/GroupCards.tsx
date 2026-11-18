@@ -1,4 +1,6 @@
 import { joinsLaterWords, newFromWeekWords } from "@/lib/courses/staffMove/joins";
+import { readingHref } from "@/lib/courses/coursework/reading";
+import { VISITING_CHIP, awayAtWords } from "@/lib/courses/visit/words";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import InitialsChip from "@/components/ui/InitialsChip";
@@ -8,6 +10,7 @@ import type { TicketFacts } from "@/features/courses/sessionChange/cardFacts";
 import type {
   GroupMark,
   GroupPersonRow,
+  GroupVisitorRow,
   GroupRegisterRow,
   GroupReviewRow,
 } from "@/lib/courses/facilitatorGroup";
@@ -261,6 +264,8 @@ export function GroupPeopleCard({
   groupName = "",
   personBase = null,
   unlinked = [],
+  visitors = [],
+  readBase = null,
 }: {
   people: GroupPersonRow[];
   leavers: GroupPersonRow[];
@@ -276,6 +281,10 @@ export function GroupPeopleCard({
   personBase?: string | null;
   /** Whose names stay plain text though `personBase` is given: the reader's own, and the group's facilitators', whose page is not the reader's to open. */
   unlinked?: readonly string[];
+  /** Somebody from another group at the next session for one week, with their line and chip. */
+  visitors?: GroupVisitorRow[];
+  /** The group's reading view, before a person (".../coursework"): a visitor's name opens the week they visit. Null: plain text. */
+  readBase?: string | null;
 }) {
   const meta = finishedWeeksWords(finishedWeeks);
   return (
@@ -302,8 +311,29 @@ export function GroupPeopleCard({
                   <span className={styles.personName}>{person.name}</span>
                 )}
                 {person.joins && <span className={styles.personNote}>{joinsLaterWords(groupName, person.joins)}</span>}
+                {person.awayAt && (
+                  <span className={styles.personNote} data-testid="roster-away">
+                    {awayAtWords(person.awayAt)}
+                  </span>
+                )}
               </span>
               {person.joins ? <span className={styles.personNote}>{newFromWeekWords(person.joins.fromWeek)}</span> : <Marks marks={person.marks} />}
+            </li>
+          ))}
+          {visitors.map((person) => (
+            <li key={`visiting-${person.uid}`} className={styles.person} data-testid="roster-visiting">
+              <InitialsChip name={person.name} uid={person.uid} size="lg" />
+              <span className={styles.personText}>
+                {readBase ? (
+                  <Link href={readingHref(readBase, person.uid, person.weekNumber)} className={styles.personName}>
+                    {person.name}
+                  </Link>
+                ) : (
+                  <span className={styles.personName}>{person.name}</span>
+                )}
+                <span className={styles.personNote}>{person.line}</span>
+              </span>
+              <span className={styles.personNote}>{VISITING_CHIP}</span>
             </li>
           ))}
           {leavers.map((person) => (

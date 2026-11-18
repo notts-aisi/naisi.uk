@@ -2484,3 +2484,53 @@ a.weekItem:focus-visible {
     transition-duration: 1ms;
   }
 }
+
+/* A one-week visit on the person's own programme page: the session they go to, on the ticket's own surface. */
+
+.visitBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.visitChip {
+  align-self: flex-start;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full, 999px);
+  font-size: var(--text-sm, 0.875rem);
+}
+
+.visitLine {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+}
+
+.visitNote {
+  margin: 0;
+  font-size: var(--text-sm, 0.875rem);
+  color: var(--color-text-muted);
+}
+
+.visitConfirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.visitDone {
+  margin: 0;
+  padding: var(--space-4);
+  font-size: var(--text-ui);
+}
+
+@media (max-width: 36rem) {
+  .visitBody {
+    padding: var(--space-3);
+  }
+}

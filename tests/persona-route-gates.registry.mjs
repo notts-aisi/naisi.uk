@@ -2976,7 +2976,10 @@ export const ROUTES = {
       // OPTIONAL, present only for a learner whose place records a move
       // mid-term (which group's copy each forked week is) and absent for
       // everybody else (tests/course-staff-move-readers.test.mjs).
-      fields: ["run", "calendarSource", "currentWeek", "weeks", "askToSwap", "weekSchedule", "programme", "shownCrest", "forkedWeekIds", "forkedWeekGroups", "enrolment", "group", "groups", "ownAttendance", "finished", "access", "beforeGroups", "whatsNext", "certificateNeeds"],
+      // `visits`: the caller's own one-week visits to another group's
+      // session, while the session has not ended, absent with none
+      // (tests/course-visit-readers.test.mjs).
+      fields: ["run", "calendarSource", "currentWeek", "weeks", "askToSwap", "weekSchedule", "programme", "shownCrest", "forkedWeekIds", "forkedWeekGroups", "visits", "enrolment", "group", "groups", "ownAttendance", "finished", "access", "beforeGroups", "whatsNext", "certificateNeeds"],
       why:
         "Session required, then the document is read and its own membership decides. The " +
         "battery's id addresses nothing, so every signed-in persona is told that the document " +
@@ -4919,6 +4922,15 @@ export const PAGES = {
     why:
       "The admissions tree's gate, then the page's own (loadProgrammeRun, decided from the form before the run is read): " +
       "moving one person to another group for good is the programme's lead's and an admin's, so a reviewer on the form is told it is theirs, " +
+      "a programme the caller has no role on renders 'there is no programme here', and somebody who holds no told place in a group " +
+      "of the run renders a calm refusal in one sentence, each with a 200. Nothing here writes. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads).",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/visit": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The admissions tree's gate, then the page's own (loadProgrammeRun, decided from the form before the run is read): " +
+      "arranging a one-week visit for one person is the programme's lead's and an admin's, so a reviewer on the form is told it is theirs, " +
       "a programme the caller has no role on renders 'there is no programme here', and somebody who holds no told place in a group " +
       "of the run renders a calm refusal in one sentence, each with a 200. Nothing here writes. " +
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads).",
@@ -8139,6 +8151,9 @@ export const REAL_PAGES = {
   ),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": programmePage(
     "moving one person to another group for good (the set's participant), or its calm refusal for somebody with no told place in a group of the run.",
+  ),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/visit": programmePage(
+    "arranging a one-week visit for one person (the set's participant), or its calm refusal for somebody with no told place in a group of the run.",
   ),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]": programmePage(
     "one group's page, or its calm not-here for a group that is not a live group of the run the programme names.",

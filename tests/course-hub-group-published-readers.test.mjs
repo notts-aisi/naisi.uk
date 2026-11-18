@@ -585,8 +585,10 @@ const READERS = {
       'const staff = viewer !== "facilitator";',
       ".filter((seat) => staff || placementIsTold(seat)),",
       "told: placementIsTold(seat),",
+      // Somebody from another group at one of its sessions for one week: only a told place, for everybody.
+      'seat.groupId !== group.id && placementIsTold(seat) && (seat.visits ?? []).some((visit) => visit.groupId === group.id)',
     ],
-    told: 2,
+    told: 3,
     why:
       "a group's page: admins and the programme's lead are shown every place in the group, told or not, as the " +
       "Groups tab shows them (the page is behind `loadProgrammeRun`); the facilitator's cut on their own group page " +
@@ -623,6 +625,14 @@ const READERS = {
       "(a seat nobody has told is the board's to move), keeps it told, and writes the group it was told about the first " +
       "time a seat told before that was kept moves, or, for the staff move, the group they join, whose own email tells them. " +
       "It shows nobody anything and emails nobody",
+  },
+  "lib/courses/visit/reading.ts": {
+    kind: "shown",
+    asks: 1,
+    why:
+      "who reads a visitor's work for the week of a one-week visit: a facilitator of the host group, never the visitor and " +
+      "never an admin by this answer, and only of a place that may be shown to somebody who is not an admin " +
+      "(placementIsShownTo), as the fill-in boxes' gate asks it, so nobody reads the work of somebody Publish has not told",
   },
   "lib/courses/visit/plan.ts": {
     kind: "told",

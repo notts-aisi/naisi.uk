@@ -1516,6 +1516,11 @@ const NOT_COVERED = {
       "Course hub: one person as their group's facilitator sees them. tests/course-person-page.test.mjs draws it as the group's facilitator, another group's, the lead, an admin and the person, and for somebody moved in from another group.",
     coverWhen: "When an end-to-end spec signs in as a group's facilitator after the group's first week, so the cut can be opened from the group's page.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/visit": {
+    reason:
+      "Course hub: the page for arranging a one-week visit for one person, and calling one off. tests/course-visit-pages.test.mjs renders it as the lead and an admin, with its weeks, its sessions and a visit that stands, and tests/course-visit.test.mjs executes what it draws through its route's preview; the browser spec scripts/e2e-fixtures/course-hub-visit.mjs drives it end to end and is written but has not run yet.",
+    coverWhen: "When the course-hub-visit spec has passed once with a teardown of zero rows and is marked verified.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/anonymous-feedback": {
     reason:
       "The anonymous form's answers for the programme's lead and admins; tests/anonymous-feedback.test.mjs renders it as the lead, an admin, the lead of another programme, a reviewer, a facilitator, a member and signed out, and finds only answers from a day that is over, each question's in alphabetical order.",

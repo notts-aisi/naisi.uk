@@ -569,6 +569,8 @@ export default async function GroupHomePage({
         groupName={groupName}
         personBase={facilitatesThisGroup ? `${groupPath}/people` : null}
         unlinked={[access.user.uid, ...group.facilitatorUids]}
+        visitors={model.visitors}
+        readBase={`${groupPath}/coursework`}
       />
       <GroupRegistersCard
         registers={model.registers}

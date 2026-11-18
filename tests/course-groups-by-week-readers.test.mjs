@@ -262,8 +262,8 @@ const READERS = {
     why: "the register grid draws a row's cells only in the weeks it is a row of that register (isRowForWeek), so a visitor's other weeks and a member's week away are inert and counted in no tally",
   },
   "lib/courses/facilitatorGroup.ts": {
-    kinds: ["week"],
-    why: "the facilitator's own page counts who is expected at each week's session as the people whose session that week is the group's (inGroupForWeek), a visitor in included and a member away not",
+    kinds: ["week", "own"],
+    why: "the facilitator's own page counts who is expected at each week's session as the people whose session that week is the group's (inGroupForWeek), a visitor in included and a member away not; a visitor's line names the group they belong to that week (ownGroupForWeek) and a member's line the group they visit (visitInWeek)",
   },
   "lib/email/courseFacilitatorEmails.ts": {
     kinds: ["week"],

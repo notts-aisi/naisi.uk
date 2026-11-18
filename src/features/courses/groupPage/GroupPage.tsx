@@ -30,6 +30,7 @@ import RoomPanel from "./RoomPanel";
 import { readingHref } from "@/lib/courses/coursework/reading";
 import { joinsLaterWords, newFromWeekWords, type JoinsLater } from "@/lib/courses/staffMove/joins";
 import { MOVE_LINK } from "@/lib/courses/staffMove/words";
+import { VISITING_CHIP, VISIT_LINK, awayAtWords } from "@/lib/courses/visit/words";
 import WeekWorkCard from "./WeekWorkCard";
 import styles from "./GroupPage.module.css";
 
@@ -656,7 +657,9 @@ export default function GroupPage({
               onRemind={(only) => open({ kind: "remind", weekNumber: week.weekNumber, only })}
               readBase={links.coursework ?? null}
               moveBase={links.move ?? null}
+              visitBase={links.move ?? null}
               movable={links.movable ?? []}
+              away={new Map(week.people.flatMap((person) => (person.awayAt ? [[person.uid, person.awayAt] as const] : [])))}
               joinsLater={week.people
                 .filter((person) => person.joins)
                 .map((person) => (
@@ -680,7 +683,31 @@ export default function GroupPage({
                   </thead>
                   <tbody>
                     {week.people.map((person) =>
-                      person.joins ? (
+                      person.visiting ? (
+                        <tr key={person.uid} data-testid="group-visiting">
+                          <td>
+                            {links.coursework ? (
+                              <Link href={readingHref(links.coursework, person.uid, week.weekNumber)} className={styles.personLink}>
+                                {person.name}
+                              </Link>
+                            ) : (
+                              person.name
+                            )}
+                            <span className={styles.cellNote}>{person.visiting.line}</span>
+                          </td>
+                          <td>
+                            <span className={`${styles.excuseChip} ${styles.excuseWaiting}`}>{VISITING_CHIP}</span>
+                          </td>
+                        </tr>
+                      ) : person.awayAt ? (
+                        <tr key={person.uid} data-testid="group-away">
+                          <td>
+                            {person.name}
+                            <span className={styles.cellNote}>{awayAtWords(person.awayAt)}</span>
+                          </td>
+                          <td />
+                        </tr>
+                      ) : person.joins ? (
                         <tr key={person.uid}>
                           <td>
                             <JoinsLaterName person={person} weekNumber={week.weekNumber} groupName={view.groupName} readBase={links.coursework ?? null} />
@@ -696,6 +723,11 @@ export default function GroupPage({
                           {links.move && (links.movable ?? []).includes(person.uid) && (
                             <Link href={`${links.move}/${encodeURIComponent(person.uid)}/move`} className={styles.moveLink}>
                               {MOVE_LINK}
+                            </Link>
+                          )}
+                          {links.move && (links.movable ?? []).includes(person.uid) && (
+                            <Link href={`${links.move}/${encodeURIComponent(person.uid)}/visit`} className={styles.moveLink}>
+                              {VISIT_LINK}
                             </Link>
                           )}
                         </td>

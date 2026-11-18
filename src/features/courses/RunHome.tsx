@@ -73,6 +73,7 @@ import { sessionWhenLabel } from "@/lib/courses/londonLabels";
 import { ATTENDANCE_STATUS_LABEL, type AttendanceStatus } from "@/lib/firestore/courseAttendance";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import type { OverviewPayload, OverviewWeekSchedule } from "@/app/api/courses/runs/[runId]/overview/route";
+import VisitCard from "./visit/VisitCard";
 import weekly from "./weekly/weekly.module.css";
 import styles from "./RunHome.module.css";
 
@@ -707,6 +708,25 @@ export default function RunHome({
     ) : null;
   // The last session, once it has ended, while there is something to say about it.
   const lastSession = entry === "ask" ? lastSessionOf(excused, nextKey) : null;
+  // THE PERSON'S OWN ONE-WEEK VISITS, each the card for the session they go
+  // to: "I'm joining online" acts on that session (the server's view of their
+  // next session names the host's when it is the next they are due at), and
+  // "Cancel this visit" until the earlier of the two sessions starts.
+  const visitCards = (data.visits ?? []).map((visit) => {
+    const onThis = joiningOnline && joiningOnline.groupId === visit.hostGroupId && joiningOnline.sessionKey === visit.sessionKey ? joiningOnline : null;
+    return (
+      <div key={`visit-${visit.weekNumber}`} className={order.ticket}>
+        <VisitCard
+          runId={runId}
+          visit={visit}
+          locked={viewAs}
+          answers={
+            onThis ? <TicketAnswers key={onThis.sessionKey} cantMakeIt={null} joiningOnline={onThis} hasLink={visit.meetingUrl !== null} locked={viewAs} /> : null
+          }
+        />
+      </div>
+    );
+  });
   const lastSessionCard =
     lastSession && excused ? (
       <div className={order.ticket}>
@@ -879,6 +899,7 @@ export default function RunHome({
       <div className={weekly.columns}>
         <div className={weekly.colMain}>
           <CertificateCard certificates={certificates} />
+          {visitCards}
           {ticket}
           {lastSessionCard}
           {timeQuestion && learner && (
