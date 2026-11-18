@@ -96,7 +96,7 @@ export async function saveMove(db: Firestore, input: MoveSaveInput): Promise<Mov
         const runRefusal = runMoveRefusal(seen.run, seen.destroying);
         if (runRefusal) return { kind: "changed", weekNumber: null, emails: null, error: runRefusal };
         // The limits on how often a move emails, read here and claimed with the move's own writes.
-        const limits = await moveLimitsIn(tx, db, facts.person, input.actor.uid);
+        const limits = await moveLimitsIn(tx, db, input.runId, facts.person, input.actor.uid);
         if (limits.refusal) return { kind: "limit", error: limits.refusal };
         claimLimits = limits.write;
         // The week, by the rule, from the documents this transaction read.

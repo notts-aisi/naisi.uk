@@ -12,7 +12,9 @@ import type { MoveRefusal } from "./plan";
  * the way giving a session is (`GIVE_LIMITS` in the register cover route).
  *
  *  - A person is realistically moved once, rarely twice (a move and its
- *    undoing): four moves of one person in a day.
+ *    undoing): four moves of one person on one run in a day. Counted per
+ *    run, so a person on two programmes moved on one never holds up a move
+ *    on the other, and the sentence speaks only of the run it is about.
  *  - A presser closing two groups moves perhaps twenty people in a day:
  *    forty moves by one presser in a day.
  *
@@ -24,7 +26,7 @@ import type { MoveRefusal } from "./plan";
  * (`moveLimitRefusal`) and say the same sentence before the press.
  */
 export const MOVE_LIMITS = {
-  /** Moves of one person, by anybody, in a day. */
+  /** Moves of one person on one run, by anybody, in a day. */
   perPersonDay: 4,
   /** Moves by one presser, of anybody, in a day. */
   perPresserDay: 40,
@@ -35,15 +37,15 @@ export const MOVE_LIMIT_WORDS = {
   personDay: (firstName: string, limit: number) =>
     `${firstName.trim() || "They"} ${firstName.trim() ? "has" : "have"} been moved ${limit} times in the last day, so this move wasn’t made and nobody was emailed: try again tomorrow, or ask an admin.`,
   presserDay: (limit: number) =>
-    `You’ve moved ${limit} people in the last day, so this move wasn’t made and nobody was emailed: try again tomorrow, or ask an admin.`,
+    `You’ve made ${limit} moves in the last day, so this move wasn’t made and nobody was emailed: try again tomorrow, or ask an admin.`,
   unread: "The limits on a move’s emails couldn’t be read, so nothing was moved and nobody was emailed. Try again.",
 } as const;
 
-/** The two counters a move by `actorUid` of `uid` is held to. */
-export function moveLimitWindows(person: { uid: string; firstName: string }, actorUid: string): NoticeWindow[] {
+/** The two counters a move by `actorUid` of `person` on run `runId` is held to. */
+export function moveLimitWindows(runId: string, person: { uid: string; firstName: string }, actorUid: string): NoticeWindow[] {
   return [
     {
-      key: `staffmoved__${person.uid}`,
+      key: `staffmoved__${runId}__${person.uid}`,
       limit: MOVE_LIMITS.perPersonDay,
       windowMs: DAY_MS,
       refusal: MOVE_LIMIT_WORDS.personDay(person.firstName, MOVE_LIMITS.perPersonDay),
@@ -60,11 +62,12 @@ export function moveLimitWindows(person: { uid: string; firstName: string }, act
 /** The refusal a press would meet now, claiming nothing; null while both counters have room. */
 export async function moveLimitRefusal(
   db: Firestore,
+  runId: string,
   person: { uid: string; firstName: string },
   actorUid: string,
 ): Promise<MoveRefusal | null> {
   try {
-    const refused = await noticeSlotsRefusal(db, { windows: moveLimitWindows(person, actorUid), noun: "moves" });
+    const refused = await noticeSlotsRefusal(db, { windows: moveLimitWindows(runId, person, actorUid), noun: "moves" });
     return refused ? { ok: false, status: 429, error: refused.refusal ?? MOVE_LIMIT_WORDS.unread } : null;
   } catch (err) {
     console.error("[staff move] limits read failed", person.uid, err);
@@ -80,9 +83,10 @@ export async function moveLimitRefusal(
 export async function moveLimitsIn(
   tx: Transaction,
   db: Firestore,
+  runId: string,
   person: { uid: string; firstName: string },
   actorUid: string,
 ): Promise<{ refusal: string | null; write: () => void }> {
-  const read = await noticeSlotsIn(tx, db, { windows: moveLimitWindows(person, actorUid), noun: "moves" });
+  const read = await noticeSlotsIn(tx, db, { windows: moveLimitWindows(runId, person, actorUid), noun: "moves" });
   return { refusal: read.refusal ? (read.refusal.refusal ?? MOVE_LIMIT_WORDS.unread) : null, write: read.write };
 }

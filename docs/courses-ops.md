@@ -1963,8 +1963,8 @@ the page's count and the send alike. Never the reason, never a meeting link.
 
 **How often it emails** is held to two stored counters
 (`src/lib/courses/staffMove/limits.ts`, the notice lane's `courseNudges`
-counters): four moves of one person in a day, and forty moves by one presser
-in a day. Both are read and claimed in the move's own transaction, so past
+counters): four moves of one person on one run in a day, and forty moves by
+one presser in a day. Both are read and claimed in the move's own transaction, so past
 either the move is refused in one sentence (429), nothing is written or
 claimed and nobody is emailed, and a move changed under the press (409)
 claims nothing; the page and the preview read the same counters and say the

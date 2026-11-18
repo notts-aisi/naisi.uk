@@ -35,7 +35,7 @@ import { getCurrentUser } from "@/lib/firebase/session";
  * (`src/lib/courses/staffMove/week.ts`): the new group has met that week
  * already, the old group has no session left, the new group has no session
  * for that week. And a move past its limits (`src/lib/courses/staffMove/limits.ts`:
- * four moves of one person in a day, forty by one presser), 429 in the
+ * four moves of one person on the run in a day, forty by one presser), 429 in the
  * preview and the press alike, claimed in the move's own transaction.
  *
  * THE WEEK IS THE SERVER'S. The preview answers it and the lines the page

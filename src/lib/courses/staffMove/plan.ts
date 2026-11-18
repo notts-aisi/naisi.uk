@@ -503,7 +503,7 @@ export async function planMove(
   const week = moveWeekFor(facts.run, facts.place, facts.groups, to, now);
   if (!week.ok) return { ok: false, status: 409, error: weekRefusal(week, facts, to) };
   // The limits on how often a move emails, read as the press will claim them.
-  const capped = await moveLimitRefusal(db, facts.person, actorUid);
+  const capped = await moveLimitRefusal(db, facts.run.id, facts.person, actorUid);
   if (capped) return capped;
 
   const { person, from, place, accounts } = facts;

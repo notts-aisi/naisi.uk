@@ -2380,7 +2380,7 @@ async function sendRowsOf(state, surveyIds = [], messageIds = []) {
  *    session a day (`covergiven__<uid>`), for every account of the term;
  *  - moving somebody to another group for good, mid-term
  *    (src/lib/courses/staffMove/limits.ts): one counter per person moved a
- *    day (`staffmoved__<uid>`), for every account of the term, and one per
+ *    day on the run (`staffmoved__<runId>__<uid>`), for every account of the term, and one per
  *    presser a day (`staffmover__<uid>`), for the admin and the lead.
  * The pressers are the admin, while the ledger holds the admin's uid, the
  * term's facilitator, who writes to their group and finishes its register,
@@ -2405,7 +2405,7 @@ function sendCounterIdsOf(state) {
     for (const uid of [state.adminUid, state.lead?.uid].filter(Boolean)) ids.push(`emailrate__covergive__${group.id}__${uid}`);
   }
   for (const account of accountsOf(state)) ids.push(`emailrate__covergiven__${account.uid}`);
-  for (const account of accountsOf(state)) ids.push(`emailrate__staffmoved__${account.uid}`);
+  for (const account of accountsOf(state)) ids.push(`emailrate__staffmoved__${state.runId}__${account.uid}`);
   for (const uid of [state.adminUid, state.lead?.uid].filter(Boolean)) ids.push(`emailrate__staffmover__${uid}`);
   return ids;
 }
