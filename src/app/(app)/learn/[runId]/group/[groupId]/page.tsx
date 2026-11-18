@@ -739,6 +739,7 @@ export default async function GroupHomePage({
             week={groupWeek}
             groupName={groupName}
             personHref={(uid) => readHref(uid, groupWeek.weekNumber)}
+            visitorHref={(uid) => readingHref(`${groupPath}/coursework`, uid, groupWeek.weekNumber)}
             columns={workColumnsOf(workColumns)}
             boxes={boxes}
             boxesFirstRead={boxesRead ? { runId, ...boxesRead } : null}

@@ -47,6 +47,7 @@ import {
   weekMetaWords,
 } from "@/lib/courses/facilitatorWeek/words";
 import { lateAfterSessionWords } from "@/lib/courses/weekWork/words";
+import { VISITING_CHIP } from "@/lib/courses/visit/words";
 import Disclosure from "./Disclosure";
 import styles from "@/features/courses/facilitator/facilitator.module.css";
 
@@ -121,7 +122,21 @@ export function workColumnsOf(columns: readonly WorkColumnData[]): WorkColumn[] 
   }));
 }
 
-function Person({ name, uid, own, size = "md", href = null }: { name: string; uid: string; own: boolean; size?: "sm" | "md"; href?: string | null }) {
+function Person({
+  name,
+  uid,
+  own,
+  visiting = false,
+  size = "md",
+  href = null,
+}: {
+  name: string;
+  uid: string;
+  own: boolean;
+  visiting?: boolean;
+  size?: "sm" | "md";
+  href?: string | null;
+}) {
   return (
     <>
       <InitialsChip name={name} uid={uid} size={size} />
@@ -133,6 +148,11 @@ function Person({ name, uid, own, size = "md", href = null }: { name: string; ui
         <span className={styles.wkPersonName}>{name}</span>
       )}
       {own && <span className={styles.wkOwnChip}>{FACILITATOR}</span>}
+      {visiting && (
+        <span className={styles.wkOwnChip}>
+          {VISITING_CHIP}
+        </span>
+      )}
     </>
   );
 }
@@ -279,6 +299,7 @@ export default function ThisWeeksWork({
   headingId = "this-weeks-work",
   children = null,
   personHref = null,
+  visitorHref = null,
   boxesFirstRead = null,
 }: {
   week: GroupWeek;
@@ -300,12 +321,20 @@ export default function ThisWeeksWork({
    */
   personHref?: ((uid: string) => string | null) | null;
   /**
+   * The reading view of the week a visitor from another group is here for,
+   * that week alone (the host's reading rule, `hostReadsWeek`, decides on
+   * the page it opens). Left out, a visitor's name is plain text.
+   */
+  visitorHref?: ((uid: string) => string | null) | null;
+  /**
    * The boxes named as first read, person by person, once each person's
    * "Read it" is opened (`groupBoxesFirstRead`, never the reader's own); left
    * out, nothing is named.
    */
   boxesFirstRead?: BoxesFirstRead | null;
 }) {
+  // A visitor's name opens the week they are here for, alone; everybody else's the reading view the page lets this reader open.
+  const hrefOf = (row: { uid: string; visiting?: true }) => (row.visiting ? (visitorHref ? visitorHref(row.uid) : null) : personHref ? personHref(row.uid) : null);
   return (
     <section className={weekly.card} aria-labelledby={headingId}>
       <div className={styles.wkWorkHead}>
@@ -347,7 +376,7 @@ export default function ThisWeeksWork({
                     <tr key={row.uid}>
                       <th scope="row" className={styles.wkRowHead}>
                         <span className={styles.wkPerson}>
-                          <Person name={row.name} uid={row.uid} own={row.own} href={personHref ? personHref(row.uid) : null} />
+                          <Person name={row.name} uid={row.uid} own={row.own} visiting={row.visiting === true} href={hrefOf(row)} />
                         </span>
                       </th>
                       {row.written.map((written, index) => (
@@ -370,7 +399,7 @@ export default function ThisWeeksWork({
             {week.rows.map((row) => (
               <li key={row.uid} className={styles.wkPersonCard}>
                 <div className={styles.wkPersonCardHead}>
-                  <Person name={row.name} uid={row.uid} own={row.own} href={personHref ? personHref(row.uid) : null} />
+                  <Person name={row.name} uid={row.uid} own={row.own} visiting={row.visiting === true} href={hrefOf(row)} />
                 </div>
                 {week.parts.length > 0 && (
                   <p className={styles.wkFact}>

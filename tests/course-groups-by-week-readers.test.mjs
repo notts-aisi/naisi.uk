@@ -453,6 +453,10 @@ const READERS = {
     kinds: ["week", "own"],
     why: "the helpers made of the one question: stretches, a register's rows for a week, and the sessions somebody was due at across their groups, a visit's host included; and the place as the groups it belongs to (belonging) and the visits that stand once those change",
   },
+  "lib/courses/facilitatorWeek/readers.ts": {
+    kinds: ["own", "now"],
+    why: "the facilitator's detailed This week's work: a visitor from another group at this week's session is a row to read, never counted, each part's reflection judged on the copy of the group their place belongs to that week (copyGroupIdFor, with the group they are in now for a week in it), never the host's; everybody else as the group's own rows always were",
+  },
   "lib/courses/groupWeekWork/load.ts": {
     kinds: ["own", "now"],
     why: "a week's card (its rows, counts and button) and Remind are the people in the group now whose place belonged to the group in that week (belongs, through RunWeekStates.belongsTo): who reads whose work is the group they are in now, and a week somebody spent in another group they belonged to is not this group's to count or chase; a visitor in is never chased by the host's Remind, and their row is judged on the copy of the group they belong to (copyGroupOf), never the host's",

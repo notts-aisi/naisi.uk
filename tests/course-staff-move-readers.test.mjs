@@ -884,7 +884,10 @@ const COPY_READERS = {
     kind: "person",
     why: "the run's questions for Claude and Pangram are read from the run's copy and every live group's, keyed by question, so an answer is gathered under its own question whichever copy asked it; a question only the own copy of a group archived since asks is gathered only for the people whose own record names that group for its week (copyGroupIdFor)",
   },
-  "lib/courses/facilitatorWeek/readers.ts": { kind: "group", why: "a group's week as its facilitators and the programme's lead read it, across the group's people, is the group's own copy" },
+  "lib/courses/facilitatorWeek/readers.ts": {
+    kind: "group",
+    why: "a group's week as its facilitators and the programme's lead read it, across the group's people, is the group's own copy; a visitor from another group's row is judged on the copy of the group they belong to that week (copyGroupIdFor), never the host's",
+  },
   "lib/courses/pitching/load.ts": { kind: "group", why: "pitching week is worked in the group somebody is in now, on that group's copy" },
   "lib/courses/programmeOverview.ts": { kind: "group", why: "the Overview's titles and each group's next week are the run's or that group's copy; no person's week is read" },
   "lib/courses/writtenAnswers/reviewPage.ts": {

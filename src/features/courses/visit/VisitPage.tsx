@@ -150,7 +150,7 @@ export default function VisitPage({ view }: { view: VisitPageView }) {
       </div>
 
       {view.limit && (
-        <p className={styles.warning} role="note" data-testid="staff-visit-limit">
+        <p className={styles.warning} role="note">
           {view.limit}
         </p>
       )}

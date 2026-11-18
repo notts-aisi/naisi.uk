@@ -2356,7 +2356,10 @@ on the host's Feedback to write or a row of the host's page of one question.
 **The pages.** The host group's pages list the visitor with that week's people
 ("Visiting from Group C, week 2 only. You can read Aisha’s week 2; Rahul gives
 the feedback.", chip "Visiting"), expected at the session, and as a row of
-This week's work that the host's Remind never reaches. Their own group's pages
+This week's work that the host's Remind never reaches, and in the facilitator's
+detailed This week's work for that week, a row to read (chip "Visiting", each
+part's reflection judged on their own group's copy, counted in no number, no
+ticks or notes) whose name opens the reading view of that week alone. Their own group's pages
 list them as "At Group F this week", not expected; their work stays in its
 This week's work. The person's programme page shows the visiting card for the
 session while it has not ended, with "I’m joining online" acting on the host's

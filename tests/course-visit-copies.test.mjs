@@ -26,7 +26,7 @@ import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { A, B, NOW, RUN, facilitatorWeekSeed, makeFacilitatorWeekWorld, reflection } from "./lib/facilitatorWeekWorld.mjs";
-import { D } from "./lib/hubAttendanceWorld.mjs";
+import { D, registerPath } from "./lib/hubAttendanceWorld.mjs";
 import { weekOneBlocks } from "./lib/weekBlocksPageWorld.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
@@ -35,6 +35,8 @@ const w = await makeFacilitatorWeekWorld("__visitCopies");
 const readers = await w.loadTs(join("lib", "courses", "weekWork", "readers.ts"));
 const earlier = await w.loadTs(join("lib", "courses", "groupWeekWork", "earlier.ts"));
 const groupWeek = await w.loadTs(join("lib", "courses", "groupWeekWork", "load.ts"));
+const { loadFacilitatorGroup } = await w.loadTs(join("lib", "courses", "facilitatorGroup.ts"));
+const { loadGroupWeek } = await w.loadTs(join("lib", "courses", "facilitatorWeek", "readers.ts"));
 const { normalizeCourseRun } = await w.loadTs(join("lib", "firestore", "courses.ts"));
 const { normalizeCourseGroup } = await w.loadTs(join("lib", "firestore", "courseGroups.ts"));
 
@@ -222,5 +224,40 @@ describe("3. the host's This week's work judges a visitor's row on the visitor's
     finishOnRunCopy("chloe", 4);
     const worked = await groupWeek.readGroupWeekWork(w.world.db, { run: run(), group: groupOf(D), weekNumber: 4, uids: ["freya", "yasmin", "chloe"], now: new Date() });
     assert.equal(worked.read.copies.size, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. The facilitator's detailed This week's work
+// ---------------------------------------------------------------------------
+
+describe("4. the facilitator's detailed This week's work lists a visitor for the visit's week, on their own copy, counted nowhere", () => {
+
+  async function groupDWeek() {
+    // Group D's week 3 register finished, so the group's page is on week 4, as its detailed week is.
+    w.world.db.poke(registerPath(D, 3), { pushedAt: new Date("2026-11-16T20:30:00Z") });
+    const run = normalizeCourseRun(RUN.agi, read(`courseRuns/${RUN.agi}`));
+    const group = groupOf(D);
+    const model = await loadFacilitatorGroup(w.world.db, run, group, { isAdmin: true, actor: w.sessionFor("zach") }, new Date());
+    return loadGroupWeek(w.world.db, { run, group, model, viewer: "admin", now: new Date() });
+  }
+
+  test("Chloe visiting Group D in week 4, every reflection written on Group B's copy: her row, visiting, all written; Group D's numbers count Freya and Yasmin only", async () => {
+    visitD();
+    finishOnRunCopy("chloe", 4);
+    const week = await groupDWeek();
+    assert.equal(week.weekNumber, 4);
+    const row = week.rows.find((each) => each.uid === "chloe");
+    assert.equal(row.visiting, true);
+    assert.deepEqual(row.written, week.parts.map(() => true), "judged on her own copy, which lacks Group D's extra prompt");
+    assert.equal(week.of, 2);
+    assert.ok(week.counts.every((count) => count.of === 2 && count.written === 0));
+    assert.ok(week.sources.every((source) => source.ticked.every((person) => person.uid !== "chloe")), "no ticks of hers");
+  });
+
+  test("with no visit: nobody from another group", async () => {
+    finishOnRunCopy("chloe", 4);
+    const week = await groupDWeek();
+    assert.equal(week.rows.some((each) => each.uid === "chloe" || each.visiting), false);
   });
 });
