@@ -795,3 +795,23 @@ describe("4. a room saved here is the one-week change, pressed as the group's pa
     assert.equal(auditRows("session-moved").length, 2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 5. The markup the browser spec relies on
+// ---------------------------------------------------------------------------
+
+describe("5. what the browser spec reads is drawn", () => {
+  test("the week picker, a row's id and its field's name, the reason, the button and the paste button", async () => {
+    const { drawn } = await rowsFor("claudia", { week: MON_23 });
+    assert.match(drawn.html, /<nav aria-label="Weeks">/);
+    assert.ok(drawn.text.includes("w/c Mon 23 Nov next week"));
+    assert.ok(drawn.html.includes(`id="room-${A}__w05"`));
+    assert.ok(drawn.html.includes('aria-label="Room for AGI Strategy, Group A"'));
+    assert.ok(drawn.text.includes("Reason (the group sees this)"));
+    assert.ok(drawn.text.includes("Save rooms"));
+    assert.ok(drawn.text.includes("Paste rooms from a spreadsheet"));
+    assert.ok(drawn.text.includes("The term’s rooms"));
+    // Nothing is pressable before the page is live.
+    assert.match(drawn.html, /<input[^>]*aria-label="Room for AGI Strategy, Group A"[^>]*disabled=""/);
+  });
+});
