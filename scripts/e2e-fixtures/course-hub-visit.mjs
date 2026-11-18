@@ -62,8 +62,10 @@ export const SPEC = {
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]",
     ],
   },
-  /** Written 18 Nov 2026 and not yet run. */
-  status: "unverified",
+  // Verified: first run on Wednesday 18 November 2026 against the harness's own
+  // server on http://127.0.0.1:3100 with its mail caught: all seven steps
+  // completed, 46 rows before teardown and a manifest of zero after it.
+  status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three" }),
   countRows: countTerm,
   teardown: teardownTerm,
