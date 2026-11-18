@@ -283,8 +283,8 @@ export function chosenMonday(asked: string | null | undefined, now: Date): strin
 
 /**
  * The week picker: every week from the first with a session to the last, and
- * the week shown and this week wherever they fall, each tagged as the board
- * tags them.
+ * the week shown and this week wherever they fall, each tagged this week,
+ * next week or no sessions.
  */
 export function weekChoices(withSessions: ReadonlySet<string>, shown: string, now: Date): WeekChoice[] {
   const today = mondayOf(londonDateKey(now));

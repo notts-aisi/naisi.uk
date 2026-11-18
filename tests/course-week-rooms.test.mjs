@@ -345,7 +345,7 @@ describe("1. the week's rows, from records", () => {
     assert.deepEqual(words.summaryWords(view.counts), ["0 not booked", "0 links set", "2 people away", "1 joining online", "2 requests waiting"]);
   });
 
-  test("the week picker runs from the first week with a session to the last, tagged as the board tags it", () => {
+  test("the week picker runs from the first week with a session to the last, tagged this week, next week or no sessions", () => {
     const view = model.weekRoomsView({ programmes: [recordsOf(AGI, RUN.agi)], monday: MON_23, only: null, now: NOW });
     assert.equal(view.weeks[0].monday, "2026-10-26");
     assert.equal(view.weeks[view.weeks.length - 1].monday, "2026-12-07");
@@ -434,7 +434,7 @@ describe("1. the term's grid, from records", () => {
 // ---------------------------------------------------------------------------
 
 describe("2. the paste box matches loosely and asks about the rest", () => {
-  /** The board's own week: eleven AGI groups, two of TAIS, one each of two incubators. */
+  /** A busy week: eleven AGI groups, two of TAIS, one each of two incubators. */
   const candidates = [
     ...["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"].map((letter) => ({
       key: `agi-${letter}`,
@@ -475,7 +475,7 @@ describe("2. the paste box matches loosely and asks about the rest", () => {
     assert.deepEqual(paste.matchGroup("Group E", own), { kind: "matched", key: "agi-E" });
   });
 
-  test("the board's six lines: four ready (two new rooms, two unchanged) and two that need the person", () => {
+  test("six lines: four ready (two changes, two unchanged) and two that need the person", () => {
     const pasted = [
       "AGI A\tMonica Partridge C10",
       "AGI B\tGeorge Green B09",

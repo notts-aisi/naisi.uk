@@ -8,11 +8,15 @@
  * hands its people over -> opens the week's rooms from the Sessions view,
  * filtered to the programme, and goes to the week Group A's week 4 falls in:
  * its row says its day, time and room -> types a new room into the row, the
- * button counting whom it emails, gives a reason and saves -> Ada's and Ben's
- * mail carries the move's subject and the room and no meeting link -> pastes
- * Group B's week 4 room from two columns, the box matching it, and saves ->
- * the term's rooms marks both weeks moved, and Group A's week 4 cell opens its
- * week with the row in view.
+ * button counting whom it emails with Tell the group on, gives a reason and
+ * saves: the route saves the room alone (no day, no time, not moved) and tells
+ * the group itself -> Ada's and Ben's mail carries the room-only notice
+ * ("Week 4 is in Portland A21") and no meeting link -> pastes Group B's week 4
+ * room from two columns, the box matching it, and saves -> the term's rooms
+ * shows Group A's week 4 as its own room, not moved, and its link opens the
+ * week with the row in view -> sets Group A's weeks 5 and 6 in the grid with
+ * one Save that says it emails nobody, reads each back on its week's page,
+ * and nobody in Group A has a second email.
  *
  * ## How to run it
  *
@@ -28,12 +32,15 @@
  *    whose name starts "w/c " and the Monday;
  *  - a row's room field, named "Room for <programme>, <group>", inside the
  *    row whose id is `room-<groupId>__w04`;
- *  - the reason, labelled "Reason (the group sees this)", and the button
- *    "Save 1 room and email 1 group (N people)";
+ *  - the reason, labelled "Reason (optional)", the switch "Tell the group"
+ *    (on), and the button "Save 1 room and email 1 group (N people)";
  *  - the paste box, a region named "Paste rooms from a spreadsheet", its text
  *    box labelled "Paste here";
- *  - the term's rooms, reached by the link "The term’s rooms", each cell a
- *    link carrying "Moved" when its week was moved.
+ *  - the term's rooms, reached by the link "The term’s rooms": a week still to
+ *    come is a field named "Room for <group>, week <n>, <day>" with "This week
+ *    only" beside its own room and a link "Open week" to its week; the button
+ *    "Save 2 rooms. Emails nobody." and the status "2 rooms saved. Nobody was
+ *    emailed.".
  *
  * Every expected word comes from the seed's clock and the world's plan.
  *
@@ -70,6 +77,8 @@ const WEEK = 4;
 
 const ROOM_A = "Portland A21";
 const ROOM_B = "George Green B09";
+/** Group A's weeks 5 and 6, set from the term's grid. */
+const GRID_ROOMS = ["Portland A22", "Portland A23"];
 const REASON = "The usual rooms are booked for exams that week.";
 
 let skipReasonFor = () => null;
@@ -240,18 +249,18 @@ test("course hub: the week's rooms, a room set in its row and one pasted, and th
       const row = page.locator(`#${anchorOf(groupA.id, WEEK)}`);
       await row.getByLabel(new RegExp(`^Room for .*, ${escapeRegExp(groupA.name)}$`)).fill(ROOM_A);
       await row.getByText(`Emails ${peopleWords(peopleA.length)}`, { exact: true }).waitFor({ timeout: WAIT_MS });
-      await page.getByLabel("Reason (the group sees this)", { exact: true }).fill(REASON);
+      await page.getByLabel("Reason (optional)", { exact: true }).fill(REASON);
+      assert.equal(await page.getByRole("switch", { name: "Tell the group", exact: true }).isChecked(), true, "Tell the group is not on");
       const button = page.getByRole("button", { name: `Save 1 room and email 1 group (${peopleWords(peopleA.length)})`, exact: true });
       await button.waitFor({ timeout: WAIT_MS });
-      const [changed, posted] = await Promise.all([pressTo(groupA.id), responseTo(`/runs/${state.runId}/updates`, "POST"), button.click()]);
+      const [changed] = await Promise.all([pressTo(groupA.id), button.click()]);
       const body = await okBody(changed, "The room");
-      assert.equal(body.update?.withFacilitators, true, "the room's update does not reach the group's facilitators too");
-      const sent = await okBody(posted, "Telling the group");
-      assert.equal(sent.email?.sent ?? 0, peopleA.length, "the update did not email the group's people");
+      // The route tells the group itself, in the same request.
+      assert.equal(body.email?.sent ?? 0, peopleA.length, "the room's notice did not email the group's people");
       await page.getByRole("status").filter({ hasText: "1 room saved." }).waitFor({ timeout: WAIT_MS });
       const stored = (await fixtureDoc("courseGroups", groupA.id).get()).data();
-      assert.equal(stored?.sessionOverrides?.[`w0${WEEK}`]?.location, ROOM_A, "week 4's room was not saved");
-      assert.equal(stored?.sessionChanges?.[`w0${WEEK}`]?.kind, "moved", "week 4 carries no change record");
+      assert.deepEqual(stored?.sessionOverrides?.[`w0${WEEK}`], { location: ROOM_A }, "week 4 holds more than its room");
+      assert.equal(stored?.sessionChanges?.[`w0${WEEK}`], undefined, "week 4 was marked as changed");
       assert.equal(stored?.session?.location, groupA.room, "the room for every week changed");
     });
 
@@ -259,8 +268,11 @@ test("course hub: the week's rooms, a room set in its row and one pasted, and th
       for (const person of peopleA) {
         const [summary] = await waitForMessagesTo(person.email, { count: 1, timeoutMs: WAIT_MS });
         const email = await readEmail(summary);
-        assert.equal(email.subject, `Week ${WEEK} moves to ${dayLabel(weekA.dateKey)}, ${clockWords(groupA.startTimeLocal)}`, `${person.first}'s subject`);
-        assert.ok(email.text.includes(ROOM_A), `${person.first}'s email does not name the room`);
+        assert.equal(email.subject, `Week ${WEEK} is in ${ROOM_A}`, `${person.first}'s subject`);
+        assert.ok(email.text.includes(`is now in ${ROOM_A}`), `${person.first}'s email does not name the room`);
+        assert.ok(email.text.includes(`not ${groupA.room}. The day and time are the same.`), `${person.first}'s email: ${email.text}`);
+        assert.ok(email.text.includes(`Why: ${REASON}`), `${person.first}'s email has no reason`);
+        assert.ok(!email.text.includes("new time"), `${person.first}'s email speaks of a new time`);
         assertNoMeetingLink(email, person.first);
       }
     });
@@ -275,37 +287,69 @@ test("course hub: the week's rooms, a room set in its row and one pasted, and th
       await line.waitFor({ timeout: WAIT_MS });
       assert.ok((await textOf(line)).includes(`Was ${groupB.room}`), `the line: ${await textOf(line)}`);
       await box.getByText("1 line: 1 is ready", { exact: false }).waitFor({ timeout: WAIT_MS });
-      await box.getByLabel("Reason (the group sees this)", { exact: true }).fill(REASON);
+      await box.getByLabel("Reason (optional)", { exact: true }).fill(REASON);
       const button = box.getByRole("button", { name: `Save 1 room and email 1 group (${peopleWords(peopleB.length)})`, exact: true });
       await button.waitFor({ timeout: WAIT_MS });
-      const [changed, posted] = await Promise.all([pressTo(groupB.id), responseTo(`/runs/${state.runId}/updates`, "POST"), button.click()]);
+      const [changed] = await Promise.all([pressTo(groupB.id), button.click()]);
       await okBody(changed, "The pasted room");
-      await okBody(posted, "Telling the group");
       await page.getByRole("status").filter({ hasText: "1 room saved." }).waitFor({ timeout: WAIT_MS });
       for (const person of peopleB) {
         const [summary] = await waitForMessagesTo(person.email, { count: 1, timeoutMs: WAIT_MS });
         const email = await readEmail(summary);
-        assert.equal(email.subject, `Week ${WEEK} moves to ${dayLabel(weekB.dateKey)}, ${clockWords(groupB.startTimeLocal)}`, `${person.first}'s subject`);
-        assert.ok(email.text.includes(ROOM_B), `${person.first}'s email does not name the room`);
+        assert.equal(email.subject, `Week ${WEEK} is in ${ROOM_B}`, `${person.first}'s subject`);
+        assert.ok(email.text.includes(`is now in ${ROOM_B}`), `${person.first}'s email does not name the room`);
       }
     });
 
-    await step("the term's rooms marks both weeks moved, and a cell opens its week with the group's row in view", async () => {
+    await step("the term's rooms shows Group A's week 4 as its own room, not moved, and its link opens the week with the row in view", async () => {
       await page.getByRole("link", { name: "The term’s rooms", exact: true }).click();
       await page.getByRole("heading", { name: "The term’s rooms", level: 1, exact: true }).waitFor({ timeout: WAIT_MS });
-      const hash = `#${anchorOf(groupA.id, WEEK)}`;
-      const cell = page.locator(`a[href$="${hash}"]`);
-      await cell.waitFor({ timeout: WAIT_MS });
+      const field = page.getByLabel(new RegExp(`^Room for ${escapeRegExp(groupA.name)}, week ${WEEK}, `));
+      await field.waitFor({ timeout: WAIT_MS });
+      assert.equal(await field.inputValue(), ROOM_A);
+      const cell = field.locator("xpath=..");
       const said = await textOf(cell);
-      assert.ok(said.includes(ROOM_A) && said.includes("Moved") && said.includes("Not the usual room"), `Group A's week 4 cell: ${said}`);
-      const cellB = page.locator(`a[href$="#${anchorOf(groupB.id, WEEK)}"]`);
-      assert.ok((await textOf(cellB)).includes("Moved"), "Group B's week 4 is not marked moved");
-      await cell.click();
+      assert.ok(said.includes("This week only") && !said.includes("Moved"), `Group A's week 4 cell: ${said}`);
+      const hash = `#${anchorOf(groupA.id, WEEK)}`;
+      await cell.getByRole("link", { name: "Open week", exact: true }).click();
       await page.waitForURL((url) => url.hash === hash, { timeout: WAIT_MS });
       const row = page.locator(hash);
       await row.waitFor({ timeout: WAIT_MS });
       assert.ok(await row.isVisible(), "the group's row is not in view");
       assert.equal(await row.getByLabel(new RegExp(`^Room for .*, ${escapeRegExp(groupA.name)}$`)).inputValue(), ROOM_A);
+    });
+
+    await step("the admin sets Group A's weeks 5 and 6 in the grid with one Save that emails nobody, and each week's page reads them back", async () => {
+      await page.goto(`${origin}${roomsPath}/term?programme=${enc(state.programmeId)}`, { waitUntil: "domcontentloaded" });
+      await page.getByRole("heading", { name: "The term’s rooms", level: 1, exact: true }).waitFor({ timeout: WAIT_MS });
+      const later = [
+        [WEEK + 1, GRID_ROOMS[0]],
+        [WEEK + 2, GRID_ROOMS[1]],
+      ];
+      for (const [week, room] of later) {
+        const field = page.getByLabel(new RegExp(`^Room for ${escapeRegExp(groupA.name)}, week ${week}, `));
+        await field.waitFor({ timeout: WAIT_MS });
+        await field.fill(room);
+      }
+      const button = page.getByRole("button", { name: "Save 2 rooms. Emails nobody.", exact: true });
+      await button.waitFor({ timeout: WAIT_MS });
+      const [changed] = await Promise.all([pressTo(groupA.id), button.click()]);
+      const body = await okBody(changed, "The grid's rooms");
+      assert.equal(body.email, null, "the grid's save emailed somebody");
+      assert.equal(JSON.parse(changed.request().postData() ?? "{}").weeks?.length, 2, "the two weeks were not one press");
+      await page.getByRole("status").filter({ hasText: "2 rooms saved. Nobody was emailed." }).waitFor({ timeout: WAIT_MS });
+      for (const [week, room] of later) {
+        const session = sessionOf(groupA, week);
+        await page.goto(`${origin}${roomsPath}?programme=${enc(state.programmeId)}&week=${session.dateKey}`, { waitUntil: "domcontentloaded" });
+        const row = page.locator(`#${anchorOf(groupA.id, week)}`);
+        await row.waitFor({ timeout: WAIT_MS });
+        assert.equal(await row.getByLabel(new RegExp(`^Room for .*, ${escapeRegExp(groupA.name)}$`)).inputValue(), room, `week ${week}`);
+      }
+      // Nobody in Group A has a second email: the grid told nobody.
+      for (const person of peopleA) {
+        const seen = await waitForMessagesTo(person.email, { count: 1, timeoutMs: WAIT_MS });
+        assert.equal(seen.length, 1, `${person.first} has ${seen.length} emails`);
+      }
     });
   } finally {
     await context.close().catch(() => {});
