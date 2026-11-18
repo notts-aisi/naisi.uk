@@ -2050,6 +2050,102 @@ has weeks with two groups. Use Move on Leo’s row, which keeps them."), as a
 full group is reported. Taking it out of every group, Remove, a place with no
 record, and somebody changing their own session on an open run, are as before.
 
+## A person's page, for the team, and a facilitator's cut of it
+
+One page per person on a programme, at
+`.../programmes/[programmeId]/people/[uid]`, reached from their name on the
+People tab and, for somebody holding a place, on the Coursework tab and its
+list of what waits for feedback. Read by `loadTeamPersonPage`
+(`src/lib/courses/personPage/load.ts`); the words are turned out by the pure
+functions beside it (`model.ts`, `words.ts`). NOTHING ON IT WRITES: Move is
+its own page, and the notes write through their own routes.
+
+**Who opens it.** The programme's own gate (`loadProgrammeRun`, from the form,
+before anything else is read): an admin or the programme's lead. A reviewer is
+told it is the lead's and an admin's; anybody with no role on the programme,
+the lead of another programme among them, is told there is no programme here.
+Then the person must be a row of the People tab for this reader
+(`loadProgrammePeople`, whose rows are the people whose application the reader
+may open); anybody else, whether or not the account exists, gets one calm
+sentence. The admin tree is closed in a view-as session, as everywhere under
+`/admin`.
+
+**Each section, and who it is read for.** A section a reader may not see is
+not read for them, and its key is absent from what the page is handed.
+
+- *The head*: the name as the Coursework tab names them to this reader, their
+  group and its weekly time (a placement Publish has not told shows to admins
+  alone, marked "Not told yet", as the Coursework tab shows it), and where
+  their place stands in the People tab's words. Move, as the People tab offers
+  it (`moveHref`); a visit goes beside it once visits exist.
+- *Coursework*, week by week: the Coursework tab's own reads and cell
+  (`readRunCoursework` with nobody's words, `courseworkRows`), each week on
+  the copy the person worked in (`readsGroupIdFor`): its state, readings
+  ticked, the last save of its reflections, the written answer's first send
+  and whether it was late, and who gave feedback when, with its email.
+  Nobody's words: "Read week N" opens the reading view of that week. The
+  "Team rating" column is read only for a reader `mayRateWorkOf` admits
+  (`readsWorkRatings`: an admin, or the programme's lead while they stand;
+  never on their own work), as the number and who gave it, never the comment;
+  for anybody else the column is not there.
+- *Attendance*, counts only: in the room and online, from the one record of a
+  person's attendance (`buildRunAttendance`, each week off the register of the
+  group they were in that week), and a line per week: what the register says,
+  "Not marked" for a session that happened with no mark, "Didn’t happen", and
+  the next session alone as "Still to come". Never an allowance and never how
+  many sessions anybody may still miss. The counts are a list, so a count of
+  visits to another group can be added beside them once visits exist.
+- *Feedback*: every piece about them on the run (`readOwnFeedback`), as who
+  wrote it, about which week, when and its email. Never its words.
+- *Notes*: the notes' own component (`PersonNotes`), through the notes' own
+  routes, which decide who reads which note (see "Claude and Pangram on
+  coursework, and the notes the team keeps"). Never on the reader's own page.
+- *Application*: the People tab's link (`applicationHref`, the review
+  screens' `canReadApplication`); absent for the reader's own.
+- *Events* and *Activity*: an admin's alone (`if (!isAdmin) return` comes
+  before either is read). Events are the events tree's own reader
+  (`eventsOfPerson`, privacy v15's "Attendance"), drawn by the admin profile's
+  own card body. Activity is made only of records the page has already read:
+  when Publish told them their group, the last save of each week's
+  reflections, each written answer's first send and each email of feedback,
+  newest first, the first twelve. Nothing is recorded for it.
+
+**The facilitator's cut**, `/learn/[runId]/group/[groupId]/people/[uid]`,
+reached from a name on the group's "Your group" card (`GroupPeopleCard`'s
+`personBase`, handed only to a facilitator of the group). Read by
+`loadFacilitatorPersonPage`: a live facilitator of the group with standing,
+and nobody else (the lead and admins have the team's page); about somebody
+placed in the group now and told, whose work the one gate lets them read
+(`writtenReviewRole`), never a co-facilitator and never themselves. Anybody
+else is sent to the run's home. It holds the name they go by, the weeks they
+spent in this group (`inGroupForWeek`) with their coursework as above,
+"Weeks 1 and 2 were with another group." for the rest (never which), their
+attendance at this group's sessions counted from those weeks alone, and the
+feedback this facilitator wrote. No application, notes, ratings, contact
+details, events or activity.
+
+**Reads per view.** Every query is an equality on one or two fields, so
+nothing needs a declared index, and no read is added to any other page. The
+team's page reads what its neighbours read, each through their own reader:
+the gate's (the form, the run, its pitching week), the People tab's (the
+form, its sent applications and decisions, the run, its groups and seats),
+the Coursework tab's for one row (the run, its groups and seats again, the
+run's own weeks and each group copy the person's weeks name, every answer,
+tick and week record on the run as facts, the run's feedback, the person's
+packs by id), the Attendance tab's (the run, its groups, seats and
+registers, the scheduler's switches and the accounts of its learners and
+facilitators), the person's account, their feedback (one query) and its
+writers' accounts; for an admin or the lead, their ratings (one query) and
+the raters' accounts; for a lead, the forms (`reviewerFactsOf`); for an
+admin, their sign-ups, check-ins and the events those name. About thirty
+reads in all, each bounded by the run. The facilitator's cut: the group, the
+run's groups, the forms (`reviewerFactsOf`), the person's place and account,
+the run's seats, the same coursework reads, their feedback and its writers'
+accounts, and the Attendance tab's read.
+
+`tests/course-person-page.test.mjs` draws both pages as every reader and
+holds each to what it is handed.
+
 ## A programme's lead on the run their programme names
 
 Each programme's lead does, for their own programme, what an admin does from
@@ -2098,6 +2194,8 @@ already open; nothing under `/admin/courses` is needed.
   whose application the viewer may open, so the lead meets an invitation to
   somebody who did not rank the programme only once they accept. No email
   address, access requirement, answer or leaver's reason is on it.
+  Each name opens the person's page (see "A person's page, for the team,
+  and a facilitator's cut of it").
 - **Applications tab, Offer freed places** (see the next section).
 - Everything else a run's track lead may do on the run, through the same
   routes: the run's own applications queue, putting somebody back on the
@@ -3501,8 +3599,9 @@ the calendar of the group whose weeks they read (`weekOpensOn`, the day
 begun); otherwise "Started" where they have done anything in it (a tick, a
 reflection, a box, an answer begun) and "Not started" where nothing. No counts
 are drawn: the reading view one click away has them. The whole cell opens the
-reading view of that person's week; the name opens the person's page. Never
-anybody's words in a cell.
+reading view of that person's week; the name opens the person's page ("A
+person's page, for the team"), or, for somebody holding no place, the reading
+view. Never anybody's words in a cell.
 
 **Beside the state, up to three flags**, each only where it is true, and only
 for a reader who may read that person's work (`writtenReviewRole` over the
