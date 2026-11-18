@@ -1,3 +1,4 @@
+import { roomAsStored } from "../sessionChange/room";
 import { UNKNOWN_OUTCOME } from "../sessionChange/words";
 import { postedWords } from "../updates/words";
 import type { RoomRow } from "./model";
@@ -61,7 +62,8 @@ export function changeUrl(row: Pick<RoomRow, "groupId">): string {
 
 /** The writer's answer to `preview: true` for one room, read as the row draws it. */
 export async function askPreview(post: Post, row: Pick<RoomRow, "groupId" | "weekNumber" | "dateKey">, room: string): Promise<RoomPreview> {
-  const typed = room.trim();
+  // The room as it would be stored: "TBC" and the like are no room.
+  const typed = roomAsStored(room);
   const answer = await post(changeUrl(row), {
     kind: "room",
     weeks: [{ week: row.weekNumber, dateKey: row.dateKey, room: typed }],
