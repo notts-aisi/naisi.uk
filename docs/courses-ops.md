@@ -2070,9 +2070,11 @@ already open; nothing under `/admin/courses` is needed.
   changed by hand: the list to pick from is names only, a change emails
   nobody, and somebody added after groups have gone out is told by the next
   press of Publish.
-- **Overview tab**: the run's week, each group's session this week and its
-  register, what needs attention, who came by week and how many are taking
-  part (see "The lead's Overview and Attendance" below).
+- **Overview tab**: the run's week, attendance by week across the
+  programme, one row per group for a chosen week, each group's session this
+  week and its register, what needs attention and how many are taking part
+  (see "The lead's Overview and Attendance" and "The Overview, by week"
+  below).
 - **Attendance tab**: every register of the run as one grid, By person or
   By week, read only, with Download CSV. Marking stays with the group's
   facilitators and admins. Under the grid, the notes each group's
@@ -2136,8 +2138,10 @@ number agrees between them and the CSV.
   group whose register marked them; somebody who left before any register
   marked them is nobody's row.
 - **"Came"** counts present, late and left early; excused and absent count
-  in "of". A mark saved on a register not finished yet counts, drawn with a
-  ring. A session the register says did not happen counts for nobody.
+  in "of". On the Attendance tab a mark saved on a register not finished
+  yet counts, drawn with a ring; the Overview counts finished registers only
+  (see "The Overview, by week"). A session the register says did not happen
+  counts for nobody.
 - **Download CSV** is logged in the export log before the file is handed
   over, and refused when the log cannot be written. It holds group, name,
   each week's mark in words, "Came" and "Of", and when somebody left: never
@@ -2158,6 +2162,56 @@ number agrees between them and the CSV.
   the press or the job comes first. It works while the job is switched off:
   the press is a person's decision. A facilitator who has turned off their
   "Tasks and worksheets" emails is not offered.
+
+### The Overview, by week
+
+Two cards under the week card, worked out on the server by
+`buildProgrammeOverview` through `src/lib/courses/overviewByWeek.ts`. Who may
+open them is the tab's gate (`loadProgrammeRun`): an admin, and the
+programme's own lead; a reviewer is told the tab is theirs, and anybody with
+no role on the programme, a lead of another programme included, is shown
+"there is no programme here". Before any group has met the tab is still "Get
+ready for week 1", and neither card is drawn.
+
+- **Attendance by week**: a row per week of the run, counted from FINISHED
+  registers only, through the Attendance tab's own rows (`listGroups`), so a
+  mark is read off the register of the group the person was in that week
+  (`groupForWeek`) and somebody moved between groups counts once, in that
+  week's own group. Each row draws in the room, online, excused and absent
+  as a bar and in words, then "52 of 54 came" once every group that holds a
+  session that week has a finished register, "2 of 11 groups have met so
+  far" until then (with "1 register not finished yet" for a group that met
+  whose register is not counted), or "Not met yet". A session that didn't
+  happen, or was cancelled, is no session: its group is in no count for the
+  week. A mark saved on a register not finished counts here for nobody, so
+  for a week still in progress these figures can differ from the Attendance
+  tab's, which counts it "so far"; for a week whose registers are all
+  finished they are the tab's own. Each week's name opens the Attendance
+  tab.
+- **Groups in week N**: one row per group that still meets, in every tab's
+  order, for the week in the address (`?week=3`, chosen with the card's
+  Week picker, a plain form), else the programme's week now: its
+  facilitators, that week's session (day and time, "moved" when the week was
+  moved on its own, "online this week", "room to be confirmed" when no room
+  is set, by `weekOpenPlace`, the answer "Week N is open" uses), readings
+  done and coursework done, and who came the week before and that week, from
+  the group's own finished register ("Tonight", "Tomorrow", "Not finished",
+  "No register yet" or "Not held" otherwise). Readings and coursework are the
+  group's page's own numbers for that week: its view of the week
+  (`groupWeekWorkView`) over the people its page lists, the readings bar's
+  done and "N of M have done week N". A week not published says "Not
+  published yet"; a week not written as blocks, or an incubator's group,
+  "Not tracked", as its page draws no card. Each row opens the group's page
+  on that week. On a phone the table gives way to a list of the same rows.
+
+**Reads.** The week's work is read once for every group
+(`readGroupsWeek` in `src/lib/courses/groupWeekWork/load.ts`): the run's
+groups, its stored weeks and its places, each group's copy of the week (two
+reads a group), and for each copy of the week in use the run's answers and
+ticks for the week (two equalities, projected) with each person's pack
+records by id. Everything else comes from the records the tab already read.
+No index, rule or stored field is added, and nothing on these cards writes
+or emails anything.
 
 ## Asking people to facilitate
 

@@ -71,7 +71,7 @@ function WeekRow({ row, attendanceHref }: { row: OverviewWeekRow; attendanceHref
 
 function GroupsTable({ groups }: { groups: OverviewGroupsWeek }) {
   return (
-    <div className={styles.scroll} role="region" aria-label={groups.heading} tabIndex={0}>
+    <div className={styles.scroll} role="region" aria-label={`Table of ${groups.heading.toLowerCase()}`} tabIndex={0}>
       <table className={styles.table}>
         <caption className={styles.visuallyHidden}>{groups.heading}</caption>
         <thead>

@@ -740,7 +740,7 @@ test(
       });
 
       await step(
-        "the Overview shows week 3, this week's sessions and their registers, what needs attention and the newest update",
+        "the Overview shows week 3, attendance by week from the finished registers, a row for every group, this week's sessions and their registers, what needs attention and the newest update",
         async () => {
           activePage = adminPage;
           await adminPage.goto(overviewUrl, { waitUntil: "domcontentloaded" });
@@ -854,27 +854,42 @@ test(
             "Needs attention's count is not its items",
           );
 
-          // Who came by week, and the people.
-          const totals = weeks.map((weekNumber) => weekTotal(ordered, weekNumber, now));
-          const withData = totals.filter((total) => total.percent !== null);
-          const without = totals.filter((total) => total.percent === null).map((total) => total.weekNumber);
-          const notYet =
-            without.length === 1
-              ? ` Week ${without[0]} not yet.`
-              : without.length > 1
-                ? ` Weeks ${without[0]} to ${without[without.length - 1]} not yet.`
-                : "";
-          const description = `Who came, by week: ${withData
-            .map((total) => `week ${total.weekNumber} ${total.percent}%${total.soFar ? " so far" : ""}`)
-            .join(", ")}.${notYet}`;
-          await overviewRegion("Attendance by week").getByRole("img", { name: description, exact: true }).waitFor({
-            timeout: WAIT_MS,
-          });
-          const latestSoFar = [...withData].reverse().find((total) => total.soFar);
-          if (latestSoFar) {
-            await overviewRegion("Attendance by week")
-              .getByText(`Week ${latestSoFar.weekNumber} is from ${groupsInWords(latestSoFar.from)} so far.`, { exact: true })
+          // Attendance by week, from the finished registers only: each week's
+          // bar in words, as `attendanceByWeek` in src/lib/courses/overviewByWeek.ts
+          // counts it. This world records nobody as having joined online.
+          const byWeekRegion = overviewRegion("Attendance by week");
+          await byWeekRegion.waitFor({ timeout: WAIT_MS });
+          for (const weekNumber of weeks) {
+            const counted = ordered.filter(
+              (group) => isFinished(group, weekNumber) && sessionNow(group, weekNumber, now).started,
+            );
+            if (counted.length === 0) continue;
+            const tally = { room: 0, excused: 0, absent: 0 };
+            for (const group of counted) {
+              for (const person of membersOf(group)) {
+                const mark = markOf(person, weekNumber);
+                if (!mark) continue;
+                if (CAME.has(mark)) tally.room += 1;
+                else if (mark === "excused") tally.excused += 1;
+                else tally.absent += 1;
+              }
+            }
+            await byWeekRegion
+              .getByRole("img", {
+                name: `Week ${weekNumber}: in the room ${tally.room}, online 0, excused ${tally.excused}, absent ${tally.absent}.`,
+                exact: true,
+              })
               .waitFor({ timeout: WAIT_MS });
+          }
+          // One row per group for the week the programme is in, each opening the group's page on it.
+          const groupsRegion = overviewRegion(`Groups in week ${thisWeek}`);
+          await groupsRegion.waitFor({ timeout: WAIT_MS });
+          for (const group of ordered) {
+            const link = groupsRegion.getByRole("table").getByRole("link", { name: group.name, exact: true });
+            assert.ok(
+              ((await link.getAttribute("href")) ?? "").endsWith(`/groups/${enc(group.id)}?week=${thisWeek}`),
+              `${group.name}'s row does not open its page on week ${thisWeek}`,
+            );
           }
           const people = await textOf(overviewRegion("People"));
           for (const expected of [

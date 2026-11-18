@@ -26,7 +26,7 @@ import assert from "node:assert/strict";
 import { B, BEFORE_WEEK3, RUN, makeRemindWorld, tickRow } from "./lib/remindWorld.mjs";
 
 const w = await makeRemindWorld("__overviewByWeek");
-const { world, page } = w;
+const { world } = w;
 const { readRunRecords } = await w.loadTs("lib/courses/programmeAttendance.ts");
 const { buildProgrammeOverview } = await w.loadTs("lib/courses/programmeOverview.ts");
 const { countBuckets, doneCount } = await w.loadTs("lib/courses/groupWeekWork/model.ts");
