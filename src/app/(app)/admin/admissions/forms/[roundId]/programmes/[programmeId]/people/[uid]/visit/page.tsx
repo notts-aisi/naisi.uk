@@ -7,6 +7,7 @@ import VisitPage from "@/features/courses/visit/VisitPage";
 import { isAddressableId } from "@/lib/addressableId";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { dbReader, planVisit, previewOf, readVisitFacts, sessionChoices, standingVisits, weekChoices } from "@/lib/courses/visit/plan";
+import { visitPressLimit } from "@/lib/courses/visit/limits";
 import type { VisitPageView } from "@/lib/courses/visit/view";
 import { BACK_TO_PEOPLE, VISIT_PAGE_TITLE, VISIT_REFUSAL, visitTitle } from "@/lib/courses/visit/words";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -89,6 +90,7 @@ export default async function StaffVisitPage({
   const sessions = week !== null ? sessionChoices(facts, week, now) : [];
   const to = week !== null && typeof query.to === "string" && isAddressableId(query.to) ? query.to : null;
   const planned = week !== null && to ? planVisit(facts, week, to, user.uid, now) : null;
+  const limit = await visitPressLimit(db, uid, user.uid);
   const page: VisitPageView = {
     roundId: view.roundId,
     programmeId: view.programmeId,
@@ -99,7 +101,8 @@ export default async function StaffVisitPage({
     week,
     sessions,
     chosen: to,
-    outcome: planned ? (planned.ok ? { ok: true, preview: previewOf(planned.plan) } : { ok: false, error: planned.error }) : null,
+    outcome: planned ? (planned.ok ? { ok: true, preview: previewOf(planned.plan, limit) } : { ok: false, error: planned.error }) : null,
+    limit,
     standing,
     routePath: `/api/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/people/${encodeURIComponent(uid)}/visit`,
     backHref,

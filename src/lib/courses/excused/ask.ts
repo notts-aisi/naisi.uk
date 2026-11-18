@@ -81,7 +81,7 @@ const refuse = (status: 400 | 403 | 404 | 409, error: string): AskOutcome => ({ 
 /** Most groups a run holds: one equality, read for when the programme closes. */
 const MAX_GROUPS = 100;
 /** Most requests one person has made: a term holds a handful. */
-const MAX_OWN = 200;
+export const MAX_OWN = 200;
 
 /** Whether one session of the group is held online for everybody, from its own week (as joining online asks). */
 function sessionHeldOnline(group: CourseGroupDoc, session: ResolvedSession): boolean {

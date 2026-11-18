@@ -286,3 +286,24 @@ export async function reserveNoticeSlots(
     return { ok: true, refusal: null, retryAfterSeconds: 0, remaining };
   });
 }
+
+/**
+ * WHICH OF `windows` A PRESS NOW WOULD MEET AT ITS LIMIT, read only, for a
+ * page that says so before the press: the first window whose stored counter
+ * is full inside its window, or null when a claim of every one would go
+ * through. The same counters and the same rule `reserveNoticeSlots` claims
+ * by; nothing is claimed here, so the press still claims for itself.
+ */
+export async function fullNoticeWindow(db: Firestore, windows: readonly NoticeWindow[]): Promise<NoticeWindow | null> {
+  if (windows.length === 0) return null;
+  const now = Date.now();
+  const snaps = await db.getAll(...windows.map((window) => db.collection(THROTTLE_COLLECTION).doc(`emailrate__${window.key}`)));
+  for (const [index, snap] of snaps.entries()) {
+    const data = snap.data() ?? {};
+    const startedAt = windowStartMs(data.windowStartAt);
+    const count = typeof data.count === "number" ? data.count : 0;
+    const window = windows[index];
+    if (startedAt > 0 && now - startedAt < window.windowMs && count >= window.limit) return window;
+  }
+  return null;
+}

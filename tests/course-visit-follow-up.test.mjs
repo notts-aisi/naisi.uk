@@ -26,6 +26,8 @@ const { world, call, routes } = w;
 const visitRoute = await w.formRoute("programmes", "[programmeId]", "people", "[uid]", "visit");
 const cancelRoute = await w.courseRoute("runs", "[runId]", "visit", "cancel");
 const changeRoute = await w.courseRoute("groups", "[groupId]", "session", "change");
+const askRoute = await w.courseRoute("groups", "[groupId]", "excused");
+const approveRoute = await w.courseRoute("requests", "[requestId]", "excused", "approve");
 const words = await w.loadTs(join("lib", "courses", "visit", "words.ts"));
 const view = await w.loadTs(join("lib", "courses", "visit", "view.ts"));
 const weekWords = await w.loadTs(join("lib", "courses", "weekWork", "words.ts"));
@@ -264,5 +266,90 @@ describe("7. a group's page reads every active place of the run only when a visi
     assert.equal((await placeQueriesOf(A)).filter((fields) => fields === "runId,status").length, 1);
     // Group B, Chloe's own group, was never visited: still none.
     assert.equal((await placeQueriesOf(B)).includes("runId,status"), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. A request to be excused from the week
+// ---------------------------------------------------------------------------
+
+describe("8. arranging a visit for a week the person asked to be excused from", () => {
+  async function askForWeekFour() {
+    const asked = await call("chloe", askRoute.POST, { groupId: B }, {
+      body: { sessionKeys: ["w04"], reason: "A family wedding that weekend.", inPerson: true, ownOnline: true, otherOnline: true },
+      course: true,
+    });
+    assert.equal(asked.status, 200, JSON.stringify(asked.body));
+    return world.db.paths().find((path) => path.startsWith("courseRequests/")).split("/")[1];
+  }
+
+  test("a request still waiting: refused in one sentence, nothing written", async () => {
+    await askForWeekFour();
+    const shown = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: A, preview: true });
+    assert.deepEqual([shown.status, shown.body.error], [409, "Chloe is waiting to hear about being excused from week 4. Decide that request first."]);
+    const pressed = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: A, emailCount: 3, overLimit: false });
+    assert.equal(pressed.status, 409);
+    assert.equal(seat("chloe").visits, undefined);
+  });
+
+  test("once it is approved: the visit can be arranged, and stands; a request for another week does not stand in the way", async () => {
+    const requestId = await askForWeekFour();
+    assert.equal((await visit("zach", "chloe", { weekNumber: 5, hostGroupId: A, preview: true })).status, 200);
+    const approved = await call("zach", approveRoute.POST, { requestId }, { body: { sessionKey: "w04" }, course: true });
+    assert.equal(approved.status, 200, JSON.stringify(approved.body));
+    await arrange("chloe", 4, A);
+    assert.equal(enrolments.groupForWeek(seat("chloe"), 4), A);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. A durable limit on the emails of arranging and calling off
+// ---------------------------------------------------------------------------
+
+describe("9. a durable limit on the emails of arranging and calling off", () => {
+  const full = (key, count) => world.db.seed(`courseNudges/emailrate__${key}`, { kind: "staff-email-throttle", key, windowStartAt: new Date(), count, updatedAt: new Date() });
+  const everything = () => JSON.stringify(world.db.paths().filter((path) => !path.startsWith("courseNudges/")).sort().map((path) => [path, read(path)]));
+  const PERSON = "This person’s visits have been arranged or called off 10 times in the last day. Nothing was changed or sent. Try again tomorrow.";
+  const PRESSER = "You have arranged or called off 40 visits in the last day. Nothing was changed or sent. Try again tomorrow.";
+
+  test("ten presses about one person in a day: the preview says so, and the eleventh is refused before anything is written or sent", async () => {
+    full("visitperson__chloe", 10);
+    const shown = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: A, preview: true });
+    assert.equal(shown.status, 200);
+    assert.equal(shown.body.preview.limit, PERSON);
+    const before = everything();
+    world.mail.length = 0;
+    const pressed = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: A, emailCount: shown.body.preview.emails, overLimit: false });
+    assert.deepEqual([pressed.status, pressed.body.error], [429, PERSON]);
+    assert.equal(everything(), before);
+    assert.equal(world.mail.length, 0);
+  });
+
+  test("forty presses by one presser in a day: refused, whoever the person is", async () => {
+    full("visitpresser__zach", 40);
+    const shown = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: A, preview: true });
+    assert.equal(shown.body.preview.limit, PRESSER);
+    const pressed = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: A, emailCount: shown.body.preview.emails, overLimit: false });
+    assert.deepEqual([pressed.status, pressed.body.error], [429, PRESSER]);
+    // Claudia, another presser, is not held by Zach's count.
+    const lead = await visit("claudia", "chloe", { weekNumber: 4, hostGroupId: A, preview: true });
+    assert.equal(lead.body.preview.limit, null);
+  });
+
+  test("calling off, by staff or by the person, is held to the same counters; under them every press counts once", async () => {
+    await arrange("chloe", 4, A);
+    assert.equal(read("courseNudges/emailrate__visitperson__chloe").count, 1);
+    full("visitperson__chloe", 10);
+    const staff = await visit("zach", "chloe", { weekNumber: 4, callOff: true, emailCount: 3 });
+    assert.deepEqual([staff.status, staff.body.error], [429, PERSON]);
+    const own = await cancel("chloe", 4);
+    assert.equal(own.status, 429);
+    assert.equal(words.cancelOutcomeLine({ status: own.status, kind: own.body.kind }, "Group A"), "That didn’t go through, so your visit to Group A still stands. Try again.");
+    assert.equal(seat("chloe").visits.length, 1);
+  });
+
+  test("with no counter: no limit said, as before", async () => {
+    const shown = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: A, preview: true });
+    assert.equal(shown.body.preview.limit, null);
   });
 });

@@ -6,6 +6,7 @@ import { parseVisitBody } from "@/lib/courses/visit/parse";
 import { dbReader, planVisit, previewOf, readVisitFacts } from "@/lib/courses/visit/plan";
 import { arrangeVisit, callOffVisit } from "@/lib/courses/visit/save";
 import type { VisitPreviewView } from "@/lib/courses/visit/view";
+import { visitPressLimit } from "@/lib/courses/visit/limits";
 import { VISIT_REFUSAL } from "@/lib/courses/visit/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
@@ -98,7 +99,8 @@ export async function POST(req: Request, ctx: Ctx) {
     if (!read.ok) return NextResponse.json({ error: read.error }, { status: read.status });
     const planned = planVisit(read.facts, body.weekNumber, body.hostGroupId, user.uid, now);
     if (!planned.ok) return NextResponse.json({ error: planned.error }, { status: planned.status });
-    const answer: VisitPreviewAnswer = { ok: true, preview: previewOf(planned.plan) };
+    // The page says before a press when the limit on these emails would refuse it.
+    const answer: VisitPreviewAnswer = { ok: true, preview: previewOf(planned.plan, await visitPressLimit(db, uid, user.uid)) };
     return NextResponse.json(answer);
   }
 

@@ -662,6 +662,18 @@ export function tooLateToCancelWords(hostName: string): string {
   return `The visit can no longer be cancelled: ${possessive(groupName(hostName))} session has started.`;
 }
 
+/** Refused: a request to be excused from that week is waiting. "Aisha is waiting to hear about being excused from week 2. Decide that request first." */
+export function excusedWaitingWords(firstName: string, weekNumber: number): string {
+  return `${firstName || "They"} ${firstName ? "is" : "are"} waiting to hear about being excused from week ${weekNumber}. Decide that request first.`;
+}
+
+/** The durable limit on the emails of arranging and calling off (`./limits.ts`). Staff-facing. */
+export const VISIT_LIMIT_WORDS = {
+  person: (limit: number) => `This person’s visits have been arranged or called off ${limit} times in the last day. Nothing was changed or sent. Try again tomorrow.`,
+  presser: (limit: number) => `You have arranged or called off ${limit} visits in the last day. Nothing was changed or sent. Try again tomorrow.`,
+  unread: "The limit on these emails couldn’t be checked, so nothing was changed or sent. Try again.",
+} as const;
+
 /** 409: the count changed between the page and the press. */
 export function changedWords(emails: number): string {
   return `The visit now emails ${emails === 1 ? "1 person" : `${emails} people`}. Check the page, then press again.`;

@@ -2295,7 +2295,16 @@ inside the save); a host that is missing, archived, of another run or the
 group they belong to that week; a host session that week that is missing,
 called off, marked as not held or started; somebody already marked as having
 come on their own group's register that week; a week that already has a
-visit; a host register at its limit of people.
+visit; a week they are waiting to hear about being excused from (the request is
+decided first; an approved one does not stand in the way: the visit stands and
+their week reads the host's register); a host register at its limit of people.
+
+**A limit on the emails** (`src/lib/courses/visit/limits.ts`): every press that
+arranges or calls off a visit is counted on the notice lane's stored counters,
+per person visited (10 a day) and per presser (40 a day). At either limit the
+press is refused before anything is written or sent, and the page says so
+before the press. A press refused for any other reason is decided first and
+counts nothing.
 
 **The save**, one transaction: the visit on the place; the person's rollup
 rebuilt from the place as written when a register of that week (theirs or the
@@ -2310,9 +2319,16 @@ them and never whoever pressed. One function decides who, for the button's
 count and the send.
 
 **Calling it off.** The person, from their programme page, until the earlier of
-the two sessions of that week starts: both groups' facilitators are emailed.
+the two sessions of that week starts (`cancelDeadline` in
+`src/lib/courses/visit/plan.ts`, the one answer the card and the route both
+ask; a session of their own group called off that week is no session, and the
+line said when it comes too late names the group whose session has started):
+both groups' facilitators are emailed, exactly the people the card names. Their
+own cancel decides their own place first, and answers one 404 for anything that
+is not their own standing visit on a run they hold a place on.
 Staff, from the same page that arranges it, until the host's session starts:
-the person is emailed too. Either way the visit comes off the place, their
+the person is emailed too. Staff can still call one off on a run down to one
+group that still meets. Either way the visit comes off the place, their
 own words on the host's register for that session (joining online, can't make
 it) come off while it is not finished, the rollup is rebuilt when it must be,
 and each group's History gets a row (`member-visit-off`).

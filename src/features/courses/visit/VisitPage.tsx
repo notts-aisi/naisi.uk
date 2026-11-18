@@ -149,6 +149,12 @@ export default function VisitPage({ view }: { view: VisitPageView }) {
         </Link>
       </div>
 
+      {view.limit && (
+        <p className={styles.warning} role="note" data-testid="staff-visit-limit">
+          {view.limit}
+        </p>
+      )}
+
       {view.standing.map((standing) => (
         <div key={standing.weekNumber} className={styles.standing} data-testid="staff-visit-standing">
           <h2 className={styles.subTitle}>{VISIT_STANDS}</h2>
@@ -156,7 +162,7 @@ export default function VisitPage({ view }: { view: VisitPageView }) {
           {standing.gone && <p className={styles.line}>{standing.gone}</p>}
           {standing.open && (
             <div className={styles.actions}>
-              <Button type="button" variant="secondary" onClick={() => void callOff(standing)} disabled={!hydrated || busy} data-testid="staff-visit-call-off">
+              <Button type="button" variant="secondary" onClick={() => void callOff(standing)} disabled={!hydrated || busy || view.limit !== null} data-testid="staff-visit-call-off">
                 {busy ? CALLING_OFF : standing.button}
               </Button>
             </div>
@@ -261,6 +267,12 @@ export default function VisitPage({ view }: { view: VisitPageView }) {
             </dl>
           </div>
 
+          {preview.limit && preview.limit !== view.limit && (
+            <p className={styles.warning} role="note">
+              {preview.limit}
+            </p>
+          )}
+
           {preview.overLimit && (
             <p className={styles.warning} role="note">
               {preview.overLimit}
@@ -291,7 +303,7 @@ export default function VisitPage({ view }: { view: VisitPageView }) {
           {CANCEL}
         </Link>
         {preview && (
-          <Button type="button" onClick={() => void arrange(preview)} disabled={!hydrated || busy} data-testid="staff-visit-press">
+          <Button type="button" onClick={() => void arrange(preview)} disabled={!hydrated || busy || preview.limit !== null || view.limit !== null} data-testid="staff-visit-press">
             {busy ? ARRANGING : preview.button}
           </Button>
         )}

@@ -1,4 +1,7 @@
 import "server-only";
+import { MAX_OWN } from "@/lib/courses/excused/ask";
+import { normalizeExcusedRequest } from "@/lib/firestore/courseExcusedRequests";
+import { COURSE_REQUESTS_COLLECTION } from "@/lib/firestore/courseRequests";
 import type { DocumentReference, DocumentSnapshot, Firestore, Query, QuerySnapshot, Transaction } from "firebase-admin/firestore";
 import { firstNameOfUser, fullNameOfUser, readNamingProgramme, standingUserOf } from "@/lib/courses/programmeLead";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
@@ -25,6 +28,7 @@ import {
   VISIT_REFUSAL,
   alreadyMarkedWords,
   alreadyVisitingWords,
+  excusedWaitingWords,
   arrangeButtonWords,
   callOffButtonWords,
   calledOffEmailWords,
@@ -110,6 +114,12 @@ export type VisitFacts = {
    * be called off by staff.
    */
   oneGroup: boolean;
+  /**
+   * The weeks the person is WAITING to hear about being excused from, by
+   * their requests on the run (`courseRequests`, two equalities). A visit is
+   * not arranged for such a week: the request is decided first.
+   */
+  waitingExcusedWeeks: number[];
 };
 
 /**
@@ -242,10 +252,11 @@ export async function readVisitFacts(
    */
   as: "staff" | "member" = "staff",
 ): Promise<{ ok: true; facts: VisitFacts } | VisitRefusal> {
-  const [[runSnap, placeSnap], groupSnap, placesSnap] = await Promise.all([
+  const [[runSnap, placeSnap], groupSnap, placesSnap, requestSnap] = await Promise.all([
     reader.getAll([db.collection("courseRuns").doc(runId), db.collection("courseEnrolments").doc(courseEnrolmentId(runId, uid))]),
     reader.query(db.collection("courseGroups").where("runId", "==", runId)),
     reader.query(db.collection("courseEnrolments").where("runId", "==", runId).where("status", "==", "active")),
+    reader.query(db.collection(COURSE_REQUESTS_COLLECTION).where("subjectUid", "==", uid).where("runId", "==", runId).limit(MAX_OWN)),
   ]);
   const place = placeSnap?.exists ? normalizeCourseEnrolment(placeSnap.id, placeSnap.data() ?? {}) : null;
   const placeIsTheirs = Boolean(place && place.runId === runId && place.uid === uid && place.role === "learner" && place.status === "active" && place.groupId);
@@ -289,7 +300,15 @@ export async function readVisitFacts(
   const registerSnaps = await reader.getAll(registerIds.map((id) => db.collection("courseAttendance").doc(id)));
   const registers = new Map<string, Record<string, unknown>>();
   for (const snap of registerSnaps) if (snap.exists) registers.set(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
-  return { ok: true, facts: { run, destroying, groups, place, person, accounts, places, registers, oneGroup } };
+  const waitingExcusedWeeks = [
+    ...new Set(
+      requestSnap.docs
+        .map((doc) => normalizeExcusedRequest(doc.id, doc.data() ?? {}))
+        .filter((request) => request !== null && request.runId === run.id && request.subjectUid === uid && request.status === "waiting")
+        .flatMap((request) => (request ? request.weeks.map((week) => week.weekNumber) : [])),
+    ),
+  ];
+  return { ok: true, facts: { run, destroying, groups, place, person, accounts, places, registers, oneGroup, waitingExcusedWeeks } };
 }
 
 /** A live group's sessions. */
@@ -441,6 +460,7 @@ export function planVisit(facts: VisitFacts, weekNumber: number, hostGroupId: st
   const { run, place, person, accounts } = facts;
   if (facts.oneGroup) return { ok: false, status: 409, error: VISIT_REFUSAL.oneGroup };
   if (visitInWeek(place, weekNumber)) return { ok: false, status: 409, error: alreadyVisitingWords(person.firstName, weekNumber) };
+  if (facts.waitingExcusedWeeks.includes(weekNumber)) return { ok: false, status: 409, error: excusedWaitingWords(person.firstName, weekNumber) };
   const own = ownWeeksAhead(facts, now).find((week) => week.weekNumber === weekNumber) ?? null;
   const homeId = ownGroupForWeek(place, weekNumber);
   const homeGroup = facts.groups.find((group) => group.id === homeId) ?? null;
@@ -659,8 +679,9 @@ export function standingVisits(facts: VisitFacts, actorUid: string, now: Date): 
 }
 
 /** What the page and the route's preview draw of a plan: never an address. */
-export function previewOf(plan: VisitPlan): VisitPreviewView {
+export function previewOf(plan: VisitPlan, limit: string | null = null): VisitPreviewView {
   return {
+    limit,
     weekNumber: plan.weekNumber,
     hostGroupId: plan.hostGroupId,
     lines: plan.lines,

@@ -11,7 +11,8 @@ import { courseEnrolmentId, groupForWeek, ownGroupForWeek, type CourseEnrolmentD
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import type { SessionUser } from "@/lib/firebase/session";
-import { MEMBER_NO_VISIT, arrangedEmailFor, planCallOff, planVisit, readVisitFacts, txReader, type VisitFacts, type VisitRecipient, type VisitRefusal } from "./plan";
+import { claimVisitPress } from "./limits";
+import { MEMBER_NO_VISIT, arrangedEmailFor, dbReader, planCallOff, planVisit, readVisitFacts, txReader, type CallOffPlan, type VisitFacts, type VisitRecipient, type VisitRefusal } from "./plan";
 import {
   arrangedWords,
   calledOffDetail,
@@ -149,7 +150,29 @@ export type ArrangeInput = {
   now: Date;
 };
 
+/** Whether a press to arrange stands on these facts: the plan, or the press's refusal. Asked before the limit is claimed and again inside the save. */
+function checkArrange(facts: VisitFacts, input: ArrangeInput): { ok: true; plan: Extract<ReturnType<typeof planVisit>, { ok: true }>["plan"] } | VisitRefusal | VisitChanged {
+  const planned = planVisit(facts, input.weekNumber, input.hostGroupId, input.actor.uid, input.now);
+  if (!planned.ok) return planned;
+  if (planned.plan.emails !== input.emailCount) {
+    return { ok: false, status: 409, error: changedWords(planned.plan.emails), emails: planned.plan.emails, overLimit: planned.plan.overLimit !== null };
+  }
+  if (planned.plan.overLimit !== null && !input.overLimit) {
+    return { ok: false, status: 409, error: nowFullWords(planned.plan.hostName), emails: planned.plan.emails, overLimit: true };
+  }
+  return planned;
+}
+
 export async function arrangeVisit(db: Firestore, input: ArrangeInput): Promise<VisitSaveAnswer | VisitRefusal | VisitChanged> {
+  // Every other refusal first, read outside the save, so a refused press
+  // writes nothing, not even a count; then the durable limit, claimed before
+  // anything is written (`./limits.ts`); then the save, which asks again.
+  const first = await readVisitFacts(dbReader(db), db, input.runId, input.uid, [input.weekNumber], input.now);
+  if (!first.ok) return first;
+  const precheck = checkArrange(first.facts, input);
+  if (!precheck.ok) return precheck;
+  const limited = await claimVisitPress(db, input.uid, input.actor.uid);
+  if (limited) return limited;
   let counted: VisitRecipient[] = [];
   let plan: Extract<ReturnType<typeof planVisit>, { ok: true }>["plan"] | null = null;
   let firstName = "";
@@ -158,14 +181,8 @@ export async function arrangeVisit(db: Firestore, input: ArrangeInput): Promise<
       const read = await readVisitFacts(txReader(tx), db, input.runId, input.uid, [input.weekNumber], input.now);
       if (!read.ok) throw new Stop(read);
       const { facts } = read;
-      const planned = planVisit(facts, input.weekNumber, input.hostGroupId, input.actor.uid, input.now);
+      const planned = checkArrange(facts, input);
       if (!planned.ok) throw new Stop(planned);
-      if (planned.plan.emails !== input.emailCount) {
-        throw new Stop({ ok: false, status: 409, error: changedWords(planned.plan.emails), emails: planned.plan.emails, overLimit: planned.plan.overLimit !== null });
-      }
-      if (planned.plan.overLimit !== null && !input.overLimit) {
-        throw new Stop({ ok: false, status: 409, error: nowFullWords(planned.plan.hostName), emails: planned.plan.emails, overLimit: true });
-      }
       const visit: OneWeekVisit = { weekNumber: input.weekNumber, groupId: planned.plan.hostGroupId, arrangedByUid: input.actor.uid, arrangedAt: input.now };
       const visits = [...(facts.place.visits ?? []), visit];
       const after: CourseEnrolmentDoc = { ...facts.place, visits };
@@ -234,27 +251,44 @@ export type CallOffInput = {
   now: Date;
 };
 
+/** Whether a press to call off stands on these facts: the plan, or the press's refusal. Asked before the limit is claimed and again inside the save. */
+function checkCallOff(facts: VisitFacts, input: CallOffInput): { ok: true; plan: CallOffPlan } | VisitRefusal | VisitChanged {
+  const outcome = planCallOff(facts, input.weekNumber, input.byStaff, input.actor.uid, input.now);
+  // The person's own: anything but their own standing visit is the one 404,
+  // a visit to a session that is no longer happening included (it reads as none).
+  if (!outcome.ok) return input.byStaff ? outcome : MEMBER_NO_VISIT;
+  const plan = outcome.plan;
+  if (!input.byStaff && !plan.happening) return MEMBER_NO_VISIT;
+  if (plan.until && input.now.getTime() >= plan.until.getTime()) {
+    return { ok: false, status: 409, error: tooLateToCancelWords(plan.firstName), kind: "too-late" };
+  }
+  if (input.emailCount !== null && plan.emails !== input.emailCount) {
+    return { ok: false, status: 409, error: changedWords(plan.emails), emails: plan.emails, overLimit: null };
+  }
+  return outcome;
+}
+
 export async function callOffVisit(db: Firestore, input: CallOffInput): Promise<VisitSaveAnswer | VisitRefusal | VisitChanged> {
+  // As arranging: every other refusal first, read outside the save, so a
+  // refused press writes nothing; then the durable limit; then the save.
+  const as = input.byStaff ? "staff" : "member";
+  const first = await readVisitFacts(dbReader(db), db, input.runId, input.uid, [input.weekNumber], input.now, as);
+  if (!first.ok) return first;
+  const precheck = checkCallOff(first.facts, input);
+  if (!precheck.ok) return precheck;
+  const limited = await claimVisitPress(db, input.uid, input.actor.uid);
+  if (limited) return limited;
   let counted: VisitRecipient[] = [];
-  let planned: Extract<ReturnType<typeof planCallOff>, { ok: true }>["plan"] | null = null;
+  let planned: CallOffPlan | null = null;
   let firstName = "";
   try {
     await db.runTransaction(async (tx) => {
-      const read = await readVisitFacts(txReader(tx), db, input.runId, input.uid, [input.weekNumber], input.now, input.byStaff ? "staff" : "member");
+      const read = await readVisitFacts(txReader(tx), db, input.runId, input.uid, [input.weekNumber], input.now, as);
       if (!read.ok) throw new Stop(read);
       const { facts } = read;
-      const outcome = planCallOff(facts, input.weekNumber, input.byStaff, input.actor.uid, input.now);
-      // The person's own: anything but their own standing visit is the one 404,
-      // a visit to a session that is no longer happening included (it reads as none).
-      if (!outcome.ok) throw new Stop(input.byStaff ? outcome : MEMBER_NO_VISIT);
-      const plan = outcome.plan;
-      if (!input.byStaff && !plan.happening) throw new Stop(MEMBER_NO_VISIT);
-      if (plan.until && input.now.getTime() >= plan.until.getTime()) {
-        throw new Stop({ ok: false, status: 409, error: tooLateToCancelWords(plan.firstName), kind: "too-late" });
-      }
-      if (input.emailCount !== null && plan.emails !== input.emailCount) {
-        throw new Stop({ ok: false, status: 409, error: changedWords(plan.emails), emails: plan.emails, overLimit: null });
-      }
+      const checked = checkCallOff(facts, input);
+      if (!checked.ok) throw new Stop(checked);
+      const plan = checked.plan;
       const visits = (facts.place.visits ?? []).filter((visit) => visit.weekNumber !== input.weekNumber);
       const after: CourseEnrolmentDoc = { ...facts.place, ...(visits.length ? { visits } : {}) };
       if (!visits.length) delete after.visits;

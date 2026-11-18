@@ -29,6 +29,8 @@ export type VisitPreviewView = {
   button: string;
   /** The count the press sends back. */
   emails: number;
+  /** The sentence a press now would be refused with by the limit on these emails (`limits.ts`); null while it would go. */
+  limit: string | null;
 };
 
 /** A visit that stands, with the way to call it off. */
@@ -64,6 +66,8 @@ export type VisitPageView = {
   /** What a visit to the chosen session would do, or the one sentence why it can't be arranged. */
   outcome: { ok: true; preview: VisitPreviewView } | { ok: false; error: string } | null;
   standing: VisitStandingView[];
+  /** The sentence a press now would be refused with by the limit on these emails; null while presses go. */
+  limit: string | null;
   /** The route the presses go to. */
   routePath: string;
   /** The People tab, where Cancel goes back to. */

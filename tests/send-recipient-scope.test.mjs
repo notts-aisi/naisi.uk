@@ -230,14 +230,18 @@ const RECIPIENT_SOURCES = new Map([
   [
     "src/lib/courses/visit/save.ts#input.uid",
     {
-      reads: 10,
+      // Four more since the limit on these emails: each save reads the facts
+      // once before claiming it (so a refused press writes nothing) and claims
+      // it by the person's uid (`claimVisitPress`), arranging and calling off.
+      reads: 14,
       origin: "caller",
       filteredBy: "if (!read.ok) throw new Stop(read);",
       why:
         "The person whose visit it is, named by uid in staff's address or the session's own uid on the person's cancel. " +
         "Refused unless they hold an active learner's place in a group of the run that Publish has told (`readVisitFacts`), " +
         "and emailed only at the address on their own account; every other recipient is a facilitator of one of the two " +
-        "groups, read on the server.",
+        "groups, read on the server. The extra reads are the same facts read before the save, and the key of the stored " +
+        "count of presses about that person, which emails nobody.",
     },
   ],
   [
