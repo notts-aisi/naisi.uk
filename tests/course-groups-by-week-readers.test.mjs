@@ -249,6 +249,10 @@ const READERS = {
     kinds: ["week"],
     why: "the notice audience asked for a group and a week hands the week through to the people whose session that week is the group's (resolveNoticeAudience with the week)",
   },
+  "lib/courses/visit/card.ts": {
+    kinds: ["week", "own"],
+    why: "the visitor's own card names the group they stay in that week (ownGroupForWeek) and their next session back with it, the next they are due at there (sessionsWithGroup, the session's group week by week)",
+  },
   "lib/courses/visit/places.ts": {
     kinds: ["week"],
     why: "places left in a group's session for one week count everybody whose session that week is the group's (groupForWeek): its own people, visitors in, less its people away",

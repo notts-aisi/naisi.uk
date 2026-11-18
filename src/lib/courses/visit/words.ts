@@ -207,6 +207,33 @@ export function cancelledWords(input: { hostName: string; homeName: string; own:
   }`;
 }
 
+/** The person's own cancel, too late: "Group I’s session has started, so this visit can’t be cancelled now." */
+export function cancelTooLateWords(hostName: string): string {
+  return `${possessive(groupName(hostName))} session has started, so this visit can’t be cancelled now.`;
+}
+
+/** The person's own cancel did not go through, and the visit stands: "That didn’t go through, so your visit to Group I still stands. Try again." */
+export function cancelFailedWords(hostName: string): string {
+  return `That didn’t go through, so your visit to ${groupName(hostName)} still stands. Try again.`;
+}
+
+/** What the cancel route says of a cancel that did not happen, beside its status: why, as a kind, never as words. */
+export type CancelRefusalKind = "too-late" | "no-visit";
+
+/**
+ * THE ONE LINE THE PERSON'S PAGE SAYS WHEN THEIR CANCEL DOES NOT HAPPEN,
+ * from the route's status and kind alone, never its words: too late (the
+ * earlier of the two sessions has started); nothing at all when the visit is
+ * already gone (the page reads itself again and shows no visit) or they are
+ * signed out (the site's own sign-in); otherwise that it did not go through and
+ * the visit stands. Status 0 is a request that never reached the server.
+ */
+export function cancelOutcomeLine(answer: { status: number; kind?: unknown }, hostName: string): string | null {
+  if (answer.kind === "too-late") return cancelTooLateWords(hostName);
+  if (answer.kind === "no-visit" || answer.status === 401) return null;
+  return cancelFailedWords(hostName);
+}
+
 /** On the excuse form, the week's line for a visit week: "Week 2 · Wed 11 Nov, at Group I". */
 export function excuseVisitWeekWords(weekNumber: number, hostDateKey: string, hostName: string): string {
   const day = dayWords(hostDateKey);
@@ -395,7 +422,9 @@ export function sessionDetailWords(session: VisitSessionFacts, facilitatorFirstN
 
 /** The labels of "What will happen", in the board's order. The first is the week's own. */
 export const LINE_LABEL = {
-  late: "Late from",
+  // In backticks: a scan of module specifiers over compiled code reads the
+  // last word of this label, closed by a plain quote, as the start of an import.
+  late: `Late from`,
   reminders: "Reminders",
   registers: "Registers",
   reading: "Reading",

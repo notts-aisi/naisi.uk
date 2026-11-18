@@ -7,7 +7,7 @@ import { useHydrated } from "@/hooks/useHydrated";
 import { FOR_JOINING_ONLINE } from "@/lib/courses/joiningOnline/words";
 import { JOIN_ONLINE, LINK_IS_HERE } from "@/lib/courses/sessionChange/words";
 import type { OverviewVisit } from "@/lib/courses/visit/view";
-import { CANCEL_THE_VISIT, CANCEL_THIS_VISIT, KEEP_IT } from "@/lib/courses/visit/words";
+import { CANCEL_THE_VISIT, CANCEL_THIS_VISIT, KEEP_IT, cancelOutcomeLine } from "@/lib/courses/visit/words";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 
 /**
@@ -17,9 +17,10 @@ import weekly from "@/features/courses/weekly/weekly.module.css";
  * (`answers`, the existing ticket's own part) and, until the earlier of the
  * two sessions starts, "Cancel this visit", which asks once and then cancels
  * it (`POST /api/courses/runs/[runId]/visit/cancel`). After cancelling, one
- * line says so, and the page is read again. Nothing else is said: a press the
- * server refuses (the session has started since the page was drawn) reads the
- * page again, and the button and its line are gone.
+ * line says so, and the page is read again. A cancel that does not happen says
+ * one line of its own, chosen from the status and kind alone
+ * (`cancelOutcomeLine`): too late, or not gone through with the visit standing;
+ * nothing when the visit is already gone, or for somebody signed out.
  */
 export default function VisitCard({
   runId,
@@ -40,28 +41,35 @@ export default function VisitCard({
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [cancelled, setCancelled] = useState(false);
+  const [refused, setRefused] = useState<string | null>(null);
 
   async function cancel() {
     setBusy(true);
+    setRefused(null);
+    let answer: { status: number; kind?: unknown } = { status: 0 };
     try {
       const response = await fetch(`/api/courses/runs/${encodeURIComponent(runId)}/visit/cancel`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ weekNumber: visit.weekNumber }),
       });
-      if (response.ok) setCancelled(true);
+      const body = (await response.json().catch(() => null)) as { kind?: unknown } | null;
+      answer = { status: response.ok ? 200 : response.status, kind: body?.kind };
     } catch {
-      // Read the page again either way: it says what stands.
+      // Never reached the server: said as not gone through, the visit standing.
     }
     setBusy(false);
     setAsking(false);
+    if (answer.status === 200) setCancelled(true);
+    // The line the page says itself, chosen by the status and the kind alone, never the server's words.
+    else setRefused(cancelOutcomeLine(answer, visit.hostName));
     router.refresh();
   }
 
   if (cancelled && visit.cancel) {
     return (
       <section className={weekly.ticket} aria-labelledby={`${ids}-chip`}>
-        <p id={`${ids}-chip`} className={weekly.visitDone} role="status" data-testid="visit-cancelled">
+        <p id={`${ids}-chip`} className={weekly.visitDone} role="status">
           {visit.cancel.done}
         </p>
       </section>
@@ -69,7 +77,7 @@ export default function VisitCard({
   }
 
   return (
-    <section className={weekly.ticket} aria-labelledby={`${ids}-chip`} data-testid="visit-card">
+    <section className={weekly.ticket} aria-labelledby={`${ids}-chip`}>
       <div className={weekly.visitBody}>
         <span id={`${ids}-chip`} className={weekly.visitChip}>
           {visit.chip}
@@ -83,7 +91,7 @@ export default function VisitCard({
           <div className={weekly.ticketActions}>
             {answers}
             {visit.cancel && !asking && (
-              <Button type="button" variant="secondary" disabled={!hydrated || busy || locked} onClick={() => setAsking(true)} data-testid="visit-cancel">
+              <Button type="button" variant="secondary" disabled={!hydrated || busy || locked} onClick={() => setAsking(true)}>
                 {CANCEL_THIS_VISIT}
               </Button>
             )}
@@ -95,7 +103,7 @@ export default function VisitCard({
               {visit.cancel.question}
             </p>
             <div className={weekly.ticketActions}>
-              <Button type="button" onClick={() => void cancel()} disabled={!hydrated || busy || locked} data-testid="visit-cancel-confirm">
+              <Button type="button" onClick={() => void cancel()} disabled={!hydrated || busy || locked}>
                 {CANCEL_THE_VISIT}
               </Button>
               <Button type="button" variant="secondary" onClick={() => setAsking(false)} disabled={busy}>
@@ -104,7 +112,13 @@ export default function VisitCard({
             </div>
           </div>
         )}
-        {visit.cancel && <p className={weekly.visitNote}>{visit.cancel.until}</p>}
+        {refused ? (
+          <p className={weekly.visitNote} role="status">
+            {refused}
+          </p>
+        ) : (
+          visit.cancel && <p className={weekly.visitNote}>{visit.cancel.until}</p>
+        )}
       </div>
       {visit.meetingUrl && (
         <div className={`${weekly.ticketFoot} ${weekly.joinFoot}`}>

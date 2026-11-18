@@ -1285,7 +1285,7 @@ export default function AttendanceGrid({
                   <MemberName name={member.displayName} />
                   {/* At this group's session for one week, from another group: the board's line. */}
                   {member.visitingFrom?.[0] && (
-                    <span className={styles.rowNote} data-testid="register-visiting">
+                    <span className={styles.rowNote}>
                       {visitingFromWords(member.visitingFrom[0].groupName)}
                     </span>
                   )}
@@ -1301,7 +1301,7 @@ export default function AttendanceGrid({
                   if (awayAt) {
                     return (
                       <td key={cellKey(session.sessionKey, member.uid)} className={styles.cell}>
-                        <span className={styles.rowNote} data-testid="register-away">
+                        <span className={styles.rowNote}>
                           {awayAtWords(awayAt.groupName)}
                         </span>
                       </td>

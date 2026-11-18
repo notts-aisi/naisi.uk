@@ -97,6 +97,22 @@ const READERS = {
     does: "shows",
     why: "the member's run overview: the link of the reader's own group, and only theirs, redacted by canSeeMeetingUrlFor",
   },
+  "lib/courses/visit/card.ts": {
+    does: "resolves",
+    why: "the host's link for the one session of a one-week visit, on the visitor's own card, through seesSessionLink by that session's key; never the standing link, and no email reads it",
+  },
+  "lib/courses/visit/view.ts": {
+    does: "stores",
+    why: "the shape of a visit's card on the overview: the field the resolved link travels in, typed only",
+  },
+  "features/courses/visit/VisitCard.tsx": {
+    does: "shows",
+    why: "Join online on the visitor's own card for the session they go to, behind sign-in, with the line that says the link is only here",
+  },
+  "features/courses/RunHome.tsx": {
+    does: "asks",
+    why: "the programme page asks whether a visit's card carries a link, to tell the joining-online answer whether there is one; it shows nothing of it itself",
+  },
   "features/courses/SessionCard.tsx": {
     does: "shows",
     why: "Join online on the run home, the week page and the group page, behind sign-in, with the line that says it is not in any email",

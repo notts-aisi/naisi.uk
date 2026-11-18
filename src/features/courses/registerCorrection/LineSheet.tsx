@@ -230,7 +230,7 @@ export default function LineSheet({
               </div>
               <p className={styles.footLine}>{correcting ? P.correctGoesWords(person.name) : P.askGoesWords(person.name)}</p>
               {target.visitorNote && (
-                <p className={styles.footLine} data-testid="line-sheet-visitor">
+                <p className={styles.footLine}>
                   {target.visitorNote}
                 </p>
               )}

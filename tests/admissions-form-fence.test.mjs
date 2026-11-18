@@ -455,6 +455,12 @@ const ROUND_SURFACES = {
       "moving one person on the programme to another group for good, for its lead and admins. It reaches the round " +
       "only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/visit": {
+    kind: "form",
+    why:
+      "arranging a one-week visit to another group's session for one person on the programme, for its lead and admins. It reaches " +
+      "the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/question": {
     kind: "form",
     why:
@@ -887,6 +893,13 @@ const ROUND_SURFACES = {
     kind: "form",
     why:
       "moving one person on the programme to another group for good, for its lead and admins, through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' (a 404) for a round that is not " +
+      "a form, before anything about the person is read",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/visit": {
+    kind: "form",
+    why:
+      "arranging or calling off a one-week visit for one person on the programme, for its lead and admins, through " +
       "loadProgrammeRun, which starts from the form's own loader and answers 'none' (a 404) for a round that is not " +
       "a form, before anything about the person is read",
   },

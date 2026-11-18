@@ -60,7 +60,8 @@ export async function POST(req: Request, ctx: Ctx) {
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
   const saved = await callOffVisit(db, { runId, uid: user.uid, weekNumber: body.weekNumber, byStaff: false, emailCount: null, actor: user, now: new Date() });
-  if (!saved.ok) return NextResponse.json({ error: saved.error }, { status: saved.status });
+  // Why, as a kind the page chooses its own line by (`cancelOutcomeLine`): never as words for it to print.
+  if (!saved.ok) return NextResponse.json({ error: saved.error, ...("kind" in saved && saved.kind ? { kind: saved.kind } : {}) }, { status: saved.status });
   const answer: VisitCancelledAnswer = { ok: true, weekNumber: saved.weekNumber };
   return NextResponse.json(answer);
 }

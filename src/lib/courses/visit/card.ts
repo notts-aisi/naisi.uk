@@ -98,6 +98,7 @@ export async function ownVisitsOf(
     return {
       weekNumber,
       hostGroupId: host.id,
+      hostName: host.name.trim(),
       sessionKey: session.sessionKey,
       dateKey: session.dateKey,
       startTimeLocal: session.session.startTimeLocal,

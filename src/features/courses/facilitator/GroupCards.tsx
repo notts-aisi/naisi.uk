@@ -312,7 +312,7 @@ export function GroupPeopleCard({
                 )}
                 {person.joins && <span className={styles.personNote}>{joinsLaterWords(groupName, person.joins)}</span>}
                 {person.awayAt && (
-                  <span className={styles.personNote} data-testid="roster-away">
+                  <span className={styles.personNote}>
                     {awayAtWords(person.awayAt)}
                   </span>
                 )}
@@ -321,7 +321,7 @@ export function GroupPeopleCard({
             </li>
           ))}
           {visitors.map((person) => (
-            <li key={`visiting-${person.uid}`} className={styles.person} data-testid="roster-visiting">
+            <li key={`visiting-${person.uid}`} className={styles.person}>
               <InitialsChip name={person.name} uid={person.uid} size="lg" />
               <span className={styles.personText}>
                 {readBase ? (

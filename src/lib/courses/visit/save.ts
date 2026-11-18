@@ -247,7 +247,7 @@ export async function callOffVisit(db: Firestore, input: CallOffInput): Promise<
       if (!outcome.ok) throw new Stop(outcome);
       const plan = outcome.plan;
       if (plan.until && input.now.getTime() >= plan.until.getTime()) {
-        throw new Stop({ ok: false, status: 409, error: tooLateToCancelWords(plan.host.name) });
+        throw new Stop({ ok: false, status: 409, error: tooLateToCancelWords(plan.host.name), kind: "too-late" });
       }
       if (input.emailCount !== null && plan.emails !== input.emailCount) {
         throw new Stop({ ok: false, status: 409, error: changedWords(plan.emails), emails: plan.emails, overLimit: null });

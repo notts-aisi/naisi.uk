@@ -189,7 +189,7 @@ export default function WeekWorkCard({
                         row.name
                       )}
                       {row.visiting && (
-                        <span className={`${styles.excuseChip} ${styles.excuseWaiting}`} data-testid="work-visiting">
+                        <span className={`${styles.excuseChip} ${styles.excuseWaiting}`}>
                           {VISITING_CHIP}
                         </span>
                       )}

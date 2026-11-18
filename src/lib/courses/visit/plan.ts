@@ -80,7 +80,7 @@ import {
  */
 
 /** A refusal: the status a route answers with and its one sentence. */
-export type VisitRefusal = { ok: false; status: number; error: string };
+export type VisitRefusal = { ok: false; status: number; error: string; kind?: "too-late" | "no-visit" };
 
 /** Somebody a visit's arranging or calling off emails. */
 export type VisitRecipient = {
@@ -530,7 +530,7 @@ export type CallOffPlan = {
  */
 export function planCallOff(facts: VisitFacts, weekNumber: number, byStaff: boolean, actorUid: string, now: Date): { ok: true; plan: CallOffPlan } | VisitRefusal {
   const visit = visitInWeek(facts.place, weekNumber);
-  if (!visit) return { ok: false, status: 404, error: VISIT_REFUSAL.noVisit };
+  if (!visit) return { ok: false, status: 404, error: VISIT_REFUSAL.noVisit, kind: "no-visit" };
   const host = facts.groups.find((group) => group.id === visit.groupId) ?? null;
   const homeId = ownGroupForWeek(facts.place, weekNumber);
   const home = facts.groups.find((group) => group.id === homeId) ?? null;

@@ -74,6 +74,8 @@ export type VisitPageView = {
 export type OverviewVisit = {
   weekNumber: number;
   hostGroupId: string;
+  /** The host group's name, for the line said when a cancel does not happen. */
+  hostName: string;
   /** The host's session's key and day: the two tickets act on it. */
   sessionKey: string;
   dateKey: string;

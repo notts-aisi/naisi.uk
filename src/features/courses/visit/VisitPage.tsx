@@ -262,7 +262,7 @@ export default function VisitPage({ view }: { view: VisitPageView }) {
           </div>
 
           {preview.overLimit && (
-            <p className={styles.warning} role="note" data-testid="staff-visit-full">
+            <p className={styles.warning} role="note">
               {preview.overLimit}
             </p>
           )}

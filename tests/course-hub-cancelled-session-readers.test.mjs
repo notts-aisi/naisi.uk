@@ -141,6 +141,17 @@ const READERS = {
       "a line of a finished register corrected, by a lead or an admin or an approved request: a session that did not " +
       "happen, called off or said so on its register, has no line to correct",
   },
+  "lib/courses/visit/plan.ts": {
+    kind: "asks",
+    proof: [
+      "if (session.cancelled) return { session, error: hostCancelledWords(host.name, weekNumber) };",
+      "const happening = hostSession !== null && !hostSession.cancelled && (hostRegister?.held ?? true);",
+    ],
+    why:
+      "a one-week visit: a host session called off through Change a session is refused in its own sentence before its " +
+      "register's held is read, a week whose own session is called off is no week to visit from, and a visit that stands " +
+      "to a called-off session is said to be no longer happening",
+  },
   "lib/courses/registerCorrection/column.ts": {
     kind: "asks",
     proof: [

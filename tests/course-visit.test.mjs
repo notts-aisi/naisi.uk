@@ -522,6 +522,31 @@ describe("6. calling a visit off", () => {
     assert.equal((await visit("zach", "chloe", { weekNumber: 3, callOff: true, emailCount: 4 })).status, 200);
   });
 
+  test("a cancel that does not happen: the route says why as a kind, and the page says its own line from status and kind alone", async () => {
+    // Too late: the earlier of the two sessions (Group B's, tonight at 6pm) has started.
+    assert.equal((await press("zach", "chloe", 3, C)).saved.status, 200);
+    at("2026-11-17T18:01:00Z");
+    const late = await cancel("chloe", 3);
+    assert.equal(late.status, 409);
+    assert.equal(late.body.kind, "too-late");
+    assert.equal(words.cancelOutcomeLine({ status: late.status, kind: late.body.kind }, "Group C"), "Group C’s session has started, so this visit can’t be cancelled now.");
+    // Already gone (staff called it off, or another tab): nothing is said.
+    at("2026-11-17T12:00:00Z");
+    assert.equal((await visit("zach", "chloe", { weekNumber: 3, callOff: true, emailCount: 4 })).status, 200);
+    const gone = await cancel("chloe", 3);
+    assert.equal(gone.status, 404);
+    assert.equal(gone.body.kind, "no-visit");
+    assert.equal(words.cancelOutcomeLine({ status: gone.status, kind: gone.body.kind }, "Group C"), null);
+    // Signed out: the site's own sign-in, nothing said here.
+    assert.equal(words.cancelOutcomeLine({ status: 401 }, "Group C"), null);
+    // Did not go through, the visit standing: a dropped request, or any other error.
+    for (const answer of [{ status: 0 }, { status: 500 }, { status: 409, kind: "something-else" }]) {
+      assert.equal(words.cancelOutcomeLine(answer, "Group I"), "That didn’t go through, so your visit to Group I still stands. Try again.");
+    }
+    // Never by the server's words: the staff sentence is not what the page shows.
+    assert.notEqual(words.cancelOutcomeLine({ status: 409, kind: "too-late" }, "Group C"), late.body.error);
+  });
+
   test("their own words on the host's register come off while it is not finished", async () => {
     await press("zach", "chloe", 4, A);
     world.db.seed(registerPath(A, 4), {
