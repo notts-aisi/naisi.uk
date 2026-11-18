@@ -4391,6 +4391,118 @@ this build does not know, read as they were written. History of times, rooms
 and links starts the day this shipped; the register finishes logged before it
 show too. It is server-only and for staff pages.
 
+## The week's rooms and the term's rooms
+
+Two pages on a term's application form, across its programmes: every group's
+room for one week, and every group's room for every week. The code is
+`src/lib/courses/weekRooms/`; the pages are
+`/admin/admissions/forms/[roundId]/rooms` and `.../rooms/term`. Each
+programme's Sessions view links to both, filtered to that programme.
+
+### Who may open them
+
+An admin, every programme on the form; a programme's lead, their own
+programme and nothing else. The admissions tree's gate, repeated on each page,
+then the question every Groups view asks of each programme on the form (an
+admin, or its lead, with the standing a lead is held to), before anything of a
+run is read (`load.ts`). A reviewer, a track lead, a facilitator, a member and
+anybody signed out are refused: the tree sends those it does not admit to the
+dashboard, and those it does are drawn "There is no programme here", the same
+answer as a form that is not there and as `?programme=` naming a programme the
+reader may not see. A lead of another programme learns nothing of this one.
+The whole admin tree is closed in a view-as session.
+
+### The week's rooms
+
+One calendar week, Monday to Sunday in London (`?week=` any day of it; this
+week without one), one row per group's session that week, the week's first
+session as every group's sessions resolve (`resolveSessions`). A row says the
+day and time, the campus that week, that week's room ("Not booked" when there
+is none), whether the meeting link is set for every week, for that week only,
+or not at all (never the link), and three counts:
+
+- **Away**: lines on the session's register that say excused, and everybody
+  who said in advance they can't make it (`excusedInAdvance`).
+- **Online**: everybody who said they are joining online (`onlineSaid`).
+- **Requests**: requests about that session waiting, as the Requests page
+  would show this reader: a register correction to an admin and to the lead
+  (none on a group the lead facilitates); a week of a request to be excused to
+  an admin alone, as the programme head counts them.
+
+These come off the session's own register, which is written on the register of
+the group the person was in that week, so somebody moved mid-term is counted
+in the group they were in. One-week visits to another group are not on the
+site yet, so there is no visiting count; a row takes one beside Online when
+they are.
+
+Weeks run from the first with a session to the last, each a link; a week with
+no session says so and offers the nearest week that has some.
+
+**What it reads, a view**: the form (1), each visible programme's run (P) and
+its groups (G, one equality on `runId`), each shown row's register by id (R),
+and each shown run's requests (one equality on `runId`, at most 500): 1 + P +
+G + R + Q documents. No account, no place.
+
+### Changing a room
+
+A room typed into a row, or pasted, is saved by the one-week change route,
+`POST /api/courses/groups/[groupId]/session/change`, as a move to the same day
+and start in the new room, from `press.ts`, which is also what the tests
+press. Nothing else writes:
+
+1. As soon as a field changes, the route is asked with `preview: true`. It
+   changes nothing, and answers with its own refusal, or with who the group's
+   notice would email (`told`). The row shows the sentence or the count.
+2. Save presses each changed row in turn with the reason (one for the whole
+   save, required by the route) and the count. The route checks the count
+   again and answers 409 with the new one when it no longer holds; nothing
+   changes for that group, and the row shows the new count to press again.
+3. The update the route answers with is posted to the group through the
+   updates route, with its facilitators, as the group's page posts it: the
+   same words ("Week 5 moves to Thu 26 Nov, 6pm", the room, "Why: ..."), to the
+   same people, under the same caps. A room saved whose update did not go says
+   so and offers Tell the group again.
+
+So it is refused where the group's page would refuse it (a session whose
+time has passed, one whose register was taken, a link in the room or the
+reason), and writes the same `session-moved` history row. A room set where
+there was none is the same move, and its email names the room. A field
+emptied is "Room to be confirmed". A group too large for one send has its room
+saved and is not emailed, as the group's page does with Tell the group off;
+the row says to tell them from Messages.
+
+A row's room is not offered for change when its week is called off, held
+online that week (a move would take it back into a room), has started or has
+met: those are changed from the group's page, as before.
+
+### The paste box
+
+Two columns from a spreadsheet, group then room, for the week shown. Each
+line's group is matched in any case and spacing: the programme's short name,
+its first word or its initials (a word in capitals kept whole, so "Technical
+AI Safety" is "TAIS"), then the group's name or the letter after "Group"; a
+programme with one group may be named alone. A line that fits one row is
+matched; one that fits two, or none, is asked about with a Select, with a
+suggestion when its last word is one group's letter. Only the rows of the
+week shown are candidates, which are the programmes the reader may see. A room
+is held to the room field's limit, one line and no link. Matched rooms go into
+the rows' fields; Cancel puts the fields back; nothing is saved until Save,
+which is the table's own.
+
+### The term's rooms
+
+A table a programme, a row a group, a column a taught week of the run, each
+cell that week's room or "Not booked", marked where it is not the group's
+usual room, moved, called off, held online or met. Each cell opens that week
+on the week's rooms with the group's row in view. It writes nothing. It reads
+the form, each shown programme's run and groups, and one register a group and
+taught week by id: 1 + S + G + G x W.
+
+### Download
+
+Both pages make a CSV in the browser of what they show (groups, rooms and
+counts), with the site's CSV helper. No read, no route, nothing about anybody.
+
 ## Pinning weeks that met: `scripts/pin-met-sessions.mjs`
 
 Finds every week whose register was taken and holds a `sessionAt` that is not
