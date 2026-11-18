@@ -424,6 +424,24 @@
   overflow-wrap: anywhere;
 }
 
+/* A name that opens the person's page, for the group's facilitator. */
+.personLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  text-decoration: none;
+}
+
+.personLink:hover {
+  color: var(--color-accent-text-hover);
+  text-decoration: underline;
+}
+
+.personLink:focus-visible {
+  outline: 3px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
 .personNameLeft {
   color: var(--color-text-muted);
 }

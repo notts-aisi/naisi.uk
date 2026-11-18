@@ -259,6 +259,7 @@ export function GroupPeopleCard({
   finishedWeeks,
   notYetTold,
   groupName = "",
+  personBase = null,
 }: {
   people: GroupPersonRow[];
   leavers: GroupPersonRow[];
@@ -266,6 +267,12 @@ export function GroupPeopleCard({
   notYetTold: boolean;
   /** The group's name, for the line under somebody joining it from a later week. */
   groupName?: string;
+  /**
+   * The group's people pages, before the person (".../people"), for a
+   * facilitator of the group: each name taking part opens that person's page
+   * as their facilitator sees them. Left out, names are plain text.
+   */
+  personBase?: string | null;
 }) {
   const meta = finishedWeeksWords(finishedWeeks);
   return (
@@ -284,7 +291,13 @@ export function GroupPeopleCard({
             <li key={person.uid} className={styles.person}>
               <InitialsChip name={person.name} uid={person.uid} size="lg" />
               <span className={styles.personText}>
-                <span className={styles.personName}>{person.name}</span>
+                {personBase && !person.joins ? (
+                  <Link href={`${personBase}/${encodeURIComponent(person.uid)}`} className={`${styles.personName} ${styles.personLink}`}>
+                    {person.name}
+                  </Link>
+                ) : (
+                  <span className={styles.personName}>{person.name}</span>
+                )}
                 {person.joins && <span className={styles.personNote}>{joinsLaterWords(groupName, person.joins)}</span>}
               </span>
               {person.joins ? <span className={styles.personNote}>{newFromWeekWords(person.joins.fromWeek)}</span> : <Marks marks={person.marks} />}

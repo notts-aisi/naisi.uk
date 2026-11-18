@@ -206,6 +206,8 @@ export async function loadCourseworkTab(
     workOf: (uid) => ({ ...(coursework.work.get(uid) ?? NO_WORK), packs: packs.get(uid) ?? new Map() }),
     weekOf,
     personHref: (uid) => `${base}/${encodeURIComponent(uid)}`,
+    // Somebody holding a place is a row of the People tab, so their name opens their page on the programme.
+    nameHref: (uid) => (holders.some((holder) => holder.uid === uid) ? `${programmePath}/people/${encodeURIComponent(uid)}` : null),
     standingOf: (uid, weekNumber) => ({ submittedAt: coursework.states.submittedOf(uid, weekNumber), due: coursework.states.dueOf(uid, weekNumber) }),
     reachedOf: (person) => calendarOf(person.readsGroupId).currentWeek?.anchorWeekNumber ?? 0,
     opensOf: (person, weekNumber) => weekOpensOn(calendarOf(person.readsGroupId).calendar, weekNumber),

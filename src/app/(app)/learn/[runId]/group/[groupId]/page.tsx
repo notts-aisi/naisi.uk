@@ -567,6 +567,7 @@ export default async function GroupHomePage({
         finishedWeeks={model.finishedWeeks}
         notYetTold={model.notYetTold}
         groupName={groupName}
+        personBase={facilitatesThisGroup ? `${groupPath}/people` : null}
       />
       <GroupRegistersCard
         registers={model.registers}

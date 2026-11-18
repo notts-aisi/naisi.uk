@@ -264,7 +264,11 @@ export default function ProgrammePeople({ view }: { view: PeopleView }) {
                             <InitialsChip name={row.name} uid={row.uid} size="lg" />
                           </span>
                           <div className={styles.personText}>
-                            <div className={styles.name}>{row.name}</div>
+                            <div className={styles.name}>
+                              <Link href={row.personHref} className={styles.nameLink}>
+                                {row.name}
+                              </Link>
+                            </div>
                             {row.detail && <div className={styles.detail}>{row.detail}</div>}
                           </div>
                         </div>
