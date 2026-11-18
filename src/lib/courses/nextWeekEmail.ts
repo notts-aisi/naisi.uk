@@ -34,6 +34,9 @@ import { firstWord } from "@/lib/firestore/applicationEmails";
 import type { CoursesConfig } from "@/lib/firestore/config";
 import { campusForWeek, sessionModeForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
+import { courseEnrolmentId, normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
+import { differsByWeek } from "@/lib/courses/groupsByWeek";
+import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 
 /**
  * "WEEK N IS OPEN", TO ONE GROUP: the one place it is resolved, claimed and
@@ -95,6 +98,16 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
  * does a room that holds a link, which is never printed as one; then the
  * outcome says so (`roomHoldsLink`), and the schedule puts a card on the
  * boards of the programme's lead and the admins to put it right.
+ *
+ * ── SOMEBODY VISITING FOR ONE WEEK ──────────────────────────────────────────
+ * Somebody whose session that week is this group's on a one-week visit is in
+ * this group's audience for the week and in no other group's, so they get
+ * exactly one "Week N is open": this one, about the session they go to. Its
+ * words about the week (its title, what it asks) are read from the copy they
+ * work in, their own group's (`weekCopiesOf`), never the host's. When that
+ * copy is not published (or, sent whole, misses a value), the week is not
+ * open for them yet: they are left out of this send and counted as skipped,
+ * rather than told about a week their own page does not show.
  *
  * ── AN EARLIER WEEK NOT DONE ────────────────────────────────────────────────
  * Each person's email adds one line for any earlier week of theirs that is
@@ -207,6 +220,13 @@ export async function readNextWeekEmail(
     session: ResolvedSession;
     feedbackUrl: string;
     appUrl: string;
+    /**
+     * The group whose copy of the week the email's words are read from, when
+     * it is not the session's group's: a visitor's own group's
+     * (`copyGroupIdFor`). Everything about the session is the session's
+     * group's either way.
+     */
+    copyGroupId?: string;
   },
 ): Promise<NextWeekEmailReading> {
   const { run, group, session } = args;
@@ -215,7 +235,7 @@ export async function readNextWeekEmail(
     console.error("[courses week open email] explainers could not be read", run.id, err);
     return [];
   });
-  const { week } = await resolveWeekDoc(db, run.id, group.id, session.weekId);
+  const { week } = await resolveWeekDoc(db, run.id, args.copyGroupId ?? group.id, session.weekId);
   const explainers = await explainersRead;
   const sessions = resolveSessions(run, group);
   const blocks = week && isBlockWeek(week) ? week.blocks : null;
@@ -246,6 +266,33 @@ export async function readNextWeekEmail(
   facts.roomToBeConfirmed = !session.cancelled && place.roomToBeConfirmed;
   const missing = week ? missingWeekOpenValues(facts) : [];
   return { published: Boolean(week?.published), missing, facts, week, roomHoldsLink: !session.cancelled && place.roomHoldsLink };
+}
+
+/**
+ * THE COPY OF THE WEEK EACH RECIPIENT WORKS IN, for those whose copy is not
+ * the session's group's: somebody on a one-week visit, or moved, whose own
+ * week page reads another group's copy (`copyGroupIdFor`). By id, one read of
+ * the recipients' places; nobody is in the answer whose place has no visit
+ * and no record of groups by week, so with neither anywhere it is empty.
+ */
+async function weekCopiesOf(
+  db: Firestore,
+  runId: string,
+  groupId: string,
+  weekNumber: number,
+  uids: readonly string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (uids.length === 0) return out;
+  const snaps = await db.getAll(...uids.map((uid) => db.collection("courseEnrolments").doc(courseEnrolmentId(runId, uid))));
+  for (const snap of snaps) {
+    if (!snap.exists) continue;
+    const place = normalizeCourseEnrolment(snap.id, snap.data() ?? {});
+    if (!place.uid || !differsByWeek(place)) continue;
+    const copy = copyGroupIdFor(place, weekNumber, place.groupId);
+    if (copy && copy !== groupId) out.set(place.uid, copy);
+  }
+  return out;
 }
 
 /** An outcome in which nothing went, and why. */
@@ -470,8 +517,34 @@ export async function sendNextWeekEmail(args: {
   });
   if (!prepared.ready) return prepared.outcome;
   const { markerId, reading } = prepared;
-  const recipients: CohortRecipient[] = prepared.members;
   let skipped = prepared.skipped;
+  // The words each recipient is sent, by the copy of the week they work in:
+  // the group's own reading for everybody whose weeks do not differ.
+  const readingOf = new Map<string, NextWeekEmailReading>();
+  const copies = await weekCopiesOf(db, run.id, group.id, session.weekNumber, prepared.members.map((member) => member.uid));
+  const copyReadings = new Map<string, NextWeekEmailReading | null>();
+  for (const copy of new Set(copies.values())) {
+    const own = await readNextWeekEmail(db, {
+      run,
+      group,
+      session,
+      feedbackUrl: args.config.weeklyFeedbackUrl,
+      appUrl: args.appUrl,
+      copyGroupId: copy,
+    });
+    copyReadings.set(copy, own.week && own.published && !(args.whole && own.missing.length > 0) ? own : null);
+  }
+  const recipients: CohortRecipient[] = [];
+  for (const member of prepared.members) {
+    const copy = copies.get(member.uid);
+    const own = copy === undefined ? reading : copyReadings.get(copy) ?? null;
+    if (!own) {
+      skipped += 1;
+      continue;
+    }
+    readingOf.set(member.uid, own);
+    recipients.push(member);
+  }
   // Each person's earlier weeks not done, read BEFORE the claim; a read that
   // fails leaves the line out of everybody's email rather than hold it.
   const earlier = await earlierWeeksNotDone(db, {
@@ -554,7 +627,7 @@ export async function sendNextWeekEmail(args: {
   await dispatchSends(recipients, async (recipient) => {
     // The placeholder-free name: "" drops the greeting rather than addressing
     // somebody as "NAISI member".
-    const words = weekOpenEmailWords(reading.facts, firstWord(recipient.ownName), {
+    const words = weekOpenEmailWords((readingOf.get(recipient.uid) ?? reading).facts, firstWord(recipient.ownName), {
       earlierNotDone: earlier.get(recipient.uid) ?? [],
     });
     try {

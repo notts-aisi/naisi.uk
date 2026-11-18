@@ -107,6 +107,22 @@ export type GroupWeekRead = {
    * Remind's people, and somebody moved out of it is not in the group now.
    */
   belongs: (uid: string) => boolean;
+  /**
+   * The week as somebody asked about reads it when the copy they work in is
+   * not this group's (`RunWeekStates.copyGroupOf`): a visitor here for one
+   * week is judged on their own group's copy, never on this group's. Only
+   * such people are in it, so with no visit and no record it is empty.
+   */
+  copies: Map<string, WeekCopyRead>;
+};
+
+/** One copy of the week, read for the people who work in it. */
+export type WeekCopyRead = {
+  tasks: TaskNeeds[];
+  asks: TaskNeeds;
+  pieces: WeekPiece[];
+  blocks: WeekBlock[];
+  facts: Map<string, PersonFacts>;
 };
 
 /** Why a week cannot be read for its card or reminded about. */
@@ -138,7 +154,43 @@ export async function readGroupWeek(
     loadRunWeekStates(db, { run, liveGroups, now }),
     loadPeopleWeekFacts(db, { runId: run.id, weekNumber, blocks, uids }),
   ]);
-  return { ok: true, read: groupWeekReadOf({ group, weekNumber, weekId, blocks, sessions, own, liveGroups, states, facts, now }) };
+  const copies = await visitorCopiesOf(db, { runId: run.id, group, weekNumber, weekId, states, uids });
+  return { ok: true, read: groupWeekReadOf({ group, weekNumber, weekId, blocks, sessions, own, liveGroups, states, facts, now, copies }) };
+}
+
+/**
+ * Anybody here whose copy of the week is another group's (a visitor for one
+ * week): that copy, read once a copy, and their facts on it. Nobody's with no
+ * visit anywhere, so then nothing is read.
+ */
+async function visitorCopiesOf(
+  db: Firestore,
+  input: { runId: string; group: CourseGroupDoc; weekNumber: number; weekId: string; states: RunWeekStates; uids: readonly string[] },
+): Promise<Map<string, WeekCopyRead>> {
+  const { runId, group, weekNumber, weekId, states } = input;
+  const byCopy = new Map<string, string[]>();
+  for (const uid of input.uids) {
+    const copy = states.copyGroupOf(uid, weekNumber, group.id);
+    if (copy !== group.id) byCopy.set(copy, [...(byCopy.get(copy) ?? []), uid]);
+  }
+  const copies = new Map<string, WeekCopyRead>();
+  for (const [copy, people] of byCopy) {
+    const { week: theirs } = await resolveWeekDoc(db, runId, copy, weekId);
+    if (!theirs || !isBlockWeek(theirs) || !theirs.published) continue;
+    const theirBlocks = theirs.blocks as WeekBlock[];
+    const theirTasks = weekTaskNeeds(theirBlocks);
+    const theirAsks = weekWritingNeeds(theirBlocks);
+    const theirFacts = await loadPeopleWeekFacts(db, { runId, weekNumber, blocks: theirBlocks, uids: people });
+    const read: WeekCopyRead = {
+      blocks: theirBlocks,
+      tasks: theirTasks,
+      asks: theirAsks,
+      pieces: weekPiecesOf(theirBlocks, theirTasks, theirAsks),
+      facts: new Map([...theirFacts].map(([uid, each]) => [uid, each as PersonFacts])),
+    };
+    for (const uid of people) copies.set(uid, read);
+  }
+  return copies;
 }
 
 /** One group's week, put together from what was read for it: the one shape both readers below hand back. */
@@ -153,8 +205,10 @@ function groupWeekReadOf(input: {
   states: RunWeekStates;
   facts: ReadonlyMap<string, unknown>;
   now: Date;
+  /** A visitor's own copy of the week, by uid (`visitorCopiesOf`). */
+  copies: Map<string, WeekCopyRead>;
 }): GroupWeekRead {
-  const { group, weekNumber, weekId, blocks, sessions, own, liveGroups, states, facts, now } = input;
+  const { group, weekNumber, weekId, blocks, sessions, own, liveGroups, states, facts, now, copies } = input;
   const tasks = weekTaskNeeds(blocks);
   const asks = weekWritingNeeds(blocks);
   return {
@@ -172,6 +226,7 @@ function groupWeekReadOf(input: {
     facts: new Map([...facts].map(([uid, each]) => [uid, each as PersonFacts])),
     runFacilitatorUids: facilitatingOnRunOf(group, liveGroups),
     belongs: (uid) => states.belongsTo(uid, group.id, weekNumber),
+    copies,
   };
 }
 
@@ -255,33 +310,41 @@ export async function readGroupsWeek(
   );
   for (const { group, sessions, own, blocks, copy } of ready) {
     const facts = factsByCopy.get(copy) ?? new Map();
+    const copies = await visitorCopiesOf(db, { runId: run.id, group, weekNumber, weekId, states, uids: input.uidsOf(group.id) });
     out.set(group.id, {
       ok: true,
-      read: groupWeekReadOf({ group, weekNumber, weekId, blocks, sessions, own, liveGroups, states, facts, now }),
+      read: groupWeekReadOf({ group, weekNumber, weekId, blocks, sessions, own, liveGroups, states, facts, now, copies }),
     });
   }
   return out;
 }
 
-/** One person's facts on the week, or nothing done. */
-function factsOf(read: GroupWeekRead, uid: string): PersonFacts {
-  return read.facts.get(uid) ?? NOTHING_DONE;
+/** The copy of the week one person is judged on: their own when it is another group's, else the group's. */
+function copyOf(read: GroupWeekRead, uid: string): WeekCopyRead {
+  return read.copies?.get(uid) ?? read;
 }
 
-/** Whether one person's week is done, by the one meaning. */
+/** One person's facts on the week, on the copy they work in, or nothing done. */
+function factsOf(read: GroupWeekRead, uid: string): PersonFacts {
+  return copyOf(read, uid).facts.get(uid) ?? NOTHING_DONE;
+}
+
+/** Whether one person's week is done, by the one meaning, on the copy they work in. */
 export function isWeekDone(read: GroupWeekRead, uid: string): boolean {
   const facts = factsOf(read, uid);
+  const copy = copyOf(read, uid);
   return weekDone({
-    tasks: read.tasks,
+    tasks: copy.tasks,
     state: facts.state,
     submitted: read.states.submittedOf(uid, read.weekNumber) !== null,
-    asks: read.asks,
+    asks: copy.asks,
   });
 }
 
-/** What is left of one person's week, as the automatic reminders list it. */
+/** What is left of one person's week, as the automatic reminders list it, on the copy they work in. */
 export function leftOf(read: GroupWeekRead, uid: string): WeekLeft {
-  return weekLeft({ blocks: read.blocks, tasks: read.tasks, state: factsOf(read, uid).state });
+  const copy = copyOf(read, uid);
+  return weekLeft({ blocks: copy.blocks, tasks: copy.tasks, state: factsOf(read, uid).state });
 }
 
 // ---------------------------------------------------------------------------
@@ -555,11 +618,12 @@ export function groupWeekWorkView(
       ]
     : [];
 
+  // Each person on the copy they work in: a visitor's cells are their own copy's pieces, by kind.
   const stateOf = (uid: string) =>
     personWeekStateOf({
-      tasks: read.tasks,
-      asks: read.asks,
-      pieces: read.pieces,
+      tasks: copyOf(read, uid).tasks,
+      asks: copyOf(read, uid).asks,
+      pieces: copyOf(read, uid).pieces,
       facts: factsOf(read, uid),
       submittedAt: read.states.submittedOf(uid, weekNumber),
       due: read.states.dueOf(uid, weekNumber),

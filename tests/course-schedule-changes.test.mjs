@@ -867,12 +867,15 @@ test("GUARD — every member-facing surface addresses a week by weekDocId(number
     // The run home's ticket, through `ticketFacts`: the mode of the week of
     // the session it is dated to, addressed by that week's number.
     [CARD_FACTS, /sessionModes\[weekDocId\(next\.weekNumber\)\]/],
-    // The reminders read each week they are about as the group sees it,
-    // addressed by its number, for the people whose week it was the group's
-    // (`belongsTo`): somebody moved mid-term is not reminded here about a
-    // week they spent in another group.
-    [REMINDERS_JOB, /resolveWeekDoc\(db, run\.id, group\.id, weekDocId\(weekNumber\)\)/],
-    [REMINDERS_JOB, /const theirs = uids\.filter\(\(uid\) => weekStates\.belongsTo\(uid, group\.id, weekNumber\)\);/],
+    // The reminders read each week they are about as each person sees it,
+    // addressed by its number, for the people whose work for it is due at
+    // the group's session (`dueWith`): somebody moved mid-term is not
+    // reminded here about a week they spent in another group, and each is
+    // judged on the copy they work in (`copyGroupOf`, the group's own copy
+    // for everybody whose weeks do not differ).
+    [REMINDERS_JOB, /const copy = weekStates\.copyGroupOf\(uid, weekNumber, group\.id\);/],
+    [REMINDERS_JOB, /resolveWeekDoc\(db, run\.id, copy, weekDocId\(weekNumber\)\)/],
+    [REMINDERS_JOB, /const theirs = uids\.filter\(\(uid\) => weekStates\.dueWith\(uid, group\.id, weekNumber\)\);/],
     // V2-3 moved the mirror's read behind the group resolver, so the pattern
     // now pins BOTH doctrines at once: addressed by number, resolved
     // group-first. A mirror built from a different document than the member's
@@ -2202,7 +2205,9 @@ test("GUARD — a group's pace override moves its own week's email with it, and 
 test("GUARD — the week's emails read each week as the group sees it, and never mail an unpublished one", () => {
   // A group with its own copy of a week reads that copy; a facilitator's
   // half-written week, or one not published, must not go out.
-  assert.match(WEEK_EMAIL, /const \{ week \} = await resolveWeekDoc\(db, run\.id, group\.id, session\.weekId\);/);
+  // A visitor's words are read from the copy of the group they belong to that week (`copyGroupId`); everybody else's from the group's.
+  assert.match(WEEK_EMAIL, /const \{ week \} = await resolveWeekDoc\(db, run\.id, args\.copyGroupId \?\? group\.id, session\.weekId\);/);
+  assert.match(WEEK_EMAIL, /copyReadings\.set\(copy, own\.week && own\.published && !\(args\.whole && own\.missing\.length > 0\) \? own : null\);/);
   assert.match(WEEK_EMAIL, /if \(!reading\.week \|\| !reading\.published\) \{/);
   assert.match(WEEK_EMAIL, /weekUrl: courseWeekUrl\(args\.appUrl, run\.id, session\.weekNumber\),/);
   assert.match(REMINDERS_JOB, /if \(!week \|\| !week\.published \|\| !isBlockWeek\(week\)\) continue;/);

@@ -825,8 +825,8 @@ const COPY_READERS = {
     why: "the earlier weeks Week N is open names as not done are judged for each person on the copy they read that week (copyGroupOf), never the group's own for a week they spent elsewhere",
   },
   "lib/scheduler/jobs/weekReminders.ts": {
-    kind: "group",
-    why: "the reminders before a session read the group's copy of each week the session covers, for only the people whose week it was the group's (belongsTo), so the copy read is theirs; a covered week somebody spent elsewhere is not this session's work",
+    kind: "person",
+    why: "the reminders before a session read each week the session covers on the copy each person works in that week (copyGroupOf), for only the people whose work for it is due at this session (dueWith); a covered week somebody spent elsewhere is not this session's work, and a visitor is judged on their own group's copy, never the host's",
   },
   "app/api/courses/runs/[runId]/fill-in-boxes/[boxId]/route.ts": { kind: "person", why: "a fill-in box is saved against the copy of that week the person works in" },
   "app/api/courses/runs/[runId]/overview/route.ts": { kind: "person", why: "the member's own weeks, each on the copy they work in, named to the browser in forkedWeekGroups" },
@@ -860,11 +860,11 @@ const COPY_READERS = {
   "lib/courses/getReady/read.ts": { kind: "group", why: "getting ready reads the run's own week 1, no group's copy and no person's week, so a move changes nothing it reads" },
   "lib/courses/groupWeekWork/load.ts": {
     kind: "group",
-    why: "a group's This week's work and Remind for one week read the group's copy and list only the people whose place belonged to the group that week (belongsTo), so the copy read is theirs",
+    why: "a group's This week's work and Remind for one week read the group's copy and list only the people whose place belonged to the group that week (belongsTo), so the copy read is theirs; a visitor's row is judged on the copy of the group they belong to (copyGroupOf), never the host's",
   },
   "lib/courses/nextWeekEmail.ts": {
     kind: "group",
-    why: "Week N is open reads the group's copy of week N and reaches only the people whose group for week N is the group (the notice audience asked for the week), so it is their copy; their earlier weeks are judged one by one in groupWeekWork/earlier.ts",
+    why: "Week N is open reads the group's copy of week N and reaches only the people whose group for week N is the group (the notice audience asked for the week), so it is their copy, but for a visitor, whose words are read from the copy of the group they belong to that week (copyGroupIdFor); their earlier weeks are judged one by one in groupWeekWork/earlier.ts",
   },
   "lib/courses/packsAndCases/readers.ts": {
     kind: "group",

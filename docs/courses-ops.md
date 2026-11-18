@@ -2267,6 +2267,20 @@ session's group), `own` (the group they belong to) or `now`, checked both ways.
 The helpers in `src/lib/courses/groupsByWeek.ts` answer the session's group;
 handed `belonging(place)` they answer the groups it belongs to.
 
+**The copy of each week stays their own group's.** A visitor works in, and is
+judged on, their own group's copy of every week, the visit's week included.
+The run's week states (`src/lib/courses/weekWork/readers.ts`) answer three
+questions for anybody whose weeks differ (a move or a visit): `belongsTo`
+(whose member they are that week), `dueWith` (whose session their work for a
+week is due at: the host for the visit's week) and `copyGroupOf` (the copy they
+work in). So "Week N is open" reaches a visitor once, from the host (the
+session they go to), with the words about the week read from their own copy,
+and judges their earlier weeks on their own copies; a visitor whose own copy
+of the week is not published is left out of that send and counted as skipped.
+The reminders before the host's session remind them about the visit's week
+alone, judged on their own copy. The host's This week's work judges their row
+on their own copy (`readGroupWeek`'s `copies`).
+
 **Places left for a week** (`placesLeftInWeek` in `src/lib/courses/visit/places.ts`):
 the group's capacity less everybody whose session that week is the group's,
 its own people that week and visitors in, less its people away. No capacity

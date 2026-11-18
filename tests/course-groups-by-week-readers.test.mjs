@@ -299,7 +299,7 @@ const READERS = {
   },
   "lib/courses/weekWork/readers.ts": {
     kinds: ["week", "own"],
-    why: "the session somebody was due at each week (sessionSourceFor, a visit's host in its week), so Late and the reminders before a session; whether a person's week is one group's (belongsTo, the group their place belonged to that week, never a visit's host), which a group's card and Remind ask; and the copy of a week a person reads (copyGroupOf, made of copyGroupIdFor), which the earlier weeks of \"Week N is open\" judge each person's week on",
+    why: "the session somebody was due at each week (sessionSourceFor, a visit's host in its week), so Late and the reminders before a session; whether a person's week is one group's as its member (belongsTo, for anybody whose weeks differ, a visitor with no record of a move included, the group their place belonged to that week, never a visit's host), which a group's card and Remind ask; whether their work for a week is due at one group's session (dueWith, the session's group that week), which the reminders before a session ask; and the copy of a week a person reads (copyGroupOf, made of copyGroupIdFor, for anybody whose weeks differ), which the earlier weeks of \"Week N is open\", the reminders and a group's card judge each person's week on",
   },
   "lib/courses/staffMove/plan.ts": {
     kinds: ["week", "own", "now"],
@@ -418,8 +418,8 @@ const READERS = {
     why: "a new regular time takes back the Most weeks, not all ticks of the people in the group now only for the weeks whose session is that group's for them, so never a line on a week they spend at another group's session",
   },
   "lib/courses/nextWeekEmail.ts": {
-    kinds: ["week"],
-    why: "the group's Week N is open email about one session reaches the people whose session that week is the group's, a visitor in included and a member visiting elsewhere not, through the notice audience asked for the week",
+    kinds: ["week", "own"],
+    why: "the group's Week N is open email about one session reaches the people whose session that week is the group's, a visitor in included and a member visiting elsewhere not, through the notice audience asked for the week, so a visitor gets exactly one, the host's; its words about the week are read, for anybody whose copy is another group's, from the copy of the group their place belongs to that week (copyGroupIdFor), never the host's"
   },
   "lib/courses/pushEmail.ts": {
     kinds: ["week"],
@@ -427,7 +427,7 @@ const READERS = {
   },
   "lib/scheduler/jobs/weekReminders.ts": {
     kinds: ["week", "own"],
-    why: "the reminders before a session reach the people whose session that week is its group's, a visitor in included, through the notice audience asked for the week, and remind each about a week the session covers only when that week was the group's for them as the group they belong to (belongsTo); the certificate sentence reads each week's group, and its registers, as the programme page does",
+    why: "the reminders before a session reach the people whose session that week is its group's, a visitor in included, through the notice audience asked for the week; they remind each about a week the session covers only when their work for that week is due at this group's session (dueWith, the session's group that week: a visitor about the visit's week alone), and judge it on the copy of the group their place belongs to that week (copyGroupOf), never the host's; the certificate sentence reads each week's group, and its registers, as the programme page does",
   },
   "app/api/courses/groups/[groupId]/session/change/route.ts": {
     kinds: ["week"],
@@ -455,7 +455,7 @@ const READERS = {
   },
   "lib/courses/groupWeekWork/load.ts": {
     kinds: ["own", "now"],
-    why: "a week's card (its rows, counts and button) and Remind are the people in the group now whose place belonged to the group in that week (belongs, through RunWeekStates.belongsTo): who reads whose work is the group they are in now, and a week somebody spent in another group they belonged to is not this group's to count or chase; a visitor in is never chased by the host's Remind",
+    why: "a week's card (its rows, counts and button) and Remind are the people in the group now whose place belonged to the group in that week (belongs, through RunWeekStates.belongsTo): who reads whose work is the group they are in now, and a week somebody spent in another group they belonged to is not this group's to count or chase; a visitor in is never chased by the host's Remind, and their row is judged on the copy of the group they belong to (copyGroupOf), never the host's",
   },
   "lib/courses/programmeOverview.ts": {
     kinds: ["now"],

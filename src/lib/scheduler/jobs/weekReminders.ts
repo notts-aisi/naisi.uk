@@ -374,13 +374,19 @@ export function programmePageShowsSession(place: Pick<CourseEnrolmentDoc, "group
 
 /**
  * The weeks one session's reminder is about: each it covers, written as
- * blocks and published, on the group's copy. A covered week is this
- * session's work only for the people whose week it was this group's
- * (`RunWeekStates.belongsTo`, the rule This week's work and Remind use):
- * somebody moved here mid-term is not reminded here about a week they spent
- * in another group, whose work was due at that group's session ("Week N is
- * open" names it, on their own copy, if it is not done). With no record,
- * everybody for every week, as always.
+ * blocks and published, on the copy each person reads it on. A covered week
+ * is this session's work only for the people whose work for it is due at
+ * this group's session (`RunWeekStates.dueWith`): somebody moved here
+ * mid-term is not reminded here about a week they spent in another group,
+ * whose work was due at that group's session ("Week N is open" names it, on
+ * their own copy, if it is not done); somebody visiting for one week is
+ * reminded here about that week alone, never about another week the session
+ * covers. Each person's week is judged on the copy they work in
+ * (`RunWeekStates.copyGroupOf`): a visitor's on their own group's, so a
+ * week finished on it is never named as not done because the host's copy
+ * asks something more. One entry per week and copy, each with the facts of
+ * its own people only. With no record and no visit, everybody for every
+ * week, on the group's copy, as always.
  */
 async function reminderWeeks(
   db: Firestore,
@@ -393,19 +399,27 @@ async function reminderWeeks(
 ): Promise<ReminderWeekInfo[]> {
   const out: ReminderWeekInfo[] = [];
   for (const weekNumber of coveredWeeks(sessions, session)) {
-    const theirs = uids.filter((uid) => weekStates.belongsTo(uid, group.id, weekNumber));
+    const theirs = uids.filter((uid) => weekStates.dueWith(uid, group.id, weekNumber));
     if (theirs.length === 0) continue;
-    const { week } = await resolveWeekDoc(db, run.id, group.id, weekDocId(weekNumber));
-    if (!week || !week.published || !isBlockWeek(week)) continue;
-    const facts = await loadPeopleWeekFacts(db, { runId: run.id, weekNumber, blocks: week.blocks, uids: theirs });
-    out.push({
-      weekNumber,
-      blocks: week.blocks,
-      tasks: weekTaskNeeds(week.blocks),
-      writes: weekAsksForWriting(week.blocks),
-      asks: weekWritingNeeds(week.blocks),
-      facts,
-    });
+    // The people due here, by the copy of the week each works in: the group's own for everybody whose weeks do not differ.
+    const byCopy = new Map<string, string[]>();
+    for (const uid of theirs) {
+      const copy = weekStates.copyGroupOf(uid, weekNumber, group.id);
+      byCopy.set(copy, [...(byCopy.get(copy) ?? []), uid]);
+    }
+    for (const [copy, people] of byCopy) {
+      const { week } = await resolveWeekDoc(db, run.id, copy, weekDocId(weekNumber));
+      if (!week || !week.published || !isBlockWeek(week)) continue;
+      const facts = await loadPeopleWeekFacts(db, { runId: run.id, weekNumber, blocks: week.blocks, uids: people });
+      out.push({
+        weekNumber,
+        blocks: week.blocks,
+        tasks: weekTaskNeeds(week.blocks),
+        writes: weekAsksForWriting(week.blocks),
+        asks: weekWritingNeeds(week.blocks),
+        facts,
+      });
+    }
   }
   return out;
 }
