@@ -1,4 +1,6 @@
 import { campusLabel } from "../campus";
+import { inGroupForWeek, type PlaceByWeek } from "../groupsByWeek";
+import { onlineForRooms, roomSourceOf, type RoomSource } from "../sessionChange/room";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "../sessions";
 import { clockWords, dayWords } from "../sessionChange/words";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "../weekPlan";
@@ -6,7 +8,6 @@ import { attendanceDocId, registerIsTaken } from "@/lib/firestore/courseAttendan
 import {
   campusForWeek,
   sessionChangeForWeek,
-  sessionModeForWeek,
   type CourseGroupDoc,
 } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
@@ -40,20 +41,22 @@ import {
  *
  *  - the day and time and the campus that week (`campusForWeek`);
  *  - THAT WEEK'S ROOM: the room the session resolves to, "" when there is
- *    none ("Not booked" on the page);
+ *    none (To be confirmed on the page), and where it comes from: the week's
+ *    own room, the group's usual room, or none (`roomSourceOf`);
  *  - the meeting link, set or missing, and whether it is the group's for every
  *    week or the week's own. Never the link itself;
  *  - how many are away (their line says excused, or they said they can't make
  *    it), how many said they are joining online, and how many requests about
  *    the session wait for this reader (counted by `./load.ts` the way the
- *    programme's Requests line counts them).
+ *    programme's Requests line counts them). Away and online count only the
+ *    people in the group FOR THAT WEEK (`inGroupForWeek`, over the run's
+ *    places): a line left on the register by somebody since moved to another
+ *    group is not counted here, as the group's own page does not count it.
  *
- * A ROW'S ROOM IS CHANGED HERE ONLY WHEN THE WRITER WOULD TAKE IT AS A ROOM
- * CHANGE: a session still to come, not called off and not held online for the
- * week. The writer would move a session whose time has passed only to when it
- * met, would refuse one whose register was taken, and would take a held
- * online week back into a room; those rows say so in place of the field,
- * and their change stays where it is made today (the group's page).
+ * A ROW'S ROOM IS CHANGED HERE ONLY WHEN THE ROOM-ONLY CHANGE WOULD TAKE IT
+ * (`../sessionChange/room.ts`): a session still to come, not called off and
+ * not held online (the week's own mode, or the Online campus). Those rows say
+ * so in place of the field.
  *
  * VISITS ARE NOT COUNTED. One-week visits to another group's session are not
  * on this site yet; when they are, `RoomRow` takes a count beside `online`.
@@ -78,6 +81,11 @@ export type ProgrammeRecords = {
   registers: ReadonlyMap<string, Readonly<Record<string, unknown>>>;
   /** Requests waiting for this reader, by `${groupId}__${sessionKey}`. */
   requests: ReadonlyMap<string, number>;
+  /**
+   * The run's places by uid, for who was in which group which week. Absent:
+   * every line on a register is counted (the term's grid reads no counts).
+   */
+  places?: ReadonlyMap<string, PlaceByWeek>;
 };
 
 export type RowState = "cancelled" | "online" | "met" | "started" | null;
@@ -103,7 +111,9 @@ export type RoomRow = {
   room: string;
   /** The group's room for every week, trimmed; "" for none. */
   usualRoom: string;
-  /** A one-week change moved the session (its day, time or room). */
+  /** Where that week's room comes from: its own, the usual room, or none. */
+  roomSource: RoomSource;
+  /** A one-week move changed the session (a room set here never does). */
   moved: boolean;
   /** Why the room is not changed here; null when it is. */
   state: RowState;
@@ -146,23 +156,37 @@ function registerOf(records: ProgrammeRecords, groupId: string, session: Resolve
   return records.registers.get(attendanceDocId(records.run.id, groupId, session.weekNumber, session.occurrence));
 }
 
+/** Who is counted on a register: everybody, or only those this says were in the group that week. */
+type Counted = (uid: string) => boolean;
+const everybody: Counted = () => true;
+
 /** How many are away on a register: a line that says excused, or somebody's word in advance. */
-export function awayOn(register: Readonly<Record<string, unknown>> | undefined): number {
+export function awayOn(register: Readonly<Record<string, unknown>> | undefined, counted: Counted = everybody): number {
   if (!register) return 0;
   const away = new Set<string>();
   const records = register.records;
   if (records && typeof records === "object") {
-    for (const [uid, mark] of Object.entries(records as Record<string, unknown>)) if (mark === "excused") away.add(uid);
+    for (const [uid, mark] of Object.entries(records as Record<string, unknown>)) if (mark === "excused" && counted(uid)) away.add(uid);
   }
   const said = register.excusedInAdvance;
-  if (said && typeof said === "object") for (const uid of Object.keys(said as Record<string, unknown>)) away.add(uid);
+  if (said && typeof said === "object") for (const uid of Object.keys(said as Record<string, unknown>)) if (counted(uid)) away.add(uid);
   return away.size;
 }
 
 /** How many said they are joining online, on a register. */
-export function onlineOn(register: Readonly<Record<string, unknown>> | undefined): number {
+export function onlineOn(register: Readonly<Record<string, unknown>> | undefined, counted: Counted = everybody): number {
   const said = register?.onlineSaid;
-  return said && typeof said === "object" ? Object.keys(said as Record<string, unknown>).length : 0;
+  return said && typeof said === "object" ? Object.keys(said as Record<string, unknown>).filter(counted).length : 0;
+}
+
+/** Who a group's row counts for one week: with the run's places, those in the group that week; without, everybody. */
+function countedFor(records: Pick<ProgrammeRecords, "places">, groupId: string, weekNumber: number): Counted {
+  const places = records.places;
+  if (!places) return everybody;
+  return (uid) => {
+    const place = places.get(uid);
+    return place ? inGroupForWeek(place, groupId, weekNumber) : false;
+  };
 }
 
 const nameOf = (group: CourseGroupDoc) => group.name.trim() || "Untitled group";
@@ -183,7 +207,7 @@ export function stateOf(
   if (registerIsTaken(register)) return "met";
   const { startsAt } = sessionInstants(session);
   if (!startsAt || startsAt.getTime() <= now.getTime()) return "started";
-  if (sessionModeForWeek(group, session.weekId) === "virtual") return "online";
+  if (onlineForRooms(group, session.weekId)) return "online";
   return null;
 }
 
@@ -210,11 +234,12 @@ export function rowOf(records: ProgrammeRecords, group: CourseGroupDoc, session:
     campus: campusLabel(campusForWeek(group, session.weekId)),
     room: session.session.location.trim(),
     usualRoom: group.session.location.trim(),
+    roomSource: roomSourceOf(group, session.weekId),
     moved: sessionChangeForWeek(group, session.weekId)?.kind === "moved",
     state: stateOf(group, session, register, now),
     link,
-    away: awayOn(register),
-    online: onlineOn(register),
+    away: awayOn(register, countedFor(records, group.id, session.weekNumber)),
+    online: onlineOn(register, countedFor(records, group.id, session.weekNumber)),
     requests: records.requests.get(`${group.id}__${session.sessionKey}`) ?? 0,
   };
 }
@@ -337,7 +362,8 @@ export function weekRoomsView(input: {
     allRows: byProgramme.reduce((sum, { rows: each }) => sum + each.length, 0),
     rows,
     counts: {
-      notBooked: rows.filter((row) => row.state !== "cancelled" && row.room === "").length,
+      // Only rows that can take a room: a session held online, called off or past needs none.
+      notBooked: rows.filter((row) => row.state === null && row.room === "").length,
       linksSet: rows.filter((row) => row.link.kind !== "none").length,
       away: rows.reduce((sum, row) => sum + row.away, 0),
       online: rows.reduce((sum, row) => sum + row.online, 0),
@@ -351,7 +377,7 @@ export function weekRoomsView(input: {
 // The term's rooms
 // ---------------------------------------------------------------------------
 
-export type CellMark = "notUsual" | "moved" | "cancelled" | "online" | "met";
+export type CellMark = "moved" | "cancelled" | "online" | "met" | "started";
 
 export type TermCell =
   | { kind: "none"; weekNumber: number }
@@ -362,6 +388,12 @@ export type TermCell =
       day: string;
       /** That week's room, trimmed; "" for none. */
       room: string;
+      /** Where the room comes from: the week's own, the usual room, or none. */
+      roomSource: RoomSource;
+      /** The session's date, which a room-only change checks the press against. */
+      dateKey: string;
+      /** Why the room is not changed in the grid; null when it is. */
+      state: RowState;
       marks: CellMark[];
       /** The week's rooms page, that week, that programme, this row in view. */
       href: string;
@@ -372,8 +404,8 @@ export type TermRow = { groupId: string; groupName: string; usualRoom: string; c
 export type TermSection = {
   programmeId: string;
   programmeName: string;
-  /** The run's taught weeks, in plan order: "Week 3", and the first day of its slot. */
-  weeks: { weekNumber: number; label: string; from: string }[];
+  /** The run's taught weeks, in plan order: "Week 3", the first day of its slot in words, and as a date key. */
+  weeks: { weekNumber: number; label: string; from: string; fromKey: string }[];
   rows: TermRow[];
 };
 
@@ -393,14 +425,15 @@ export function marksOf(
   group: CourseGroupDoc,
   session: ResolvedSession,
   register: Readonly<Record<string, unknown>> | undefined,
+  now: Date,
 ): CellMark[] {
   if (session.cancelled) return ["cancelled"];
   const marks: CellMark[] = [];
-  const online = sessionModeForWeek(group, session.weekId) === "virtual";
-  if (online) marks.push("online");
+  if (onlineForRooms(group, session.weekId)) marks.push("online");
   if (sessionChangeForWeek(group, session.weekId)?.kind === "moved") marks.push("moved");
-  if (!online && session.session.location.trim() !== group.session.location.trim()) marks.push("notUsual");
-  if (registerIsTaken(register)) marks.push("met");
+  const state = stateOf(group, session, register, now);
+  if (state === "met") marks.push("met");
+  else if (state === "started") marks.push("started");
   return marks;
 }
 
@@ -409,14 +442,14 @@ export function marksOf(
  * taught week of the run, each cell that week's room and what is unusual
  * about it. Reading only: every cell is a link to its week's rooms.
  */
-export function termRoomsView(input: { roundId: string; programmes: readonly ProgrammeRecords[] }): TermSection[] {
+export function termRoomsView(input: { roundId: string; programmes: readonly ProgrammeRecords[]; now: Date }): TermSection[] {
   return input.programmes.map((records) => {
     const { run } = records;
     const weeks: TermSection["weeks"] = [];
     run.weekPlan.forEach((entry, index) => {
       if (entry.kind !== "week") return;
       const from = isValidDateKey(run.startDate) ? addDaysToKey(run.startDate, index * 7) : "";
-      weeks.push({ weekNumber: entry.weekNumber, label: weekColumnWords(entry.weekNumber), from: from ? dayWords(from) : "" });
+      weeks.push({ weekNumber: entry.weekNumber, label: weekColumnWords(entry.weekNumber), from: from ? dayWords(from) : "", fromKey: from });
     });
     const rows = records.groups.map((group): TermRow => {
       const sessions = datedFirstSessions(run, group);
@@ -433,7 +466,10 @@ export function termRoomsView(input: { roundId: string; programmes: readonly Pro
             weekNumber,
             day: dayWords(session.dateKey),
             room: session.session.location.trim(),
-            marks: marksOf(group, session, register),
+            roomSource: roomSourceOf(group, session.weekId),
+            dateKey: session.dateKey,
+            state: stateOf(group, session, register, input.now),
+            marks: marksOf(group, session, register, input.now),
             href: `${weekRoomsPath(input.roundId, { week: mondayOf(session.dateKey), programme: records.programmeId })}#${rowAnchor(`${group.id}__${session.sessionKey}`)}`,
           };
         }),

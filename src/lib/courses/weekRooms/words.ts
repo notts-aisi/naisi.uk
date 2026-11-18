@@ -5,8 +5,8 @@
  *
  * These are staff pages: an admin and a programme's lead read them, and no
  * member ever sees a word from here. What a group is told when its room
- * changes is the one-week change's own notice (`oneWeekNoticeWords` in
- * `../sessionChange/words.ts`), never anything here.
+ * changes is the room-only change's own notice (`roomNoticeWords` in
+ * `../sessionChange/roomWords.ts`), never anything here.
  */
 
 /** "1 room", "2 rooms": a count and its noun. */
@@ -71,6 +71,18 @@ export const COLUMN = {
 } as const;
 
 export const NOT_BOOKED = "Not booked";
+/** A week with no room: what a row or a cell reads, and the control that takes a room off. */
+export const TO_BE_CONFIRMED = "To be confirmed";
+/** The control beside a room field that takes the room off. */
+export function toBeConfirmedLabel(where: string): string {
+  return `Room to be confirmed for ${where}`;
+}
+
+/** Where a week's room comes from, beside it. Nothing beside a week with none: it reads To be confirmed. */
+export const ROOM_SOURCE = {
+  week: "This week only",
+  usual: "Usual room",
+} as const;
 export const NO_LINK = "No link";
 export const LINK_EVERY_WEEK = "Set: every week";
 
@@ -97,7 +109,7 @@ export const ROW_STATE = {
   started: "Started",
 } as const;
 
-/** Beside a room a one-week change set. */
+/** Beside a room whose session a one-week move moved (a room set here never does). */
 export const MOVED_THIS_WEEK = "Moved this week";
 
 /** Under a changed field while the change route's preview is asked. */
@@ -108,11 +120,13 @@ export function rowEmailsWords(emails: number): string {
   return emails === 0 ? "Emails nobody" : `Emails ${count(emails, "person", "people")}`;
 }
 
-/** Above the button: the board's words. */
-export const SAVE_NOTE = "Changing a room emails that group: it’s a notice.";
+/** Beside the tick. */
+export const SAVE_NOTE = "With Tell the group on, each group whose room changes is emailed: it’s a notice.";
 
+/** The reason's label: it is optional for a room. */
+export const REASON_LABEL = "Reason (optional)";
 /** Under the reason: there is one for every room saved in one press. */
-export const REASON_HINT = "One reason for every room saved here. It goes into each group’s email.";
+export const REASON_HINT = "One reason for every room saved here. With Tell the group on, it goes into each group’s email.";
 
 /**
  * The button, counting what it saves and whom it emails: "Save 2 rooms and
@@ -129,13 +143,21 @@ export const SAVING = "Saving…";
 export const NOTHING_TO_SAVE = "Save rooms";
 /** Beside the button while a changed field is still being checked. */
 export const WAIT_FOR_CHECKS = "Checking each change first.";
-/** Beside the button while the reason is empty. */
-export const REASON_NEEDED = "Give a reason first. The groups see it.";
-
-/** A row once its room is saved: what the update did comes after. */
+/** A row once its room is saved: what the email did comes after. */
 export const ROOM_SAVED = "Room saved.";
 /** A row whose room is saved with nobody to email. */
 export const ROOM_SAVED_NOBODY_TOLD = "Room saved. Nobody was told.";
+/** A row whose room is saved and whose email did not go, or not to everybody. */
+export function roomSavedNotToldWords(failed: number): string {
+  return `${ROOM_SAVED} ${count(failed, "email", "emails")} didn’t go, so tell them with an update from Messages.`;
+}
+/** A row whose count changed since it was checked: nothing changed, and it is asked again. */
+export const ASKED_AGAIN = "Nothing was saved for this group. Check its new count, then press Save again.";
+
+/** Groups whose room was saved and who were not told, after a press, still on the page: they stay until the page is left. */
+export function notToldSummaryWords(groups: readonly string[]): string {
+  return `Saved but not told: ${groups.join(", ")}.`;
+}
 
 /** After a press: how many went through and how many were refused. */
 export function savedSummaryWords(saved: number, refused: number): string {
@@ -170,7 +192,7 @@ export const TO_WEEK_ROOMS = "The week’s rooms";
 export const PASTE_TITLE = "Paste rooms from a spreadsheet";
 export const PASTE_CLOSE = "Close";
 export const PASTE_LEDE =
-  "Two columns, group then room, copied straight from a sheet. A programme’s name can be short: its first word or its initials.";
+  "Two columns, group then room, copied straight from a sheet. A programme’s name can be short: its first word or its initials. An empty room, TBC or a dash means to be confirmed.";
 export const PASTE_LABEL = "Paste here";
 
 /** "These rooms are for w/c Mon 16 Nov only." */
@@ -186,13 +208,20 @@ export function matchedWords(programmeName: string, groupName: string): string {
 }
 
 export const PASTE_STATE = {
-  new: "New: was not booked",
+  new: "New: was to be confirmed",
   same: "No change",
-  noRoom: "No room on this line.",
   roomLink: "A room can’t be a link.",
   roomLine: "A room is one line.",
   none: "No match. Choose the group.",
 } as const;
+
+/** A line that takes a room off: "To be confirmed. Was Portland A21". */
+export function clearWords(was: string): string {
+  return `To be confirmed. Was ${was}`;
+}
+
+/** A line with something in a column after its room. */
+export const IGNORED_COLUMN = "A third column was ignored.";
 
 /** A line that changes a room: "Was Portland A21". */
 export function wasWords(room: string): string {
@@ -236,12 +265,12 @@ export function notThisWeekWords(state: string): string {
 }
 
 /**
- * "6 lines: 4 are ready (2 new rooms, 2 unchanged) and 2 need you. Nothing is
+ * "6 lines: 4 are ready (2 changes, 2 unchanged) and 2 need you. Nothing is
  * saved until you press Save."
  */
 export function pasteSummaryWords(parts: { lines: number; changes: number; unchanged: number; needYou: number }): string {
   const ready = parts.changes + parts.unchanged;
-  const readyBits = [count(parts.changes, "new room", "new rooms"), `${parts.unchanged} unchanged`].join(", ");
+  const readyBits = [count(parts.changes, "change", "changes"), `${parts.unchanged} unchanged`].join(", ");
   const head = `${count(parts.lines, "line", "lines")}: ${ready} ${ready === 1 ? "is" : "are"} ready (${readyBits})`;
   const tail = parts.needYou > 0 ? ` and ${parts.needYou} ${parts.needYou === 1 ? "needs" : "need"} you` : "";
   return `${head}${tail}. Nothing is saved until you press Save.`;
@@ -255,7 +284,62 @@ export const CANCEL = "Cancel";
 
 export const TERM_ROOMS_TITLE = "The term’s rooms";
 export const TERM_ROOMS_LEDE =
-  "Each group’s room, week by week. Open a week to change a room there: nothing is changed on this page.";
+  "Each group’s room, week by week. Fill in rooms for weeks still to come here, as far ahead as you like.";
+
+/** Above the grid's button: saving here tells nobody. */
+export const GRID_SAVE_NOTE =
+  "Saving here emails nobody. To tell a group about a change, save it on that week’s page, where Tell the group is.";
+
+/** The grid's button: "Save 34 rooms. Emails nobody." */
+export function gridSaveWords(rooms: number): string {
+  return rooms === 0 ? "Save rooms" : `Save ${count(rooms, "room", "rooms")}. Emails nobody.`;
+}
+
+/** After a grid save: how many went through and how many were refused. */
+export function gridSavedWords(saved: number, refused: number): string {
+  const done = `${count(saved, "room", "rooms")} saved. Nobody was emailed.`;
+  return refused === 0 ? done : `${done} ${count(refused, "was refused", "were refused")}: each says why.`;
+}
+
+/** A cell's field, for a screen reader: "Room for Group A, week 3, Tue 17 Nov". */
+export function cellFieldLabel(groupName: string, weekNumber: number, day: string): string {
+  return `Room for ${groupName}, week ${weekNumber}, ${day}`;
+}
+
+/** The grid's paste box. */
+export const GRID_PASTE_OPEN = "Paste a block from a spreadsheet";
+export const GRID_PASTE_TITLE = "Paste a block of rooms";
+export const GRID_PASTE_LEDE =
+  "The first column names the group, then one column a week. A first line of weeks (Week 3, w3, 3, or a date in that week) says which week each column is; without one, the columns are the grid’s weeks from its first. An empty cell, TBC or a dash means to be confirmed.";
+
+/** Which week each column was taken as, for one programme: "AGI Strategy: week 1, week 2, not a week". */
+export function columnsTakenWords(programmeName: string, weeks: readonly (number | null)[], header: boolean): string {
+  const said = weeks.map((week) => (week === null ? "not a week" : `week ${week}`)).join(", ");
+  return `${programmeName}, columns ${header ? "read from the first line" : "taken in order"}: ${said}.`;
+}
+
+/** A cell that will not be saved: "Week 3 skipped: met." */
+export function skippedWords(weekNumber: number | null, why: string): string {
+  const reason = why.replace(/\.$/, "").replace(/^Not this week: /, "");
+  return weekNumber === null ? "A column with no week, skipped." : `Week ${weekNumber} skipped: ${reason.charAt(0).toLowerCase()}${reason.slice(1)}.`;
+}
+
+/** One cell of a pasted line: "Week 3: George Green B06. Was Portland A21". */
+export function cellLineWords(weekNumber: number, words: string): string {
+  return `Week ${weekNumber}: ${words}`;
+}
+
+/** A block's count line. */
+export function blockSummaryWords(parts: { changes: number; skipped: number; needYou: number }): string {
+  const bits = [count(parts.changes, "room to change", "rooms to change"), `${parts.skipped} skipped`];
+  const tail = parts.needYou > 0 ? `, and ${count(parts.needYou, "line needs", "lines need")} you` : "";
+  return `${bits.join(", ")}${tail}. Nothing is saved until you press Save.`;
+}
+
+/** A changed cell, before Save. */
+export const CELL_CHANGED = "Changed";
+/** The grid's link from a cell to its week. */
+export const OPEN_WEEK = "Open week";
 
 /** A column: "Week 3". */
 export function weekColumnWords(weekNumber: number): string {
@@ -264,11 +348,11 @@ export function weekColumnWords(weekNumber: number): string {
 
 /** What a cell can say beside the room. */
 export const CELL_MARK = {
-  notUsual: "Not the usual room",
   moved: "Moved",
   cancelled: "Called off",
   online: "Online",
   met: "Met",
+  started: "Started",
 } as const;
 
 /** A week the group has no session in. */

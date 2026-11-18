@@ -33,7 +33,7 @@ export default async function TermRoomsPage({
   const [{ roundId }, query, user] = await Promise.all([params, searchParams, requireAdmissionsPage()]);
   const asked = Array.isArray(query.programme) ? query.programme[0] : query.programme;
   const db = getAdminDb();
-  const loaded = db ? await loadTermRooms(db, user, { roundId, only: asked ?? null }) : null;
+  const loaded = db ? await loadTermRooms(db, user, { roundId, only: asked ?? null, now: new Date() }) : null;
   if (!loaded || loaded.status !== "ok") return <NoProgrammeHere roundId={roundId} />;
 
   const { reader, only, programmes, sections } = loaded;

@@ -5,7 +5,7 @@ import Button from "@/components/ui/Button";
 import Select from "@/components/ui/Select";
 import type { RoomRow } from "@/lib/courses/weekRooms/model";
 import { GROUP_ROOM_LIMIT } from "@/lib/courses/weekRooms/limits";
-import { outcomesOf, pasteCounts, readPasted, type LineOutcome, type PasteCandidate } from "@/lib/courses/weekRooms/paste";
+import { choiceKeyOf, outcomesOf, pasteCounts, readPasted, type LineOutcome, type PastedLine, type PasteCandidate } from "@/lib/courses/weekRooms/paste";
 import * as W from "@/lib/courses/weekRooms/words";
 import styles from "./WeekRooms.module.css";
 
@@ -18,7 +18,10 @@ import styles from "./WeekRooms.module.css";
  *
  * It asks about every line it cannot place, or that fits more than one
  * group, with the site's own Select; and it matches only the rows of the
- * week the page shows, which are the programmes the reader may see.
+ * week the page shows, which are the programmes the reader may see. A choice
+ * is kept under the line's group as pasted, so more typing in the box keeps
+ * it. The box puts into the fields only what it matched, and takes back only
+ * a field still holding what it put there: a room typed into the table stays.
  */
 
 /** The rows as the paste box matches them. */
@@ -54,7 +57,7 @@ export default function PasteRooms({
   // What the fields held when the box opened: Cancel puts it back.
   const [before] = useState(drafts);
   const [text, setText] = useState("");
-  const [chosen, setChosen] = useState<Map<number, string>>(new Map());
+  const [chosen, setChosen] = useState<Map<string, string>>(new Map());
   const candidates = useMemo(() => candidatesOf(rows), [rows]);
   const byKey = useMemo(() => new Map(candidates.map((each) => [each.key, each] as const)), [candidates]);
   const lines = useMemo(() => readPasted(text, candidates), [text, candidates]);
@@ -68,7 +71,10 @@ export default function PasteRooms({
   // The rooms ready to save go into the fields; nothing else changes.
   const rooms = useMemo(() => {
     const out: Record<string, string> = {};
-    for (const outcome of outcomes) if (outcome.kind === "new" || outcome.kind === "change") out[outcome.key] = outcome.room;
+    for (const outcome of outcomes) {
+      if (outcome.kind === "new" || outcome.kind === "change") out[outcome.key] = outcome.room;
+      else if (outcome.kind === "clear") out[outcome.key] = "";
+    }
     return out;
   }, [outcomes]);
   const roomsKey = JSON.stringify(rooms);
@@ -80,21 +86,24 @@ export default function PasteRooms({
     const row = byKey.get(key);
     return row ? W.matchedWords(row.programmeName, row.groupName) : "";
   };
-  const choose = (number: number, key: string) =>
+  const choose = (line: PastedLine, key: string) =>
     setChosen((now) => {
       const next = new Map(now);
-      if (key) next.set(number, key);
-      else next.delete(number);
+      if (key) next.set(choiceKeyOf(line), key);
+      else next.delete(choiceKeyOf(line));
       return next;
     });
 
   /** The line's own status, in the box's third column. */
-  function statusOf(outcome: LineOutcome, number: number): ReactNode {
+  function statusOf(outcome: LineOutcome, line: PastedLine): ReactNode {
+    const number = line.number;
     switch (outcome.kind) {
       case "new":
         return W.PASTE_STATE.new;
       case "change":
         return W.wasWords(outcome.was);
+      case "clear":
+        return W.clearWords(outcome.was);
       case "same":
         return W.PASTE_STATE.same;
       case "notHere":
@@ -110,7 +119,7 @@ export default function PasteRooms({
           return (
             <span className={styles.ask}>
               <span>{W.didYouMeanWords(nameOf(match.key))}</span>
-              <Button type="button" variant="secondary" onClick={() => choose(number, match.key)}>
+              <Button type="button" variant="secondary" onClick={() => choose(line, match.key)}>
                 {W.takeSuggestionWords(row?.groupName ?? "")}
               </Button>
             </span>
@@ -125,7 +134,7 @@ export default function PasteRooms({
         return (
           <span className={styles.ask}>
             <label htmlFor={selectId}>{label}</label>
-            <Select id={selectId} value="" onChange={(event) => choose(number, event.target.value)} aria-label={W.CHOOSE}>
+            <Select id={selectId} value="" onChange={(event) => choose(line, event.target.value)} aria-label={W.CHOOSE}>
               <option value="">{W.CHOOSE_PLACEHOLDER}</option>
               {keys.map((key) => (
                 <option key={key} value={key}>
@@ -167,10 +176,7 @@ export default function PasteRooms({
         className={styles.pasteText}
         rows={6}
         value={text}
-        onChange={(event) => {
-          setText(event.target.value);
-          setChosen(new Map());
-        }}
+        onChange={(event) => setText(event.target.value)}
       />
       <p className={styles.note}>{W.pasteWeekWords(weekLabel)}</p>
 
@@ -192,13 +198,16 @@ export default function PasteRooms({
                 {lines.map((line, index) => {
                   const outcome = outcomes[index];
                   const key = "key" in outcome ? outcome.key : null;
-                  const ready = outcome.kind === "new" || outcome.kind === "change" || outcome.kind === "same";
+                  const ready = outcome.kind === "new" || outcome.kind === "change" || outcome.kind === "clear" || outcome.kind === "same";
                   return (
                     <tr key={line.number} className={ready ? "" : styles.needsYou}>
                       <td>{line.group}</td>
                       <td>{key ? nameOf(key) : ""}</td>
                       <td>{line.room}</td>
-                      <td>{statusOf(outcome, line.number)}</td>
+                      <td>
+                        {statusOf(outcome, line)}
+                        {line.ignored ? <span className={styles.mark}>{W.IGNORED_COLUMN}</span> : null}
+                      </td>
                     </tr>
                   );
                 })}

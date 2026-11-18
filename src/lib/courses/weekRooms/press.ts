@@ -1,28 +1,28 @@
-import { notToldWords, UNKNOWN_OUTCOME } from "../sessionChange/words";
+import { UNKNOWN_OUTCOME } from "../sessionChange/words";
 import { postedWords } from "../updates/words";
 import type { RoomRow } from "./model";
-import { ROOM_SAVED, ROOM_SAVED_NOBODY_TOLD } from "./words";
+import { ASKED_AGAIN, ROOM_SAVED, ROOM_SAVED_NOBODY_TOLD, roomSavedNotToldWords } from "./words";
 
 /**
- * HOW THE WEEK'S ROOMS PRESSES THE ONE WRITER, with no React in it, so the
- * page and its tests press exactly the same way. Every request goes through
- * `post`, which the page makes from `fetch` and a test from the route
- * handlers themselves.
+ * HOW THE WEEK'S ROOMS AND THE TERM'S ROOMS PRESS THE ONE WRITER, with no
+ * React in it, so the pages and their tests press exactly the same way. Every
+ * request goes through `post`, which a page makes from `fetch` and a test
+ * from the route handler itself.
  *
- * A room changed in a row is a one-week change of that session
- * (`POST /api/courses/groups/[groupId]/session/change`, kind `move`) to the
- * same day and the same start, in the new room; a field emptied is "Room to
- * be confirmed", as the group's page says it. The same route, the same body,
- * the same refusals, the same history row: nothing here writes anything the
- * route would not.
+ * A room is the room-only change of that week
+ * (`POST /api/courses/groups/[groupId]/session/change`, kind `room`): the
+ * week's room and nothing else, never its day or time, and the week is not
+ * marked moved. A field emptied, or "TBC", is To be confirmed.
  *
- * TELLING THE GROUP is the route's answer, posted on to the group through the
- * updates route (`/api/courses/runs/[runId]/updates`) exactly as answered,
- * its facilitators with it: the notice's words and who it reaches are the
- * route's, and the count on the button is checked by both before anything
- * changes or anything is sent. Whether to tell is decided as the group's
- * page decides it (`tells` below): whenever somebody can be told, and never
- * past what one send can take.
+ * TELLING THE GROUP is the route's own, in the same request: with Tell the
+ * group on, the route checks the count the preview gave, saves the room, then
+ * emails that week's people and the group's facilitators, and answers with
+ * what went. A count that changed, fell to nobody or passed one send's limit
+ * is answered 409 with the new facts and nothing changed; the row takes them
+ * and asks again.
+ *
+ * The term's grid presses the same kind with several weeks of one group at
+ * once and Tell the group off: it emails nobody.
  */
 
 /** One request to a route: its status and its body, or null when no answer came. */
@@ -37,49 +37,34 @@ export type RoomPreview =
       status: "ok";
       /** Every email the group's notice would send, its facilitators with standing among them. */
       emails: number;
-      /** The group would be told: somebody to tell, and not over what one send takes. */
+      /** The group can be told: somebody to tell, and not over what one send takes. */
       tells: boolean;
       /** More than one send can take: the room may be saved, and the group told from Messages. */
       overCap: boolean;
     };
 
-/** The update the change route answers with, posted on as answered. */
-export type GroupUpdate = { groupId: string; title: string; message: string; emailCount: number; withFacilitators?: boolean };
-
-/** What a press did to one row: saved (and who was told), or refused, with a sentence; and an update still to post. */
+/** What a press did to one row: saved (and who was told), or refused, with a sentence. */
 export type RoomOutcome = {
   tone: "done" | "problem";
   text: string;
-  /** The room was saved: it went through, whatever became of telling the group. */
+  /** The room was saved, whatever became of telling the group. */
   saved: boolean;
-  /** The update that did not go, to post again with Tell the group. */
-  pending?: { runId: string; update: GroupUpdate };
-  /** The count the route says the button should have said. */
-  emails?: number;
+  /** Saved, with Tell the group on, and somebody was not told. */
+  notTold?: boolean;
+  /** The count changed since the preview: the facts to ask again with. */
+  asked?: { emails: number; overCap: boolean };
 };
 
 export function changeUrl(row: Pick<RoomRow, "groupId">): string {
   return `/api/courses/groups/${encodeURIComponent(row.groupId)}/session/change`;
 }
 
-export function updatesUrl(runId: string): string {
-  return `/api/courses/runs/${encodeURIComponent(runId)}/updates`;
-}
-
-/** The move a room change is: the same day and start, in the room, or Room to be confirmed when it is empty. */
-export function moveOf(row: Pick<RoomRow, "dateKey" | "start">, room: string) {
-  const typed = room.trim();
-  return { dateKey: row.dateKey, time: row.start, room: typed, roomToBeConfirmed: typed === "" };
-}
-
 /** The writer's answer to `preview: true` for one room, read as the row draws it. */
-export async function askPreview(post: Post, row: RoomRow, room: string): Promise<RoomPreview> {
+export async function askPreview(post: Post, row: Pick<RoomRow, "groupId" | "weekNumber" | "dateKey">, room: string): Promise<RoomPreview> {
   const typed = room.trim();
   const answer = await post(changeUrl(row), {
-    week: row.weekNumber,
-    dateKey: row.dateKey,
-    kind: "move",
-    move: moveOf(row, typed),
+    kind: "room",
+    weeks: [{ week: row.weekNumber, dateKey: row.dateKey, room: typed }],
     preview: true,
   });
   const error = typeof answer?.body?.error === "string" ? answer.body.error : null;
@@ -88,80 +73,85 @@ export async function askPreview(post: Post, row: RoomRow, room: string): Promis
   }
   const told = ((answer.body.preview as Record<string, unknown> | undefined)?.told ?? {}) as Record<string, unknown>;
   const emails = typeof told.emails === "number" ? told.emails : 0;
-  const people = typeof told.people === "number" ? told.people : 0;
   const overCap = told.refused === true;
-  return { room: typed, status: "ok", emails, overCap, tells: !overCap && (people > 0 || emails > 0) };
+  return { room: typed, status: "ok", emails, overCap, tells: !overCap && emails > 0 };
 }
 
-/** How many a row's press would email, as its button counts it. */
+/** How many a row's press would email with Tell the group on, as its button counts it. */
 export function emailsOf(preview: RoomPreview | null | undefined): number {
   return preview?.status === "ok" && preview.tells ? preview.emails : 0;
 }
 
-/** Posts the update the change route answered with, and says what became of it. */
-export async function tellGroup(post: Post, runId: string, update: GroupUpdate): Promise<RoomOutcome> {
-  const answer = await post(updatesUrl(runId), {
-    to: "group",
-    groupId: update.groupId,
-    title: update.title,
-    message: update.message,
-    email: update.emailCount > 0,
-    ...(update.emailCount > 0 ? { emailCount: update.emailCount } : {}),
-    // A change to the group's session reaches its facilitators too.
-    ...(update.withFacilitators === true ? { withFacilitators: true } : {}),
-  });
-  const notTold = (why: string, next: GroupUpdate = update): RoomOutcome => ({
-    tone: "problem",
-    text: `${ROOM_SAVED} ${notToldWords(why)}`,
-    saved: true,
-    pending: { runId, update: next },
-  });
-  if (!answer) return notTold("we couldn’t tell whether the update went through.");
-  const sentence = typeof answer.body?.error === "string" ? answer.body.error : null;
-  if (answer.status === 409 && typeof answer.body?.emails === "number") {
-    return notTold(sentence ?? "the number of people it emails has changed.", { ...update, emailCount: answer.body.emails });
-  }
-  if (answer.status !== 200 || answer.body?.ok !== true) return notTold(sentence ?? "the update didn’t go through.");
-  const tally = answer.body.email as { sent?: number; held?: number; suppressed?: number; failed?: number } | null;
-  return {
-    tone: "done",
-    saved: true,
-    text: `${ROOM_SAVED} ${postedWords(
-      tally ? { sent: tally.sent ?? 0, held: tally.held ?? 0, suppressed: tally.suppressed ?? 0, failed: tally.failed ?? 0 } : null,
-    )}`,
-  };
-}
-
 /**
- * ONE GROUP'S ROOM, THROUGH THE WRITER: the press with the reason and the
- * count its preview gave, then the update it answers with. A count that no
- * longer holds is answered 409 with the new one and nothing changed; the
- * outcome carries the new count for the row to press again.
+ * ONE GROUP'S ROOM FOR ONE WEEK, THROUGH THE WRITER: the room, the reason and,
+ * with `tell` on and somebody to tell, the count its preview gave.
  */
 export async function saveRoom(
   post: Post,
-  row: RoomRow,
+  row: Pick<RoomRow, "groupId" | "weekNumber" | "dateKey">,
   room: string,
   preview: Extract<RoomPreview, { status: "ok" }>,
   reason: string,
+  tell: boolean,
 ): Promise<RoomOutcome> {
-  const tell = preview.tells;
+  const telling = tell && preview.tells;
   const answer = await post(changeUrl(row), {
-    week: row.weekNumber,
-    dateKey: row.dateKey,
-    kind: "move",
-    move: moveOf(row, room),
+    kind: "room",
+    weeks: [{ week: row.weekNumber, dateKey: row.dateKey, room: room.trim() }],
     reason: reason.trim(),
-    tell,
-    ...(tell ? { emailCount: preview.emails } : {}),
+    tell: telling,
+    ...(telling ? { emailCount: preview.emails } : {}),
   });
   if (!answer) return { tone: "problem", text: UNKNOWN_OUTCOME, saved: false };
   const sentence = typeof answer.body?.error === "string" ? answer.body.error : null;
   if (answer.status === 409 && typeof answer.body?.emails === "number") {
-    return { tone: "problem", text: sentence ?? UNKNOWN_OUTCOME, saved: false, emails: answer.body.emails };
+    return {
+      tone: "problem",
+      text: `${sentence ?? UNKNOWN_OUTCOME} ${ASKED_AGAIN}`,
+      saved: false,
+      asked: { emails: answer.body.emails, overCap: answer.body.overCap === true },
+    };
   }
   if (answer.status !== 200 || answer.body?.ok !== true) return { tone: "problem", text: sentence ?? UNKNOWN_OUTCOME, saved: false };
-  const update = answer.body.update as GroupUpdate | null;
-  if (!update) return { tone: "done", text: ROOM_SAVED_NOBODY_TOLD, saved: true };
-  return tellGroup(post, row.runId, update);
+  const email = answer.body.email as { planned?: number; sent?: number; held?: number; suppressed?: number; failed?: number } | null;
+  if (!email) return { tone: "done", text: ROOM_SAVED_NOBODY_TOLD, saved: true };
+  const tally = { sent: email.sent ?? 0, held: email.held ?? 0, suppressed: email.suppressed ?? 0, failed: email.failed ?? 0 };
+  if (tally.failed > 0) return { tone: "problem", text: roomSavedNotToldWords(tally.failed), saved: true, notTold: true };
+  return { tone: "done", text: `${ROOM_SAVED} ${postedWords(tally)}`, saved: true };
+}
+
+/** One week's room in a grid press. */
+export type GridWeek = { weekNumber: number; dateKey: string; room: string };
+
+/** What a grid press did for each week of one group: saved, or refused with the writer's sentence. */
+export type GridOutcome = Map<number, { saved: boolean; text: string }>;
+
+/**
+ * SEVERAL WEEKS OF ONE GROUP, FROM THE TERM'S GRID: one request, one
+ * transaction, Tell the group off. Each week refused says why and the rest are
+ * saved. A request that was refused whole (or never answered) says so for
+ * every week.
+ */
+export async function saveGroupWeeks(post: Post, groupId: string, weeks: readonly GridWeek[]): Promise<GridOutcome> {
+  const out: GridOutcome = new Map();
+  const answer = await post(changeUrl({ groupId }), {
+    kind: "room",
+    weeks: weeks.map((week) => ({ week: week.weekNumber, dateKey: week.dateKey, room: week.room.trim() })),
+    tell: false,
+  });
+  const whole = (text: string) => {
+    for (const week of weeks) out.set(week.weekNumber, { saved: false, text });
+    return out;
+  };
+  if (!answer) return whole(UNKNOWN_OUTCOME);
+  const sentence = typeof answer.body?.error === "string" ? answer.body.error : null;
+  if (answer.status !== 200 || answer.body?.ok !== true) return whole(sentence ?? UNKNOWN_OUTCOME);
+  const rooms = Array.isArray(answer.body.rooms) ? (answer.body.rooms as Array<Record<string, unknown>>) : [];
+  for (const week of weeks) {
+    const said = rooms.find((each) => each.week === week.weekNumber);
+    if (!said) out.set(week.weekNumber, { saved: false, text: UNKNOWN_OUTCOME });
+    else if (said.saved === true) out.set(week.weekNumber, { saved: true, text: ROOM_SAVED });
+    else out.set(week.weekNumber, { saved: false, text: typeof said.error === "string" ? said.error : UNKNOWN_OUTCOME });
+  }
+  return out;
 }

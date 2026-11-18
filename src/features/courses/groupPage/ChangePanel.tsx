@@ -92,7 +92,15 @@ type Preview =
 /** A preview, with the question it answered: only an answer to the question the panel asks now is drawn. */
 type Answered = { asked: string; preview: Preview };
 
-type PendingUpdate = { groupId: string; title: string; message: string; emailCount: number; withFacilitators: boolean };
+type PendingUpdate = {
+  groupId: string;
+  title: string;
+  message: string;
+  emailCount: number;
+  withFacilitators: boolean;
+  /** About one week's session: the people in the group that week, as the change route counted them. */
+  weekNumber?: number;
+};
 
 /** Why "Push the rest back a week" is not offered, in the panel's words; "" when it is. */
 function pushBlockWords(block: PushBlock, weekNumber: number): string {
@@ -348,6 +356,7 @@ export default function ChangePanel({
       ...(update.emailCount > 0 ? { emailCount: update.emailCount } : {}),
       // A change to the group's sessions reaches its facilitators too.
       withFacilitators: update.withFacilitators,
+      ...(typeof update.weekNumber === "number" ? { weekNumber: update.weekNumber } : {}),
     });
     if (!answer) {
       setPending({ update, changed });

@@ -7,6 +7,8 @@ import { isId } from "@/lib/applications/normalise";
 import { loadForm } from "@/lib/applications/repo";
 import { requestShownTo } from "@/lib/courses/requests/load";
 import type { SessionUser } from "@/lib/firebase/session";
+import type { PlaceByWeek } from "@/lib/courses/groupsByWeek";
+import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeExcusedRequest } from "@/lib/firestore/courseExcusedRequests";
 import { COURSE_REQUESTS_COLLECTION, normalizeCourseRequest } from "@/lib/firestore/courseRequests";
@@ -43,12 +45,15 @@ import {
  *  - each run's groups: one equality on `runId`, G documents in all;
  *  - each shown row's register, by id: R (one a row; a register not written
  *    yet still costs its read);
- *  - each shown run's requests: one equality on `runId`, at most 500 each.
+ *  - each shown run's requests: one equality on `runId`, at most 500 each;
+ *  - each shown run's places: one equality on `runId`, E documents in all,
+ *    so that away and online count only the people in the group that week.
  *
- * So 1 + P + G + R + Q. Nothing about anybody is read: no account, no place.
- * The counts come off the session's own register (who said what for that
- * session, which is written on the register of the group they were in that
- * week) and the requests' own fields.
+ * So 1 + P + G + R + Q + E. No account is read. The counts come off the
+ * session's own register (who said what for that session) and the requests'
+ * own fields, each line counted only for somebody whose group that week is
+ * the row's (`inGroupForWeek`): a register keeps a line written before its
+ * person moved to another group.
  *
  * The term's rooms: the form, each shown programme's run and groups, and one
  * register a group and taught week with a date, by id: 1 + S + G + G x W.
@@ -108,6 +113,17 @@ async function liveGroupsOf(db: Firestore, runId: string): Promise<CourseGroupDo
     .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
     .filter((group) => group.runId === runId && !group.archived)
     .sort(compareGroupsByMeeting);
+}
+
+/** The run's places by uid, for which group each person was in which week. One equality on `runId`. */
+async function placesOf(db: Firestore, runId: string): Promise<Map<string, PlaceByWeek>> {
+  const snap = await db.collection("courseEnrolments").where("runId", "==", runId).get();
+  const out = new Map<string, PlaceByWeek>();
+  for (const doc of snap.docs) {
+    const place = normalizeCourseEnrolment(doc.id, doc.data() ?? {});
+    if (place.runId === runId && place.uid) out.set(place.uid, place);
+  }
+  return out;
 }
 
 /** Registers by id, in batches; a register not written yet is left out. */
@@ -190,12 +206,13 @@ export async function loadWeekRooms(
   const records = await Promise.all(
     programmes.map(async (programme): Promise<ProgrammeRecords> => {
       const isShown = shown.includes(programme);
-      const [registers, requests] = isShown
+      const [registers, requests, places] = isShown
         ? await Promise.all([
             readRegisters(db, registerIdsForWeek([programme], monday)),
             requestsWaiting(db, user, programme.run, programme.groups),
+            placesOf(db, programme.run.id),
           ])
-        : [new Map<string, Record<string, unknown>>(), new Map<string, number>()];
+        : [new Map<string, Record<string, unknown>>(), new Map<string, number>(), new Map<string, PlaceByWeek>()];
       return {
         programmeId: programme.programmeId,
         programmeName: programme.programmeName,
@@ -203,6 +220,7 @@ export async function loadWeekRooms(
         groups: programme.groups,
         registers,
         requests,
+        places,
       };
     }),
   );
@@ -229,7 +247,7 @@ export type TermRoomsLoad =
 export async function loadTermRooms(
   db: Firestore,
   user: SessionUser,
-  input: { roundId: string; only: string | null },
+  input: { roundId: string; only: string | null; now: Date },
 ): Promise<TermRoomsLoad> {
   const visible = await visibleProgrammes(db, user, input.roundId);
   if (!visible) return { status: "none" };
@@ -250,6 +268,6 @@ export async function loadTermRooms(
     reader: { roundId: visible.roundId, termLabel: visible.termLabel, viewer: visible.viewer },
     only: input.only,
     programmes: visible.programmes.map(({ programmeId, programmeName }) => ({ programmeId, programmeName })),
-    sections: termRoomsView({ roundId: visible.roundId, programmes: records }),
+    sections: termRoomsView({ roundId: visible.roundId, programmes: records, now: input.now }),
   };
 }

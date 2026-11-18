@@ -1,5 +1,5 @@
 import type { RoomRow, TermSection } from "./model";
-import { CELL_MARK, COLUMN, CSV_COLUMN, NOT_BOOKED, NO_SESSION, ROW_STATE, requestsCellWords, weekColumnWords } from "./words";
+import { CELL_MARK, COLUMN, CSV_COLUMN, TO_BE_CONFIRMED, NO_SESSION, ROW_STATE, requestsCellWords, weekColumnWords } from "./words";
 
 /**
  * WHAT DOWNLOAD SAVES, as a header and rows, from what the page already
@@ -8,10 +8,10 @@ import { CELL_MARK, COLUMN, CSV_COLUMN, NOT_BOOKED, NO_SESSION, ROW_STATE, reque
  * neutralises a cell a spreadsheet would run as a formula.
  */
 
-/** A row's room as the file says it: the room, "Not booked", or why it is not changed here. */
+/** A row's room as the file says it: the room, To be confirmed, or why it is not changed here. */
 function roomCell(row: RoomRow): string {
   if (row.state === "cancelled") return ROW_STATE.cancelled;
-  return row.room || NOT_BOOKED;
+  return row.room || TO_BE_CONFIRMED;
 }
 
 /** The week's rooms, a line a row, in the table's columns. */
@@ -46,7 +46,7 @@ export function termRoomsCsv(sections: readonly TermSection[]): { header: string
           if (!cell) return "";
           if (cell.kind === "none") return NO_SESSION;
           const marks = cell.marks.map((mark) => CELL_MARK[mark]);
-          const room = cell.marks.includes("cancelled") ? "" : cell.room || NOT_BOOKED;
+          const room = cell.marks.includes("cancelled") ? "" : cell.room || TO_BE_CONFIRMED;
           return [room, marks.length ? `(${marks.join("; ")})` : ""].filter(Boolean).join(" ");
         }),
       ]),
