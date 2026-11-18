@@ -201,7 +201,8 @@ test("course hub: an admin arranges a one-week visit to another group's session,
       await visiting.waitFor({ timeout: WAIT_MS });
       const said = await textOf(visiting);
       assert.ok(said.includes(`Visiting from ${home.name}, week 4 only. You can read ${ben.first}’s week 4; ${home.name}’s facilitators give the feedback.`), said);
-      assert.ok(said.includes("Visiting"), said);
+      // The chip itself, not the line (which says "Visiting from ..." too).
+      assert.equal((await textOf(visiting.getByTestId("group-visiting-chip"))).trim(), "Visiting");
       await page.goto(`${formBase}/groups/${enc(home.id)}?week=4`, { waitUntil: "domcontentloaded" });
       const away = page.getByTestId("group-away").filter({ hasText: ben.first });
       await away.waitFor({ timeout: WAIT_MS });

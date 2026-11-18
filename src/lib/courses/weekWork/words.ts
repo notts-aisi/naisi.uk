@@ -127,7 +127,18 @@ export function doneOfWords(done: number, of: number): string {
 }
 
 /** Who reads the written answer: the group's facilitators by first name, or the lead and admins for a facilitator's own. */
-export type Readers = { kind: "facilitators"; names: string[] } | { kind: "lead"; leadName: string | null };
+export type Readers =
+  | {
+      kind: "facilitators";
+      names: string[];
+      /**
+       * Who else may READ it, never give feedback: in a week of a one-week
+       * visit, the host's facilitators the reading rule lets read that week.
+       * Named in who can read it, never in who gives feedback.
+       */
+      alsoRead?: string[];
+    }
+  | { kind: "lead"; leadName: string | null };
 
 // ---------------------------------------------------------------------------
 // What isn't done (the reminders, and the routes' refusals)
@@ -372,7 +383,7 @@ export function staffChangedSinceSentWords(firstName: string): string {
 export function answerReadersWords(readers: Readers, leadName: string | null): string {
   const names =
     readers.kind === "facilitators"
-      ? [...readers.names, ...(leadName ? [leadName] : []), "admins"]
+      ? [...readers.names, ...(readers.alsoRead ?? []).filter((name) => !readers.names.includes(name)), ...(leadName ? [leadName] : []), "admins"]
       : [...(readers.leadName ? [readers.leadName] : []), "admins"];
   return `Once you send it, or once your session has started, ${namesAnd(names)} can read your written answer.`;
 }

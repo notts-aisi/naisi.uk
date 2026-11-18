@@ -228,8 +228,9 @@ export type CancelRefusalKind = "too-late" | "no-visit";
  * signed out (the site's own sign-in); otherwise that it did not go through and
  * the visit stands. Status 0 is a request that never reached the server.
  */
-export function cancelOutcomeLine(answer: { status: number; kind?: unknown }, hostName: string): string | null {
-  if (answer.kind === "too-late") return cancelTooLateWords(hostName);
+export function cancelOutcomeLine(answer: { status: number; kind?: unknown }, hostName: string, firstName: string = hostName): string | null {
+  // Too late names the group whose session HAS started: the earlier of the two (`cancelDeadline`).
+  if (answer.kind === "too-late") return cancelTooLateWords(firstName);
   if (answer.kind === "no-visit" || answer.status === 401) return null;
   return cancelFailedWords(hostName);
 }

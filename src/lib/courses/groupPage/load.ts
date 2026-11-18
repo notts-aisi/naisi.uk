@@ -22,6 +22,7 @@ import {
   normalizeCourseAttendance,
   registerIsTaken,
 } from "@/lib/firestore/courseAttendance";
+import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import { normalizeCourseEnrolment, ownGroupForWeek, placementIsTold, visitInWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { visitingLineWords } from "@/lib/courses/visit/words";
 import {
@@ -179,11 +180,23 @@ export async function loadGroupPage(
       ? [...new Set(snaps.map((snap) => (snap?.exists ? normalizeCourseAttendance(snap.id, snap.data() ?? {}).cover?.byUid ?? "" : "")).filter(Boolean))]
       : [];
   // Somebody from another group coming to one of its sessions for one week (a
-  // one-week visit): the run's active places, one equality on the run and
-  // one on the status, for the page's staff (the facilitator's cut lists no
-  // people) and for the week's work. A place Publish has not told is never a
+  // one-week visit), for the page's staff (the facilitator's cut lists no
+  // people) and for the week's work. BOUNDED: first one row at most, by two
+  // equalities, of the History a visit TO this group leaves on the visitor's
+  // own group when it is arranged (`member-visits`, its `after` naming this
+  // group; every visit is arranged that way and History rows are never
+  // deleted while a place is). With none, nobody ever visited this group and
+  // nothing more is read; with one, the run's active places (one equality on
+  // the run and one on the status). A place Publish has not told is never a
   // visitor: a visit is arranged only for a told place.
   const visitorsRead = seatRead.then(async () => {
+    const hosted = await db
+      .collection(COURSE_AUDIT_COLLECTION)
+      .where("after.groupId", "==", group.id)
+      .where("kind", "==", "member-visits")
+      .limit(1)
+      .get();
+    if (hosted.empty) return { seats: [] as CourseEnrolmentDoc[], homes: new Map<string, CourseGroupDoc>() };
     const snap = await db.collection("courseEnrolments").where("runId", "==", run.id).where("status", "==", "active").get();
     const visitors = snap.docs
       .map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}))

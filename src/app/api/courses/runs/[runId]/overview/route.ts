@@ -23,8 +23,8 @@ import { inLastWeek } from "@/lib/courses/programmeEnd";
 import { whatsNextFor, type WhatsNext } from "@/lib/courses/whatsNext";
 import { differsByWeek, groupsOfWeeks, hasGroupsByWeek, hasVisits, inGroupForWeek, sessionsByWeekGroup, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
 import { rawCountsFromArchivedGroup } from "@/lib/courses/archivedWeeks";
-import { ownVisitsOf } from "@/lib/courses/visit/card";
-import type { OverviewVisit } from "@/lib/courses/visit/view";
+import { ownVisitsOf, visitReadersOf } from "@/lib/courses/visit/card";
+import type { OverviewVisit, OverviewVisitReaders } from "@/lib/courses/visit/view";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
 import { memberExplainerOn, type MemberExplainer } from "@/lib/courses/explainers/model";
@@ -643,6 +643,14 @@ export type OverviewPayload = {
    * draws it (`OverviewVisit`). ABSENT for everybody with none.
    */
   visits?: OverviewVisit[];
+  /**
+   * For each week of a one-week visit that stands, the first names of the
+   * host group's facilitators who may read that week of the caller's work
+   * (`hostReadsWeek`, the rule that decides they may): their week page's
+   * existing sentences about who can read their work name them too, that
+   * week alone. ABSENT for everybody with no visit.
+   */
+  visitReaders?: OverviewVisitReaders[];
   /** The caller's OWN enrolment summary; null when they read as facilitator/admin. */
   enrolment: {
     status: CourseEnrolmentStatus;
@@ -1635,6 +1643,8 @@ export async function GET(
     ownLearnerGroup && liveEnrolment && hasVisits(liveEnrolment)
       ? await ownVisitsOf(db, { run, groups, place: liveEnrolment, actor, isAdmin, now })
       : undefined;
+  const visitReaders: OverviewVisitReaders[] | undefined =
+    ownLearnerGroup && liveEnrolment && hasVisits(liveEnrolment) ? await visitReadersOf(db, { groups, place: liveEnrolment }) : undefined;
   // `group` is the first card when there is one, which for every caller who
   // had a card before is the same object they had before. NULL for a
   // multi-group facilitator, because `ownGroup` is. See the wire type.
@@ -1870,6 +1880,7 @@ export async function GET(
     forkedWeekIds,
     ...(forkedWeekGroups ? { forkedWeekGroups } : {}),
     ...(visits && visits.length > 0 ? { visits } : {}),
+    ...(visitReaders && visitReaders.length > 0 ? { visitReaders } : {}),
     enrolment: enrolment
       ? {
           status: enrolment.status,

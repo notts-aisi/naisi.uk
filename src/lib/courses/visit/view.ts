@@ -2,7 +2,7 @@
  * WHAT THE PAGE THAT ARRANGES A ONE-WEEK VISIT DRAWS, as plain values: the
  * shape the route's preview answers and the server page hands its client
  * part, so the two draw one thing. Never an address, never anybody's email.
- * Types only: no imports, so the page in the browser reads it too.
+ * Types, and one pure helper: no imports, so the page in the browser reads it too.
  */
 
 /** One line of "What will happen". */
@@ -76,6 +76,12 @@ export type OverviewVisit = {
   hostGroupId: string;
   /** The host group's name, for the line said when a cancel does not happen. */
   hostName: string;
+  /**
+   * The name of the group whose session that week starts first, the one
+   * whose start ends cancelling (`cancelDeadline`): the line said when a
+   * cancel comes too late names it.
+   */
+  firstName: string;
   /** The host's session's key and day: the two tickets act on it. */
   sessionKey: string;
   dateKey: string;
@@ -95,3 +101,23 @@ export type OverviewVisit = {
   /** The host's link for that session, for somebody joining online; null with none, or none to show. */
   meetingUrl: string | null;
 };
+
+/** One week of a one-week visit: the host's facilitators who may read that week of the person's work, by first name. */
+export type OverviewVisitReaders = { weekNumber: number; firstNames: string[] };
+
+/**
+ * WHERE THE PERSON'S VISIT CARDS GO ON THEIR PROGRAMME PAGE, around the
+ * ticket of their own group's next session (`ticket`, its day and start, or
+ * null with none): a visit whose session comes no later than the ticket's is
+ * their NEXT session, drawn where the next session's card goes, above the
+ * ticket; a visit further ahead is listed below it. Pure, and with no
+ * imports, so the page in the browser asks it.
+ */
+export function visitsAroundTicket<V extends { dateKey: string; startTimeLocal: string }>(
+  visits: readonly V[],
+  ticket: { dateKey: string; startTimeLocal: string } | null,
+): { first: V[]; later: V[] } {
+  const at = (each: { dateKey: string; startTimeLocal: string }) => `${each.dateKey} ${each.startTimeLocal}`;
+  const isNext = (visit: V) => ticket === null || at(visit) <= at(ticket);
+  return { first: visits.filter(isNext), later: visits.filter((visit) => !isNext(visit)) };
+}

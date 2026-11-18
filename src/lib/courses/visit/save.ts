@@ -11,7 +11,7 @@ import { courseEnrolmentId, groupForWeek, ownGroupForWeek, type CourseEnrolmentD
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import type { SessionUser } from "@/lib/firebase/session";
-import { arrangedEmailFor, planCallOff, planVisit, readVisitFacts, txReader, type VisitFacts, type VisitRecipient, type VisitRefusal } from "./plan";
+import { MEMBER_NO_VISIT, arrangedEmailFor, planCallOff, planVisit, readVisitFacts, txReader, type VisitFacts, type VisitRecipient, type VisitRefusal } from "./plan";
 import {
   arrangedWords,
   calledOffDetail,
@@ -240,14 +240,17 @@ export async function callOffVisit(db: Firestore, input: CallOffInput): Promise<
   let firstName = "";
   try {
     await db.runTransaction(async (tx) => {
-      const read = await readVisitFacts(txReader(tx), db, input.runId, input.uid, [input.weekNumber], input.now);
+      const read = await readVisitFacts(txReader(tx), db, input.runId, input.uid, [input.weekNumber], input.now, input.byStaff ? "staff" : "member");
       if (!read.ok) throw new Stop(read);
       const { facts } = read;
       const outcome = planCallOff(facts, input.weekNumber, input.byStaff, input.actor.uid, input.now);
-      if (!outcome.ok) throw new Stop(outcome);
+      // The person's own: anything but their own standing visit is the one 404,
+      // a visit to a session that is no longer happening included (it reads as none).
+      if (!outcome.ok) throw new Stop(input.byStaff ? outcome : MEMBER_NO_VISIT);
       const plan = outcome.plan;
+      if (!input.byStaff && !plan.happening) throw new Stop(MEMBER_NO_VISIT);
       if (plan.until && input.now.getTime() >= plan.until.getTime()) {
-        throw new Stop({ ok: false, status: 409, error: tooLateToCancelWords(plan.host.name), kind: "too-late" });
+        throw new Stop({ ok: false, status: 409, error: tooLateToCancelWords(plan.firstName), kind: "too-late" });
       }
       if (input.emailCount !== null && plan.emails !== input.emailCount) {
         throw new Stop({ ok: false, status: 409, error: changedWords(plan.emails), emails: plan.emails, overLimit: null });

@@ -104,7 +104,21 @@ export type VisitFacts = {
   places: CourseEnrolmentDoc[];
   /** The registers read, by document id: their own group's and the hosts' for the weeks asked. */
   registers: Map<string, Record<string, unknown>>;
+  /**
+   * The run has one group that still meets (or is an incubator's): no visit
+   * can be ARRANGED (`planVisit` refuses), and a visit that stands can still
+   * be called off by staff.
+   */
+  oneGroup: boolean;
 };
+
+/**
+ * THE ONE ANSWER THE PERSON'S OWN CANCEL GIVES for everything that is not
+ * their own standing visit on a run they hold a place on: no run, a run they
+ * hold no place on, a run over, archived or with one group, no visit that
+ * week, or a visit that reads as none. Never a word about the run.
+ */
+export const MEMBER_NO_VISIT: VisitRefusal = { ok: false, status: 404, error: VISIT_REFUSAL.noVisit, kind: "no-visit" };
 
 /** Where the facts are read from: the database, or a transaction (reads only). */
 export type Reader = {
@@ -220,24 +234,35 @@ export async function readVisitFacts(
   uid: string,
   weeks: "ahead" | readonly number[],
   now: Date,
+  /**
+   * Who asks: staff (the default), or the person themselves cancelling, for
+   * whom the CALLER'S OWN PLACE is decided first and every other refusal is
+   * the one 404 (`MEMBER_NO_VISIT`), so no answer says a run exists, is
+   * archived or has one group.
+   */
+  as: "staff" | "member" = "staff",
 ): Promise<{ ok: true; facts: VisitFacts } | VisitRefusal> {
   const [[runSnap, placeSnap], groupSnap, placesSnap] = await Promise.all([
     reader.getAll([db.collection("courseRuns").doc(runId), db.collection("courseEnrolments").doc(courseEnrolmentId(runId, uid))]),
     reader.query(db.collection("courseGroups").where("runId", "==", runId)),
     reader.query(db.collection("courseEnrolments").where("runId", "==", runId).where("status", "==", "active")),
   ]);
-  if (!runSnap?.exists) return { ok: false, status: 409, error: VISIT_REFUSAL.runGone };
+  const place = placeSnap?.exists ? normalizeCourseEnrolment(placeSnap.id, placeSnap.data() ?? {}) : null;
+  const placeIsTheirs = Boolean(place && place.runId === runId && place.uid === uid && place.role === "learner" && place.status === "active" && place.groupId);
+  if (as === "member" && !placeIsTheirs) return MEMBER_NO_VISIT;
+  const refuse = (answer: VisitRefusal): VisitRefusal => (as === "member" ? MEMBER_NO_VISIT : answer);
+  if (!runSnap?.exists) return refuse({ ok: false, status: 409, error: VISIT_REFUSAL.runGone });
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const destroying = (runSnap.data() ?? {}).destroying === true;
   const runRefusal = runVisitRefusal(run, destroying);
-  if (runRefusal) return { ok: false, status: 409, error: runRefusal };
+  if (runRefusal) return refuse({ ok: false, status: 409, error: runRefusal });
   const groups = groupSnap.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})).filter((group) => group.runId === run.id);
   const live = groups.filter((group) => !group.archived);
   const naming = await readNamingProgramme(db, run.id);
-  if (naming?.kind === "incubator" || live.length < 2) return { ok: false, status: 409, error: VISIT_REFUSAL.oneGroup };
+  const oneGroup = naming?.kind === "incubator" || live.length < 2;
+  if (oneGroup && as === "member") return MEMBER_NO_VISIT;
 
-  const place = placeSnap?.exists ? normalizeCourseEnrolment(placeSnap.id, placeSnap.data() ?? {}) : null;
-  if (!place || place.runId !== run.id || place.uid !== uid || place.role !== "learner" || place.status !== "active" || !place.groupId) {
+  if (!place || !placeIsTheirs || place.runId !== run.id) {
     return { ok: false, status: 404, error: VISIT_REFUSAL.noPlace };
   }
   const accountSnaps = await reader.getAll(
@@ -255,16 +280,16 @@ export async function readVisitFacts(
   // (b)'s two sentences, the cases being the same: a seat Publish has not
   // told (nobody is emailed about a group they were never told), and
   // somebody who facilitates a group of the run, who sits only in it.
-  if (!placementIsTold(place)) return { ok: false, status: 409, error: notToldWords(person.firstName) };
+  if (!placementIsTold(place)) return refuse({ ok: false, status: 409, error: notToldWords(person.firstName) });
   const facilitated = live.find((group) => group.facilitatorUids.includes(uid));
-  if (facilitated) return { ok: false, status: 409, error: facilitatesWords(person.firstName, facilitated.name) };
+  if (facilitated) return refuse({ ok: false, status: 409, error: facilitatesWords(person.firstName, facilitated.name) });
   const places = placesSnap.docs.map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {})).filter((each) => each.runId === run.id);
   const weekList = weeks === "ahead" ? ownWeeksAhead({ run, groups, place }, now).map((week) => week.weekNumber).concat((place.visits ?? []).map((visit) => visit.weekNumber)) : [...weeks];
   const registerIds = registerIdsFor(run, groups, weekList);
   const registerSnaps = await reader.getAll(registerIds.map((id) => db.collection("courseAttendance").doc(id)));
   const registers = new Map<string, Record<string, unknown>>();
   for (const snap of registerSnaps) if (snap.exists) registers.set(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
-  return { ok: true, facts: { run, destroying, groups, place, person, accounts, places, registers } };
+  return { ok: true, facts: { run, destroying, groups, place, person, accounts, places, registers, oneGroup } };
 }
 
 /** A live group's sessions. */
@@ -313,13 +338,47 @@ export function ownWeeksAhead(facts: Pick<VisitFacts, "run" | "groups" | "place"
   return out;
 }
 
-/** Their own group's session in a week, whether or not it is still to come; null with none. */
+/**
+ * Their own group's session in a week, whether or not it is still to come:
+ * the week's first, dated. A session called off is no session, and a group
+ * that no longer meets has none. Null with none.
+ */
+export function ownSessionThatWeek(run: CourseRunDoc, home: CourseGroupDoc | null, weekNumber: number): ResolvedSession | null {
+  if (!home || home.archived) return null;
+  return resolveSessions(run, home).find((each) => each.weekNumber === weekNumber && each.occurrence === 1 && each.dateKey !== "" && !each.cancelled) ?? null;
+}
+
+/** Their own group's session in a week (`ownSessionThatWeek`), with the group; null with none. */
 function ownSessionIn(facts: Pick<VisitFacts, "run" | "groups" | "place">, weekNumber: number): { home: CourseGroupDoc; session: ResolvedSession } | null {
   const homeId = ownGroupForWeek(facts.place, weekNumber);
   const home = facts.groups.find((group) => group.id === homeId) ?? null;
-  if (!home || home.archived) return null;
-  const session = resolveSessions(facts.run, home).find((each) => each.weekNumber === weekNumber && each.dateKey !== "") ?? null;
-  return session ? { home, session } : null;
+  const session = ownSessionThatWeek(facts.run, home, weekNumber);
+  return home && session ? { home, session } : null;
+}
+
+/**
+ * UNTIL WHEN A VISIT CAN BE CANCELLED, the one answer the person's card, the
+ * person's own cancel and staff's call-off all ask: staff until the host's
+ * session starts; the person until the EARLIER of the two sessions of that
+ * week starts, their own group's (`ownSessionThatWeek`: one called off is no
+ * session) or the host's. `first` is that session and its group, which the
+ * sentence said once it has started names. Null `until` with no dated
+ * session to go by.
+ */
+export function cancelDeadline(input: {
+  host: CourseGroupDoc;
+  hostSession: ResolvedSession | null;
+  home: CourseGroupDoc | null;
+  ownSession: ResolvedSession | null;
+  byStaff: boolean;
+}): { until: Date | null; first: { group: CourseGroupDoc; session: ResolvedSession } | null } {
+  const hostStart = input.hostSession ? sessionInstants(input.hostSession).startsAt : null;
+  const ownStart = input.ownSession ? sessionInstants(input.ownSession).startsAt : null;
+  const hostFirst = input.hostSession ? { group: input.host, session: input.hostSession } : null;
+  if (input.byStaff) return { until: hostStart, first: hostFirst };
+  const ownFirst = input.ownSession && input.home ? { group: input.home, session: input.ownSession } : null;
+  if (ownStart && (!hostStart || ownStart.getTime() < hostStart.getTime())) return { until: ownStart, first: ownFirst };
+  return { until: hostStart, first: hostStart ? hostFirst : ownFirst };
 }
 
 /** The next session of their own group after week N they are due at there, or null. */
@@ -380,6 +439,7 @@ export type VisitPlan = {
  */
 export function planVisit(facts: VisitFacts, weekNumber: number, hostGroupId: string, actorUid: string, now: Date): { ok: true; plan: VisitPlan } | VisitRefusal {
   const { run, place, person, accounts } = facts;
+  if (facts.oneGroup) return { ok: false, status: 409, error: VISIT_REFUSAL.oneGroup };
   if (visitInWeek(place, weekNumber)) return { ok: false, status: 409, error: alreadyVisitingWords(person.firstName, weekNumber) };
   const own = ownWeeksAhead(facts, now).find((week) => week.weekNumber === weekNumber) ?? null;
   const homeId = ownGroupForWeek(place, weekNumber);
@@ -408,9 +468,8 @@ export function planVisit(facts: VisitFacts, weekNumber: number, hostGroupId: st
   const homeFirst = facilitatorFirstNames(own.home, accounts, place.uid);
   const hostFacts = sessionFacts(host, hostSession);
   const back = backDateKeyOf(facts, weekNumber, own.home.id);
-  const ownStart = sessionInstants(own.session).startsAt;
-  const hostStart = sessionInstants(hostSession).startsAt;
-  const earlier = ownStart && hostStart && ownStart.getTime() < hostStart.getTime() ? own.session : hostSession;
+  // The person's own cancel line ("Changed your mind? ... until ..."): the one deadline.
+  const earlier = cancelDeadline({ host, hostSession, home: own.home, ownSession: own.session, byStaff: false }).first?.session ?? hostSession;
   const emailFacts: VisitEmailFacts = {
     personName: person.name,
     personFirstName: person.firstName,
@@ -470,6 +529,7 @@ export function arrangedEmailFor(plan: Pick<VisitPlan, "emailFacts">, recipient:
 
 /** The weeks to choose, as the page draws them: each own week still to come, and whether a visit already stands in it. */
 export function weekChoices(facts: VisitFacts, now: Date): VisitWeekChoiceView[] {
+  if (facts.oneGroup) return [];
   return ownWeeksAhead(facts, now).map((week) => ({
     weekNumber: week.weekNumber,
     words: weekChoiceWords(week.weekNumber, week.home.name, { dateKey: week.session.dateKey, startTimeLocal: week.session.session.startTimeLocal }),
@@ -512,8 +572,10 @@ export type CallOffPlan = {
   ownSession: ResolvedSession | null;
   /** Whether the host's session is still happening (dated, not called off, held). */
   happening: boolean;
-  /** When it can no longer be called off: the host's start for staff, the earlier of the two for the person. */
+  /** When it can no longer be called off: the host's start for staff, the earlier of the two for the person (`cancelDeadline`). */
   until: Date | null;
+  /** The name of the group whose session `until` is the start of: the one named once it has started. */
+  firstName: string;
   recipients: VisitRecipient[];
   emails: number;
   /** For each recipient, the email they are sent. */
@@ -538,10 +600,9 @@ export function planCallOff(facts: VisitFacts, weekNumber: number, byStaff: bool
   const hostSession = host.archived ? null : (resolveSessions(facts.run, host).find((each) => each.weekNumber === weekNumber && each.occurrence === 1 && each.dateKey !== "") ?? null);
   const own = ownSessionIn(facts, weekNumber);
   const hostRegister = hostSession ? registerOf(facts, facts.run.id, host.id, hostSession) : null;
-  const happening = hostSession !== null && !hostSession.cancelled && (hostRegister?.held ?? true);
-  const hostStart = hostSession ? sessionInstants(hostSession).startsAt : null;
-  const ownStart = own ? sessionInstants(own.session).startsAt : null;
-  const until = byStaff ? hostStart : hostStart && ownStart ? (ownStart.getTime() < hostStart.getTime() ? ownStart : hostStart) : (hostStart ?? ownStart);
+  const happening = hostSession !== null && !hostSession.cancelled && !host.archived && (hostRegister?.held ?? true);
+  const deadline = cancelDeadline({ host, hostSession, home, ownSession: own?.session ?? null, byStaff });
+  const until = deadline.until;
   const recipients = visitRecipients({
     person: byStaff ? facts.person : null,
     personUid: facts.place.uid,
@@ -571,7 +632,21 @@ export function planCallOff(facts: VisitFacts, weekNumber: number, byStaff: bool
   };
   return {
     ok: true,
-    plan: { weekNumber, host, home, hostSession, ownSession: own?.session ?? null, happening, until, recipients, emails: recipients.length, emailFor, button: standing.button, standing },
+    plan: {
+      weekNumber,
+      host,
+      home,
+      hostSession,
+      ownSession: own?.session ?? null,
+      happening,
+      until,
+      firstName: (deadline.first?.group ?? host).name,
+      recipients,
+      emails: recipients.length,
+      emailFor,
+      button: standing.button,
+      standing,
+    },
   };
 }
 

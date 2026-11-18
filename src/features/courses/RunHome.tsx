@@ -74,6 +74,7 @@ import { ATTENDANCE_STATUS_LABEL, type AttendanceStatus } from "@/lib/firestore/
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import type { OverviewPayload, OverviewWeekSchedule } from "@/app/api/courses/runs/[runId]/overview/route";
 import VisitCard from "./visit/VisitCard";
+import { visitsAroundTicket } from "@/lib/courses/visit/view";
 import weekly from "./weekly/weekly.module.css";
 import styles from "./RunHome.module.css";
 
@@ -711,8 +712,11 @@ export default function RunHome({
   // THE PERSON'S OWN ONE-WEEK VISITS, each the card for the session they go
   // to: "I'm joining online" acts on that session (the server's view of their
   // next session names the host's when it is the next they are due at), and
-  // "Cancel this visit" until the earlier of the two sessions starts.
-  const visitCards = (data.visits ?? []).map((visit) => {
+  // "Cancel this visit" until the earlier of the two sessions starts. A visit
+  // that is their NEXT session is drawn where the next session's card goes,
+  // above the ticket; a visit further ahead is listed below the ticket, with
+  // the same words and its Cancel, never above a session that comes first.
+  const visitCardOf = (visit: NonNullable<typeof data.visits>[number]) => {
     const onThis = joiningOnline && joiningOnline.groupId === visit.hostGroupId && joiningOnline.sessionKey === visit.sessionKey ? joiningOnline : null;
     return (
       <div key={`visit-${visit.weekNumber}`} className={order.ticket}>
@@ -726,7 +730,10 @@ export default function RunHome({
         />
       </div>
     );
-  });
+  };
+  const aroundTicket = visitsAroundTicket(data.visits ?? [], facts);
+  const visitsFirst = aroundTicket.first.map(visitCardOf);
+  const visitsLater = aroundTicket.later.map(visitCardOf);
   const lastSessionCard =
     lastSession && excused ? (
       <div className={order.ticket}>
@@ -899,8 +906,9 @@ export default function RunHome({
       <div className={weekly.columns}>
         <div className={weekly.colMain}>
           <CertificateCard certificates={certificates} />
-          {visitCards}
+          {visitsFirst}
           {ticket}
+          {visitsLater}
           {lastSessionCard}
           {timeQuestion && learner && (
             /* After the ticket, on a phone too. An incubator's people are told

@@ -2,7 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { campusLabel } from "@/lib/courses/campus";
 import { seesSessionLink } from "@/lib/courses/meetingLink/audience";
-import { firstNameOfUser } from "@/lib/courses/programmeLead";
+import { firstNameOfUser, standingUserOf } from "@/lib/courses/programmeLead";
 import { sessionWhenLabel } from "@/lib/courses/londonLabels";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -10,7 +10,9 @@ import { ownGroupForWeek, type CourseEnrolmentDoc } from "@/lib/firestore/course
 import { campusForWeek, sessionForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { sessionsWithGroup } from "../groupsByWeek";
-import type { OverviewVisit } from "./view";
+import { cancelDeadline, ownSessionThatWeek, visitRecipients } from "./plan";
+import type { OverviewVisit, OverviewVisitReaders } from "./view";
+import { hostReadsWeek } from "./reading";
 import {
   arrangedByWords,
   cancelQuestionWords,
@@ -66,7 +68,7 @@ export async function ownVisitsOf(
     if (!session || session.cancelled) continue;
     const { endsAt } = sessionInstants(session);
     if (endsAt && endsAt.getTime() <= now.getTime()) continue;
-    const own = resolveSessions(run, home).find((each) => each.weekNumber === visit.weekNumber && each.occurrence === 1 && each.dateKey !== "" && !each.cancelled) ?? null;
+    const own = ownSessionThatWeek(run, home, visit.weekNumber);
     ahead.push({ weekNumber: visit.weekNumber, host, home, session, own, arrangedByUid: visit.arrangedByUid, arrangedAt: visit.arrangedAt });
   }
   if (ahead.length === 0) return [];
@@ -75,10 +77,19 @@ export async function ownVisitsOf(
     (uid) => uid && !uid.includes("/"),
   );
   const firstNames = new Map<string, string>();
+  const accounts = new Map<string, Record<string, unknown>>();
   for (const snap of wanted.length ? await db.getAll(...wanted.map((uid) => db.collection("users").doc(uid))) : []) {
-    if (snap.exists) firstNames.set(snap.id, firstNameOfUser((snap.data() ?? {}) as Record<string, unknown>));
+    if (!snap.exists) continue;
+    const data = (snap.data() ?? {}) as Record<string, unknown>;
+    accounts.set(snap.id, data);
+    firstNames.set(snap.id, firstNameOfUser(data));
   }
   const firstOf = (uids: readonly string[]) => uids.filter((uid) => uid !== actor.uid).map((uid) => firstNames.get(uid) ?? "").filter(Boolean);
+  // "... are told": exactly the people the person's own cancel emails (`visitRecipients`), their own group's first.
+  const toldOf = (host: CourseGroupDoc, home: CourseGroupDoc) => {
+    const recipients = visitRecipients({ person: null, personUid: place.uid, host, home, accounts, actorUid: actor.uid });
+    return [...recipients.filter((each) => each.as === "home"), ...recipients.filter((each) => each.as === "host")].map((each) => each.firstName).filter(Boolean);
+  };
   const paired = sessionsWithGroup(place, (groupId) => {
     const group = live(groupId);
     return group ? resolveSessions(run, group) : null;
@@ -86,12 +97,12 @@ export async function ownVisitsOf(
 
   return ahead.map(({ weekNumber, host, home, session, own, arrangedByUid, arrangedAt }) => {
     const back = paired.find((each) => each.session.weekNumber > weekNumber && each.groupId === home.id && !each.session.cancelled && each.session.dateKey !== "") ?? null;
-    const hostStart = sessionInstants(session).startsAt;
-    const ownStart = own ? sessionInstants(own).startsAt : null;
-    const earlier = ownStart && hostStart && ownStart.getTime() < hostStart.getTime() ? own : session;
-    const earlierStart = earlier ? sessionInstants(earlier).startsAt : null;
+    // The one deadline the person's own cancel is held to (`cancelDeadline`).
+    const deadline = cancelDeadline({ host, hostSession: session, home, ownSession: own, byStaff: false });
+    const earlier = deadline.first?.session ?? null;
+    const earlierStart = deadline.until;
     const until = earlier ? { dateKey: earlier.dateKey, startTimeLocal: earlier.session.startTimeLocal } : null;
-    const told = [...new Set([...firstOf(home.facilitatorUids), ...firstOf(host.facilitatorUids)])];
+    const told = toldOf(host, home);
     const ownWhen = own ? { dateKey: own.dateKey, startTimeLocal: own.session.startTimeLocal } : null;
     const arranger = arrangedByUid ? (firstNames.get(arrangedByUid) ?? "") : "";
     const link = sessionForWeek(host, session.weekId).meetingUrl;
@@ -99,6 +110,7 @@ export async function ownVisitsOf(
       weekNumber,
       hostGroupId: host.id,
       hostName: host.name.trim(),
+      firstName: (deadline.first?.group ?? host).name.trim(),
       sessionKey: session.sessionKey,
       dateKey: session.dateKey,
       startTimeLocal: session.session.startTimeLocal,
@@ -120,4 +132,39 @@ export async function ownVisitsOf(
       meetingUrl: link && seesSessionLink({ viewer: actor, isAdmin: input.isAdmin, seat: place, group: host, sessionKey: session.sessionKey }) ? link : null,
     };
   });
+}
+
+/**
+ * WHO OF THE HOST MAY READ EACH VISIT WEEK OF THE CALLER'S WORK, by first
+ * name: each facilitator of the host group for whom the reading rule itself
+ * says yes (`hostReadsWeek`, with their own standing), for every visit that
+ * stands to a group that still meets. The person's week page adds them to its
+ * existing sentences about who can read their work, for that week alone.
+ * Reads the accounts it names, by address.
+ */
+export async function visitReadersOf(
+  db: Firestore,
+  input: { groups: readonly CourseGroupDoc[]; place: CourseEnrolmentDoc },
+): Promise<OverviewVisitReaders[]> {
+  const liveGroups = input.groups.filter((group) => !group.archived);
+  const visits = (input.place.visits ?? []).flatMap((visit) => {
+    const host = liveGroups.find((group) => group.id === visit.groupId);
+    return host ? [{ weekNumber: visit.weekNumber, host }] : [];
+  });
+  const wanted = [...new Set(visits.flatMap((each) => each.host.facilitatorUids))].filter((uid) => uid && !uid.includes("/"));
+  if (wanted.length === 0) return [];
+  const accounts = new Map<string, Record<string, unknown>>();
+  for (const snap of await db.getAll(...wanted.map((uid) => db.collection("users").doc(uid)))) {
+    if (snap.exists) accounts.set(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
+  }
+  return visits.map(({ weekNumber, host }) => ({
+    weekNumber,
+    firstNames: host.facilitatorUids
+      .filter((uid) => {
+        const data = accounts.get(uid);
+        return data !== undefined && hostReadsWeek(standingUserOf(uid, data), input.place, liveGroups, weekNumber);
+      })
+      .map((uid) => firstNameOfUser(accounts.get(uid) ?? {}))
+      .filter(Boolean),
+  }));
 }

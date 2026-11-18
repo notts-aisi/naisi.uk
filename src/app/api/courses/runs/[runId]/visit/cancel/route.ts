@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isAddressableId } from "@/lib/addressableId";
 import { isMoveWeek } from "@/lib/courses/groupsByWeek";
 import { callOffVisit } from "@/lib/courses/visit/save";
+import { MEMBER_NO_VISIT } from "@/lib/courses/visit/plan";
 import { VISIT_REFUSAL } from "@/lib/courses/visit/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
@@ -15,7 +16,11 @@ import { getCurrentUser } from "@/lib/firebase/session";
  * ONLY THEIR OWN: the place read is the caller's own on this run (`uid` is the
  * session's, never sent), an active learner's place told its group, held to
  * the live bar (`isNamedWithStanding`). A view-as session is turned away
- * first. Until the earlier of the two sessions of that week starts (their own
+ * first. Their own place is decided FIRST, and everything that is not their
+ * own standing visit on a run they hold a place on (no such run, a run they
+ * hold no place on, a run over, archived or with one group, no visit that
+ * week, a visit to a session no longer happening) is the one 404, the same
+ * words and kind every time, so no answer says a run exists. Until the earlier of the two sessions of that week starts (their own
  * group's, or the one they were going to); after that it is refused, and the
  * page, read again, no longer offers it.
  *
@@ -40,7 +45,9 @@ export async function POST(req: Request, ctx: Ctx) {
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
   const { runId } = await ctx.params;
-  if (!isAddressableId(runId)) return NextResponse.json({ error: VISIT_REFUSAL.noPlace }, { status: 404 });
+  // One 404 for everything that is not the caller's own standing visit (`MEMBER_NO_VISIT`): never a word about the run.
+  const notFound = () => NextResponse.json({ error: MEMBER_NO_VISIT.error, kind: MEMBER_NO_VISIT.kind }, { status: MEMBER_NO_VISIT.status });
+  if (!isAddressableId(runId)) return notFound();
 
   let raw: unknown;
   try {

@@ -696,7 +696,7 @@ export default function GroupPage({
                             <span className={styles.cellNote}>{person.visiting.line}</span>
                           </td>
                           <td>
-                            <span className={`${styles.excuseChip} ${styles.excuseWaiting}`}>{VISITING_CHIP}</span>
+                            <span className={`${styles.excuseChip} ${styles.excuseWaiting}`} data-testid="group-visiting-chip">{VISITING_CHIP}</span>
                           </td>
                         </tr>
                       ) : person.awayAt ? (

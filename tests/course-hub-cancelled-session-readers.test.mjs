@@ -145,7 +145,7 @@ const READERS = {
     kind: "asks",
     proof: [
       "if (session.cancelled) return { session, error: hostCancelledWords(host.name, weekNumber) };",
-      "const happening = hostSession !== null && !hostSession.cancelled && (hostRegister?.held ?? true);",
+      "const happening = hostSession !== null && !hostSession.cancelled && !host.archived && (hostRegister?.held ?? true);",
     ],
     why:
       "a one-week visit: a host session called off through Change a session is refused in its own sentence before its " +

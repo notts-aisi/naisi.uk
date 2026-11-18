@@ -8,7 +8,7 @@ import { isAddressableId } from "@/lib/addressableId";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { dbReader, planVisit, previewOf, readVisitFacts, sessionChoices, standingVisits, weekChoices } from "@/lib/courses/visit/plan";
 import type { VisitPageView } from "@/lib/courses/visit/view";
-import { BACK_TO_PEOPLE, VISIT_PAGE_TITLE, visitTitle } from "@/lib/courses/visit/words";
+import { BACK_TO_PEOPLE, VISIT_PAGE_TITLE, VISIT_REFUSAL, visitTitle } from "@/lib/courses/visit/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
@@ -74,6 +74,15 @@ export default async function StaffVisitPage({
     );
   }
   const { facts } = read;
+  const standing = standingVisits(facts, user.uid, now);
+  // A run with one group that still meets takes no visit, but a visit that stands there can still be called off.
+  if (facts.oneGroup && standing.length === 0) {
+    return (
+      <Refusal title={VISIT_PAGE_TITLE} href={backHref} action={BACK_TO_PEOPLE}>
+        {VISIT_REFUSAL.oneGroup}
+      </Refusal>
+    );
+  }
   const weeks = weekChoices(facts, now);
   const asked = asWeek(query.week);
   const week = asked !== null && weeks.some((each) => each.weekNumber === asked && !each.visiting) ? asked : null;
@@ -91,7 +100,7 @@ export default async function StaffVisitPage({
     sessions,
     chosen: to,
     outcome: planned ? (planned.ok ? { ok: true, preview: previewOf(planned.plan) } : { ok: false, error: planned.error }) : null,
-    standing: standingVisits(facts, user.uid, now),
+    standing,
     routePath: `/api/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/people/${encodeURIComponent(uid)}/visit`,
     backHref,
   };

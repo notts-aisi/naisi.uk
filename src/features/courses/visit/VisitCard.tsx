@@ -62,7 +62,7 @@ export default function VisitCard({
     setAsking(false);
     if (answer.status === 200) setCancelled(true);
     // The line the page says itself, chosen by the status and the kind alone, never the server's words.
-    else setRefused(cancelOutcomeLine(answer, visit.hostName));
+    else setRefused(cancelOutcomeLine(answer, visit.hostName, visit.firstName));
     router.refresh();
   }
 
