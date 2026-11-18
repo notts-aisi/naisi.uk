@@ -504,7 +504,7 @@ function minutesOf(clock: string): number {
 }
 
 /** Whether a session has happened as far as counting goes: it has started, or (undated) it has a register. */
-function happened(facts: GroupSessionFacts): boolean {
+export function happened(facts: GroupSessionFacts): boolean {
   return facts.startsAt ? facts.started : facts.register !== null;
 }
 
