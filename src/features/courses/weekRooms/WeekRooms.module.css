@@ -1,0 +1,592 @@
+/* The week's rooms and the term's rooms: desktop first, a table that scrolls
+   inside its own box when it is wider than the page, and on a phone each row
+   a card, the rooms still to book first. Every control is at least 44px, and
+   every focus shows the site's ring. */
+
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--text-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.lede {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* The week picker: a row of weeks that scrolls inside itself. */
+.weeks {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  min-width: 0;
+  padding-bottom: var(--space-1);
+  margin: 0;
+  list-style: none;
+  padding-left: 0;
+}
+
+.weekLink {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 2.75rem;
+  min-width: 7.5rem;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.weekLink:hover {
+  background: var(--color-surface-hover);
+}
+
+.weekLink[aria-current="page"] {
+  border-color: var(--color-accent-line);
+  background: var(--color-accent-soft);
+  font-weight: 600;
+}
+
+.weekTag {
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+}
+
+.weekNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.chip[aria-current="page"] {
+  border-color: var(--color-accent-line);
+  background: var(--color-accent-soft);
+  font-weight: 600;
+}
+
+.chipCount {
+  color: var(--color-text-muted);
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-accent-text);
+  text-decoration: none;
+}
+
+.textLink:hover {
+  color: var(--color-accent-text-hover);
+  background: var(--color-accent-soft);
+}
+
+.weekLink:focus-visible,
+.chip:focus-visible,
+.textLink:focus-visible,
+.groupLink:focus-visible,
+.cellLink:focus-visible,
+.showButton:focus-visible,
+.roomInput:focus-visible,
+.reasonInput:focus-visible,
+.pasteText:focus-visible,
+.pasteTitle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* A wide table scrolls inside here, never the page. */
+.scroll {
+  overflow-x: auto;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.table,
+.pasteTable,
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.table th,
+.table td,
+.pasteTable th,
+.pasteTable td,
+.grid th,
+.grid td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table thead th,
+.pasteTable thead th,
+.grid thead th {
+  font-family: var(--font-meta);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.table td.num,
+.table th.num {
+  text-align: right;
+}
+
+.groupCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-weight: 400;
+  min-width: 10rem;
+}
+
+.programme {
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+}
+
+.groupLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--color-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.groupLink:hover {
+  text-decoration: underline;
+}
+
+.roomCell {
+  min-width: 13rem;
+}
+
+.roomInput,
+.reasonInput {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.roomEmpty {
+  border-color: var(--color-warning);
+}
+
+.roomInput::placeholder {
+  color: var(--color-text-muted);
+}
+
+.roomFixed {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mark {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+}
+
+.rowLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 6px;
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.problem {
+  color: var(--color-danger-text);
+}
+
+.done {
+  color: var(--color-text);
+}
+
+.hidden {
+  display: none;
+}
+
+/* The phone's filter: hidden on a wide screen, which shows every row. */
+.show {
+  display: none;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.showButton {
+  min-height: 2.75rem;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-strong);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.showOn {
+  border-color: var(--color-accent-line);
+  background: var(--color-accent-soft);
+  font-weight: 600;
+}
+
+.saveBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.reason {
+  flex: 1 1 22rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.reasonLabel {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.saveSide {
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.saveButton {
+  min-height: 2.75rem;
+}
+
+.note,
+.hint {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.said {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-accent-line);
+  font-size: var(--text-sm);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: var(--text-lg, 1.125rem);
+}
+
+/* The paste box. */
+.paste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5, 20px);
+  border: 1px solid var(--color-accent-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  min-width: 0;
+}
+
+.pasteHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.pasteTitle {
+  margin: 0;
+  font-size: var(--text-lg, 1.125rem);
+  border-radius: var(--radius-sm);
+}
+
+.pasteText {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 8rem;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-meta);
+  font-size: var(--text-sm);
+}
+
+.needsYou td {
+  background: var(--color-warning-soft);
+}
+
+.ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pasteActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* The term's rooms. */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--text-lg, 1.125rem);
+}
+
+.grid th[scope="row"] {
+  position: sticky;
+  left: 0;
+  background: var(--color-surface);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.gridWeek {
+  display: block;
+  font-weight: 400;
+  text-transform: none;
+}
+
+.cellLink {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 2.75rem;
+  min-width: 8rem;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.cellLink:hover {
+  background: var(--color-surface-hover);
+}
+
+.cellNone {
+  color: var(--color-text-muted);
+}
+
+.cellEmpty {
+  color: var(--color-warning);
+}
+
+@media (max-width: 48rem) {
+  .show {
+    display: flex;
+  }
+
+  /* Each row a card, the rooms still to book first. */
+  .scroll:has(.table) {
+    border: 0;
+    background: transparent;
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .table,
+  .table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .table tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+  }
+
+  .table tr.hidden {
+    display: none;
+  }
+
+  .rowNotBooked {
+    order: -1;
+  }
+
+  .table th,
+  .table td {
+    padding: 0;
+    border: 0;
+  }
+
+  .table td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: var(--text-caption);
+    color: var(--color-text-muted);
+  }
+
+  .table td.num,
+  .table th.num {
+    text-align: left;
+  }
+
+  .groupCell,
+  .roomCell {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  .saveSide {
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .saveButton {
+    width: 100%;
+  }
+
+  .weekLink {
+    min-width: 6.5rem;
+  }
+}

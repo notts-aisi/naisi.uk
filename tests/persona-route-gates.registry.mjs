@@ -230,7 +230,8 @@ export function isHubKey(key) {
     key.startsWith("/api/admissions/forms/[roundId]/programmes/[programmeId]") ||
     key === "/(app)/learn" ||
     key.startsWith("/(app)/learn/") ||
-    key.startsWith("/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]")
+    key.startsWith("/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]") ||
+    key.startsWith("/(app)/admin/admissions/forms/[roundId]/rooms")
   );
 }
 
@@ -5197,6 +5198,25 @@ export const PAGES = {
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
       "and with an address that names nothing is drawn the same not-here state.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/rooms": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The week's rooms: the admissions tree's gate (requireAdmissionsPage), repeated on the page, then the loader's: " +
+      "each programme on the form an admin's or its lead's (roleOnProgramme, then opensProgrammeGroups), asked before " +
+      "any run is read. A missing form, a form with no programme the caller leads, and ?programme= naming one they may " +
+      "not see are all drawn 'there is no programme here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/rooms/term": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The term's rooms: the same gates as the week's rooms (requireAdmissionsPage, then each programme an admin's or " +
+      "its lead's before any run is read), and the same 'there is no programme here' for everybody else it admits. " +
+      "It writes nothing. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/send": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
@@ -5903,6 +5923,32 @@ function programmePage(page, state = "noProgramme") {
     },
     theirs: {
       lead: c(200, `The programme's own lead: ${page}`),
+      facilitator: c("dashboard", "Facilitating one of the run's groups is not a role on the form: the admissions tree sends a plain member to the dashboard."),
+      participant: c("dashboard", "Holding a place is not a role on the form: the admissions tree sends a plain member to the dashboard."),
+    },
+  };
+}
+
+/**
+ * The week's rooms and the term's rooms: pages on an application form that
+ * cross its programmes. The admissions tree admits an admin, an approveCourse
+ * holder and anybody appointed (the lead); the page then shows each
+ * programme on the form to an admin and to its own lead, and draws 'there is
+ * no programme here' for a form with none the caller may see. THEIRS is the
+ * form of the lead persona's programme, ANOTHER a form they hold no role on.
+ */
+function termRoomsPage(page) {
+  const noRole = (who) => c("noProgramme", `${who}, so the admissions tree admits them, but leads no programme on this form: drawn as 'there is no programme here', before any run is read.`);
+  return {
+    another: {
+      ...PAGE_BASE,
+      "*": c("dashboard", "Not an admin, an approveCourse holder or anybody appointed on a form: the admissions tree sends them to the dashboard."),
+      admin: c(200, `An admin, every programme on the form: ${page}`),
+      approveCourse: noRole("Authors application forms"),
+      lead: noRole("Appointed to lead a programme on another form"),
+    },
+    theirs: {
+      lead: c(200, `The lead of a programme on the form: ${page}`),
       facilitator: c("dashboard", "Facilitating one of the run's groups is not a role on the form: the admissions tree sends a plain member to the dashboard."),
       participant: c("dashboard", "Holding a place is not a role on the form: the admissions tree sends a plain member to the dashboard."),
     },
@@ -8015,6 +8061,8 @@ export const REAL_PAGES = {
     "the report page's calm not-here: the address names no session, and nobody here took one's register in a facilitator's place.",
   ),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": programmePage("the Sessions view."),
+  "/(app)/admin/admissions/forms/[roundId]/rooms": termRoomsPage("the week's rooms, its programme's groups alone."),
+  "/(app)/admin/admissions/forms/[roundId]/rooms/term": termRoomsPage("the term's rooms, its programme's groups alone."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/circles": programmePage("Circles for an admin; the lead is drawn a note that Circles is an admin's."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/times": programmePage("the Times view."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/facilitators": programmePage("the Facilitators view."),
