@@ -37,6 +37,7 @@ const earlier = await w.loadTs(join("lib", "courses", "groupWeekWork", "earlier.
 const groupWeek = await w.loadTs(join("lib", "courses", "groupWeekWork", "load.ts"));
 const { loadFacilitatorGroup } = await w.loadTs(join("lib", "courses", "facilitatorGroup.ts"));
 const { loadGroupWeek } = await w.loadTs(join("lib", "courses", "facilitatorWeek", "readers.ts"));
+const overviewRoute = await w.courseRoute("runs", "[runId]", "overview");
 const { normalizeCourseRun } = await w.loadTs(join("lib", "firestore", "courses.ts"));
 const { normalizeCourseGroup } = await w.loadTs(join("lib", "firestore", "courseGroups.ts"));
 
@@ -259,5 +260,24 @@ describe("4. the facilitator's detailed This week's work lists a visitor for the
     finishOnRunCopy("chloe", 4);
     const week = await groupDWeek();
     assert.equal(week.rows.some((each) => each.uid === "chloe" || each.visiting), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. The copy the person reads on their own pages
+// ---------------------------------------------------------------------------
+
+describe("5. on her own pages she reads her own group's copy of the visit's week, never the host's", () => {
+
+  test("Group D has its own copy of week 4: her overview names no fork of week 4, with a visit or without", async () => {
+    const forks = async () => {
+      const answer = await w.call("chloe", overviewRoute.GET, { runId: RUN.agi }, { course: true });
+      assert.equal(answer.status, 200, JSON.stringify(answer.body));
+      return { ids: answer.body.forkedWeekIds, groups: answer.body.forkedWeekGroups ?? null };
+    };
+    const before = await forks();
+    visitD();
+    assert.deepEqual(await forks(), before);
+    assert.equal(before.ids.includes("w04"), false);
   });
 });
