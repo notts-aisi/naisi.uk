@@ -863,3 +863,50 @@ describe("which register a week's line is on: a group's rows for a session, befo
     assert.equal(a.body.records.w01.chloe, "late");
   });
 });
+
+// ===========================================================================
+// A one-week visit: who finished and what a certificate needs
+// ===========================================================================
+
+describe("a one-week visit: who finished counts the host's mark for that week, and a certificate counts the session she went to", () => {
+  /** Chloe stays in Group B; week 3 she went to Group A's session, and Group A marked her late. */
+  const visitA3 = () => world.db.poke(CHLOE, { visits: [{ weekNumber: 3, groupId: GROUP.a, arrangedByUid: "zach", arrangedAt: NOW }] });
+  const row = async () =>
+    listGroups(await readRunRecords(world.db, RUN), { isAdmin: true }, NOW, weeksOf(await readRunRecords(world.db, RUN)))
+      .flatMap((entry) => entry.people)
+      .find((person) => person.enrolment.uid === "chloe").row;
+
+  test("who finished: weeks 1 and 2 off Group B's registers, week 3 off Group A's: came twice", async () => {
+    threeWeeks();
+    visitA3();
+    const visited = await row();
+    assert.equal(visited.came, 2);
+    assert.equal(suggestedBy({ atLeast: 2 }, visited), true);
+    reset(seedWorld());
+    threeWeeks();
+    const without = await row();
+    assert.equal(without.came, 1, "with no visit, Group B's registers alone, where week 3 has no mark of hers");
+    assert.equal(suggestedBy({ atLeast: 2 }, without), false);
+  });
+
+  test("what a certificate needs counts six sessions, each week's session's group's; with a visit it is the sentence a moved person is shown", () => {
+    const needs = () =>
+      certificateNeedsFor({
+        rule: { atLeast: 4 },
+        run: runOf(),
+        group: groupsOf().find((group) => group.id === GROUP.b),
+        enrolment: seatOf("chloe"),
+        facilitates: false,
+        incubator: false,
+        liveGroups: groupsOf(),
+        registers: new Map(),
+      });
+    const without = needs();
+    visitA3();
+    // With no visit, the sentence as ever; with one, the existing sentence a
+    // moved person is shown, which names no group, since her sessions are two
+    // groups'.
+    assert.equal(without, "To get your certificate you need to come to at least 4 of your group’s 6 sessions. A session you’re excused from doesn’t count as coming.");
+    assert.equal(needs(), "To get your certificate you need to come to at least 4 sessions. A session you’re excused from doesn’t count as coming.");
+  });
+});
