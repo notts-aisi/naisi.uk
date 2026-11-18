@@ -702,3 +702,32 @@ describe("\"Week N is open\" to somebody visiting another group's session for on
     assert.match(host.subjects[emailOf("ana")], /Group A's own week/);
   });
 });
+
+describe("a one-week visit: the calendar and Can't make it follow the host's session that week", () => {
+  const visitA = () =>
+    world.db.poke(CHLOE, { visits: [{ weekNumber: 4, groupId: GROUP.a, arrangedByUid: "zach", arrangedAt: NOW }] });
+
+  test("the calendar holds Group A's Monday for week 4 alone, and Group B's Tuesdays either side", async () => {
+    visitA();
+    const { events } = await readCalendarFeed(world.db, sessionOf("chloe"));
+    assert.deepEqual(events.map((event) => `${london(event.startAt)} ${event.title.split(" · ").pop()}`), [
+      "Tue 20 Oct 18:00 Group B",
+      "Tue 27 Oct 18:00 Group B",
+      "Tue 3 Nov 18:00 Group B",
+      "Mon 9 Nov 18:00 Group A",
+      "Tue 17 Nov 18:00 Group B",
+      "Tue 24 Nov 18:00 Group B",
+    ]);
+  });
+
+  test("Can't make it: her next session is Group A's Monday; the line goes on Group A's register, and Group B's week 4 refuses her", async () => {
+    visitA();
+    const ticket = await cantMakeItFor(world.db, { user: sessionOf("chloe"), run: runOf(), enrolment: seatOf("chloe"), groups: groupsOf(), now: new Date() });
+    assert.deepEqual(ticket, { groupId: GROUP.a, sessionKey: "w04", day: "Mon 9 Nov", told: false });
+    const press = (groupId) => pressedBefore(world.db, groupId, "chloe", () => call("chloe", cantMakeItRoute.POST, { groupId }, { body: { sessionKey: "w04", cantMakeIt: true } }));
+    const wrong = await press(GROUP.b);
+    assert.deepEqual([wrong.status, wrong.body.error], [404, CANT_MAKE_IT_REFUSAL.notYours]);
+    assert.equal((await press(GROUP.a)).status, 200);
+    assert.deepEqual([read(registerPath(GROUP.a, 4))?.records?.chloe ?? null, read(registerPath(GROUP.b, 4))?.records?.chloe ?? null], ["excused", null]);
+  });
+});

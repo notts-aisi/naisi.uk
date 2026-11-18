@@ -37,6 +37,11 @@ const { normalizeCourseRun } = await w.loadTs(join("lib", "firestore", "courses.
 const { normalizeCourseGroup } = await w.loadTs(join("lib", "firestore", "courseGroups.ts"));
 const { excusedFor } = await w.loadTs(join("lib", "courses", "excused", "own.ts"));
 const { weeksToChoose } = await w.loadTs(join("lib", "courses", "excused", "card.ts"));
+const { readVisitFacts, dbReader, standingVisits } = await w.loadTs(join("lib", "courses", "visit", "plan.ts"));
+const { loadRegisterMembers } = await w.loadTs(join("lib", "courses", "registerAccess.ts"));
+const allocateRoute = await w.courseRoute("runs", "[runId]", "allocate");
+const removeRoute = await w.courseRoute("runs", "[runId]", "enrolments", "[uid]", "remove");
+const { resolveNoticeAudience } = await w.loadTs(join("lib", "email", "courseFacilitatorEmails.ts"));
 
 const read = (path) => world.db.read(path);
 const seatPath = (uid) => `courseEnrolments/${RUN.agi}__${uid}`;
@@ -398,5 +403,68 @@ describe("10. asking to be excused from a visit's week asks the host, and an app
     assert.equal(read(registerPath(A, 4)).records.chloe, "excused");
     assert.equal(read(registerPath(B, 4))?.records?.chloe, undefined);
     assert.equal(seat("chloe").visits.length, 1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11. What else a visit meets: the host's session called off, the host
+//     archived, the person leaving, and the allocation board
+// ---------------------------------------------------------------------------
+
+describe("11. a host session called off or archived, the person leaving, and the board, with a visit ahead", () => {
+  const facts = async () => {
+    const read_ = await readVisitFacts(dbReader(world.courseDb), world.courseDb, RUN.agi, "chloe", "ahead", new Date());
+    assert.equal(read_.ok, true, JSON.stringify(read_));
+    return read_.facts;
+  };
+
+  test("Group A's week 4 session called off: the group's notice audience holds her, her card goes, and staff see it is not happening and can still call the visit off", async () => {
+    await arrange("chloe", 4, A);
+    // The group's notice about its session reaches her through the notice
+    // audience for that week (course-visit-readers.test.mjs, section 3).
+    const audience = await resolveNoticeAudience(world.courseDb, RUN.agi, { logTag: "test", channelCategory: "courses" }, { groupId: A, weekNumber: 4 });
+    assert.ok(audience.members.some((member) => member.uid === "chloe"));
+    const off = await call("sofia", changeRoute.POST, { groupId: A }, {
+      body: { week: 4, dateKey: "2026-11-19", kind: "cancel", reason: "Sofia is away.", tell: false },
+      course: true,
+    });
+    assert.equal(off.status, 200, JSON.stringify(off.body));
+    assert.equal((await overview()).visits, undefined, "no card for a session that is not happening");
+    const standing = standingVisits(await facts(), "zach", new Date());
+    assert.equal(standing[0].gone, "Group A’s session that week is no longer happening.");
+    assert.equal(standing[0].open, true);
+    const called = await visit("zach", "chloe", { weekNumber: 4, callOff: true, emailCount: standing[0].emails });
+    assert.equal(called.status, 200, JSON.stringify(called.body));
+    assert.equal(seat("chloe").visits, undefined);
+  });
+
+  test("Group A archived: staff see it is not happening and can call the visit off; her own cancel reads it as none", async () => {
+    await arrange("chloe", 4, A);
+    world.db.poke(`courseGroups/${A}`, { archived: true });
+    const standing = standingVisits(await facts(), "zach", new Date());
+    assert.equal(standing[0].gone, "Group A’s session that week is no longer happening.");
+    assert.deepEqual([(await cancel("chloe", 4)).status], [404]);
+    assert.equal((await visit("zach", "chloe", { weekNumber: 4, callOff: true, emailCount: standing[0].emails })).status, 200);
+  });
+
+  test("she is removed from the run with a visit ahead: the visit goes, and she is off Group A's register and page for that week", async () => {
+    await arrange("chloe", 4, A);
+    const removed = await call("zach", removeRoute.POST, { runId: RUN.agi, uid: "chloe" }, { course: true });
+    assert.equal(removed.status, 200, JSON.stringify(removed.body));
+    assert.equal(read(seatPath("chloe")).visits, undefined);
+    const rows = (await loadRegisterMembers(world.courseDb, RUN.agi, A, { isAdmin: true }, 4)).members.map((row) => row.uid);
+    assert.equal(rows.includes("chloe"), false);
+    const page = await loadGroupPage(world.courseDb, { run: normalizeCourseRun(RUN.agi, read(`courseRuns/${RUN.agi}`)), group: normalizeCourseGroup(A, read(`courseGroups/${A}`)), viewer: "admin", viewerUid: "zach", now: new Date(), week: 4 });
+    assert.equal(JSON.stringify(page.weeks).includes("chloe"), false);
+  });
+
+  test("the allocation board: a move to another group keeps the visit; a move into the host drops it", async () => {
+    await arrange("chloe", 4, A);
+    const toC = await call("zach", allocateRoute.POST, { runId: RUN.agi }, { body: { placements: [{ uid: "chloe", groupId: C }] }, course: true });
+    assert.equal(toC.status, 200, JSON.stringify(toC.body));
+    assert.deepEqual(seat("chloe").visits.map((each) => [each.weekNumber, each.groupId]), [[4, A]]);
+    const toA = await call("zach", allocateRoute.POST, { runId: RUN.agi }, { body: { placements: [{ uid: "chloe", groupId: A }] }, course: true });
+    assert.equal(toA.status, 200, JSON.stringify(toA.body));
+    assert.equal(seat("chloe").visits, undefined);
   });
 });
