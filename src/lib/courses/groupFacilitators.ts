@@ -268,7 +268,7 @@ export function writeFacilitatorChange(
       writer.update(
         ref,
         told
-          ? { groupId: input.groupRef.id, groupsByWeek: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() }
+          ? { groupId: input.groupRef.id, groupsByWeek: FieldValue.delete(), visits: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() }
           : {
               groupId: input.groupRef.id,
               allocatedEmailAt: FieldValue.delete(),
@@ -277,6 +277,8 @@ export function writeFacilitatorChange(
               // no group of theirs now.
               timeAnswer: FieldValue.delete(),
               groupsByWeek: FieldValue.delete(),
+              // Somebody who facilitates a group sits only in it: no visit to another group's session.
+              visits: FieldValue.delete(),
               updatedAt: FieldValue.serverTimestamp(),
             },
       );

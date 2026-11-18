@@ -223,6 +223,36 @@ const RECIPIENT_SOURCES = new Map([
       why: "One facilitator's resolved account, looked up from the task's completers, which the server chose.",
     },
   ],
+  // A one-week visit, arranged or called off: the address names the PERSON
+  // (staff's press), or the person is the session's own (their cancel); the
+  // people emailed are that person (only when staff pressed) and the two
+  // groups' facilitators, read on the server inside the transaction.
+  [
+    "src/lib/courses/visit/save.ts#input.uid",
+    {
+      reads: 10,
+      origin: "caller",
+      filteredBy: "if (!read.ok) throw new Stop(read);",
+      why:
+        "The person whose visit it is, named by uid in staff's address or the session's own uid on the person's cancel. " +
+        "Refused unless they hold an active learner's place in a group of the run that Publish has told (`readVisitFacts`), " +
+        "and emailed only at the address on their own account; every other recipient is a facilitator of one of the two " +
+        "groups, read on the server.",
+    },
+  ],
+  [
+    "src/lib/courses/visit/save.ts#plan.recipients",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by `visitRecipients` (`src/lib/courses/visit/plan.ts`) inside the transaction from the person's own " +
+        "account (only when staff pressed) and the facilitators named on the host's and their own group's documents, " +
+        "each held to the standing the role is appointed behind, with an address, never the person among them and " +
+        "never the presser.",
+      why: "The people one visit's arranging or calling off emails: the person, the host's facilitators and their own group's.",
+    },
+  ],
   // A move to another group for good, made mid-term: the address names the
   // PERSON moved, and the people the move emails are that person and the two
   // groups' facilitators, read on the server inside the move's transaction.

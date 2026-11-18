@@ -12,7 +12,7 @@ import {
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import { resolveWeekDoc } from "../groupResolve";
-import { hasGroupsByWeek, sessionsByWeekGroup } from "../groupsByWeek";
+import { differsByWeek, sessionsByWeekGroup } from "../groupsByWeek";
 import { resolveSessions, type ResolvedSession } from "../sessions";
 import { isOpenAt, weekOpening, type OpensAfter } from "../weekOpening";
 
@@ -125,7 +125,7 @@ export async function predictionsTakerOf(db: Firestore, actor: SessionUser, runI
   // each week's from the group they were in that week, for somebody whose
   // place records a move. A week in a group that no longer meets has none.
   const sessionsByWeek =
-    placed && enrolment && hasGroupsByWeek(enrolment)
+    placed && enrolment && differsByWeek(enrolment)
       ? sessionsByWeekGroup(enrolment, (groupId) => {
           const group = liveGroups.find((each) => each.id === groupId);
           return group ? resolveSessions(run, group) : null;

@@ -6,6 +6,7 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { enrolWindow, isEnrolOpen } from "@/lib/courses/enrolWindow";
 import { joinedWeekFor } from "@/lib/courses/groupResolve";
+import { visitsAfterGroupChange } from "@/lib/courses/groupsByWeek";
 import { formatWindowDate, formatWindowDeadline } from "@/lib/courses/window";
 import {
   fetchGroupPicker,
@@ -746,6 +747,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
         // A change of session they make themselves is for every week: any
         // record of which group they were in from which week goes with it.
         patch.groupsByWeek = FieldValue.delete();
+        // A one-week visit stands, unless its host is the session they
+        // change to, which would be no visit at all.
+        if (row.visits) patch.visits = visitsAfterGroupChange(row, { groupId }) ?? FieldValue.delete();
       }
       tx.update(enrolmentRef, patch);
 

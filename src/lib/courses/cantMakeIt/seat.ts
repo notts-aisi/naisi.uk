@@ -35,7 +35,7 @@ import {
   type RegisterLine,
 } from "./model";
 import { excuseHoldsIn } from "@/lib/courses/excused/standing";
-import { everInGroup, hasGroupsByWeek, inGroupForWeek, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
+import { differsByWeek, everInGroup, inGroupForWeek, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
 import { CANT_MAKE_IT_REFUSAL } from "./words";
 
 /**
@@ -132,7 +132,8 @@ export function takesPartInWeek(
  * to finish (`sessionRange`), each week's from the group they were in that
  * week (`sessionsWithGroup`). `group` is the group they are in now and
  * `groups` the run's groups: a week in a group that no longer meets has no
- * session. With no record of groups by week, their group's next session,
+ * session; a week of a one-week visit is the host's session that week. With
+ * no record of groups by week and no visit, their group's next session,
  * exactly as `sessionRange(resolveSessions(run, group), now)` answers it.
  * Null once none is left. "Joining online" asks the same
  * (`src/lib/courses/joiningOnline/seat.ts`).
@@ -144,7 +145,7 @@ export function nextSessionByWeek(
   groups: readonly CourseGroupDoc[],
   now: Date,
 ): { group: CourseGroupDoc; session: ResolvedSession } | null {
-  if (!hasGroupsByWeek(seat)) {
+  if (!differsByWeek(seat)) {
     const next = sessionRange(resolveSessions(run, group), now).next;
     return next ? { group, session: next } : null;
   }

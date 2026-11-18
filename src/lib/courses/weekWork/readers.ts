@@ -15,7 +15,7 @@ import {
   normalizeCourseWeekWork,
   type CourseWeekWorkDoc,
 } from "@/lib/firestore/courseWeekWork";
-import { hasGroupsByWeek, sessionsByWeekGroup } from "@/lib/courses/groupsByWeek";
+import { differsByWeek, hasGroupsByWeek, sessionsByWeekGroup } from "@/lib/courses/groupsByWeek";
 import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import { readPackCaseRecords, recordBlocksOf } from "@/lib/courses/packsAndCases/readers";
 import type { WeekBlock } from "@/lib/courses/weekBlocks/model";
@@ -58,9 +58,10 @@ import {
  * moved from a week is due at their old group's sessions before it and their
  * new group's from it (`sessionsByWeekGroup`), so Late and the reminders
  * before a session are told against the session they were really due at. A
- * week spent in a group that no longer meets has no session to be due at.
- * With no record of groups by week, the group they are in now for every
- * week, exactly as before.
+ * week of a one-week visit is the host's session that week. A week spent in
+ * a group that no longer meets has no session to be due at. With no record
+ * of groups by week and no visit, the group they are in now for every week,
+ * exactly as before.
  */
 export function sessionSourceFor(
   run: CourseRunDoc,
@@ -80,7 +81,7 @@ export function sessionSourceFor(
       : null;
   if (placed && enrolment) {
     const toldAt = enrolment.selfEnrolled ? (enrolment.createdAt ?? null) : (enrolment.allocatedEmailAt ?? null);
-    const sessions = hasGroupsByWeek(enrolment)
+    const sessions = differsByWeek(enrolment)
       ? sessionsByWeekGroup(enrolment, (groupId) => {
           const group = liveGroups.find((each) => each.id === groupId);
           return group ? sessionsOf(group) : null;

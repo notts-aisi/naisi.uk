@@ -782,6 +782,12 @@ const REGISTRY = {
   "src/lib/courses/staffMove/save.ts#sendMoveEmail": T(
     "An admin or the programme's lead moved somebody to another group for good, mid-term: once the move has committed, one email to the person, one to each of the new group's facilitators and one to each of the old group's, each with standing and an address, never the person moved twice and never whoever pressed, exactly the people the transaction counted and the button said. It is about the reader's own place or a group the reader runs, so no row of the profile grid gates it; the suppression list still holds it back. Never the reason, never a meeting link.",
   ),
+  "src/lib/email/visitEmail.ts#sendEmail": T(
+    "The door of the emails of a one-week visit to another group's session (\"You’re going to Group I’s session on Wed 11 Nov\", \"Daniel Kim is joining Group I for week 2\", \"Daniel Kim is at Group I for week 2\", \"Daniel Kim’s visit to Group I for week 2 is off\", \"Your visit to Group I for week 2 is off\"), with its own kind in the log (`course-visit`). Each is about the reader's own place or a group the reader runs, so no row of the grid switches it off; the suppression list still holds it back. Never the reason for the visit and never a meeting link: the one link is a page on this site.",
+  ),
+  "src/lib/courses/visit/save.ts#sendVisitEmail": T(
+    "An admin or the programme's lead arranged a one-week visit for somebody, or called one off, or the person cancelled their own: once it has committed, one email to the person (only when staff pressed), and one to each facilitator of the host group and of the group they belong to that week, each with standing and an address, never the person among them and never whoever pressed, exactly the people the transaction counted and the button said. It is about the reader's own place or a group the reader runs, so no row of the profile grid gates it; the suppression list still holds it back. Never the reason, never a meeting link.",
+  ),
   "src/lib/courses/excused/decide.ts#sendExcusedEmail": T(
     "An admin deciding or replying to a request to be excused, through its door (`src/lib/email/excusedEmail.ts`): approving one week emails the person, with the reply, and, while the register says excused, each of the group's facilitators with standing, never the reason and never the presser; declining one week emails the person, with the reply; a reply without deciding emails the person. Withdrawing and waiting email nobody; asking emails the admins (`alert.ts`).",
     4,

@@ -219,8 +219,31 @@ export type StoredTimeAnswer =
 export type GroupFromWeek = { groupId: string; fromWeek: number };
 
 /**
+ * ONE WEEK SPENT AT ANOTHER GROUP'S SESSION (a one-week visit): for week
+ * `weekNumber` the person goes to `groupId`'s session and stays in their own
+ * group. For that week the session they go to is the one that counts: the
+ * session they are due at and Late, the reminders before it, the register
+ * their line is on, its check-in, its meeting link and their mark
+ * (`groupForWeek` answers the host). The group they BELONG to that week
+ * (`ownGroupForWeek`) does not change: the copy of the week they work in,
+ * whose member they are and who gives the feedback stay their own group's.
+ *
+ * Written only by the visit's own writers (`src/lib/courses/visit/`), an
+ * admin or the programme's lead arranging one, and the person or staff
+ * calling it off. `arrangedByUid` and `arrangedAt` say who arranged it and
+ * when, for the person's own card; never shown to a facilitator.
+ */
+export type OneWeekVisit = {
+  weekNumber: number;
+  groupId: string;
+  arrangedByUid: string | null;
+  arrangedAt: Date | null;
+};
+
+/**
  * Bounds on a stored record: a run's plan holds at most 60 weeks, so no
- * real record has more entries than that, nor a week past it.
+ * real record has more entries than that, nor a week past it. The same
+ * bounds hold a place's visits: at most one a week.
  */
 export const GROUPS_BY_WEEK_LIMITS = { entries: 60, week: 60 } as const;
 
@@ -352,6 +375,14 @@ export type CourseEnrolmentDoc = {
    * (`groupForWeek`).
    */
   groupsByWeek?: GroupFromWeek[];
+  /**
+   * THE WEEKS THEY GO TO ANOTHER GROUP'S SESSION (see `OneWeekVisit`), in
+   * week order, at most one a week. Absent on every place with no visit, and
+   * on a stored value that is not a whole list: such a place reads exactly
+   * as it did before visits existed. A visit whose host is the group they
+   * belong to that week, or in a week before they joined, reads as none.
+   */
+  visits?: OneWeekVisit[];
   /**
    * The person's answer to "can you make this time?" (see
    * `StoredTimeAnswer`). Absent until they answer, and on a stored value
@@ -496,28 +527,42 @@ export function movedSinceTold(
  *    joined by then is the reader's own floor (`joinedWeekNumber`), as it
  *    always was.
  *
+ *  - A one-week visit (`visits`) in that week: the HOST group, whose session
+ *    they go to that week. Every other week, and every reader asking which
+ *    group they belong to, is `ownGroupForWeek`'s answer.
+ *
  * It answers the group the record names whether or not that group still
  * meets: a reader that finds no live group for the answer has no session for
  * that week, and a mark only off a finished register of a session held
  * (`countsFromArchivedGroup`). A reader that means the group they
  * are in NOW (their facilitators, the roster, who reads their work) reads
- * `groupId` and never this.
+ * `groupId` and never this. A reader that means the group they BELONG to
+ * that week (the copy of the week they work in, whose member they are, who
+ * gives the feedback) asks `ownGroupForWeek`.
  */
 export function groupForWeek(
-  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek">,
+  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek" | "visits">,
   weekNumber: number,
 ): string | null {
-  const record = place.groupsByWeek;
-  if (!record || record.length === 0 || !Number.isFinite(weekNumber)) return place.groupId;
-  let found = record[0].groupId;
-  for (const entry of record) {
-    if (entry.fromWeek > weekNumber) break;
-    found = entry.groupId;
-  }
-  return found;
+  const own = ownGroupForWeek(place, weekNumber);
+  const visit = visitInWeek(place, weekNumber);
+  return visit && own && visit.groupId !== own ? visit.groupId : own;
 }
 
-/** The group the place BELONGS to in that week: its copy of the week, and whose member they are. Never a one-week visit's host. */
+/** The one-week visit the place has in a week, or null. */
+export function visitInWeek(
+  place: Pick<CourseEnrolmentDoc, "visits">,
+  weekNumber: number,
+): OneWeekVisit | null {
+  if (!place.visits || !Number.isFinite(weekNumber)) return null;
+  return place.visits.find((visit) => visit.weekNumber === weekNumber) ?? null;
+}
+
+/**
+ * The group the place BELONGS to in that week: its copy of the week, whose
+ * member they are and whose facilitators give the feedback. Never a one-week
+ * visit's host. With no record of groups by week, the group they are in now.
+ */
 export function ownGroupForWeek(
   place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek">,
   weekNumber: number,
@@ -570,6 +615,45 @@ function asGroupsByWeek(v: unknown, groupId: string | null): GroupFromWeek[] | u
   }
   if (out[out.length - 1].groupId !== groupId) return undefined;
   return out.length > 1 ? out : undefined;
+}
+
+/**
+ * A stored list of one-week visits, or undefined to read the place as it did
+ * before visits existed. READ WHOLE OR NOT AT ALL: every entry a group id
+ * and a whole week from 1 to `GROUPS_BY_WEEK_LIMITS.week`, no week twice, no
+ * more entries than the limit. A place in no group has none. Then, entry by
+ * entry, a visit whose host is the group the place belongs to that week, or
+ * in a week before they joined, says nothing and reads as none. Kept in week
+ * order.
+ */
+function asVisits(
+  v: unknown,
+  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek" | "joinedWeekNumber">,
+): OneWeekVisit[] | undefined {
+  if (!Array.isArray(v) || v.length === 0 || v.length > GROUPS_BY_WEEK_LIMITS.entries) return undefined;
+  if (!isGroupId(place.groupId)) return undefined;
+  const out: OneWeekVisit[] = [];
+  const weeks = new Set<number>();
+  for (const item of v) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return undefined;
+    const entry = item as Raw;
+    const week = entry.weekNumber;
+    if (!isGroupId(entry.groupId)) return undefined;
+    if (typeof week !== "number" || !Number.isInteger(week) || week < 1 || week > GROUPS_BY_WEEK_LIMITS.week) return undefined;
+    if (weeks.has(week)) return undefined;
+    weeks.add(week);
+    const by = entry.arrangedByUid;
+    out.push({
+      weekNumber: week,
+      groupId: entry.groupId,
+      arrangedByUid: isGroupId(by) ? by : null,
+      arrangedAt: tsToDate(entry.arrangedAt),
+    });
+  }
+  const kept = out
+    .filter((visit) => visit.weekNumber >= place.joinedWeekNumber && visit.groupId !== ownGroupForWeek(place, visit.weekNumber))
+    .sort((a, b) => a.weekNumber - b.weekNumber);
+  return kept.length > 0 ? kept : undefined;
 }
 
 function tsToDate(v: unknown): Date | null {
@@ -693,5 +777,7 @@ export function normalizeCourseEnrolment(id: string, data: Raw): CourseEnrolment
   if (timeAnswer) doc.timeAnswer = timeAnswer;
   const groupsByWeek = asGroupsByWeek(data.groupsByWeek, doc.groupId);
   if (groupsByWeek) doc.groupsByWeek = groupsByWeek;
+  const visits = asVisits(data.visits, doc);
+  if (visits) doc.visits = visits;
   return doc;
 }

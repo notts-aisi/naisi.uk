@@ -2,7 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { facilitatesGroup, takesPartIn } from "@/lib/courses/cantMakeIt/seat";
 import { rawCountsFromArchivedGroup } from "@/lib/courses/archivedWeeks";
-import { groupsOfWeeks, hasGroupsByWeek, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
+import { differsByWeek, groupsOfWeeks, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
 import { heldOnline } from "@/lib/courses/joiningOnline/model";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { isAddressableId } from "@/lib/courses/registerAccess";
@@ -138,8 +138,8 @@ function sessionHeldOnline(group: CourseGroupDoc, session: ResolvedSession): boo
 const iso = (at: Date | null): string | null => (at ? at.toISOString() : null);
 
 /**
- * The groups of the run archived since that the place's record names, read
- * by their ids: none unless the record names a group that is not live.
+ * The groups of the run archived since that the place's record (or a visit)
+ * names, read by their ids: none unless one names a group that is not live.
  */
 async function archivedGroupsOf(
   db: Firestore,
@@ -170,17 +170,18 @@ export async function excusedFor(
   const closed = closesAtDate !== null && now.getTime() >= closesAtDate.getTime();
 
   // Each week's session from the group they were in that week, and its line
-  // from that group's register (`sessionsWithGroup`). A week in a group
-  // archived since stays, as history, only where its register was finished
-  // for a session held (`rawCountsFromArchivedGroup`), as on their own
-  // attendance; nothing is offered about it. With no record of groups by
-  // week, their group's sessions, as always.
+  // from that group's register (`sessionsWithGroup`; a one-week visit's week
+  // is the host's). A week in a group archived since stays, as history, only
+  // where its register was finished for a session held
+  // (`rawCountsFromArchivedGroup`), as on their own attendance; nothing is
+  // offered about it. With no record of groups by week and no visit, their
+  // group's sessions, as always.
   const live = (groupId: string) =>
     input.groups.find((each) => each.id === groupId && each.runId === run.id && !each.archived) ?? null;
-  const archived = hasGroupsByWeek(seat) ? await archivedGroupsOf(db, run.id, seat, live) : [];
+  const archived = differsByWeek(seat) ? await archivedGroupsOf(db, run.id, seat, live) : [];
   const archivedOf = (groupId: string) => archived.find((each) => each.id === groupId) ?? null;
   const candidates = (
-    hasGroupsByWeek(seat)
+    differsByWeek(seat)
       ? sessionsWithGroup(seat, (groupId) => {
           const each = live(groupId) ?? archivedOf(groupId);
           return each ? resolveSessions(run, each) : null;

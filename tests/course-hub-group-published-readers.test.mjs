@@ -624,6 +624,23 @@ const READERS = {
       "time a seat told before that was kept moves, or, for the staff move, the group they join, whose own email tells them. " +
       "It shows nobody anything and emails nobody",
   },
+  "lib/courses/visit/plan.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "what arranging a one-week visit to another group's session would do, for an admin or the programme's lead (the page " +
+      "and the route ask the gate first): a seat Publish has not told is refused in a sentence, so nobody is emailed about a " +
+      "group they were never told, and the visitor's name reaches no facilitator. The ways in ask the same of a seat " +
+      "(placeTakesMove) before they offer a visit",
+  },
+  "lib/courses/visit/save.ts": {
+    kind: "writer",
+    proof: ["visits: storedVisits(visits),", "tx.set(write.ref, { attendance: write.rollup }, { merge: true });"],
+    why:
+      "arranging or calling off a one-week visit, behind the plan's refusals (a seat Publish has not told never reaches " +
+      "it): it writes the visit on the place, rebuilds the person's own figures and writes history rows, and changes " +
+      "nobody's group; the emails go to the people the plan counted. It shows nobody anything",
+  },
   "lib/courses/staffMove/plan.ts": {
     kind: "told",
     asks: 2,

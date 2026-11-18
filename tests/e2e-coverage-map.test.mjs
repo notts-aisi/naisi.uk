@@ -774,10 +774,15 @@ const NOT_COVERED = {
     coverWhen:
       "When a browser spec signs in as a programme's lead and adds a group from the Times view.",
   },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": {
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/visit": {
     reason:
-      "Course hub: moving one person to another group for good, mid-term, with its three emails on save. tests/course-staff-move.test.mjs executes it as every kind of caller, every refusal, the week rule both ways, the 409s and every email. The browser spec scripts/e2e-fixtures/course-hub-staff-move.mjs drives it end to end and is written but has not run yet.",
-    coverWhen: "When the course-hub-staff-move spec has passed once with a teardown of zero rows and is marked verified.",
+      "Course hub: arranging a one-week visit to another group's session for one person, and calling one off, with the emails on save. tests/course-visit.test.mjs executes it as every kind of caller, every refusal, the preview against the save, the 409s, a full session's flag and every email. The browser spec scripts/e2e-fixtures/course-hub-visit.mjs drives it end to end and is written but has not run yet.",
+    coverWhen: "When the course-hub-visit spec has passed once with a teardown of zero rows and is marked verified.",
+  },
+  "/api/courses/runs/[runId]/visit/cancel": {
+    reason:
+      "Course hub: the person cancelling a visit staff arranged for them, from their programme page. tests/course-visit.test.mjs executes it as the person, somebody else and signed out, before and after the earlier of the two sessions starts, with what it takes off the host's register and who it emails. The browser spec scripts/e2e-fixtures/course-hub-visit.mjs drives it end to end and is written but has not run yet.",
+    coverWhen: "When the course-hub-visit spec has passed once with a teardown of zero rows and is marked verified.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room": {
     reason:
@@ -1510,11 +1515,6 @@ const NOT_COVERED = {
     reason:
       "Course hub: one person as their group's facilitator sees them. tests/course-person-page.test.mjs draws it as the group's facilitator, another group's, the lead, an admin and the person, and for somebody moved in from another group.",
     coverWhen: "When an end-to-end spec signs in as a group's facilitator after the group's first week, so the cut can be opened from the group's page.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": {
-    reason:
-      "Course hub: the page for moving one person to another group for good, mid-term. tests/course-staff-move.test.mjs executes what it draws through its route's preview; the browser spec scripts/e2e-fixtures/course-hub-staff-move.mjs drives it end to end and is written but has not run yet.",
-    coverWhen: "When the course-hub-staff-move spec has passed once with a teardown of zero rows and is marked verified.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/anonymous-feedback": {
     reason:

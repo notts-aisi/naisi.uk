@@ -1419,6 +1419,28 @@ export const ROUTES = {
         "the error with the week and the count as they now are.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/visit": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Arranging a one-week visit to another group's session for one person, or calling one off: view-as is " +
+        "refused first, then the session, then the body (the week, and the session with either preview or the count " +
+        "and the full flag the page was shown, or the call-off and its count) is checked before anything is read, " +
+        "then the role from the form. Only the programme's lead and admins arrange visits; a preview answers ok and " +
+        "preview, a press ok, the week, the host, the message and what the emails did, and a 409 the error with the " +
+        "count and the full flag as they now are.",
+    },
+  },
+  "/api/courses/runs/[runId]/visit/cancel": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "The person cancelling a visit staff arranged for them: view-as is refused first, then the session, then the " +
+        "address and the body (the week alone) are checked before anything is read, so every signed-in persona meets " +
+        "the same 400 on an empty one. Only the caller's own place is read, never anybody else's; a cancel answers ok " +
+        "and the week, and both groups' facilitators are emailed after the write.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room": {
     PUT: {
       expect: signedIn(400),
@@ -6403,6 +6425,24 @@ export const REAL_ROUTES = {
       },
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/visit": {
+    POST: {
+      realDrive: {
+        body: { weekNumber: 1, hostGroupId: "e2e-group", preview: true },
+        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before the person is read."),
+        admin: c(ACTS, "An admin arranges visits on any programme, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "The programme's own lead arranges its people's visits, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room": {
     PUT: {
       realDrive: { body: { room: "Room E2E" }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
@@ -7247,6 +7287,9 @@ export const REAL_ROUTES = {
         participant: c(400, "Holds a place, so the way out is open, and the typed course title is then missing."),
       },
     },
+  },
+  "/api/courses/runs/[runId]/visit/cancel": {
+    POST: bodyFirst("Then only the caller's own place on the run is read, and a cancel needs a visit of theirs in that week."),
   },
   "/api/courses/runs/[runId]/enrol-mode": {
     PATCH: adminAlone("A run's enrolment mode", c(400, "An admin meets the body check: no mode.")),

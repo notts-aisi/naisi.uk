@@ -1,5 +1,5 @@
 import { countsFromArchivedGroup } from "@/lib/courses/archivedWeeks";
-import { hasGroupsByWeek, sessionsByWeekGroup } from "@/lib/courses/groupsByWeek";
+import { differsByWeek, sessionsByWeekGroup } from "@/lib/courses/groupsByWeek";
 import { resolveSessions, type ResolvedSession } from "@/lib/courses/sessions";
 import { normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
 import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
@@ -52,7 +52,7 @@ export function certificateNeedsFor(input: {
   run: CourseRunDoc;
   /** Their own group, or null with none yet. */
   group: CourseGroupDoc | null;
-  enrolment: Pick<CourseEnrolmentDoc, "role" | "status" | "joinedWeekNumber" | "groupId" | "groupsByWeek"> | null;
+  enrolment: Pick<CourseEnrolmentDoc, "role" | "status" | "joinedWeekNumber" | "groupId" | "groupsByWeek" | "visits"> | null;
   /**
    * The run's groups that still meet, for a place that records a move: each
    * week's sessions are then the group's they were in that week
@@ -61,9 +61,9 @@ export function certificateNeedsFor(input: {
    */
   liveGroups?: readonly CourseGroupDoc[];
   /**
-   * The groups archived since that their record names: of each, only the
+   * The groups archived since that their record or a visit names: of each, only the
    * sessions whose register in `registers` was finished and says they were
-   * held (`countsFromArchivedGroup`). Not read for a place with no record.
+   * held (`countsFromArchivedGroup`). Not read for a place with no record and no visit.
    */
   archivedGroups?: readonly CourseGroupDoc[];
   /** They facilitate a group of the run. */
@@ -83,8 +83,8 @@ export function certificateNeedsFor(input: {
   const { rule, run, group, enrolment } = input;
   if (!rule || !enrolment || enrolment.role !== "learner" || enrolment.status !== "active" || input.facilitates) return null;
   // Each week's sessions from the group they were in that week, when their
-  // place records a move; their own group's otherwise, as always.
-  const moved = group !== null && hasGroupsByWeek(enrolment);
+  // place records a move or a one-week visit; their own group's otherwise, as always.
+  const moved = group !== null && differsByWeek(enrolment);
   const sessions = !group
     ? []
     : moved

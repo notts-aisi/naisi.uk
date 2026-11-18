@@ -10,7 +10,7 @@ import {
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { joinedMarkerId, leftMarkerId } from "./allocationPublish";
-import { isMoveWeek, recordAfterMove } from "./groupsByWeek";
+import { isMoveWeek, recordAfterMove, visitsAfterGroupChange } from "./groupsByWeek";
 import { lastTaughtWeek } from "./weekPlan";
 
 /**
@@ -206,6 +206,9 @@ export async function moveFromWeek<Stop = never>(
       groupsByWeek: record ?? FieldValue.delete(),
       updatedAt: FieldValue.serverTimestamp(),
     };
+    // A one-week visit in a week from the move on to the group they move
+    // into would be no visit at all, and goes; every other visit stands.
+    if (place.visits) patch.visits = visitsAfterGroupChange(place, { groupId: toGroupId, groupsByWeek: record ?? undefined }) ?? FieldValue.delete();
     if (staff && moving) {
       // Told about the group they join by the staff move's own emails: the
       // next Publish owes them nothing. `allocatedEmailAt` is never written.

@@ -18,7 +18,7 @@ import {
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import { sessionKeyParts } from "../excused/model";
-import { sessionsByWeekGroup } from "../groupsByWeek";
+import { belonging, sessionsByWeekGroup } from "../groupsByWeek";
 import { moveLimitRefusal } from "./limits";
 import type { MoveLineView, MovePreviewView } from "./view";
 import { moveWeekOf, weeksThatCome, type MoveWeek } from "./week";
@@ -317,7 +317,7 @@ export function moveChoices(facts: MoveFacts): MoveChoice[] {
  */
 export function moveWeekFor(
   run: CourseRunDoc,
-  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek">,
+  place: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek" | "visits">,
   groups: readonly CourseGroupDoc[],
   to: CourseGroupDoc,
   now: Date,
@@ -326,7 +326,8 @@ export function moveWeekFor(
     const group = groups.find((each) => each.id === groupId);
     return group && !group.archived ? resolveSessions(run, group) : null;
   };
-  return moveWeekOf({ oldSessions: sessionsByWeekGroup(place, sessionsOf), newSessions: resolveSessions(run, to), now });
+  // The groups the place BELONGS to: never a one-week visit's host.
+  return moveWeekOf({ oldSessions: sessionsByWeekGroup(belonging(place), sessionsOf), newSessions: resolveSessions(run, to), now });
 }
 
 /** The week rule's refusal in its sentence. */

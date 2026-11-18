@@ -6,10 +6,12 @@ import {
   ENROLMENT_STATUSES,
   groupForWeek,
   normalizeCourseEnrolment,
+  ownGroupForWeek,
   placementIsShownTo,
   type CourseEnrolmentStatus,
 } from "@/lib/firestore/courseEnrolments";
-import { everInGroup, hasGroupsByWeek, isRowForWeek, stretchesIn } from "./groupsByWeek";
+import { differsByWeek, everInGroup, isRowForWeek, stretchesIn } from "./groupsByWeek";
+export { awayMarkRefusal } from "./visit/words";
 import {
   attendanceDocId,
   normalizeCourseAttendance,
@@ -538,7 +540,22 @@ export type RegisterMember = MirrorMember & {
    * is the group's for every week from the week they joined, as always.
    */
   inGroupWeeks?: Array<{ fromWeek: number; untilWeek: number | null }>;
+  /**
+   * ON THE HOST'S REGISTER, somebody at this group's session for one week of
+   * a one-week visit: the week, and the group they belong to that week, which
+   * the row says ("Visiting from Group C"). They are a row of that week alone
+   * (`inGroupWeeks`), marked like anybody else. Absent for everybody else.
+   */
+  visitingFrom?: Array<{ weekNumber: number; groupName: string }>;
+  /**
+   * ON THE HOME REGISTER, a week a member of this group spends at another
+   * group's session: the week and that group's name, which the line says
+   * ("At Group F this week"). Not a row of that week (`inGroupWeeks`): never
+   * marked, never counted. Absent for everybody else.
+   */
+  awayAt?: Array<{ weekNumber: number; groupName: string }>;
 };
+
 
 // Whether a row is one of the register's rows in a week: `isRowForWeek`, in
 // `./groupsByWeek.ts` so the register's page asks the same function.
@@ -666,7 +683,7 @@ export async function loadRegisterMembers(
     const e = normalizeCourseEnrolment(d.id, d.data() ?? {});
     if (!e.uid || byUid.has(e.uid) || e.runId !== runId || e.status !== "active") continue;
     if (e.groupId !== groupId && !everInGroup(e, groupId)) continue;
-    if (forWeek !== null && hasGroupsByWeek(e) && groupForWeek(e, forWeek) !== groupId) continue;
+    if (forWeek !== null && differsByWeek(e) && groupForWeek(e, forWeek) !== groupId) continue;
     if (!placementIsShownTo(e, viewer)) {
       notYetTold = true;
       continue;
@@ -688,6 +705,26 @@ export async function loadRegisterMembers(
     firstNames.set(doc.id, firstNameOfUser(data) || displayNameOf(data));
   }
 
+  // The names of the other groups a one-week visit here names: the group a
+  // visitor belongs to that week, and the group a member of this one goes to.
+  // Read only when somebody listed has a visit, by address.
+  const visitGroupIds = new Set<string>();
+  for (const e of byUid.values()) {
+    for (const visit of e.visits ?? []) {
+      const home = ownGroupForWeek(e, visit.weekNumber);
+      if (visit.groupId === groupId && home) visitGroupIds.add(home);
+      if (home === groupId) visitGroupIds.add(visit.groupId);
+    }
+  }
+  const groupNames = new Map<string, string>();
+  const wantedGroups = [...visitGroupIds].filter((id) => id && !id.includes("/"));
+  if (wantedGroups.length > 0) {
+    for (const snap of await db.getAll(...wantedGroups.map((id) => db.collection("courseGroups").doc(id)))) {
+      if (snap.exists) groupNames.set(snap.id, normalizeCourseGroup(snap.id, snap.data() ?? {}).name.trim());
+    }
+  }
+  const nameOfGroup = (id: string) => groupNames.get(id) || "another group";
+
   const members = [...byUid.values()]
     .map((e): RegisterMember => {
       const row: RegisterMember = {
@@ -695,12 +732,20 @@ export async function loadRegisterMembers(
         displayName: nameByUid.get(e.uid) ?? "NAISI member",
         joinedWeekNumber: e.joinedWeekNumber,
       };
-      if (!hasGroupsByWeek(e)) return row;
+      if (!differsByWeek(e)) return row;
       const inGroupWeeks = stretchesIn(e, groupId).map(({ fromWeek, untilWeek }) => ({ fromWeek, untilWeek }));
+      const visitingFrom = (e.visits ?? [])
+        .filter((visit) => visit.groupId === groupId)
+        .map((visit) => ({ weekNumber: visit.weekNumber, groupName: nameOfGroup(ownGroupForWeek(e, visit.weekNumber) ?? "") }));
+      const awayAt = (e.visits ?? [])
+        .filter((visit) => visit.groupId !== groupId && ownGroupForWeek(e, visit.weekNumber) === groupId)
+        .map((visit) => ({ weekNumber: visit.weekNumber, groupName: nameOfGroup(visit.groupId) }));
       return {
         ...row,
         joinedWeekNumber: Math.max(e.joinedWeekNumber, inGroupWeeks[0]?.fromWeek ?? e.joinedWeekNumber),
         inGroupWeeks,
+        ...(visitingFrom.length > 0 ? { visitingFrom } : {}),
+        ...(awayAt.length > 0 ? { awayAt } : {}),
       };
     })
     .sort(

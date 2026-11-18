@@ -19,7 +19,7 @@ import {
   normalizeCourseEnrolment,
   placementIsTold,
 } from "@/lib/firestore/courseEnrolments";
-import { hasGroupsByWeek } from "@/lib/courses/groupsByWeek";
+import { hasGroupsByWeek, visitsAfterGroupChange } from "@/lib/courses/groupsByWeek";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
@@ -514,6 +514,12 @@ export async function POST(req: Request, ctx: Ctx) {
             // they read the group they are in now for every week, as every
             // move here always has.
             patch.groupsByWeek = FieldValue.delete();
+            // A one-week visit stands across a move here, but one to the
+            // group they now belong to would be no visit at all, and goes.
+            if (enrolment.visits) {
+              const kept = groupId ? visitsAfterGroupChange(enrolment, { groupId }) : null;
+              patch.visits = kept ?? FieldValue.delete();
+            }
             if (told) {
               // THEY STAY TOLD (see the note at the top). A seat told before
               // the group it was told about was kept was told about the group

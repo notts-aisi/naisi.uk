@@ -1,8 +1,10 @@
 import {
   GROUPS_BY_WEEK_LIMITS,
   groupForWeek,
+  ownGroupForWeek,
   type CourseEnrolmentDoc,
   type GroupFromWeek,
+  type OneWeekVisit,
 } from "@/lib/firestore/courseEnrolments";
 import type { ResolvedSession } from "./sessions";
 
@@ -14,14 +16,23 @@ import type { ResolvedSession } from "./sessions";
  * made of `groupForWeek` (`src/lib/firestore/courseEnrolments.ts`), the one
  * question, and of the record it reads.
  *
- * With no record, every answer here is the place's group for every week,
- * which is how every reader read a place before the record existed.
+ * With no record and no visit, every answer here is the place's group for
+ * every week, which is how every reader read a place before the record
+ * existed.
+ *
+ * A ONE-WEEK VISIT (`visits`) is one more answer of `groupForWeek`: the host
+ * group for that week. So every answer here is about the session's group,
+ * week by week, visits included: the stretches, the sessions somebody was
+ * due at, the register their line is on. A reader that means the group the
+ * place BELONGS to in each week (the copy they work in, whose member they
+ * are, a staff move's week rule, a group they join later) asks these of
+ * `belonging(place)`, the same place without its visits.
  *
  * Pure: no reads, no clock.
  */
 
 /** The fields of a place these answers read. */
-export type PlaceByWeek = Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek">;
+export type PlaceByWeek = Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek" | "visits">;
 
 /**
  * A stretch of weeks spent in one group: from `fromWeek` up to but not
@@ -32,16 +43,36 @@ export type PlaceByWeek = Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek">;
 export type GroupStretch = { groupId: string; fromWeek: number; untilWeek: number | null };
 
 /** Whether the place carries a record of groups by week (somebody moved from a week). */
-export function hasGroupsByWeek(place: PlaceByWeek): boolean {
+export function hasGroupsByWeek(place: Pick<CourseEnrolmentDoc, "groupsByWeek">): boolean {
   return (place.groupsByWeek?.length ?? 0) > 1;
 }
 
+/** Whether the place has a one-week visit to another group's session. */
+export function hasVisits(place: Pick<CourseEnrolmentDoc, "visits">): boolean {
+  return (place.visits?.length ?? 0) > 0;
+}
+
 /**
- * Every stretch of weeks the place spent in a group, in week order. No
- * record: one stretch, the group they are in now, from week 1 for good. No
- * group and no record: none.
+ * WHETHER ANY WEEK'S SESSION IS ANOTHER GROUP'S THAN THE GROUP THEY ARE IN
+ * NOW: a record of groups by week, or a one-week visit. With neither, every
+ * reader of a week's session reads the group they are in now, as before.
  */
-export function groupStretchesOf(place: PlaceByWeek): GroupStretch[] {
+export function differsByWeek(place: PlaceByWeek): boolean {
+  return hasGroupsByWeek(place) || hasVisits(place);
+}
+
+/**
+ * THE PLACE AS THE GROUPS IT BELONGS TO: the same place without its one-week
+ * visits, for a reader that means whose member they are each week (the copy
+ * they work in, a staff move's week rule, a group they join later). A
+ * visit's host is never a group they belong to.
+ */
+export function belonging(place: PlaceByWeek): Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek"> {
+  return place.groupsByWeek ? { groupId: place.groupId, groupsByWeek: place.groupsByWeek } : { groupId: place.groupId };
+}
+
+/** The stretches of the groups the place belongs to, before any visit. */
+function ownStretchesOf(place: PlaceByWeek): GroupStretch[] {
   const record = place.groupsByWeek;
   if (!record || record.length === 0) {
     return place.groupId ? [{ groupId: place.groupId, fromWeek: 1, untilWeek: null }] : [];
@@ -51,6 +82,39 @@ export function groupStretchesOf(place: PlaceByWeek): GroupStretch[] {
     fromWeek: index === 0 ? 1 : entry.fromWeek,
     untilWeek: record[index + 1]?.fromWeek ?? null,
   }));
+}
+
+/**
+ * Every stretch of weeks the place's sessions were one group's, in week
+ * order: the groups it belongs to, with each one-week visit cut out as a
+ * stretch of one week at the host. Two stretches in a row of one group read
+ * as one. No record and no visit: one stretch, the group they are in now,
+ * from week 1 for good. No group: none.
+ */
+export function groupStretchesOf(place: PlaceByWeek): GroupStretch[] {
+  const own = ownStretchesOf(place);
+  if (!hasVisits(place) || own.length === 0) return own;
+  const cut: GroupStretch[] = [];
+  for (const stretch of own) {
+    let from = stretch.fromWeek;
+    const inside = (place.visits ?? []).filter(
+      (visit) => visit.weekNumber >= stretch.fromWeek && (stretch.untilWeek === null || visit.weekNumber < stretch.untilWeek),
+    );
+    for (const visit of inside) {
+      if (visit.groupId === stretch.groupId) continue;
+      if (visit.weekNumber > from) cut.push({ groupId: stretch.groupId, fromWeek: from, untilWeek: visit.weekNumber });
+      cut.push({ groupId: visit.groupId, fromWeek: visit.weekNumber, untilWeek: visit.weekNumber + 1 });
+      from = visit.weekNumber + 1;
+    }
+    if (stretch.untilWeek === null || from < stretch.untilWeek) cut.push({ groupId: stretch.groupId, fromWeek: from, untilWeek: stretch.untilWeek });
+  }
+  const out: GroupStretch[] = [];
+  for (const stretch of cut) {
+    const last = out[out.length - 1];
+    if (last && last.groupId === stretch.groupId && last.untilWeek === stretch.fromWeek) last.untilWeek = stretch.untilWeek;
+    else out.push({ ...stretch });
+  }
+  return out;
 }
 
 /** The stretches the place spent in one group, in week order (none when they were never in it). */
@@ -102,7 +166,7 @@ export function sessionsByWeekGroup(
   place: PlaceByWeek,
   sessionsOf: (groupId: string) => readonly ResolvedSession[] | null,
 ): ResolvedSession[] {
-  if (!hasGroupsByWeek(place)) return place.groupId ? [...(sessionsOf(place.groupId) ?? [])] : [];
+  if (!differsByWeek(place)) return place.groupId ? [...(sessionsOf(place.groupId) ?? [])] : [];
   const out: ResolvedSession[] = [];
   for (const stretch of groupStretchesOf(place)) {
     for (const session of sessionsOf(stretch.groupId) ?? []) {
@@ -163,4 +227,21 @@ export function recordAfterMove(place: PlaceByWeek, toGroupId: string, fromWeek:
     out.push(entry);
   }
   return out.length > 1 ? out : null;
+}
+
+/**
+ * THE VISITS THAT STILL STAND ONCE THE GROUPS A PLACE BELONGS TO CHANGE (a
+ * move on the allocation board, a change of session on an open run, a staff
+ * move from a week): every visit but one whose host is now the group the
+ * place belongs to that week, which would be no visit at all. Null when none
+ * stands, and the field is then deleted. A writer that changes the place's
+ * groups writes this in the same write, so what is stored is what is read.
+ */
+export function visitsAfterGroupChange(
+  place: Pick<CourseEnrolmentDoc, "visits">,
+  after: Pick<CourseEnrolmentDoc, "groupId" | "groupsByWeek">,
+): OneWeekVisit[] | null {
+  if (!after.groupId) return null;
+  const kept = (place.visits ?? []).filter((visit) => visit.groupId !== ownGroupForWeek(after, visit.weekNumber));
+  return kept.length > 0 ? kept.map((visit) => ({ ...visit })) : null;
 }

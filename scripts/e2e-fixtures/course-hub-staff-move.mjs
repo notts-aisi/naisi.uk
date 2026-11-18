@@ -60,8 +60,10 @@ export const SPEC = {
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]",
     ],
   },
-  /** Written 13 Nov 2026 and not yet run: a local run was refused, the port being held by another project. */
-  status: "unverified",
+  // Verified: first run on Saturday 14 November 2026, in the checks of the pull
+  // request that added it: all six steps completed, and a teardown manifest
+  // of zero rows after.
+  status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "week-three" }),
   countRows: countTerm,
   teardown: teardownTerm,

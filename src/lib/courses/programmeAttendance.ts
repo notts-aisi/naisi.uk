@@ -24,7 +24,7 @@ import {
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
 import { countsFromArchivedGroup } from "@/lib/courses/archivedWeeks";
-import { groupsOfWeeks, hasGroupsByWeek } from "@/lib/courses/groupsByWeek";
+import { differsByWeek, groupsOfWeeks } from "@/lib/courses/groupsByWeek";
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { readSchedulerConfig } from "@/lib/firestore/schedulerConfig";
@@ -253,9 +253,10 @@ export type RunRecords = {
   /** The run's groups that still meet (not archived), Monday first (`compareGroupsByMeeting`). */
   groups: CourseGroupDoc[];
   /**
-   * The run's archived groups that a place's record of groups by week names:
-   * read only for the weeks that record gives them, where a finished register
-   * still counts (`countsFromArchivedGroup`). None with no such record.
+   * The run's archived groups that a place's record of groups by week, or a
+   * one-week visit, names: read only for the weeks they give them, where a
+   * finished register still counts (`countsFromArchivedGroup`). None with no
+   * such record and no visit.
    */
   archivedGroups?: CourseGroupDoc[];
   /** Every learner enrolment on the run, whatever its state. */
@@ -311,7 +312,7 @@ export async function readRunRecords(db: Firestore, runId: string): Promise<RunR
   const enrolments = enrolmentSnap.docs
     .map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}))
     .filter((row) => row.role === "learner" && row.uid !== "" && row.runId === runId);
-  const named = new Set(enrolments.filter(hasGroupsByWeek).flatMap((row) => groupsOfWeeks(row)));
+  const named = new Set(enrolments.filter(differsByWeek).flatMap((row) => groupsOfWeeks(row)));
   const archivedGroups = allGroups.filter((group) => group.archived && group.runId === runId && named.has(group.id));
   const registers = new Map<string, CourseAttendanceDoc>();
   for (const doc of registerSnap.docs) {
@@ -531,12 +532,12 @@ function lastMarkedWeekOf(sessionOf: WeekSessions, weeks: readonly number[], uid
 
 /**
  * THE GROUP WHOSE SESSION AND REGISTER ONE WEEK OF A ROW READS: the group they
- * were in that week (`groupForWeek`), or, with no record of groups by week,
+ * were in that week (`groupForWeek`, a one-week visit's host for its week), or, with no record of groups by week and no visit,
  * the group the row is listed in, as it always was (a removed row has no
  * group of its own, and is listed where a register last marked it).
  */
 function weekGroupOf(enrolment: CourseEnrolmentDoc, listedIn: string, weekNumber: number): string | null {
-  return hasGroupsByWeek(enrolment) ? groupForWeek(enrolment, weekNumber) : listedIn;
+  return differsByWeek(enrolment) ? groupForWeek(enrolment, weekNumber) : listedIn;
 }
 
 /** One person's row. `over`: the run's last session is over (`runEndOf`). */
