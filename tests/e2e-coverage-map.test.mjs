@@ -1518,7 +1518,7 @@ const NOT_COVERED = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/visit": {
     reason:
-      "Course hub: the page for arranging a one-week visit for one person, and calling one off. tests/course-visit-pages.test.mjs renders it as the lead and an admin, with its weeks, its sessions and a visit that stands, and tests/course-visit.test.mjs executes what it draws through its route's preview; the browser spec scripts/e2e-fixtures/course-hub-visit.mjs drives it end to end and is written but has not run yet.",
+      "Course hub: the page for arranging a one-week visit for one person, and calling one off. tests/course-visit-readers.test.mjs executes what it draws (the weeks still to come, each other group's session that week with its places left, a full one, and a visit that stands) and tests/course-visit.test.mjs executes the rest through its route's preview; the browser spec scripts/e2e-fixtures/course-hub-visit.mjs drives it end to end and is written but has not run yet.",
     coverWhen: "When the course-hub-visit spec has passed once with a teardown of zero rows and is marked verified.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/anonymous-feedback": {

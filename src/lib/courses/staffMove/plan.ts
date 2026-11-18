@@ -58,6 +58,7 @@ import {
   type LeftBehind,
   type MoveEmailFacts,
   type MoveEmailWords,
+  visitsAheadWords,
 } from "./words";
 
 /**
@@ -520,6 +521,13 @@ export async function planMove(
     weeksWrittenFrom(db, facts.run.id, person.uid, weekNumber).then((written) => copiesDiffer(db, facts.run.id, from, to, written)),
   ]);
   const feedbackFrom = [...new Set(feedback.map((piece) => piece.byUid))].filter((uid) => from.facilitatorUids.includes(uid));
+  const visitsAhead = (place.visits ?? [])
+    .filter((visit) => visit.weekNumber >= weekNumber)
+    .map((visit) => ({
+      weekNumber: visit.weekNumber,
+      hostName: facts.groups.find((group) => group.id === visit.groupId)?.name ?? "",
+      goes: visit.groupId === to.id,
+    }));
   const firstOf = (uid: string) => {
     const data = accounts.get(uid);
     return data ? firstNameOfUser(data) : "";
@@ -566,6 +574,9 @@ export async function planMove(
     { label: LINE_LABEL.late, text: lateLineWords({ toName: to.name, weekday: to.session.weekday, weekNumber }) },
     { label: LINE_LABEL.registers, text: registersLineWords({ firstName: person.firstName, fromName: from.name, toName: to.name, weekNumber }) },
     ...(leftBehind.length > 0 ? [{ label: LINE_LABEL.leftBehind, text: leftBehindWords(person.firstName, from.name, leftBehind) }] : []),
+    // A one-week visit ahead, from week N on: the save drops one to the group
+    // they move into (no visit at all) and keeps every other.
+    ...(visitsAhead.length > 0 ? [{ label: LINE_LABEL.visits, text: visitsAheadWords(person.firstName, to.name, weekNumber, visitsAhead) }] : []),
   ];
 
   const toPerson = recipients.find((each) => each.as === "person") ?? null;

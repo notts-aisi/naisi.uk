@@ -56,7 +56,8 @@ import { COURSE_AUDIT_COLLECTION } from "./courseAudit";
 import { withoutMoveReason } from "@/lib/courses/staffMove/words";
 
 /** The History rows a move to another group mid-term writes, one on each group (`saveMove`). */
-const MOVED_KIND = "member-moved";
+/** The History kinds whose optional "Why" is a note about the person: a move for good, and a one-week visit. */
+const MOVED_KINDS = new Set(["member-moved", "member-visits"]);
 import {
   MEMBER_RECORDS_COLLECTION,
   MEMBER_RECORD_APPLICATIONS,
@@ -1001,11 +1002,12 @@ export async function clearExplainerNames(db: Firestore, uid: string): Promise<n
 
 /**
  * Take the reason off every History row about this account's moves to
- * another group mid-term (`courseAudit`, kind `member-moved`, `subjectUid`
- * this account), found by the one equality on `subjectUid`: the optional
- * "Why" staff gave is a note about this person, in the row's own field and at
- * the end of its sentence (`withoutMoveReason`). The rows stay, as every
- * History row does: a move still reads on both groups' History, without why.
+ * another group mid-term and its one-week visits to another group's session
+ * (`courseAudit`, kinds `member-moved` and `member-visits`, `subjectUid` this
+ * account), found by the one equality on `subjectUid`: the optional "Why"
+ * staff gave is a note about this person, in the row's own field and at the
+ * end of its sentence (`withoutMoveReason`). The rows stay, as every History
+ * row does: a move or a visit still reads on both groups' History, without why.
  * Counted once per row changed.
  */
 export async function clearMoveReasons(db: Firestore, uid: string): Promise<number> {
@@ -1013,7 +1015,7 @@ export async function clearMoveReasons(db: Firestore, uid: string): Promise<numb
   let cleared = 0;
   for (const doc of snap.docs) {
     const data = (doc.data() ?? {}) as Record<string, unknown>;
-    if (data.kind !== MOVED_KIND) continue;
+    if (typeof data.kind !== "string" || !MOVED_KINDS.has(data.kind)) continue;
     const reason = typeof data.reason === "string" ? data.reason : null;
     const detail = typeof data.detail === "string" ? data.detail : "";
     const cut = withoutMoveReason(detail, reason);

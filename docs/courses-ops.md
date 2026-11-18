@@ -2233,6 +2233,111 @@ Attendance tab's read: the same order of documents.
 `tests/course-person-page.test.mjs` draws both pages as every reader and
 holds each to what it is handed.
 
+## A one-week visit to another group's session
+
+For ONE week somebody goes to another group's session and stays in their own
+group. An admin or the programme's lead arranges it from the person's page
+under the programme (`.../programmes/[programmeId]/people/[uid]/visit`),
+reached from their row's More menu on the People tab and from their name on
+the programme's page of a group, offered for exactly the places and runs a
+move is. The person may cancel it themselves. Nobody asks for one yet.
+
+**The record.** A place can carry `visits`, a list of
+`{ weekNumber, groupId, arrangedByUid, arrangedAt }`, one a week at most
+(`src/lib/firestore/courseEnrolments.ts`). The normaliser reads the list whole
+or not at all, and a visit to the group they belong to that week, or in a week
+before they joined, reads as none. A place with no list reads exactly as
+before. Written only by the visit's own saves (`src/lib/courses/visit/save.ts`):
+arranging one, and calling one off by staff or by the person. A move on the
+allocation board and a change of session on an open run keep every visit but
+one to the group they now belong to; Remove and placing a facilitator delete
+the list; a staff move drops a visit from its week on to the group moved into
+and keeps every other; deleting an account and destroying a run delete the
+place whole.
+
+**The two functions.** `groupForWeek(place, week)` answers the HOST for the
+visit's week: the session they go to, so their Late, the reminders before it,
+the register their line is on, its check-in, its meeting link, their mark and
+everything about one session follow it with no change of their own.
+`ownGroupForWeek(place, week)` never answers a host: the copy of the week they
+work in, whose member they are, whose Remind reaches them, who gives the
+feedback, and a staff move's week rule. `tests/course-groups-by-week-readers.test.mjs`
+lists every caller of either, and of the helpers made of them, as `week` (the
+session's group), `own` (the group they belong to) or `now`, checked both ways.
+The helpers in `src/lib/courses/groupsByWeek.ts` answer the session's group;
+handed `belonging(place)` they answer the groups it belongs to.
+
+**Places left for a week** (`placesLeftInWeek` in `src/lib/courses/visit/places.ts`):
+the group's capacity less everybody whose session that week is the group's,
+its own people that week and visitors in, less its people away. No capacity
+is no limit. Staff may send somebody to a full session: the page warns ("Group
+K is full this week: this makes 7, one over its limit of 6.") and the press
+must say it was shown the warning.
+
+**What is refused**, one sentence each and nothing written: a place that is not
+an active learner's, told its group; somebody who facilitates a group of the
+run; a run with one group, or over, archived or being destroyed (asked again
+inside the save); a host that is missing, archived, of another run or the
+group they belong to that week; a host session that week that is missing,
+called off, marked as not held or started; somebody already marked as having
+come on their own group's register that week; a week that already has a
+visit; a host register at its limit of people.
+
+**The save**, one transaction: the visit on the place; the person's rollup
+rebuilt from the place as written when a register of that week (theirs or the
+host's) is already finished; one History row on each group (`member-visits`,
+"Aisha Rahman visits Group F for week 2." and "Aisha Rahman is at Group F for
+week 2."), with the optional reason in the move's one form, read by the
+programme's lead and admins only, and cleared when the person's account is
+deleted. After the commit: the person, the host's facilitators and their own
+group's facilitators are emailed (`src/lib/email/visitEmail.ts`, kind
+`course-visit`), each with standing and an address, never the person among
+them and never whoever pressed. One function decides who, for the button's
+count and the send.
+
+**Calling it off.** The person, from their programme page, until the earlier of
+the two sessions of that week starts: both groups' facilitators are emailed.
+Staff, from the same page that arranges it, until the host's session starts:
+the person is emailed too. Either way the visit comes off the place, their
+own words on the host's register for that session (joining online, can't make
+it) come off while it is not finished, the rollup is rebuilt when it must be,
+and each group's History gets a row (`member-visit-off`).
+
+**The registers.** The host's register lists the visitor as a row of that week
+alone, with the line "Visiting from Group C"; they are marked like anybody and
+take the host's check-in. Their own group's register shows "At Group F this
+week" in that week's cell, never marked and never counted; a mark sent for it
+is refused ("Aisha is at Group F this week."). A correction of a visitor's line
+is asked on the host's register, and its panel says where their week lives.
+Their own attendance, the Attendance tab, who finished and a certificate's count
+read the host's mark for that week.
+
+**Who reads the work.** The written work's gate (`writtenReviewRole`) is
+unchanged. Beside it, `hostReadsWeek` (`src/lib/courses/visit/reading.ts`) lets
+a facilitator of the host group, standing behind the role, read the visitor's
+work for the visit's week, from the moment it is arranged until it is called
+off: through the reading view's door on the host's group page (that week
+alone, with no feedback shown or offered, no private notes, no ratings, no
+session report lines and no Remind), the fill-in boxes route (that week
+alone) and the first read (that week alone; the day is kept, never who). They
+never give feedback, rate or reopen the week, and the visitor's answer is never
+on the host's Feedback to write or a row of the host's page of one question.
+
+**The pages.** The host group's pages list the visitor with that week's people
+("Visiting from Group C, week 2 only. You can read Aisha’s week 2; Rahul gives
+the feedback.", chip "Visiting"), expected at the session, and as a row of
+This week's work that the host's Remind never reaches. Their own group's pages
+list them as "At Group F this week", not expected; their work stays in its
+This week's work. The person's programme page shows the visiting card for the
+session while it has not ended, with "I’m joining online" acting on the host's
+session and the host's link for that session, and "Cancel this visit" until the
+earlier session starts.
+
+**A move for good with a visit ahead.** The move's week rule reads the sessions
+of the groups the place belongs to, never a visit's host. The move page's
+"What will happen" names each visit from the move's week on: one to the group
+they move into goes, every other stays.
+
 ## A programme's lead on the run their programme names
 
 Each programme's lead does, for their own programme, what an admin does from
