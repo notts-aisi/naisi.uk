@@ -34,7 +34,7 @@ import { firstWord } from "@/lib/firestore/applicationEmails";
 import type { CoursesConfig } from "@/lib/firestore/config";
 import { campusForWeek, sessionModeForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
-import { courseEnrolmentId, normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
+import { courseEnrolmentId, normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
 import { differsByWeek } from "@/lib/courses/groupsByWeek";
 import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 
@@ -288,7 +288,8 @@ async function weekCopiesOf(
   for (const snap of snaps) {
     if (!snap.exists) continue;
     const place = normalizeCourseEnrolment(snap.id, snap.data() ?? {});
-    if (!place.uid || !differsByWeek(place)) continue;
+    // Only a place Publish has told (every recipient's is: the notice audience asks it too).
+    if (!place.uid || !placementIsTold(place) || !differsByWeek(place)) continue;
     const copy = copyGroupIdFor(place, weekNumber, place.groupId);
     if (copy && copy !== groupId) out.set(place.uid, copy);
   }

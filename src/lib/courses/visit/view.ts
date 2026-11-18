@@ -123,7 +123,8 @@ export function visitsAroundTicket<V extends { dateKey: string; startTimeLocal: 
   visits: readonly V[],
   ticket: { dateKey: string; startTimeLocal: string } | null,
 ): { first: V[]; later: V[] } {
-  const at = (each: { dateKey: string; startTimeLocal: string }) => `${each.dateKey} ${each.startTimeLocal}`;
-  const isNext = (visit: V) => ticket === null || at(visit) <= at(ticket);
+  // Compared as stored (a day key, then a 24-hour "HH:MM"), never printed.
+  const isNext = (visit: V) =>
+    ticket === null || visit.dateKey < ticket.dateKey || (visit.dateKey === ticket.dateKey && visit.startTimeLocal <= ticket.startTimeLocal);
   return { first: visits.filter(isNext), later: visits.filter((visit) => !isNext(visit)) };
 }

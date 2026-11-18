@@ -20,7 +20,7 @@ import { readRunFeedback } from "@/lib/courses/feedback/readers";
 import type { CourseFeedbackDoc } from "@/lib/firestore/courseFeedback";
 import { isFillInResponse, isOwnBoxResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import type { SessionUser } from "@/lib/firebase/session";
-import { courseEnrolmentId, normalizeCourseEnrolment, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { courseEnrolmentId, normalizeCourseEnrolment, placementIsShownTo, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { copyGroupIdFor } from "@/lib/courses/weekCopy";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { weekDocId, type CourseRunDoc, type CourseWeekDoc } from "@/lib/firestore/courses";
@@ -324,7 +324,7 @@ export async function loadGroupWeek(
       ...person,
       written: parts.map((part) => partWritten(part, (promptId) => reflections.get(person.uid)?.has(promptId) === true)),
     })),
-    ...(await visitorRowsOf(db, { run, weekNumber: at.weekNumber, parts, visitors: (model.visitors ?? []).filter((each) => each.weekNumber === at.weekNumber && !shown.has(each.uid)) })),
+    ...(await visitorRowsOf(db, { run, weekNumber: at.weekNumber, parts, visitors: (model.visitors ?? []).filter((each) => each.weekNumber === at.weekNumber && !shown.has(each.uid)), viewer })),
   ];
   // The group's fellows: never a facilitator's own row, never a visitor's.
   const fellows = rows.filter((row) => !row.own && !row.visiting);
@@ -374,16 +374,19 @@ export async function loadGroupWeek(
  */
 async function visitorRowsOf(
   db: Firestore,
-  input: { run: CourseRunDoc; weekNumber: number; parts: ReturnType<typeof reflectionPartsOf>; visitors: readonly GroupVisitorRow[] },
+  input: { run: CourseRunDoc; weekNumber: number; parts: ReturnType<typeof reflectionPartsOf>; visitors: readonly GroupVisitorRow[]; viewer: WeekViewer },
 ): Promise<GroupWeekRow[]> {
   const { run, weekNumber, parts, visitors } = input;
   if (visitors.length === 0) return [];
+  const shownSeats = new Set<string>();
   const seats = await db.getAll(...visitors.map((visitor) => db.collection("courseEnrolments").doc(courseEnrolmentId(run.id, visitor.uid))));
   const copies = new Map<string, Promise<ReturnType<typeof reflectionPartsOf>>>();
   const theirParts = new Map<string, ReturnType<typeof reflectionPartsOf>>();
   for (const snap of seats) {
     if (!snap.exists) continue;
     const seat = normalizeCourseEnrolment(snap.id, snap.data() ?? {});
+    // A place Publish has not told is shown to nobody but an admin (the group's model lists none anyway).
+    if (!placementIsShownTo(seat, { isAdmin: input.viewer === "admin" })) continue;
     const copy = copyGroupIdFor(seat, weekNumber, seat.groupId) ?? seat.groupId;
     if (!copy) continue;
     let read = copies.get(copy);
@@ -392,10 +395,11 @@ async function visitorRowsOf(
       copies.set(copy, read);
     }
     theirParts.set(seat.uid, await read);
+    shownSeats.add(seat.uid);
   }
   const promptIds = new Set([...theirParts.values()].flatMap((each) => each.flatMap((part) => part.prompts.map((prompt) => prompt.id))));
   const reflections = await readReflections(db, run.id, weekNumber, new Set(visitors.map((visitor) => visitor.uid)), promptIds);
-  return visitors.map((visitor) => {
+  return visitors.filter((visitor) => shownSeats.has(visitor.uid)).map((visitor) => {
     const own = theirParts.get(visitor.uid) ?? [];
     return {
       uid: visitor.uid,

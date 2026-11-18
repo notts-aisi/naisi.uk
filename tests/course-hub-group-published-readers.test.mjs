@@ -626,6 +626,22 @@ const READERS = {
       "time a seat told before that was kept moves, or, for the staff move, the group they join, whose own email tells them. " +
       "It shows nobody anything and emails nobody",
   },
+  "lib/courses/nextWeekEmail.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "\"Week N is open\" reads, by address, the places of the people its told audience already holds, only to pick the " +
+      "copy of the week each works in (a visitor's own group's): a place Publish has not told is skipped, and nobody is " +
+      "added to the email by it",
+  },
+  "lib/courses/facilitatorWeek/readers.ts": {
+    kind: "shown",
+    asks: 1,
+    why:
+      "the facilitator's detailed This week's work reads, by address, the places of the visitors the group's own model " +
+      "already lists, to judge each on their own copy: a place shown to nobody but an admin until Publish has told it " +
+      "(placementIsShownTo, about the viewer) gives no row",
+  },
   "lib/courses/visit/reading.ts": {
     kind: "shown",
     asks: 1,
