@@ -31,3 +31,19 @@ export function countsFromArchivedGroup(
 ): boolean {
   return !session.cancelled && register != null && register.held && register.pushedAt instanceof Date;
 }
+
+/**
+ * The same rule over a register's raw document, for a member-facing reader
+ * that never normalises a register (the run home: a register is the whole
+ * room's record). It reads two fields, `held` (absent means held, as the
+ * register's own parser reads it) and `pushedAt`, and nothing else.
+ */
+export function rawCountsFromArchivedGroup(
+  session: Pick<ResolvedSession, "cancelled">,
+  raw: Readonly<Record<string, unknown>> | null | undefined,
+): boolean {
+  if (session.cancelled || !raw || raw.held === false) return false;
+  const pushedAt = raw.pushedAt;
+  if (pushedAt instanceof Date) return !Number.isNaN(pushedAt.getTime());
+  return typeof (pushedAt as { toDate?: unknown } | null | undefined)?.toDate === "function";
+}

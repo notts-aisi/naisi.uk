@@ -48,7 +48,7 @@ const { readRunRecords, buildRunAttendance, listGroups, weeksOf, attendanceCsvTa
 const { suggestedBy, finishedForMember } = await lib("courses", "finishing", "record.ts");
 const { certificateNeedsFor } = await lib("courses", "finishing", "needs.ts");
 const { loadGroupAttendance } = await lib("courses", "groupAttendance", "load.ts");
-const { countsFromArchivedGroup } = await lib("courses", "archivedWeeks.ts");
+const { countsFromArchivedGroup, rawCountsFromArchivedGroup } = await lib("courses", "archivedWeeks.ts");
 const overview = await courseRoute("runs", "[runId]", "overview");
 const register = await courseRoute("groups", "[groupId]", "attendance");
 const push = await courseRoute("groups", "[groupId]", "attendance", "push");
@@ -172,6 +172,19 @@ describe("the rule: a finished register of a session held, and nothing else", ()
     assert.equal(countsFromArchivedGroup({ cancelled: true }, { held: true, pushedAt: at }), false);
     assert.equal(countsFromArchivedGroup({ cancelled: false }, null), false);
     assert.equal(countsFromArchivedGroup({ cancelled: false }, undefined), false);
+  });
+
+  test("the raw form, for the run home, reads two fields and says the same", () => {
+    const at = new Date("2026-10-27T20:00:00Z");
+    const stamp = { toDate: () => at };
+    assert.equal(rawCountsFromArchivedGroup({ cancelled: false }, { pushedAt: at }), true, "no held field: held, as the parser reads it");
+    assert.equal(rawCountsFromArchivedGroup({ cancelled: false }, { held: true, pushedAt: stamp }), true);
+    assert.equal(rawCountsFromArchivedGroup({ cancelled: false }, { held: true, pushedAt: null }), false);
+    assert.equal(rawCountsFromArchivedGroup({ cancelled: false }, { held: true }), false);
+    assert.equal(rawCountsFromArchivedGroup({ cancelled: false }, { held: false, pushedAt: at }), false);
+    assert.equal(rawCountsFromArchivedGroup({ cancelled: true }, { held: true, pushedAt: at }), false);
+    assert.equal(rawCountsFromArchivedGroup({ cancelled: false }, { held: true, pushedAt: new Date(Number.NaN) }), false);
+    assert.equal(rawCountsFromArchivedGroup({ cancelled: false }, undefined), false);
   });
 });
 

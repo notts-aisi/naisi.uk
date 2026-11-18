@@ -22,7 +22,7 @@ import { finishedForMember, readFinishRule } from "@/lib/courses/finishing/recor
 import { inLastWeek } from "@/lib/courses/programmeEnd";
 import { whatsNextFor, type WhatsNext } from "@/lib/courses/whatsNext";
 import { groupsOfWeeks, hasGroupsByWeek, inGroupForWeek, sessionsByWeekGroup, sessionsWithGroup } from "@/lib/courses/groupsByWeek";
-import { countsFromArchivedGroup } from "@/lib/courses/archivedWeeks";
+import { rawCountsFromArchivedGroup } from "@/lib/courses/archivedWeeks";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
 import { memberExplainerOn, type MemberExplainer } from "@/lib/courses/explainers/model";
@@ -54,7 +54,7 @@ import {
   sessionsFromJoinWeek,
   type OwnAttendanceSession,
 } from "@/lib/courses/ownAttendance";
-import { attendanceDocId, normalizeCourseAttendance } from "@/lib/firestore/courseAttendance";
+import { attendanceDocId } from "@/lib/firestore/courseAttendance";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
@@ -1378,7 +1378,7 @@ export async function GET(
   // old group's registers and the rest off their group's now, as one record,
   // from the week they joined and capped the same way. A week in a group
   // archived since is read off its register, which counts only once finished
-  // and held (`countsFromArchivedGroup`, below). With no such record, their own
+  // and held (`rawCountsFromArchivedGroup`, below). With no such record, their own
   // group's sessions, as always.
   const archivedOfRecord = (groupId: string): CourseGroupDoc | null => {
     const doc = groupSnap.docs.find((each) => each.id === groupId);
@@ -1756,7 +1756,7 @@ export async function GET(
       const entry = sessionByDocId.get(snap.id);
       if (!snap.exists || !entry) continue;
       // A week in a group archived since: its register only once finished, of a session held.
-      if (entry.archived && !countsFromArchivedGroup(entry.session, normalizeCourseAttendance(snap.id, snap.data() ?? {}))) continue;
+      if (entry.archived && !rawCountsFromArchivedGroup(entry.session, snap.data())) continue;
       ownRegisters.set(entry.key, snap.data() ?? {});
     }
   }
