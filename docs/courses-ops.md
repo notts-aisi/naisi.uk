@@ -1961,6 +1961,15 @@ never the person moved and never whoever pressed; somebody who facilitates
 both groups is told once, as the new group's. One function decides who, for
 the page's count and the send alike. Never the reason, never a meeting link.
 
+**How often it emails** is held to two stored counters
+(`src/lib/courses/staffMove/limits.ts`, the notice lane's `courseNudges`
+counters): four moves of one person in a day, and forty moves by one presser
+in a day. Both are read and claimed in the move's own transaction, so past
+either the move is refused in one sentence (429), nothing is written or
+claimed and nobody is emailed, and a move changed under the press (409)
+claims nothing; the page and the preview read the same counters and say the
+same sentence before the press. Every move counts, whoever it emails.
+
 **Who reads whose work is the group now, at once**: the new group's
 facilitators read every week with its feedback, the old group's read nothing
 more. **Which copy of a week** is per week: weeks before N on the old group's

@@ -2377,7 +2377,11 @@ async function sendRowsOf(state, surveyIds = [], messageIds = []) {
  *  - giving one session to somebody (the cover route's `GIVE_LIMITS`): one
  *    counter per group and giver an hour (`covergive__<groupId>__<uid>`), one
  *    per group a day (`covergiveday__<groupId>`), and one per person given a
- *    session a day (`covergiven__<uid>`), for every account of the term.
+ *    session a day (`covergiven__<uid>`), for every account of the term;
+ *  - moving somebody to another group for good, mid-term
+ *    (src/lib/courses/staffMove/limits.ts): one counter per person moved a
+ *    day (`staffmoved__<uid>`), for every account of the term, and one per
+ *    presser a day (`staffmover__<uid>`), for the admin and the lead.
  * The pressers are the admin, while the ledger holds the admin's uid, the
  * term's facilitator, who writes to their group and finishes its register,
  * and, for giving a session, the programme's lead a fixture makes.
@@ -2401,6 +2405,8 @@ function sendCounterIdsOf(state) {
     for (const uid of [state.adminUid, state.lead?.uid].filter(Boolean)) ids.push(`emailrate__covergive__${group.id}__${uid}`);
   }
   for (const account of accountsOf(state)) ids.push(`emailrate__covergiven__${account.uid}`);
+  for (const account of accountsOf(state)) ids.push(`emailrate__staffmoved__${account.uid}`);
+  for (const uid of [state.adminUid, state.lead?.uid].filter(Boolean)) ids.push(`emailrate__staffmover__${uid}`);
   return ids;
 }
 
