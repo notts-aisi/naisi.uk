@@ -263,6 +263,10 @@ const READERS = {
     kind: "week",
     why: "the page of one question lists the people whose place names the group now (who reads whose work is the group they are in now); a week somebody did with another group (copyGroupIdFor) on another week document carries none of their answer, states or deadline, and a week they did with it on the same document dates their written answer's own deadline on that group's calendar; the session they were due at comes from sessionSourceFor, which asks each week's group",
   },
+  "lib/courses/personPage/load.ts": {
+    kind: "week",
+    why: "a person's page reads their attendance off the one record (buildRunAttendance), each week's line dated by the session of the group they were in that week (groupForWeek); a facilitator's cut keeps only the weeks spent in that facilitator's group (inGroupForWeek), and is opened only by a facilitator of the group they are in now, who reads their work now",
+  },
   "lib/courses/coursework/readingLoad.ts": {
     kind: "week",
     why: "who may be read behind a group's door is the people whose place names it now (who reads whose work is the group they are in now); each week is read on the copy of the group their place belonged to that week (readsGroupIdFor, made of ownGroupForWeek), and a written answer's own deadline is dated on that group's calendar, live or archived, the group the session they were due at comes from (sessionSourceFor, which asks each week's group)",

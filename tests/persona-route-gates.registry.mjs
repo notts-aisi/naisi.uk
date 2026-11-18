@@ -4857,6 +4857,15 @@ export const PAGES = {
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
       "and with an address that names nothing is drawn the same not-here state.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The admissions tree's gate, then the page's own (loadProgrammeRun, decided from the form before the run is read): " +
+      "one person's page on the programme is the programme's lead's and an admin's, so a reviewer on the form is told it is theirs, " +
+      "a programme the caller has no role on renders 'there is no programme here', and somebody who is not a row of the People tab " +
+      "for the caller renders one calm not-here page, each with a 200. Nothing here writes. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads).",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
@@ -5576,6 +5585,14 @@ export const PAGES = {
       "missing, and the page (one question across the group, from the group's side) sends anybody who is " +
       "not the group's live facilitator, the programme's lead or an admin to the run's home; it lists only " +
       "the people the reader may read in the group (writtenReviewRole), and writes nothing.",
+  },
+  "/(app)/learn/[runId]/group/[groupId]/people/[uid]": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page (one person as their facilitator sees them) sends anybody who is not a live " +
+      "facilitator of the group, and anybody named who is not in the group now or whose work is not theirs " +
+      "to read (writtenReviewRole), to the run's home. Nothing here writes.",
   },
   "/(app)/learn/[runId]/group/[groupId]/coursework/[uid]": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
@@ -8048,6 +8065,9 @@ export const REAL_PAGES = {
   ),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": programmePage("People in groups, the run's allocation board."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": programmePage("Publish's own page."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]": programmePage(
+    "one person's page on the programme (the set's participant), or its calm not-here for somebody who is not a row of the People tab.",
+  ),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": programmePage(
     "moving one person to another group for good (the set's participant), or its calm refusal for somebody with no told place in a group of the run.",
   ),
@@ -8231,6 +8251,11 @@ export const REAL_PAGES = {
   }),
   "/(app)/learn/[runId]/group/[groupId]/written": groupForward("the group's written answers"),
   "/(app)/learn/[runId]/group/[groupId]/question": groupLearnPage("one question across the group, or its calm page for a run with nothing to read"),
+  "/(app)/learn/[runId]/group/[groupId]/people/[uid]": learnPage({
+    admin: c("run", "An admin is not the group's facilitator: the facilitator's cut is theirs alone, and the team's page is under the programme. The run's home."),
+    facilitator: c("run", "A live facilitator of this group, but the set's person holds a place in the other group, who is not theirs: the run's home."),
+    participant: c("run", "Admitted to the run, but facilitates no group: the page's own gate sends them to the run's home."),
+  }),
   "/(app)/learn/[runId]/group/[groupId]/coursework/[uid]": learnPage({
     admin: c("run", "An admin passes the page's gate, but the set's person holds a place in the run's other group, not this one: nobody of this group to read, so the run's home."),
     facilitator: c("run", "A live facilitator of this group, but the set's person holds a place in the other group, whose work is not theirs to read: the run's home."),

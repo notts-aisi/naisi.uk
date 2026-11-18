@@ -1506,6 +1506,16 @@ const NOT_COVERED = {
     coverWhen:
       "When an end-to-end spec downloads a file anywhere on the site, so the download path is driven in a browser once for all of them.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]": {
+    reason:
+      "Course hub: one person's page on a programme, for the team. tests/course-person-page.test.mjs draws it as every reader and reads what each is handed; the browser spec scripts/e2e-fixtures/course-hub-person-page.mjs drives it as an admin and is written but has not run yet.",
+    coverWhen: "When the course-hub-person-page spec has passed once with a teardown of zero rows and is marked verified.",
+  },
+  "/(app)/learn/[runId]/group/[groupId]/people/[uid]": {
+    reason:
+      "Course hub: one person as their group's facilitator sees them. tests/course-person-page.test.mjs draws it as the group's facilitator, another group's, the lead, an admin and the person, and for somebody moved in from another group.",
+    coverWhen: "When an end-to-end spec signs in as a group's facilitator after the group's first week, so the cut can be opened from the group's page.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/move": {
     reason:
       "Course hub: the page for moving one person to another group for good, mid-term. tests/course-staff-move.test.mjs executes what it draws through its route's preview; the browser spec scripts/e2e-fixtures/course-hub-staff-move.mjs drives it end to end and is written but has not run yet.",
