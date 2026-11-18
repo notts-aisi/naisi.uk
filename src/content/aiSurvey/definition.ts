@@ -6,11 +6,18 @@
  * module, and no question is written into a component. Curly brackets mark a
  * value from the `values` block (src/lib/aiSurvey/definition.ts fills them).
  *
- * LOCKED ONCE THE SURVEY IS OPEN. After that the questions do not change. A
- * fix to a typo raises `version`, which is kept on each answer set, so a
- * result can always be read against the wording its answers were given to.
- * tests/ai-survey-definition.test.mjs holds the codes and the export's
- * columns in place.
+ * THE QUESTIONS ARE LOCKED ONCE THE SURVEY IS OPEN: every question, answer,
+ * code and scale, and their order. A change to one of those raises `version`,
+ * which is kept on each answer set, so a result can always be read against
+ * the wording its answers were given to. tests/ai-survey.test.mjs holds the
+ * codes and the export's columns in place.
+ *
+ * THE WORDS AROUND THE QUESTIONS (the start screen, the end screen, the
+ * notice) can change while the survey is open WITHOUT raising `version`, and
+ * have: docs/ai-survey-changes.md says what changed and keeps the notice as
+ * it read before. `version` is written onto every answer set, so a new number
+ * there would mark each set as given before or after the change, and an
+ * answer set carries nothing that says when it was given.
  */
 import type { AiSurveyDefinition } from "@/lib/aiSurvey/types";
 
@@ -220,7 +227,7 @@ export const AI_SURVEY: AiSurveyDefinition = {
   },
   "start": {
     "eyebrow": "Student survey",
-    "intro": "Students here are drawing up proposals on how AI is used at Nottingham: in teaching and marking, with your work and your data, and in the Students' Union itself. Before anything goes to a student vote, we want to know what you think, whether you use AI every day or never touch it.",
+    "intro": "How should AI be used at Nottingham: in teaching and marking, with your work and your data, and in the Students' Union itself? We want to know what students think, whether you use AI every day or never touch it.",
     "time": "It takes about 15 minutes. You can skip any question.",
     "organiser": {
       "ifUnionCoBadged": "Run by the Students' Union campaigns team with the Nottingham AI Safety Initiative, a student society, on the society's website.",
@@ -1597,7 +1604,7 @@ export const AI_SURVEY: AiSurveyDefinition = {
     "heading": "Thank you",
     "body": "Your answers are in. Results will be published as totals on {resultsPage} by {resultsBy}.",
     "passItOn": "Every Nottingham student can answer once. If you know someone who'd want a say, send them {shortLink}.",
-    "petition": "We'll launch a petition at the Students' Union to put proposals like these to a vote. To hear when it opens, sign up to our newsletter. It's separate from this survey and never linked to your answers.",
+    "newsletterLine": "To hear when the results are out, sign up to our newsletter. It's separate from this survey and never linked to your answers.",
     "newsletterButton": "Sign up to the newsletter"
   },
   "privacyNotice": {
@@ -1612,7 +1619,7 @@ export const AI_SURVEY: AiSurveyDefinition = {
       },
       {
         "heading": "What it is for",
-        "body": "To find out what students think about how AI is used at Nottingham, so that students can decide what to put to a student vote and what to ask the University and the Union for."
+        "body": "To find out what students think about how AI is used at Nottingham, and to publish the results as totals for anyone to read and use, including students, the Students' Union and the University."
       },
       {
         "heading": "What we collect, why, and for how long",
@@ -1662,7 +1669,7 @@ export const AI_SURVEY: AiSurveyDefinition = {
         "heading": "Who sees what",
         "list": [
           "Individual answers, which carry no names: {whoOpensAnswers}.",
-          "Totals, and comments with identifying details removed: the Union, the students drafting the proposals, and anyone who reads the published results.",
+          "Totals, and quoted comments with identifying details removed: anyone who reads the published results.",
           "The University: the published results only.",
           "A comment is quoted in public only if you tick the box, and never with a name."
         ]

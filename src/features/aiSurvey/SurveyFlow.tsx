@@ -723,7 +723,7 @@ export default function SurveyFlow({ survey, closed }: { survey: PublicSurvey; c
           <p className={`${styles.body} ${styles.bodyStrong}`}>{survey.end.body}</p>
         </div>
         <section className={`${styles.card} ${styles.cardRoomy}`}>
-          <p className={`${styles.body} ${styles.bodyStrong}`}>{survey.end.petition}</p>
+          <p className={`${styles.body} ${styles.bodyStrong}`}>{survey.end.newsletterLine}</p>
           {/* A plain link in a new tab. Never a form here, and nothing in the
               link, or sent with it, says where the person came from. */}
           <a href={survey.end.newsletterHref} target="_blank" rel="noopener noreferrer" className={styles.linkButton}>
