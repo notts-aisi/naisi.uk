@@ -69,7 +69,7 @@ export function publicSurvey(def: AiSurveyDefinition = AI_SURVEY): PublicSurvey 
       heading: def.end.heading,
       body: fillValues(def.end.body, {}, def),
       passItOn: fillValues(def.end.passItOn, {}, def),
-      petition: def.end.petition,
+      newsletterLine: def.end.newsletterLine,
       newsletterButton: def.end.newsletterButton,
       // A plain address with nothing after it: no query, no source, nothing
       // that says the person came from the survey.

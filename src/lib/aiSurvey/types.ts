@@ -132,7 +132,11 @@ export type AiSurveyNoticeSection = {
 
 export type AiSurveyDefinition = {
   id: string;
-  /** Raised by any change to the wording once the survey is open. Kept on each answer set. */
+  /**
+   * Raised by any change to a QUESTION once the survey is open, and kept on
+   * each answer set. Not raised for the words around the questions: see the
+   * top of src/content/aiSurvey/definition.ts.
+   */
   version: number;
   language: string;
   title: string;
@@ -225,7 +229,7 @@ export type AiSurveyDefinition = {
   codeEmail: { fromName: string; replyTo: string; subject: string; textBody: string[] };
   groups: Record<string, { shufflePages: boolean; introOnFirstShown: string; introOnLater: string }>;
   pages: AiSurveyPage[];
-  end: { heading: string; body: string; passItOn: string; petition: string; newsletterButton: string };
+  end: { heading: string; body: string; passItOn: string; newsletterLine: string; newsletterButton: string };
   privacyNotice: { title: string; sections: AiSurveyNoticeSection[]; frameLabel: string; backLink: string };
   export: { skipped: string; notReached: string; multi: string };
   admin: {

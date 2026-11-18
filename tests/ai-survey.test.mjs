@@ -237,6 +237,39 @@ describe("the definition", () => {
     }
   });
 
+  test("the words around the questions say what the survey does, and promise nothing that is done with its results", () => {
+    // The survey is the society's own, and its results are published as totals
+    // for anybody to use. Its QUESTIONS ask about proposals and a student
+    // vote, and those are locked. The words around them (the start screen,
+    // the email step, the end screen, the code email, the notice) promise no
+    // petition and no vote, and say nothing of who drafts anything.
+    // docs/ai-survey-changes.md keeps what they said before.
+    const survey = publicSurvey();
+    const around = stringsIn({
+      title: survey.title,
+      ui: survey.ui,
+      start: survey.start,
+      support: survey.support,
+      emailCheck: survey.emailCheck,
+      end: survey.end,
+      codeEmail: AI_SURVEY.codeEmail,
+    });
+    // The notice, as its page shows it.
+    const values = AI_SURVEY.values;
+    around.push(AI_SURVEY.privacyNotice.title);
+    for (const section of AI_SURVEY.privacyNotice.sections) {
+      const body = typeof section.body === "string" ? section.body : section.body ? (values.unionCoBadged ? section.body.ifUnionCoBadged : section.body.otherwise) : "";
+      const sentences = (section.sentences ?? []).filter((s) => !s.onlyIf || values[s.onlyIf] === true).map((s) => s.text);
+      around.push(section.heading, body, ...sentences, ...stringsIn(section.table ?? []), ...(section.list ?? []));
+    }
+    assert.ok(around.length > 100, "the words around the questions were not found");
+    for (const text of around) {
+      assert.doesNotMatch(text, /petition|campaign|\bvot(e|es|ed|ing|er|ers)\b|proposal|drafting/i, `outside the questions, the survey says: ${text}`);
+    }
+    // And the page is handed neither word at all, as text or as the name of a field.
+    assert.doesNotMatch(JSON.stringify(survey), /petition|campaign/i);
+  });
+
   test("the notice names a service only while the survey uses it", () => {
     const services = AI_SURVEY.privacyNotice.sections.find((s) => s.heading === "Services we use");
     const gated = Object.fromEntries(services.sentences.filter((s) => s.onlyIf).map((s) => [s.onlyIf, s.text]));
