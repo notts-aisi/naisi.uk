@@ -1797,9 +1797,22 @@ the group they are in now, as they did.
 for a week: the record's last entry from that week or earlier, the first
 entry's group for a week before it, and the place's group when there is no
 record. The helpers in `src/lib/courses/groupsByWeek.ts` are made of it. It
-answers the group the record names whether or not that group still meets; a
-week in a group that no longer meets has no session, no register and no mark
-for anybody reading it.
+answers the group the record names whether or not that group still meets. A
+week in a group that no longer meets (it is archived) has no session to come,
+no reminder, no calendar entry and nothing to be excused from, and work in it
+reads as undated. But where that group's register for the week was finished
+and does not say the session didn't happen (and the session was not called
+off), the session happened: for the people whose record gives them that week
+it counts as held and their mark on it is their mark, dated as that group's
+session was, on the rollup on their place, their own attendance on the run
+home, their row of the Attendance tab and its download, a group page's grid
+where they are a row, who finished and what a certificate counts
+(`countsFromArchivedGroup`, `src/lib/courses/archivedWeeks.ts`). An admin's
+correction of that register still reaches their figures. A register of an
+archived group never finished, or saying the session didn't happen, counts
+for nothing, and an archived group is still no block of the Attendance tab,
+with no figures of its own. Nothing reads an archived group's registers for
+somebody whose record does not name it.
 
 **Kept true.** The normaliser reads a record whole or not at all: every entry a
 group id and a whole week, weeks rising, and the last group the place's group.

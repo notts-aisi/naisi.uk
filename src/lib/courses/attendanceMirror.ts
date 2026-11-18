@@ -59,7 +59,8 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
  * transaction, so a push of their new group never counts that group's
  * earlier sessions (before they were in it) as absences, and a correction of
  * their old group's register still reaches their figures. A week in a group
- * that no longer meets counts nothing. The override applies only to this
+ * archived since counts as its register says: finished and held, the mark
+ * on it; never finished, or not held, nothing. The override applies only to this
  * group's registers, which are the ones the caller is changing. A member
  * with no such record is rebuilt from this group's registers, as always.
  */
@@ -185,8 +186,10 @@ export async function readMirrorPlan(
   for (const snap of otherGroupSnaps) {
     if (!snap.exists) continue;
     const group = normalizeCourseGroup(snap.id, snap.data() ?? {});
-    // A group that no longer meets holds no week of anybody's figures.
-    if (group.archived || group.runId !== runId) continue;
+    // A group archived since keeps the weeks spent in it: its registers are
+    // read like any group's, and the rollup's own rules count only a finished
+    // register of a session held (`countsFromArchivedGroup` says the same).
+    if (group.runId !== runId) continue;
     otherSessions.set(group.id, resolveSessions(args.run, group));
   }
   const sessionsOf = (id: string): readonly ResolvedSession[] | null =>
