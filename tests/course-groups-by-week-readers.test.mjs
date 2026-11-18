@@ -402,8 +402,8 @@ const READERS = {
     why: "a request to be excused about a week belongs to that week's session's group, so one about a visit's week is decided on the host's register (and the visit stands), and one asked before a move about a week that stays with the old group on that group's",
   },
   "lib/courses/excused/own.ts": {
-    kinds: ["week"],
-    why: "somebody's own excused weeks list each session, and its outcome, off the register of that week's session's group, the host's for a visit's week",
+    kinds: ["week", "own"],
+    why: "somebody's own excused weeks list each session, and its outcome, off the register of that week's session's group, the host's for a visit's week; a session of a week whose group is not the one they are in now is asked about only when it is a visit's (visitInWeek, never a group they belong to that week), of the host",
   },
   "lib/courses/joiningOnline/seat.ts": {
     kinds: ["week"],

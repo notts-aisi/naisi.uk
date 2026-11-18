@@ -471,7 +471,8 @@ describe("3. the person's programme page: their own card, sent and drawn for the
     assert.match(read_("src/features/courses/excused/ExcuseSheet.tsx"), /certificateNeeds=\{certificateNeeds\}/);
     assert.match(read_("src/features/courses/excused/TicketExcuse.tsx"), /certificateNeeds=\{certificateNeeds\}/);
     assert.match(read_("src/features/courses/excused/LastSessionCard.tsx"), /certificateNeeds=\{certificateNeeds\}/);
-    assert.equal((read_("src/features/courses/RunHome.tsx").match(/certificateNeeds=\{data\.certificateNeeds \?\? null\}/g) ?? []).length, 4);
+    // Five since a one-week visit's card asks to be excused from the host's session through the same sheet.
+    assert.equal((read_("src/features/courses/RunHome.tsx").match(/certificateNeeds=\{data\.certificateNeeds \?\? null\}/g) ?? []).length, 5);
   });
 
   test("before asking, the form asks them to confirm, in order: three ticks in a room with online offered, two and a sentence where it isn't", () => {

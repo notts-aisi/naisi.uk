@@ -716,6 +716,9 @@ export default function RunHome({
   // that is their NEXT session is drawn where the next session's card goes,
   // above the ticket; a visit further ahead is listed below the ticket, with
   // the same words and its Cancel, never above a session that comes first.
+  // The server's view of the host's session a visit is for, when it says so (`visit` on the session).
+  const visitSessionOf = (visit: { sessionKey: string; hostGroupId: string }) =>
+    excused?.sessions.find((session) => session.sessionKey === visit.sessionKey && session.visit?.groupId === visit.hostGroupId) ?? null;
   const visitCardOf = (visit: NonNullable<typeof data.visits>[number]) => {
     const onThis = joiningOnline && joiningOnline.groupId === visit.hostGroupId && joiningOnline.sessionKey === visit.sessionKey ? joiningOnline : null;
     return (
@@ -725,7 +728,24 @@ export default function RunHome({
           visit={visit}
           locked={viewAs}
           answers={
-            onThis ? <TicketAnswers key={onThis.sessionKey} cantMakeIt={null} joiningOnline={onThis} hasLink={visit.meetingUrl !== null} locked={viewAs} /> : null
+            // "Can't make it", as today, asks to be excused from the HOST's
+            // session (the server's view names that session and its group);
+            // "I'm joining online" acts on it too.
+            entry === "ask" && excused && visitSessionOf(visit) ? (
+              <TicketExcuse
+                key={`visit-${visit.sessionKey}`}
+                view={excused}
+                session={visitSessionOf(visit) as NonNullable<ReturnType<typeof visitSessionOf>>}
+                groupName={visit.hostName}
+                facilitatorFirstNames={visit.hostFacilitatorFirstNames}
+                joiningOnline={onThis}
+                hasLink={visit.meetingUrl !== null}
+                locked={viewAs}
+                certificateNeeds={data.certificateNeeds ?? null}
+              />
+            ) : onThis ? (
+              <TicketAnswers key={onThis.sessionKey} cantMakeIt={null} joiningOnline={onThis} hasLink={visit.meetingUrl !== null} locked={viewAs} />
+            ) : null
           }
         />
       </div>

@@ -2363,8 +2363,14 @@ ticks or notes) whose name opens the reading view of that week alone. Their own 
 list them as "At Group F this week", not expected; their work stays in its
 This week's work. The person's programme page shows the visiting card for the
 session while it has not ended, with "I’m joining online" acting on the host's
-session and the host's link for that session, and "Cancel this visit" until the
-earlier session starts.
+session and the host's link for that session, "Can't make it" asking to be
+excused from the host's session (the request is filed against the host, so the
+host's facilitators' side and the admins' Requests page find it; the form's
+week line reads "Week 2 · Wed 11 Nov, at Group I"; it is asked alone, never
+beside a week of their own group's; an approval is written on the host's
+register and the visit stands), and "Cancel this visit" until the earlier
+session starts. The card is drawn where the next session's card goes when the
+visit is their next session; a visit further ahead is listed below the ticket.
 
 **A move for good with a visit ahead.** The move's week rule reads the sessions
 of the groups the place belongs to, never a visit's host. The move page's

@@ -17,7 +17,7 @@
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { A, AGI, B, C, D, NOW, ROUND, RUN, makeLeavingWorld } from "./lib/leavingWorld.mjs";
+import { A, AGI, B, C, D, NOW, ROUND, RUN, makeLeavingWorld, registerPath } from "./lib/leavingWorld.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
@@ -35,6 +35,8 @@ const enrolments = await w.loadTs(join("lib", "firestore", "courseEnrolments.ts"
 const { loadGroupPage } = await w.loadTs(join("lib", "courses", "groupPage", "load.ts"));
 const { normalizeCourseRun } = await w.loadTs(join("lib", "firestore", "courses.ts"));
 const { normalizeCourseGroup } = await w.loadTs(join("lib", "firestore", "courseGroups.ts"));
+const { excusedFor } = await w.loadTs(join("lib", "courses", "excused", "own.ts"));
+const { weeksToChoose } = await w.loadTs(join("lib", "courses", "excused", "card.ts"));
 
 const read = (path) => world.db.read(path);
 const seatPath = (uid) => `courseEnrolments/${RUN.agi}__${uid}`;
@@ -351,5 +353,50 @@ describe("9. a durable limit on the emails of arranging and calling off", () => 
   test("with no counter: no limit said, as before", async () => {
     const shown = await visit("zach", "chloe", { weekNumber: 4, hostGroupId: A, preview: true });
     assert.equal(shown.body.preview.limit, null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. Asking to be excused from the visit's week asks about the host's session
+// ---------------------------------------------------------------------------
+
+describe("10. asking to be excused from a visit's week asks the host, and an approval leaves the visit standing", () => {
+  const view = async () => {
+    const run = normalizeCourseRun(RUN.agi, read(`courseRuns/${RUN.agi}`));
+    const groups = [A, B, C, D].map((id) => normalizeCourseGroup(id, read(`courseGroups/${id}`)));
+    return excusedFor(world.courseDb, { user: w.sessionOf("chloe"), run, enrolment: seat("chloe"), groups, now: new Date() });
+  };
+
+  test("the view offers the host's week 4 session, asked of Group A, with the form's line for a visit week", async () => {
+    await arrange("chloe", 4, A);
+    const own = await view();
+    const week4 = own.sessions.find((session) => session.weekNumber === 4);
+    assert.deepEqual(week4.ask, { open: true, when: "before" });
+    assert.deepEqual(week4.visit, { groupId: A, line: "Week 4 · Thu 19 Nov, at Group A" });
+    // Asked from the visit's card, week 4 alone: never beside a week of Group B's, which is asked of Group B.
+    assert.deepEqual(weeksToChoose(own, week4.sessionKey).map((each) => each.weekNumber), [4]);
+    const week5 = own.sessions.find((session) => session.weekNumber === 5);
+    assert.equal(weeksToChoose(own, week5.sessionKey).some((each) => each.weekNumber === 4), false);
+  });
+
+  test("with no visit: week 4 is Group B's, asked of Group B, with no line of its own", async () => {
+    const week4 = (await view()).sessions.find((session) => session.weekNumber === 4);
+    assert.equal(week4.visit, undefined);
+  });
+
+  test("the request is filed against Group A; its approval is written on Group A's register, and the visit stands", async () => {
+    await arrange("chloe", 4, A);
+    const asked = await call("chloe", askRoute.POST, { groupId: A }, {
+      body: { sessionKeys: ["w04"], reason: "A family wedding that weekend.", inPerson: true, ownOnline: true, otherOnline: true },
+      course: true,
+    });
+    assert.equal(asked.status, 200, JSON.stringify(asked.body));
+    const requestPath = world.db.paths().find((path) => path.startsWith("courseRequests/"));
+    assert.equal(read(requestPath).groupId, A);
+    const approved = await call("zach", approveRoute.POST, { requestId: requestPath.split("/")[1] }, { body: { sessionKey: "w04" }, course: true });
+    assert.equal(approved.status, 200, JSON.stringify(approved.body));
+    assert.equal(read(registerPath(A, 4)).records.chloe, "excused");
+    assert.equal(read(registerPath(B, 4))?.records?.chloe, undefined);
+    assert.equal(seat("chloe").visits.length, 1);
   });
 });

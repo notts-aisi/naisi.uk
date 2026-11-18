@@ -129,6 +129,7 @@ export async function ownVisitsOf(
               done: cancelledWords({ hostName: host.name, homeName: home.name, own: ownWhen }),
             }
           : null,
+      hostFacilitatorFirstNames: firstOf(host.facilitatorUids),
       meetingUrl: link && seesSessionLink({ viewer: actor, isAdmin: input.isAdmin, seat: place, group: host, sessionKey: session.sessionKey }) ? link : null,
     };
   });

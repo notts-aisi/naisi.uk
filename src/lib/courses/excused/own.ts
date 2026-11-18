@@ -11,7 +11,8 @@ import { currentTimeAnswer, timeQuestionSinceOf } from "@/lib/courses/timeAnswer
 import { workClosesAt } from "@/lib/courses/weekWork/closes";
 import type { SessionUser } from "@/lib/firebase/session";
 import { attendanceDocId, cameBy } from "@/lib/firestore/courseAttendance";
-import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { visitInWeek, type CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
+import { excuseVisitWeekWords } from "@/lib/courses/visit/words";
 import type { ExcusedRequestDoc } from "@/lib/firestore/courseExcusedRequests";
 import {
   campusForWeek,
@@ -95,6 +96,13 @@ export type OwnExcusedSession = {
   ask: OwnAsk;
   /** What the flow offers first: joining online where that is a real choice (`onlineOfferedFor`). */
   first: { online: boolean };
+  /**
+   * A week of a one-week visit: the HOST group, whose session this is, which a
+   * request about it is asked of (and so found by the host's facilitators'
+   * side and the admins' Requests page), and the excuse form's line for it
+   * ("Week 2 · Wed 11 Nov, at Group I"). Absent for every other session.
+   */
+  visit?: { groupId: string; line: string };
 };
 
 export type OwnExcusedRequest = {
@@ -232,6 +240,8 @@ export async function excusedFor(
     // are read on that group's sessions alone.
     const ownGroupsSession = paired[at].groupId === group.id;
     const sessionGroup = ownGroupsSession ? group : (live(paired[at].groupId) ?? group);
+    // A week of a one-week visit: the host's session, asked about of the host.
+    const visiting = !ownGroupsSession && visitInWeek(seat, session.weekNumber)?.groupId === paired[at].groupId && sessionGroup.id === paired[at].groupId;
     let excuse: OwnExcuse | null = null;
     if (standing?.week.status === "waiting") {
       excuse = { kind: "waiting", requestId: standing.request.id, askedAt: iso(standing.request.askedAt), reason: standing.request.reason };
@@ -260,7 +270,7 @@ export async function excusedFor(
     });
     const ask: OwnAsk = !asks
       ? { open: false, why: "facilitates" }
-      : !ownGroupsSession
+      : !ownGroupsSession && !visiting
         ? { open: false, why: "another-group" }
         : closed && state.open
           ? { open: false, why: "closed" }
@@ -281,6 +291,7 @@ export async function excusedFor(
       first: {
         online: ask.open && onlineOfferedFor({ when: ask.when, heldOnline: sessionHeldOnline(sessionGroup, session) }),
       },
+      ...(visiting ? { visit: { groupId: sessionGroup.id, line: excuseVisitWeekWords(session.weekNumber, session.dateKey, sessionGroup.name) } } : {}),
     };
   });
 

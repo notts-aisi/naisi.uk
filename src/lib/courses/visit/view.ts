@@ -104,6 +104,8 @@ export type OverviewVisit = {
   cancel: { until: string; question: string; done: string } | null;
   /** The host's link for that session, for somebody joining online; null with none, or none to show. */
   meetingUrl: string | null;
+  /** The host's facilitators by first name: the people today's "Can't make it" sentences name for that session. */
+  hostFacilitatorFirstNames: string[];
 };
 
 /** One week of a one-week visit: the host's facilitators who may read that week of the person's work, by first name. */
