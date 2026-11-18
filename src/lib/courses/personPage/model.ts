@@ -6,7 +6,6 @@ import {
   ANSWER_STARTED,
   DID_NOT_HAPPEN,
   IN_THE_ROOM,
-  NONE_ASKED,
   NOT_MARKED,
   NOT_RATED,
   NOT_SENT,
@@ -162,11 +161,6 @@ export function ratingColumnOf(weeks: readonly number[], ratings: readonly Ratin
       .map((rating) => ratingWords(rating.rating, rating.byName));
     return { weekNumber, lines: lines.length > 0 ? lines : [NOT_RATED] };
   });
-}
-
-/** Whether a week asks for a reflection, used to say "None this week" in a narrow cell. */
-export function noneAsked(value: string | null): string {
-  return value ?? NONE_ASKED;
 }
 
 // ---------------------------------------------------------------------------

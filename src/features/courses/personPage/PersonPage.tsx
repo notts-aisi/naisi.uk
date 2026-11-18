@@ -59,7 +59,7 @@ function Card({ title, who, hint, children, id }: { title: string; who?: string;
 }
 
 function Lines({ lines }: { lines: readonly string[] }) {
-  if (lines.length === 0) return <>{"–".replace("–", "")}</>;
+  if (lines.length === 0) return null;
   return (
     <span className={styles.stack}>
       {lines.map((line, at) => (
